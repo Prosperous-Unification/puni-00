@@ -1,67 +1,68 @@
-# OpenSpec × Superpowers 整合狀況
+# OpenSpec × Superpowers Integration Overview
 
-> 本文件說明 `sdd-plus-superpowers` schema 如何把 OpenSpec 的 artifact 治理流程與
-> Superpowers 的執行技能整合為單一工作流。適合作為新成員 onboarding、change review
-> 時的對照表，以及日後修改 schema 前必讀。
+> This document describes how the `sdd-plus-superpowers` schema fuses OpenSpec's
+> artifact governance flow with Superpowers' execution skills into a single
+> workflow. Use it for onboarding new members, as a reference during change
+> review, and as required reading before modifying the schema.
 >
-> 對應 schema 版本：`sdd-plus-superpowers` v1
+> Corresponding schema version: `sdd-plus-superpowers` v1
 
 ---
 
-## 一、整合的本質：什麼掛在哪裡
+## 1. The Nature of the Integration: What Hangs Where
 
-OpenSpec 負責 **「做什麼」（WHAT）**—— proposal / specs / design / tasks 這些 markdown artifact 的治理、驗證、歸檔。
-Superpowers 負責 **「怎麼做」（HOW）**—— brainstorming 對話、TDD 紀律、subagent 派發、code review 等**執行技能**。
+OpenSpec owns the **WHAT** — governance, validation, and archival of the markdown artifacts `proposal` / `specs` / `design` / `tasks`.
+Superpowers owns the **HOW** — the **execution skills**: brainstorming conversations, TDD discipline, subagent dispatch, code review, and so on.
 
-兩者透過自定義 schema [schema.yaml](./schema.yaml) 整合。整合手法不是程式碼層級，而是在 OpenSpec 的 artifact instruction 裡寫「在這一步 use the Skill tool to invoke `superpowers:xxx`」。**不修改任一 superpowers skill 檔案**，也不修改 OpenSpec CLI —— 純粹透過 instruction 層串接。
+The two are joined through the custom schema [schema.yaml](./schema.yaml). The integration is not at the code level; instead, each OpenSpec artifact instruction says "at this step, use the Skill tool to invoke `superpowers:xxx`". **No superpowers skill file is modified**, nor is the OpenSpec CLI — the wiring is purely at the instruction layer.
 
 ---
 
-## 二、7 個 Superpowers 觸點一覽
+## 2. The 7 Superpowers Touchpoints at a Glance
 
-| # | Superpowers skill | 掛在哪 | 觸發方式 |
+| # | Superpowers skill | Where it hangs | Trigger mode |
 |---|---|---|---|
-| 1 | `superpowers:brainstorming` | `brainstorm` artifact instruction | 直接 |
-| 2 | `superpowers:writing-plans` | `plan` artifact instruction | 直接 |
-| 3 | `superpowers:using-git-worktrees` | apply step 1 | 直接 |
-| 4 | `superpowers:subagent-driven-development` | apply step 2a | 直接 |
-| 5 | `superpowers:test-driven-development` | （#4 內部自動觸發） | **傳遞**（SKILL.md L205 / L274） |
-| 6 | `superpowers:requesting-code-review` | （#4 內部自動觸發） | **傳遞**（SKILL.md L270） |
-| 7 | `superpowers:finishing-a-development-branch` | apply step 4 | 直接 |
+| 1 | `superpowers:brainstorming` | `brainstorm` artifact instruction | Direct |
+| 2 | `superpowers:writing-plans` | `plan` artifact instruction | Direct |
+| 3 | `superpowers:using-git-worktrees` | apply step 1 | Direct |
+| 4 | `superpowers:subagent-driven-development` | apply step 2a | Direct |
+| 5 | `superpowers:test-driven-development` | (auto-triggered inside #4) | **Transitive** (SKILL.md L205 / L274) |
+| 6 | `superpowers:requesting-code-review` | (auto-triggered inside #4) | **Transitive** (SKILL.md L270) |
+| 7 | `superpowers:finishing-a-development-branch` | apply step 4 | Direct |
 
-另外還有一個 **fallback**：
+There is also a **fallback**:
 
-- `superpowers:executing-plans`（apply step 2b）—— 只在「當前平台無 subagent 支援」時才用。Claude Code 上永遠用 2a。依據 `superpowers:executing-plans` SKILL.md L14 原文：「If subagents are available, use `superpowers:subagent-driven-development` instead of this skill」。
+- `superpowers:executing-plans` (apply step 2b) — used only "when the current platform lacks subagent support". On Claude Code, always use 2a. Per the original text of `superpowers:executing-plans` SKILL.md L14: "If subagents are available, use `superpowers:subagent-driven-development` instead of this skill".
 
 ---
 
-## 三、Artifact DAG（含 superpowers 注入點）
+## 3. Artifact DAG (with superpowers injection points)
 
 ```
 ┌──────────────┐
 │  brainstorm  │ ◄── superpowers:brainstorming
-│  (root)      │     （2-3 方案 + Alternatives Considered）
+│  (root)      │     (2-3 approaches + Alternatives Considered)
 └──────┬───────┘
        │
        ├──► ┌──────────┐
-       │    │ proposal │    Why (50-1000 字元) / What Changes / Capabilities
+       │    │ proposal │    Why (50-1000 chars) / What Changes / Capabilities
        │    └────┬─────┘
        │         │
        │         ▼
        │    ┌──────────────────┐
        │    │ specs/**/*.md    │    ADDED / MODIFIED / REMOVED / RENAMED
-       │    │ (delta specs)    │    每 requirement 含 SHALL/MUST + scenario
+       │    │ (delta specs)    │    Each requirement: SHALL/MUST + scenario
        │    └────┬─────────────┘
        │         │
        │         ▼
        │    ┌──────────┐
-       │    │  tasks   │    粗粒度 checkbox（apply 的追蹤載體）
+       │    │  tasks   │    Coarse-grained checkboxes (tracked during apply)
        │    └────┬─────┘
        │         │
        │         ▼
        │    ┌──────────┐
        │    │  plan    │ ◄── superpowers:writing-plans
-       │    └────┬─────┘     （2-5 分鐘 micro-step）
+       │    └────┬─────┘     (2-5 minute micro-steps)
        │         │
        │         │ ─────────┐
        │         │          │
@@ -80,234 +81,234 @@ Superpowers 負責 **「怎麼做」（HOW）**—— brainstorming 對話、TDD
     └──────────┘
 ```
 
-**注意幾件事**：
+**A few things to note:**
 
-- `design` 是**可選的 leaf**。brainstorm 仍會嘗試預填 design.md，但 tasks 不再硬依賴（`tasks.requires: [specs]`）。依據 OpenSpec conventions：`design.md` 只在需要解釋非 trivial 技術決策時才寫。
-- `verify` 的 `requires: [plan]` 是為了讓 schema graph 完整；它的 instruction 明寫「**MUST run on a completed implementation, NOT during planning**」。這是 OpenSpec DAG 與實際時序的刻意錯位，為的是讓 `openspec status` 能顯示 verify 進度。
-- `apply` 不產生 artifact，它是一個 **phase**，改動的是 source code + tasks.md checkbox。
+- `design` is an **optional leaf**. Brainstorm still tries to pre-fill `design.md`, but `tasks` no longer hard-depends on it (`tasks.requires: [specs]`). Per OpenSpec conventions: `design.md` is only written when non-trivial technical decisions need explanation.
+- `verify`'s `requires: [plan]` exists so the schema graph is complete; its instruction explicitly says "**MUST run on a completed implementation, NOT during planning**". This is an intentional mismatch between the OpenSpec DAG and actual timing, so that `openspec status` can surface verify progress.
+- `apply` produces no artifact — it is a **phase** that changes source code + tasks.md checkboxes.
 
 ---
 
-## 四、完整開發 workflow（一次 change 的生命週期）
+## 4. Full Development Workflow (one change's lifecycle)
 
-### 步驟 0：決定是否走 change 流程
+### Step 0: Decide whether this needs the change flow
 
-先問自己：這是行為變更嗎？
+First ask yourself: is this a behavior change?
 
-| 類型 | 是否需要 change | 用哪個 schema |
+| Type | Change needed? | Which schema |
 |---|---|---|
-| 新功能 / 新 capability | ✅ 需要 | `sdd-plus-superpowers` |
-| Breaking change | ✅ 需要 | `sdd-plus-superpowers` |
-| 架構變更 | ✅ 需要 | `sdd-plus-superpowers` |
-| Bug fix（恢復原本行為） | ❌ 不需要 | 直接 PR |
-| 測試補寫 / 覆蓋率 | ❌ 不需要 | 直接 PR |
-| 建置工具微調（linter 規則、覆蓋率門檻等） | ❌ 不需要 | 直接 PR |
-| 依賴升級（非破壞性） | ❌ 不需要 | 直接 PR |
-| 文件更新 | ❌ 不需要 | 直接 PR |
+| New feature / new capability | ✅ Yes | `sdd-plus-superpowers` |
+| Breaking change | ✅ Yes | `sdd-plus-superpowers` |
+| Architecture change | ✅ Yes | `sdd-plus-superpowers` |
+| Bug fix (restores prior behavior) | ❌ No | Direct PR |
+| Test backfill / coverage | ❌ No | Direct PR |
+| Build-tool tweaks (lint rules, coverage thresholds, etc.) | ❌ No | Direct PR |
+| Non-breaking dependency bump | ❌ No | Direct PR |
+| Docs update | ❌ No | Direct PR |
 
-這個判斷邏輯寫在 [openspec/specs/README.md](../../specs/README.md) 的「何時不建立 Spec」段。
+This decision logic lives in the "When not to create a Spec" section of [openspec/specs/README.md](../../specs/README.md).
 
 ---
 
-### 步驟 1：建立 change + 進入 brainstorming
+### Step 1: Create the change + enter brainstorming
 
 ```bash
 /opsx:new my-feature --schema sdd-plus-superpowers
-# → 建立 openspec/changes/my-feature/ 空目錄 + .openspec.yaml
-# → 顯示 brainstorm artifact 的 instructions
+# → Creates empty openspec/changes/my-feature/ + .openspec.yaml
+# → Shows the brainstorm artifact's instructions
 ```
 
-接著：
+Then:
 
 ```bash
 /opsx:continue
-# → 觸發 brainstorm artifact
-# → instruction 說「use the Skill tool to invoke superpowers:brainstorming」
-# → 進入多輪互動對話：context 探索 → 釐清問題 → 2-3 方案 + 取捨 → 批准設計
-# → 對話結束後寫入 brainstorm.md（含 Alternatives Considered）
-# → 若有產出設計文件，同時寫入 design.md（預填）
+# → Triggers the brainstorm artifact
+# → The instruction says "use the Skill tool to invoke superpowers:brainstorming"
+# → Enters multi-turn interactive dialog: context exploration → clarifying questions → 2-3 approaches with trade-offs → design approval
+# → After the dialog, writes brainstorm.md (with an Alternatives Considered section)
+# → If a design doc is produced, also writes design.md (pre-filled)
 ```
 
-**關鍵**：這一步是整個流程的對齊儀式。後續的 proposal / specs 都是從 brainstorm.md 萃取出來的。
+**Key point**: this step is the alignment ritual for the whole flow. Later artifacts (`proposal`, `specs`) are extractions from `brainstorm.md`.
 
 ---
 
-### 步驟 2：串行產出 proposal → specs → tasks → plan
+### Step 2: Serially produce proposal → specs → tasks → plan
 
-可以 `/opsx:continue` 一步步做（每一步都有人類 review 機會），也可以 `/opsx:ff` 一口氣補齊剩下所有 artifact。
+You can step through with `/opsx:continue` (human review at each step) or use `/opsx:ff` to fast-forward and fill in all remaining artifacts at once.
 
-| 步驟 | 產物 | 關鍵規則 |
+| Step | Output | Key rule |
 |---|---|---|
-| 2a | `proposal.md` | Why 段 50-1000 字元；Capabilities 區段列出新增 / 修改的 capability |
-| 2b | `specs/<capability>/spec.md` | 4 種 delta（ADDED / MODIFIED / REMOVED / RENAMED）；每 requirement 含 SHALL/MUST + `#### Scenario:` |
-| 2c (opt) | `design.md` | 只有需要解釋技術決策時才寫；brainstorm 可能已經預填 |
-| 2d | `tasks.md` | 粗粒度 checkbox（`- [ ] X.Y 描述`），會被 apply 追蹤進度 |
-| 2e | `plan.md` | `/opsx:continue` 觸發 `superpowers:writing-plans`，把 tasks 拆成 2-5 分鐘 micro-step |
+| 2a | `proposal.md` | Why section 50-1000 chars; Capabilities section lists new / modified capabilities |
+| 2b | `specs/<capability>/spec.md` | 4 delta types (ADDED / MODIFIED / REMOVED / RENAMED); each requirement has SHALL/MUST + `#### Scenario:` |
+| 2c (opt) | `design.md` | Only if technical decisions need explanation; brainstorm may have pre-filled it |
+| 2d | `tasks.md` | Coarse-grained checkboxes (`- [ ] X.Y description`), apply tracks progress through these |
+| 2e | `plan.md` | `/opsx:continue` triggers `superpowers:writing-plans`, decomposing tasks into 2-5 minute micro-steps |
 
-完成後跑：
+When done, run:
 
 ```bash
 openspec validate --all --json
-# → 本地 git hook 已經掛了 pre-commit，commit 時會自動驗證
+# → A pre-commit git hook is installed locally and validates automatically on commit
 ```
 
 ---
 
-### 步驟 3：Apply（實作階段）
+### Step 3: Apply (implementation phase)
 
 ```bash
 /opsx:apply
 ```
 
-這會觸發 [schema.yaml](./schema.yaml) `apply.instruction` 的 4 個步驟：
+This fires the 4 steps in [schema.yaml](./schema.yaml) `apply.instruction`:
 
-#### 3-1. Workspace — 呼叫 `superpowers:using-git-worktrees`
+#### 3-1. Workspace — invoke `superpowers:using-git-worktrees`
 
-- 建立 `.worktrees/<change-name>/` 隔離工作區
-- 切到新 branch
-- 跑專案 setup、確認 test baseline 乾淨
+- Create an isolated workspace at `.worktrees/<change-name>/`
+- Switch to a new branch
+- Run project setup and confirm the test baseline is clean
 
-#### 3-2. Executor — 呼叫 `superpowers:subagent-driven-development`（2a 預設路徑）
+#### 3-2. Executor — invoke `superpowers:subagent-driven-development` (path 2a, default)
 
-- Main agent 讀 plan.md，為每個 micro-task **派發 fresh subagent**
-- 每個 subagent 內部會自動：
-  - **TDD enforcement**（`superpowers:test-driven-development` 傳遞觸發）
-    - 先寫 failing test
-    - 看著它 fail
-    - 寫最小程式碼讓它 pass
-    - 寫 production code **前**沒測試？刪掉重來
-  - **Per-task code review**（`superpowers:requesting-code-review` 傳遞觸發）
-    - spec compliance review（有符合 plan 嗎？）
-    - code quality review（有 smell 嗎？）
-    - Critical issue 擋下進度
-- Coarse task 完成就更新 `tasks.md` checkbox
-- 全部 task 跑完後，對整個 implementation 再做一次 final code review
+- The main agent reads `plan.md` and **dispatches a fresh subagent per micro-task**
+- Inside each subagent, these kick in automatically:
+  - **TDD enforcement** (`superpowers:test-driven-development`, transitive)
+    - Write a failing test first
+    - Watch it fail
+    - Write the minimum code to make it pass
+    - No test **before** production code? Delete and redo
+  - **Per-task code review** (`superpowers:requesting-code-review`, transitive)
+    - Spec-compliance review (does it match the plan?)
+    - Code-quality review (are there smells?)
+    - Critical issues block progress
+- When a coarse task completes, the corresponding `tasks.md` checkbox is updated
+- After all tasks run, a final code review over the whole implementation
 
-> **2b fallback**：只在當前平台沒有 subagent 支援時才改用 `superpowers:executing-plans`。Claude Code 有 subagent，所以永遠用 2a。若被迫使用 2b，需自行手動維持 TDD 紀律並呼叫 `superpowers:requesting-code-review`。
+> **2b fallback**: switch to `superpowers:executing-plans` only when the current platform has no subagent support. Claude Code has subagents, so always use 2a. If forced onto 2b, you have to maintain TDD discipline manually and invoke `superpowers:requesting-code-review` yourself.
 
-#### 3-3. Verification — 呼叫 `openspec-verify-change`（產出 `verify.md`）
+#### 3-3. Verification — invoke `openspec-verify-change` (produces `verify.md`)
 
-5 項檢查：
+5 checks:
 
-1. **Structural validation**：`openspec validate --all --json` 全部 PASS
-2. **Task completion**：`tasks.md` 所有 `- [ ]` 變 `- [x]`
-3. **Delta spec sync state**：`changes/<name>/specs/` 是否已 sync 到 `openspec/specs/`
-4. **Design / specs coherence**：抽查 design 決策與 specs requirement 是否一致（非阻塞警告）
-5. **Implementation signal**：worktree 沒有未 staged 檔案
+1. **Structural validation**: `openspec validate --all --json` all PASS
+2. **Task completion**: every `- [ ]` in `tasks.md` becomes `- [x]`
+3. **Delta spec sync state**: has `changes/<name>/specs/` been synced to `openspec/specs/`?
+4. **Design / specs coherence**: spot-check that design decisions match spec requirements (non-blocking warning)
+5. **Implementation signal**: no unstaged files in the worktree
 
-若有失敗項目，退回對應 artifact 修正後重跑 verify。
+If anything fails, go back to the relevant artifact, fix it, and re-run verify.
 
-#### 3-4. Completion — 呼叫 `superpowers:finishing-a-development-branch`
+#### 3-4. Completion — invoke `superpowers:finishing-a-development-branch`
 
-- 確認 tests 全綠
-- 呈現選項：merge / PR / keep branch / discard
-- 清理 worktree
+- Confirm tests are all green
+- Present options: merge / PR / keep branch / discard
+- Clean up the worktree
 
 ---
 
-### 步驟 4：Archive
+### Step 4: Archive
 
 ```bash
 /opsx:archive my-feature
 ```
 
-- 驗證 + 檢查 task 完成度（未完成會 warn，不 block）
-- 同步 delta specs 回 `openspec/specs/<capability>/spec.md`
-  - 順序：RENAMED → REMOVED → MODIFIED → ADDED
-  - 若已手動 sync 過，可用 `--skip-specs`
-- 把 `changes/my-feature/` 整個搬到 `changes/archive/YYYY-MM-DD-my-feature/`
-- 歷史定格，unix 時間線視為 source of truth
+- Validate + check task completion (incomplete tasks trigger a warning, not a block)
+- Sync delta specs back into `openspec/specs/<capability>/spec.md`
+  - Order: RENAMED → REMOVED → MODIFIED → ADDED
+  - If already synced manually, use `--skip-specs`
+- Move the whole `changes/my-feature/` into `changes/archive/YYYY-MM-DD-my-feature/`
+- History is frozen; the unix timeline is treated as the source of truth
 
 ---
 
-## 五、實際 CLI cheat sheet
+## 5. Practical CLI Cheat Sheet
 
-| 情境 | 指令 |
+| Scenario | Command |
 |---|---|
-| **首次 clone 專案後** | `bash scripts/install-git-hooks.sh` |
-| 新 change（互動式一步步） | `/opsx:new <name> --schema sdd-plus-superpowers` 接著 `/opsx:continue` 若干次 |
-| 新 change（一鍵補齊所有 artifact） | `/opsx:ff <name>` |
-| 恢復中斷的 change | `/opsx:continue <name>` |
-| 進入實作 | `/opsx:apply <name>` |
-| 手動 verify | `/opsx:verify <name>` |
-| 歸檔 | `/opsx:archive <name>` |
-| 用原生 OpenSpec schema（跳過 brainstorm） | `/opsx:new <name> --schema spec-driven` |
-| 查看專案所有 schema | `openspec schemas` |
-| 查看當前 change 進度 | `openspec status --change <name> --json` |
-| 列出 active changes | `openspec list` |
-| 全專案驗證 | `openspec validate --all --json` |
+| **First-time clone of the project** | `bash scripts/install-git-hooks.sh` |
+| New change (interactive, step by step) | `/opsx:new <name> --schema sdd-plus-superpowers` followed by several `/opsx:continue` |
+| New change (fill all artifacts in one go) | `/opsx:ff <name>` |
+| Resume an interrupted change | `/opsx:continue <name>` |
+| Enter implementation | `/opsx:apply <name>` |
+| Manual verify | `/opsx:verify <name>` |
+| Archive | `/opsx:archive <name>` |
+| Use the native OpenSpec schema (skip brainstorm) | `/opsx:new <name> --schema spec-driven` |
+| List all project schemas | `openspec schemas` |
+| Current change progress | `openspec status --change <name> --json` |
+| List active changes | `openspec list` |
+| Validate the whole project | `openspec validate --all --json` |
 
 ---
 
-## 六、整合的精巧之處（值得記住的 5 個設計）
+## 6. Subtleties of the Integration (5 designs worth remembering)
 
 ### 1. Output redirection
 
-Superpowers 的 brainstorming 原本會寫到 `docs/superpowers/specs/`，writing-plans 寫到 `docs/superpowers/plans/`。我們的 artifact instruction **覆寫這個行為**，透過 prompt 上下文注入「寫到 change 目錄」的指示。不改 superpowers 源碼、不改 OpenSpec CLI。
+Superpowers' brainstorming writes to `docs/superpowers/specs/` by default, and writing-plans writes to `docs/superpowers/plans/`. Our artifact instruction **overrides this behavior** by injecting "write to the change directory" into the prompt context. No superpowers source edited, no OpenSpec CLI edits.
 
-### 2. Schema-level vs prompt-level 整合
+### 2. Schema-level vs prompt-level integration
 
-整合完全發生在 `instruction` 欄位（純 prompt）。如果 superpowers 升級了某個 skill 的行為，我們**完全不用動 schema**。只有當 skill 被重新命名或移除時才需要 touch schema.yaml。
+The integration happens entirely in the `instruction` fields (pure prompt). If Superpowers upgrades the behavior of some skill, we **don't touch the schema**. Only if a skill is renamed or removed do we need to edit `schema.yaml`.
 
-### 3. 傳遞依賴顯式化
+### 3. Transitive dependencies made explicit
 
-TDD 和 code-review 原本藏在 subagent-driven-development 內部（SKILL.md 裡才看得到）。schema 在 apply step 2a 的 instruction 裡**直接列出**這兩個 transitive activation，讓讀者一眼就看懂「apply 階段到底會發生什麼」。
+TDD and code-review originally hide inside subagent-driven-development (you'd only find them in SKILL.md). In the schema's apply step 2a instruction, both transitive activations are **listed directly** so readers immediately see "what actually happens during apply".
 
-### 4. Fallback 路徑誠實標註
+### 4. The fallback path is labeled honestly
 
-2b（executing-plans）存在但標為「platforms without subagent support」的 fallback，引用 superpowers 官方 SKILL.md L14 原文。我們不發明「小 change 用 2b」這種自創規則。
+Path 2b (executing-plans) exists but is labeled as a fallback for "platforms without subagent support", citing the official superpowers SKILL.md L14 verbatim. We don't invent home-grown rules like "use 2b for small changes".
 
-### 5. Verify 是 schema graph 的 leaf 但實際在 apply 之後
+### 5. Verify is a leaf in the schema graph but actually runs after apply
 
-`verify` 的 `requires: [plan]` 只是為了讓 schema graph 完整；它的 instruction 明寫「**MUST run on a completed implementation, NOT during planning**」。這是 OpenSpec DAG 與實際時序的刻意錯位，為的是讓 `openspec status` 能顯示 verify 進度。
+`verify`'s `requires: [plan]` exists only so the schema graph is complete; its instruction explicitly states "**MUST run on a completed implementation, NOT during planning**". This is an intentional mismatch between the OpenSpec DAG and real timing, done so that `openspec status` can surface verify progress.
 
 ---
 
-## 七、採用本 schema 的專案建議補充一個 snapshot 區段
+## 7. Projects adopting this schema should maintain a snapshot section
 
-建議每個採用 `sdd-plus-superpowers` 的專案，在自家 repo 的對應文件裡維護一份如下格式的 snapshot，讓新成員 onboarding 時一眼看清楚「本 repo 現在長什麼樣」：
+Each project using `sdd-plus-superpowers` is encouraged to keep a snapshot of the form below in its own repo docs, so new members can see "what this repo looks like right now" at a glance:
 
 ```markdown
-## 本專案現況（snapshot: YYYY-MM-DD）
+## Project snapshot (YYYY-MM-DD)
 
-- **OpenSpec CLI**：v<version>
-- **Schema**：`sdd-plus-superpowers` v<n>
-- **Specs（bounded-context 粒度）**：<n> domain 存在、<n> domain 預留 lazy backfill
-  - 已存在：`<capability-a>` / `<capability-b>` / ...
-  - 預留：`<capability-c>` / ...
-- **Automation**：<pre-commit / CI 跑什麼 openspec 指令>
-- **Superpowers plugin**：`superpowers@<version>` 安裝於 `<path>`，本整合用到 N 個 skill
+- **OpenSpec CLI**: v<version>
+- **Schema**: `sdd-plus-superpowers` v<n>
+- **Specs (bounded-context granularity)**: <n> domains exist, <n> reserved for lazy backfill
+  - Existing: `<capability-a>` / `<capability-b>` / ...
+  - Reserved: `<capability-c>` / ...
+- **Automation**: <what openspec commands pre-commit / CI runs>
+- **Superpowers plugin**: `superpowers@<version>` installed at `<path>`, N skills used by this integration
 ```
 
-> 此 snapshot 區段會隨時間 stale，權威狀態請用 `openspec list` + `openspec schemas` 現場查。
+> This snapshot section goes stale over time; for authoritative state, check live via `openspec list` + `openspec schemas`.
 
 ---
 
-## 八、最重要的一件事
+## 8. The Most Important Thing
 
-整合的核心價值不是「把很多 skill 串起來」，而是：
+The core value of this integration is not "chaining a bunch of skills together"; it's:
 
-> **把「需求對齊」（OpenSpec）和「嚴謹執行」（Superpowers）接起來，讓一個 change 從「想做什麼」到「code 已經通過 TDD + code review」這整條路徑全部可追溯、可重跑、可審計。**
+> **Connecting "requirements alignment" (OpenSpec) with "rigorous execution" (Superpowers), so that a change's entire path — from "what do we want" to "code has passed TDD + code review" — is traceable, re-runnable, and auditable.**
 
-傳統流程的斷點是：
+The breakpoints in a traditional flow are:
 
-- 需求在 Slack / 對話中 → apply 階段 LLM 靠記憶做事 → 對不上 spec
-- 或：spec 寫在 Confluence → code 在 repo → 兩者漂移
+- Requirements live in Slack / conversation → the LLM works from memory during apply → misaligned with the spec
+- Or: specs live in Confluence → code lives in the repo → the two drift apart
 
-sdd-plus-superpowers 的兩層約束解決這個問題：
+The two-layer discipline of sdd-plus-superpowers solves this:
 
-1. **OpenSpec 的 delta spec 治理** → 確保「要做什麼」不會漂移
-2. **Superpowers 的 subagent-driven + TDD + review** → 確保「已經做的」有品質紀律
+1. **OpenSpec's delta spec governance** → ensures "what we want to do" doesn't drift
+2. **Superpowers' subagent-driven + TDD + review** → ensures "what we've done" has quality discipline
 
-換個角度看：OpenSpec 負責**把需求從對話中救出來**，Superpowers 負責**把紀律從人類意志中救出來**。兩者結合才是完整的 spec-driven development。
+Another way to put it: OpenSpec is about **rescuing requirements from conversation**, and Superpowers is about **rescuing discipline from human willpower**. The combination is what spec-driven development actually looks like.
 
 ---
 
-## 相關文件
+## Related Documents
 
-- [schema.yaml](./schema.yaml) — 本 schema 的機器可讀定義
-- [README.md](./README.md) — schema 的設計動機與高層概覽
-- [templates/](./templates/) — 各 artifact 的 markdown 模板
-- [../../specs/README.md](../../specs/README.md) — capability 領域歸類指引
-- [openspec-conventions spec](https://github.com/Fission-AI/OpenSpec/blob/main/openspec/specs/openspec-conventions/spec.md) — OpenSpec 官方 conventions
-- [obra/superpowers](https://github.com/obra/superpowers) — Superpowers skill 來源
+- [schema.yaml](./schema.yaml) — machine-readable definition of this schema
+- [README.md](./README.md) — design motivation and high-level overview of the schema
+- [templates/](./templates/) — markdown templates for each artifact
+- [../../specs/README.md](../../specs/README.md) — capability domain classification guide
+- [openspec-conventions spec](https://github.com/Fission-AI/OpenSpec/blob/main/openspec/specs/openspec-conventions/spec.md) — OpenSpec official conventions
+- [obra/superpowers](https://github.com/obra/superpowers) — Superpowers skill source
