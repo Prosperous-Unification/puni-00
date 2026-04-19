@@ -1,13 +1,57 @@
 {
   "$schema": "./node_modules/nx/schemas/nx-schema.json",
   "namedInputs": {
-    "default": [
-      "{projectRoot}/**/*",
-      "sharedGlobals"
-    ],
+    "default": ["{projectRoot}/**/*", "sharedGlobals"],
     "production": [
-      "default"
+      "default",
+      "!{projectRoot}/**/?(*.)+(spec|test).[jt]s?(x)",
+      "!{projectRoot}/tsconfig.spec.json",
+      "!{projectRoot}/src/**/*.stories.[jt]s?(x)",
+      "!{projectRoot}/.eslintrc.json",
+      "!{projectRoot}/eslint.config.js"
     ],
-    "sharedGlobals": []
-  }
+    "sharedGlobals": [
+      "{workspaceRoot}/tsconfig.base.json",
+      "{workspaceRoot}/eslint.config.js",
+      "{workspaceRoot}/.prettierrc.json",
+      "{workspaceRoot}/package.json"
+    ]
+  },
+  "targetDefaults": {
+    "build": {
+      "cache": true,
+      "dependsOn": ["^build"],
+      "inputs": ["production", "^production"]
+    },
+    "test": {
+      "cache": true,
+      "inputs": ["default", "^production"],
+      "outputs": ["{projectRoot}/coverage"]
+    },
+    "lint": {
+      "cache": true,
+      "inputs": [
+        "default",
+        "{workspaceRoot}/eslint.config.js",
+        "{workspaceRoot}/.prettierrc.json"
+      ]
+    },
+    "typecheck": {
+      "cache": true,
+      "inputs": ["default", "^production", "{workspaceRoot}/tsconfig.base.json"]
+    },
+    "deploy": {
+      "cache": false
+    },
+    "push": {
+      "cache": false
+    },
+    "decrypt": {
+      "cache": false
+    }
+  },
+  "plugins": [],
+  "defaultBase": "main",
+  "parallel": 4,
+  "useInferencePlugins": false
 }
