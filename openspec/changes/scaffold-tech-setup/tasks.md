@@ -1,7 +1,7 @@
 ## 1. Workspace initialization and baseline config
 
 - [x] 1.1 Initialize Nx 18+ workspace at the repo root with Bun as package manager (`bun.lockb` lockfile, no npm/pnpm artifacts). Establish the three top-level dirs: `apps/`, `libs/`, `tools/`.
-- [ ] 1.2 Create root `tsconfig.base.json` with `@wbs/*` path aliases for all seven libs (stubs ok — each lib added in later tasks updates the mapping).
+- [x] 1.2 Create root `tsconfig.base.json` with `@wbs/*` path aliases for all seven libs (stubs ok — each lib added in later tasks updates the mapping).
 - [ ] 1.3 Create root `package.json` with `"deploy": "nx run tool-deploy:deploy"` alias and the curated devDeps list from design D21. Add `.gitignore` (Nx cache, `dist/`, `coverage/`, `node_modules/`, decrypted secrets, age keys, `routeTree.gen.ts`).
 - [ ] 1.4 Create `nx.json` with named inputs (`default`, `production`), target defaults (caching for `build`/`test`/`lint`, `cache: false` for deploy/SSH targets), and tag allowlists for `scope:*`, `type:*`, `runtime:*`.
 - [ ] 1.5 Create `.editorconfig` mirroring Prettier (2 spaces, LF, final newline, trim trailing whitespace).
