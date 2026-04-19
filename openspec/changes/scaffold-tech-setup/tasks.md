@@ -4,8 +4,8 @@
 - [x] 1.2 Create root `tsconfig.base.json` with `@wbs/*` path aliases for all seven libs (stubs ok — each lib added in later tasks updates the mapping).
 - [x] 1.3 Create root `package.json` with `"deploy": "nx run tool-deploy:deploy"` alias and the curated devDeps list from design D21. Add `.gitignore` (Nx cache, `dist/`, `coverage/`, `node_modules/`, decrypted secrets, age keys, `routeTree.gen.ts`).
 - [x] 1.4 Create `nx.json` with named inputs (`default`, `production`), target defaults (caching for `build`/`test`/`lint`, `cache: false` for deploy/SSH targets), and tag allowlists for `scope:*`, `type:*`, `runtime:*`.
-- [ ] 1.5 Create `.editorconfig` mirroring Prettier (2 spaces, LF, final newline, trim trailing whitespace).
-- [ ] 1.6 Verify `bun install` succeeds and `nx graph` renders (even if empty); commit a baseline snapshot.
+- [x] 1.5 Create `.editorconfig` mirroring Prettier (2 spaces, LF, final newline, trim trailing whitespace). _(satisfied by Task 1.3 — `.editorconfig` was written with the Prettier-mirroring content; `.gitignore` verification per plan.md Task 1.5 also passes: all required entries IGNORED, `.env.example`/`.sops.yaml`/`*.env.sops` trackable)_
+- [x] 1.6 Verify `bun install` succeeds and `nx graph` renders (even if empty); commit a baseline snapshot. _(verified at HEAD `8723ef7`: `bun install` 819 pkgs clean in 227ms, `bunx nx graph` generates `/tmp/graph-baseline.html` (1189B), `bunx nx show projects` empty as expected, working tree clean)_
 
 ## 2. Lint, format, and editor baseline
 
