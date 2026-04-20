@@ -13,7 +13,7 @@
 - [x] 2.2 Write root `eslint.config.js` (flat config) composing the plugins with per-glob overrides (fe-01 gets react/a11y; be-01 gets drizzle; tests get relaxed rules). Include `@nx/enforce-module-boundaries` with the tag allowlist.
 - [x] 2.3 Write root `.prettierrc.json` with exact settings from design D21. Add `.prettierignore` (`dist/`, `.nx/`, `coverage/`, `*.gen.ts`, encrypted files). _(also applied `prettier --write .` canonical formatting to existing files; `prettier --check .` passes)_
 - [x] 2.4 Install `lefthook` and write `lefthook.yml` with pre-commit (lint affected + format + plaintext-secret guard) and commit-msg (conventional-commits prefix) stages. _(hook scripts under `tools/tool-git-hooks/src/hooks/` are created in Task 10.4; committed with `--no-verify` per plan guidance)_
-- [ ] 2.5 Write `.vscode/settings.json` + `.vscode/extensions.json` per design D21, with `biomejs.biome` in `unwantedRecommendations`.
+- [x] 2.5 Write `.vscode/settings.json` + `.vscode/extensions.json` per design D21, with `biomejs.biome` in `unwantedRecommendations`.
 - [ ] 2.6 Confirm `nx format:check` and `nx run-many -t lint` both exit 0 on the empty scaffold.
 
 ## 3. Shared libraries — DAG root: `@wbs/validation` and `@wbs/domain`
