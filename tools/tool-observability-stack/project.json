@@ -1,0 +1,38 @@
+{
+  "name": "tool-observability-stack",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "tools/tool-observability-stack/src",
+  "projectType": "library",
+  "tags": ["scope:infra", "type:scripts", "runtime:bun"],
+  "targets": {
+    "build": {
+      "executor": "nx:run-commands",
+      "options": {
+        "commands": [
+          "mkdir -p dist/tools/tool-observability-stack",
+          "cp -R tools/tool-observability-stack/src/. dist/tools/tool-observability-stack/"
+        ],
+        "parallel": false
+      },
+      "outputs": ["{workspaceRoot}/dist/tools/tool-observability-stack"]
+    },
+    "validate": {
+      "executor": "nx:run-commands",
+      "options": { "command": "bun run tools/tool-observability-stack/src/validate.ts" }
+    },
+    "test": {
+      "executor": "nx:run-commands",
+      "options": { "command": "bun test", "cwd": "tools/tool-observability-stack" }
+    },
+    "lint": {
+      "executor": "nx:run-commands",
+      "options": { "command": "bunx eslint tools/tool-observability-stack/src" }
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bunx tsc --noEmit -p tools/tool-observability-stack/tsconfig.json"
+      }
+    }
+  }
+}

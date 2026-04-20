@@ -1,0 +1,15 @@
+{
+  "title": "WBS alerts",
+  "uid": "wbs-alerts",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "1m",
+  "panels": [
+    {
+      "type": "alertlist",
+      "title": "Firing alerts",
+      "gridPos": { "h": 12, "w": 24, "x": 0, "y": 0 },
+      "options": { "showOptions": "current", "maxItems": 20 }
+    }
+  ]
+}

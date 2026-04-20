@@ -1,0 +1,10 @@
+# SOPS creation rules: any *.env.sops under tools/tool-secrets/src/
+# is encrypted with the age recipients listed below. Add new recipients
+# here when onboarding a teammate, then run `nx run tool-secrets:updatekeys`
+# to rewrap the existing ciphertexts.
+creation_rules:
+  - path_regex: tools/tool-secrets/src/.*\.env\.sops$
+    key_groups:
+      - age:
+          # PLACEHOLDER — replace with a real age1... public key on first run.
+          - age1placeholderplaceholderplaceholderplaceholderplaceholderplhd

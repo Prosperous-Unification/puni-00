@@ -1,0 +1,10 @@
+services:
+  be-01:
+    image: {{BE_IMAGE}}
+    restart: unless-stopped
+    ports:
+      - '{{BE_HOST_PORT}}:{{BE_PORT}}'
+    env_file:
+      - /srv/wbs/.env
+    volumes:
+      - /srv/wbs/data/be:/data

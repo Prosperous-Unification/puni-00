@@ -1,0 +1,7 @@
+services:
+  caddy-fe:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    volumes:
+      - /srv/wbs/www:/srv/wbs/www:ro
+      - /srv/wbs/caddy/Caddyfile:/etc/caddy/Caddyfile:ro

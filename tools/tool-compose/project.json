@@ -1,0 +1,32 @@
+{
+  "name": "tool-compose",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "tools/tool-compose/src",
+  "projectType": "library",
+  "tags": ["scope:infra", "type:scripts", "runtime:bun"],
+  "targets": {
+    "build": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bun run tools/tool-compose/src/render.ts --outDir=dist/tools/tool-compose"
+      },
+      "outputs": ["{workspaceRoot}/dist/tools/tool-compose"]
+    },
+    "render": {
+      "executor": "nx:run-commands",
+      "options": { "command": "bun run tools/tool-compose/src/render.ts" }
+    },
+    "test": {
+      "executor": "nx:run-commands",
+      "options": { "command": "bun test", "cwd": "tools/tool-compose" }
+    },
+    "lint": {
+      "executor": "nx:run-commands",
+      "options": { "command": "bunx eslint tools/tool-compose/src" }
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": { "command": "bunx tsc --noEmit -p tools/tool-compose/tsconfig.json" }
+    }
+  }
+}

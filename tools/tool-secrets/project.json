@@ -1,0 +1,41 @@
+{
+  "name": "tool-secrets",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "tools/tool-secrets/src",
+  "projectType": "library",
+  "tags": ["scope:infra", "type:scripts", "runtime:bun"],
+  "targets": {
+    "decrypt": {
+      "executor": "nx:run-commands",
+      "options": { "command": "bun run tools/tool-secrets/src/cli/decrypt.ts" },
+      "cache": false
+    },
+    "push": {
+      "executor": "nx:run-commands",
+      "options": { "command": "bun run tools/tool-secrets/src/cli/push.ts" },
+      "cache": false
+    },
+    "encrypt": {
+      "executor": "nx:run-commands",
+      "options": { "command": "bun run tools/tool-secrets/src/cli/encrypt.ts" },
+      "cache": false
+    },
+    "updatekeys": {
+      "executor": "nx:run-commands",
+      "options": { "command": "bun run tools/tool-secrets/src/cli/updatekeys.ts" },
+      "cache": false
+    },
+    "test": {
+      "executor": "nx:run-commands",
+      "options": { "command": "bun test", "cwd": "tools/tool-secrets" }
+    },
+    "lint": {
+      "executor": "nx:run-commands",
+      "options": { "command": "bunx eslint tools/tool-secrets/src" }
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": { "command": "bunx tsc --noEmit -p tools/tool-secrets/tsconfig.json" }
+    }
+  }
+}

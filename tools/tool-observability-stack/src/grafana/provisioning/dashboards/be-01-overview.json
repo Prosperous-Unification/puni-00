@@ -1,0 +1,26 @@
+{
+  "title": "be-01 overview",
+  "uid": "be-01-overview",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "panels": [
+    {
+      "type": "timeseries",
+      "title": "HTTP 5xx rate",
+      "targets": [
+        {
+          "expr": "sum(rate(http_server_requests_total{service=\"be-01\",status=~\"5..\"}[5m]))",
+          "refId": "A"
+        }
+      ],
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 }
+    },
+    {
+      "type": "timeseries",
+      "title": "event_log size",
+      "targets": [{ "expr": "be_event_log_rows", "refId": "A" }],
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 }
+    }
+  ]
+}

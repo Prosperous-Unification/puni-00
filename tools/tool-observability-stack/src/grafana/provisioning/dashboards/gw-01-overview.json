@@ -1,0 +1,27 @@
+{
+  "title": "gw-01 overview",
+  "uid": "gw-01-overview",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "panels": [
+    {
+      "type": "stat",
+      "title": "active connections",
+      "targets": [{ "expr": "gw_active_connections", "refId": "A" }],
+      "gridPos": { "h": 6, "w": 6, "x": 0, "y": 0 }
+    },
+    {
+      "type": "timeseries",
+      "title": "reconnects / sec",
+      "targets": [{ "expr": "rate(gw_reconnects_total[5m])", "refId": "A" }],
+      "gridPos": { "h": 8, "w": 12, "x": 6, "y": 0 }
+    },
+    {
+      "type": "timeseries",
+      "title": "fan-out throughput",
+      "targets": [{ "expr": "rate(gw_message_fanout_total[1m])", "refId": "A" }],
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 }
+    }
+  ]
+}

@@ -1,22 +1,19 @@
-min_version: 1.6.0
-
 pre-commit:
   parallel: true
-  jobs:
-    - name: eslint-affected
-      glob: '*.{ts,tsx,js,jsx}'
-      run: bunx nx affected -t lint --uncommitted --fix && git add {staged_files}
-      stage_fixed: true
-
-    - name: prettier
-      glob: '*.{ts,tsx,js,jsx,json,md,yml,yaml}'
-      run: bunx prettier --write {staged_files} && git add {staged_files}
-      stage_fixed: true
-
-    - name: plaintext-secret-guard
-      run: bun tools/tool-git-hooks/src/hooks/plaintext-secret-guard.ts {staged_files}
+  commands:
+    lint:
+      run: bunx eslint {staged_files}
+      glob: '*.{ts,tsx,js,mjs,cjs}'
+    format:
+      run: bunx prettier --check {staged_files}
+      glob: '*.{ts,tsx,js,json,md,yml,yaml,css}'
+    plaintext-secrets:
+      run: bun run tools/tool-git-hooks/src/hooks/plaintext-secrets.ts {staged_files}
+    migration-lint:
+      run: bun run tools/tool-git-hooks/src/hooks/migration-lint.ts {staged_files}
+      glob: 'apps/be-01/drizzle/**/*.sql'
 
 commit-msg:
-  jobs:
-    - name: conventional-commits
-      run: bun tools/tool-git-hooks/src/hooks/conventional-commits.ts {1}
+  commands:
+    conventional:
+      run: bun run tools/tool-git-hooks/src/hooks/conventional.ts {1}
