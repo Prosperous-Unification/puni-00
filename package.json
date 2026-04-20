@@ -14,8 +14,13 @@
     "typecheck": "nx run-many -t typecheck"
   },
   "dependencies": {
+    "@opentelemetry/api": "^1.9.1",
+    "@opentelemetry/exporter-prometheus": "^0.215.0",
+    "@opentelemetry/sdk-metrics": "^2.7.0",
+    "@opentelemetry/sdk-node": "^0.215.0",
     "arktype": "^2.2.0",
-    "drizzle-orm": "^0.45.2"
+    "drizzle-orm": "^0.45.2",
+    "pino": "^10.3.1"
   },
   "devDependencies": {
     "@eslint/js": "^9",
