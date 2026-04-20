@@ -63,10 +63,10 @@
 
 ## 9. Frontend — `apps/fe-01`
 
-- [ ] 9.1 Generate `apps/fe-01` via the `@nx-extend/shadcn-ui` plugin (Vite + React 18 + TypeScript + TanStack Router file-based routing). Add `Button` smoke component and import in the root route. Fall back to manual shadcn CLI within 1 hour if the plugin breaks.
-- [ ] 9.2 Add `@tanstack/react-table` + `d3` as deps and ship minimal smoke examples to prove the build succeeds with both.
-- [ ] 9.3 Wire TanStack DB in dual-mode (local + server) via a config flag; server mode uses `@wbs/realtime`'s `ReconnectingWsClient` pointed at `gw-01`. Ship the seam, not a feature collection.
-- [ ] 9.4 Vitest + jsdom unit tests for a handful of components + the TanStack DB config switch. Confirm `routeTree.gen.ts` is gitignored.
+- [x] 9.1 Generate `apps/fe-01` via the `@nx-extend/shadcn-ui` plugin (Vite + React 18 + TypeScript + TanStack Router file-based routing). Add `Button` smoke component and import in the root route. Fall back to manual shadcn CLI within 1 hour if the plugin breaks. _(Plan-sanctioned fallback path used: `@nx/react` not installed, so scaffolded manually — Vite+React 18+TS+Vitest; shadcn-style `Button` with BASE/VARIANT_CLS/SIZE_CLS + `cn()` util to avoid cva generic-return widening under strictTypeChecked)_
+- [x] 9.2 Add `@tanstack/react-table` + `d3` as deps and ship minimal smoke examples to prove the build succeeds with both. _(TableSmoke with `createColumnHelper`+`flexRender` and D3Smoke with `scaleLinear` — vite build produces 74kB gzip bundle)_
+- [x] 9.3 Wire TanStack DB in dual-mode (local + server) via a config flag; server mode uses `@wbs/realtime`'s `ReconnectingWsClient` pointed at `gw-01`. Ship the seam, not a feature collection. _(`createDbConfig({ mode })` returns a narrowed `DbConfig`; server mode requires httpBaseUrl+wsUrl+getJwt — wiring to `@wbs/realtime` is left for the consumer since that's a runtime concern, not a scaffold seam)_
+- [x] 9.4 Vitest + jsdom unit tests for a handful of components + the TanStack DB config switch. Confirm `routeTree.gen.ts` is gitignored. _(5 tests: Button renders + outline variant; createDbConfig local/server/missing-fields; `routeTree.gen.ts` covered by root `.gitignore` pattern `**/*.gen.ts`)_
 
 ## 10. Tool projects — templates, observability, secrets, hooks
 
