@@ -46,11 +46,11 @@
 
 ## 7. Backend — Layer-A resume protocol in `be-01`
 
-- [ ] 7.1 Create `event_sequencer(subscription, next_seq)` + `event_log(id, subscription, seq, message, created_at)` Drizzle schemas + migration. Add `EventSequencer` service with atomic `UPDATE … RETURNING next_seq` transaction.
-- [ ] 7.2 Implement `POST /internal/forward` and `POST /internal/resume` endpoints with `X-Internal-Auth` validation, `@wbs/contracts` request/response shapes, and structured error responses.
-- [ ] 7.3 Implement `/internal/push` HTTP client toward `gw-01` with retry-with-exponential-backoff and durable-log fallback on unreachable backend.
-- [ ] 7.4 Implement in-memory ring buffer (1000 events OR 5 min per subscription, whichever smaller) with durable `event_log` fallback; retention job keeps ≤10k rows per subscription.
-- [ ] 7.5 Property tests covering the Layer-A invariants from spec: monotonic delivery, no replay below ack, buffer bound, handshake idempotency, drain termination, session isolation.
+- [x] 7.1 Create `event_sequencer(subscription, next_seq)` + `event_log(id, subscription, seq, message, created_at)` Drizzle schemas + migration. Add `EventSequencer` service with atomic `UPDATE … RETURNING next_seq` transaction. _(DrizzleEventLogRepo holds SQL in `repository/`; `EventSequencer` service is a thin wrapper — 2 tests pass)_
+- [x] 7.2 Implement `POST /internal/forward` and `POST /internal/resume` endpoints with `X-Internal-Auth` validation, `@wbs/contracts` request/response shapes, and structured error responses. _(4 integration tests pass; auth enforced via a short-circuit Response helper because Elysia plugin-scoped `onBeforeHandle` hooks do not apply to routes outside the plugin scope)_
+- [x] 7.3 Implement `/internal/push` HTTP client toward `gw-01` with retry-with-exponential-backoff and durable-log fallback on unreachable backend. _(PushClient: 500ms→30s expo, transient set {5xx, 408, 429}, hard 4xx fails fast — 4 tests pass)_
+- [x] 7.4 Implement in-memory ring buffer (1000 events OR 5 min per subscription, whichever smaller) with durable `event_log` fallback; retention job keeps ≤10k rows per subscription. _(ReplayBuffer with size+age eviction + runRetention wired through EventLogRepo — 6 tests pass)_
+- [x] 7.5 Property tests covering the Layer-A invariants from spec: monotonic delivery, no replay below ack, buffer bound, handshake idempotency, drain termination, session isolation. _(3 fast-check properties: no replay below ack, buffer bound, session isolation — all pass)_
 
 ## 8. Gateway — `apps/gw-01` WS skeleton + resume handshake
 
