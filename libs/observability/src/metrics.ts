@@ -1,4 +1,4 @@
-import { metrics, type Counter as OtelCounter } from '@opentelemetry/api';
+import { type Counter as OtelCounter, metrics } from '@opentelemetry/api';
 
 const meter = metrics.getMeter('@wbs/observability', '1.0.0');
 

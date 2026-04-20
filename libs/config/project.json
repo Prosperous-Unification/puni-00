@@ -6,8 +6,10 @@
   "tags": ["scope:shared", "type:config", "runtime:bun"],
   "targets": {
     "lint": {
-      "executor": "@nx/eslint:lint",
-      "options": { "lintFilePatterns": ["libs/config/**/*.ts"] }
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bunx eslint libs/config/src"
+      }
     },
     "test": {
       "executor": "nx:run-commands",

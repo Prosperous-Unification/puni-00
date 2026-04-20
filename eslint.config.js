@@ -71,6 +71,10 @@ export default [
         'error',
         { fixStyle: 'separate-type-imports' },
       ],
+      '@typescript-eslint/no-unused-expressions': [
+        'error',
+        { allowShortCircuit: false, allowTernary: false, allowTaggedTemplates: false },
+      ],
       'unused-imports/no-unused-imports': 'error',
       'simple-import-sort/imports': 'error',
       'simple-import-sort/exports': 'error',

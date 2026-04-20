@@ -1,6 +1,5 @@
-import { describe, expect, it } from 'bun:test';
-
 import { type } from '@wbs/validation';
+import { describe, expect, it } from 'bun:test';
 
 import { defineConfig } from './define-config';
 import { LogLevel, Port } from './env-schemas';

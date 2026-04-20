@@ -1,6 +1,5 @@
-import { describe, expect, it } from 'bun:test';
-
 import { parseOrThrow, ValidationError } from '@wbs/validation';
+import { describe, expect, it } from 'bun:test';
 
 import { Dependency } from './dependency';
 import { Estimate } from './estimate';

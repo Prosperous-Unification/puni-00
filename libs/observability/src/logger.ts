@@ -19,7 +19,7 @@ export function createLogger(opts: CreateLoggerOptions): Logger {
   const options: LoggerOptions = {
     level,
     base,
-    timestamp: () => `,"time":${Date.now()}`,
+    timestamp: () => `,"time":${String(Date.now())}`,
     serializers: { err: errSerializer },
     formatters: {
       level: (label: string) => ({ level: label }),

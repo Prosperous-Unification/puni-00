@@ -1,3 +1,4 @@
+import type { Database } from 'bun:sqlite';
 import { describe, expect, it } from 'bun:test';
 
 import { brandedString } from './branded';
@@ -32,9 +33,10 @@ describe('@wbs/validation core', () => {
 describe('@wbs/validation/fixtures', () => {
   it('makeTestDb returns an in-memory Drizzle instance with migrations applied', async () => {
     const db = await makeTestDb({ migrationsFolder: null });
-    const result = db.$client.query('SELECT 1 AS one').get() as { one: number };
+    const client = (db as unknown as { $client: Database }).$client;
+    const result = client.query('SELECT 1 AS one').get() as { one: number };
     expect(result.one).toBe(1);
-    db.$client.close();
+    client.close();
   });
 
   it('makeFrame produces a valid WS frame with defaults', () => {

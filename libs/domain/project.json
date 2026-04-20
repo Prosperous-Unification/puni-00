@@ -6,8 +6,10 @@
   "tags": ["scope:shared", "type:domain", "runtime:isomorphic"],
   "targets": {
     "lint": {
-      "executor": "@nx/eslint:lint",
-      "options": { "lintFilePatterns": ["libs/domain/**/*.ts"] }
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bunx eslint libs/domain/src"
+      }
     },
     "test": {
       "executor": "nx:run-commands",

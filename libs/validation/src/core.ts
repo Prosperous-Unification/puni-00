@@ -1,4 +1,4 @@
-import { type, type Type } from 'arktype';
+import { type Type, type } from 'arktype';
 
 import { ValidationError } from './errors';
 

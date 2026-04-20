@@ -1,6 +1,5 @@
-import { describe, expect, it } from 'bun:test';
-
 import { parseOrThrow, ValidationError } from '@wbs/validation';
+import { describe, expect, it } from 'bun:test';
 
 import { WbsItem, WbsItemId } from './wbs-item';
 

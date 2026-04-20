@@ -1,6 +1,5 @@
-import { describe, expect, it } from 'bun:test';
-
 import { parseOrThrow } from '@wbs/validation';
+import { describe, expect, it } from 'bun:test';
 
 import { LogRecord } from './log-schema';
 import { createLogger } from './logger';
@@ -23,9 +22,9 @@ describe('createLogger', () => {
     const record = JSON.parse(stream.at(-1)!) as Record<string, unknown>;
     const parsed = parseOrThrow(LogRecord, record);
     expect(parsed.service).toBe('be-01');
-    expect(parsed['request_id']).toBe('req-1');
+    expect(parsed.request_id).toBe('req-1');
     expect(parsed.msg).toBe('hello');
-    expect(parsed['version']).toBe('test-sha');
+    expect(parsed.version).toBe('test-sha');
   });
 
   it('child logger inherits context', () => {
