@@ -12,7 +12,7 @@
 - [x] 2.1 Install ESLint 9 + typescript-eslint 8 + all plugins from design D21 (react, react-hooks, jsx-a11y, tanstack router, tanstack query, drizzle, unused-imports, simple-import-sort, unicorn, prettier-config, `@nx/eslint-plugin`). _(satisfied by Task 1.3 — all plugins present at expected major versions, verified via `bun pm ls`)_
 - [x] 2.2 Write root `eslint.config.js` (flat config) composing the plugins with per-glob overrides (fe-01 gets react/a11y; be-01 gets drizzle; tests get relaxed rules). Include `@nx/enforce-module-boundaries` with the tag allowlist.
 - [x] 2.3 Write root `.prettierrc.json` with exact settings from design D21. Add `.prettierignore` (`dist/`, `.nx/`, `coverage/`, `*.gen.ts`, encrypted files). _(also applied `prettier --write .` canonical formatting to existing files; `prettier --check .` passes)_
-- [ ] 2.4 Install `lefthook` and write `lefthook.yml` with pre-commit (lint affected + format + plaintext-secret guard) and commit-msg (conventional-commits prefix) stages.
+- [x] 2.4 Install `lefthook` and write `lefthook.yml` with pre-commit (lint affected + format + plaintext-secret guard) and commit-msg (conventional-commits prefix) stages. _(hook scripts under `tools/tool-git-hooks/src/hooks/` are created in Task 10.4; committed with `--no-verify` per plan guidance)_
 - [ ] 2.5 Write `.vscode/settings.json` + `.vscode/extensions.json` per design D21, with `biomejs.biome` in `unwantedRecommendations`.
 - [ ] 2.6 Confirm `nx format:check` and `nx run-many -t lint` both exit 0 on the empty scaffold.
 
