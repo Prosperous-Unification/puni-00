@@ -1,0 +1,22 @@
+min_version: 1.6.0
+
+pre-commit:
+  parallel: true
+  jobs:
+    - name: eslint-affected
+      glob: '*.{ts,tsx,js,jsx}'
+      run: bunx nx affected -t lint --uncommitted --fix && git add {staged_files}
+      stage_fixed: true
+
+    - name: prettier
+      glob: '*.{ts,tsx,js,jsx,json,md,yml,yaml}'
+      run: bunx prettier --write {staged_files} && git add {staged_files}
+      stage_fixed: true
+
+    - name: plaintext-secret-guard
+      run: bun tools/tool-git-hooks/src/hooks/plaintext-secret-guard.ts {staged_files}
+
+commit-msg:
+  jobs:
+    - name: conventional-commits
+      run: bun tools/tool-git-hooks/src/hooks/conventional-commits.ts {1}
