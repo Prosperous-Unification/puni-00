@@ -1,0 +1,33 @@
+{
+  "name": "gw-01",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "apps/gw-01/src",
+  "projectType": "application",
+  "tags": ["scope:app", "type:app", "runtime:bun"],
+  "targets": {
+    "serve": {
+      "executor": "nx:run-commands",
+      "options": { "command": "bun --watch apps/gw-01/src/main.ts" }
+    },
+    "build": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bun build apps/gw-01/src/main.ts --target=bun --outdir=dist/apps/gw-01"
+      },
+      "outputs": ["{workspaceRoot}/dist/apps/gw-01"]
+    },
+    "lint": {
+      "executor": "nx:run-commands",
+      "options": { "command": "bunx eslint apps/gw-01/src" }
+    },
+    "test": {
+      "executor": "nx:run-commands",
+      "options": { "command": "bun test --coverage", "cwd": "apps/gw-01" },
+      "outputs": ["{projectRoot}/coverage"]
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": { "command": "bunx tsc --noEmit -p apps/gw-01/tsconfig.json" }
+    }
+  }
+}
