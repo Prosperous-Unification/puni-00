@@ -6,6 +6,10 @@ coverage/
 *.tsbuildinfo
 routeTree.gen.ts
 
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
 .env
 .env.local
 !.env.example
