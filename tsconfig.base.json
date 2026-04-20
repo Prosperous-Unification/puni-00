@@ -24,6 +24,7 @@
     "resolveJsonModule": true,
     "types": ["bun-types"],
     "paths": {
+      "@wbs/be-01": ["apps/be-01/src/index.ts"],
       "@wbs/config": ["libs/config/src/index.ts"],
       "@wbs/contracts": ["libs/contracts/src/index.ts"],
       "@wbs/domain": ["libs/domain/src/index.ts"],

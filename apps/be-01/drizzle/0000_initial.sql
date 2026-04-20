@@ -1,0 +1,2 @@
+-- Initial migration placeholder.
+-- Schemas appear as subsequent migrations. Keep additive-only.
