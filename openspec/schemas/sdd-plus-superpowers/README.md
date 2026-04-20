@@ -18,6 +18,7 @@ Two alternatives were considered:
 - **Modifying opsx skill files directly**: highly intrusive, affects every change, and is overwritten on SKILL.md upgrade.
 
 A custom schema leverages OpenSpec's **native project-level schema mechanism**:
+
 - The CLI validates the schema structure
 - `openspec schemas` lists it automatically
 - Each change can independently pick its schema (`--schema spec-driven` or `--schema sdd-plus-superpowers`)
@@ -35,25 +36,25 @@ brainstorm ──→ proposal ──→ specs ──→ tasks ──→ plan
 
 Differences from `spec-driven`:
 
-| | spec-driven | sdd-plus-superpowers |
-|---|---|---|
+|                | spec-driven                 | sdd-plus-superpowers                             |
+| -------------- | --------------------------- | ------------------------------------------------ |
 | Starting point | proposal (manually written) | **brainstorm** (invokes the brainstorming skill) |
-| End point | tasks (coarse-grained) | **plan** (micro-step TDD) |
-| apply requires | tasks | **plan** |
-| apply style | standard task-by-task | **worktree + subagent-driven-development** |
-| New artifacts | — | brainstorm, plan |
+| End point      | tasks (coarse-grained)      | **plan** (micro-step TDD)                        |
+| apply requires | tasks                       | **plan**                                         |
+| apply style    | standard task-by-task       | **worktree + subagent-driven-development**       |
+| New artifacts  | —                           | brainstorm, plan                                 |
 
 ---
 
 ## Integrated Superpowers Skills
 
-| Schema phase | Superpowers skill invoked | Trigger mode |
-|------------|------------------------|---------|
-| brainstorm artifact | `superpowers:brainstorming` | via artifact instruction |
-| plan artifact | `superpowers:writing-plans` | via artifact instruction |
-| apply phase | `superpowers:using-git-worktrees` | via apply instruction |
-| apply phase | `superpowers:subagent-driven-development` | via apply instruction |
-| after apply | `superpowers:finishing-a-development-branch` | via apply instruction |
+| Schema phase        | Superpowers skill invoked                    | Trigger mode             |
+| ------------------- | -------------------------------------------- | ------------------------ |
+| brainstorm artifact | `superpowers:brainstorming`                  | via artifact instruction |
+| plan artifact       | `superpowers:writing-plans`                  | via artifact instruction |
+| apply phase         | `superpowers:using-git-worktrees`            | via apply instruction    |
+| apply phase         | `superpowers:subagent-driven-development`    | via apply instruction    |
+| after apply         | `superpowers:finishing-a-development-branch` | via apply instruction    |
 
 All integration happens through the `instruction` fields in `schema.yaml` — telling the AI to invoke the corresponding skill via the Skill tool at the right time. No Superpowers skill file itself is modified.
 
@@ -71,6 +72,7 @@ This is done through context injection (attaching an instruction when invoking t
 ## Usage
 
 ### Fast-path flow (recommended)
+
 ```bash
 /opsx:ff my-feature    # One shot: create dir + brainstorm + proposal + design + specs + tasks + plan
 /opsx:apply            # worktree + subagent-driven-development
@@ -78,6 +80,7 @@ This is done through context injection (attaching an instruction when invoking t
 ```
 
 ### Step-by-step flow
+
 ```bash
 /opsx:new my-feature --schema sdd-plus-superpowers
 /opsx:continue         # → brainstorm (interactive dialog)
@@ -91,6 +94,7 @@ This is done through context injection (attaching an instruction when invoking t
 ```
 
 ### Switching back to spec-driven
+
 ```bash
 # Use a different schema for a single change
 /opsx:new my-simple-fix --schema spec-driven
@@ -106,12 +110,14 @@ This is done through context injection (attaching an instruction when invoking t
 ### Why brainstorm is an artifact, not a hook
 
 Brainstorming is an interactive multi-turn dialog that requires user participation. Making it the first artifact, instead of a schema-level hook, gives two benefits:
+
 1. **Skippable** — if the user already knows what they want to build, they can hand-write `brainstorm.md` without invoking the skill
 2. **Trackable** — `openspec status` can show whether brainstorm is complete, and downstream artifacts have explicit dependencies on it
 
 ### Why plan is separate from tasks
 
 `tasks.md` is coarse-grained checkboxes ("add PdfServiceTest"); `plan.md` is micro-steps ("scaffold the test → write a downloadPdf test → run → commit"). Their granularity and purpose differ:
+
 - `tasks.md` → tracks overall progress (apply phase's `tracks` field parses the checkboxes)
 - `plan.md` → guides the subagent through step-by-step implementation (the executor's input)
 
@@ -120,6 +126,7 @@ The apply phase requires `plan` rather than `tasks` because the executor needs m
 ### Fallback strategy
 
 If a Superpowers skill is unavailable (not installed, incompatible version, etc.), each instruction includes a fallback path:
+
 - brainstorm → hand-write `brainstorm.md`
 - plan → hand-write `plan.md`
 - apply → standard task-by-task manual implementation

@@ -20,15 +20,15 @@ The two are joined through the custom schema [schema.yaml](./schema.yaml). The i
 
 ## 2. The 7 Superpowers Touchpoints at a Glance
 
-| # | Superpowers skill | Where it hangs | Trigger mode |
-|---|---|---|---|
-| 1 | `superpowers:brainstorming` | `brainstorm` artifact instruction | Direct |
-| 2 | `superpowers:writing-plans` | `plan` artifact instruction | Direct |
-| 3 | `superpowers:using-git-worktrees` | apply step 1 | Direct |
-| 4 | `superpowers:subagent-driven-development` | apply step 2a | Direct |
-| 5 | `superpowers:test-driven-development` | (auto-triggered inside #4) | **Transitive** (SKILL.md L205 / L274) |
-| 6 | `superpowers:requesting-code-review` | (auto-triggered inside #4) | **Transitive** (SKILL.md L270) |
-| 7 | `superpowers:finishing-a-development-branch` | apply step 4 | Direct |
+| #   | Superpowers skill                            | Where it hangs                    | Trigger mode                          |
+| --- | -------------------------------------------- | --------------------------------- | ------------------------------------- |
+| 1   | `superpowers:brainstorming`                  | `brainstorm` artifact instruction | Direct                                |
+| 2   | `superpowers:writing-plans`                  | `plan` artifact instruction       | Direct                                |
+| 3   | `superpowers:using-git-worktrees`            | apply step 1                      | Direct                                |
+| 4   | `superpowers:subagent-driven-development`    | apply step 2a                     | Direct                                |
+| 5   | `superpowers:test-driven-development`        | (auto-triggered inside #4)        | **Transitive** (SKILL.md L205 / L274) |
+| 6   | `superpowers:requesting-code-review`         | (auto-triggered inside #4)        | **Transitive** (SKILL.md L270)        |
+| 7   | `superpowers:finishing-a-development-branch` | apply step 4                      | Direct                                |
 
 There is also a **fallback**:
 
@@ -95,16 +95,16 @@ There is also a **fallback**:
 
 First ask yourself: is this a behavior change?
 
-| Type | Change needed? | Which schema |
-|---|---|---|
-| New feature / new capability | ✅ Yes | `sdd-plus-superpowers` |
-| Breaking change | ✅ Yes | `sdd-plus-superpowers` |
-| Architecture change | ✅ Yes | `sdd-plus-superpowers` |
-| Bug fix (restores prior behavior) | ❌ No | Direct PR |
-| Test backfill / coverage | ❌ No | Direct PR |
-| Build-tool tweaks (lint rules, coverage thresholds, etc.) | ❌ No | Direct PR |
-| Non-breaking dependency bump | ❌ No | Direct PR |
-| Docs update | ❌ No | Direct PR |
+| Type                                                      | Change needed? | Which schema           |
+| --------------------------------------------------------- | -------------- | ---------------------- |
+| New feature / new capability                              | ✅ Yes         | `sdd-plus-superpowers` |
+| Breaking change                                           | ✅ Yes         | `sdd-plus-superpowers` |
+| Architecture change                                       | ✅ Yes         | `sdd-plus-superpowers` |
+| Bug fix (restores prior behavior)                         | ❌ No          | Direct PR              |
+| Test backfill / coverage                                  | ❌ No          | Direct PR              |
+| Build-tool tweaks (lint rules, coverage thresholds, etc.) | ❌ No          | Direct PR              |
+| Non-breaking dependency bump                              | ❌ No          | Direct PR              |
+| Docs update                                               | ❌ No          | Direct PR              |
 
 This decision logic lives in the "When not to create a Spec" section of [openspec/specs/README.md](../../specs/README.md).
 
@@ -137,13 +137,13 @@ Then:
 
 You can step through with `/opsx:continue` (human review at each step) or use `/opsx:ff` to fast-forward and fill in all remaining artifacts at once.
 
-| Step | Output | Key rule |
-|---|---|---|
-| 2a | `proposal.md` | Why section 50-1000 chars; Capabilities section lists new / modified capabilities |
-| 2b | `specs/<capability>/spec.md` | 4 delta types (ADDED / MODIFIED / REMOVED / RENAMED); each requirement has SHALL/MUST + `#### Scenario:` |
-| 2c (opt) | `design.md` | Only if technical decisions need explanation; brainstorm may have pre-filled it |
-| 2d | `tasks.md` | Coarse-grained checkboxes (`- [ ] X.Y description`), apply tracks progress through these |
-| 2e | `plan.md` | `/opsx:continue` triggers `superpowers:writing-plans`, decomposing tasks into 2-5 minute micro-steps |
+| Step     | Output                       | Key rule                                                                                                 |
+| -------- | ---------------------------- | -------------------------------------------------------------------------------------------------------- |
+| 2a       | `proposal.md`                | Why section 50-1000 chars; Capabilities section lists new / modified capabilities                        |
+| 2b       | `specs/<capability>/spec.md` | 4 delta types (ADDED / MODIFIED / REMOVED / RENAMED); each requirement has SHALL/MUST + `#### Scenario:` |
+| 2c (opt) | `design.md`                  | Only if technical decisions need explanation; brainstorm may have pre-filled it                          |
+| 2d       | `tasks.md`                   | Coarse-grained checkboxes (`- [ ] X.Y description`), apply tracks progress through these                 |
+| 2e       | `plan.md`                    | `/opsx:continue` triggers `superpowers:writing-plans`, decomposing tasks into 2-5 minute micro-steps     |
 
 When done, run:
 
@@ -223,20 +223,20 @@ If anything fails, go back to the relevant artifact, fix it, and re-run verify.
 
 ## 5. Practical CLI Cheat Sheet
 
-| Scenario | Command |
-|---|---|
-| **First-time clone of the project** | `bash scripts/install-git-hooks.sh` |
-| New change (interactive, step by step) | `/opsx:new <name> --schema sdd-plus-superpowers` followed by several `/opsx:continue` |
-| New change (fill all artifacts in one go) | `/opsx:ff <name>` |
-| Resume an interrupted change | `/opsx:continue <name>` |
-| Enter implementation | `/opsx:apply <name>` |
-| Manual verify | `/opsx:verify <name>` |
-| Archive | `/opsx:archive <name>` |
-| Use the native OpenSpec schema (skip brainstorm) | `/opsx:new <name> --schema spec-driven` |
-| List all project schemas | `openspec schemas` |
-| Current change progress | `openspec status --change <name> --json` |
-| List active changes | `openspec list` |
-| Validate the whole project | `openspec validate --all --json` |
+| Scenario                                         | Command                                                                               |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------- |
+| **First-time clone of the project**              | `bash scripts/install-git-hooks.sh`                                                   |
+| New change (interactive, step by step)           | `/opsx:new <name> --schema sdd-plus-superpowers` followed by several `/opsx:continue` |
+| New change (fill all artifacts in one go)        | `/opsx:ff <name>`                                                                     |
+| Resume an interrupted change                     | `/opsx:continue <name>`                                                               |
+| Enter implementation                             | `/opsx:apply <name>`                                                                  |
+| Manual verify                                    | `/opsx:verify <name>`                                                                 |
+| Archive                                          | `/opsx:archive <name>`                                                                |
+| Use the native OpenSpec schema (skip brainstorm) | `/opsx:new <name> --schema spec-driven`                                               |
+| List all project schemas                         | `openspec schemas`                                                                    |
+| Current change progress                          | `openspec status --change <name> --json`                                              |
+| List active changes                              | `openspec list`                                                                       |
+| Validate the whole project                       | `openspec validate --all --json`                                                      |
 
 ---
 

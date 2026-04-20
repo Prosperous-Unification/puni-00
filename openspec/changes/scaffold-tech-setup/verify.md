@@ -44,8 +44,8 @@
 若有失敗項目，列出 id + issues：
 
 | Item | Type | Issues |
-|---|---|---|
-| — | — | 無 |
+| ---- | ---- | ------ |
+| —    | —    | 無     |
 
 ---
 
@@ -58,20 +58,20 @@ scaffold-tech-setup --json` → `progress.complete=0`, `progress.total=58`).
 
 **未完成任務**（摘要；全部 58 條皆未開始，因此僅列 12 個一級群組作為代表）：
 
-| Task | 未完成原因 | 是否阻塞 archive |
-|---|---|---|
-| 1.x Workspace initialization (Nx + Bun + base configs) | Apply phase 尚未開始 | ✅ 阻塞 |
-| 2.x Lint / Format / git-hooks baseline | Apply phase 尚未開始 | ✅ 阻塞 |
-| 3.x `libs/validation` + `libs/domain` | Apply phase 尚未開始 | ✅ 阻塞 |
-| 4.x `libs/observability` + `libs/config` | Apply phase 尚未開始 | ✅ 阻塞 |
-| 5.x `libs/contracts` + `libs/realtime` + `libs/scripts` | Apply phase 尚未開始 | ✅ 阻塞 |
-| 6.x `apps/be-01` foundation (HTTP + repo layer + /health) | Apply phase 尚未開始 | ✅ 阻塞 |
-| 7.x `be-01` Layer-A WS resume (sequencer + log + buffer) | Apply phase 尚未開始 | ✅ 阻塞 |
-| 8.x `apps/gw-01` WS gateway + reconnect handshake | Apply phase 尚未開始 | ✅ 阻塞 |
-| 9.x `apps/fe-01` (Vite + shadcn + TanStack DB dual-mode) | Apply phase 尚未開始 | ✅ 阻塞 |
-| 10.x Non-Dagger tools (compose / observability / secrets / git-hooks) | Apply phase 尚未開始 | ✅ 阻塞 |
-| 11.x Dagger + bootstrap + remote-scripts + deploy + smoke | Apply phase 尚未開始 | ✅ 阻塞 |
-| 12.x First end-to-end deploy to Hetzner | Apply phase 尚未開始 | ✅ 阻塞 |
+| Task                                                                  | 未完成原因           | 是否阻塞 archive |
+| --------------------------------------------------------------------- | -------------------- | ---------------- |
+| 1.x Workspace initialization (Nx + Bun + base configs)                | Apply phase 尚未開始 | ✅ 阻塞          |
+| 2.x Lint / Format / git-hooks baseline                                | Apply phase 尚未開始 | ✅ 阻塞          |
+| 3.x `libs/validation` + `libs/domain`                                 | Apply phase 尚未開始 | ✅ 阻塞          |
+| 4.x `libs/observability` + `libs/config`                              | Apply phase 尚未開始 | ✅ 阻塞          |
+| 5.x `libs/contracts` + `libs/realtime` + `libs/scripts`               | Apply phase 尚未開始 | ✅ 阻塞          |
+| 6.x `apps/be-01` foundation (HTTP + repo layer + /health)             | Apply phase 尚未開始 | ✅ 阻塞          |
+| 7.x `be-01` Layer-A WS resume (sequencer + log + buffer)              | Apply phase 尚未開始 | ✅ 阻塞          |
+| 8.x `apps/gw-01` WS gateway + reconnect handshake                     | Apply phase 尚未開始 | ✅ 阻塞          |
+| 9.x `apps/fe-01` (Vite + shadcn + TanStack DB dual-mode)              | Apply phase 尚未開始 | ✅ 阻塞          |
+| 10.x Non-Dagger tools (compose / observability / secrets / git-hooks) | Apply phase 尚未開始 | ✅ 阻塞          |
+| 11.x Dagger + bootstrap + remote-scripts + deploy + smoke             | Apply phase 尚未開始 | ✅ 阻塞          |
+| 12.x First end-to-end deploy to Hetzner                               | Apply phase 尚未開始 | ✅ 阻塞          |
 
 **結論**：全部 58 條任務阻塞 archive，必須完成 apply 後重跑 verify。
 
@@ -83,18 +83,18 @@ scaffold-tech-setup --json` → `progress.complete=0`, `progress.total=58`).
 `openspec/specs/<capability>/spec.md` 比對。目前 `openspec/specs/` 目錄**不
 存在**（fresh workspace），因此所有 10 個 capability 皆需在 archive 時 sync。
 
-| Capability | Requirements | Sync 狀態 | 備註 |
-|---|---|---|---|
-| `backend-foundation` | 6 | ✗ 待 sync | `openspec/specs/` 尚未建立 |
-| `deployment-pipeline` | 10 | ✗ 待 sync | 同上 |
-| `developer-tooling` | 8 | ✗ 待 sync | 同上 |
-| `frontend-foundation` | 6 | ✗ 待 sync | 同上 |
-| `gateway-foundation` | 8 | ✗ 待 sync | 同上 |
-| `monorepo-structure` | 6 | ✗ 待 sync | 同上 |
-| `observability-baseline` | 7 | ✗ 待 sync | 同上 |
-| `secrets-management` | 6 | ✗ 待 sync | 同上 |
-| `shared-libraries` | 9 | ✗ 待 sync | 同上 |
-| `test-strategy` | 8 | ✗ 待 sync | 同上 |
+| Capability               | Requirements | Sync 狀態 | 備註                       |
+| ------------------------ | ------------ | --------- | -------------------------- |
+| `backend-foundation`     | 6            | ✗ 待 sync | `openspec/specs/` 尚未建立 |
+| `deployment-pipeline`    | 10           | ✗ 待 sync | 同上                       |
+| `developer-tooling`      | 8            | ✗ 待 sync | 同上                       |
+| `frontend-foundation`    | 6            | ✗ 待 sync | 同上                       |
+| `gateway-foundation`     | 8            | ✗ 待 sync | 同上                       |
+| `monorepo-structure`     | 6            | ✗ 待 sync | 同上                       |
+| `observability-baseline` | 7            | ✗ 待 sync | 同上                       |
+| `secrets-management`     | 6            | ✗ 待 sync | 同上                       |
+| `shared-libraries`       | 9            | ✗ 待 sync | 同上                       |
+| `test-strategy`          | 8            | ✗ 待 sync | 同上                       |
 
 **Total requirements across 10 capabilities**: 74.
 
@@ -107,12 +107,12 @@ skill 一次 sync 所有 delta specs 至 `openspec/specs/`。
 
 抽樣 4 個 design decisions 與對應 spec requirements 比對：
 
-| 抽樣項 | design 描述 | specs 對應 | 差距 |
-|---|---|---|---|
-| D1 | "`apps/` + `libs/` + `tools/`" 三目錄 Nx 全包 | `monorepo-structure` → "Three-directory Nx workspace layout" + "Nx-native invocation for all infra operations" | 無 |
-| D6 | `tools/tool-dagger` TypeScript SDK 模組結構，產出 `release-<sha>-<tier>.tar.gz` | `deployment-pipeline` → "Dagger-built versioned bundles" + "Per-tier deploy targets" | 無 |
-| D15 | Self-hosted Grafana/Loki/Prometheus/Promtail，Caddy 前端 + basic auth，`ntfy.sh` 通道 | `observability-baseline` → "Self-hosted observability stack" + "Structured logs with labels + structured metadata" + "Alerting via ntfy" | 無 |
-| D21 | ESLint 9 flat config + Prettier 3 + lefthook，含 `@nx/enforce-module-boundaries`、`drizzle`、`tanstack` 等 plugin set | `developer-tooling` → "Root ESLint flat config" + "Prettier formatting baseline" + "Pre-commit orchestration via lefthook" | 無 |
+| 抽樣項 | design 描述                                                                                                           | specs 對應                                                                                                                               | 差距 |
+| ------ | --------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | ---- |
+| D1     | "`apps/` + `libs/` + `tools/`" 三目錄 Nx 全包                                                                         | `monorepo-structure` → "Three-directory Nx workspace layout" + "Nx-native invocation for all infra operations"                           | 無   |
+| D6     | `tools/tool-dagger` TypeScript SDK 模組結構，產出 `release-<sha>-<tier>.tar.gz`                                       | `deployment-pipeline` → "Dagger-built versioned bundles" + "Per-tier deploy targets"                                                     | 無   |
+| D15    | Self-hosted Grafana/Loki/Prometheus/Promtail，Caddy 前端 + basic auth，`ntfy.sh` 通道                                 | `observability-baseline` → "Self-hosted observability stack" + "Structured logs with labels + structured metadata" + "Alerting via ntfy" | 無   |
+| D21    | ESLint 9 flat config + Prettier 3 + lefthook，含 `@nx/enforce-module-boundaries`、`drizzle`、`tanstack` 等 plugin set | `developer-tooling` → "Root ESLint flat config" + "Prettier formatting baseline" + "Pre-commit orchestration via lefthook"               | 無   |
 
 **漂移警告**（非阻塞）：
 
@@ -156,7 +156,7 @@ uncommitted modifications or untracked files。
 instructions）：
 
 1. Commit 現有 planning artifacts 到一個專屬 commit（例如 `chore(openspec):
-   complete scaffold-tech-setup planning`），以便 subagent-driven-development
+complete scaffold-tech-setup planning`），以便 subagent-driven-development
    的 RED/GREEN/REFACTOR commit stream 有乾淨的起點。
 2. 依 `openspec instructions apply --change scaffold-tech-setup` 第 1 步建立
    git worktree（`superpowers:using-git-worktrees`），避免 apply 過程污染
@@ -195,4 +195,4 @@ instructions）：
 3. Apply 結束後重跑 `/opsx:verify`（即 `openspec-verify-change` skill），此
    檔將被覆寫為 post-implementation verdict。
 4. 若重跑後為 ✅ PASS，再使用 `superpowers:finishing-a-development-branch`
-   + `openspec-archive-change` 完成封存與 main-specs sync。
+   - `openspec-archive-change` 完成封存與 main-specs sync。

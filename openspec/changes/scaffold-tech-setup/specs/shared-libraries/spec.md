@@ -123,7 +123,7 @@ The schemas for every HTTP request/response shape exchanged between apps and the
 
 #### Scenario: `$` wrapper surfaces structured errors on non-zero exit
 
-- **WHEN** a `tool-*` script invokes `$("\`false\`")` and `false` exits non-zero
+- **WHEN** a `tool-*` script invokes `$("\`false\`")`and`false` exits non-zero
 - **THEN** the wrapper throws or returns an error object containing `{ exitCode, stdout, stderr, command }` (not a raw rejection string)
 
 #### Scenario: Browser-tagged code cannot import `@wbs/scripts`

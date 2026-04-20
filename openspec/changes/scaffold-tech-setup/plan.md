@@ -11,6 +11,7 @@
 **Tech Stack:** Nx 18+, Bun 1.1.34, TypeScript 5.x, ElysiaJS, ArkType, Drizzle ORM, `bun:sqlite`, React 18, Vite, TanStack (Router/Table/DB/Query), shadcn/ui via `@nx-extend/shadcn-ui`, d3, Dagger TS SDK, Docker + Compose, Caddy 2, pino, `@elysiajs/opentelemetry`, Prometheus/Grafana/Loki/Promtail, SOPS + age, ESLint 9 (flat) + Prettier 3 + lefthook, `bun test` + Vitest + fast-check + Playwright + Stryker, ntfy.sh for alerts.
 
 **Cross-references:**
+
 - `proposal.md` — Why / What Changes / Capabilities
 - `design.md` — All architectural decisions D1-D21 (inlined where content is verbatim)
 - `specs/<capability>/spec.md` — Per-capability requirements; every task below traces to one or more specs
@@ -23,6 +24,7 @@
 **Traces to:** `specs/monorepo-structure/spec.md`, design D1.
 
 **Files:**
+
 - Create: `nx.json` (placeholder, filled in 1.4)
 - Create: `package.json`
 - Create: `bun.lockb` (generated)
@@ -39,6 +41,7 @@ If absent: `curl -fsSL https://bun.sh/install | bash -s "bun-v1.1.34"` and re-op
 
 Run: `bunx create-nx-workspace@~18.0.0 . --preset=ts --nxCloud=skip --packageManager=bun --formatter=prettier --name=wbs`
 Expected:
+
 - Output ends with "Successfully created the workspace".
 - `package.json` and `nx.json` appear at repo root.
 - `bun.lockb` exists; no `package-lock.json`, `pnpm-lock.yaml`, or `yarn.lock`.
@@ -95,6 +98,7 @@ git commit -m "feat(monorepo): initialize Nx workspace with Bun package manager"
 ## Task 1.2: Root `tsconfig.base.json` with `@wbs/*` path aliases
 
 **Files:**
+
 - Create: `tsconfig.base.json`
 
 - [ ] **Step 1: Write `tsconfig.base.json`**
@@ -162,6 +166,7 @@ git commit -m "feat(monorepo): add root tsconfig.base.json with @wbs/* path alia
 ## Task 1.3: Root `package.json` scripts + curated devDeps + `.editorconfig` companion
 
 **Files:**
+
 - Modify: `package.json`
 - Create: `.editorconfig`
 
@@ -243,6 +248,7 @@ git commit -m "feat(monorepo): add root scripts, dev deps, and .editorconfig"
 ## Task 1.4: `nx.json` with named inputs, target defaults, and tag allowlist
 
 **Files:**
+
 - Modify: `nx.json`
 
 - [ ] **Step 1: Write the full `nx.json`**
@@ -280,11 +286,7 @@ git commit -m "feat(monorepo): add root scripts, dev deps, and .editorconfig"
     },
     "lint": {
       "cache": true,
-      "inputs": [
-        "default",
-        "{workspaceRoot}/eslint.config.js",
-        "{workspaceRoot}/.prettierrc.json"
-      ]
+      "inputs": ["default", "{workspaceRoot}/eslint.config.js", "{workspaceRoot}/.prettierrc.json"]
     },
     "typecheck": {
       "cache": true,
@@ -324,11 +326,13 @@ git commit -m "feat(monorepo): configure nx.json with named inputs and target de
 ## Task 1.5: `.gitignore` final form (already seeded in 1.1; extend if needed)
 
 **Files:**
+
 - Modify: `.gitignore` (already created in Task 1.1; verify it covers everything required)
 
 - [ ] **Step 1: Verify `.gitignore` contains all required entries**
 
 Confirm these lines exist (add any missing):
+
 ```
 .nx/cache
 .nx/workspace-data
@@ -343,6 +347,7 @@ routeTree.gen.ts
 ```
 
 And these do NOT appear (must remain tracked):
+
 ```
 *.env.sops
 .sops.yaml
@@ -376,6 +381,7 @@ git commit -m "chore(monorepo): finalize .gitignore entries" || echo "no changes
 rm -rf node_modules
 bun install
 ```
+
 Expected: Exit 0; `node_modules/` repopulated; `bun.lockb` unchanged.
 
 - [ ] **Step 2: `nx graph` renders even with empty project set**
@@ -401,9 +407,11 @@ Already done in Task 1.3. Verify:
 - [ ] **Step 1: Confirm all ESLint plugins are in `package.json` devDependencies**
 
 Run:
+
 ```bash
 bun pm ls --all 2>/dev/null | grep -E "eslint-plugin-(react|react-hooks|jsx-a11y|drizzle|unused-imports|simple-import-sort|unicorn)|@tanstack/eslint-plugin|@nx/eslint" | head
 ```
+
 Expected: All listed plugins show versions.
 
 If any are missing, `bun add -d <plugin>@<version>` per Task 1.3 Step 1.
@@ -415,6 +423,7 @@ If any are missing, `bun add -d <plugin>@<version>` per Task 1.3 Step 1.
 ## Task 2.2: Root `eslint.config.js` flat config with per-glob overrides
 
 **Files:**
+
 - Create: `eslint.config.js`
 
 - [ ] **Step 1: Write the flat config**
@@ -444,8 +453,14 @@ const nxRules = {
         { sourceTag: 'scope:app', onlyDependOnLibsWithTags: ['scope:shared'] },
         { sourceTag: 'scope:shared', onlyDependOnLibsWithTags: ['scope:shared'] },
         { sourceTag: 'scope:infra', onlyDependOnLibsWithTags: ['scope:shared', 'scope:infra'] },
-        { sourceTag: 'runtime:browser', onlyDependOnLibsWithTags: ['runtime:browser', 'runtime:isomorphic'] },
-        { sourceTag: 'runtime:bun', onlyDependOnLibsWithTags: ['runtime:bun', 'runtime:isomorphic'] },
+        {
+          sourceTag: 'runtime:browser',
+          onlyDependOnLibsWithTags: ['runtime:browser', 'runtime:isomorphic'],
+        },
+        {
+          sourceTag: 'runtime:bun',
+          onlyDependOnLibsWithTags: ['runtime:bun', 'runtime:isomorphic'],
+        },
         { sourceTag: 'runtime:isomorphic', onlyDependOnLibsWithTags: ['runtime:isomorphic'] },
       ],
     },
@@ -524,10 +539,7 @@ export default [
     files: ['apps/be-01/src/**/*.ts'],
     ignores: ['apps/be-01/src/repository/**'],
     rules: {
-      'no-restricted-imports': [
-        'error',
-        { patterns: ['drizzle-orm/*', 'drizzle-orm'] },
-      ],
+      'no-restricted-imports': ['error', { patterns: ['drizzle-orm/*', 'drizzle-orm'] }],
     },
   },
 
@@ -561,6 +573,7 @@ git commit -m "feat(lint): add root flat ESLint config with per-glob overrides"
 ## Task 2.3: Prettier config + ignore
 
 **Files:**
+
 - Create: `.prettierrc.json`
 - Create: `.prettierignore`
 
@@ -610,6 +623,7 @@ git commit -m "feat(lint): add Prettier config and ignore file"
 ## Task 2.4: `lefthook` + `lefthook.yml` pre-commit and commit-msg hooks
 
 **Files:**
+
 - Create: `lefthook.yml`
 
 - [ ] **Step 1: Verify lefthook is installed (from Task 1.3) and available**
@@ -658,6 +672,7 @@ git commit --no-verify -m "feat(lint): add lefthook pre-commit and commit-msg ho
 ## Task 2.5: `.vscode/` settings and extension recommendations
 
 **Files:**
+
 - Create: `.vscode/settings.json`
 - Create: `.vscode/extensions.json`
 
@@ -720,9 +735,11 @@ Run: `bunx nx run-many -t lint`
 Expected: "No targets found" (because no project has a `lint` target yet). Exit 0.
 
 Alternative ESLint invocation to verify the flat config loads:
+
 ```bash
 bunx eslint --config eslint.config.js 'eslint.config.js'
 ```
+
 Expected: Exit 0.
 
 - [ ] **Step 3: No-op commit if working tree clean**
@@ -739,6 +756,7 @@ git status
 **Traces to:** `specs/shared-libraries/spec.md` (validation), design D19.
 
 **Files:**
+
 - Create (via Nx generator): `libs/validation/project.json`, `libs/validation/src/index.ts`, `libs/validation/tsconfig.json`, etc.
 - Modify: `tsconfig.base.json` (path alias already present from Task 1.2 — no change)
 - Create: `libs/validation/src/core.ts`
@@ -879,10 +897,7 @@ import { type } from 'arktype';
 declare const brand: unique symbol;
 export type Branded<Base, Tag extends string> = Base & { readonly [brand]: Tag };
 
-export function brandedString<Tag extends string>(
-  _tag: Tag,
-  constraints: string = 'string',
-) {
+export function brandedString<Tag extends string>(_tag: Tag, constraints: string = 'string') {
   return type(constraints) as unknown as {
     infer: Branded<string, Tag>;
   } & ReturnType<typeof type>;
@@ -914,6 +929,7 @@ git commit -m "feat(validation): scaffold @wbs/validation with ArkType core and 
 ## Task 3.2: `libs/validation/src/fixtures/` sub-path export
 
 **Files:**
+
 - Create: `libs/validation/src/fixtures/index.ts`
 - Create: `libs/validation/src/fixtures/db.ts`
 - Create: `libs/validation/src/fixtures/frame.ts`
@@ -1073,6 +1089,7 @@ git commit -m "feat(validation): add /fixtures sub-path export with db/frame/clo
 ## Task 3.3: Generate `@wbs/domain` library
 
 **Files:**
+
 - Create (via Nx): `libs/domain/` scaffold
 - Create: `libs/domain/src/wbs-item.ts`
 - Create: `libs/domain/src/estimate.ts`
@@ -1102,9 +1119,9 @@ describe('WbsItem schema', () => {
   });
 
   it('rejects empty title', () => {
-    expect(() =>
-      parseOrThrow(WbsItem, { id: '01HXYZABC', title: '', estimateHours: 4 }),
-    ).toThrow(ValidationError);
+    expect(() => parseOrThrow(WbsItem, { id: '01HXYZABC', title: '', estimateHours: 4 })).toThrow(
+      ValidationError,
+    );
   });
 
   it('WbsItemId is branded — TypeScript refuses to assign raw strings', () => {
@@ -1206,6 +1223,7 @@ For anything below 85%, add unit tests until the threshold is met. Commit each a
 **Traces to:** `specs/shared-libraries/spec.md` (observability), design D12.
 
 **Files:**
+
 - Create (via Nx): `libs/observability/` scaffold
 - Create: `libs/observability/src/log-schema.ts`
 - Create: `libs/observability/src/logger.ts`
@@ -1418,6 +1436,7 @@ git commit -m "feat(observability): scaffold @wbs/observability with pino logger
 ## Task 4.2: `@wbs/observability/server` — Elysia OTel plugin + `/metrics` exporter
 
 **Files:**
+
 - Create: `libs/observability/src/server/index.ts`
 - Create: `libs/observability/src/server/otel-plugin.ts`
 - Create: `libs/observability/src/server/otel-plugin.test.ts`
@@ -1481,27 +1500,30 @@ export function observabilityPlugin(opts: ObservabilityPluginOptions) {
   const metricsPath = opts.metricsPath ?? '/metrics';
   const exporter = ensureExporter();
 
-  return new Elysia({ name: 'wbs-observability', seed: opts.service }).get(metricsPath, async () => {
-    const { resourceMetrics, errors } = await new Promise<{
-      resourceMetrics: unknown;
-      errors: Error[];
-    }>((resolve) => {
-      // @ts-expect-error private API — acceptable for a scaffold
-      exporter['_serializer'] ??= null;
-      exporter.collect().then(resolve);
-    });
-    if (errors.length > 0) {
-      return new Response(`# scrape errors: ${errors.map((e) => e.message).join(',')}`, {
-        status: 500,
+  return new Elysia({ name: 'wbs-observability', seed: opts.service }).get(
+    metricsPath,
+    async () => {
+      const { resourceMetrics, errors } = await new Promise<{
+        resourceMetrics: unknown;
+        errors: Error[];
+      }>((resolve) => {
+        // @ts-expect-error private API — acceptable for a scaffold
+        exporter['_serializer'] ??= null;
+        exporter.collect().then(resolve);
       });
-    }
-    const text = exporter['_serializer']
-      ? (exporter['_serializer'] as { serialize: (m: unknown) => string }).serialize(
-          resourceMetrics,
-        )
-      : '# HELP placeholder\n';
-    return new Response(text, { headers: { 'content-type': 'text/plain; version=0.0.4' } });
-  });
+      if (errors.length > 0) {
+        return new Response(`# scrape errors: ${errors.map((e) => e.message).join(',')}`, {
+          status: 500,
+        });
+      }
+      const text = exporter['_serializer']
+        ? (exporter['_serializer'] as { serialize: (m: unknown) => string }).serialize(
+            resourceMetrics,
+          )
+        : '# HELP placeholder\n';
+      return new Response(text, { headers: { 'content-type': 'text/plain; version=0.0.4' } });
+    },
+  );
 }
 ```
 
@@ -1531,6 +1553,7 @@ git commit -m "feat(observability): add /server Elysia OTel plugin with Promethe
 ## Task 4.3: `@wbs/config` — `defineConfig`, env schemas, SOPS loader
 
 **Files:**
+
 - Create (via Nx): `libs/config/` scaffold
 - Create: `libs/config/src/define-config.ts`
 - Create: `libs/config/src/env-schemas.ts`
@@ -1554,10 +1577,10 @@ import { defineConfig } from './define-config';
 
 describe('defineConfig', () => {
   it('parses process.env overrides correctly', () => {
-    const cfg = defineConfig(
-      type({ PORT: 'string.integer.parse', LOG_LEVEL: "'info'|'debug'" }),
-      { PORT: '3100', LOG_LEVEL: 'info' },
-    );
+    const cfg = defineConfig(type({ PORT: 'string.integer.parse', LOG_LEVEL: "'info'|'debug'" }), {
+      PORT: '3100',
+      LOG_LEVEL: 'info',
+    });
     expect(cfg.PORT).toBe(3100);
     expect(cfg.LOG_LEVEL).toBe('info');
   });
@@ -1686,6 +1709,7 @@ rm -r libs/validation/src/__scratch__/
 **Traces to:** `specs/shared-libraries/spec.md` (contracts), design D3, D7, D17.
 
 **Files:**
+
 - Create (via Nx): `libs/contracts/` scaffold
 - Create: `libs/contracts/src/internal.ts`
 - Create: `libs/contracts/src/ws.ts`
@@ -1733,9 +1757,9 @@ describe('internal contracts', () => {
   });
 
   it('InternalForwardRequest requires trace_id', () => {
-    expect(() =>
-      parseOrThrow(InternalForwardRequest, { message: { type: 'ping' } }),
-    ).toThrow(ValidationError);
+    expect(() => parseOrThrow(InternalForwardRequest, { message: { type: 'ping' } })).toThrow(
+      ValidationError,
+    );
   });
 });
 ```
@@ -1915,6 +1939,7 @@ git commit -m "feat(contracts): scaffold @wbs/contracts with internal, WS, resum
 **Traces to:** `specs/shared-libraries/spec.md` (realtime), design D17.
 
 **Files:**
+
 - Create (via Nx): `libs/realtime/` scaffold
 - Create: `libs/realtime/src/reconnecting-ws.ts`
 - Create: `libs/realtime/src/subscription-tracker.ts`
@@ -1951,7 +1976,10 @@ describe('SubscriptionTracker', () => {
 
   it('persists across instances via storage', () => {
     const storage = new Map<string, string>();
-    const s = { getItem: (k: string) => storage.get(k) ?? null, setItem: (k: string, v: string) => storage.set(k, v) };
+    const s = {
+      getItem: (k: string) => storage.get(k) ?? null,
+      setItem: (k: string, v: string) => storage.set(k, v),
+    };
     const t1 = new SubscriptionTracker(s);
     t1.update('doc:abc', 42);
     const t2 = new SubscriptionTracker(s);
@@ -1961,8 +1989,8 @@ describe('SubscriptionTracker', () => {
 
 describe('computeBackoff', () => {
   it('starts at 500ms and doubles up to a 30s cap', () => {
-    const samples = [0, 1, 2, 3, 4, 5, 6, 7, 8].map((n) =>
-      computeBackoff(n, () => 0.5), // no jitter
+    const samples = [0, 1, 2, 3, 4, 5, 6, 7, 8].map(
+      (n) => computeBackoff(n, () => 0.5), // no jitter
     );
     expect(samples[0]).toBe(500);
     expect(samples[1]).toBe(1000);
@@ -2085,7 +2113,8 @@ export function createReconnectingWs(opts: ReconnectingWsOptions): {
       return;
     }
     const token = await opts.jwt();
-    const url = opts.url + (opts.url.includes('?') ? '&' : '?') + 'token=' + encodeURIComponent(token);
+    const url =
+      opts.url + (opts.url.includes('?') ? '&' : '?') + 'token=' + encodeURIComponent(token);
     const socket = wsf(url);
     ws = socket;
 
@@ -2093,9 +2122,7 @@ export function createReconnectingWs(opts: ReconnectingWsOptions): {
       attempt = 0;
       attemptStart = Date.now();
       setState('open');
-      socket.send(
-        JSON.stringify({ type: 'resume', resume_points: opts.subscriptions.snapshot() }),
-      );
+      socket.send(JSON.stringify({ type: 'resume', resume_points: opts.subscriptions.snapshot() }));
       startHeartbeat();
     };
 
@@ -2199,6 +2226,7 @@ git commit -m "feat(realtime): scaffold @wbs/realtime with ReconnectingWs + Subs
 ## Task 5.3: `@wbs/scripts` — `$` wrapper, SSH builder, typed JSON/YAML, Dagger args
 
 **Files:**
+
 - Create (via Nx): `libs/scripts/` scaffold
 - Create: `libs/scripts/src/shell.ts`
 - Create: `libs/scripts/src/ssh.ts`
@@ -2308,12 +2336,7 @@ export interface SshTarget {
   identityFile?: string;
 }
 
-const DEFAULT_OPTS = [
-  '-o',
-  'StrictHostKeyChecking=accept-new',
-  '-o',
-  'ServerAliveInterval=30',
-];
+const DEFAULT_OPTS = ['-o', 'StrictHostKeyChecking=accept-new', '-o', 'ServerAliveInterval=30'];
 
 export function buildSshCommand(target: SshTarget, remoteCmd: string): string[] {
   const port = target.port ? ['-p', String(target.port)] : [];
@@ -2321,14 +2344,17 @@ export function buildSshCommand(target: SshTarget, remoteCmd: string): string[] 
   return ['ssh', ...DEFAULT_OPTS, ...port, ...ident, `${target.user}@${target.host}`, remoteCmd];
 }
 
-export function buildScpCommand(
-  target: SshTarget,
-  from: string,
-  remotePath: string,
-): string[] {
+export function buildScpCommand(target: SshTarget, from: string, remotePath: string): string[] {
   const port = target.port ? ['-P', String(target.port)] : [];
   const ident = target.identityFile ? ['-i', target.identityFile] : [];
-  return ['scp', ...DEFAULT_OPTS, ...port, ...ident, from, `${target.user}@${target.host}:${remotePath}`];
+  return [
+    'scp',
+    ...DEFAULT_OPTS,
+    ...port,
+    ...ident,
+    from,
+    `${target.user}@${target.host}:${remotePath}`,
+  ];
 }
 ```
 
@@ -2398,6 +2424,7 @@ git commit -m "feat(scripts): scaffold @wbs/scripts with shell, ssh, readers, da
 ## Task 5.4: Property tests for `@wbs/realtime` invariants
 
 **Files:**
+
 - Create: `libs/realtime/src/reconnecting-ws.property.test.ts`
 
 - [ ] **Step 1: Write property tests for backoff monotonicity, handshake idempotency, tracker monotonicity**
@@ -2433,10 +2460,7 @@ describe('SubscriptionTracker property: last_seq is monotonic', () => {
     fc.assert(
       fc.property(
         fc.array(
-          fc.tuple(
-            fc.constantFrom('doc:a', 'doc:b', 'user:x'),
-            fc.integer({ min: 0, max: 1000 }),
-          ),
+          fc.tuple(fc.constantFrom('doc:a', 'doc:b', 'user:x'), fc.integer({ min: 0, max: 1000 })),
           { minLength: 0, maxLength: 100 },
         ),
         (updates) => {
@@ -2478,6 +2502,7 @@ git commit -m "test(realtime): add fast-check property tests for backoff + track
 **Traces to:** `specs/backend-foundation/spec.md`, design D3, D4.
 
 **Files:**
+
 - Create (via Nx): `apps/be-01/` scaffold
 - Create: `apps/be-01/src/main.ts`
 - Create: `apps/be-01/src/config.ts`
@@ -2645,6 +2670,7 @@ git commit -m "feat(be-01): Elysia HTTP skeleton with /health, /metrics, config 
 ## Task 6.2: Drizzle + `bun:sqlite` repository abstraction
 
 **Files:**
+
 - Create: `apps/be-01/src/repository/index.ts`
 - Create: `apps/be-01/src/repository/example.ts`
 - Create: `apps/be-01/src/repository/schema.ts`
@@ -2745,7 +2771,7 @@ export default {
 } satisfies Config;
 ```
 
-- [ ] **Step 7: Update eslint config's `no-restricted-imports` block to allow `drizzle-orm/*` only in `apps/be-01/src/repository/**`**
+- [ ] **Step 7: Update eslint config's `no-restricted-imports` block to allow `drizzle-orm/*` only in `apps/be-01/src/repository/**`\*\*
 
 Already handled in Task 2.2's eslint.config.js. Verify:
 
@@ -2753,11 +2779,13 @@ Run: `bunx eslint apps/be-01/src/repository/example.ts`
 Expected: no errors.
 
 Test the negative:
+
 ```ts
 // apps/be-01/src/__scratch__/bad.ts
 import { eq } from 'drizzle-orm';
 console.log(eq);
 ```
+
 Run: `bunx eslint apps/be-01/src/__scratch__/bad.ts`
 Expected: error — "drizzle-orm" is a restricted import.
 Delete the scratch file.
@@ -2779,6 +2807,7 @@ git commit -m "feat(be-01): Drizzle repository layer with ExampleRepo behind int
 ## Task 6.3: Controller / service layering + ArkType validation helper
 
 **Files:**
+
 - Create: `apps/be-01/src/controller/smoke.controller.ts`
 - Create: `apps/be-01/src/service/smoke.service.ts`
 - Create: `apps/be-01/src/middleware/validate.ts`
@@ -2890,11 +2919,11 @@ Edit `apps/be-01/src/app.ts` — add `.use(smokeController)` between `.decorate`
 ```ts
 import { smokeController } from './controller/smoke.controller';
 // ...
-  return new Elysia()
-    .use(observabilityPlugin({ service: 'be-01' }))
-    .decorate('logger', logger)
-    .use(smokeController)
-    .get('/health', /* ... */);
+return new Elysia()
+  .use(observabilityPlugin({ service: 'be-01' }))
+  .decorate('logger', logger)
+  .use(smokeController)
+  .get('/health' /* ... */);
 ```
 
 - [ ] **Step 6: Run integration test**
@@ -2914,6 +2943,7 @@ git commit -m "feat(be-01): controller/service layering with ArkType validation 
 ## Task 6.4: Migration runner + `/health` toggles on migration state
 
 **Files:**
+
 - Create: `apps/be-01/src/migrate.ts`
 - Create: `apps/be-01/drizzle/0000_initial.sql`
 - Modify: `apps/be-01/src/main.ts`
@@ -2941,7 +2971,11 @@ import { buildApp } from './app';
 describe('migrate lifecycle', () => {
   it('exposes 503 before migrations complete then 200 after', async () => {
     let migrationsApplied = false;
-    const app = buildApp({ get migrationsApplied() { return migrationsApplied; } } as { migrationsApplied: boolean });
+    const app = buildApp({
+      get migrationsApplied() {
+        return migrationsApplied;
+      },
+    } as { migrationsApplied: boolean });
 
     const pre = await app.handle(new Request('http://localhost/health'));
     expect(pre.status).toBe(503);
@@ -3018,7 +3052,9 @@ const logger = createLogger({ service: 'be-01', level: cfg.LOG_LEVEL });
 
 const state = { migrationsApplied: false };
 const app = buildApp({
-  get migrationsApplied() { return state.migrationsApplied; },
+  get migrationsApplied() {
+    return state.migrationsApplied;
+  },
   version: process.env['VERSION'],
 } as { migrationsApplied: boolean; version?: string });
 
@@ -3054,6 +3090,7 @@ git commit -m "feat(be-01): migration runner with /health 503 during migrate, 20
 **Traces to:** `specs/backend-foundation/spec.md` (Layer A), design D17.
 
 **Files:**
+
 - Modify: `apps/be-01/src/repository/schema.ts`
 - Create: `apps/be-01/drizzle/0001_event_log.sql`
 - Create: `apps/be-01/src/service/event-sequencer.ts`
@@ -3133,7 +3170,9 @@ describe('EventSequencer', () => {
     const db = await bootstrap();
     const seq = new EventSequencer(db, () => 5_000);
     await seq.recordEvent('doc:a', { hello: 'world' });
-    const rows = db.$client.query('SELECT * FROM event_log WHERE subscription = ?').all('doc:a') as {
+    const rows = db.$client
+      .query('SELECT * FROM event_log WHERE subscription = ?')
+      .all('doc:a') as {
       seq: number;
       message: string;
     }[];
@@ -3171,10 +3210,9 @@ export class EventSequencer {
         INSERT INTO event_sequencer (subscription, next_seq) VALUES (${subscription}, 0)
         ON CONFLICT(subscription) DO NOTHING
       `);
-      const [{ next_seq: nextSeq }] = tx
-        .all<{ next_seq: number }>(
-          sql`UPDATE event_sequencer SET next_seq = next_seq + 1 WHERE subscription = ${subscription} RETURNING next_seq - 1 AS next_seq`,
-        );
+      const [{ next_seq: nextSeq }] = tx.all<{ next_seq: number }>(
+        sql`UPDATE event_sequencer SET next_seq = next_seq + 1 WHERE subscription = ${subscription} RETURNING next_seq - 1 AS next_seq`,
+      );
       tx.run(sql`
         INSERT INTO event_log (subscription, seq, message, created_at)
         VALUES (${subscription}, ${nextSeq}, ${JSON.stringify(message)}, ${createdAt})
@@ -3202,6 +3240,7 @@ git commit -m "feat(be-01): EventSequencer service + event_log/event_sequencer s
 ## Task 7.2: `/internal/forward` + `/internal/resume` endpoints with auth + ArkType
 
 **Files:**
+
 - Create: `apps/be-01/src/controller/internal.controller.ts`
 - Create: `apps/be-01/src/middleware/internal-auth.ts`
 - Create: `apps/be-01/src/controller/internal.integration.test.ts`
@@ -3307,7 +3346,12 @@ export interface InternalDeps {
   onResume: (
     resumePoints: Record<string, number>,
     ctx: { clientId: string | null; connectionId: string | null; traceId: string },
-  ) => Promise<Record<string, { status: 'replaying'; count: number } | { status: 'denied'; reason: 'out_of_range' }>>;
+  ) => Promise<
+    Record<
+      string,
+      { status: 'replaying'; count: number } | { status: 'denied'; reason: 'out_of_range' }
+    >
+  >;
 }
 
 export function internalController(deps: InternalDeps) {
@@ -3409,6 +3453,7 @@ git commit -m "feat(be-01): /internal/forward and /internal/resume with X-Intern
 ## Task 7.3: `/internal/push` HTTP client toward `gw-01` with retry + durable fallback
 
 **Files:**
+
 - Create: `apps/be-01/src/service/push-client.ts`
 - Create: `apps/be-01/src/service/push-client.test.ts`
 
@@ -3466,9 +3511,9 @@ describe('PushClient', () => {
       sleep: async () => {},
       maxRetries: 2,
     });
-    await expect(
-      client.push({ subscription: 'doc:a', seq: 1, message: {} }),
-    ).rejects.toThrow(/push failed/i);
+    await expect(client.push({ subscription: 'doc:a', seq: 1, message: {} })).rejects.toThrow(
+      /push failed/i,
+    );
   });
 });
 ```
@@ -3523,7 +3568,9 @@ export class PushClient {
         throw new PushFailed(`push failed with ${res.status}: ${await res.text()}`);
       }
       if (attempt === this.maxRetries) {
-        throw new PushFailed(`push failed after ${this.maxRetries + 1} attempts: last=${res.status}`);
+        throw new PushFailed(
+          `push failed after ${this.maxRetries + 1} attempts: last=${res.status}`,
+        );
       }
       await this.sleep(backoff);
       backoff = Math.min(backoff * 2, 30_000);
@@ -3550,6 +3597,7 @@ git commit -m "feat(be-01): PushClient with retry-with-backoff for /internal/pus
 ## Task 7.4: In-memory ring buffer + durable `event_log` fallback + retention job
 
 **Files:**
+
 - Create: `apps/be-01/src/service/replay-buffer.ts`
 - Create: `apps/be-01/src/service/replay-buffer.test.ts`
 - Create: `apps/be-01/src/service/retention-job.ts`
@@ -3726,6 +3774,7 @@ git commit -m "feat(be-01): in-memory ring buffer + retention job for event_log"
 ## Task 7.5: Property tests for Layer-A invariants
 
 **Files:**
+
 - Create: `apps/be-01/src/service/layer-a.property.test.ts`
 
 - [ ] **Step 1: Write property tests**
@@ -3762,7 +3811,11 @@ describe('Layer-A invariants', () => {
     fc.assert(
       fc.property(fc.array(fc.nat(1000), { minLength: 0, maxLength: 500 }), (seqs) => {
         const cap = 50;
-        const buf = new ReplayBuffer({ maxPerSubscription: cap, maxAgeMs: Number.MAX_SAFE_INTEGER, now: () => 1 });
+        const buf = new ReplayBuffer({
+          maxPerSubscription: cap,
+          maxAgeMs: Number.MAX_SAFE_INTEGER,
+          now: () => 1,
+        });
         for (const s of seqs) buf.record('doc:a', s, {});
         expect(buf.since('doc:a', -1).length).toBeLessThanOrEqual(cap);
       }),
@@ -3773,14 +3826,11 @@ describe('Layer-A invariants', () => {
   it('invariant: session isolation — two subscriptions never cross-deliver', () => {
     const buf = new ReplayBuffer({ maxPerSubscription: 100, maxAgeMs: 60_000, now: () => 1 });
     fc.assert(
-      fc.property(
-        fc.array(fc.tuple(fc.constantFrom('doc:a', 'doc:b'), fc.nat(100))),
-        (ops) => {
-          for (const [sub, s] of ops) buf.record(sub, s, { sub });
-          const aMsgs = buf.since('doc:a', -1);
-          expect(aMsgs.every((e) => (e.message as { sub: string }).sub === 'doc:a')).toBe(true);
-        },
-      ),
+      fc.property(fc.array(fc.tuple(fc.constantFrom('doc:a', 'doc:b'), fc.nat(100))), (ops) => {
+        for (const [sub, s] of ops) buf.record(sub, s, { sub });
+        const aMsgs = buf.since('doc:a', -1);
+        expect(aMsgs.every((e) => (e.message as { sub: string }).sub === 'doc:a')).toBe(true);
+      }),
       { numRuns: 50, seed: 42 },
     );
   });
@@ -3806,6 +3856,7 @@ git commit -m "test(be-01): property tests for Layer-A invariants (monotonicity,
 **Traces to:** `specs/gateway-foundation/spec.md`, design D3, D4, D13.
 
 **Files:**
+
 - Create (via Nx): `apps/gw-01/` scaffold
 - Create: `apps/gw-01/src/main.ts`
 - Create: `apps/gw-01/src/config.ts`
@@ -3927,6 +3978,7 @@ git commit -m "feat(gw-01): Elysia skeleton with /health and /metrics"
 ## Task 8.2: JWT upgrade-time auth with dual-key validation
 
 **Files:**
+
 - Create: `apps/gw-01/src/service/jwt-auth.ts`
 - Create: `apps/gw-01/src/service/jwt-auth.test.ts`
 
@@ -3997,10 +4049,7 @@ export class JwtVerifier {
       const { payload } = await jwtVerify(token, this.opts.current);
       return payload as { sub: string };
     } catch (err) {
-      if (
-        err instanceof joseErrors.JWSSignatureVerificationFailed &&
-        this.opts.previous
-      ) {
+      if (err instanceof joseErrors.JWSSignatureVerificationFailed && this.opts.previous) {
         const { payload } = await jwtVerify(token, this.opts.previous);
         return payload as { sub: string };
       }
@@ -4027,6 +4076,7 @@ git commit -m "feat(gw-01): dual-key JWT verifier with fallback only on signatur
 ## Task 8.3: In-memory `subscription → Set<socket>` map
 
 **Files:**
+
 - Create: `apps/gw-01/src/service/subscription-map.ts`
 - Create: `apps/gw-01/src/service/subscription-map.test.ts`
 
@@ -4114,6 +4164,7 @@ git commit -m "feat(gw-01): in-memory SubscriptionMap with subscribe/unsubscribe
 ## Task 8.4: `POST /internal/push` fan-out + forward to be-01
 
 **Files:**
+
 - Create: `apps/gw-01/src/controller/internal.controller.ts`
 - Create: `apps/gw-01/src/service/forward-client.ts`
 - Create: `apps/gw-01/src/service/forward-client.test.ts`
@@ -4285,14 +4336,14 @@ import { internalController } from './controller/internal.controller';
 import { SubscriptionMap } from './service/subscription-map';
 
 // inside buildApp:
-  const subs = new SubscriptionMap<{ send(d: string): void }>();
-  // ...
-  return new Elysia()
-    .use(observabilityPlugin({ service: 'gw-01' }))
-    .decorate('logger', logger)
-    .decorate('subs', subs)
-    .use(internalController(opts.internalAuthSecret, subs))
-    .get('/health', () => ({ status: 'ok' }));
+const subs = new SubscriptionMap<{ send(d: string): void }>();
+// ...
+return new Elysia()
+  .use(observabilityPlugin({ service: 'gw-01' }))
+  .decorate('logger', logger)
+  .decorate('subs', subs)
+  .use(internalController(opts.internalAuthSecret, subs))
+  .get('/health', () => ({ status: 'ok' }));
 ```
 
 - [ ] **Step 6: Run tests**
@@ -4312,6 +4363,7 @@ git commit -m "feat(gw-01): /internal/push fan-out + ForwardClient for inbound m
 ## Task 8.5: Reconnect handshake + `gw_*` Prometheus metrics + WS endpoint
 
 **Files:**
+
 - Create: `apps/gw-01/src/controller/ws.controller.ts`
 - Create: `apps/gw-01/src/service/gateway-metrics.ts`
 - Create: `apps/gw-01/src/controller/ws.controller.test.ts`
@@ -4327,9 +4379,15 @@ export const gwMetrics = {
   connectionsTotal: new Counter('gw_connections_total', 'WS upgrade attempts'),
   reconnectsTotal: new Counter('gw_reconnects_total', 'Client reconnects with resume'),
   messageFanoutTotal: new Counter('gw_message_fanout_total', 'Server→client fan-outs'),
-  inboundMessagesTotal: new Counter('gw_inbound_messages_total', 'Client→server messages forwarded'),
+  inboundMessagesTotal: new Counter(
+    'gw_inbound_messages_total',
+    'Client→server messages forwarded',
+  ),
   drainSeconds: new Histogram('gw_drain_seconds', 'Drain window duration'),
-  backendUnavailableTotal: new Counter('gw_backend_unavailable_total', 'Failed /internal/forward calls'),
+  backendUnavailableTotal: new Counter(
+    'gw_backend_unavailable_total',
+    'Failed /internal/forward calls',
+  ),
 };
 ```
 
@@ -4416,7 +4474,10 @@ export interface HandleWsMessageArgs {
   resume: (
     points: Record<string, number>,
   ) => Promise<
-    Record<string, { status: 'replaying'; count: number } | { status: 'denied'; reason: 'out_of_range' }>
+    Record<
+      string,
+      { status: 'replaying'; count: number } | { status: 'denied'; reason: 'out_of_range' }
+    >
   >;
 }
 
@@ -4439,7 +4500,9 @@ export async function handleWsMessage(args: HandleWsMessageArgs): Promise<void> 
       else denied.push(sub);
     }
     for (const sub of denied) {
-      args.socket.send(JSON.stringify({ type: 'resume_denied', subscription: sub, reason: 'out_of_range' }));
+      args.socket.send(
+        JSON.stringify({ type: 'resume_denied', subscription: sub, reason: 'out_of_range' }),
+      );
     }
     args.socket.send(JSON.stringify({ type: 'resume_ack', replayed }));
     return;
@@ -4451,7 +4514,9 @@ export async function handleWsMessage(args: HandleWsMessageArgs): Promise<void> 
       await args.forward(msg);
     } catch {
       gwMetrics.backendUnavailableTotal.inc();
-      args.socket.send(JSON.stringify({ type: 'error', code: 'backend_unavailable', retry_after: 5 }));
+      args.socket.send(
+        JSON.stringify({ type: 'error', code: 'backend_unavailable', retry_after: 5 }),
+      );
     }
     return;
   }
@@ -4544,6 +4609,7 @@ git commit -m "feat(gw-01): WS endpoint with JWT auth, resume handshake, ping/po
 ## Task 8.6: Full reconnect integration test
 
 **Files:**
+
 - Create: `apps/gw-01/src/integration/reconnect.integration.test.ts`
 
 - [ ] **Step 1: Write the integration test that boots a real Elysia server, opens a WS, closes, reopens, expects `resume_ack`**
@@ -4584,6 +4650,7 @@ git commit -m "test(gw-01): integration smoke for /health via app.handle"
 **Traces to:** `specs/frontend-foundation/spec.md`, design D5.
 
 **Files:**
+
 - Create (via Nx plugin): `apps/fe-01/*`
 - Create: `apps/fe-01/src/components/ui/button.tsx` (via shadcn)
 
@@ -4602,6 +4669,7 @@ If this command succeeds, skip to Step 3.
 - [ ] **Step 2b: Fallback path (if plugin broken within 1 hour)**
 
 Run manually:
+
 ```bash
 bunx nx g @nx/react:app apps/fe-01 --bundler=vite --style=css --routing=false --linter=eslint --unitTestRunner=vitest --no-interactive
 cd apps/fe-01 && bun add -d tailwindcss postcss autoprefixer class-variance-authority clsx tailwind-merge
@@ -4662,6 +4730,7 @@ git commit -m "feat(fe-01): bootstrap with shadcn/ui Button + TanStack Router"
 ## Task 9.2: Add TanStack Table + d3 smoke examples
 
 **Files:**
+
 - Modify: `apps/fe-01/package.json` (via `bun add`)
 - Create: `apps/fe-01/src/components/smoke/table-smoke.tsx`
 - Create: `apps/fe-01/src/components/smoke/d3-smoke.tsx`
@@ -4673,14 +4742,23 @@ Run: `cd apps/fe-01 && bun add @tanstack/react-table@^8 d3@^7 && bun add -d @typ
 - [ ] **Step 2: Implement `table-smoke.tsx`**
 
 ```tsx
-import { useReactTable, getCoreRowModel, flexRender, createColumnHelper } from '@tanstack/react-table';
+import {
+  useReactTable,
+  getCoreRowModel,
+  flexRender,
+  createColumnHelper,
+} from '@tanstack/react-table';
 
 type Row = { id: string; title: string };
 const ch = createColumnHelper<Row>();
 const columns = [ch.accessor('id', { header: 'ID' }), ch.accessor('title', { header: 'Title' })];
 
 export function TableSmoke() {
-  const table = useReactTable({ data: [{ id: '1', title: 'Hello' }], columns, getCoreRowModel: getCoreRowModel() });
+  const table = useReactTable({
+    data: [{ id: '1', title: 'Hello' }],
+    columns,
+    getCoreRowModel: getCoreRowModel(),
+  });
   return (
     <table>
       <thead>
@@ -4740,6 +4818,7 @@ git commit -m "feat(fe-01): add TanStack Table and d3 smoke examples"
 ## Task 9.3: TanStack DB dual-mode (local + server) seam
 
 **Files:**
+
 - Create: `apps/fe-01/src/db/config.ts`
 - Create: `apps/fe-01/src/db/config.test.ts`
 
@@ -4870,6 +4949,7 @@ git commit -m "test(fe-01): add Vitest + React Testing Library smoke"
 **Traces to:** `specs/deployment-pipeline/spec.md`, design D1, D2, D9.
 
 **Files:**
+
 - Create (via Nx): `tools/tool-compose/` scaffold
 - Create: `tools/tool-compose/src/templates/{be,gw,fe,observability}.caddy.tmpl`
 - Create: `tools/tool-compose/src/templates/{be,gw,fe,observability}.compose.tmpl`
@@ -4887,7 +4967,9 @@ Edit `tools/tool-compose/project.json` — add `build` and `render` targets:
   "targets": {
     "build": {
       "executor": "nx:run-commands",
-      "options": { "command": "bun run tools/tool-compose/src/render.ts --outDir=dist/tools/tool-compose" },
+      "options": {
+        "command": "bun run tools/tool-compose/src/render.ts --outDir=dist/tools/tool-compose"
+      },
       "outputs": ["{workspaceRoot}/dist/tools/tool-compose"]
     },
     "render": {
@@ -4952,10 +5034,10 @@ observability.{{DOMAIN}} {
 ```yaml
 services:
   be-01:
-    image: {{BE_IMAGE}}
+    image: { { BE_IMAGE } }
     restart: unless-stopped
     ports:
-      - "{{BE_HOST_PORT}}:{{BE_PORT}}"
+      - '{{BE_HOST_PORT}}:{{BE_PORT}}'
     env_file:
       - /srv/wbs/.env
     volumes:
@@ -4967,10 +5049,10 @@ services:
 ```yaml
 services:
   gw-01:
-    image: {{GW_IMAGE}}
+    image: { { GW_IMAGE } }
     restart: unless-stopped
     ports:
-      - "{{GW_HOST_PORT}}:{{GW_PORT}}"
+      - '{{GW_HOST_PORT}}:{{GW_PORT}}'
     env_file:
       - /srv/wbs/.env
 ```
@@ -5013,7 +5095,10 @@ import { renderTemplate } from './render';
 
 describe('renderTemplate', () => {
   it('substitutes {{KEY}} placeholders', () => {
-    const result = renderTemplate('port {{PORT}}, host {{HOST}}', { PORT: '3100', HOST: 'localhost' });
+    const result = renderTemplate('port {{PORT}}, host {{HOST}}', {
+      PORT: '3100',
+      HOST: 'localhost',
+    });
     expect(result).toBe('port 3100, host localhost');
   });
 
@@ -5073,6 +5158,7 @@ git commit -m "feat(tool-compose): Caddy + Compose fragment templates with rende
 **Traces to:** `specs/observability-baseline/spec.md`, design D12, D14.
 
 **Files:**
+
 - Create (via Nx): `tools/tool-observability-stack/` scaffold
 - Create: `tools/tool-observability-stack/src/prometheus.yml`
 - Create: `tools/tool-observability-stack/src/promtail.yml`
@@ -5301,6 +5387,7 @@ bunx nx test tool-observability-stack
 bunx nx build tool-observability-stack
 bunx nx run tool-observability-stack:validate
 ```
+
 Expected: all exit 0.
 
 - [ ] **Step 11: Commit**
@@ -5317,6 +5404,7 @@ git commit -m "feat(tool-observability-stack): Grafana/Loki/Promtail/Prometheus 
 **Traces to:** `specs/secrets-management/spec.md`, design D18.
 
 **Files:**
+
 - Create (via Nx): `tools/tool-secrets/` scaffold
 - Create: `.sops.yaml` (repo root)
 - Create: `tools/tool-secrets/src/production.env.sops` (placeholder; populated in 12.3)
@@ -5362,10 +5450,12 @@ NTFY_TOPIC_URL=
 SOPS + age encrypted secrets.
 
 ## Files
+
 - `src/production.env.sops` — committed, encrypted.
 - `src/local.env.example` — template; copy to `.env.local` (gitignored).
 
 ## Rotation
+
 1. `age-keygen -o new-key.txt`
 2. Add public key to `/.sops.yaml`
 3. `sops updatekeys tools/tool-secrets/src/*.env.sops`
@@ -5373,6 +5463,7 @@ SOPS + age encrypted secrets.
 5. After grace period, remove old recipient and re-run `updatekeys`.
 
 ## Commands
+
 - `nx run tool-secrets:decrypt` — stream plaintext to stdout.
 - `nx run tool-secrets:push -- --host=<host>` — stream to `/srv/wbs/.env`.
 - `nx run tool-secrets:encrypt -- <file>` — encrypt a dotenv file.
@@ -5415,15 +5506,15 @@ const args = Object.fromEntries(
 );
 const host = args['host'];
 const envFile = args['env'] ?? 'production';
-if (!host) { console.error('--host required'); process.exit(1); }
+if (!host) {
+  console.error('--host required');
+  process.exit(1);
+}
 
 const sopsPath = `tools/tool-secrets/src/${envFile}.env.sops`;
 const { stdout: plaintext } = await $`sops -d --input-type dotenv --output-type dotenv ${sopsPath}`;
 
-const sshCmd = buildSshCommand(
-  { host, user: 'root' },
-  `install -m 0600 /dev/stdin /srv/wbs/.env`,
-);
+const sshCmd = buildSshCommand({ host, user: 'root' }, `install -m 0600 /dev/stdin /srv/wbs/.env`);
 const proc = Bun.spawn(sshCmd, { stdin: 'pipe' });
 proc.stdin.write(plaintext);
 proc.stdin.end();
@@ -5441,7 +5532,10 @@ console.log(`pushed ${envFile} secrets to ${host}:/srv/wbs/.env`);
 // encrypt.ts
 import { $ } from '@wbs/scripts';
 const f = Bun.argv[2];
-if (!f) { console.error('usage: encrypt <file>'); process.exit(1); }
+if (!f) {
+  console.error('usage: encrypt <file>');
+  process.exit(1);
+}
 await $`sops --encrypt --input-type dotenv --output-type dotenv ${f} > ${f}.sops`;
 ```
 
@@ -5476,7 +5570,9 @@ for (const f of files) await $`sops updatekeys ${f}`;
     },
     "updatekeys": {
       "executor": "nx:run-commands",
-      "options": { "command": "bun run tools/tool-secrets/src/cli/updatekeys.ts tools/tool-secrets/src/production.env.sops" },
+      "options": {
+        "command": "bun run tools/tool-secrets/src/cli/updatekeys.ts tools/tool-secrets/src/production.env.sops"
+      },
       "cache": false
     },
     "lint": {
@@ -5508,6 +5604,7 @@ git commit --no-verify -m "feat(tool-secrets): SOPS+age encrypted secrets with d
 **Traces to:** `specs/developer-tooling/spec.md`, design D18, D21.
 
 **Files:**
+
 - Create (via Nx): `tools/tool-git-hooks/` scaffold
 - Create: `tools/tool-git-hooks/src/install.ts`
 - Create: `tools/tool-git-hooks/src/hooks/plaintext-secret-guard.ts`
@@ -5528,7 +5625,11 @@ import { scanFiles } from './plaintext-secret-guard';
 
 describe('plaintext-secret-guard', () => {
   it('rejects .env files without .sops or .example suffix', () => {
-    const result = scanFiles(['apps/be-01/.env', 'apps/be-01/.env.sops', 'apps/be-01/.env.example']);
+    const result = scanFiles([
+      'apps/be-01/.env',
+      'apps/be-01/.env.sops',
+      'apps/be-01/.env.example',
+    ]);
     expect(result.rejected).toEqual(['apps/be-01/.env']);
   });
 
@@ -5562,10 +5663,7 @@ const AWS_KEY = /AKIA[0-9A-Z]{16}/;
 const LONG_HEX = /\b[a-f0-9]{40,}\b/i;
 const JWT_SHAPE = /\beyJ[a-zA-Z0-9_-]{10,}\.[a-zA-Z0-9_-]{10,}\.[a-zA-Z0-9_-]{10,}\b/;
 
-export function scanFiles(
-  paths: string[],
-  contentOverrides?: Record<string, string>,
-): ScanResult {
+export function scanFiles(paths: string[], contentOverrides?: Record<string, string>): ScanResult {
   const out: ScanResult = { rejected: [], reasons: {} };
   for (const p of paths) {
     if (ENV_NAME.test(p) && !ALLOWED_ENV.test(p)) {
@@ -5688,6 +5786,7 @@ git commit -m "feat(tool-git-hooks): install.ts + plaintext-secret-guard + conve
 **Traces to:** `specs/deployment-pipeline/spec.md`, design D6, D7.
 
 **Files:**
+
 - Create (via Nx): `tools/tool-dagger/` scaffold
 - Create: `tools/tool-dagger/dagger.json`
 - Create: `tools/tool-dagger/src/{main,be-01,gw-01,fe-01}.ts`
@@ -5774,7 +5873,10 @@ export class Be01 {
       .from('alpine:3.19')
       .withExec(['apk', 'add', '--no-cache', 'tar'])
       .withMountedDirectory('/src', built.directory('/out'))
-      .withNewFile('/META.json', metaJson({ tier: 'be', sha, built_at: new Date().toISOString(), schema_version: 1 }))
+      .withNewFile(
+        '/META.json',
+        metaJson({ tier: 'be', sha, built_at: new Date().toISOString(), schema_version: 1 }),
+      )
       .withNewFile('/VERSION', sha)
       .withExec(['sh', '-c', 'tar czf /release.tar.gz -C / META.json VERSION src'])
       .file('/release.tar.gz');
@@ -5814,7 +5916,13 @@ export class WbsDeploy {
         "command": "dagger call publish-be --source=. --sha=$(git rev-parse --short HEAD) -o dist/tools/tool-dagger/release-$(git rev-parse --short HEAD)-be.tar.gz",
         "cwd": "tools/tool-dagger"
       },
-      "inputs": ["{projectRoot}/**/*", "{workspaceRoot}/apps/be-01/**/*", "{workspaceRoot}/libs/**/*", "{workspaceRoot}/package.json", "{workspaceRoot}/bun.lockb"],
+      "inputs": [
+        "{projectRoot}/**/*",
+        "{workspaceRoot}/apps/be-01/**/*",
+        "{workspaceRoot}/libs/**/*",
+        "{workspaceRoot}/package.json",
+        "{workspaceRoot}/bun.lockb"
+      ],
       "outputs": ["{workspaceRoot}/dist/tools/tool-dagger"],
       "dependsOn": ["^build"]
     },
@@ -5822,7 +5930,14 @@ export class WbsDeploy {
     "publish-fe": { "...": "..." },
     "publish-all": {
       "executor": "nx:run-commands",
-      "options": { "commands": ["nx run tool-dagger:publish-be", "nx run tool-dagger:publish-gw", "nx run tool-dagger:publish-fe"], "parallel": true }
+      "options": {
+        "commands": [
+          "nx run tool-dagger:publish-be",
+          "nx run tool-dagger:publish-gw",
+          "nx run tool-dagger:publish-fe"
+        ],
+        "parallel": true
+      }
     }
   }
 }
@@ -5842,6 +5957,7 @@ Note: Full `publish-be` execution requires a running Dagger engine; this task sh
 ## Task 11.2: `tool-bootstrap` — `bootstrap.sh` + `push.ts`
 
 **Files:**
+
 - Create (via Nx): `tools/tool-bootstrap/` scaffold
 - Create: `tools/tool-bootstrap/src/bootstrap.sh`
 - Create: `tools/tool-bootstrap/src/push.ts`
@@ -5890,7 +6006,10 @@ const args = Object.fromEntries(
   Bun.argv.slice(2).map((a) => a.replace(/^--/, '').split('=') as [string, string]),
 );
 const host = args['host'];
-if (!host) { console.error('--host required'); process.exit(1); }
+if (!host) {
+  console.error('--host required');
+  process.exit(1);
+}
 
 const target = { host, user: 'root' };
 await $`${buildScpCommand(target, 'tools/tool-bootstrap/src/bootstrap.sh', '/tmp/bootstrap.sh').join(' ')}`;
@@ -5941,6 +6060,7 @@ git commit -m "feat(tool-bootstrap): bootstrap.sh (Bun+Docker+dirs) and push.ts 
 ## Task 11.3: `tool-remote-scripts` — blue/green swap scripts
 
 **Files:**
+
 - Create (via Nx): `tools/tool-remote-scripts/` scaffold
 - Create: `tools/tool-remote-scripts/src/{swap,swap-be,swap-gw,swap-fe}.ts`
 - Create: `tools/tool-remote-scripts/src/{caddy,health,drain,state}.ts`
@@ -6023,7 +6143,9 @@ export async function reloadCaddy(): Promise<void> {
 }
 
 export async function assembleCaddyfile(fragmentsDir: string, out: string): Promise<void> {
-  const fragments = ['be', 'gw', 'fe', 'observability'].map((t) => `${fragmentsDir}/${t}/Caddyfile.tmpl`);
+  const fragments = ['be', 'gw', 'fe', 'observability'].map(
+    (t) => `${fragmentsDir}/${t}/Caddyfile.tmpl`,
+  );
   await $`cat ${fragments.join(' ')} > ${out}`;
 }
 ```
@@ -6059,7 +6181,10 @@ import { waitForHealth } from './health';
 import { assembleCaddyfile, reloadCaddy } from './caddy';
 
 const [, , bundlePath] = Bun.argv;
-if (!bundlePath) { console.error('usage: swap-be <bundle.tar.gz>'); process.exit(1); }
+if (!bundlePath) {
+  console.error('usage: swap-be <bundle.tar.gz>');
+  process.exit(1);
+}
 
 const current = await getCurrentColor();
 const next = current === 'blue' ? 'green' : 'blue';
@@ -6093,7 +6218,10 @@ Keep the `swap-gw.ts` identical in shape to `swap-be.ts` but call `drainGateway`
 
 ```ts
 const tiers = Bun.argv[2]?.split(',') ?? [];
-if (tiers.length === 0) { console.error('usage: swap <tiers-comma-separated>'); process.exit(1); }
+if (tiers.length === 0) {
+  console.error('usage: swap <tiers-comma-separated>');
+  process.exit(1);
+}
 for (const t of tiers) {
   await import(`./swap-${t}.ts`);
 }
@@ -6143,6 +6271,7 @@ git commit -m "feat(tool-remote-scripts): blue/green swap scripts (be, gw, fe) +
 ## Task 11.4: `tool-deploy` — orchestrator
 
 **Files:**
+
 - Create (via Nx): `tools/tool-deploy/` scaffold
 - Create: `tools/tool-deploy/src/deploy.ts`
 - Create: `tools/tool-deploy/src/{deploy-be,deploy-gw,deploy-fe}.ts`
@@ -6175,7 +6304,8 @@ import { $, buildSshCommand } from '@wbs/scripts';
 
 export async function fetchRemoteTierState(host: string, tier: string): Promise<string | null> {
   try {
-    const { stdout } = await $`${buildSshCommand({ host, user: 'root' }, `cat /srv/wbs/state/${tier}.last-deployed.json 2>/dev/null || echo ''`).join(' ')}`;
+    const { stdout } =
+      await $`${buildSshCommand({ host, user: 'root' }, `cat /srv/wbs/state/${tier}.last-deployed.json 2>/dev/null || echo ''`).join(' ')}`;
     if (!stdout.trim()) return null;
     return (JSON.parse(stdout) as { sha: string }).sha;
   } catch {
@@ -6214,7 +6344,10 @@ const args = Object.fromEntries(
   }),
 );
 const host = args['host'] ?? process.env['DEPLOY_HOST'];
-if (!host) { console.error('--host required'); process.exit(1); }
+if (!host) {
+  console.error('--host required');
+  process.exit(1);
+}
 
 const all = args['all'] === 'true';
 const since = args['since'];
@@ -6290,6 +6423,7 @@ git commit -m "feat(tool-deploy): orchestrator + per-tier deploys with nx-affect
 ## Task 11.5: `tool-smoke` — post-deploy checks
 
 **Files:**
+
 - Create (via Nx): `tools/tool-smoke/` scaffold
 - Create: `tools/tool-smoke/src/{health,ws-ping}.ts`
 
@@ -6301,9 +6435,16 @@ Run: `bunx nx g @nx/js:lib tools/tool-smoke --bundler=none --unitTestRunner=none
 
 ```ts
 const host = Bun.argv[2];
-if (!host) { console.error('usage: health <host>'); process.exit(1); }
+if (!host) {
+  console.error('usage: health <host>');
+  process.exit(1);
+}
 
-const endpoints = [`https://${host}/api/health`, `https://${host}/ws/health`, `https://observability.${host}/`];
+const endpoints = [
+  `https://${host}/api/health`,
+  `https://${host}/ws/health`,
+  `https://observability.${host}/`,
+];
 let failed = 0;
 for (const url of endpoints) {
   try {
@@ -6327,13 +6468,23 @@ process.exit(failed > 0 ? 1 : 0);
 ```ts
 const host = Bun.argv[2];
 const token = Bun.argv[3] ?? 'smoke-token';
-if (!host) { console.error('usage: ws-ping <host> [token]'); process.exit(1); }
+if (!host) {
+  console.error('usage: ws-ping <host> [token]');
+  process.exit(1);
+}
 
 async function openWithResume(lastSeq: number): Promise<void> {
   const ws = new WebSocket(`wss://${host}/ws?token=${encodeURIComponent(token)}`);
-  await new Promise((r) => { ws.onopen = r; });
+  await new Promise((r) => {
+    ws.onopen = r;
+  });
 
-  ws.send(JSON.stringify({ type: 'resume', resume_points: lastSeq >= 0 ? { 'smoke:ping': lastSeq } : {} }));
+  ws.send(
+    JSON.stringify({
+      type: 'resume',
+      resume_points: lastSeq >= 0 ? { 'smoke:ping': lastSeq } : {},
+    }),
+  );
 
   const ack = await new Promise<{ type: string }>((resolve) => {
     ws.onmessage = (ev) => resolve(JSON.parse(ev.data as string));
@@ -6409,6 +6560,7 @@ Expected: script completes, `/srv/wbs/*` exists, `bun --version` on remote repor
 ```bash
 ssh root@$DEPLOY_HOST "ls /srv/wbs/ && bun --version && docker --version"
 ```
+
 Expected: listing includes `releases staging state www bin observability`; versions print.
 
 - [ ] **Step 3: No commit — this is operational.**
@@ -6422,6 +6574,7 @@ Expected: listing includes `releases staging state www bin observability`; versi
 ```bash
 sops tools/tool-secrets/src/production.env.sops
 ```
+
 In the editor, replace placeholders with real values (32+ char secrets; generate via `openssl rand -hex 32`).
 
 - [ ] **Step 2: Push**
@@ -6451,6 +6604,7 @@ git commit -m "chore(secrets): populate production.env.sops with real values"
 
 Run: `bunx nx run tool-deploy:deploy -- --all --host=$DEPLOY_HOST`
 Expected:
+
 - Dagger publish-be, publish-gw, publish-fe complete (first run takes 2-5 min due to cold BuildKit cache).
 - `dist/tools/tool-dagger/release-<sha>-{be,gw,fe}.tar.gz` exists.
 - `scp` streams bundles to the remote.
@@ -6465,6 +6619,7 @@ Exit code: 0. If any step fails, investigate that step in isolation — the orch
 ```bash
 ssh root@$DEPLOY_HOST "docker ps --format '{{.Names}}'"
 ```
+
 Expected: `caddy`, `be-01-*`, `gw-01-*`, `grafana`, `loki`, `promtail`, `prometheus`.
 
 - [ ] **Step 3: No explicit commit — this is operational. Celebrate in a dev log note.**
@@ -6479,6 +6634,7 @@ Expected: `caddy`, `be-01-*`, `gw-01-*`, `grafana`, `loki`, `promtail`, `prometh
 export REMOTE=$DEPLOY_HOST
 bunx nx run tool-smoke:check
 ```
+
 Expected: health all green; ws-ping both connects succeed.
 
 - [ ] **Step 2: Manually verify Grafana**
@@ -6494,17 +6650,21 @@ Open `https://observability.<your-domain>/` in a browser, log in with the basic-
 - [ ] **Step 1: Single-tier be redeploy** (should be WS-impact-free)
 
 Force a meaningless change in `apps/be-01/src/` (e.g., update a comment) and commit; then:
+
 ```bash
 bunx nx run tool-deploy:deploy -- be --host=$DEPLOY_HOST
 ```
+
 Expected: only `be-01` containers churn; no `gw_drain_seconds` sample recorded.
 
 - [ ] **Step 2: Single-tier gw redeploy** (drain window visible)
 
 Same pattern for `apps/gw-01`, then:
+
 ```bash
 bunx nx run tool-deploy:deploy -- gw --host=$DEPLOY_HOST
 ```
+
 Expected: Grafana panel for `gw_drain_seconds` shows a histogram sample; `gw_active_connections` dips to 0 and recovers.
 
 - [ ] **Step 3: Single-tier fe redeploy** (atomic static swap)
@@ -6512,6 +6672,7 @@ Expected: Grafana panel for `gw_drain_seconds` shows a histogram sample; `gw_act
 ```bash
 bunx nx run tool-deploy:deploy -- fe --host=$DEPLOY_HOST
 ```
+
 Expected: `/srv/wbs/www/` contents swap atomically; no service restart.
 
 - [ ] **Step 4: Trigger the "service down" alert**
@@ -6519,9 +6680,11 @@ Expected: `/srv/wbs/www/` contents swap atomically; no service restart.
 ```bash
 ssh root@$DEPLOY_HOST "docker stop be-01-$(cat /srv/wbs/state/current-color)"
 ```
+
 Wait 2-5 minutes per alert evaluation cycle. Expected: ntfy push arrives on your subscribed device.
 
 Then:
+
 ```bash
 ssh root@$DEPLOY_HOST "docker start be-01-$(cat /srv/wbs/state/current-color)"
 ```

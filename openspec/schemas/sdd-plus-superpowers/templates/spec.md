@@ -17,9 +17,11 @@ Delta spec template for a change.
 <!-- 新增行為。列出本 change 要加到 capability 的新 Requirement。 -->
 
 ### Requirement: <!-- requirement name -->
+
 <!-- requirement text — 須含 SHALL 或 MUST -->
 
 #### Scenario: <!-- scenario name -->
+
 - **WHEN** <!-- condition -->
 - **THEN** <!-- expected outcome -->
 
@@ -37,9 +39,11 @@ Delta spec template for a change.
 -->
 
 ### Requirement: <!-- 與既有 spec 中相同的 header -->
+
 <!-- 修改後的完整 requirement text — 含 SHALL 或 MUST -->
 
 #### Scenario: <!-- scenario name（可新增、可修改） -->
+
 - **WHEN** <!-- condition -->
 - **THEN** <!-- expected outcome -->
 

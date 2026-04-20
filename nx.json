@@ -30,11 +30,7 @@
     },
     "lint": {
       "cache": true,
-      "inputs": [
-        "default",
-        "{workspaceRoot}/eslint.config.js",
-        "{workspaceRoot}/.prettierrc.json"
-      ]
+      "inputs": ["default", "{workspaceRoot}/eslint.config.js", "{workspaceRoot}/.prettierrc.json"]
     },
     "typecheck": {
       "cache": true,

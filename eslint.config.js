@@ -38,13 +38,7 @@ const nxRules = {
 
 export default [
   {
-    ignores: [
-      '**/dist/**',
-      '**/.nx/**',
-      '**/coverage/**',
-      '**/node_modules/**',
-      '**/*.gen.ts',
-    ],
+    ignores: ['**/dist/**', '**/.nx/**', '**/coverage/**', '**/node_modules/**', '**/*.gen.ts'],
   },
 
   js.configs.recommended,
@@ -113,10 +107,7 @@ export default [
     files: ['apps/be-01/src/**/*.ts'],
     ignores: ['apps/be-01/src/repository/**'],
     rules: {
-      'no-restricted-imports': [
-        'error',
-        { patterns: ['drizzle-orm/*', 'drizzle-orm'] },
-      ],
+      'no-restricted-imports': ['error', { patterns: ['drizzle-orm/*', 'drizzle-orm'] }],
     },
   },
 

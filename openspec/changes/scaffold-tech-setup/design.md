@@ -1,6 +1,6 @@
 ## Context
 
-This change scaffolds the WBS tool's tech foundation. All strategic decisions are locked in `brainstorm.md` and `proposal.md`; this document addresses the design-phase open questions and the concrete *how* of implementation. Where brainstorm said "resolve in design," this is where that resolution lives.
+This change scaffolds the WBS tool's tech foundation. All strategic decisions are locked in `brainstorm.md` and `proposal.md`; this document addresses the design-phase open questions and the concrete _how_ of implementation. Where brainstorm said "resolve in design," this is where that resolution lives.
 
 Key constraints carried forward from brainstorm:
 
@@ -27,7 +27,7 @@ Audience: future me (first implementer) and any subagent dispatched under `/opsx
 **Non-Goals:**
 
 - No WBS domain behavior (no table, no estimates, no Gantt). Product features come later.
-- No WBS-specific WS *message types* on `gw-01`. The frame shape, sequence numbering, resume protocol, and a trivial `ping`/`pong` roundtrip message ship now so the protocol is proven end-to-end; product message types (doc edits, presence, etc.) land with their features.
+- No WBS-specific WS _message types_ on `gw-01`. The frame shape, sequence numbering, resume protocol, and a trivial `ping`/`pong` roundtrip message ship now so the protocol is proven end-to-end; product message types (doc edits, presence, etc.) land with their features.
 - No multi-instance gateway, no Redis/NATS bus. `gw-01` is N=1 in this change.
 - No CI platform integration. Pipeline runs from workstation only.
 - No distributed tracing UI (Tempo deferred); no Sentry; no Uptime Kuma; no product-specific Grafana dashboards.
@@ -44,6 +44,7 @@ Audience: future me (first implementer) and any subagent dispatched under `/opsx
 - `tools/tool-<name>` — Nx projects invoked via `nx run`, not imported. Scripting, infra config, deploy orchestration, secrets tooling, remote-host bootstrap, smoke tests. The `tool-` prefix matches the `lib-` flat convention and keeps imports vs invocations unambiguous.
 
 **Directory layout** (fully resolved):
+
 ```
 apps/
   be-01/   gw-01/   fe-01/
@@ -70,14 +71,14 @@ tools/
 
 **Every workstation / remote operation becomes an `nx run` invocation.** No `bun scripts/*.ts` equivalents; no `bash scripts/*.sh`. Concretely:
 
-| Pre-refactor form | Nx form |
-|---|---|
-| `bun scripts/deploy.ts --all` | `nx run tool-deploy:deploy -- --all` |
-| `bun scripts/deploy-be.ts` | `nx run tool-deploy:deploy-be` |
-| `bash scripts/install-git-hooks.sh` | `nx run tool-git-hooks:install` |
+| Pre-refactor form                             | Nx form                                       |
+| --------------------------------------------- | --------------------------------------------- |
+| `bun scripts/deploy.ts --all`                 | `nx run tool-deploy:deploy -- --all`          |
+| `bun scripts/deploy-be.ts`                    | `nx run tool-deploy:deploy-be`                |
+| `bash scripts/install-git-hooks.sh`           | `nx run tool-git-hooks:install`               |
 | `scp tools/tool-bootstrap/src/bootstrap.sh …` | `nx run tool-bootstrap:push -- --host=<host>` |
-| `bun scripts/smoke/ws-ping.ts` | `nx run tool-smoke:ws-ping` |
-| `sops -d secrets/production.env.sops` | `nx run tool-secrets:decrypt` |
+| `bun scripts/smoke/ws-ping.ts`                | `nx run tool-smoke:ws-ping`                   |
+| `sops -d secrets/production.env.sops`         | `nx run tool-secrets:decrypt`                 |
 
 A trivial top-level alias `"deploy": "nx run tool-deploy:deploy"` is added to `package.json` so muscle-memory `bun deploy --all` still works — it's a thin forwarder, not a divergent code path.
 
@@ -118,24 +119,29 @@ A trivial top-level alias `"deploy": "nx run tool-deploy:deploy"` is added to `p
 Three cooperating pieces: the Caddyfile template, the Compose file template, and the per-tier swap script. Blue/green color marker lives at `/srv/wbs/state/current-color` on the remote.
 
 **Port allocation (fixed, not dynamic):**
+
 - `be-01` blue: container port 3100 → host port 3100; green: 3101.
 - `gw-01` blue: container port 3200 → host port 3200; green: 3201.
-- Caddy always binds 443/80 externally and upstreams to the *active color's* host port.
+- Caddy always binds 443/80 externally and upstreams to the _active color's_ host port.
 - The swap script writes a rendered Caddyfile that references the new color's port, then runs `caddy reload --config /etc/caddy/Caddyfile`.
 
 **Health gate (before Caddy swap):**
+
 - Each service exposes `GET /health` returning `200 {"status":"ok"}` only when it is actually ready (for `be-01`: DB migrations applied; for `gw-01`: can reach `be-01`'s internal health endpoint).
 - Swap script polls the green color's `/health` every 500ms up to 60s. Timeout → abort swap, rollback by not touching Caddy, leave blue in place.
 
 **Caddy reload semantics:**
+
 - `caddy reload` is graceful: existing HTTP requests finish against the old upstream; new requests route to the new upstream. For `/ws*`, **new** WS upgrades go to green; **existing** WS sockets on blue keep their old TCP connection until closed. This is exactly what we want.
 - Caddy is run as a Compose service (not a host daemon) so reloads happen via `docker exec caddy caddy reload --config /etc/caddy/Caddyfile`.
 
 **Drain window for `gw-01` (Layer B of the WS-survival plan):**
+
 - After Caddy reload, swap script enters a drain loop: every 10s, query `gw-01` blue's `/metrics` for `gw_active_connections`. Exit loop when the counter hits 0 or after `DRAIN_TIMEOUT_SECONDS` (default 300 = 5 min).
 - Optional: send a `{"reconnect":true}` app-level broadcast to blue's sockets to migrate clients proactively. Implemented as a CLI subcommand on `gw-01` (`bun apps/gw-01/src/cli.ts broadcast-reconnect`) callable via `docker exec`.
 
 **Rollback:**
+
 - Before Caddy reload: abort cleanly (stop green container, leave blue alive). No state damage.
 - After Caddy reload but before blue is stopped: re-render Caddyfile pointing back at blue, `caddy reload`, then stop green. Blue never left the field.
 - After blue is stopped: the previous release must be re-deployed from its bundle (kept in `/srv/wbs/releases/` for ≥ 3 versions). This is "roll forward to the old version," not a hot rollback.
@@ -145,6 +151,7 @@ Three cooperating pieces: the Caddyfile template, the Compose file template, and
 Three endpoints form the contract; all defined as ArkType schemas in `libs/contracts/src/internal-contract.ts` (package `@wbs/contracts`) and imported by both services.
 
 **`POST /internal/push` on `gw-01`** (called by `be-01` to fan out to subscribers):
+
 ```
 Request headers:  X-Internal-Auth: <shared-secret>
 Request body:     {
@@ -159,6 +166,7 @@ Response:         202 Accepted { delivered_to_sockets: number }
 ```
 
 **`POST /internal/forward` on `be-01`** (called by `gw-01` for inbound client messages):
+
 ```
 Request headers:  X-Internal-Auth: <shared-secret>
                   X-Client-Id: <user-id-from-JWT>
@@ -170,6 +178,7 @@ Response:         200 OK { ack: true, push_responses?: PushPayload[] }
 ```
 
 **`POST /internal/resume` on `be-01`** (called by `gw-01` when a client reconnects and asks to resume from a per-subscription seq):
+
 ```
 Request headers:  X-Internal-Auth: <shared-secret>
                   X-Client-Id: <user-id-from-JWT>
@@ -187,6 +196,7 @@ Response:         200 OK {
 ```
 
 **Client-facing WS frame shape** (what `gw-01` sends over the socket and what clients parse):
+
 ```
 {
   subscription: string,
@@ -194,12 +204,15 @@ Response:         200 OK {
   message: JsonValue
 }
 ```
+
 Plus a handful of control frames: `{"type":"resume_ack", ...}`, `{"type":"resume_denied", ...}`, `{"type":"error", ...}`, `{"type":"pong", ...}`.
 
 **Shared secret:**
+
 - `INTERNAL_AUTH_SECRET` env var, set once in the remote `.env`, same value for both services. Rotated by a deploy of both services at once (compatible because both read from the same env).
 
 **Error handling:**
+
 - `gw-01 → be-01` unreachable: gateway returns an error frame `{"type":"error","code":"backend_unavailable","retry_after":5}` to the client; does **not** disconnect the socket. Client's reconnecting wrapper treats this as a soft error and retries its own message later.
 - `be-01 → gw-01/internal/push` unreachable: backend retries with exponential backoff up to 30s; if still failing, writes the event to the durable `event_log` table so a future `/internal/resume` can surface it. Never drops silently.
 
@@ -215,7 +228,8 @@ Plus a handful of control frames: `{"type":"resume_ack", ...}`, `{"type":"resume
 - To rotate: deploy with new `CURRENT` and old `PREVIOUS`. Wait until no one has a JWT signed by `PREVIOUS` anymore (e.g., one token-lifetime later; default lifetime is 1 hour). Next deploy drops `PREVIOUS`.
 
 **Live WS socket behavior during rotation:**
-- Rotation does not invalidate already-upgraded sockets (the JWT check happened at upgrade time; rotating the key doesn't re-check). Only *new* connections need the new key.
+
+- Rotation does not invalidate already-upgraded sockets (the JWT check happened at upgrade time; rotating the key doesn't re-check). Only _new_ connections need the new key.
 - If a socket reconnects during the rotation window, its token may be signed with `PREVIOUS` — dual-key validation accepts it. Safe.
 
 **In this change:** only `CURRENT` is set; `PREVIOUS` is plumbed (env vars read, validator supports the second key) but left unset on first deploy. Rotation is exercised in a later change.
@@ -231,6 +245,7 @@ Plus a handful of control frames: `{"type":"resume_ack", ...}`, `{"type":"resume
 **Per-app modules composed by a root module, all inside the Nx project `tool-dagger`.**
 
 Structure (inside `tools/tool-dagger/`):
+
 ```
 dagger.json                ← Dagger module manifest
 project.json               ← Nx project config (targets below)
@@ -245,6 +260,7 @@ src/
 ```
 
 **Nx targets on `tool-dagger`** (invoked via `nx run tool-dagger:<target>`, all wrapping `dagger call …` via `nx:run-commands`):
+
 - `build-be` / `build-gw` / `build-fe` — produce a container image (or static-asset dir for FE).
 - `test-be` / `test-gw` / `test-fe` — run unit + integration tests in a throwaway container.
 - `publish-be` / `publish-gw` / `publish-fe` — build + test + package into `dist/tool-dagger/release-<sha>-<tier>.tar.gz`.
@@ -252,13 +268,14 @@ src/
 
 **Nx inputs/outputs wired for caching:** each `publish-*` declares `inputs: [apps/<tier>/**, tool-compose/src/templates/<tier>.*, package.json, bun.lockb]` and `outputs: [dist/tool-dagger/release-<sha>-<tier>.tar.gz]`. Cache hits skip the Dagger run entirely when nothing relevant has changed.
 
-**Why per-app modules inside one Nx project**: maps to the three independently deployable tiers, keeps each module small, matches Nx's project-level affected detection. A single top-level Dagger module would force cross-app reasoning into one file. A *separate Nx project per app's Dagger module* would fragment the Dagger daemon usage without payoff.
+**Why per-app modules inside one Nx project**: maps to the three independently deployable tiers, keeps each module small, matches Nx's project-level affected detection. A single top-level Dagger module would force cross-app reasoning into one file. A _separate Nx project per app's Dagger module_ would fragment the Dagger daemon usage without payoff.
 
 ### D7. Dagger ↔ Bun-script handoff contract (publish bundle format)
 
 Each per-tier bundle is a gzipped tar with a fixed layout. Validated at unpack time; deploy aborts on schema mismatch.
 
 **`release-<sha>-be.tar.gz`:**
+
 ```
 VERSION              ← git SHA (short form, 8 hex chars)
 META.json            ← { tier: "be", sha: "...", built_at: "...", image_id: "sha256:...", schema_version: 1 }
@@ -271,6 +288,7 @@ templates/
 **`release-<sha>-gw.tar.gz`:** same shape with `tier: "gw"`, the gw-01 image, and gw-specific Caddyfile/compose fragments.
 
 **`release-<sha>-fe.tar.gz`:** static assets plus Caddyfile fragment.
+
 ```
 VERSION
 META.json            ← { tier: "fe", sha: "...", built_at: "...", schema_version: 1 }
@@ -284,18 +302,22 @@ templates/
 **`META.json.schema_version`** exists so future bundle format changes are detectable. The deploy script errors out if the version it reads doesn't match a known-supported version.
 
 **Deploy-target arg surface (per tier)** — arguments pass through `nx run` with `--`:
+
 ```
 nx run tool-deploy:deploy-be -- [--version=<sha>] [--dry-run] [--skip-build] [--bundle=<path>]
 ```
+
 - `--version`: deploy a specific version. Default: build from `HEAD`.
 - `--dry-run`: print the plan (what would be built/shipped/swapped), don't execute.
 - `--skip-build`: use the already-built bundle from `dist/tool-dagger/` instead of calling Dagger.
 - `--bundle`: explicitly name the tarball to deploy (useful for rollback).
 
 **Orchestrator:**
+
 ```
 nx run tool-deploy:deploy -- [tiers...] [--all] [--since=<sha>] [--dry-run]
 ```
+
 - No args: `tool-deploy` fetches remote last-deployed SHAs and shells out to `nx affected` to pick tiers.
 - Explicit list: `nx run tool-deploy:deploy -- be gw`.
 - `--all`: force all tiers.
@@ -306,17 +328,25 @@ nx run tool-deploy:deploy -- [tiers...] [--all] [--since=<sha>] [--dry-run]
 **Decision: last-deployed SHA lives on the remote, one file per tier.**
 
 `/srv/wbs/state/<tier>.last-deployed.json`:
+
 ```json
-{ "tier": "be", "sha": "abc1234", "deployed_at": "2026-04-19T20:30:00Z", "bundle": "release-abc1234-be.tar.gz" }
+{
+  "tier": "be",
+  "sha": "abc1234",
+  "deployed_at": "2026-04-19T20:30:00Z",
+  "bundle": "release-abc1234-be.tar.gz"
+}
 ```
 
 Orchestrator flow:
+
 1. At start, `ssh <host> cat /srv/wbs/state/{be,gw,fe}.last-deployed.json` (single shot, handle missing files).
 2. For each tier, run `nx affected --projects=<tier's nx project> --base=<that tier's last-deployed sha>` — or a wrapper that handles the "no baseline found" case.
 3. If baseline missing for a tier → treat as "affected" (deploy it).
 4. On successful swap, the per-tier script updates `<tier>.last-deployed.json` on the remote.
 
 **Why remote-only, not also local:**
+
 - Single source of truth. No divergence between workstation and remote.
 - Multiple workstations (future) all see the same state.
 - Commitable baseline files in the repo would drift when multiple people deploy; gitignored local state can't be compared across developers.
@@ -335,6 +365,7 @@ Orchestrator flow:
 - After a deploy, the fresh fragments for that tier are written back to `/srv/wbs/state/fragments/<tier>/`.
 
 **Why fragments over a single monolithic Caddyfile:**
+
 - Lets a single-tier deploy update only its own routing without touching others.
 - Prevents stale config for other tiers from being accidentally re-applied.
 - Observability fragment (Grafana subdomain + basic auth) is authored once and never touched by app deploys.
@@ -342,6 +373,7 @@ Orchestrator flow:
 ### D10. `tool-bootstrap` — remote host setup
 
 The Nx project `tools/tool-bootstrap/` owns remote-host bootstrapping. Two targets:
+
 - `nx run tool-bootstrap:build` — `shellcheck` lints `bootstrap.sh`; no bundling needed.
 - `nx run tool-bootstrap:push -- --host=<host>` — scps `bootstrap.sh` to `/tmp/` and `ssh` executes it.
 
@@ -372,10 +404,11 @@ echo "bun ${BUN_VERSION} installed at $(command -v bun || echo "/root/.bun/bin/b
 ```
 
 **Additional one-time setup the bootstrap script also does** (kept in the same file for simplicity):
+
 - Ensure `docker` and `docker compose` are available (install via `get.docker.com` if missing).
 - Ensure `/srv/wbs/{releases,staging,state,state/fragments,www,bin,observability}` directories exist with owner `root:root`, mode `0755`.
 
-**Not installed by bootstrap** (intentionally): SOPS and age. Decryption happens on the *developer workstation* (D18) and the decrypted `.env` is streamed over SSH. The remote never needs the age private key or SOPS binary — reducing the attack surface.
+**Not installed by bootstrap** (intentionally): SOPS and age. Decryption happens on the _developer workstation_ (D18) and the decrypted `.env` is streamed over SSH. The remote never needs the age private key or SOPS binary — reducing the attack surface.
 
 ### D11. Prometheus plugin choice
 
@@ -391,23 +424,23 @@ Defined in `libs/observability/src/log-schema.ts` as an ArkType schema, enforced
 
 ```ts
 const LogRecord = type({
-    level: "'trace'|'debug'|'info'|'warn'|'error'|'fatal'",
-    time: "number",                          // unix ms
-    msg: "string",
-    service: "'be-01'|'gw-01'|'fe-01'",      // 'fe-01' for client-side logs shipped via batched POST
-    request_id: "string?",                   // set by HTTP middleware
-    connection_id: "string?",                // set by gw-01 for WS-initiated logs
-    user_id: "string?",                      // set after JWT decode; null for unauth requests
-    ws_subscription: "string?",              // WS routing key (e.g., "doc:<id>") — set when the log is emitted in the context of a specific WS subscription (gw-01 fan-out, be-01 push/resume)
-    trace_id: "string?",                     // set by OTel middleware
-    span_id: "string?",                      // set by OTel middleware
-    version: "string?",                      // app git SHA, injected at build time
-    "err?": {
-        name: "string",
-        message: "string",
-        stack: "string?"
-    },
-    "[string]": "unknown"                    // arbitrary extra fields
+  level: "'trace'|'debug'|'info'|'warn'|'error'|'fatal'",
+  time: 'number', // unix ms
+  msg: 'string',
+  service: "'be-01'|'gw-01'|'fe-01'", // 'fe-01' for client-side logs shipped via batched POST
+  request_id: 'string?', // set by HTTP middleware
+  connection_id: 'string?', // set by gw-01 for WS-initiated logs
+  user_id: 'string?', // set after JWT decode; null for unauth requests
+  ws_subscription: 'string?', // WS routing key (e.g., "doc:<id>") — set when the log is emitted in the context of a specific WS subscription (gw-01 fan-out, be-01 push/resume)
+  trace_id: 'string?', // set by OTel middleware
+  span_id: 'string?', // set by OTel middleware
+  version: 'string?', // app git SHA, injected at build time
+  'err?': {
+    name: 'string',
+    message: 'string',
+    stack: 'string?',
+  },
+  '[string]': 'unknown', // arbitrary extra fields
 });
 ```
 
@@ -416,6 +449,7 @@ const LogRecord = type({
 - `ws_subscription` is deliberately prefixed `ws_` to make the WS origin unambiguous at log-read time — it won't be confused with unrelated "subscription"-shaped things we might add later (billing subscriptions, mailing-list subscriptions, etc.).
 
 **Loki label strategy for efficient filtering:**
+
 - Indexed **labels** (low-cardinality, used in LogQL `{label=value}` selectors): `service`, `level`, `version`. These are the fields Loki uses for its bucket index — keep cardinality < ~1000 per label.
 - **Structured-metadata** (indexed but not bucket-defining, Loki 3.0+): `request_id`, `connection_id`, `trace_id`, `span_id`, `ws_subscription`. Queryable via `| json | connection_id="abc"` without cardinality explosion.
 - **High-cardinality fields** (`user_id`, arbitrary extras): flow through as raw JSON fields; queryable via `| json | user_id="xyz"` but NOT promoted to labels. This prevents Loki series explosion at scale.
@@ -432,7 +466,7 @@ const LogRecord = type({
           user_id: user_id
           trace_id: trace_id
           ws_subscription: ws_subscription
-    - labels:       { level, service, version }
+    - labels: { level, service, version }
     - structured_metadata: { request_id, connection_id, trace_id, span_id, ws_subscription }
   ```
 - Typical filter queries the dashboards ship:
@@ -446,15 +480,15 @@ const LogRecord = type({
 
 All Prometheus-style. Names use `gw_` prefix for namespacing.
 
-| Name | Type | Labels | Description |
-|---|---|---|---|
-| `gw_active_connections` | gauge | — | Current count of open WS sockets |
-| `gw_connections_total` | counter | `outcome` ∈ {accepted, rejected_auth, rejected_other} | Total WS upgrade attempts |
-| `gw_reconnects_total` | counter | — | Client reconnects (from resume-protocol header, once Layer A ships) |
-| `gw_message_fanout_total` | counter | `subscription_kind` (e.g., "doc", "room") | Server→client messages fanned out via `/internal/push` |
-| `gw_inbound_messages_total` | counter | `kind` | Client→server messages forwarded to `be-01` |
-| `gw_drain_seconds` | histogram | — | Drain-window duration, recorded once per graceful shutdown |
-| `gw_backend_unavailable_total` | counter | — | Times the gateway failed to reach `be-01`'s `/internal/forward` |
+| Name                           | Type      | Labels                                                | Description                                                         |
+| ------------------------------ | --------- | ----------------------------------------------------- | ------------------------------------------------------------------- |
+| `gw_active_connections`        | gauge     | —                                                     | Current count of open WS sockets                                    |
+| `gw_connections_total`         | counter   | `outcome` ∈ {accepted, rejected_auth, rejected_other} | Total WS upgrade attempts                                           |
+| `gw_reconnects_total`          | counter   | —                                                     | Client reconnects (from resume-protocol header, once Layer A ships) |
+| `gw_message_fanout_total`      | counter   | `subscription_kind` (e.g., "doc", "room")             | Server→client messages fanned out via `/internal/push`              |
+| `gw_inbound_messages_total`    | counter   | `kind`                                                | Client→server messages forwarded to `be-01`                         |
+| `gw_drain_seconds`             | histogram | —                                                     | Drain-window duration, recorded once per graceful shutdown          |
+| `gw_backend_unavailable_total` | counter   | —                                                     | Times the gateway failed to reach `be-01`'s `/internal/forward`     |
 
 Cardinality discipline: no labels derived from user-controlled strings (user-id, doc-id) to avoid Prometheus series explosion. Subscription kinds are a closed enum.
 
@@ -463,6 +497,7 @@ Cardinality discipline: no labels derived from user-controlled strings (user-id,
 **Decision: dashboards committed to the `tool-observability-stack` project as JSON, provisioned into Grafana on container start.**
 
 Structure (inside `tools/tool-observability-stack/`):
+
 ```
 project.json
 src/
@@ -483,12 +518,14 @@ src/
 ```
 
 Nx targets:
+
 - `nx run tool-observability-stack:build` — copies source into `dist/tool-observability-stack/` and validates: JSON-schema check on Grafana dashboard JSON; `promtool check config prometheus.yml`; `promtail -check-syntax promtail.yml`.
 - `nx run tool-observability-stack:lint` — yaml-lint + json-lint + shellcheck on anything shell-adjacent.
 
 Compose (rendered by `tool-compose`) references `dist/tool-observability-stack/` (never the source path). Grafana reads provisioning at boot and applies datasources + dashboards. Editing in the UI is allowed for exploration but changes intended to stick must be exported to JSON and committed.
 
 Seed dashboards shipped in this change:
+
 - **be-01 overview**: request rate, p50/p95/p99 latency, 5xx rate, active DB connections, `event_log_rows_total`, `resume_replays_total`.
 - **gw-01 overview**: active connections gauge, reconnect rate, fanout rate, drain histogram, `gw_backend_unavailable_total`.
 - **wbs-alerts**: alert state panel driving the two Grafana-managed alert rules (D16).
@@ -500,7 +537,7 @@ Seed dashboards shipped in this change:
 - Subdomain preferred over path prefix because: Grafana assumes it owns its entire URL root and misbehaves under path prefixing without significant config. Loki/Prometheus admin UIs behave similarly.
 - TLS: Caddy provisions automatically if the DNS A record exists at deploy time.
 - Basic auth: single admin account; password in remote `.env` as `OBSERVABILITY_BASIC_AUTH_HASH` (bcrypt hash, generated locally and copied into env).
-- Upstream: Caddy → Grafana (port 3000 internally). Loki / Prometheus / Promtail are *not* directly exposed — Grafana is the single UI.
+- Upstream: Caddy → Grafana (port 3000 internally). Loki / Prometheus / Promtail are _not_ directly exposed — Grafana is the single UI.
 
 **Fallback** if DNS / wildcard cert isn't set up: path-based `/_obs/grafana/` with Grafana's `root_url` and `serve_from_sub_path` configured. Documented but not the default.
 
@@ -520,6 +557,7 @@ Seed dashboards shipped in this change:
   - **Gotify self-hosted** — Android-first, weak iOS; compelling only if you want everything self-hosted from day one.
 
 **Managed secrets for notifications** (in SOPS, depending on chosen channel):
+
 - `NTFY_TOPIC_URL` (default)
 - `SLACK_WEBHOOK_URL` (alternative)
 - `DISCORD_WEBHOOK_URL` (alternative)
@@ -530,17 +568,20 @@ Seed dashboards shipped in this change:
 The WebSocket resume-on-reconnect protocol is promoted from "deferred" to "ships now". Without product message types, the scaffold proves the protocol with a single `ping`/`pong` exchange; real messages plug in later.
 
 **Sequence ownership:**
+
 - Every message emitted via `gw-01 → client` carries `{subscription, seq, message}`.
 - `seq` is **per-subscription**, monotonic, assigned by `be-01` at the moment it calls `/internal/push`.
 - Subscriptions are opaque strings (routing keys). Example shapes: `doc:<uuid>`, `user:<uuid>`, `room:<id>`. No cardinality ceiling imposed by the protocol — metrics labels (D13) are what prevent explosion.
 - Seq counters live in SQLite table `event_sequencer(subscription TEXT PRIMARY KEY, next_seq INTEGER NOT NULL)` with row-level `UPDATE ... RETURNING next_seq; next_seq = next_seq + 1` performed atomically in a single transaction alongside the insert to `event_log`.
 
 **Replay buffer (`be-01`):**
+
 - **In-memory ring** per subscription: LRU, keyed on `subscription`, holds up to 1000 events per subscription or 5 minutes of history, whichever is smaller. Fast path for reconnect.
 - **Durable fallback**: `event_log(id INTEGER PK, subscription TEXT, seq INTEGER, message BLOB, created_at INTEGER, UNIQUE(subscription, seq))`. Last 10,000 events per subscription retained by a housekeeping job (cron-ish Bun script inside `be-01`, runs every 5 min).
 - **Out-of-range** reconnect: `seq + 1` older than the oldest retained row in `event_log` for that subscription → `resume_denied: out_of_range`. Client responsibility: discard local state for that subscription and re-fetch via HTTP.
 
 **Reconnect handshake:**
+
 - Client's reconnecting wrapper, on socket open, sends first frame: `{"type":"resume","resume_points":{"doc:abc": 42, "user:xyz": 7}}`.
 - `gw-01` forwards to `be-01`'s `/internal/resume` endpoint.
 - `be-01` responds with per-subscription status; for each `replaying` subscription, it sends `/internal/push` calls (with the original seq numbers) that `gw-01` routes to the reconnecting client.
@@ -548,6 +589,7 @@ The WebSocket resume-on-reconnect protocol is promoted from "deferred" to "ships
 - If a subscription returns `resume_denied`, the client UI shows a "reconnected, re-syncing" state and kicks off an HTTP re-fetch.
 
 **Client-side reconnecting WebSocket wrapper:**
+
 - Location: `libs/realtime/src/reconnecting-ws.ts` (package `@wbs/realtime`).
 - API (sketch):
   ```ts
@@ -567,10 +609,12 @@ The WebSocket resume-on-reconnect protocol is promoted from "deferred" to "ships
 - Subscription tracker: serializes `{ subscription: last_seq }` to localStorage on every received frame. On next page load, the map is already populated so the first reconnect can resume immediately.
 
 **TanStack DB adapter** (thin, in `libs/realtime/src/tanstack-adapter.ts`):
+
 - Wraps the reconnecting WS wrapper as a TanStack DB sync engine.
 - Ships as a stub in this change — present, typed, `ping`/`pong`-tested, not connected to any TanStack DB collection yet.
 
 **What ships now:**
+
 - `EventSequencer` service in `be-01` with the schema above.
 - `event_log` table + retention job.
 - `/internal/resume` endpoint in `be-01`.
@@ -579,6 +623,7 @@ The WebSocket resume-on-reconnect protocol is promoted from "deferred" to "ships
 - End-to-end `ping`/`pong` test that proves: connect → ping → pong → disconnect → reconnect with stale seq → server replays missed pongs → `resume_ack` fires.
 
 **What does not ship:**
+
 - Real product subscriptions (doc edits, presence, etc.) — those are future changes.
 - Auth on subscribe/unsubscribe operations beyond JWT-at-upgrade — a subscription filter per user will be added alongside the first real subscription kind.
 - Cross-backend-instance seq coordination — single backend instance, so a single sequencer, no coordination needed.
@@ -588,6 +633,7 @@ The WebSocket resume-on-reconnect protocol is promoted from "deferred" to "ships
 **Decision: files encrypted in the repo via [SOPS](https://github.com/getsops/sops) with [age](https://age-encryption.org) as the key backend.** Plain `.env` is forbidden in git.
 
 **File layout:**
+
 ```
 tools/tool-secrets/src/
 ├── production.env.sops       # SOPS-encrypted dotenv; committed to repo
@@ -599,6 +645,7 @@ tools/tool-secrets/src/
 ```
 
 `.sops.yaml` root config:
+
 ```yaml
 creation_rules:
   - path_regex: tools/tool-secrets/src/.*\.env\.sops$
@@ -608,12 +655,14 @@ creation_rules:
 ```
 
 **Age key management:**
+
 - Private key on each developer workstation: `~/.config/sops/age/keys.txt` (SOPS default).
 - Private key NEVER committed and NEVER placed on the remote host.
 - Public keys (age recipients) committed in `.sops.yaml` so everyone with a matching private key can decrypt.
 - Backup: each developer is expected to store their age private key in a password manager. Losing it = losing access to all secrets files encrypted for that key. Recovery = another recipient decrypts, re-encrypts for the new key.
 
 **Rotation flow** (`sops updatekeys` is the one-shot):
+
 1. Generate new age keypair: `age-keygen -o new-key.txt`.
 2. Add new public key to `.sops.yaml` under the relevant `creation_rules`.
 3. Run `sops updatekeys secrets/production.env.sops` — re-wraps the file-level data key for all current recipients. Commit.
@@ -621,12 +670,14 @@ creation_rules:
 5. After a grace period, remove the old public key from `.sops.yaml` and `sops updatekeys` again. Commit.
 
 **Deploy flow:**
+
 - `nx run tool-deploy:deploy` detects the target environment (defaults to `production`) and invokes `nx run tool-secrets:push` at the SSH boundary.
 - `tool-secrets:push` runs `sops -d tools/tool-secrets/src/production.env.sops` locally — decrypted content is kept only in memory (Bun stream), never written to the developer's disk.
 - Streams the decrypted content over `ssh` to the remote, landing at `/srv/wbs/.env` with `chmod 0600`.
 - On the remote, Docker Compose reads `/srv/wbs/.env` normally. Plaintext at runtime is unavoidable for a Compose-based setup; mitigated by `0600` perms and root-only access to the host.
 
 **Managed secrets** (all via SOPS — exact list per `tools/tool-secrets/src/README.md`):
+
 - `INTERNAL_AUTH_SECRET`
 - `JWT_SIGNING_KEY_CURRENT`, `JWT_SIGNING_KEY_PREVIOUS`
 - `OBSERVABILITY_BASIC_AUTH_HASH` (bcrypt of Grafana admin password)
@@ -639,10 +690,12 @@ Telegram is intentionally NOT in this list — rejected in D16 on ownership-juri
 **Non-secrets** (domain names, port numbers, log levels, etc.) stay in committed plain `.env.example` and are merged with the decrypted secrets at deploy time.
 
 **Pre-commit hook** (part of this change, installed by `nx run tool-git-hooks:install` — see D21):
-- Rejects any commit that adds a file matching `.env` or `*.env` *without* the `.sops` suffix or the `.example` suffix.
+
+- Rejects any commit that adds a file matching `.env` or `*.env` _without_ the `.sops` suffix or the `.example` suffix.
 - Rejects commits that introduce an obviously-plaintext secret pattern (AWS keys, JWT-looking strings) anywhere in the diff. Heuristic, not a full secret scanner — but enough to catch obvious mistakes.
 
 **Why SOPS + age over alternatives:**
+
 - vs. `git-crypt`: SOPS encrypts per-value, so git diffs remain meaningful (one encrypted string changed, not a whole binary blob). Better review ergonomics.
 - vs. HashiCorp Vault / AWS KMS: no runtime infra, no network dependency, no seal/unseal dance. Fits single-dev single-box scale.
 - vs. plain age: SOPS adds structured format (YAML/JSON/dotenv) and key-rotation tooling. age is a primitive; SOPS is the product.
@@ -650,6 +703,7 @@ Telegram is intentionally NOT in this list — rejected in D16 on ownership-juri
 - **Migration path if scale grows**: SOPS backends are swappable. `age` → AWS KMS / GCP KMS / HashiCorp Vault Transit without changing file format. The only code change is in `.sops.yaml` and the SOPS invocation.
 
 **What ships in this change:**
+
 - `.sops.yaml` at repo root with a single age recipient (the first developer's public key).
 - `tools/tool-secrets/src/production.env.sops` populated with placeholder ciphertext for all the variables listed above.
 - `tools/tool-secrets/src/local.env.example` documenting the variables a developer needs for local dev.
@@ -665,17 +719,18 @@ Telegram is intentionally NOT in this list — rejected in D16 on ownership-juri
 
 Seven libs, each with a distinct concern:
 
-| Lib | Consumers | Public API (representative exports) | Runtime | Depends on |
-|---|---|---|---|---|
-| **`@wbs/validation`** | every app + every other lib | `type` (re-export of ArkType), `defineSchema`, `parseOrThrow`, `ValidationError`, `InferSchema<T>`, branded-type helpers | isomorphic | — |
-| **`@wbs/domain`** | be-01, gw-01, fe-01, contracts | `WbsItem`, `Estimate`, `Dependency`, `WbsItemId` (branded), domain schemas, pure domain invariants | isomorphic | `@wbs/validation` |
-| **`@wbs/contracts`** | be-01, gw-01, fe-01 | HTTP request/response schemas (public + internal be↔gw), WS envelope schemas, resume-protocol message types (`seq`, `ack`, `resume`, `resume_ack`, `resume_denied`), error-code enum | isomorphic | `@wbs/validation`, `@wbs/domain` |
-| **`@wbs/observability`** | be-01, gw-01, fe-01 (browser subset), `@wbs/scripts` | `createLogger(service)`, log-field schema (D12), pino serializers, `Counter`/`Histogram`/`Gauge` wrappers, Elysia `/metrics` plugin, request-id + trace-id helpers | isomorphic core; Prometheus registry + `/metrics` plugin under sub-path `@wbs/observability/server` (Bun-only) | `@wbs/validation` |
-| **`@wbs/config`** | every app, `@wbs/scripts` | `defineConfig(schema)`, standard env schemas (port, log-level, URLs), SOPS-decrypted-file loader, config-assertion helpers | Bun-only | `@wbs/validation`, `@wbs/observability` |
-| **`@wbs/realtime`** | fe-01 only | `ReconnectingWsClient`, resume-protocol state machine, replay-buffer types, `createTanstackDbAdapter`, connection-status store | browser-only | `@wbs/contracts`, `@wbs/observability` (browser subset) |
-| **`@wbs/scripts`** | `tool-*` projects | `$` wrapper with structured error handling, SSH command builder, SOPS encrypt/decrypt helpers, Dagger argument helpers, file/path utilities, typed JSON/YAML readers | Bun-only | `@wbs/validation`, `@wbs/observability`, `@wbs/config` |
+| Lib                      | Consumers                                            | Public API (representative exports)                                                                                                                                                  | Runtime                                                                                                        | Depends on                                              |
+| ------------------------ | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
+| **`@wbs/validation`**    | every app + every other lib                          | `type` (re-export of ArkType), `defineSchema`, `parseOrThrow`, `ValidationError`, `InferSchema<T>`, branded-type helpers                                                             | isomorphic                                                                                                     | —                                                       |
+| **`@wbs/domain`**        | be-01, gw-01, fe-01, contracts                       | `WbsItem`, `Estimate`, `Dependency`, `WbsItemId` (branded), domain schemas, pure domain invariants                                                                                   | isomorphic                                                                                                     | `@wbs/validation`                                       |
+| **`@wbs/contracts`**     | be-01, gw-01, fe-01                                  | HTTP request/response schemas (public + internal be↔gw), WS envelope schemas, resume-protocol message types (`seq`, `ack`, `resume`, `resume_ack`, `resume_denied`), error-code enum | isomorphic                                                                                                     | `@wbs/validation`, `@wbs/domain`                        |
+| **`@wbs/observability`** | be-01, gw-01, fe-01 (browser subset), `@wbs/scripts` | `createLogger(service)`, log-field schema (D12), pino serializers, `Counter`/`Histogram`/`Gauge` wrappers, Elysia `/metrics` plugin, request-id + trace-id helpers                   | isomorphic core; Prometheus registry + `/metrics` plugin under sub-path `@wbs/observability/server` (Bun-only) | `@wbs/validation`                                       |
+| **`@wbs/config`**        | every app, `@wbs/scripts`                            | `defineConfig(schema)`, standard env schemas (port, log-level, URLs), SOPS-decrypted-file loader, config-assertion helpers                                                           | Bun-only                                                                                                       | `@wbs/validation`, `@wbs/observability`                 |
+| **`@wbs/realtime`**      | fe-01 only                                           | `ReconnectingWsClient`, resume-protocol state machine, replay-buffer types, `createTanstackDbAdapter`, connection-status store                                                       | browser-only                                                                                                   | `@wbs/contracts`, `@wbs/observability` (browser subset) |
+| **`@wbs/scripts`**       | `tool-*` projects                                    | `$` wrapper with structured error handling, SSH command builder, SOPS encrypt/decrypt helpers, Dagger argument helpers, file/path utilities, typed JSON/YAML readers                 | Bun-only                                                                                                       | `@wbs/validation`, `@wbs/observability`, `@wbs/config`  |
 
 **Dependency DAG** (no cycles):
+
 ```
 validation
    ├── domain
@@ -689,6 +744,7 @@ validation
 `@wbs/realtime` deliberately does not depend on `@wbs/domain`. Transport envelopes are all it needs; domain payloads flow through as opaque validated blobs.
 
 **Rejected / consolidated candidates** (documented so the rejections don't need re-litigating):
+
 - **`@wbs/utils`** — rejected. Grab-bag magnet. Generic helpers (`assertNever`, `Result`, branded-type helpers) live in `@wbs/validation`; anything else belongs to a specific domain lib.
 - **Split `logging` + `metrics`** — rejected. They share field conventions and request-id plumbing; one lib (`@wbs/observability`) is right.
 - **Split `http-contracts` + `ws-contracts`** — rejected. Same versioning cadence; one `@wbs/contracts` with sub-path exports.
@@ -697,6 +753,7 @@ validation
 - **`@wbs/sops`, `@wbs/dagger` as separate libs** — rejected. These are scripting surfaces; they live inside `@wbs/scripts` as sub-modules.
 
 **Nx tags** on each lib enforce boundaries:
+
 - `scope:shared` — every lib.
 - `type:validation|domain|contracts|observability|config|realtime|scripts` — exactly one per lib.
 - `runtime:isomorphic|bun|browser` — enforces that browser code never imports Bun-only libs, and vice versa.
@@ -707,19 +764,20 @@ The codebase is largely implemented by AI subagents under TDD; tests must be a d
 
 **Layered testing:**
 
-| Layer | Covers | Tool | Location | Nx target | Runtime budget |
-|---|---|---|---|---|---|
-| **Unit** | Pure functions, ArkType validators, serializers, React hooks (logic only) | `bun test` (libs, be-01, gw-01) + `vitest` + jsdom (fe-01) | `src/**/*.test.ts` colocated | `nx test <proj>` | <2s per project |
-| **Integration** | be-01 routes against `bun:sqlite(:memory:)` + Drizzle migrations; gw-01 WS handlers against real `new WebSocket`; Elysia app boot; `/internal/push` + `/internal/forward` + `/internal/resume` round-trips | `bun test` with `app.handle(req)` + native WS | `src/**/*.integration.test.ts` | `nx test <proj>` (same target, name filter on CI) | <10s per project |
-| **Contract** | Internal HTTP contract between be-01 and gw-01 (both directions) — one ArkType schema, two consumers | `bun test` + shared schemas from `@wbs/contracts` driving both producer and consumer test files | `libs/contracts/src/**/*.contract.test.ts` | `nx test contracts` | <3s |
-| **Property** | Layer-A resume protocol invariants, ArkType round-trips, sequence/ack math | `fast-check` inside `bun test` | `src/**/*.property.test.ts` | same `nx test <proj>` | <20s per project, seeded |
-| **E2E** | Full stack via Docker Compose: browser → fe-01 → be-01 → gw-01, DB persisted, real WS | `playwright` (Chromium only; WS first-class) | `apps/fe-01-e2e/tests/**.spec.ts` as a separate Nx project | `nx e2e fe-01-e2e` | full: <90s; `@smoke`-tagged subset: <20s |
-| **Smoke / Deploy** | Post-deploy health: `/metrics` responds, WS handshake succeeds, `ping`/`pong` resume flow works | `bun test` scripts under `tool-smoke` | `tools/tool-smoke/src/**.smoke.test.ts` | `nx run tool-smoke:check -- --env=prod` | <15s |
-| **Mutation** | `libs/*` only (pure, high-leverage) | `stryker` with `bun test` runner | `libs/<lib>/stryker.conf.json` | `nx run <lib>:mutation` | 5-15 min, SKIPPED by default, run weekly |
+| Layer              | Covers                                                                                                                                                                                                     | Tool                                                                                            | Location                                                   | Nx target                                         | Runtime budget                           |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- | ---------------------------------------------------------- | ------------------------------------------------- | ---------------------------------------- |
+| **Unit**           | Pure functions, ArkType validators, serializers, React hooks (logic only)                                                                                                                                  | `bun test` (libs, be-01, gw-01) + `vitest` + jsdom (fe-01)                                      | `src/**/*.test.ts` colocated                               | `nx test <proj>`                                  | <2s per project                          |
+| **Integration**    | be-01 routes against `bun:sqlite(:memory:)` + Drizzle migrations; gw-01 WS handlers against real `new WebSocket`; Elysia app boot; `/internal/push` + `/internal/forward` + `/internal/resume` round-trips | `bun test` with `app.handle(req)` + native WS                                                   | `src/**/*.integration.test.ts`                             | `nx test <proj>` (same target, name filter on CI) | <10s per project                         |
+| **Contract**       | Internal HTTP contract between be-01 and gw-01 (both directions) — one ArkType schema, two consumers                                                                                                       | `bun test` + shared schemas from `@wbs/contracts` driving both producer and consumer test files | `libs/contracts/src/**/*.contract.test.ts`                 | `nx test contracts`                               | <3s                                      |
+| **Property**       | Layer-A resume protocol invariants, ArkType round-trips, sequence/ack math                                                                                                                                 | `fast-check` inside `bun test`                                                                  | `src/**/*.property.test.ts`                                | same `nx test <proj>`                             | <20s per project, seeded                 |
+| **E2E**            | Full stack via Docker Compose: browser → fe-01 → be-01 → gw-01, DB persisted, real WS                                                                                                                      | `playwright` (Chromium only; WS first-class)                                                    | `apps/fe-01-e2e/tests/**.spec.ts` as a separate Nx project | `nx e2e fe-01-e2e`                                | full: <90s; `@smoke`-tagged subset: <20s |
+| **Smoke / Deploy** | Post-deploy health: `/metrics` responds, WS handshake succeeds, `ping`/`pong` resume flow works                                                                                                            | `bun test` scripts under `tool-smoke`                                                           | `tools/tool-smoke/src/**.smoke.test.ts`                    | `nx run tool-smoke:check -- --env=prod`           | <15s                                     |
+| **Mutation**       | `libs/*` only (pure, high-leverage)                                                                                                                                                                        | `stryker` with `bun test` runner                                                                | `libs/<lib>/stryker.conf.json`                             | `nx run <lib>:mutation`                           | 5-15 min, SKIPPED by default, run weekly |
 
 Test files colocated next to the implementation (`*.test.ts`) — except E2E (separate Nx project) and mutation (separate config). One convention, no divergence.
 
 **Ergonomics rules for agent-driven TDD** — baked into the repo's lint/convention:
+
 1. Test names state the invariant, not the action (`"replay buffer never delivers seq <= last_acked"`, not `"it works"`).
 2. One assertion concept per test.
 3. No snapshots except tiny ArkType-derived JSON schemas; HTML/DOM snapshots banned.
@@ -732,10 +790,12 @@ Test files colocated next to the implementation (`*.test.ts`) — except E2E (se
 10. Public API only in tests — no `@ts-expect-error`-gated internal imports; if it needs testing, it needs exporting.
 
 **Test data and fixtures:**
+
 - ArkType schemas in `@wbs/contracts` + `@wbs/domain` are the single source of truth.
 - `libs/validation/src/test-fixtures.ts` (sub-path export `@wbs/validation/fixtures`) exposes `makeTestDb()` (in-memory SQLite with Drizzle migrations), `makeFrame()` (WS frame factory), `makeWbsItem()` (domain factory). Consumers import from this single location; no ad-hoc duplication.
 
 **Layer-A resume protocol invariants** (fast-check, modeling a session):
+
 - Monotonic delivery: `receivedSeqs` strictly increasing modulo dropped duplicates.
 - No replay below ack: server never emits `seq <= clientLastAck` after any reconnect.
 - Buffer bound: `|buffer| <= BUFFER_MAX` across any interleaving.
@@ -748,12 +808,15 @@ Integration tests exercise the real WS loop: clean connect, mid-stream disconnec
 **Coverage stance:** **line coverage enforced at 85% for `libs/*` only; not enforced for apps.** Apps are dominated by wiring whose coverage number lies (Elysia route registration inflates it). Libs are pure and high-leverage, and they're where subagents need the tightest safety net. `bun test --coverage` runs in lib test targets; failure under threshold fails the Nx target.
 
 **Agent "done" signal** per micro-task:
+
 ```
 nx affected -t test,lint,typecheck --base=<micro-task-start>
 ```
+
 All three green, plus the new failing test from the start of the TDD cycle now green = task complete. Verified against plan.md checkpoints.
 
 **Usually-skipped tests** (not in default graph):
+
 - Mutation (`:mutation` targets) — on-demand only.
 - E2E full suite — only `@smoke`-tagged runs per-PR; full suite nightly against deploy host.
 - Chaos/soak tests for Layer-A (1-hour reconnect storm) — `apps/gw-01/src/**/*.soak.test.ts`, `nx run gw-01:soak`, never in default.
@@ -761,6 +824,7 @@ All three green, plus the new failing test from the start of the TDD cycle now g
 ### D21. Lint + format baseline — ESLint (flat config) + Prettier + lefthook
 
 **Decision: ESLint 9 (flat config) + Prettier 3, with lefthook for pre-commit orchestration.** Biome evaluated and rejected for three concrete reasons specific to this stack:
+
 1. `@tanstack/eslint-plugin-router` and `@tanstack/eslint-plugin-query` provide real value on our TanStack Router file-based routing and TanStack Query cache keys — no Biome equivalent.
 2. `jsx-a11y` has no Biome peer at comparable depth.
 3. `eslint-plugin-drizzle` catches `DELETE` / `UPDATE` without `WHERE` — a subagent-class bug the drizzle plugin alone justifies.
@@ -768,6 +832,7 @@ All three green, plus the new failing test from the start of the TDD cycle now g
 Nx 18+ ships official flat-config ESLint generators (`@nx/eslint`); `@nx/biome` is community and less mature. Migration ESLint → Biome later is cheap; Biome → ESLint later is expensive. Revisit at month 6 if ESLint runtime becomes a problem — by then we'll have real benchmark data on this codebase, not speculation.
 
 **ESLint flat config** — root `eslint.config.js` composes:
+
 - `@eslint/js` `recommended`
 - `typescript-eslint` `strictTypeChecked` + `stylisticTypeChecked` (project-service mode picks up each project's `tsconfig.json` automatically)
 - `@nx/eslint-plugin` `flat/base`, `flat/typescript`, `flat/javascript` (gives Nx module-boundary rules — the D1 tag set)
@@ -783,11 +848,13 @@ Nx 18+ ships official flat-config ESLint generators (`@nx/eslint`); `@nx/biome` 
 - `eslint-config-prettier` last (disables stylistic rules that fight Prettier)
 
 Explicit overrides:
+
 - `no-floating-promises` → error (Bun + Elysia swallows silently otherwise).
 - `@typescript-eslint/consistent-type-imports` → error with `fixStyle: 'separate-type-imports'`.
 - Nx `enforce-module-boundaries` tag set from D1.
 
 **Prettier 3 config** (`.prettierrc.json`, one file, non-negotiable):
+
 ```json
 {
   "semi": true,
@@ -802,16 +869,19 @@ Explicit overrides:
   "plugins": ["prettier-plugin-tailwindcss"]
 }
 ```
+
 `prettier-plugin-tailwindcss` sorts shadcn className strings.
 
 **Config layout:** root-anchored, flat inheritance. One `eslint.config.js`, one `.prettierrc.json`, one `.prettierignore`, one `.editorconfig`. Per-project files only if a project genuinely diverges (rare).
 
 **Pre-commit — lefthook** (not husky+lint-staged):
+
 - Single YAML (`lefthook.yml`), single static binary, no postinstall dance, native parallelism.
 - Better match for Bun's lockfile semantics than husky.
 - Native staged-file filtering replaces lint-staged's role.
 
 `tools/tool-git-hooks/src/install.ts` runs `bunx lefthook install`. `lefthook.yml` at repo root defines:
+
 - `pre-commit`: parallel jobs `lint` (`bunx nx affected -t lint --uncommitted --fix`) and `format` (`bunx nx format:write --uncommitted`). Re-stages after fix.
 - `commit-msg`: a tiny Bun script enforcing conventional-commits prefixes.
 
@@ -820,6 +890,7 @@ The **plaintext-secret pre-commit hook** (D18) is also declared in `lefthook.yml
 **Editor integration** — `.vscode/extensions.json`: `dbaeumer.vscode-eslint`, `esbenp.prettier-vscode`, `bradlc.vscode-tailwindcss`, `nrwl.angular-console`. **`biomejs.biome` is explicitly excluded** so two formatters don't fight.
 
 `.vscode/settings.json`:
+
 ```json
 {
   "editor.defaultFormatter": "esbenp.prettier-vscode",
@@ -834,14 +905,17 @@ The **plaintext-secret pre-commit hook** (D18) is also declared in `lefthook.yml
   "typescript.enablePromptUseWorkspaceTsdk": true
 }
 ```
+
 `organizeImports: never` because `simple-import-sort` owns that — two sorters fight otherwise.
 
 **Nx targets:**
+
 - `nx lint <project>` → `@nx/eslint:lint`, inputs include `default` + `eslint.config.js` + `.prettierrc.json` (cache invalidates on config change). Declared on every `apps/*`, `libs/*`, `tools/*` project.
 - `nx format` / `nx format:check` → Nx built-in Prettier commands.
 - `nx run-many -t lint` / `nx affected -t lint` — free from the target declaration.
 
 **Files the scaffold ships:**
+
 - `/eslint.config.js`
 - `/.prettierrc.json`
 - `/.prettierignore` (`dist/`, `.nx/`, `coverage/`, `node_modules/`, `*.gen.ts` for TanStack Router generated route tree)
@@ -863,13 +937,13 @@ The **plaintext-secret pre-commit hook** (D18) is also declared in `lefthook.yml
 - **[Risk]** Schema changes between blue and green `be-01` during the drain window → data inconsistency → **Mitigation**: expand-→-backfill-→-contract discipline is documented; migrations are additive-only in a single deploy. A pre-commit lint on `apps/be-01/src/db/migrations/` rejects `DROP` / destructive operations without a `// safe: <explanation>` comment.
 - **[Risk]** Single-point-of-failure observability stack (Grafana/Loki running on the same box as the apps) — if the box dies, observability dies with it → **Mitigation**: accepted for a one-box hobby project. Migration to a separate observability host is a future change; log retention is limited (7 days default) so on-box disk is bounded.
 - **[Risk]** SQLite write contention if `be-01` blue and green both write during the drain window → **Mitigation**: SQLite's WAL mode handles concurrent readers + single writer gracefully; accept minor write-lock waits during the window (typically <5 min). Move to Postgres if this becomes a real problem.
-- **[Risk]** JWT dual-key complexity introduces an auth bypass if validator order is wrong → **Mitigation**: validator tries `CURRENT` first, falls back to `PREVIOUS` only when the first explicitly fails with `InvalidSignature`; other failures (expiry, malformed) are *not* retried. Unit-tested.
+- **[Risk]** JWT dual-key complexity introduces an auth bypass if validator order is wrong → **Mitigation**: validator tries `CURRENT` first, falls back to `PREVIOUS` only when the first explicitly fails with `InvalidSignature`; other failures (expiry, malformed) are _not_ retried. Unit-tested.
 - **[Trade-off]** Deploying the observability stack on the same box costs ~500 MB RAM → **Accepted**: Hetzner boxes with ≥4 GB RAM are cheap; observability earns its keep immediately.
 - **[Trade-off]** Bun scripts depend on Bun being bootstrapped on the remote — a fresh host requires running `bootstrap.sh` before `deploy.ts` works → **Accepted**: one-time cost, idempotent script, documented in the deploy README.
 - **[Risk]** `event_log` table grows unbounded if the retention job fails silently → **Mitigation**: Prometheus metric `event_log_rows_total` exposed by `be-01`; Grafana alert if it exceeds 1M or the retention job's last-run timestamp is >1h old.
 - **[Risk]** A pathological subscription with many small events floods the in-memory ring and evicts useful history too fast → **Mitigation**: per-subscription ring cap is documented; add a Grafana panel showing `gw_message_fanout_total` by subscription_kind so hot subscriptions are visible; revisit ring sizing if a real workload shows the default is wrong.
 - **[Risk]** Replay storm on mass reconnect (e.g., after a gateway redeploy drain expires, 100s of clients reconnect at once with stale seqs) → **Mitigation**: client reconnect wrapper uses ±20% jitter; `be-01` rate-limits replay-triggered `/internal/push` calls per connection; Grafana alert on `/internal/resume` rate spike.
-- **[Risk]** Replay protocol delivers messages a client has *already* processed (if local `last_seq` lagged the acknowledged seq) → **Mitigation**: client treats incoming `seq <= stored last_seq` as idempotent replay and no-ops at the app level; message handlers must be idempotent. Documented requirement for future product message types.
+- **[Risk]** Replay protocol delivers messages a client has _already_ processed (if local `last_seq` lagged the acknowledged seq) → **Mitigation**: client treats incoming `seq <= stored last_seq` as idempotent replay and no-ops at the app level; message handlers must be idempotent. Documented requirement for future product message types.
 - **[Risk]** `/internal/resume` with a huge `resume_points` map (user subscribed to thousands of subscriptions) produces a huge response → **Mitigation**: hard cap of 100 subscriptions per resume handshake; clients with more must resume in batches. Out of scope for this change (no product subscriptions yet); documented as a future constraint.
 - **[Risk]** Loss of a developer's age private key means permanent inability to decrypt repo secrets for that recipient → **Mitigation**: documented backup requirement to a password manager; multi-recipient encryption is supported so a second developer (or a break-glass offline key) can re-encrypt after a loss.
 - **[Risk]** A teammate commits plaintext `.env` by accident → **Mitigation**: pre-commit hook (D18) rejects non-`.sops` / non-`.example` env files and heuristically-looking credentials; also documented in `secrets/README.md`. Git history is not retroactively scrubbed by the hook — if one lands, the leak is real and the secret must be rotated.
@@ -909,6 +983,7 @@ This is the initial scaffolding — no migration from prior state. "Deployment" 
    - `ping`/`pong` WS smoke test including a forced reconnect that exercises the resume protocol.
 
 **Rollback strategy:**
+
 - Per-tier: `nx run tool-deploy:deploy-<tier> -- --version=<previous-sha> --bundle=/srv/wbs/releases/release-<previous-sha>-<tier>.tar.gz`. The blue/green machinery doesn't care whether the "new" version is actually older.
 - All-tier: orchestrator supports `--version=<sha>` to force a specific version across all tiers.
 - Data: SQLite migrations are expand-→-backfill-→-contract, so schema rollback is always a no-op for a single step back.

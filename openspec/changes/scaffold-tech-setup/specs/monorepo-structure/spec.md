@@ -18,6 +18,7 @@ The repository root MUST be an Nx 18+ workspace with exactly three top-level dir
 ### Requirement: Project naming conventions
 
 Project names SHALL follow these fixed conventions, enforced by code review and project generators:
+
 - Apps: `apps/<role>-NN` where `<role>` ∈ {`be`, `gw`, `fe`} and `NN` is a two-digit sequence (`01`, `02`, …).
 - Libs: `libs/<name>` with package `name: "@wbs/<name>"` in `package.json` — no numeric suffix, semantic names only.
 - Tools: `tools/tool-<name>` with `name: "@wbs/tool-<name>"`.
