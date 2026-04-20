@@ -1,0 +1,22 @@
+{
+  "name": "realtime",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/realtime/src",
+  "projectType": "library",
+  "tags": ["scope:shared", "type:realtime", "runtime:browser"],
+  "targets": {
+    "lint": {
+      "executor": "nx:run-commands",
+      "options": { "command": "bunx eslint libs/realtime/src" }
+    },
+    "test": {
+      "executor": "nx:run-commands",
+      "options": { "command": "bun test --coverage", "cwd": "libs/realtime" },
+      "outputs": ["{projectRoot}/coverage"]
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": { "command": "bunx tsc --noEmit -p libs/realtime/tsconfig.json" }
+    }
+  }
+}

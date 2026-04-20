@@ -50,7 +50,7 @@
     "eslint-plugin-simple-import-sort": "^12",
     "eslint-plugin-unicorn": "^55",
     "eslint-plugin-unused-imports": "^4",
-    "fast-check": "^3",
+    "fast-check": "^4.7.0",
     "jsdom": "^24",
     "lefthook": "^1",
     "nx": "^18",
