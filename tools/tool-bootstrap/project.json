@@ -1,0 +1,34 @@
+{
+  "name": "tool-bootstrap",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "tools/tool-bootstrap/src",
+  "projectType": "library",
+  "tags": ["scope:infra", "type:scripts", "runtime:bun"],
+  "targets": {
+    "build": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "shellcheck -s sh tools/tool-bootstrap/src/bootstrap.sh || echo '[tool-bootstrap] shellcheck not installed — skipping'"
+      }
+    },
+    "push": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bun run tools/tool-bootstrap/src/push.ts"
+      },
+      "cache": false
+    },
+    "test": {
+      "executor": "nx:run-commands",
+      "options": { "command": "bun test", "cwd": "tools/tool-bootstrap" }
+    },
+    "lint": {
+      "executor": "nx:run-commands",
+      "options": { "command": "bunx eslint tools/tool-bootstrap/src" }
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": { "command": "bunx tsc --noEmit -p tools/tool-bootstrap/tsconfig.json" }
+    }
+  }
+}

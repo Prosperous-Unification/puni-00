@@ -1,0 +1,42 @@
+{
+  "name": "tool-smoke",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "tools/tool-smoke/src",
+  "projectType": "library",
+  "tags": ["scope:infra", "type:scripts", "runtime:bun"],
+  "targets": {
+    "check": {
+      "executor": "nx:run-commands",
+      "options": {
+        "commands": [
+          "bun run tools/tool-smoke/src/health.ts",
+          "bun run tools/tool-smoke/src/ws-ping.ts"
+        ],
+        "parallel": false
+      },
+      "cache": false
+    },
+    "health": {
+      "executor": "nx:run-commands",
+      "options": { "command": "bun run tools/tool-smoke/src/health.ts" },
+      "cache": false
+    },
+    "ws-ping": {
+      "executor": "nx:run-commands",
+      "options": { "command": "bun run tools/tool-smoke/src/ws-ping.ts" },
+      "cache": false
+    },
+    "test": {
+      "executor": "nx:run-commands",
+      "options": { "command": "bun test", "cwd": "tools/tool-smoke" }
+    },
+    "lint": {
+      "executor": "nx:run-commands",
+      "options": { "command": "bunx eslint tools/tool-smoke/src" }
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": { "command": "bunx tsc --noEmit -p tools/tool-smoke/tsconfig.json" }
+    }
+  }
+}

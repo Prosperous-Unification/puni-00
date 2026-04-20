@@ -1,0 +1,80 @@
+{
+  "name": "tool-dagger",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "tools/tool-dagger/src",
+  "projectType": "library",
+  "tags": ["scope:infra", "type:scripts", "runtime:bun"],
+  "targets": {
+    "build-be": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bun run tools/tool-dagger/src/be-01.ts --build-only"
+      },
+      "outputs": ["{workspaceRoot}/dist/tool-dagger/release-be"]
+    },
+    "build-gw": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bun run tools/tool-dagger/src/gw-01.ts --build-only"
+      },
+      "outputs": ["{workspaceRoot}/dist/tool-dagger/release-gw"]
+    },
+    "build-fe": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bun run tools/tool-dagger/src/fe-01.ts --build-only"
+      },
+      "outputs": ["{workspaceRoot}/dist/tool-dagger/release-fe"]
+    },
+    "test-be": {
+      "executor": "nx:run-commands",
+      "options": { "command": "nx test be-01" }
+    },
+    "test-gw": {
+      "executor": "nx:run-commands",
+      "options": { "command": "nx test gw-01" }
+    },
+    "test-fe": {
+      "executor": "nx:run-commands",
+      "options": { "command": "nx test fe-01" }
+    },
+    "publish-be": {
+      "executor": "nx:run-commands",
+      "dependsOn": ["build-be", "test-be"],
+      "options": {
+        "command": "bun run tools/tool-dagger/src/be-01.ts --publish"
+      }
+    },
+    "publish-gw": {
+      "executor": "nx:run-commands",
+      "dependsOn": ["build-gw", "test-gw"],
+      "options": {
+        "command": "bun run tools/tool-dagger/src/gw-01.ts --publish"
+      }
+    },
+    "publish-fe": {
+      "executor": "nx:run-commands",
+      "dependsOn": ["build-fe", "test-fe"],
+      "options": {
+        "command": "bun run tools/tool-dagger/src/fe-01.ts --publish"
+      }
+    },
+    "publish-all": {
+      "executor": "nx:run-commands",
+      "dependsOn": ["publish-be", "publish-gw", "publish-fe"],
+      "options": { "command": "echo 'publish-all orchestrated via Nx dependencies'" }
+    },
+    "test": {
+      "executor": "nx:run-commands",
+      "options": { "command": "bun test", "cwd": "tools/tool-dagger" }
+    },
+    "lint": {
+      "executor": "nx:run-commands",
+      "options": { "command": "bunx eslint tools/tool-dagger/src" }
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": { "command": "bunx tsc --noEmit -p tools/tool-dagger/tsconfig.json" }
+    }
+  }
+}

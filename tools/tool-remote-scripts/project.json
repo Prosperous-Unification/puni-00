@@ -1,0 +1,41 @@
+{
+  "name": "tool-remote-scripts",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "tools/tool-remote-scripts/src",
+  "projectType": "library",
+  "tags": ["scope:infra", "type:scripts", "runtime:bun"],
+  "targets": {
+    "build": {
+      "executor": "nx:run-commands",
+      "options": {
+        "commands": [
+          "bun build tools/tool-remote-scripts/src/swap.ts --target=bun --outfile dist/tool-remote-scripts/swap.js",
+          "bun build tools/tool-remote-scripts/src/swap-be.ts --target=bun --outfile dist/tool-remote-scripts/swap-be.js",
+          "bun build tools/tool-remote-scripts/src/swap-gw.ts --target=bun --outfile dist/tool-remote-scripts/swap-gw.js",
+          "bun build tools/tool-remote-scripts/src/swap-fe.ts --target=bun --outfile dist/tool-remote-scripts/swap-fe.js"
+        ],
+        "parallel": false
+      },
+      "outputs": ["{workspaceRoot}/dist/tool-remote-scripts"]
+    },
+    "install": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bun run tools/tool-remote-scripts/src/install.ts"
+      },
+      "cache": false
+    },
+    "test": {
+      "executor": "nx:run-commands",
+      "options": { "command": "bun test", "cwd": "tools/tool-remote-scripts" }
+    },
+    "lint": {
+      "executor": "nx:run-commands",
+      "options": { "command": "bunx eslint tools/tool-remote-scripts/src" }
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": { "command": "bunx tsc --noEmit -p tools/tool-remote-scripts/tsconfig.json" }
+    }
+  }
+}
