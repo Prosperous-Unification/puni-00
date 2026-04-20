@@ -19,7 +19,7 @@
 ## 3. Shared libraries — DAG root: `@wbs/validation` and `@wbs/domain`
 
 - [x] 3.1 Generate `libs/validation` (Nx library, `runtime:isomorphic`, `type:validation`, `scope:shared`). Export ArkType's `type`, `defineSchema`, `parseOrThrow`, `ValidationError`, `InferSchema<T>`, branded-type helpers. _(tsconfig `typescript` pinned to `^5.4.0` for Nx 18 semver check; generator run with `NX_ADD_PLUGINS=false` to avoid an Nx-18 `addPlugin` bug; stub path aliases temporarily removed during generation and restored; stray `package-lock.json` produced by generator deleted and gitignored; 3 core tests pass)_
-- [ ] 3.2 Create `libs/validation/src/fixtures/` sub-path export with `makeTestDb()`, `makeFrame()`, `injectedClock()`, and a `README.md` documenting the fixture conventions and agent-TDD ergonomics rules.
+- [x] 3.2 Create `libs/validation/src/fixtures/` sub-path export with `makeTestDb()`, `makeFrame()`, `injectedClock()`, and a `README.md` documenting the fixture conventions and agent-TDD ergonomics rules. _(6 tests pass; drizzle-orm + drizzle-kit installed)_
 - [ ] 3.3 Generate `libs/domain` (`runtime:isomorphic`, `type:domain`). Export `WbsItem`, `Estimate`, `Dependency`, `WbsItemId` (branded) as ArkType schemas + inferred types.
 - [ ] 3.4 Unit tests for both libs targeting 85%+ line coverage; confirm `nx test validation`, `nx test domain` green.
 
