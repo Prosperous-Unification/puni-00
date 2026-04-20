@@ -39,10 +39,10 @@
 
 ## 6. Backend — `apps/be-01` HTTP skeleton
 
-- [ ] 6.1 Generate `apps/be-01` (Nx Bun app; `scope:app`, `type:app`, `runtime:bun`). Elysia HTTP server, config loaded via `@wbs/config`, `/health` endpoint, structured pino logging via `@wbs/observability`, `/metrics` via the server sub-path.
-- [ ] 6.2 Create `apps/be-01/src/repository/` with Drizzle + `bun:sqlite` behind an interface; write a throwaway example repository to prove the abstraction. Add `no-restricted-imports` ESLint rule banning `drizzle-orm/*` outside `repository/`.
-- [ ] 6.3 Scaffold `controller/` and `service/` layers with one smoke route end-to-end; enforce ArkType validation on every route via a shared helper.
-- [ ] 6.4 Drizzle migration runner + `/health` goes 503 during migration / 200 when done. Integration tests using `app.handle(req)`.
+- [x] 6.1 Generate `apps/be-01` (Nx Bun app; `scope:app`, `type:app`, `runtime:bun`). Elysia HTTP server, config loaded via `@wbs/config`, `/health` endpoint, structured pino logging via `@wbs/observability`, `/metrics` via the server sub-path. _(2 health tests pass; .env.example + observabilityPlugin wired)_
+- [x] 6.2 Create `apps/be-01/src/repository/` with Drizzle + `bun:sqlite` behind an interface; write a throwaway example repository to prove the abstraction. Add `no-restricted-imports` ESLint rule banning `drizzle-orm/*` outside `repository/`. _(2 repo tests pass; negative-case scratch file confirmed the rule fires from `apps/be-01/src/__scratch__/bad.ts`)_
+- [x] 6.3 Scaffold `controller/` and `service/` layers with one smoke route end-to-end; enforce ArkType validation on every route via a shared helper. _(2 integration tests pass; `validateBody` + `HttpError` helper in `middleware/validate.ts`)_
+- [x] 6.4 Drizzle migration runner + `/health` goes 503 during migration / 200 when done. Integration tests using `app.handle(req)`. _(1 lifecycle test passes; runMigrations + 0000_initial journal wired — migrate.ts lives under `repository/` to satisfy drizzle import rule)_
 
 ## 7. Backend — Layer-A resume protocol in `be-01`
 
