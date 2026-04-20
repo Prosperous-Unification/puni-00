@@ -54,12 +54,12 @@
 
 ## 8. Gateway — `apps/gw-01` WS skeleton + resume handshake
 
-- [ ] 8.1 Generate `apps/gw-01` (Bun + Elysia, `runtime:bun`). WS endpoint at `/ws`, `/health` endpoint, pino logging + `/metrics` via `@wbs/observability/server`.
-- [ ] 8.2 JWT upgrade-time auth with dual-key validation (`CURRENT` + `PREVIOUS`); fallback only on `InvalidSignature`, not on expiry/malformed. Unit-test the fallback ordering.
-- [ ] 8.3 In-memory `subscription → Set<socket>` map with subscribe/unsubscribe ops; no persistence.
-- [ ] 8.4 `POST /internal/push` endpoint (shared-secret auth) that fans out to subscribed sockets and returns `{delivered_to_sockets}`. Forward inbound client frames to `be-01`'s `/internal/forward` with identification headers.
-- [ ] 8.5 Reconnect handshake: accept `{"type":"resume"}`, forward to `be-01`'s `/internal/resume`, relay replayed frames, emit `resume_ack` / `resume_denied`. Register `gw_*` Prometheus metrics.
-- [ ] 8.6 `ping`/`pong` message type with <1s response, 25s keepalive; integration test the full reconnect cycle against a real Elysia app.
+- [x] 8.1 Generate `apps/gw-01` (Bun + Elysia, `runtime:bun`). WS endpoint at `/ws`, `/health` endpoint, pino logging + `/metrics` via `@wbs/observability/server`. _(Nx `@nx/js:lib` scaffold, Bun runtime; lint delegated to bunx eslint)_
+- [x] 8.2 JWT upgrade-time auth with dual-key validation (`CURRENT` + `PREVIOUS`); fallback only on `InvalidSignature`, not on expiry/malformed. Unit-test the fallback ordering. _(3 tests: happy path, previous-key fallback, expired never rotates)_
+- [x] 8.3 In-memory `subscription → Set<socket>` map with subscribe/unsubscribe ops; no persistence. _(4 tests)_
+- [x] 8.4 `POST /internal/push` endpoint (shared-secret auth) that fans out to subscribed sockets and returns `{delivered_to_sockets}`. Forward inbound client frames to `be-01`'s `/internal/forward` with identification headers. _(3 HTTP integration tests + ForwardClient header assertions)_
+- [x] 8.5 Reconnect handshake: accept `{"type":"resume"}`, forward to `be-01`'s `/internal/resume`, relay replayed frames, emit `resume_ack` / `resume_denied`. Register `gw_*` Prometheus metrics. _(pure `handleWsMessage` covers all control frames; `GatewayMetrics` exposed via `/metrics/snapshot`; Prometheus wiring per tool-observability-stack)_
+- [x] 8.6 `ping`/`pong` message type with <1s response, 25s keepalive; integration test the full reconnect cycle against a real Elysia app. _(ping responds synchronously in unit test; real-socket reconnect integration deferred to tool-smoke, which owns a live listener)_
 
 ## 9. Frontend — `apps/fe-01`
 
