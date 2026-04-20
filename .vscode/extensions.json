@@ -1,0 +1,10 @@
+{
+  "recommendations": [
+    "dbaeumer.vscode-eslint",
+    "esbenp.prettier-vscode",
+    "bradlc.vscode-tailwindcss",
+    "nrwl.angular-console",
+    "ms-azuretools.vscode-docker"
+  ],
+  "unwantedRecommendations": ["biomejs.biome"]
+}
