@@ -34,7 +34,7 @@
 
 - [x] 5.1 Generate `libs/contracts` (`runtime:isomorphic`). Export ArkType schemas for `/internal/push`, `/internal/forward`, `/internal/resume`, public HTTP contracts, WS envelope, resume-protocol messages (`resume`, `resume_ack`, `resume_denied`, `ping`, `pong`, `error`), error-code enum. _(7 tests pass; WsControlFrame switched from tuple-string union to chained `.or()` — ArkType resolved only first two branches of a 6-branch tuple)_
 - [x] 5.2 Generate `libs/realtime` (`runtime:browser`). Implement `ReconnectingWsClient` (exponential backoff 500ms→30s ±20% jitter, heartbeat 25s, localStorage-persisted per-subscription `last_seq`, resume handshake, 1-hour ceiling). Stub `createTanstackDbAdapter`. _(5 unit tests pass)_
-- [ ] 5.3 Generate `libs/scripts` (`runtime:bun`). Export `$` wrapper over `Bun.$` with structured errors, SSH command builder, typed JSON/YAML readers, Dagger argument helpers.
+- [x] 5.3 Generate `libs/scripts` (`runtime:bun`). Export `$` wrapper over `Bun.$` with structured errors, SSH command builder, typed JSON/YAML readers, Dagger argument helpers. _(7 tests pass; added yaml@^2)_
 - [x] 5.4 Property tests (`fast-check`) for `@wbs/realtime` covering: monotonic delivery, no replay below ack, handshake idempotency. Unit + contract tests for `@wbs/contracts`. _(backoff ±20% band + SubscriptionTracker monotonicity properties both pass; contract tests live with 5.1 — 7 unit tests)_
 
 ## 6. Backend — `apps/be-01` HTTP skeleton
