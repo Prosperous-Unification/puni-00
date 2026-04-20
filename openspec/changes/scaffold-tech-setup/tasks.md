@@ -14,7 +14,7 @@
 - [x] 2.3 Write root `.prettierrc.json` with exact settings from design D21. Add `.prettierignore` (`dist/`, `.nx/`, `coverage/`, `*.gen.ts`, encrypted files). _(also applied `prettier --write .` canonical formatting to existing files; `prettier --check .` passes)_
 - [x] 2.4 Install `lefthook` and write `lefthook.yml` with pre-commit (lint affected + format + plaintext-secret guard) and commit-msg (conventional-commits prefix) stages. _(hook scripts under `tools/tool-git-hooks/src/hooks/` are created in Task 10.4; committed with `--no-verify` per plan guidance)_
 - [x] 2.5 Write `.vscode/settings.json` + `.vscode/extensions.json` per design D21, with `biomejs.biome` in `unwantedRecommendations`.
-- [ ] 2.6 Confirm `nx format:check` and `nx run-many -t lint` both exit 0 on the empty scaffold.
+- [x] 2.6 Confirm `nx format:check` and `nx run-many -t lint` both exit 0 on the empty scaffold. _(`bunx nx format:check` exit 0, `bunx nx run-many -t lint` exit 0 — "No projects with target lint for 0 projects" as expected on empty scaffold, `bunx eslint --config eslint.config.js eslint.config.js` exit 0 after the disableTypeChecked fix on JS files)_
 
 ## 3. Shared libraries — DAG root: `@wbs/validation` and `@wbs/domain`
 
