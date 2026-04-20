@@ -26,7 +26,7 @@
 ## 4. Shared libraries — `@wbs/observability` and `@wbs/config`
 
 - [x] 4.1 Generate `libs/observability` (`runtime:isomorphic` main export; `runtime:bun` for `/server` sub-path). Export `createLogger(service)`, the `LogRecord` ArkType schema (including `ws_subscription`), pino serializers, `Counter`/`Histogram`/`Gauge` wrappers. _(2 logger tests pass; pino 10 + OTel sdk-metrics 2 + exporter-prometheus 0.215)_
-- [ ] 4.2 Add `@wbs/observability/server` sub-path export providing the Elysia OTel plugin with Prometheus exporter (`@elysiajs/opentelemetry`).
+- [x] 4.2 Add `@wbs/observability/server` sub-path export providing the Elysia OTel plugin with Prometheus exporter (`@elysiajs/opentelemetry`). _(3 observability tests pass; @sinclair/typebox@^0.34 pinned to satisfy Elysia 1.4 peer dep)_
 - [ ] 4.3 Generate `libs/config` (`runtime:bun`). Export `defineConfig(schema)`, standard env schemas (port, log-level, JWT keys, internal auth), a SOPS-decrypted-file stream loader, config-assertion helpers with clear error messages.
 - [ ] 4.4 Unit tests for both libs; verify `runtime:browser` code cannot import the `/server` sub-path or `@wbs/config`.
 
