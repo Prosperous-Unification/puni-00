@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'bun:test';
 
-import { parseOrThrow, type, ValidationError } from './core';
+import { brandedString } from './branded';
+import { defineSchema, parseOrThrow, type, ValidationError } from './core';
 import { injectedClock, makeFrame, makeTestDb } from './fixtures';
 
 describe('@wbs/validation core', () => {
@@ -48,5 +49,18 @@ describe('@wbs/validation/fixtures', () => {
     expect(clock.now()).toBe(1_000_000);
     clock.advance(500);
     expect(clock.now()).toBe(1_000_500);
+  });
+});
+
+describe('@wbs/validation branded + defineSchema', () => {
+  it('brandedString returns an ArkType schema that validates the base constraint', () => {
+    const UserId = brandedString('UserId', 'string>0');
+    expect(parseOrThrow(UserId, 'u_123')).toBe('u_123');
+    expect(() => parseOrThrow(UserId, '')).toThrow(ValidationError);
+  });
+
+  it('defineSchema is an identity pass-through for typed schemas', () => {
+    const Age = type('number>=0');
+    expect(defineSchema(Age)).toBe(Age);
   });
 });
