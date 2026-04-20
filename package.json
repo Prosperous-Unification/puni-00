@@ -13,12 +13,14 @@
     "format:check": "nx format:check",
     "typecheck": "nx run-many -t typecheck"
   },
-  "dependencies": {},
+  "dependencies": {
+    "arktype": "^2.2.0"
+  },
   "devDependencies": {
     "@eslint/js": "^9",
     "@nx/eslint": "^18",
     "@nx/eslint-plugin": "^18",
-    "@nx/js": "^18",
+    "@nx/js": "18.0.8",
     "@nx/vite": "^18",
     "@nx/workspace": "^18",
     "@swc-node/register": "~1.8.0",
@@ -26,6 +28,7 @@
     "@swc/helpers": "~0.5.2",
     "@tanstack/eslint-plugin-query": "^5",
     "@tanstack/eslint-plugin-router": "^1",
+    "@types/node": "18.16.9",
     "@vitest/coverage-v8": "^1",
     "bun-types": "^1.3.11",
     "eslint": "^9",
@@ -43,7 +46,7 @@
     "nx": "^18",
     "prettier": "^3",
     "prettier-plugin-tailwindcss": "^0.6",
-    "typescript": "^5.4",
+    "typescript": "^5.4.0",
     "typescript-eslint": "^8",
     "vitest": "^1"
   }
