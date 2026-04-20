@@ -1,0 +1,22 @@
+{
+  "name": "scripts",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/scripts/src",
+  "projectType": "library",
+  "tags": ["scope:shared", "type:scripts", "runtime:bun"],
+  "targets": {
+    "lint": {
+      "executor": "nx:run-commands",
+      "options": { "command": "bunx eslint libs/scripts/src" }
+    },
+    "test": {
+      "executor": "nx:run-commands",
+      "options": { "command": "bun test --coverage", "cwd": "libs/scripts" },
+      "outputs": ["{projectRoot}/coverage"]
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": { "command": "bunx tsc --noEmit -p libs/scripts/tsconfig.json" }
+    }
+  }
+}
