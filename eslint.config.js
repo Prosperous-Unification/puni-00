@@ -46,6 +46,12 @@ export default [
   ...tseslint.configs.stylisticTypeChecked,
 
   {
+    files: ['**/*.{js,mjs,cjs}'],
+    ...tseslint.configs.disableTypeChecked,
+  },
+
+  {
+    files: ['**/*.{ts,tsx,mts,cts}'],
     languageOptions: {
       parserOptions: {
         projectService: true,
