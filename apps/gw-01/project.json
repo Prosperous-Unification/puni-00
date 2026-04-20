@@ -7,7 +7,8 @@
   "targets": {
     "serve": {
       "executor": "nx:run-commands",
-      "options": { "command": "bun --watch apps/gw-01/src/main.ts" }
+      "options": { "command": "bun --watch src/main.ts", "cwd": "apps/gw-01" },
+      "cache": false
     },
     "build": {
       "executor": "nx:run-commands",

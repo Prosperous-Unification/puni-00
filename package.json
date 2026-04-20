@@ -11,7 +11,12 @@
     "lint": "nx run-many -t lint",
     "format": "nx format:write",
     "format:check": "nx format:check",
-    "typecheck": "nx run-many -t typecheck"
+    "typecheck": "nx run-many -t typecheck",
+    "dev": "nx run-many -t serve --projects=be-01,gw-01,fe-01 --parallel=3",
+    "dev:be": "nx run be-01:serve",
+    "dev:gw": "nx run gw-01:serve",
+    "dev:fe": "nx run fe-01:serve",
+    "dev:setup": "bun run tools/dev/setup.ts"
   },
   "dependencies": {
     "@elysiajs/opentelemetry": "^1.4.11",

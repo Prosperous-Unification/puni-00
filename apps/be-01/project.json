@@ -8,8 +8,10 @@
     "serve": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "bun --watch apps/be-01/src/main.ts"
-      }
+        "command": "bun --watch src/main.ts",
+        "cwd": "apps/be-01"
+      },
+      "cache": false
     },
     "build": {
       "executor": "nx:run-commands",
