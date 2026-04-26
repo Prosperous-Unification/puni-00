@@ -2,7 +2,7 @@
 
 ### Requirement: Three-directory Nx workspace layout
 
-The repository root MUST be an Nx 18+ workspace with exactly three top-level directories for Nx projects: `apps/`, `libs/`, and `tools/`. No project code SHALL live outside these three directories (aside from workspace-level config files, `.sops.yaml` at repo root, and Nx's own `.nx/` cache).
+The repository root MUST be an Nx 22+ workspace with exactly three top-level directories for Nx projects: `apps/`, `libs/`, and `tools/`. No project code SHALL live outside these three directories (aside from workspace-level config files, `.sops.yaml` at repo root, and Nx's own `.nx/` cache).
 
 #### Scenario: Workspace root contains only the sanctioned directories
 

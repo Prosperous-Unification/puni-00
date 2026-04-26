@@ -13,7 +13,7 @@ const app = buildApp({
     return state.migrationsApplied;
   },
   version: process.env['VERSION'],
-} as { migrationsApplied: boolean; version?: string });
+});
 
 app.listen(cfg.PORT, () => {
   logger.info({ port: cfg.PORT }, 'be-01 listening (migrating)');

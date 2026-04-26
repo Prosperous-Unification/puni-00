@@ -8,7 +8,10 @@
       "!{projectRoot}/tsconfig.spec.json",
       "!{projectRoot}/src/**/*.stories.[jt]s?(x)",
       "!{projectRoot}/.eslintrc.json",
-      "!{projectRoot}/eslint.config.js"
+      "!{projectRoot}/eslint.config.js",
+      "!{projectRoot}/vite.config.[jt]s",
+      "!{projectRoot}/vitest.config.[jt]s",
+      "!{projectRoot}/src/test-setup.[jt]s"
     ],
     "sharedGlobals": [
       "{workspaceRoot}/tsconfig.base.json",
@@ -49,5 +52,6 @@
   "plugins": [],
   "defaultBase": "main",
   "parallel": 4,
-  "useInferencePlugins": false
+  "useInferencePlugins": false,
+  "analytics": true
 }

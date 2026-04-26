@@ -9,7 +9,7 @@ describe('migrate lifecycle', () => {
       get migrationsApplied() {
         return state.migrationsApplied;
       },
-    } as AppOptionsLike);
+    });
 
     const pre = await app.handle(new Request('http://localhost/health'));
     expect(pre.status).toBe(503);
@@ -19,8 +19,3 @@ describe('migrate lifecycle', () => {
     expect(post.status).toBe(200);
   });
 });
-
-interface AppOptionsLike {
-  migrationsApplied: boolean;
-  version?: string;
-}

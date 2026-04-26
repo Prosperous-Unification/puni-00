@@ -64,7 +64,7 @@ export async function runPingSmoke(opts: RunOptions): Promise<SmokeResult> {
 function parseWsUrl(argv: string[]): string {
   for (const a of argv) {
     const m = /^--ws=(.*)$/.exec(a);
-    if (m) return (m[1] as string | undefined) ?? '';
+    if (m?.[1] !== undefined) return m[1];
   }
   return process.env['SMOKE_WS_URL'] ?? '';
 }

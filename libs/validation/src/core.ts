@@ -16,7 +16,7 @@ export function parseOrThrow<T extends Type>(schema: T, input: unknown): T['infe
       result,
     );
   }
-  return result as T['infer'];
+  return result;
 }
 
 export function defineSchema<T extends Type>(schema: T): T {

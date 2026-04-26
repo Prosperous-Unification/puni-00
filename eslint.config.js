@@ -38,7 +38,15 @@ const nxRules = {
 
 export default [
   {
-    ignores: ['**/dist/**', '**/.nx/**', '**/coverage/**', '**/node_modules/**', '**/*.gen.ts'],
+    ignores: [
+      '**/dist/**',
+      '**/.nx/**',
+      '**/coverage/**',
+      '**/node_modules/**',
+      '**/*.gen.ts',
+      '**/vite.config.*.timestamp*',
+      '**/vitest.config.*.timestamp*',
+    ],
   },
 
   js.configs.recommended,

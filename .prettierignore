@@ -5,3 +5,5 @@ node_modules/
 *.gen.ts
 
 *.env.sops
+
+/.nx/workspace-data

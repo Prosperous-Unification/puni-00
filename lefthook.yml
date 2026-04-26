@@ -13,7 +13,9 @@ pre-commit:
       run: bun run tools/tool-git-hooks/src/hooks/migration-lint.ts {staged_files}
       glob: 'apps/be-01/drizzle/**/*.sql'
 
-commit-msg:
-  commands:
-    conventional:
-      run: bun run tools/tool-git-hooks/src/hooks/conventional.ts {1}
+# commit-msg conventional-commits enforcement disabled per developer preference.
+# Re-enable by uncommenting the block below and re-running `nx run tool-git-hooks:install`.
+# commit-msg:
+#   commands:
+#     conventional:
+#       run: bun run tools/tool-git-hooks/src/hooks/conventional.ts {1}

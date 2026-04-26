@@ -26,7 +26,7 @@ export async function runHealthChecks(
 function parseBaseUrl(argv: string[]): string {
   for (const a of argv) {
     const m = /^--remote=(.*)$/.exec(a);
-    if (m) return (m[1] as string | undefined) ?? '';
+    if (m?.[1] !== undefined) return m[1];
   }
   return process.env['SMOKE_BASE_URL'] ?? '';
 }

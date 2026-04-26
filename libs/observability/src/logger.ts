@@ -26,9 +26,7 @@ export function createLogger(opts: CreateLoggerOptions): Logger {
     },
   };
 
-  return opts.destination
-    ? pino(options, opts.destination as pino.DestinationStream)
-    : pino(options);
+  return opts.destination ? pino(options, opts.destination) : pino(options);
 }
 
 export type { Logger };

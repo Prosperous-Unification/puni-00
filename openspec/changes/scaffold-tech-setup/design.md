@@ -84,7 +84,7 @@ A trivial top-level alias `"deploy": "nx run tool-deploy:deploy"` is added to `p
 
 **Tooling choices:**
 
-- **Bun as the package manager** (not npm/pnpm) — lockfile `bun.lockb`, install via `bun install`. Nx 18+ supports `bun.lockb`; friction points get documented, not worked around by switching PM.
+- **Bun as the package manager** (not npm/pnpm) — lockfile `bun.lockb`, install via `bun install`. Nx 22+ supports `bun.lockb`; friction points get documented, not worked around by switching PM.
 - **Bun as the Node-replacement runtime** for `be-01` and `gw-01`. Nx executors invoked via `nx:run-commands` wrapping `bun`.
 - **Test runners**: `bun test` for backend/libs; **Vitest** for `fe-01` (jsdom + Vite-native) — see D20.
 - **TypeScript project references** across every project; path aliases `@wbs/<lib>` (see D19) and per-project `tsconfig` inherits from a root `tsconfig.base.json`.
@@ -829,7 +829,7 @@ All three green, plus the new failing test from the start of the TDD cycle now g
 2. `jsx-a11y` has no Biome peer at comparable depth.
 3. `eslint-plugin-drizzle` catches `DELETE` / `UPDATE` without `WHERE` — a subagent-class bug the drizzle plugin alone justifies.
 
-Nx 18+ ships official flat-config ESLint generators (`@nx/eslint`); `@nx/biome` is community and less mature. Migration ESLint → Biome later is cheap; Biome → ESLint later is expensive. Revisit at month 6 if ESLint runtime becomes a problem — by then we'll have real benchmark data on this codebase, not speculation.
+Nx 22+ ships official flat-config ESLint generators (`@nx/eslint`); `@nx/biome` is community and less mature. Migration ESLint → Biome later is cheap; Biome → ESLint later is expensive. Revisit at month 6 if ESLint runtime becomes a problem — by then we'll have real benchmark data on this codebase, not speculation.
 
 **ESLint flat config** — root `eslint.config.js` composes:
 
