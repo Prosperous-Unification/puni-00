@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import type { BunSQLiteDatabase } from 'drizzle-orm/bun-sqlite';
+import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
 export interface RecordedEvent {
   subscription: string;
@@ -16,16 +16,11 @@ export interface EventLogRepo {
 }
 
 export class DrizzleEventLogRepo implements EventLogRepo {
-  constructor(private readonly db: BunSQLiteDatabase) {}
+  constructor(private readonly db: SQLiteBunDatabase) {}
 
-  async recordEvent(
-    subscription: string,
-    message: unknown,
-    createdAt: number,
-  ): Promise<RecordedEvent> {
+  recordEvent(subscription: string, message: unknown, createdAt: number): Promise<RecordedEvent> {
     const payload = JSON.stringify(message);
-    return this.db.transaction(async (tx) => {
-      await Promise.resolve();
+    const result = this.db.transaction((tx) => {
       tx.run(sql`
         INSERT INTO event_sequencer (subscription, next_seq) VALUES (${subscription}, 0)
         ON CONFLICT(subscription) DO NOTHING
@@ -43,6 +38,7 @@ export class DrizzleEventLogRepo implements EventLogRepo {
       `);
       return { subscription, seq, message, createdAt };
     });
+    return Promise.resolve(result);
   }
 
   async rangeSince(subscription: string, sinceSeq: number): Promise<RecordedEvent[]> {

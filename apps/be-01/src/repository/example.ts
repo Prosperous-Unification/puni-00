@@ -1,11 +1,11 @@
 import { eq } from 'drizzle-orm';
-import type { BunSQLiteDatabase } from 'drizzle-orm/bun-sqlite';
+import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
 import type { Example, ExampleRepo } from './index';
 import { examples } from './schema';
 
 export class ExampleRepository implements ExampleRepo {
-  constructor(private readonly db: BunSQLiteDatabase) {}
+  constructor(private readonly db: SQLiteBunDatabase) {}
 
   async create(ex: Example): Promise<void> {
     await this.db.insert(examples).values(ex);

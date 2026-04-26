@@ -2945,20 +2945,13 @@ git commit -m "feat(be-01): controller/service layering with ArkType validation 
 **Files:**
 
 - Create: `apps/be-01/src/migrate.ts`
-- Create: `apps/be-01/drizzle/0000_initial.sql`
+- Generate (do not hand-author): `apps/be-01/drizzle/<unix-timestamp>_<adjective_animal>/{migration.sql,snapshot.json}`
 - Modify: `apps/be-01/src/main.ts`
 - Create: `apps/be-01/src/migrate.test.ts`
 
 - [ ] **Step 1: Generate an initial migration**
 
-Create `apps/be-01/drizzle/0000_initial.sql` (starts empty, added to as schemas grow):
-
-```sql
--- Initial migration placeholder.
--- Schemas appear as subsequent migrations. Keep additive-only.
-```
-
-Also create `apps/be-01/drizzle/meta/_journal.json` + `apps/be-01/drizzle/meta/0000_snapshot.json` — easiest path: run `bunx drizzle-kit generate` from `apps/be-01/`. Verify the `drizzle/` directory is populated after.
+Run `bunx drizzle-kit generate` from `apps/be-01/`. drizzle-kit v1 emits a timestamped migration directory under `apps/be-01/drizzle/<unix-timestamp>_<adjective_animal>/` containing both `migration.sql` and `snapshot.json` — there is no top-level `meta/_journal.json` or numeric `NNNN_*.sql` file in v1, and migrations cannot be hand-renamed (the timestamp is used by the migrator at runtime).
 
 - [ ] **Step 2: Write failing test — `/health` is 503 until migrate resolves**
 
@@ -3092,7 +3085,7 @@ git commit -m "feat(be-01): migration runner with /health 503 during migrate, 20
 **Files:**
 
 - Modify: `apps/be-01/src/repository/schema.ts`
-- Create: `apps/be-01/drizzle/0001_event_log.sql`
+- Generate (do not hand-author): `apps/be-01/drizzle/<unix-timestamp>_<adjective_animal>/{migration.sql,snapshot.json}` — drizzle-kit v1 produces one timestamped dir per `generate` invocation
 - Create: `apps/be-01/src/service/event-sequencer.ts`
 - Create: `apps/be-01/src/service/event-sequencer.test.ts`
 
@@ -3124,7 +3117,7 @@ export const eventLog = sqliteTable(
 - [ ] **Step 2: Generate migration**
 
 Run: `cd apps/be-01 && bunx drizzle-kit generate`
-Expected: a new SQL file appears in `apps/be-01/drizzle/`. Rename it to `0001_event_log.sql` if needed.
+Expected: a new timestamped directory appears under `apps/be-01/drizzle/` (shape: `<unix-timestamp>_<adjective_animal>/{migration.sql,snapshot.json}`). Do NOT rename — the migrator uses the timestamp prefix at runtime.
 
 - [ ] **Step 3: Write failing test**
 
