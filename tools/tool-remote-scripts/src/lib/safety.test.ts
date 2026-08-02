@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { writeAtomic } from './atomic';
-import { withLock } from './lock';
+import { describeHolder, type LockHolder, withLock } from './lock';
 import { readPhase, writePhase } from './phase';
 
 let dir: string;
@@ -89,6 +89,112 @@ describe('withLock', () => {
     expect(threw).toBe(true);
     const result = await withLock(lockPath, () => Promise.resolve('ok'));
     expect(result).toBe('ok');
+  });
+
+  // Decision 10: "Refuse immediately, name the holder." The previous
+  // implementation created the file empty, so a refusal could say only that
+  // *something* held it.
+  it('records the holder (pid, host, ISO timestamp) while the lock is held', async () => {
+    const lockPath = join(dir, 'deploy.lock');
+    let seen: LockHolder | null = null;
+    await withLock(lockPath, () => {
+      seen = JSON.parse(readFileSync(lockPath, 'utf8')) as LockHolder;
+      return Promise.resolve();
+    });
+    expect(seen).not.toBeNull();
+    const holder = seen as unknown as LockHolder;
+    expect(holder.pid).toBe(process.pid);
+    expect(holder.host.length).toBeGreaterThan(0);
+    expect(new Date(holder.acquiredAt).toISOString()).toBe(holder.acquiredAt);
+  });
+
+  it('names the holder in the refusal a second deploy gets', async () => {
+    const lockPath = join(dir, 'deploy.lock');
+    let message = '';
+    await withLock(lockPath, async () => {
+      try {
+        await withLock(lockPath, () => Promise.resolve('should not run'));
+      } catch (e: unknown) {
+        message = e instanceof Error ? e.message : String(e);
+      }
+    });
+    expect(message).toContain(`pid ${String(process.pid)}`);
+  });
+
+  it('clears the holder record on a clean release, so a corpse is distinguishable', async () => {
+    const lockPath = join(dir, 'deploy.lock');
+    await withLock(lockPath, () => Promise.resolve());
+    expect(readFileSync(lockPath, 'utf8')).toBe('');
+  });
+
+  // The exact regression the reviewer reproduced against the O_EXCL
+  // implementation: a killed deploy left the file behind and wedged every
+  // future deploy with a false "another deploy is running". A flock is owned
+  // by the open file description, so the kernel drops it when the dead
+  // process's descriptors are closed — including on signals no handler runs
+  // for. Driven through a real subprocess because that is the only way to
+  // exercise process death.
+  const killReleasesLock = async (signal: 'SIGTERM' | 'SIGKILL'): Promise<void> => {
+    const lockPath = join(dir, `kill-${signal}.lock`);
+    const lockModule = new URL('./lock.ts', import.meta.url).href;
+    const script =
+      `const { withLock } = await import(${JSON.stringify(lockModule)});\n` +
+      `await withLock(${JSON.stringify(lockPath)}, async () => {\n` +
+      `  console.log('acquired');\n` +
+      `  await new Promise(() => {});\n` +
+      `});\n`;
+    const child = Bun.spawn(['bun', '-e', script], { stdout: 'pipe', stderr: 'pipe' });
+
+    // Wait for the child to actually hold the lock before signalling it.
+    const reader = child.stdout.getReader();
+    let announced = '';
+    while (!announced.includes('acquired')) {
+      const { value, done } = await reader.read();
+      if (done) throw new Error(`child exited before acquiring the lock: ${announced}`);
+      announced += new TextDecoder().decode(value);
+    }
+    // Proves the child really holds it, so the post-kill acquisition below
+    // cannot pass vacuously.
+    let refused = '';
+    try {
+      await withLock(lockPath, () => Promise.resolve('should not run'));
+    } catch (e: unknown) {
+      refused = e instanceof Error ? e.message : String(e);
+    }
+    expect(refused).toMatch(/another deploy is running/);
+    expect(refused).toContain(`pid ${String(child.pid)}`);
+
+    child.kill(signal);
+    await child.exited;
+
+    // The dead holder's record is still on disk — that is the intended
+    // "this was killed, here is who died" signal — but it must not stop the
+    // next deploy from taking the lock.
+    expect(readFileSync(lockPath, 'utf8')).toContain(`"pid": ${String(child.pid)}`);
+    expect(await withLock(lockPath, () => Promise.resolve('ok'))).toBe('ok');
+  };
+
+  it('releases the lock when the holder is killed with SIGTERM', async () => {
+    await killReleasesLock('SIGTERM');
+  });
+
+  it('releases the lock when the holder is killed with SIGKILL', async () => {
+    await killReleasesLock('SIGKILL');
+  });
+});
+
+describe('describeHolder', () => {
+  it('describes a well-formed record', () => {
+    const raw = JSON.stringify({ pid: 42, host: 'h2puni', acquiredAt: '2026-08-02T00:00:00.000Z' });
+    expect(describeHolder(raw)).toBe('held by pid 42 on h2puni since 2026-08-02T00:00:00.000Z');
+  });
+
+  it('stays useful for an empty file rather than throwing', () => {
+    expect(describeHolder('')).toMatch(/empty/);
+  });
+
+  it('stays useful for unparseable contents rather than throwing', () => {
+    expect(describeHolder('not json')).toMatch(/unrecognised/);
   });
 });
 
