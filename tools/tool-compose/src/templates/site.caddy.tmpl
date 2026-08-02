@@ -1,0 +1,39 @@
+{{SITE_ADDRESS}} {
+	encode gzip
+
+	handle /ws* {
+		reverse_proxy gw-01-{{GW_COLOR}}:3200 {
+			# Without this, a config reload severs every live WebSocket
+			# immediately and the drain loop below has nothing left to drain.
+			stream_close_delay 310s
+		}
+	}
+
+	# be-01 mounts its controllers under /api already, so the prefix is passed
+	# through with `handle`, NOT stripped with `handle_path`.
+	handle /api/* {
+		reverse_proxy be-01-{{BE_COLOR}}:3100
+	}
+
+	handle {
+		reverse_proxy fe-01-{{FE_COLOR}}:80
+	}
+
+	log {
+		output file /var/log/caddy/access.log
+	}
+}
+
+# DNS for this hostname does not exist yet, so Caddy cannot obtain a
+# certificate for it today. Caddy's automatic HTTPS is per-hostname: a
+# failed/retrying ACME issuance for this site block does not block or
+# tear down the certificate or serving of the block above.
+registry.infra.bulletpoints.club {
+	reverse_proxy registry:5000 {
+		header_up X-Forwarded-Proto {scheme}
+		header_up X-Forwarded-For {remote_host}
+	}
+	request_body {
+		max_size 2GB
+	}
+}

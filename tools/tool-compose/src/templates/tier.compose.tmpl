@@ -1,0 +1,13 @@
+services:
+  {{TIER}}-{{COLOR}}:
+    image: {{IMAGE}}
+    restart: unless-stopped
+    networks:
+      wbs-net:
+        aliases:
+          - {{TIER}}-{{COLOR}}
+    env_file:
+      - /srv/wbs/.env
+      - /srv/wbs/{{TIER}}.env
+    volumes:
+      - /srv/wbs/data:/data
