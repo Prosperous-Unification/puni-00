@@ -10,21 +10,6 @@
       "options": { "command": "bun run tools/tool-deploy/src/deploy.ts" },
       "cache": false
     },
-    "deploy-be": {
-      "executor": "nx:run-commands",
-      "options": { "command": "bun run tools/tool-deploy/src/deploy-be.ts" },
-      "cache": false
-    },
-    "deploy-gw": {
-      "executor": "nx:run-commands",
-      "options": { "command": "bun run tools/tool-deploy/src/deploy-gw.ts" },
-      "cache": false
-    },
-    "deploy-fe": {
-      "executor": "nx:run-commands",
-      "options": { "command": "bun run tools/tool-deploy/src/deploy-fe.ts" },
-      "cache": false
-    },
     "test": {
       "executor": "nx:run-commands",
       "options": { "command": "bun test", "cwd": "tools/tool-deploy" }
