@@ -1,85 +1,91 @@
-export interface PingStep {
-  phase: 'connect' | 'ping' | 'resume' | 'disconnect';
+import { SignJWT } from 'jose';
+
+import { resolveColor } from './color';
+
+export interface SocketLike {
+  send: (data: string) => void;
+  close: () => void;
+  addEventListener: (ev: string, cb: (e: { data: string }) => void) => void;
+}
+
+export interface PingOptions {
+  connect: () => SocketLike;
+  timeoutMs: number;
+}
+
+export interface PingResult {
   ok: boolean;
-  durationMs: number;
+  detail: string;
 }
 
-export interface SmokeResult {
-  steps: PingStep[];
-  overallOk: boolean;
+/**
+ * Opens a socket, sends a `ping`, and waits for a `pong`. This is the only
+ * automated check that exercises a real, held-open WebSocket round trip —
+ * the property `stream_close_delay` exists to protect during a blue/green
+ * cutover. It must fail (not skip) on timeout: a check that cannot reach the
+ * server has to report that loudly, the same as one that gets a bad reply.
+ */
+export async function runPingSmoke(opts: PingOptions): Promise<PingResult> {
+  const sock = opts.connect();
+  return await new Promise<PingResult>((resolve) => {
+    const timer = setTimeout(() => {
+      sock.close();
+      resolve({ ok: false, detail: `no pong within ${String(opts.timeoutMs)}ms` });
+    }, opts.timeoutMs);
+
+    sock.addEventListener('open', () => {
+      sock.send(JSON.stringify({ type: 'ping' }));
+    });
+    sock.addEventListener('message', (e) => {
+      clearTimeout(timer);
+      sock.close();
+      resolve({ ok: e.data.includes('"pong"'), detail: e.data });
+    });
+  });
 }
 
-export interface MockSocket {
-  send(frame: string): Promise<void> | void;
-  waitFor(predicate: (frame: string) => boolean, timeoutMs: number): Promise<string>;
-  close(): Promise<void> | void;
-}
-
-export interface RunOptions {
-  open: () => Promise<MockSocket>;
-  now?: () => number;
-}
-
-export async function runPingSmoke(opts: RunOptions): Promise<SmokeResult> {
-  const now = opts.now ?? (() => Date.now());
-  const steps: PingStep[] = [];
-  let ok = true;
-
-  const t0 = now();
-  const sock = await opts.open();
-  steps.push({ phase: 'connect', ok: true, durationMs: now() - t0 });
-
-  const t1 = now();
-  try {
-    await sock.send(JSON.stringify({ type: 'ping' }));
-    const pong = await sock.waitFor((f) => f.includes('"pong"'), 1000);
-    steps.push({ phase: 'ping', ok: pong.includes('"pong"'), durationMs: now() - t1 });
-  } catch {
-    ok = false;
-    steps.push({ phase: 'ping', ok: false, durationMs: now() - t1 });
-  }
-
-  const t2 = now();
-  try {
-    await sock.send(
-      JSON.stringify({ type: 'resume', subscriptions: [{ subscription: 'smoke', last_seq: 0 }] }),
+/**
+ * gw-01's `/ws` upgrade is gated by `beforeHandle` on a valid JWT (see
+ * apps/gw-01/src/app.ts) — connecting without `?token=` never reaches
+ * `open`, it 401s at the HTTP-upgrade step. So a real WS smoke check has to
+ * mint a token the same way a real client would, using the same signing key
+ * gw-01 itself reads from its env (`JWT_SIGNING_KEY_CURRENT`, shared via
+ * `/srv/wbs/.env` per tier.compose.tmpl). `SMOKE_JWT_KEY` is accepted first
+ * for a smoke-specific override; without either, fail immediately rather
+ * than attempt a connection that can only ever time out for a misleading
+ * reason.
+ */
+async function mintToken(env: NodeJS.ProcessEnv = process.env): Promise<string> {
+  const key = env['SMOKE_JWT_KEY'] ?? env['JWT_SIGNING_KEY_CURRENT'];
+  if (key === undefined || key === '') {
+    throw new Error(
+      'SMOKE_JWT_KEY or JWT_SIGNING_KEY_CURRENT must be set — gw-01 rejects the /ws upgrade ' +
+        'without a valid token (apps/gw-01/src/app.ts beforeHandle)',
     );
-    const ack = await sock.waitFor(
-      (f) => f.includes('resume_ack') || f.includes('resume_denied'),
-      1000,
-    );
-    steps.push({ phase: 'resume', ok: ack.length > 0, durationMs: now() - t2 });
-  } catch {
-    ok = false;
-    steps.push({ phase: 'resume', ok: false, durationMs: now() - t2 });
   }
-
-  const t3 = now();
-  await sock.close();
-  steps.push({ phase: 'disconnect', ok: true, durationMs: now() - t3 });
-
-  return { steps, overallOk: ok && steps.every((s) => s.ok) };
+  return await new SignJWT({ sub: 'smoke' })
+    .setProtectedHeader({ alg: 'HS256' })
+    .setIssuedAt()
+    .setExpirationTime('1m')
+    .sign(new TextEncoder().encode(key));
 }
 
-function parseWsUrl(argv: string[]): string {
-  for (const a of argv) {
-    const m = /^--ws=(.*)$/.exec(a);
-    if (m?.[1] !== undefined) return m[1];
-  }
-  return process.env['SMOKE_WS_URL'] ?? '';
+function resolveWsUrl(env: NodeJS.ProcessEnv = process.env): string {
+  return env['SMOKE_WS_URL'] ?? `ws://gw-01-${resolveColor(env)}:3200/ws`;
 }
 
 async function main(): Promise<void> {
-  const ws = parseWsUrl(process.argv.slice(2));
-  if (!ws) {
-    console.log('[tool-smoke/ws-ping] no --ws=<url> provided — skipping (scaffold only).');
-    return;
-  }
-  console.log('[tool-smoke/ws-ping] live mode not wired in the scaffold — use --ws with the real');
-  console.log('[tool-smoke/ws-ping] gw-01 URL once deployed; runPingSmoke is unit-tested below.');
-  await Promise.resolve();
+  const base = resolveWsUrl();
+  const token = await mintToken();
+  const url = `${base}${base.includes('?') ? '&' : '?'}token=${token}`;
+  const res = await runPingSmoke({
+    connect: () => new WebSocket(url),
+    timeoutMs: 5000,
+  });
+  console.log(`[smoke/ws] ${res.ok ? 'ok' : 'FAIL'} — ${res.detail}`);
+  if (!res.ok) process.exit(1);
 }
 
 if (import.meta.main) {
-  void main();
+  await main();
 }
