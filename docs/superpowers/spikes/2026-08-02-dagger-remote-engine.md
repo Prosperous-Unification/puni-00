@@ -12,8 +12,14 @@ tasks in the blue/green deploy plan depend on this answer.
 
 ## What was done
 
-1. Installed the Dagger CLI locally via the official installer, into
-   `$HOME/.local/bin` (already on `PATH`, no shell profile edits needed).
+1. Installed the Dagger CLI locally, into `$HOME/.local/bin` (already on
+   `PATH`, no shell profile edits needed), with:
+
+   ```bash
+   curl -fsSL https://dl.dagger.io/dagger/install.sh | BIN_DIR=$HOME/.local/bin sh
+   dagger version
+   ```
+
    - Resolved version: **Dagger CLI v0.21.8** (`darwin/arm64/v8`).
    - The CLI reports its matching engine image as
      `image://registry.dagger.io/engine:v0.21.8`.
@@ -89,22 +95,133 @@ package` for each, in turn. Fixed by adding both explicitly as dev
    consumes `@dagger.io/dagger` from a clean install will hit it too and
    should install these two packages alongside it.
 
-8. Ran the spike script (`/tmp/spike.ts`, not committed, exact contents from
-   the brief) building `alpine:3.20` pinned to `linux/amd64` and executing
-   `uname -m` inside it, through the tunnel.
+8. Ran the spike script from the brief (written to `/tmp/spike.ts`, not
+   committed — inlined below verbatim so the exact test is reproducible from
+   this doc, since `/tmp` and the brief itself under `.superpowers/` are both
+   outside git):
+
+   ```typescript
+   import { connect } from '@dagger.io/dagger';
+
+   await connect(
+     async (client) => {
+       const out = await client
+         .container({ platform: 'linux/amd64' })
+         .from('alpine:3.20')
+         .withExec(['uname', '-m'])
+         .stdout();
+       console.log('arch reported by the built container:', out.trim());
+     },
+     { LogOutput: process.stderr },
+   );
+   ```
+
+   This built `alpine:3.20` pinned to `linux/amd64`, executed `uname -m`
+   inside it, through the tunnel.
+
+9. **Control runs (added on review — see Finding 1 below).** A container
+   printing `x86_64` while pinned to `linux/amd64`, on a host that is
+   natively amd64, cannot by itself distinguish "the pin worked" from "the
+   pin did nothing and the engine just built for its native host
+   architecture." To make that distinction, ran two more variants of the
+   same script against the same tunnelled engine, changing only the
+   `platform` argument:
+
+   **(a) explicit `platform: 'linux/arm64'`** — the opposite of the host's
+   native architecture. If the pin does nothing, this should still print
+   `x86_64` (or fail because the host can't build arm64 without a pin
+   taking effect); if the pin works, it should print `aarch64`.
+
+   ```typescript
+   import { connect } from '@dagger.io/dagger';
+
+   await connect(
+     async (client) => {
+       const out = await client
+         .container({ platform: 'linux/arm64' })
+         .from('alpine:3.20')
+         .withExec(['uname', '-m'])
+         .stdout();
+       console.log('arch reported by the built container:', out.trim());
+     },
+     { LogOutput: process.stderr },
+   );
+   ```
+
+   **(b) `platform` argument omitted entirely** — `.container()` with no
+   argument, to record the engine's unpinned default.
+
+   ```typescript
+   import { connect } from '@dagger.io/dagger';
+
+   await connect(
+     async (client) => {
+       const out = await client.container().from('alpine:3.20').withExec(['uname', '-m']).stdout();
+       console.log('arch reported by the built container:', out.trim());
+     },
+     { LogOutput: process.stderr },
+   );
+   ```
 
 ## Result
 
-- **Step 4 printed:** `arch reported by the built container: x86_64` — the
-  platform pin took effect correctly through the remote engine.
-- **Wall-clock time:**
-  - Cold run (includes one-time local Dagger CLI binary download + engine
-    warm-up): `real 0m10.207s` (`user 1.419s`, `sys 0.871s`).
-  - Warm run (build steps served from Dagger's cache, `CACHED` markers in
-    output): `real 0m6.983s` (`user 1.109s`, `sys 0.639s`).
+Three runs against the same tunnelled engine, changing only the `platform`
+argument:
+
+| Run                     | `platform` argument | Output    | Exit | Wall-clock (`real`)            |
+| ----------------------- | ------------------- | --------- | ---- | ------------------------------ |
+| Original (brief step 4) | `linux/amd64`       | `x86_64`  | 0    | 10.207s (cold) / 6.983s (warm) |
+| Control (a)             | `linux/arm64`       | `aarch64` | 0    | 8.663s                         |
+| Control (b)             | _(omitted)_         | `x86_64`  | 0    | 7.245s                         |
+
+Full command transcript for the two control runs:
+
+```
+$ export _EXPERIMENTAL_DAGGER_RUNNER_HOST=tcp://127.0.0.1:8080
+$ time bun run /tmp/spike-arm64.ts
+Downloading CLI... OK!
+Creating new Engine session... OK!
+Establishing connection to Engine... OK!
+arch reported by the built container: aarch64
+✔ connect 0.6s
+✔ version: String! 0.0s
+✔ container(platform: "linux/arm64"): Container! 0.0s
+✔ .from(address: "alpine:3.20"): Container! 2.1s
+✔ withExec uname -m 0.1s
+✔ .stdout: String! 0.8s
+real  0m8.663s
+user  0m1.053s
+sys   0m0.785s
+
+$ time bun run /tmp/spike-noplatform.ts
+Downloading CLI... OK!
+Creating new Engine session... OK!
+Establishing connection to Engine... OK!
+arch reported by the built container: x86_64
+✔ connect 0.6s
+✔ version: String! 0.0s
+✔ container: Container! 0.0s
+✔ .from(address: "alpine:3.20"): Container! 0.9s
+$ withExec uname -m 0.0s CACHED
+✔ .stdout: String! 0.0s
+real  0m7.245s
+user  0m1.053s
+sys   0m0.729s
+```
+
+**Interpretation:** control (a) ran successfully and printed `aarch64` —
+different from both the amd64-pinned run and the unpinned default. This
+proves the `platform` argument demonstrably drives the container's
+architecture through the remote tunnelled engine; it is not a no-op that
+happens to coincide with the host's native architecture. Control (b) shows
+the engine's default (no pin) is the host's native architecture (`x86_64`),
+which is exactly the failure mode the plan's "never inherit host
+architecture" constraint exists to prevent — confirming why the explicit pin
+in the original brief step 4 matters, and that it does what it claims.
+
 - **Errors encountered and resolved:** the port collision, the missing TCP
   listener, and the two missing OTel SDK dependencies, all detailed above.
-  No unresolved errors.
+  No unresolved errors in any of the three runs.
 
 ## Side effects on h2puni
 
@@ -126,9 +243,13 @@ package` for each, in turn. Fixed by adding both explicitly as dev
 
 A Dagger engine running as a privileged container on h2puni, reached over a
 loopback-only SSH tunnel from this arm64 Mac, correctly builds and executes
-`linux/amd64` containers with `--platform` pinning honored. Task 4 can build
-`FROM` this mechanism, with three adjustments carried forward for whoever
-implements it:
+containers with the `platform` argument honored — proven by the control runs
+above, which show `linux/arm64` producing `aarch64` (different from both the
+`linux/amd64` run's `x86_64` and the unpinned default's `x86_64`). This rules
+out the failure mode the plan's constraint exists to catch: a pin that is
+silently ignored because the build host happens to already be amd64. Task 4
+can build `FROM` this mechanism, with four adjustments carried forward for
+whoever implements it:
 
 1. Use engine tag `v0.21.8` (matching whatever Dagger CLI version is pinned
    at implementation time — re-check for drift), not `v0.18.10`.
