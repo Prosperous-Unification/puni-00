@@ -277,8 +277,35 @@ rather than below.
 
 **gw→be uses a stable network alias.** `gw-01` reads `BE_URL` once at startup, so pointing it at
 a colour-specific container name would make the tiers inseparable. It instead targets
-`be-01.internal`, a docker network alias moved atomically during a be swap. gw never restarts
-and is never reconfigured when be deploys.
+`be-01.internal`, a docker network alias moved during a be swap. gw never restarts and is never
+reconfigured when be deploys.
+
+**The alias hand-off is not atomic, and what it actually does is round-robin.** Verified on a
+throwaway user-defined bridge network, after an earlier revision of this design and of
+`lib/docker.ts`'s doc comment asserted the opposite (that the alias briefly resolves to
+_neither_ colour):
+
+> Docker's embedded DNS permits two containers on a user-defined bridge to hold the same network
+> alias simultaneously, and resolves it round-robin across both.
+
+Moving `be-01.internal` requires `disconnect` + `connect` — `network connect --alias` fails on a
+container that already has an endpoint on that network, and `tier.compose.tmpl` always attaches
+every colour at `docker compose up`. The swap therefore grants the alias to the incoming colour
+_before_ `render-route`/`reload` and revokes it from the outgoing colour _after_, so that neither
+phase disturbs traffic Caddy is actively routing. The consequence, which applies to **every `be`
+deploy** and is not an error path:
+
+- For the whole grant → reload → revoke window, `be-01.internal` resolves to **both** colours.
+- Both are running, and gw's forwards are split across two be-01 releases at roughly 50/50.
+- There is no version negotiation between them, and `ForwardClient`
+  (`apps/gw-01/src/service/forward-client.ts`) has no retry logic — correctly, since there is no
+  blackout to retry through.
+
+This is what makes decision 8's "migrations must be backward-compatible with the previous
+release" load-bearing rather than merely prudent: two releases genuinely serve concurrently
+against one already-migrated SQLite file on every be deploy. It affects only gw's internal
+forward path; client-facing Caddy routes address be-01 by its colour-specific name alias and are
+switched by reload, never by `be-01.internal`.
 
 Caddy's own upstreams are handled by reload rather than by the alias, because whether Caddy
 re-resolves changed Docker DNS without a reload is unverified. Two mechanisms, each used where
