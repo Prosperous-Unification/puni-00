@@ -5,30 +5,31 @@
 ## Alternatives Considered
 
 <!--
-依 openspec/config.yaml 的 brainstorm rule：須涵蓋 2-3 個替代方案並說明取捨。
+Per the brainstorm rule in openspec/config.yaml: must cover 2-3 alternatives
+with trade-offs.
 
-### 方案 A：<名稱>
-- **做法**：<一段描述>
-- **優點**：<列點>
-- **缺點**：<列點>
-- **為何未採用**：<與 Agreed Approach 的差距>
+### Approach A: <name>
+- **What it is**: <one-paragraph description>
+- **Pros**: <bullet list>
+- **Cons**: <bullet list>
+- **Why not chosen**: <gap relative to the Agreed Approach>
 
-### 方案 B：<名稱>
-- **做法**：
-- **優點**：
-- **缺點**：
-- **為何未採用**：
+### Approach B: <name>
+- **What it is**:
+- **Pros**:
+- **Cons**:
+- **Why not chosen**:
 
-### 方案 C：<名稱>（可選）
-- **做法**：
-- **優點**：
-- **缺點**：
-- **為何未採用**：
+### Approach C: <name> (optional)
+- **What it is**:
+- **Pros**:
+- **Cons**:
+- **Why not chosen**:
 -->
 
 ## Agreed Approach
 
-<!-- The chosen approach and rationale — 引用上方其中一個方案並說明為何勝出 -->
+<!-- The chosen approach and rationale — reference one of the alternatives above and explain why it wins -->
 
 ## Key Decisions
 

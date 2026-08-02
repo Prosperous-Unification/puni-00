@@ -3,11 +3,11 @@
 <!--
 Explain the motivation for this change. What problem does this solve? Why now?
 
-硬限制：50 ≤ 字元數 ≤ 1000（OpenSpec zod schema 會 validate）
-- 太短：會收到 `Why section must be at least 50 characters` error
-- 太長：會收到 `Why section should not exceed 1000 characters` error
+Hard limit: 50 ≤ characters ≤ 1000 (the OpenSpec zod schema will validate)
+- Too short: you'll get a `Why section must be at least 50 characters` error
+- Too long: you'll get a `Why section should not exceed 1000 characters` error
 
-建議結構：現況痛點 → 為什麼現在處理 → 預期收益（各 1-2 句）
+Recommended structure: current pain points → why now → expected benefits (1-2 sentences each)
 -->
 
 ## What Changes
@@ -15,7 +15,8 @@ Explain the motivation for this change. What problem does this solve? Why now?
 <!--
 Describe what will change. Be specific about new capabilities, modifications, or removals.
 
-對於有明確前後對比的行為變更，使用 From/To 格式（markdown 無 inline diff）：
+For behavior changes with a clear before/after comparison, use From/To format
+(markdown has no inline diff):
 
 **<Section or Behavior Name>**
 - From: <current state / requirement>
@@ -23,7 +24,8 @@ Describe what will change. Be specific about new capabilities, modifications, or
 - Reason: <why this change is needed>
 - Impact: <breaking / non-breaking, who's affected>
 
-多個變更可重複此 block；純新增或純刪除可用簡單列表描述。
+Repeat the block for multiple changes; pure additions or pure deletions can
+be described with simple lists.
 -->
 
 ## Capabilities
@@ -32,8 +34,9 @@ Describe what will change. Be specific about new capabilities, modifications, or
 
 <!--
 Capabilities being introduced. Replace <name> with kebab-case identifier.
-命名規則見 openspec/specs/README.md：使用複合名詞（至少 2 個 word），
-例如 `user-auth`、`data-export`、`api-rate-limiting`，不用純單詞。
+Naming convention: see openspec/specs/README.md — use compound nouns (at least
+2 words), e.g. `user-auth`, `data-export`, `api-rate-limiting`, not bare single
+words.
 Each creates specs/<name>/spec.md
 -->
 

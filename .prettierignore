@@ -6,4 +6,9 @@ node_modules/
 
 *.env.sops
 
+# Vendored skill definitions — content-hashed in skills-lock.json, so
+# reformatting them invalidates the hash and is undone on the next sync.
+.agents/skills/
+.claude/skills/
+
 /.nx/workspace-data

@@ -1,24 +1,24 @@
 <!--
 Delta spec template for a change.
 
-此模板示範 4 種 delta section，按實際需要取用：
+This template demonstrates 4 delta section types; use as needed:
 - ADDED / MODIFIED / REMOVED / RENAMED
-檔名與位置：openspec/changes/<change-name>/specs/<capability>/spec.md
-（`<capability>` 對齊 openspec/specs/<capability>/ 目錄名）
+Filename and location: openspec/changes/<change-name>/specs/<capability>/spec.md
+(`<capability>` aligns with the openspec/specs/<capability>/ directory name)
 
-格式硬規則（OpenSpec 會 validate）：
-- Requirement 句子 MUST 含 `SHALL` 或 `MUST`
-- 每個 Requirement MUST 至少有一個 `#### Scenario:`
-- Scenario MUST 用 level-4 (`####`)，level-3 或 bullet 會 silent fail
+Format hard rules (OpenSpec will validate):
+- Requirement sentence MUST contain `SHALL` or `MUST`
+- Each Requirement MUST have at least one `#### Scenario:`
+- Scenario MUST use level-4 (`####`); level-3 or bullets will silent-fail
 -->
 
 ## ADDED Requirements
 
-<!-- 新增行為。列出本 change 要加到 capability 的新 Requirement。 -->
+<!-- New behavior. List the new Requirements this change adds to the capability. -->
 
 ### Requirement: <!-- requirement name -->
 
-<!-- requirement text — 須含 SHALL 或 MUST -->
+<!-- requirement text — must contain SHALL or MUST -->
 
 #### Scenario: <!-- scenario name -->
 
@@ -30,19 +30,20 @@ Delta spec template for a change.
 ## MODIFIED Requirements
 
 <!--
-修改既有 Requirement。**MUST 使用與 openspec/specs/<capability>/spec.md
-完全相同的 normalized header**（trim 後 case-sensitive 比對），否則 archive
-時的 delta apply 會因找不到對應 requirement 而失敗。
+Modify an existing Requirement. **MUST use the exact same normalized header
+as in openspec/specs/<capability>/spec.md** (case-sensitive after trim);
+otherwise the delta apply at archive time will fail because the
+corresponding requirement cannot be found.
 
-**MUST 貼出修改後的完整內容**（不是只寫 diff），因為 OpenSpec archive
-是用全文替換的方式 apply MODIFIED。
+**MUST paste the complete modified content** (not just the diff), because
+OpenSpec archive applies MODIFIED via full-text replacement.
 -->
 
-### Requirement: <!-- 與既有 spec 中相同的 header -->
+### Requirement: <!-- same header as in the existing spec -->
 
-<!-- 修改後的完整 requirement text — 含 SHALL 或 MUST -->
+<!-- complete modified requirement text — containing SHALL or MUST -->
 
-#### Scenario: <!-- scenario name（可新增、可修改） -->
+#### Scenario: <!-- scenario name (may be added or modified) -->
 
 - **WHEN** <!-- condition -->
 - **THEN** <!-- expected outcome -->
@@ -52,26 +53,28 @@ Delta spec template for a change.
 ## REMOVED Requirements
 
 <!--
-刪除既有 Requirement。MUST 包含 Reason 與 Migration 說明，讓 reviewer
-理解為何廢除以及既有引用方該怎麼遷移。
+Delete an existing Requirement. MUST include Reason and Migration so
+reviewers understand why it is deprecated and how existing callers should
+migrate.
 -->
 
-### Requirement: <!-- 要刪除的 header，與既有 spec 完全相同 -->
+### Requirement: <!-- the header to remove, identical to the existing spec -->
 
-**Reason**: <!-- 為何廢除 -->
+**Reason**: <!-- why deprecated -->
 
-**Migration**: <!-- 既有呼叫方/依賴方應如何調整 -->
+**Migration**: <!-- how existing callers / dependents should adjust -->
 
 ---
 
 ## RENAMED Requirements
 
 <!--
-重新命名 Requirement header。格式固定：FROM / TO 用 code-fence header。
-若名稱變更 + 內容變更，**同時**在 RENAMED 列出名字變更，並在 MODIFIED
-用**新的** header 再寫一份完整內容。
+Rename a Requirement header. Format is fixed: FROM / TO use code-fence headers.
+If both name and content change, **simultaneously** list the rename in
+RENAMED, and write a complete content section under the **new** header in
+MODIFIED.
 
-archive 時 apply 順序：RENAMED → REMOVED → MODIFIED → ADDED
+Apply order at archive time: RENAMED → REMOVED → MODIFIED → ADDED
 -->
 
 - FROM: `### Requirement: <Old Name>`

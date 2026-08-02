@@ -12,11 +12,11 @@ bun run dev:setup        # copies apps/*/.env.example → apps/*/.env (non-destr
 
 That seeds three local env files with safe dev-only defaults:
 
-| File                   | Purpose                                                |
-| ---------------------- | ------------------------------------------------------ |
-| `apps/be-01/.env`      | backend config: `PORT`, `DB_PATH`, `INTERNAL_AUTH_*`   |
-| `apps/gw-01/.env`      | gateway config: ports, `BE_URL`, JWT signing keys      |
-| `apps/fe-01/.env`      | Vite `VITE_*` vars pointing at local be-01 + gw-01     |
+| File              | Purpose                                              |
+| ----------------- | ---------------------------------------------------- |
+| `apps/be-01/.env` | backend config: `PORT`, `DB_PATH`, `INTERNAL_AUTH_*` |
+| `apps/gw-01/.env` | gateway config: ports, `BE_URL`, JWT signing keys    |
+| `apps/fe-01/.env` | Vite `VITE_*` vars pointing at local be-01 + gw-01   |
 
 All three are gitignored. Edit them freely.
 
@@ -29,11 +29,11 @@ bun run dev
 That runs `nx run-many -t serve --projects=be-01,gw-01,fe-01 --parallel=3` which
 brings up:
 
-| App     | URL                                     | Notes                                     |
-| ------- | --------------------------------------- | ----------------------------------------- |
-| `be-01` | <http://localhost:3100>                 | Bun + Elysia; SQLite at `./local.db`      |
-| `gw-01` | <http://localhost:3200>                 | Bun + Elysia; WS on `/ws`                 |
-| `fe-01` | <http://localhost:4200>                 | Vite dev server with HMR                  |
+| App     | URL                     | Notes                                |
+| ------- | ----------------------- | ------------------------------------ |
+| `be-01` | <http://localhost:3100> | Bun + Elysia; SQLite at `./local.db` |
+| `gw-01` | <http://localhost:3200> | Bun + Elysia; WS on `/ws`            |
+| `fe-01` | <http://localhost:4200> | Vite dev server with HMR             |
 
 Logs are interleaved. `Ctrl-C` stops all three.
 

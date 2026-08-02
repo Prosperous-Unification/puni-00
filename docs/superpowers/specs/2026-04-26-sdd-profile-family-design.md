@@ -1,32 +1,35 @@
 # SDD Profile Family — Design
 
-**Status:** draft v1
+**Status:** draft v2
 **Date:** 2026-04-26
 **Author:** Dany Fedorov (drafted with Claude)
-**Scope:** This `wbs-tool` repo. Distribution layer (cross-repo plugin) deferred.
+**Scope:** Prototype across two repos. `wbs-tool` is the **source-of-truth** for schemas and vendored skills; `web-constructor` is the **manager-facing demo stage**. Distribution layer (real cross-repo plugin) deferred.
 
 ## 1. Goal
 
-Demonstrate **how to compose your own SDD loop from OpenSpec + skills**, built up in three layers — each de-risking the next:
+**Audience:** myself first, then my manager. **Action wanted:** convince myself the SDD loop earns its overhead on real work, then show the manager an artifact trail strong enough to justify continued investment.
 
-- **Layer C — One working loop.** Wire all five components (governance / discipline / critique / executors / vocabulary) into a single end-to-end run on one small real change. Proves the wiring composes at all. Detailed in §11.
-- **Layer A — Variation by change shape.** Generalize the C loop into a family of profiles tuned to risk. Proves the loop is tunable. The profile family (§4) is delivered here.
-- **Layer B — Components catalog.** With multiple working profiles in hand, extract the pedagogy — what stays the same across loops, what varies, and how to wire your own. Proves the design is teachable.
+Two real artifact trails, picked to make the **profile-family thesis** ("right-sized process per change shape") visible by contrast:
 
-Each layer is independently useful: C alone proves feasibility; C+A proves right-sizing; C+A+B proves the recipe is portable. The final deliverable is the artifact trails of all C and A runs plus the Layer B explainer.
+- **Checkpoint 1 — wbs-tool, lightweight profile (`sdd-module-add`).** Simpler subject, my own repo, lower stakes. Self-convince + tooling shakedown.
+- **Checkpoint 2 — web-constructor, heavyweight profile (`sdd-architecture-change`).** Heavier subject, real production codebase, manager-facing.
+
+The **side-by-side of the two trails is the persuasion artifact.** The full 6-profile family (§4) stays in this design as the _design intent_, but only those two profiles get implemented in this iteration. The rest are documented-but-deferred.
 
 ### Goals
 
 - **Composable.** All wiring at the OpenSpec `instruction` layer (prompt-level). No edits to upstream Superpowers or Pocock skill files.
-- **Right-sized process.** A bug fix doesn't pay for adversarial design review; an architecture change does. Profiles match overhead to risk. (Earned in Layer A.)
-- **Auditable artifact trail.** Every change leaves an `openspec/changes/<name>/` directory that explains *what was decided, why, and how it was built*.
-- **Teachable.** A reader of the Layer B explainer can wire their own SDD loop in their own repo.
+- **Right-sized process.** A known-shape feature doesn't pay for adversarial design review; an architecture change does. The two implemented profiles span the weight axis enough to make this concrete.
+- **Auditable artifact trail.** Every change leaves an `openspec/changes/<name>/` directory that explains _what was decided, why, and how it was built_.
+- **Cross-repo portable (minimally).** Schemas + vendored skills can be copy-pasted from wbs-tool into web-constructor without surgery. Real distribution layer deferred.
 
 ### Non-goals (this iteration)
 
-- `frontend-ai-skills` distribution repo, GitHub Pages portal, multi-IDE manifests, marketplace.json, validation CI, cross-repo sync. **Deferred** (full plan in §11 "Future — Distribution layer").
+- `frontend-ai-skills` distribution repo, GitHub Pages portal, multi-IDE manifests, marketplace.json, validation CI, cross-repo sync. **Deferred** (full plan in §11 "Future — Distribution layer"). Minimal copy-paste port from wbs-tool → web-constructor _is_ in scope; anything fancier is not.
+- Implementing all 6 profiles. Only `sdd-module-add` and `sdd-architecture-change` are built; `sdd-quickfix`, `sdd-refactor`, `sdd-product-feature`, `sdd-full` remain designed-not-built.
+- Components catalog / "Layer B" pedagogy. Becomes valuable once ≥2 profiles have run on real work; not before.
+- Profile chooser skill. Two profiles don't need a chooser — a one-paragraph rule in `docs/sdd/PROFILES.md` is enough.
 - Cross-team adoption / migration of `betterme-dev/web-constructor`'s existing skills.
-- Productionizing executor skills (NestJS/TypeORM templates are BE-shaped; this repo is FE-leaning).
 - Reconciling Pocock TDD vs Superpowers TDD at the rule level — both run; transient duplication is accepted.
 
 ## 2. Architecture (5 layers)
@@ -74,18 +77,18 @@ SDD Process Family
 
 Adopt Pocock's `improve-codebase-architecture` glossary as the architectural language used across all profiles. Lives at `openspec/SDD-GLOSSARY.md`.
 
-| Term | Meaning |
-|---|---|
-| Module | Anything with an interface and an implementation (function, class, package, slice) |
-| Interface | Everything a caller must know to use the module (types, invariants, error modes, ordering, config) |
-| Implementation | The code inside |
-| Depth | High leverage at the interface — much behavior behind a small surface |
-| Shallow | Interface nearly as complex as the implementation |
-| Seam | Where an interface lives; a place behavior can be altered without editing in place |
-| Adapter | A concrete thing satisfying an interface at a seam |
-| Leverage | What callers get from depth |
-| Locality | What maintainers get from depth (change, bugs, knowledge concentrated in one place) |
-| Deletion test | Imagine deleting the module — if complexity vanishes, it was a pass-through; if complexity reappears across N callers, it was earning its keep |
+| Term           | Meaning                                                                                                                                        |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| Module         | Anything with an interface and an implementation (function, class, package, slice)                                                             |
+| Interface      | Everything a caller must know to use the module (types, invariants, error modes, ordering, config)                                             |
+| Implementation | The code inside                                                                                                                                |
+| Depth          | High leverage at the interface — much behavior behind a small surface                                                                          |
+| Shallow        | Interface nearly as complex as the implementation                                                                                              |
+| Seam           | Where an interface lives; a place behavior can be altered without editing in place                                                             |
+| Adapter        | A concrete thing satisfying an interface at a seam                                                                                             |
+| Leverage       | What callers get from depth                                                                                                                    |
+| Locality       | What maintainers get from depth (change, bugs, knowledge concentrated in one place)                                                            |
+| Deletion test  | Imagine deleting the module — if complexity vanishes, it was a pass-through; if complexity reappears across N callers, it was earning its keep |
 
 Plus DDD vocabulary from `pocock:domain-model` / `pocock:ubiquitous-language` skills, written into `CONTEXT.md` lazily as it's used.
 
@@ -99,15 +102,15 @@ Six profiles. Each is a separate `openspec/schemas/<name>/schema.yaml` with its 
 
 **Pipeline:**
 
-| # | Step | Skill / tool | Output |
-|---|---|---|---|
-| 1 | Reproduce + diagnose | `superpowers:systematic-debugging` (or `pocock:triage-issue` if filing GitHub issue first) | Notes; optional issue |
-| 2 | Failing test | `superpowers:tdd` (+ `pocock:tdd` for test-quality coaching) | Failing test commit |
-| 3 | Minimal fix | (engineer) | Fix commit |
-| 4 | Per-change review | `superpowers:requesting-code-review` | Review approval |
-| 5 | PR | `gh pr create` | PR URL |
+| #   | Step                 | Skill / tool                                                                               | Output                |
+| --- | -------------------- | ------------------------------------------------------------------------------------------ | --------------------- |
+| 1   | Reproduce + diagnose | `superpowers:systematic-debugging` (or `pocock:triage-issue` if filing GitHub issue first) | Notes; optional issue |
+| 2   | Failing test         | `superpowers:tdd` (+ `pocock:tdd` for test-quality coaching)                               | Failing test commit   |
+| 3   | Minimal fix          | (engineer)                                                                                 | Fix commit            |
+| 4   | Per-change review    | `superpowers:requesting-code-review`                                                       | Review approval       |
+| 5   | PR                   | `gh pr create`                                                                             | PR URL                |
 
-**Schema:** *Not an OpenSpec schema.* This profile is a **documented direct-PR flow** with prescribed skill invocations, lives at `docs/sdd/PROFILES.md#sdd-quickfix`. The profile chooser (§6) routes to it via the decision tree; OpenSpec is bypassed by design — the artifact trail is the PR body + commits.
+**Schema:** _Not an OpenSpec schema._ This profile is a **documented direct-PR flow** with prescribed skill invocations, lives at `docs/sdd/PROFILES.md#sdd-quickfix`. The profile chooser (§6) routes to it via the decision tree; OpenSpec is bypassed by design — the artifact trail is the PR body + commits.
 **Persuasion point:** "Even a quickfix gets TDD + review automatically without ceremony or governance overhead."
 
 ### 4.2 `sdd-module-add`
@@ -116,19 +119,19 @@ Six profiles. Each is a separate `openspec/schemas/<name>/schema.yaml` with its 
 
 **Pipeline:**
 
-| # | Step | Skill / tool | Output |
-|---|---|---|---|
-| 1 | Brainstorm (light) | `superpowers:brainstorming` | `brainstorm.md` |
-| 2 | Proposal | OpenSpec artifact | `proposal.md` |
-| 3 | Specs (delta) | OpenSpec artifact | `specs/<cap>/spec.md` |
-| 4 | Tasks | OpenSpec artifact | `tasks.md` |
-| 5 | Plan | `superpowers:writing-plans` | `plan.md` |
-| 6 | Worktree | `superpowers:using-git-worktrees` | Isolated branch |
-| 7 | Scaffold | Executor skills (auto-detect FE/BE/full-stack) | Generated files |
-| 8 | Implement | `superpowers:subagent-driven-development` (→ TDD + review per task) | Commits per task |
-| 9 | Verify | `openspec-verify-change` | `verify.md` |
-| 10 | Finish | `superpowers:finishing-a-development-branch` | PR or merge |
-| 11 | Archive | `/opsx:archive` | Synced specs |
+| #   | Step               | Skill / tool                                                        | Output                |
+| --- | ------------------ | ------------------------------------------------------------------- | --------------------- |
+| 1   | Brainstorm (light) | `superpowers:brainstorming`                                         | `brainstorm.md`       |
+| 2   | Proposal           | OpenSpec artifact                                                   | `proposal.md`         |
+| 3   | Specs (delta)      | OpenSpec artifact                                                   | `specs/<cap>/spec.md` |
+| 4   | Tasks              | OpenSpec artifact                                                   | `tasks.md`            |
+| 5   | Plan               | `superpowers:writing-plans`                                         | `plan.md`             |
+| 6   | Worktree           | `superpowers:using-git-worktrees`                                   | Isolated branch       |
+| 7   | Scaffold           | Executor skills (auto-detect FE/BE/full-stack)                      | Generated files       |
+| 8   | Implement          | `superpowers:subagent-driven-development` (→ TDD + review per task) | Commits per task      |
+| 9   | Verify             | `openspec-verify-change`                                            | `verify.md`           |
+| 10  | Finish             | `superpowers:finishing-a-development-branch`                        | PR or merge           |
+| 11  | Archive            | `/opsx:archive`                                                     | Synced specs          |
 
 **Schema:** New `openspec/schemas/sdd-module-add/schema.yaml`. Same DAG as `sdd-plus-superpowers` but adds **executor step** before subagent loop in apply phase.
 
@@ -144,26 +147,26 @@ Six profiles. Each is a separate `openspec/schemas/<name>/schema.yaml` with its 
 
 **Pipeline:**
 
-| # | Step | Skill / tool | Output |
-|---|---|---|---|
-| 1 | Domain pre-check (optional) | `pocock:domain-model` (only if `CONTEXT.md` exists) | Updated `CONTEXT.md`, ADRs |
-| 2 | Brainstorm | `superpowers:brainstorming` | `brainstorm.md` |
-| 3 | **Critique #1: grill** | `pocock:grill-me` (mandatory) | `grill-log.md` (Q&A captured) |
-| 4 | Proposal | OpenSpec artifact | `proposal.md` |
-| 5 | Specs (delta) | OpenSpec artifact | `specs/<cap>/spec.md` |
-| 6 | Design (mandatory) | OpenSpec artifact + `pocock:design-an-interface` for new module APIs | `design.md` (with 3 alternatives compared) |
-| 7 | **Critique #2: deepening** | `pocock:improve-codebase-architecture` | `deepening-review.md` (deepening opportunities surfaced; new ADRs if warranted) |
-| 8 | Tasks | OpenSpec artifact | `tasks.md` |
-| 9 | Plan | `superpowers:writing-plans` | `plan.md` |
-| 10 | Worktree | `superpowers:using-git-worktrees` | Isolated branch |
-| 11 | Implement | `superpowers:subagent-driven-development` (→ TDD + review per task) | Commits per task |
-| 12 | Verify | `openspec-verify-change` | `verify.md` |
-| 13 | Finish | `superpowers:finishing-a-development-branch` | PR or merge |
-| 14 | Archive | `/opsx:archive` | Synced specs + frozen ADRs |
+| #   | Step                        | Skill / tool                                                         | Output                                                                          |
+| --- | --------------------------- | -------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| 1   | Domain pre-check (optional) | `pocock:domain-model` (only if `CONTEXT.md` exists)                  | Updated `CONTEXT.md`, ADRs                                                      |
+| 2   | Brainstorm                  | `superpowers:brainstorming`                                          | `brainstorm.md`                                                                 |
+| 3   | **Critique #1: grill**      | `pocock:grill-me` (mandatory)                                        | `grill-log.md` (Q&A captured)                                                   |
+| 4   | Proposal                    | OpenSpec artifact                                                    | `proposal.md`                                                                   |
+| 5   | Specs (delta)               | OpenSpec artifact                                                    | `specs/<cap>/spec.md`                                                           |
+| 6   | Design (mandatory)          | OpenSpec artifact + `pocock:design-an-interface` for new module APIs | `design.md` (with 3 alternatives compared)                                      |
+| 7   | **Critique #2: deepening**  | `pocock:improve-codebase-architecture`                               | `deepening-review.md` (deepening opportunities surfaced; new ADRs if warranted) |
+| 8   | Tasks                       | OpenSpec artifact                                                    | `tasks.md`                                                                      |
+| 9   | Plan                        | `superpowers:writing-plans`                                          | `plan.md`                                                                       |
+| 10  | Worktree                    | `superpowers:using-git-worktrees`                                    | Isolated branch                                                                 |
+| 11  | Implement                   | `superpowers:subagent-driven-development` (→ TDD + review per task)  | Commits per task                                                                |
+| 12  | Verify                      | `openspec-verify-change`                                             | `verify.md`                                                                     |
+| 13  | Finish                      | `superpowers:finishing-a-development-branch`                         | PR or merge                                                                     |
+| 14  | Archive                     | `/opsx:archive`                                                      | Synced specs + frozen ADRs                                                      |
 
 **Schema:** New `openspec/schemas/sdd-architecture-change/schema.yaml`. Adds three artifacts beyond `sdd-plus-superpowers`: `domain-check.md` (optional), `grill-log.md`, `deepening-review.md`. `design.md` becomes mandatory (not optional).
 
-**Parallel-dispatch optimization (instruction-layer):** During design phase, dispatch `grill-me` + `design-an-interface` + `improve-codebase-architecture` as **parallel subagents** (Mode A pattern from `ci-cd-approver-reviewer`), then synthesize into `design.md`. Gives a 2-3× wall-clock improvement on the heaviest profile.
+**Sequential dispatch during design phase.** Run `grill-me` → `design-an-interface` → `improve-codebase-architecture` in order, each consuming the prior's output. `grill-me` is interactive (one question at a time, requires user) and cannot be parallelized; the others' artifacts read better when they can reference each other. Parallel dispatch was considered and rejected for the prototype as untested and unnecessary — flagged as a future optimization only.
 
 **Persuasion point:** "Adversarial review is built in. The hardest changes get the heaviest scrutiny, automatically. The artifacts (`grill-log.md`, `deepening-review.md`) prove the scrutiny happened."
 
@@ -173,42 +176,42 @@ Six profiles. Each is a separate `openspec/schemas/<name>/schema.yaml` with its 
 
 **Pipeline:**
 
-| # | Step | Skill / tool | Output |
-|---|---|---|---|
-| 1 | Refactor RFC | `pocock:request-refactor-plan` | `refactor-rfc.md` (with tiny-commits plan) |
-| 2 | Architecture review | `pocock:improve-codebase-architecture` | `deepening-review.md` (RFC alignment / divergence) |
-| 3 | Proposal (lightweight) | OpenSpec artifact (references RFC) | `proposal.md` |
-| 4 | Tasks | OpenSpec artifact (one task per tiny commit) | `tasks.md` |
-| 5 | Plan | `superpowers:writing-plans` (already tiny per Fowler) | `plan.md` |
-| 6 | Worktree | `superpowers:using-git-worktrees` | Isolated branch |
-| 7 | Implement | `superpowers:subagent-driven-development` (tests must survive refactor) | Commits per task |
-| 8 | Verify | `openspec-verify-change` (must show **no behavior delta** in specs) | `verify.md` |
-| 9 | Finish | `superpowers:finishing-a-development-branch` | PR or merge |
-| 10 | Archive | `/opsx:archive` | Specs unchanged; ADR if applicable |
+| #   | Step                   | Skill / tool                                                            | Output                                             |
+| --- | ---------------------- | ----------------------------------------------------------------------- | -------------------------------------------------- |
+| 1   | Refactor RFC           | `pocock:request-refactor-plan`                                          | `refactor-rfc.md` (with tiny-commits plan)         |
+| 2   | Architecture review    | `pocock:improve-codebase-architecture`                                  | `deepening-review.md` (RFC alignment / divergence) |
+| 3   | Proposal (lightweight) | OpenSpec artifact (references RFC)                                      | `proposal.md`                                      |
+| 4   | Tasks                  | OpenSpec artifact (one task per tiny commit)                            | `tasks.md`                                         |
+| 5   | Plan                   | `superpowers:writing-plans` (already tiny per Fowler)                   | `plan.md`                                          |
+| 6   | Worktree               | `superpowers:using-git-worktrees`                                       | Isolated branch                                    |
+| 7   | Implement              | `superpowers:subagent-driven-development` (tests must survive refactor) | Commits per task                                   |
+| 8   | Verify                 | `openspec-verify-change` (must show **no behavior delta** in specs)     | `verify.md`                                        |
+| 9   | Finish                 | `superpowers:finishing-a-development-branch`                            | PR or merge                                        |
+| 10  | Archive                | `/opsx:archive`                                                         | Specs unchanged; ADR if applicable                 |
 
-**Schema:** New `openspec/schemas/sdd-refactor/schema.yaml`. Skips brainstorm; replaces it with `refactor-rfc.md`. No `specs/<cap>/spec.md` *delta* unless behavior actually changed (in which case escalate to `sdd-architecture-change`).
+**Schema:** New `openspec/schemas/sdd-refactor/schema.yaml`. Skips brainstorm; replaces it with `refactor-rfc.md`. No `specs/<cap>/spec.md` _delta_ unless behavior actually changed (in which case escalate to `sdd-architecture-change`).
 
 **Persuasion point:** "Refactors are governed too — proven via no-behavior-delta specs. No silent rewrites, no scope creep into feature work."
 
 ### 4.5 `sdd-product-feature`
 
-**When:** stakeholder-driven feature where the *PRD* is the persuasion artifact for non-engineering reviewers (PMs, design, leadership).
+**When:** stakeholder-driven feature where the _PRD_ is the persuasion artifact for non-engineering reviewers (PMs, design, leadership).
 
 **Pipeline:**
 
-| # | Step | Skill / tool | Output |
-|---|---|---|---|
-| 1 | Brainstorm | `superpowers:brainstorming` | `brainstorm.md` |
-| 2 | PRD | `pocock:to-prd` (Pocock template; **replaces** standard proposal) | `prd.md` (Problem / Solution / User Stories / Implementation Decisions / Testing Decisions / Out of Scope) |
-| 3 | Specs (delta) | OpenSpec artifact | `specs/<cap>/spec.md` |
-| 4 | Issues breakdown | `pocock:to-issues` | GitHub issues (HITL/AFK marked, blocked-by graph) + `issues.md` |
-| 5 | Tasks | OpenSpec artifact (mirrors issue list) | `tasks.md` |
-| 6 | Plan | `superpowers:writing-plans` | `plan.md` |
-| 7 | Worktree | `superpowers:using-git-worktrees` | Isolated branch |
-| 8 | Implement | `superpowers:subagent-driven-development` | Commits per task |
-| 9 | Verify | `openspec-verify-change` | `verify.md` |
-| 10 | Finish | `superpowers:finishing-a-development-branch` | PR or merge |
-| 11 | Archive | `/opsx:archive` | Synced specs |
+| #   | Step             | Skill / tool                                                      | Output                                                                                                     |
+| --- | ---------------- | ----------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| 1   | Brainstorm       | `superpowers:brainstorming`                                       | `brainstorm.md`                                                                                            |
+| 2   | PRD              | `pocock:to-prd` (Pocock template; **replaces** standard proposal) | `prd.md` (Problem / Solution / User Stories / Implementation Decisions / Testing Decisions / Out of Scope) |
+| 3   | Specs (delta)    | OpenSpec artifact                                                 | `specs/<cap>/spec.md`                                                                                      |
+| 4   | Issues breakdown | `pocock:to-issues`                                                | GitHub issues (HITL/AFK marked, blocked-by graph) + `issues.md`                                            |
+| 5   | Tasks            | OpenSpec artifact (mirrors issue list)                            | `tasks.md`                                                                                                 |
+| 6   | Plan             | `superpowers:writing-plans`                                       | `plan.md`                                                                                                  |
+| 7   | Worktree         | `superpowers:using-git-worktrees`                                 | Isolated branch                                                                                            |
+| 8   | Implement        | `superpowers:subagent-driven-development`                         | Commits per task                                                                                           |
+| 9   | Verify           | `openspec-verify-change`                                          | `verify.md`                                                                                                |
+| 10  | Finish           | `superpowers:finishing-a-development-branch`                      | PR or merge                                                                                                |
+| 11  | Archive          | `/opsx:archive`                                                   | Synced specs                                                                                               |
 
 **Schema:** New `openspec/schemas/sdd-product-feature/schema.yaml`. Replaces `proposal.md` with `prd.md`. Adds `issues.md` artifact (mirror of created GitHub issues).
 
@@ -218,7 +221,7 @@ Six profiles. Each is a separate `openspec/schemas/<name>/schema.yaml` with its 
 
 **When:** unsure which profile fits. Default fallback. Equivalent to current `sdd-plus-superpowers`.
 
-**Schema:** Existing `openspec/schemas/sdd-plus-superpowers/schema.yaml`. Add an alias entry `sdd-full` so `--schema sdd-full` works. Keep existing schema as-is for backwards compatibility with in-flight changes.
+**Schema:** Existing `openspec/schemas/sdd-plus-superpowers/schema.yaml`. The `sdd-full` alias is **deferred** — not built this iteration. Existing schema kept untouched for backwards compatibility with in-flight changes.
 
 **Persuasion point:** "When in doubt, the default still bundles brainstorm + spec + plan + TDD + review. No half-built starting point."
 
@@ -226,29 +229,21 @@ Six profiles. Each is a separate `openspec/schemas/<name>/schema.yaml` with its 
 
 Available anytime regardless of profile. Vendored under `.claude/skills/pocock/`.
 
-| Skill | Use case | When to invoke |
-|---|---|---|
-| `pocock:qa` | Conversational bug filing | Anytime during dev when something is reported |
-| `pocock:ubiquitous-language` | Build/refresh `UBIQUITOUS_LANGUAGE.md` | Pre-arch-change; when domain terms get fuzzy |
-| `pocock:domain-model` | Stress-test plan against domain glossary | Pre-arch-change; on-demand |
-| `pocock:zoom-out` | Get higher-level codebase map | When stuck on unfamiliar code |
-| `pocock:write-a-skill` | Add a new skill to the catalog | When extending the family |
+| Skill                        | Use case                                 | When to invoke                                |
+| ---------------------------- | ---------------------------------------- | --------------------------------------------- |
+| `pocock:qa`                  | Conversational bug filing                | Anytime during dev when something is reported |
+| `pocock:ubiquitous-language` | Build/refresh `UBIQUITOUS_LANGUAGE.md`   | Pre-arch-change; when domain terms get fuzzy  |
+| `pocock:domain-model`        | Stress-test plan against domain glossary | Pre-arch-change; on-demand                    |
+| `pocock:zoom-out`            | Get higher-level codebase map            | When stuck on unfamiliar code                 |
+| `pocock:write-a-skill`       | Add a new skill to the catalog           | When extending the family                     |
 
 ## 6. Profile chooser (decision rule)
 
-Auto-detect-style heuristic at change creation time:
+**This iteration: skip the chooser skill.** Two profiles don't need an automated chooser — pick by hand based on which subject is in front of you. One-paragraph rule in `docs/sdd/PROFILES.md`:
 
-```
-If diff would only fix a known bug, no behavior shift     → sdd-quickfix
-Else if change is structural-only (no behavior delta)     → sdd-refactor
-Else if user provides PRD framing or stakeholder context  → sdd-product-feature
-Else if change introduces new pattern, breaking, or       → sdd-architecture-change
-       cross-cutting concern
-Else if change adds a known-shape module                  → sdd-module-add
-Else                                                      → sdd-full
-```
+> If the change introduces a new pattern, breaking change, or cross-cutting concern → `sdd-architecture-change`. If it adds a known-shape module with no new pattern → `sdd-module-add`. Anything else: out of scope for this iteration; pick the closer of the two and accept some misfit.
 
-Implement as a slash command: `/opsx:new <name>` prompts user with this decision tree if `--schema` not specified. Encoded as a chooser skill at `.claude/skills/sdd-choose-profile/SKILL.md`.
+The full 6-branch decision tree (quickfix / refactor / product-feature / architecture-change / module-add / full) and the `sdd-choose-profile` skill remain designed-not-built. They become worth implementing once ≥4 profiles exist.
 
 ## 7. Verify-every-claim discipline
 
@@ -259,132 +254,117 @@ Adopt from `backend-ai-skills/qa-notes`. Apply to all critique-skill output:
 - Forbidden hedge wording in critique output: "maybe", "probably", "seems like", "appears to".
 - **When in doubt — leave it out.**
 
-Encoded as a per-skill instruction layer in each `schema.yaml`'s critique-step `instruction` field, plus as a global principle in `openspec/SDD-GLOSSARY.md`.
+**Enforceability is best-effort but plausible.** Encoded as principle in `openspec/SDD-GLOSSARY.md` (always reachable). Also written into each schema's critique-step `instruction` field. Inspection of the existing `sdd-plus-superpowers/schema.yaml` confirms OpenSpec already uses `instruction` text to direct skill invocations (e.g. "Use the Skill tool to invoke superpowers:brainstorming") — so passthrough for _directives_ is established practice. The remaining uncertainty is whether _style rules_ (no-hedging language) get honored as faithfully as invocation directives. Verify in Checkpoint 1 by inspecting the actual `grill-log.md` for hedge wording; if it slips through, the rule moves to a post-step lint instead of an upstream prompt prefix.
 
 ## 8. New artifacts in this repo
+
+**Built this iteration:**
 
 ```
 openspec/
 ├── SDD-GLOSSARY.md                          (Pocock vocabulary, adopted)
 └── schemas/
-    ├── sdd-plus-superpowers/                (existing; alias to sdd-full)
-    ├── sdd-module-add/                      (new schema)
-    ├── sdd-architecture-change/             (new schema)
-    ├── sdd-refactor/                        (new schema)
-    └── sdd-product-feature/                 (new schema)
-    (note: sdd-quickfix is not a schema — it's a documented direct-PR flow, see §4.1)
+    ├── sdd-plus-superpowers/                (existing, untouched)
+    ├── sdd-module-add/                      (BUILT — used in Checkpoint 1)
+    └── sdd-architecture-change/             (BUILT — used in Checkpoint 2)
 
 docs/sdd/
-├── PROFILES.md                              (human-facing profile selection guide)
-└── DEMO-PLAN.md                             (persuasion script + change-of-each-type)
+└── PROFILES.md                              (2-profile selection rule, §6)
 
 .claude/skills/
-├── pocock/                                  (vendored Pocock skills, see §12 Q1)
-│   ├── grill-me/
-│   ├── improve-codebase-architecture/
-│   ├── design-an-interface/
-│   ├── domain-model/
-│   ├── request-refactor-plan/
-│   ├── to-prd/
-│   ├── to-issues/
-│   ├── triage-issue/
-│   ├── ubiquitous-language/
-│   ├── tdd/
-│   ├── qa/
-│   └── write-a-skill/
-└── sdd-choose-profile/                      (chooser skill for /opsx:new)
+└── pocock/                                  (vendored Pocock skills, see §12 Q1)
+    ├── VERSIONS.md                          (pinned upstream SHA per skill)
+    ├── grill-me/                            (used by sdd-architecture-change)
+    ├── improve-codebase-architecture/       (used by sdd-architecture-change)
+    └── design-an-interface/                 (used by sdd-architecture-change)
 ```
 
-Each new schema directory contains: `schema.yaml`, `README.md`, `INTEGRATION.md`, `templates/<artifact>.md`.
+**Designed-not-built (deferred):**
+
+- `openspec/schemas/sdd-refactor/`, `openspec/schemas/sdd-product-feature/` — schemas designed in §4 but not implemented this iteration.
+- `sdd-quickfix` direct-PR flow doc — designed in §4.1 but not exercised.
+- `.claude/skills/sdd-choose-profile/` — not needed at 2 profiles.
+- `.claude/skills/pocock/` skills outside the three above (`domain-model`, `request-refactor-plan`, `to-prd`, `to-issues`, `triage-issue`, `ubiquitous-language`, `tdd`, `qa`, `write-a-skill`) — vendor lazily as later profiles get built.
+- `docs/sdd/DEMO-PLAN.md` — replaced for this iteration by §9 inline + the two artifact trails themselves.
+
+Each built schema directory contains: `schema.yaml`, `README.md`, `INTEGRATION.md`, `templates/<artifact>.md`.
 
 ## 9. Demo plan
 
-Pick one *real* change of each type and run end-to-end during Layer A. Capture the resulting `openspec/changes/<name>/` (or PR for `sdd-quickfix`) as the artifact trail. The Layer C run produces an additional trail using the `sdd-demo` schema; once Layer A is underway, it can be retroactively classified into the closest matching profile if useful, or kept separate as the "wiring proof" trail.
+Two real artifact trails, deliberately contrasting.
 
-| Profile | Demo candidate | Why |
-|---|---|---|
-| `sdd-quickfix` | Existing fe-01 test isolation fix (per recent commit `fb0e058`) | Tiny, real, demonstrates "no ceremony" path |
-| `sdd-module-add` | Add a known-shape entity to the WBS schema (e.g. `WorkPackage` CRUD) | Demonstrates Ilya executors + auto-detect |
-| `sdd-architecture-change` | The WebSocket-based real-time collaborative architecture decision (per project memory: server mode is WS real-time) | Big enough to warrant grill-me + design-an-interface + deepening review |
-| `sdd-refactor` | Pick a deepening candidate from `pocock:improve-codebase-architecture`'s first run on this repo (the skill's job is to surface candidates) | Demonstrates no-behavior-delta governance; lets the critique skill pick the demo |
-| `sdd-product-feature` | A PRD-shaped feature (e.g. share-link with permissions) | Demonstrates PM-readable artifact trail |
-| `sdd-full` | (covered by existing `sdd-plus-superpowers` usage) | Fallback baseline; no new demo needed |
+| #            | Repo                           | Profile                   | Subject (TBD at kickoff)                                                                                                                                               | Why                                                                                                                                                                 |
+| ------------ | ------------------------------ | ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Checkpoint 1 | `wbs-tool` (this repo)         | `sdd-module-add`          | A known-shape feature on the WBS-tool roadmap (e.g. `WorkPackage` CRUD or similar). Picked at kickoff.                                                                 | Self-convince + tooling shakedown. Lower stakes, full control. Lightweight profile shows OpenSpec + Superpowers + minimal critique.                                 |
+| Checkpoint 2 | `betterme-dev/web-constructor` | `sdd-architecture-change` | A real decision on the web-constructor near-term roadmap with a non-trivial design choice (new pattern, breaking change, or cross-cutting concern). Picked at kickoff. | Manager-facing. Production codebase, real stakes. Heavyweight profile shows the full critique gate: grill-me + design-an-interface + improve-codebase-architecture. |
 
-Persuasion deck = the 5 artifact trails + a side-by-side comparison page (`docs/sdd/DEMO-PLAN.md`) + a 5-minute walkthrough (live or screencast).
+**The persuasion artifact is the side-by-side of the two trails**, not a slide deck. Specifically:
+
+- Both `openspec/changes/<name>/` directories, intact, in their respective repos.
+- A short comparison note (~1 page) in `docs/sdd/PROFILES.md` pointing at both trails and calling out which artifacts differ between profiles and which stay constant.
+- Optional: a 5-minute live walkthrough if the manager wants synchronous time.
+
+Subject selection happens at kickoff of each checkpoint; it is not pre-committed in this design.
 
 ## 10. Acceptance criteria for the prototype
 
-- All 4 new schemas validate via `openspec schemas` (sdd-module-add, sdd-architecture-change, sdd-refactor, sdd-product-feature).
-- `sdd-full` alias is registered.
-- Each profile has a complete demo artifact trail in `openspec/changes/archive/` (or a merged PR for `sdd-quickfix`).
-- `docs/sdd/DEMO-PLAN.md` exists and links to all 5 artifact trails.
-- `openspec/SDD-GLOSSARY.md` is referenced by all critique-skill instruction fields.
-- Verify-every-claim discipline is encoded in every critique step's `instruction`.
-- A user unfamiliar with the project can read `docs/sdd/PROFILES.md` and pick the right profile for a hypothetical change.
-- Pocock skills are vendored or installed and invocable via `Skill` tool from anywhere in the repo.
+- Both implemented schemas (`sdd-module-add`, `sdd-architecture-change`) validate via `openspec schemas` and `openspec validate --all --json`.
+- Checkpoint 1 produces a complete artifact trail in `wbs-tool`'s `openspec/changes/archive/`.
+- Checkpoint 2 produces a complete artifact trail in `web-constructor`'s `openspec/changes/archive/` (or equivalent location), with the relevant schema + vendored Pocock skills copy-pasted in from wbs-tool at a recorded SHA.
+- `docs/sdd/PROFILES.md` exists with the 2-profile selection rule (§6) and a side-by-side comparison pointing at the two trails.
+- `openspec/SDD-GLOSSARY.md` exists and is referenced by every critique-step's `instruction` field.
+- Verify-every-claim instruction-passing is **tested in Checkpoint 1**: confirm the `instruction` text reaches the invoked skill's prompt. If not, §7 is downgraded and the manager pitch reflects that honestly.
+- Vendored Pocock skills (`grill-me`, `improve-codebase-architecture`, `design-an-interface`) are pinned in `.claude/skills/pocock/VERSIONS.md` and invocable via the `Skill` tool from anywhere in each repo.
+- A side-by-side reading of the two trails makes the right-sized-process thesis visible without external explanation.
 
 ## 11. Implementation roadmap
 
-### Layer C — One working loop (~2-3 days)
+Two checkpoints, each producing a real artifact trail. Total ~6-8 days focused.
 
-The minimum trail that touches every layer once. Proves the wiring composes.
+### Setup (~½ day, before Checkpoint 1)
 
-**Setup (~half day):**
+- Write `openspec/SDD-GLOSSARY.md` in `wbs-tool` (10 terms from §3 + verify-every-claim principle).
+- Vendor `grill-me`, `improve-codebase-architecture`, `design-an-interface` under `.claude/skills/pocock/`. Pin upstream SHAs in `.claude/skills/pocock/VERSIONS.md`.
+- Build `openspec/schemas/sdd-module-add/` (schema.yaml, README, INTEGRATION, templates). Validate.
+- Build `openspec/schemas/sdd-architecture-change/`. Validate.
+- Confirm `Skill` tool can invoke the vendored Pocock skills from anywhere in `wbs-tool`.
 
-- Write `openspec/SDD-GLOSSARY.md` (10 terms from §3 + verify-every-claim discipline).
-- Vendor a *minimal* Pocock subset under `.claude/skills/pocock/`: `grill-me` + `improve-codebase-architecture` only. Full catalog comes in Layer A.
-- Copy `openspec/schemas/sdd-plus-superpowers/` → `openspec/schemas/sdd-demo/`. Inject **one** Pocock critique invocation into a step's `instruction` field. DAG unchanged. Proves instruction-layer injection without committing to the full schema design.
+### Checkpoint 1 — wbs-tool dry-run (~2-3 days)
 
-**Subject:** a net-new small change, picked at kickoff. Selection criteria — small enough to finish in ~1 day, real (not throwaway), exercises enough surface that `grill-me` has something substantive to grill on.
+**Profile:** `sdd-module-add`. **Repo:** `wbs-tool`. **Audience:** myself.
 
-**Loop (one demo run):**
+- Pick subject at kickoff (known-shape WBS feature; small enough to finish in 1-2 days of work behind the artifact loop).
+- Run the full `sdd-module-add` pipeline (§4.2): brainstorm → proposal → delta specs → tasks → plan → worktree → executor → subagent-driven-development → verify → finish → archive.
+- **Critical instrumentation check:** confirm OpenSpec passes `instruction`-field text into the invoked skill prompt (§7). Document the result. If passthrough doesn't work, downgrade §7 and update §10.
+- Capture friction: any schema field that's wrong, any vendored skill that misbehaves, any unclear template. Fix in-flight; record in `docs/sdd/PROFILES.md`'s "lessons" section.
 
-| # | Step | Layer | Artifact |
-|---|---|---|---|
-| 1 | `superpowers:brainstorming` | Discipline | `brainstorm.md` |
-| 2 | `pocock:grill-me` against brainstorm | **Critique** | `grill-log.md` |
-| 3 | OpenSpec proposal + delta specs + tasks | **Governance** | `proposal.md`, `specs/<cap>/spec.md`, `tasks.md` |
-| 4 | `superpowers:writing-plans` | Discipline | `plan.md` |
-| 5 | `superpowers:using-git-worktrees` | Discipline | branch |
-| 6 | Executor stub (`bm:demo-executor` no-op) | **Executors** (placeholder) | log line in trail |
-| 7 | `superpowers:subagent-driven-development` (TDD + review transitively) | Discipline | per-task commits |
-| 8 | `openspec-verify-change` | Governance | `verify.md` |
-| 9 | `superpowers:finishing-a-development-branch` + `/opsx:archive` | Governance | PR + synced specs |
+**Deliverable:** complete trail at `wbs-tool/openspec/changes/archive/<name>/`. Schemas refined based on real-run feedback. Verified-or-downgraded §7 claim.
 
-**Deliverable:** `openspec/changes/<name>/` complete trail + `docs/sdd/C-WALKTHROUGH.md` annotating "artifact ← skill ← layer" for each step. The walkthrough is the wiring diagram in prose.
+### Manager pitch gate (~½ day)
 
-**Acceptance:**
+After Checkpoint 1, before Checkpoint 2.
 
-- Trail shows all 5 layers touched (governance, discipline, critique, executors-as-stub, vocabulary).
-- `grill-log.md` references `SDD-GLOSSARY.md` terms (vocabulary is load-bearing, not decorative).
-- Executor stub runs and logs — the seam exists for Layer A to fill.
-- `C-WALKTHROUGH.md` is readable in <10 minutes by someone new to the project.
+- Write a 1-page summary: what was built, what the trail shows, what's proposed next.
+- Link the Checkpoint 1 trail.
+- Propose a specific named web-constructor task as the Checkpoint 2 subject. Confirm with manager.
+- (Greenlit by default per project context — this gate is for _alignment on the specific task_, not permission to proceed.)
 
-### Layer A — Variation by change shape (~5-7 days)
+### Checkpoint 2 — web-constructor demo (~3-4 days)
 
-With the C loop working, generalize into the profile family from §4.
+**Profile:** `sdd-architecture-change`. **Repo:** `betterme-dev/web-constructor`. **Audience:** manager.
 
-- Vendor remaining Pocock skills under `.claude/skills/pocock/`.
-- Create the four new schema directories under `openspec/schemas/` (module-add, architecture-change, refactor, product-feature). Document `sdd-quickfix` as a non-schema flow in `docs/sdd/PROFILES.md`. Alias `sdd-full` → `sdd-plus-superpowers`.
-- Each schema: `schema.yaml`, `README.md`, `INTEGRATION.md`, `templates/`. Inject Pocock invocations as `instruction` text (no edits to skill files). Inject verify-every-claim discipline into every critique-step instruction.
-- Validate via `openspec schemas` and `openspec validate --all --json`.
-- Write `sdd-choose-profile` skill (decision tree from §6). Wire into `/opsx:new`.
-- Run each profile against its demo candidate from §9, end-to-end. Capture artifact trails. Refine schemas based on real-run feedback.
+- Copy-paste from `wbs-tool` to `web-constructor`: `openspec/SDD-GLOSSARY.md`, `openspec/schemas/sdd-architecture-change/`, `.claude/skills/pocock/{grill-me, improve-codebase-architecture, design-an-interface, VERSIONS.md}`. Record the source SHA in a single commit message.
+- Run the full `sdd-architecture-change` pipeline (§4.3): brainstorm → grill → proposal → specs → design (with sequential dispatch of the three critique skills) → deepening review → tasks → plan → worktree → implement → verify → finish → archive.
+- Capture friction; record in `wbs-tool/docs/sdd/PROFILES.md` (source-of-truth stays in wbs-tool).
 
-**Deliverable:** all 5 schemas validating; one demo trail per profile in `openspec/changes/archive/` (or merged PR for `sdd-quickfix`); `docs/sdd/PROFILES.md` complete.
+**Deliverable:** complete trail at `web-constructor/openspec/changes/archive/<name>/`. Side-by-side comparison page in `wbs-tool/docs/sdd/PROFILES.md` linking both trails.
 
-### Layer B — Components catalog (~1-2 days)
+### Future — out of scope this iteration
 
-With Layer A's artifact trails in hand, extract the pedagogy.
-
-- Write `docs/sdd/COMPONENTS.md`: the five layers, what they're for, which skills/tools live in each, and the seams where you wire them together. Reference real artifacts from C and A as evidence.
-- Diff the schemas in prose: what stays the same across all profiles vs. what each profile changes. Surfaces the design axes a reader needs to wire their own loop.
-- Update `docs/sdd/PROFILES.md` to point at `COMPONENTS.md` as the prerequisite read.
-- Optional: 5-minute screencast or live-walkthrough script using one C-trail and one A-trail.
-
-**Deliverable:** `docs/sdd/COMPONENTS.md` + updated `PROFILES.md`. A reader unfamiliar with this repo can read both and outline how they would wire an SDD loop in their own project.
-
-**Total Layers C–B: ~8-12 days of focused work.**
+- Implement remaining profiles (`sdd-refactor`, `sdd-product-feature`, `sdd-quickfix` direct-PR doc).
+- `sdd-choose-profile` chooser skill (§6). Worth building once ≥4 profiles exist.
+- Components catalog / pedagogy doc (the previous "Layer B"). Worth writing once multiple profiles have run on real work.
+- Distribution layer: `frontend-ai-skills` repo, multi-IDE plugin manifests, auto-generated `marketplace.json` + validation CI, GitHub Pages portal, cross-repo sync workflow, `manifests/<repo>.yaml` for repo→teams mapping.
 
 ### Future — Distribution layer (deferred, out of scope this iteration)
 
@@ -397,43 +377,49 @@ With Layer A's artifact trails in hand, extract the pedagogy.
 
 ## 12. Open questions
 
-1. **Vendoring vs plugin install for Pocock skills.** Pocock's repo (`mattpocock/skills`) is a peer of `obra/superpowers`. Vendor into `.claude/skills/pocock/` (offline-friendly, pin-able, fork-able for our customizations) **or** install as a Claude Code plugin (auto-updating, simpler, but upstream surprises during demo)? **Recommendation:** vendor for the prototype.
+1. **[RESOLVED] Vendoring vs plugin install for Pocock skills.** Vendor into `.claude/skills/pocock/`, pinned via `VERSIONS.md`. Same vendored copy used in both `wbs-tool` and `web-constructor` to prevent upstream drift between the two demo runs.
 
 2. **Pocock TDD vs Superpowers TDD precedence.** Both fire during apply. Superpowers TDD enforces mechanics (red→green→refactor); Pocock TDD educates about test quality (vertical slices, test behavior not implementation, deeper docs in `tests.md` / `mocking.md`). They don't conflict but they overlap. **Recommendation:** both run, accept duplication; Pocock content surfaces during planning, Superpowers enforces during apply.
 
-3. **Executor skills source for `sdd-module-add` demo.** Ilya's web-constructor skills are NestJS/TypeORM-specific. This repo is FE-leaning. Three options:
-   - (a) Build minimal FE executors in Layer A (e.g. `bm:create-react-feature-module` with React + Vite scaffolding).
-   - (b) Skip executors in `sdd-module-add` demo and stub them with a placeholder.
-   - (c) Demo `sdd-module-add` with a BE-shaped change (the wbs server side has a backend).
-   **Recommendation:** (c) for the demo (showcase Ilya's actual work), with a noted gap for future FE executor authoring.
+3. **[RESOLVED] Executor skills source for `sdd-module-add`.** Checkpoint 1 runs in `wbs-tool` where Ilya's NestJS/TypeORM executors don't natively fit. For Checkpoint 1, either pick a BE-shaped subject (wbs-tool has a backend) or stub executors with a no-op placeholder — decide at subject-pick time. Checkpoint 2 runs in `web-constructor` which is NestJS-native; Ilya's executors apply directly there if needed (though `sdd-architecture-change` doesn't depend on them).
 
-4. **Schema validation for multi-artifact profiles.** Profiles with new artifacts (`grill-log.md`, `deepening-review.md`, `prd.md`, `refactor-rfc.md`, `issues.md`) need OpenSpec to recognize them. Options:
-   - (a) Define them as first-class artifacts in each schema YAML.
-   - (b) Treat them as supplementary docs alongside the standard artifacts.
-   **Recommendation:** (a) — they're load-bearing, deserve schema-level tracking via `tracks:` field.
+4. **[RESOLVED] Schema validation for multi-artifact profiles.** Confirmed by inspection of `sdd-plus-superpowers/schema.yaml`: `artifacts:` is a freeform array where the schema author defines `id`, `generates`, `requires`, and `instruction` per artifact. New artifacts (`grill-log.md`, `deepening-review.md`, etc.) just become additional array entries. No CLI changes needed; option (a) from the original Q4 applies directly.
 
 5. **`sdd-product-feature` interaction with stakeholders.** PRD as an artifact in `openspec/changes/<name>/prd.md` is engineer-readable but stakeholders don't browse repos. Options:
    - (a) Auto-mirror `prd.md` to a Notion/Confluence page (out of scope this iteration).
    - (b) Generate a static HTML preview at PR time.
    - (c) Just link the PR; stakeholders read on GitHub.
-   **Recommendation:** (c) for v1; (a) is a future-distribution-layer candidate.
+     **Recommendation:** (c) for v1; (a) is a future-distribution-layer candidate.
 
 ## 13. Risks
 
-| Risk | Severity | Mitigation |
-|---|---|---|
-| Pocock skills upstream-evolve and break our integration | Medium | Vendor (Q1 recommendation); pin a known-good commit |
-| Schema sprawl confuses users | Medium | Profile chooser + `docs/sdd/PROFILES.md` decision tree |
-| Demo runs reveal profile boundaries are wrong | High | Layer A explicitly captures friction; expect to refine cuts after first two runs |
-| `improve-codebase-architecture`'s glossary clashes with project DDD vocabulary | Low | Glossary is architectural (Module/Seam/...), DDD is domain (Order/Customer/...) — orthogonal axes |
-| Subagent-driven dispatch in arch-change is too slow | Medium | Parallel dispatch (§4.3 optimization); fall back to sequential if needed |
-| User picks wrong profile → wastes time on overhead | Low | Profile chooser; can switch profile mid-flight by reusing brainstorm.md across schemas |
+| Risk                                                                                               | Severity | Mitigation                                                                                                                                         |
+| -------------------------------------------------------------------------------------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Pocock skills upstream-evolve and break our integration                                            | Medium   | Vendor (Q1 recommendation); pin a known-good commit                                                                                                |
+| Schema sprawl confuses users                                                                       | Medium   | Profile chooser + `docs/sdd/PROFILES.md` decision tree                                                                                             |
+| Demo runs reveal profile boundaries are wrong                                                      | High     | Layer A explicitly captures friction; expect to refine cuts after first two runs                                                                   |
+| `improve-codebase-architecture`'s glossary clashes with project DDD vocabulary                     | Low      | Glossary is architectural (Module/Seam/...), DDD is domain (Order/Customer/...) — orthogonal axes                                                  |
+| Sequential critique chain in arch-change is slow on real work                                      | Low      | Accepted for prototype; parallel dispatch deferred as future optimization (§4.3)                                                                   |
+| User picks wrong profile → wastes time on overhead                                                 | Low      | Only 2 profiles this iteration; manual choice via §6 rule. Brainstorm.md is reusable across schemas if mid-flight switch is needed                 |
+| Style rules (no-hedging) in `instruction` text get ignored even though invocation directives don't | Medium   | Tested in Checkpoint 1 by inspecting `grill-log.md`. If hedge wording slips, demote §7 enforcement from upstream prompt prefix to a post-step lint |
+| Copy-paste port wbs-tool → web-constructor drifts before Checkpoint 2 finishes                     | Low      | Single port commit recording source SHA; no further sync until Checkpoint 2 archives                                                               |
 
-## 14. Success metrics for the persuasion campaign
+## 14. Success metrics
 
-- One internal team agrees to try the SDD process on their next non-trivial feature.
-- The artifact trail of one demo change is referenced in a company-wide eng forum / doc.
-- A discussion is initiated about the distribution layer (deferred future) — meaning the prototype proved the value enough to scale.
+**Self-convince (Checkpoint 1):**
+
+- I personally judge the trail to be _better than what I'd have produced without the loop_ on the same subject. Specifically: the brainstorm or grill artifact caught a wobble I hadn't caught on my own; the spec or plan made a downstream decision easier; the verify step prevented a regression.
+- Schema bugs, vendoring issues, and `instruction`-passthrough behavior (§7) are all known after Checkpoint 1 — no surprises blocking Checkpoint 2.
+
+**Manager-convince (Checkpoint 2):**
+
+- Manager reads the side-by-side and gives a clear next-step signal: continue / scope down / try elsewhere. Any of those is success — silence or "looks fine, keep going if you want" is failure (means it didn't land).
+- At least one of: (a) manager proposes the next subject themselves, (b) manager raises the loop in a team discussion, (c) manager greenlights time for the deferred distribution layer.
+
+Aspirational (post-iteration, not gated by this design):
+
+- Another team member adopts the loop on their own work without me prompting.
+- The two trails are referenced in an internal eng doc or forum thread.
 
 ## 15. References
 
