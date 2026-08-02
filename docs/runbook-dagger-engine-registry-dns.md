@@ -3,6 +3,23 @@
 **Applies to:** h2puni (and any host set up the same way as of Task 5 of the
 2026-08-02 compose blue/green deploy).
 
+> **Status (2026-08-02): no longer needed for publishing.** The registry's
+> loopback host port was retired and builds now push to
+> `registry.infra.bulletpoints.club`, a public name resolved by ordinary
+> public DNS and reached over TLS through Caddy — so publishing no longer
+> depends on `dagger-engine` resolving the container-DNS name `registry` at
+> all. Verified after a full `systemctl restart docker`, which reverts the
+> engine's `/etc/resolv.conf` to dagger's own resolver exactly as described
+> below: `getent hosts registry` failed (exit 2) while
+> `getent hosts registry.infra.bulletpoints.club` returned `62.238.48.248`,
+> and `nx run tool-dagger:publish-all` then built and pushed all three tiers
+> successfully with no remediation applied. Container-to-host-public-IP
+> hairpin was confirmed separately (`curl https://registry.infra…/v2/` from a
+> throwaway container returned the registry's own 401).
+>
+> Keep the rest of this document for anything else that needs the engine to
+> reach `wbs-net` by container name.
+
 ## Symptom
 
 `bunx nx run tool-dagger:publish-all` (or any Dagger build that pushes to
