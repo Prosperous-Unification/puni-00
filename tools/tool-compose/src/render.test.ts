@@ -34,9 +34,9 @@ describe('renderAll', () => {
         COLOR: 'green',
         IMAGE: 'registry.infra.bulletpoints.club/wbs-be-01:abc1234',
         SITE_ADDRESS: 'wbs.bulletpoints.club',
-        BE_COLOR: 'green',
-        GW_COLOR: 'blue',
-        FE_COLOR: 'green',
+        BE_ROUTE: 'reverse_proxy be-01-green:3100',
+        GW_ROUTE: 'reverse_proxy gw-01-blue:3200',
+        FE_ROUTE: 'reverse_proxy fe-01-green:80',
       },
     });
     expect(written.length).toBeGreaterThan(0);
@@ -54,20 +54,24 @@ describe('site.caddy.tmpl', () => {
   it('renders with every placeholder supplied', () => {
     const out = renderTemplate(tmpl, {
       SITE_ADDRESS: 'wbs.bulletpoints.club',
-      BE_COLOR: 'green',
-      GW_COLOR: 'blue',
-      FE_COLOR: 'green',
+      BE_ROUTE: 'reverse_proxy be-01-green:3100',
+      GW_ROUTE: 'reverse_proxy gw-01-blue:3200 {\n\t\t\tstream_close_delay 310s\n\t\t}',
+      FE_ROUTE: 'reverse_proxy fe-01-green:80',
     });
     expect(out).toContain('be-01-green:3100');
     expect(out).toContain('gw-01-blue:3200');
     expect(out).toContain('fe-01-green:80');
+    expect(out).toContain('stream_close_delay 310s');
     expect(out).not.toContain('{{');
   });
 
-  it('keeps stream_close_delay above the drain ceiling', () => {
-    expect(tmpl).toContain('stream_close_delay 310s');
-  });
-
+  // The GW_COLOR-literal stream_close_delay directive moved out of the raw
+  // .tmpl file and into lib/site.ts's routeBlock() (see that file's own
+  // test) once each route became a whole-block placeholder rather than a
+  // bare colour substitution — that's what makes an honestly-omitted
+  // "not yet deployed" route possible at all. The property itself (a real,
+  // deployed gw route always carries stream_close_delay) is covered there
+  // now, not against the raw template text.
   it('passes /api through rather than stripping it', () => {
     // handle_path would strip /api, but be-01 mounts its controllers under /api.
     expect(tmpl).not.toContain('handle_path /api');

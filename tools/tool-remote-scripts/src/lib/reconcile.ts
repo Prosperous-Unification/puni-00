@@ -14,10 +14,11 @@ export type SwapStep =
   | 'start-green'
   | 'migrate'
   | 'health-gate'
-  | 'move-alias'
+  | 'grant-alias'
   | 'render-route'
   | 'reload'
   | 'drain'
+  | 'revoke-alias'
   | 'stop-blue'
   | 'commit';
 
@@ -53,10 +54,16 @@ export function planSwap(tier: Tier, observed: Observed): SwapPlan {
   if (tier === 'be') steps.push('migrate');
   steps.push('health-gate');
   // gw-01 reads BE_URL once at startup, so a be swap moves a stable network
-  // alias rather than reconfiguring gw.
-  if (tier === 'be') steps.push('move-alias');
+  // alias (be-01.internal) rather than reconfiguring gw. Granting it to the
+  // incoming colour happens BEFORE render-route/reload, while nothing routes
+  // to that colour yet (safe to briefly disconnect/reconnect it); revoking it
+  // from the outgoing colour is deferred until AFTER reload, once Caddy has
+  // already switched its own-alias-based route away from it — see
+  // lib/docker.ts's grantAliasCommands/revokeAliasCommands doc comment.
+  if (tier === 'be') steps.push('grant-alias');
   steps.push('render-route', 'reload');
   if (tier === 'gw') steps.push('drain');
+  if (tier === 'be' && from !== null) steps.push('revoke-alias');
   if (from !== null) steps.push('stop-blue');
   steps.push('commit');
   return { tier, from, to, steps };

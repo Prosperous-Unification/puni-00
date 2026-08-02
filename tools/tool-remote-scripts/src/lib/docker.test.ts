@@ -4,10 +4,11 @@ import {
   composeUpArgs,
   containerName,
   digestRef,
+  grantAliasCommands,
   isDigest,
-  moveAliasArgs,
   NETWORK,
   psColorsFrom,
+  revokeAliasCommands,
   ROOT,
   tierComposeContext,
   tierComposeFile,
@@ -105,21 +106,37 @@ describe('psColorsFrom', () => {
   });
 });
 
-describe('moveAliasArgs', () => {
-  it('disconnects the old colour and connects the new one under the alias', () => {
-    const [disconnect, connect] = moveAliasArgs('blue', 'green');
-    expect(disconnect).not.toBeNull();
-    expect((disconnect ?? []).join(' ')).toContain('network disconnect');
-    expect((disconnect ?? []).join(' ')).toContain(NETWORK);
-    expect((disconnect ?? []).join(' ')).toContain('be-01-blue');
-    expect(connect.join(' ')).toContain('--alias be-01.internal');
-    expect(connect.join(' ')).toContain(NETWORK);
-    expect(connect.join(' ')).toContain('be-01-green');
+describe('grantAliasCommands', () => {
+  it('disconnects the incoming colour then reconnects it with both its own alias and BE_ALIAS', () => {
+    const [disconnect, connect] = grantAliasCommands('green');
+    expect(disconnect).toEqual(['network', 'disconnect', NETWORK, 'be-01-green']);
+    expect(connect).toEqual([
+      'network',
+      'connect',
+      '--alias',
+      'be-01-green',
+      '--alias',
+      'be-01.internal',
+      NETWORK,
+      'be-01-green',
+    ]);
   });
 
-  it('skips the disconnect on a first-ever deploy, when nothing was live before', () => {
-    const [disconnect, connect] = moveAliasArgs(null, 'blue');
-    expect(disconnect).toBeNull();
-    expect(connect.join(' ')).toContain('be-01-blue');
+  // Always required, first deploy or not: tier.compose.tmpl attaches every
+  // colour to wbs-net at `docker compose up` time, so the container always
+  // already has an endpoint here — `network connect` would fail outright
+  // without the disconnect first, regardless of deploy history.
+  it('disconnects unconditionally even for what would be a first-ever deploy', () => {
+    const [disconnect] = grantAliasCommands('blue');
+    expect(disconnect).toEqual(['network', 'disconnect', NETWORK, 'be-01-blue']);
+  });
+});
+
+describe('revokeAliasCommands', () => {
+  it('disconnects the outgoing colour then restores only its own alias, dropping BE_ALIAS', () => {
+    const [disconnect, connect] = revokeAliasCommands('blue');
+    expect(disconnect).toEqual(['network', 'disconnect', NETWORK, 'be-01-blue']);
+    expect(connect).toEqual(['network', 'connect', '--alias', 'be-01-blue', NETWORK, 'be-01-blue']);
+    expect(connect.join(' ')).not.toContain('be-01.internal');
   });
 });

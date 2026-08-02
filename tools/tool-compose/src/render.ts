@@ -59,15 +59,20 @@ function parseArgs(argv: string[]): { outDir: string } {
 // colours) via `renderTemplate` directly, imported through `@wbs/tool-compose`.
 async function main(): Promise<void> {
   const { outDir } = parseArgs(process.argv.slice(2));
+  // Whole-block route placeholders, matching site.caddy.tmpl (each is the
+  // full content of a `handle { ... }` body, not just a colour — see
+  // tools/tool-remote-scripts/src/lib/site.ts's `routeBlock`, which is what
+  // a real deploy actually uses; this preview default just needs *some*
+  // valid Caddyfile snippet per tier, deployed by default).
   const ctx: RenderContext = {
     TIER: process.env['TIER'] ?? 'be-01',
     COLOR: process.env['COLOR'] ?? 'blue',
     IMAGE:
       process.env['IMAGE'] ?? `registry.infra.bulletpoints.club/wbs-be-01@sha256:${'0'.repeat(64)}`,
     SITE_ADDRESS: process.env['SITE_ADDRESS'] ?? 'wbs.bulletpoints.club',
-    BE_COLOR: process.env['BE_COLOR'] ?? 'blue',
-    GW_COLOR: process.env['GW_COLOR'] ?? 'blue',
-    FE_COLOR: process.env['FE_COLOR'] ?? 'blue',
+    BE_ROUTE: process.env['BE_ROUTE'] ?? 'reverse_proxy be-01-blue:3100',
+    GW_ROUTE: process.env['GW_ROUTE'] ?? 'reverse_proxy gw-01-blue:3200',
+    FE_ROUTE: process.env['FE_ROUTE'] ?? 'reverse_proxy fe-01-blue:80',
   };
   const written = await renderAll({
     templatesDir: new URL('./templates', import.meta.url).pathname,

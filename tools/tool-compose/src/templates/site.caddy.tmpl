@@ -2,21 +2,17 @@
 	encode gzip
 
 	handle /ws* {
-		reverse_proxy gw-01-{{GW_COLOR}}:3200 {
-			# Without this, a config reload severs every live WebSocket
-			# immediately and the drain loop below has nothing left to drain.
-			stream_close_delay 310s
-		}
+		{{GW_ROUTE}}
 	}
 
 	# be-01 mounts its controllers under /api already, so the prefix is passed
 	# through with `handle`, NOT stripped with `handle_path`.
 	handle /api/* {
-		reverse_proxy be-01-{{BE_COLOR}}:3100
+		{{BE_ROUTE}}
 	}
 
 	handle {
-		reverse_proxy fe-01-{{FE_COLOR}}:80
+		{{FE_ROUTE}}
 	}
 
 	log {

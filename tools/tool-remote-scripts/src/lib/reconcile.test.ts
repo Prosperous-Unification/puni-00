@@ -67,11 +67,27 @@ describe('planSwap', () => {
     expect(plan.to).toBe('blue');
   });
 
-  it('includes migrate and move-alias for be, in that order, before routing', () => {
+  it('includes migrate and grant-alias for be, in that order, before routing', () => {
     const plan = planSwap('be', base);
     expect(plan.steps).toContain('migrate');
     expect(plan.steps.indexOf('migrate')).toBeLessThan(plan.steps.indexOf('health-gate'));
-    expect(plan.steps.indexOf('move-alias')).toBeLessThan(plan.steps.indexOf('reload'));
+    expect(plan.steps.indexOf('grant-alias')).toBeLessThan(plan.steps.indexOf('render-route'));
+  });
+
+  it('defers revoke-alias for be until after reload, on a real swap', () => {
+    const plan = planSwap('be', base);
+    expect(plan.steps.indexOf('reload')).toBeLessThan(plan.steps.indexOf('revoke-alias'));
+  });
+
+  it('skips revoke-alias for be on a first-ever deploy — nothing to revoke it from', () => {
+    const plan = planSwap('be', {
+      routedColor: null,
+      runningColors: [],
+      recordedColor: null,
+      phase: null,
+    });
+    expect(plan.steps).toContain('grant-alias');
+    expect(plan.steps).not.toContain('revoke-alias');
   });
 
   it('includes drain for gw but not for be or fe', () => {
@@ -80,10 +96,10 @@ describe('planSwap', () => {
     expect(planSwap('fe', base).steps).not.toContain('drain');
   });
 
-  it('never includes migrate or move-alias for gw or fe', () => {
+  it('never includes migrate or grant-alias for gw or fe', () => {
     for (const tier of ['gw', 'fe'] as const) {
       expect(planSwap(tier, base).steps).not.toContain('migrate');
-      expect(planSwap(tier, base).steps).not.toContain('move-alias');
+      expect(planSwap(tier, base).steps).not.toContain('grant-alias');
     }
   });
 

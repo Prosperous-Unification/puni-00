@@ -1,16 +1,27 @@
 # deploy/compose/Caddyfile.bootstrap
 #
-# Placeholder installed by configure.sh at /srv/wbs/caddy/Caddyfile, ONLY if
-# that file doesn't already exist. caddy:2-alpine hard-errors and
-# crash-loops with no /etc/caddy/Caddyfile at all, so a fresh host needs
-# something here before the first real deploy ever runs.
+# The real Caddyfile for the compose blue/green stack. Installed
+# unconditionally by configure.sh at /srv/wbs/caddy/Caddyfile on every run —
+# safe to overwrite every time, since this file's own content never changes;
+# only the `site.caddy` it imports (rendered per-deploy by
+# tools/tool-remote-scripts' swap executor) does.
 #
-# This is intentionally NOT wired to tools/tool-compose/src/templates/
-# (site.caddy.tmpl etc.) — those render to site.caddy/tier.caddy, not to
-# Caddyfile, and are installed by the deploy pipeline once a real release
-# exists. Because configure.sh only writes this when Caddyfile is absent,
-# a real deploy's Caddyfile (e.g. one that does `import site.caddy`) is
-# never overwritten by a later configure.sh re-run.
-:80 {
-	respond "wbs-tool: no site deployed yet" 200
-}
+# Previously this file was a *temporary* placeholder, installed ONLY if
+# Caddyfile didn't already exist, with the real `import site.caddy` version
+# left for "the deploy pipeline" to write later once a real release
+# existed — except nothing ever did that. Task 12's rehearsal caught the
+# result live: `caddy reload` kept exiting 0 while Caddy silently kept
+# serving the old placeholder forever, because `reload` only re-applies
+# whatever Caddyfile already says, and the placeholder never mentioned
+# site.caddy at all. The swap looked like it succeeded on every run; routing
+# never actually changed.
+#
+# Importing unconditionally from the start removes that two-phase lifecycle
+# entirely — there is no "before a real release exists" state left to
+# special-case, because `site.caddy` itself now always exists: configure.sh
+# seeds it once (see the seed literal in configure.sh) with an honest
+# "not yet deployed" response for every tier (same shape a real
+# render-route would produce for a tier with no observed colour — see
+# tools/tool-remote-scripts/src/lib/site.ts's `routeBlock`), and every real
+# swap's render-route step overwrites it for real from then on.
+import site.caddy

@@ -30,6 +30,12 @@ WBS_ROOT="${WBS_ROOT:-/srv/wbs}"
 REGISTRY_HOST="${REGISTRY_HOST:-registry.infra.bulletpoints.club}"
 REGISTRY_USER="${REGISTRY_USER:-wbs}"
 REGISTRY_INSECURE="${REGISTRY_INSECURE:-0}"
+# Same override pattern as REGISTRY_HOST: defaults to the eventual public
+# hostname, override with e.g. ":80" on a host where DNS for it doesn't
+# exist yet (a bare ":80" Caddyfile address matches any Host header, with no
+# automatic HTTPS / ACME attempt — see tools/tool-remote-scripts/src/swap.ts,
+# which the real per-deploy render-route step reads this same variable from).
+SITE_ADDRESS="${SITE_ADDRESS:-wbs.bulletpoints.club}"
 
 log() { printf '[configure] %s\n' "$*"; }
 die() { printf '[configure] %s\n' "$*" >&2; exit 1; }
@@ -61,22 +67,69 @@ chmod 0600 "$WBS_ROOT/.env"
 
 # caddy:2-alpine hard-errors (and crash-loops) with no /etc/caddy/Caddyfile
 # at all, so a fresh host needs one before the first real deploy ever runs.
-# Only written if absent: a real deploy's Caddyfile (rendered from
-# tools/tool-compose/src/templates/, which produces site.caddy/tier.caddy,
-# not Caddyfile itself) is never clobbered by a later re-run of this script.
-# Keep this in sync with deploy/compose/Caddyfile.bootstrap — duplicated
+#
+# Written UNCONDITIONALLY, every re-run — this file's own content never
+# changes, it always just imports site.caddy (see
+# deploy/compose/Caddyfile.bootstrap for the full history: this used to be a
+# placeholder written only-if-absent, with the real `import site.caddy`
+# version left for "the deploy pipeline" to install later, except nothing
+# ever did — `caddy reload` kept exiting 0 forever while silently still
+# serving the placeholder, invisibly, until Task 12's rehearsal caught it
+# live). Keep in sync with deploy/compose/Caddyfile.bootstrap — duplicated
 # inline here, rather than read from that file, because this script is
 # copied to the host alone (see the module docstring's `scp ... sh
 # configure.sh` usage), with no guarantee the rest of the repo is present
 # alongside it.
-if [ ! -f "$WBS_ROOT/caddy/Caddyfile" ]; then
-  log "seeding a placeholder $WBS_ROOT/caddy/Caddyfile (no site deployed yet)"
-  cat > "$WBS_ROOT/caddy/Caddyfile" <<'CADDYFILE'
-:80 {
-	respond "wbs-tool: no site deployed yet" 200
+log "writing $WBS_ROOT/caddy/Caddyfile (imports site.caddy)"
+cat > "$WBS_ROOT/caddy/Caddyfile" <<'CADDYFILE'
+import site.caddy
+CADDYFILE
+chown "$WBS_USER:$WBS_USER" "$WBS_ROOT/caddy/Caddyfile"
+
+# Caddy would then hard-error on `import site.caddy` if site.caddy itself
+# didn't exist — so seed one, but ONLY if absent: unlike Caddyfile, this
+# file's real content is deploy state (which colour each tier currently
+# routes to), rewritten by every real swap's render-route step, and must
+# never be clobbered by a later re-run of this script. The seed says every
+# tier is honestly "not yet deployed" — the exact same shape a real
+# render-route would produce for a tier with no observed colour (see
+# tools/tool-remote-scripts/src/lib/site.ts's `routeBlock`) — rather than
+# guessing a colour, so the first real deploy of any tier reads back a
+# clean, un-corrupted `null` for every tier it hasn't touched yet.
+if [ ! -f "$WBS_ROOT/caddy/site.caddy" ]; then
+  log "seeding $WBS_ROOT/caddy/site.caddy (nothing deployed yet, for any tier)"
+  cat > "$WBS_ROOT/caddy/site.caddy" <<CADDYFILE
+$SITE_ADDRESS {
+	encode gzip
+
+	handle /ws* {
+		respond "gw-01 not yet deployed" 503
+	}
+
+	handle /api/* {
+		respond "be-01 not yet deployed" 503
+	}
+
+	handle {
+		respond "fe-01 not yet deployed" 503
+	}
+
+	log {
+		output file /var/log/caddy/access.log
+	}
+}
+
+registry.infra.bulletpoints.club {
+	reverse_proxy registry:5000 {
+		header_up X-Forwarded-Proto {scheme}
+		header_up X-Forwarded-For {remote_host}
+	}
+	request_body {
+		max_size 2GB
+	}
 }
 CADDYFILE
-  chown "$WBS_USER:$WBS_USER" "$WBS_ROOT/caddy/Caddyfile"
+  chown "$WBS_USER:$WBS_USER" "$WBS_ROOT/caddy/site.caddy"
 fi
 
 log "writing registry htpasswd"

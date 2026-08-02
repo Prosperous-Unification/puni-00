@@ -21,10 +21,12 @@ import { writeAtomic } from './lib/atomic';
 import {
   composeUpArgs,
   containerName,
+  grantAliasCommands,
   isDigest,
-  moveAliasArgs,
   NETWORK,
+  PORT,
   psColorsFrom,
+  revokeAliasCommands,
   ROOT,
   tierComposeContext,
   tierComposeFile,
@@ -41,7 +43,6 @@ const REGISTRY = process.env['REGISTRY'] ?? 'registry.infra.bulletpoints.club';
 const SITE_ADDRESS = process.env['SITE_ADDRESS'] ?? 'wbs.bulletpoints.club';
 const SITE_CADDY_PATH = `${ROOT}/caddy/site.caddy`;
 
-const PORT: Record<Tier, number> = { be: 3100, gw: 3200, fe: 80 };
 // fe-01 is a static Caddy server with no /health route; design decision 5's
 // health gate for it is "fetch / and assert 200 + a non-empty body" instead.
 const HEALTH_PATH: Record<Tier, string> = { be: '/health', gw: '/health', fe: '/' };
@@ -92,6 +93,38 @@ async function readSiteCaddy(): Promise<string> {
   return Bun.file(SITE_CADDY_PATH)
     .text()
     .catch(() => '');
+}
+
+/**
+ * `caddy reload` exits 0 whenever the config it's told to load (its own
+ * `Caddyfile`, per the fixed `--config` flag above) is syntactically valid —
+ * NOT whenever routing actually changed. If `Caddyfile` doesn't `import
+ * site.caddy` at all (verified live: this was exactly what happened before
+ * a real Caddyfile was provisioned — reload kept "succeeding" while Caddy
+ * silently kept serving deploy/compose/Caddyfile.bootstrap's placeholder
+ * forever), the swap reports success and nothing is actually routed. Rather
+ * than trust the exit code, read Caddy's own admin API back — the live,
+ * currently-active config, not the file on disk — and assert it actually
+ * mentions the container this reload was supposed to route to. `wget` (not
+ * `curl`) because `caddy:2-alpine`'s base image ships BusyBox wget, not
+ * curl; verified live. `127.0.0.1`, not `localhost`: the container's
+ * `/etc/hosts` maps `localhost` to both `127.0.0.1` and `::1`, Caddy's
+ * admin API only binds the IPv4 address, and BusyBox wget's `localhost`
+ * lookup tries `::1` first and reports connection-refused without falling
+ * back — verified live (identical command, `localhost` fails, `127.0.0.1`
+ * succeeds against the same running admin API).
+ */
+async function currentCaddyConfig(): Promise<string> {
+  return sh([
+    'compose',
+    '-f',
+    `${ROOT}/base.yml`,
+    'exec',
+    'caddy',
+    'wget',
+    '-qO-',
+    'http://127.0.0.1:2019/config/',
+  ]);
 }
 
 async function readRecordedColor(tier: Tier): Promise<Color | null> {
@@ -160,19 +193,30 @@ async function execute(plan: SwapPlan, digest: string, sha: string): Promise<voi
         break;
       }
 
-      case 'move-alias': {
-        const [disconnect, connect] = moveAliasArgs(from, to);
-        if (disconnect !== null) await sh(disconnect);
-        await sh(connect);
+      case 'grant-alias':
+        // Incoming colour only — see lib/docker.ts's grantAliasCommands doc
+        // comment for why this must run before render-route/reload (nothing
+        // routes to this colour yet, so briefly disconnecting/reconnecting
+        // it here is safe) and why the outgoing colour's cleanup is a
+        // separate step deferred until after reload ('revoke-alias', below).
+        for (const cmd of grantAliasCommands(to)) await sh(cmd);
         break;
-      }
 
       case 'render-route': {
         const siteText = await readSiteCaddy();
-        const colors: Record<Tier, Color> = {
-          be: routedColorFor('be', siteText) ?? 'blue',
-          gw: routedColorFor('gw', siteText) ?? 'blue',
-          fe: routedColorFor('fe', siteText) ?? 'blue',
+        // `routedColorFor` returning null for a tier means "genuinely never
+        // deployed" — passed straight through as null, NOT defaulted to
+        // 'blue'. Defaulting was the bug: it wrote a guessed colour into
+        // site.caddy as if it were real routing state, which the next
+        // tier's own first deploy then read back as ground truth (routing
+        // "wins over the state file, always") and planned a bogus swap
+        // from. `siteContext`/`routeBlock` (lib/site.ts) render an honest
+        // "not yet deployed" response for null instead, which also means
+        // `routedColorFor` still correctly returns null next time.
+        const colors: Record<Tier, Color | null> = {
+          be: routedColorFor('be', siteText),
+          gw: routedColorFor('gw', siteText),
+          fe: routedColorFor('fe', siteText),
         };
         colors[tier] = to;
         const rendered = renderTemplate(siteCaddyTmpl, siteContext(colors, SITE_ADDRESS));
@@ -203,6 +247,22 @@ async function execute(plan: SwapPlan, digest: string, sha: string): Promise<voi
           '--config',
           '/etc/caddy/Caddyfile',
         ]);
+        // Trust, but verify: reload exiting 0 only means the config was
+        // syntactically valid, not that it's the config we think it is (see
+        // currentCaddyConfig's doc comment — this is precisely how the
+        // "reload silently no-ops" failure mode stayed invisible before).
+        {
+          const expected = containerName(tier, to);
+          const liveConfig = await currentCaddyConfig();
+          if (!liveConfig.includes(expected)) {
+            throw new Error(
+              `[swap-${tier}] caddy reload exited 0 but the live admin config ` +
+                `(http://127.0.0.1:2019/config/ inside the caddy container) does not ` +
+                `mention ${expected} — routing did not actually change. Check that ` +
+                `/srv/wbs/caddy/Caddyfile really imports site.caddy.`,
+            );
+          }
+        }
         break;
 
       case 'drain': {
@@ -228,6 +288,17 @@ async function execute(plan: SwapPlan, digest: string, sha: string): Promise<voi
         }
         break;
       }
+
+      case 'revoke-alias':
+        // Outgoing colour only, and only reachable here once `from !== null`
+        // (planSwap never includes this step otherwise) — deferred until
+        // after reload/drain so Caddy has already switched its own-alias
+        // route away from `from` before this disconnects it. See
+        // lib/docker.ts's revokeAliasCommands doc comment.
+        if (from !== null) {
+          for (const cmd of revokeAliasCommands(from)) await sh(cmd);
+        }
+        break;
 
       case 'stop-blue':
         await writePhase(phasePath, 'old-stopped');
