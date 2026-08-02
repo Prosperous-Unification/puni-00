@@ -266,6 +266,15 @@ and delivered exactly the downtime it was meant to prevent. The `/ws*` proxy the
 `stream_close_delay 310s` from day one — slightly above the 300s drain ceiling — so existing
 sockets survive the reload long enough to be drained deliberately.
 
+**Caddy's global `grace_period` is deliberately left unset**, i.e. at its default of waiting
+indefinitely for old server instances to drain. Setting it to a finite value is otherwise
+reasonable hygiene, but any value below `stream_close_delay` would sever the very sockets that
+setting exists to preserve, re-introducing the bug from the other direction. The cost of the
+default is that a reloaded Caddy keeps the old server object alive for up to 310s, so rapid
+successive deploys can stack several. That is bounded, small, and preferable to cutting live
+connections. If it ever matters, raise it as an explicit value **above** `stream_close_delay`
+rather than below.
+
 **gw→be uses a stable network alias.** `gw-01` reads `BE_URL` once at startup, so pointing it at
 a colour-specific container name would make the tiers inseparable. It instead targets
 `be-01.internal`, a docker network alias moved atomically during a be swap. gw never restarts
