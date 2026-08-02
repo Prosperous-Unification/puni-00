@@ -20,10 +20,11 @@
 	}
 }
 
-# DNS for this hostname does not exist yet, so Caddy cannot obtain a
-# certificate for it today. Caddy's automatic HTTPS is per-hostname: a
-# failed/retrying ACME issuance for this site block does not block or
-# tear down the certificate or serving of the block above.
+# The registry is reached ONLY through here. It publishes no host port of its
+# own (deploy/compose/base.yml), so this block is what gives it TLS, its
+# public name, and the address every published image ref is built from.
+# Caddy's automatic HTTPS is per-hostname, so an ACME problem with either
+# site block cannot take the other one down.
 registry.infra.bulletpoints.club {
 	reverse_proxy registry:5000 {
 		header_up X-Forwarded-Proto {scheme}

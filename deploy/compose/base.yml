@@ -36,19 +36,20 @@ services:
     image: registry:2
     restart: unless-stopped
     networks: [wbs-net]
-    # Not published to the public host interface: a containerised Caddy
-    # (Task 12) reaches it by container DNS ("registry:5000"), and nothing
-    # on the internet should reach it at all.
+    # No `ports:` at all — design decision 1's "caddy :80 :443 :443/udp, the
+    # ONLY published ports". Caddy reaches the registry by container DNS
+    # (`registry:5000`, see the site config's registry block) and terminates
+    # TLS for it at registry.infra.bulletpoints.club.
     #
-    # It IS published on loopback for now. DNS for the real hostname
-    # (registry.infra.bulletpoints.club) doesn't exist yet, so the host's
-    # own docker daemon — which needs to authenticate against this registry
-    # per configure.sh, and which later tasks' `docker compose pull` will
-    # depend on — has no other way to reach it until Task 12 wires up
-    # public TLS. 127.0.0.1-only keeps it host-local in the meantime; drop
-    # this port once the public hostname is live.
-    ports:
-      - '127.0.0.1:5000:5000'
+    # This service did carry `127.0.0.1:5000:5000` as an explicitly dated
+    # exception (ruled on by the human partner during Task 5): DNS for the
+    # public hostname did not exist yet, so the host's own docker daemon —
+    # which must authenticate to this registry to pull its own images — had
+    # no other way to reach it. That address then leaked into being a second
+    # source of truth for the publish address, since it was the only one any
+    # live swap had ever actually used. DNS and a real Let's Encrypt
+    # certificate now exist for registry.infra.bulletpoints.club, the host
+    # daemon logs in against that hostname, and the exception is retired.
     environment:
       REGISTRY_AUTH: htpasswd
       REGISTRY_AUTH_HTPASSWD_REALM: wbs

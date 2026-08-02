@@ -12,15 +12,17 @@
 #   sudo WBS_USER=puni1 REGISTRY_USER=wbs REGISTRY_PASS=<pw> sh configure.sh
 #
 # Optional:
-#   REGISTRY_HOST         hostname:port the host docker daemon logs in to
-#                         and (if REGISTRY_INSECURE=1) allow-lists as
-#                         plaintext HTTP. Defaults to the eventual public
-#                         hostname; override with an internal address
-#                         (e.g. 127.0.0.1:5000) until DNS/TLS exist for it.
+#   REGISTRY_HOST         hostname the host docker daemon logs in to and
+#                         pulls its own images from. Defaults to the public
+#                         hostname Caddy terminates TLS for. This is also the
+#                         address published image refs are built from, so it
+#                         must match what the build client pushes to.
 #   REGISTRY_INSECURE=1   add REGISTRY_HOST to the docker daemon's
-#                         insecure-registries list and restart docker.
-#                         Needed whenever REGISTRY_HOST has no TLS in front
-#                         of it yet.
+#                         insecure-registries list. Only for a host where
+#                         REGISTRY_HOST has no TLS in front of it yet.
+#                         Leaving it unset (the default) actively REMOVES the
+#                         entry, so a host bootstrapped before TLS existed is
+#                         cleaned up by re-running this script.
 #
 # Idempotent: safe to re-run.
 set -eu
@@ -151,39 +153,51 @@ chmod 0600 "$WBS_ROOT/.env"
 log "enabling systemd lingering for $WBS_USER"
 loginctl enable-linger "$WBS_USER"
 
-if [ "$REGISTRY_INSECURE" = "1" ]; then
-  log "checking whether $REGISTRY_HOST needs allow-listing as an insecure (plaintext HTTP) registry"
-  mkdir -p /etc/docker
-  daemon_json=/etc/docker/daemon.json
-  [ -f "$daemon_json" ] || printf '{}\n' > "$daemon_json"
-  # Only restart docker (which bounces every running container — caddy,
-  # registry, and anything else on the host, e.g. dagger-engine) if this
-  # actually changes the file. Restarting unconditionally on every re-run
-  # would contradict "idempotent, safe to re-run" above.
-  daemon_json_changed=$(python3 - "$daemon_json" "$REGISTRY_HOST" <<'PY'
+# Converges /etc/docker/daemon.json's insecure-registries on REGISTRY_INSECURE
+# in BOTH directions. Adding was always here; removing is what makes it
+# converge, and it matters: an entry left behind from a pre-TLS bootstrap
+# silently keeps a plaintext-HTTP fallback alive for a registry that now has a
+# real certificate, which is exactly the kind of leftover nobody goes looking
+# for. A host that once ran with REGISTRY_INSECURE=1 is cleaned up by
+# re-running this script without it.
+log "converging insecure-registries for $REGISTRY_HOST (REGISTRY_INSECURE=$REGISTRY_INSECURE)"
+mkdir -p /etc/docker
+daemon_json=/etc/docker/daemon.json
+[ -f "$daemon_json" ] || printf '{}\n' > "$daemon_json"
+daemon_json_changed=$(python3 - "$daemon_json" "$REGISTRY_HOST" "$REGISTRY_INSECURE" <<'PY'
 import json, sys
-path, host = sys.argv[1], sys.argv[2]
+path, host, want = sys.argv[1], sys.argv[2], sys.argv[3] == "1"
 with open(path) as f:
     text = f.read().strip()
 cfg = json.loads(text) if text else {}
 regs = set(cfg.get("insecure-registries", []))
-if host in regs:
+have = host in regs
+if have == want:
     print("unchanged")
 else:
-    regs.add(host)
-    cfg["insecure-registries"] = sorted(regs)
+    if want:
+        regs.add(host)
+    else:
+        regs.discard(host)
+    if regs:
+        cfg["insecure-registries"] = sorted(regs)
+    else:
+        cfg.pop("insecure-registries", None)
     with open(path, "w") as f:
         json.dump(cfg, f, indent=2)
         f.write("\n")
     print("changed")
 PY
 )
-  if [ "$daemon_json_changed" = "changed" ]; then
-    log "added $REGISTRY_HOST to insecure-registries — restarting docker to apply"
-    systemctl restart docker
-  else
-    log "$REGISTRY_HOST already allow-listed — skipping docker restart"
-  fi
+if [ "$daemon_json_changed" = "changed" ]; then
+  # `reload`, not `restart`: insecure-registries is in dockerd's
+  # SIGHUP-reloadable option set, so this applies without bouncing every
+  # running container (caddy, registry, dagger-engine, and every app colour).
+  # A restart here would take the whole box down to change one list.
+  log "insecure-registries changed — reloading dockerd to apply"
+  systemctl reload docker
+else
+  log "insecure-registries already correct — no dockerd reload needed"
 fi
 
 log "logging the host docker daemon in to $REGISTRY_HOST"
