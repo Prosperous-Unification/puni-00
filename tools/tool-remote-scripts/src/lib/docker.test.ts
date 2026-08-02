@@ -4,6 +4,7 @@ import {
   assertDigestPinnedRef,
   composeUpArgs,
   containerName,
+  deriveTierSecrets,
   grantAliasCommands,
   isDigest,
   manifestInspectArgs,
@@ -13,6 +14,8 @@ import {
   ROOT,
   tierComposeContext,
   tierComposeFile,
+  tierEnvFiles,
+  tierSecretsFile,
 } from './docker';
 
 const DIGEST = 'sha256:' + 'a'.repeat(64);
@@ -115,6 +118,104 @@ describe('tierComposeContext', () => {
     expect(() => tierComposeContext('be', 'blue', 'r.example.com/wbs-be-01:abc')).toThrow(
       /digest-pinned/,
     );
+  });
+
+  // Finding I7 (secrets over-distribution): fe-01 is a static Caddy server
+  // and must get neither a secrets env_file nor a data mount at all — not
+  // even an empty one.
+  it('gives fe-01 only its own app-config env file, no secrets file and no volumes', () => {
+    const ctx = tierComposeContext(
+      'fe',
+      'blue',
+      `registry.infra.bulletpoints.club/wbs-fe-01@${DIGEST}`,
+    );
+    expect(ctx['ENV_FILES']).toBe(`    env_file:\n      - ${ROOT}/fe-01.env\n`);
+    expect(ctx['VOLUMES']).toBe('');
+  });
+
+  it('gives gw-01 its app-config file plus its own derived secrets file, no data volume', () => {
+    const ctx = tierComposeContext(
+      'gw',
+      'blue',
+      `registry.infra.bulletpoints.club/wbs-gw-01@${DIGEST}`,
+    );
+    expect(ctx['ENV_FILES']).toBe(
+      `    env_file:\n      - ${ROOT}/gw-01.env\n      - ${ROOT}/gw-01.secrets.env\n`,
+    );
+    expect(ctx['VOLUMES']).toBe('');
+  });
+
+  it('gives be-01 its app-config file, its own secrets file, and the data volume', () => {
+    const ctx = tierComposeContext(
+      'be',
+      'blue',
+      `registry.infra.bulletpoints.club/wbs-be-01@${DIGEST}`,
+    );
+    expect(ctx['ENV_FILES']).toBe(
+      `    env_file:\n      - ${ROOT}/be-01.env\n      - ${ROOT}/be-01.secrets.env\n`,
+    );
+    expect(ctx['VOLUMES']).toBe(`    volumes:\n      - ${ROOT}/data:/data\n`);
+  });
+});
+
+describe('tierSecretsFile', () => {
+  it('names the derived secrets file after the app name', () => {
+    expect(tierSecretsFile('gw')).toBe(`${ROOT}/gw-01.secrets.env`);
+  });
+});
+
+describe('tierEnvFiles', () => {
+  it('fe-01 gets only its app-config file', () => {
+    expect(tierEnvFiles('fe')).toEqual([`${ROOT}/fe-01.env`]);
+  });
+
+  it('be-01 and gw-01 get their app-config file then their secrets file, in that order', () => {
+    expect(tierEnvFiles('be')).toEqual([`${ROOT}/be-01.env`, `${ROOT}/be-01.secrets.env`]);
+    expect(tierEnvFiles('gw')).toEqual([`${ROOT}/gw-01.env`, `${ROOT}/gw-01.secrets.env`]);
+  });
+});
+
+describe('deriveTierSecrets', () => {
+  const SHARED =
+    'INTERNAL_AUTH_SECRET=shared-secret-32-characters-long\n' +
+    'JWT_SIGNING_KEY_CURRENT=jwt-current-32-characters-long!\n' +
+    'REGISTRY_PASS=super-secret-registry-password\n';
+
+  it('gives be-01 only INTERNAL_AUTH_SECRET', () => {
+    expect(deriveTierSecrets('be', SHARED)).toBe(
+      'INTERNAL_AUTH_SECRET=shared-secret-32-characters-long\n',
+    );
+  });
+
+  it('gives gw-01 INTERNAL_AUTH_SECRET and the JWT signing key, but never REGISTRY_PASS', () => {
+    const out = deriveTierSecrets('gw', SHARED);
+    expect(out).toContain('INTERNAL_AUTH_SECRET=shared-secret-32-characters-long');
+    expect(out).toContain('JWT_SIGNING_KEY_CURRENT=jwt-current-32-characters-long!');
+    expect(out).not.toContain('REGISTRY_PASS');
+  });
+
+  // The finding this whole change fixes, stated as a direct assertion: no
+  // tier's allowlist can ever produce a file containing REGISTRY_PASS — it
+  // belongs to the host docker daemon and the build client only.
+  it('never emits REGISTRY_PASS for any tier, including fe-01', () => {
+    expect(deriveTierSecrets('be', SHARED)).not.toContain('REGISTRY_PASS');
+    expect(deriveTierSecrets('gw', SHARED)).not.toContain('REGISTRY_PASS');
+    expect(deriveTierSecrets('fe', SHARED)).not.toContain('REGISTRY_PASS');
+  });
+
+  it('fe-01 gets an empty string — no secrets file is written for it at all', () => {
+    expect(deriveTierSecrets('fe', SHARED)).toBe('');
+  });
+
+  it('ignores comments and blank lines in the shared file', () => {
+    const shared = '# a comment\n\nINTERNAL_AUTH_SECRET=x-32-characters-long-enough-ok\n';
+    expect(deriveTierSecrets('be', shared)).toBe(
+      'INTERNAL_AUTH_SECRET=x-32-characters-long-enough-ok\n',
+    );
+  });
+
+  it('omits an optional key the shared file does not carry (JWT_SIGNING_KEY_PREVIOUS)', () => {
+    expect(deriveTierSecrets('gw', SHARED)).not.toContain('JWT_SIGNING_KEY_PREVIOUS');
   });
 });
 

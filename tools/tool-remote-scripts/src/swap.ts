@@ -15,7 +15,7 @@
 // on a throwaway file with the same import pattern inlines the text and the
 // resulting bundle still runs correctly when moved and executed from an
 // unrelated directory.
-import { unlink } from 'node:fs/promises';
+import { chmod, unlink } from 'node:fs/promises';
 
 import { renderTemplate, siteCaddyTmpl, tierComposeTmpl } from '@wbs/tool-compose';
 
@@ -24,6 +24,7 @@ import {
   assertDigestPinnedRef,
   composeUpArgs,
   containerName,
+  deriveTierSecrets,
   grantAliasCommands,
   manifestInspectArgs,
   NETWORK,
@@ -31,8 +32,10 @@ import {
   psColorsFrom,
   revokeAliasCommands,
   ROOT,
+  SHARED_ENV_PATH,
   tierComposeContext,
   tierComposeFile,
+  tierSecretsFile,
 } from './lib/docker';
 import { drain } from './lib/drain';
 import { waitForHealthy } from './lib/health';
@@ -423,6 +426,23 @@ async function execute(plan: SwapPlan, image: string, sha: string): Promise<void
       switch (step) {
         case 'start-green': {
           await writePhase(phasePath, 'preparing');
+          // Finding I7: re-derive this tier's own filtered secrets file from
+          // the shared `/srv/wbs/.env` source of truth on every swap, rather
+          // than trusting a hand-maintained copy to still match it. Written
+          // before the compose file that references it (tierComposeContext's
+          // ENV_FILES), and before `compose up`, which is what actually
+          // reads it. 0600 like `/srv/wbs/.env` itself — `writeAtomic`
+          // doesn't set a mode, so it lands at the process umask's default
+          // otherwise. Skipped entirely for a tier with no secrets (fe-01):
+          // `deriveTierSecrets` returns '' for it and `tierComposeContext`
+          // never references a secrets path in ENV_FILES for it either, so
+          // there is nothing for this file to be read by.
+          const secrets = deriveTierSecrets(tier, await Bun.file(SHARED_ENV_PATH).text());
+          if (secrets !== '') {
+            const secretsPath = tierSecretsFile(tier);
+            await writeAtomic(secretsPath, secrets);
+            await chmod(secretsPath, 0o600);
+          }
           const ctx = tierComposeContext(tier, to, image);
           await writeAtomic(tierComposeFile(tier, to), renderTemplate(tierComposeTmpl, ctx));
           await sh(composeUpArgs(tier, to));

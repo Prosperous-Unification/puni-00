@@ -89,14 +89,106 @@ export function assertDigestPinnedRef(ref: string, tier: Tier): string {
 }
 
 /**
+ * Least privilege for the secret material each tier's process actually
+ * reads — see the authoritative list in each app's `src/config.ts`, not
+ * guessed:
+ *
+ * - fe-01 (`apps/fe-01`) is a static `caddy:2-alpine` server with no
+ *   `config.ts` at all. It needs, and gets, zero secrets.
+ * - be-01 (`apps/be-01/src/config.ts`) reads only `INTERNAL_AUTH_SECRET`.
+ * - gw-01 (`apps/gw-01/src/config.ts`) reads `INTERNAL_AUTH_SECRET` plus the
+ *   JWT signing key(s) it verifies `/ws` tokens against.
+ *
+ * `REGISTRY_PASS` is deliberately absent from every list: it belongs to the
+ * host's docker daemon (configure.sh's `docker login`) and the local build
+ * client, never an app container. Before this, every tier loaded the whole
+ * shared `/srv/wbs/.env` (which does carry it) — a compromise of even the
+ * fully-static fe-01 meant push+delete access to an internet-facing
+ * registry. See `deriveTierSecrets`.
+ */
+const SECRET_KEYS: Record<Tier, readonly string[]> = {
+  be: ['INTERNAL_AUTH_SECRET'],
+  gw: ['INTERNAL_AUTH_SECRET', 'JWT_SIGNING_KEY_CURRENT', 'JWT_SIGNING_KEY_PREVIOUS'],
+  fe: [],
+};
+
+/** The single human/`configure.sh`-maintained source of truth this tier's secrets file is derived from. */
+export const SHARED_ENV_PATH = `${ROOT}/.env`;
+
+/** Where a tier's derived, filtered secrets file lives. Only referenced by `tierEnvFiles` for a tier with a non-empty `SECRET_KEYS` entry. */
+export function tierSecretsFile(tier: Tier): string {
+  return `${ROOT}/${APP[tier]}.secrets.env`;
+}
+
+/**
+ * Filters the shared `/srv/wbs/.env` down to only the `KEY=VALUE` lines this
+ * tier is allowed to see (`SECRET_KEYS`). Comments and blank lines are
+ * dropped; anything that isn't `KEY=...` is ignored rather than carried
+ * through blind. Pure and re-run on every `start-green` (see `swap.ts`), so
+ * the derived file can never drift from `/srv/wbs/.env` by staying stale —
+ * there is no hand-maintained intermediate state to go stale.
+ */
+export function deriveTierSecrets(tier: Tier, sharedEnvText: string): string {
+  const allowed = SECRET_KEYS[tier];
+  if (allowed.length === 0) return '';
+  const allowedSet = new Set(allowed);
+  const kept: string[] = [];
+  for (const rawLine of sharedEnvText.split('\n')) {
+    const line = rawLine.trim();
+    if (line === '' || line.startsWith('#')) continue;
+    const eq = line.indexOf('=');
+    if (eq === -1) continue;
+    if (allowedSet.has(line.slice(0, eq))) kept.push(line);
+  }
+  return kept.length > 0 ? kept.join('\n') + '\n' : '';
+}
+
+/**
+ * `env_file` paths for a tier's rendered compose service, in the order
+ * `docker compose` applies them — LATER files win on a key collision. The
+ * tier's own app-config file (`PORT`, `LOG_LEVEL`, ...) goes first and the
+ * derived secrets file goes last, deliberately: a same-named key
+ * accidentally added to the app-config file must never be able to silently
+ * shadow the real secret for just one tier — see
+ * `tools/tool-smoke/src/health.ts`'s `checkInternalForward` doc comment for
+ * the real, weeks-long incident this ordering guards against. A tier with no
+ * `SECRET_KEYS` entry (fe-01) gets no secrets file at all, not an empty one.
+ */
+export function tierEnvFiles(tier: Tier): string[] {
+  const files = [`${ROOT}/${APP[tier]}.env`];
+  if (SECRET_KEYS[tier].length > 0) files.push(tierSecretsFile(tier));
+  return files;
+}
+
+function envFilesBlock(tier: Tier): string {
+  const lines = tierEnvFiles(tier).map((f) => `      - ${f}`);
+  return `    env_file:\n${lines.join('\n')}\n`;
+}
+
+/** Only be-01 (`apps/be-01/src/repository/db.ts`) opens a SQLite file off `/data` — see `tierComposeContext`'s doc comment. */
+const DATA_VOLUME_TIERS: ReadonlySet<Tier> = new Set<Tier>(['be']);
+
+function volumesBlock(tier: Tier): string {
+  if (!DATA_VOLUME_TIERS.has(tier)) return '';
+  return `    volumes:\n      - ${ROOT}/data:/data\n`;
+}
+
+/**
  * Substitution context for `tier.compose.tmpl`. `{{TIER}}` is deliberately
  * the app name (`be-01`), not the short tier code (`be`): that's what makes
  * the rendered service/container name equal `containerName()`, and what
- * makes the rendered `env_file` path (`/srv/wbs/be-01.env`) line up with the
- * per-app env file naming deploy.sh already uses.
+ * makes the rendered `env_file` paths (`/srv/wbs/be-01.env`, ...) line up
+ * with the per-app env file naming deploy.sh already uses.
  *
  * `image` is passed straight through from `release.json` rather than
  * assembled here — see `assertDigestPinnedRef`.
+ *
+ * `ENV_FILES` and `VOLUMES` are whole rendered blocks (own indentation,
+ * trailing newline) rather than bare values, the same pattern
+ * `lib/site.ts`'s `routeBlock` uses for `site.caddy.tmpl` — that's what lets
+ * a tier that needs no `volumes:` key at all (gw-01, fe-01) omit it
+ * entirely, rather than the naive string-replace template having to fake
+ * one with an empty list.
  */
 export function tierComposeContext(
   tier: Tier,
@@ -107,6 +199,8 @@ export function tierComposeContext(
     TIER: APP[tier],
     COLOR: color,
     IMAGE: assertDigestPinnedRef(image, tier),
+    ENV_FILES: envFilesBlock(tier),
+    VOLUMES: volumesBlock(tier),
   };
 }
 
