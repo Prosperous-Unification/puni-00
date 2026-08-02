@@ -1,7 +1,7 @@
 # Compose + blue/green deploy — design
 
 Date: 2026-08-02
-Status: approved, not yet implemented
+Status: approved, not yet implemented. Revision 2, after cross-review.
 Supersedes: the systemd build-on-server path added in `a318cff` (`deploy/deploy.sh`, `deploy/systemd/`, `deploy/caddy/`)
 Revives, with changes: D2, D6, D8, D9, D15 of `openspec/changes/scaffold-tech-setup/design.md`
 
@@ -23,8 +23,23 @@ reasons:
    deploy. The current stop-then-start costs 1–2 seconds of hard downtime.
 3. **Reproducible environments.** The same image should run locally and on the server.
 
-Multi-host is explicitly **not** a driver. h2puni is the only target, and this design does not
-carry machinery for a second one.
+### Why this is deliberately more than the use case needs
+
+Both cross-reviews (Gemini, Codex — 2026-08-02) independently concluded this design is
+"massively over-engineered for a single-host, single-user hobby project," and recommended
+collapsing to Docker Swarm or plain `docker compose up`.
+
+That assessment is correct on its own terms and is knowingly rejected. **The scaffold is the
+deliverable.** The goal is a reusable deployment substrate that runs on low-tier infrastructure
+today and scales up later, carried to other projects; the WBS tool is the test workload, not
+the point. Complexity that buys future scale is in scope. Complexity that buys nothing is not.
+
+This section exists so future reviewers do not re-derive the same objection. It is not a licence
+for defects — every correctness finding from those reviews is addressed below.
+
+Multi-host is not a driver _today_. h2puni is the only current target, and this design does not
+carry live machinery for a second one, but decisions are made so a second host is additive
+rather than a rewrite.
 
 ## Goals
 
@@ -35,46 +50,91 @@ carry machinery for a second one.
 
 ## Non-Goals
 
-- Multi-host or multi-environment orchestration.
+- Multi-host or multi-environment orchestration in this phase.
 - Kubernetes, Swarm, or any scheduler.
 - Auto-rollback on smoke-test failure.
 - Phase 2 items (observability stack, SOPS secrets) — separately specified below but out of
   scope for the first implementation plan.
 
+## Verified vs unverified claims
+
+Revision 1 asserted four things that turned out to be false. They are corrected below, but the
+lesson generalises: **this document distinguishes what has been checked from what has not.**
+
+Verified against primary sources or this repo:
+
+| Claim                                                                                                                             | Status                                                           |
+| --------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| `_EXPERIMENTAL_DAGGER_RUNNER_HOST` accepts only `container://`, `image://`, `kube-pod://`, `unix://`, `tcp://` — **not `ssh://`** | Verified, Dagger docs                                            |
+| Caddy `reverse_proxy` **forcibly closes WebSockets on config reload** unless `stream_close_delay` is set                          | Verified, Caddy docs (quoted in decision 7)                      |
+| This repo opens SQLite with no `journal_mode=WAL` and no `busy_timeout`                                                           | Verified, `apps/be-01/src/repository/migrate.ts:6`               |
+| `gw-01` reads `BE_URL` once at startup and holds it in `ForwardClient`                                                            | Verified, `apps/gw-01/src/main.ts:6`, `apps/gw-01/src/app.ts:30` |
+| A container cannot reach a host-loopback-bound port via `127.0.0.1`                                                               | Verified, Caddy Docker docs                                      |
+| Existing `be.caddy.tmpl` uses `handle_path`, stripping `/api` before be-01 sees it                                                | Verified, `tools/tool-compose/src/templates/be.caddy.tmpl:1`     |
+
+Not yet verified — **the spike in Migration step 1 exists to settle these**:
+
+- That a Dagger engine container on h2puni, reached through an SSH tunnel at
+  `tcp://127.0.0.1:<port>`, builds and publishes successfully from an arm64 client.
+- Whether Caddy re-resolves a changed Docker DNS alias without a reload (decision 7 avoids
+  depending on this, but it would simplify the swap if true).
+
 ## Decisions
 
 ### 1. Everything on h2puni is a Compose service
 
-The domain is **`bulletpoints.club`**. Three hostnames, all A records pointing at `62.238.48.248`:
+The domain is **`bulletpoints.club`**. Three hostnames, all A records at `62.238.48.248`:
 
-| Host                              | Serves                                | Phase |
-| --------------------------------- | ------------------------------------- | ----- |
-| `wbs.bulletpoints.club`           | the app — `/api/*`, `/ws*`, static fe | 1     |
-| `registry.bulletpoints.club`      | the image registry, basic auth        | 1     |
-| `observability.bulletpoints.club` | Grafana, basic auth                   | 2     |
+| Host                                    | Serves                                | Phase |
+| --------------------------------------- | ------------------------------------- | ----- |
+| `wbs.bulletpoints.club`                 | the app — `/api/*`, `/ws*`, static fe | 1     |
+| `registry.infra.bulletpoints.club`      | the image registry, basic auth        | 1     |
+| `observability.infra.bulletpoints.club` | Grafana, basic auth                   | 2     |
 
-Caddy provisions Let's Encrypt certificates for each automatically on first request.
+Infrastructure hostnames are grouped under `infra.` so the product namespace stays clean and a
+future wildcard cert or DNS delegation can cover them in one stroke.
+
+Note the label is `infra`, **not `_infra`**. A leading underscore is legal in DNS but not in a
+hostname used for TLS: public CAs including Let's Encrypt reject certificate requests for names
+containing underscores, and `_`-prefixed labels are reserved by convention for service records
+such as `_acme-challenge`. `registry._infra.bulletpoints.club` would resolve but could never get
+a certificate, which defeats the point of putting the registry behind TLS at all.
+
+Services, all on one user-defined docker network `wbs-net`:
 
 ```
-caddy            :80 :443    TLS terminator; the only published ports
-registry:2       :5000       bound to 127.0.0.1
-be-01-blue / be-01-green     one live, one idle
-gw-01-blue / gw-01-green     one live, one idle
-                             fe-01 is static assets, not a service
+caddy                    :80 :443 :443/udp   the ONLY published ports
+registry:2               on wbs-net only, never published to the host
+be-01-blue  / be-01-green      one live, one idle
+gw-01-blue  / gw-01-green      one live, one idle
+fe-01-blue  / fe-01-green      static-server containers, one live, one idle
 ```
 
-All on one docker network, `wbs-net`. Caddy routes `/api/*` to the live be container, `/ws*` to
-the live gw container, and everything else to `/srv/wbs/www/<sha>` as static files. Upstreams
-are container DNS names (`be-01-green:3100`), so **no host ports are published for the app
-tiers at all**.
+**No host ports are published for any app tier or the registry.** Upstreams are container DNS
+names. This is a security improvement, not just tidiness: `/internal/*` and `/metrics` are
+unauthenticated on both services and currently rely on binding to localhost.
 
-That last point is a security improvement over today, not just a tidiness one. `/internal/*`
-and `/metrics` are unauthenticated on both services and currently depend on binding to
-localhost. On a docker network they are unreachable from outside the network regardless.
+Corrected from revision 1: the registry is **not** bound to host `127.0.0.1:5000`. A
+containerised Caddy cannot proxy to host loopback — inside that container, `127.0.0.1` is the
+container itself. The registry lives on `wbs-net` and Caddy proxies to `registry:5000`.
 
-Caddy moves into Compose (D9's original intent), which means the host caddy installed by
-`configure.sh` is removed along with its `/etc/sudoers.d/wbs-caddy-reload` rule. Reloads happen
-via `docker exec caddy caddy reload --config /etc/caddy/Caddyfile`, which needs no privilege.
+Caddy needs **persistent volumes or it will re-request certificates on every restart** and hit
+Let's Encrypt rate limits:
+
+```yaml
+caddy:
+  volumes:
+    - caddy_data:/data # certificates and ACME state — REQUIRED
+    - caddy_config:/config
+    - /srv/wbs/caddy:/etc/caddy:ro
+  ports: ['80:80', '443:443', '443:443/udp']
+```
+
+The existing `fe.compose.tmpl` stub has exactly this bug and must be rewritten, not adapted.
+
+Caddy moves into Compose (D9's original intent), so the host caddy installed by `configure.sh`
+is removed along with its `/etc/sudoers.d/wbs-caddy-reload` rule. Reloads happen via
+`docker exec caddy caddy reload --config /etc/caddy/Caddyfile`, needing no privilege.
 
 ### 2. The build host is a swappable input
 
@@ -82,31 +142,58 @@ Four places a build may originate — this Mac (arm64), some other amd64 Linux b
 itself, or GitHub Actions — and the design must not prefer one.
 
 **Every build pins `--platform linux/amd64` explicitly and never inherits the host
-architecture.** An arm64 Mac emulates; everything else builds natively. Same instruction, same
-output, and nothing downstream knows where it ran.
+architecture.** An arm64 Mac emulates; everything else builds natively.
 
-Two config knobs, neither touching swap logic:
+Corrected from revision 1: **`ssh://` is not a valid Dagger runner scheme.** The supported set
+is `container://`, `image://`, `kube-pod://`, `unix://`, `tcp://`. Remote builds therefore work
+by tunnelling to a real engine:
 
-| Knob                 | Values                                                                                                          |
-| -------------------- | --------------------------------------------------------------------------------------------------------------- |
-| `DAGGER_RUNNER_HOST` | unset → engine on this machine; `ssh://puni1@h2puni` → engine on the server; unset in CI → engine on the runner |
-| `REGISTRY`           | `registry.bulletpoints.club` (default) or `ghcr.io/prosperous-unification`                                      |
+```sh
+# once, on h2puni: a persistent engine container with persistent state
+docker run -d --restart always --privileged \
+  -v dagger-engine:/var/lib/dagger \
+  -p 127.0.0.1:8080:8080 --name dagger-engine registry.dagger.io/engine
+
+# per session, on the client
+ssh -NL 8080:127.0.0.1:8080 h2puni &
+export _EXPERIMENTAL_DAGGER_RUNNER_HOST=tcp://127.0.0.1:8080
+```
+
+The engine requires `--privileged` and a persistent `/var/lib/dagger` for its build cache.
+Both are why it is a long-lived container rather than something the deploy starts.
+
+| Knob                 | Values                                                                                                                           |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `DAGGER_RUNNER_HOST` | unset → engine on this machine; `tcp://127.0.0.1:8080` over an SSH tunnel → engine on h2puni; unset in CI → engine on the runner |
+| `REGISTRY`           | `registry.infra.bulletpoints.club` (default) or `ghcr.io/prosperous-unification`                                                 |
 
 ### 3. A registry is the contract between build and deploy
 
 `tool-dagger` publishes; `tool-deploy` pulls. Neither knows anything else about the other. This
 is what keeps the build host pluggable — changing it is one env var.
 
-Self-hosted: a `registry:2` container on h2puni behind Caddy at `registry.bulletpoints.club` with TLS
-and basic auth. Chosen because a server-side build pushes over loopback and pays nothing, it
-keeps the stack self-hosted, and it is one more service on a box already being managed
-uniformly. GHCR remains a one-line swap.
+Self-hosted: a `registry:2` container on `wbs-net`, fronted by Caddy at
+`registry.infra.bulletpoints.club` with TLS and basic auth. GHCR remains a one-line swap.
+
+**Both directions need credentials.** Revision 1 specified the push and forgot the pull:
+
+- The **build client** logs in to push. Credentials come from the environment, or `docker login`.
+- **h2puni's own docker daemon logs in to pull**, because `docker compose up` fetches by digest
+  from an authenticated registry. Without `~/.docker/config.json` on the server the swap fails
+  at step 1 on a fresh host. `configure.sh` provisions this.
+
+Registry configuration also needs, and revision 1 omitted:
+
+- storage at `/var/lib/registry` on a named volume, included in backups
+- `X-Forwarded-Proto` / `X-Forwarded-For` passed through by Caddy, or pushes fail confusingly
+- garbage collection, since every deploy of every tier adds a layer set that is never reclaimed
+  automatically. A `registry garbage-collect` run, scheduled weekly.
 
 Cost, stated plainly: building on the Mac or in CI pushes roughly 100MB per changed tier over
 that host's uplink. That is a property of choosing that build host, not of this design.
 
 This replaces D7's bundle format entirely. `release-<sha>-<tier>.tar.gz`, `META.json`,
-`schema_version`, and `/srv/wbs/releases/` are all unnecessary and will not be built.
+`schema_version`, and `/srv/wbs/releases/` are unnecessary and will not be built.
 
 ### 4. Deploy by digest
 
@@ -120,62 +207,119 @@ origins genuinely interchangeable rather than merely similar.
 Rollback: `deploy --version=<older-sha>` looks that SHA's digest up in the server-side release
 record, pulls, and swaps.
 
-### 5. fe-01 ships as a data-only image
+### 5. fe-01 ships as a static-server container
 
-The Dagger engine may run on the server, but the client runs on the developer's machine, and
-`Container.export()` writes to the **client** filesystem. Static assets therefore cannot simply
-be exported to the server.
+Revision 1 had fe-01 as a data-only image extracted host-side with `docker create` + `docker cp`.
+Both reviewers independently rejected this, correctly: `docker cp` is not atomic and can leave a
+partial tree, an `index.html` referencing missing hashed assets is a broken deploy that no
+health check would catch, and it leaks application state onto the host filesystem in a design
+whose first decision is that everything is a container.
 
-Instead fe-01 builds into an image containing only `dist/`. The swap runs `docker create` plus
-`docker cp` to extract it into `/srv/wbs/www/<sha>`, points Caddy's root at the new directory,
-and reloads. Atomic, no symlink race. Previous directories remain for instant rollback; prune
-below the newest three.
+fe-01 is instead a normal static-server image — `FROM caddy:alpine` with `dist/` baked in and a
+minimal Caddyfile doing `try_files {path} /index.html`. It joins Compose as `fe-01-blue` /
+`fe-01-green` and the ingress Caddy proxies to it exactly like the other two tiers.
 
-### 6. Deploy state lives on the server
+This deletes an entire mechanism: no host directory tree, no `<sha>` directories, no pruning, no
+atomic-move dance. All three tiers now share one deploy model. It costs one in-network proxy hop.
 
-`/srv/wbs/state/<tier>.json` per tier: active color, SHA, digest, timestamp. Unchanged from D8
-apart from dropping the bundle filename and adding the digest.
+Static files can also be unhealthy after all, so fe-01 gets the same health gate as the others:
+fetch `/` and assert a 200 plus a non-empty body before routing to it.
 
-`tool-deploy` reads all three in one SSH round trip, feeds each tier's SHA to `nx affected` as
-its baseline, and builds only what changed. A missing file means "never deployed" and deploys
-unconditionally.
+### 6. Deploy state is derived, not declared
+
+`/srv/wbs/state/<tier>.json` records active colour, SHA, digest, and timestamp — but it is a
+**cache, not the source of truth.**
+
+Revision 1 claimed writing it last made a killed deploy idempotent. That is wrong, and both
+reviewers caught it. If the process dies after `caddy reload` but before the state write, Caddy
+routes to green while the file says blue; the next deploy treats green as idle and destroys the
+container serving production traffic.
+
+Gemini's suggested fix — write the file _before_ the reload — fails identically in the mirrored
+window, so it is not adopted.
+
+**The rendered Caddy config is the source of truth for which colour is live.** Every deploy
+begins by reading the actual routing state and the actual running containers, and reconciles the
+state file against them. A disagreement is logged and the observed state wins.
+
+On top of that:
+
+- **A `flock` on the server** serialises deploys. Two concurrent deploys are otherwise
+  unrecoverable, and nothing in revision 1 prevented them.
+- **Config writes are atomic** — write to a temp file, `fsync`, `rename` — so a crash can never
+  leave a partial Caddyfile that a later Caddy restart would happily load.
+- **A phase marker** advances through `preparing → routed → old-stopped → committed`, so
+  recovery knows which window it died in without having to infer it.
+
+`tool-deploy` still reads all three state files in one SSH round trip to feed `nx affected` a
+per-tier baseline. A missing file means "never deployed" and deploys unconditionally.
 
 ### 7. Swap sequence
 
-**be-01 and gw-01** — identical apart from the drain:
+**The WebSocket claim in revision 1 was false.** From the Caddy documentation, verbatim:
 
-1. `docker compose up -d <tier>-green` — pulls by digest, starts on the idle color.
-2. Poll green's `/health` every 500ms, 60s ceiling.
-3. Render the Caddy fragment at green, `docker exec caddy caddy reload`.
-4. gw only: drain loop — poll blue's `gw_active_connections` every 10s until zero or 300s.
-5. `docker compose stop <tier>-blue`, then write the state file.
+> "By default, WebSocket connections are forcibly closed (with a Close control message sent to
+> both the client and upstream) when the config is reloaded."
 
-**fe-01** has no health gate; static files cannot be unhealthy. Extract, repoint root, reload.
+Revision 1 put the drain loop _after_ the reload, so it would have drained an already-empty set
+and delivered exactly the downtime it was meant to prevent. The `/ws*` proxy therefore carries
+`stream_close_delay 310s` from day one — slightly above the 300s drain ceiling — so existing
+sockets survive the reload long enough to be drained deliberately.
 
-Rollback follows D2 unchanged: before the reload, stop green and walk away; after the reload
-but before blue stops, re-render at blue and reload again; after blue is gone, redeploy the
-previous digest.
+**gw→be uses a stable network alias.** `gw-01` reads `BE_URL` once at startup, so pointing it at
+a colour-specific container name would make the tiers inseparable. It instead targets
+`be-01.internal`, a docker network alias moved atomically during a be swap. gw never restarts
+and is never reconfigured when be deploys.
 
-The state file is written **last** so that a killed deploy still names blue, and re-running
-re-attempts the same swap idempotently.
+Caddy's own upstreams are handled by reload rather than by the alias, because whether Caddy
+re-resolves changed Docker DNS without a reload is unverified. Two mechanisms, each used where
+it is known to work.
+
+**be-01:**
+
+1. `docker compose up -d be-01-green` — pulls by digest.
+2. Run migrations as a **discrete step** against green, before it takes traffic (decision 8).
+3. Poll green's `/health` every 500ms, 60s ceiling.
+4. Move the `be-01.internal` alias to green — gw follows immediately, no restart.
+5. Render the Caddy fragment at green, `docker exec caddy caddy reload`.
+6. `docker compose stop be-01-blue`, commit state.
+
+**gw-01:**
+
+1. `docker compose up -d gw-01-green`, poll `/health`.
+2. Render fragment at green, reload. Existing sockets survive via `stream_close_delay`.
+3. Drain loop — poll blue's `gw_active_connections` every 10s until zero or 300s.
+4. `docker compose stop gw-01-blue`, commit state.
+
+**fe-01:** identical to gw-01 without the drain.
+
+Rollback follows D2: before the reload, stop green and walk away; after the reload but before
+blue stops, re-render at blue and reload again; after blue is gone, redeploy the previous digest.
 
 ### 8. Migrations must be backward-compatible with the previous release
 
 Blue and green both mount `/srv/wbs/data/be`, so during the overlap two be-01 processes share
-one SQLite file, and green runs `runMigrations()` on startup while blue still serves the old
-schema. Today's stop-then-start deploy hides this completely.
+one SQLite file.
 
-WAL mode makes the concurrent access itself survivable — readers do not block and writers
-serialize over a few hundred milliseconds of overlap. A **destructive** migration is not
-survivable: green drops a column, blue's next query against it fails, and blue remains the live
-upstream until step 5.
+**Correcting revision 1: WAL is not enabled in this repo.** `apps/be-01/src/repository/migrate.ts:6`
+opens `new Database(dbPath)` with no pragmas at all, and there is no `busy_timeout` anywhere in
+`apps/` or `libs/`. SQLite therefore defaults to rollback-journal mode, where a writer takes an
+EXCLUSIVE lock that blocks **readers** as well as writers, with a zero busy timeout. Under
+revision 1's design, blue's next read during green's migration would have failed immediately
+with `SQLITE_BUSY` — not degraded, failed.
 
-The rule: add columns, do not drop them; drop in a later deploy once nothing references them.
+**Prerequisite, before blue/green is safe at all:** enable `journal_mode=WAL` and
+`busy_timeout=5000` on every connection, and assert both at startup so a regression is loud.
+This is implementation task one, ahead of any Compose work.
 
-To keep this from becoming folklore, `tool-deploy` compares the migration directory against the
-deployed SHA. On finding new migration files it requires an explicit `--with-migrations` flag
-before it will blue/green, and otherwise refuses and suggests `--stop-the-world` for a plain
-restart. This converts a silent 3am failure into a prompt at deploy time.
+Even with WAL, `SQLITE_BUSY` remains possible, so migrations do **not** run implicitly on
+container startup. They run as a discrete deploy step (decision 7, be-01 step 2) that must
+succeed before green joins rotation. A failed migration aborts the deploy with blue untouched.
+
+The rule stands: add columns, do not drop them; drop in a later deploy once nothing references
+them. `tool-deploy` compares the migration directory against the deployed SHA, and on finding
+new files requires an explicit `--with-migrations` flag, otherwise refusing and suggesting
+`--stop-the-world` for a plain restart.
 
 The WebSocket side needs no equivalent rule: the Layer-A resume protocol means dropped sockets
 reconnect and replay from `event_log`, so the drain window is insurance rather than the primary
@@ -184,85 +328,108 @@ mechanism.
 ### 9. Testing
 
 The repo's existing split holds — pure planning functions with a thin IO shell. `planSwap()`
-takes current state and returns an ordered step list; something else executes it. This is why
-`swap.test.ts` and `render.test.ts` have value despite nothing ever having been deployed.
+takes current state and returns an ordered step list; something else executes it.
 
 1. **Unit** — planners, template rendering, tier selection, digest parsing. No docker.
 2. **Integration** — the full stack on h2puni under a second Compose project name,
-   `wbs-staging`, with its own ports and its own `/srv/wbs-staging` tree. Run a real blue/green
-   swap against it and assert continuous availability. Same kernel, same docker, same images as
-   production, no risk to production.
-3. **Smoke** — `tool-smoke` after every production deploy: `/health` on both tiers, an
-   authenticated `/internal/forward` round trip, a WS connect-and-resume, and a fetch of
-   `index.html`.
+   `wbs-staging`, with its own network and volumes. Run a real blue/green swap and assert
+   continuous availability. Same kernel, same docker, same images as production.
+3. **Smoke** — after every production deploy.
 
-The integration level does not exist today and matters most. It is what would have caught the
-`INTERNAL_AUTH_SECRET` bug that shipped for weeks in `a318cff`, and it is what makes decision 8
-enforceable: deploy the previous SHA to staging, deploy the new one on top, and a
-backward-incompatible migration fails there instead of in production.
+**Smoke must run inside `wbs-net`, not from outside.** Revision 1 specified smoke checks against
+`/health` and `/metrics` while also specifying that Caddy exposes neither — a direct
+self-contradiction, and `tools/tool-smoke/src/health.ts:20` already checks exactly those public
+URLs. Smoke runs as a throwaway container on `wbs-net`, reaching services by container name.
+
+The WS smoke check is currently a scaffold that prints and exits
+(`tools/tool-smoke/src/ws-ping.ts:78`). **It must be made real before any zero-downtime claim is
+credible**, since it is the only automated check that would detect the `stream_close_delay`
+failure this revision exists to fix.
+
+The integration level is what makes decision 8 enforceable: deploy the previous SHA to staging,
+deploy the new one on top, and a backward-incompatible migration fails there instead of in
+production.
 
 ### 10. Failure handling
 
-| Failure                              | Behaviour                                                                             |
-| ------------------------------------ | ------------------------------------------------------------------------------------- |
-| SSH or registry unreachable at start | Abort before anything starts. Nothing changed.                                        |
-| Image pull fails                     | Abort. Blue still live.                                                               |
-| Green fails `/health` within 60s     | Stop green, dump its logs to the operator's terminal, exit non-zero. Blue never left. |
-| `caddy reload` fails                 | Green is up but unrouted. Stop green, leave blue live, exit non-zero.                 |
-| Drain times out at 300s              | Proceed. Remaining sockets drop and resume via Layer-A. Logged, not fatal.            |
-| Smoke fails after swap               | Report loudly, exit non-zero, do **not** auto-rollback.                               |
-| Deploy killed mid-run                | State file names blue. Re-running re-attempts the same swap idempotently.             |
+| Failure                                              | Behaviour                                                                                                         |
+| ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| Another deploy holds the `flock`                     | Refuse immediately, name the holder.                                                                              |
+| SSH, registry, or registry auth unavailable at start | Abort before anything starts. Nothing changed.                                                                    |
+| Image pull fails                                     | Abort. Blue still live.                                                                                           |
+| Migration step fails                                 | Stop green, abort. Blue untouched and un-migrated.                                                                |
+| Green fails `/health` within 60s                     | Stop green, dump its logs, exit non-zero. Blue never left.                                                        |
+| `caddy reload` fails                                 | Green is up but unrouted. Stop green, leave blue live, exit non-zero.                                             |
+| Drain times out at 300s                              | Proceed. Remaining sockets drop and resume via Layer-A. Logged, not fatal.                                        |
+| Smoke fails after swap                               | Report loudly, exit non-zero, do **not** auto-rollback.                                                           |
+| Deploy killed mid-run                                | Next run reconciles from observed Caddy config and container state; the phase marker names the window it died in. |
 
 Smoke failure deliberately does not auto-rollback: an automatic rollback triggered by a flaky
 smoke test is worse than a human looking at it.
 
 `--dry-run` prints the full plan without executing and remains the default for anything
-destructive until `--execute` is passed, matching the convention the existing scaffolds assume.
+destructive until `--execute` is passed.
+
+### 11. The existing stubs are rewritten, not adapted
+
+`tools/tool-compose/src/templates/` publishes app ports to the host and uses `handle_path` for
+`/api`, which strips the prefix before be-01 receives it — but be-01 mounts its controllers
+under `/api` already, which is why the live template deliberately uses `handle`. Reusing these
+stubs would produce 404s that look like routing bugs.
+
+They are deleted and rewritten as part of this change. `tool-compose`'s renderer and its tests
+are sound and stay.
 
 ## Risks / Trade-offs
 
-**The Dagger remote runner over SSH is unproven here.** `_EXPERIMENTAL_DAGGER_RUNNER_HOST`
-carries that prefix for a reason, and it has not been verified against this host. **Spike this
-first, before any other implementation work.** If it proves unreliable, the fallback is GitHub
-Actions building and pushing to the same registry — decisions 3 through 10 are unaffected,
-because the registry is the contract.
+**Two revision-1 claims were already falsified by review; more may be.** The build mechanism and
+the WebSocket-reload behaviour were both asserted without verification and both were wrong. The
+"Verified vs unverified claims" section above exists to keep that visible, and the spike in
+Migration step 1 settles the largest remaining unknown before anything is built on it.
 
-**Compose blue/green is hand-rolled.** Docker Compose has no native blue/green primitive, so
-the colour logic is ours to write and ours to get wrong. Mitigated by the staging project in
-decision 9, which exercises the real swap path on the real host.
+**Compose blue/green is hand-rolled.** Docker Compose has no native blue/green primitive, so the
+colour logic is ours to write and ours to get wrong. Mitigated by the staging project.
 
-**More moving parts than systemd.** Today's setup is four files and a `bun run`. This is a
-registry, an ingress container, six app containers, and an orchestrator. The justification is
-the three drivers in Context; if those stop being true, this is over-built.
+**The Dagger engine is a privileged container.** `--privileged` on a long-lived container is a
+real expansion of blast radius on a box also serving public traffic. Accepted because the engine
+is not reachable off-host — the tunnel terminates at loopback — but it is the single most
+security-relevant object in this design.
 
-**Emulated builds on the Mac are slow.** Accepted, and avoidable by pointing
-`DAGGER_RUNNER_HOST` at the server.
+**More moving parts than systemd.** Justified by the scaffold rationale in Context, not by the
+current use case, which the systemd path already serves adequately.
+
+**Emulated builds on the Mac are slow.** Accepted, and avoidable via the tunnel.
 
 ## Phasing
 
-**Phase 1 — this design.** Dagger builds, registry, Compose with containerised Caddy, all three
-tiers, blue/green with the gw drain, TLS on the domain, staging project, smoke. Secrets stay in
-`/srv/wbs/.env` as they are today.
+**Phase 1 — this design.** WAL + busy_timeout prerequisite, Dagger builds via tunnelled engine,
+registry with auth both directions, Compose with containerised Caddy, all three tiers as
+containers, blue/green with `stream_close_delay` and the gw drain, the `be-01.internal` alias,
+deploy lock and reconciliation, TLS, staging project, real WS smoke. Secrets stay in
+`/srv/wbs/.env`.
 
-**Phase 2 — additive, separately specified.** The observability stack (Grafana, Loki, Promtail,
-Prometheus) on `observability.bulletpoints.club` behind basic auth per D15, and SOPS + age replacing the
-hand-written `.env` per D18. Both are additive and cannot break Phase 1.
+**Phase 2 — additive.** Observability stack on `observability.infra.bulletpoints.club` behind basic
+auth per D15, and SOPS + age replacing the hand-written `.env` per D18.
 
 ## Migration from the current deployment
 
-1. Spike the Dagger remote runner against h2puni. Do not proceed until it works or the CI
-   fallback is chosen.
-2. Build Phase 1 against the `wbs-staging` Compose project on h2puni, leaving the live systemd
+1. **Spike the build mechanism.** Start a Dagger engine container on h2puni, tunnel to it, and
+   publish one `linux/amd64` test image to the registry path. Roughly 30 minutes. Do not proceed
+   until it works or the GitHub Actions fallback is chosen — the registry-as-contract design
+   means that swap changes nothing downstream.
+2. **Land the WAL + `busy_timeout` prerequisite**, with a startup assertion and a test. This is
+   independently valuable and ships to the live systemd deployment immediately.
+3. Build Phase 1 against the `wbs-staging` Compose project on h2puni, leaving the live systemd
    deployment untouched throughout.
-3. Cut over: stop the systemd units, `docker compose up` production, verify smoke.
-4. Delete `deploy/deploy.sh`, `deploy/systemd/`, `deploy/caddy/`; disable and remove the host
-   caddy and `/etc/sudoers.d/wbs-caddy-reload`; reduce `configure.sh` to installing docker,
-   creating `/srv/wbs`, and enabling linger. Bun is no longer installed on the host — it exists
-   only inside images.
+4. Cut over: stop the systemd units, `docker compose up` production, verify smoke.
+5. Delete `deploy/deploy.sh`, `deploy/systemd/`, `deploy/caddy/`; remove the host caddy and
+   `/etc/sudoers.d/wbs-caddy-reload`; reduce `configure.sh` to installing docker, creating
+   `/srv/wbs`, enabling linger, and provisioning registry credentials. Bun is no longer
+   installed on the host — it exists only inside images.
 
-The live deployment stays up and serving throughout steps 1 and 2.
+The live deployment stays up and serving throughout steps 1 to 3.
 
 ## Open questions
 
-None. The domain (`bulletpoints.club`) was the last one; see decision 1 for the three hostnames it
-resolves to.
+None. The two decisions reopened by cross-review — the build mechanism and the be/gw coupling —
+were resolved to the SSH tunnel and the `be-01.internal` alias respectively.
