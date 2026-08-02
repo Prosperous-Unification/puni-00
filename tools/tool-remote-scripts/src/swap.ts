@@ -90,12 +90,65 @@ async function containerIp(name: string): Promise<string> {
   return ip;
 }
 
+/** No single poll of gw-01's drain gauge waits longer than this before being treated as unreachable. */
+const ACTIVE_CONNECTIONS_TIMEOUT_MS = 5000;
+
+/**
+ * The timed part of `activeConnections`, split out so it can be unit tested
+ * with a fake `fetchImpl` the way `lib/health.ts`'s `waitForHealthy` and
+ * `tool-smoke/src/health.ts`'s `fetchWithTimeout` already are — every other
+ * fetch in this codebase follows that `AbortController` + `setTimeout`
+ * pattern; this was the one bare `fetch` left with no deadline of its own.
+ *
+ * Without a deadline, `drain`'s `maxWaitMs` only bounds the whole polling
+ * loop (lib/drain.ts), not a single request inside it — a wedged gw-01 (TCP
+ * connected, never responds) would block one poll for however long the OS's
+ * own TCP timeout is, which can exceed the entire 300s drain ceiling on its
+ * own, when the design intent is up to thirty ~10s-spaced polls in that
+ * window.
+ *
+ * A poll that cannot determine the real count — timeout, network error, a
+ * non-OK response — returns `Infinity`, not `0`. `drain()`'s loop keeps
+ * going on anything `> 0`, so `Infinity` reads as "cannot determine, keep
+ * draining": the safe direction. Returning `0` here would make an
+ * unreachable gw-01 look fully drained after a single failed poll and let
+ * the swap proceed straight to `revoke-alias`/`stop-blue` while real
+ * connections might still be open on it. A malformed-but-successful
+ * response (200, JSON, no `activeConnections` field) is a different,
+ * unrelated case and keeps its prior behaviour of counting as `0`.
+ */
+export async function pollActiveConnections(
+  url: string,
+  fetchImpl: typeof fetch = fetch,
+  timeoutMs: number = ACTIVE_CONNECTIONS_TIMEOUT_MS,
+): Promise<number> {
+  const ctl = new AbortController();
+  const timer = setTimeout(() => {
+    ctl.abort();
+  }, timeoutMs);
+  try {
+    const res = await fetchImpl(url, { signal: ctl.signal });
+    if (!res.ok) {
+      console.warn(`[swap-gw] drain poll against ${url} returned HTTP ${String(res.status)}`);
+      return Infinity;
+    }
+    const body = (await res.json()) as { activeConnections?: unknown };
+    return typeof body.activeConnections === 'number' ? body.activeConnections : 0;
+  } catch (e: unknown) {
+    console.warn(
+      `[swap-gw] drain poll against ${url} failed or timed out — treating as "cannot ` +
+        `determine, keep draining": ${e instanceof Error ? e.message : String(e)}`,
+    );
+    return Infinity;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 /** One gauge, read off gw-01's own in-memory counters (see below). */
 async function activeConnections(container: string): Promise<number> {
   const ip = await containerIp(container);
-  const res = await fetch(`http://${ip}:${String(PORT.gw)}/metrics/snapshot`);
-  const body = (await res.json()) as { activeConnections?: unknown };
-  return typeof body.activeConnections === 'number' ? body.activeConnections : 0;
+  return pollActiveConnections(`http://${ip}:${String(PORT.gw)}/metrics/snapshot`);
 }
 
 /**
