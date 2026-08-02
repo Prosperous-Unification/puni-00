@@ -30,6 +30,29 @@ describe('writeAtomic', () => {
     expect(readFileSync(p, 'utf8')).toBe('second');
     expect(existsSync(`${p}.tmp`)).toBe(false);
   });
+
+  it('produces correct content with fsync', async () => {
+    const p = join(dir, 'large.caddy');
+    const content = 'x'.repeat(1000000); // 1MB of data
+    await writeAtomic(p, content);
+    expect(readFileSync(p, 'utf8')).toBe(content);
+    expect(existsSync(`${p}.tmp`)).toBe(false);
+  });
+
+  it('cleans up temp file on write failure', async () => {
+    const p = join(dir, 'nested', 'fail.caddy');
+    const tmpPath = `${p}.tmp`;
+    // Try to write to a path in a nonexistent directory, causing rename to fail
+    // This forces temp file cleanup before rethrowing
+    let threw = false;
+    try {
+      await writeAtomic(p, 'should fail');
+    } catch {
+      threw = true;
+    }
+    expect(threw).toBe(true);
+    expect(existsSync(tmpPath)).toBe(false);
+  });
 });
 
 describe('withLock', () => {
