@@ -11,6 +11,7 @@ const DOCKERFILE: Record<Tier, string> = {
 
 const PUBLIC_URL = process.env['WBS_PUBLIC_URL'] ?? 'https://wbs.bulletpoints.club';
 const REGISTRY = process.env['REGISTRY'] ?? 'registry.infra.bulletpoints.club';
+const REGISTRY_USER = process.env['REGISTRY_USER'] ?? 'wbs';
 
 // linux/amd64 is pinned explicitly so a client running on arm64 (a dev laptop,
 // or a build host) produces the same image the amd64 production host runs.
@@ -39,7 +40,7 @@ function buildArgs(tier: Tier): BuildArg[] {
  * across — explicitly, and logged, rather than silently, so a typo in the
  * real variable's name doesn't fail in a way that's hard to trace back here.
  */
-function applyRunnerHostAlias(env: NodeJS.ProcessEnv): void {
+export function applyRunnerHostAlias(env: NodeJS.ProcessEnv): void {
   const friendly = env['DAGGER_RUNNER_HOST'];
   const real = env['_EXPERIMENTAL_DAGGER_RUNNER_HOST'];
   if (friendly !== undefined && friendly !== '' && (real === undefined || real === '')) {
@@ -50,11 +51,32 @@ function applyRunnerHostAlias(env: NodeJS.ProcessEnv): void {
   }
 }
 
+/**
+ * Reads the registry password from the environment, failing loudly rather
+ * than letting publishAll silently attempt (and fail) an unauthenticated
+ * push. Kept separate from publishAll so the check runs, and can fail,
+ * before any Dagger engine connection is opened.
+ */
+export function requireRegistryPassword(env: NodeJS.ProcessEnv): string {
+  const pass = env['REGISTRY_PASS'];
+  if (pass === undefined || pass === '') {
+    throw new Error(
+      'REGISTRY_PASS must be set to authenticate the publish — refusing to attempt an unauthenticated push',
+    );
+  }
+  return pass;
+}
+
 export async function publishAll(tiers: Tier[], sha: string): Promise<ReleaseRecord> {
   applyRunnerHostAlias(process.env);
+  const registryPassword = requireRegistryPassword(process.env);
   const record: ReleaseRecord = {};
   await connect(
     async (client) => {
+      // Wrapped in Dagger's secret mechanism rather than interpolated into
+      // any string, so the plaintext password is never logged and can't end
+      // up in an error message.
+      const registrySecret = client.setSecret('registry-password', registryPassword);
       // A single host directory snapshot is reused as the build context for
       // every tier so each Dockerfile sees the same source tree.
       const src = client
@@ -68,6 +90,10 @@ export async function publishAll(tiers: Tier[], sha: string): Promise<ReleaseRec
             platform: TARGET_PLATFORM,
             buildArgs: buildArgs(tier),
           })
+          // The address here is the registry host (REGISTRY), not the
+          // per-image ref — withRegistryAuth authenticates against the
+          // registry itself, not a specific repository/tag within it.
+          .withRegistryAuth(REGISTRY, REGISTRY_USER, registrySecret)
           .publish(ref);
         record[tier] = { sha, digest: parseDigest(published), ref };
       }
