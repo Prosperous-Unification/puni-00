@@ -67,6 +67,52 @@ describe('health.waitForHealthy', () => {
     });
     expect(ok).toBe(false);
   });
+
+  // fe-01 is a static file server: a truncated/empty index.html still
+  // returns 200, so a status-only check would pass a broken deploy. Design
+  // decision 5 requires asserting a non-empty body too.
+  it('rejects a 200 whose body fails an optional isHealthy predicate', async () => {
+    const ok = await waitForHealthy({
+      url: 'http://example',
+      timeoutMs: 10,
+      attempts: 2,
+      intervalMs: 1,
+      isHealthy: (body) => body.length > 0,
+      fetchImpl: (() =>
+        Promise.resolve(new Response('', { status: 200 }))) as unknown as typeof fetch,
+    });
+    expect(ok).toBe(false);
+  });
+
+  it('accepts once the body starts satisfying the predicate', async () => {
+    let n = 0;
+    const ok = await waitForHealthy({
+      url: 'http://example',
+      timeoutMs: 10,
+      attempts: 3,
+      intervalMs: 1,
+      isHealthy: (body) => body.length > 0,
+      fetchImpl: (() => {
+        n++;
+        return Promise.resolve(new Response(n < 2 ? '' : '<html>ok</html>', { status: 200 }));
+      }) as unknown as typeof fetch,
+    });
+    expect(ok).toBe(true);
+  });
+
+  it('leaves be-01/gw-01-style callers unchanged when isHealthy is not provided', async () => {
+    // Same body as the rejected case above, but with no predicate: status
+    // alone must still be sufficient, exactly as before this change.
+    const ok = await waitForHealthy({
+      url: 'http://example',
+      timeoutMs: 10,
+      attempts: 1,
+      intervalMs: 1,
+      fetchImpl: (() =>
+        Promise.resolve(new Response('', { status: 200 }))) as unknown as typeof fetch,
+    });
+    expect(ok).toBe(true);
+  });
 });
 
 describe('drain', () => {

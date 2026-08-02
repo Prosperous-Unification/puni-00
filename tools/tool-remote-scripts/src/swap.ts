@@ -61,11 +61,12 @@ async function sh(args: string[]): Promise<string> {
  * containers on `wbs-net` can resolve each other by container-DNS name.
  * This process runs on the bare host (`/srv/wbs/bin/swap.js`, not inside a
  * container), so it cannot reach `http://be-01-green:3100/...` by name. It
- * CAN reach the container directly by its bridge-network IP: Docker routes
- * host -> bridge-network-container traffic regardless of published ports,
- * only host -> *outside* traffic needs a publish. Not verified against a
- * live container in this task (no deploy was run) — Task 12's first real
- * swap should confirm this the first time health-gate actually executes.
+ * instead reaches the container directly by its bridge-network IP: Docker
+ * routes host -> bridge-network-container traffic regardless of published
+ * ports, only host -> *outside* traffic needs a publish. Verified live on
+ * h2puni: `curl` to a container's bridge IP returned 200, and `ip route`
+ * shows a direct kernel route to the bridge subnet — this works on the real
+ * target, not just in theory.
  */
 async function containerIp(name: string): Promise<string> {
   const out = await sh([
@@ -147,6 +148,10 @@ async function execute(plan: SwapPlan, digest: string, sha: string): Promise<voi
           timeoutMs: 2000,
           attempts: 120,
           intervalMs: 500,
+          // fe-01 is a static file server: a truncated/empty index.html
+          // still returns 200, which no status-only check would catch
+          // (design decision 5). be-01/gw-01 keep the plain res.ok gate.
+          isHealthy: tier === 'fe' ? (body) => body.length > 0 : undefined,
         });
         if (!ok) {
           await sh(['stop', containerName(tier, to)]);
@@ -176,6 +181,13 @@ async function execute(plan: SwapPlan, digest: string, sha: string): Promise<voi
       }
 
       case 'reload':
+        // Written BEFORE the reload, like 'preparing' before start-green's
+        // compose up: a process killed mid-reload must be classifiable as
+        // "was attempting to route" rather than looking identical to having
+        // never started. Recovery still re-derives the true live colour
+        // from the rendered site.caddy (the source of truth), never from
+        // this marker — it only names which window a kill happened in.
+        await writePhase(phasePath, 'routed');
         // Targets caddy by Compose *service* name rather than a hardcoded
         // container name: base.yml sets no `container_name` for it, so the
         // real container is `wbs-caddy-1` (verified live on h2puni), which
@@ -191,7 +203,6 @@ async function execute(plan: SwapPlan, digest: string, sha: string): Promise<voi
           '--config',
           '/etc/caddy/Caddyfile',
         ]);
-        await writePhase(phasePath, 'routed');
         break;
 
       case 'drain': {
@@ -219,16 +230,16 @@ async function execute(plan: SwapPlan, digest: string, sha: string): Promise<voi
       }
 
       case 'stop-blue':
-        if (from !== null) await sh(['stop', containerName(tier, from)]);
         await writePhase(phasePath, 'old-stopped');
+        if (from !== null) await sh(['stop', containerName(tier, from)]);
         break;
 
       case 'commit':
+        await writePhase(phasePath, 'committed');
         await writeAtomic(
           `${ROOT}/state/${tier}.json`,
           renderStateJson({ tier, activeColor: to, lastDeployedSha: sha }),
         );
-        await writePhase(phasePath, 'committed');
         break;
     }
   }
@@ -239,17 +250,22 @@ function argOf(flag: string): string {
   return hit === undefined ? '' : hit.slice(flag.length + 3);
 }
 
+function describePlan(tier: Tier, plan: SwapPlan): string {
+  return `[swap-${tier}] ${String(plan.from)} -> ${plan.to}: ${plan.steps.join(' -> ')}`;
+}
+
 async function main(): Promise<void> {
   const tier = process.argv[2];
   if (tier !== 'be' && tier !== 'gw' && tier !== 'fe') {
     throw new Error('usage: swap <be|gw|fe> --digest=<sha256:…> --sha=<git-sha> [--execute]');
   }
 
-  const observed = await observe(tier);
-  const plan = planSwap(tier, observed);
-  console.log(`[swap-${tier}] ${String(plan.from)} -> ${plan.to}: ${plan.steps.join(' -> ')}`);
-
   if (!process.argv.includes('--execute')) {
+    // Advisory only — nothing acts on this plan, so it's fine for it to be
+    // observed outside the lock and to go stale by the time a real
+    // --execute runs.
+    const plan = planSwap(tier, await observe(tier));
+    console.log(describePlan(tier, plan));
     console.log('[swap] dry-run (default). re-run with --execute to perform the swap.');
     return;
   }
@@ -262,7 +278,19 @@ async function main(): Promise<void> {
   }
   if (sha === '') throw new Error('--sha=<git-sha> is required to execute');
 
-  await withLock(`${ROOT}/state/deploy.lock`, () => execute(plan, digest, sha));
+  await withLock(`${ROOT}/state/deploy.lock`, async () => {
+    // Observed and planned AFTER winning the lock, not before: withLock
+    // refuses rather than waits, so a truly concurrent second deploy is
+    // rejected outright, but a merely *sequential* one is not — a process
+    // that observed state, then sat idle while a full swap ran and
+    // released the lock, would otherwise execute a plan derived from state
+    // that's no longer current, and its stale `commit` step would silently
+    // overwrite the sha the other process actually deployed. Deriving the
+    // plan from state read after exclusion is won closes that window.
+    const plan = planSwap(tier, await observe(tier));
+    console.log(describePlan(tier, plan));
+    await execute(plan, digest, sha);
+  });
 }
 
 if (import.meta.main) {
