@@ -1,8 +1,0 @@
-services:
-  gw-01:
-    image: {{GW_IMAGE}}
-    restart: unless-stopped
-    ports:
-      - '{{GW_HOST_PORT}}:{{GW_PORT}}'
-    env_file:
-      - /srv/wbs/.env

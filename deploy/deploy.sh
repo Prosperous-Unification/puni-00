@@ -65,6 +65,11 @@ LOG_LEVEL=info
 GW_URL=http://127.0.0.1:$GW_PORT
 DB_PATH=$WBS_ROOT/data/wbs.db
 VERSION=$(git -C "$REPO_DIR" rev-parse --short HEAD)
+# This systemd path runs a single be-01 instance with no blue/green overlap
+# and no separate migrate step of its own, so on-boot migration (main.ts's
+# MIGRATE_ON_STARTUP gate) is safe here — unlike the Compose blue/green path,
+# which migrates via its own discrete swap step instead.
+MIGRATE_ON_STARTUP=true
 EOF
   cat > "$WBS_ROOT/gw-01.env" <<EOF
 PORT=$GW_PORT
@@ -107,9 +112,11 @@ render_caddy() {
 
 # ----------------------------------------------------------------- services
 install_units() {
-  log "installing systemd user units"
+  log "installing systemd user units for $REPO_DIR"
   mkdir -p "$UNIT_DIR"
-  cp "$REPO_DIR"/deploy/systemd/wbs-*.service "$UNIT_DIR/"
+  for unit in "$REPO_DIR"/deploy/systemd/wbs-*.service; do
+    sed -e "s|{{REPO_DIR}}|$REPO_DIR|g" "$unit" > "$UNIT_DIR/$(basename "$unit")"
+  done
   systemctl --user daemon-reload
   systemctl --user enable wbs-be-01.service wbs-gw-01.service >/dev/null
 }

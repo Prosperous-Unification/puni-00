@@ -34,6 +34,7 @@
     "yaml": "^2"
   },
   "devDependencies": {
+    "@dagger.io/dagger": "^0.21.8",
     "@eslint/js": "^9",
     "@nx/eslint": "22.7.0",
     "@nx/eslint-plugin": "22.7.0",
@@ -41,6 +42,8 @@
     "@nx/vite": "22.7.0",
     "@nx/vitest": "22.7.0",
     "@nx/workspace": "22.7.0",
+    "@opentelemetry/exporter-trace-otlp-proto": "^0.221.0",
+    "@opentelemetry/sdk-trace-base": "^2.10.0",
     "@swc-node/register": "1.11.1",
     "@swc/core": "1.15.8",
     "@swc/helpers": "0.5.21",

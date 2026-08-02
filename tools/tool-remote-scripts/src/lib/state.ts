@@ -3,10 +3,12 @@ export type Tier = 'be' | 'gw' | 'fe';
 export interface TierState {
   tier: Tier;
   lastDeployedSha: string | null;
-  activeColor: 'blue' | 'green';
+  activeColor: Color;
 }
 
-export function flipColor(c: TierState['activeColor']): TierState['activeColor'] {
+export type Color = 'blue' | 'green';
+
+export function flipColor(c: Color): Color {
   return c === 'blue' ? 'green' : 'blue';
 }
 
@@ -27,4 +29,16 @@ export function parseStateJson(raw: string): TierState {
 
 export function renderStateJson(state: TierState): string {
   return JSON.stringify(state, null, 2) + '\n';
+}
+
+/**
+ * Where a deploy got to. Written before each transition so a killed deploy can
+ * be classified without guessing.
+ */
+export type Phase = 'preparing' | 'routed' | 'old-stopped' | 'committed';
+
+export const PHASES: readonly Phase[] = ['preparing', 'routed', 'old-stopped', 'committed'];
+
+export function isPhase(v: string): v is Phase {
+  return (PHASES as readonly string[]).includes(v);
 }

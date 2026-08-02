@@ -1,49 +1,203 @@
+import { resolveColor } from './color';
+
+/** No fetch in this file waits longer than this before failing. */
+const DEFAULT_TIMEOUT_MS = 3000;
+
+export interface HealthTarget {
+  name: string;
+  url: string;
+  /**
+   * Extra check beyond `res.ok`, run against the response body text.
+   * fe-01 is a static Caddy server that can return 200 for a truncated or
+   * empty index.html — no status-only check would notice (design
+   * decision 5). Optional and additive: be-01/gw-01 leave this unset and
+   * keep the plain `res.ok` gate.
+   */
+  isHealthy?: (body: string) => boolean;
+}
+
 export interface HealthCheck {
+  name: string;
   url: string;
   status: number;
   ok: boolean;
+  /** Populated on failure so a hung/refused/mismatched check is diagnosable
+   * from the log line alone, instead of just a bare `FAIL 0`. */
+  detail?: string;
 }
 
-export async function checkUrl(url: string, fetchImpl: typeof fetch = fetch): Promise<HealthCheck> {
+/**
+ * Runs `fetchImpl` with a hard deadline. A target that completes the TCP
+ * handshake and then never responds would otherwise leave `nx run
+ * tool-smoke:smoke` blocked indefinitely — the same failure class as a
+ * check that always silently passes: both hide a real problem instead of
+ * reporting it. Mirrors `tools/tool-remote-scripts/src/lib/health.ts`'s
+ * `AbortController` + `setTimeout` pattern (not imported directly: no path
+ * alias wires that project as an importable entry point from here).
+ */
+async function fetchWithTimeout(
+  url: string,
+  init: RequestInit,
+  fetchImpl: typeof fetch,
+  timeoutMs: number,
+): Promise<Response> {
+  const ctl = new AbortController();
+  const timer = setTimeout(() => {
+    ctl.abort();
+  }, timeoutMs);
   try {
-    const res = await fetchImpl(url);
-    return { url, status: res.status, ok: res.ok };
-  } catch {
-    return { url, status: 0, ok: false };
+    return await fetchImpl(url, { ...init, signal: ctl.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function targetUrl(
+  env: NodeJS.ProcessEnv,
+  overrideKey: string,
+  container: string,
+  port: number,
+  path: string,
+): string {
+  return env[overrideKey] ?? `http://${container}-${resolveColor(env)}:${String(port)}${path}`;
+}
+
+/**
+ * These are container-DNS names, resolvable only on `wbs-net` — smoke has to
+ * run inside the network (see project.json's `smoke` target), never against
+ * a public URL. Caddy deliberately does not expose `/health` (or `/metrics`,
+ * `/internal/*`) publicly, so a public check here could only ever fail.
+ */
+export function resolveTargets(env: NodeJS.ProcessEnv = process.env): HealthTarget[] {
+  return [
+    { name: 'be-01', url: targetUrl(env, 'SMOKE_BE_URL', 'be-01', 3100, '/health') },
+    { name: 'gw-01', url: targetUrl(env, 'SMOKE_GW_URL', 'gw-01', 3200, '/health') },
+    {
+      name: 'fe-01',
+      url: targetUrl(env, 'SMOKE_FE_URL', 'fe-01', 80, '/'),
+      isHealthy: (body) => body.length > 0,
+    },
+  ];
+}
+
+export async function checkTarget(
+  target: HealthTarget,
+  fetchImpl: typeof fetch = fetch,
+  timeoutMs: number = DEFAULT_TIMEOUT_MS,
+): Promise<HealthCheck> {
+  try {
+    const res = await fetchWithTimeout(target.url, {}, fetchImpl, timeoutMs);
+    const body = target.isHealthy === undefined ? undefined : await res.text();
+    const ok = res.ok && (body === undefined || target.isHealthy?.(body) === true);
+    return {
+      name: target.name,
+      url: target.url,
+      status: res.status,
+      ok,
+      detail: ok ? undefined : (body ?? `HTTP ${String(res.status)}`),
+    };
+  } catch (err) {
+    return {
+      name: target.name,
+      url: target.url,
+      status: 0,
+      ok: false,
+      detail: err instanceof Error ? err.message : String(err),
+    };
   }
 }
 
 export async function runHealthChecks(
-  baseUrl: string,
+  targets: HealthTarget[],
   fetchImpl: typeof fetch = fetch,
 ): Promise<HealthCheck[]> {
-  const targets = [`${baseUrl}/health`, `${baseUrl}/metrics`];
   const out: HealthCheck[] = [];
-  for (const u of targets) out.push(await checkUrl(u, fetchImpl));
+  for (const t of targets) out.push(await checkTarget(t, fetchImpl));
   return out;
 }
 
-function parseBaseUrl(argv: string[]): string {
-  for (const a of argv) {
-    const m = /^--remote=(.*)$/.exec(a);
-    if (m?.[1] !== undefined) return m[1];
+/**
+ * Design decision 9's authenticated `/internal/forward` round trip. This is
+ * the check that would have caught the real, weeks-long broken
+ * `INTERNAL_AUTH_SECRET` incident this project already had: be-01 and
+ * gw-01 read the secret from the same `/srv/wbs/.env`, but `env_file` order
+ * in tier.compose.tmpl (`/srv/wbs/.env` then `/srv/wbs/{{TIER}}.env`) means
+ * a stray key in a per-tier file silently shadows it for just one tier —
+ * exactly the class of drift a same-process unit test can never see,
+ * because tests inject the secret directly rather than reading it from the
+ * two independently-assembled env chains gw-01 and be-01 actually load.
+ * be-01's `onForward` handler is a no-op today (`apps/be-01/src/app.ts`),
+ * so calling it repeatedly has no side effects.
+ */
+export function resolveInternalForwardUrl(env: NodeJS.ProcessEnv = process.env): string {
+  return targetUrl(env, 'SMOKE_INTERNAL_URL', 'be-01', 3100, '/internal/forward');
+}
+
+export interface InternalForwardCheck {
+  ok: boolean;
+  status: number;
+  detail?: string;
+}
+
+export async function checkInternalForward(
+  url: string,
+  secret: string,
+  fetchImpl: typeof fetch = fetch,
+  timeoutMs: number = DEFAULT_TIMEOUT_MS,
+): Promise<InternalForwardCheck> {
+  try {
+    const res = await fetchWithTimeout(
+      url,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-internal-auth': secret },
+        body: JSON.stringify({ message: { type: 'ping' }, trace_id: 'smoke' }),
+      },
+      fetchImpl,
+      timeoutMs,
+    );
+    return {
+      ok: res.ok,
+      status: res.status,
+      detail: res.ok ? undefined : await res.text(),
+    };
+  } catch (err) {
+    return { ok: false, status: 0, detail: err instanceof Error ? err.message : String(err) };
   }
-  return process.env['SMOKE_BASE_URL'] ?? '';
+}
+
+function requireInternalAuthSecret(env: NodeJS.ProcessEnv = process.env): string {
+  const secret = env['INTERNAL_AUTH_SECRET'];
+  if (secret === undefined || secret === '') {
+    throw new Error(
+      'INTERNAL_AUTH_SECRET must be set — cannot verify the be-01<->gw-01 internal-auth round ' +
+        'trip without it (design decision 9)',
+    );
+  }
+  return secret;
 }
 
 async function main(): Promise<void> {
-  const base = parseBaseUrl(process.argv.slice(2));
-  if (!base) {
-    console.log('[tool-smoke/health] no --remote=<url> provided — skipping (scaffold only).');
-    return;
-  }
-  const results = await runHealthChecks(base);
+  const results = await runHealthChecks(resolveTargets());
   for (const r of results) {
-    console.log(`[smoke/health] ${r.ok ? 'ok' : 'FAIL'} ${String(r.status)} ${r.url}`);
+    const suffix = r.detail === undefined ? '' : ` — ${r.detail}`;
+    console.log(
+      `[smoke/health] ${r.ok ? 'ok' : 'FAIL'} ${String(r.status)} ${r.name} ${r.url}${suffix}`,
+    );
   }
-  if (results.some((r) => !r.ok)) process.exit(1);
+
+  const secret = requireInternalAuthSecret();
+  const internalUrl = resolveInternalForwardUrl();
+  const internalResult = await checkInternalForward(internalUrl, secret);
+  const suffix = internalResult.detail === undefined ? '' : ` — ${internalResult.detail}`;
+  console.log(
+    `[smoke/health] ${internalResult.ok ? 'ok' : 'FAIL'} ${String(internalResult.status)} ` +
+      `internal-forward ${internalUrl}${suffix}`,
+  );
+
+  if (results.some((r) => !r.ok) || !internalResult.ok) process.exit(1);
 }
 
 if (import.meta.main) {
-  void main();
+  await main();
 }

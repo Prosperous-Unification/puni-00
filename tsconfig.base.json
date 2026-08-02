@@ -33,6 +33,7 @@
       "@wbs/observability/server": ["libs/observability/src/server/index.ts"],
       "@wbs/realtime": ["libs/realtime/src/index.ts"],
       "@wbs/scripts": ["libs/scripts/src/index.ts"],
+      "@wbs/tool-compose": ["tools/tool-compose/src/index.ts"],
       "@wbs/validation": ["libs/validation/src/index.ts"],
       "@wbs/validation/fixtures": ["libs/validation/src/fixtures/index.ts"]
     }

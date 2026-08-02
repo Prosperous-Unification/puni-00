@@ -1,0 +1,60 @@
+# deploy/compose/base.yml
+#
+# Host base stack: containerised Caddy (edge, ports 80/443) and an
+# authenticated private registry. Bring up with:
+#   docker compose -f /srv/wbs/base.yml up -d
+name: wbs
+
+networks:
+  wbs-net:
+    name: wbs-net
+    driver: bridge
+
+volumes:
+  # Non-negotiable: without this, Caddy re-requests certificates on every
+  # restart and hits Let's Encrypt rate limits.
+  caddy_data:
+  caddy_config:
+  registry_data:
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    networks: [wbs-net]
+    ports:
+      - '80:80'
+      - '443:443'
+      - '443:443/udp'
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+      - /srv/wbs/caddy:/etc/caddy:ro
+      - /srv/wbs/logs:/var/log/caddy
+
+  registry:
+    image: registry:2
+    restart: unless-stopped
+    networks: [wbs-net]
+    # No `ports:` at all — design decision 1's "caddy :80 :443 :443/udp, the
+    # ONLY published ports". Caddy reaches the registry by container DNS
+    # (`registry:5000`, see the site config's registry block) and terminates
+    # TLS for it at registry.infra.bulletpoints.club.
+    #
+    # This service did carry `127.0.0.1:5000:5000` as an explicitly dated
+    # exception (ruled on by the human partner during Task 5): DNS for the
+    # public hostname did not exist yet, so the host's own docker daemon —
+    # which must authenticate to this registry to pull its own images — had
+    # no other way to reach it. That address then leaked into being a second
+    # source of truth for the publish address, since it was the only one any
+    # live swap had ever actually used. DNS and a real Let's Encrypt
+    # certificate now exist for registry.infra.bulletpoints.club, the host
+    # daemon logs in against that hostname, and the exception is retired.
+    environment:
+      REGISTRY_AUTH: htpasswd
+      REGISTRY_AUTH_HTPASSWD_REALM: wbs
+      REGISTRY_AUTH_HTPASSWD_PATH: /auth/htpasswd
+      REGISTRY_STORAGE_DELETE_ENABLED: 'true'
+    volumes:
+      - registry_data:/var/lib/registry
+      - /srv/wbs/registry.htpasswd:/auth/htpasswd:ro

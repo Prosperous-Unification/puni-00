@@ -5,7 +5,8 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-WorkingDirectory=%h/wbs-tool/apps/gw-01
+# Rendered by deploy/deploy.sh — {{REPO_DIR}} becomes the checkout it ran from.
+WorkingDirectory={{REPO_DIR}}/apps/gw-01
 EnvironmentFile=/srv/wbs/.env
 EnvironmentFile=/srv/wbs/gw-01.env
 ExecStart=/usr/local/bin/bun run src/main.ts

@@ -61,8 +61,11 @@
     },
     "publish-all": {
       "executor": "nx:run-commands",
-      "dependsOn": ["publish-be", "publish-gw", "publish-fe"],
-      "options": { "command": "echo 'publish-all orchestrated via Nx dependencies'" }
+      "options": {
+        "command": "WBS_SHA=$(git rev-parse HEAD) bun run tools/tool-dagger/src/main.ts",
+        "parallel": false
+      },
+      "cache": false
     },
     "test": {
       "executor": "nx:run-commands",

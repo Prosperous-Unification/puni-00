@@ -1,150 +1,226 @@
 #!/bin/sh
-# One-time host configuration for the wbs-tool stack (build-on-server model).
+# One-time host configuration for the wbs-tool stack (Compose model).
 #
-# Everything here needs root and runs EXACTLY ONCE per host. After this,
-# all deploy operations run unprivileged as $WBS_USER.
+# Everything here needs root and runs once per host. After this, all deploy
+# operations run unprivileged as $WBS_USER via the docker group.
+#
+# There is no host Caddy and no bun on the host: the reverse proxy and the
+# registry both run as containers (see deploy/compose/base.yml), and images
+# are built off-host by Dagger and published by digest.
 #
 # Usage:
-#   sudo sh configure.sh                    # default user 'puni1', no docker
-#   sudo WBS_USER=alice sh configure.sh     # different user
-#   sudo WITH_DOCKER=1 sh configure.sh      # also install docker (observability stack)
+#   sudo WBS_USER=puni1 REGISTRY_USER=wbs REGISTRY_PASS=<pw> sh configure.sh
+#
+# Optional:
+#   REGISTRY_HOST         hostname the host docker daemon logs in to and
+#                         pulls its own images from. Defaults to the public
+#                         hostname Caddy terminates TLS for. This is also the
+#                         address published image refs are built from, so it
+#                         must match what the build client pushes to.
+#   REGISTRY_INSECURE=1   add REGISTRY_HOST to the docker daemon's
+#                         insecure-registries list. Only for a host where
+#                         REGISTRY_HOST has no TLS in front of it yet.
+#                         Leaving it unset (the default) actively REMOVES the
+#                         entry, so a host bootstrapped before TLS existed is
+#                         cleaned up by re-running this script.
 #
 # Idempotent: safe to re-run.
 set -eu
 
 WBS_USER="${WBS_USER:-puni1}"
 WBS_ROOT="${WBS_ROOT:-/srv/wbs}"
-BUN_VERSION="${BUN_VERSION:-1.2.20}"
-WITH_DOCKER="${WITH_DOCKER:-0}"
+REGISTRY_HOST="${REGISTRY_HOST:-registry.infra.bulletpoints.club}"
+REGISTRY_USER="${REGISTRY_USER:-wbs}"
+REGISTRY_INSECURE="${REGISTRY_INSECURE:-0}"
+# Same override pattern as REGISTRY_HOST: defaults to the eventual public
+# hostname, override with e.g. ":80" on a host where DNS for it doesn't
+# exist yet (a bare ":80" Caddyfile address matches any Host header, with no
+# automatic HTTPS / ACME attempt — see tools/tool-remote-scripts/src/swap.ts,
+# which the real per-deploy render-route step reads this same variable from).
+SITE_ADDRESS="${SITE_ADDRESS:-wbs.bulletpoints.club}"
 
 log() { printf '[configure] %s\n' "$*"; }
+die() { printf '[configure] %s\n' "$*" >&2; exit 1; }
 
-require_root() {
-  if [ "$(id -u)" -ne 0 ]; then
-    log "must run as root: sudo sh configure.sh"
-    exit 1
-  fi
+[ "$(id -u)" -eq 0 ] || die "must run as root"
+id "$WBS_USER" >/dev/null 2>&1 || die "user '$WBS_USER' does not exist"
+[ -n "${REGISTRY_PASS:-}" ] || die "REGISTRY_PASS must be set"
+
+log "installing docker + htpasswd"
+apt-get update -y
+apt-get install -y --no-install-recommends \
+  ca-certificates curl git docker.io docker-compose-v2 apache2-utils python3
+usermod -aG docker "$WBS_USER"
+
+log "disabling any pre-existing host Caddy (a containerised Caddy owns 80/443 now)"
+if systemctl list-unit-files caddy.service >/dev/null 2>&1; then
+  systemctl disable --now caddy || true
+fi
+rm -f /etc/sudoers.d/wbs-caddy-reload
+
+log "creating $WBS_ROOT"
+for d in "$WBS_ROOT" "$WBS_ROOT/data" "$WBS_ROOT/logs" "$WBS_ROOT/caddy" "$WBS_ROOT/state"; do
+  mkdir -p "$d"
+done
+[ -f "$WBS_ROOT/.env" ] || touch "$WBS_ROOT/.env"
+chown -R "$WBS_USER:$WBS_USER" "$WBS_ROOT"
+chmod 0750 "$WBS_ROOT"
+chmod 0600 "$WBS_ROOT/.env"
+
+# caddy:2-alpine hard-errors (and crash-loops) with no /etc/caddy/Caddyfile
+# at all, so a fresh host needs one before the first real deploy ever runs.
+#
+# Written UNCONDITIONALLY, every re-run — this file's own content never
+# changes, it always just imports site.caddy (see
+# deploy/compose/Caddyfile.bootstrap for the full history: this used to be a
+# placeholder written only-if-absent, with the real `import site.caddy`
+# version left for "the deploy pipeline" to install later, except nothing
+# ever did — `caddy reload` kept exiting 0 forever while silently still
+# serving the placeholder, invisibly, until Task 12's rehearsal caught it
+# live). Keep in sync with deploy/compose/Caddyfile.bootstrap — duplicated
+# inline here, rather than read from that file, because this script is
+# copied to the host alone (see the module docstring's `scp ... sh
+# configure.sh` usage), with no guarantee the rest of the repo is present
+# alongside it.
+log "writing $WBS_ROOT/caddy/Caddyfile (imports site.caddy)"
+cat > "$WBS_ROOT/caddy/Caddyfile" <<'CADDYFILE'
+import site.caddy
+CADDYFILE
+chown "$WBS_USER:$WBS_USER" "$WBS_ROOT/caddy/Caddyfile"
+
+# Caddy would then hard-error on `import site.caddy` if site.caddy itself
+# didn't exist — so seed one, but ONLY if absent: unlike Caddyfile, this
+# file's real content is deploy state (which colour each tier currently
+# routes to), rewritten by every real swap's render-route step, and must
+# never be clobbered by a later re-run of this script. The seed says every
+# tier is honestly "not yet deployed" — the exact same shape a real
+# render-route would produce for a tier with no observed colour (see
+# tools/tool-remote-scripts/src/lib/site.ts's `routeBlock`) — rather than
+# guessing a colour, so the first real deploy of any tier reads back a
+# clean, un-corrupted `null` for every tier it hasn't touched yet.
+if [ ! -f "$WBS_ROOT/caddy/site.caddy" ]; then
+  log "seeding $WBS_ROOT/caddy/site.caddy (nothing deployed yet, for any tier)"
+  cat > "$WBS_ROOT/caddy/site.caddy" <<CADDYFILE
+$SITE_ADDRESS {
+	encode gzip
+
+	handle /ws* {
+		respond "gw-01 not yet deployed" 503
+	}
+
+	handle /api/* {
+		respond "be-01 not yet deployed" 503
+	}
+
+	handle {
+		respond "fe-01 not yet deployed" 503
+	}
+
+	log {
+		output file /var/log/caddy/access.log
+	}
 }
 
-require_user() {
-  if ! id "$WBS_USER" >/dev/null 2>&1; then
-    log "user '$WBS_USER' does not exist — set WBS_USER=<name>"
-    exit 1
-  fi
+registry.infra.bulletpoints.club {
+	reverse_proxy registry:5000 {
+		header_up X-Forwarded-Proto {scheme}
+		header_up X-Forwarded-For {remote_host}
+	}
+	request_body {
+		max_size 2GB
+	}
 }
+CADDYFILE
+  chown "$WBS_USER:$WBS_USER" "$WBS_ROOT/caddy/site.caddy"
+fi
 
-install_packages() {
-  log "installing base packages"
-  apt-get update -y
-  # curl+unzip: required by the Bun installer.
-  # caddy: TLS terminator / reverse proxy, ships with a systemd unit that already
-  #        holds CAP_NET_BIND_SERVICE, so nothing else needs to bind :80/:443.
-  apt-get install -y --no-install-recommends \
-    ca-certificates curl unzip git caddy
-}
+log "writing registry htpasswd"
+# bcrypt (-B) is the only format registry:2 accepts.
+htpasswd -Bbn "$REGISTRY_USER" "$REGISTRY_PASS" > "$WBS_ROOT/registry.htpasswd"
+chown "$WBS_USER:$WBS_USER" "$WBS_ROOT/registry.htpasswd"
+chmod 0640 "$WBS_ROOT/registry.htpasswd"
 
-install_docker() {
-  if [ "$WITH_DOCKER" != "1" ]; then
-    log "skipping docker (set WITH_DOCKER=1 to install it for the observability stack)"
-    return
-  fi
-  if command -v docker >/dev/null 2>&1; then
-    log "docker already installed — skipping"
-  else
-    # Ubuntu ships the same upstream version as Docker's own repo, so we avoid
-    # the extra keyring + sources.list.d registration entirely.
-    log "installing docker from the distro repo"
-    apt-get install -y --no-install-recommends docker.io docker-compose-v2
-  fi
-  log "adding $WBS_USER to the docker group"
-  usermod -aG docker "$WBS_USER"
-}
+log "recording REGISTRY_PASS in $WBS_ROOT/.env so later deploys can re-authenticate"
+# Preserve every other line already in .env (app secrets live here too);
+# only the REGISTRY_PASS line itself is replaced.
+env_tmp="$WBS_ROOT/.env.tmp.$$"
+grep -v '^REGISTRY_PASS=' "$WBS_ROOT/.env" > "$env_tmp" 2>/dev/null || true
+printf 'REGISTRY_PASS=%s\n' "$REGISTRY_PASS" >> "$env_tmp"
+mv "$env_tmp" "$WBS_ROOT/.env"
+chown "$WBS_USER:$WBS_USER" "$WBS_ROOT/.env"
+chmod 0600 "$WBS_ROOT/.env"
 
-install_bun() {
-  if command -v bun >/dev/null 2>&1; then
-    log "bun already installed ($(bun --version)) — skipping"
-    return
-  fi
-  log "installing bun $BUN_VERSION to /usr/local/bin"
-  curl -fsSL https://bun.sh/install | BUN_INSTALL=/usr/local bash -s -- "bun-v${BUN_VERSION}"
-}
+log "enabling systemd lingering for $WBS_USER"
+loginctl enable-linger "$WBS_USER"
 
-create_tree() {
-  log "creating $WBS_ROOT owned by $WBS_USER"
-  for d in "$WBS_ROOT" "$WBS_ROOT/data" "$WBS_ROOT/logs" "$WBS_ROOT/caddy" "$WBS_ROOT/www"; do
-    mkdir -p "$d"
-  done
-  # .env holds real secrets — created empty, never world-readable.
-  if [ ! -f "$WBS_ROOT/.env" ]; then
-    touch "$WBS_ROOT/.env"
-  fi
-  chown -R "$WBS_USER:$WBS_USER" "$WBS_ROOT"
-  chmod 0750 "$WBS_ROOT"
-  chmod 0600 "$WBS_ROOT/.env"
+# Converges /etc/docker/daemon.json's insecure-registries on REGISTRY_INSECURE
+# in BOTH directions. Adding was always here; removing is what makes it
+# converge, and it matters: an entry left behind from a pre-TLS bootstrap
+# silently keeps a plaintext-HTTP fallback alive for a registry that now has a
+# real certificate, which is exactly the kind of leftover nobody goes looking
+# for. A host that once ran with REGISTRY_INSECURE=1 is cleaned up by
+# re-running this script without it.
+log "converging insecure-registries for $REGISTRY_HOST (REGISTRY_INSECURE=$REGISTRY_INSECURE)"
+mkdir -p /etc/docker
+daemon_json=/etc/docker/daemon.json
+[ -f "$daemon_json" ] || printf '{}\n' > "$daemon_json"
+daemon_json_changed=$(python3 - "$daemon_json" "$REGISTRY_HOST" "$REGISTRY_INSECURE" <<'PY'
+import json, sys
+path, host, want = sys.argv[1], sys.argv[2], sys.argv[3] == "1"
+with open(path) as f:
+    text = f.read().strip()
+cfg = json.loads(text) if text else {}
+regs = set(cfg.get("insecure-registries", []))
+have = host in regs
+if have == want:
+    print("unchanged")
+else:
+    if want:
+        regs.add(host)
+    else:
+        regs.discard(host)
+    if regs:
+        cfg["insecure-registries"] = sorted(regs)
+    else:
+        cfg.pop("insecure-registries", None)
+    with open(path, "w") as f:
+        json.dump(cfg, f, indent=2)
+        f.write("\n")
+    print("added" if want else "removed")
+PY
+)
+# How the change is applied depends on its DIRECTION, which is not what the
+# docs imply. `insecure-registries` is in dockerd's documented
+# SIGHUP-reloadable set, but measured on h2puni (docker 29.1.3) a reload
+# applies ADDITIONS and silently ignores REMOVALS: a probe entry written to
+# daemon.json appeared in `docker info` after `systemctl reload docker`, and
+# then survived a second reload after being deleted from the file again. Only
+# a restart cleared it.
+#
+# So: reload when adding (cheap, and it works), restart when removing (the
+# only thing that works). Restarting bounces every container on the box —
+# caddy, the registry, dagger-engine and every app colour — which is a real
+# cost, but leaving a plaintext-HTTP allowance live in a daemon whose config
+# file no longer grants it is worse, and silently reporting success while
+# doing nothing is worse still.
+case "$daemon_json_changed" in
+  added)
+    log "$REGISTRY_HOST added to insecure-registries — reloading dockerd"
+    systemctl reload docker
+    ;;
+  removed)
+    log "$REGISTRY_HOST removed from insecure-registries — RESTARTING dockerd"
+    log "  (a reload does not apply removals; every container on this host will bounce)"
+    systemctl restart docker
+    ;;
+  *)
+    log "insecure-registries already correct — dockerd left alone"
+    ;;
+esac
 
-  # Caddy runs as its own user and must traverse $WBS_ROOT to read the config
-  # fragments and serve static files. Without this the import glob silently
-  # matches nothing and Caddy starts up serving no sites at all.
-  # .env stays $WBS_USER-owned at 0600, so caddy still cannot read secrets.
-  if id caddy >/dev/null 2>&1; then
-    chgrp caddy "$WBS_ROOT" "$WBS_ROOT/caddy" "$WBS_ROOT/www"
-    chmod 0750 "$WBS_ROOT"
-    # setgid so fragments and assets written later by a deploy inherit the
-    # caddy group instead of defaulting back to $WBS_USER's own group.
-    chmod 2750 "$WBS_ROOT/caddy" "$WBS_ROOT/www"
-  fi
-}
+log "logging the host docker daemon in to $REGISTRY_HOST"
+# The server pulls its own images. Without this, `docker compose up` fails to
+# authenticate against the registry it is itself hosting.
+su - "$WBS_USER" -c "echo '$REGISTRY_PASS' | docker login '$REGISTRY_HOST' -u '$REGISTRY_USER' --password-stdin"
 
-enable_linger() {
-  # Without lingering, systemd --user services are killed when the last SSH
-  # session for $WBS_USER closes. Deployed services must outlive the session.
-  log "enabling systemd lingering for $WBS_USER"
-  loginctl enable-linger "$WBS_USER"
-}
-
-configure_caddy() {
-  log "pointing caddy at $WBS_ROOT/caddy for site config"
-  # Caddy's config stays root-owned, but it imports a directory $WBS_USER can
-  # write. Deploys then edit fragments without ever needing root.
-  if ! grep -q "$WBS_ROOT/caddy" /etc/caddy/Caddyfile 2>/dev/null; then
-    if [ -f /etc/caddy/Caddyfile ]; then
-      cp /etc/caddy/Caddyfile "/etc/caddy/Caddyfile.pre-wbs.$(date +%s)"
-    fi
-    printf '# managed by wbs-tool configure.sh\nimport %s/caddy/*.caddy\n' "$WBS_ROOT" \
-      > /etc/caddy/Caddyfile
-  fi
-  # An empty import glob is a hard error in Caddy, so seed a placeholder.
-  if [ ! -f "$WBS_ROOT/caddy/00-placeholder.caddy" ]; then
-    printf ':8080 {\n\trespond "wbs-tool: no site deployed yet" 200\n}\n' \
-      > "$WBS_ROOT/caddy/00-placeholder.caddy"
-    chown "$WBS_USER:$WBS_USER" "$WBS_ROOT/caddy/00-placeholder.caddy"
-  fi
-  systemctl enable caddy >/dev/null 2>&1 || true
-  systemctl restart caddy
-}
-
-grant_caddy_reload() {
-  # The single privileged action a deploy still needs. Scoped to exactly one
-  # command so it is not a general root grant.
-  log "granting $WBS_USER passwordless 'systemctl reload caddy'"
-  printf '%s ALL=(root) NOPASSWD: /usr/bin/systemctl reload caddy\n' "$WBS_USER" \
-    > /etc/sudoers.d/wbs-caddy-reload
-  chmod 0440 /etc/sudoers.d/wbs-caddy-reload
-  visudo -cf /etc/sudoers.d/wbs-caddy-reload >/dev/null
-}
-
-main() {
-  require_root
-  require_user
-  install_packages
-  install_docker
-  install_bun
-  create_tree
-  enable_linger
-  configure_caddy
-  grant_caddy_reload
-  log "done. '$WBS_USER' can now deploy without root."
-  log "next: log out and back in, then verify with: bun --version && caddy version"
-}
-
-main "$@"
+log "done. '$WBS_USER' can now deploy without root."

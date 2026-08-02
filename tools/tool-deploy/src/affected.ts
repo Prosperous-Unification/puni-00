@@ -8,6 +8,10 @@ export interface DeployArgs {
   host?: string;
   dryRun: boolean;
   skipBuild: boolean;
+  /** Acknowledges the deploy carries a reviewed, additive-only migration. */
+  withMigrations: boolean;
+  /** Acknowledges the deploy carries a migration too risky for blue/green; plain restart, brief outage. */
+  stopTheWorld: boolean;
 }
 
 function parseTierArg(v: string): Tier[] {
@@ -28,6 +32,8 @@ export function parseDeployArgs(argv: string[]): DeployArgs {
     tiers: 'affected',
     dryRun: true,
     skipBuild: false,
+    withMigrations: false,
+    stopTheWorld: false,
   };
   const positional: string[] = [];
 
@@ -48,6 +54,8 @@ export function parseDeployArgs(argv: string[]): DeployArgs {
     else if (key === 'dry-run') result.dryRun = true;
     else if (key === 'execute') result.dryRun = false;
     else if (key === 'skip-build') result.skipBuild = true;
+    else if (key === 'with-migrations') result.withMigrations = true;
+    else if (key === 'stop-the-world') result.stopTheWorld = true;
   }
 
   if (positional.length > 0) {
