@@ -19,10 +19,11 @@ import { renderTemplate, siteCaddyTmpl, tierComposeTmpl } from '@wbs/tool-compos
 
 import { writeAtomic } from './lib/atomic';
 import {
+  assertDigestPinnedRef,
   composeUpArgs,
   containerName,
   grantAliasCommands,
-  isDigest,
+  manifestInspectArgs,
   NETWORK,
   PORT,
   psColorsFrom,
@@ -39,7 +40,10 @@ import { type Observed, planSwap, type SwapPlan } from './lib/reconcile';
 import { routedColorFor, siteContext } from './lib/site';
 import { type Color, parseStateJson, renderStateJson, type Tier } from './lib/state';
 
-const REGISTRY = process.env['REGISTRY'] ?? 'registry.infra.bulletpoints.club';
+// No REGISTRY here, deliberately. The publish address arrives as part of
+// `--image`, which is `release.json`'s `image` field passed through verbatim
+// by tool-deploy — see lib/docker.ts's assertDigestPinnedRef for why a second
+// default on this side was a live defect rather than a redundancy.
 const SITE_ADDRESS = process.env['SITE_ADDRESS'] ?? 'wbs.bulletpoints.club';
 const SITE_CADDY_PATH = `${ROOT}/caddy/site.caddy`;
 
@@ -96,6 +100,30 @@ async function readSiteCaddy(): Promise<string> {
 }
 
 /**
+ * Registry preflight — design decision 10's "SSH, registry, or registry auth
+ * unavailable at start: abort before anything starts. Nothing changed."
+ *
+ * Runs before the lock is even taken, and `tool-deploy` runs it for *every*
+ * tier before executing any of them, so a bad registry cannot leave a
+ * half-deployed stack behind. Previously the first symptom of an unreachable
+ * or unauthenticated registry was `docker compose up --pull always` failing
+ * inside `start-green` — mid-swap, with a partially-created container to
+ * clean up.
+ */
+async function preflightRegistry(image: string): Promise<void> {
+  try {
+    await sh(manifestInspectArgs(image));
+  } catch (e: unknown) {
+    throw new Error(
+      `registry preflight failed for ${image} — aborting before anything starts.\n` +
+        '  This host must be able to reach the registry and authenticate to it\n' +
+        '  (docker login <registry>; see tools/tool-bootstrap/src/configure.sh).\n' +
+        `  Underlying error: ${e instanceof Error ? e.message : String(e)}`,
+    );
+  }
+}
+
+/**
  * `caddy reload` exits 0 whenever the config it's told to load (its own
  * `Caddyfile`, per the fixed `--config` flag above) is syntactically valid —
  * NOT whenever routing actually changed. If `Caddyfile` doesn't `import
@@ -127,6 +155,62 @@ async function currentCaddyConfig(): Promise<string> {
   ]);
 }
 
+/**
+ * Which colour Caddy is ACTUALLY serving for each tier, right now.
+ *
+ * This replaces reading the rendered `site.caddy` off disk, and the
+ * distinction is not academic. `render-route` writes that file *before*
+ * `reload` runs — it has to, since reload's whole job is to load it — so any
+ * failure or kill in between leaves the file naming green while Caddy is
+ * still serving blue. `observe()` used to read that file, `resolveLiveColor`
+ * trusts routing unconditionally, and so the next deploy would plan
+ * `green -> blue` and, as its very FIRST step, recreate the container serving
+ * production, with a new digest and no health gate in front of it. The
+ * inverted window was the exact scenario decision 6 introduced "the rendered
+ * Caddy config is the source of truth" to prevent, and reading the file
+ * quietly reintroduced it: the file is the *input* to routing, not routing.
+ *
+ * Caddy's admin API reports the config it has loaded, which cannot be ahead of
+ * reality the way the file can. That is the version of decision 6 that is
+ * actually true, so it is what `observe()` and `render-route` both read.
+ *
+ * Chosen over the alternative fix — roll `site.caddy` back to its previous
+ * contents when the reload fails — because rollback only covers the failures
+ * this process survives to handle. A SIGKILL, an OOM kill, or the box losing
+ * power between the write and the reload all leave the file inverted with no
+ * `catch` block ever running, and those are the same signals that motivated
+ * the `flock` rewrite in lib/lock.ts. Reading live routing has no such window:
+ * there is no moment at which the answer is derived from something that has
+ * not happened yet. (`abortSwap` restores the file anyway, so an operator
+ * reading it is not misled either — but correctness does not depend on that
+ * having run.)
+ *
+ * If Caddy is down this throws rather than falling back to the file. That is
+ * deliberate: the fallback would be exactly the stale, possibly-inverted
+ * source this exists to stop trusting, and it would be consulted precisely
+ * when things are already wrong. A swap cannot complete without Caddy anyway —
+ * `reload` targets it — so refusing to plan one costs nothing real and keeps
+ * decision 10's "abort before anything starts" honest.
+ */
+async function liveRoutedColors(): Promise<Record<Tier, Color | null>> {
+  let config: string;
+  try {
+    config = await currentCaddyConfig();
+  } catch (e: unknown) {
+    throw new Error(
+      "cannot read Caddy's live admin config, so the colour actually being served is " +
+        'unknown — refusing to plan a swap from the possibly-stale site.caddy file ' +
+        '(design decision 6). Is the caddy container up?\n' +
+        `  Underlying error: ${e instanceof Error ? e.message : String(e)}`,
+    );
+  }
+  return {
+    be: routedColorFor('be', config),
+    gw: routedColorFor('gw', config),
+    fe: routedColorFor('fe', config),
+  };
+}
+
 async function readRecordedColor(tier: Tier): Promise<Color | null> {
   const raw = await Bun.file(`${ROOT}/state/${tier}.json`)
     .text()
@@ -144,25 +228,118 @@ async function readRecordedColor(tier: Tier): Promise<Color | null> {
 
 async function observe(tier: Tier): Promise<Observed> {
   const psOutput = await sh(['ps', '--format', '{{.Names}}']);
-  const siteText = await readSiteCaddy();
+  const routed = await liveRoutedColors();
   return {
-    routedColor: routedColorFor(tier, siteText),
+    routedColor: routed[tier],
     runningColors: psColorsFrom(psOutput, tier),
     recordedColor: await readRecordedColor(tier),
     phase: await readPhase(`${ROOT}/state/${tier}.phase`),
   };
 }
 
-async function execute(plan: SwapPlan, digest: string, sha: string): Promise<void> {
+async function reloadCaddy(): Promise<void> {
+  // Targets caddy by Compose *service* name rather than a hardcoded
+  // container name: base.yml sets no `container_name` for it, so the real
+  // container is `wbs-caddy-1` (verified live on h2puni), which
+  // `compose exec` resolves without needing to know that.
+  await sh([
+    'compose',
+    '-f',
+    `${ROOT}/base.yml`,
+    'exec',
+    'caddy',
+    'caddy',
+    'reload',
+    '--config',
+    '/etc/caddy/Caddyfile',
+  ]);
+}
+
+async function execute(plan: SwapPlan, image: string, sha: string): Promise<void> {
   const { tier, from, to } = plan;
   const phasePath = `${ROOT}/state/${tier}.phase`;
+  const greenName = containerName(tier, to);
+
+  // Undo state for the abort paths below. Both start "nothing to undo" and
+  // are set at the exact point the corresponding action becomes undoable.
+  let aliasMovedToGreen = false;
+  let siteTextBefore: string | null = null;
+
+  /**
+   * Design decision 10's abort rows, which were previously undelivered:
+   *
+   * | Migration step fails | Stop green, abort. Blue untouched and un-migrated. |
+   * | `caddy reload` fails | Green is up but unrouted. Stop green, leave blue live, exit non-zero. |
+   *
+   * Both steps used to simply throw, leaving green running. For `be` that was
+   * actively harmful rather than merely untidy: by reload time green already
+   * holds `be-01.internal` (granted earlier in the plan), so an abort that
+   * left green up left gw forwarding real traffic to a colour Caddy does not
+   * route to — and an abort that stopped green without moving the alias back
+   * would leave gw forwarding to a stopped container. The alias has to be
+   * handed back to the outgoing colour before green stops, which is why this
+   * is a helper rather than three lines at each throw site.
+   *
+   * Every undo is best-effort and logged: the original failure is what the
+   * operator needs to see, so a failing cleanup must not replace it.
+   */
+  async function abortSwap(reason: string, cause: unknown): Promise<never> {
+    const detail = cause instanceof Error ? cause.message : String(cause);
+    console.error(`[swap-${tier}] aborting: ${reason}: ${detail}`);
+
+    // 1. Routing first, while green is still up: put site.caddy back to what
+    //    it said before this swap touched it and re-apply it, so the file and
+    //    live Caddy agree again. (Correctness does not depend on this — see
+    //    liveRoutedColors — but leaving an inverted file for an operator to
+    //    read would be gratuitous.)
+    if (siteTextBefore !== null) {
+      try {
+        await writeAtomic(SITE_CADDY_PATH, siteTextBefore);
+        await reloadCaddy();
+        console.error(`[swap-${tier}] restored the previous site.caddy and reloaded`);
+      } catch (e: unknown) {
+        console.error(
+          `[swap-${tier}] could not restore routing: ${e instanceof Error ? e.message : String(e)}`,
+        );
+      }
+    }
+
+    // 2. Hand be-01.internal back before stopping the container that holds
+    //    it, or gw forwards into a stopped colour. With no outgoing colour
+    //    (a first deploy) there is nothing to hand it to, so just strip it.
+    if (tier === 'be' && aliasMovedToGreen) {
+      const cmds = from === null ? revokeAliasCommands(to) : grantAliasCommands(from);
+      try {
+        for (const cmd of cmds) await sh(cmd);
+        console.error(
+          `[swap-${tier}] be-01.internal returned to ${from ?? 'no colour (first deploy)'}`,
+        );
+      } catch (e: unknown) {
+        console.error(
+          `[swap-${tier}] could not return be-01.internal: ${e instanceof Error ? e.message : String(e)}`,
+        );
+      }
+    }
+
+    // 3. Green last: it is the thing every step above was protecting traffic
+    //    from losing.
+    try {
+      await sh(['stop', greenName]);
+    } catch (e: unknown) {
+      console.error(
+        `[swap-${tier}] could not stop ${greenName}: ${e instanceof Error ? e.message : String(e)}`,
+      );
+    }
+
+    throw new Error(`${reason}: ${detail}; ${from ?? 'nothing'} left live`);
+  }
 
   for (const step of plan.steps) {
     console.log(`[swap-${tier}] ${step}`);
     switch (step) {
       case 'start-green': {
         await writePhase(phasePath, 'preparing');
-        const ctx = tierComposeContext(tier, to, REGISTRY, digest);
+        const ctx = tierComposeContext(tier, to, image);
         await writeAtomic(tierComposeFile(tier, to), renderTemplate(tierComposeTmpl, ctx));
         await sh(composeUpArgs(tier, to));
         break;
@@ -170,12 +347,19 @@ async function execute(plan: SwapPlan, digest: string, sha: string): Promise<voi
 
       case 'migrate':
         // Discrete step before green takes traffic: a failed migration
-        // aborts the deploy with the old colour untouched.
-        await sh(['exec', containerName(tier, to), 'bun', 'run', 'src/migrate-cli.ts']);
+        // aborts the deploy with the old colour untouched and un-migrated
+        // (decision 10). Green is stopped rather than left running, because a
+        // container that failed to migrate must not be one health-gate away
+        // from taking traffic on a later run.
+        try {
+          await sh(['exec', greenName, 'bun', 'run', 'src/migrate-cli.ts']);
+        } catch (e: unknown) {
+          await abortSwap(`${tier}-${to} failed its migration step`, e);
+        }
         break;
 
       case 'health-gate': {
-        const ip = await containerIp(containerName(tier, to));
+        const ip = await containerIp(greenName);
         const ok = await waitForHealthy({
           url: `http://${ip}:${String(PORT[tier])}${HEALTH_PATH[tier]}`,
           timeoutMs: 2000,
@@ -187,8 +371,10 @@ async function execute(plan: SwapPlan, digest: string, sha: string): Promise<voi
           isHealthy: tier === 'fe' ? (body) => body.length > 0 : undefined,
         });
         if (!ok) {
-          await sh(['stop', containerName(tier, to)]);
-          throw new Error(`${tier}-${to} failed health gate; ${from ?? 'nothing'} left live`);
+          await abortSwap(
+            `${tier}-${to} failed its health gate`,
+            new Error(`no healthy response from ${HEALTH_PATH[tier]} within the gate's ceiling`),
+          );
         }
         break;
       }
@@ -200,10 +386,15 @@ async function execute(plan: SwapPlan, digest: string, sha: string): Promise<voi
         // it here is safe) and why the outgoing colour's cleanup is a
         // separate step deferred until after reload ('revoke-alias', below).
         for (const cmd of grantAliasCommands(to)) await sh(cmd);
+        aliasMovedToGreen = true;
         break;
 
       case 'render-route': {
-        const siteText = await readSiteCaddy();
+        // Live Caddy, not the file on disk — same reason observe() reads it
+        // (see liveRoutedColors). Rendering the other tiers' routes from a
+        // possibly-inverted file would propagate the lie into the config this
+        // swap is about to load.
+        //
         // `routedColorFor` returning null for a tier means "genuinely never
         // deployed" — passed straight through as null, NOT defaulted to
         // 'blue'. Defaulting was the bug: it wrote a guessed colour into
@@ -213,13 +404,12 @@ async function execute(plan: SwapPlan, digest: string, sha: string): Promise<voi
         // from. `siteContext`/`routeBlock` (lib/site.ts) render an honest
         // "not yet deployed" response for null instead, which also means
         // `routedColorFor` still correctly returns null next time.
-        const colors: Record<Tier, Color | null> = {
-          be: routedColorFor('be', siteText),
-          gw: routedColorFor('gw', siteText),
-          fe: routedColorFor('fe', siteText),
-        };
+        const colors = await liveRoutedColors();
         colors[tier] = to;
         const rendered = renderTemplate(siteCaddyTmpl, siteContext(colors, SITE_ADDRESS));
+        // Captured before the write, so abortSwap can put the file back
+        // exactly as it found it.
+        siteTextBefore = await readSiteCaddy();
         await writeAtomic(SITE_CADDY_PATH, rendered);
         break;
       }
@@ -228,40 +418,32 @@ async function execute(plan: SwapPlan, digest: string, sha: string): Promise<voi
         // Written BEFORE the reload, like 'preparing' before start-green's
         // compose up: a process killed mid-reload must be classifiable as
         // "was attempting to route" rather than looking identical to having
-        // never started. Recovery still re-derives the true live colour
-        // from the rendered site.caddy (the source of truth), never from
-        // this marker — it only names which window a kill happened in.
+        // never started. Recovery still re-derives the true live colour from
+        // Caddy's live admin config (the source of truth — see
+        // liveRoutedColors), never from this marker; it only names which
+        // window a kill happened in.
         await writePhase(phasePath, 'routed');
-        // Targets caddy by Compose *service* name rather than a hardcoded
-        // container name: base.yml sets no `container_name` for it, so the
-        // real container is `wbs-caddy-1` (verified live on h2puni), which
-        // `compose exec` resolves without needing to know that.
-        await sh([
-          'compose',
-          '-f',
-          `${ROOT}/base.yml`,
-          'exec',
-          'caddy',
-          'caddy',
-          'reload',
-          '--config',
-          '/etc/caddy/Caddyfile',
-        ]);
-        // Trust, but verify: reload exiting 0 only means the config was
-        // syntactically valid, not that it's the config we think it is (see
-        // currentCaddyConfig's doc comment — this is precisely how the
-        // "reload silently no-ops" failure mode stayed invisible before).
-        {
-          const expected = containerName(tier, to);
+        // Decision 10: "caddy reload fails — green is up but unrouted. Stop
+        // green, leave blue live, exit non-zero." Both failure shapes route
+        // through abortSwap: the reload command itself failing, and the
+        // reload exiting 0 without actually changing routing.
+        try {
+          await reloadCaddy();
+          // Trust, but verify: reload exiting 0 only means the config was
+          // syntactically valid, not that it's the config we think it is (see
+          // currentCaddyConfig's doc comment — this is precisely how the
+          // "reload silently no-ops" failure mode stayed invisible before).
           const liveConfig = await currentCaddyConfig();
-          if (!liveConfig.includes(expected)) {
+          if (!liveConfig.includes(greenName)) {
             throw new Error(
-              `[swap-${tier}] caddy reload exited 0 but the live admin config ` +
-                `(http://127.0.0.1:2019/config/ inside the caddy container) does not ` +
-                `mention ${expected} — routing did not actually change. Check that ` +
-                `/srv/wbs/caddy/Caddyfile really imports site.caddy.`,
+              'caddy reload exited 0 but the live admin config ' +
+                '(http://127.0.0.1:2019/config/ inside the caddy container) does not ' +
+                `mention ${greenName} — routing did not actually change. Check that ` +
+                '/srv/wbs/caddy/Caddyfile really imports site.caddy.',
             );
           }
+        } catch (e: unknown) {
+          await abortSwap(`${tier}-${to} could not be routed to`, e);
         }
         break;
 
@@ -325,10 +507,24 @@ function describePlan(tier: Tier, plan: SwapPlan): string {
   return `[swap-${tier}] ${String(plan.from)} -> ${plan.to}: ${plan.steps.join(' -> ')}`;
 }
 
+const USAGE =
+  'usage: swap <be|gw|fe> --image=<registry/name@sha256:…> --sha=<git-sha> [--execute|--preflight]';
+
 async function main(): Promise<void> {
   const tier = process.argv[2];
   if (tier !== 'be' && tier !== 'gw' && tier !== 'fe') {
-    throw new Error('usage: swap <be|gw|fe> --digest=<sha256:…> --sha=<git-sha> [--execute]');
+    throw new Error(USAGE);
+  }
+
+  // Registry reachability/auth check on its own, with no lock and no state
+  // change: tool-deploy runs this for every tier before executing any of
+  // them, so a registry problem cannot leave one tier swapped and the next
+  // one refusing to start (design decision 10).
+  if (process.argv.includes('--preflight')) {
+    const image = assertDigestPinnedRef(argOf('image'), tier);
+    await preflightRegistry(image);
+    console.log(`[swap-${tier}] preflight ok: ${image} is present and authenticated`);
+    return;
   }
 
   if (!process.argv.includes('--execute')) {
@@ -341,13 +537,13 @@ async function main(): Promise<void> {
     return;
   }
 
-  const digest = argOf('digest');
+  // Everything that can be rejected without touching the host, rejected
+  // first: malformed arguments, then the registry. Only then is the lock
+  // taken (design decision 10, "abort before anything starts").
+  const image = assertDigestPinnedRef(argOf('image'), tier);
   const sha = argOf('sha');
-  // Abort before anything starts rather than mid-swap (design decision 10).
-  if (!isDigest(digest)) {
-    throw new Error(`--digest=<sha256:...> is required to execute, got: ${digest || '(missing)'}`);
-  }
-  if (sha === '') throw new Error('--sha=<git-sha> is required to execute');
+  if (sha === '') throw new Error(`--sha=<git-sha> is required to execute. ${USAGE}`);
+  await preflightRegistry(image);
 
   await withLock(`${ROOT}/state/deploy.lock`, async () => {
     // Observed and planned AFTER winning the lock, not before: withLock
@@ -360,7 +556,7 @@ async function main(): Promise<void> {
     // plan from state read after exclusion is won closes that window.
     const plan = planSwap(tier, await observe(tier));
     console.log(describePlan(tier, plan));
-    await execute(plan, digest, sha);
+    await execute(plan, image, sha);
   });
 }
 

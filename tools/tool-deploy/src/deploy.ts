@@ -16,7 +16,18 @@ export const DEFAULT_RELEASE_PATH = 'dist/tool-dagger/release.json';
 export interface ReleaseEntry {
   sha: string;
   digest: string;
+  /** The tagged ref the image was pushed to. Traceability only. */
   ref: string;
+  /**
+   * The digest-pinned ref, registry address included, exactly as
+   * `tool-dagger` recorded it. Passed through to `swap.js` verbatim — this
+   * CLI is the only thing that talks to both sides, so it is the one place
+   * the address could have been lost, and it used to be: only `--digest` and
+   * `--sha` crossed the SSH boundary, with no env passthrough, leaving the
+   * server to rebuild the ref from its own `REGISTRY` default. See
+   * tools/tool-dagger/src/lib/publish.ts's ReleaseEntry.image.
+   */
+  image: string;
 }
 export type ReleaseRecord = Partial<Record<Tier, ReleaseEntry>>;
 
@@ -25,6 +36,14 @@ export interface DeployPlan {
   steps: string[];
   /** One real remote command per tier, in the same order as `tiers`. */
   commands: string[];
+  /**
+   * Read-only registry checks, one per tier, run to completion before ANY
+   * command above executes (design decision 10: "SSH, registry, or registry
+   * auth unavailable at start — abort before anything starts"). Running them
+   * all up front is the point: a per-tier check inside each swap would still
+   * let tier 1 deploy and tier 2 fail, which is a half-deployed stack.
+   */
+  preflightCommands: string[];
   dryRun: boolean;
   host: string;
 }
@@ -72,6 +91,7 @@ export async function buildDeployPlan(
   const host = args.host ?? DEFAULT_HOST;
   const steps: string[] = [];
   const commands: string[] = [];
+  const preflightCommands: string[] = [];
 
   const remote = await deps.readRemoteState(host);
   const release = await deps.readRelease(args.bundle ?? DEFAULT_RELEASE_PATH);
@@ -105,17 +125,35 @@ export async function buildDeployPlan(
       );
     }
 
+    // The gate above compares migrations *at git shas*, which only describes
+    // what is inside the image if the image was built from a commit. That is
+    // enforced at build time by tool-dagger's assertCleanTree(), and enforced
+    // here by refusing a release that was not built from the commit this
+    // deploy is deploying — otherwise `entry` could carry an image built from
+    // an entirely different tree while the gate happily diffs HEAD.
+    if (entry.sha !== headSha) {
+      throw new Error(
+        `release entry for tier "${t}" was built at ${entry.sha} but HEAD is ${headSha}.\n` +
+          '  The migration gate compares migrations in git at HEAD, so it only describes\n' +
+          '  this image if the two agree. Re-run "nx run tool-dagger:publish-all" at HEAD,\n' +
+          '  or check out the commit the release was built from.',
+      );
+    }
+
     // Verified against the live host: swap.js is invoked as `ssh h2puni
     // 'cd /srv/wbs && bun bin/swap.js ...'` — no explicit user (the ssh
     // config alias already carries it) and no absolute bun path.
-    const remoteCmd =
-      `cd /srv/wbs && bun bin/swap.js ${t} --digest=${entry.digest} --sha=${entry.sha}` +
-      (args.dryRun ? '' : ' --execute');
+    //
+    // `--image` carries the whole publish address; nothing on the far side
+    // reconstructs it (see ReleaseEntry.image).
+    const base = `cd /srv/wbs && bun bin/swap.js ${t} --image=${entry.image} --sha=${entry.sha}`;
+    const remoteCmd = base + (args.dryRun ? '' : ' --execute');
     steps.push(`[plan] ${t}: ssh ${host} ${JSON.stringify(remoteCmd)}`);
     commands.push(remoteCmd);
+    preflightCommands.push(`${base} --preflight`);
   }
 
-  return { tiers, steps, commands, dryRun: args.dryRun, host };
+  return { tiers, steps, commands, preflightCommands, dryRun: args.dryRun, host };
 }
 
 async function runRemote(host: string, cmd: string): Promise<void> {
@@ -147,6 +185,15 @@ async function main(): Promise<void> {
   if (plan.dryRun) {
     console.log('[tool-deploy] dry-run only. re-run with --execute to perform a live deploy.');
     return;
+  }
+
+  // Every tier's registry check first, then every tier's swap. Decision 10
+  // requires a registry/auth problem to abort "before anything starts", which
+  // for a multi-tier deploy means before the FIRST tier starts, not before
+  // each one.
+  for (const cmd of plan.preflightCommands) {
+    console.log(`[tool-deploy] $ ssh ${plan.host} ${cmd}`);
+    await runRemote(plan.host, cmd);
   }
 
   // Sequential, one tier at a time: each swap already health-gates its own

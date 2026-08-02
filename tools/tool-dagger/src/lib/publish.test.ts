@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 
-import { imageRef, parseDigest, type ReleaseRecord, renderRelease } from './publish';
+import { digestRef, imageRef, parseDigest, type ReleaseRecord, renderRelease } from './publish';
 
 describe('imageRef', () => {
   it('builds a registry-qualified tagged ref', () => {
@@ -25,11 +25,37 @@ describe('parseDigest', () => {
   });
 });
 
+describe('digestRef', () => {
+  const digest = 'sha256:' + 'c'.repeat(64);
+
+  // The single source of truth for the publish address: this exact string is
+  // what `swap.js` pulls, rather than each side rebuilding it from its own
+  // REGISTRY default (which is how the two came to disagree).
+  it('builds the whole address+digest a deploy pulls', () => {
+    expect(digestRef('registry.infra.bulletpoints.club', 'be', digest)).toBe(
+      `registry.infra.bulletpoints.club/wbs-be-01@${digest}`,
+    );
+  });
+
+  it('rejects anything that is not a well-formed sha256 digest', () => {
+    expect(() => digestRef('r.example.com', 'be', 'sha256:tooshort')).toThrow(/digest/);
+    expect(() => digestRef('r.example.com', 'be', 'abc1234')).toThrow(/digest/);
+  });
+});
+
 describe('renderRelease', () => {
-  it('round-trips through JSON', () => {
+  it('records the digest-pinned image ref alongside the tag it was pushed to', () => {
+    const digest = 'sha256:' + 'b'.repeat(64);
     const rec: ReleaseRecord = {
-      be: { sha: 'abc1234', digest: 'sha256:' + 'b'.repeat(64), ref: 'r/wbs-be-01:abc1234' },
+      be: {
+        sha: 'abc1234',
+        digest,
+        ref: 'r.example.com/wbs-be-01:abc1234',
+        image: digestRef('r.example.com', 'be', digest),
+      },
     };
-    expect(JSON.parse(renderRelease(rec))).toEqual(rec);
+    const parsed = JSON.parse(renderRelease(rec)) as ReleaseRecord;
+    expect(parsed).toEqual(rec);
+    expect(parsed.be?.image).toBe(`r.example.com/wbs-be-01@${digest}`);
   });
 });

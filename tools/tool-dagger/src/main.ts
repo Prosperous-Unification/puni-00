@@ -1,7 +1,14 @@
 import type { BuildArg, Platform } from '@dagger.io/dagger';
 import { connect } from '@dagger.io/dagger';
 
-import { imageRef, parseDigest, type ReleaseRecord, renderRelease, type Tier } from './lib/publish';
+import {
+  digestRef,
+  imageRef,
+  parseDigest,
+  type ReleaseRecord,
+  renderRelease,
+  type Tier,
+} from './lib/publish';
 
 const DOCKERFILE: Record<Tier, string> = {
   be: 'apps/be-01/Dockerfile',
@@ -67,6 +74,53 @@ export function requireRegistryPassword(env: NodeJS.ProcessEnv): string {
   return pass;
 }
 
+/**
+ * Refuses to publish from a dirty working tree.
+ *
+ * `publishAll` snapshots `client.host().directory('.')` — the WORKING TREE —
+ * while `publish-all` labels the result `WBS_SHA=$(git rev-parse HEAD)`. Those
+ * are the same thing only when the tree is clean, and the gap is not cosmetic:
+ * `tool-deploy`'s migration gate (tools/tool-deploy/src/migrations.ts) reads
+ * the migration set *from git* at that sha, so an uncommitted migration is
+ * baked into the image and simultaneously invisible to the gate.
+ * `assertMigrationFlag` then passes, no `--with-migrations` acknowledgement is
+ * asked for, and the migration is applied to the database blue and green
+ * share. That is the only fail-open in the design's central safety gate, and
+ * it is closed here rather than in the gate itself because the gate cannot see
+ * inside the image — only the builder knows what it put there.
+ *
+ * There is deliberately no override flag. `publish-all` pushes to the
+ * production registry; "publish something that is not a commit" has no
+ * legitimate use, and an escape hatch would just be the fail-open again with
+ * an extra step.
+ *
+ * Scope, stated honestly: this equates the tree with HEAD for *tracked* files.
+ * `git status --porcelain` says nothing about ignored files, which the build
+ * context can still pick up (see .dockerignore). Migrations are tracked, so
+ * the gate this exists to close is fully closed; image hygiene generally is a
+ * separate concern.
+ */
+export function assertCleanTree(): void {
+  const p = Bun.spawnSync(['git', 'status', '--porcelain']);
+  if (p.exitCode !== 0) {
+    throw new Error(`git status --porcelain failed: ${p.stderr.toString('utf8').trim()}`);
+  }
+  const dirty = p.stdout.toString('utf8').trim();
+  if (dirty !== '') {
+    throw new Error(
+      'refusing to publish from a dirty working tree.\n' +
+        '  The build context is the working tree, but the release is labelled with HEAD,\n' +
+        "  and tool-deploy's migration gate reads migrations from git at that sha — so an\n" +
+        '  uncommitted migration would ship inside the image and be invisible to the gate.\n' +
+        '  Commit or stash first. Uncommitted changes:\n' +
+        dirty
+          .split('\n')
+          .map((l) => `    ${l}`)
+          .join('\n'),
+    );
+  }
+}
+
 export async function publishAll(tiers: Tier[], sha: string): Promise<ReleaseRecord> {
   applyRunnerHostAlias(process.env);
   const registryPassword = requireRegistryPassword(process.env);
@@ -78,7 +132,9 @@ export async function publishAll(tiers: Tier[], sha: string): Promise<ReleaseRec
       // up in an error message.
       const registrySecret = client.setSecret('registry-password', registryPassword);
       // A single host directory snapshot is reused as the build context for
-      // every tier so each Dockerfile sees the same source tree.
+      // every tier so each Dockerfile sees the same source tree. This is the
+      // WORKING tree, not `sha` — `assertCleanTree()` (called by main, before
+      // any of this) is what makes those the same thing.
       const src = client
         .host()
         .directory('.', { exclude: ['node_modules', 'dist', '.git', '.nx'] });
@@ -95,7 +151,10 @@ export async function publishAll(tiers: Tier[], sha: string): Promise<ReleaseRec
           // registry itself, not a specific repository/tag within it.
           .withRegistryAuth(REGISTRY, REGISTRY_USER, registrySecret)
           .publish(ref);
-        record[tier] = { sha, digest: parseDigest(published), ref };
+        const digest = parseDigest(published);
+        // `image` is the whole address+digest the server will pull, recorded
+        // here and carried verbatim from now on — see ReleaseEntry.image.
+        record[tier] = { sha, digest, ref, image: digestRef(REGISTRY, tier, digest) };
       }
     },
     { LogOutput: process.stderr },
@@ -106,6 +165,9 @@ export async function publishAll(tiers: Tier[], sha: string): Promise<ReleaseRec
 async function main(): Promise<void> {
   const sha = process.env['WBS_SHA'];
   if (sha === undefined || sha === '') throw new Error('WBS_SHA must be set');
+  // Before any engine connection or push: the label must actually describe
+  // what is about to be built.
+  assertCleanTree();
   const arg = process.argv[2] ?? 'be,gw,fe';
   const tiers = arg.split(',').filter((t): t is Tier => t === 'be' || t === 'gw' || t === 'fe');
   const record = await publishAll(tiers, sha);

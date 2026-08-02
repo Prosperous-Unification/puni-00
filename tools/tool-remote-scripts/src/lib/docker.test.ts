@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'bun:test';
 
 import {
+  assertDigestPinnedRef,
   composeUpArgs,
   containerName,
-  digestRef,
   grantAliasCommands,
   isDigest,
+  manifestInspectArgs,
   NETWORK,
   psColorsFrom,
   revokeAliasCommands,
@@ -13,6 +14,8 @@ import {
   tierComposeContext,
   tierComposeFile,
 } from './docker';
+
+const DIGEST = 'sha256:' + 'a'.repeat(64);
 
 describe('isDigest', () => {
   it('accepts a well-formed sha256 digest', () => {
@@ -34,18 +37,51 @@ describe('containerName', () => {
   });
 });
 
-describe('digestRef', () => {
-  const digest = 'sha256:' + 'c'.repeat(64);
+describe('assertDigestPinnedRef', () => {
+  it('passes a well-formed digest-pinned ref straight through, address and all', () => {
+    const ref = `registry.infra.bulletpoints.club/wbs-be-01@${DIGEST}`;
+    expect(assertDigestPinnedRef(ref, 'be')).toBe(ref);
+  });
 
-  it('builds a registry-qualified ref pinned by digest, never a tag', () => {
-    expect(digestRef('registry.infra.bulletpoints.club', 'be', digest)).toBe(
-      `registry.infra.bulletpoints.club/wbs-be-01@${digest}`,
+  it('accepts a registry address carrying a port', () => {
+    const ref = `127.0.0.1:5000/wbs-gw-01@${DIGEST}`;
+    expect(assertDigestPinnedRef(ref, 'gw')).toBe(ref);
+  });
+
+  // Design decision 4: a rebuild on another host can move a tag, never a digest.
+  it('rejects a tagged ref rather than deploying something movable', () => {
+    expect(() => assertDigestPinnedRef('r.example.com/wbs-be-01:abc1234', 'be')).toThrow(
+      /digest-pinned/,
     );
   });
 
-  it('rejects anything that is not a well-formed sha256 digest', () => {
-    expect(() => digestRef('r.example.com', 'be', 'sha256:tooshort')).toThrow(/digest/);
-    expect(() => digestRef('r.example.com', 'be', 'abc1234')).toThrow(/digest/);
+  it('rejects a bare digest with no registry address', () => {
+    expect(() => assertDigestPinnedRef(DIGEST, 'be')).toThrow(/digest-pinned/);
+  });
+
+  it('rejects a malformed digest', () => {
+    expect(() => assertDigestPinnedRef('r.example.com/wbs-be-01@sha256:short', 'be')).toThrow(
+      /digest-pinned/,
+    );
+  });
+
+  it('rejects an empty ref, naming what was missing', () => {
+    expect(() => assertDigestPinnedRef('', 'be')).toThrow(/missing/);
+  });
+
+  // The one mistake carrying the whole ref across the wire newly makes
+  // possible: handing a tier some other tier's image.
+  it("rejects another tier's image", () => {
+    expect(() => assertDigestPinnedRef(`r.example.com/wbs-gw-01@${DIGEST}`, 'be')).toThrow(
+      /tier "be" deploys "wbs-be-01"/,
+    );
+  });
+});
+
+describe('manifestInspectArgs', () => {
+  it('checks the registry without downloading layers', () => {
+    const ref = `registry.infra.bulletpoints.club/wbs-be-01@${DIGEST}`;
+    expect(manifestInspectArgs(ref)).toEqual(['manifest', 'inspect', ref]);
   });
 });
 
@@ -61,13 +97,23 @@ describe('tierComposeContext', () => {
     const ctx = tierComposeContext(
       'be',
       'green',
-      'registry.infra.bulletpoints.club',
-      'sha256:' + 'a'.repeat(64),
+      `registry.infra.bulletpoints.club/wbs-be-01@${DIGEST}`,
     );
     expect(ctx['TIER']).toBe('be-01');
     expect(ctx['COLOR']).toBe('green');
-    expect(ctx['IMAGE']).toBe(
-      `registry.infra.bulletpoints.club/wbs-be-01@sha256:${'a'.repeat(64)}`,
+  });
+
+  // The C1 regression: this file used to rebuild the ref from its own
+  // REGISTRY default, so the address the image was actually published to
+  // never reached the pull.
+  it('renders the image ref it was given, without reconstructing the address', () => {
+    const ref = `some-other-registry.example.com:5000/wbs-fe-01@${DIGEST}`;
+    expect(tierComposeContext('fe', 'blue', ref)['IMAGE']).toBe(ref);
+  });
+
+  it('refuses a ref that is not digest-pinned', () => {
+    expect(() => tierComposeContext('be', 'blue', 'r.example.com/wbs-be-01:abc')).toThrow(
+      /digest-pinned/,
     );
   });
 });

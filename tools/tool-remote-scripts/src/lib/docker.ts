@@ -50,15 +50,42 @@ export function tierComposeFile(tier: Tier, color: Color): string {
   return `${ROOT}/compose/${containerName(tier, color)}.yml`;
 }
 
+const DIGEST_PINNED_REF_RE =
+  /^(?<registry>[^/\s]+)\/(?<name>[^@\s]+)@(?<digest>sha256:[0-9a-f]{64})$/;
+
 /**
- * Ref pinned by digest, never by tag — a rebuild on a different build host
- * can move a tag but cannot move a digest (design decision 4).
+ * Validates the image ref this swap was handed, and returns it unchanged.
+ *
+ * This process deliberately does NOT know the registry address. It used to:
+ * there was a `REGISTRY` default here and a second one in `tool-dagger`, each
+ * rebuilding the ref from its own copy, with `tool-deploy` passing only the
+ * bare digest between them and no `ssh` env passthrough to reconcile the two.
+ * The addresses were free to diverge, and did — every live swap so far only
+ * worked because a human exported `REGISTRY=127.0.0.1:5000` in the shell that
+ * ran it. The publish address now travels with the digest as one string
+ * (`ReleaseEntry.image`, rendered by `tool-dagger`), so there is exactly one
+ * place the address is decided.
+ *
+ * What is checked here is what a receiver can check without owning the
+ * address: that the ref is pinned by digest rather than by a movable tag
+ * (design decision 4), and that its image name is the one this tier expects —
+ * which catches a mis-wired `--image` handing `be` the gateway's image, the
+ * one mistake this indirection newly makes possible.
  */
-export function digestRef(registry: string, tier: Tier, digest: string): string {
-  if (!isDigest(digest)) {
-    throw new Error(`not a well-formed sha256 digest: ${digest}`);
+export function assertDigestPinnedRef(ref: string, tier: Tier): string {
+  const m = DIGEST_PINNED_REF_RE.exec(ref);
+  if (!m?.groups) {
+    throw new Error(
+      `--image must be a digest-pinned ref (<registry>/<name>@sha256:<64 hex>), got: ${ref || '(missing)'}`,
+    );
   }
-  return `${registry}/${IMAGE_NAME[tier]}@${digest}`;
+  const name = m.groups['name'] ?? '';
+  if (name !== IMAGE_NAME[tier]) {
+    throw new Error(
+      `--image names "${name}" but tier "${tier}" deploys "${IMAGE_NAME[tier]}": ${ref}`,
+    );
+  }
+  return ref;
 }
 
 /**
@@ -67,18 +94,36 @@ export function digestRef(registry: string, tier: Tier, digest: string): string 
  * the rendered service/container name equal `containerName()`, and what
  * makes the rendered `env_file` path (`/srv/wbs/be-01.env`) line up with the
  * per-app env file naming deploy.sh already uses.
+ *
+ * `image` is passed straight through from `release.json` rather than
+ * assembled here — see `assertDigestPinnedRef`.
  */
 export function tierComposeContext(
   tier: Tier,
   color: Color,
-  registry: string,
-  digest: string,
+  image: string,
 ): Record<string, string> {
   return {
     TIER: APP[tier],
     COLOR: color,
-    IMAGE: digestRef(registry, tier, digest),
+    IMAGE: assertDigestPinnedRef(image, tier),
   };
+}
+
+/**
+ * Design decision 10: "SSH, registry, or registry auth unavailable at start —
+ * abort before anything starts. Nothing changed."
+ *
+ * `docker manifest inspect` is the cheapest thing that exercises the whole
+ * chain the swap depends on — DNS for the registry host, TLS, the credentials
+ * in the host daemon's `~/.docker/config.json`, and the existence of this
+ * exact digest — without downloading a single layer. Without it, the first
+ * sign of a registry problem is `docker compose up --pull always` failing
+ * partway through `start-green`, which is precisely the "surfaces mid-swap"
+ * behaviour decision 10 exists to forbid.
+ */
+export function manifestInspectArgs(image: string): string[] {
+  return ['manifest', 'inspect', image];
 }
 
 /**
@@ -150,16 +195,31 @@ export function psColorsFrom(psOutput: string, tier: Tier): Color[] {
  * until after `reload` (once Caddy has already switched away from it)
  * avoids that window entirely.
  *
- * Residual limitation, inherent to Docker's alias model rather than fixable
- * here: BE_ALIAS briefly resolves to *neither* colour between
- * `revokeAliasCommands` clearing it off the old container and (on the next
- * `be` swap) `grantAliasCommands` granting it to the next one — there is no
- * atomic hand-off primitive across two live endpoints for a single alias.
- * This can only affect gw's internal be-01.internal forward path, never the
- * client-facing Caddy routes (site.caddy addresses be-01 by its own
- * name-alias, moved separately via render-route/reload, never by
- * BE_ALIAS) — and only in the narrow window between two `be` swaps, not
- * during this one.
+ * Residual property, inherent to Docker's alias model rather than fixable
+ * here — and the opposite of what this comment used to claim. An earlier
+ * revision said BE_ALIAS "briefly resolves to *neither* colour" during the
+ * hand-off. That is false. Reproduced on a throwaway user-defined bridge
+ * network: Docker's embedded DNS permits two containers to hold the same
+ * alias at once and **round-robins between them**. So between
+ * `grantAliasCommands(to)` and `revokeAliasCommands(from)` — the whole
+ * grant -> render-route -> reload -> (drain) -> revoke window —
+ * `be-01.internal` resolves to BOTH colours, both of them running, and gw's
+ * forwards are split across two releases at roughly 50/50.
+ *
+ * There is no blackout, so nothing here needs retry logic (and
+ * apps/gw-01/src/service/forward-client.ts has none). What there IS, and what
+ * the old comment hid by describing a failure mode that does not exist, is a
+ * window where two be-01 releases serve gw concurrently against one shared,
+ * already-migrated SQLite database, with no version negotiation between them.
+ * Decision 8's "migrations must be backward-compatible with the previous
+ * release" is what makes that safe; it is not incidental. See decision 7 of
+ * docs/superpowers/specs/2026-08-02-compose-blue-green-deploy-design.md, which
+ * records this as a property of every `be` deploy.
+ *
+ * Either way this touches only gw's internal be-01.internal forward path,
+ * never the client-facing Caddy routes: site.caddy addresses be-01 by its own
+ * colour-specific name-alias, moved separately via render-route/reload, never
+ * by BE_ALIAS.
  */
 export function grantAliasCommands(to: Color): string[][] {
   const toName = containerName('be', to);
