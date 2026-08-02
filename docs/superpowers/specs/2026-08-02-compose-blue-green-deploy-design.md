@@ -45,6 +45,16 @@ carry machinery for a second one.
 
 ### 1. Everything on h2puni is a Compose service
 
+The domain is **`puni.show`**. Three hostnames, all A records pointing at `62.238.48.248`:
+
+| Host                      | Serves                                | Phase |
+| ------------------------- | ------------------------------------- | ----- |
+| `wbs.puni.show`           | the app — `/api/*`, `/ws*`, static fe | 1     |
+| `registry.puni.show`      | the image registry, basic auth        | 1     |
+| `observability.puni.show` | Grafana, basic auth                   | 2     |
+
+Caddy provisions Let's Encrypt certificates for each automatically on first request.
+
 ```
 caddy            :80 :443    TLS terminator; the only published ports
 registry:2       :5000       bound to 127.0.0.1
@@ -80,14 +90,14 @@ Two config knobs, neither touching swap logic:
 | Knob                 | Values                                                                                                          |
 | -------------------- | --------------------------------------------------------------------------------------------------------------- |
 | `DAGGER_RUNNER_HOST` | unset → engine on this machine; `ssh://puni1@h2puni` → engine on the server; unset in CI → engine on the runner |
-| `REGISTRY`           | `registry.<domain>` (default) or `ghcr.io/prosperous-unification`                                               |
+| `REGISTRY`           | `registry.puni.show` (default) or `ghcr.io/prosperous-unification`                                              |
 
 ### 3. A registry is the contract between build and deploy
 
 `tool-dagger` publishes; `tool-deploy` pulls. Neither knows anything else about the other. This
 is what keeps the build host pluggable — changing it is one env var.
 
-Self-hosted: a `registry:2` container on h2puni behind Caddy at `registry.<domain>` with TLS
+Self-hosted: a `registry:2` container on h2puni behind Caddy at `registry.puni.show` with TLS
 and basic auth. Chosen because a server-side build pushes over loopback and pays nothing, it
 keeps the stack self-hosted, and it is one more service on a box already being managed
 uniformly. GHCR remains a one-line swap.
@@ -235,7 +245,7 @@ tiers, blue/green with the gw drain, TLS on the domain, staging project, smoke. 
 `/srv/wbs/.env` as they are today.
 
 **Phase 2 — additive, separately specified.** The observability stack (Grafana, Loki, Promtail,
-Prometheus) on `observability.<domain>` behind basic auth per D15, and SOPS + age replacing the
+Prometheus) on `observability.puni.show` behind basic auth per D15, and SOPS + age replacing the
 hand-written `.env` per D18. Both are additive and cannot break Phase 1.
 
 ## Migration from the current deployment
@@ -254,5 +264,5 @@ The live deployment stays up and serving throughout steps 1 and 2.
 
 ## Open questions
 
-- The domain name itself is not yet recorded here. It is needed for the Caddy site address, the
-  registry hostname, and the Phase 2 observability subdomain. Supply it at implementation time.
+None. The domain (`puni.show`) was the last one; see decision 1 for the three hostnames it
+resolves to.
