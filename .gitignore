@@ -31,3 +31,5 @@ vite.config.*.timestamp*
 *.db-journal
 *.db-wal
 *.db-shm
+# SDD scratch workspace (ledger, briefs, review packages)
+.superpowers/
