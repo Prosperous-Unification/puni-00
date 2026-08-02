@@ -186,19 +186,37 @@ else:
     with open(path, "w") as f:
         json.dump(cfg, f, indent=2)
         f.write("\n")
-    print("changed")
+    print("added" if want else "removed")
 PY
 )
-if [ "$daemon_json_changed" = "changed" ]; then
-  # `reload`, not `restart`: insecure-registries is in dockerd's
-  # SIGHUP-reloadable option set, so this applies without bouncing every
-  # running container (caddy, registry, dagger-engine, and every app colour).
-  # A restart here would take the whole box down to change one list.
-  log "insecure-registries changed — reloading dockerd to apply"
-  systemctl reload docker
-else
-  log "insecure-registries already correct — no dockerd reload needed"
-fi
+# How the change is applied depends on its DIRECTION, which is not what the
+# docs imply. `insecure-registries` is in dockerd's documented
+# SIGHUP-reloadable set, but measured on h2puni (docker 29.1.3) a reload
+# applies ADDITIONS and silently ignores REMOVALS: a probe entry written to
+# daemon.json appeared in `docker info` after `systemctl reload docker`, and
+# then survived a second reload after being deleted from the file again. Only
+# a restart cleared it.
+#
+# So: reload when adding (cheap, and it works), restart when removing (the
+# only thing that works). Restarting bounces every container on the box —
+# caddy, the registry, dagger-engine and every app colour — which is a real
+# cost, but leaving a plaintext-HTTP allowance live in a daemon whose config
+# file no longer grants it is worse, and silently reporting success while
+# doing nothing is worse still.
+case "$daemon_json_changed" in
+  added)
+    log "$REGISTRY_HOST added to insecure-registries — reloading dockerd"
+    systemctl reload docker
+    ;;
+  removed)
+    log "$REGISTRY_HOST removed from insecure-registries — RESTARTING dockerd"
+    log "  (a reload does not apply removals; every container on this host will bounce)"
+    systemctl restart docker
+    ;;
+  *)
+    log "insecure-registries already correct — dockerd left alone"
+    ;;
+esac
 
 log "logging the host docker daemon in to $REGISTRY_HOST"
 # The server pulls its own images. Without this, `docker compose up` fails to
