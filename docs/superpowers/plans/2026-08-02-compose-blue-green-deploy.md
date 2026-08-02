@@ -23,6 +23,12 @@
 - **Lint/format:** `bunx eslint <project>/src` and Prettier via lefthook pre-commit. Commits will fail the hook if unformatted.
 - **Phase 1 only.** The observability stack and SOPS secrets are Phase 2 and out of scope. Secrets stay in `/srv/wbs/.env`.
 
+### Dated exception, granted 2026-08-02
+
+The registry binds `127.0.0.1:5000` on the host, which contradicts the Ports constraint above. Granted deliberately, not overlooked: the server's own docker daemon authenticates and pulls through that address, and public TLS for `registry.infra.bulletpoints.club` cannot exist until DNS lands. The binding is loopback-only, so nothing is reachable off-host.
+
+**Task 12 must remove it** — dropping the `ports:` key from the registry service once Caddy fronts the registry hostname with a real certificate. This exception expires with that step; it is not a permanent amendment to the constraint.
+
 ## File Structure
 
 **New:**
@@ -2017,6 +2023,10 @@ bunx nx run tool-smoke:smoke
 ```
 
 Expected: smoke passes against the Compose stack.
+
+- [ ] **Step 4b: Retire the registry's loopback host binding**
+
+The dated exception granted on 2026-08-02 (see Global Constraints) expires here. Once Caddy serves `registry.infra.bulletpoints.club` with a real certificate, drop the `ports:` key from the `registry` service in `deploy/compose/base.yml`, remove the matching `insecure-registries` entry from `/etc/docker/daemon.json` on the server, and re-run `docker login` against the public hostname. Verify with `ssh h2puni 'ss -tln | grep 5000'` returning nothing, then confirm a pull still works.
 
 - [ ] **Step 5: Delete the systemd path**
 
