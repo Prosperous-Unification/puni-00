@@ -1,0 +1,21 @@
+node_modules
+dist
+.git
+.nx
+.worktrees
+**/*.test.ts
+docs
+openspec
+coverage
+
+# Local dev secrets and per-developer scratch state. Runtime env vars are
+# supplied by `docker run -e` / compose, never baked into the image.
+**/.env
+**/.env.local
+
+# Per-developer scratch SQLite databases; the app opens DB_PATH from a
+# mounted volume, not a file baked into the image.
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
