@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -39,18 +39,21 @@ describe('writeAtomic', () => {
     expect(existsSync(`${p}.tmp`)).toBe(false);
   });
 
-  it('cleans up temp file on write failure', async () => {
-    const p = join(dir, 'nested', 'fail.caddy');
+  it('cleans up temp file on rename failure', async () => {
+    const p = join(dir, 'target');
     const tmpPath = `${p}.tmp`;
-    // Try to write to a path in a nonexistent directory, causing rename to fail
-    // This forces temp file cleanup before rethrowing
+    // Create a non-empty directory at the destination path so rename will fail with ENOTEMPTY
+    mkdirSync(p);
+    writeFileSync(join(p, 'existing.txt'), 'file inside');
+    // Write and fsync succeed, creating the temp file, but rename fails
     let threw = false;
     try {
-      await writeAtomic(p, 'should fail');
+      await writeAtomic(p, 'will fail on rename');
     } catch {
       threw = true;
     }
     expect(threw).toBe(true);
+    // Verify temp file was cleaned up by the error handler
     expect(existsSync(tmpPath)).toBe(false);
   });
 });
