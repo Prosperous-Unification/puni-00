@@ -36,7 +36,7 @@ async function main(): Promise<void> {
     `[tool-dagger/gw-01] ${opts.mode} plan — image=${plan.image.baseImage} bundle=${plan.bundle}`,
   );
   console.log(
-    '[tool-dagger/gw-01] build-and-publish wiring is a scaffold — real dagger SDK calls are intentionally omitted.',
+    "[tool-dagger/gw-01] this per-tier script only computes a bundle plan. Real Docker builds/publishes now run through `nx run tool-dagger:publish-all` (see src/main.ts's publishAll).",
   );
   await Promise.resolve();
 }

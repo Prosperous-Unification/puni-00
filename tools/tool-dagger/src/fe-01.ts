@@ -35,7 +35,7 @@ async function main(): Promise<void> {
     `[tool-dagger/fe-01] ${opts.mode} plan — image=${plan.image.baseImage} bundle=${plan.bundle}`,
   );
   console.log(
-    '[tool-dagger/fe-01] fe-01 bundle is static assets + Caddy config — real dagger SDK wiring intentionally omitted.',
+    "[tool-dagger/fe-01] this per-tier script only computes a bundle plan (static assets + Caddy config). Real Docker builds/publishes now run through `nx run tool-dagger:publish-all` (see src/main.ts's publishAll).",
   );
   await Promise.resolve();
 }
