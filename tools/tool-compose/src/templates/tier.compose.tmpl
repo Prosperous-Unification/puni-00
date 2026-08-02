@@ -1,6 +1,7 @@
 services:
   {{TIER}}-{{COLOR}}:
     image: {{IMAGE}}
+    container_name: {{TIER}}-{{COLOR}}
     restart: unless-stopped
     networks:
       wbs-net:

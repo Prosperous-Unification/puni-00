@@ -4,7 +4,6 @@ import { assembleCaddyfile } from './lib/caddy';
 import { drain } from './lib/drain';
 import { waitForHealthy } from './lib/health';
 import { flipColor, parseStateJson, renderStateJson } from './lib/state';
-import { describePlan, planSwap } from './swap';
 
 describe('state', () => {
   it('flips color', () => {
@@ -93,12 +92,10 @@ describe('drain', () => {
   });
 });
 
-describe('swap.planSwap', () => {
-  it('flips color and respects dry-run default', () => {
-    const plan = planSwap({ tier: 'be', activeColor: 'blue', lastDeployedSha: null });
-    expect(plan.fromColor).toBe('blue');
-    expect(plan.toColor).toBe('green');
-    expect(plan.dryRun).toBe(true);
-    expect(describePlan(plan)).toContain('dry-run');
-  });
-});
+// `planSwap`/`describePlan` used to live here, hardcoding `activeColor: 'blue'`
+// and never touching real Docker or Caddy. Task 9 replaced them: the real
+// planner is `planSwap` in `./lib/reconcile.ts` (tested in
+// `./lib/reconcile.test.ts`), and this file's `swap.ts` is now the IO shell
+// that executes its plan — its pure command builders and parsers live in
+// `./lib/docker.ts` and `./lib/site.ts` (tested in `docker.test.ts` and
+// `site.test.ts`).

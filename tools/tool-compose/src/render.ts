@@ -53,17 +53,21 @@ function parseArgs(argv: string[]): { outDir: string } {
   return { outDir: args['outDir'] ?? 'dist/tools/tool-compose' };
 }
 
+// Preview/CLI defaults only — a real deploy never calls this. The swap
+// executor (tools/tool-remote-scripts/src/swap.ts) renders both templates
+// itself with real per-deploy values (digest-pinned image, actual routed
+// colours) via `renderTemplate` directly, imported through `@wbs/tool-compose`.
 async function main(): Promise<void> {
   const { outDir } = parseArgs(process.argv.slice(2));
   const ctx: RenderContext = {
-    BE_IMAGE: process.env['BE_IMAGE'] ?? 'ghcr.io/example/be-01:latest',
-    BE_PORT: process.env['BE_PORT'] ?? '3100',
-    BE_HOST_PORT: process.env['BE_HOST_PORT'] ?? '3100',
-    GW_IMAGE: process.env['GW_IMAGE'] ?? 'ghcr.io/example/gw-01:latest',
-    GW_PORT: process.env['GW_PORT'] ?? '3200',
-    GW_HOST_PORT: process.env['GW_HOST_PORT'] ?? '3200',
-    DOMAIN: process.env['DOMAIN'] ?? 'example.local',
-    OBSERVABILITY_BASIC_AUTH_HASH: process.env['OBSERVABILITY_BASIC_AUTH_HASH'] ?? '$CHANGE-ME$',
+    TIER: process.env['TIER'] ?? 'be-01',
+    COLOR: process.env['COLOR'] ?? 'blue',
+    IMAGE:
+      process.env['IMAGE'] ?? `registry.infra.bulletpoints.club/wbs-be-01@sha256:${'0'.repeat(64)}`,
+    SITE_ADDRESS: process.env['SITE_ADDRESS'] ?? 'wbs.bulletpoints.club',
+    BE_COLOR: process.env['BE_COLOR'] ?? 'blue',
+    GW_COLOR: process.env['GW_COLOR'] ?? 'blue',
+    FE_COLOR: process.env['FE_COLOR'] ?? 'blue',
   };
   const written = await renderAll({
     templatesDir: new URL('./templates', import.meta.url).pathname,

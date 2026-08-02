@@ -9,10 +9,7 @@
       "executor": "nx:run-commands",
       "options": {
         "commands": [
-          "bun build tools/tool-remote-scripts/src/swap.ts --target=bun --outfile dist/tool-remote-scripts/swap.js",
-          "bun build tools/tool-remote-scripts/src/swap-be.ts --target=bun --outfile dist/tool-remote-scripts/swap-be.js",
-          "bun build tools/tool-remote-scripts/src/swap-gw.ts --target=bun --outfile dist/tool-remote-scripts/swap-gw.js",
-          "bun build tools/tool-remote-scripts/src/swap-fe.ts --target=bun --outfile dist/tool-remote-scripts/swap-fe.js"
+          "bun build tools/tool-remote-scripts/src/swap.ts --target=bun --outfile dist/tool-remote-scripts/swap.js"
         ],
         "parallel": false
       },

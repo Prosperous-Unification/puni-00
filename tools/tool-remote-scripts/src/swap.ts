@@ -1,38 +1,273 @@
-import { flipColor, type Tier, type TierState } from './lib/state';
+// The blue/green swap executor. `lib/docker.ts` and `lib/site.ts` hold the
+// pure command builders, parsers, and template contexts; everything here is
+// the thin IO shell that actually runs `docker`, touches the filesystem, and
+// drives the ordered `SwapStep`s a `SwapPlan` (lib/reconcile.ts) produces.
+//
+// `--dry-run` is the default. `--execute` opts in to anything destructive.
+//
+// How the Caddy/Compose templates reach the server: they are NOT read from a
+// path on disk at runtime. `@wbs/tool-compose` imports both `.tmpl` files as
+// raw text with `with { type: 'text' }`, which Bun's bundler inlines at
+// build time into the single `swap.js` produced by this project's `build`
+// target — the same file `install.ts` already documents rsync-ing to
+// `/srv/wbs/bin/`. So shipping one file ships the templates too; nothing
+// separate needs to exist on the server. Verified: `bun build --target=bun`
+// on a throwaway file with the same import pattern inlines the text and the
+// resulting bundle still runs correctly when moved and executed from an
+// unrelated directory.
+import { renderTemplate, siteCaddyTmpl, tierComposeTmpl } from '@wbs/tool-compose';
 
-export interface SwapPlan {
-  tier: Tier;
-  fromColor: TierState['activeColor'];
-  toColor: TierState['activeColor'];
-  dryRun: boolean;
+import { writeAtomic } from './lib/atomic';
+import {
+  composeUpArgs,
+  containerName,
+  isDigest,
+  moveAliasArgs,
+  NETWORK,
+  psColorsFrom,
+  ROOT,
+  tierComposeContext,
+  tierComposeFile,
+} from './lib/docker';
+import { drain } from './lib/drain';
+import { waitForHealthy } from './lib/health';
+import { withLock } from './lib/lock';
+import { readPhase, writePhase } from './lib/phase';
+import { type Observed, planSwap, type SwapPlan } from './lib/reconcile';
+import { routedColorFor, siteContext } from './lib/site';
+import { type Color, parseStateJson, renderStateJson, type Tier } from './lib/state';
+
+const REGISTRY = process.env['REGISTRY'] ?? 'registry.infra.bulletpoints.club';
+const SITE_ADDRESS = process.env['SITE_ADDRESS'] ?? 'wbs.bulletpoints.club';
+const SITE_CADDY_PATH = `${ROOT}/caddy/site.caddy`;
+
+const PORT: Record<Tier, number> = { be: 3100, gw: 3200, fe: 80 };
+// fe-01 is a static Caddy server with no /health route; design decision 5's
+// health gate for it is "fetch / and assert 200 + a non-empty body" instead.
+const HEALTH_PATH: Record<Tier, string> = { be: '/health', gw: '/health', fe: '/' };
+
+async function sh(args: string[]): Promise<string> {
+  const p = Bun.spawn(['docker', ...args], { stdout: 'pipe', stderr: 'pipe' });
+  const out = await new Response(p.stdout).text();
+  const code = await p.exited;
+  if (code !== 0) {
+    throw new Error(`docker ${args.join(' ')} failed: ${await new Response(p.stderr).text()}`);
+  }
+  return out;
 }
 
-export function planSwap(current: TierState, dryRun = true): SwapPlan {
+/**
+ * No app-tier ports are published to the host (design decision 1) — only
+ * containers on `wbs-net` can resolve each other by container-DNS name.
+ * This process runs on the bare host (`/srv/wbs/bin/swap.js`, not inside a
+ * container), so it cannot reach `http://be-01-green:3100/...` by name. It
+ * CAN reach the container directly by its bridge-network IP: Docker routes
+ * host -> bridge-network-container traffic regardless of published ports,
+ * only host -> *outside* traffic needs a publish. Not verified against a
+ * live container in this task (no deploy was run) — Task 12's first real
+ * swap should confirm this the first time health-gate actually executes.
+ */
+async function containerIp(name: string): Promise<string> {
+  const out = await sh([
+    'inspect',
+    '-f',
+    `{{(index .NetworkSettings.Networks "${NETWORK}").IPAddress}}`,
+    name,
+  ]);
+  const ip = out.trim();
+  if (ip === '') throw new Error(`${name} has no address on ${NETWORK}`);
+  return ip;
+}
+
+/** One gauge, read off gw-01's own in-memory counters (see below). */
+async function activeConnections(container: string): Promise<number> {
+  const ip = await containerIp(container);
+  const res = await fetch(`http://${ip}:${String(PORT.gw)}/metrics/snapshot`);
+  const body = (await res.json()) as { activeConnections?: unknown };
+  return typeof body.activeConnections === 'number' ? body.activeConnections : 0;
+}
+
+async function readSiteCaddy(): Promise<string> {
+  return Bun.file(SITE_CADDY_PATH)
+    .text()
+    .catch(() => '');
+}
+
+async function readRecordedColor(tier: Tier): Promise<Color | null> {
+  const raw = await Bun.file(`${ROOT}/state/${tier}.json`)
+    .text()
+    .catch(() => null);
+  if (raw === null) return null;
+  try {
+    return parseStateJson(raw).activeColor;
+  } catch (e) {
+    console.warn(
+      `[swap-${tier}] ignoring unreadable state file: ${e instanceof Error ? e.message : String(e)}`,
+    );
+    return null;
+  }
+}
+
+async function observe(tier: Tier): Promise<Observed> {
+  const psOutput = await sh(['ps', '--format', '{{.Names}}']);
+  const siteText = await readSiteCaddy();
   return {
-    tier: current.tier,
-    fromColor: current.activeColor,
-    toColor: flipColor(current.activeColor),
-    dryRun,
+    routedColor: routedColorFor(tier, siteText),
+    runningColors: psColorsFrom(psOutput, tier),
+    recordedColor: await readRecordedColor(tier),
+    phase: await readPhase(`${ROOT}/state/${tier}.phase`),
   };
 }
 
-export function describePlan(p: SwapPlan): string {
-  return `[swap-${p.tier}] ${p.fromColor} -> ${p.toColor}${p.dryRun ? ' (dry-run)' : ''}`;
+async function execute(plan: SwapPlan, digest: string, sha: string): Promise<void> {
+  const { tier, from, to } = plan;
+  const phasePath = `${ROOT}/state/${tier}.phase`;
+
+  for (const step of plan.steps) {
+    console.log(`[swap-${tier}] ${step}`);
+    switch (step) {
+      case 'start-green': {
+        await writePhase(phasePath, 'preparing');
+        const ctx = tierComposeContext(tier, to, REGISTRY, digest);
+        await writeAtomic(tierComposeFile(tier, to), renderTemplate(tierComposeTmpl, ctx));
+        await sh(composeUpArgs(tier, to));
+        break;
+      }
+
+      case 'migrate':
+        // Discrete step before green takes traffic: a failed migration
+        // aborts the deploy with the old colour untouched.
+        await sh(['exec', containerName(tier, to), 'bun', 'run', 'src/migrate-cli.ts']);
+        break;
+
+      case 'health-gate': {
+        const ip = await containerIp(containerName(tier, to));
+        const ok = await waitForHealthy({
+          url: `http://${ip}:${String(PORT[tier])}${HEALTH_PATH[tier]}`,
+          timeoutMs: 2000,
+          attempts: 120,
+          intervalMs: 500,
+        });
+        if (!ok) {
+          await sh(['stop', containerName(tier, to)]);
+          throw new Error(`${tier}-${to} failed health gate; ${from ?? 'nothing'} left live`);
+        }
+        break;
+      }
+
+      case 'move-alias': {
+        const [disconnect, connect] = moveAliasArgs(from, to);
+        if (disconnect !== null) await sh(disconnect);
+        await sh(connect);
+        break;
+      }
+
+      case 'render-route': {
+        const siteText = await readSiteCaddy();
+        const colors: Record<Tier, Color> = {
+          be: routedColorFor('be', siteText) ?? 'blue',
+          gw: routedColorFor('gw', siteText) ?? 'blue',
+          fe: routedColorFor('fe', siteText) ?? 'blue',
+        };
+        colors[tier] = to;
+        const rendered = renderTemplate(siteCaddyTmpl, siteContext(colors, SITE_ADDRESS));
+        await writeAtomic(SITE_CADDY_PATH, rendered);
+        break;
+      }
+
+      case 'reload':
+        // Targets caddy by Compose *service* name rather than a hardcoded
+        // container name: base.yml sets no `container_name` for it, so the
+        // real container is `wbs-caddy-1` (verified live on h2puni), which
+        // `compose exec` resolves without needing to know that.
+        await sh([
+          'compose',
+          '-f',
+          `${ROOT}/base.yml`,
+          'exec',
+          'caddy',
+          'caddy',
+          'reload',
+          '--config',
+          '/etc/caddy/Caddyfile',
+        ]);
+        await writePhase(phasePath, 'routed');
+        break;
+
+      case 'drain': {
+        // Existing helper: it polls a supplied counter rather than fetching
+        // a URL itself, so getting the count is our job. gw-01's own
+        // in-memory counters, exposed as JSON at /metrics/snapshot, are used
+        // rather than the Prometheus-format /metrics endpoint — gw-01's
+        // GatewayMetrics never registers an OTel instrument for
+        // activeConnections, so that gauge does not exist in the Prometheus
+        // output today (verified by reading gateway-metrics.ts and
+        // otel-plugin.ts).
+        const target = containerName('gw', from ?? to);
+        const res = await drain({
+          activeConnections: () => activeConnections(target),
+          maxWaitMs: 300_000,
+          pollMs: 10_000,
+        });
+        if (!res.drained) {
+          console.warn(
+            `[swap-gw] drain timed out after ${String(res.elapsedMs)}ms; ` +
+              'remaining sockets will reconnect and resume via Layer-A',
+          );
+        }
+        break;
+      }
+
+      case 'stop-blue':
+        if (from !== null) await sh(['stop', containerName(tier, from)]);
+        await writePhase(phasePath, 'old-stopped');
+        break;
+
+      case 'commit':
+        await writeAtomic(
+          `${ROOT}/state/${tier}.json`,
+          renderStateJson({ tier, activeColor: to, lastDeployedSha: sha }),
+        );
+        await writePhase(phasePath, 'committed');
+        break;
+    }
+  }
 }
 
-function main(): void {
-  const tierArg = process.argv[2];
-  if (tierArg !== 'be' && tierArg !== 'gw' && tierArg !== 'fe' && tierArg !== 'all') {
-    throw new Error('usage: swap <be|gw|fe|all>');
+function argOf(flag: string): string {
+  const hit = process.argv.find((a) => a.startsWith(`--${flag}=`));
+  return hit === undefined ? '' : hit.slice(flag.length + 3);
+}
+
+async function main(): Promise<void> {
+  const tier = process.argv[2];
+  if (tier !== 'be' && tier !== 'gw' && tier !== 'fe') {
+    throw new Error('usage: swap <be|gw|fe> --digest=<sha256:…> --sha=<git-sha> [--execute]');
   }
-  const tiers: Tier[] = tierArg === 'all' ? ['be', 'gw', 'fe'] : [tierArg];
-  for (const t of tiers) {
-    const plan = planSwap({ tier: t, activeColor: 'blue', lastDeployedSha: null }, true);
-    console.log(describePlan(plan));
+
+  const observed = await observe(tier);
+  const plan = planSwap(tier, observed);
+  console.log(`[swap-${tier}] ${String(plan.from)} -> ${plan.to}: ${plan.steps.join(' -> ')}`);
+
+  if (!process.argv.includes('--execute')) {
+    console.log('[swap] dry-run (default). re-run with --execute to perform the swap.');
+    return;
   }
-  console.log('[swap] running in dry-run mode — no live Docker or Caddy operations performed.');
+
+  const digest = argOf('digest');
+  const sha = argOf('sha');
+  // Abort before anything starts rather than mid-swap (design decision 10).
+  if (!isDigest(digest)) {
+    throw new Error(`--digest=<sha256:...> is required to execute, got: ${digest || '(missing)'}`);
+  }
+  if (sha === '') throw new Error('--sha=<git-sha> is required to execute');
+
+  await withLock(`${ROOT}/state/deploy.lock`, () => execute(plan, digest, sha));
 }
 
 if (import.meta.main) {
-  main();
+  main().catch((e: unknown) => {
+    console.error('[swap] failed:', e instanceof Error ? e.message : String(e));
+    process.exit(1);
+  });
 }
