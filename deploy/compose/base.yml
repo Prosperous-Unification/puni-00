@@ -1,0 +1,59 @@
+# deploy/compose/base.yml
+#
+# Host base stack: containerised Caddy (edge, ports 80/443) and an
+# authenticated private registry. Bring up with:
+#   docker compose -f /srv/wbs/base.yml up -d
+name: wbs
+
+networks:
+  wbs-net:
+    name: wbs-net
+    driver: bridge
+
+volumes:
+  # Non-negotiable: without this, Caddy re-requests certificates on every
+  # restart and hits Let's Encrypt rate limits.
+  caddy_data:
+  caddy_config:
+  registry_data:
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    networks: [wbs-net]
+    ports:
+      - '80:80'
+      - '443:443'
+      - '443:443/udp'
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+      - /srv/wbs/caddy:/etc/caddy:ro
+      - /srv/wbs/logs:/var/log/caddy
+
+  registry:
+    image: registry:2
+    restart: unless-stopped
+    networks: [wbs-net]
+    # Not published to the public host interface: a containerised Caddy
+    # (Task 12) reaches it by container DNS ("registry:5000"), and nothing
+    # on the internet should reach it at all.
+    #
+    # It IS published on loopback for now. DNS for the real hostname
+    # (registry.infra.bulletpoints.club) doesn't exist yet, so the host's
+    # own docker daemon — which needs to authenticate against this registry
+    # per configure.sh, and which later tasks' `docker compose pull` will
+    # depend on — has no other way to reach it until Task 12 wires up
+    # public TLS. 127.0.0.1-only keeps it host-local in the meantime; drop
+    # this port once the public hostname is live.
+    ports:
+      - '127.0.0.1:5000:5000'
+    environment:
+      REGISTRY_AUTH: htpasswd
+      REGISTRY_AUTH_HTPASSWD_REALM: wbs
+      REGISTRY_AUTH_HTPASSWD_PATH: /auth/htpasswd
+      REGISTRY_STORAGE_DELETE_ENABLED: 'true'
+    volumes:
+      - registry_data:/var/lib/registry
+      - /srv/wbs/registry.htpasswd:/auth/htpasswd:ro
