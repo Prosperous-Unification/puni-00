@@ -1,0 +1,16 @@
+# deploy/compose/Caddyfile.bootstrap
+#
+# Placeholder installed by configure.sh at /srv/wbs/caddy/Caddyfile, ONLY if
+# that file doesn't already exist. caddy:2-alpine hard-errors and
+# crash-loops with no /etc/caddy/Caddyfile at all, so a fresh host needs
+# something here before the first real deploy ever runs.
+#
+# This is intentionally NOT wired to tools/tool-compose/src/templates/
+# (site.caddy.tmpl etc.) — those render to site.caddy/tier.caddy, not to
+# Caddyfile, and are installed by the deploy pipeline once a real release
+# exists. Because configure.sh only writes this when Caddyfile is absent,
+# a real deploy's Caddyfile (e.g. one that does `import site.caddy`) is
+# never overwritten by a later configure.sh re-run.
+:80 {
+	respond "wbs-tool: no site deployed yet" 200
+}
