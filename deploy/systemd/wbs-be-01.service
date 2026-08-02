@@ -1,0 +1,22 @@
+[Unit]
+Description=wbs-tool be-01 (backend)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# runMigrations() resolves './drizzle' relative to the working directory, so
+# this must be the app root and not the repo root.
+WorkingDirectory=%h/wbs-tool/apps/be-01
+# Shared secrets first, then per-service runtime config. Later files win, so
+# a service-specific PORT overrides anything set in the shared file.
+EnvironmentFile=/srv/wbs/.env
+EnvironmentFile=/srv/wbs/be-01.env
+ExecStart=/usr/local/bin/bun run src/main.ts
+Restart=always
+RestartSec=2
+StandardOutput=append:/srv/wbs/logs/be-01.log
+StandardError=append:/srv/wbs/logs/be-01.log
+
+[Install]
+WantedBy=default.target

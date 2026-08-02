@@ -12,13 +12,14 @@ const app = buildApp({
   get migrationsApplied() {
     return state.migrationsApplied;
   },
+  internalAuthSecret: cfg.INTERNAL_AUTH_SECRET,
   version: process.env['VERSION'],
 });
 
 app.listen(cfg.PORT, () => {
   logger.info({ port: cfg.PORT }, 'be-01 listening (migrating)');
   try {
-    runMigrations(process.env['DB_PATH'] ?? './local.db', './drizzle');
+    runMigrations(cfg.DB_PATH, './drizzle');
     state.migrationsApplied = true;
     logger.info('migrations applied');
   } catch (err) {

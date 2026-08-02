@@ -6,6 +6,7 @@ describe('migrate lifecycle', () => {
   it('exposes 503 before migrations complete then 200 after', async () => {
     const state = { migrationsApplied: false };
     const app = buildApp({
+      internalAuthSecret: 'x'.repeat(32),
       get migrationsApplied() {
         return state.migrationsApplied;
       },

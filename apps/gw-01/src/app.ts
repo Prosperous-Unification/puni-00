@@ -58,10 +58,10 @@ export function buildApp(opts: AppOptions) {
       },
       open(ws) {
         metrics.connectionOpened();
-        (ws.data as { connectionId: string }).connectionId = crypto.randomUUID();
+        (ws.data as unknown as { connectionId: string }).connectionId = crypto.randomUUID();
       },
       async message(ws, data) {
-        const d = ws.data as { connectionId: string; query?: { token?: string } };
+        const d = ws.data as unknown as { connectionId: string; query?: { token?: string } };
         const clientId = 'anon';
         const socket: SocketLike = { send: (s) => ws.send(s) };
         await handleWsMessage({

@@ -1,0 +1,29 @@
+# Rendered by deploy/deploy.sh to /srv/wbs/caddy/10-wbs.caddy — do not edit in place.
+#
+# Only two routes reach a backend. Everything else is served as static assets or
+# 404s here. In particular /internal/* (gw<->be RPC) and /metrics (Prometheus
+# scrape) are UNAUTHENTICATED on both services and must never be proxied.
+{{SITE_ADDRESS}} {
+	encode gzip
+
+	# WebSocket gateway. Caddy upgrades transparently; no extra config needed.
+	handle /ws* {
+		reverse_proxy 127.0.0.1:{{GW_PORT}}
+	}
+
+	# be-01 mounts its public controllers under /api already, so the prefix is
+	# passed through rather than stripped.
+	handle /api/* {
+		reverse_proxy 127.0.0.1:{{BE_PORT}}
+	}
+
+	handle {
+		root * /srv/wbs/www
+		try_files {path} /index.html
+		file_server
+	}
+
+	log {
+		output file /srv/wbs/logs/caddy-access.log
+	}
+}

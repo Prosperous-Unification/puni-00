@@ -1,0 +1,18 @@
+[Unit]
+Description=wbs-tool gw-01 (websocket gateway)
+After=network-online.target wbs-be-01.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/wbs-tool/apps/gw-01
+EnvironmentFile=/srv/wbs/.env
+EnvironmentFile=/srv/wbs/gw-01.env
+ExecStart=/usr/local/bin/bun run src/main.ts
+Restart=always
+RestartSec=2
+StandardOutput=append:/srv/wbs/logs/gw-01.log
+StandardError=append:/srv/wbs/logs/gw-01.log
+
+[Install]
+WantedBy=default.target

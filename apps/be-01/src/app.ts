@@ -7,11 +7,14 @@ import { smokeController } from './controller/smoke.controller';
 
 export interface AppOptions {
   migrationsApplied: boolean;
+  /**
+   * Shared secret gw-01 presents on /internal/*. Required — a default here
+   * would silently diverge from the value gw-01 loads from the environment,
+   * failing every forward with a 401 that only shows up in a real deployment.
+   */
+  internalAuthSecret: string;
   version?: string;
-  internalAuthSecret?: string;
 }
-
-const DEV_INTERNAL_SECRET = 'development-secret-32-characters!!!';
 
 export function buildApp(opts: AppOptions) {
   const logger = createLogger({ service: 'be-01', version: opts.version });
@@ -22,7 +25,7 @@ export function buildApp(opts: AppOptions) {
     .use(smokeController)
     .use(
       internalController({
-        secret: opts.internalAuthSecret ?? DEV_INTERNAL_SECRET,
+        secret: opts.internalAuthSecret,
         onForward: () => Promise.resolve({ push_responses: [] }),
         onResume: (points) => {
           const out: Record<string, { status: 'replaying'; count: number }> = {};
