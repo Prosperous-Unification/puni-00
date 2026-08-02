@@ -107,9 +107,11 @@ render_caddy() {
 
 # ----------------------------------------------------------------- services
 install_units() {
-  log "installing systemd user units"
+  log "installing systemd user units for $REPO_DIR"
   mkdir -p "$UNIT_DIR"
-  cp "$REPO_DIR"/deploy/systemd/wbs-*.service "$UNIT_DIR/"
+  for unit in "$REPO_DIR"/deploy/systemd/wbs-*.service; do
+    sed -e "s|{{REPO_DIR}}|$REPO_DIR|g" "$unit" > "$UNIT_DIR/$(basename "$unit")"
+  done
   systemctl --user daemon-reload
   systemctl --user enable wbs-be-01.service wbs-gw-01.service >/dev/null
 }

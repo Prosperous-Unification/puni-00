@@ -5,9 +5,11 @@ Wants=network-online.target
 
 [Service]
 Type=simple
+# Rendered by deploy/deploy.sh — {{REPO_DIR}} becomes the checkout it ran from,
+# so the repo can live anywhere. Do not edit the installed copy in place.
 # runMigrations() resolves './drizzle' relative to the working directory, so
 # this must be the app root and not the repo root.
-WorkingDirectory=%h/wbs-tool/apps/be-01
+WorkingDirectory={{REPO_DIR}}/apps/be-01
 # Shared secrets first, then per-service runtime config. Later files win, so
 # a service-specific PORT overrides anything set in the shared file.
 EnvironmentFile=/srv/wbs/.env
