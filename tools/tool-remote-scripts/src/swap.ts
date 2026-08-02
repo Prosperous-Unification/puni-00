@@ -15,6 +15,8 @@
 // on a throwaway file with the same import pattern inlines the text and the
 // resulting bundle still runs correctly when moved and executed from an
 // unrelated directory.
+import { unlink } from 'node:fs/promises';
+
 import { renderTemplate, siteCaddyTmpl, tierComposeTmpl } from '@wbs/tool-compose';
 
 import { writeAtomic } from './lib/atomic';
@@ -36,7 +38,7 @@ import { drain } from './lib/drain';
 import { waitForHealthy } from './lib/health';
 import { withLock } from './lib/lock';
 import { readPhase, writePhase } from './lib/phase';
-import { type Observed, planSwap, type SwapPlan } from './lib/reconcile';
+import { type Observed, planSwap, type SwapPlan, type SwapStep } from './lib/reconcile';
 import { routedColorFor, siteContext } from './lib/site';
 import { type Color, parseStateJson, renderStateJson, type Tier } from './lib/state';
 
@@ -93,10 +95,37 @@ async function activeConnections(container: string): Promise<number> {
   return typeof body.activeConnections === 'number' ? body.activeConnections : 0;
 }
 
-async function readSiteCaddy(): Promise<string> {
-  return Bun.file(SITE_CADDY_PATH)
-    .text()
-    .catch(() => '');
+/**
+ * `null` means "not there, or unreadable" (first deploy, or a transient
+ * read failure) — distinct from `''`, a file that is genuinely present and
+ * empty. Collapsing both to `''` (the previous behaviour) made `abortSwap`'s
+ * `siteTextBefore !== null` guard pass for a swap that never had a real
+ * previous config to go back to, which is exactly the case that must NOT be
+ * restored — see `shouldRestoreSiteCaddy`.
+ */
+export async function readSiteCaddy(path: string = SITE_CADDY_PATH): Promise<string | null> {
+  const f = Bun.file(path);
+  if (!(await f.exists())) return null;
+  try {
+    return await f.text();
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Whether `abortSwap` should write `siteTextBefore` back out and reload it.
+ *
+ * `null` (missing/unreadable) and `''` (present but empty) are both "there
+ * is no previous config to restore" — and restoring either would write out
+ * a `site.caddy` with NO servers in it. `/srv/wbs/caddy/Caddyfile` is
+ * literally `import site.caddy`, so that takes down the app site AND the
+ * registry block together, and leaves the empty file on disk as a landmine
+ * for the next Caddy restart or container recreate. A missing previous
+ * config is not something to restore; it is something to leave alone.
+ */
+export function shouldRestoreSiteCaddy(siteTextBefore: string | null): boolean {
+  return siteTextBefore !== null && siteTextBefore.length > 0;
 }
 
 /**
@@ -255,10 +284,31 @@ async function reloadCaddy(): Promise<void> {
   ]);
 }
 
+// Steps at or before `reload` are still reversible: nothing client-facing has
+// switched over yet (or, for `reload` itself, the switch is what's failing).
+// A failure anywhere in this window must delegate to `abortSwap`. Steps after
+// `reload` (`drain`, `revoke-alias`, `stop-blue`, `commit`) are NOT reversible
+// by this mechanism: routing has already moved to `to`, which is now the
+// legitimately live colour, so rolling back to `from` would be exactly
+// backwards. See the boundary enforced in `execute`'s per-step try/catch.
+const ABORTABLE_STEPS: ReadonlySet<SwapStep> = new Set<SwapStep>([
+  'start-green',
+  'migrate',
+  'health-gate',
+  'grant-alias',
+  'render-route',
+  'reload',
+]);
+
 async function execute(plan: SwapPlan, image: string, sha: string): Promise<void> {
   const { tier, from, to } = plan;
   const phasePath = `${ROOT}/state/${tier}.phase`;
   const greenName = containerName(tier, to);
+
+  // Captured before this attempt writes anything, so an abort can put the
+  // phase marker back to exactly what it said before — it must never
+  // contradict be.json, which an aborted swap also leaves untouched.
+  const phaseBefore = await readPhase(phasePath);
 
   // Undo state for the abort paths below. Both start "nothing to undo" and
   // are set at the exact point the corresponding action becomes undoable.
@@ -280,8 +330,14 @@ async function execute(plan: SwapPlan, image: string, sha: string): Promise<void
    * handed back to the outgoing colour before green stops, which is why this
    * is a helper rather than three lines at each throw site.
    *
-   * Every undo is best-effort and logged: the original failure is what the
-   * operator needs to see, so a failing cleanup must not replace it.
+   * Reachable from any of `ABORTABLE_STEPS`, including ones that previously
+   * threw bare (`start-green`, `grant-alias`, `render-route`'s
+   * `liveRoutedColors()`/`writeAtomic`, `health-gate`'s `containerIp`) — see
+   * the outer try/catch in `execute`'s loop below. Every undo step here is
+   * therefore written to be safe to run having done anywhere from none to
+   * all of its own precondition's work already (idempotent), and every undo
+   * is best-effort and logged: the original failure is what the operator
+   * needs to see, so a failing cleanup must not replace it.
    */
   async function abortSwap(reason: string, cause: unknown): Promise<never> {
     const detail = cause instanceof Error ? cause.message : String(cause);
@@ -291,8 +347,10 @@ async function execute(plan: SwapPlan, image: string, sha: string): Promise<void
     //    it said before this swap touched it and re-apply it, so the file and
     //    live Caddy agree again. (Correctness does not depend on this — see
     //    liveRoutedColors — but leaving an inverted file for an operator to
-    //    read would be gratuitous.)
-    if (siteTextBefore !== null) {
+    //    read would be gratuitous.) A missing or empty previous config is
+    //    NOT restored — see shouldRestoreSiteCaddy — because writing either
+    //    back out would leave a site.caddy with no servers in it at all.
+    if (siteTextBefore !== null && shouldRestoreSiteCaddy(siteTextBefore)) {
       try {
         await writeAtomic(SITE_CADDY_PATH, siteTextBefore);
         await reloadCaddy();
@@ -302,6 +360,11 @@ async function execute(plan: SwapPlan, image: string, sha: string): Promise<void
           `[swap-${tier}] could not restore routing: ${e instanceof Error ? e.message : String(e)}`,
         );
       }
+    } else {
+      console.error(
+        `[swap-${tier}] skipping site.caddy restore: previous contents were ` +
+          `${siteTextBefore === null ? 'missing or unreadable' : 'empty'} — nothing to go back to`,
+      );
     }
 
     // 2. Hand be-01.internal back before stopping the container that holds
@@ -331,103 +394,127 @@ async function execute(plan: SwapPlan, image: string, sha: string): Promise<void
       );
     }
 
+    // 4. Phase marker last: rewind it to what it said before this attempt
+    //    (or remove it, if there was none) so it can never contradict
+    //    be.json — an aborted swap leaves that file untouched too, so the
+    //    tier's last real commit stays the single source of truth for both.
+    try {
+      if (phaseBefore === null) {
+        await unlink(phasePath).catch((e: unknown) => {
+          const code = e !== null && typeof e === 'object' && 'code' in e ? e.code : undefined;
+          if (code !== 'ENOENT') throw e;
+        });
+      } else {
+        await writePhase(phasePath, phaseBefore);
+      }
+      console.error(`[swap-${tier}] phase marker rewound to ${phaseBefore ?? '(none)'}`);
+    } catch (e: unknown) {
+      console.error(
+        `[swap-${tier}] could not rewind the phase marker: ${e instanceof Error ? e.message : String(e)}`,
+      );
+    }
+
     throw new Error(`${reason}: ${detail}; ${from ?? 'nothing'} left live`);
   }
 
   for (const step of plan.steps) {
     console.log(`[swap-${tier}] ${step}`);
-    switch (step) {
-      case 'start-green': {
-        await writePhase(phasePath, 'preparing');
-        const ctx = tierComposeContext(tier, to, image);
-        await writeAtomic(tierComposeFile(tier, to), renderTemplate(tierComposeTmpl, ctx));
-        await sh(composeUpArgs(tier, to));
-        break;
-      }
+    try {
+      switch (step) {
+        case 'start-green': {
+          await writePhase(phasePath, 'preparing');
+          const ctx = tierComposeContext(tier, to, image);
+          await writeAtomic(tierComposeFile(tier, to), renderTemplate(tierComposeTmpl, ctx));
+          await sh(composeUpArgs(tier, to));
+          break;
+        }
 
-      case 'migrate':
-        // Discrete step before green takes traffic: a failed migration
-        // aborts the deploy with the old colour untouched and un-migrated
-        // (decision 10). Green is stopped rather than left running, because a
-        // container that failed to migrate must not be one health-gate away
-        // from taking traffic on a later run.
-        try {
+        case 'migrate':
+          // Discrete step before green takes traffic: a failed migration
+          // aborts the deploy with the old colour untouched and un-migrated
+          // (decision 10). Green is stopped rather than left running, because a
+          // container that failed to migrate must not be one health-gate away
+          // from taking traffic on a later run. Thrown bare — the outer
+          // try/catch below delegates to abortSwap for every step at or
+          // before 'reload'.
           await sh(['exec', greenName, 'bun', 'run', 'src/migrate-cli.ts']);
-        } catch (e: unknown) {
-          await abortSwap(`${tier}-${to} failed its migration step`, e);
+          break;
+
+        case 'health-gate': {
+          const ip = await containerIp(greenName);
+          const ok = await waitForHealthy({
+            url: `http://${ip}:${String(PORT[tier])}${HEALTH_PATH[tier]}`,
+            timeoutMs: 2000,
+            attempts: 120,
+            intervalMs: 500,
+            // fe-01 is a static file server: a truncated/empty index.html
+            // still returns 200, which no status-only check would catch
+            // (design decision 5). be-01/gw-01 keep the plain res.ok gate.
+            isHealthy: tier === 'fe' ? (body) => body.length > 0 : undefined,
+          });
+          if (!ok) {
+            throw new Error(
+              `${tier}-${to} failed its health gate: no healthy response from ` +
+                `${HEALTH_PATH[tier]} within the gate's ceiling`,
+            );
+          }
+          break;
         }
-        break;
 
-      case 'health-gate': {
-        const ip = await containerIp(greenName);
-        const ok = await waitForHealthy({
-          url: `http://${ip}:${String(PORT[tier])}${HEALTH_PATH[tier]}`,
-          timeoutMs: 2000,
-          attempts: 120,
-          intervalMs: 500,
-          // fe-01 is a static file server: a truncated/empty index.html
-          // still returns 200, which no status-only check would catch
-          // (design decision 5). be-01/gw-01 keep the plain res.ok gate.
-          isHealthy: tier === 'fe' ? (body) => body.length > 0 : undefined,
-        });
-        if (!ok) {
-          await abortSwap(
-            `${tier}-${to} failed its health gate`,
-            new Error(`no healthy response from ${HEALTH_PATH[tier]} within the gate's ceiling`),
-          );
+        case 'grant-alias':
+          // Incoming colour only — see lib/docker.ts's grantAliasCommands doc
+          // comment for why this must run before render-route/reload (nothing
+          // routes to this colour yet, so briefly disconnecting/reconnecting
+          // it here is safe) and why the outgoing colour's cleanup is a
+          // separate step deferred until after reload ('revoke-alias', below).
+          for (const cmd of grantAliasCommands(to)) await sh(cmd);
+          aliasMovedToGreen = true;
+          break;
+
+        case 'render-route': {
+          // Live Caddy, not the file on disk — same reason observe() reads it
+          // (see liveRoutedColors). Rendering the other tiers' routes from a
+          // possibly-inverted file would propagate the lie into the config this
+          // swap is about to load.
+          //
+          // `routedColorFor` returning null for a tier means "genuinely never
+          // deployed" — passed straight through as null, NOT defaulted to
+          // 'blue'. Defaulting was the bug: it wrote a guessed colour into
+          // site.caddy as if it were real routing state, which the next
+          // tier's own first deploy then read back as ground truth (routing
+          // "wins over the state file, always") and planned a bogus swap
+          // from. `siteContext`/`routeBlock` (lib/site.ts) render an honest
+          // "not yet deployed" response for null instead, which also means
+          // `routedColorFor` still correctly returns null next time.
+          //
+          // A throw anywhere in this case (liveRoutedColors, writeAtomic) is
+          // caught by the outer try/catch below and delegated to abortSwap —
+          // by this point grant-alias may already have moved be-01.internal
+          // to green, which is exactly the window abortSwap exists to close.
+          const colors = await liveRoutedColors();
+          colors[tier] = to;
+          const rendered = renderTemplate(siteCaddyTmpl, siteContext(colors, SITE_ADDRESS));
+          // Captured before the write, so abortSwap can put the file back
+          // exactly as it found it.
+          siteTextBefore = await readSiteCaddy();
+          await writeAtomic(SITE_CADDY_PATH, rendered);
+          break;
         }
-        break;
-      }
 
-      case 'grant-alias':
-        // Incoming colour only — see lib/docker.ts's grantAliasCommands doc
-        // comment for why this must run before render-route/reload (nothing
-        // routes to this colour yet, so briefly disconnecting/reconnecting
-        // it here is safe) and why the outgoing colour's cleanup is a
-        // separate step deferred until after reload ('revoke-alias', below).
-        for (const cmd of grantAliasCommands(to)) await sh(cmd);
-        aliasMovedToGreen = true;
-        break;
-
-      case 'render-route': {
-        // Live Caddy, not the file on disk — same reason observe() reads it
-        // (see liveRoutedColors). Rendering the other tiers' routes from a
-        // possibly-inverted file would propagate the lie into the config this
-        // swap is about to load.
-        //
-        // `routedColorFor` returning null for a tier means "genuinely never
-        // deployed" — passed straight through as null, NOT defaulted to
-        // 'blue'. Defaulting was the bug: it wrote a guessed colour into
-        // site.caddy as if it were real routing state, which the next
-        // tier's own first deploy then read back as ground truth (routing
-        // "wins over the state file, always") and planned a bogus swap
-        // from. `siteContext`/`routeBlock` (lib/site.ts) render an honest
-        // "not yet deployed" response for null instead, which also means
-        // `routedColorFor` still correctly returns null next time.
-        const colors = await liveRoutedColors();
-        colors[tier] = to;
-        const rendered = renderTemplate(siteCaddyTmpl, siteContext(colors, SITE_ADDRESS));
-        // Captured before the write, so abortSwap can put the file back
-        // exactly as it found it.
-        siteTextBefore = await readSiteCaddy();
-        await writeAtomic(SITE_CADDY_PATH, rendered);
-        break;
-      }
-
-      case 'reload':
-        // Written BEFORE the reload, like 'preparing' before start-green's
-        // compose up: a process killed mid-reload must be classifiable as
-        // "was attempting to route" rather than looking identical to having
-        // never started. Recovery still re-derives the true live colour from
-        // Caddy's live admin config (the source of truth — see
-        // liveRoutedColors), never from this marker; it only names which
-        // window a kill happened in.
-        await writePhase(phasePath, 'routed');
-        // Decision 10: "caddy reload fails — green is up but unrouted. Stop
-        // green, leave blue live, exit non-zero." Both failure shapes route
-        // through abortSwap: the reload command itself failing, and the
-        // reload exiting 0 without actually changing routing.
-        try {
+        case 'reload': {
+          // Written BEFORE the reload, like 'preparing' before start-green's
+          // compose up: a process killed mid-reload must be classifiable as
+          // "was attempting to route" rather than looking identical to having
+          // never started. Recovery still re-derives the true live colour from
+          // Caddy's live admin config (the source of truth — see
+          // liveRoutedColors), never from this marker; it only names which
+          // window a kill happened in.
+          await writePhase(phasePath, 'routed');
+          // Decision 10: "caddy reload fails — green is up but unrouted. Stop
+          // green, leave blue live, exit non-zero." Both failure shapes are
+          // thrown bare here and delegated to abortSwap by the outer
+          // try/catch: the reload command itself failing, and the reload
+          // exiting 0 without actually changing routing.
           await reloadCaddy();
           // Trust, but verify: reload exiting 0 only means the config was
           // syntactically valid, not that it's the config we think it is (see
@@ -442,58 +529,72 @@ async function execute(plan: SwapPlan, image: string, sha: string): Promise<void
                 '/srv/wbs/caddy/Caddyfile really imports site.caddy.',
             );
           }
-        } catch (e: unknown) {
-          await abortSwap(`${tier}-${to} could not be routed to`, e);
+          break;
         }
-        break;
 
-      case 'drain': {
-        // Existing helper: it polls a supplied counter rather than fetching
-        // a URL itself, so getting the count is our job. gw-01's own
-        // in-memory counters, exposed as JSON at /metrics/snapshot, are used
-        // rather than the Prometheus-format /metrics endpoint — gw-01's
-        // GatewayMetrics never registers an OTel instrument for
-        // activeConnections, so that gauge does not exist in the Prometheus
-        // output today (verified by reading gateway-metrics.ts and
-        // otel-plugin.ts).
-        const target = containerName('gw', from ?? to);
-        const res = await drain({
-          activeConnections: () => activeConnections(target),
-          maxWaitMs: 300_000,
-          pollMs: 10_000,
-        });
-        if (!res.drained) {
-          console.warn(
-            `[swap-gw] drain timed out after ${String(res.elapsedMs)}ms; ` +
-              'remaining sockets will reconnect and resume via Layer-A',
+        case 'drain': {
+          // Existing helper: it polls a supplied counter rather than fetching
+          // a URL itself, so getting the count is our job. gw-01's own
+          // in-memory counters, exposed as JSON at /metrics/snapshot, are used
+          // rather than the Prometheus-format /metrics endpoint — gw-01's
+          // GatewayMetrics never registers an OTel instrument for
+          // activeConnections, so that gauge does not exist in the Prometheus
+          // output today (verified by reading gateway-metrics.ts and
+          // otel-plugin.ts).
+          const target = containerName('gw', from ?? to);
+          const res = await drain({
+            activeConnections: () => activeConnections(target),
+            maxWaitMs: 300_000,
+            pollMs: 10_000,
+          });
+          if (!res.drained) {
+            console.warn(
+              `[swap-gw] drain timed out after ${String(res.elapsedMs)}ms; ` +
+                'remaining sockets will reconnect and resume via Layer-A',
+            );
+          }
+          break;
+        }
+
+        case 'revoke-alias':
+          // Outgoing colour only, and only reachable here once `from !== null`
+          // (planSwap never includes this step otherwise) — deferred until
+          // after reload/drain so Caddy has already switched its own-alias
+          // route away from `from` before this disconnects it. See
+          // lib/docker.ts's revokeAliasCommands doc comment.
+          if (from !== null) {
+            for (const cmd of revokeAliasCommands(from)) await sh(cmd);
+          }
+          break;
+
+        case 'stop-blue':
+          await writePhase(phasePath, 'old-stopped');
+          if (from !== null) await sh(['stop', containerName(tier, from)]);
+          break;
+
+        case 'commit':
+          await writePhase(phasePath, 'committed');
+          await writeAtomic(
+            `${ROOT}/state/${tier}.json`,
+            renderStateJson({ tier, activeColor: to, lastDeployedSha: sha }),
           );
-        }
-        break;
+          break;
       }
-
-      case 'revoke-alias':
-        // Outgoing colour only, and only reachable here once `from !== null`
-        // (planSwap never includes this step otherwise) — deferred until
-        // after reload/drain so Caddy has already switched its own-alias
-        // route away from `from` before this disconnects it. See
-        // lib/docker.ts's revokeAliasCommands doc comment.
-        if (from !== null) {
-          for (const cmd of revokeAliasCommands(from)) await sh(cmd);
-        }
-        break;
-
-      case 'stop-blue':
-        await writePhase(phasePath, 'old-stopped');
-        if (from !== null) await sh(['stop', containerName(tier, from)]);
-        break;
-
-      case 'commit':
-        await writePhase(phasePath, 'committed');
-        await writeAtomic(
-          `${ROOT}/state/${tier}.json`,
-          renderStateJson({ tier, activeColor: to, lastDeployedSha: sha }),
-        );
-        break;
+    } catch (e: unknown) {
+      if (ABORTABLE_STEPS.has(step)) {
+        // abortSwap's return type is `Promise<never>` — it always throws, so
+        // this call is what actually propagates the failure. Nothing below
+        // it in this branch runs.
+        await abortSwap(`${tier}-${to} failed during '${step}'`, e);
+      }
+      // Steps after `reload` (`drain`, `revoke-alias`, `stop-blue`,
+      // `commit`): routing has already moved onto `to`, which is now the
+      // legitimately live colour — that is the explicit boundary
+      // `ABORTABLE_STEPS` draws. Rolling back to `from` here would be
+      // exactly backwards: Caddy and (for `be`) gw's forward alias already
+      // point at `to`. Surface the failure as a hard non-zero exit instead;
+      // it needs a human decision, not an automatic rollback.
+      throw e;
     }
   }
 }

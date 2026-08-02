@@ -1,9 +1,14 @@
-import { describe, expect, it } from 'bun:test';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { assembleCaddyfile } from './lib/caddy';
 import { drain } from './lib/drain';
 import { waitForHealthy } from './lib/health';
 import { flipColor, parseStateJson, renderStateJson } from './lib/state';
+import { readSiteCaddy, shouldRestoreSiteCaddy } from './swap';
 
 describe('state', () => {
   it('flips color', () => {
@@ -135,6 +140,69 @@ describe('drain', () => {
       sleep: () => Promise.resolve(),
     });
     expect(r.drained).toBe(false);
+  });
+});
+
+describe('readSiteCaddy', () => {
+  let dir: string;
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), 'wbs-swap-'));
+  });
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('returns null when the file does not exist (first deploy, or unreadable)', async () => {
+    expect(await readSiteCaddy(join(dir, 'missing.caddy'))).toBeNull();
+  });
+
+  it('returns the contents of a file that is present and non-empty', async () => {
+    const p = join(dir, 'site.caddy');
+    writeFileSync(p, 'import site.caddy contents');
+    expect(await readSiteCaddy(p)).toBe('import site.caddy contents');
+  });
+
+  it('returns an empty string, not null, for a file that is present but empty', async () => {
+    // Distinguishing this from "not there" is the whole point of the fix:
+    // both must be treated as "nothing to restore" by shouldRestoreSiteCaddy,
+    // but readSiteCaddy itself must still tell the truth about which one it
+    // saw, since only the "not there" case is safe to also skip *why* — the
+    // empty-but-present case can point at a real problem worth investigating.
+    const p = join(dir, 'empty.caddy');
+    writeFileSync(p, '');
+    expect(await readSiteCaddy(p)).toBe('');
+  });
+});
+
+// This is the abortSwap guard that was the subject of the post-fix-wave
+// review's Important finding: readSiteCaddy() used to swallow every error to
+// `''`, so `siteTextBefore` was never `null`, and abortSwap's old
+// `siteTextBefore !== null` check always passed — including for a swap where
+// there was never a previous site.caddy to restore. Since
+// `/srv/wbs/caddy/Caddyfile` does a bare `import site.caddy`, writing that
+// empty/absent state back out as a real file produces a Caddy config with NO
+// servers in it: the app site AND the registry block both go down, and the
+// empty file is a landmine for the next Caddy restart.
+//
+// Non-vacuity, checked by hand and recorded here rather than only asserted:
+// reverting the guard to the pre-fix `siteTextBefore !== null` (i.e. dropping
+// the `siteTextBefore.length > 0` half of the condition) makes the
+// 'skips restore when previous contents are empty' case below return `true`
+// instead of `false`, and the test fails with
+// `expect(received).toBe(expected) — Expected: false, Received: true`.
+// Restoring the real guard makes it pass again. See the report for the
+// transcript.
+describe('shouldRestoreSiteCaddy (abortSwap restore guard)', () => {
+  it('skips restore when previous contents are null (missing or unreadable)', () => {
+    expect(shouldRestoreSiteCaddy(null)).toBe(false);
+  });
+
+  it('skips restore when previous contents are empty (present but empty file)', () => {
+    expect(shouldRestoreSiteCaddy('')).toBe(false);
+  });
+
+  it('restores when previous contents are a real, non-empty config', () => {
+    expect(shouldRestoreSiteCaddy('import site.caddy\n')).toBe(true);
   });
 });
 
