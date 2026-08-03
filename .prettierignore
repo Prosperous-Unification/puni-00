@@ -4,6 +4,14 @@ coverage/
 node_modules/
 *.gen.ts
 
+# drizzle-kit writes these; reformatting them fights the generator on the next
+# `drizzle-kit generate`, exactly as with *.gen.ts above.
+apps/be-01/drizzle/**/snapshot.json
+
+# Sibling checkouts of this same repo. Their contents belong to whatever commit
+# that worktree has out, so formatting them here is both wrong and unstable.
+.worktrees/
+
 *.env.sops
 
 # Vendored skill definitions — content-hashed in skills-lock.json, so
@@ -12,3 +20,9 @@ node_modules/
 .claude/skills/
 
 /.nx/workspace-data
+
+# Symlinks to AGENTS.md, so the four agent CLIs each find the file they look
+# for. Prettier exits 2 on an explicitly-listed symlink rather than following
+# it, which fails `nx format:check`. AGENTS.md itself is still formatted.
+/CLAUDE.md
+/GEMINI.md
