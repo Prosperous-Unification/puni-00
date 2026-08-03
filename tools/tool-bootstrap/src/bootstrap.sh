@@ -52,7 +52,14 @@ install_bun() {
 
 create_tree() {
   log "creating /srv/wbs/* tree"
-  for d in /srv/wbs/bin /srv/wbs/releases /srv/wbs/state /srv/wbs/state/fragments \
+  # `compose` holds swap.js's rendered per-colour compose overrides
+  # (lib/docker.ts's tierComposeFile: /srv/wbs/compose/<app>-<color>.yml) —
+  # writeAtomic() does not mkdir -p, so the first-ever swap on a fresh host
+  # would fail here if this directory did not already exist (item 2 of the
+  # cross-review fix: this was missing from both this script and
+  # configure.sh, and the server only ever worked because it was created by
+  # hand during earlier rehearsals).
+  for d in /srv/wbs/bin /srv/wbs/compose /srv/wbs/releases /srv/wbs/state /srv/wbs/state/fragments \
            /srv/wbs/data /srv/wbs/logs /srv/wbs/caddy; do
     mkdir -p "$d"
   done
