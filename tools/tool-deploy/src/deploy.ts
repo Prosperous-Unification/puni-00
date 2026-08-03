@@ -7,7 +7,12 @@
 // only reads that file, so a stale or missing release entry fails loudly
 // rather than silently deploying an old image.
 import { materialize, parseDeployArgs, type Tier } from './affected';
-import { assertMigrationFlag, hasNewMigrations, migrationsAtSha } from './migrations';
+import {
+  assertMigrationFlag,
+  assertStopTheWorldNotImplemented,
+  hasNewMigrations,
+  migrationsAtSha,
+} from './migrations';
 import { readRemoteState, type RemoteTierState } from './remote-state';
 
 export const DEFAULT_HOST = 'h2puni';
@@ -87,6 +92,11 @@ export async function buildDeployPlan(
   deps: DeployPlanDeps = defaultDeployPlanDeps,
 ): Promise<DeployPlan> {
   const args = parseDeployArgs(argv);
+  // Rejected unconditionally, before any tier is even examined (design
+  // decision 10's "abort before anything starts" — see
+  // assertStopTheWorldNotImplemented's doc comment for why this can't be
+  // left to fall through as a migration-gate bypass).
+  assertStopTheWorldNotImplemented(args.stopTheWorld);
   const tiers = materialize(args, affected);
   const host = args.host ?? DEFAULT_HOST;
   const steps: string[] = [];
@@ -107,14 +117,12 @@ export async function buildDeployPlan(
     const deployedMigrations = deployedSha === null ? null : deps.listMigrations(deployedSha);
     const newMigrations = hasNewMigrations(deployedMigrations, headMigrations);
     // Throws (and aborts the whole plan, before any tier touches the
-    // network) if this tier has new migrations and neither override flag
-    // was given — see migrations.ts for why this must fail closed.
-    assertMigrationFlag(newMigrations, args.withMigrations, args.stopTheWorld);
+    // network) if this tier has new migrations and --with-migrations wasn't
+    // given — see migrations.ts for why this must fail closed.
+    // (--stop-the-world is already rejected above, unconditionally.)
+    assertMigrationFlag(newMigrations, args.withMigrations);
     if (newMigrations) {
-      steps.push(
-        `[plan] ${t}: new migrations present — proceeding under ` +
-          (args.stopTheWorld ? '--stop-the-world' : '--with-migrations'),
-      );
+      steps.push(`[plan] ${t}: new migrations present — proceeding under --with-migrations`);
     }
 
     const entry = release[t];
