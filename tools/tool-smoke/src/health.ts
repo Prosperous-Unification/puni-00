@@ -119,15 +119,20 @@ export async function runHealthChecks(
 /**
  * Design decision 9's authenticated `/internal/forward` round trip. This is
  * the check that would have caught the real, weeks-long broken
- * `INTERNAL_AUTH_SECRET` incident this project already had: be-01 and
- * gw-01 read the secret from the same `/srv/wbs/.env`, but `env_file` order
- * in tier.compose.tmpl (`/srv/wbs/.env` then `/srv/wbs/{{TIER}}.env`) means
- * a stray key in a per-tier file silently shadows it for just one tier —
- * exactly the class of drift a same-process unit test can never see,
- * because tests inject the secret directly rather than reading it from the
- * two independently-assembled env chains gw-01 and be-01 actually load.
- * be-01's `onForward` handler is a no-op today (`apps/be-01/src/app.ts`),
- * so calling it repeatedly has no side effects.
+ * `INTERNAL_AUTH_SECRET` incident this project already had: be-01 and gw-01
+ * each read `INTERNAL_AUTH_SECRET` from their own derived, tier-specific
+ * secrets file (`be-01.secrets.env` / `gw-01.secrets.env` — see
+ * `tools/tool-remote-scripts/src/lib/docker.ts`'s `deriveTierSecrets`),
+ * both filtered from the same `/srv/wbs/.env` source of truth.
+ * `tier.compose.tmpl`'s `env_file` order (the tier's own app-config file
+ * first, its secrets file last — see `tierEnvFiles`) means a stray
+ * same-named key accidentally added to the app-config file can never
+ * silently shadow the real secret for just one tier — exactly the class of
+ * drift a same-process unit test can never see, because tests inject the
+ * secret directly rather than reading it from the two independently
+ * assembled env chains gw-01 and be-01 actually load. be-01's `onForward`
+ * handler is a no-op today (`apps/be-01/src/app.ts`), so calling it
+ * repeatedly has no side effects.
  */
 export function resolveInternalForwardUrl(env: NodeJS.ProcessEnv = process.env): string {
   return targetUrl(env, 'SMOKE_INTERNAL_URL', 'be-01', 3100, '/internal/forward');
@@ -177,7 +182,17 @@ function requireInternalAuthSecret(env: NodeJS.ProcessEnv = process.env): string
   return secret;
 }
 
-async function main(): Promise<void> {
+/**
+ * Runs the full health suite (per-target `/health`/`/` checks, plus the
+ * authenticated internal-forward round trip) and reports each result to the
+ * console. Returns overall pass/fail rather than calling `process.exit`
+ * itself, so `tool-smoke/src/main.ts` (the single bundled entry point wired
+ * into `tool-deploy`, see design decision 9) can run this alongside the WS
+ * suite and decide the process exit code once, after both have reported.
+ * `main()` below is the thin standalone-CLI wrapper for `nx run
+ * tool-smoke:health`.
+ */
+export async function runHealthSuite(): Promise<boolean> {
   const results = await runHealthChecks(resolveTargets());
   for (const r of results) {
     const suffix = r.detail === undefined ? '' : ` — ${r.detail}`;
@@ -195,7 +210,11 @@ async function main(): Promise<void> {
       `internal-forward ${internalUrl}${suffix}`,
   );
 
-  if (results.some((r) => !r.ok) || !internalResult.ok) process.exit(1);
+  return results.every((r) => r.ok) && internalResult.ok;
+}
+
+async function main(): Promise<void> {
+  if (!(await runHealthSuite())) process.exit(1);
 }
 
 if (import.meta.main) {

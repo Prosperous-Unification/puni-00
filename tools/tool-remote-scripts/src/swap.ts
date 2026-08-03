@@ -15,7 +15,7 @@
 // on a throwaway file with the same import pattern inlines the text and the
 // resulting bundle still runs correctly when moved and executed from an
 // unrelated directory.
-import { unlink } from 'node:fs/promises';
+import { chmod, unlink } from 'node:fs/promises';
 
 import { renderTemplate, siteCaddyTmpl, tierComposeTmpl } from '@wbs/tool-compose';
 
@@ -24,6 +24,7 @@ import {
   assertDigestPinnedRef,
   composeUpArgs,
   containerName,
+  deriveTierSecrets,
   grantAliasCommands,
   manifestInspectArgs,
   NETWORK,
@@ -31,8 +32,10 @@ import {
   psColorsFrom,
   revokeAliasCommands,
   ROOT,
+  SHARED_ENV_PATH,
   tierComposeContext,
   tierComposeFile,
+  tierSecretsFile,
 } from './lib/docker';
 import { drain } from './lib/drain';
 import { waitForHealthy } from './lib/health';
@@ -87,12 +90,65 @@ async function containerIp(name: string): Promise<string> {
   return ip;
 }
 
+/** No single poll of gw-01's drain gauge waits longer than this before being treated as unreachable. */
+const ACTIVE_CONNECTIONS_TIMEOUT_MS = 5000;
+
+/**
+ * The timed part of `activeConnections`, split out so it can be unit tested
+ * with a fake `fetchImpl` the way `lib/health.ts`'s `waitForHealthy` and
+ * `tool-smoke/src/health.ts`'s `fetchWithTimeout` already are — every other
+ * fetch in this codebase follows that `AbortController` + `setTimeout`
+ * pattern; this was the one bare `fetch` left with no deadline of its own.
+ *
+ * Without a deadline, `drain`'s `maxWaitMs` only bounds the whole polling
+ * loop (lib/drain.ts), not a single request inside it — a wedged gw-01 (TCP
+ * connected, never responds) would block one poll for however long the OS's
+ * own TCP timeout is, which can exceed the entire 300s drain ceiling on its
+ * own, when the design intent is up to thirty ~10s-spaced polls in that
+ * window.
+ *
+ * A poll that cannot determine the real count — timeout, network error, a
+ * non-OK response — returns `Infinity`, not `0`. `drain()`'s loop keeps
+ * going on anything `> 0`, so `Infinity` reads as "cannot determine, keep
+ * draining": the safe direction. Returning `0` here would make an
+ * unreachable gw-01 look fully drained after a single failed poll and let
+ * the swap proceed straight to `revoke-alias`/`stop-blue` while real
+ * connections might still be open on it. A malformed-but-successful
+ * response (200, JSON, no `activeConnections` field) is a different,
+ * unrelated case and keeps its prior behaviour of counting as `0`.
+ */
+export async function pollActiveConnections(
+  url: string,
+  fetchImpl: typeof fetch = fetch,
+  timeoutMs: number = ACTIVE_CONNECTIONS_TIMEOUT_MS,
+): Promise<number> {
+  const ctl = new AbortController();
+  const timer = setTimeout(() => {
+    ctl.abort();
+  }, timeoutMs);
+  try {
+    const res = await fetchImpl(url, { signal: ctl.signal });
+    if (!res.ok) {
+      console.warn(`[swap-gw] drain poll against ${url} returned HTTP ${String(res.status)}`);
+      return Infinity;
+    }
+    const body = (await res.json()) as { activeConnections?: unknown };
+    return typeof body.activeConnections === 'number' ? body.activeConnections : 0;
+  } catch (e: unknown) {
+    console.warn(
+      `[swap-gw] drain poll against ${url} failed or timed out — treating as "cannot ` +
+        `determine, keep draining": ${e instanceof Error ? e.message : String(e)}`,
+    );
+    return Infinity;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 /** One gauge, read off gw-01's own in-memory counters (see below). */
 async function activeConnections(container: string): Promise<number> {
   const ip = await containerIp(container);
-  const res = await fetch(`http://${ip}:${String(PORT.gw)}/metrics/snapshot`);
-  const body = (await res.json()) as { activeConnections?: unknown };
-  return typeof body.activeConnections === 'number' ? body.activeConnections : 0;
+  return pollActiveConnections(`http://${ip}:${String(PORT.gw)}/metrics/snapshot`);
 }
 
 /**
@@ -423,6 +479,23 @@ async function execute(plan: SwapPlan, image: string, sha: string): Promise<void
       switch (step) {
         case 'start-green': {
           await writePhase(phasePath, 'preparing');
+          // Finding I7: re-derive this tier's own filtered secrets file from
+          // the shared `/srv/wbs/.env` source of truth on every swap, rather
+          // than trusting a hand-maintained copy to still match it. Written
+          // before the compose file that references it (tierComposeContext's
+          // ENV_FILES), and before `compose up`, which is what actually
+          // reads it. 0600 like `/srv/wbs/.env` itself — `writeAtomic`
+          // doesn't set a mode, so it lands at the process umask's default
+          // otherwise. Skipped entirely for a tier with no secrets (fe-01):
+          // `deriveTierSecrets` returns '' for it and `tierComposeContext`
+          // never references a secrets path in ENV_FILES for it either, so
+          // there is nothing for this file to be read by.
+          const secrets = deriveTierSecrets(tier, await Bun.file(SHARED_ENV_PATH).text());
+          if (secrets !== '') {
+            const secretsPath = tierSecretsFile(tier);
+            await writeAtomic(secretsPath, secrets);
+            await chmod(secretsPath, 0o600);
+          }
           const ctx = tierComposeContext(tier, to, image);
           await writeAtomic(tierComposeFile(tier, to), renderTemplate(tierComposeTmpl, ctx));
           await sh(composeUpArgs(tier, to));

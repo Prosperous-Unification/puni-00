@@ -7,8 +7,4 @@ services:
       wbs-net:
         aliases:
           - {{TIER}}-{{COLOR}}
-    env_file:
-      - /srv/wbs/.env
-      - /srv/wbs/{{TIER}}.env
-    volumes:
-      - /srv/wbs/data:/data
+{{ENV_FILES}}{{VOLUMES}}

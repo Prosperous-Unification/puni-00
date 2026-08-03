@@ -14,8 +14,13 @@ coverage
 **/.env.local
 
 # Per-developer scratch SQLite databases; the app opens DB_PATH from a
-# mounted volume, not a file baked into the image.
-*.db
-*.db-journal
-*.db-wal
-*.db-shm
+# mounted volume, not a file baked into the image. Must be **/*.db, not
+# *.db: .dockerignore patterns are NOT applied recursively like .gitignore's
+# are — a bare *.db only matches at the build-context root, so
+# apps/be-01/local.db was landing inside the published production image
+# (verified: `docker run --rm <image> ls apps/be-01` listed local.db) until
+# this was made recursive.
+**/*.db
+**/*.db-journal
+**/*.db-wal
+**/*.db-shm

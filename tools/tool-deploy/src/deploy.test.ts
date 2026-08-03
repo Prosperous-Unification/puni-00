@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'bun:test';
 
 import { materialize, parseDeployArgs, type Tier } from './affected';
-import { buildDeployPlan, type DeployPlanDeps, type ReleaseRecord } from './deploy';
+import {
+  buildDeployPlan,
+  buildSmokeCommand,
+  type DeployPlanDeps,
+  type ReleaseRecord,
+} from './deploy';
 import type { RemoteTierState } from './remote-state';
 import { buildScpInvocation, buildSshInvocation } from './ssh';
 
@@ -234,5 +239,63 @@ describe('buildDeployPlan', () => {
   it('uses affected tiers when none are given positionally', async () => {
     const p = await buildDeployPlan([], ['gw'], HEAD, fakeDeps());
     expect(p.tiers).toEqual(['gw']);
+  });
+});
+
+// Finding I5(b): tool-deploy is now what actually invokes smoke, passing
+// each tier's real post-swap colour rather than requiring an operator to
+// export SMOKE_COLOR by hand.
+describe('buildSmokeCommand', () => {
+  function state(
+    overrides: Partial<Record<Tier, RemoteTierState>>,
+  ): Partial<Record<Tier, RemoteTierState>> {
+    return overrides;
+  }
+
+  it('passes each tier a URL built from its OWN colour, not a single shared one', () => {
+    const cmd = buildSmokeCommand(
+      state({
+        be: { tier: 'be', activeColor: 'green', lastDeployedSha: 'x' },
+        gw: { tier: 'gw', activeColor: 'green', lastDeployedSha: 'x' },
+        // Real live state on h2puni mid-branch: fe stayed blue while be/gw
+        // were both green. A single global SMOKE_COLOR could not express
+        // this; per-tier overrides can.
+        fe: { tier: 'fe', activeColor: 'blue', lastDeployedSha: 'x' },
+      }),
+    );
+    expect(cmd).toContain('-e SMOKE_BE_URL=http://be-01-green:3100/health');
+    expect(cmd).toContain('-e SMOKE_GW_URL=http://gw-01-green:3200/health');
+    expect(cmd).toContain('-e SMOKE_FE_URL=http://fe-01-blue:80/');
+    expect(cmd).toContain('-e SMOKE_INTERNAL_URL=http://be-01-green:3100/internal/forward');
+  });
+
+  it('never puts SMOKE_COLOR, INTERNAL_AUTH_SECRET, or a JWT key on the command line', () => {
+    const cmd = buildSmokeCommand(
+      state({ be: { tier: 'be', activeColor: 'blue', lastDeployedSha: 'x' } }),
+    );
+    expect(cmd).not.toContain('SMOKE_COLOR');
+    expect(cmd).not.toContain('INTERNAL_AUTH_SECRET');
+    expect(cmd).not.toContain('JWT_SIGNING_KEY');
+  });
+
+  // Secrets reach the container via the server-side env-file, never a value
+  // this (locally-run) process ever holds.
+  it('supplies secrets only via the server-side gw-01.secrets.env, never inline', () => {
+    const cmd = buildSmokeCommand(state({}));
+    expect(cmd).toContain('--env-file /srv/wbs/gw-01.secrets.env');
+  });
+
+  it('runs the bundled single-file smoke.js, not a $PWD-mounted checkout', () => {
+    const cmd = buildSmokeCommand(state({}));
+    expect(cmd).toContain('-v /srv/wbs/bin/smoke.js:/smoke.js:ro');
+    expect(cmd).not.toContain('$PWD');
+  });
+
+  it('omits an override for a tier with no recorded state rather than guessing a colour', () => {
+    const cmd = buildSmokeCommand(
+      state({ be: { tier: 'be', activeColor: 'blue', lastDeployedSha: 'x' } }),
+    );
+    expect(cmd).not.toContain('SMOKE_GW_URL');
+    expect(cmd).not.toContain('SMOKE_FE_URL');
   });
 });

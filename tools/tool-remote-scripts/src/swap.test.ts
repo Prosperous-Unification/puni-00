@@ -8,7 +8,7 @@ import { assembleCaddyfile } from './lib/caddy';
 import { drain } from './lib/drain';
 import { waitForHealthy } from './lib/health';
 import { flipColor, parseStateJson, renderStateJson } from './lib/state';
-import { readSiteCaddy, shouldRestoreSiteCaddy } from './swap';
+import { pollActiveConnections, readSiteCaddy, shouldRestoreSiteCaddy } from './swap';
 
 describe('state', () => {
   it('flips color', () => {
@@ -117,6 +117,78 @@ describe('health.waitForHealthy', () => {
         Promise.resolve(new Response('', { status: 200 }))) as unknown as typeof fetch,
     });
     expect(ok).toBe(true);
+  });
+});
+
+// Finding I2: activeConnections used to be a bare `fetch` with no deadline,
+// so a wedged gw-01 could hold `drain`'s poll (and the deploy lock) for
+// however long the OS's own TCP timeout is. `pollActiveConnections` is the
+// testable, timed core of it — same AbortController + setTimeout shape as
+// lib/health.ts's waitForHealthy and tool-smoke/src/health.ts's
+// fetchWithTimeout.
+describe('pollActiveConnections', () => {
+  it('returns the real count on a healthy JSON response', async () => {
+    const fetchImpl = (() =>
+      Promise.resolve(
+        new Response(JSON.stringify({ activeConnections: 3 }), { status: 200 }),
+      )) as unknown as typeof fetch;
+    expect(await pollActiveConnections('http://x', fetchImpl)).toBe(3);
+  });
+
+  it('returns 0 (not "cannot determine") for a 200 response missing the field', async () => {
+    const fetchImpl = (() =>
+      Promise.resolve(
+        new Response(JSON.stringify({}), { status: 200 }),
+      )) as unknown as typeof fetch;
+    expect(await pollActiveConnections('http://x', fetchImpl)).toBe(0);
+  });
+
+  // The core of the fix: a fetch that never settles unless its AbortSignal
+  // fires must not hang the drain loop forever, and must not be mistaken
+  // for "drained" (0) — that would let the swap proceed to stop-blue while
+  // gw-01 might still hold real connections.
+  it('treats a hung request as "cannot determine, keep draining" (Infinity), not drained (0)', async () => {
+    const fetchImpl = ((_url: string, init?: { signal?: AbortSignal }) =>
+      new Promise((_resolve, reject) => {
+        init?.signal?.addEventListener('abort', () => {
+          reject(new Error('aborted'));
+        });
+      })) as unknown as typeof fetch;
+    const start = Date.now();
+    const n = await pollActiveConnections('http://x', fetchImpl, 20);
+    expect(n).toBe(Infinity);
+    expect(Date.now() - start).toBeLessThan(1000);
+  });
+
+  it('treats a network error the same way — Infinity, not 0', async () => {
+    const fetchImpl = (() => Promise.reject(new Error('ECONNREFUSED'))) as unknown as typeof fetch;
+    expect(await pollActiveConnections('http://x', fetchImpl)).toBe(Infinity);
+  });
+
+  it('treats a non-OK response as "cannot determine" rather than trusting its body', async () => {
+    const fetchImpl = (() =>
+      Promise.resolve(
+        new Response(JSON.stringify({ activeConnections: 0 }), { status: 503 }),
+      )) as unknown as typeof fetch;
+    expect(await pollActiveConnections('http://x', fetchImpl)).toBe(Infinity);
+  });
+
+  // Feeds straight into drain()'s own semantics: Infinity must never look
+  // drained.
+  it('a poll that always times out never lets drain() report drained', async () => {
+    const fetchImpl = ((_url: string, init?: { signal?: AbortSignal }) =>
+      new Promise((_resolve, reject) => {
+        init?.signal?.addEventListener('abort', () => {
+          reject(new Error('aborted'));
+        });
+      })) as unknown as typeof fetch;
+    const r = await drain({
+      activeConnections: () => pollActiveConnections('http://x', fetchImpl, 5),
+      maxWaitMs: 30,
+      pollMs: 1,
+      sleep: () => Promise.resolve(),
+    });
+    expect(r.drained).toBe(false);
   });
 });
 

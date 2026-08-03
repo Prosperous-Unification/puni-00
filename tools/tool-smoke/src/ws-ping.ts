@@ -258,7 +258,15 @@ function connectThroughCaddy(target: CaddyWsTarget): SocketLike {
   };
 }
 
-async function main(): Promise<void> {
+/**
+ * Runs the WS ping/pong suite and reports the result to the console.
+ * Returns pass/fail rather than calling `process.exit` itself — see
+ * `health.ts`'s `runHealthSuite` doc comment for why: `main.ts` runs this
+ * alongside the health suite and decides the process exit code once, after
+ * both have reported. `main()` below is the thin standalone-CLI wrapper for
+ * `nx run tool-smoke:ws-ping`.
+ */
+export async function runWsSuite(): Promise<boolean> {
   const token = await mintToken();
 
   // SMOKE_WS_URL remains available as an explicit escape hatch (e.g. ad hoc
@@ -291,7 +299,11 @@ async function main(): Promise<void> {
         });
 
   console.log(`[smoke/ws] ${res.ok ? 'ok' : 'FAIL'} — ${res.detail}`);
-  if (!res.ok) process.exit(1);
+  return res.ok;
+}
+
+async function main(): Promise<void> {
+  if (!(await runWsSuite())) process.exit(1);
 }
 
 if (import.meta.main) {

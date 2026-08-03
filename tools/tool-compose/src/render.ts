@@ -73,6 +73,12 @@ async function main(): Promise<void> {
     BE_ROUTE: process.env['BE_ROUTE'] ?? 'reverse_proxy be-01-blue:3100',
     GW_ROUTE: process.env['GW_ROUTE'] ?? 'reverse_proxy gw-01-blue:3200',
     FE_ROUTE: process.env['FE_ROUTE'] ?? 'reverse_proxy fe-01-blue:80',
+    // Whole-block placeholders, same shape lib/docker.ts's real
+    // tierComposeContext produces (see its doc comment) — a preview default
+    // just needs *some* valid env_file entry, not the real per-tier
+    // allowlisting a real deploy applies.
+    ENV_FILES: process.env['ENV_FILES'] ?? '    env_file:\n      - /srv/wbs/be-01.env\n',
+    VOLUMES: process.env['VOLUMES'] ?? '    volumes:\n      - /srv/wbs/data:/data\n',
   };
   const written = await renderAll({
     templatesDir: new URL('./templates', import.meta.url).pathname,

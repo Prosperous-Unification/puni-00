@@ -156,6 +156,66 @@ export async function buildDeployPlan(
   return { tiers, steps, commands, preflightCommands, dryRun: args.dryRun, host };
 }
 
+// Duplicated from tools/tool-remote-scripts/src/lib/docker.ts's APP/PORT
+// rather than imported: that project has no `@wbs/*` public entry point (nx
+// enforces cross-project imports go through one — see tool-compose's
+// index.ts for what that looks like), and adding one for three constants
+// used in exactly one place here was not worth the new surface. tool-smoke's
+// own health.ts already hardcodes the same three ports for the same reason.
+const TIER_APP: Record<Tier, string> = { be: 'be-01', gw: 'gw-01', fe: 'fe-01' };
+const TIER_HEALTH_PORT: Record<Tier, number> = { be: 3100, gw: 3200, fe: 80 };
+const TIER_HEALTH_PATH: Record<Tier, string> = { be: '/health', gw: '/health', fe: '/' };
+
+function tierUrl(tier: Tier, path: string, color: 'blue' | 'green'): string {
+  return `http://${TIER_APP[tier]}-${color}:${String(TIER_HEALTH_PORT[tier])}${path}`;
+}
+
+/**
+ * Finding I5(b): wires `tool-smoke` (bundled to `/srv/wbs/bin/smoke.js` —
+ * see `tools/tool-smoke/project.json`'s `build` target and
+ * `tools/tool-smoke/src/main.ts`'s doc comment) into the deploy path.
+ * Design decision 9 says smoke runs "after every deploy"; before this,
+ * nothing called it at all.
+ *
+ * Per-tier colour overrides (`SMOKE_BE_URL`/`SMOKE_GW_URL`/`SMOKE_FE_URL`/
+ * `SMOKE_INTERNAL_URL` — see `tools/tool-smoke/src/health.ts`'s
+ * `resolveTargets`/`resolveInternalForwardUrl`), not a single `SMOKE_COLOR`:
+ * each tier's blue/green state moves independently, and a deploy need not
+ * leave all three on the SAME colour even with `--all` (each tier flips its
+ * OWN current colour; verified live on h2puni mid-branch, where be/gw were
+ * both green and fe was still blue). A single global colour would silently
+ * smoke-test the wrong container for whichever tier disagreed. `state` is
+ * read back from the server's own just-committed state (never guessed, never
+ * operator-supplied), which is what "the deploy knows the colours it just
+ * swapped to" means here — a tier with no recorded state (never deployed)
+ * is simply left without an override rather than guessed at.
+ *
+ * The JWT signing key and `INTERNAL_AUTH_SECRET` smoke needs never appear on
+ * this command line, and this process (running on the operator's machine,
+ * not the server) never reads them: they reach the ephemeral smoke
+ * container via `--env-file /srv/wbs/gw-01.secrets.env` on the server side,
+ * which already carries exactly those two and nothing else (see
+ * `lib/docker.ts`'s `SECRET_KEYS`) — "pass them rather than making an
+ * operator supply them" without this process ever handling secret bytes.
+ */
+export function buildSmokeCommand(state: Partial<Record<Tier, RemoteTierState>>): string {
+  const overrides: string[] = [];
+  const be = state.be?.activeColor;
+  const gw = state.gw?.activeColor;
+  const fe = state.fe?.activeColor;
+  if (be !== undefined) {
+    overrides.push(`-e SMOKE_BE_URL=${tierUrl('be', TIER_HEALTH_PATH.be, be)}`);
+    overrides.push(`-e SMOKE_INTERNAL_URL=${tierUrl('be', '/internal/forward', be)}`);
+  }
+  if (gw !== undefined) overrides.push(`-e SMOKE_GW_URL=${tierUrl('gw', TIER_HEALTH_PATH.gw, gw)}`);
+  if (fe !== undefined) overrides.push(`-e SMOKE_FE_URL=${tierUrl('fe', TIER_HEALTH_PATH.fe, fe)}`);
+  return (
+    'cd /srv/wbs && docker run --rm --network wbs-net ' +
+    `--env-file /srv/wbs/gw-01.secrets.env ${overrides.join(' ')} ` +
+    '-v /srv/wbs/bin/smoke.js:/smoke.js:ro oven/bun:1.3.14-alpine bun run /smoke.js'
+  );
+}
+
 async function runRemote(host: string, cmd: string): Promise<void> {
   const p = Bun.spawn(['ssh', host, cmd], { stdout: 'inherit', stderr: 'inherit' });
   const code = await p.exited;
@@ -202,6 +262,32 @@ async function main(): Promise<void> {
   for (const cmd of plan.commands) {
     console.log(`[tool-deploy] $ ssh ${plan.host} ${cmd}`);
     await runRemote(plan.host, cmd);
+  }
+
+  // Design decision 9: "after every deploy". Strictly after every tier has
+  // already swapped and committed — never inside the per-tier loop above —
+  // so a smoke failure can only ever report on a deploy that already
+  // happened, never influence it.
+  if (plan.tiers.length > 0) {
+    const postState = await readRemoteState(plan.host);
+    const smokeCmd = buildSmokeCommand(postState);
+    console.log(`[tool-deploy] $ ssh ${plan.host} ${smokeCmd}`);
+    try {
+      await runRemote(plan.host, smokeCmd);
+      console.log('[tool-deploy] smoke passed');
+    } catch (e: unknown) {
+      // Decision 10: report loudly and exit non-zero, but do NOT auto-roll
+      // back — an automatic rollback on a flaky smoke check is worse than a
+      // human looking. Every tier above already committed; this only ever
+      // adds a loud, distinguishable failure report on top of that, never a
+      // corrective action.
+      console.error(
+        '[tool-deploy] SMOKE FAILED — every tier above already swapped and committed; this is ' +
+          'NOT being auto-rolled-back (design decision 10). Investigate immediately; the ' +
+          'previous colour is still available to hand-roll back to if needed.',
+      );
+      throw e;
+    }
   }
 }
 
