@@ -41,7 +41,12 @@ install_bun() {
     return
   fi
   log "installing bun (pinned)"
-  BUN_VERSION="${BUN_VERSION:-1.2.20}"
+  # Keep in sync with configure.sh's BUN_VERSION: that script re-pins to the
+  # same version unconditionally (converging even if this one is skipped
+  # because bun was already present), but the two defaults drifting apart is
+  # exactly the kind of leftover-vs-current confusion this project has hit
+  # before — see configure.sh's own comment on why the pin matters.
+  BUN_VERSION="${BUN_VERSION:-1.3.14}"
   curl -fsSL "https://bun.sh/install" | BUN_INSTALL=/usr/local bash -s -- "bun-v${BUN_VERSION}"
 }
 

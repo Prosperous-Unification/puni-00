@@ -4,9 +4,13 @@
 # Everything here needs root and runs once per host. After this, all deploy
 # operations run unprivileged as $WBS_USER via the docker group.
 #
-# There is no host Caddy and no bun on the host: the reverse proxy and the
-# registry both run as containers (see deploy/compose/base.yml), and images
-# are built off-host by Dagger and published by digest.
+# The reverse proxy and the registry both run as containers (see
+# deploy/compose/base.yml), and images are built off-host by Dagger and
+# published by digest — so there is no host Caddy. There IS bun on the host:
+# tool-deploy's swap.js (the blue/green executor tool-deploy invokes over SSH
+# for every deploy — see tools/tool-deploy/src/deploy.ts) is a `bun build
+# --target=bun` bundle, not a container, and runs directly under the host's
+# bun. This script installs and pins it for exactly that reason.
 #
 # Usage:
 #   sudo WBS_USER=puni1 REGISTRY_USER=wbs REGISTRY_PASS=<pw> sh configure.sh
@@ -38,6 +42,16 @@ REGISTRY_INSECURE="${REGISTRY_INSECURE:-0}"
 # automatic HTTPS / ACME attempt — see tools/tool-remote-scripts/src/swap.ts,
 # which the real per-deploy render-route step reads this same variable from).
 SITE_ADDRESS="${SITE_ADDRESS:-wbs.bulletpoints.club}"
+# Pinned to match the version this repo builds and tests against (see
+# apps/*/Dockerfile's `oven/bun:1.3.14-alpine` and package.json's
+# `bun-types` devDependency) — not the version already on h2puni
+# (1.2.20, installed by tool-bootstrap's bootstrap.sh before this line
+# existed). `bun build --target=bun` output is ordinary bundled JS, not a
+# `--compile` binary, so it isn't hard-pinned to the compiler version that
+# produced it; 1.2.20 was verified live to run the current swap.js bundle
+# without error. Pinning host bun to 1.3.14 here removes that cross-version
+# question going forward instead of relying on a single verified data point.
+BUN_VERSION="${BUN_VERSION:-1.3.14}"
 
 log() { printf '[configure] %s\n' "$*"; }
 die() { printf '[configure] %s\n' "$*" >&2; exit 1; }
@@ -49,8 +63,21 @@ id "$WBS_USER" >/dev/null 2>&1 || die "user '$WBS_USER' does not exist"
 log "installing docker + htpasswd"
 apt-get update -y
 apt-get install -y --no-install-recommends \
-  ca-certificates curl git docker.io docker-compose-v2 apache2-utils python3
+  ca-certificates curl git docker.io docker-compose-v2 apache2-utils python3 unzip
 usermod -aG docker "$WBS_USER"
+
+# bun.sh's installer needs `unzip` (added above). Reinstalls only when the
+# version actually differs, same convergence shape as the
+# insecure-registries block below — re-running this script with an
+# unchanged BUN_VERSION is a no-op, and bumping BUN_VERSION upgrades in
+# place.
+log "installing bun $BUN_VERSION (pinned) for swap.js, the deploy executor"
+current_bun_version="$(bun --version 2>/dev/null || true)"
+if [ "$current_bun_version" = "$BUN_VERSION" ]; then
+  log "bun $BUN_VERSION already installed — skipping"
+else
+  curl -fsSL https://bun.sh/install | BUN_INSTALL=/usr/local bash -s -- "bun-v${BUN_VERSION}"
+fi
 
 log "disabling any pre-existing host Caddy (a containerised Caddy owns 80/443 now)"
 if systemctl list-unit-files caddy.service >/dev/null 2>&1; then
