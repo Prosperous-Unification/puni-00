@@ -5,6 +5,7 @@ import {
   buildDeployPlan,
   buildSmokeCommand,
   type DeployPlanDeps,
+  parseSha256sumOutput,
   type ReleaseRecord,
 } from './deploy';
 import type { RemoteTierState } from './remote-state';
@@ -44,6 +45,23 @@ describe('parseDeployArgs', () => {
 
   it('parses --stop-the-world', () => {
     expect(parseDeployArgs(['--stop-the-world']).stopTheWorld).toBe(true);
+  });
+});
+
+// Finding-driven (retire-systemd): the bundle-freshness gate that stops a
+// deploy from running against a stale bin/swap.js / bin/smoke.js parses
+// coreutils sha256sum output; this is the pure part of it.
+describe('parseSha256sumOutput', () => {
+  it('parses coreutils sha256sum lines into a path -> hash map', () => {
+    const out = 'aaaa111  /srv/wbs/bin/swap.js\nbbbb222  /srv/wbs/bin/smoke.js\n';
+    expect(parseSha256sumOutput(out)).toEqual({
+      '/srv/wbs/bin/swap.js': 'aaaa111',
+      '/srv/wbs/bin/smoke.js': 'bbbb222',
+    });
+  });
+
+  it('ignores blank lines', () => {
+    expect(parseSha256sumOutput('\n\n')).toEqual({});
   });
 });
 
