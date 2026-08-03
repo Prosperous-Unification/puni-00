@@ -1,8 +1,13 @@
 # Compose + blue/green deploy — design
 
 Date: 2026-08-02
-Status: approved, not yet implemented. Revision 2, after cross-review.
-Supersedes: the systemd build-on-server path added in `a318cff` (`deploy/deploy.sh`, `deploy/systemd/`, `deploy/caddy/`)
+Status: **Phase 1 implemented and live** as of 2026-08-03. `https://wbs.bulletpoints.club` serves
+from this pipeline; the systemd path this design superseded has been deleted from the repo
+(`deploy/deploy.sh`, `deploy/systemd/`, `deploy/caddy/` are gone — see the retire-systemd report
+under `.superpowers/sdd/2026-08-02-compose-blue-green-deploy/`). Phase 2 (observability stack,
+SOPS secrets — see "Phase 2 — additive" below) is **not implemented**; `.env` on the host is
+still the only secrets store. Revision 2, after cross-review.
+Supersedes: the systemd build-on-server path added in `a318cff` (`deploy/deploy.sh`, `deploy/systemd/`, `deploy/caddy/`) — deleted; see above.
 Revives, with changes: D2, D6, D8, D9, D15 of `openspec/changes/scaffold-tech-setup/design.md`
 
 ## Context
@@ -459,9 +464,15 @@ auth per D15, and SOPS + age replacing the hand-written `.env` per D18.
    deployment untouched throughout.
 4. Cut over: stop the systemd units, `docker compose up` production, verify smoke.
 5. Delete `deploy/deploy.sh`, `deploy/systemd/`, `deploy/caddy/`; remove the host caddy and
-   `/etc/sudoers.d/wbs-caddy-reload`; reduce `configure.sh` to installing docker, creating
-   `/srv/wbs`, enabling linger, and provisioning registry credentials. Bun is no longer
-   installed on the host — it exists only inside images.
+   `/etc/sudoers.d/wbs-caddy-reload`. **Done 2026-08-03.**
+
+   Correction to this step as originally written: it claimed bun would no longer be installed
+   on the host, "only inside images." That is false for the deploy executor specifically —
+   `tool-remote-scripts`'s `swap.js` is a `bun build --target=bun` bundle that `tool-deploy`
+   runs directly over SSH (`ssh <host> 'cd /srv/wbs && bun bin/swap.js ...'`), not inside a
+   container, so the host genuinely needs a bun runtime for it. App images are still
+   containerised and self-contained. `configure.sh` installs bun on the host, pinned to a
+   version (see its comments for why the pin matters), specifically for this reason.
 
 The live deployment stays up and serving throughout steps 1 to 3.
 
