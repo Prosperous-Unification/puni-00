@@ -112,6 +112,24 @@ const SECRET_KEYS: Record<Tier, readonly string[]> = {
   fe: [],
 };
 
+/**
+ * Whether this tier is allowed any secret keys at all — independent of what
+ * `deriveTierSecrets` happens to compute for a given `/srv/wbs/.env` snapshot.
+ *
+ * Exists so `swap.ts` can decide whether the derived secrets file must be
+ * (re)written even when the computed content is `''` (item 3(b)): if every
+ * key `SECRET_KEYS[tier]` allows has disappeared from the shared `.env`
+ * (typo, accidental deletion, a bad edit), `deriveTierSecrets` correctly
+ * returns `''` — but a caller that only writes when the result is non-empty
+ * (the previous behaviour) then SKIPS the write, leaving whatever secrets
+ * file was on disk from the last successful swap active indefinitely. A
+ * secret-bearing tier's derived file must always be replaced to match the
+ * current source of truth, even when that means replacing it with nothing.
+ */
+export function tierHasSecrets(tier: Tier): boolean {
+  return SECRET_KEYS[tier].length > 0;
+}
+
 /** The single human/`configure.sh`-maintained source of truth this tier's secrets file is derived from. */
 export const SHARED_ENV_PATH = `${ROOT}/.env`;
 
@@ -158,6 +176,62 @@ export function tierEnvFiles(tier: Tier): string[] {
   const files = [`${ROOT}/${APP[tier]}.env`];
   if (SECRET_KEYS[tier].length > 0) files.push(tierSecretsFile(tier));
   return files;
+}
+
+/**
+ * Strict per-tier allowlist for `/srv/wbs/<app>.env` — the FIRST file
+ * `envFilesBlock` lists (see `tierEnvFiles`'s ordering comment), and,
+ * unlike the derived secrets file, one this process never writes: an
+ * operator or a provisioning script (`tools/tool-bootstrap/src/configure.sh`)
+ * authors it directly. Nothing before this stopped a disallowed key —
+ * most dangerously `REGISTRY_PASS` — from being added straight to that file,
+ * which bypasses `SECRET_KEYS`'s scoping entirely: the whole point of
+ * deriving `fe-01`/`gw-01`/`be-01` secrets files from an allowlist is moot if
+ * a key can just be handed to a tier through its OTHER env_file instead.
+ * Matches each tier's real `apps/<app>/src/config.ts` required keys, minus
+ * the ones `SECRET_KEYS` already covers (those belong ONLY in the derived
+ * file — see `tierEnvFiles`'s doc comment on why the derived file is listed
+ * last, so a same-named key here could never win a collision even before
+ * this check existed).
+ */
+const APP_ENV_ALLOWED_KEYS: Record<Tier, readonly string[]> = {
+  be: ['PORT', 'LOG_LEVEL', 'GW_URL', 'DB_PATH'],
+  gw: ['PORT', 'LOG_LEVEL', 'BE_URL'],
+  fe: [],
+};
+
+/** Parses `KEY=VALUE` lines (same shape/skip rules as `deriveTierSecrets`) into just the key names, in file order. */
+export function envKeysOf(envText: string): string[] {
+  const keys: string[] = [];
+  for (const rawLine of envText.split('\n')) {
+    const line = rawLine.trim();
+    if (line === '' || line.startsWith('#')) continue;
+    const eq = line.indexOf('=');
+    if (eq === -1) continue;
+    keys.push(line.slice(0, eq));
+  }
+  return keys;
+}
+
+/**
+ * Throws — naming every disallowed key found, never a value — if a tier's
+ * `/srv/wbs/<app>.env` carries anything outside `APP_ENV_ALLOWED_KEYS`.
+ * `swap.ts` calls this as the first action of every `start-green` step, so a
+ * bad file fails the swap loudly before anything else happens, rather than
+ * quietly riding along into the container via `env_file` merge.
+ */
+export function assertTierEnvAllowed(tier: Tier, envText: string): void {
+  const allowed = new Set(APP_ENV_ALLOWED_KEYS[tier]);
+  const bad = envKeysOf(envText).filter((k) => !allowed.has(k));
+  if (bad.length > 0) {
+    const allowedList = APP_ENV_ALLOWED_KEYS[tier];
+    throw new Error(
+      `${ROOT}/${APP[tier]}.env carries key(s) outside tier "${tier}"'s allowlist: ${bad.join(', ')}. ` +
+        `Only ${allowedList.length > 0 ? allowedList.join(', ') : '(no keys — fe-01 needs none)'} ` +
+        'may appear in this file — secrets belong in /srv/wbs/.env (and its per-tier derived ' +
+        'files), never here.',
+    );
+  }
 }
 
 function envFilesBlock(tier: Tier): string {
@@ -287,10 +361,25 @@ export function psColorsFrom(psOutput: string, tier: Tier): Color[] {
  * in the plan, and disconnecting it (even briefly, to strip BE_ALIAS) would
  * make that in-flight traffic fail. Deferring the outgoing colour's cleanup
  * until after `reload` (once Caddy has already switched away from it)
- * avoids that window entirely.
+ * removes the CLIENT-FACING half of that risk — the traffic Caddy itself
+ * routes by the outgoing colour's own name-alias.
+ *
+ * It does NOT avoid the window entirely, and an earlier revision of this
+ * comment claimed it did. `caddy reload` is graceful for HTTP: a request
+ * already in flight when reload runs keeps being served by whatever
+ * upstream Caddy had already picked for it, which can still be the outgoing
+ * colour for up to however long that one request takes to finish. `be` has
+ * no drain step (only `gw` does — see `swap.ts`'s `'drain'` case), so
+ * without something between `reload` and `revoke-alias`, the outgoing
+ * colour's `network disconnect` can cut a request that reload's own
+ * graceful handling was still trying to let finish. `swap.ts` now holds a
+ * short bounded settle before `be`'s `revoke-alias` for exactly this reason
+ * — see its own comment for the residual window that remains even with the
+ * settle (a fixed pause bounds it, it does not close it to zero).
  *
  * Residual property, inherent to Docker's alias model rather than fixable
- * here — and the opposite of what this comment used to claim. An earlier
+ * here — and the opposite of what an even earlier revision of this comment
+ * used to claim about BE_ALIAS itself (not the settle window above). An earlier
  * revision said BE_ALIAS "briefly resolves to *neither* colour" during the
  * hand-off. That is false. Reproduced on a throwaway user-defined bridge
  * network: Docker's embedded DNS permits two containers to hold the same
