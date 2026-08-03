@@ -7,20 +7,39 @@
   "targets": {
     "deploy": {
       "executor": "nx:run-commands",
-      "options": { "command": "bun run tools/tool-deploy/src/deploy.ts" },
-      "cache": false
+      "options": {
+        "command": "bun run tools/tool-deploy/src/deploy.ts"
+      },
+      "cache": false,
+      "dependsOn": [
+        {
+          "projects": ["tool-remote-scripts"],
+          "target": "build"
+        },
+        {
+          "projects": ["tool-smoke"],
+          "target": "build"
+        }
+      ]
     },
     "test": {
       "executor": "nx:run-commands",
-      "options": { "command": "bun test", "cwd": "tools/tool-deploy" }
+      "options": {
+        "command": "bun test",
+        "cwd": "tools/tool-deploy"
+      }
     },
     "lint": {
       "executor": "nx:run-commands",
-      "options": { "command": "bunx eslint tools/tool-deploy/src" }
+      "options": {
+        "command": "bunx eslint tools/tool-deploy/src"
+      }
     },
     "typecheck": {
       "executor": "nx:run-commands",
-      "options": { "command": "bunx tsc --noEmit -p tools/tool-deploy/tsconfig.json" }
+      "options": {
+        "command": "bunx tsc --noEmit -p tools/tool-deploy/tsconfig.json"
+      }
     }
   }
 }

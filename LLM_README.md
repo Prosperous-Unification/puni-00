@@ -43,7 +43,8 @@ From an arm64 Mac instead, prepend a tunnel to prod's engine (QEMU otherwise):
 
 Dagger builds `linux/amd64` → self-hosted registry (the only build/deploy contract) → swap starts the
 idle colour, health-gates, repoints Caddy, drains WS, stops old, runs smoke. `--dry-run` is default.
-It **refuses** on a dirty tree or stale `release.json` — that's the migration gate, not a bug.
+It **refuses** on a dirty tree, a stale `release.json`, or an unbuilt executor bundle — those are the
+safety gates, not bugs. `deploy` now builds the bundles itself via `dependsOn`.
 
 ## Landmines
 
