@@ -1,4 +1,12 @@
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -37,6 +45,36 @@ describe('writeAtomic', () => {
     await writeAtomic(p, content);
     expect(readFileSync(p, 'utf8')).toBe(content);
     expect(existsSync(`${p}.tmp`)).toBe(false);
+  });
+
+  // Item 3(a): the derived secrets file (INTERNAL_AUTH_SECRET, the JWT key)
+  // used to be created at the process umask's default, then chmod'd to 0600
+  // only AFTER rename — world-readable for a window on every swap, and
+  // permanently if the process died between the two calls. Passing `mode`
+  // now sets it at the temp file's own creation, before rename, so there is
+  // no window at all. A permissive umask (022, "everyone can read") is set
+  // explicitly here so the test cannot pass by coincidence of the runner's
+  // own umask already being restrictive.
+  it('creates the file at the given mode from birth — no window at 0644, with or without a permissive umask', async () => {
+    const originalUmask = process.umask(0o022);
+    try {
+      const p = join(dir, 'be-01.secrets.env');
+      await writeAtomic(p, 'INTERNAL_AUTH_SECRET=x\n', 0o600);
+      expect(statSync(p).mode & 0o777).toBe(0o600);
+    } finally {
+      process.umask(originalUmask);
+    }
+  });
+
+  it('without a mode, still falls back to the process umask default — non-secret callers unaffected', async () => {
+    const originalUmask = process.umask(0o022);
+    try {
+      const p = join(dir, 'site.caddy');
+      await writeAtomic(p, 'import site.caddy\n');
+      expect(statSync(p).mode & 0o777).toBe(0o644);
+    } finally {
+      process.umask(originalUmask);
+    }
   });
 
   it('cleans up temp file on rename failure', async () => {

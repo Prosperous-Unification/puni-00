@@ -4,9 +4,13 @@
 # Everything here needs root and runs once per host. After this, all deploy
 # operations run unprivileged as $WBS_USER via the docker group.
 #
-# There is no host Caddy and no bun on the host: the reverse proxy and the
-# registry both run as containers (see deploy/compose/base.yml), and images
-# are built off-host by Dagger and published by digest.
+# The reverse proxy and the registry both run as containers (see
+# deploy/compose/base.yml), and images are built off-host by Dagger and
+# published by digest — so there is no host Caddy. There IS bun on the host:
+# tool-deploy's swap.js (the blue/green executor tool-deploy invokes over SSH
+# for every deploy — see tools/tool-deploy/src/deploy.ts) is a `bun build
+# --target=bun` bundle, not a container, and runs directly under the host's
+# bun. This script installs and pins it for exactly that reason.
 #
 # Usage:
 #   sudo WBS_USER=puni1 REGISTRY_USER=wbs REGISTRY_PASS=<pw> sh configure.sh
@@ -38,6 +42,16 @@ REGISTRY_INSECURE="${REGISTRY_INSECURE:-0}"
 # automatic HTTPS / ACME attempt — see tools/tool-remote-scripts/src/swap.ts,
 # which the real per-deploy render-route step reads this same variable from).
 SITE_ADDRESS="${SITE_ADDRESS:-wbs.bulletpoints.club}"
+# Pinned to match the version this repo builds and tests against (see
+# apps/*/Dockerfile's `oven/bun:1.3.14-alpine` and package.json's
+# `bun-types` devDependency) — not the version already on h2puni
+# (1.2.20, installed by tool-bootstrap's bootstrap.sh before this line
+# existed). `bun build --target=bun` output is ordinary bundled JS, not a
+# `--compile` binary, so it isn't hard-pinned to the compiler version that
+# produced it; 1.2.20 was verified live to run the current swap.js bundle
+# without error. Pinning host bun to 1.3.14 here removes that cross-version
+# question going forward instead of relying on a single verified data point.
+BUN_VERSION="${BUN_VERSION:-1.3.14}"
 
 log() { printf '[configure] %s\n' "$*"; }
 die() { printf '[configure] %s\n' "$*" >&2; exit 1; }
@@ -49,8 +63,21 @@ id "$WBS_USER" >/dev/null 2>&1 || die "user '$WBS_USER' does not exist"
 log "installing docker + htpasswd"
 apt-get update -y
 apt-get install -y --no-install-recommends \
-  ca-certificates curl git docker.io docker-compose-v2 apache2-utils python3
+  ca-certificates curl git docker.io docker-compose-v2 apache2-utils python3 unzip
 usermod -aG docker "$WBS_USER"
+
+# bun.sh's installer needs `unzip` (added above). Reinstalls only when the
+# version actually differs, same convergence shape as the
+# insecure-registries block below — re-running this script with an
+# unchanged BUN_VERSION is a no-op, and bumping BUN_VERSION upgrades in
+# place.
+log "installing bun $BUN_VERSION (pinned) for swap.js, the deploy executor"
+current_bun_version="$(bun --version 2>/dev/null || true)"
+if [ "$current_bun_version" = "$BUN_VERSION" ]; then
+  log "bun $BUN_VERSION already installed — skipping"
+else
+  curl -fsSL https://bun.sh/install | BUN_INSTALL=/usr/local bash -s -- "bun-v${BUN_VERSION}"
+fi
 
 log "disabling any pre-existing host Caddy (a containerised Caddy owns 80/443 now)"
 if systemctl list-unit-files caddy.service >/dev/null 2>&1; then
@@ -59,7 +86,15 @@ fi
 rm -f /etc/sudoers.d/wbs-caddy-reload
 
 log "creating $WBS_ROOT"
-for d in "$WBS_ROOT" "$WBS_ROOT/data" "$WBS_ROOT/logs" "$WBS_ROOT/caddy" "$WBS_ROOT/state"; do
+# `bin` (installed executor bundles — see tool-remote-scripts/src/install.ts)
+# and `compose` (swap.js's rendered per-colour compose overrides — see
+# lib/docker.ts's tierComposeFile) were both missing from this list before
+# the cross-review fix: bootstrap.sh's own create_tree() makes `bin` (and now
+# `compose` too), but this script is also documented to be run standalone
+# ("copied to the host alone" — see the module docstring), so it must not
+# depend on bootstrap.sh having run first for either directory to exist.
+for d in "$WBS_ROOT" "$WBS_ROOT/data" "$WBS_ROOT/logs" "$WBS_ROOT/caddy" "$WBS_ROOT/state" \
+         "$WBS_ROOT/compose" "$WBS_ROOT/bin"; do
   mkdir -p "$d"
 done
 [ -f "$WBS_ROOT/.env" ] || touch "$WBS_ROOT/.env"
@@ -150,6 +185,40 @@ mv "$env_tmp" "$WBS_ROOT/.env"
 chown "$WBS_USER:$WBS_USER" "$WBS_ROOT/.env"
 chmod 0600 "$WBS_ROOT/.env"
 
+log "writing per-tier app-config env files"
+# lib/docker.ts's `tierEnvFiles` puts each tier's app-config file
+# (/srv/wbs/<app>.env) FIRST in that tier's `env_file:` list, secrets file
+# last, deliberately — see that function's doc comment. These app-config
+# files hold no secrets (checked by swap.ts's assertTierEnvAllowed against a
+# strict per-tier allowlist before every swap — cross-review item 3(c)), so,
+# like the Caddyfile above, they are written UNCONDITIONALLY every re-run:
+# unlike site.caddy, nothing else ever mutates them, so there is no live
+# deploy state here to protect from being clobbered. Ports match
+# lib/docker.ts's PORT map and BE_ALIAS constant; kept in sync by hand for
+# the same reason Caddyfile.bootstrap's content is inlined above rather than
+# read from that file — this script travels to the host alone.
+log "  $WBS_ROOT/be-01.env"
+cat > "$WBS_ROOT/be-01.env" <<'ENVFILE'
+PORT=3100
+LOG_LEVEL=info
+GW_URL=http://gw-01.internal:3200
+DB_PATH=/data/wbs.db
+ENVFILE
+log "  $WBS_ROOT/gw-01.env"
+cat > "$WBS_ROOT/gw-01.env" <<'ENVFILE'
+PORT=3200
+LOG_LEVEL=info
+BE_URL=http://be-01.internal:3100
+ENVFILE
+log "  $WBS_ROOT/fe-01.env (comment-only — fe-01 is a static caddy:2-alpine server, no env vars)"
+cat > "$WBS_ROOT/fe-01.env" <<'ENVFILE'
+# fe-01 runtime is caddy:2-alpine serving pre-built static assets
+# (apps/fe-01/Dockerfile) — no server-side config.ts / env vars required.
+# This file exists only because tier.compose.tmpl's env_file directive
+# requires the path to exist; docker compose errors on a missing env_file.
+ENVFILE
+chown "$WBS_USER:$WBS_USER" "$WBS_ROOT/be-01.env" "$WBS_ROOT/gw-01.env" "$WBS_ROOT/fe-01.env"
+
 log "enabling systemd lingering for $WBS_USER"
 loginctl enable-linger "$WBS_USER"
 
@@ -218,9 +287,49 @@ case "$daemon_json_changed" in
     ;;
 esac
 
-log "logging the host docker daemon in to $REGISTRY_HOST"
-# The server pulls its own images. Without this, `docker compose up` fails to
-# authenticate against the registry it is itself hosting.
-su - "$WBS_USER" -c "echo '$REGISTRY_PASS' | docker login '$REGISTRY_HOST' -u '$REGISTRY_USER' --password-stdin"
+## ---------------------------------------------------------------------------
+## Cross-review item 2: bring up the base stack BEFORE logging in to the
+## registry it hosts.
+##
+## Fixing a real circular dependency: this script used to run `docker login`
+## against $REGISTRY_HOST as its very last step, but nothing anywhere had
+## ever started the registry container — the site only ever worked because a
+## human had already brought the base stack up by hand during earlier
+## rehearsals, so a login attempt on this line always found a registry
+## already running behind Caddy. On a genuinely fresh host with nothing
+## running yet, that same line would just fail: no such host to log in to.
+##
+## `$WBS_ROOT/base.yml` is not written by this script — see
+## deploy/compose/base.yml's own comment on why it is copied verbatim
+## (tool-bootstrap's push.ts scp's it here) rather than inlined the way
+## Caddyfile/site.caddy are: this file is real Compose YAML, not a few lines
+## of shell heredoc, and duplicating it inline would just be a second copy to
+## keep in sync.
+[ -f "$WBS_ROOT/base.yml" ] || die \
+  "$WBS_ROOT/base.yml is missing — copy deploy/compose/base.yml there first (tool-bootstrap:push does this before running this script)"
+
+log "bringing up the base compose stack (caddy + registry) — idempotent, a no-op if already up"
+su - "$WBS_USER" -c "cd $WBS_ROOT && docker compose -f base.yml up -d"
+
+log "waiting for $REGISTRY_HOST to accept a login (the step above is what makes this possible at all)"
+# Retried rather than a single attempt: the container was (or may have just
+# been) started on the line above, and — on a truly fresh host — Caddy may
+# still be requesting its first Let's Encrypt certificate for
+# $REGISTRY_HOST before it can proxy anything through to the registry.
+# 60 attempts * 5s = 5 minutes; ample for a normal start, generous enough to
+# outlast a slow first ACME issuance.
+login_attempts=0
+login_log="$WBS_ROOT/.configure-login.$$.log"
+until su - "$WBS_USER" -c "echo '$REGISTRY_PASS' | docker login '$REGISTRY_HOST' -u '$REGISTRY_USER' --password-stdin" >"$login_log" 2>&1; do
+  login_attempts=$((login_attempts + 1))
+  if [ "$login_attempts" -ge 60 ]; then
+    cat "$login_log" >&2
+    rm -f "$login_log"
+    die "docker login to $REGISTRY_HOST did not succeed after $login_attempts attempts (~5 min) — is the registry container healthy? (docker compose -f $WBS_ROOT/base.yml ps)"
+  fi
+  sleep 5
+done
+rm -f "$login_log"
+log "docker login ok ($login_attempts retries)"
 
 log "done. '$WBS_USER' can now deploy without root."

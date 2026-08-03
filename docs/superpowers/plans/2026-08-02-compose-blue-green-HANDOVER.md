@@ -2,6 +2,13 @@
 
 Written 2026-08-03. Branch `feat/compose-blue-green`, HEAD `1a043cd`, 27 commits.
 
+**Update 2026-08-03 (`chore/retire-systemd`):** the three open findings below (I7, I2, I5) are
+closed and live, and the systemd path described below as "deliberately not deleted" has been
+deleted (marked inline where each applies). See
+`.superpowers/sdd/2026-08-02-compose-blue-green-deploy/retire-systemd-report.md` for what changed
+and how it was verified (real deploy through the committed orchestrator, HTTPS loop held
+throughout, smoke confirmed to run).
+
 This file exists so a session with no memory of the build can resume. The spec is
 `docs/superpowers/specs/2026-08-02-compose-blue-green-deploy-design.md` (revision 2),
 the plan is `docs/superpowers/plans/2026-08-02-compose-blue-green-deploy.md`, and the
@@ -22,30 +29,34 @@ for the reasons below.
   `registry:2` (no host binding), and blue/green pairs for `be-01`, `gw-01`, `fe-01`.
 - A privileged `dagger-engine` container on `127.0.0.1:8081`, driven over an SSH tunnel.
 - Registry at `registry.infra.bulletpoints.club`, basic auth, real certificate.
-- The **old systemd path still exists in the repo** (`deploy/deploy.sh`, `deploy/systemd/`,
-  `deploy/caddy/`) and is deliberately not deleted. Plan steps 5 and 6 are outstanding.
+- ~~The **old systemd path still exists in the repo** (`deploy/deploy.sh`, `deploy/systemd/`,
+  `deploy/caddy/`) and is deliberately not deleted. Plan steps 5 and 6 are outstanding.~~
+  **Deleted 2026-08-03** (`chore/retire-systemd`). No host systemd `wbs-*` units were ever
+  installed on h2puni (verified); the host Caddy was already disabled.
 
 Deploy with `nx run tool-deploy:deploy --all --execute`. It refuses if the working tree
 is dirty or if `dist/tool-dagger/release.json` does not match HEAD — re-publish first
 with `nx run tool-dagger:publish-all`.
 
-## Open findings, ranked
+## Findings that gated retiring the systemd path — now closed
 
 These were found by the final whole-branch review and deliberately scoped out of the
-fix waves. None break the running site; all three gate retiring the systemd path.
+fix waves. None broke the running site; all three gated retiring the systemd path, and
+all three were closed by commit `71c000e` ("close the three findings gating removal of
+the systemd path") before the systemd path was actually deleted in `chore/retire-systemd`.
 
-1. **I7 — secrets are over-distributed (worst of the three).** `tier.compose.tmpl` gives
+1. **I7 — secrets are over-distributed (worst of the three). CLOSED.** `tier.compose.tmpl` gives
    every tier `/srv/wbs/.env` and a writable mount of `/srv/wbs/data`. So `fe-01` — the
    public static-file container — holds `INTERNAL_AUTH_SECRET`, `JWT_SIGNING_KEY_CURRENT`
    and `REGISTRY_PASS`, and can write the directory containing `wbs.db`. The registry is
    internet-facing with delete enabled, so a compromise of `fe-01` means image push and
    delete. Related: `.dockerignore`'s `*.db` is not recursive, so `apps/be-01/local.db`
    is inside the published production image — use `**/*.db`.
-2. **I2 — `activeConnections` has no fetch timeout** (`swap.ts`). `drain`'s `maxWaitMs`
+2. **I2 — `activeConnections` has no fetch timeout. CLOSED.** (`swap.ts`). `drain`'s `maxWaitMs`
    bounds the loop but not a hung request, so a wedged `gw-01` holds the deploy lock for
    the full 300s drain ceiling. Every other fetch in the codebase uses `AbortController`;
    copy that pattern.
-3. **I5 — the smoke layer cannot be invoked.** `tool-smoke`'s Nx target mounts `$PWD`,
+3. **I5 — the smoke layer cannot be invoked. CLOSED.** `tool-smoke`'s Nx target mounts `$PWD`,
    which requires the repo on the server, and nothing in `tool-deploy` or `swap.ts` calls
    smoke at all. Design decision 9's "after every deploy" is unimplemented, so there is
    currently no post-deploy verification.
@@ -55,7 +66,14 @@ Lower priority, recorded so they are not rediscovered:
 - `--version=<sha>` (the documented rollback) is parsed and silently ignored; `--since`
   and `--skip-build` are dead too, and `affected` is hardcoded to all three tiers.
 - `configure.sh` has never been executed as a script — the scoped sudo grant does not
-  cover `sudo sh configure.sh`, so its steps have only ever been run by hand.
+  cover `sudo sh configure.sh`, so its steps have only ever been run by hand. Related,
+  found and fixed in `chore/retire-systemd`: `configure.sh` claimed "no bun on the host,"
+  which was false — `swap.js` runs directly under host bun, and the only reason deploys
+  ever worked was a leftover `/usr/local/bin/bun` 1.2.20 nobody's script accounted for.
+  `configure.sh` now installs and pins bun explicitly. Same branch also made
+  `tool-remote-scripts/src/install.ts` a real rsync/scp instead of a placeholder that only
+  printed, and made `tool-deploy` refuse to run against a bin/swap.js or bin/smoke.js that
+  doesn't checksum-match the local build.
 - The registry preflight proves manifests exist, not blobs. A manifest-present /
   blob-missing registry would still fail mid-deploy.
 - The hand-rolled RFC6455 client in `tool-smoke/src/ws-ping.ts` omits the MASK bit and

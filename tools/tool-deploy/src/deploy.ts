@@ -7,7 +7,12 @@
 // only reads that file, so a stale or missing release entry fails loudly
 // rather than silently deploying an old image.
 import { materialize, parseDeployArgs, type Tier } from './affected';
-import { assertMigrationFlag, hasNewMigrations, migrationsAtSha } from './migrations';
+import {
+  assertMigrationFlag,
+  assertStopTheWorldNotImplemented,
+  hasNewMigrations,
+  migrationsAtSha,
+} from './migrations';
 import { readRemoteState, type RemoteTierState } from './remote-state';
 
 export const DEFAULT_HOST = 'h2puni';
@@ -87,6 +92,11 @@ export async function buildDeployPlan(
   deps: DeployPlanDeps = defaultDeployPlanDeps,
 ): Promise<DeployPlan> {
   const args = parseDeployArgs(argv);
+  // Rejected unconditionally, before any tier is even examined (design
+  // decision 10's "abort before anything starts" — see
+  // assertStopTheWorldNotImplemented's doc comment for why this can't be
+  // left to fall through as a migration-gate bypass).
+  assertStopTheWorldNotImplemented(args.stopTheWorld);
   const tiers = materialize(args, affected);
   const host = args.host ?? DEFAULT_HOST;
   const steps: string[] = [];
@@ -107,14 +117,12 @@ export async function buildDeployPlan(
     const deployedMigrations = deployedSha === null ? null : deps.listMigrations(deployedSha);
     const newMigrations = hasNewMigrations(deployedMigrations, headMigrations);
     // Throws (and aborts the whole plan, before any tier touches the
-    // network) if this tier has new migrations and neither override flag
-    // was given — see migrations.ts for why this must fail closed.
-    assertMigrationFlag(newMigrations, args.withMigrations, args.stopTheWorld);
+    // network) if this tier has new migrations and --with-migrations wasn't
+    // given — see migrations.ts for why this must fail closed.
+    // (--stop-the-world is already rejected above, unconditionally.)
+    assertMigrationFlag(newMigrations, args.withMigrations);
     if (newMigrations) {
-      steps.push(
-        `[plan] ${t}: new migrations present — proceeding under ` +
-          (args.stopTheWorld ? '--stop-the-world' : '--with-migrations'),
-      );
+      steps.push(`[plan] ${t}: new migrations present — proceeding under --with-migrations`);
     }
 
     const entry = release[t];
@@ -216,6 +224,92 @@ export function buildSmokeCommand(state: Partial<Record<Tier, RemoteTierState>>)
   );
 }
 
+// The two files the server actually executes: swap.js (run directly by
+// host bun for every tier's swap) and smoke.js (run in a container after
+// every deploy). Duplicated from tool-remote-scripts/src/install.ts's
+// BUNDLE_FILES rather than imported — see this file's own TIER_APP/PORT
+// comment above for why a small cross-project constant is duplicated
+// instead of wired through an @wbs/* barrel that doesn't exist for that
+// project.
+const BUNDLE_FILES: { local: string; remote: string }[] = [
+  { local: 'dist/tool-remote-scripts/swap.js', remote: '/srv/wbs/bin/swap.js' },
+  { local: 'dist/tool-smoke/smoke.js', remote: '/srv/wbs/bin/smoke.js' },
+];
+
+async function sha256File(path: string): Promise<string> {
+  const buf = await Bun.file(path).arrayBuffer();
+  const digest = await crypto.subtle.digest('SHA-256', buf);
+  return Buffer.from(digest).toString('hex');
+}
+
+/** Parses coreutils `sha256sum` output (`<hex>␠␠<path>` per line) into a path -> hash map. */
+export function parseSha256sumOutput(out: string): Record<string, string> {
+  const result: Record<string, string> = {};
+  for (const line of out.split('\n')) {
+    const trimmed = line.trim();
+    if (trimmed === '') continue;
+    const sp = trimmed.indexOf(' ');
+    if (sp === -1) continue;
+    result[trimmed.slice(sp).trimStart()] = trimmed.slice(0, sp);
+  }
+  return result;
+}
+
+/**
+ * Finding-driven (retire-systemd): `bin/swap.js` and `bin/smoke.js` are
+ * ordinary files on the server, installed by a separate, explicit
+ * `nx run tool-remote-scripts:install --execute` — this CLI does not run
+ * that for the operator, on the same "abort before anything starts, don't
+ * silently do the operator's job for them" logic as the release.json / HEAD
+ * sha check above. What this DOES own is refusing to drive a deploy against
+ * whatever happens to already be sitting in /srv/wbs/bin/: before touching
+ * anything, it hashes the same two dist/ files install.ts would have
+ * shipped and compares them against what's already on the server. A stale
+ * or missing installed bundle now fails loudly here instead of silently
+ * running last week's swap.js against this week's images.
+ */
+export async function assertBundleInstalled(host: string): Promise<void> {
+  for (const f of BUNDLE_FILES) {
+    if (!(await Bun.file(f.local).exists())) {
+      throw new Error(
+        `${f.local} not found — build it first ` +
+          '(nx run tool-remote-scripts:build and nx run tool-smoke:build)',
+      );
+    }
+  }
+
+  const p = Bun.spawn(['ssh', host, `sha256sum ${BUNDLE_FILES.map((f) => f.remote).join(' ')}`], {
+    stdout: 'pipe',
+    stderr: 'pipe',
+  });
+  const out = await new Response(p.stdout).text();
+  const code = await p.exited;
+  if (code !== 0) {
+    const err = await new Response(p.stderr).text();
+    throw new Error(
+      `cannot read installed-bundle checksums from ${host} (${err.trim() || `exit ${String(code)}`}) — ` +
+        'has "nx run tool-remote-scripts:install --execute" ever been run against this host?',
+    );
+  }
+  const remoteHashes = parseSha256sumOutput(out);
+
+  for (const f of BUNDLE_FILES) {
+    const local = await sha256File(f.local);
+    // Indexing a plain Record returns `string` here (noUncheckedIndexedAccess
+    // is off in this repo), but at runtime a key sha256sum never printed —
+    // i.e. the file is missing on the server — comes back `undefined`, which
+    // trivially fails this comparison too. One check covers "missing" and
+    // "mismatched" alike; the error message says so explicitly.
+    if (remoteHashes[f.remote] !== local) {
+      throw new Error(
+        `${f.remote} on ${host} does not match the local build of ${f.local} (missing or mismatched) — ` +
+          'the installed executor/smoke bundle is stale or missing. Run ' +
+          `"nx run tool-remote-scripts:install --host=${host} --execute" first, then retry.`,
+      );
+    }
+  }
+}
+
 async function runRemote(host: string, cmd: string): Promise<void> {
   const p = Bun.spawn(['ssh', host, cmd], { stdout: 'inherit', stderr: 'inherit' });
   const code = await p.exited;
@@ -246,6 +340,10 @@ async function main(): Promise<void> {
     console.log('[tool-deploy] dry-run only. re-run with --execute to perform a live deploy.');
     return;
   }
+
+  // Before any registry or tier check: refuse to drive a deploy against a
+  // stale or missing bin/swap.js or bin/smoke.js. See assertBundleInstalled.
+  await assertBundleInstalled(plan.host);
 
   // Every tier's registry check first, then every tier's swap. Decision 10
   // requires a registry/auth problem to abort "before anything starts", which

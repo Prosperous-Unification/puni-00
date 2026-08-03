@@ -5,6 +5,7 @@ import {
   buildDeployPlan,
   buildSmokeCommand,
   type DeployPlanDeps,
+  parseSha256sumOutput,
   type ReleaseRecord,
 } from './deploy';
 import type { RemoteTierState } from './remote-state';
@@ -44,6 +45,23 @@ describe('parseDeployArgs', () => {
 
   it('parses --stop-the-world', () => {
     expect(parseDeployArgs(['--stop-the-world']).stopTheWorld).toBe(true);
+  });
+});
+
+// Finding-driven (retire-systemd): the bundle-freshness gate that stops a
+// deploy from running against a stale bin/swap.js / bin/smoke.js parses
+// coreutils sha256sum output; this is the pure part of it.
+describe('parseSha256sumOutput', () => {
+  it('parses coreutils sha256sum lines into a path -> hash map', () => {
+    const out = 'aaaa111  /srv/wbs/bin/swap.js\nbbbb222  /srv/wbs/bin/smoke.js\n';
+    expect(parseSha256sumOutput(out)).toEqual({
+      '/srv/wbs/bin/swap.js': 'aaaa111',
+      '/srv/wbs/bin/smoke.js': 'bbbb222',
+    });
+  });
+
+  it('ignores blank lines', () => {
+    expect(parseSha256sumOutput('\n\n')).toEqual({});
   });
 });
 
@@ -204,7 +222,11 @@ describe('buildDeployPlan', () => {
     expect(p.steps.some((s) => s.includes('new migrations present'))).toBe(true);
   });
 
-  it('proceeds when --stop-the-world acknowledges the new migration', async () => {
+  // Item 1 fix: --stop-the-world used to bypass the migration gate and then
+  // silently produce the exact same blue/green swap command as a normal
+  // deploy — the flag is now rejected outright, unconditionally, before any
+  // tier (or its migration state) is even examined.
+  it('refuses --stop-the-world outright, even with a new migration present', async () => {
     const deps = fakeDeps({
       readRemoteState: () =>
         Promise.resolve({
@@ -212,8 +234,23 @@ describe('buildDeployPlan', () => {
         }),
       listMigrations: (sha) => (sha === 'deployed-sha' ? ['0001_init'] : ['0001_init', '0002_new']),
     });
-    const p = await buildDeployPlan(['be', '--stop-the-world'], [], HEAD, deps);
-    expect(p.steps.some((s) => s.includes('stop-the-world'))).toBe(true);
+    let message = '';
+    try {
+      await buildDeployPlan(['be', '--stop-the-world'], [], HEAD, deps);
+    } catch (e: unknown) {
+      message = e instanceof Error ? e.message : String(e);
+    }
+    expect(message).toMatch(/not implemented/);
+  });
+
+  it('refuses --stop-the-world even when there is no migration to gate', async () => {
+    let message = '';
+    try {
+      await buildDeployPlan(['be', '--stop-the-world'], [], HEAD, fakeDeps());
+    } catch (e: unknown) {
+      message = e instanceof Error ? e.message : String(e);
+    }
+    expect(message).toMatch(/not implemented/);
   });
 
   it('never gates a first-ever deploy (no baseline) even with new migration files', async () => {

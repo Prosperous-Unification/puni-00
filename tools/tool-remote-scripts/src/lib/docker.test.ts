@@ -2,9 +2,11 @@ import { describe, expect, it } from 'bun:test';
 
 import {
   assertDigestPinnedRef,
+  assertTierEnvAllowed,
   composeUpArgs,
   containerName,
   deriveTierSecrets,
+  envKeysOf,
   grantAliasCommands,
   isDigest,
   manifestInspectArgs,
@@ -15,6 +17,7 @@ import {
   tierComposeContext,
   tierComposeFile,
   tierEnvFiles,
+  tierHasSecrets,
   tierSecretsFile,
 } from './docker';
 
@@ -216,6 +219,79 @@ describe('deriveTierSecrets', () => {
 
   it('omits an optional key the shared file does not carry (JWT_SIGNING_KEY_PREVIOUS)', () => {
     expect(deriveTierSecrets('gw', SHARED)).not.toContain('JWT_SIGNING_KEY_PREVIOUS');
+  });
+});
+
+describe('tierHasSecrets', () => {
+  it('is true for be and gw, false for fe', () => {
+    expect(tierHasSecrets('be')).toBe(true);
+    expect(tierHasSecrets('gw')).toBe(true);
+    expect(tierHasSecrets('fe')).toBe(false);
+  });
+});
+
+// Item 3(c): the app-config env file (/srv/wbs/<app>.env) is authored by an
+// operator/configure.sh, not derived by this codebase — nothing previously
+// stopped a disallowed key (most dangerously REGISTRY_PASS) from being put
+// there directly, bypassing SECRET_KEYS's allowlist entirely.
+describe('envKeysOf', () => {
+  it('extracts key names, ignoring comments and blank lines', () => {
+    expect(envKeysOf('# comment\n\nPORT=3100\nLOG_LEVEL=info\n')).toEqual(['PORT', 'LOG_LEVEL']);
+  });
+
+  it('returns an empty list for a comment-only file (fe-01.env)', () => {
+    expect(envKeysOf('# fe-01 needs no env vars\n')).toEqual([]);
+  });
+});
+
+describe('assertTierEnvAllowed', () => {
+  it('passes be-01.env carrying only its allowed keys', () => {
+    expect(() => {
+      assertTierEnvAllowed('be', 'PORT=3100\nLOG_LEVEL=info\nGW_URL=x\nDB_PATH=/data/wbs.db\n');
+    }).not.toThrow();
+  });
+
+  it('passes gw-01.env carrying only its allowed keys', () => {
+    expect(() => {
+      assertTierEnvAllowed('gw', 'PORT=3200\nLOG_LEVEL=info\nBE_URL=x\n');
+    }).not.toThrow();
+  });
+
+  it('passes a comment-only fe-01.env', () => {
+    expect(() => {
+      assertTierEnvAllowed('fe', '# fe-01 needs no env vars\n');
+    }).not.toThrow();
+  });
+
+  // The exact defect item 3(c) fixes: REGISTRY_PASS put directly in a
+  // tier's app-config file bypasses SECRET_KEYS entirely.
+  it('rejects REGISTRY_PASS in be-01.env, naming the key but never a value', () => {
+    let message = '';
+    try {
+      assertTierEnvAllowed(
+        'be',
+        'PORT=3100\nLOG_LEVEL=info\nGW_URL=x\nDB_PATH=x\nREGISTRY_PASS=hunter2\n',
+      );
+    } catch (e: unknown) {
+      message = e instanceof Error ? e.message : String(e);
+    }
+    expect(message).toContain('REGISTRY_PASS');
+    expect(message).not.toContain('hunter2');
+  });
+
+  it('rejects any key outside the allowlist for fe-01, which allows none', () => {
+    expect(() => {
+      assertTierEnvAllowed('fe', 'PORT=80\n');
+    }).toThrow(/PORT/);
+  });
+
+  it('rejects a secret key placed in the app-config file instead of the derived secrets file', () => {
+    expect(() => {
+      assertTierEnvAllowed(
+        'gw',
+        'PORT=3200\nLOG_LEVEL=info\nBE_URL=x\nJWT_SIGNING_KEY_CURRENT=x\n',
+      );
+    }).toThrow(/JWT_SIGNING_KEY_CURRENT/);
   });
 });
 

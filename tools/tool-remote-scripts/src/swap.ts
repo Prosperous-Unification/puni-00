@@ -15,13 +15,14 @@
 // on a throwaway file with the same import pattern inlines the text and the
 // resulting bundle still runs correctly when moved and executed from an
 // unrelated directory.
-import { chmod, unlink } from 'node:fs/promises';
+import { unlink } from 'node:fs/promises';
 
 import { renderTemplate, siteCaddyTmpl, tierComposeTmpl } from '@wbs/tool-compose';
 
 import { writeAtomic } from './lib/atomic';
 import {
   assertDigestPinnedRef,
+  assertTierEnvAllowed,
   composeUpArgs,
   containerName,
   deriveTierSecrets,
@@ -35,6 +36,8 @@ import {
   SHARED_ENV_PATH,
   tierComposeContext,
   tierComposeFile,
+  tierEnvFiles,
+  tierHasSecrets,
   tierSecretsFile,
 } from './lib/docker';
 import { drain } from './lib/drain';
@@ -149,6 +152,36 @@ export async function pollActiveConnections(
 async function activeConnections(container: string): Promise<number> {
   const ip = await containerIp(container);
   return pollActiveConnections(`http://${ip}:${String(PORT.gw)}/metrics/snapshot`);
+}
+
+/**
+ * Item 4's fix: a bounded settle held before `be`'s `revoke-alias`.
+ *
+ * `caddy reload` (the step immediately before this one runs) is graceful for
+ * HTTP — a request already in flight when it runs keeps being served by
+ * whatever upstream Caddy had already picked for it, which can still be the
+ * OUTGOING colour for as long as that one request takes to finish. `be` has
+ * no drain step the way `gw` does (see the `'drain'` case below, and
+ * lib/docker.ts's revokeAliasCommands doc comment for the full picture), so
+ * revoking the outgoing colour's `be-01.internal` alias immediately after
+ * reload can cut a request reload's own graceful handling was still trying
+ * to let finish.
+ *
+ * This is a fixed pause, not a real drain: be-01 exposes no equivalent to
+ * gw-01's `/metrics/snapshot` activeConnections gauge (`activeConnections`
+ * above is gw-specific — be-01's own request lifecycle is not instrumented),
+ * so there is nothing for this process to poll to zero. A fixed pause bounds
+ * the window to something short instead of leaving it open indefinitely; it
+ * does NOT close it to zero — a request slower than this can still be cut.
+ * 5s is comfortably longer than a normal be-01 request and short enough not
+ * to meaningfully lengthen a `be` swap.
+ */
+const BE_REVOKE_ALIAS_SETTLE_MS = 5_000;
+
+async function sleep(ms: number): Promise<void> {
+  await new Promise<void>((resolve) => {
+    setTimeout(resolve, ms);
+  });
 }
 
 /**
@@ -478,23 +511,42 @@ async function execute(plan: SwapPlan, image: string, sha: string): Promise<void
     try {
       switch (step) {
         case 'start-green': {
+          // Item 3(c): the app-config env file (tierEnvFiles(tier)[0]) is
+          // authored by an operator or configure.sh, never by this process —
+          // validate it against a strict allowlist before anything else in
+          // this swap touches state, so a disallowed key (most dangerously
+          // REGISTRY_PASS) fails the swap loudly instead of silently riding
+          // along into the container via env_file.
+          const appEnvPath = tierEnvFiles(tier)[0];
+          assertTierEnvAllowed(tier, await Bun.file(appEnvPath).text());
+
           await writePhase(phasePath, 'preparing');
           // Finding I7: re-derive this tier's own filtered secrets file from
           // the shared `/srv/wbs/.env` source of truth on every swap, rather
           // than trusting a hand-maintained copy to still match it. Written
           // before the compose file that references it (tierComposeContext's
           // ENV_FILES), and before `compose up`, which is what actually
-          // reads it. 0600 like `/srv/wbs/.env` itself — `writeAtomic`
-          // doesn't set a mode, so it lands at the process umask's default
-          // otherwise. Skipped entirely for a tier with no secrets (fe-01):
-          // `deriveTierSecrets` returns '' for it and `tierComposeContext`
-          // never references a secrets path in ENV_FILES for it either, so
-          // there is nothing for this file to be read by.
-          const secrets = deriveTierSecrets(tier, await Bun.file(SHARED_ENV_PATH).text());
-          if (secrets !== '') {
-            const secretsPath = tierSecretsFile(tier);
-            await writeAtomic(secretsPath, secrets);
-            await chmod(secretsPath, 0o600);
+          // reads it.
+          //
+          // Always written for a secret-bearing tier (item 3(b)), even when
+          // `deriveTierSecrets` computes `''` — e.g. every allowed key has
+          // disappeared from the shared `.env` (typo, accidental deletion).
+          // Skipping the write in that case (the previous behaviour) left
+          // whatever secrets file the LAST successful swap produced active
+          // indefinitely; a secret-bearing tier's derived file must always
+          // reflect the current source of truth, even when that means
+          // replacing it with nothing. Skipped entirely only for a tier with
+          // no secrets at all (fe-01): `tierComposeContext` never references
+          // a secrets path in ENV_FILES for it, so there is nothing for this
+          // file to be read by.
+          //
+          // `writeAtomic`'s `mode` (item 3(a)) creates the temp file at 0600
+          // from birth — no separate `chmod` after `rename`, and so no
+          // window where the file is readable at the process umask's
+          // (typically 0644, world-readable) default.
+          if (tierHasSecrets(tier)) {
+            const secrets = deriveTierSecrets(tier, await Bun.file(SHARED_ENV_PATH).text());
+            await writeAtomic(tierSecretsFile(tier), secrets, 0o600);
           }
           const ctx = tierComposeContext(tier, to, image);
           await writeAtomic(tierComposeFile(tier, to), renderTemplate(tierComposeTmpl, ctx));
@@ -636,6 +688,11 @@ async function execute(plan: SwapPlan, image: string, sha: string): Promise<void
           // route away from `from` before this disconnects it. See
           // lib/docker.ts's revokeAliasCommands doc comment.
           if (from !== null) {
+            // Item 4: bounded settle before cutting the outgoing colour off
+            // — see BE_REVOKE_ALIAS_SETTLE_MS's doc comment for why this is
+            // a pause rather than a real drain, and what window remains
+            // even with it.
+            await sleep(BE_REVOKE_ALIAS_SETTLE_MS);
             for (const cmd of revokeAliasCommands(from)) await sh(cmd);
           }
           break;
