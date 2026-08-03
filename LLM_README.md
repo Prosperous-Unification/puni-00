@@ -25,15 +25,21 @@ lefthook runs prettier + a secrets scan pre-commit. Never `--no-verify`.
 
 ## Deploy
 
-Live: **https://wbs.bulletpoints.club** (`ssh h2puni`).
+Live: **https://wbs.bulletpoints.club** (prod = `ssh h2puni`). Build box = `ssh h1claw`
+(amd64, docker, checkout at `~/wd/puni/wbs-tool-v1`, has bun + dagger, reaches h2puni and GitHub).
+
+**Prefer h1claw** — it is amd64 so it builds natively with its own local Dagger engine, keeping
+builds off prod. From h1claw, in the checkout:
 
 ```sh
-ssh -f -N -L 8081:127.0.0.1:8081 h2puni
-export _EXPERIMENTAL_DAGGER_RUNNER_HOST=tcp://127.0.0.1:8081
+export PATH=$HOME/.bun/bin:$HOME/.local/bin:$PATH
 export REGISTRY_USER=wbs REGISTRY_PASS=$(ssh h2puni 'grep ^REGISTRY_PASS= /srv/wbs/.env | cut -d= -f2-')
 bunx nx run tool-dagger:publish-all
 bunx nx run tool-deploy:deploy -- --all --execute
 ```
+
+From an arm64 Mac instead, prepend a tunnel to prod's engine (QEMU otherwise):
+`ssh -f -N -L 8081:127.0.0.1:8081 h2puni` and `export _EXPERIMENTAL_DAGGER_RUNNER_HOST=tcp://127.0.0.1:8081`.
 
 Dagger builds `linux/amd64` → self-hosted registry (the only build/deploy contract) → swap starts the
 idle colour, health-gates, repoints Caddy, drains WS, stops old, runs smoke. `--dry-run` is default.
