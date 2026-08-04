@@ -33,6 +33,12 @@ export interface EnvLayout {
   readonly siteAddress: string;
 }
 
+// Roots live under puni1's home, not /srv: `/srv` is root-owned, so every new
+// environment would need an interactive sudo on a box with no passwordless
+// sudo. `/home/puni1` is owned by the deploy user, so provisioning a new
+// environment needs no privilege at all. The trade — service data outside the
+// FHS location for it — was made deliberately; see docs/adr/0002.
+//
 // deploy/compose/base.yml pins `networks.wbs-net.name: wbs-net`, so the prod
 // network is literally `wbs-net` — verified live with `ssh h2puni 'docker
 // network ls'` (Task 6's plan draft used `wbs_wbs-net`, which is wrong). dev's
@@ -42,25 +48,25 @@ export interface EnvLayout {
 const LAYOUTS: Readonly<Record<EnvName, EnvLayout>> = {
   prod: {
     env: 'prod',
-    root: '/srv/wbs',
+    root: '/home/puni1/wbs',
     network: 'wbs-net',
     containerPrefix: '',
-    sharedEnvPath: '/srv/wbs/.env',
-    stateDir: '/srv/wbs/state',
-    siteCaddyPath: '/srv/wbs/caddy/site.caddy',
+    sharedEnvPath: '/home/puni1/wbs/.env',
+    stateDir: '/home/puni1/wbs/state',
+    siteCaddyPath: '/home/puni1/wbs/caddy/site.caddy',
     siteAddress: 'wbs.bulletpoints.club',
   },
   dev: {
     env: 'dev',
-    root: '/srv/wbs-dev',
+    root: '/home/puni1/wbs-dev',
     network: 'wbs-dev-net',
     containerPrefix: 'dev-',
-    sharedEnvPath: '/srv/wbs-dev/.env',
-    stateDir: '/srv/wbs-dev/state',
-    // Not under dev's own root, deliberately: `/srv/wbs/caddy` is the single
-    // directory the one edge container mounts (deploy/compose/base.yml), so a
+    sharedEnvPath: '/home/puni1/wbs-dev/.env',
+    stateDir: '/home/puni1/wbs-dev/state',
+    // Not under dev's own root, deliberately: prod's caddy directory is the
+    // single one the one edge container mounts (deploy/compose/base.yml), so a
     // site file anywhere else is a file Caddy cannot read.
-    siteCaddyPath: '/srv/wbs/caddy/site-dev.caddy',
+    siteCaddyPath: '/home/puni1/wbs/caddy/site-dev.caddy',
     siteAddress: 'dev.wbs.bulletpoints.club',
   },
 };

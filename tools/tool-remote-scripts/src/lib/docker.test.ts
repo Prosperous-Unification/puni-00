@@ -36,12 +36,12 @@ describe('envLayout', () => {
   it('defaults to prod when WBS_ENV is unset', () => {
     expect(envLayout(undefined)).toEqual({
       env: 'prod',
-      root: '/srv/wbs',
+      root: '/home/puni1/wbs',
       network: 'wbs-net',
       containerPrefix: '',
-      sharedEnvPath: '/srv/wbs/.env',
-      stateDir: '/srv/wbs/state',
-      siteCaddyPath: '/srv/wbs/caddy/site.caddy',
+      sharedEnvPath: '/home/puni1/wbs/.env',
+      stateDir: '/home/puni1/wbs/state',
+      siteCaddyPath: '/home/puni1/wbs/caddy/site.caddy',
       siteAddress: 'wbs.bulletpoints.club',
     });
   });
@@ -52,23 +52,23 @@ describe('envLayout', () => {
 
   it('gives prod the values that were hardcoded before WBS_ENV existed', () => {
     expect(envLayout('prod')).toEqual(envLayout(undefined));
-    expect(ROOT).toBe('/srv/wbs');
+    expect(ROOT).toBe('/home/puni1/wbs');
     expect(NETWORK).toBe('wbs-net');
-    expect(SHARED_ENV_PATH).toBe('/srv/wbs/.env');
+    expect(SHARED_ENV_PATH).toBe('/home/puni1/wbs/.env');
     expect(containerName('be', 'blue')).toBe('be-01-blue');
   });
 
   it('gives dev a layout disjoint from prod, except the mounted caddy dir', () => {
     expect(envLayout('dev')).toEqual({
       env: 'dev',
-      root: '/srv/wbs-dev',
+      root: '/home/puni1/wbs-dev',
       network: 'wbs-dev-net',
       containerPrefix: 'dev-',
-      sharedEnvPath: '/srv/wbs-dev/.env',
-      stateDir: '/srv/wbs-dev/state',
-      // Deliberately under prod's root: /srv/wbs/caddy is the directory the
+      sharedEnvPath: '/home/puni1/wbs-dev/.env',
+      stateDir: '/home/puni1/wbs-dev/state',
+      // Deliberately under prod's root: that caddy directory is the one the
       // single edge container mounts, so dev's site file has to live there.
-      siteCaddyPath: '/srv/wbs/caddy/site-dev.caddy',
+      siteCaddyPath: '/home/puni1/wbs/caddy/site-dev.caddy',
       siteAddress: 'dev.wbs.bulletpoints.club',
     });
   });
@@ -482,6 +482,6 @@ describe('tierComposeContext across environments', () => {
   it('never renders prod’s network into a dev compose file', () => {
     const ctx = tierComposeContext('gw', 'blue', IMG.replace('be-01', 'gw-01'), envLayout('dev'));
     expect(ctx['NETWORK']).not.toBe('wbs-net');
-    expect(ctx['ENV_FILES']).not.toContain('/srv/wbs/');
+    expect(ctx['ENV_FILES']).not.toContain('/home/puni1/wbs/');
   });
 });

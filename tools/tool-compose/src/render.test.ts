@@ -38,15 +38,15 @@ describe('renderAll', () => {
         GW_ROUTE: 'reverse_proxy gw-01-blue:3200',
         FE_ROUTE: 'reverse_proxy fe-01-green:80',
         ENV_FILES:
-          '    env_file:\n      - /srv/wbs/be-01.env\n      - /srv/wbs/be-01.secrets.env\n',
-        VOLUMES: '    volumes:\n      - /srv/wbs/data:/data\n',
+          '    env_file:\n      - /home/puni1/wbs/be-01.env\n      - /home/puni1/wbs/be-01.secrets.env\n',
+        VOLUMES: '    volumes:\n      - /home/puni1/wbs/data:/data\n',
       },
     });
     expect(written.length).toBeGreaterThan(0);
     const tier = await readFile(join(outDir, 'tier.compose'), 'utf8');
     expect(tier).toMatch(/image: registry.infra.bulletpoints.club\/wbs-be-01:abc1234/);
     expect(tier).toMatch(/be-01-green:/);
-    expect(tier).toMatch(/- \/srv\/wbs\/be-01\.secrets\.env/);
+    expect(tier).toMatch(/- \/home\/puni1\/wbs\/be-01\.secrets\.env/);
     const site = await readFile(join(outDir, 'site.caddy'), 'utf8');
     expect(site).toMatch(/reverse_proxy be-01-green:3100/);
   });

@@ -54,10 +54,10 @@ describe('parseDeployArgs', () => {
 // coreutils sha256sum output; this is the pure part of it.
 describe('parseSha256sumOutput', () => {
   it('parses coreutils sha256sum lines into a path -> hash map', () => {
-    const out = 'aaaa111  /srv/wbs/bin/swap.js\nbbbb222  /srv/wbs/bin/smoke.js\n';
+    const out = 'aaaa111  /home/puni1/wbs/bin/swap.js\nbbbb222  /home/puni1/wbs/bin/smoke.js\n';
     expect(parseSha256sumOutput(out)).toEqual({
-      '/srv/wbs/bin/swap.js': 'aaaa111',
-      '/srv/wbs/bin/smoke.js': 'bbbb222',
+      '/home/puni1/wbs/bin/swap.js': 'aaaa111',
+      '/home/puni1/wbs/bin/smoke.js': 'bbbb222',
     });
   });
 
@@ -393,12 +393,12 @@ describe('buildSmokeCommand', () => {
   // this (locally-run) process ever holds.
   it('supplies secrets only via the server-side gw-01.secrets.env, never inline', () => {
     const cmd = buildSmokeCommand(state({}), envLayout('prod'));
-    expect(cmd).toContain('--env-file /srv/wbs/gw-01.secrets.env');
+    expect(cmd).toContain('--env-file /home/puni1/wbs/gw-01.secrets.env');
   });
 
   it('runs the bundled single-file smoke.js, not a $PWD-mounted checkout', () => {
     const cmd = buildSmokeCommand(state({}), envLayout('prod'));
-    expect(cmd).toContain('-v /srv/wbs/bin/smoke.js:/smoke.js:ro');
+    expect(cmd).toContain('-v /home/puni1/wbs/bin/smoke.js:/smoke.js:ro');
     expect(cmd).not.toContain('$PWD');
   });
 
@@ -417,7 +417,7 @@ describe('buildSmokeCommand', () => {
 // therefore parsed as "this tier was never deployed", and a never-deployed
 // tier makes hasNewMigrations return false — which silently disables the
 // --with-migrations acknowledgment gate. Break: `chmod 000
-// /srv/wbs/state/be.json`, then deploy a destructive migration with no flag.
+// /home/puni1/wbs/state/be.json`, then deploy a destructive migration with no flag.
 describe('parseRemoteStateOutput', () => {
   const present = (tier: string, sha: string) =>
     `== ${tier} present\n{"tier":"${tier}","activeColor":"blue","lastDeployedSha":"${sha}"}\n`;
@@ -473,14 +473,14 @@ describe('parseRemoteStateOutput header handling', () => {
 describe('--env', () => {
   it('defaults to prod', () => {
     expect(parseDeployArgs([]).layout.env).toBe('prod');
-    expect(parseDeployArgs([]).layout.root).toBe('/srv/wbs');
+    expect(parseDeployArgs([]).layout.root).toBe('/home/puni1/wbs');
   });
 
   it('parses --env=dev into dev’s layout', () => {
     const a = parseDeployArgs(['--env=dev']);
     expect(a.layout.env).toBe('dev');
-    expect(a.layout.root).toBe('/srv/wbs-dev');
-    expect(a.layout.stateDir).toBe('/srv/wbs-dev/state');
+    expect(a.layout.root).toBe('/home/puni1/wbs-dev');
+    expect(a.layout.stateDir).toBe('/home/puni1/wbs-dev/state');
   });
 
   /**
@@ -498,13 +498,15 @@ describe('--env', () => {
 describe('per-environment deploy plans', () => {
   it('sends prod the exact command it sent before environments existed', async () => {
     const p = await buildDeployPlan(['--all'], [], HEAD, fakeDeps());
-    expect(p.commands[0]).toStartWith('cd /srv/wbs && bun bin/swap.js be,gw,fe ');
+    expect(p.commands[0]).toStartWith('cd /home/puni1/wbs && bun bin/swap.js be,gw,fe ');
     expect(p.commands[0]).not.toContain('WBS_ENV');
   });
 
   it('sends dev its own root and WBS_ENV', async () => {
     const p = await buildDeployPlan(['--all', '--env=dev'], [], HEAD, fakeDeps());
-    expect(p.commands[0]).toStartWith('cd /srv/wbs-dev && WBS_ENV=dev bun bin/swap.js be,gw,fe ');
+    expect(p.commands[0]).toStartWith(
+      'cd /home/puni1/wbs-dev && WBS_ENV=dev bun bin/swap.js be,gw,fe ',
+    );
   });
 
   /**
@@ -519,7 +521,7 @@ describe('per-environment deploy plans', () => {
       readRemoteState: (_host, stateDir) => {
         asked.push(stateDir);
         // A caller that leaked prod's path would get real-looking state back.
-        if (stateDir === '/srv/wbs/state') {
+        if (stateDir === '/home/puni1/wbs/state') {
           return Promise.resolve({
             be: { tier: 'be', activeColor: 'green' as const, lastDeployedSha: HEAD },
           });
@@ -528,7 +530,7 @@ describe('per-environment deploy plans', () => {
       },
     });
     const p = await buildDeployPlan(['be', '--env=dev'], [], HEAD, deps);
-    expect(asked).toEqual(['/srv/wbs-dev/state']);
+    expect(asked).toEqual(['/home/puni1/wbs-dev/state']);
     expect(p.steps.some((s) => s.includes('(never deployed)'))).toBe(true);
   });
 
@@ -538,9 +540,9 @@ describe('per-environment deploy plans', () => {
       envLayout('dev'),
     );
     expect(cmd).toContain('--network wbs-dev-net');
-    expect(cmd).toContain('--env-file /srv/wbs-dev/gw-01.secrets.env');
+    expect(cmd).toContain('--env-file /home/puni1/wbs-dev/gw-01.secrets.env');
     expect(cmd).toContain('-e SITE_ADDRESS=dev.wbs.bulletpoints.club');
-    expect(cmd).not.toContain('/srv/wbs/gw-01.secrets.env');
+    expect(cmd).not.toContain('/home/puni1/wbs/gw-01.secrets.env');
   });
 });
 

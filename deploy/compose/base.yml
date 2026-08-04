@@ -2,7 +2,7 @@
 #
 # Host base stack: containerised Caddy (edge, ports 80/443) and an
 # authenticated private registry. Bring up with:
-#   docker compose -f /srv/wbs/base.yml up -d
+#   docker compose -f /home/puni1/wbs/base.yml up -d
 name: wbs
 
 networks:
@@ -42,8 +42,8 @@ services:
     volumes:
       - caddy_data:/data
       - caddy_config:/config
-      - /srv/wbs/caddy:/etc/caddy:ro
-      - /srv/wbs/logs:/var/log/caddy
+      - /home/puni1/wbs/caddy:/etc/caddy:ro
+      - /home/puni1/wbs/logs:/var/log/caddy
 
   registry:
     image: registry:2
@@ -70,4 +70,4 @@ services:
       REGISTRY_STORAGE_DELETE_ENABLED: 'true'
     volumes:
       - registry_data:/var/lib/registry
-      - /srv/wbs/registry.htpasswd:/auth/htpasswd:ro
+      - /home/puni1/wbs/registry.htpasswd:/auth/htpasswd:ro

@@ -32,7 +32,7 @@
 set -eu
 
 WBS_USER="${WBS_USER:-puni1}"
-WBS_ROOT="${WBS_ROOT:-/srv/wbs}"
+WBS_ROOT="${WBS_ROOT:-/home/puni1/wbs}"
 REGISTRY_HOST="${REGISTRY_HOST:-registry.infra.bulletpoints.club}"
 REGISTRY_USER="${REGISTRY_USER:-wbs}"
 REGISTRY_INSECURE="${REGISTRY_INSECURE:-0}"
@@ -187,7 +187,7 @@ chmod 0600 "$WBS_ROOT/.env"
 
 log "writing per-tier app-config env files"
 # lib/docker.ts's `tierEnvFiles` puts each tier's app-config file
-# (/srv/wbs/<app>.env) FIRST in that tier's `env_file:` list, secrets file
+# (/home/puni1/wbs/<app>.env) FIRST in that tier's `env_file:` list, secrets file
 # last, deliberately — see that function's doc comment. These app-config
 # files hold no secrets (checked by swap.ts's assertTierEnvAllowed against a
 # strict per-tier allowlist before every swap — cross-review item 3(c)), so,

@@ -84,12 +84,16 @@ describe('buildPlan', () => {
     }
   });
 
-  it('scps base.yml to /srv/wbs/base.yml before configure.sh runs', () => {
+  it('scps base.yml to /home/puni1/wbs/base.yml before configure.sh runs', () => {
     const steps = buildPlan(base);
     const scpStep = steps[2];
     expect(scpStep.kind).toBe('run');
     if (scpStep.kind === 'run') {
-      expect(scpStep.argv).toEqual(['scp', 'deploy/compose/base.yml', 'root@h:/srv/wbs/base.yml']);
+      expect(scpStep.argv).toEqual([
+        'scp',
+        'deploy/compose/base.yml',
+        'root@h:/home/puni1/wbs/base.yml',
+      ]);
     }
   });
 
