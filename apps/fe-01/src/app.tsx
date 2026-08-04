@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 export function App() {
   return (
     <main style={{ padding: 32, fontFamily: 'sans-serif' }}>
-      <h1>WBS Tool</h1>
+      <h1>WBS tool v2</h1>
       <Button>Smoke test</Button>
       <section style={{ marginTop: 24 }}>
         <h2>Table</h2>
