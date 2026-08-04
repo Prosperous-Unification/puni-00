@@ -1,0 +1,111 @@
+import { jwtVerify, SignJWT } from 'jose';
+
+import type { User, UserStore } from '../repository';
+
+export const TOKEN_TTL_SECONDS = 12 * 60 * 60;
+
+export interface AuthResult {
+  token: string;
+  user: { id: string; username: string };
+}
+
+export type RegisterOutcome =
+  | { ok: true; result: AuthResult }
+  | { ok: false; reason: 'taken' | 'invalid' };
+
+export type LoginOutcome = { ok: true; result: AuthResult } | { ok: false; reason: 'invalid' };
+
+export interface AuthServiceOptions {
+  users: UserStore;
+  /**
+   * The same string gw-01 loads as JWT_SIGNING_KEY_CURRENT. Both sides encode
+   * it with TextEncoder, so a token signed here verifies there; if the two
+   * values diverge the failure is a 401 on the WebSocket only, which reads as
+   * a gateway bug rather than a configuration mismatch.
+   */
+  jwtKey: string;
+  now?: () => number;
+  newId?: () => string;
+}
+
+/** Usernames are the WebSocket presence identity, so they are constrained here. */
+const USERNAME = /^[a-zA-Z0-9_-]{3,32}$/;
+const MIN_PASSWORD = 8;
+// argon2id hashes whatever it is given; an unbounded password is a cheap way
+// to make registration expensive for everyone else.
+const MAX_PASSWORD = 200;
+
+export class AuthService {
+  private readonly key: Uint8Array;
+  private readonly now: () => number;
+  private readonly newId: () => string;
+
+  constructor(private readonly opts: AuthServiceOptions) {
+    this.key = new TextEncoder().encode(opts.jwtKey);
+    this.now = opts.now ?? (() => Date.now());
+    this.newId = opts.newId ?? (() => crypto.randomUUID());
+  }
+
+  async register(username: string, password: string): Promise<RegisterOutcome> {
+    if (!USERNAME.test(username) || password.length < MIN_PASSWORD) {
+      return { ok: false, reason: 'invalid' };
+    }
+    if (password.length > MAX_PASSWORD) return { ok: false, reason: 'invalid' };
+    const user: User = {
+      id: this.newId(),
+      username,
+      passwordHash: await Bun.password.hash(password),
+      createdAt: this.now(),
+    };
+    const created = await this.opts.users.create(user);
+    if (created === null) return { ok: false, reason: 'taken' };
+    return { ok: true, result: await this.issue(created) };
+  }
+
+  async login(username: string, password: string): Promise<LoginOutcome> {
+    const user = await this.opts.users.findByUsername(username);
+    if (user === null) {
+      // Hash a throwaway value so a missing user and a wrong password cost the
+      // same wall-clock time; skipping this turns login into a username oracle.
+      await Bun.password.verify(password, DUMMY_HASH).catch(() => false);
+      return { ok: false, reason: 'invalid' };
+    }
+    const matches = await Bun.password.verify(password, user.passwordHash);
+    if (!matches) return { ok: false, reason: 'invalid' };
+    return { ok: true, result: await this.issue(user) };
+  }
+
+  /** Verifies a bearer token and resolves the user it names. */
+  async authenticate(token: string): Promise<{ id: string; username: string } | null> {
+    try {
+      const { payload } = await jwtVerify(token, this.key);
+      const sub = payload.sub;
+      if (typeof sub !== 'string') return null;
+      const user = await this.opts.users.findById(sub);
+      // A token whose subject has been deleted must not authenticate: the
+      // signature is still valid, so only the lookup can reject it.
+      if (user === null) return null;
+      return { id: user.id, username: user.username };
+    } catch {
+      return null;
+    }
+  }
+
+  private async issue(user: User): Promise<AuthResult> {
+    const issuedAt = Math.floor(this.now() / 1000);
+    const token = await new SignJWT({ username: user.username })
+      .setProtectedHeader({ alg: 'HS256' })
+      .setSubject(user.id)
+      .setIssuedAt(issuedAt)
+      .setExpirationTime(issuedAt + TOKEN_TTL_SECONDS)
+      .sign(this.key);
+    return { token, user: { id: user.id, username: user.username } };
+  }
+}
+
+/**
+ * A real argon2id digest of a value no one can supply, used only to spend the
+ * same time on an unknown username as on a known one.
+ */
+const DUMMY_HASH =
+  '$argon2id$v=19$m=65536,t=2,p=1$YWJjZGVmZ2hpamtsbW5vcA$0RTS8ZC+9Bfl7Bx4rvGIYYqEs0mfOB5+3H4mPa0BvXk';

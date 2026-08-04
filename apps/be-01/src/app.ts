@@ -2,11 +2,19 @@ import { createLogger } from '@wbs/observability';
 import { observabilityPlugin } from '@wbs/observability/server';
 import { Elysia } from 'elysia';
 
+import { authController } from './controller/auth.controller';
 import { internalController } from './controller/internal.controller';
 import { smokeController } from './controller/smoke.controller';
+import type { AuthService } from './service/auth.service';
 
 export interface AppOptions {
   migrationsApplied: boolean;
+  /**
+   * Required rather than optional. An optional auth service would let a
+   * misconfigured process start with the registration and login routes simply
+   * absent, answering 404 — indistinguishable from a routing fault at the edge.
+   */
+  auth: AuthService;
   /**
    * Shared secret gw-01 presents on /internal/*. Required — a default here
    * would silently diverge from the value gw-01 loads from the environment,
@@ -23,6 +31,7 @@ export function buildApp(opts: AppOptions) {
     .use(observabilityPlugin({ service: 'be-01' }))
     .decorate('logger', logger)
     .use(smokeController)
+    .use(authController(opts.auth))
     .use(
       internalController({
         secret: opts.internalAuthSecret,

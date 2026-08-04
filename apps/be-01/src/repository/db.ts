@@ -1,4 +1,5 @@
 import { Database } from 'bun:sqlite';
+import { drizzle, type SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
 const BUSY_TIMEOUT_MS = 5000;
 
@@ -30,6 +31,16 @@ export function openDatabase(dbPath: string): Database {
   // would have been unverified.
   assertPragmas(db);
   return db;
+}
+
+/**
+ * The drizzle client the process runs on. It lives here, next to
+ * `openDatabase`, because the ESLint rule that keeps `bun:sqlite` and the
+ * drizzle bun adapter in this one file is what guarantees every connection
+ * went through the pragma assertions above.
+ */
+export function openDrizzle(dbPath: string): SQLiteBunDatabase {
+  return drizzle({ client: openDatabase(dbPath) });
 }
 
 /** Fails loudly if the pragmas were not actually adopted. */

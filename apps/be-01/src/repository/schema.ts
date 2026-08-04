@@ -8,6 +8,25 @@ export const examples = sqliteTable('examples', {
 
 export type ExampleRow = typeof examples.$inferSelect;
 
+/**
+ * `passwordHash` holds an argon2id digest from `Bun.password`, never a
+ * password. `username` is unique at the database level rather than only in the
+ * service: two concurrent registrations of the same name both pass a
+ * check-then-insert, and only a constraint stops the second one.
+ */
+export const users = sqliteTable(
+  'users',
+  {
+    id: text('id').primaryKey(),
+    username: text('username').notNull(),
+    passwordHash: text('password_hash').notNull(),
+    createdAt: integer('created_at').notNull(),
+  },
+  (t) => [uniqueIndex('users_username').on(t.username)],
+);
+
+export type UserRow = typeof users.$inferSelect;
+
 export const eventSequencer = sqliteTable('event_sequencer', {
   subscription: text('subscription').primaryKey(),
   nextSeq: integer('next_seq').notNull().default(0),

@@ -2,10 +2,22 @@ import { createLogger } from '@wbs/observability';
 
 import { buildApp } from './app';
 import { loadConfig } from './config';
+import { openDrizzle } from './repository/db';
 import { runMigrations } from './repository/migrate';
+import { UserRepository } from './repository/user';
+import { AuthService } from './service/auth.service';
 
 const cfg = loadConfig();
 const logger = createLogger({ service: 'be-01', level: cfg.LOG_LEVEL });
+
+// One connection for the process, opened through `openDatabase` so the
+// per-connection pragmas (WAL, busy_timeout) are set and asserted. Migrations
+// below still open their own, briefly, and close it.
+const db = openDrizzle(cfg.DB_PATH);
+const auth = new AuthService({
+  users: new UserRepository(db),
+  jwtKey: cfg.JWT_SIGNING_KEY_CURRENT,
+});
 
 // Design decision 8: a deployed container must NOT migrate at startup.
 // Blue and green share one SQLite file during the swap overlap, and
@@ -33,6 +45,7 @@ const app = buildApp({
   get migrationsApplied() {
     return state.migrationsApplied;
   },
+  auth,
   internalAuthSecret: cfg.INTERNAL_AUTH_SECRET,
   version: process.env['VERSION'],
 });

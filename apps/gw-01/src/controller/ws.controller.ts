@@ -19,6 +19,8 @@ export interface HandleWsMessageArgs {
   onInbound?: () => void;
   onReconnect?: () => void;
   onBackendUnavailable?: () => void;
+  /** Current presence roster, for a client that asks instead of waiting. */
+  roster?: () => string[];
 }
 
 export async function handleWsMessage(args: HandleWsMessageArgs): Promise<void> {
@@ -32,6 +34,13 @@ export async function handleWsMessage(args: HandleWsMessageArgs): Promise<void> 
 
   if (msg['type'] === 'ping') {
     args.socket.send(JSON.stringify({ type: 'pong' }));
+    return;
+  }
+
+  // A client that reconnects has missed every broadcast sent while it was
+  // away, so it must be able to ask rather than wait for the next join.
+  if (msg['type'] === 'who') {
+    args.socket.send(JSON.stringify({ type: 'presence', users: args.roster?.() ?? [] }));
     return;
   }
 
