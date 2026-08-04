@@ -49,8 +49,14 @@ denies `dagger`, `tool-dagger:*`, `tool-deploy:deploy` and `docker build` outrig
 delegated over `ssh … h2puni` pass through.
 
 **h2puni is not provisioned to drive builds yet** (verified 2026-08-04): it has `bun`,
-`docker` and a running `dagger-engine` container, but **no `dagger` CLI, no `node`, and no
-repo checkout**. Installing those is prerequisite work before the commands below run there.
+`docker`, `git`, `node` (24.18.1 via Volta) and a running `dagger-engine` container, but
+**no `dagger` CLI and no repo checkout**. Installing those is prerequisite work before the
+commands below run there.
+
+> Check tooling on h2puni with `ssh h2puni 'bash -lc "command -v node"'`. Volta and Bun are
+> on the PATH of a **login** shell only; a bare `ssh h2puni 'command -v node'` reports
+> `node` missing when it is installed and working. Same trap this file documents for h1claw
+> — it cost an incorrect "no node" claim in the 2026-08-04 docs pass.
 
 ```sh
 # ON h2puni, once the CLI + checkout exist:

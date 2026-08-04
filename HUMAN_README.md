@@ -166,9 +166,13 @@ holds the prod SSH key, registry credentials and the GitHub PAT, so builds do no
 belong on it. A hook there denies `dagger`, `docker build` and the Nx publish and
 deploy targets; anything sent over `ssh … h2puni` passes.
 
-Caveat as of 2026-08-04: h2puni has `bun`, `docker` and a running `dagger-engine`,
-but no `dagger` CLI and no repo checkout — so it cannot drive a build yet either.
-That gap is the next setup job.
+Caveat as of 2026-08-04: h2puni has `bun`, `docker`, `git` and Node 24.18.1 (via
+Volta), and runs the `dagger-engine` — but has no `dagger` CLI and no repo
+checkout, so it cannot drive a build yet either. That gap is the next setup job.
+
+Checking tooling there needs a **login** shell: `ssh h2puni 'bash -lc "..."'`.
+Volta and Bun are not on a non-login shell's PATH, so a plain
+`ssh h2puni 'command -v node'` says missing when Node is installed and fine.
 
 ### Mac
 
