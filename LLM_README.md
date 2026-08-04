@@ -39,19 +39,29 @@ checks nothing on a push to main.
 
 ## Deploy
 
-Live: **https://wbs.bulletpoints.club** (prod = `ssh h2puni`). Build box = `ssh h1claw`
-(amd64, docker, checkout at `~/wd/puni/wbs-tool-v1`, has bun + dagger, reaches h2puni and GitHub).
+Live: **https://wbs.bulletpoints.club** (prod = `ssh h2puni`). **Build box = h2puni.**
 
-**Prefer h1claw** — it is amd64 so it builds natively with its own local Dagger engine, keeping
-builds off prod. From h1claw, in the checkout:
+**Never build on h1claw.** Dany's standing rule, 2026-08-04. It supersedes the earlier
+"prefer h1claw, it is amd64" guidance in this file's history — h1claw is a 3.7 GB VPS that
+runs the OpenClaw gateway and holds the prod SSH key, registry credentials and the `ghp_`
+PAT. A `PreToolUse` guard on h1claw (`~/.openclaw/workspace/bin/block-local-builds.sh`)
+denies `dagger`, `tool-dagger:*`, `tool-deploy:deploy` and `docker build` outright; commands
+delegated over `ssh … h2puni` pass through.
+
+**h2puni is not provisioned to drive builds yet** (verified 2026-08-04): it has `bun`,
+`docker` and a running `dagger-engine` container, but **no `dagger` CLI, no `node`, and no
+repo checkout**. Installing those is prerequisite work before the commands below run there.
 
 ```sh
-export PATH=$HOME/.bun/bin:$HOME/.local/bin:$PATH
-export REGISTRY_USER=wbs REGISTRY_PASS=$(ssh h2puni 'grep ^REGISTRY_PASS= /srv/wbs/.env | cut -d= -f2-')
+# ON h2puni, once the CLI + checkout exist:
+export REGISTRY_USER=wbs REGISTRY_PASS=$(grep ^REGISTRY_PASS= /home/puni1/wbs/.env | cut -d= -f2-)
 bunx nx run tool-dagger:publish-all
 bunx nx run tool-remote-scripts:install --execute   # after any swap.js / smoke.js change
 bunx nx run tool-deploy:deploy -- --all --execute
 ```
+
+Env root moved 2026-08-04 — `/home/puni1/wbs/.env`, not `/srv/wbs/.env`. Both are readable
+today because `/srv/wbs` is a stale rollback copy; read the new path.
 
 From an arm64 Mac instead, prepend a tunnel to prod's engine (QEMU otherwise):
 `ssh -f -N -L 8081:127.0.0.1:8081 h2puni` and `export _EXPERIMENTAL_DAGGER_RUNNER_HOST=tcp://127.0.0.1:8081`.

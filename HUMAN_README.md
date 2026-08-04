@@ -64,7 +64,7 @@ as an outage.
 
 ### Step 2 — what is actually deployed
 
-> ssh h2puni and cat /srv/wbs/state/be.json, gw.json and fe.json. Report
+> ssh h2puni and cat /home/puni1/wbs/state/be.json, gw.json and fe.json. Report
 > activeColor and lastDeployedSha for each.
 
 Each file gives the live colour and the commit. Compare against `main`. As of
@@ -74,7 +74,7 @@ Also check the deploy lock. **The file always exists — its presence means
 nothing.** The lock is a real `flock(2)` on an open descriptor, so the only
 honest test is whether something holds it:
 
-> ssh h2puni and check whether /srv/wbs/state/deploy.lock is actually held —
+> ssh h2puni and check whether /home/puni1/wbs/state/deploy.lock is actually held —
 > grep its inode in /proc/locks. Do not run `flock` to test it, that would take
 > the lock.
 
@@ -103,9 +103,15 @@ dry-run, authorise, verify.
 
 Then publish and dry-run — still no `--execute`:
 
-> in the same checkout, export REGISTRY_USER=wbs and REGISTRY_PASS from h2puni's
-> /srv/wbs/.env, run `bunx nx run tool-dagger:publish-all`, then
+> on h2puni — export REGISTRY_USER=wbs and REGISTRY_PASS from
+> /home/puni1/wbs/.env, run `bunx nx run tool-dagger:publish-all`, then
 > `bunx nx run tool-deploy:deploy -- --all` and paste the dry-run output
+
+**Say "on h2puni".** Builds are blocked on h1claw by a hook, so a message that
+does not name the host will be refused mid-emergency, which is the worst possible
+time to discover it. As of 2026-08-04 h2puni still lacks the `dagger` CLI and a
+checkout — until that is fixed, this step cannot run anywhere, and that is the
+single thing to provision before trusting this runbook.
 
 **Stop and do not authorise if** the tree is dirty, `release.json` is stale, the
 gate failed, the bundle is unbuilt, or the deploy lock is held. Those refusals
@@ -152,11 +158,17 @@ Three surfaces, same repo, same rules.
 | Surface              | Use it for                                | Catch                                     |
 | -------------------- | ----------------------------------------- | ----------------------------------------- |
 | Mac                  | writing code, fast loops, anything visual | arm64 — cannot build prod images natively |
-| h1claw over SSH      | builds, deploys, long jobs                | non-login shells need a PATH export       |
+| h1claw over SSH      | editing, tests, git, long non-build jobs  | never builds; a hook blocks them          |
 | h1claw over WhatsApp | all of the above, from anywhere           | you steer an agent; see the red box       |
 
-**h1claw is the build box** — amd64 with a local Dagger engine, so it builds
-natively. The Mac would emulate.
+**h2puni is the build box** — your rule, 2026-08-04. h1claw runs the gateway and
+holds the prod SSH key, registry credentials and the GitHub PAT, so builds do not
+belong on it. A hook there denies `dagger`, `docker build` and the Nx publish and
+deploy targets; anything sent over `ssh … h2puni` passes.
+
+Caveat as of 2026-08-04: h2puni has `bun`, `docker` and a running `dagger-engine`,
+but no `dagger` CLI and no repo checkout — so it cannot drive a build yet either.
+That gap is the next setup job.
 
 ### Mac
 
