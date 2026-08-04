@@ -11,12 +11,17 @@ services:
     volumes:
       - /home/puni1/wbs-dev/src:/src
       - /home/puni1/wbs-dev/data:/data
-    env_file:
-      - /home/puni1/wbs-dev/.env
-      - /home/puni1/wbs-dev/be-01.env
-      - /home/puni1/wbs-dev/be-01.secrets.env
-      - /home/puni1/wbs-dev/gw-01.env
-      - /home/puni1/wbs-dev/gw-01.secrets.env
+    # No env_file here, deliberately. Compose merges every env_file into one
+    # process namespace, so be-01.env and gw-01.env both setting PORT left both
+    # tiers reading 3200 -- be-01 announced "port 3200" and the collision was
+    # only visible in its startup log.
+    #
+    # Each tier's serve target runs with cwd apps/<tier>, and Bun loads .env
+    # from the working directory, so per-app .env files give each process its
+    # own namespace. They are gitignored, so a `git reset --hard` deploy leaves
+    # them intact. Seeded on h2puni from /home/puni1/wbs-dev/*.env; the tier
+    # URLs point at localhost rather than the *.internal aliases, which still
+    # resolve to the old per-tier containers.
     # Must stay on wbs-dev-net: `be-01.internal` is a network-global Docker
     # alias, so a container on the prod network resolves prod's backend.
     networks:
