@@ -6,6 +6,11 @@ services:
     image: wbs-dev-src:1
     container_name: wbs-dev-src
     working_dir: /src
+    # Run as puni1 (1000:1000), the owner of the bind mount. As root the
+    # container wrote root-owned .nx/ and dist/ into the checkout, which puni1
+    # then could not delete or overwrite -- and the deploy is `git reset --hard`
+    # run as puni1, so that becomes a deploy that fails on its own build output.
+    user: '1000:1000'
     # The deploy is a write into this mount. `bun --watch` (be, gw) and Vite
     # HMR (fe) pick it up, so an ordinary code change restarts nothing.
     volumes:
