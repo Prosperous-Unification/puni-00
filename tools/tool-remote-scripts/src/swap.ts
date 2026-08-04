@@ -49,7 +49,7 @@ import { waitForHealthy } from './lib/health';
 import { withLock } from './lib/lock';
 import { readPhase, writePhase } from './lib/phase';
 import { type Observed, planSwap, type SwapPlan, type SwapStep } from './lib/reconcile';
-import { routedColorFor, siteContext } from './lib/site';
+import { routedColorFromAdminConfig, siteContext } from './lib/site';
 import { type Color, parseStateJson, renderStateJson, type Tier } from './lib/state';
 
 // No REGISTRY here, deliberately. The publish address arrives as part of
@@ -325,10 +325,13 @@ async function liveRoutedColors(): Promise<Record<Tier, Color | null>> {
         `  Underlying error: ${e instanceof Error ? e.message : String(e)}`,
     );
   }
+  // The admin dump is every site on the host at once, so each tier is read
+  // from the route that matches THIS environment's address. Reading it as flat
+  // text meant dev's block and prod's block were one search space.
   return {
-    be: routedColorFor('be', config),
-    gw: routedColorFor('gw', config),
-    fe: routedColorFor('fe', config),
+    be: routedColorFromAdminConfig('be', SITE_ADDRESS, config),
+    gw: routedColorFromAdminConfig('gw', SITE_ADDRESS, config),
+    fe: routedColorFromAdminConfig('fe', SITE_ADDRESS, config),
   };
 }
 
@@ -686,12 +689,26 @@ async function execute(plan: SwapPlan, image: string, sha: string): Promise<void
           // currentCaddyConfig's doc comment — this is precisely how the
           // "reload silently no-ops" failure mode stayed invisible before).
           const liveConfig = await currentCaddyConfig();
-          if (!liveConfig.includes(greenName)) {
+          // `liveConfig.includes(greenName)` was the check here, and it asked a
+          // weaker question than the one that matters: whether the name occurs
+          // anywhere in the whole dump, in any site, in any field. It passes on
+          // a mention this tier's route does not own — another environment's
+          // block, a header value, an error body — and it cannot fail while any
+          // stale reference to the container survives somewhere in the config.
+          //
+          // `routedColorFor` is the parser the planner already trusts to decide
+          // which colour is live (liveRoutedColors, design decision 6). Using it
+          // here means the reload check and the next deploy's observation read
+          // the same config the same way, so they cannot disagree about what
+          // happened.
+          const routedNow = routedColorFromAdminConfig(tier, SITE_ADDRESS, liveConfig);
+          if (routedNow !== to) {
             throw new Error(
               'caddy reload exited 0 but the live admin config ' +
-                '(http://127.0.0.1:2019/config/ inside the caddy container) does not ' +
-                `mention ${greenName} — routing did not actually change. Check that ` +
-                `/srv/wbs/caddy/Caddyfile really imports ${SITE_CADDY_PATH.split('/').pop() ?? ''}. ` +
+                '(http://127.0.0.1:2019/config/ inside the caddy container) routes ' +
+                `${tier} to ${routedNow ?? 'no colour at all'}, not ${to} — routing did ` +
+                `not actually change. Check that /srv/wbs/caddy/Caddyfile really imports ` +
+                `${SITE_CADDY_PATH.split('/').pop() ?? ''}. ` +
                 `(This environment is ${CURRENT_ENV.env}; each environment has its own ` +
                 'site file and both must be imported.)',
             );
