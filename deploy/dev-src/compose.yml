@@ -36,6 +36,21 @@ services:
       # with only be-01 running -- a half-up dev environment whose logs looked
       # like a slow start rather than a deadlock.
       NX_DAEMON: 'false'
+    # Dev shares a host with prod, so it gets hard ceilings. Measured
+    # 2026-08-04: 278 MiB and 60 PIDs steady-state, on a 7.5 GiB host where
+    # dagger-engine alone holds 2.6 GiB. These are ~5x headroom, sized to stop a
+    # Vite rebuild loop or a fork storm from reaching prod, not to be generous.
+    # Without them the blast radius of a dev bug is the production site.
+    mem_limit: 1536m
+    cpus: 1.5
+    pids_limit: 512
+    # An unbounded json-file log on a shared host is a disk-exhaustion path that
+    # takes prod down with it.
+    logging:
+      driver: json-file
+      options:
+        max-size: '20m'
+        max-file: '3'
     networks:
       - wbs-dev-net
     restart: unless-stopped

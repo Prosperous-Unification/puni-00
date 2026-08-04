@@ -59,12 +59,29 @@ git push && ./bin/dev-deploy.sh     # from h1claw, after any change
 `bin/dev-deploy.sh` refuses a dirty tree or an unpushed SHA, then asks h2puni to
 `git reset --hard` its checkout at `/home/puni1/wbs-dev/src`. That checkout is bind-mounted
 into one container, `wbs-dev-src`, running all three tiers via `bun run dev` — be-01 and
-gw-01 under `bun --watch`, fe-01 under Vite. **The watchers are the deploy**; nothing is
-built, pushed or restarted. Only a moved `bun.lock` triggers `bun install` + restart, which
-is the single decision `tools/tool-devsync` makes and the only part with tests.
+gw-01 under `bun --watch`, fe-01 under Vite. **For application code the watchers are the
+deploy**; nothing is built, pushed or restarted.
 
 Verified 2026-08-04: a pushed change appeared on dev with the container's `StartedAt`
 unchanged to the nanosecond.
+
+**Not every change can reach a running process that way.** This is the constraint the
+design trades for its speed, not a feature — know which column your change is in:
+
+| Change                                                          | What carries it                                                                                                                                                     |
+| --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| App source under `apps/*/src`                                   | The watchers. Nothing restarts.                                                                                                                                     |
+| `bun.lock`                                                      | `tool-devsync` restarts and runs `bun install`.                                                                                                                     |
+| A migration under `apps/be-01/drizzle`                          | `tool-devsync` restarts; be-01 migrates at boot (`MIGRATE_ON_STARTUP=true`). Migrations are imported by no watched module, so nothing else would notice one arrive. |
+| `package.json`, `nx.json`, any `project.json`, `vite.config.ts` | `tool-devsync` restarts. Nx and Vite read these once at startup.                                                                                                    |
+| `deploy/dev-src/Dockerfile`                                     | **Nothing.** Rebuild by hand: `docker build -t wbs-dev-src:1 -f deploy/dev-src/Dockerfile deploy/dev-src` then recreate.                                            |
+| `deploy/dev-src/compose.yml`                                    | **Nothing.** `docker compose -f deploy/dev-src/compose.yml up -d --force-recreate`.                                                                                 |
+| Per-tier `apps/<tier>/.env`                                     | **Nothing** — gitignored, so a push cannot carry it. Edit on h2puni and restart the container.                                                                      |
+
+The last three rows are the ones that bite: the deploy reports success and the change is
+simply not live. `tools/tool-devsync/src/RESTART_PATHS` is the list the tool enforces; the
+rows saying "Nothing" are deliberately outside it, because a restart alone would not apply
+them.
 
 Dev sits behind basic auth (`dany`, password in `/home/puni1/wbs-dev/basic-auth.env` on
 h2puni) on every path except `/ws*` — browsers cannot send an `Authorization` header on a
@@ -96,7 +113,7 @@ below run there.
 > — it cost an incorrect "no node" claim in the 2026-08-04 docs pass.
 
 ```sh
-# ON h2puni, once the CLI + checkout exist:
+# ON h2puni, once the dagger CLI and a prod checkout (not dev's) exist:
 export REGISTRY_USER=wbs REGISTRY_PASS=$(grep ^REGISTRY_PASS= /home/puni1/wbs/.env | cut -d= -f2-)
 bunx nx run tool-dagger:publish-all
 bunx nx run tool-remote-scripts:install --execute   # after any swap.js / smoke.js change

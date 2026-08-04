@@ -40,10 +40,12 @@ attached to both networks, importing `site.caddy` and `site-dev.caddy`. Dev's si
 lives in prod's caddy directory because that directory is what the container mounts;
 the alternative, a second mount, buys nothing and costs another edge restart.
 
-**The trigger polls; it is not pushed to.** The repo is public, so a self-hosted Actions
+**Nothing polls and nothing is pushed to.** The repo is public, so a self-hosted Actions
 runner would hand fork PRs execution on h1claw, which holds the prod SSH key, registry
-credentials and the GitHub token. A systemd user timer asking `gh` what the newest green
-`main` commit is has no inbound surface at all.
+credentials and the GitHub token; a webhook would need an inbound endpoint on a host whose
+firewall we cannot read. Both are avoided by having the operator who pushes also trigger
+the deploy. Superseded 2026-08-04: this section previously specified a systemd user timer
+polling `gh` for the newest green `main`, which source-run dev made unnecessary.
 
 **The trigger owns a checkout.** `deploy.ts` refuses a dirty worktree — correctly, since
 an untracked file can end up in a bundle — and the operator's tree is often dirty. The
@@ -76,7 +78,7 @@ therefore proceeds and reports; prod's gate is untouched.
 3. Add the dev DNS record.
 4. Recreate the edge attached to both networks — the one downtime window.
 5. First dev deploy by hand, `--dry-run` then `--execute`.
-6. Enable the timer only after a manual dev deploy has succeeded twice.
+6. Deploy dev by hand twice before relying on `bin/dev-deploy.sh`. There is no timer to enable.
 
 ## Open Questions
 

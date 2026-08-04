@@ -27,7 +27,21 @@ if ! git branch -r --contains "$SHA" >/dev/null 2>&1 || [ -z "$(git branch -r --
 fi
 
 echo "[dev-deploy] $BRANCH @ ${SHA:0:8} -> dev"
-ssh h2puni "bash -lc 'cd /home/puni1/wbs-dev/src && bun tools/tool-devsync/src/sync.ts $SHA'"
+
+# Run sync from a snapshot outside the checkout it is about to reset.
+#
+# Running it in place means the process rewrites its own source mid-run, and a
+# commit that breaks sync.ts lands on disk successfully -- wedging every later
+# deploy with no way to deploy the fix. The snapshot is taken before the reset,
+# so a broken commit fails the run it arrived in and the previous good copy is
+# still on disk at /home/puni1/wbs-dev/bin/sync.ts to deploy over it.
+ssh h2puni "bash -lc '
+  set -e
+  mkdir -p /home/puni1/wbs-dev/bin
+  cp /home/puni1/wbs-dev/src/tools/tool-devsync/src/sync.ts /home/puni1/wbs-dev/bin/sync.next.ts
+  mv /home/puni1/wbs-dev/bin/sync.next.ts /home/puni1/wbs-dev/bin/sync.ts
+  cd /home/puni1/wbs-dev/src && bun /home/puni1/wbs-dev/bin/sync.ts $SHA
+'"
 
 DEV_PASS=$(ssh h2puni 'grep ^DEV_BASIC_AUTH_PASS= /home/puni1/wbs-dev/basic-auth.env | cut -d= -f2-')
 

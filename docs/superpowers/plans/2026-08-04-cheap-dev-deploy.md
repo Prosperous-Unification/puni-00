@@ -1,6 +1,17 @@
 # Cheap Dev Deployment Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **SUPERSEDED — historical record, executed 2026-08-04. Do not follow it.**
+>
+> Every task here shipped, but three details are wrong on purpose-of-record: the
+> plan's `compose.yml` declares `env_file` entries, which the implementation
+> rejected after both tiers ended up reading `PORT=3200`; the Node checksum step
+> renames the tarball and so verifies nothing; and the restart rule watches only
+> `bun.lock`, which misses migrations and Nx serve targets.
+>
+> For how dev actually works, read `LLM_README.md`. For why each of those
+> changed, read the commits between `2304b00` and `e814ad4`. The unchecked
+> checkboxes below are an artefact of execution outrunning the document; they do
+> not mean the work is outstanding.
 
 **Goal:** Deploy to dev by pulling source on h2puni into a long-lived container whose dev servers already watch for changes — no image build, no registry push, no blue/green swap.
 

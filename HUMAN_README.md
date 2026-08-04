@@ -187,8 +187,19 @@ git push && ./bin/dev-deploy.sh
 
 Seconds, not minutes. Dev runs from source on h2puni, so the deploy is a `git
 reset --hard` there — the dev servers are already watching those files and pick
-the change up themselves. Nothing is built and nothing restarts unless
-`bun.lock` moved.
+the change up themselves. Nothing is built.
+
+**Three kinds of change do not travel this way**, and the deploy will still say
+it succeeded:
+
+- **The Dockerfile or `compose.yml`** — the container has to be rebuilt or
+  recreated by hand on h2puni.
+- **A per-tier `.env`** — those are gitignored, so a push cannot carry them.
+  Edit on h2puni, then `docker restart wbs-dev-src`.
+- Anything else not listed in `RESTART_PATHS` in `tools/tool-devsync/src/sync.ts`.
+
+Dependencies, migrations and Nx config **are** handled — the deploy restarts for
+those. `LLM_README.md` has the full table.
 
 <https://dev.wbs.bulletpoints.club> is password-protected. Username `dany`;
 the password is on h2puni in `/home/puni1/wbs-dev/basic-auth.env`.
