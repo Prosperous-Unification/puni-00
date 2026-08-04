@@ -116,8 +116,10 @@ safety gates, not bugs. `deploy` builds the bundles itself via `dependsOn`.
 
 `swap.js` takes **one tier list per run**, not one tier per invocation:
 `bun bin/swap.js be,gw,fe --image-be=… --image-gw=… --image-fe=… --sha=… --execute`. That is what
-keeps the deploy lock held across the whole run. The installed `/srv/wbs/bin/swap.js` must be
-reinstalled after this change or `assertBundleInstalled` will (correctly) refuse.
+keeps the deploy lock held across the whole run. The installed `/home/puni1/wbs/bin/swap.js` must
+be reinstalled after this change or `assertBundleInstalled` will (correctly) refuse. A copy also
+still exists at `/srv/wbs/bin/swap.js` — that is the stale rollback tree, and editing it changes
+nothing.
 
 `--version`, `--since` and `--skip-build` are **parsed and ignored**. Passing them does nothing.
 

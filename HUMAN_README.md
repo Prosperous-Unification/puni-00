@@ -167,8 +167,12 @@ belong on it. A hook there denies `dagger`, `docker build` and the Nx publish an
 deploy targets; anything sent over `ssh … h2puni` passes.
 
 Caveat as of 2026-08-04: h2puni has `bun`, `docker`, `git` and Node 24.18.1 (via
-Volta), and runs the `dagger-engine` — but has no `dagger` CLI and no repo
-checkout, so it cannot drive a build yet either. That gap is the next setup job.
+Volta), and runs the `dagger-engine` — but still has **no `dagger` CLI**, so it
+cannot drive a prod build yet. Installing it is the next setup job.
+
+There is a checkout at `/home/puni1/wbs-dev/src`, but it belongs to dev: it is
+bind-mounted into the running dev container, so a build there would fight the
+dev servers for the same files. A prod build wants its own.
 
 Checking tooling there needs a **login** shell: `ssh h2puni 'bash -lc "..."'`.
 Volta and Bun are not on a non-login shell's PATH, so a plain
@@ -268,15 +272,21 @@ Reviews: `codex exec "..."` works on the Mac and on h1claw. `agy` is **Mac only*
 
 ## Symptoms
 
-| Symptom                                | Cause                                                                      |
-| -------------------------------------- | -------------------------------------------------------------------------- |
-| `bun: command not found` on h1claw     | non-login shell — export the PATH above                                    |
-| Root `bun test` green, CI red          | root `bun test` skips fe-01 entirely                                       |
-| CI format fails, files look fine       | `CLAUDE.md`/`GEMINI.md` are symlinks — see `.nxignore`                     |
-| Deploy refuses to run                  | dirty tree, stale `release.json`, unbuilt bundle, or lock held — by design |
-| `/health` is 200 but the app is broken | health is a status flag, not a dependency check                            |
-| Deploy logged success, site unchanged  | `caddy reload` exits 0 having done nothing — check the sha                 |
-| Agent cannot find the repo             | say the path                                                               |
+| Symptom                                       | Cause                                                                                         |
+| --------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `bun: command not found` on h1claw            | non-login shell — export the PATH above                                                       |
+| Root `bun test` green, CI red                 | root `bun test` skips fe-01 entirely                                                          |
+| CI format fails, files look fine              | `CLAUDE.md`/`GEMINI.md` are symlinks — see `.nxignore`                                        |
+| Deploy refuses to run                         | dirty tree, stale `release.json`, unbuilt bundle, or lock held — by design                    |
+| `/health` is 200 but the app is broken        | health is a status flag, not a dependency check                                               |
+| Deploy logged success, site unchanged         | `caddy reload` exits 0 having done nothing — check the sha                                    |
+| Agent cannot find the repo                    | say the path                                                                                  |
+| Dev deploy says OK, dev looks stale           | check dev's HEAD: `ssh h2puni 'git -C /home/puni1/wbs-dev/src rev-parse --short HEAD'`        |
+| `dev-deploy.sh` refuses                       | dirty tree, or the commit is not pushed — h2puni pulls from GitHub                            |
+| Dev 403s but prod is fine                     | Vite rejects a Host it was not told about — see `allowedHosts` in `apps/fe-01/vite.config.ts` |
+| Only be-01 came up in dev                     | stale Nx lock in the bind mount, or a tier crashed — `docker logs wbs-dev-src`                |
+| Dev tier answers on the wrong port            | two `env_file`s both set `PORT`; per-tier env belongs in `apps/<tier>/.env`                   |
+| `command -v` says a tool is missing on h2puni | non-login shell — use `ssh h2puni 'bash -lc "..."'`                                           |
 
 Known-broken things are in `LLM_README.md` under **Open findings** — read it
 before concluding you broke something.
