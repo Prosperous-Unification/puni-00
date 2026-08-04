@@ -445,3 +445,28 @@ export function revokeAliasCommands(from: Color): string[][] {
     ['network', 'connect', '--alias', fromName, NETWORK, fromName],
   ];
 }
+
+/**
+ * Reads which migrations are already applied, from inside the container that
+ * is about to apply more. Run immediately before the migrate step: its output
+ * is the only thing that tells an abort how far back to unwind.
+ */
+export function migrateStatusCommand(container: string): string[] {
+  return ['exec', container, 'bun', 'run', 'src/migrate-status-cli.ts'];
+}
+
+/**
+ * Reverses every migration applied after `baseline`, using the down script
+ * shipped alongside each one.
+ *
+ * `baseline` is passed as `--to=` rather than a count: a count means "undo two
+ * migrations" and is right only if the caller and the database agree on what
+ * was applied, while a name means "get back to this state" and refuses when
+ * they do not. The CLI rejects an empty value for the same reason.
+ */
+export function migrateDownCommand(container: string, baseline: string): string[] {
+  if (baseline === '') {
+    throw new Error('migrateDownCommand needs a baseline migration name, or "none"');
+  }
+  return ['exec', container, 'bun', 'run', 'src/migrate-down-cli.ts', `--to=${baseline}`];
+}

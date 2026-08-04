@@ -30,6 +30,8 @@ import {
   EDGE_CONTAINER,
   grantAliasCommands,
   manifestInspectArgs,
+  migrateDownCommand,
+  migrateStatusCommand,
   NETWORK,
   PORT,
   psColorsFrom,
@@ -394,6 +396,17 @@ async function execute(plan: SwapPlan, image: string, sha: string): Promise<void
   // are set at the exact point the corresponding action becomes undoable.
   let aliasMovedToGreen = false;
   let siteTextBefore: string | null = null;
+  /**
+   * The newest migration applied before this deploy touched the schema, or
+   * `null` while the migrate step has not run.
+   *
+   * Blue and green share one SQLite file, so the migrate step changes the
+   * schema the still-serving old colour is reading. Restoring routing on an
+   * abort does not restore that: without this, a failed health gate left the
+   * old release running against a schema it never asked for, and the deploy
+   * reported a rollback it had not performed.
+   */
+  let migrationBaseline: string | null = null;
 
   /**
    * Design decision 10's abort rows, which were previously undelivered:
@@ -423,7 +436,31 @@ async function execute(plan: SwapPlan, image: string, sha: string): Promise<void
     const detail = cause instanceof Error ? cause.message : String(cause);
     console.error(`[swap-${tier}] aborting: ${reason}: ${detail}`);
 
-    // 1. Routing first, while green is still up: put site.caddy back to what
+    // 0. Schema first, and only while green is still running: green is the
+    //    container that holds the new code, so it is the only one with a down
+    //    script for the migration that was just applied. Blue is serving
+    //    throughout, and it is serving against a schema this deploy changed
+    //    under it — putting that back is the whole point of the step.
+    //
+    //    Best-effort and logged, like every other undo here: a rollback that
+    //    fails must not replace the original failure in the operator's output.
+    //    It says so explicitly, because a silent failure here is the schema
+    //    staying forward while the message says the deploy was rolled back.
+    if (migrationBaseline !== null) {
+      try {
+        const out = await sh(migrateDownCommand(greenName, migrationBaseline));
+        console.error(`[swap-${tier}] schema rolled back: ${out.trim()}`);
+      } catch (e: unknown) {
+        console.error(
+          `[swap-${tier}] SCHEMA NOT ROLLED BACK (${e instanceof Error ? e.message : String(e)}) — ` +
+            `${from ?? 'the previous release'} is now serving against the migrated schema. ` +
+            `Reverse it by hand before the next deploy: docker exec ${greenName} ` +
+            `bun run src/migrate-down-cli.ts --to=${migrationBaseline}`,
+        );
+      }
+    }
+
+    // 1. Routing next, while green is still up: put site.caddy back to what
     //    it said before this swap touched it and re-apply it, so the file and
     //    live Caddy agree again. (Correctness does not depend on this — see
     //    liveRoutedColors — but leaving an inverted file for an operator to
@@ -553,6 +590,18 @@ async function execute(plan: SwapPlan, image: string, sha: string): Promise<void
           // from taking traffic on a later run. Thrown bare — the outer
           // try/catch below delegates to abortSwap for every step at or
           // before 'reload'.
+          //
+          // The baseline is read BEFORE migrating and from the same container
+          // that is about to migrate, so an abort knows exactly how far back
+          // to unwind. A tier that cannot answer fails the deploy here rather
+          // than at abort time, when the answer would be needed and missing.
+          migrationBaseline = (await sh(migrateStatusCommand(greenName))).trim();
+          if (migrationBaseline === '') {
+            throw new Error(
+              `${greenName} did not report which migrations are applied, so a failed ` +
+                'deploy could not roll the schema back',
+            );
+          }
           await sh(['exec', greenName, 'bun', 'run', 'src/migrate-cli.ts']);
           break;
 

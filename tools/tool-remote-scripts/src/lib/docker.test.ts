@@ -11,6 +11,8 @@ import {
   grantAliasCommands,
   isDigest,
   manifestInspectArgs,
+  migrateDownCommand,
+  migrateStatusCommand,
   NETWORK,
   psColorsFrom,
   revokeAliasCommands,
@@ -483,5 +485,38 @@ describe('tierComposeContext across environments', () => {
     const ctx = tierComposeContext('gw', 'blue', IMG.replace('be-01', 'gw-01'), envLayout('dev'));
     expect(ctx['NETWORK']).not.toBe('wbs-net');
     expect(ctx['ENV_FILES']).not.toContain('/home/puni1/wbs/');
+  });
+});
+
+describe('migration rollback commands', () => {
+  it('reads the applied set from the container that is about to migrate', () => {
+    // Not from the outgoing colour: it runs the old code, which need not have
+    // the status CLI at all.
+    expect(migrateStatusCommand('be-01-green')).toEqual([
+      'exec',
+      'be-01-green',
+      'bun',
+      'run',
+      'src/migrate-status-cli.ts',
+    ]);
+  });
+
+  it('names the baseline to return to rather than a number of steps', () => {
+    expect(migrateDownCommand('be-01-green', '20260426171432_init')).toEqual([
+      'exec',
+      'be-01-green',
+      'bun',
+      'run',
+      'src/migrate-down-cli.ts',
+      '--to=20260426171432_init',
+    ]);
+  });
+
+  it('passes "none" through, which means the database had no migrations applied', () => {
+    expect(migrateDownCommand('be-01-green', 'none').at(-1)).toBe('--to=none');
+  });
+
+  it('refuses an empty baseline instead of rolling back an unknown amount', () => {
+    expect(() => migrateDownCommand('be-01-green', '')).toThrow(/needs a baseline/);
   });
 });
