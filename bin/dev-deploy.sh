@@ -30,6 +30,40 @@ echo "[dev-deploy] $BRANCH @ ${SHA:0:8} -> dev"
 ssh h2puni "bash -lc 'cd /home/puni1/wbs-dev/src && bun tools/tool-devsync/src/sync.ts $SHA'"
 
 DEV_PASS=$(ssh h2puni 'grep ^DEV_BASIC_AUTH_PASS= /home/puni1/wbs-dev/basic-auth.env | cut -d= -f2-')
-printf '[dev-deploy] https://dev.wbs.bulletpoints.club -> '
-curl -s -o /dev/null -w '%{http_code}\n' --max-time 15 \
-  -u "dany:$DEV_PASS" https://dev.wbs.bulletpoints.club/
+
+# Printing a status code and exiting 0 regardless is how a 502 reads as a
+# successful deploy. Each tier is asserted, and a miss fails the script.
+fail=0
+check() { # name expected url
+  local got
+  got=$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 -u "dany:$DEV_PASS" "$2")
+  if [ "$got" = "$1" ]; then
+    printf '[dev-deploy] %-28s %s\n' "$3" "$got"
+  else
+    printf '[dev-deploy] %-28s %s (expected %s) FAIL\n' "$3" "$got" "$1" >&2
+    fail=1
+  fi
+}
+
+# What each code proves, measured rather than assumed:
+#
+#   /            200 -- Vite served the app shell.
+#   /api/health  404 -- be-01 ANSWERED. It mounts /health at its own root, so
+#                       Caddy's un-stripped /api prefix reaches a route be-01
+#                       does not have. The 404 is Elysia's. If be-01 were dead
+#                       Caddy would return 502, which is the signal this
+#                       catches. A 200 here would mean the route moved.
+#   /ws          404 -- gw-01 answered a plain GET on the socket path. Same
+#                       reasoning: 502 means dead.
+#
+# Do not "fix" the 404s into 200s without moving the routes -- the point is
+# that a specific non-5xx code proves the right process replied.
+check 200 https://dev.wbs.bulletpoints.club/ 'fe (app shell)'
+check 404 https://dev.wbs.bulletpoints.club/api/health 'be (answered, not 502)'
+check 404 https://dev.wbs.bulletpoints.club/ws 'gw (answered, not 502)'
+
+if [ "$fail" -ne 0 ]; then
+  echo "[dev-deploy] dev is NOT healthy at ${SHA:0:8} -- check: ssh h2puni 'docker logs --tail 50 wbs-dev-src'" >&2
+  exit 1
+fi
+echo "[dev-deploy] dev healthy at ${SHA:0:8}"
