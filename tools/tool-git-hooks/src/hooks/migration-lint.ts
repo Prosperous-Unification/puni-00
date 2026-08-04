@@ -1,5 +1,6 @@
+import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
-import { basename } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 
 /**
  * Blue and green run against one SQLite file, so a migration that removes or
@@ -45,8 +46,44 @@ function normalizeSql(raw: string): string {
     .replace(/\s+/g, ' ');
 }
 
+/**
+ * A down script is destructive BY DEFINITION -- reversing an additive forward
+ * migration means dropping what it added -- so the forbidden-statement rules
+ * do not apply to it. What is checked instead is that it exists at all.
+ *
+ * The asymmetry is the whole policy: forward migrations stay additive so blue
+ * and green can share one database mid-swap, and the destructive half is
+ * quarantined in a file that runs only when one of those colours is being
+ * taken away.
+ */
+export function isDownScript(file: string): boolean {
+  return basename(file) === 'down.sql';
+}
+
+/**
+ * Every migration must ship the script that reverses it. Without one, a failed
+ * deploy leaves the old release running against a schema it did not ask for
+ * and cannot undo -- the deploy's rollback restores routing, and the database
+ * stays where the migration left it.
+ */
+export function lintDownScriptPresence(file: string): MigrationIssue | null {
+  if (basename(file) !== 'migration.sql') return null;
+  const down = join(dirname(file), 'down.sql');
+  if (existsSync(down)) return null;
+  return {
+    file,
+    reason:
+      `${basename(dirname(file))} has no down.sql. Every migration must ship the ` +
+      'script that reverses it, or a failed deploy cannot restore the schema the ' +
+      'still-serving release expects.',
+  };
+}
+
 export async function lintMigration(file: string): Promise<MigrationIssue | null> {
   if (!file.endsWith('.sql')) return null;
+  const missingDown = lintDownScriptPresence(file);
+  if (missingDown) return missingDown;
+  if (isDownScript(file)) return null;
   // Fail closed. This used to swallow the error and lint '' instead, so a
   // migration the hook could not open was indistinguishable from a clean one
   // — the check reported success precisely when it had checked nothing.

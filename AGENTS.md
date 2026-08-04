@@ -102,6 +102,25 @@ Checks that cannot fail have shipped here six times. This is the rule that stops
 - `tasks.md` holds ordered TDD slices. There is no separate plan artifact.
 - `verify.md` records commands, results, and the failure-proof table from R5.
 
+## Migrations
+
+- **Every migration ships a `down.sql` beside its `migration.sql`.** The
+  migration lint fails without one, and `readMigrationFolders` refuses to run a
+  rollback it cannot complete.
+- Forward migrations stay additive (add columns, never drop): blue and green
+  share one SQLite file mid-swap, so the outgoing release keeps reading the
+  schema while green migrates. The lint enforces this on `migration.sql` and
+  deliberately does not on `down.sql` — reversing an additive change is
+  destructive by definition, which is why it lives in a separate file that runs
+  only when one colour is being taken away.
+- The swap reads the applied set before migrating and, on abort, reverses back
+  to it (`migrate-status-cli.ts`, then `migrate-down-cli.ts --to=<name>`). A
+  rollback that fails says so loudly and prints the command to finish by hand:
+  the alternative is an old release serving against a schema it never asked for
+  while the deploy claims it rolled back.
+- Editing a migration after it has been applied is refused at rollback time —
+  its `down.sql` no longer describes what is in the database.
+
 ## Gate
 
 - Before claiming done, run locally what CI will run anyway:
