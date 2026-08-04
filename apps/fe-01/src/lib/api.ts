@@ -46,7 +46,11 @@ export const login = (username: string, password: string): Promise<Session> =>
 
 /** Proves a stored token is still valid, and returns who it belongs to. */
 export async function me(token: string): Promise<SessionUser | null> {
-  const res = await fetch('/api/auth/me', { headers: { authorization: `Bearer ${token}` } });
+  // `x-wbs-token`, never `Authorization`. Dev's edge requires an
+  // `Authorization: Basic` credential on /api, and a Bearer header from here
+  // would overwrite the one the browser attaches — turning every authenticated
+  // request into a 401 from Caddy that looks like an expired app token.
+  const res = await fetch('/api/auth/me', { headers: { 'x-wbs-token': token } });
   if (!res.ok) return null;
   return ((await res.json()) as { user: SessionUser }).user;
 }
