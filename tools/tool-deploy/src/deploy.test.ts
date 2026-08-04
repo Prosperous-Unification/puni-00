@@ -33,11 +33,25 @@ describe('parseDeployArgs', () => {
     expect(() => parseDeployArgs(['xx'])).toThrow(/unknown tier/);
   });
 
-  it('parses --host, --version, --execute', () => {
-    const a = parseDeployArgs(['--host=example', '--version=abc1234', '--execute']);
+  it('parses --host and --execute', () => {
+    const a = parseDeployArgs(['--host=example', '--execute']);
     expect(a.host).toBe('example');
-    expect(a.version).toBe('abc1234');
     expect(a.dryRun).toBe(false);
+  });
+
+  // These were accepted and read by nothing. `--version=v1.2.3` reads as a
+  // rollback and deployed HEAD instead, which is the most expensive way for a
+  // flag to be a no-op.
+  for (const flag of ['--since=abc', '--version=v1', '--skip-build']) {
+    it(`refuses ${flag}, which was previously ignored`, () => {
+      expect(() => parseDeployArgs([flag])).toThrow(/not implemented/);
+    });
+  }
+
+  // A mistyped flag used to be skipped, and envLayout defaults to prod: the
+  // typo deployed to the live site under the operator's belief it had not.
+  it('refuses a mistyped flag rather than defaulting to prod', () => {
+    expect(() => parseDeployArgs(['--envv=dev'])).toThrow(/unrecognised flag/);
   });
 
   it('parses --with-migrations', () => {

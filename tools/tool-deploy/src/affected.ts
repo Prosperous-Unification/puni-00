@@ -10,12 +10,9 @@ export interface DeployArgs {
    * than turning into a path somewhere downstream.
    */
   layout: EnvLayout;
-  version?: string;
-  since?: string;
   bundle?: string;
   host?: string;
   dryRun: boolean;
-  skipBuild: boolean;
   /** Acknowledges the deploy carries a reviewed, additive-only migration. */
   withMigrations: boolean;
   /** Acknowledges the deploy carries a migration too risky for blue/green; plain restart, brief outage. */
@@ -40,7 +37,6 @@ export function parseDeployArgs(argv: string[]): DeployArgs {
     tiers: 'affected',
     layout: envLayout(undefined),
     dryRun: true,
-    skipBuild: false,
     withMigrations: false,
     stopTheWorld: false,
   };
@@ -52,7 +48,11 @@ export function parseDeployArgs(argv: string[]): DeployArgs {
       continue;
     }
     const m = /^--([^=]+)(?:=(.*))?$/.exec(raw);
-    if (!m) continue;
+    // An unparseable flag used to be skipped silently. `--env=prod` typed as
+    // `--envv=prod` then deployed to prod anyway, because envLayout(undefined)
+    // defaults there — the safety of that default depends on the operator
+    // having meant it.
+    if (!m) throw new Error(`unrecognised argument: ${raw}`);
     const key = m[1];
     const val = (m[2] as string | undefined) ?? '';
     if (key === 'all') result.tiers = 'all';
@@ -60,15 +60,26 @@ export function parseDeployArgs(argv: string[]): DeployArgs {
     // point: `--env=stagign` must stop here, not resolve to prod and deploy an
     // unreviewed commit onto the live site.
     else if (key === 'env') result.layout = envLayout(val);
-    else if (key === 'since') result.since = val;
-    else if (key === 'version') result.version = val;
     else if (key === 'bundle') result.bundle = val;
     else if (key === 'host') result.host = val;
     else if (key === 'dry-run') result.dryRun = true;
     else if (key === 'execute') result.dryRun = false;
-    else if (key === 'skip-build') result.skipBuild = true;
     else if (key === 'with-migrations') result.withMigrations = true;
     else if (key === 'stop-the-world') result.stopTheWorld = true;
+    // --since, --version and --skip-build were accepted and then read by
+    // nothing: `grep -rn '\.since\b' tools/` matches this parser and no other
+    // line. `--version=v1.2.3` looked like a rollback and deployed HEAD, which
+    // is the most expensive way for a flag to be a no-op. Rejected outright,
+    // in the same spirit as --stop-the-world: a flag that claims a capability
+    // it does not have is worse than no flag.
+    else if (key === 'since' || key === 'version' || key === 'skip-build') {
+      throw new Error(
+        `--${key} is not implemented and was previously ignored.\n` +
+          '  This tool always deploys HEAD from the release bundle. It has no\n' +
+          '  historical or version-selected deploy, and no way to skip the build.\n' +
+          '  To deploy an older commit, check it out, rebuild, and deploy from there.',
+      );
+    } else throw new Error(`unrecognised flag: --${key}`);
   }
 
   if (positional.length > 0) {
