@@ -18,6 +18,16 @@ if ! git diff --quiet || ! git diff --cached --quiet; then
   exit 1
 fi
 
+# Untracked files count as dirty here. They are invisible to `git diff`, so the
+# original check passed while a new file existed only on this machine -- the
+# deploy then reported a SHA whose tree is not what the author is looking at,
+# which is the exact claim this script exists to make true.
+if [ -n "$(git ls-files --others --exclude-standard)" ]; then
+  echo "refusing: untracked files present, so dev would not match ${SHA:0:8}" >&2
+  git ls-files --others --exclude-standard | sed 's/^/  /' >&2
+  exit 1
+fi
+
 # A SHA that exists only here cannot be fetched by h2puni. Without this the
 # deploy fails on the remote with a bare "reference is not a tree", pointing at
 # the wrong machine.
@@ -47,16 +57,33 @@ DEV_PASS=$(ssh h2puni 'grep ^DEV_BASIC_AUTH_PASS= /home/puni1/wbs-dev/basic-auth
 
 # Printing a status code and exiting 0 regardless is how a 502 reads as a
 # successful deploy. Each tier is asserted, and a miss fails the script.
+#
+# Each check retries to a deadline rather than asking once. A deploy that moved
+# a restart path stops all three tiers and starts them again, so the first
+# request lands on a Caddy that has nothing to proxy to: the single-shot
+# version reported three 502s and a failed deploy for an environment that was
+# healthy eleven seconds later. Retrying does not weaken the check -- the
+# deadline still fails a tier that never comes back -- it only stops the script
+# from measuring the restart it just caused.
+DEADLINE_SECONDS=60
 fail=0
-check() { # name expected url
-  local got
-  got=$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 -u "dany:$DEV_PASS" "$2")
-  if [ "$got" = "$1" ]; then
-    printf '[dev-deploy] %-28s %s\n' "$3" "$got"
-  else
-    printf '[dev-deploy] %-28s %s (expected %s) FAIL\n' "$3" "$got" "$1" >&2
-    fail=1
-  fi
+check() { # expected url label
+  local got deadline
+  deadline=$((SECONDS + DEADLINE_SECONDS))
+  while :; do
+    got=$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 -u "dany:$DEV_PASS" "$2")
+    if [ "$got" = "$1" ]; then
+      printf '[dev-deploy] %-28s %s\n' "$3" "$got"
+      return
+    fi
+    if [ "$SECONDS" -ge "$deadline" ]; then
+      printf '[dev-deploy] %-28s %s (expected %s after %ss) FAIL\n' \
+        "$3" "$got" "$1" "$DEADLINE_SECONDS" >&2
+      fail=1
+      return
+    fi
+    sleep 2
+  done
 }
 
 # What each code proves, measured rather than assumed:
@@ -75,6 +102,18 @@ check() { # name expected url
 check 200 https://dev.wbs.bulletpoints.club/ 'fe (app shell)'
 check 404 https://dev.wbs.bulletpoints.club/api/health 'be (answered, not 502)'
 check 404 https://dev.wbs.bulletpoints.club/ws 'gw (answered, not 502)'
+
+# A status code alone cannot distinguish be-01's 404 from one Caddy generated
+# for a route it could not match. This asserts a body only be-01 emits: the
+# auth controller's own JSON for a request with no token. It proves the
+# application layer is mounted, not merely that a process accepted a socket.
+identity=$(curl -s --max-time 15 -u "dany:$DEV_PASS" https://dev.wbs.bulletpoints.club/api/auth/me)
+if [ "$identity" = '{"error":"missing_token"}' ]; then
+  printf '[dev-deploy] %-28s %s\n' 'be (auth routes mounted)' 'ok'
+else
+  printf '[dev-deploy] %-28s %s FAIL\n' 'be (auth routes mounted)' "$identity" >&2
+  fail=1
+fi
 
 if [ "$fail" -ne 0 ]; then
   echo "[dev-deploy] dev is NOT healthy at ${SHA:0:8} -- check: ssh h2puni 'docker logs --tail 50 wbs-dev-src'" >&2
