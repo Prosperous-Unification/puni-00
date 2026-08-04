@@ -277,8 +277,29 @@ and mechanical refactors do not. The intent step runs an interview that argues
 with you on purpose; terms it settles land in `CONTEXT.md`, hard-to-reverse
 decisions become ADRs.
 
-Reviews: `codex exec "..."` works on the Mac and on h1claw. `agy` is **Mac only**
-— it is a macOS arm64 binary. `/code-review` covers the working diff.
+Reviews: three second opinions, all working on h1claw as of 2026-08-04.
+
+```sh
+codex exec "..."                 # sharpest of the three on this repo
+agy -p "..."                     # antigravity 1.1.10
+gemini -p "..."                  # fast; verify its claims, one was wrong
+```
+
+`agy` was **Mac only** until it was installed here on 2026-08-04; the old line
+saying it is a macOS arm64 binary is no longer true. Headless `agy` needs
+`permissions.allow` in `~/.gemini/antigravity-cli/settings.json`, in the
+`name(target)` form — `command(*)`. A bare `read_file` is silently dropped as
+malformed and you get the auto-denied-tool error again, which reads as though
+the setting were ignored. Alternatively `--sandbox --dangerously-skip-permissions`
+works without config; on h1claw that grants unprompted shell to a box holding the
+prod SSH key and the PAT, so prefer the config.
+
+Take none of them at face value. On the 2026-08-04 dev review, Codex found a real
+critical (migrations never reaching dev) and Gemini asserted a
+`docker exec`-runs-as-root failure that does not apply here, because compose sets
+`user:`. Both claims looked equally confident.
+
+`/code-review` covers the working diff.
 
 ---
 
