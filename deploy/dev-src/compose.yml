@@ -1,0 +1,29 @@
+# Dev runs from source, so one container serves all three tiers rather than a
+# blue/green pair per tier. Prod's topology is untouched and is not described
+# here.
+services:
+  dev-src:
+    image: wbs-dev-src:1
+    container_name: wbs-dev-src
+    working_dir: /src
+    # The deploy is a write into this mount. `bun --watch` (be, gw) and Vite
+    # HMR (fe) pick it up, so an ordinary code change restarts nothing.
+    volumes:
+      - /home/puni1/wbs-dev/src:/src
+      - /home/puni1/wbs-dev/data:/data
+    env_file:
+      - /home/puni1/wbs-dev/.env
+      - /home/puni1/wbs-dev/be-01.env
+      - /home/puni1/wbs-dev/be-01.secrets.env
+      - /home/puni1/wbs-dev/gw-01.env
+      - /home/puni1/wbs-dev/gw-01.secrets.env
+    # Must stay on wbs-dev-net: `be-01.internal` is a network-global Docker
+    # alias, so a container on the prod network resolves prod's backend.
+    networks:
+      - wbs-dev-net
+    restart: unless-stopped
+    command: ['bun', 'run', 'dev']
+
+networks:
+  wbs-dev-net:
+    external: true
