@@ -45,6 +45,41 @@ export const RESTART_PATHS: readonly string[] = [
   'apps/gw-01/project.json',
   'apps/fe-01/project.json',
   'apps/fe-01/vite.config.ts',
+  // TypeScript config is read once, at process start. A moved path alias
+  // resolves against the old mapping in three already-running processes while
+  // HEAD says otherwise, which presents as an import that exists in the editor
+  // and not at runtime.
+  'tsconfig.base.json',
+  'apps/be-01/tsconfig.json',
+  'apps/gw-01/tsconfig.json',
+  'apps/fe-01/tsconfig.json',
+  // A library's project.json can change what its serve-time build resolves to,
+  // and the Nx supervisor read the project graph at startup like the rest.
+  // Listed per library rather than as `libs`, which would restart on every
+  // source edit and defeat the watchers. `sync.test.ts` fails if a library on
+  // disk is missing from this list, so adding one cannot silently skip it.
+  'libs/config/project.json',
+  'libs/contracts/project.json',
+  'libs/domain/project.json',
+  'libs/observability/project.json',
+  'libs/realtime/project.json',
+  'libs/scripts/project.json',
+  'libs/validation/project.json',
+];
+
+/**
+ * Paths a restart cannot apply: they define the container itself. The running
+ * container was created from the old file, so `docker restart` reuses the old
+ * mounts, user, limits and image — the deploy would report success for a
+ * change that is not in effect anywhere.
+ *
+ * These fail the deploy instead of being silently ignored. The checkout has
+ * already moved by then, which is correct: dev is running the new source, and
+ * the operator is told the one thing still outstanding.
+ */
+export const RECREATE_PATHS: readonly string[] = [
+  'deploy/dev-src/compose.yml',
+  'deploy/dev-src/Dockerfile',
 ];
 
 export type Fingerprint = Record<string, string>;
@@ -79,15 +114,14 @@ async function hashPath(path: string): Promise<string> {
   }
 }
 
-async function fingerprint(): Promise<Fingerprint> {
-  const entries = await Promise.all(
-    RESTART_PATHS.map(async (p) => [p, await hashPath(p)] as const),
-  );
+async function fingerprint(paths: readonly string[] = RESTART_PATHS): Promise<Fingerprint> {
+  const entries = await Promise.all(paths.map(async (p) => [p, await hashPath(p)] as const));
   return Object.fromEntries(entries);
 }
 
 export async function sync(sha: string): Promise<void> {
   const before = await fingerprint();
+  const containerBefore = await fingerprint(RECREATE_PATHS);
 
   await $`git -C ${SRC} fetch --quiet origin`;
   await $`git -C ${SRC} reset --hard --quiet ${sha}`;
@@ -112,6 +146,18 @@ export async function sync(sha: string): Promise<void> {
   }
 
   console.log(`[dev-sync] dev now at ${head}`);
+
+  const containerAfter = await fingerprint(RECREATE_PATHS);
+  const containerMoved = RECREATE_PATHS.filter((p) => containerBefore[p] !== containerAfter[p]);
+  if (containerMoved.length > 0) {
+    throw new Error(
+      `${containerMoved.join(', ')} changed, and a restart cannot apply it.\n` +
+        '  The running container was created from the previous file, so its mounts,\n' +
+        '  user, limits and image are still the old ones. Dev is serving the new\n' +
+        '  source with the old container definition.\n' +
+        '  Apply it: ssh h2puni "cd /home/puni1/wbs-dev/src/deploy/dev-src && docker compose up -d"',
+    );
+  }
 }
 
 if (import.meta.main) {

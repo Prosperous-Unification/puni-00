@@ -100,13 +100,18 @@ jobs:
 
       # The two lefthook hooks, re-run here over every tracked file rather than
       # only the staged ones. A `--no-verify` commit reaches this.
+      # xargs, not `$files`. The file list was passed as one unquoted argv, which
+      # has two failure modes: a path containing whitespace splits into two
+      # non-existent paths, and the whole list will eventually exceed ARG_MAX
+      # and fail as E2BIG -- a scanner that stops running because the repo grew,
+      # reported as a broken gate rather than an unscanned commit. -0 and
+      # --no-run-if-empty keep the vacuity check meaningful.
       - name: Secrets scan
         run: |
           set -euo pipefail
-          files="$(git ls-files)"
-          test -n "$files" || { echo "no tracked files — scan would be vacuous"; exit 1; }
-          # shellcheck disable=SC2086
-          bun run tools/tool-git-hooks/src/hooks/plaintext-secrets.ts $files
+          test -n "$(git ls-files)" || { echo "no tracked files — scan would be vacuous"; exit 1; }
+          git ls-files -z | xargs -0 --no-run-if-empty \
+            bun run tools/tool-git-hooks/src/hooks/plaintext-secrets.ts
 
       - name: Migration lint
         run: |

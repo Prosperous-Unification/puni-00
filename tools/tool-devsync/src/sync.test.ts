@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 
-import { needsRestart, RESTART_PATHS } from './sync';
+import { needsRestart, RECREATE_PATHS, RESTART_PATHS } from './sync';
 
 describe('needsRestart', () => {
   it('does not restart when nothing in the manifest changed', () => {
@@ -53,5 +53,40 @@ describe('needsRestart', () => {
     expect(RESTART_PATHS).toContain('apps/be-01/drizzle');
     expect(RESTART_PATHS).toContain('package.json');
     expect(RESTART_PATHS).toContain('apps/fe-01/vite.config.ts');
+  });
+});
+
+describe('RESTART_PATHS coverage', () => {
+  // The list is hand-maintained, which is how tsconfig and the library
+  // project.json files were missing from it for a month. This walks the repo
+  // instead of trusting the list: a library added without an entry fails here
+  // rather than on dev, silently, as a stale project graph.
+  it('names every library project.json that exists on disk', async () => {
+    const { readdir } = await import('node:fs/promises');
+    const libs = (await readdir(new URL('../../../libs', import.meta.url), { withFileTypes: true }))
+      .filter((e) => e.isDirectory())
+      .map((e) => `libs/${e.name}/project.json`);
+    expect(libs.length).toBeGreaterThan(0);
+    for (const lib of libs) {
+      expect(RESTART_PATHS).toContain(lib);
+    }
+  });
+
+  it('names every app tsconfig, which is read once at process start', () => {
+    for (const app of ['be-01', 'gw-01', 'fe-01']) {
+      expect(RESTART_PATHS).toContain(`apps/${app}/tsconfig.json`);
+    }
+    expect(RESTART_PATHS).toContain('tsconfig.base.json');
+  });
+});
+
+describe('RECREATE_PATHS', () => {
+  // Restarting a container does not re-create it, so a changed compose file or
+  // Dockerfile is not applied by the deploy at all. These must not overlap with
+  // RESTART_PATHS, or a restart would be reported as having handled them.
+  it('does not overlap with the paths a restart can apply', () => {
+    for (const p of RECREATE_PATHS) {
+      expect(RESTART_PATHS).not.toContain(p);
+    }
   });
 });
