@@ -587,3 +587,36 @@ describe('migration gate per environment', () => {
     expect(line).toContain('--with-migrations');
   });
 });
+
+describe('buildSmokeCommand across environments', () => {
+  const state = {
+    be: { tier: 'be' as const, activeColor: 'blue' as const, lastDeployedSha: 'x' },
+    gw: { tier: 'gw' as const, activeColor: 'blue' as const, lastDeployedSha: 'x' },
+    fe: { tier: 'fe' as const, activeColor: 'blue' as const, lastDeployedSha: 'x' },
+  };
+
+  it('targets prod’s container names unchanged', () => {
+    const cmd = buildSmokeCommand(state, envLayout('prod'));
+    expect(cmd).toContain('SMOKE_BE_URL=http://be-01-blue:3100/health');
+  });
+
+  /**
+   * The first live dev deploy swapped all three tiers, then smoke reported
+   * `FAIL 0 be-01 http://be-01-blue:3100/health — The operation was aborted`
+   * three times: it was dialling PROD's container names on DEV's network,
+   * where nothing answers to them.
+   *
+   * Proof the fix is load-bearing: dropping `layout.containerPrefix` from
+   * tierUrl fails this test and only this one — 1 failed, 87 passed. The prod
+   * test above still passes, which is exactly why the bug survived until a
+   * second environment existed. Observed 2026-08-04.
+   */
+  it('targets dev’s prefixed container names', () => {
+    const cmd = buildSmokeCommand(state, envLayout('dev'));
+    expect(cmd).toContain('SMOKE_BE_URL=http://dev-be-01-blue:3100/health');
+    expect(cmd).toContain('SMOKE_GW_URL=http://dev-gw-01-blue:3200/health');
+    expect(cmd).toContain('SMOKE_FE_URL=http://dev-fe-01-blue:80/');
+    expect(cmd).toContain('SMOKE_INTERNAL_URL=http://dev-be-01-blue:3100/internal/forward');
+    expect(cmd).not.toContain('http://be-01-blue');
+  });
+});

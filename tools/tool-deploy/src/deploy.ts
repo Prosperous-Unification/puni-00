@@ -290,8 +290,18 @@ const TIER_APP: Record<Tier, string> = { be: 'be-01', gw: 'gw-01', fe: 'fe-01' }
 const TIER_HEALTH_PORT: Record<Tier, number> = { be: 3100, gw: 3200, fe: 80 };
 const TIER_HEALTH_PATH: Record<Tier, string> = { be: '/health', gw: '/health', fe: '/' };
 
-function tierUrl(tier: Tier, path: string, color: 'blue' | 'green'): string {
-  return `http://${TIER_APP[tier]}-${color}:${String(TIER_HEALTH_PORT[tier])}${path}`;
+/**
+ * The in-network URL smoke uses to reach a tier's container.
+ *
+ * The container prefix comes from the layout, not from TIER_APP alone. Without
+ * it, a dev smoke targets `be-01-blue` — PROD's container name — and gets one
+ * of two wrong answers: a connection failure (dev's network has no such name,
+ * which is what happened on the first dev deploy: three FAIL 0 lines and an
+ * aborted operation), or, if the smoke were ever run on prod's network, a
+ * green report about prod's containers after deploying dev.
+ */
+function tierUrl(tier: Tier, path: string, color: 'blue' | 'green', layout: EnvLayout): string {
+  return `http://${layout.containerPrefix}${TIER_APP[tier]}-${color}:${String(TIER_HEALTH_PORT[tier])}${path}`;
 }
 
 /**
@@ -331,11 +341,13 @@ export function buildSmokeCommand(
   const gw = state.gw?.activeColor;
   const fe = state.fe?.activeColor;
   if (be !== undefined) {
-    overrides.push(`-e SMOKE_BE_URL=${tierUrl('be', TIER_HEALTH_PATH.be, be)}`);
-    overrides.push(`-e SMOKE_INTERNAL_URL=${tierUrl('be', '/internal/forward', be)}`);
+    overrides.push(`-e SMOKE_BE_URL=${tierUrl('be', TIER_HEALTH_PATH.be, be, layout)}`);
+    overrides.push(`-e SMOKE_INTERNAL_URL=${tierUrl('be', '/internal/forward', be, layout)}`);
   }
-  if (gw !== undefined) overrides.push(`-e SMOKE_GW_URL=${tierUrl('gw', TIER_HEALTH_PATH.gw, gw)}`);
-  if (fe !== undefined) overrides.push(`-e SMOKE_FE_URL=${tierUrl('fe', TIER_HEALTH_PATH.fe, fe)}`);
+  if (gw !== undefined)
+    overrides.push(`-e SMOKE_GW_URL=${tierUrl('gw', TIER_HEALTH_PATH.gw, gw, layout)}`);
+  if (fe !== undefined)
+    overrides.push(`-e SMOKE_FE_URL=${tierUrl('fe', TIER_HEALTH_PATH.fe, fe, layout)}`);
   return (
     `cd ${layout.root} && docker run --rm --network ${layout.network} ` +
     `--env-file ${layout.root}/gw-01.secrets.env ${overrides.join(' ')} ` +
