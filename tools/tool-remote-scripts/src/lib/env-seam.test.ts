@@ -44,8 +44,8 @@ describe('WBS_ENV is read in exactly one place', () => {
     expect(files.length).toBeGreaterThan(5);
   });
 
-  it('is read only by lib/docker.ts', () => {
+  it('is read only by lib/env.ts', () => {
     const readers = files.filter((f) => readFileSync(f, 'utf8').includes(NEEDLE));
-    expect(readers.map((f) => f.slice(SRC.length + 1))).toEqual(['lib/docker.ts']);
+    expect(readers.map((f) => f.slice(SRC.length + 1))).toEqual(['lib/env.ts']);
   });
 });

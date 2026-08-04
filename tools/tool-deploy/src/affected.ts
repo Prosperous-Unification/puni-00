@@ -1,7 +1,15 @@
+import { type EnvLayout, envLayout } from '@wbs/tool-env';
+
 export type Tier = 'be' | 'gw' | 'fe';
 
 export interface DeployArgs {
   tiers: Tier[] | 'affected' | 'all';
+  /**
+   * The environment being deployed. Resolved at parse time rather than carried
+   * as a string, so an unknown `--env` is refused before a plan exists rather
+   * than turning into a path somewhere downstream.
+   */
+  layout: EnvLayout;
   version?: string;
   since?: string;
   bundle?: string;
@@ -30,6 +38,7 @@ function parseTierArg(v: string): Tier[] {
 export function parseDeployArgs(argv: string[]): DeployArgs {
   const result: DeployArgs = {
     tiers: 'affected',
+    layout: envLayout(undefined),
     dryRun: true,
     skipBuild: false,
     withMigrations: false,
@@ -47,6 +56,10 @@ export function parseDeployArgs(argv: string[]): DeployArgs {
     const key = m[1];
     const val = (m[2] as string | undefined) ?? '';
     if (key === 'all') result.tiers = 'all';
+    // envLayout throws on anything it does not know, and that throw is the
+    // point: `--env=stagign` must stop here, not resolve to prod and deploy an
+    // unreviewed commit onto the live site.
+    else if (key === 'env') result.layout = envLayout(val);
     else if (key === 'since') result.since = val;
     else if (key === 'version') result.version = val;
     else if (key === 'bundle') result.bundle = val;

@@ -42,6 +42,7 @@ describe('envLayout', () => {
       sharedEnvPath: '/srv/wbs/.env',
       stateDir: '/srv/wbs/state',
       siteCaddyPath: '/srv/wbs/caddy/site.caddy',
+      siteAddress: 'wbs.bulletpoints.club',
     });
   });
 
@@ -68,7 +69,12 @@ describe('envLayout', () => {
       // Deliberately under prod's root: /srv/wbs/caddy is the directory the
       // single edge container mounts, so dev's site file has to live there.
       siteCaddyPath: '/srv/wbs/caddy/site-dev.caddy',
+      siteAddress: 'dev.wbs.bulletpoints.club',
     });
+  });
+
+  it('gives the two environments different public addresses', () => {
+    expect(envLayout('dev').siteAddress).not.toBe(envLayout('prod').siteAddress);
   });
 
   it('shares no path or name between the two environments except the caddy dir', () => {

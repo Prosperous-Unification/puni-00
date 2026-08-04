@@ -53,7 +53,11 @@ import { type Color, parseStateJson, renderStateJson, type Tier } from './lib/st
 // `--image`, which is `release.json`'s `image` field passed through verbatim
 // by tool-deploy — see lib/docker.ts's assertDigestPinnedRef for why a second
 // default on this side was a live defect rather than a redundancy.
-const SITE_ADDRESS = process.env['SITE_ADDRESS'] ?? 'wbs.bulletpoints.club';
+// The default is the environment's own address, not a literal: with a literal
+// here, a dev swap that forgot to export SITE_ADDRESS would render a site
+// block for `wbs.bulletpoints.club` into dev's file and Caddy would then hold
+// two blocks for the live hostname, one of them pointing at dev's containers.
+const SITE_ADDRESS = process.env['SITE_ADDRESS'] ?? CURRENT_ENV.siteAddress;
 
 // Not `${ROOT}/caddy/site.caddy`: dev's root is /srv/wbs-dev but the one edge
 // container mounts /srv/wbs/caddy, so the site file is the single

@@ -6,82 +6,13 @@ import type { Color, Tier } from './state';
  * filesystem. `swap.ts` is the thin IO shell that actually runs these.
  */
 
-/** The environments this pipeline knows how to deploy. */
-export type EnvName = 'prod' | 'dev';
+// The environment seam lives in ./env so that tool-deploy, on the other side
+// of the SSH boundary, can import the same table rather than keeping a second
+// copy of these paths. Re-exported here because this module was where callers
+// have always found ROOT and NETWORK.
+export { CURRENT_ENV, ENV_NAMES, type EnvLayout, envLayout, type EnvName } from './env';
 
-/**
- * Everything that differs between one environment and another on a single
- * host. This is the whole seam: no other module may read `WBS_ENV`, and no
- * environment-varying path or name may be spelled out anywhere else.
- */
-export interface EnvLayout {
-  readonly env: EnvName;
-  readonly root: string;
-  readonly network: string;
-  /** Prepended to every container name. Empty for prod, so prod names are unchanged. */
-  readonly containerPrefix: string;
-  readonly sharedEnvPath: string;
-  readonly stateDir: string;
-  readonly siteCaddyPath: string;
-}
-
-// deploy/compose/base.yml pins `networks.wbs-net.name: wbs-net`, so the prod
-// network is literally `wbs-net` — verified live with `ssh h2puni 'docker
-// network ls'` (Task 6's plan draft used `wbs_wbs-net`, which is wrong). dev's
-// network is separate and not optional: BE_ALIAS below is a network-global
-// alias, so two environments sharing a network would let gw in one resolve be
-// in the other.
-const LAYOUTS: Readonly<Record<EnvName, EnvLayout>> = {
-  prod: {
-    env: 'prod',
-    root: '/srv/wbs',
-    network: 'wbs-net',
-    containerPrefix: '',
-    sharedEnvPath: '/srv/wbs/.env',
-    stateDir: '/srv/wbs/state',
-    siteCaddyPath: '/srv/wbs/caddy/site.caddy',
-  },
-  dev: {
-    env: 'dev',
-    root: '/srv/wbs-dev',
-    network: 'wbs-dev-net',
-    containerPrefix: 'dev-',
-    sharedEnvPath: '/srv/wbs-dev/.env',
-    stateDir: '/srv/wbs-dev/state',
-    // Not under dev's own root, deliberately: `/srv/wbs/caddy` is the single
-    // directory the one edge container mounts (deploy/compose/base.yml), so a
-    // site file anywhere else is a file Caddy cannot read.
-    siteCaddyPath: '/srv/wbs/caddy/site-dev.caddy',
-  },
-};
-
-/**
- * Resolves an environment name to its layout. Unset or empty means `prod`, so
- * every invocation that predates `WBS_ENV` keeps its exact behaviour.
- *
- * Throws on anything else (R5). Falling back to prod here would mean a typo in
- * a unit file deploys a dev commit onto the live site, and inventing a root
- * from the string would silently create a third environment nobody
- * provisioned. `hasOwnProperty` rather than a bare index so that `constructor`
- * and friends cannot resolve to something off Object's prototype.
- */
-export function envLayout(env: string | undefined): EnvLayout {
-  const name = env === undefined || env === '' ? 'prod' : env;
-  if (!Object.prototype.hasOwnProperty.call(LAYOUTS, name)) {
-    throw new Error(
-      `unknown WBS_ENV "${name}" — known environments are ${Object.keys(LAYOUTS).join(', ')}. ` +
-        'Refusing to guess: an unrecognised environment must not fall back to prod.',
-    );
-  }
-  return LAYOUTS[name as EnvName];
-}
-
-/**
- * The layout this process is running as. THE one read of `WBS_ENV` in this
- * project — see `envLayout`'s contract. Resolved at import so a bad value
- * fails before any command is built rather than part-way through a swap.
- */
-export const CURRENT_ENV: EnvLayout = envLayout(process.env['WBS_ENV']);
+import { CURRENT_ENV } from './env';
 
 export const NETWORK = CURRENT_ENV.network;
 
