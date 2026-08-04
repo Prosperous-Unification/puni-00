@@ -661,7 +661,9 @@ async function execute(plan: SwapPlan, image: string, sha: string): Promise<void
               'caddy reload exited 0 but the live admin config ' +
                 '(http://127.0.0.1:2019/config/ inside the caddy container) does not ' +
                 `mention ${greenName} — routing did not actually change. Check that ` +
-                '/srv/wbs/caddy/Caddyfile really imports site.caddy.',
+                `/srv/wbs/caddy/Caddyfile really imports ${SITE_CADDY_PATH.split('/').pop() ?? ''}. ` +
+                `(This environment is ${CURRENT_ENV.env}; each environment has its own ` +
+                'site file and both must be imported.)',
             );
           }
           break;

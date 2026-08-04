@@ -198,8 +198,8 @@ describe('tierComposeContext', () => {
       'green',
       `registry.infra.bulletpoints.club/wbs-be-01@${DIGEST}`,
     );
-    expect(ctx['TIER']).toBe('be-01');
-    expect(ctx['COLOR']).toBe('green');
+    expect(ctx['CONTAINER']).toBe('be-01-green');
+    expect(ctx['NETWORK']).toBe('wbs-net');
   });
 
   // The C1 regression: this file used to rebuild the ref from its own
@@ -454,5 +454,34 @@ describe('revokeAliasCommands', () => {
     expect(disconnect).toEqual(['network', 'disconnect', NETWORK, 'be-01-blue']);
     expect(connect).toEqual(['network', 'connect', '--alias', 'be-01-blue', NETWORK, 'be-01-blue']);
     expect(connect.join(' ')).not.toContain('be-01.internal');
+  });
+});
+
+/**
+ * The rendered per-tier compose file is where an environment either stays in
+ * its own lane or does not. Before this, the template hardcoded `wbs-net` and
+ * built the container name from tier+colour alone, so a dev swap would have
+ * attached dev's container to PROD's network under prod's container name —
+ * the one failure mode the whole separate-network decision exists to prevent.
+ */
+describe('tierComposeContext across environments', () => {
+  const IMG = 'registry.infra.bulletpoints.club/wbs-be-01@sha256:' + 'a'.repeat(64);
+
+  it('names prod’s container and network exactly as before', () => {
+    const ctx = tierComposeContext('be', 'green', IMG, envLayout('prod'));
+    expect(ctx['CONTAINER']).toBe('be-01-green');
+    expect(ctx['NETWORK']).toBe('wbs-net');
+  });
+
+  it('gives dev its own container name and network', () => {
+    const ctx = tierComposeContext('be', 'green', IMG, envLayout('dev'));
+    expect(ctx['CONTAINER']).toBe('dev-be-01-green');
+    expect(ctx['NETWORK']).toBe('wbs-dev-net');
+  });
+
+  it('never renders prod’s network into a dev compose file', () => {
+    const ctx = tierComposeContext('gw', 'blue', IMG.replace('be-01', 'gw-01'), envLayout('dev'));
+    expect(ctx['NETWORK']).not.toBe('wbs-net');
+    expect(ctx['ENV_FILES']).not.toContain('/srv/wbs/');
   });
 });

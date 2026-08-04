@@ -1,0 +1,23 @@
+# deploy/compose/base.dev.yml
+#
+# dev's counterpart to base.yml, installed at /srv/wbs-dev/base.yml. Every
+# `docker compose` invocation a swap makes passes `<env root>/base.yml` first
+# (lib/docker.ts's composeUpArgs), so this file is what supplies dev's project
+# name and network definition to the per-tier override merged on top of it.
+#
+# It deliberately declares NO services. dev has no edge and no registry of its
+# own: prod's Caddy fronts both environments (see base.yml's caddy networks)
+# and prod's registry serves both. Adding a caddy here would fight for :443.
+#
+# The project name is what keeps `docker compose` from believing dev's
+# containers are stray members of the `wbs` project — under a shared name,
+# a `--remove-orphans` run against either environment would delete the other's
+# containers.
+name: wbs-dev
+
+networks:
+  # Created once by provisioning, owned by no project. See base.yml's matching
+  # declaration for why external rather than defined here.
+  wbs-dev-net:
+    name: wbs-dev-net
+    external: true

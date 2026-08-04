@@ -1,10 +1,10 @@
 services:
-  {{TIER}}-{{COLOR}}:
+  {{CONTAINER}}:
     image: {{IMAGE}}
-    container_name: {{TIER}}-{{COLOR}}
+    container_name: {{CONTAINER}}
     restart: unless-stopped
     networks:
-      wbs-net:
+      {{NETWORK}}:
         aliases:
-          - {{TIER}}-{{COLOR}}
+          - {{CONTAINER}}
 {{ENV_FILES}}{{VOLUMES}}

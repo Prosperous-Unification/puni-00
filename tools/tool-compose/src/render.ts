@@ -65,8 +65,8 @@ async function main(): Promise<void> {
   // a real deploy actually uses; this preview default just needs *some*
   // valid Caddyfile snippet per tier, deployed by default).
   const ctx: RenderContext = {
-    TIER: process.env['TIER'] ?? 'be-01',
-    COLOR: process.env['COLOR'] ?? 'blue',
+    CONTAINER: process.env['CONTAINER'] ?? 'be-01-blue',
+    NETWORK: process.env['NETWORK'] ?? 'wbs-net',
     IMAGE:
       process.env['IMAGE'] ?? `registry.infra.bulletpoints.club/wbs-be-01@sha256:${'0'.repeat(64)}`,
     SITE_ADDRESS: process.env['SITE_ADDRESS'] ?? 'wbs.bulletpoints.club',

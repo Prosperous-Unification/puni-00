@@ -30,8 +30,8 @@ describe('renderAll', () => {
       templatesDir: join(import.meta.dir, 'templates'),
       outDir,
       context: {
-        TIER: 'be',
-        COLOR: 'green',
+        CONTAINER: 'be-01-green',
+        NETWORK: 'wbs-net',
         IMAGE: 'registry.infra.bulletpoints.club/wbs-be-01:abc1234',
         SITE_ADDRESS: 'wbs.bulletpoints.club',
         BE_ROUTE: 'reverse_proxy be-01-green:3100',
@@ -45,7 +45,7 @@ describe('renderAll', () => {
     expect(written.length).toBeGreaterThan(0);
     const tier = await readFile(join(outDir, 'tier.compose'), 'utf8');
     expect(tier).toMatch(/image: registry.infra.bulletpoints.club\/wbs-be-01:abc1234/);
-    expect(tier).toMatch(/be-green:/);
+    expect(tier).toMatch(/be-01-green:/);
     expect(tier).toMatch(/- \/srv\/wbs\/be-01\.secrets\.env/);
     const site = await readFile(join(outDir, 'site.caddy'), 'utf8');
     expect(site).toMatch(/reverse_proxy be-01-green:3100/);

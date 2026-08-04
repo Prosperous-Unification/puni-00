@@ -12,7 +12,7 @@ import type { Color, Tier } from './state';
 // have always found ROOT and NETWORK.
 export { CURRENT_ENV, ENV_NAMES, type EnvLayout, envLayout, type EnvName } from './env';
 
-import { CURRENT_ENV } from './env';
+import { CURRENT_ENV, type EnvLayout } from './env';
 
 export const NETWORK = CURRENT_ENV.network;
 
@@ -41,8 +41,8 @@ export function isDigest(v: string): boolean {
  * cannot collide here, which matters because container names are unique per
  * daemon, not per network.
  */
-export function containerName(tier: Tier, color: Color): string {
-  return `${CURRENT_ENV.containerPrefix}${APP[tier]}-${color}`;
+export function containerName(tier: Tier, color: Color, layout: EnvLayout = CURRENT_ENV): string {
+  return `${layout.containerPrefix}${APP[tier]}-${color}`;
 }
 
 /** The app name a tier is known by (`be-01`), independent of colour. */
@@ -146,8 +146,8 @@ export function tierHasSecrets(tier: Tier): boolean {
 export const SHARED_ENV_PATH = `${ROOT}/.env`;
 
 /** Where a tier's derived, filtered secrets file lives. Only referenced by `tierEnvFiles` for a tier with a non-empty `SECRET_KEYS` entry. */
-export function tierSecretsFile(tier: Tier): string {
-  return `${ROOT}/${APP[tier]}.secrets.env`;
+export function tierSecretsFile(tier: Tier, layout: EnvLayout = CURRENT_ENV): string {
+  return `${layout.root}/${APP[tier]}.secrets.env`;
 }
 
 /**
@@ -184,9 +184,9 @@ export function deriveTierSecrets(tier: Tier, sharedEnvText: string): string {
  * the real, weeks-long incident this ordering guards against. A tier with no
  * `SECRET_KEYS` entry (fe-01) gets no secrets file at all, not an empty one.
  */
-export function tierEnvFiles(tier: Tier): string[] {
-  const files = [`${ROOT}/${APP[tier]}.env`];
-  if (SECRET_KEYS[tier].length > 0) files.push(tierSecretsFile(tier));
+export function tierEnvFiles(tier: Tier, layout: EnvLayout = CURRENT_ENV): string[] {
+  const files = [`${layout.root}/${APP[tier]}.env`];
+  if (SECRET_KEYS[tier].length > 0) files.push(tierSecretsFile(tier, layout));
   return files;
 }
 
@@ -246,17 +246,17 @@ export function assertTierEnvAllowed(tier: Tier, envText: string): void {
   }
 }
 
-function envFilesBlock(tier: Tier): string {
-  const lines = tierEnvFiles(tier).map((f) => `      - ${f}`);
+function envFilesBlock(tier: Tier, layout: EnvLayout = CURRENT_ENV): string {
+  const lines = tierEnvFiles(tier, layout).map((f) => `      - ${f}`);
   return `    env_file:\n${lines.join('\n')}\n`;
 }
 
 /** Only be-01 (`apps/be-01/src/repository/db.ts`) opens a SQLite file off `/data` — see `tierComposeContext`'s doc comment. */
 const DATA_VOLUME_TIERS: ReadonlySet<Tier> = new Set<Tier>(['be']);
 
-function volumesBlock(tier: Tier): string {
+function volumesBlock(tier: Tier, layout: EnvLayout = CURRENT_ENV): string {
   if (!DATA_VOLUME_TIERS.has(tier)) return '';
-  return `    volumes:\n      - ${ROOT}/data:/data\n`;
+  return `    volumes:\n      - ${layout.root}/data:/data\n`;
 }
 
 /**
@@ -280,13 +280,19 @@ export function tierComposeContext(
   tier: Tier,
   color: Color,
   image: string,
+  layout: EnvLayout = CURRENT_ENV,
 ): Record<string, string> {
   return {
-    TIER: APP[tier],
-    COLOR: color,
+    // CONTAINER and NETWORK replaced the template's old {{TIER}}-{{COLOR}} and
+    // its hardcoded `wbs-net`. Rendered under dev, that pair produced prod's
+    // container name on prod's network — the exact collision the
+    // per-environment network exists to prevent, written into the compose
+    // file itself.
+    CONTAINER: containerName(tier, color, layout),
+    NETWORK: layout.network,
     IMAGE: assertDigestPinnedRef(image, tier),
-    ENV_FILES: envFilesBlock(tier),
-    VOLUMES: volumesBlock(tier),
+    ENV_FILES: envFilesBlock(tier, layout),
+    VOLUMES: volumesBlock(tier, layout),
   };
 }
 
