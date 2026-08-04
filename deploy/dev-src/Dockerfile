@@ -8,13 +8,17 @@ FROM oven/bun:1.2.20-debian
 # hands execution to Node. Without Node here, be and gw come up healthy and
 # only fe dies, which makes the cause hard to see from the outside.
 ENV NODE_VERSION=24.18.1
+# The tarball keeps its published filename: SHASUMS256.txt lists files by that
+# name, and `sha256sum -c` resolves it relative to the working directory. Saving
+# it as anything else makes the verification silently unresolvable.
 RUN apt-get update \
   && apt-get install -y --no-install-recommends curl xz-utils git ca-certificates \
-  && curl -fsSL "https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-x64.tar.xz" -o /tmp/node.tar.xz \
-  && curl -fsSL "https://nodejs.org/dist/v${NODE_VERSION}/SHASUMS256.txt" -o /tmp/SHASUMS256.txt \
-  && (cd /tmp && grep " node-v${NODE_VERSION}-linux-x64.tar.xz$" SHASUMS256.txt | sha256sum -c -) \
-  && tar -xJf /tmp/node.tar.xz -C /usr/local --strip-components=1 \
-  && rm -rf /tmp/node.tar.xz /tmp/SHASUMS256.txt /var/lib/apt/lists/* \
+  && cd /tmp \
+  && curl -fsSLO "https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-x64.tar.xz" \
+  && curl -fsSLO "https://nodejs.org/dist/v${NODE_VERSION}/SHASUMS256.txt" \
+  && grep " node-v${NODE_VERSION}-linux-x64.tar.xz$" SHASUMS256.txt | sha256sum -c - \
+  && tar -xJf "node-v${NODE_VERSION}-linux-x64.tar.xz" -C /usr/local --strip-components=1 \
+  && rm -rf "/tmp/node-v${NODE_VERSION}-linux-x64.tar.xz" /tmp/SHASUMS256.txt /var/lib/apt/lists/* \
   && node --version \
   && bun --version
 
