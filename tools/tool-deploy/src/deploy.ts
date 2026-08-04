@@ -187,18 +187,24 @@ export async function buildDeployPlan(
   const release = await deps.readRelease(args.bundle ?? DEFAULT_RELEASE_PATH);
   const headMigrations = deps.listMigrations(headSha);
 
-  for (const t of tiers) {
-    const state = remote[t];
-    const deployedSha = state?.lastDeployedSha ?? null;
-    steps.push(
-      `[plan] ${t}: last=${deployedSha ?? '(none)'} active=${state?.activeColor ?? '(never deployed)'}`,
-    );
+  // The schema belongs to be-01. It is the only tier whose plan carries a
+  // `migrate` step (lib/reconcile.ts planSwap), so what the database has
+  // applied is described by be's deployed commit and by nothing else.
+  //
+  // This used to be measured per tier, against each tier's own last-deployed
+  // sha. A gw-only or fe-only deploy therefore evaluated the gate, demanded
+  // --with-migrations, printed "proceeding under --with-migrations", and then
+  // ran a plan with no migrate step in it: the operator acknowledged a
+  // migration that nothing applied.
+  const beDeployedSha = remote.be?.lastDeployedSha ?? null;
+  const beDeployedMigrations = beDeployedSha === null ? null : deps.listMigrations(beDeployedSha);
+  const newMigrations = hasNewMigrations(beDeployedMigrations, headMigrations);
+  const deployingBe = tiers.includes('be');
 
-    const deployedMigrations = deployedSha === null ? null : deps.listMigrations(deployedSha);
-    const newMigrations = hasNewMigrations(deployedMigrations, headMigrations);
-    // Throws (and aborts the whole plan, before any tier touches the
-    // network) if this tier has new migrations and --with-migrations wasn't
-    // given — see migrations.ts for why this must fail closed.
+  if (deployingBe) {
+    // Throws (and aborts the whole plan, before any tier touches the network)
+    // if there are new migrations and --with-migrations wasn't given — see
+    // migrations.ts for why this must fail closed.
     // (--stop-the-world is already rejected above, unconditionally.)
     // dev acknowledges its own migrations. The gate exists because blue and
     // green share one SQLite file *while serving traffic*; dev serves none
@@ -210,9 +216,25 @@ export async function buildDeployPlan(
     if (newMigrations) {
       const how = args.withMigrations ? '--with-migrations' : `--env=${args.layout.env}`;
       steps.push(
-        `[plan] ${t}: new migrations present (${headMigrations.join(', ')}) — proceeding under ${how}`,
+        `[plan] be: new migrations present (${headMigrations.join(', ')}) — proceeding under ${how}`,
       );
     }
+  } else if (newMigrations) {
+    // Not a gate: this deploy cannot touch the schema, so there is nothing to
+    // acknowledge. It is said out loud because the alternative — silence — is
+    // what let the old behaviour read as "migrations handled".
+    steps.push(
+      `[plan] be is not in this deploy, so ${headMigrations.join(', ')} ` +
+        `remain unapplied — deploy be to apply them`,
+    );
+  }
+
+  for (const t of tiers) {
+    const state = remote[t];
+    const deployedSha = state?.lastDeployedSha ?? null;
+    steps.push(
+      `[plan] ${t}: last=${deployedSha ?? '(none)'} active=${state?.activeColor ?? '(never deployed)'}`,
+    );
 
     const entry = release[t];
     if (entry === undefined) {

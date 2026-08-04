@@ -7,15 +7,32 @@
   "targets": {
     "test": {
       "executor": "nx:run-commands",
-      "options": { "command": "bun test", "cwd": "tools/tool-devsync" }
+      "options": {
+        "command": "bun test",
+        "cwd": "tools/tool-devsync"
+      }
     },
     "lint": {
       "executor": "nx:run-commands",
-      "options": { "command": "bunx eslint tools/tool-devsync/src" }
+      "options": {
+        "command": "bunx eslint tools/tool-devsync/src"
+      }
     },
     "typecheck": {
       "executor": "nx:run-commands",
-      "options": { "command": "bunx tsc --noEmit -p tools/tool-devsync/tsconfig.json" }
+      "options": {
+        "command": "bunx tsc --noEmit -p tools/tool-devsync/tsconfig.json"
+      }
+    },
+    "build": {
+      "executor": "nx:run-commands",
+      "options": {
+        "commands": [
+          "command -v shellcheck >/dev/null 2>&1 || { echo '[tool-devsync] shellcheck is required but not installed. macOS: brew install shellcheck. Debian/Ubuntu: apt-get install shellcheck.' >&2; exit 1; }",
+          "shellcheck -s bash bin/dev-deploy.sh"
+        ],
+        "parallel": false
+      }
     }
   }
 }

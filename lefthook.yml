@@ -19,6 +19,10 @@ pre-commit:
       run: bun run tools/tool-git-hooks/src/hooks/migration-lint.ts {staged_files}
       glob: 'apps/be-01/drizzle/**/*.sql'
 
+    doc-caps:
+      run: bun run tools/tool-git-hooks/src/hooks/doc-caps.ts
+      glob: 'LLM_README.md'
+
 # commit-msg conventional-commits enforcement disabled per developer preference.
 # Re-enable by uncommenting the block below and re-running `nx run tool-git-hooks:install`.
 # commit-msg:

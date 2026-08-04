@@ -67,7 +67,12 @@ as an outage.
 > ssh h2puni and cat /home/puni1/wbs/state/be.json, gw.json and fe.json. Report
 > activeColor and lastDeployedSha for each.
 
-Each file gives the live colour and the commit. Compare against `main`. As of
+Each file gives a _recorded_ colour and commit — a cache, not the truth. Caddy's
+live routing is what the deploy believes (`lib/reconcile.ts`'s `resolveLiveColor`:
+routing wins over the file, always), because a deploy killed between `caddy reload`
+and the state write leaves the file naming one colour while the other is serving. To
+see what is actually live: `docker exec wbs-caddy-1 wget -qO- http://127.0.0.1:2019/config/`.
+Compare the commit against `main`. As of
 writing prod is on `0afc777`, three commits behind.
 
 Also check the deploy lock. **The file always exists — its presence means
