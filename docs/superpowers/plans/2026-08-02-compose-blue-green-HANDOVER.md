@@ -1,13 +1,20 @@
 # Compose blue/green deploy — handover
 
-Written 2026-08-03. Branch `feat/compose-blue-green`, HEAD `1a043cd`, 27 commits.
+Written 2026-08-03 at commit `1a043cd`, 27 commits of work, merged to `main` via PR #1. The
+branch it was written on (`feat/compose-blue-green`) has since been deleted — it was fully
+merged and held nothing `main` lacks. `1a043cd` is an ancestor of `main`, so
+`git show 1a043cd` still works; the branch name does not.
 
 **Update 2026-08-03 (`chore/retire-systemd`):** the three open findings below (I7, I2, I5) are
 closed and live, and the systemd path described below as "deliberately not deleted" has been
-deleted (marked inline where each applies). See
-`.superpowers/sdd/2026-08-02-compose-blue-green-deploy/retire-systemd-report.md` for what changed
-and how it was verified (real deploy through the committed orchestrator, HTTPS loop held
-throughout, smoke confirmed to run).
+deleted (marked inline where each applies). It was verified by a real deploy through the
+committed orchestrator, with the HTTPS loop held throughout and smoke confirmed to run.
+
+> That verification was written up in
+> `.superpowers/sdd/2026-08-02-compose-blue-green-deploy/retire-systemd-report.md`, which is
+> **not in the repo** — `.superpowers/` is gitignored, so the file exists only on the machine
+> that produced it. Do not go looking for it in a fresh clone. The commits themselves are the
+> durable record.
 
 This file exists so a session with no memory of the build can resume. The spec is
 `docs/superpowers/specs/2026-08-02-compose-blue-green-deploy-design.md` (revision 2),
