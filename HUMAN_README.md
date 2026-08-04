@@ -109,9 +109,10 @@ Then publish and dry-run — still no `--execute`:
 
 **Say "on h2puni".** Builds are blocked on h1claw by a hook, so a message that
 does not name the host will be refused mid-emergency, which is the worst possible
-time to discover it. As of 2026-08-04 h2puni still lacks the `dagger` CLI and a
-checkout — until that is fixed, this step cannot run anywhere, and that is the
-single thing to provision before trusting this runbook.
+time to discover it. As of 2026-08-04 h2puni still lacks the `dagger` CLI — until
+that is installed this step cannot run anywhere, and it is the single thing to
+provision before trusting this runbook. The checkout at `/home/puni1/wbs-dev/src`
+is dev's and is bind-mounted into a running container; do not build from it.
 
 **Stop and do not authorise if** the tree is dirty, `release.json` is stale, the
 gate failed, the bundle is unbuilt, or the deploy lock is held. Those refusals
