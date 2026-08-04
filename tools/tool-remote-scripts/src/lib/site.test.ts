@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 
-import { routedColorFor, siteContext } from './site';
+import { routedColorFor, routedColorFromAdminConfig, siteContext } from './site';
 
 describe('routedColorFor', () => {
   const rendered = [
@@ -54,5 +54,124 @@ describe('siteContext', () => {
     // this is the actual property the bug broke.
     const rendered = `handle /api/* {\n\t\t${ctx['BE_ROUTE']}\n\t}`;
     expect(routedColorFor('be', rendered)).toBeNull();
+  });
+});
+
+describe('routedColorFor, against a live Caddy admin dump', () => {
+  // The reload check used to be `liveConfig.includes(greenName)`. These are the
+  // shapes where that answers yes and the tier is not actually routed there.
+  const upstream = (name: string) => `{"dial":"${name}:3100"}`;
+
+  it('reads the upstream, not a mention somewhere else in the dump', () => {
+    // A stale reference in another environment's block: the substring check
+    // cannot fail while any occurrence of the name survives anywhere.
+    const config = `{"prod":${upstream('be-01-blue')},"dev-notes":"migrated off be-01-green"}`;
+    expect(config.includes('be-01-green')).toBe(true);
+    expect(routedColorFor('be', config)).toBe('blue');
+  });
+
+  it('is null when the tier is not routed at all', () => {
+    expect(routedColorFor('be', '{"gw":{"dial":"gw-01-green:3200"}}')).toBeNull();
+  });
+
+  it('does not confuse one tier for another', () => {
+    const config = `{"a":${upstream('gw-01-green')},"b":${upstream('be-01-blue')}}`;
+    expect(routedColorFor('be', config)).toBe('blue');
+    expect(routedColorFor('gw', config)).toBe('green');
+  });
+});
+
+describe('routedColorFromAdminConfig', () => {
+  // Shaped like the real admin dump: every site on the host in one document,
+  // each route matched by host, upstreams as "<container>:<port>".
+  const dump = (prodBe: string, devBe: string) =>
+    JSON.stringify({
+      apps: {
+        http: {
+          servers: {
+            srv0: {
+              routes: [
+                {
+                  match: [{ host: ['dev.wbs.bulletpoints.club'] }],
+                  handle: [
+                    {
+                      handler: 'subroute',
+                      routes: [
+                        { handle: [{ handler: 'reverse_proxy', upstreams: [{ dial: devBe }] }] },
+                      ],
+                    },
+                  ],
+                },
+                {
+                  match: [{ host: ['wbs.bulletpoints.club'] }],
+                  handle: [
+                    {
+                      handler: 'subroute',
+                      routes: [
+                        { handle: [{ handler: 'reverse_proxy', upstreams: [{ dial: prodBe }] }] },
+                      ],
+                    },
+                  ],
+                },
+              ],
+            },
+          },
+        },
+      },
+    });
+
+  it('reads the route for the requested host, not the whole document', () => {
+    // Verified against this host on 2026-08-04: prod was on green while dev's
+    // old image-based containers were named dev-be-01-blue, and `\b` treats the
+    // hyphen as a boundary — so a text search for `be-01-blue` matched INSIDE
+    // the dev container name and reported prod's be as blue. A deploy planned
+    // from that reading swaps the wrong way.
+    const config = dump('be-01-green:3100', 'dev-be-01-blue:3100');
+    expect(/\bbe-01-blue\b/.test('dev-be-01-blue')).toBe(true);
+    expect(routedColorFor('be', config)).toBe('blue');
+    expect(routedColorFromAdminConfig('be', 'wbs.bulletpoints.club', config)).toBe('green');
+  });
+
+  it('is null for a tier with no upstream under that host', () => {
+    const config = dump('be-01-green:3100', 'wbs-dev-src:3100');
+    expect(routedColorFromAdminConfig('be', 'dev.wbs.bulletpoints.club', config)).toBeNull();
+  });
+
+  it('ignores an upstream on another tier port', () => {
+    const config = dump('be-01-green:3100', 'wbs-dev-src:3100');
+    expect(routedColorFromAdminConfig('gw', 'wbs.bulletpoints.club', config)).toBeNull();
+  });
+
+  it('refuses a host routing one tier to both colours at once', () => {
+    const config = JSON.stringify({
+      apps: {
+        http: {
+          servers: {
+            srv0: {
+              routes: [
+                {
+                  match: [{ host: ['wbs.bulletpoints.club'] }],
+                  handle: [
+                    {
+                      handler: 'reverse_proxy',
+                      upstreams: [{ dial: 'be-01-blue:3100' }, { dial: 'be-01-green:3100' }],
+                    },
+                  ],
+                },
+              ],
+            },
+          },
+        },
+      },
+    });
+    expect(() => routedColorFromAdminConfig('be', 'wbs.bulletpoints.club', config)).toThrow(
+      /both colours/,
+    );
+  });
+
+  it('refuses a config it cannot parse rather than reporting no route', () => {
+    expect(() => routedColorFromAdminConfig('be', 'wbs.bulletpoints.club', 'not json')).toThrow(
+      /not valid JSON/,
+    );
   });
 });

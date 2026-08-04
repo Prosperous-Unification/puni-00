@@ -76,3 +76,96 @@ export function siteContext(
     FE_ROUTE: routeBlock('fe', colors.fe),
   };
 }
+
+/**
+ * Which colour Caddy's LIVE admin config actually routes `tier` to for
+ * `siteAddress`, by reading the route rather than searching the text.
+ *
+ * `routedColorFor` above matches a container name anywhere in what it is
+ * given. That is right for the rendered `site.caddy`, which contains one
+ * environment's blocks and nothing else. It is wrong for the admin API dump:
+ * that is every site on the host at once — prod, dev, the registry — plus
+ * headers, log config and error bodies. A name occurring somewhere in it is
+ * not evidence that this tier's public route points there, and first-match
+ * order across a JSON dump is not something to depend on.
+ *
+ * So: find the route matching this host, collect the reverse_proxy upstreams
+ * under it, and read the one on this tier's port. Returns null when the tier
+ * has no upstream in that site — a never-deployed tier renders an honest 503
+ * with no proxy at all.
+ *
+ * Throws when the config cannot be parsed, or when one tier's port has
+ * upstreams of both colours under the same host: an ambiguous answer here
+ * would be read as a successful route change.
+ */
+export function routedColorFromAdminConfig(
+  tier: Tier,
+  siteAddress: string,
+  rawConfig: string,
+): Color | null {
+  let config: unknown;
+  try {
+    config = JSON.parse(rawConfig);
+  } catch (e: unknown) {
+    throw new Error(
+      `Caddy's live admin config is not valid JSON (${e instanceof Error ? e.message : String(e)}), ` +
+        'so the colour actually being served cannot be determined',
+    );
+  }
+
+  const dials = new Set<string>();
+  // The admin dump nests routes inside subroutes to arbitrary depth, so the
+  // upstreams are collected by walking rather than by a fixed path — a fixed
+  // path breaks the first time a directive adds a wrapper.
+  const collect = (node: unknown): void => {
+    if (Array.isArray(node)) {
+      for (const item of node) collect(item);
+      return;
+    }
+    if (node === null || typeof node !== 'object') return;
+    const obj = node as Record<string, unknown>;
+    if (obj['handler'] === 'reverse_proxy' && Array.isArray(obj['upstreams'])) {
+      for (const up of obj['upstreams']) {
+        const dial = (up as { dial?: unknown }).dial;
+        if (typeof dial === 'string') dials.add(dial);
+      }
+    }
+    for (const value of Object.values(obj)) collect(value);
+  };
+
+  const matchesHost = (route: Record<string, unknown>): boolean => {
+    const match = route['match'];
+    if (!Array.isArray(match)) return false;
+    return match.some((m) => {
+      const hosts = (m as { host?: unknown }).host;
+      return Array.isArray(hosts) && hosts.includes(siteAddress);
+    });
+  };
+
+  const servers = (config as { apps?: { http?: { servers?: Record<string, unknown> } } }).apps?.http
+    ?.servers;
+  for (const server of Object.values(servers ?? {})) {
+    const routes = (server as { routes?: unknown }).routes;
+    if (!Array.isArray(routes)) continue;
+    for (const route of routes) {
+      if (matchesHost(route as Record<string, unknown>)) collect(route);
+    }
+  }
+
+  const suffix = `:${String(PORT[tier])}`;
+  const found = new Set<Color>();
+  for (const dial of dials) {
+    if (!dial.endsWith(suffix)) continue;
+    const host = dial.slice(0, -suffix.length);
+    if (host === containerName(tier, 'blue')) found.add('blue');
+    if (host === containerName(tier, 'green')) found.add('green');
+  }
+
+  if (found.size > 1) {
+    throw new Error(
+      `${siteAddress} routes ${tier} to both colours at once — refusing to report ` +
+        'either as the live one',
+    );
+  }
+  return [...found][0] ?? null;
+}
