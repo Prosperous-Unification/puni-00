@@ -24,6 +24,13 @@ services:
     # resolve to the old per-tier containers.
     # Must stay on wbs-dev-net: `be-01.internal` is a network-global Docker
     # alias, so a container on the prod network resolves prod's backend.
+    environment:
+      # The Nx daemon keeps task state under .nx/ inside the bind mount, so it
+      # outlives the container. After a recreate the new process found the dead
+      # one's locks and sat at "Waiting for gw-01:serve in another nx process"
+      # with only be-01 running -- a half-up dev environment whose logs looked
+      # like a slow start rather than a deadlock.
+      NX_DAEMON: 'false'
     networks:
       - wbs-dev-net
     restart: unless-stopped
