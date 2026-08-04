@@ -27,6 +27,7 @@ import {
   containerName,
   CURRENT_ENV,
   deriveTierSecrets,
+  EDGE_CONTAINER,
   grantAliasCommands,
   manifestInspectArgs,
   NETWORK,
@@ -59,10 +60,9 @@ import { type Color, parseStateJson, renderStateJson, type Tier } from './lib/st
 // two blocks for the live hostname, one of them pointing at dev's containers.
 const SITE_ADDRESS = process.env['SITE_ADDRESS'] ?? CURRENT_ENV.siteAddress;
 
-// Not `${ROOT}/caddy/site.caddy`: dev's root is /srv/wbs-dev but the one edge
-// container mounts /srv/wbs/caddy, so the site file is the single
-// environment-varying path that does NOT live under the environment's own
-// root. lib/docker.ts's EnvLayout is where that exception is stated.
+// Not `${ROOT}/caddy/site.caddy`: the one edge container mounts PROD's caddy
+// directory, so the site file is the single environment-varying path that does
+// not live under the environment's own root. lib/env.ts states that exception.
 const SITE_CADDY_PATH = CURRENT_ENV.siteCaddyPath;
 
 // fe-01 is a static Caddy server with no /health route; design decision 5's
@@ -271,16 +271,7 @@ async function preflightRegistry(image: string): Promise<void> {
  * succeeds against the same running admin API).
  */
 async function currentCaddyConfig(): Promise<string> {
-  return sh([
-    'compose',
-    '-f',
-    `${ROOT}/base.yml`,
-    'exec',
-    'caddy',
-    'wget',
-    '-qO-',
-    'http://127.0.0.1:2019/config/',
-  ]);
+  return sh(['exec', EDGE_CONTAINER, 'wget', '-qO-', 'http://127.0.0.1:2019/config/']);
 }
 
 /**
@@ -366,21 +357,11 @@ async function observe(tier: Tier): Promise<Observed> {
 }
 
 async function reloadCaddy(): Promise<void> {
-  // Targets caddy by Compose *service* name rather than a hardcoded
-  // container name: base.yml sets no `container_name` for it, so the real
-  // container is `wbs-caddy-1` (verified live on h2puni), which
-  // `compose exec` resolves without needing to know that.
-  await sh([
-    'compose',
-    '-f',
-    `${ROOT}/base.yml`,
-    'exec',
-    'caddy',
-    'caddy',
-    'reload',
-    '--config',
-    '/etc/caddy/Caddyfile',
-  ]);
+  // `docker exec <container>`, not `compose exec caddy`. The edge is shared by
+  // every environment and owned by prod's Compose project, so resolving it
+  // through the deploying environment's project only works for prod. See
+  // EDGE_CONTAINER.
+  await sh(['exec', EDGE_CONTAINER, 'caddy', 'reload', '--config', '/etc/caddy/Caddyfile']);
 }
 
 // Steps at or before `reload` are still reversible: nothing client-facing has

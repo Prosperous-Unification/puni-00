@@ -92,6 +92,22 @@ export function envLayout(env: string | undefined): EnvLayout {
   return LAYOUTS[name as EnvName];
 }
 
+/**
+ * The one edge container, addressed by name rather than by Compose service.
+ *
+ * It is NOT per-environment: a single Caddy terminates TLS for every
+ * environment (base.yml's caddy is on both networks). `compose exec caddy`
+ * cannot reach it from dev, because dev's base.yml declares no caddy service —
+ * dev does not own the edge. Resolving it through dev's Compose project fails
+ * with `service "caddy" is not running`, which is how the first dev deploy
+ * aborted: correctly, at the design-decision-6 guard, rather than swapping
+ * against a routing state it could not read.
+ *
+ * The name is Compose's own (`<project>-<service>-<index>`) for prod's `wbs`
+ * project, verified live on h2puni.
+ */
+export const EDGE_CONTAINER = 'wbs-caddy-1';
+
 /** Every environment name, for CLI validation and error messages. */
 export const ENV_NAMES: readonly EnvName[] = Object.keys(LAYOUTS) as EnvName[];
 

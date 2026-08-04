@@ -10,7 +10,14 @@ import type { Color, Tier } from './state';
 // of the SSH boundary, can import the same table rather than keeping a second
 // copy of these paths. Re-exported here because this module was where callers
 // have always found ROOT and NETWORK.
-export { CURRENT_ENV, ENV_NAMES, type EnvLayout, envLayout, type EnvName } from './env';
+export {
+  CURRENT_ENV,
+  EDGE_CONTAINER,
+  ENV_NAMES,
+  type EnvLayout,
+  envLayout,
+  type EnvName,
+} from './env';
 
 import { CURRENT_ENV, type EnvLayout } from './env';
 
