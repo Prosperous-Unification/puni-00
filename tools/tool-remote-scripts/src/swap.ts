@@ -25,6 +25,7 @@ import {
   assertTierEnvAllowed,
   composeUpArgs,
   containerName,
+  CURRENT_ENV,
   deriveTierSecrets,
   grantAliasCommands,
   manifestInspectArgs,
@@ -53,7 +54,12 @@ import { type Color, parseStateJson, renderStateJson, type Tier } from './lib/st
 // by tool-deploy — see lib/docker.ts's assertDigestPinnedRef for why a second
 // default on this side was a live defect rather than a redundancy.
 const SITE_ADDRESS = process.env['SITE_ADDRESS'] ?? 'wbs.bulletpoints.club';
-const SITE_CADDY_PATH = `${ROOT}/caddy/site.caddy`;
+
+// Not `${ROOT}/caddy/site.caddy`: dev's root is /srv/wbs-dev but the one edge
+// container mounts /srv/wbs/caddy, so the site file is the single
+// environment-varying path that does NOT live under the environment's own
+// root. lib/docker.ts's EnvLayout is where that exception is stated.
+const SITE_CADDY_PATH = CURRENT_ENV.siteCaddyPath;
 
 // fe-01 is a static Caddy server with no /health route; design decision 5's
 // health gate for it is "fetch / and assert 200 + a non-empty body" instead.

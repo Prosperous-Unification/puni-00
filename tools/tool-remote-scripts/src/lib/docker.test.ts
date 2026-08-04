@@ -7,6 +7,7 @@ import {
   containerName,
   deriveTierSecrets,
   envKeysOf,
+  envLayout,
   grantAliasCommands,
   isDigest,
   manifestInspectArgs,
@@ -14,6 +15,7 @@ import {
   psColorsFrom,
   revokeAliasCommands,
   ROOT,
+  SHARED_ENV_PATH,
   tierComposeContext,
   tierComposeFile,
   tierEnvFiles,
@@ -22,6 +24,91 @@ import {
 } from './docker';
 
 const DIGEST = 'sha256:' + 'a'.repeat(64);
+
+/**
+ * The prod layout is not "whatever envLayout returns for prod" — it is the set
+ * of literals that were hardcoded in this module before `WBS_ENV` existed. A
+ * deploy to prod must be byte-identical after the parameterisation, so these
+ * are written out longhand rather than derived: a test that asks the code what
+ * it thinks prod is would pass no matter what the code broke.
+ */
+describe('envLayout', () => {
+  it('defaults to prod when WBS_ENV is unset', () => {
+    expect(envLayout(undefined)).toEqual({
+      env: 'prod',
+      root: '/srv/wbs',
+      network: 'wbs-net',
+      containerPrefix: '',
+      sharedEnvPath: '/srv/wbs/.env',
+      stateDir: '/srv/wbs/state',
+      siteCaddyPath: '/srv/wbs/caddy/site.caddy',
+    });
+  });
+
+  it('treats an empty WBS_ENV as unset', () => {
+    expect(envLayout('')).toEqual(envLayout(undefined));
+  });
+
+  it('gives prod the values that were hardcoded before WBS_ENV existed', () => {
+    expect(envLayout('prod')).toEqual(envLayout(undefined));
+    expect(ROOT).toBe('/srv/wbs');
+    expect(NETWORK).toBe('wbs-net');
+    expect(SHARED_ENV_PATH).toBe('/srv/wbs/.env');
+    expect(containerName('be', 'blue')).toBe('be-01-blue');
+  });
+
+  it('gives dev a layout disjoint from prod, except the mounted caddy dir', () => {
+    expect(envLayout('dev')).toEqual({
+      env: 'dev',
+      root: '/srv/wbs-dev',
+      network: 'wbs-dev-net',
+      containerPrefix: 'dev-',
+      sharedEnvPath: '/srv/wbs-dev/.env',
+      stateDir: '/srv/wbs-dev/state',
+      // Deliberately under prod's root: /srv/wbs/caddy is the directory the
+      // single edge container mounts, so dev's site file has to live there.
+      siteCaddyPath: '/srv/wbs/caddy/site-dev.caddy',
+    });
+  });
+
+  it('shares no path or name between the two environments except the caddy dir', () => {
+    const prod = envLayout('prod');
+    const dev = envLayout('dev');
+    expect(dev.root).not.toBe(prod.root);
+    expect(dev.network).not.toBe(prod.network);
+    expect(dev.sharedEnvPath).not.toBe(prod.sharedEnvPath);
+    expect(dev.stateDir).not.toBe(prod.stateDir);
+    expect(dev.siteCaddyPath).not.toBe(prod.siteCaddyPath);
+  });
+
+  /**
+   * R5: unknown is not OK. An unrecognised WBS_ENV must not fall through to
+   * prod (which would deploy a dev commit onto the live site) and must not
+   * resolve to nothing.
+   *
+   * Proof: with the `hasOwnProperty` guard and its `throw` deleted from
+   * `envLayout`, both tests below fail — `envLayout('staging')` returns
+   * `undefined` rather than throwing. Worse, and the reason the guard sits at
+   * resolve time rather than at use time: importing the module at all under
+   * `WBS_ENV=staging` then dies with `TypeError: undefined is not an object
+   * (evaluating 'CURRENT_ENV.network')` at docker.ts:80 — a stack trace with
+   * no mention of the environment name that caused it. Both observed, guard
+   * removed, on 2026-08-04.
+   */
+  it('refuses an environment it does not know', () => {
+    expect(() => envLayout('staging')).toThrow(/staging/);
+  });
+
+  it('refuses an unknown environment by name, not by falling back to prod', () => {
+    let layout: unknown = null;
+    try {
+      layout = envLayout('staging');
+    } catch {
+      layout = 'threw';
+    }
+    expect(layout).toBe('threw');
+  });
+});
 
 describe('isDigest', () => {
   it('accepts a well-formed sha256 digest', () => {
