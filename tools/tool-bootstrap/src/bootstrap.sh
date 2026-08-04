@@ -52,21 +52,21 @@ install_bun() {
 }
 
 create_tree() {
-  log "creating /srv/wbs/* tree"
+  log "creating /home/puni1/wbs/* tree"
   # `compose` holds swap.js's rendered per-colour compose overrides
-  # (lib/docker.ts's tierComposeFile: /srv/wbs/compose/<app>-<color>.yml) —
+  # (lib/docker.ts's tierComposeFile: /home/puni1/wbs/compose/<app>-<color>.yml) —
   # writeAtomic() does not mkdir -p, so the first-ever swap on a fresh host
   # would fail here if this directory did not already exist (item 2 of the
   # cross-review fix: this was missing from both this script and
   # configure.sh, and the server only ever worked because it was created by
   # hand during earlier rehearsals).
-  for d in /srv/wbs/bin /srv/wbs/compose /srv/wbs/releases /srv/wbs/state /srv/wbs/state/fragments \
-           /srv/wbs/data /srv/wbs/logs /srv/wbs/caddy; do
+  for d in /home/puni1/wbs/bin /home/puni1/wbs/compose /home/puni1/wbs/releases /home/puni1/wbs/state /home/puni1/wbs/state/fragments \
+           /home/puni1/wbs/data /home/puni1/wbs/logs /home/puni1/wbs/caddy; do
     mkdir -p "$d"
   done
-  chmod 0750 /srv/wbs
-  touch /srv/wbs/.env
-  chmod 0600 /srv/wbs/.env
+  chmod 0750 /home/puni1/wbs
+  touch /home/puni1/wbs/.env
+  chmod 0600 /home/puni1/wbs/.env
 }
 
 main() {

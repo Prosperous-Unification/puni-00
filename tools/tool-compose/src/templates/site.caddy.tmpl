@@ -19,18 +19,3 @@
 		output file /var/log/caddy/access.log
 	}
 }
-
-# The registry is reached ONLY through here. It publishes no host port of its
-# own (deploy/compose/base.yml), so this block is what gives it TLS, its
-# public name, and the address every published image ref is built from.
-# Caddy's automatic HTTPS is per-hostname, so an ACME problem with either
-# site block cannot take the other one down.
-registry.infra.bulletpoints.club {
-	reverse_proxy registry:5000 {
-		header_up X-Forwarded-Proto {scheme}
-		header_up X-Forwarded-For {remote_host}
-	}
-	request_body {
-		max_size 2GB
-	}
-}

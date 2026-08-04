@@ -6,6 +6,8 @@
 // (Task 4) is a separate, explicit step that writes `release.json`. This CLI
 // only reads that file, so a stale or missing release entry fails loudly
 // rather than silently deploying an old image.
+import { type EnvLayout } from '@wbs/tool-env';
+
 import { materialize, parseDeployArgs, type Tier } from './affected';
 import {
   assertMigrationFlag,
@@ -57,10 +59,15 @@ export interface DeployPlan {
   preflightCommands: string[];
   dryRun: boolean;
   host: string;
+  /** The environment this plan deploys. Carried so execution cannot re-derive it. */
+  layout: EnvLayout;
 }
 
 export interface DeployPlanDeps {
-  readRemoteState: (host: string) => Promise<Partial<Record<Tier, RemoteTierState>>>;
+  readRemoteState: (
+    host: string,
+    stateDir: string,
+  ) => Promise<Partial<Record<Tier, RemoteTierState>>>;
   /** Migration folder names present under apps/be-01/drizzle at `sha`. */
   listMigrations: (sha: string) => string[];
   readRelease: (path: string) => Promise<ReleaseRecord>;
@@ -176,7 +183,7 @@ export async function buildDeployPlan(
   const preflightCommands: string[] = [];
   const imageArgs: string[] = [];
 
-  const remote = await deps.readRemoteState(host);
+  const remote = await deps.readRemoteState(host, args.layout.stateDir);
   const release = await deps.readRelease(args.bundle ?? DEFAULT_RELEASE_PATH);
   const headMigrations = deps.listMigrations(headSha);
 
@@ -193,9 +200,18 @@ export async function buildDeployPlan(
     // network) if this tier has new migrations and --with-migrations wasn't
     // given — see migrations.ts for why this must fail closed.
     // (--stop-the-world is already rejected above, unconditionally.)
-    assertMigrationFlag(newMigrations, args.withMigrations);
+    // dev acknowledges its own migrations. The gate exists because blue and
+    // green share one SQLite file *while serving traffic*; dev serves none
+    // worth protecting, and a gate that halts dev on every schema change makes
+    // the environment stale exactly when it is most worth looking at. prod is
+    // untouched: there, only an explicit --with-migrations passes.
+    const migrationsAcknowledged = args.withMigrations || args.layout.env === 'dev';
+    assertMigrationFlag(newMigrations, migrationsAcknowledged);
     if (newMigrations) {
-      steps.push(`[plan] ${t}: new migrations present — proceeding under --with-migrations`);
+      const how = args.withMigrations ? '--with-migrations' : `--env=${args.layout.env}`;
+      steps.push(
+        `[plan] ${t}: new migrations present (${headMigrations.join(', ')}) — proceeding under ${how}`,
+      );
     }
 
     const entry = release[t];
@@ -237,8 +253,12 @@ export async function buildDeployPlan(
     // Verified against the live host: swap.js is invoked as `ssh h2puni
     // 'cd /srv/wbs && bun bin/swap.js ...'` — no explicit user (the ssh
     // config alias already carries it) and no absolute bun path.
+    // The WBS_ENV prefix is emitted only for non-prod, so prod's command is
+    // the exact string verified against the live host above — this change must
+    // not alter a single byte of what a prod deploy sends.
+    const envPrefix = args.layout.env === 'prod' ? '' : `WBS_ENV=${args.layout.env} `;
     const base =
-      `cd /srv/wbs && bun bin/swap.js ${tiers.join(',')} ` +
+      `cd ${args.layout.root} && ${envPrefix}bun bin/swap.js ${tiers.join(',')} ` +
       `${imageArgs.join(' ')} --sha=${headSha}`;
     const remoteCmd = base + (args.dryRun ? '' : ' --execute');
     steps.push(`[plan] ssh ${host} ${JSON.stringify(remoteCmd)}`);
@@ -249,7 +269,15 @@ export async function buildDeployPlan(
     preflightCommands.push(`${base} --preflight`);
   }
 
-  return { tiers, steps, commands, preflightCommands, dryRun: args.dryRun, host };
+  return {
+    tiers,
+    steps,
+    commands,
+    preflightCommands,
+    dryRun: args.dryRun,
+    host,
+    layout: args.layout,
+  };
 }
 
 // Duplicated from tools/tool-remote-scripts/src/lib/docker.ts's APP/PORT
@@ -262,8 +290,18 @@ const TIER_APP: Record<Tier, string> = { be: 'be-01', gw: 'gw-01', fe: 'fe-01' }
 const TIER_HEALTH_PORT: Record<Tier, number> = { be: 3100, gw: 3200, fe: 80 };
 const TIER_HEALTH_PATH: Record<Tier, string> = { be: '/health', gw: '/health', fe: '/' };
 
-function tierUrl(tier: Tier, path: string, color: 'blue' | 'green'): string {
-  return `http://${TIER_APP[tier]}-${color}:${String(TIER_HEALTH_PORT[tier])}${path}`;
+/**
+ * The in-network URL smoke uses to reach a tier's container.
+ *
+ * The container prefix comes from the layout, not from TIER_APP alone. Without
+ * it, a dev smoke targets `be-01-blue` — PROD's container name — and gets one
+ * of two wrong answers: a connection failure (dev's network has no such name,
+ * which is what happened on the first dev deploy: three FAIL 0 lines and an
+ * aborted operation), or, if the smoke were ever run on prod's network, a
+ * green report about prod's containers after deploying dev.
+ */
+function tierUrl(tier: Tier, path: string, color: 'blue' | 'green', layout: EnvLayout): string {
+  return `http://${layout.containerPrefix}${TIER_APP[tier]}-${color}:${String(TIER_HEALTH_PORT[tier])}${path}`;
 }
 
 /**
@@ -294,21 +332,27 @@ function tierUrl(tier: Tier, path: string, color: 'blue' | 'green'): string {
  * `lib/docker.ts`'s `SECRET_KEYS`) — "pass them rather than making an
  * operator supply them" without this process ever handling secret bytes.
  */
-export function buildSmokeCommand(state: Partial<Record<Tier, RemoteTierState>>): string {
+export function buildSmokeCommand(
+  state: Partial<Record<Tier, RemoteTierState>>,
+  layout: EnvLayout,
+): string {
   const overrides: string[] = [];
   const be = state.be?.activeColor;
   const gw = state.gw?.activeColor;
   const fe = state.fe?.activeColor;
   if (be !== undefined) {
-    overrides.push(`-e SMOKE_BE_URL=${tierUrl('be', TIER_HEALTH_PATH.be, be)}`);
-    overrides.push(`-e SMOKE_INTERNAL_URL=${tierUrl('be', '/internal/forward', be)}`);
+    overrides.push(`-e SMOKE_BE_URL=${tierUrl('be', TIER_HEALTH_PATH.be, be, layout)}`);
+    overrides.push(`-e SMOKE_INTERNAL_URL=${tierUrl('be', '/internal/forward', be, layout)}`);
   }
-  if (gw !== undefined) overrides.push(`-e SMOKE_GW_URL=${tierUrl('gw', TIER_HEALTH_PATH.gw, gw)}`);
-  if (fe !== undefined) overrides.push(`-e SMOKE_FE_URL=${tierUrl('fe', TIER_HEALTH_PATH.fe, fe)}`);
+  if (gw !== undefined)
+    overrides.push(`-e SMOKE_GW_URL=${tierUrl('gw', TIER_HEALTH_PATH.gw, gw, layout)}`);
+  if (fe !== undefined)
+    overrides.push(`-e SMOKE_FE_URL=${tierUrl('fe', TIER_HEALTH_PATH.fe, fe, layout)}`);
   return (
-    'cd /srv/wbs && docker run --rm --network wbs-net ' +
-    `--env-file /srv/wbs/gw-01.secrets.env ${overrides.join(' ')} ` +
-    '-v /srv/wbs/bin/smoke.js:/smoke.js:ro oven/bun:1.3.14-alpine bun run /smoke.js'
+    `cd ${layout.root} && docker run --rm --network ${layout.network} ` +
+    `--env-file ${layout.root}/gw-01.secrets.env ${overrides.join(' ')} ` +
+    `-e SITE_ADDRESS=${layout.siteAddress} ` +
+    `-v ${layout.root}/bin/smoke.js:/smoke.js:ro oven/bun:1.3.14-alpine bun run /smoke.js`
   );
 }
 
@@ -319,9 +363,16 @@ export function buildSmokeCommand(state: Partial<Record<Tier, RemoteTierState>>)
 // comment above for why a small cross-project constant is duplicated
 // instead of wired through an @wbs/* barrel that doesn't exist for that
 // project.
+function bundleFiles(layout: EnvLayout): { local: string; remote: string }[] {
+  return BUNDLE_FILES.map((f) => ({ local: f.local, remote: `${layout.root}${f.remote}` }));
+}
+
 const BUNDLE_FILES: { local: string; remote: string }[] = [
-  { local: 'dist/tool-remote-scripts/swap.js', remote: '/srv/wbs/bin/swap.js' },
-  { local: 'dist/tool-smoke/smoke.js', remote: '/srv/wbs/bin/smoke.js' },
+  // `remote` is relative to the environment root, not absolute: each
+  // environment executes its OWN copy of these two files, so dev can be
+  // updated without reinstalling prod's bundle underneath a running swap.
+  { local: 'dist/tool-remote-scripts/swap.js', remote: '/bin/swap.js' },
+  { local: 'dist/tool-smoke/smoke.js', remote: '/bin/smoke.js' },
 ];
 
 async function sha256File(path: string): Promise<string> {
@@ -356,8 +407,9 @@ export function parseSha256sumOutput(out: string): Record<string, string> {
  * or missing installed bundle now fails loudly here instead of silently
  * running last week's swap.js against this week's images.
  */
-export async function assertBundleInstalled(host: string): Promise<void> {
-  for (const f of BUNDLE_FILES) {
+export async function assertBundleInstalled(host: string, layout: EnvLayout): Promise<void> {
+  const files = bundleFiles(layout);
+  for (const f of files) {
     if (!(await Bun.file(f.local).exists())) {
       throw new Error(
         `${f.local} not found — build it first ` +
@@ -366,7 +418,7 @@ export async function assertBundleInstalled(host: string): Promise<void> {
     }
   }
 
-  const p = Bun.spawn(['ssh', host, `sha256sum ${BUNDLE_FILES.map((f) => f.remote).join(' ')}`], {
+  const p = Bun.spawn(['ssh', host, `sha256sum ${files.map((f) => f.remote).join(' ')}`], {
     stdout: 'pipe',
     stderr: 'pipe',
   });
@@ -381,7 +433,7 @@ export async function assertBundleInstalled(host: string): Promise<void> {
   }
   const remoteHashes = parseSha256sumOutput(out);
 
-  for (const f of BUNDLE_FILES) {
+  for (const f of files) {
     const local = await sha256File(f.local);
     // Indexing a plain Record returns `string` here (noUncheckedIndexedAccess
     // is off in this repo), but at runtime a key sha256sum never printed —
@@ -431,7 +483,7 @@ async function main(): Promise<void> {
 
   // Before any registry or tier check: refuse to drive a deploy against a
   // stale or missing bin/swap.js or bin/smoke.js. See assertBundleInstalled.
-  await assertBundleInstalled(plan.host);
+  await assertBundleInstalled(plan.host, plan.layout);
 
   // Every tier's registry check first, then every tier's swap. Decision 10
   // requires a registry/auth problem to abort "before anything starts", which
@@ -455,8 +507,8 @@ async function main(): Promise<void> {
   // so a smoke failure can only ever report on a deploy that already
   // happened, never influence it.
   if (plan.tiers.length > 0) {
-    const postState = await readRemoteState(plan.host);
-    const smokeCmd = buildSmokeCommand(postState);
+    const postState = await readRemoteState(plan.host, plan.layout.stateDir);
+    const smokeCmd = buildSmokeCommand(postState, plan.layout);
     console.log(`[tool-deploy] $ ssh ${plan.host} ${smokeCmd}`);
     try {
       await runRemote(plan.host, smokeCmd);

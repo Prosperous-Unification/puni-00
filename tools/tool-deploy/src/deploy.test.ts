@@ -1,3 +1,4 @@
+import { envLayout } from '@wbs/tool-env';
 import { describe, expect, it } from 'bun:test';
 
 import { materialize, parseDeployArgs, type Tier } from './affected';
@@ -53,10 +54,10 @@ describe('parseDeployArgs', () => {
 // coreutils sha256sum output; this is the pure part of it.
 describe('parseSha256sumOutput', () => {
   it('parses coreutils sha256sum lines into a path -> hash map', () => {
-    const out = 'aaaa111  /srv/wbs/bin/swap.js\nbbbb222  /srv/wbs/bin/smoke.js\n';
+    const out = 'aaaa111  /home/puni1/wbs/bin/swap.js\nbbbb222  /home/puni1/wbs/bin/smoke.js\n';
     expect(parseSha256sumOutput(out)).toEqual({
-      '/srv/wbs/bin/swap.js': 'aaaa111',
-      '/srv/wbs/bin/smoke.js': 'bbbb222',
+      '/home/puni1/wbs/bin/swap.js': 'aaaa111',
+      '/home/puni1/wbs/bin/smoke.js': 'bbbb222',
     });
   });
 
@@ -370,6 +371,7 @@ describe('buildSmokeCommand', () => {
         // this; per-tier overrides can.
         fe: { tier: 'fe', activeColor: 'blue', lastDeployedSha: 'x' },
       }),
+      envLayout('prod'),
     );
     expect(cmd).toContain('-e SMOKE_BE_URL=http://be-01-green:3100/health');
     expect(cmd).toContain('-e SMOKE_GW_URL=http://gw-01-green:3200/health');
@@ -380,6 +382,7 @@ describe('buildSmokeCommand', () => {
   it('never puts SMOKE_COLOR, INTERNAL_AUTH_SECRET, or a JWT key on the command line', () => {
     const cmd = buildSmokeCommand(
       state({ be: { tier: 'be', activeColor: 'blue', lastDeployedSha: 'x' } }),
+      envLayout('prod'),
     );
     expect(cmd).not.toContain('SMOKE_COLOR');
     expect(cmd).not.toContain('INTERNAL_AUTH_SECRET');
@@ -389,19 +392,20 @@ describe('buildSmokeCommand', () => {
   // Secrets reach the container via the server-side env-file, never a value
   // this (locally-run) process ever holds.
   it('supplies secrets only via the server-side gw-01.secrets.env, never inline', () => {
-    const cmd = buildSmokeCommand(state({}));
-    expect(cmd).toContain('--env-file /srv/wbs/gw-01.secrets.env');
+    const cmd = buildSmokeCommand(state({}), envLayout('prod'));
+    expect(cmd).toContain('--env-file /home/puni1/wbs/gw-01.secrets.env');
   });
 
   it('runs the bundled single-file smoke.js, not a $PWD-mounted checkout', () => {
-    const cmd = buildSmokeCommand(state({}));
-    expect(cmd).toContain('-v /srv/wbs/bin/smoke.js:/smoke.js:ro');
+    const cmd = buildSmokeCommand(state({}), envLayout('prod'));
+    expect(cmd).toContain('-v /home/puni1/wbs/bin/smoke.js:/smoke.js:ro');
     expect(cmd).not.toContain('$PWD');
   });
 
   it('omits an override for a tier with no recorded state rather than guessing a colour', () => {
     const cmd = buildSmokeCommand(
       state({ be: { tier: 'be', activeColor: 'blue', lastDeployedSha: 'x' } }),
+      envLayout('prod'),
     );
     expect(cmd).not.toContain('SMOKE_GW_URL');
     expect(cmd).not.toContain('SMOKE_FE_URL');
@@ -413,7 +417,7 @@ describe('buildSmokeCommand', () => {
 // therefore parsed as "this tier was never deployed", and a never-deployed
 // tier makes hasNewMigrations return false — which silently disables the
 // --with-migrations acknowledgment gate. Break: `chmod 000
-// /srv/wbs/state/be.json`, then deploy a destructive migration with no flag.
+// /home/puni1/wbs/state/be.json`, then deploy a destructive migration with no flag.
 describe('parseRemoteStateOutput', () => {
   const present = (tier: string, sha: string) =>
     `== ${tier} present\n{"tier":"${tier}","activeColor":"blue","lastDeployedSha":"${sha}"}\n`;
@@ -463,5 +467,156 @@ describe('parseRemoteStateOutput', () => {
 describe('parseRemoteStateOutput header handling', () => {
   it('refuses a header missing its status word rather than reading it as a tier', () => {
     expect(() => parseRemoteStateOutput('== be\n')).toThrow(/unreadable header/);
+  });
+});
+
+describe('--env', () => {
+  it('defaults to prod', () => {
+    expect(parseDeployArgs([]).layout.env).toBe('prod');
+    expect(parseDeployArgs([]).layout.root).toBe('/home/puni1/wbs');
+  });
+
+  it('parses --env=dev into dev’s layout', () => {
+    const a = parseDeployArgs(['--env=dev']);
+    expect(a.layout.env).toBe('dev');
+    expect(a.layout.root).toBe('/home/puni1/wbs-dev');
+    expect(a.layout.stateDir).toBe('/home/puni1/wbs-dev/state');
+  });
+
+  /**
+   * R5. Proof: with the `hasOwnProperty` guard removed from `envLayout`,
+   * `parseDeployArgs(['--env=stagign']).layout` is `undefined` rather than a
+   * throw, and the first read of it fails with `TypeError: undefined is not
+   * an object (evaluating 'a.layout.stateDir')` — a trace that never names
+   * the typo that caused it. Both observed 2026-08-04.
+   */
+  it('refuses an environment nobody provisioned', () => {
+    expect(() => parseDeployArgs(['--env=stagign'])).toThrow(/stagign/);
+  });
+});
+
+describe('per-environment deploy plans', () => {
+  it('sends prod the exact command it sent before environments existed', async () => {
+    const p = await buildDeployPlan(['--all'], [], HEAD, fakeDeps());
+    expect(p.commands[0]).toStartWith('cd /home/puni1/wbs && bun bin/swap.js be,gw,fe ');
+    expect(p.commands[0]).not.toContain('WBS_ENV');
+  });
+
+  it('sends dev its own root and WBS_ENV', async () => {
+    const p = await buildDeployPlan(['--all', '--env=dev'], [], HEAD, fakeDeps());
+    expect(p.commands[0]).toStartWith(
+      'cd /home/puni1/wbs-dev && WBS_ENV=dev bun bin/swap.js be,gw,fe ',
+    );
+  });
+
+  /**
+   * The failure this prevents is not hypothetical arithmetic: a dev deploy
+   * that read prod's state would see prod's last-deployed sha, conclude dev
+   * was already current, and skip — or read prod's colours and swap dev's
+   * containers to match them.
+   */
+  it('reads the state directory of the environment being deployed, never another', async () => {
+    const asked: string[] = [];
+    const deps = fakeDeps({
+      readRemoteState: (_host, stateDir) => {
+        asked.push(stateDir);
+        // A caller that leaked prod's path would get real-looking state back.
+        if (stateDir === '/home/puni1/wbs/state') {
+          return Promise.resolve({
+            be: { tier: 'be', activeColor: 'green' as const, lastDeployedSha: HEAD },
+          });
+        }
+        return Promise.resolve({} as Partial<Record<Tier, RemoteTierState>>);
+      },
+    });
+    const p = await buildDeployPlan(['be', '--env=dev'], [], HEAD, deps);
+    expect(asked).toEqual(['/home/puni1/wbs-dev/state']);
+    expect(p.steps.some((s) => s.includes('(never deployed)'))).toBe(true);
+  });
+
+  it('smokes dev over dev’s own network, root and address', () => {
+    const cmd = buildSmokeCommand(
+      { be: { tier: 'be', activeColor: 'blue', lastDeployedSha: 'x' } },
+      envLayout('dev'),
+    );
+    expect(cmd).toContain('--network wbs-dev-net');
+    expect(cmd).toContain('--env-file /home/puni1/wbs-dev/gw-01.secrets.env');
+    expect(cmd).toContain('-e SITE_ADDRESS=dev.wbs.bulletpoints.club');
+    expect(cmd).not.toContain('/home/puni1/wbs/gw-01.secrets.env');
+  });
+});
+
+describe('migration gate per environment', () => {
+  function depsWithNewMigration(): DeployPlanDeps {
+    return fakeDeps({
+      readRemoteState: () =>
+        Promise.resolve({
+          be: { tier: 'be', activeColor: 'blue' as const, lastDeployedSha: 'deployed-sha' },
+        }),
+      listMigrations: (sha) => (sha === 'deployed-sha' ? ['0001_init'] : ['0001_init', '0002_new']),
+    });
+  }
+
+  it('lets dev deploy a new migration unattended, and says so', async () => {
+    const p = await buildDeployPlan(['be', '--env=dev'], [], HEAD, depsWithNewMigration());
+    const line = p.steps.find((s) => s.includes('new migrations present'));
+    expect(line).toContain('0002_new');
+    expect(line).toContain('--env=dev');
+  });
+
+  /**
+   * The negative half of the slice above: dev's bypass must be scoped to dev.
+   * Proof: changing the condition to `args.withMigrations || true` — the
+   * shape a "just make dev work" edit takes — makes this test fail, together
+   * with the older "throws and never reaches ssh when a new migration lacks
+   * an override flag". 2 failed, 62 passed. Observed 2026-08-04.
+   */
+  it('still refuses prod without an explicit acknowledgement', async () => {
+    let message = '';
+    try {
+      await buildDeployPlan(['be'], [], HEAD, depsWithNewMigration());
+    } catch (e) {
+      message = e instanceof Error ? e.message : String(e);
+    }
+    expect(message).toContain('new migrations');
+  });
+
+  it('still honours an explicit --with-migrations on prod', async () => {
+    const p = await buildDeployPlan(['be', '--with-migrations'], [], HEAD, depsWithNewMigration());
+    const line = p.steps.find((s) => s.includes('new migrations present'));
+    expect(line).toContain('--with-migrations');
+  });
+});
+
+describe('buildSmokeCommand across environments', () => {
+  const state = {
+    be: { tier: 'be' as const, activeColor: 'blue' as const, lastDeployedSha: 'x' },
+    gw: { tier: 'gw' as const, activeColor: 'blue' as const, lastDeployedSha: 'x' },
+    fe: { tier: 'fe' as const, activeColor: 'blue' as const, lastDeployedSha: 'x' },
+  };
+
+  it('targets prod’s container names unchanged', () => {
+    const cmd = buildSmokeCommand(state, envLayout('prod'));
+    expect(cmd).toContain('SMOKE_BE_URL=http://be-01-blue:3100/health');
+  });
+
+  /**
+   * The first live dev deploy swapped all three tiers, then smoke reported
+   * `FAIL 0 be-01 http://be-01-blue:3100/health — The operation was aborted`
+   * three times: it was dialling PROD's container names on DEV's network,
+   * where nothing answers to them.
+   *
+   * Proof the fix is load-bearing: dropping `layout.containerPrefix` from
+   * tierUrl fails this test and only this one — 1 failed, 87 passed. The prod
+   * test above still passes, which is exactly why the bug survived until a
+   * second environment existed. Observed 2026-08-04.
+   */
+  it('targets dev’s prefixed container names', () => {
+    const cmd = buildSmokeCommand(state, envLayout('dev'));
+    expect(cmd).toContain('SMOKE_BE_URL=http://dev-be-01-blue:3100/health');
+    expect(cmd).toContain('SMOKE_GW_URL=http://dev-gw-01-blue:3200/health');
+    expect(cmd).toContain('SMOKE_FE_URL=http://dev-fe-01-blue:80/');
+    expect(cmd).toContain('SMOKE_INTERNAL_URL=http://dev-be-01-blue:3100/internal/forward');
+    expect(cmd).not.toContain('http://be-01-blue');
   });
 });

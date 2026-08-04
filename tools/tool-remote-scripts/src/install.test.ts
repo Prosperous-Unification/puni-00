@@ -23,13 +23,15 @@ describe('parseInstallArgs', () => {
 
 describe('buildInstallPlan', () => {
   it('emits an scp-to-temp + chmod-and-rename pair per file', () => {
-    const steps = buildInstallPlan('h2puni', [{ local: 'dist/a.js', remote: '/srv/wbs/bin/a.js' }]);
+    const steps = buildInstallPlan('h2puni', [
+      { local: 'dist/a.js', remote: '/home/puni1/wbs/bin/a.js' },
+    ]);
     expect(steps).toHaveLength(2);
-    expect(steps[0].argv).toEqual(['scp', 'dist/a.js', 'h2puni:/srv/wbs/bin/a.js.tmp']);
+    expect(steps[0].argv).toEqual(['scp', 'dist/a.js', 'h2puni:/home/puni1/wbs/bin/a.js.tmp']);
     expect(steps[1].argv).toEqual([
       'ssh',
       'h2puni',
-      'chmod 0755 /srv/wbs/bin/a.js.tmp && mv /srv/wbs/bin/a.js.tmp /srv/wbs/bin/a.js',
+      'chmod 0755 /home/puni1/wbs/bin/a.js.tmp && mv /home/puni1/wbs/bin/a.js.tmp /home/puni1/wbs/bin/a.js',
     ]);
   });
 
@@ -43,18 +45,18 @@ describe('buildInstallPlan', () => {
 
   it('covers both the swap executor and the smoke bundle by default', () => {
     expect(BUNDLE_FILES.map((f) => f.remote)).toEqual([
-      '/srv/wbs/bin/swap.js',
-      '/srv/wbs/bin/smoke.js',
+      '/home/puni1/wbs/bin/swap.js',
+      '/home/puni1/wbs/bin/smoke.js',
     ]);
   });
 });
 
 describe('parseSha256sumOutput', () => {
   it('parses coreutils sha256sum lines into a path -> hash map', () => {
-    const out = 'aaaa111  /srv/wbs/bin/swap.js\nbbbb222  /srv/wbs/bin/smoke.js\n';
+    const out = 'aaaa111  /home/puni1/wbs/bin/swap.js\nbbbb222  /home/puni1/wbs/bin/smoke.js\n';
     expect(parseSha256sumOutput(out)).toEqual({
-      '/srv/wbs/bin/swap.js': 'aaaa111',
-      '/srv/wbs/bin/smoke.js': 'bbbb222',
+      '/home/puni1/wbs/bin/swap.js': 'aaaa111',
+      '/home/puni1/wbs/bin/smoke.js': 'bbbb222',
     });
   });
 

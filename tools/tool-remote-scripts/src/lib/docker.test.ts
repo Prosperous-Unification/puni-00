@@ -7,6 +7,7 @@ import {
   containerName,
   deriveTierSecrets,
   envKeysOf,
+  envLayout,
   grantAliasCommands,
   isDigest,
   manifestInspectArgs,
@@ -14,6 +15,7 @@ import {
   psColorsFrom,
   revokeAliasCommands,
   ROOT,
+  SHARED_ENV_PATH,
   tierComposeContext,
   tierComposeFile,
   tierEnvFiles,
@@ -22,6 +24,97 @@ import {
 } from './docker';
 
 const DIGEST = 'sha256:' + 'a'.repeat(64);
+
+/**
+ * The prod layout is not "whatever envLayout returns for prod" — it is the set
+ * of literals that were hardcoded in this module before `WBS_ENV` existed. A
+ * deploy to prod must be byte-identical after the parameterisation, so these
+ * are written out longhand rather than derived: a test that asks the code what
+ * it thinks prod is would pass no matter what the code broke.
+ */
+describe('envLayout', () => {
+  it('defaults to prod when WBS_ENV is unset', () => {
+    expect(envLayout(undefined)).toEqual({
+      env: 'prod',
+      root: '/home/puni1/wbs',
+      network: 'wbs-net',
+      containerPrefix: '',
+      sharedEnvPath: '/home/puni1/wbs/.env',
+      stateDir: '/home/puni1/wbs/state',
+      siteCaddyPath: '/home/puni1/wbs/caddy/site.caddy',
+      siteAddress: 'wbs.bulletpoints.club',
+    });
+  });
+
+  it('treats an empty WBS_ENV as unset', () => {
+    expect(envLayout('')).toEqual(envLayout(undefined));
+  });
+
+  it('gives prod the values that were hardcoded before WBS_ENV existed', () => {
+    expect(envLayout('prod')).toEqual(envLayout(undefined));
+    expect(ROOT).toBe('/home/puni1/wbs');
+    expect(NETWORK).toBe('wbs-net');
+    expect(SHARED_ENV_PATH).toBe('/home/puni1/wbs/.env');
+    expect(containerName('be', 'blue')).toBe('be-01-blue');
+  });
+
+  it('gives dev a layout disjoint from prod, except the mounted caddy dir', () => {
+    expect(envLayout('dev')).toEqual({
+      env: 'dev',
+      root: '/home/puni1/wbs-dev',
+      network: 'wbs-dev-net',
+      containerPrefix: 'dev-',
+      sharedEnvPath: '/home/puni1/wbs-dev/.env',
+      stateDir: '/home/puni1/wbs-dev/state',
+      // Deliberately under prod's root: that caddy directory is the one the
+      // single edge container mounts, so dev's site file has to live there.
+      siteCaddyPath: '/home/puni1/wbs/caddy/site-dev.caddy',
+      siteAddress: 'dev.wbs.bulletpoints.club',
+    });
+  });
+
+  it('gives the two environments different public addresses', () => {
+    expect(envLayout('dev').siteAddress).not.toBe(envLayout('prod').siteAddress);
+  });
+
+  it('shares no path or name between the two environments except the caddy dir', () => {
+    const prod = envLayout('prod');
+    const dev = envLayout('dev');
+    expect(dev.root).not.toBe(prod.root);
+    expect(dev.network).not.toBe(prod.network);
+    expect(dev.sharedEnvPath).not.toBe(prod.sharedEnvPath);
+    expect(dev.stateDir).not.toBe(prod.stateDir);
+    expect(dev.siteCaddyPath).not.toBe(prod.siteCaddyPath);
+  });
+
+  /**
+   * R5: unknown is not OK. An unrecognised WBS_ENV must not fall through to
+   * prod (which would deploy a dev commit onto the live site) and must not
+   * resolve to nothing.
+   *
+   * Proof: with the `hasOwnProperty` guard and its `throw` deleted from
+   * `envLayout`, both tests below fail — `envLayout('staging')` returns
+   * `undefined` rather than throwing. Worse, and the reason the guard sits at
+   * resolve time rather than at use time: importing the module at all under
+   * `WBS_ENV=staging` then dies with `TypeError: undefined is not an object
+   * (evaluating 'CURRENT_ENV.network')` at docker.ts:80 — a stack trace with
+   * no mention of the environment name that caused it. Both observed, guard
+   * removed, on 2026-08-04.
+   */
+  it('refuses an environment it does not know', () => {
+    expect(() => envLayout('staging')).toThrow(/staging/);
+  });
+
+  it('refuses an unknown environment by name, not by falling back to prod', () => {
+    let layout: unknown = null;
+    try {
+      layout = envLayout('staging');
+    } catch {
+      layout = 'threw';
+    }
+    expect(layout).toBe('threw');
+  });
+});
 
 describe('isDigest', () => {
   it('accepts a well-formed sha256 digest', () => {
@@ -105,8 +198,8 @@ describe('tierComposeContext', () => {
       'green',
       `registry.infra.bulletpoints.club/wbs-be-01@${DIGEST}`,
     );
-    expect(ctx['TIER']).toBe('be-01');
-    expect(ctx['COLOR']).toBe('green');
+    expect(ctx['CONTAINER']).toBe('be-01-green');
+    expect(ctx['NETWORK']).toBe('wbs-net');
   });
 
   // The C1 regression: this file used to rebuild the ref from its own
@@ -361,5 +454,34 @@ describe('revokeAliasCommands', () => {
     expect(disconnect).toEqual(['network', 'disconnect', NETWORK, 'be-01-blue']);
     expect(connect).toEqual(['network', 'connect', '--alias', 'be-01-blue', NETWORK, 'be-01-blue']);
     expect(connect.join(' ')).not.toContain('be-01.internal');
+  });
+});
+
+/**
+ * The rendered per-tier compose file is where an environment either stays in
+ * its own lane or does not. Before this, the template hardcoded `wbs-net` and
+ * built the container name from tier+colour alone, so a dev swap would have
+ * attached dev's container to PROD's network under prod's container name —
+ * the one failure mode the whole separate-network decision exists to prevent.
+ */
+describe('tierComposeContext across environments', () => {
+  const IMG = 'registry.infra.bulletpoints.club/wbs-be-01@sha256:' + 'a'.repeat(64);
+
+  it('names prod’s container and network exactly as before', () => {
+    const ctx = tierComposeContext('be', 'green', IMG, envLayout('prod'));
+    expect(ctx['CONTAINER']).toBe('be-01-green');
+    expect(ctx['NETWORK']).toBe('wbs-net');
+  });
+
+  it('gives dev its own container name and network', () => {
+    const ctx = tierComposeContext('be', 'green', IMG, envLayout('dev'));
+    expect(ctx['CONTAINER']).toBe('dev-be-01-green');
+    expect(ctx['NETWORK']).toBe('wbs-dev-net');
+  });
+
+  it('never renders prod’s network into a dev compose file', () => {
+    const ctx = tierComposeContext('gw', 'blue', IMG.replace('be-01', 'gw-01'), envLayout('dev'));
+    expect(ctx['NETWORK']).not.toBe('wbs-net');
+    expect(ctx['ENV_FILES']).not.toContain('/home/puni1/wbs/');
   });
 });

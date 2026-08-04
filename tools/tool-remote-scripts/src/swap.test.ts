@@ -258,7 +258,7 @@ describe('readSiteCaddy', () => {
 // `''`, so `siteTextBefore` was never `null`, and abortSwap's old
 // `siteTextBefore !== null` check always passed — including for a swap where
 // there was never a previous site.caddy to restore. Since
-// `/srv/wbs/caddy/Caddyfile` does a bare `import site.caddy`, writing that
+// `/home/puni1/wbs/caddy/Caddyfile` does a bare `import site.caddy`, writing that
 // empty/absent state back out as a real file produces a Caddy config with NO
 // servers in it: the app site AND the registry block both go down, and the
 // empty file is a landmine for the next Caddy restart.

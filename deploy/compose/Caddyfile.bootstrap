@@ -1,7 +1,7 @@
 # deploy/compose/Caddyfile.bootstrap
 #
 # The real Caddyfile for the compose blue/green stack. Installed
-# unconditionally by configure.sh at /srv/wbs/caddy/Caddyfile on every run —
+# unconditionally by configure.sh at /home/puni1/wbs/caddy/Caddyfile on every run —
 # safe to overwrite every time, since this file's own content never changes;
 # only the `site.caddy` it imports (rendered per-deploy by
 # tools/tool-remote-scripts' swap executor) does.

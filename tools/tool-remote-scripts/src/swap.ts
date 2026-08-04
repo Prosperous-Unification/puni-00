@@ -25,7 +25,9 @@ import {
   assertTierEnvAllowed,
   composeUpArgs,
   containerName,
+  CURRENT_ENV,
   deriveTierSecrets,
+  EDGE_CONTAINER,
   grantAliasCommands,
   manifestInspectArgs,
   NETWORK,
@@ -52,8 +54,16 @@ import { type Color, parseStateJson, renderStateJson, type Tier } from './lib/st
 // `--image`, which is `release.json`'s `image` field passed through verbatim
 // by tool-deploy — see lib/docker.ts's assertDigestPinnedRef for why a second
 // default on this side was a live defect rather than a redundancy.
-const SITE_ADDRESS = process.env['SITE_ADDRESS'] ?? 'wbs.bulletpoints.club';
-const SITE_CADDY_PATH = `${ROOT}/caddy/site.caddy`;
+// The default is the environment's own address, not a literal: with a literal
+// here, a dev swap that forgot to export SITE_ADDRESS would render a site
+// block for `wbs.bulletpoints.club` into dev's file and Caddy would then hold
+// two blocks for the live hostname, one of them pointing at dev's containers.
+const SITE_ADDRESS = process.env['SITE_ADDRESS'] ?? CURRENT_ENV.siteAddress;
+
+// Not `${ROOT}/caddy/site.caddy`: the one edge container mounts PROD's caddy
+// directory, so the site file is the single environment-varying path that does
+// not live under the environment's own root. lib/env.ts states that exception.
+const SITE_CADDY_PATH = CURRENT_ENV.siteCaddyPath;
 
 // fe-01 is a static Caddy server with no /health route; design decision 5's
 // health gate for it is "fetch / and assert 200 + a non-empty body" instead.
@@ -261,16 +271,7 @@ async function preflightRegistry(image: string): Promise<void> {
  * succeeds against the same running admin API).
  */
 async function currentCaddyConfig(): Promise<string> {
-  return sh([
-    'compose',
-    '-f',
-    `${ROOT}/base.yml`,
-    'exec',
-    'caddy',
-    'wget',
-    '-qO-',
-    'http://127.0.0.1:2019/config/',
-  ]);
+  return sh(['exec', EDGE_CONTAINER, 'wget', '-qO-', 'http://127.0.0.1:2019/config/']);
 }
 
 /**
@@ -356,21 +357,11 @@ async function observe(tier: Tier): Promise<Observed> {
 }
 
 async function reloadCaddy(): Promise<void> {
-  // Targets caddy by Compose *service* name rather than a hardcoded
-  // container name: base.yml sets no `container_name` for it, so the real
-  // container is `wbs-caddy-1` (verified live on h2puni), which
-  // `compose exec` resolves without needing to know that.
-  await sh([
-    'compose',
-    '-f',
-    `${ROOT}/base.yml`,
-    'exec',
-    'caddy',
-    'caddy',
-    'reload',
-    '--config',
-    '/etc/caddy/Caddyfile',
-  ]);
+  // `docker exec <container>`, not `compose exec caddy`. The edge is shared by
+  // every environment and owned by prod's Compose project, so resolving it
+  // through the deploying environment's project only works for prod. See
+  // EDGE_CONTAINER.
+  await sh(['exec', EDGE_CONTAINER, 'caddy', 'reload', '--config', '/etc/caddy/Caddyfile']);
 }
 
 // Steps at or before `reload` are still reversible: nothing client-facing has
@@ -651,7 +642,9 @@ async function execute(plan: SwapPlan, image: string, sha: string): Promise<void
               'caddy reload exited 0 but the live admin config ' +
                 '(http://127.0.0.1:2019/config/ inside the caddy container) does not ' +
                 `mention ${greenName} — routing did not actually change. Check that ` +
-                '/srv/wbs/caddy/Caddyfile really imports site.caddy.',
+                `/srv/wbs/caddy/Caddyfile really imports ${SITE_CADDY_PATH.split('/').pop() ?? ''}. ` +
+                `(This environment is ${CURRENT_ENV.env}; each environment has its own ` +
+                'site file and both must be imported.)',
             );
           }
           break;

@@ -34,6 +34,7 @@
       "@wbs/realtime": ["libs/realtime/src/index.ts"],
       "@wbs/scripts": ["libs/scripts/src/index.ts"],
       "@wbs/tool-compose": ["tools/tool-compose/src/index.ts"],
+      "@wbs/tool-env": ["tools/tool-remote-scripts/src/lib/env.ts"],
       "@wbs/validation": ["libs/validation/src/index.ts"],
       "@wbs/validation/fixtures": ["libs/validation/src/fixtures/index.ts"]
     }

@@ -33,7 +33,7 @@
 // the printed plan show its EXISTENCE (an env var name), never its value.
 import { REGISTRY_PASS_ENV_VAR, requireRegistryPassword } from './lib/secrets';
 
-export const WBS_ROOT = '/srv/wbs';
+export const WBS_ROOT = '/home/puni1/wbs';
 
 export interface PushArgs {
   /** Root-accessible address or ssh-config alias for steps 1-3. */

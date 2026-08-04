@@ -39,19 +39,89 @@ checks nothing on a push to main.
 
 ## Deploy
 
-Live: **https://wbs.bulletpoints.club** (prod = `ssh h2puni`). Build box = `ssh h1claw`
-(amd64, docker, checkout at `~/wd/puni/wbs-tool-v1`, has bun + dagger, reaches h2puni and GitHub).
+Live: **https://wbs.bulletpoints.club** (prod = `ssh h2puni`). **Build box = h2puni.**
 
-**Prefer h1claw** — it is amd64 so it builds natively with its own local Dagger engine, keeping
-builds off prod. From h1claw, in the checkout:
+**Never build on h1claw.** Dany's standing rule, 2026-08-04. It supersedes the earlier
+"prefer h1claw, it is amd64" guidance in this file's history — h1claw is a 3.7 GB VPS that
+runs the OpenClaw gateway and holds the prod SSH key, registry credentials and the `ghp_`
+PAT. A `PreToolUse` guard on h1claw (`~/.openclaw/workspace/bin/block-local-builds.sh`)
+denies `dagger`, `tool-dagger:*`, `tool-deploy:deploy` and `docker build` outright; commands
+delegated over `ssh … h2puni` pass through.
+
+### dev — source-run, no build
+
+**Dev does not use any of the below.** Since 2026-08-04 dev runs from source:
 
 ```sh
-export PATH=$HOME/.bun/bin:$HOME/.local/bin:$PATH
-export REGISTRY_USER=wbs REGISTRY_PASS=$(ssh h2puni 'grep ^REGISTRY_PASS= /srv/wbs/.env | cut -d= -f2-')
+git push && ./bin/dev-deploy.sh     # from h1claw, after any change
+```
+
+`bin/dev-deploy.sh` refuses a dirty tree or an unpushed SHA, then asks h2puni to
+`git reset --hard` its checkout at `/home/puni1/wbs-dev/src`. That checkout is bind-mounted
+into one container, `wbs-dev-src`, running all three tiers via `bun run dev` — be-01 and
+gw-01 under `bun --watch`, fe-01 under Vite. **For application code the watchers are the
+deploy**; nothing is built, pushed or restarted.
+
+Verified 2026-08-04: a pushed change appeared on dev with the container's `StartedAt`
+unchanged to the nanosecond.
+
+**Not every change can reach a running process that way.** This is the constraint the
+design trades for its speed, not a feature — know which column your change is in:
+
+| Change                                                          | What carries it                                                                                                                                                     |
+| --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| App source under `apps/*/src`                                   | The watchers. Nothing restarts.                                                                                                                                     |
+| `bun.lock`                                                      | `tool-devsync` restarts and runs `bun install`.                                                                                                                     |
+| A migration under `apps/be-01/drizzle`                          | `tool-devsync` restarts; be-01 migrates at boot (`MIGRATE_ON_STARTUP=true`). Migrations are imported by no watched module, so nothing else would notice one arrive. |
+| `package.json`, `nx.json`, any `project.json`, `vite.config.ts` | `tool-devsync` restarts. Nx and Vite read these once at startup.                                                                                                    |
+| `deploy/dev-src/Dockerfile`                                     | **Nothing.** Rebuild by hand: `docker build -t wbs-dev-src:1 -f deploy/dev-src/Dockerfile deploy/dev-src` then recreate.                                            |
+| `deploy/dev-src/compose.yml`                                    | **Nothing.** `docker compose -f deploy/dev-src/compose.yml up -d --force-recreate`.                                                                                 |
+| Per-tier `apps/<tier>/.env`                                     | **Nothing** — gitignored, so a push cannot carry it. Edit on h2puni and restart the container.                                                                      |
+
+The last three rows are the ones that bite: the deploy reports success and the change is
+simply not live. `tools/tool-devsync/src/RESTART_PATHS` is the list the tool enforces; the
+rows saying "Nothing" are deliberately outside it, because a restart alone would not apply
+them.
+
+Dev sits behind basic auth (`dany`, password in `/home/puni1/wbs-dev/basic-auth.env` on
+h2puni) on every path except `/ws*` — browsers cannot send an `Authorization` header on a
+WebSocket handshake, and gw-01 rejects unauthenticated sockets itself
+(`apps/gw-01/src/app.ts:46-55`).
+
+Per-tier env lives in gitignored `apps/<tier>/.env` inside that checkout, **not** in
+compose `env_file`: compose merges every env file into one namespace, so `be-01.env` and
+`gw-01.env` both setting `PORT` put both tiers on 3200.
+
+The old image-based dev containers (`dev-*-blue`) are **stopped, not removed** — they plus
+the `site-dev.caddy.bak-*` backups are the rollback. Delete them after a week of stability.
+
+**What dev no longer proves.** The blue/green swap, health gate, Caddy repoint and smoke
+test used to run on dev before prod. They no longer do. Run a prod dry-run deliberately
+before any prod deploy; dev will not catch a regression in that path.
+
+### prod — image-based, unchanged
+
+**h2puni is not provisioned to drive prod builds yet** (verified 2026-08-04): it has `bun`,
+`docker`, `git`, `node` (24.18.1 via Volta) and a running `dagger-engine` container, but
+**no `dagger` CLI**. There is now a checkout at `/home/puni1/wbs-dev/src`, but it belongs to
+dev — do not build from it. Installing the CLI is prerequisite work before the commands
+below run there.
+
+> Check tooling on h2puni with `ssh h2puni 'bash -lc "command -v node"'`. Volta and Bun are
+> on the PATH of a **login** shell only; a bare `ssh h2puni 'command -v node'` reports
+> `node` missing when it is installed and working. Same trap this file documents for h1claw
+> — it cost an incorrect "no node" claim in the 2026-08-04 docs pass.
+
+```sh
+# ON h2puni, once the dagger CLI and a prod checkout (not dev's) exist:
+export REGISTRY_USER=wbs REGISTRY_PASS=$(grep ^REGISTRY_PASS= /home/puni1/wbs/.env | cut -d= -f2-)
 bunx nx run tool-dagger:publish-all
 bunx nx run tool-remote-scripts:install --execute   # after any swap.js / smoke.js change
 bunx nx run tool-deploy:deploy -- --all --execute
 ```
+
+Env root moved 2026-08-04 — `/home/puni1/wbs/.env`, not `/srv/wbs/.env`. Both are readable
+today because `/srv/wbs` is a stale rollback copy; read the new path.
 
 From an arm64 Mac instead, prepend a tunnel to prod's engine (QEMU otherwise):
 `ssh -f -N -L 8081:127.0.0.1:8081 h2puni` and `export _EXPERIMENTAL_DAGGER_RUNNER_HOST=tcp://127.0.0.1:8081`.
@@ -63,8 +133,10 @@ safety gates, not bugs. `deploy` builds the bundles itself via `dependsOn`.
 
 `swap.js` takes **one tier list per run**, not one tier per invocation:
 `bun bin/swap.js be,gw,fe --image-be=… --image-gw=… --image-fe=… --sha=… --execute`. That is what
-keeps the deploy lock held across the whole run. The installed `/srv/wbs/bin/swap.js` must be
-reinstalled after this change or `assertBundleInstalled` will (correctly) refuse.
+keeps the deploy lock held across the whole run. The installed `/home/puni1/wbs/bin/swap.js` must
+be reinstalled after this change or `assertBundleInstalled` will (correctly) refuse. A copy also
+still exists at `/srv/wbs/bin/swap.js` — that is the stale rollback tree, and editing it changes
+nothing.
 
 `--version`, `--since` and `--skip-build` are **parsed and ignored**. Passing them does nothing.
 

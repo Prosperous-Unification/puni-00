@@ -1,0 +1,20 @@
+# The private registry's Caddy site, imported once by the host's Caddyfile.
+#
+# It lives here rather than in site.caddy.tmpl because it belongs to the HOST,
+# not to an environment. While it was in that template, every environment
+# rendered its own copy, and the second one made Caddy refuse the entire config
+# with `ambiguous site definition: registry.infra.bulletpoints.club` — which is
+# how the first dev deploy failed, at the reload step, with be already started.
+# One hostname, one block, owned by no environment.
+#
+# Caddy's automatic HTTPS is per-hostname, so an ACME problem here cannot take
+# an application site down, and vice versa.
+registry.infra.bulletpoints.club {
+	reverse_proxy registry:5000 {
+		header_up X-Forwarded-Proto {scheme}
+		header_up X-Forwarded-For {remote_host}
+	}
+	request_body {
+		max_size 2GB
+	}
+}

@@ -2,13 +2,21 @@
 #
 # Host base stack: containerised Caddy (edge, ports 80/443) and an
 # authenticated private registry. Bring up with:
-#   docker compose -f /srv/wbs/base.yml up -d
+#   docker compose -f /home/puni1/wbs/base.yml up -d
 name: wbs
 
 networks:
   wbs-net:
     name: wbs-net
     driver: bridge
+  # dev's network, declared external because neither compose project owns it:
+  # provisioning creates it once with `docker network create wbs-dev-net`, and
+  # both this file and base.dev.yml reference it. Declaring it here non-external
+  # would make the `wbs` project its owner, so tearing prod's base stack down
+  # would take dev's network — and every dev container's connectivity — with it.
+  wbs-dev-net:
+    name: wbs-dev-net
+    external: true
 
 volumes:
   # Non-negotiable: without this, Caddy re-requests certificates on every
@@ -21,7 +29,12 @@ services:
   caddy:
     image: caddy:2-alpine
     restart: unless-stopped
-    networks: [wbs-net]
+    # One edge for every environment. Caddy must sit on each environment's
+    # network to reach its containers by DNS name, because no app tier
+    # publishes a host port (design decision 1). Adding a network here
+    # recreates this container — a few seconds of ingress downtime for every
+    # site it serves, so it is a deliberate, scheduled step, not a side effect.
+    networks: [wbs-net, wbs-dev-net]
     ports:
       - '80:80'
       - '443:443'
@@ -29,8 +42,8 @@ services:
     volumes:
       - caddy_data:/data
       - caddy_config:/config
-      - /srv/wbs/caddy:/etc/caddy:ro
-      - /srv/wbs/logs:/var/log/caddy
+      - /home/puni1/wbs/caddy:/etc/caddy:ro
+      - /home/puni1/wbs/logs:/var/log/caddy
 
   registry:
     image: registry:2
@@ -57,4 +70,4 @@ services:
       REGISTRY_STORAGE_DELETE_ENABLED: 'true'
     volumes:
       - registry_data:/var/lib/registry
-      - /srv/wbs/registry.htpasswd:/auth/htpasswd:ro
+      - /home/puni1/wbs/registry.htpasswd:/auth/htpasswd:ro

@@ -64,7 +64,7 @@ as an outage.
 
 ### Step 2 — what is actually deployed
 
-> ssh h2puni and cat /srv/wbs/state/be.json, gw.json and fe.json. Report
+> ssh h2puni and cat /home/puni1/wbs/state/be.json, gw.json and fe.json. Report
 > activeColor and lastDeployedSha for each.
 
 Each file gives the live colour and the commit. Compare against `main`. As of
@@ -74,7 +74,7 @@ Also check the deploy lock. **The file always exists — its presence means
 nothing.** The lock is a real `flock(2)` on an open descriptor, so the only
 honest test is whether something holds it:
 
-> ssh h2puni and check whether /srv/wbs/state/deploy.lock is actually held —
+> ssh h2puni and check whether /home/puni1/wbs/state/deploy.lock is actually held —
 > grep its inode in /proc/locks. Do not run `flock` to test it, that would take
 > the lock.
 
@@ -103,9 +103,16 @@ dry-run, authorise, verify.
 
 Then publish and dry-run — still no `--execute`:
 
-> in the same checkout, export REGISTRY_USER=wbs and REGISTRY_PASS from h2puni's
-> /srv/wbs/.env, run `bunx nx run tool-dagger:publish-all`, then
+> on h2puni — export REGISTRY_USER=wbs and REGISTRY_PASS from
+> /home/puni1/wbs/.env, run `bunx nx run tool-dagger:publish-all`, then
 > `bunx nx run tool-deploy:deploy -- --all` and paste the dry-run output
+
+**Say "on h2puni".** Builds are blocked on h1claw by a hook, so a message that
+does not name the host will be refused mid-emergency, which is the worst possible
+time to discover it. As of 2026-08-04 h2puni still lacks the `dagger` CLI — until
+that is installed this step cannot run anywhere, and it is the single thing to
+provision before trusting this runbook. The checkout at `/home/puni1/wbs-dev/src`
+is dev's and is bind-mounted into a running container; do not build from it.
 
 **Stop and do not authorise if** the tree is dirty, `release.json` is stale, the
 gate failed, the bundle is unbuilt, or the deploy lock is held. Those refusals
@@ -152,11 +159,58 @@ Three surfaces, same repo, same rules.
 | Surface              | Use it for                                | Catch                                     |
 | -------------------- | ----------------------------------------- | ----------------------------------------- |
 | Mac                  | writing code, fast loops, anything visual | arm64 — cannot build prod images natively |
-| h1claw over SSH      | builds, deploys, long jobs                | non-login shells need a PATH export       |
+| h1claw over SSH      | editing, tests, git, long non-build jobs  | never builds; a hook blocks them          |
 | h1claw over WhatsApp | all of the above, from anywhere           | you steer an agent; see the red box       |
 
-**h1claw is the build box** — amd64 with a local Dagger engine, so it builds
-natively. The Mac would emulate.
+**h2puni is the build box** — your rule, 2026-08-04. h1claw runs the gateway and
+holds the prod SSH key, registry credentials and the GitHub PAT, so builds do not
+belong on it. A hook there denies `dagger`, `docker build` and the Nx publish and
+deploy targets; anything sent over `ssh … h2puni` passes.
+
+Caveat as of 2026-08-04: h2puni has `bun`, `docker`, `git` and Node 24.18.1 (via
+Volta), and runs the `dagger-engine` — but still has **no `dagger` CLI**, so it
+cannot drive a prod build yet. Installing it is the next setup job.
+
+There is a checkout at `/home/puni1/wbs-dev/src`, but it belongs to dev: it is
+bind-mounted into the running dev container, so a build there would fight the
+dev servers for the same files. A prod build wants its own.
+
+Checking tooling there needs a **login** shell: `ssh h2puni 'bash -lc "..."'`.
+Volta and Bun are not on a non-login shell's PATH, so a plain
+`ssh h2puni 'command -v node'` says missing when Node is installed and fine.
+
+### Seeing your change on dev
+
+```sh
+git push && ./bin/dev-deploy.sh
+```
+
+Seconds, not minutes. Dev runs from source on h2puni, so the deploy is a `git
+reset --hard` there — the dev servers are already watching those files and pick
+the change up themselves. Nothing is built.
+
+**Three kinds of change do not travel this way**, and the deploy will still say
+it succeeded:
+
+- **The Dockerfile or `compose.yml`** — the container has to be rebuilt or
+  recreated by hand on h2puni.
+- **A per-tier `.env`** — those are gitignored, so a push cannot carry them.
+  Edit on h2puni, then `docker restart wbs-dev-src`.
+- Anything else not listed in `RESTART_PATHS` in `tools/tool-devsync/src/sync.ts`.
+
+Dependencies, migrations and Nx config **are** handled — the deploy restarts for
+those. `LLM_README.md` has the full table.
+
+<https://dev.wbs.bulletpoints.club> is password-protected. Username `dany`;
+the password is on h2puni in `/home/puni1/wbs-dev/basic-auth.env`.
+
+Two things worth knowing:
+
+- **Dev no longer rehearses a prod deploy.** The blue/green swap, health gate
+  and smoke test used to run on dev first. They don't now. Do a prod dry-run on
+  purpose before shipping.
+- **Push first.** The script refuses a dirty tree or a commit that isn't on the
+  remote, because h2puni pulls from GitHub and cannot see your local-only work.
 
 ### Mac
 
@@ -230,15 +284,21 @@ Reviews: `codex exec "..."` works on the Mac and on h1claw. `agy` is **Mac only*
 
 ## Symptoms
 
-| Symptom                                | Cause                                                                      |
-| -------------------------------------- | -------------------------------------------------------------------------- |
-| `bun: command not found` on h1claw     | non-login shell — export the PATH above                                    |
-| Root `bun test` green, CI red          | root `bun test` skips fe-01 entirely                                       |
-| CI format fails, files look fine       | `CLAUDE.md`/`GEMINI.md` are symlinks — see `.nxignore`                     |
-| Deploy refuses to run                  | dirty tree, stale `release.json`, unbuilt bundle, or lock held — by design |
-| `/health` is 200 but the app is broken | health is a status flag, not a dependency check                            |
-| Deploy logged success, site unchanged  | `caddy reload` exits 0 having done nothing — check the sha                 |
-| Agent cannot find the repo             | say the path                                                               |
+| Symptom                                       | Cause                                                                                         |
+| --------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `bun: command not found` on h1claw            | non-login shell — export the PATH above                                                       |
+| Root `bun test` green, CI red                 | root `bun test` skips fe-01 entirely                                                          |
+| CI format fails, files look fine              | `CLAUDE.md`/`GEMINI.md` are symlinks — see `.nxignore`                                        |
+| Deploy refuses to run                         | dirty tree, stale `release.json`, unbuilt bundle, or lock held — by design                    |
+| `/health` is 200 but the app is broken        | health is a status flag, not a dependency check                                               |
+| Deploy logged success, site unchanged         | `caddy reload` exits 0 having done nothing — check the sha                                    |
+| Agent cannot find the repo                    | say the path                                                                                  |
+| Dev deploy says OK, dev looks stale           | check dev's HEAD: `ssh h2puni 'git -C /home/puni1/wbs-dev/src rev-parse --short HEAD'`        |
+| `dev-deploy.sh` refuses                       | dirty tree, or the commit is not pushed — h2puni pulls from GitHub                            |
+| Dev 403s but prod is fine                     | Vite rejects a Host it was not told about — see `allowedHosts` in `apps/fe-01/vite.config.ts` |
+| Only be-01 came up in dev                     | stale Nx lock in the bind mount, or a tier crashed — `docker logs wbs-dev-src`                |
+| Dev tier answers on the wrong port            | two `env_file`s both set `PORT`; per-tier env belongs in `apps/<tier>/.env`                   |
+| `command -v` says a tool is missing on h2puni | non-login shell — use `ssh h2puni 'bash -lc "..."'`                                           |
 
 Known-broken things are in `LLM_README.md` under **Open findings** — read it
 before concluding you broke something.

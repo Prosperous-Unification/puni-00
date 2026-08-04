@@ -30,11 +30,14 @@ const TIERS: readonly Tier[] = ['be', 'gw', 'fe'];
  * `[ -e ]` / `[ -r ]` separate the two, so "absent" stays tolerated and
  * "present but unreadable" becomes a refusal.
  */
-const READ_STATE_CMD =
-  'for t in be gw fe; do f=/srv/wbs/state/$t.json; ' +
-  'if [ ! -e "$f" ]; then echo "== $t absent"; ' +
-  'elif [ ! -r "$f" ]; then echo "== $t unreadable"; ' +
-  'else echo "== $t present"; cat "$f" || echo "__CAT_FAILED__"; fi; done';
+export function readStateCmd(stateDir: string): string {
+  return (
+    `for t in be gw fe; do f=${stateDir}/$t.json; ` +
+    'if [ ! -e "$f" ]; then echo "== $t absent"; ' +
+    'elif [ ! -r "$f" ]; then echo "== $t unreadable"; ' +
+    'else echo "== $t present"; cat "$f" || echo "__CAT_FAILED__"; fi; done'
+  );
+}
 
 /**
  * Pure parser for READ_STATE_CMD's output. Fails closed: anything other than
@@ -104,10 +107,18 @@ export function parseRemoteStateOutput(out: string): Partial<Record<Tier, Remote
   return result;
 }
 
+/**
+ * Reads one environment's tier state. The state directory is a required
+ * argument rather than a defaulted one: a default here would mean a dev deploy
+ * whose caller forgot to pass it reads PROD's state, concludes dev is already
+ * on the head sha, and skips the deploy — or worse, reads prod's colours and
+ * swaps dev's containers to match them.
+ */
 export async function readRemoteState(
   host: string,
+  stateDir: string,
 ): Promise<Partial<Record<Tier, RemoteTierState>>> {
-  const p = Bun.spawn(['ssh', host, READ_STATE_CMD], { stdout: 'pipe', stderr: 'pipe' });
+  const p = Bun.spawn(['ssh', host, readStateCmd(stateDir)], { stdout: 'pipe', stderr: 'pipe' });
   const out = await new Response(p.stdout).text();
   if ((await p.exited) !== 0) throw new Error(`cannot read remote state from ${host}`);
   return parseRemoteStateOutput(out);
