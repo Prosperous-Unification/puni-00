@@ -8,6 +8,7 @@ const VALID = {
   LOG_LEVEL: 'info',
   GW_URL: 'http://localhost:3200',
   DB_PATH: '/srv/wbs/data/wbs.db',
+  JWT_SIGNING_KEY_CURRENT: 'b'.repeat(32),
 };
 
 describe('BeConfig', () => {
@@ -20,7 +21,10 @@ describe('BeConfig', () => {
   // it to buildApp, which fell back to a hardcoded constant. Every gw-01 forward
   // 401'd in any real deployment while all tests passed. Keep both keys required
   // so a config missing them fails at startup rather than at the wire.
-  for (const key of ['INTERNAL_AUTH_SECRET', 'DB_PATH'] as const) {
+  // JWT_SIGNING_KEY_CURRENT joins the list for the same reason: be-01 signs
+  // the tokens gw-01 verifies, so a missing key must fail at startup rather
+  // than as a 401 on every WebSocket handshake.
+  for (const key of ['INTERNAL_AUTH_SECRET', 'DB_PATH', 'JWT_SIGNING_KEY_CURRENT'] as const) {
     it(`rejects an environment missing ${key}`, () => {
       const incomplete = Object.fromEntries(Object.entries(VALID).filter(([k]) => k !== key));
       expect(BeConfig(incomplete)).toHaveProperty('summary');

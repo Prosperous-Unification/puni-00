@@ -1,12 +1,17 @@
 import { describe, expect, it } from 'bun:test';
 
 import { buildApp } from '../app';
+import { testAuthService } from '../testing/auth-fixture';
 
 const TEST_SECRET = 'x'.repeat(32);
 
 describe('POST /api/smoke/echo', () => {
   it('returns the validated message', async () => {
-    const app = buildApp({ internalAuthSecret: TEST_SECRET, migrationsApplied: true });
+    const app = buildApp({
+      auth: testAuthService(),
+      internalAuthSecret: TEST_SECRET,
+      migrationsApplied: true,
+    });
     const res = await app.handle(
       new Request('http://localhost/api/smoke/echo', {
         method: 'POST',
@@ -20,7 +25,11 @@ describe('POST /api/smoke/echo', () => {
   });
 
   it('rejects invalid body with 400', async () => {
-    const app = buildApp({ internalAuthSecret: TEST_SECRET, migrationsApplied: true });
+    const app = buildApp({
+      auth: testAuthService(),
+      internalAuthSecret: TEST_SECRET,
+      migrationsApplied: true,
+    });
     const res = await app.handle(
       new Request('http://localhost/api/smoke/echo', {
         method: 'POST',

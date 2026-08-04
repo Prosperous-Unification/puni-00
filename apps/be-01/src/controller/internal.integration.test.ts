@@ -1,12 +1,17 @@
 import { describe, expect, it } from 'bun:test';
 
 import { buildApp } from '../app';
+import { testAuthService } from '../testing/auth-fixture';
 
 const SECRET = 'test-secret-must-be-32-chars-at-least-!';
 
 describe('POST /internal/forward', () => {
   it('rejects without X-Internal-Auth', async () => {
-    const app = buildApp({ migrationsApplied: true, internalAuthSecret: SECRET });
+    const app = buildApp({
+      auth: testAuthService(),
+      migrationsApplied: true,
+      internalAuthSecret: SECRET,
+    });
     const res = await app.handle(
       new Request('http://localhost/internal/forward', {
         method: 'POST',
@@ -18,7 +23,11 @@ describe('POST /internal/forward', () => {
   });
 
   it('acks with auth + valid body', async () => {
-    const app = buildApp({ migrationsApplied: true, internalAuthSecret: SECRET });
+    const app = buildApp({
+      auth: testAuthService(),
+      migrationsApplied: true,
+      internalAuthSecret: SECRET,
+    });
     const res = await app.handle(
       new Request('http://localhost/internal/forward', {
         method: 'POST',
@@ -37,7 +46,11 @@ describe('POST /internal/forward', () => {
   });
 
   it('returns 400 on missing trace_id', async () => {
-    const app = buildApp({ migrationsApplied: true, internalAuthSecret: SECRET });
+    const app = buildApp({
+      auth: testAuthService(),
+      migrationsApplied: true,
+      internalAuthSecret: SECRET,
+    });
     const res = await app.handle(
       new Request('http://localhost/internal/forward', {
         method: 'POST',
@@ -54,7 +67,11 @@ describe('POST /internal/forward', () => {
 
 describe('POST /internal/resume', () => {
   it('returns replaying status for known subscriptions', async () => {
-    const app = buildApp({ migrationsApplied: true, internalAuthSecret: SECRET });
+    const app = buildApp({
+      auth: testAuthService(),
+      migrationsApplied: true,
+      internalAuthSecret: SECRET,
+    });
     const res = await app.handle(
       new Request('http://localhost/internal/resume', {
         method: 'POST',

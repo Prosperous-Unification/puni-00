@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'bun:test';
 
 import { buildApp } from './app';
+import { testAuthService } from './testing/auth-fixture';
 
 describe('migrate lifecycle', () => {
   it('exposes 503 before migrations complete then 200 after', async () => {
     const state = { migrationsApplied: false };
     const app = buildApp({
+      auth: testAuthService(),
       internalAuthSecret: 'x'.repeat(32),
       get migrationsApplied() {
         return state.migrationsApplied;

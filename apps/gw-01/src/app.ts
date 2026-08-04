@@ -7,6 +7,7 @@ import { handleWsMessage } from './controller/ws.controller';
 import { ForwardClient } from './service/forward-client';
 import { GatewayMetrics } from './service/gateway-metrics';
 import { JwtVerifier } from './service/jwt-auth';
+import { Presence } from './service/presence';
 import { SubscriptionMap } from './service/subscription-map';
 
 export interface AppOptions {
@@ -22,6 +23,7 @@ export function buildApp(opts: AppOptions) {
   const logger = createLogger({ service: 'gw-01', version: opts.version });
   const subs = new SubscriptionMap<SocketLike>();
   const metrics = new GatewayMetrics();
+  const presence = new Presence();
   const verifier = new JwtVerifier({
     current: new TextEncoder().encode(opts.jwtKey),
     previous: opts.previousJwtKey ? new TextEncoder().encode(opts.previousJwtKey) : undefined,
@@ -56,13 +58,30 @@ export function buildApp(opts: AppOptions) {
         }
         return undefined;
       },
-      open(ws) {
+      async open(ws) {
         metrics.connectionOpened();
-        (ws.data as unknown as { connectionId: string }).connectionId = crypto.randomUUID();
+        const d = ws.data as unknown as { connectionId: string; query?: { token?: string } };
+        d.connectionId = crypto.randomUUID();
+        // The token is verified a second time here rather than passed down
+        // from beforeHandle: Elysia gives the two hooks separate contexts, and
+        // reading a username that beforeHandle "already checked" would mean
+        // trusting a value this handler never saw. Same verifier, same key, so
+        // a token that reached open cannot fail — but if it does, the socket
+        // joins nobody and simply has no presence.
+        const token = d.query?.token;
+        if (token === undefined) return;
+        try {
+          const claims = await verifier.verify(token);
+          const username = typeof claims['username'] === 'string' ? claims['username'] : claims.sub;
+          presence.join(d.connectionId, username, { send: (s) => ws.send(s) });
+          presence.broadcast();
+        } catch {
+          // beforeHandle already rejected invalid tokens; nothing to add.
+        }
       },
       async message(ws, data) {
         const d = ws.data as unknown as { connectionId: string; query?: { token?: string } };
-        const clientId = 'anon';
+        const clientId = presence.usernameOf(d.connectionId) ?? 'anon';
         const socket: SocketLike = { send: (s) => ws.send(s) };
         await handleWsMessage({
           data: typeof data === 'string' ? data : JSON.stringify(data),
@@ -101,10 +120,16 @@ export function buildApp(opts: AppOptions) {
           onBackendUnavailable: () => {
             metrics.backendUnavailable();
           },
+          roster: () => presence.list(),
         });
       },
-      close() {
+      close(ws) {
         metrics.connectionClosed();
+        const d = ws.data as unknown as { connectionId: string };
+        presence.leave(d.connectionId);
+        // Broadcast after the removal, so the roster the survivors receive is
+        // the one that excludes the socket that just went away.
+        presence.broadcast();
       },
     });
 }
