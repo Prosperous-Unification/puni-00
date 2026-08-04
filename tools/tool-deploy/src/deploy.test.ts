@@ -279,6 +279,55 @@ describe('buildDeployPlan', () => {
     expect(p.steps.some((s) => s.includes('new migrations'))).toBe(false);
   });
 
+  it('does not gate a gw-only deploy on migrations it cannot apply', async () => {
+    // Only be-01's plan carries a migrate step. The gate used to run per tier
+    // against that tier's own sha, so this deploy demanded --with-migrations
+    // and then applied nothing.
+    const deps = fakeDeps({
+      readRemoteState: () =>
+        Promise.resolve({
+          be: { tier: 'be', activeColor: 'blue', lastDeployedSha: 'deployed-sha' },
+          gw: { tier: 'gw', activeColor: 'blue', lastDeployedSha: 'deployed-sha' },
+        }),
+      listMigrations: (sha) => (sha === 'deployed-sha' ? ['0001_init'] : ['0001_init', '0002_new']),
+    });
+    const p = await buildDeployPlan(['gw'], [], HEAD, deps);
+    expect(p.steps.some((s) => s.includes('remain unapplied'))).toBe(true);
+    expect(p.steps.some((s) => s.includes('proceeding under'))).toBe(false);
+  });
+
+  it('still gates the same migration when be is in the deploy', async () => {
+    const deps = fakeDeps({
+      readRemoteState: () =>
+        Promise.resolve({
+          be: { tier: 'be', activeColor: 'blue', lastDeployedSha: 'deployed-sha' },
+        }),
+      listMigrations: (sha) => (sha === 'deployed-sha' ? ['0001_init'] : ['0001_init', '0002_new']),
+    });
+    let message = '';
+    try {
+      await buildDeployPlan(['be'], [], HEAD, deps);
+    } catch (e: unknown) {
+      message = e instanceof Error ? e.message : String(e);
+    }
+    expect(message).toMatch(/new migrations/);
+  });
+
+  it('measures migrations against be, not against the tier being deployed', async () => {
+    // gw is behind and be is current: there is nothing to apply, and a per-tier
+    // reading would have reported new migrations for gw anyway.
+    const deps = fakeDeps({
+      readRemoteState: () =>
+        Promise.resolve({
+          be: { tier: 'be', activeColor: 'blue', lastDeployedSha: HEAD },
+          gw: { tier: 'gw', activeColor: 'blue', lastDeployedSha: 'older-sha' },
+        }),
+      listMigrations: (sha) => (sha === 'older-sha' ? ['0001_init'] : ['0001_init', '0002_new']),
+    });
+    const p = await buildDeployPlan(['gw'], [], HEAD, deps);
+    expect(p.steps.some((s) => s.includes('remain unapplied'))).toBe(false);
+  });
+
   it('throws and never reaches ssh when a new migration lacks an override flag', async () => {
     const deps = fakeDeps({
       readRemoteState: () =>

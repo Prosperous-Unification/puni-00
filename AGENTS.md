@@ -121,6 +121,17 @@ Checks that cannot fail have shipped here six times. This is the rule that stops
 - Editing a migration after it has been applied is refused at rollback time —
   its `down.sql` no longer describes what is in the database.
 
+## Checks that cannot fail
+
+R5 exists because this failure keeps recurring — eight times so far. Fixed: `assertPragmas` with no runtime
+caller, the migration lint's unreachable `ALTER TABLE ... RENAME COLUMN` branch, `readRemoteState`
+reading an unreadable file as never-deployed, `shellcheck … || echo`, the secrets scanner's
+`.catch(() => '')` (an unreadable file scanned as clean — in a CI gate), and `dev:setup` skipping a
+missing `.env.example`.
+
+Prove your check fails when the thing is broken, and say so in the comment. A check whose
+failure mode has never been observed is a claim, not a gate.
+
 ## Gate
 
 - Before claiming done, run locally what CI will run anyway:

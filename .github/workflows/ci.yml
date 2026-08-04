@@ -113,6 +113,23 @@ jobs:
           git ls-files -z | xargs -0 --no-run-if-empty \
             bun run tools/tool-git-hooks/src/hooks/plaintext-secrets.ts
 
+      # The deploy artifacts. Neither Compose file nor the trigger script was
+      # checked by any Nx target, so dev's whole container definition and the
+      # command that deploys it could be syntactically broken while the gate
+      # stayed green. `config -q` interpolates and validates without starting
+      # anything. bin/dev-deploy.sh is shellchecked by tool-devsync:build.
+      # AGENTS.md caps LLM_README.md at 150 lines and nothing enforced it: the
+      # file reached 207. A stated rule with no check is advisory, which is the
+      # same category as a check that cannot fail.
+      - name: Doc caps
+        run: bun run tools/tool-git-hooks/src/hooks/doc-caps.ts
+
+      - name: Compose files
+        run: |
+          set -euo pipefail
+          docker compose -f deploy/dev-src/compose.yml config -q
+          docker compose -f deploy/compose/base.yml config -q
+
       - name: Migration lint
         run: |
           set -euo pipefail

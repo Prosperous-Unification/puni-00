@@ -235,6 +235,12 @@ fetch `/` and assert a 200 plus a non-empty body before routing to it.
 `/srv/wbs/state/<tier>.json` records active colour, SHA, digest, and timestamp — but it is a
 **cache, not the source of truth.**
 
+**Correcting this on 2026-08-04:** the file records three fields, not four.
+`tools/tool-remote-scripts/src/lib/state.ts:3-7` defines `tier`, `lastDeployedSha` and
+`activeColor`. There is no digest and no timestamp; the digest lives in the release bundle
+and nothing writes a timestamp. The environment root also moved to `/home/puni1/wbs`
+(ADR 0002).
+
 Revision 1 claimed writing it last made a killed deploy idempotent. That is wrong, and both
 reviewers caught it. If the process dies after `caddy reload` but before the state write, Caddy
 routes to green while the file says blue; the next deploy treats green as idle and destroys the
@@ -321,6 +327,10 @@ it is known to work.
 1. `docker compose up -d be-01-green` — pulls by digest.
 2. Run migrations as a **discrete step** against green, before it takes traffic (decision 8).
 3. Poll green's `/health` every 500ms, 60s ceiling.
+   **Correcting this on 2026-08-04:** the implemented ceiling is not 60s.
+   `tools/tool-remote-scripts/src/swap.ts:614-617` polls 120 times with a 500 ms interval
+   _and_ a 2000 ms per-request timeout, so the worst case — every attempt timing out — is
+   about 300s, and only the best case (instant refusals) approaches 60s.
 4. Move the `be-01.internal` alias to green — gw follows immediately, no restart.
 5. Render the Caddy fragment at green, `docker exec caddy caddy reload`.
 6. `docker compose stop be-01-blue`, commit state.
@@ -344,10 +354,19 @@ one SQLite file.
 
 **Correcting revision 1: WAL is not enabled in this repo.** `apps/be-01/src/repository/migrate.ts:6`
 opens `new Database(dbPath)` with no pragmas at all, and there is no `busy_timeout` anywhere in
-`apps/` or `libs/`. SQLite therefore defaults to rollback-journal mode, where a writer takes an
-EXCLUSIVE lock that blocks **readers** as well as writers, with a zero busy timeout. Under
-revision 1's design, blue's next read during green's migration would have failed immediately
-with `SQLITE_BUSY` — not degraded, failed.
+`apps/` or `libs/`.
+
+> **This correction is itself out of date, as of 2026-08-04.** WAL and a 5000 ms
+> `busy_timeout` are now set and, more importantly, _asserted_ — a PRAGMA is a request that
+> SQLite may decline silently, so `apps/be-01/src/repository/db.ts` reads both back and
+> throws if they were not adopted. `openDatabase` is the only place a connection is opened,
+> enforced by an ESLint rule, because both pragmas are per-connection rather than stored in
+> the file. The paragraph below describes the state of the repo before that landed; the
+> reasoning about why they matter for blue/green still holds.
+> SQLite therefore defaults to rollback-journal mode, where a writer takes an
+> EXCLUSIVE lock that blocks **readers** as well as writers, with a zero busy timeout. Under
+> revision 1's design, blue's next read during green's migration would have failed immediately
+> with `SQLITE_BUSY` — not degraded, failed.
 
 **Prerequisite, before blue/green is safe at all:** enable `journal_mode=WAL` and
 `busy_timeout=5000` on every connection, and assert both at startup so a regression is loud.

@@ -45,6 +45,11 @@ echo "[dev-deploy] $BRANCH @ ${SHA:0:8} -> dev"
 # deploy with no way to deploy the fix. The snapshot is taken before the reset,
 # so a broken commit fails the run it arrived in and the previous good copy is
 # still on disk at /home/puni1/wbs-dev/bin/sync.ts to deploy over it.
+#
+# SC2029 is disabled for this command, not silenced globally: $SHA is meant to
+# expand here, on this machine. The remote has no such variable, and sending
+# this machine's HEAD is the entire purpose of the call.
+# shellcheck disable=SC2029
 ssh h2puni "bash -lc '
   set -e
   mkdir -p /home/puni1/wbs-dev/bin
