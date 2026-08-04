@@ -174,6 +174,28 @@ Checking tooling there needs a **login** shell: `ssh h2puni 'bash -lc "..."'`.
 Volta and Bun are not on a non-login shell's PATH, so a plain
 `ssh h2puni 'command -v node'` says missing when Node is installed and fine.
 
+### Seeing your change on dev
+
+```sh
+git push && ./bin/dev-deploy.sh
+```
+
+Seconds, not minutes. Dev runs from source on h2puni, so the deploy is a `git
+reset --hard` there — the dev servers are already watching those files and pick
+the change up themselves. Nothing is built and nothing restarts unless
+`bun.lock` moved.
+
+<https://dev.wbs.bulletpoints.club> is password-protected. Username `dany`;
+the password is on h2puni in `/home/puni1/wbs-dev/basic-auth.env`.
+
+Two things worth knowing:
+
+- **Dev no longer rehearses a prod deploy.** The blue/green swap, health gate
+  and smoke test used to run on dev first. They don't now. Do a prod dry-run on
+  purpose before shipping.
+- **Push first.** The script refuses a dirty tree or a commit that isn't on the
+  remote, because h2puni pulls from GitHub and cannot see your local-only work.
+
 ### Mac
 
 ```sh

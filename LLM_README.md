@@ -48,10 +48,47 @@ PAT. A `PreToolUse` guard on h1claw (`~/.openclaw/workspace/bin/block-local-buil
 denies `dagger`, `tool-dagger:*`, `tool-deploy:deploy` and `docker build` outright; commands
 delegated over `ssh … h2puni` pass through.
 
-**h2puni is not provisioned to drive builds yet** (verified 2026-08-04): it has `bun`,
+### dev — source-run, no build
+
+**Dev does not use any of the below.** Since 2026-08-04 dev runs from source:
+
+```sh
+git push && ./bin/dev-deploy.sh     # from h1claw, after any change
+```
+
+`bin/dev-deploy.sh` refuses a dirty tree or an unpushed SHA, then asks h2puni to
+`git reset --hard` its checkout at `/home/puni1/wbs-dev/src`. That checkout is bind-mounted
+into one container, `wbs-dev-src`, running all three tiers via `bun run dev` — be-01 and
+gw-01 under `bun --watch`, fe-01 under Vite. **The watchers are the deploy**; nothing is
+built, pushed or restarted. Only a moved `bun.lock` triggers `bun install` + restart, which
+is the single decision `tools/tool-devsync` makes and the only part with tests.
+
+Verified 2026-08-04: a pushed change appeared on dev with the container's `StartedAt`
+unchanged to the nanosecond.
+
+Dev sits behind basic auth (`dany`, password in `/home/puni1/wbs-dev/basic-auth.env` on
+h2puni) on every path except `/ws*` — browsers cannot send an `Authorization` header on a
+WebSocket handshake, and gw-01 rejects unauthenticated sockets itself
+(`apps/gw-01/src/app.ts:46-55`).
+
+Per-tier env lives in gitignored `apps/<tier>/.env` inside that checkout, **not** in
+compose `env_file`: compose merges every env file into one namespace, so `be-01.env` and
+`gw-01.env` both setting `PORT` put both tiers on 3200.
+
+The old image-based dev containers (`dev-*-blue`) are **stopped, not removed** — they plus
+the `site-dev.caddy.bak-*` backups are the rollback. Delete them after a week of stability.
+
+**What dev no longer proves.** The blue/green swap, health gate, Caddy repoint and smoke
+test used to run on dev before prod. They no longer do. Run a prod dry-run deliberately
+before any prod deploy; dev will not catch a regression in that path.
+
+### prod — image-based, unchanged
+
+**h2puni is not provisioned to drive prod builds yet** (verified 2026-08-04): it has `bun`,
 `docker`, `git`, `node` (24.18.1 via Volta) and a running `dagger-engine` container, but
-**no `dagger` CLI and no repo checkout**. Installing those is prerequisite work before the
-commands below run there.
+**no `dagger` CLI**. There is now a checkout at `/home/puni1/wbs-dev/src`, but it belongs to
+dev — do not build from it. Installing the CLI is prerequisite work before the commands
+below run there.
 
 > Check tooling on h2puni with `ssh h2puni 'bash -lc "command -v node"'`. Volta and Bun are
 > on the PATH of a **login** shell only; a bare `ssh h2puni 'command -v node'` reports
