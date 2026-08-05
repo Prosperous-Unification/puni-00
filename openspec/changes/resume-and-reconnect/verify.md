@@ -9,7 +9,7 @@ $ bunx nx format:check --all
 $ bunx nx run-many -t test lint typecheck build --parallel=2 --skip-nx-cache
 NX   Successfully ran targets test, lint, typecheck, build for 21 projects
       bun:test (be-01, gw-01, libs, tools)   261 pass  0 fail
-      fe-01 (vitest)                          46 pass  0 fail
+      fe-01 (vitest)                          49 pass  0 fail
 
 $ bunx @fission-ai/openspec@1.3.0 validate --all
 ✓ change/resume-and-reconnect
@@ -47,8 +47,8 @@ with `cancel` never wired up.
 ## Against the running dev deployment
 
 Two real WebSockets through the real edge at `dev.wbs.bulletpoints.club`,
-against dev's SQLite. Run twice: on `79e9cbe`, and again on `3aaf2c2` after the
-cross-review fixes, with the same result. `ada` drops and returns; `grace` stays connected
+against dev's SQLite. Run three times — `79e9cbe`, `3aaf2c2` after the
+cross-review fixes, and `b550e7a` — with the same result each time. `ada` drops and returns; `grace` stays connected
 throughout, to prove a replay does not reach a socket that did not ask.
 
 ```
@@ -82,10 +82,10 @@ project's subscription rather than frames.
   script. Nobody has watched Safari suspend a tab and come back.
 - **The retention timer firing on its own schedule.** The tests advance a fake
   interval; on dev it is wired but ten minutes had not elapsed under observation.
-  What was verified is that `main.ts` starts it before `listen` and that a sweep
-  prunes.
-- **A replay larger than the cap on a real deployment.** 256 events on one
-  project was not staged; the refusal is proven in unit tests only.
+  What was verified is that `bootBe01` starts it before `listen` — `boot.test.ts`
+  fails when that call goes — and that a sweep prunes.
+- **A replay larger than the cap on a real deployment.** 32 events on one project
+  was not staged; the refusal is proven in unit tests only.
 - **Two colours mid-swap.** The replay buffer is per process, so during a blue/green
   overlap a client resuming against the other colour falls through to the event
   log. Correct by design, never exercised.
