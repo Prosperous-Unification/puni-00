@@ -117,7 +117,12 @@ export function subscribeToProject(
   }
 
   function receive(raw: string): void {
-    let frame: { subscription?: string; seq?: number; type?: string };
+    let frame: {
+      subscription?: string;
+      seq?: number;
+      type?: string;
+      replayed?: Record<string, number>;
+    };
     try {
       frame = JSON.parse(raw) as typeof frame;
     } catch {
@@ -125,17 +130,49 @@ export function subscribeToProject(
       // not this subscription's business.
       return;
     }
-    if (frame.subscription !== subscription) return;
-    if (frame.type === 'resume_denied') {
-      // The server cannot say what was missed, so the only honest response is to
-      // read the whole project again — and the caller reports the new sequence
-      // through `seen`.
-      options.onChange();
+
+    if (frame.type === 'resume_ack') {
+      // Silence is not an answer. A gateway from before replay existed sends an
+      // empty `replayed` map — it read a `count` that no longer exists, and JSON
+      // drops the undefined — and treating that as "you missed nothing" is the
+      // silent divergence this whole module is here to prevent.
+      if (typeof frame.replayed?.[subscription] !== 'number') options.onChange();
+      settle();
       return;
     }
+
+    if (frame.subscription !== subscription) return;
+
+    if (frame.type === 'resume_denied') {
+      // The server cannot say what was missed, so the only honest answer is to
+      // read the whole project again — and the caller reports the sequence that
+      // read landed at through `seen`.
+      options.onChange();
+      settle();
+      return;
+    }
+
+    // The sequence is deliberately NOT advanced here. `onChange` may fail — the
+    // table swallows a failed refetch on purpose, to keep the last good tree on
+    // screen — and a stream that advanced on the frame rather than on the read
+    // would then resume past an edit nobody ever saw. `seen` is the only way
+    // forward, and it is called by whoever actually installed the new rows.
     if (typeof frame.seq !== 'number') return;
-    sinceSeq = Math.max(sinceSeq, frame.seq);
     options.onChange();
+  }
+
+  /**
+   * The socket is synchronised: the server has answered the resume.
+   *
+   * Both the backoff reset and the "live" report hang off this rather than off
+   * `onOpen`. An open socket is not a synchronised one, and a gateway that
+   * accepts the handshake and drops the socket — an expired token, a restart —
+   * would otherwise reset the backoff on every attempt and reconnect every
+   * 300ms from every open browser, forever.
+   */
+  function settle(): void {
+    attempt = 0;
+    options.onConnectionChange?.(true);
   }
 
   function connect(): void {
@@ -145,7 +182,6 @@ export function subscribeToProject(
     pendingReconnect = null;
     socket = deps.openSocket(websocketUrl(options.token), {
       onOpen: () => {
-        attempt = 0;
         socket?.send(JSON.stringify({ type: 'subscribe', subscription }));
         // Subscribe first, resume second. The other order leaves a window in
         // which the replay has been sent and a live edit arriving behind it has
@@ -153,7 +189,6 @@ export function subscribeToProject(
         socket?.send(
           JSON.stringify({ type: 'resume', resume_points: { [subscription]: sinceSeq } }),
         );
-        options.onConnectionChange?.(true);
       },
       onMessage: receive,
       onClose: () => {

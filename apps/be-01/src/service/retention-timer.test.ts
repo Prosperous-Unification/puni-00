@@ -12,11 +12,14 @@ import { RetentionTimer } from './retention-timer';
 function fakeSchedule() {
   let tick: (() => void) | null = null;
   let cleared = 0;
+  let scheduled = 0;
   return {
     setInterval: (fn: () => void) => {
       tick = fn;
+      scheduled += 1;
       return 'handle';
     },
+    scheduledCount: () => scheduled,
     clearInterval: () => {
       cleared += 1;
     },
@@ -27,6 +30,11 @@ function fakeSchedule() {
     clearedCount: () => cleared,
   };
 }
+
+/** The options the timer needs beyond its schedule, so a test can name only what it varies. */
+const rethrow = (err: unknown): never => {
+  throw err;
+};
 
 async function seed(count: number) {
   const log = inMemoryEventLog();
@@ -88,7 +96,10 @@ describe('RetentionTimer', () => {
 
     timer.start();
     schedule.advance();
-    await Promise.resolve();
+    // A macrotask, so every microtask the failed sweep queued has run and the
+    // timer is idle again. `await Promise.resolve()` is one turn and leaves the
+    // sweep still in flight, which the timer correctly refuses to double.
+    await new Promise((resolve) => setTimeout(resolve, 0));
     schedule.advance();
     await timer.stop();
 
@@ -134,15 +145,17 @@ describe('RetentionTimer', () => {
   });
 
   it('does not start a second schedule', async () => {
+    // The `clearedCount` assertion alone was vacuous — agy caught it. A `start`
+    // that scheduled nothing at all still set a handle for `stop` to clear, so
+    // the test passed against a timer that never ran. Both numbers are asserted
+    // now: one schedule created, and the second `start` adding none.
     const log = await seed(1);
     const schedule = fakeSchedule();
     const timer = new RetentionTimer({
       repo: log,
       maxPerSubscription: 2,
       intervalMs: 1_000,
-      onError: (err) => {
-        throw err;
-      },
+      onError: rethrow,
       ...schedule,
     });
 
@@ -150,6 +163,50 @@ describe('RetentionTimer', () => {
     timer.start();
     await timer.stop();
 
+    expect(schedule.scheduledCount()).toBe(1);
     expect(schedule.clearedCount()).toBe(1);
+  });
+
+  it('does not start a sweep on top of one still running', async () => {
+    // codex, medium. Every tick started another sweep and overwrote `inFlight`,
+    // so `stop()` waited only for the newest one and `process.exit(0)` could
+    // land in the middle of an older DELETE — against a file the other
+    // deployment colour is also using.
+    const log = await seed(5);
+    let started = 0;
+    let release: (() => void) | null = null;
+    const slow = {
+      ...log,
+      pruneBeyond: () => {
+        started += 1;
+        return new Promise<number>((resolve) => {
+          release = () => {
+            resolve(0);
+          };
+        });
+      },
+    };
+    const schedule = fakeSchedule();
+    const timer = new RetentionTimer({
+      repo: slow,
+      maxPerSubscription: 2,
+      intervalMs: 1_000,
+      onError: rethrow,
+      ...schedule,
+    });
+
+    timer.start();
+    schedule.advance();
+    schedule.advance();
+    schedule.advance();
+
+    expect(started).toBe(1);
+
+    const stopping = timer.stop();
+    release?.();
+    await stopping;
+
+    // And the next tick after it finished would have swept again, had one come.
+    expect(started).toBe(1);
   });
 });

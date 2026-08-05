@@ -43,3 +43,21 @@
 
 - [x] 7.1 `verify.md`: the uncached gate output and a failure-proof table for every check added here.
 - [x] 7.2 Exercised on dev with two real sockets rather than two browsers: one drops, misses two edits, returns and is replayed both in order; the socket that stayed connected receives nothing during the replay. Recorded in `verify.md`, including what a script cannot prove that a browser would.
+
+## 8. Cross review, 2026-08-05 (codex + agy)
+
+Both reviewers read `801432c..3a00b79` from the same prompt. Eleven findings,
+every one reproduced as a failing test before it was fixed. Nothing was rejected.
+
+- [x] 8.1 **The resume point advanced on a frame the caller never applied** (codex, critical). The table swallows a failed refetch on purpose; the stream advanced on receipt, so a client could resume past an edit nobody saw and sit there looking current. `sinceSeq` now moves only through `seen`, which is called by whoever installed the rows.
+- [x] 8.2 **An open socket was reported as live** (codex, high). `onConnectionChange(true)` now fires on `resume_ack`/`resume_denied`, not on `open`.
+- [x] 8.3 **A resume that threw told the client nothing** (codex, high). be-01 unreachable, a non-2xx, or a body that fails the contract left the socket open and silent. gw-01 now answers `resume_denied` with `reason: 'unavailable'` for every subscription asked about.
+- [x] 8.4 **An empty `resume_ack` read as "you missed nothing"** (codex, high). That is exactly what a gateway from before this change sends, since the `count` it reads is now `undefined` and JSON drops the key. The client refetches unless its subscription is named in `replayed`.
+- [x] 8.5 **Closed sockets never left the subscription map** (codex, high). `close` removed the connection from presence only, and every inbound message allocated a fresh wrapper, so nothing could be removed by identity. One wrapper per connection now, removed on close. Pre-existing; reconnect made it grow.
+- [x] 8.6 **The backoff reset on TCP open** (agy, high). A gateway that accepts the handshake and drops the socket — an expired token, a restart — reconnected every 300ms forever. It resets on a completed resume instead.
+- [x] 8.7 **A stale buffer denied a replay the log could serve** (agy, critical). `covers` asked `oldestSeq`, which did not evict; `since` did, and returned nothing. The buffer evicts before answering, and an incomplete buffer answer now falls through to the log rather than refusing.
+- [x] 8.8 **Overlapping retention sweeps** (codex, medium). Each tick started another and overwrote `inFlight`, so `stop()` waited for the newest and `process.exit` could land inside an older DELETE. A tick arriving mid-sweep is dropped.
+- [x] 8.9 **`pruneBeyond` counted the whole table twice per sweep** (agy, high). `changes()` instead — cheaper, and correct: a concurrent insert from the other colour landed in the before/after difference and reported as a deletion.
+- [x] 8.10 **Two proofs did not cover production wiring** (codex, medium; agy, medium). The shared `ReplayBuffer` and the started `RetentionTimer` were provable about the classes and not about the process. Composition moved into `services.ts` and `boot.ts`, both tested; the vacuous fourth `RetentionTimer` assertion now checks a schedule was created.
+- [x] 8.11 **SIGTERM exited without draining** (agy, medium). `stop()` stops the server, waits for a sweep, and closes the file through `openConnection`, which keeps drizzle's `$client` inside the repository layer.
+- [x] 8.12 **The replay cap was too large for its payloads** (agy, info). `tree_replaced` carries the whole project and gw-01 writes each event in a synchronous loop, so 256 was megabytes queued for one reconnecting laptop. Now 32.

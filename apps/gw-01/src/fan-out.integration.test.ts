@@ -133,3 +133,29 @@ describe('project events reach the sockets that asked for them', () => {
     stranger.socket.close();
   });
 });
+
+describe('a closed socket leaves the subscription it joined', () => {
+  it('is not counted in the fan-out after it disconnects', async () => {
+    // codex, high. `close` removed the connection from presence and left it in
+    // the subscription map, and every inbound message allocated a fresh wrapper
+    // so there was nothing to remove it by. Each reconnect added another dead
+    // socket, and `delivered_to_sockets` counted them all.
+    const projectId = crypto.randomUUID();
+    const subscription = `project:${projectId}`;
+
+    const first = await connect('ada', subscription);
+    await settle();
+    first.socket.close();
+    await settle();
+
+    const second = await connect('ada', subscription);
+    await settle();
+
+    const res = await push(subscription, { type: 'tree_replaced', workItems: [] });
+    expect((await res.json()) as { delivered_to_sockets: number }).toEqual({
+      delivered_to_sockets: 1,
+    });
+
+    second.socket.close();
+  });
+});

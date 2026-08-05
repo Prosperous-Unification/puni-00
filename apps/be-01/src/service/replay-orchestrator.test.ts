@@ -176,3 +176,37 @@ describe('ReplayOrchestrator', () => {
     ).toEqual([0, 1]);
   });
 });
+
+describe('ReplayOrchestrator — cross-review findings', () => {
+  it('serves from the log when the buffer has aged out of the range', async () => {
+    // agy, critical. `covers` asked `oldestSeq`, which did not evict, so a
+    // buffer holding only expired entries answered "I have your range" — and
+    // `since`, which does evict, then returned nothing. The client was refused
+    // a replay the event log could have served in full.
+    const db = await makeTestDb({ migrationsFolder: null });
+    const client = (db as unknown as { $client: Database }).$client;
+    client.run(BOOT_SQL);
+    open.push(client);
+
+    let now = 1_000;
+    const log = new DrizzleEventLogRepo(db);
+    const buffer = new ReplayBuffer({
+      maxPerSubscription: 100,
+      maxAgeMs: 60_000,
+      now: () => now,
+    });
+    const orchestrator = new ReplayOrchestrator({ log, buffer });
+
+    for (const n of [0, 1]) {
+      const recorded = await log.recordEvent('project:a', { n }, now);
+      buffer.record('project:a', recorded.seq, { n });
+    }
+
+    // Six minutes of nobody editing this project.
+    now += 6 * 60_000;
+
+    expect(await orchestrator.replay({ 'project:a': 0 })).toEqual({
+      'project:a': { status: 'replaying', events: [{ seq: 1, message: { n: 1 } }] },
+    });
+  });
+});

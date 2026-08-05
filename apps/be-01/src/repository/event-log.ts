@@ -91,7 +91,6 @@ export class DrizzleEventLogRepo implements EventLogRepo {
 
   async pruneBeyond(maxPerSubscription: number): Promise<number> {
     await Promise.resolve();
-    const before = this.db.all<{ n: number }>(sql`SELECT COUNT(*) AS n FROM event_log`);
     this.db.run(
       sql`DELETE FROM event_log
           WHERE id IN (
@@ -102,7 +101,11 @@ export class DrizzleEventLogRepo implements EventLogRepo {
             WHERE rn > ${maxPerSubscription}
           )`,
     );
-    const after = this.db.all<{ n: number }>(sql`SELECT COUNT(*) AS n FROM event_log`);
-    return (before[0]?.n ?? 0) - (after[0]?.n ?? 0);
+    // `changes()` rather than counting the whole table before and after. Two
+    // full scans per sweep is the expensive way to ask, and it is also the wrong
+    // way: a concurrent insert between them — the other deployment colour writes
+    // to this same file — lands in the difference and reports as a deletion.
+    const changed = this.db.all<{ n: number }>(sql`SELECT changes() AS n`);
+    return changed.at(0)?.n ?? 0;
   }
 }

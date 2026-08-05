@@ -65,7 +65,23 @@ export async function handleWsMessage(args: HandleWsMessageArgs): Promise<void> 
   if (msg['type'] === 'resume') {
     args.onReconnect?.();
     const points = (msg['resume_points'] as Record<string, number> | undefined) ?? {};
-    const result = await args.resume(points);
+    let result: Record<string, ResumeStatus>;
+    try {
+      result = await args.resume(points);
+    } catch {
+      // be-01 unreachable, a non-2xx, or a body that does not match the
+      // contract — which is also what a gateway from after a partial rollout
+      // sees from a backend from before it. The client is told, rather than
+      // left on an open socket with stale rows and no reason to refetch.
+      // `unavailable`, not `out_of_range`: nothing is known about the range.
+      for (const subscription of Object.keys(points)) {
+        args.socket.send(
+          JSON.stringify({ type: 'resume_denied', subscription, reason: 'unavailable' }),
+        );
+      }
+      args.socket.send(JSON.stringify({ type: 'resume_ack', replayed: {} }));
+      return;
+    }
     const replayed: Record<string, number> = {};
     for (const [subscription, outcome] of Object.entries(result)) {
       if (outcome.status === 'denied') {

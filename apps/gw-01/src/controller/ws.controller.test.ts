@@ -192,3 +192,34 @@ describe('subscription names', () => {
     );
   });
 });
+
+describe('handleWsMessage — cross-review findings', () => {
+  it('tells the client when it could not serve the resume at all', async () => {
+    // codex, high. A resume that throws — be-01 unreachable, a non-2xx, a body
+    // that does not match the contract — used to send the client nothing. The
+    // socket stayed open and the browser sat on stale rows believing it was
+    // live, which is the exact failure resume exists to prevent.
+    const { sock, sent } = makeSocket();
+    const subs = new SubscriptionMap<WsSocket>();
+
+    await handleWsMessage({
+      data: JSON.stringify({
+        type: 'resume',
+        resume_points: { 'doc:a': 1, 'doc:b': 2 },
+      }),
+      socket: sock,
+      subs,
+      connectionId: 'c-1',
+      clientId: 'u-1',
+      forward: () => Promise.resolve({ ack: true }),
+      resume: () => Promise.reject(new Error('be-01 unreachable')),
+    });
+
+    const frames = sent.map((s) => JSON.parse(s) as Record<string, unknown>);
+    expect(frames).toEqual([
+      { type: 'resume_denied', subscription: 'doc:a', reason: 'unavailable' },
+      { type: 'resume_denied', subscription: 'doc:b', reason: 'unavailable' },
+      { type: 'resume_ack', replayed: {} },
+    ]);
+  });
+});

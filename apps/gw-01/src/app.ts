@@ -62,8 +62,17 @@ export function buildApp(opts: AppOptions) {
       },
       async open(ws) {
         metrics.connectionOpened();
-        const d = ws.data as unknown as { connectionId: string; query?: { token?: string } };
+        const d = ws.data as unknown as {
+          connectionId: string;
+          socket: SocketLike;
+          query?: { token?: string };
+        };
         d.connectionId = crypto.randomUUID();
+        // One wrapper per connection, kept for its whole life. It used to be
+        // allocated per inbound message, so the object `subscribe` stored was
+        // one no later code could produce again — leaving every disconnected
+        // socket in the map forever, counted in the fan-out and sent to.
+        d.socket = { send: (payload) => ws.send(payload) };
         // The token is verified a second time here rather than passed down
         // from beforeHandle: Elysia gives the two hooks separate contexts, and
         // reading a username that beforeHandle "already checked" would mean
@@ -82,9 +91,13 @@ export function buildApp(opts: AppOptions) {
         }
       },
       async message(ws, data) {
-        const d = ws.data as unknown as { connectionId: string; query?: { token?: string } };
+        const d = ws.data as unknown as {
+          connectionId: string;
+          socket: SocketLike;
+          query?: { token?: string };
+        };
         const clientId = presence.usernameOf(d.connectionId) ?? 'anon';
-        const socket: SocketLike = { send: (s) => ws.send(s) };
+        const socket = d.socket;
         await handleWsMessage({
           data: typeof data === 'string' ? data : JSON.stringify(data),
           socket,
@@ -128,7 +141,11 @@ export function buildApp(opts: AppOptions) {
       },
       close(ws) {
         metrics.connectionClosed();
-        const d = ws.data as unknown as { connectionId: string };
+        const d = ws.data as unknown as { connectionId: string; socket?: SocketLike };
+        // Subscriptions first: a socket left in the map is pushed to forever,
+        // counted in `delivered_to_sockets`, and joined again by the same
+        // browser on its next reconnect.
+        if (d.socket !== undefined) subs.removeAll(d.socket);
         presence.leave(d.connectionId);
         // Broadcast after the removal, so the roster the survivors receive is
         // the one that excludes the socket that just went away.

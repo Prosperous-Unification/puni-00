@@ -50,8 +50,26 @@ export class RetentionTimer {
   start(): void {
     if (this.handle !== null) return;
     this.handle = this.set(() => {
-      this.inFlight = this.sweep();
+      // A tick arriving while a sweep is still running is dropped, not queued.
+      // Overwriting `inFlight` meant `stop()` waited for the newest sweep and
+      // `process.exit(0)` could land inside an older DELETE — against a file
+      // the other deployment colour is also writing to.
+      if (this.inFlight !== null) return;
+      this.inFlight = this.sweep().finally(() => {
+        this.inFlight = null;
+      });
     }, this.opts.intervalMs);
+  }
+
+  /**
+   * Whether a schedule is currently in place.
+   *
+   * Exists so a test can assert that the *process* started the timer, not just
+   * that the class can start one. `runRetention` sat with no production caller
+   * for a whole change; a `start()` nobody calls is the same failure one layer up.
+   */
+  isRunning(): boolean {
+    return this.handle !== null;
   }
 
   /** Stops the schedule and waits for a sweep already running. */
@@ -61,7 +79,6 @@ export class RetentionTimer {
       this.handle = null;
     }
     await this.inFlight;
-    this.inFlight = null;
   }
 
   private async sweep(): Promise<void> {

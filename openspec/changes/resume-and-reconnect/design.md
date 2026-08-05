@@ -37,11 +37,16 @@ why the check is on `oldestSeq` rather than on emptiness.
 
 ## D3 — The replay cap denies rather than truncates
 
-A replay is bounded at `maxEvents` (256). Past that the answer is `denied,
-out_of_range` and the client refetches, which is one request instead of hundreds
-of frames that each trigger a refetch anyway. Truncating and reporting success
-would be the worse failure: the client would advance its sequence past events it
-never saw and never learn it had a hole.
+A replay is bounded at `maxEvents` (32). Past that the answer is `denied,
+out_of_range` and the client refetches, which is one request instead of dozens of
+frames that each trigger a refetch anyway. Truncating and reporting success would
+be the worse failure: the client would advance its sequence past events it never
+saw and never learn it had a hole.
+
+The cap counts payloads, not bytes, and it is small because the payloads are not.
+A structural edit broadcasts `tree_replaced`, which carries the whole project —
+gw-01 writes each replayed event to the socket in a synchronous loop, so a cap in
+the hundreds is megabytes queued in gateway memory for one reconnecting laptop.
 
 ## D4 — `seq: -1` for a project with no events
 

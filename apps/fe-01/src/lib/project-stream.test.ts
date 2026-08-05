@@ -115,11 +115,16 @@ describe('subscribeToProject', () => {
 
   it('reopens after a close it did not ask for, and resumes from what it saw', () => {
     const h = harness();
-    subscribeToProject({ token: 't', projectId: PROJECT, sinceSeq: -1, onChange: ignore }, h.deps);
+    const stream = subscribeToProject(
+      { token: 't', projectId: PROJECT, sinceSeq: -1, onChange: ignore },
+      h.deps,
+    );
     h.latest().handlers.onOpen();
     h.latest().handlers.onMessage(
       JSON.stringify({ subscription: SUBSCRIPTION, seq: 4, message: {} }),
     );
+    // The refetch that frame triggered succeeded, and reported where it landed.
+    stream.seen(4);
 
     h.latest().handlers.onClose();
     expect(h.sockets).toHaveLength(1);
@@ -147,7 +152,7 @@ describe('subscribeToProject', () => {
     expect(delays).toEqual([500, 1000, 2000, 4000, 8000, 15000, 15000, 15000]);
   });
 
-  it('resets the backoff once a socket opens', () => {
+  it('resets the backoff once the resume is answered', () => {
     const h = harness();
     subscribeToProject({ token: 't', projectId: PROJECT, sinceSeq: -1, onChange: ignore }, h.deps);
 
@@ -158,6 +163,9 @@ describe('subscribeToProject', () => {
     expect(h.scheduled).toHaveLength(0);
 
     h.latest().handlers.onOpen();
+    h.latest().handlers.onMessage(
+      JSON.stringify({ type: 'resume_ack', replayed: { [SUBSCRIPTION]: 0 } }),
+    );
     h.latest().handlers.onClose();
 
     expect(h.scheduled.at(-1)!.ms).toBe(500);
@@ -269,9 +277,7 @@ describe('subscribeToProject', () => {
       h.deps,
     );
     h.latest().handlers.onOpen();
-    h.latest().handlers.onMessage(
-      JSON.stringify({ subscription: SUBSCRIPTION, seq: 9, message: {} }),
-    );
+    stream.seen(9);
 
     // A read that started before the event landed reports an older sequence.
     stream.seen(3);
@@ -299,11 +305,180 @@ describe('subscribeToProject', () => {
       h.deps,
     );
 
+    const ack = JSON.stringify({ type: 'resume_ack', replayed: { [SUBSCRIPTION]: 0 } });
     h.latest().handlers.onOpen();
+    h.latest().handlers.onMessage(ack);
+    h.latest().handlers.onClose();
+    h.runNextTimer();
+    h.latest().handlers.onOpen();
+    h.latest().handlers.onMessage(ack);
+
+    expect(seen).toEqual([true, false, true]);
+  });
+});
+
+/**
+ * What codex and agy found on 2026-08-05, each written as the failing test it
+ * was reproduced with first.
+ */
+describe('subscribeToProject — cross-review findings', () => {
+  it('does not advance its resume point on a frame the caller failed to apply', () => {
+    // codex, critical. The table swallows a failed refetch on purpose, so a
+    // stream that advanced on the frame rather than on the read would resume
+    // past an edit nobody ever saw — and, with no later edit, sit there looking
+    // connected and current forever.
+    const h = harness();
+    let refetchWorks = false;
+    const stream = subscribeToProject(
+      {
+        token: 't',
+        projectId: PROJECT,
+        sinceSeq: 4,
+        onChange: () => {
+          if (refetchWorks) stream.seen(5);
+        },
+      },
+      h.deps,
+    );
+    h.latest().handlers.onOpen();
+
+    // The edit arrives, the refetch that would install it fails.
+    h.latest().handlers.onMessage(
+      JSON.stringify({ subscription: SUBSCRIPTION, seq: 5, message: {} }),
+    );
     h.latest().handlers.onClose();
     h.runNextTimer();
     h.latest().handlers.onOpen();
 
-    expect(seen).toEqual([true, false, true]);
+    expect(h.frames(h.latest()).at(-1)).toEqual({
+      type: 'resume',
+      resume_points: { [SUBSCRIPTION]: 4 },
+    });
+    refetchWorks = true;
+  });
+
+  it('is not live until the server has answered the resume', () => {
+    // codex, high. An open socket is not a synchronised one. Saying "live" at
+    // open removes the warning while the client is still behind.
+    const h = harness();
+    const seen: boolean[] = [];
+    subscribeToProject(
+      {
+        token: 't',
+        projectId: PROJECT,
+        sinceSeq: -1,
+        onChange: ignore,
+        onConnectionChange: (connected) => seen.push(connected),
+      },
+      h.deps,
+    );
+
+    h.latest().handlers.onOpen();
+    expect(seen).toEqual([]);
+
+    h.latest().handlers.onMessage(
+      JSON.stringify({ type: 'resume_ack', replayed: { [SUBSCRIPTION]: 0 } }),
+    );
+    expect(seen).toEqual([true]);
+  });
+
+  it('keeps backing off when the server accepts the socket and drops it', () => {
+    // agy, high. `attempt` reset at open turns an expired token or a restarting
+    // gateway into a reconnect every 300ms, forever, from every open browser.
+    const h = harness();
+    subscribeToProject({ token: 't', projectId: PROJECT, sinceSeq: -1, onChange: ignore }, h.deps);
+
+    const delays: number[] = [];
+    for (let attempt = 0; attempt < 4; attempt++) {
+      h.latest().handlers.onOpen();
+      h.latest().handlers.onClose();
+      delays.push(h.scheduled.at(-1)!.ms);
+      h.runNextTimer();
+    }
+
+    expect(delays).toEqual([500, 1000, 2000, 4000]);
+  });
+
+  it('resets the backoff once a resume actually completes', () => {
+    const h = harness();
+    subscribeToProject({ token: 't', projectId: PROJECT, sinceSeq: -1, onChange: ignore }, h.deps);
+
+    h.latest().handlers.onClose();
+    h.runNextTimer();
+    h.latest().handlers.onOpen();
+    h.latest().handlers.onMessage(
+      JSON.stringify({ type: 'resume_ack', replayed: { [SUBSCRIPTION]: 0 } }),
+    );
+    h.latest().handlers.onClose();
+
+    expect(h.scheduled.at(-1)!.ms).toBe(500);
+  });
+
+  it('refetches when the acknowledgement does not mention its subscription', () => {
+    // codex, high. A gateway from before this change answers `resume_ack` with
+    // an empty `replayed` map — the count it read is `undefined` and JSON drops
+    // the key. Silence must not read as "you missed nothing".
+    const h = harness();
+    let changes = 0;
+    subscribeToProject(
+      {
+        token: 't',
+        projectId: PROJECT,
+        sinceSeq: 3,
+        onChange: () => (changes += 1),
+      },
+      h.deps,
+    );
+    h.latest().handlers.onOpen();
+
+    h.latest().handlers.onMessage(JSON.stringify({ type: 'resume_ack', replayed: {} }));
+
+    expect(changes).toBe(1);
+  });
+
+  it('does not refetch when the acknowledgement says nothing was missed', () => {
+    const h = harness();
+    let changes = 0;
+    subscribeToProject(
+      {
+        token: 't',
+        projectId: PROJECT,
+        sinceSeq: 3,
+        onChange: () => (changes += 1),
+      },
+      h.deps,
+    );
+    h.latest().handlers.onOpen();
+
+    h.latest().handlers.onMessage(
+      JSON.stringify({ type: 'resume_ack', replayed: { [SUBSCRIPTION]: 0 } }),
+    );
+
+    expect(changes).toBe(0);
+  });
+
+  it('refetches when the server says it could not serve the resume', () => {
+    const h = harness();
+    let changes = 0;
+    subscribeToProject(
+      {
+        token: 't',
+        projectId: PROJECT,
+        sinceSeq: 3,
+        onChange: () => (changes += 1),
+      },
+      h.deps,
+    );
+    h.latest().handlers.onOpen();
+
+    h.latest().handlers.onMessage(
+      JSON.stringify({
+        type: 'resume_denied',
+        subscription: SUBSCRIPTION,
+        reason: 'unavailable',
+      }),
+    );
+
+    expect(changes).toBe(1);
   });
 });

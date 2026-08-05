@@ -1,154 +1,50 @@
 import { createLogger } from '@wbs/observability';
 
-import { buildApp } from './app';
+import { bootBe01 } from './boot';
 import { loadConfig } from './config';
-import { openDrizzle } from './repository/db';
-import { EstimateRepository } from './repository/estimate';
-import { DrizzleEventLogRepo } from './repository/event-log';
-import { runMigrations } from './repository/migrate';
-import { ProjectRepository } from './repository/project';
-import { UserRepository } from './repository/user';
-import { WorkItemRepository } from './repository/work-item';
-import { AuthService } from './service/auth.service';
-import { EventSequencer } from './service/event-sequencer';
-import { GatewayBroadcaster } from './service/gateway-broadcaster';
-import { ProjectService } from './service/project.service';
-import { PushClient } from './service/push-client';
-import { ReplayBuffer } from './service/replay-buffer';
-import { ReplayOrchestrator } from './service/replay-orchestrator';
-import { RetentionTimer } from './service/retention-timer';
-import { WorkItemService } from './service/work-item.service';
 
 const cfg = loadConfig();
 const logger = createLogger({ service: 'be-01', level: cfg.LOG_LEVEL });
 
-// One connection for the process, opened through `openDatabase` so the
-// per-connection pragmas (WAL, busy_timeout) are set and asserted. Migrations
-// below still open their own, briefly, and close it.
-const db = openDrizzle(cfg.DB_PATH);
-const auth = new AuthService({
-  users: new UserRepository(db),
-  jwtKey: cfg.JWT_SIGNING_KEY_CURRENT,
-});
-const projectStore = new ProjectRepository(db);
-const projects = new ProjectService({ projects: projectStore });
-
-// One buffer, shared by the two halves of resume: the broadcaster fills it as
-// it publishes, the orchestrator serves reconnects from it. Two buffers would
-// both look healthy and one of them would always be empty.
-const eventLog = new DrizzleEventLogRepo(db);
-const replayBuffer = new ReplayBuffer({
-  maxPerSubscription: 1_000,
-  maxAgeMs: 5 * 60_000,
-});
-const replay = new ReplayOrchestrator({ log: eventLog, buffer: replayBuffer });
-
-// Constants rather than configuration: nothing about an environment changes the
-// right answer here, and a knob nobody sets is a knob nobody keeps correct.
-// 1,000 events per project is far more than a reconnect after a suspended laptop
-// needs, and the sweep is one indexed DELETE.
-const EVENT_LOG_MAX_PER_SUBSCRIPTION = 1_000;
-const RETENTION_INTERVAL_MS = 10 * 60_000;
-
-const retention = new RetentionTimer({
-  repo: eventLog,
-  maxPerSubscription: EVENT_LOG_MAX_PER_SUBSCRIPTION,
-  intervalMs: RETENTION_INTERVAL_MS,
-  onSweep: (removed) => {
-    if (removed > 0) logger.info({ removed }, 'event log pruned');
-  },
-  // Reported, not swallowed: the log growing without bound is the failure this
-  // timer exists to prevent, and a dead sweep looks healthy from outside.
-  onError: (err) => {
-    logger.error({ err }, 'event log retention sweep failed');
-  },
-});
-
-const workItems = new WorkItemService({
-  workItems: new WorkItemRepository(db),
-  projects: projectStore,
-  estimates: new EstimateRepository(db),
-  broadcast: new GatewayBroadcaster({
-    sequencer: new EventSequencer(eventLog),
-    buffer: replayBuffer,
-    push: new PushClient({ gwUrl: cfg.GW_URL, secret: cfg.INTERNAL_AUTH_SECRET }),
-    // The event is already in the durable log and the mutation already
-    // committed, so a client that reconnects still gets it on replay. Failing
-    // the request here would tell the caller their edit did not happen.
-    onPushFailed: (err, subscription) => {
-      logger.warn({ err, subscription }, 'project event recorded but not pushed');
-    },
-  }),
-});
-
-// Design decision 8: a deployed container must NOT migrate at startup.
-// Blue and green share one SQLite file during the swap overlap, and
-// migrating on boot means green starts rewriting the schema the instant
-// `docker compose up` returns — before the swap executor's discrete
-// `migrate` step, before the health gate, while blue is still serving reads
-// and writes against it. Idempotence (re-running converges) says nothing
-// about blue's in-flight queries staying compatible with the schema
-// mid-migration; ordering is what decision 8 protects.
+// Everything this file used to do inline now lives in `bootBe01`, which has
+// tests. A process whose composition is a top-level script is a composition no
+// test can reach — and this change exists because `runRetention` sat with no
+// caller for exactly that reason.
 //
-// The deploy path (tools/tool-remote-scripts/src/swap.ts) instead execs
-// `migrate-cli.ts` as its own step, strictly before the health gate ever
-// polls this process — so by the time anything checks `/health`, the schema
-// is already guaranteed current by that external ordering, not by this
-// process having migrated it. Nothing here needs to wait for it.
-//
-// Local dev (`nx run be-01:serve`) still wants the old one-process
-// convenience, so it's opt-in via an env var that defaults OFF — the unsafe
-// behaviour requires explicit opt-in, not the safe one. `apps/be-01/.env(.example)`
-// sets MIGRATE_ON_STARTUP=true for local dev.
-const migrateOnStartup = process.env['MIGRATE_ON_STARTUP'] === 'true';
-
-const state = { migrationsApplied: false };
-const app = buildApp({
-  get migrationsApplied() {
-    return state.migrationsApplied;
-  },
-  auth,
-  projects,
-  workItems,
-  replay,
-  internalAuthSecret: cfg.INTERNAL_AUTH_SECRET,
-  version: process.env['VERSION'],
-});
-
-// Started before `listen` returns rather than inside it: the callback is skipped
-// on a port that fails to bind, and retention would then never run in exactly
-// the deployment that had a problem.
-retention.start();
-
-// An in-flight sweep is waited for on the way out. Without a handler the default
-// SIGTERM kills the process mid-DELETE, and blue and green share this file.
-for (const signal of ['SIGTERM', 'SIGINT'] as const) {
-  process.on(signal, () => {
-    void retention
-      .stop()
-      .catch((err: unknown) => {
-        logger.error({ err }, 'retention did not stop cleanly');
-      })
-      .finally(() => {
-        logger.info({ signal }, 'be-01 stopping');
-        process.exit(0);
-      });
+// `MIGRATE_ON_STARTUP` defaults OFF: a deployed container must not migrate at
+// boot, because blue and green share one SQLite file during the swap overlap.
+// Local dev opts in through `apps/be-01/.env`.
+let running;
+try {
+  running = bootBe01({
+    dbPath: cfg.DB_PATH,
+    port: cfg.PORT,
+    logger,
+    jwtKey: cfg.JWT_SIGNING_KEY_CURRENT,
+    gwUrl: cfg.GW_URL,
+    internalAuthSecret: cfg.INTERNAL_AUTH_SECRET,
+    version: process.env['VERSION'],
+    migrateOnStartup: process.env['MIGRATE_ON_STARTUP'] === 'true',
   });
+} catch (err) {
+  logger.error({ err }, 'be-01 failed to start');
+  process.exit(1);
 }
 
-app.listen(cfg.PORT, () => {
-  if (!migrateOnStartup) {
-    logger.info({ port: cfg.PORT }, 'be-01 listening (schema managed by the deploy pipeline)');
-    state.migrationsApplied = true;
-    return;
-  }
-  logger.info({ port: cfg.PORT }, 'be-01 listening (migrating)');
-  try {
-    runMigrations(cfg.DB_PATH, './drizzle');
-    state.migrationsApplied = true;
-    logger.info('migrations applied');
-  } catch (err) {
-    logger.error({ err }, 'migrations failed');
-    process.exit(1);
-  }
-});
+// Stops accepting, waits for a retention sweep in flight, closes the file. The
+// default SIGTERM would kill the process mid-DELETE against a file the other
+// deployment colour is also using.
+for (const signal of ['SIGTERM', 'SIGINT'] as const) {
+  process.on(signal, () => {
+    void running.stop().then(
+      () => {
+        logger.info({ signal }, 'be-01 stopped');
+        process.exit(0);
+      },
+      (err: unknown) => {
+        logger.error({ err, signal }, 'be-01 did not stop cleanly');
+        process.exit(1);
+      },
+    );
+  });
+}
