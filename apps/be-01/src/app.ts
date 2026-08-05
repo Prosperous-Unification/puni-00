@@ -4,8 +4,10 @@ import { Elysia } from 'elysia';
 
 import { authController } from './controller/auth.controller';
 import { internalController } from './controller/internal.controller';
+import { projectController } from './controller/project.controller';
 import { smokeController } from './controller/smoke.controller';
 import type { AuthService } from './service/auth.service';
+import type { ProjectService } from './service/project.service';
 
 export interface AppOptions {
   migrationsApplied: boolean;
@@ -15,6 +17,12 @@ export interface AppOptions {
    * absent, answering 404 — indistinguishable from a routing fault at the edge.
    */
   auth: AuthService;
+  /**
+   * Required for the same reason as `auth`: an absent project service would
+   * answer 404 on every project route, which reads as an edge misconfiguration
+   * rather than a process built without its domain.
+   */
+  projects: ProjectService;
   /**
    * Shared secret gw-01 presents on /internal/*. Required — a default here
    * would silently diverge from the value gw-01 loads from the environment,
@@ -32,6 +40,7 @@ export function buildApp(opts: AppOptions) {
     .decorate('logger', logger)
     .use(smokeController)
     .use(authController(opts.auth))
+    .use(projectController(opts.auth, opts.projects))
     .use(
       internalController({
         secret: opts.internalAuthSecret,

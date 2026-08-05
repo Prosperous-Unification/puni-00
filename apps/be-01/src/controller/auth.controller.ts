@@ -1,5 +1,6 @@
 import { Elysia, t } from 'elysia';
 
+import { tokenFromHeaders } from '../middleware/authenticated';
 import type { AuthService } from '../service/auth.service';
 
 /**
@@ -52,16 +53,7 @@ export function authController(auth: AuthService) {
       { body: credentials },
     )
     .get('/me', async ({ headers, set }) => {
-      // Two accepted headers, and `x-wbs-token` is the one the front end uses.
-      // Dev sits behind basic auth on every path but /ws, so an
-      // `Authorization: Bearer` from the app *replaces* the `Authorization:
-      // Basic` credential the edge requires -- Caddy 401s before be-01 is
-      // reached, and the failure looks like a rejected app token rather than a
-      // missing proxy credential. A header the edge does not read cannot
-      // collide with one it does.
-      const bearer = headers['authorization'];
-      const token =
-        headers['x-wbs-token'] ?? (bearer?.startsWith('Bearer ') === true ? bearer.slice(7) : null);
+      const token = tokenFromHeaders(headers);
       if (token === null) {
         set.status = 401;
         return { error: 'missing_token' };

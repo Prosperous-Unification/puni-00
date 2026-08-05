@@ -4,8 +4,10 @@ import { buildApp } from './app';
 import { loadConfig } from './config';
 import { openDrizzle } from './repository/db';
 import { runMigrations } from './repository/migrate';
+import { ProjectRepository } from './repository/project';
 import { UserRepository } from './repository/user';
 import { AuthService } from './service/auth.service';
+import { ProjectService } from './service/project.service';
 
 const cfg = loadConfig();
 const logger = createLogger({ service: 'be-01', level: cfg.LOG_LEVEL });
@@ -18,6 +20,7 @@ const auth = new AuthService({
   users: new UserRepository(db),
   jwtKey: cfg.JWT_SIGNING_KEY_CURRENT,
 });
+const projects = new ProjectService({ projects: new ProjectRepository(db) });
 
 // Design decision 8: a deployed container must NOT migrate at startup.
 // Blue and green share one SQLite file during the swap overlap, and
@@ -46,6 +49,7 @@ const app = buildApp({
     return state.migrationsApplied;
   },
   auth,
+  projects,
   internalAuthSecret: cfg.INTERNAL_AUTH_SECRET,
   version: process.env['VERSION'],
 });

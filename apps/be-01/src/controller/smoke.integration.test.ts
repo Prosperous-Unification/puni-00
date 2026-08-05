@@ -2,6 +2,7 @@ import { describe, expect, it } from 'bun:test';
 
 import { buildApp } from '../app';
 import { testAuthService } from '../testing/auth-fixture';
+import { testProjectService } from '../testing/project-fixture';
 
 const TEST_SECRET = 'x'.repeat(32);
 
@@ -9,6 +10,7 @@ describe('POST /api/smoke/echo', () => {
   it('returns the validated message', async () => {
     const app = buildApp({
       auth: testAuthService(),
+      projects: testProjectService(),
       internalAuthSecret: TEST_SECRET,
       migrationsApplied: true,
     });
@@ -27,6 +29,7 @@ describe('POST /api/smoke/echo', () => {
   it('rejects invalid body with 400', async () => {
     const app = buildApp({
       auth: testAuthService(),
+      projects: testProjectService(),
       internalAuthSecret: TEST_SECRET,
       migrationsApplied: true,
     });

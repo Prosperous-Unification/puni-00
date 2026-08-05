@@ -3,12 +3,14 @@ import { jwtVerify, SignJWT } from 'jose';
 
 import { buildApp } from '../app';
 import { TEST_JWT_KEY, testAuthService } from '../testing/auth-fixture';
+import { testProjectService } from '../testing/project-fixture';
 
 const TEST_SECRET = 'x'.repeat(32);
 
 function app() {
   return buildApp({
     auth: testAuthService(),
+    projects: testProjectService(),
     internalAuthSecret: TEST_SECRET,
     migrationsApplied: true,
   });

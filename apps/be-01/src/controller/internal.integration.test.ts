@@ -2,6 +2,7 @@ import { describe, expect, it } from 'bun:test';
 
 import { buildApp } from '../app';
 import { testAuthService } from '../testing/auth-fixture';
+import { testProjectService } from '../testing/project-fixture';
 
 const SECRET = 'test-secret-must-be-32-chars-at-least-!';
 
@@ -9,6 +10,7 @@ describe('POST /internal/forward', () => {
   it('rejects without X-Internal-Auth', async () => {
     const app = buildApp({
       auth: testAuthService(),
+      projects: testProjectService(),
       migrationsApplied: true,
       internalAuthSecret: SECRET,
     });
@@ -25,6 +27,7 @@ describe('POST /internal/forward', () => {
   it('acks with auth + valid body', async () => {
     const app = buildApp({
       auth: testAuthService(),
+      projects: testProjectService(),
       migrationsApplied: true,
       internalAuthSecret: SECRET,
     });
@@ -48,6 +51,7 @@ describe('POST /internal/forward', () => {
   it('returns 400 on missing trace_id', async () => {
     const app = buildApp({
       auth: testAuthService(),
+      projects: testProjectService(),
       migrationsApplied: true,
       internalAuthSecret: SECRET,
     });
@@ -69,6 +73,7 @@ describe('POST /internal/resume', () => {
   it('returns replaying status for known subscriptions', async () => {
     const app = buildApp({
       auth: testAuthService(),
+      projects: testProjectService(),
       migrationsApplied: true,
       internalAuthSecret: SECRET,
     });

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'bun:test';
 
 import { buildApp } from './app';
 import { testAuthService } from './testing/auth-fixture';
+import { testProjectService } from './testing/project-fixture';
 
 const TEST_SECRET = 'x'.repeat(32);
 
@@ -9,6 +10,7 @@ describe('GET /health', () => {
   it('returns 200 with status:"ok" when ready', async () => {
     const app = buildApp({
       auth: testAuthService(),
+      projects: testProjectService(),
       internalAuthSecret: TEST_SECRET,
       migrationsApplied: true,
     });
@@ -21,6 +23,7 @@ describe('GET /health', () => {
   it('returns 503 while migrations still running', async () => {
     const app = buildApp({
       auth: testAuthService(),
+      projects: testProjectService(),
       internalAuthSecret: TEST_SECRET,
       migrationsApplied: false,
     });

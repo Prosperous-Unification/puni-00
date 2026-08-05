@@ -2,7 +2,7 @@
 
 - [x] 1.1 Add `project`, `work_item`, `role` and `estimate` to `apps/be-01/src/repository/schema.ts` per `design.md`, with a `down.sql` that drops all four. Proven by `apps/be-01/src/repository/migrate.test.ts`: migrate up, assert the four tables exist, migrate down, assert they are gone and `users` survives. Migration `20260805154500_add_wbs_domain`.
 - [x] 1.1a **Unplanned, and a prerequisite for 1.1's foreign keys.** `openDatabase` set `PRAGMA foreign_keys = ON` on every connection and `assertPragmas` verified only WAL and `busy_timeout` — so the pragma the domain schema leans on was requested and never confirmed. A build without foreign key support accepts the pragma and reports 0, which would make every reference in the new tables decorative. `Proof:` the test in `db.test.ts` was watched failing with "Received function did not throw" before the check existed.
-- [ ] 1.2 Extend `buildTestServices` to seed a project with an owner, so every later test starts from a real row rather than a fixture literal.
+- [x] 1.2 ~~Extend `buildTestServices`~~ — **that function does not exist in this repo**; the name was carried over from `wire-be-01-runtime-layer-a`'s tasks when this file was written. The fixture here is `testing/auth-fixture.ts`, so the equivalent is `testing/project-fixture.ts`: `inMemoryProjects()` holding the same guarantees the schema does, and `testProjectService()` for the ten `buildApp` call sites that only need the app to construct.
 
 ## 2. Number derivation, without a database
 
@@ -16,9 +16,12 @@ The riskiest code in the change. It is a pure function over a tree, so it is tes
 
 ## 3. Projects, ownership and the restriction check
 
-- [ ] 3.1 Write failing tests in `apps/be-01/src/controller/project.controller.test.ts`: create returns a project owned by the caller with roles `Dev` and `QA`; list returns every project regardless of owner; a non-owner reads a restricted project successfully.
-- [ ] 3.2 **Negative test first:** a non-owner mutating a restricted project gets 403 and writes nothing. Run it with the ownership check removed and watch it pass — then restore the check and watch it fail. `Proof:` comment names the injected fault: check deleted from `project.service.ts`.
-- [ ] 3.3 Implement the controller, service and repository for project create, list, read and `PATCH` of `name`/`restricted`.
+- [x] 3.1 Write failing tests in `apps/be-01/src/controller/project.controller.test.ts`: create returns a project owned by the caller with roles `Dev` and `QA`; list returns every project regardless of owner; a non-owner reads a restricted project successfully.
+- [x] 3.2 **Negative test first:** a non-owner mutating a restricted project gets 403 and writes nothing. `Proof:` `canEdit` in `project.service.ts` was replaced with `return true`, and the run reported `Expected: 403, Received: 200` with exactly that one test failing — so the assertion tracks the guard rather than something incidental. Restored, green.
+- [x] 3.3 Implement the controller, service and repository for project create, list, read and `PATCH` of `name`/`restricted`. `canEdit` is exported from the service because every later mutation asks the same question.
+- [x] 3.4 `apps/be-01/src/repository/project.test.ts` against real SQLite, including a project whose owner does not exist being rejected — which is the end-to-end proof that 1.1a's pragma assertion buys real enforcement rather than declared-and-ignored references.
+- [x] 3.5 `ProjectRepository.create` is `async` deliberately: `db.transaction` is synchronous, so a constraint violation was thrown _before_ the advertised promise existed and a caller using `.catch()` would never have seen it. Found by a test that could not observe the rejection.
+- [x] 3.6 Token extraction moved out of `auth.controller`'s `/me` into `middleware/authenticated.ts`, so the project routes and `/me` agree on which headers count. The `x-wbs-token` rationale moved with it, onto the symbol.
 
 ## 4. Work item tree: create, move, delete
 
