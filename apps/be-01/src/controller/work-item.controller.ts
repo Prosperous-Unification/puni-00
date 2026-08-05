@@ -81,7 +81,13 @@ function parsePatch(body: unknown): { name?: string; notes?: string } {
  * being malformed. `strategy_required` is 400 — that request is incomplete.
  */
 const statusFor = (reason: WorkItemRefusal): number =>
-  reason === 'forbidden' ? 403 : reason === 'not_found' ? 404 : reason === 'cycle' ? 409 : 400;
+  reason === 'forbidden'
+    ? 403
+    : reason === 'not_found'
+      ? 404
+      : reason === 'cycle' || reason === 'frozen'
+        ? 409
+        : 400;
 
 const isStrategy = (value: string | null): value is DeleteStrategy =>
   value === 'cascade' || value === 'promote';
@@ -146,6 +152,45 @@ export function workItemController(auth: AuthService, workItems: WorkItemService
         return { error: outcome.reason };
       }
       return { moved: true };
+    })
+    .post('/projects/:id/freeze', async ({ params, headers, set }) => {
+      const user = await userFromHeaders(auth, headers);
+      if (user === null) {
+        set.status = 401;
+        return { error: 'unauthenticated' };
+      }
+      const outcome = await workItems.freeze(params.id, user.id);
+      if (!outcome.ok) {
+        set.status = statusFor(outcome.reason);
+        return { error: outcome.reason };
+      }
+      return { frozen: true };
+    })
+    .post('/projects/:id/unfreeze', async ({ params, headers, set }) => {
+      const user = await userFromHeaders(auth, headers);
+      if (user === null) {
+        set.status = 401;
+        return { error: 'unauthenticated' };
+      }
+      const outcome = await workItems.unfreezeProject(params.id, user.id);
+      if (!outcome.ok) {
+        set.status = statusFor(outcome.reason);
+        return { error: outcome.reason };
+      }
+      return { unfrozen: true };
+    })
+    .post('/work-items/:id/unfreeze', async ({ params, headers, set }) => {
+      const user = await userFromHeaders(auth, headers);
+      if (user === null) {
+        set.status = 401;
+        return { error: 'unauthenticated' };
+      }
+      const outcome = await workItems.unfreeze(params.id, user.id);
+      if (!outcome.ok) {
+        set.status = statusFor(outcome.reason);
+        return { error: outcome.reason };
+      }
+      return { unfrozen: true };
     })
     .delete('/work-items/:id', async ({ params, request, headers, set }) => {
       const user = await userFromHeaders(auth, headers);

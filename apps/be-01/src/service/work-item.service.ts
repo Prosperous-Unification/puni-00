@@ -17,7 +17,7 @@ export interface NumberedWorkItem extends WorkItem {
 
 export type DeleteStrategy = 'cascade' | 'promote';
 
-export type WorkItemRefusal = 'not_found' | 'forbidden' | 'strategy_required' | 'cycle';
+export type WorkItemRefusal = 'not_found' | 'forbidden' | 'strategy_required' | 'cycle' | 'frozen';
 
 export type WorkItemOutcome<T> = { ok: true; result: T } | { ok: false; reason: WorkItemRefusal };
 
@@ -137,7 +137,12 @@ export class WorkItemService {
   async move(id: string, actorId: string, input: MoveWorkItem): Promise<WorkItemOutcome<null>> {
     const context = await this.contextFor(id, actorId);
     if (!context.ok) return context;
-    const { rows } = context.result;
+    const { workItem, rows } = context.result;
+
+    // A frozen number has left the tool — it is in someone's ticket. Moving the
+    // row would either break that reference or quietly stop it meaning what it
+    // said, so the freeze has to be lifted deliberately first.
+    if (workItem.frozenNumber !== null) return { ok: false, reason: 'frozen' };
 
     // Moving a work item beneath itself detaches its whole subtree from every
     // root: the rows survive, no number can be derived for them, and the project
@@ -184,6 +189,50 @@ export class WorkItemService {
         position: (i + 1) * POSITION_STEP,
       }));
     await this.opts.workItems.remove([id], promoted);
+    return { ok: true, result: null };
+  }
+
+  /**
+   * Writes the currently derived number of every work item that has none stored.
+   *
+   * Work items added afterwards keep deriving, so a project can be frozen,
+   * planned into further, and frozen again — each freeze pinning only what was
+   * unpinned at the time. Numbers already stored are not rewritten, which is the
+   * whole point: they are what left the tool.
+   */
+  async freeze(projectId: string, actorId: string): Promise<WorkItemOutcome<null>> {
+    const project = await this.opts.projects.findById(projectId);
+    if (project === null) return { ok: false, reason: 'not_found' };
+    if (!canEdit(project, actorId)) return { ok: false, reason: 'forbidden' };
+
+    const rows = await this.opts.workItems.listByProject(projectId);
+    const numbers = deriveNumbers(rows);
+    const updates = rows
+      .filter((row) => row.frozenNumber === null)
+      .map((row) => ({ id: row.id, frozenNumber: numbers.get(row.id) ?? null }));
+    await this.opts.workItems.setFrozenNumbers(updates);
+    return { ok: true, result: null };
+  }
+
+  /** Returns one work item to deriving, which is what lets it move again. */
+  async unfreeze(id: string, actorId: string): Promise<WorkItemOutcome<null>> {
+    const context = await this.contextFor(id, actorId);
+    if (!context.ok) return context;
+    await this.opts.workItems.setFrozenNumbers([{ id, frozenNumber: null }]);
+    return { ok: true, result: null };
+  }
+
+  async unfreezeProject(projectId: string, actorId: string): Promise<WorkItemOutcome<null>> {
+    const project = await this.opts.projects.findById(projectId);
+    if (project === null) return { ok: false, reason: 'not_found' };
+    if (!canEdit(project, actorId)) return { ok: false, reason: 'forbidden' };
+
+    const rows = await this.opts.workItems.listByProject(projectId);
+    await this.opts.workItems.setFrozenNumbers(
+      rows
+        .filter((row) => row.frozenNumber !== null)
+        .map((row) => ({ id: row.id, frozenNumber: null })),
+    );
     return { ok: true, result: null };
   }
 

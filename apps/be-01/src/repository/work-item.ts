@@ -1,7 +1,14 @@
 import { eq, inArray } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
-import type { Reparented, Repositioned, WorkItem, WorkItemPatch, WorkItemStore } from './index';
+import type {
+  FrozenNumber,
+  Reparented,
+  Repositioned,
+  WorkItem,
+  WorkItemPatch,
+  WorkItemStore,
+} from './index';
 import { estimate, workItem } from './schema';
 
 /**
@@ -58,6 +65,19 @@ export class WorkItemRepository implements WorkItemStore {
           .run();
       }
       tx.update(workItem).set({ parentId, position }).where(eq(workItem.id, id)).run();
+    });
+  }
+
+  async setFrozenNumbers(updates: readonly FrozenNumber[]): Promise<void> {
+    await Promise.resolve();
+    if (updates.length === 0) return;
+    this.db.transaction((tx) => {
+      for (const update of updates) {
+        tx.update(workItem)
+          .set({ frozenNumber: update.frozenNumber })
+          .where(eq(workItem.id, update.id))
+          .run();
+      }
     });
   }
 

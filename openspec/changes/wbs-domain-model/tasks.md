@@ -12,7 +12,7 @@ The riskiest code in the change. It is a pure function over a tree, so it is tes
 - [x] 2.2 Add the sort test that motivated the rule: assert `['010.1','010.10','010.2']` sorted byte-wise yields `010.01 < 010.02 … < 010.10` **after** derivation, and record in a `Proof:` comment that the unpadded form sorts `010.10` second. **It first passed against the empty stub** — a check that could not fail — so it now asserts every number is present and non-empty before comparing.
 - [x] 2.3 Implement `deriveNumbers(tree)` in `apps/be-01/src/service/derive-numbers.ts` as specified in `design.md`. No repository import.
 - [x] 2.3a A work item unreachable from any root throws rather than being returned unnumbered, which covers both an orphaned `parentId` and a parent cycle. `Proof:` watched failing with "Received function did not throw".
-- [ ] 2.4 Extend the tests to frozen anchors: a group holding frozen `010` and frozen `020` derives `011` for a work item between them; a work item between frozen `010` and frozen `011` derives `0105`; a partially frozen group reports mixed widths.
+- [x] 2.4 Frozen anchors done. Three helpers carry it: `below` for a work item added above the first anchor (`010` yields `005`), `between` for one added among them, and `stepLastDigit`. **`between` was wrong first time** — it appended on any adjacent digit pair, so `010`/`020` gave `0105` when `011` was free. It now steps the last digit and keeps that only if it still sorts below the ceiling, which is why `010`/`011` still gives `0105`.
 
 ## 3. Projects, ownership and the restriction check
 
@@ -30,14 +30,14 @@ The riskiest code in the change. It is a pure function over a tree, so it is tes
 - [x] 4.3 **Negative test:** `Proof:` the `strategy_required` guard was replaced with `if (false)` and exactly that one test failed. Same run proved the cycle guard: moving a work item beneath itself. Both restored, green.
 - [x] 4.4 Implement create, move and delete, with numbers derived on read through `deriveNumbers`. Also a cycle guard the spec did not ask for: moving a work item under its own descendant detaches the subtree from every root, and `deriveNumbers` then throws rather than returning a project quietly missing rows.
 - [x] 4.5a Unfrozen half done: deleting `020` from an unfrozen project leaves `010`, `020`.
-- [ ] 4.5b Frozen half waits on section 5 — there is no way to freeze yet.
+- [x] 4.5b Frozen half done in section 5: deleting `020` from a frozen project leaves `010`, `030`.
 - [x] 4.6 `WorkItemRepository.remove` applies promotions _before_ the deletion and deletes ancestors-last, both forced by the foreign keys. `Proof:` dropping the reversal fails the cascade test with `FOREIGN KEY constraint failed`.
 
 ## 5. Freeze and unfreeze
 
-- [ ] 5.1 Write failing tests in `apps/be-01/src/service/freeze.test.ts`: a freeze stores every derived number; a work item created afterwards derives `011` and stores nothing; a second freeze stores `011` and rewrites neither neighbour; unfreezing a project clears every stored number.
-- [ ] 5.2 **Negative test:** moving a work item that has a stored number returns 409 and writes no position. Remove the guard, watch the move succeed, restore it. `Proof:` comment names the fault.
-- [ ] 5.3 Implement project freeze, single-work-item unfreeze and project unfreeze.
+- [x] 5.1 All four in `apps/be-01/src/service/freeze.test.ts`, plus unfreezing a single work item releasing only that one.
+- [x] 5.2 **Negative test:** `Proof:` the `frozenNumber !== null` guard was replaced with `if (false)` and exactly that one test failed. Restored, green.
+- [x] 5.3 Implemented as `freeze`, `unfreeze` and `unfreezeProject`, with `POST /api/projects/:id/freeze`, `/unfreeze` and `POST /api/work-items/:id/unfreeze`. `setFrozenNumbers` takes the whole list in one transaction: a half-frozen project is one where some numbers moved and some did not, and no reader could tell which.
 
 ## 6. Estimates and roll-up
 

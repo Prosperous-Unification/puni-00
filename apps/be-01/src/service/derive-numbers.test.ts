@@ -102,3 +102,68 @@ describe('deriveNumbers', () => {
     );
   });
 });
+
+describe('deriveNumbers with frozen anchors', () => {
+  const frozen = (id: string, position: number, frozenNumber: string): WorkItemPlacement => ({
+    id,
+    parentId: null,
+    position,
+    frozenNumber,
+  });
+
+  it('reports a frozen number verbatim', () => {
+    const numbers = deriveNumbers([frozen('a', 10, '010'), frozen('b', 20, '020')]);
+
+    expect(numbers.get('a')).toBe('010');
+    expect(numbers.get('b')).toBe('020');
+  });
+
+  it('derives 011 between two frozen anchors', () => {
+    const numbers = deriveNumbers([
+      frozen('a', 10, '010'),
+      place('new', null, 15),
+      frozen('b', 20, '020'),
+    ]);
+
+    expect(numbers.get('new')).toBe('011');
+  });
+
+  it('appends a digit when the frozen anchors are adjacent', () => {
+    const numbers = deriveNumbers([
+      frozen('a', 10, '010'),
+      place('new', null, 15),
+      frozen('b', 20, '011'),
+    ]);
+
+    expect(numbers.get('new')).toBe('0105');
+  });
+
+  it('finds a label below the first frozen anchor', () => {
+    const numbers = deriveNumbers([place('new', null, 5), frozen('a', 10, '010')]);
+
+    const derived = numbers.get('new') ?? '';
+    expect(derived < '010').toBe(true);
+    expect(derived).not.toBe('');
+  });
+
+  it('keeps a partially frozen group in tree order', () => {
+    const numbers = deriveNumbers([
+      frozen('a', 10, '010'),
+      place('mid', null, 15),
+      frozen('b', 20, '020'),
+      place('last', null, 30),
+    ]);
+
+    const inOrder = ['a', 'mid', 'b', 'last'].map((id) => numbers.get(id) ?? '');
+    expect([...inOrder].sort()).toEqual(inOrder);
+  });
+
+  it('leaves a frozen child at the width it was frozen at', () => {
+    const numbers = deriveNumbers([
+      place('root', null, 10),
+      { id: 'kid', parentId: 'root', position: 10, frozenNumber: '010.1' },
+    ]);
+
+    expect(numbers.get('kid')).toBe('010.1');
+  });
+});

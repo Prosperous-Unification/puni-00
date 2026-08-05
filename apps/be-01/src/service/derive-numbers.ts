@@ -29,6 +29,64 @@ function labelsFor(count: number, isRoot: boolean): string[] {
   return Array.from({ length: count }, (_, i) => String((i + 1) * step).padStart(width, '0'));
 }
 
+/** The last segment of a number — the part that belongs to one sibling group. */
+function labelOf(number: string, isRoot: boolean): string {
+  if (isRoot) return number;
+  const segments = number.split('.');
+  return segments[segments.length - 1] ?? number;
+}
+
+/**
+ * A label that sorts strictly before `upper`, used when a work item is added
+ * above the first frozen anchor in its group.
+ *
+ * It walks to the first non-zero digit and steps it down, so `010` yields `005`.
+ * A group whose first anchor is all zeros has nothing below it, and that throws
+ * rather than returning something that sorts equal.
+ */
+function below(upper: string): string {
+  for (let i = 0; i < upper.length; i++) {
+    const digit = upper.charCodeAt(i) - 48;
+    if (digit > 0) return `${upper.slice(0, i)}${String(digit - 1)}5`;
+  }
+  throw new Error(`no label sorts before ${upper}`);
+}
+
+/**
+ * A label strictly between two others, for a work item inserted between frozen
+ * anchors that leave no natural label free.
+ *
+ * Digit by digit: where the two differ by more than one, take the middle digit;
+ * where they are adjacent, keep the lower and append, which is why `010` and
+ * `011` yield `0105`. This is the same trick as the numbering scheme itself, so
+ * the space between any two numbers is never exhausted.
+ */
+function between(lower: string, upper: string): string {
+  let prefix = '';
+  for (let i = 0; ; i++) {
+    const low = i < lower.length ? lower.charCodeAt(i) - 48 : -1;
+    const high = i < upper.length ? upper.charCodeAt(i) - 48 : 10;
+    if (low === high) {
+      prefix += String(low);
+      continue;
+    }
+    if (high - low > 1) return prefix + String(Math.floor((low + high) / 2));
+    // Adjacent digits do not mean no room: between `010` and `020` the tail of
+    // the lower number still has `011` free. Stepping its last digit is tried
+    // first and kept only if it still sorts below the ceiling; between `010` and
+    // `011` it does not, and appending is the only way down.
+    const stepped = stepLastDigit(lower);
+    return stepped < upper ? stepped : `${lower}5`;
+  }
+}
+
+/** `010` becomes `011`; `019`, having no room in its last digit, becomes `0195`. */
+function stepLastDigit(label: string): string {
+  const last = label.charCodeAt(label.length - 1) - 48;
+  if (last >= 9) return `${label}5`;
+  return `${label.slice(0, -1)}${String(last + 1)}`;
+}
+
 /**
  * Every work item's number, keyed by id.
  *
@@ -52,12 +110,37 @@ export function deriveNumbers(placements: readonly WorkItemPlacement[]): Map<str
   const numbers = new Map<string, string>();
   const numberGroup = (parentId: string | null, parentNumber: string | null): void => {
     const group = childrenOf.get(parentId) ?? [];
-    const labels = labelsFor(group.length, parentNumber === null);
+    const isRoot = parentNumber === null;
+    const natural = labelsFor(group.length, isRoot);
+    const frozenLabels = group.map((placement) =>
+      placement.frozenNumber === null ? null : labelOf(placement.frozenNumber, isRoot),
+    );
+
+    let nextNatural = 0;
+    let previous: string | null = null;
     group.forEach((placement, i) => {
-      const label = labels[i] ?? '';
-      const number = parentNumber === null ? label : `${parentNumber}.${label}`;
+      const label = frozenLabels[i] ?? claimLabel();
+      const number = isRoot ? label : `${parentNumber}.${label}`;
+      previous = label;
       numbers.set(placement.id, number);
       numberGroup(placement.id, number);
+
+      function claimLabel(): string {
+        // The next frozen anchor is the ceiling: whatever this work item takes
+        // has to sort below a number that has already left the tool.
+        const ceiling = frozenLabels.slice(i + 1).find((l) => l !== null) ?? null;
+        while (nextNatural < natural.length) {
+          const candidate = natural[nextNatural] ?? '';
+          if (ceiling !== null && candidate >= ceiling) break;
+          nextNatural++;
+          if (previous === null || candidate > previous) return candidate;
+        }
+        if (previous === null && ceiling !== null) return below(ceiling);
+        if (previous !== null && ceiling !== null) return between(previous, ceiling);
+        // No ceiling and every natural label used or too low: extend the last
+        // one, which always sorts after it.
+        return `${previous ?? natural.at(0) ?? '010'}5`;
+      }
     });
   };
   numberGroup(null, null);

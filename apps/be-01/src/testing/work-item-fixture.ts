@@ -1,4 +1,4 @@
-import type { Repositioned, WorkItem, WorkItemStore } from '../repository';
+import type { FrozenNumber, Repositioned, WorkItem, WorkItemStore } from '../repository';
 import { WorkItemService } from '../service/work-item.service';
 import { inMemoryProjects } from './project-fixture';
 
@@ -49,6 +49,14 @@ export function inMemoryWorkItems(): WorkItemStore {
       if (existing === undefined) throw new Error(`cannot move unknown ${id}`);
       reposition(respaced);
       byId.set(id, { ...existing, parentId, position });
+      return Promise.resolve();
+    },
+    setFrozenNumbers(updates: readonly FrozenNumber[]) {
+      for (const update of updates) {
+        const existing = byId.get(update.id);
+        if (existing === undefined) throw new Error(`cannot freeze unknown ${update.id}`);
+        byId.set(update.id, { ...existing, frozenNumber: update.frozenNumber });
+      }
       return Promise.resolve();
     },
     remove(ids, promoted) {

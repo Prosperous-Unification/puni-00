@@ -68,6 +68,11 @@ export interface Reparented extends Repositioned {
   parentId: string | null;
 }
 
+export interface FrozenNumber {
+  id: string;
+  frozenNumber: string | null;
+}
+
 export interface WorkItemStore {
   listByProject(projectId: string): Promise<WorkItem[]>;
   findById(id: string): Promise<WorkItem | null>;
@@ -85,6 +90,14 @@ export interface WorkItemStore {
     position: number,
     respaced: readonly Repositioned[],
   ): Promise<void>;
+  /**
+   * Writes or clears stored numbers. `null` returns a work item to deriving.
+   *
+   * A freeze is one call rather than a write per work item: a project half
+   * frozen is a project where some numbers moved and some did not, and nobody
+   * reading it could tell which.
+   */
+  setFrozenNumbers(updates: readonly FrozenNumber[]): Promise<void>;
   /** Removes `ids` and applies `promoted` together, so a promotion cannot outlive its parent. */
   remove(ids: readonly string[], promoted: readonly Reparented[]): Promise<void>;
 }
