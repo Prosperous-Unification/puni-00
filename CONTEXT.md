@@ -14,7 +14,9 @@ _Avoid_: stage, instance, deployment (as a noun for this)
 
 **Environment root**:
 The directory on the remote host that holds one environment's compose files, rendered
-Caddy site, tier state, secrets and data. `/srv/wbs` for `prod`.
+Caddy site, tier state, secrets and data. `/home/puni1/wbs` for `prod` and
+`/home/puni1/wbs-dev` for `dev` (ADR 0002). `/srv/wbs` is a stale rollback copy: reading it
+shows an environment that has not moved since 2026-08-04.
 _Avoid_: srv dir, deploy dir
 
 **Deploy trigger**:

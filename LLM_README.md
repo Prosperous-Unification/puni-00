@@ -13,7 +13,7 @@ Two facts explain most decisions:
 - **The product is one feature deep.** Since 2026-08-04 it has accounts and presence: register,
   log in, and see who else is connected (`/api/auth/*`, gw-01's roster). be-01 opens a database
   and signs the tokens gw-01 verifies. Absent is the WBS domain itself — no work-breakdown
-  model, and no persistence beyond `users`.
+  model. Persisted today: `users`, `examples`, `event_log`, `event_sequencer`.
 
 Tool choices bias novel over mainstream (Bun, Elysia, ArkType, Dagger) on purpose.
 

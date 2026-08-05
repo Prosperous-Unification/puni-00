@@ -42,3 +42,27 @@ describe('dev:setup seedApp', () => {
     expect(seedApp('be-01', root)).rejects.toThrow(MissingEnvExampleError);
   });
 });
+
+describe('the seeded env files must agree where two tiers share a secret', () => {
+  // be-01 signs the tokens gw-01 verifies. When the two `.env.example` files
+  // disagree, `dev:setup` seeds a checkout where registration and login work
+  // and the WebSocket then 401s -- which reads as a gateway fault rather than a
+  // configuration one. That shipped for a day, with be-01's own comment stating
+  // the rule the value beneath it broke.
+  it('gives be-01 and gw-01 the same JWT_SIGNING_KEY_CURRENT', async () => {
+    const root = new URL('../../', import.meta.url).pathname;
+    const read = async (app: string): Promise<string> => {
+      const text = await Bun.file(`${root}apps/${app}/.env.example`).text();
+      const line = text.split('\n').find((l) => l.startsWith('JWT_SIGNING_KEY_CURRENT='));
+      if (line === undefined) throw new Error(`${app}/.env.example has no JWT_SIGNING_KEY_CURRENT`);
+      return line.slice('JWT_SIGNING_KEY_CURRENT='.length);
+    };
+
+    const [be, gw] = await Promise.all([read('be-01'), read('gw-01')]);
+    expect(be).toBe(gw);
+    // A shared secret that is not a secret-sized string is its own defect: both
+    // configs hold this to >=32 characters, so a seeded checkout that passes
+    // this test must also pass startup validation.
+    expect(be.length).toBeGreaterThanOrEqual(32);
+  });
+});

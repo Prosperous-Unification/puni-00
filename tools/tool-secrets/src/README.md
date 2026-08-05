@@ -10,10 +10,18 @@ Encrypted secret storage for the WBS stack.
 
 ## CLI (invoked through Nx)
 
-- `nx run tool-secrets:decrypt` — decrypt `production.env.sops` into a temp file, print the path, and exit.
-- `nx run tool-secrets:encrypt` — encrypt a plaintext env file back into `production.env.sops` in place.
-- `nx run tool-secrets:push` — upload the decrypted file to the remote host at `/srv/wbs/.env` via `scp`.
-- `nx run tool-secrets:updatekeys` — run `sops updatekeys` to rewrap existing ciphertexts after adding/removing recipients in `.sops.yaml`.
+> **None of these four do anything yet.** Every one prints the command it _would_
+> run and exits 0 — see `cli/decrypt.ts`, `cli/encrypt.ts`, `cli/push.ts`,
+> `cli/updatekeys.ts`, each of which says so in its own output. They are wired to
+> Nx so the shape exists; the SOPS integration does not, because no real age key
+> is configured. Read the list below as the intended contract, not as behaviour
+> you can rely on today. In particular, a `push` that appears to succeed has
+> uploaded nothing.
+
+- `nx run tool-secrets:decrypt` — _intended:_ decrypt `production.env.sops` into a temp file, print the path, and exit.
+- `nx run tool-secrets:encrypt` — _intended:_ encrypt a plaintext env file back into `production.env.sops` in place.
+- `nx run tool-secrets:push` — _intended:_ upload the decrypted file to the remote host's env file. Note the path this would target moved to `/home/puni1/wbs/.env` (ADR 0002); the placeholder still names `/srv/wbs/.env`.
+- `nx run tool-secrets:updatekeys` — _intended:_ run `sops updatekeys` to rewrap existing ciphertexts after adding/removing recipients in `.sops.yaml`.
 
 All four targets are marked `cache: false` in `project.json` — they depend on runtime secrets and the Nx cache must never store their outputs.
 
