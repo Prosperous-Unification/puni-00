@@ -162,3 +162,58 @@ describe('planMove', () => {
     expect(planMove(TREE, 'ghost', 'paint', 'into')).toEqual({ ok: false, reason: 'not_found' });
   });
 });
+
+describe('planMove — cross-review findings', () => {
+  it('drops below an open parent as its first child, where the line was drawn', () => {
+    // agy, medium. With `strip` expanded, the row under it on screen is
+    // `sockets`. Someone aiming at that gap means "first child of strip".
+    // Placing it after the whole branch put it three rows from the marker.
+    expect(planMove(TREE, 'paint', 'strip', 'below', true)).toEqual({
+      ok: true,
+      parentId: 'strip',
+      afterId: null,
+    });
+  });
+
+  it('drops below a collapsed parent as its next sibling', () => {
+    // Closed, the row under it on screen really is its next sibling.
+    expect(planMove(TREE, 'paint', 'strip', 'below', false)).toEqual({
+      ok: true,
+      parentId: null,
+      afterId: 'strip',
+    });
+  });
+
+  it('is unchanged when dropped below an open parent it already leads', () => {
+    expect(planMove(TREE, 'sockets', 'strip', 'below', true)).toEqual({
+      ok: false,
+      reason: 'unchanged',
+    });
+  });
+
+  it('never resolves to a parent inside the dragged row’s own subtree', () => {
+    // The server's rule, checked directly rather than argued for. be-01 refuses
+    // a move whose resolved `parentId` descends from the row being moved; this
+    // asserts no plan this function emits can ever be one.
+    const parentOf = new Map(TREE.map((r) => [r.id, r.parentId]));
+    const descends = (candidate: string | null, ancestor: string): boolean => {
+      let cursor = candidate;
+      while (cursor !== null) {
+        if (cursor === ancestor) return true;
+        cursor = parentOf.get(cursor) ?? null;
+      }
+      return false;
+    };
+
+    for (const dragged of TREE) {
+      for (const target of TREE) {
+        for (const zone of ['above', 'into', 'below'] as const) {
+          for (const open of [true, false]) {
+            const plan = planMove(TREE, dragged.id, target.id, zone, open);
+            if (plan.ok) expect(descends(plan.parentId, dragged.id)).toBe(false);
+          }
+        }
+      }
+    }
+  });
+});

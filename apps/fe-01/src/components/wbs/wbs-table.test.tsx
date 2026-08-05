@@ -484,6 +484,9 @@ describe('dragging a row', () => {
   });
 
   itDom('refuses to drag a frozen row and says why', async () => {
+    // This test used to fire a `drop` with no `dragstart` before it, so `dropOn`
+    // returned on its null check and the frozen rule was never reached. Deleting
+    // that rule left it passing. Both reviewers found it; it drags for real now.
     const api = await threeRoots();
     click('Freeze numbering');
     await waitFor(() => {
@@ -495,14 +498,16 @@ describe('dragging a row', () => {
       return Promise.resolve();
     };
 
-    // Frozen rows offer no handle at all — an affordance that cannot work
-    // should not invite the attempt.
-    expect(screen.queryByLabelText('Reorder 030')).toBeNull();
+    // The handle stays, and says why it will not help.
+    const handle = screen.getByLabelText('Reorder 030');
+    expect(handle.getAttribute('title')).toContain('unfreeze');
+    expect(handle.getAttribute('aria-disabled')).toBe('true');
 
     withHeight(rowFor('010'), 0, 40);
-    fireEvent.drop(rowFor('010'), { clientY: 20 });
+    dragOnto('030', '010', 20);
 
     expect(moved).toEqual([]);
+    expect(screen.getByRole('alert').textContent).toContain('frozen');
   });
 
   itDom('refuses a drop inside the dragged row’s own subtree, with the reason', async () => {
@@ -582,5 +587,85 @@ describe('what a drag shows while it is happening', () => {
     await waitFor(() => {
       expect(numbersOnScreen()).toEqual(['010', '010.1', '010.2']);
     });
+  });
+});
+
+describe('someone else editing while you are typing', () => {
+  itDom('does not take the focus or the half-typed value', async () => {
+    // Two reviewers found this and neither was looking for it. `onKeyDown`
+    // reaches `flat` through `indent`/`outdent`, and `flat` is rebuilt by every
+    // refresh — so `columns` was a new array on every socket event, `flexRender`
+    // gave every cell a new component type, and React unmounted and remounted
+    // the lot. The comment above the dependency list had been warning about
+    // exactly this while the list itself caused it.
+    const api = fakeApi();
+    let notify: () => void = () => {
+      throw new Error('the table never subscribed');
+    };
+    const subscribe = (_projectId: string, handlers: SubscriptionHandlers) => {
+      notify = handlers.onChange;
+      return { seen: () => undefined, unsubscribe: () => undefined };
+    };
+    render(<WbsTable projectId="p1" api={api} subscribe={subscribe} />);
+
+    click('Add work item');
+    const input = await screen.findByLabelText('Name of 010');
+    input.focus();
+    fireEvent.change(input, { target: { value: 'Strip the old wir' } });
+    expect(document.activeElement).toBe(input);
+
+    // Somebody else's edit lands mid-word.
+    await act(async () => {
+      notify();
+      await Promise.resolve();
+    });
+
+    expect(document.activeElement).toBe(screen.getByLabelText('Name of 010'));
+    expect(screen.getByLabelText('Name of 010')).toHaveProperty('value', 'Strip the old wir');
+  });
+});
+
+describe('a drag interrupted by someone else', () => {
+  itDom('is cancelled rather than left holding a row nobody picked up', async () => {
+    // The browser does not reliably fire `dragend` on a source node replaced
+    // mid-gesture, so `dragging` could stay set forever — after which moving the
+    // pointer over the table drew drop markers and a click moved a row nobody
+    // had picked up. And planning against the newest tree turns "below 010" into
+    // a different move than the one that was on screen at pickup.
+    const api = await threeRoots();
+    let notify: () => void = () => {
+      throw new Error('the table never subscribed');
+    };
+    const subscribe = (_projectId: string, handlers: SubscriptionHandlers) => {
+      notify = handlers.onChange;
+      return { seen: () => undefined, unsubscribe: () => undefined };
+    };
+    // Re-render with a subscription so a peer edit can be delivered.
+    render(<WbsTable projectId="p1" api={api} subscribe={subscribe} />);
+    await waitFor(() => {
+      expect(screen.getAllByLabelText(/^Reorder 0/)).toHaveLength(6);
+    });
+
+    const moved: unknown[] = [];
+    api.move = (...args: unknown[]) => {
+      moved.push(args);
+      return Promise.resolve();
+    };
+
+    fireEvent.dragStart(screen.getAllByLabelText('Reorder 030')[1]);
+    await act(async () => {
+      notify();
+      await Promise.resolve();
+    });
+
+    // The drop that follows belongs to a gesture that no longer exists.
+    const target = withHeight(screen.getAllByRole('row').at(-1)!, 0, 40);
+    fireEvent(target, dragEvent('dragover', 20));
+    fireEvent(target, dragEvent('drop', 20));
+
+    expect(moved).toEqual([]);
+    expect(screen.getAllByRole('alert').at(-1)?.textContent).toContain(
+      'changed while you were dragging',
+    );
   });
 });

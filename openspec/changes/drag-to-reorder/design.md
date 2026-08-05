@@ -35,6 +35,12 @@ the two reorder zones are recoverable in one more drag if you miss.
 A row is a valid drop target whether or not it has children. Dropping into a
 childless row makes it a parent, which is how a breakdown grows.
 
+**Below an open parent means "first child".** With the branch showing, the next
+row down is the target's first child, so the line is drawn in that gap and the
+row has to land there. With the branch closed, the next row down really is the
+target's next sibling and "after it" is right. The table knows which; the planner
+is told rather than left to guess, which keeps it pure.
+
 ## D4 — The client refuses what the server refuses, on purpose
 
 be-01 rejects a move of a frozen row, and a move into a row's own subtree, and it
@@ -46,8 +52,13 @@ because drag has no error state a person can read — the row snaps back, and
 nothing on screen says whether that was a rule, a network failure or a bug. A
 refusal decided locally can name itself in the same instant.
 
-The two copies are held together by testing the client's against the cases the
-server's tests already cover: `frozen`, and `cycle`.
+The two copies are held together by asserting be-01's rule directly rather than
+by example: over every row, target, zone and expansion state of a fixture tree,
+no plan this function emits resolves to a parent that descends from the row being
+moved. That is `descendsFrom` in `work-item.service.ts`, restated as a property.
+The first version of this section claimed the copies were "held together" by
+tests that only repeated a few cases, which a reviewer was right to call
+overstated.
 
 ## D5 — A no-op drop is not a request
 

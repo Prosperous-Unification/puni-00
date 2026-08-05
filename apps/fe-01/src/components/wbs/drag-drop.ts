@@ -66,6 +66,16 @@ export function planMove(
   draggedId: string,
   targetId: string,
   zone: DropZone,
+  /**
+   * Whether the target's children are on screen beneath it.
+   *
+   * It changes what "below this row" means. With the branch open, the next row
+   * down is the target's first child, and a person aiming at the line between
+   * them means "first child" — placing the row after the whole subtree instead
+   * drops it several rows from where the marker was drawn. With the branch
+   * closed, the next row down really is the target's next sibling.
+   */
+  targetShowsChildren = false,
 ): MovePlan {
   const dragged = rows.find((r) => r.id === draggedId);
   const target = rows.find((r) => r.id === targetId);
@@ -86,7 +96,7 @@ export function planMove(
   // then reported a move instead of `unchanged`.
   if (isWithin(rows, targetId, draggedId)) return { ok: false, reason: 'cycle' };
 
-  const planned = resolve(rows, dragged, target, zone);
+  const planned = resolve(rows, dragged, target, zone, targetShowsChildren);
 
   // Where it already is. Sending this renumbers nothing and yet records an
   // event, pushes it to every subscribed socket and makes every other client
@@ -108,7 +118,12 @@ function resolve(
   dragged: WorkItemView,
   target: WorkItemView,
   zone: DropZone,
+  targetShowsChildren: boolean,
 ): { parentId: string | null; afterId: string | null } {
+  // Below a row whose children are showing is above the first of them, because
+  // that is the gap the marker was drawn in.
+  if (zone === 'below' && targetShowsChildren) return { parentId: target.id, afterId: null };
+
   if (zone === 'into') {
     const children = siblingsOf(rows, target.id, dragged.id);
     return { parentId: target.id, afterId: children.at(-1)?.id ?? null };
