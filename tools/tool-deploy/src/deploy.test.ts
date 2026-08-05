@@ -279,6 +279,22 @@ describe('buildDeployPlan', () => {
     expect(p.steps.some((s) => s.includes('new migrations'))).toBe(false);
   });
 
+  it('names only the migrations this deploy adds, not every one at HEAD', async () => {
+    // Observed against prod: the line listed the already-applied initial
+    // migration next to the real one, which reads as "both are about to run".
+    const deps = fakeDeps({
+      readRemoteState: () =>
+        Promise.resolve({
+          be: { tier: 'be', activeColor: 'green', lastDeployedSha: 'deployed-sha' },
+        }),
+      listMigrations: (sha) => (sha === 'deployed-sha' ? ['0001_init'] : ['0001_init', '0002_new']),
+    });
+    const p = await buildDeployPlan(['be', '--with-migrations'], [], HEAD, deps);
+    const line = p.steps.find((s) => s.includes('new migrations present'));
+    expect(line).toContain('0002_new');
+    expect(line).not.toContain('0001_init');
+  });
+
   it('does not gate a gw-only deploy on migrations it cannot apply', async () => {
     // Only be-01's plan carries a migrate step. The gate used to run per tier
     // against that tier's own sha, so this deploy demanded --with-migrations
