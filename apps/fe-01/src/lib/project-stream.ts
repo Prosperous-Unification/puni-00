@@ -183,6 +183,17 @@ export function subscribeToProject(
     socket = deps.openSocket(websocketUrl(options.token), {
       onOpen: () => {
         socket?.send(JSON.stringify({ type: 'subscribe', subscription }));
+
+        // Nothing to resume from. Resuming at -1 asks for the whole stream, and
+        // on a project with any history that is either a refusal or a frame per
+        // recorded event, each one making the caller refetch — on every first
+        // load, to establish a baseline the caller's own read is about to give
+        // us through `seen`. So: subscribe, and call it synchronised.
+        if (sinceSeq < 0) {
+          settle();
+          return;
+        }
+
         // Subscribe first, resume second. The other order leaves a window in
         // which the replay has been sent and a live edit arriving behind it has
         // no socket registered to receive it.

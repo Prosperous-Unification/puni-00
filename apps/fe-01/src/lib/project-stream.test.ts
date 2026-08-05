@@ -298,7 +298,8 @@ describe('subscribeToProject', () => {
       {
         token: 't',
         projectId: PROJECT,
-        sinceSeq: -1,
+        // A baseline, so each open sends a resume and waits for its answer.
+        sinceSeq: 3,
         onChange: ignore,
         onConnectionChange: (connected) => seen.push(connected),
       },
@@ -366,7 +367,7 @@ describe('subscribeToProject — cross-review findings', () => {
       {
         token: 't',
         projectId: PROJECT,
-        sinceSeq: -1,
+        sinceSeq: 3,
         onChange: ignore,
         onConnectionChange: (connected) => seen.push(connected),
       },
@@ -386,7 +387,7 @@ describe('subscribeToProject — cross-review findings', () => {
     // agy, high. `attempt` reset at open turns an expired token or a restarting
     // gateway into a reconnect every 300ms, forever, from every open browser.
     const h = harness();
-    subscribeToProject({ token: 't', projectId: PROJECT, sinceSeq: -1, onChange: ignore }, h.deps);
+    subscribeToProject({ token: 't', projectId: PROJECT, sinceSeq: 3, onChange: ignore }, h.deps);
 
     const delays: number[] = [];
     for (let attempt = 0; attempt < 4; attempt++) {
@@ -480,5 +481,58 @@ describe('subscribeToProject — cross-review findings', () => {
     );
 
     expect(changes).toBe(1);
+  });
+});
+
+describe('subscribeToProject — the first connection', () => {
+  it('subscribes without resuming when it has never read the project', () => {
+    // Resuming from -1 asks for the whole stream. On a project with a history
+    // that is either a denial or up to `maxEvents` frames, each one making the
+    // table refetch — on every first load, for a baseline the caller's own HTTP
+    // read is about to establish anyway.
+    const h = harness();
+    subscribeToProject({ token: 't', projectId: PROJECT, sinceSeq: -1, onChange: ignore }, h.deps);
+
+    h.latest().handlers.onOpen();
+
+    expect(h.frames(h.latest())).toEqual([{ type: 'subscribe', subscription: SUBSCRIPTION }]);
+  });
+
+  it('is live as soon as it is subscribed when there is nothing to resume', () => {
+    const h = harness();
+    const seen: boolean[] = [];
+    subscribeToProject(
+      {
+        token: 't',
+        projectId: PROJECT,
+        sinceSeq: -1,
+        onChange: ignore,
+        onConnectionChange: (connected) => seen.push(connected),
+      },
+      h.deps,
+    );
+
+    h.latest().handlers.onOpen();
+
+    expect(seen).toEqual([true]);
+  });
+
+  it('resumes on the next connection, once a read has given it a baseline', () => {
+    const h = harness();
+    const stream = subscribeToProject(
+      { token: 't', projectId: PROJECT, sinceSeq: -1, onChange: ignore },
+      h.deps,
+    );
+    h.latest().handlers.onOpen();
+    stream.seen(6);
+
+    h.latest().handlers.onClose();
+    h.runNextTimer();
+    h.latest().handlers.onOpen();
+
+    expect(h.frames(h.latest())).toEqual([
+      { type: 'subscribe', subscription: SUBSCRIPTION },
+      { type: 'resume', resume_points: { [SUBSCRIPTION]: 6 } },
+    ]);
   });
 });

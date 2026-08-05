@@ -61,3 +61,7 @@ every one reproduced as a failing test before it was fixed. Nothing was rejected
 - [x] 8.10 **Two proofs did not cover production wiring** (codex, medium; agy, medium). The shared `ReplayBuffer` and the started `RetentionTimer` were provable about the classes and not about the process. Composition moved into `services.ts` and `boot.ts`, both tested; the vacuous fourth `RetentionTimer` assertion now checks a schedule was created.
 - [x] 8.11 **SIGTERM exited without draining** (agy, medium). `stop()` stops the server, waits for a sweep, and closes the file through `openConnection`, which keeps drizzle's `$client` inside the repository layer.
 - [x] 8.12 **The replay cap was too large for its payloads** (agy, info). `tree_replaced` carries the whole project and gw-01 writes each event in a synchronous loop, so 256 was megabytes queued for one reconnecting laptop. Now 32.
+
+## 9. Found while writing this up
+
+- [x] 9.1 **The first connection resumed from `-1`, which asks for the whole stream.** On a project with any history that is a refusal or a frame per recorded event, each one making the table refetch — on every first load of every project, to establish a baseline the component's own HTTP read gives it a moment later through `seen`. It subscribes and calls itself synchronised instead, and resumes only once it knows where it is. Watched two tests fail with the guard removed.
