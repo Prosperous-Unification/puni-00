@@ -25,11 +25,13 @@ The riskiest code in the change. It is a pure function over a tree, so it is tes
 
 ## 4. Work item tree: create, move, delete
 
-- [ ] 4.1 Write failing tests in `apps/be-01/src/service/work-item.service.test.ts`: insertion between positions `10` and `20` stores `15` and writes no sibling; insertion between `10` and `11` renumbers that group to tens and leaves other parents untouched; a work item may be created with an empty name.
-- [ ] 4.2 **Negative test:** a create or update carrying a `number` field returns 400 and writes nothing, proven by removing the rejection and watching the test pass.
-- [ ] 4.3 **Negative test:** deleting a work item that has children without a strategy returns 400. Then `cascade` removes the subtree, and `promote` lifts the children into their parent's place in their existing order.
-- [ ] 4.4 Implement create, move and delete, with numbers derived on read through `deriveNumbers`.
-- [ ] 4.5 Test the delete-and-readjust rule end to end: deleting `020` from an unfrozen project leaves `010`, `020`; deleting `020` from a frozen project leaves `010`, `030`.
+- [x] 4.1 Placement is its own pure function, `service/place-sibling.ts`, tested without a store: midpoint between `10` and `20` writes no sibling, adjacent siblings respace the group to tens, an unknown `afterId` throws. The service tests cover empty names and nesting.
+- [x] 4.2 **Negative test, and it caught a real dud.** The rejection was first written after `{ body: t.Object(...) }` — Elysia strips unknown properties before the handler, so `'number' in body` never fired and the route answered 200. The routes now parse their bodies by hand; watched failing at 200 before that change.
+- [x] 4.3 **Negative test:** `Proof:` the `strategy_required` guard was replaced with `if (false)` and exactly that one test failed. Same run proved the cycle guard: moving a work item beneath itself. Both restored, green.
+- [x] 4.4 Implement create, move and delete, with numbers derived on read through `deriveNumbers`. Also a cycle guard the spec did not ask for: moving a work item under its own descendant detaches the subtree from every root, and `deriveNumbers` then throws rather than returning a project quietly missing rows.
+- [x] 4.5a Unfrozen half done: deleting `020` from an unfrozen project leaves `010`, `020`.
+- [ ] 4.5b Frozen half waits on section 5 — there is no way to freeze yet.
+- [x] 4.6 `WorkItemRepository.remove` applies promotions _before_ the deletion and deletes ancestors-last, both forced by the foreign keys. `Proof:` dropping the reversal fails the cascade test with `FOREIGN KEY constraint failed`.
 
 ## 5. Freeze and unfreeze
 

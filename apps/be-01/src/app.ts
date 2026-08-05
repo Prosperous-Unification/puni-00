@@ -6,8 +6,10 @@ import { authController } from './controller/auth.controller';
 import { internalController } from './controller/internal.controller';
 import { projectController } from './controller/project.controller';
 import { smokeController } from './controller/smoke.controller';
+import { workItemController } from './controller/work-item.controller';
 import type { AuthService } from './service/auth.service';
 import type { ProjectService } from './service/project.service';
+import type { WorkItemService } from './service/work-item.service';
 
 export interface AppOptions {
   migrationsApplied: boolean;
@@ -23,6 +25,8 @@ export interface AppOptions {
    * rather than a process built without its domain.
    */
   projects: ProjectService;
+  /** Required for the same reason as `projects`. */
+  workItems: WorkItemService;
   /**
    * Shared secret gw-01 presents on /internal/*. Required — a default here
    * would silently diverge from the value gw-01 loads from the environment,
@@ -41,6 +45,7 @@ export function buildApp(opts: AppOptions) {
     .use(smokeController)
     .use(authController(opts.auth))
     .use(projectController(opts.auth, opts.projects))
+    .use(workItemController(opts.auth, opts.workItems))
     .use(
       internalController({
         secret: opts.internalAuthSecret,

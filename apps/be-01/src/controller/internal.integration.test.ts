@@ -3,6 +3,7 @@ import { describe, expect, it } from 'bun:test';
 import { buildApp } from '../app';
 import { testAuthService } from '../testing/auth-fixture';
 import { testProjectService } from '../testing/project-fixture';
+import { testWorkItemService } from '../testing/work-item-fixture';
 
 const SECRET = 'test-secret-must-be-32-chars-at-least-!';
 
@@ -11,6 +12,7 @@ describe('POST /internal/forward', () => {
     const app = buildApp({
       auth: testAuthService(),
       projects: testProjectService(),
+      workItems: testWorkItemService(),
       migrationsApplied: true,
       internalAuthSecret: SECRET,
     });
@@ -28,6 +30,7 @@ describe('POST /internal/forward', () => {
     const app = buildApp({
       auth: testAuthService(),
       projects: testProjectService(),
+      workItems: testWorkItemService(),
       migrationsApplied: true,
       internalAuthSecret: SECRET,
     });
@@ -52,6 +55,7 @@ describe('POST /internal/forward', () => {
     const app = buildApp({
       auth: testAuthService(),
       projects: testProjectService(),
+      workItems: testWorkItemService(),
       migrationsApplied: true,
       internalAuthSecret: SECRET,
     });
@@ -74,6 +78,7 @@ describe('POST /internal/resume', () => {
     const app = buildApp({
       auth: testAuthService(),
       projects: testProjectService(),
+      workItems: testWorkItemService(),
       migrationsApplied: true,
       internalAuthSecret: SECRET,
     });
