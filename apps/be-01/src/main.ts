@@ -3,6 +3,7 @@ import { createLogger } from '@wbs/observability';
 import { buildApp } from './app';
 import { loadConfig } from './config';
 import { openDrizzle } from './repository/db';
+import { EstimateRepository } from './repository/estimate';
 import { runMigrations } from './repository/migrate';
 import { ProjectRepository } from './repository/project';
 import { UserRepository } from './repository/user';
@@ -27,6 +28,7 @@ const projects = new ProjectService({ projects: projectStore });
 const workItems = new WorkItemService({
   workItems: new WorkItemRepository(db),
   projects: projectStore,
+  estimates: new EstimateRepository(db),
 });
 
 // Design decision 8: a deployed container must NOT migrate at startup.

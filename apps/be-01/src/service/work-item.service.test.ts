@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'bun:test';
 
 import type { Project, ProjectStore, WorkItemStore } from '../repository';
+import { inMemoryEstimates } from '../testing/estimate-fixture';
 import { inMemoryProjects } from '../testing/project-fixture';
 import { inMemoryWorkItems } from '../testing/work-item-fixture';
 import { WorkItemService } from './work-item.service';
@@ -16,7 +17,7 @@ let projectId: string;
 beforeEach(async () => {
   projects = inMemoryProjects();
   workItems = inMemoryWorkItems();
-  service = new WorkItemService({ workItems, projects });
+  service = new WorkItemService({ workItems, projects, estimates: inMemoryEstimates(workItems) });
   const project: Project = {
     id: crypto.randomUUID(),
     name: 'Rewire the shed',

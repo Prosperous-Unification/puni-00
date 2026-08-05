@@ -41,12 +41,12 @@ The riskiest code in the change. It is a pure function over a tree, so it is tes
 
 ## 6. Estimates and roll-up
 
-- [ ] 6.1 Add the arktype estimate schema to `shared-lib-01` and a test that `optimistic ≤ realistic ≤ pessimistic` is enforced, that fractional days pass, and that negatives fail.
-- [ ] 6.2 **Negative test:** be-01 rejects an out-of-order estimate with 400 even when fe-01's check is bypassed — call the endpoint directly. Proves the two tiers are independently guarded rather than relying on the client.
-- [ ] 6.3 Write failing tests for roll-up in `apps/be-01/src/service/roll-up.test.ts`: two children of 1/2/3 and 2/3/4 give a parent of 3/5/7; a role no descendant estimated is absent from the parent, and the test asserts absence rather than `0/0/0`.
-- [ ] 6.4 **Negative test:** writing an estimate onto a work item that has children returns 409.
-- [ ] 6.5 Test the inheritance pair: adding a first child to an estimated work item moves the estimates down in one transaction; deleting a last child writes its estimates onto the parent.
-- [ ] 6.6 Implement the estimate repository, the roll-up read and the two inheritance transitions.
+- [x] 6.1 The shared lib is `libs/domain` (there is no `shared-lib-01` — the scaffold prompt's name, not the repo's). **It already held an `Estimate` type with `hours` and a `low|medium|high` confidence, and a `WbsItem` with `title`/`estimateHours`** — scaffold-era placeholders describing a different product, with no consumers outside their own test. `estimate.ts` is now `ThreePointEstimate`, ordering enforced by `.narrow`. `wbs-item.ts` and `dependency.ts` are still placeholders and still contradict the shipped domain; left alone as out of scope, flagged here.
+- [x] 6.2 `PUT /api/work-items/:id/estimates/:roleId` called directly with `1/5/3` answers 400 `invalid_estimate`, with no front end in the path.
+- [x] 6.3 `rollUp` is a pure function over rows and estimates. `Proof:` collapsing its parent branch to always take the leaf path failed exactly the four summation tests.
+- [x] 6.4 **Negative test:** `Proof:` the `rolled_up` guard was replaced with `if (false)` and exactly that one test failed.
+- [x] 6.5 Both directions, plus the case that distinguishes them: a _second_ child arriving must not move anything.
+- [x] 6.6 `EstimateRepository`, `rollUp` on read, and the two transitions in `create`/`remove`. Each `NumberedWorkItem` also carries `rolledUp`, so the table knows which cells are computed without re-deriving the tree shape.
 
 ## 7. Broadcast
 

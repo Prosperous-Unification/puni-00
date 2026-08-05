@@ -102,6 +102,29 @@ export interface WorkItemStore {
   remove(ids: readonly string[], promoted: readonly Reparented[]): Promise<void>;
 }
 
+export interface StoredEstimate {
+  workItemId: string;
+  roleId: string;
+  optimistic: number;
+  realistic: number;
+  pessimistic: number;
+}
+
+export interface EstimateStore {
+  listByProject(projectId: string): Promise<StoredEstimate[]>;
+  /** Writes one work item's estimate for one role, replacing any earlier one. */
+  set(estimate: StoredEstimate): Promise<void>;
+  /**
+   * Moves every estimate from one work item to another.
+   *
+   * Used in both directions by the same rule: an estimated work item that gains
+   * its first child hands the estimate down, and a work item whose last child is
+   * deleted takes it back. Neither is a merge — a parent never holds estimates of
+   * its own while it has children.
+   */
+  moveAll(fromWorkItemId: string, toWorkItemId: string): Promise<void>;
+}
+
 export interface ProjectStore {
   /**
    * Writes the project and its starting roles together. A project that existed

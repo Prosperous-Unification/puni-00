@@ -1,3 +1,5 @@
+import { ThreePointEstimate } from '@wbs/domain';
+import { parseOrThrow, ValidationError } from '@wbs/validation';
 import { Elysia } from 'elysia';
 
 import { userFromHeaders } from '../middleware/authenticated';
@@ -85,7 +87,7 @@ const statusFor = (reason: WorkItemRefusal): number =>
     ? 403
     : reason === 'not_found'
       ? 404
-      : reason === 'cycle' || reason === 'frozen'
+      : reason === 'cycle' || reason === 'frozen' || reason === 'rolled_up'
         ? 409
         : 400;
 
@@ -98,6 +100,13 @@ export function workItemController(auth: AuthService, workItems: WorkItemService
       if (error instanceof BadRequest) {
         set.status = 400;
         return { error: error.reason };
+      }
+      // The shared schema's refusal is a 400 here rather than a 500: the two
+      // tiers validate with the same arktype schema, so this is a client that
+      // bypassed fe-01 rather than a fault in either.
+      if (error instanceof ValidationError) {
+        set.status = 400;
+        return { error: 'invalid_estimate' };
       }
       return undefined;
     })
@@ -191,6 +200,20 @@ export function workItemController(auth: AuthService, workItems: WorkItemService
         return { error: outcome.reason };
       }
       return { unfrozen: true };
+    })
+    .put('/work-items/:id/estimates/:roleId', async ({ params, body, headers, set }) => {
+      const user = await userFromHeaders(auth, headers);
+      if (user === null) {
+        set.status = 401;
+        return { error: 'unauthenticated' };
+      }
+      const days = parseOrThrow(ThreePointEstimate, body);
+      const outcome = await workItems.setEstimate(params.id, user.id, params.roleId, days);
+      if (!outcome.ok) {
+        set.status = statusFor(outcome.reason);
+        return { error: outcome.reason };
+      }
+      return { estimated: true };
     })
     .delete('/work-items/:id', async ({ params, request, headers, set }) => {
       const user = await userFromHeaders(auth, headers);

@@ -1,5 +1,6 @@
 import type { FrozenNumber, Repositioned, WorkItem, WorkItemStore } from '../repository';
 import { WorkItemService } from '../service/work-item.service';
+import { inMemoryEstimates } from './estimate-fixture';
 import { inMemoryProjects } from './project-fixture';
 
 /**
@@ -77,5 +78,10 @@ export function inMemoryWorkItems(): WorkItemStore {
 
 /** A WorkItemService over in-memory stores, for tests that only need `buildApp` to construct. */
 export function testWorkItemService(): WorkItemService {
-  return new WorkItemService({ workItems: inMemoryWorkItems(), projects: inMemoryProjects() });
+  const workItems = inMemoryWorkItems();
+  return new WorkItemService({
+    workItems,
+    projects: inMemoryProjects(),
+    estimates: inMemoryEstimates(workItems),
+  });
 }

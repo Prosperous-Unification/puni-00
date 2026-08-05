@@ -4,6 +4,7 @@ import { buildApp } from '../app';
 import { ProjectService } from '../service/project.service';
 import { WorkItemService } from '../service/work-item.service';
 import { inMemoryUsers, testAuthService } from '../testing/auth-fixture';
+import { inMemoryEstimates } from '../testing/estimate-fixture';
 import { inMemoryProjects } from '../testing/project-fixture';
 import { inMemoryWorkItems } from '../testing/work-item-fixture';
 
@@ -13,7 +14,11 @@ function buildHarness() {
   const app = buildApp({
     auth: testAuthService(inMemoryUsers()),
     projects: new ProjectService({ projects: projectStore }),
-    workItems: new WorkItemService({ workItems: workItemStore, projects: projectStore }),
+    workItems: new WorkItemService({
+      workItems: workItemStore,
+      projects: projectStore,
+      estimates: inMemoryEstimates(workItemStore),
+    }),
     internalAuthSecret: 'x'.repeat(32),
     migrationsApplied: true,
   });
@@ -122,6 +127,58 @@ describe('work item routes', () => {
     const tree = await send(`/api/projects/${projectId}/work-items`, token);
     const body = (await tree.json()) as { workItems: { name: string }[] };
     expect(body.workItems[0]?.name).toBe('Strip the old wiring');
+  });
+
+  it('refuses an out-of-order estimate at be-01, with no front end involved', async () => {
+    // Called directly, so fe-01's copy of the schema is not in the path. This is
+    // what proves the two tiers are independently guarded rather than be-01
+    // trusting a client that shares its validation library.
+    const { token, send, projectId } = await setup();
+    const created = await send(`/api/projects/${projectId}/work-items`, token, {
+      method: 'POST',
+      body: JSON.stringify({ parentId: null, afterId: null, name: 'Strip' }),
+    });
+    const id = ((await created.json()) as { id: string }).id;
+
+    const res = await send(`/api/work-items/${id}/estimates/role-dev`, token, {
+      method: 'PUT',
+      body: JSON.stringify({ optimistic: 1, realistic: 5, pessimistic: 3 }),
+    });
+
+    expect(res.status).toBe(400);
+    expect((await res.json()) as { error: string }).toEqual({ error: 'invalid_estimate' });
+  });
+
+  it('accepts an ordered estimate and rolls it into the parent', async () => {
+    const { token, send, projectId } = await setup();
+    const parent = await send(`/api/projects/${projectId}/work-items`, token, {
+      method: 'POST',
+      body: JSON.stringify({ parentId: null, afterId: null, name: 'Strip' }),
+    });
+    const parentId = ((await parent.json()) as { id: string }).id;
+    const child = await send(`/api/projects/${projectId}/work-items`, token, {
+      method: 'POST',
+      body: JSON.stringify({ parentId, afterId: null, name: 'Sockets' }),
+    });
+    const childId = ((await child.json()) as { id: string }).id;
+
+    const res = await send(`/api/work-items/${childId}/estimates/role-dev`, token, {
+      method: 'PUT',
+      body: JSON.stringify({ optimistic: 1, realistic: 2, pessimistic: 3 }),
+    });
+
+    expect(res.status).toBe(200);
+    const tree = await send(`/api/projects/${projectId}/work-items`, token);
+    const body = (await tree.json()) as {
+      workItems: { name: string; rolledUp: boolean; estimates: Record<string, unknown> }[];
+    };
+    const strip = body.workItems.find((w) => w.name === 'Strip');
+    expect(strip?.rolledUp).toBe(true);
+    expect(strip?.estimates['role-dev']).toEqual({
+      optimistic: 1,
+      realistic: 2,
+      pessimistic: 3,
+    } as never);
   });
 
   it('refuses an unauthenticated caller', async () => {

@@ -1,4 +1,5 @@
 import type {
+  EstimateStore,
   Project,
   ProjectStore,
   Reparented,
@@ -9,15 +10,28 @@ import type {
 import { deriveNumbers } from './derive-numbers';
 import { placeAfter, POSITION_STEP, type Sibling } from './place-sibling';
 import { canEdit } from './project.service';
+import { type Days, rollUp } from './roll-up';
 
-/** A work item as a reader sees it: the stored row plus the number derived for it. */
+/**
+ * A work item as a reader sees it: the stored row, the number derived for it and
+ * its estimates by role — its own if it is a leaf, its descendants' sums if not.
+ */
 export interface NumberedWorkItem extends WorkItem {
   number: string;
+  estimates: Record<string, Days>;
+  /** True when the estimates above are sums and therefore not editable here. */
+  rolledUp: boolean;
 }
 
 export type DeleteStrategy = 'cascade' | 'promote';
 
-export type WorkItemRefusal = 'not_found' | 'forbidden' | 'strategy_required' | 'cycle' | 'frozen';
+export type WorkItemRefusal =
+  | 'not_found'
+  | 'forbidden'
+  | 'strategy_required'
+  | 'cycle'
+  | 'frozen'
+  | 'rolled_up';
 
 export type WorkItemOutcome<T> = { ok: true; result: T } | { ok: false; reason: WorkItemRefusal };
 
@@ -36,6 +50,7 @@ export interface MoveWorkItem {
 export interface WorkItemServiceOptions {
   workItems: WorkItemStore;
   projects: ProjectStore;
+  estimates: EstimateStore;
   newId?: () => string;
 }
 
@@ -92,8 +107,15 @@ export class WorkItemService {
     if (project === null) return null;
     const rows = await this.opts.workItems.listByProject(projectId);
     const numbers = deriveNumbers(rows);
+    const totals = rollUp(rows, await this.opts.estimates.listByProject(projectId));
+    const hasChildren = new Set(rows.map((row) => row.parentId).filter((id) => id !== null));
     const workItems = rows
-      .map((row) => ({ ...row, number: numbers.get(row.id) ?? '' }))
+      .map((row) => ({
+        ...row,
+        number: numbers.get(row.id) ?? '',
+        estimates: Object.fromEntries(totals.get(row.id) ?? []),
+        rolledUp: hasChildren.has(row.id),
+      }))
       .sort((a, b) => (a.number < b.number ? -1 : a.number > b.number ? 1 : 0));
     return { workItems };
   }
@@ -119,6 +141,13 @@ export class WorkItemService {
       frozenNumber: null,
     };
     await this.opts.workItems.insert(workItem, placed.renumbered);
+    // A work item that had an estimate and now has a child no longer holds one:
+    // the estimate described the work, and the work is the child now. Moving it
+    // down keeps the total identical, which is what makes this safe to do
+    // silently — the plan's numbers do not shift under the user.
+    if (input.parentId !== null && !rows.some((row) => row.parentId === input.parentId)) {
+      await this.opts.estimates.moveAll(input.parentId, workItem.id);
+    }
     return { ok: true, result: workItem };
   }
 
@@ -174,6 +203,12 @@ export class WorkItemService {
     if (children.length > 0 && strategy === null) return { ok: false, reason: 'strategy_required' };
 
     if (children.length === 0 || strategy === 'cascade') {
+      // The mirror of the rule in `create`: a parent losing its last child takes
+      // the estimates back, so the work is still described somewhere.
+      const parentId = workItem.parentId;
+      if (parentId !== null && rows.filter((row) => row.parentId === parentId).length === 1) {
+        await this.opts.estimates.moveAll(id, parentId);
+      }
       await this.opts.workItems.remove(subtreeOf(rows, id), []);
       return { ok: true, result: null };
     }
@@ -233,6 +268,27 @@ export class WorkItemService {
         .filter((row) => row.frozenNumber !== null)
         .map((row) => ({ id: row.id, frozenNumber: null })),
     );
+    return { ok: true, result: null };
+  }
+
+  /**
+   * Writes one work item's estimate for one role.
+   *
+   * Refused for a work item that has children: its figures are the sum of what
+   * is below it, and a stored estimate there would either be ignored or
+   * double-counted. Neither is visible to whoever typed it.
+   */
+  async setEstimate(
+    id: string,
+    actorId: string,
+    roleId: string,
+    days: Days,
+  ): Promise<WorkItemOutcome<null>> {
+    const context = await this.contextFor(id, actorId);
+    if (!context.ok) return context;
+    const { rows } = context.result;
+    if (rows.some((row) => row.parentId === id)) return { ok: false, reason: 'rolled_up' };
+    await this.opts.estimates.set({ workItemId: id, roleId, ...days });
     return { ok: true, result: null };
   }
 

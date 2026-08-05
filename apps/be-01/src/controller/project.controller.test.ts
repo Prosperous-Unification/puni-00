@@ -4,8 +4,18 @@ import { buildApp } from '../app';
 import { ProjectService } from '../service/project.service';
 import { WorkItemService } from '../service/work-item.service';
 import { inMemoryUsers, testAuthService } from '../testing/auth-fixture';
+import { inMemoryEstimates } from '../testing/estimate-fixture';
 import { inMemoryProjects } from '../testing/project-fixture';
 import { inMemoryWorkItems } from '../testing/work-item-fixture';
+
+function buildWorkItemService(projectStore: ReturnType<typeof inMemoryProjects>) {
+  const workItemStore = inMemoryWorkItems();
+  return new WorkItemService({
+    workItems: workItemStore,
+    projects: projectStore,
+    estimates: inMemoryEstimates(workItemStore),
+  });
+}
 
 function buildHarness() {
   const auth = testAuthService(inMemoryUsers());
@@ -14,7 +24,7 @@ function buildHarness() {
   const app = buildApp({
     auth,
     projects,
-    workItems: new WorkItemService({ workItems: inMemoryWorkItems(), projects: projectStore }),
+    workItems: buildWorkItemService(projectStore),
     internalAuthSecret: 'x'.repeat(32),
     migrationsApplied: true,
   });
