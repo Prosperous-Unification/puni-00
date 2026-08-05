@@ -34,6 +34,30 @@ what was changed to break it; "result" is what the run reported.
 | Subscription names are checked      | check → `if (false)`                             | `ws.controller.test.ts` "does not register a socket for an unknown subscription"       | one test failed                                                                             |
 | Same, end to end on real sockets    | check → `if (false)`                             | `fan-out.integration.test.ts` "refuses a socket that asks for an unknown subscription" | one test failed                                                                             |
 
+## Cross review, 2026-08-05
+
+`codex exec --sandbox read-only` and `agy --mode plan --print-timeout 9m`, run
+independently from the same prompt (`tmp/review-prompt-domain.md`). **Every
+finding either reviewer raised that was tested turned out to be real.** Each was
+reproduced as a failing test in `apps/be-01/src/service/review-findings.test.ts`
+before being fixed.
+
+| Finding                                                                                    | Raised by | Reproduced as                                                                                                | Fix                                                                                                                                           |
+| ------------------------------------------------------------------------------------------ | --------- | ------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| A frozen number was rebuilt from its current parent instead of reported verbatim           | both      | "reports a frozen child by its stored number after the parent is renumbered" — got `005.1`, expected `020.1` | `deriveNumbers` reports `frozenNumber` as stored; the last segment still drives sibling ordering                                              |
+| `promote` could give two work items the same frozen number                                 | codex     | "keeps promoted frozen children distinct" — 4 rows, 3 distinct numbers                                       | same fix; verbatim numbers cannot collide by rebuilding                                                                                       |
+| Deleting a last child that is itself a parent destroyed the whole subtree's estimates      | both      | "does not lose an estimate held below the deleted child"                                                     | the parent now takes the subtree's **roll-up totals**, not the child's own rows — a non-leaf holds none                                       |
+| A parent in another project was accepted, after which the project could not be read at all | codex     | "refuses a parent from another project"                                                                      | `create` and `move` reject a `parentId` absent from this project's rows; the schema cannot, since `parent_id` references `work_item.id` alone |
+| `unfreezeProject` committed without broadcasting                                           | codex     | "broadcasts the tree after a project unfreeze"                                                               | `announceTree` added. An earlier edit meant to add it silently failed to match after formatting — the commit message claimed it and was wrong |
+| `between` emitted an out-of-order number across a digit-width boundary                     | agy       | "refuses rather than emitting a number that sorts into the wrong place"                                      | nothing digit-shaped sorts between `010` and `0100`, so it throws instead of returning `0105`                                                 |
+| Typing into one estimate cell of an unestimated row always 400'd                           | agy       | `keepOrdered` unit tests                                                                                     | the other two points are nudged to keep the ordering be-01 enforces                                                                           |
+| Out-of-order refreshes could replace the table with an older tree                          | codex     | not reproduced — accepted on reading                                                                         | a generation counter; only the newest refresh may write                                                                                       |
+
+**Raised and not fixed:** double-clicking a row's Delete shows `request_failed`
+because the second request 404s (agy). Real, cosmetic, and fixing it properly
+means per-row pending state — which must not go through the memoized column
+definitions, for the reason in the row above this table.
+
 ## Not covered
 
 - **8.4b, resume on reconnect.** gw-01 has the protocol and be-01 has the durable

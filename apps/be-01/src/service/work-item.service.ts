@@ -133,6 +133,14 @@ export class WorkItemService {
     if (!canEdit(project, actorId)) return { ok: false, reason: 'forbidden' };
 
     const rows = await this.opts.workItems.listByProject(projectId);
+    // `rows` is this project only, so a parent that is not among them belongs to
+    // another project — or to none. The schema cannot catch it: `parent_id`
+    // references `work_item.id` alone, not `(project_id, id)`. Accepting it
+    // makes the row unreachable from any root here, and every later read of the
+    // project throws instead of rendering.
+    if (input.parentId !== null && !rows.some((row) => row.id === input.parentId)) {
+      return { ok: false, reason: 'not_found' };
+    }
     const placed = placeAfter(this.groupUnder(rows, input.parentId), input.afterId);
     const workItem: WorkItem = {
       id: this.newId(),
@@ -178,6 +186,12 @@ export class WorkItemService {
     // said, so the freeze has to be lifted deliberately first.
     if (workItem.frozenNumber !== null) return { ok: false, reason: 'frozen' };
 
+    // Same reason as in `create`: a parent outside this project detaches the row
+    // from every root here.
+    if (input.parentId !== null && !rows.some((row) => row.id === input.parentId)) {
+      return { ok: false, reason: 'not_found' };
+    }
+
     // Moving a work item beneath itself detaches its whole subtree from every
     // root: the rows survive, no number can be derived for them, and the project
     // reads as though the work vanished.
@@ -211,11 +225,20 @@ export class WorkItemService {
     if (children.length === 0 || strategy === 'cascade') {
       // The mirror of the rule in `create`: a parent losing its last child takes
       // the estimates back, so the work is still described somewhere.
+      //
+      // The totals rather than the rows. `moveAll` alone was wrong whenever the
+      // deleted child was itself a parent: its figures live on its descendants,
+      // it holds no estimate rows of its own, so nothing moved and the whole
+      // subtree's estimates were then deleted with it.
       const parentId = workItem.parentId;
+      const doomed = subtreeOf(rows, id);
       if (parentId !== null && rows.filter((row) => row.parentId === parentId).length === 1) {
-        await this.opts.estimates.moveAll(id, parentId);
+        const totals = rollUp(rows, await this.opts.estimates.listByProject(workItem.projectId));
+        for (const [roleId, days] of totals.get(id) ?? []) {
+          await this.opts.estimates.set({ workItemId: parentId, roleId, ...days });
+        }
       }
-      await this.opts.workItems.remove(subtreeOf(rows, id), []);
+      await this.opts.workItems.remove(doomed, []);
       await this.announceTree(workItem.projectId);
       return { ok: true, result: null };
     }
@@ -278,6 +301,7 @@ export class WorkItemService {
         .filter((row) => row.frozenNumber !== null)
         .map((row) => ({ id: row.id, frozenNumber: null })),
     );
+    await this.announceTree(projectId);
     return { ok: true, result: null };
   }
 

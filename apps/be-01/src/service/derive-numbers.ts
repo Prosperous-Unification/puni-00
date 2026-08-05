@@ -76,7 +76,14 @@ function between(lower: string, upper: string): string {
     // first and kept only if it still sorts below the ceiling; between `010` and
     // `011` it does not, and appending is the only way down.
     const stepped = stepLastDigit(lower);
-    return stepped < upper ? stepped : `${lower}5`;
+    if (stepped < upper) return stepped;
+    const appended = `${lower}5`;
+    if (appended < upper) return appended;
+    // Neither fits. This happens when two frozen anchors sit at different widths
+    // — `010` beside `0100` — and nothing digit-shaped sorts between them.
+    // Throwing beats returning a number that would sort into the wrong place:
+    // that number would look deliberate and could reach an exported ticket.
+    throw new Error(`no label sorts between ${lower} and ${upper}`);
   }
 }
 
@@ -96,7 +103,9 @@ function stepLastDigit(label: string): string {
  * wrong number is repaired by running this again — which is what makes deleting
  * a work item safe to follow with a plain re-derivation.
  *
- * `frozenNumber` is not yet honoured here; freezing is the next slice.
+ * A `frozenNumber` is reported verbatim. It still takes part in ordering through
+ * its last segment, so an unfrozen sibling inserted beside it lands in the right
+ * place, but the number itself is never rebuilt.
  */
 export function deriveNumbers(placements: readonly WorkItemPlacement[]): Map<string, string> {
   const childrenOf = new Map<string | null, WorkItemPlacement[]>();
@@ -120,7 +129,13 @@ export function deriveNumbers(placements: readonly WorkItemPlacement[]): Map<str
     let previous: string | null = null;
     group.forEach((placement, i) => {
       const label = frozenLabels[i] ?? claimLabel();
-      const number = isRoot ? label : `${parentNumber}.${label}`;
+      // A stored number is reported exactly as it was written down, never
+      // rebuilt from the current parent. Rebuilding is how a frozen `010.1.1`
+      // became `010.1` when its parent was promoted — colliding with a frozen
+      // sibling and pointing one exported ticket number at two work items.
+      // The label still drives ordering among siblings; only the reported
+      // number differs.
+      const number = placement.frozenNumber ?? (isRoot ? label : `${parentNumber}.${label}`);
       previous = label;
       numbers.set(placement.id, number);
       numberGroup(placement.id, number);

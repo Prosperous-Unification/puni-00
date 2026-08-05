@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { Days, ProjectApi, RoleView, WorkItemView } from '@/lib/wbs-api';
 
-import { WbsTable } from './wbs-table';
+import { keepOrdered, WbsTable } from './wbs-table';
 
 // fe-01 tests require jsdom; only Vitest provides it. Skip under plain `bun test`.
 const hasDom = typeof document !== 'undefined';
@@ -316,5 +316,29 @@ describe('collapsing a branch', () => {
 
     expect(screen.queryByLabelText('Collapse 010')).toBeNull();
     expect(screen.queryByLabelText('Expand 010')).toBeNull();
+  });
+});
+
+describe('keepOrdered', () => {
+  const days = (optimistic: number, realistic: number, pessimistic: number) => ({
+    optimistic,
+    realistic,
+    pessimistic,
+  });
+
+  it('drags the other two up when optimistic is typed into an empty estimate', () => {
+    // be-01 rejects 5/0/0, so without this a row could never be given its first
+    // estimate through the UI — the request 400s and the edit is discarded.
+    expect(keepOrdered(days(0, 0, 0), 'optimistic', 5)).toEqual(days(5, 5, 5));
+  });
+
+  it('keeps the typed value and moves only what it must', () => {
+    expect(keepOrdered(days(1, 2, 3), 'realistic', 9)).toEqual(days(1, 9, 9));
+    expect(keepOrdered(days(1, 2, 3), 'pessimistic', 0)).toEqual(days(0, 0, 0));
+    expect(keepOrdered(days(1, 2, 3), 'optimistic', 2)).toEqual(days(2, 2, 3));
+  });
+
+  it('leaves an already ordered triple alone', () => {
+    expect(keepOrdered(days(1, 2, 3), 'realistic', 2)).toEqual(days(1, 2, 3));
   });
 });

@@ -28,6 +28,33 @@ type Point = (typeof POINTS)[number];
 const showDays = (days: Days | undefined, point: Point): string =>
   days === undefined ? '' : String(days[point]);
 
+/**
+ * The triple after one point was typed, with the other two nudged to keep
+ * `optimistic <= realistic <= pessimistic`.
+ *
+ * be-01 enforces that ordering, so typing `5` into the optimistic cell of an
+ * unestimated row used to send `5/0/0` and come back 400 — the row could never
+ * be given its first estimate through the UI at all. Nudging the neighbours is
+ * the least surprising resolution: the number you typed is the number you get,
+ * and the others move only as far as they must.
+ */
+export function keepOrdered(current: Days, point: Point, value: number): Days {
+  const next = { ...current, [point]: value };
+  if (point === 'optimistic') {
+    next.realistic = Math.max(next.realistic, next.optimistic);
+    next.pessimistic = Math.max(next.pessimistic, next.realistic);
+    return next;
+  }
+  if (point === 'realistic') {
+    next.optimistic = Math.min(next.optimistic, next.realistic);
+    next.pessimistic = Math.max(next.pessimistic, next.realistic);
+    return next;
+  }
+  next.realistic = Math.min(next.realistic, next.pessimistic);
+  next.optimistic = Math.min(next.optimistic, next.realistic);
+  return next;
+}
+
 const column = createColumnHelper<TreeRow>();
 
 /**
@@ -51,8 +78,17 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
   const [busy, setBusy] = useState(false);
   const focusNext = useRef<string | null>(null);
 
+  const latestRefresh = useRef(0);
+
   const refresh = useCallback(async () => {
+    // Every mutation and every socket event starts a refresh, and they can
+    // finish out of order — an earlier one landing last would replace the table
+    // with a tree older than what is on screen, with nothing guaranteed to
+    // arrive afterwards and repair it. Only the newest request may write.
+    const generation = latestRefresh.current + 1;
+    latestRefresh.current = generation;
     const [tree, loadedRoles] = await Promise.all([api.tree(projectId), api.roles(projectId)]);
+    if (generation !== latestRefresh.current) return;
     setWorkItems(toTree(tree));
     setRoles(loadedRoles);
   }, [api, projectId]);
@@ -236,7 +272,7 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
                     realistic: 0,
                     pessimistic: 0,
                   };
-                  const days = { ...current, [point]: Number(e.target.value) };
+                  const days = keepOrdered(current, point, Number(e.target.value));
                   void run(() => api.setEstimate(row.original.id, role.id, days));
                 }}
               />
