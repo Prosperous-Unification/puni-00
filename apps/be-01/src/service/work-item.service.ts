@@ -7,6 +7,8 @@ import type {
   WorkItemPatch,
   WorkItemStore,
 } from '../repository';
+import type { Broadcaster } from './broadcast';
+import { withAncestors } from './broadcast';
 import { deriveNumbers } from './derive-numbers';
 import { placeAfter, POSITION_STEP, type Sibling } from './place-sibling';
 import { canEdit } from './project.service';
@@ -51,6 +53,7 @@ export interface WorkItemServiceOptions {
   workItems: WorkItemStore;
   projects: ProjectStore;
   estimates: EstimateStore;
+  broadcast: Broadcaster;
   newId?: () => string;
 }
 
@@ -148,6 +151,7 @@ export class WorkItemService {
     if (input.parentId !== null && !rows.some((row) => row.parentId === input.parentId)) {
       await this.opts.estimates.moveAll(input.parentId, workItem.id);
     }
+    await this.announceTree(projectId);
     return { ok: true, result: workItem };
   }
 
@@ -160,6 +164,7 @@ export class WorkItemService {
     if (!context.ok) return context;
     const updated = await this.opts.workItems.patch(id, patch);
     if (updated === null) return { ok: false, reason: 'not_found' };
+    await this.announceWorkItem(updated.projectId, id);
     return { ok: true, result: updated };
   }
 
@@ -183,6 +188,7 @@ export class WorkItemService {
     const group = this.groupUnder(rows, input.parentId).filter((sibling) => sibling.id !== id);
     const placed = placeAfter(group, input.afterId);
     await this.opts.workItems.move(id, input.parentId, placed.position, placed.renumbered);
+    await this.announceTree(workItem.projectId);
     return { ok: true, result: null };
   }
 
@@ -210,6 +216,7 @@ export class WorkItemService {
         await this.opts.estimates.moveAll(id, parentId);
       }
       await this.opts.workItems.remove(subtreeOf(rows, id), []);
+      await this.announceTree(workItem.projectId);
       return { ok: true, result: null };
     }
 
@@ -224,6 +231,7 @@ export class WorkItemService {
         position: (i + 1) * POSITION_STEP,
       }));
     await this.opts.workItems.remove([id], promoted);
+    await this.announceTree(workItem.projectId);
     return { ok: true, result: null };
   }
 
@@ -246,6 +254,7 @@ export class WorkItemService {
       .filter((row) => row.frozenNumber === null)
       .map((row) => ({ id: row.id, frozenNumber: numbers.get(row.id) ?? null }));
     await this.opts.workItems.setFrozenNumbers(updates);
+    await this.announceTree(projectId);
     return { ok: true, result: null };
   }
 
@@ -254,6 +263,7 @@ export class WorkItemService {
     const context = await this.contextFor(id, actorId);
     if (!context.ok) return context;
     await this.opts.workItems.setFrozenNumbers([{ id, frozenNumber: null }]);
+    await this.announceTree(context.result.workItem.projectId);
     return { ok: true, result: null };
   }
 
@@ -289,7 +299,28 @@ export class WorkItemService {
     const { rows } = context.result;
     if (rows.some((row) => row.parentId === id)) return { ok: false, reason: 'rolled_up' };
     await this.opts.estimates.set({ workItemId: id, roleId, ...days });
+    await this.announceWorkItem(context.result.workItem.projectId, id);
     return { ok: true, result: null };
+  }
+
+  /** Sends the whole tree, for a change that can renumber more than it touched. */
+  private async announceTree(projectId: string): Promise<void> {
+    const tree = await this.tree(projectId);
+    if (tree === null) return;
+    await this.opts.broadcast.publish(projectId, {
+      type: 'tree_replaced',
+      workItems: tree.workItems,
+    });
+  }
+
+  /** Sends one work item and its ancestors, whose roll-ups its change moved. */
+  private async announceWorkItem(projectId: string, id: string): Promise<void> {
+    const tree = await this.tree(projectId);
+    if (tree === null) return;
+    await this.opts.broadcast.publish(projectId, {
+      type: 'work_items_changed',
+      workItems: withAncestors(tree.workItems, id),
+    });
   }
 
   private groupUnder(rows: readonly WorkItem[], parentId: string | null): Sibling[] {

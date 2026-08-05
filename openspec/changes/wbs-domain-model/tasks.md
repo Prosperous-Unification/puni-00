@@ -50,10 +50,10 @@ The riskiest code in the change. It is a pure function over a tree, so it is tes
 
 ## 7. Broadcast
 
-- [ ] 7.1 Write failing tests in `apps/be-01/src/service/work-item-broadcast.test.ts` against the fake `PushClient`: an estimate write pushes `work_items_changed` holding the work item and its ancestors and nothing else; a move pushes `tree_replaced`.
-- [ ] 7.2 **Negative test in gw-01:** `apps/gw-01/src/controller/ws.controller.test.ts` asserts a subscribe request for a subscription that is neither `presence` nor `project:<uuid>` leaves `SubscriptionMap` empty and returns an error. Remove the format check at `ws.controller.ts:66`, watch the socket get registered, restore it. `Proof:` comment names the fault.
-- [ ] 7.3 Implement the subscription format check and both payload shapes.
-- [ ] 7.4 Integration test with two real sockets, following the shape of the existing presence test: socket A writes an estimate on a nested work item, socket B receives the work item and its ancestors with recalculated totals.
+- [x] 7.1 `apps/be-01/src/service/broadcast.test.ts`, against a recording `Broadcaster` rather than a fake `PushClient` — the service should not know a gateway exists. Six cases, including one the spec did not list: a refused mutation broadcasts nothing.
+- [x] 7.2 **Negative test in gw-01.** `Proof:` the check was replaced with `if (false)` and exactly that one test failed. It also broke an existing test that subscribed to `doc:a` — a name from before any whitelist existed, now pointed at `presence`. That breakage is the guard working.
+- [x] 7.3 Both shapes, plus `GatewayBroadcaster`, which records to the durable event log **before** pushing and swallows a failed push: the mutation already committed and the log already has it, so a delivery problem must not tell the caller their edit did not happen.
+- [ ] 7.4 Two-socket integration test still to do. The unit level proves the payloads and the subscription check; what is unproven is the whole path be-01 -> /internal/push -> fan-out with real sockets.
 
 ## 8. The table
 

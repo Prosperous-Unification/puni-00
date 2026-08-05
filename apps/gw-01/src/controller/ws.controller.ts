@@ -23,6 +23,24 @@ export interface HandleWsMessageArgs {
   roster?: () => string[];
 }
 
+/**
+ * The subscriptions a socket may join.
+ *
+ * Without this, `subscribe` registers whatever string it is handed. That was
+ * harmless while presence was the only channel; once a subscription names a
+ * project it becomes an open door onto internal channels, and a typo becomes a
+ * socket that silently receives nothing forever rather than an error.
+ *
+ * Project reads are open to every authenticated account by design, so this is a
+ * shape check rather than an authorisation one — the socket is already
+ * authenticated when it gets here.
+ */
+const PROJECT_SUBSCRIPTION = /^project:[0-9a-fA-F-]{36}$/;
+
+export function isKnownSubscription(subscription: string): boolean {
+  return subscription === 'presence' || PROJECT_SUBSCRIPTION.test(subscription);
+}
+
 export async function handleWsMessage(args: HandleWsMessageArgs): Promise<void> {
   let msg: Record<string, unknown>;
   try {
@@ -64,6 +82,16 @@ export async function handleWsMessage(args: HandleWsMessageArgs): Promise<void> 
   }
 
   if (msg['type'] === 'subscribe' && typeof msg['subscription'] === 'string') {
+    if (!isKnownSubscription(msg['subscription'])) {
+      args.socket.send(
+        JSON.stringify({
+          type: 'error',
+          code: 'unknown_subscription',
+          subscription: msg['subscription'],
+        }),
+      );
+      return;
+    }
     args.subs.subscribe(msg['subscription'], args.socket);
     return;
   }

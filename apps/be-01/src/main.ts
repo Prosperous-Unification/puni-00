@@ -4,12 +4,16 @@ import { buildApp } from './app';
 import { loadConfig } from './config';
 import { openDrizzle } from './repository/db';
 import { EstimateRepository } from './repository/estimate';
+import { DrizzleEventLogRepo } from './repository/event-log';
 import { runMigrations } from './repository/migrate';
 import { ProjectRepository } from './repository/project';
 import { UserRepository } from './repository/user';
 import { WorkItemRepository } from './repository/work-item';
 import { AuthService } from './service/auth.service';
+import { EventSequencer } from './service/event-sequencer';
+import { GatewayBroadcaster } from './service/gateway-broadcaster';
 import { ProjectService } from './service/project.service';
+import { PushClient } from './service/push-client';
 import { WorkItemService } from './service/work-item.service';
 
 const cfg = loadConfig();
@@ -29,6 +33,16 @@ const workItems = new WorkItemService({
   workItems: new WorkItemRepository(db),
   projects: projectStore,
   estimates: new EstimateRepository(db),
+  broadcast: new GatewayBroadcaster({
+    sequencer: new EventSequencer(new DrizzleEventLogRepo(db)),
+    push: new PushClient({ gwUrl: cfg.GW_URL, secret: cfg.INTERNAL_AUTH_SECRET }),
+    // The event is already in the durable log and the mutation already
+    // committed, so a client that reconnects still gets it on replay. Failing
+    // the request here would tell the caller their edit did not happen.
+    onPushFailed: (err, subscription) => {
+      logger.warn({ err, subscription }, 'project event recorded but not pushed');
+    },
+  }),
 });
 
 // Design decision 8: a deployed container must NOT migrate at startup.
