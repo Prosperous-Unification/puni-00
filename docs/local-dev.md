@@ -123,8 +123,18 @@ require it for day-to-day dev.
 - **`@/` imports fail in fe-01 tests** — run them via `bunx nx test fe-01`
   (Vitest resolves the alias); root `bun test` does not.
 - **JWT errors on gw-01 WS upgrade** — expected when connecting without a JWT.
-  Dev-test with `wscat -c 'ws://localhost:3200/ws?token=<jwt>'` after signing a
-  token with `JWT_SIGNING_KEY_CURRENT` from `apps/gw-01/.env`.
+  Get a real token the way the app does — register, then log in:
+
+  ```sh
+  curl -s -X POST localhost:3100/api/auth/register \
+    -H 'content-type: application/json' \
+    -d '{"username":"ada","password":"lovelace99"}' | jq -r .token
+  ```
+
+  Then `wscat -c 'ws://localhost:3200/ws?token=<that token>'`. Signing one by hand
+  is no longer the route: be-01 issues the tokens gw-01 verifies, and both read the
+  same `JWT_SIGNING_KEY_CURRENT` — `dev:setup` seeds them identically, and
+  `tools/dev/setup.test.ts` fails if the two `.env.example` files ever disagree.
 
 ## What local dev does NOT do
 

@@ -140,8 +140,11 @@ failure mode has never been observed is a claim, not a gate.
 
 ## Gate
 
-- Before claiming done, run locally what CI will run anyway:
-  `bunx nx format:check` and `bunx nx run-many -t test lint typecheck build`.
+- Before claiming done, run locally what CI will run anyway, with the same flags:
+  `bunx nx format:check --all` and
+  `bunx nx run-many -t test lint typecheck build --parallel=2`.
+  `--all` is not decoration: without it the scope is `git diff main HEAD`, which is
+  EMPTY on main — a format check that checks nothing and passes.
 - OpenSpec changes also run `openspec validate --all --json`.
 - `.github/workflows/ci.yml` runs all of the above plus the secrets scan and
   migration lint on every push and PR. It is not bypassable; lefthook is.

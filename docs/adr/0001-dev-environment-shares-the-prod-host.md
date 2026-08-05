@@ -7,6 +7,11 @@ override — but roughly €5/month. Sharing h2puni costs no money and instead c
 tenant, and every one of them has to become environment-scoped. We chose the shared host,
 so `WBS_ENV` now exists and the remote layout is parameterised.
 
+> **Superseded in part by ADR 0002 (2026-08-04):** the roots below moved from `/srv/...`
+> to `/home/puni1/...`, because `/srv` is root-owned and the host has no passwordless sudo.
+> The decision this ADR records — dev shares the prod host — still stands; only the paths
+> changed. The text below is left as written.
+
 ## Consequences
 
 The blast radius of a dev deploy now includes the prod box. Dev gets its own Docker

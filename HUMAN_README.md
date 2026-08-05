@@ -17,9 +17,15 @@ approval prompt between a sentence you type on a phone and a command running as
 GitHub token. A misread message, an unlocked phone, or a hijacked WhatsApp
 session is arbitrary shell on your infrastructure.
 
-**There is no rollback.** `--version` and `--since` are parsed and ignored. Every
-real deploy is fix-forward. A bad deploy is fixed by deploying something better,
-under whatever pressure you are already under.
+**There is no rollback to an older release.** `--version` and `--since` are now
+_refused_ rather than ignored (2026-08-04), so a command that looks like a rollback
+stops instead of quietly deploying HEAD. Going back means checking out the older
+commit, rebuilding and deploying it. Every real deploy is fix-forward, under
+whatever pressure you are already under.
+
+The **schema** is a separate matter and does roll back: every migration ships a
+`down.sql`, and an aborted be-01 swap reverses to the baseline it captured before
+migrating (`AGENTS.md`, "Migrations").
 
 So, the rule:
 
@@ -88,9 +94,10 @@ entry means it is free, however old the file looks. A file with contents but no
 live lock is the fingerprint of a deploy that was killed — the contents name the
 last holder.
 
-> ⚠️ **`readRecordedColor` in `swap.js` reads absent, unreadable and malformed
-> state files all as "no state".** If a state file looks wrong, do not trust a
-> tool's summary of it — read the file.
+> **State files fail closed since 2026-08-05.** Only a genuinely absent file reads
+> as "never deployed"; unreadable or malformed ones now refuse and name the path.
+> The live colour comes from Caddy's admin config regardless — the state file is a
+> cache, and routing wins over it.
 
 ### Step 3 — logs
 
@@ -114,9 +121,9 @@ Then publish and dry-run — still no `--execute`:
 
 **Say "on h2puni".** Builds are blocked on h1claw by a hook, so a message that
 does not name the host will be refused mid-emergency, which is the worst possible
-time to discover it. As of 2026-08-04 h2puni still lacks the `dagger` CLI — until
-that is installed this step cannot run anywhere, and it is the single thing to
-provision before trusting this runbook. The checkout at `/home/puni1/wbs-dev/src`
+time to discover it. h2puni has the pinned `dagger` CLI and a build checkout at
+`/home/puni1/wbs-build` since 2026-08-05, and images have been published from it —
+build there, never in dev's checkout at `/home/puni1/wbs-dev/src`, which
 is dev's and is bind-mounted into a running container; do not build from it.
 
 **Stop and do not authorise if** the tree is dirty, `release.json` is stale, the
@@ -172,9 +179,10 @@ holds the prod SSH key, registry credentials and the GitHub PAT, so builds do no
 belong on it. A hook there denies `dagger`, `docker build` and the Nx publish and
 deploy targets; anything sent over `ssh … h2puni` passes.
 
-Caveat as of 2026-08-04: h2puni has `bun`, `docker`, `git` and Node 24.18.1 (via
-Volta), and runs the `dagger-engine` — but still has **no `dagger` CLI**, so it
-cannot drive a prod build yet. Installing it is the next setup job.
+As of 2026-08-05 h2puni can drive a prod build: `dagger` v0.21.8 pinned to the
+engine image, a build checkout at `/home/puni1/wbs-build` that dev's deploy cannot
+reset under it, and the `h2puni` alias resolving to itself so the deploy can ssh
+where it already is. `docs/runbook-prod-deploy.md` has the detail and the traps.
 
 There is a checkout at `/home/puni1/wbs-dev/src`, but it belongs to dev: it is
 bind-mounted into the running dev container, so a build there would fight the
@@ -194,11 +202,13 @@ Seconds, not minutes. Dev runs from source on h2puni, so the deploy is a `git
 reset --hard` there — the dev servers are already watching those files and pick
 the change up themselves. Nothing is built.
 
-**Three kinds of change do not travel this way**, and the deploy will still say
-it succeeded:
+**Three kinds of change do not travel this way.** Since 2026-08-05 the first two
+_fail the deploy_ and print the command that applies them; only the third is still
+silent, because a gitignored file cannot arrive in a push at all:
 
-- **The Dockerfile or `compose.yml`** — the container has to be rebuilt or
-  recreated by hand on h2puni.
+- **The Dockerfile or `compose.yml`** — the deploy refuses and names the recreate
+  command. A restart cannot apply either: the running container was created from
+  the old file, so its mounts, user, limits and image are still the old ones.
 - **A per-tier `.env`** — those are gitignored, so a push cannot carry them.
   Edit on h2puni, then `docker restart wbs-dev-src`.
 - Anything else not listed in `RESTART_PATHS` in `tools/tool-devsync/src/sync.ts`.
