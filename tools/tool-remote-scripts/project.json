@@ -20,19 +20,27 @@
       "options": {
         "command": "bun run tools/tool-remote-scripts/src/install.ts"
       },
-      "cache": false
+      "cache": false,
+      "dependsOn": ["build", "tool-smoke:build"]
     },
     "test": {
       "executor": "nx:run-commands",
-      "options": { "command": "bun test", "cwd": "tools/tool-remote-scripts" }
+      "options": {
+        "command": "bun test",
+        "cwd": "tools/tool-remote-scripts"
+      }
     },
     "lint": {
       "executor": "nx:run-commands",
-      "options": { "command": "bunx eslint tools/tool-remote-scripts/src" }
+      "options": {
+        "command": "bunx eslint tools/tool-remote-scripts/src"
+      }
     },
     "typecheck": {
       "executor": "nx:run-commands",
-      "options": { "command": "bunx tsc --noEmit -p tools/tool-remote-scripts/tsconfig.json" }
+      "options": {
+        "command": "bunx tsc --noEmit -p tools/tool-remote-scripts/tsconfig.json"
+      }
     }
   }
 }

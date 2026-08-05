@@ -64,3 +64,30 @@ describe('parseSha256sumOutput', () => {
     expect(parseSha256sumOutput('\n\n')).toEqual({});
   });
 });
+
+describe('the install target must build what it ships', () => {
+  // Observed on 2026-08-05: the install target shipped a bundle built two
+  // commits earlier, because it had no dependsOn and copied whatever was left
+  // in dist/. It then reported "checksums verified against the local build" —
+  // true, and about the stale file it had just installed. The installed
+  // swap.js was missing a function its source had held since the last merge.
+  //
+  // Asserted against the project config rather than trusted, because the whole
+  // failure was a configuration gap that no code path could reveal.
+  it('declares a build dependency for every artifact it copies', async () => {
+    const root = new URL('../../../', import.meta.url).pathname;
+    const config = (await Bun.file(`${root}tools/tool-remote-scripts/project.json`).json()) as {
+      targets: Record<string, { dependsOn?: string[] }>;
+    };
+    const dependsOn = config.targets['install'].dependsOn ?? [];
+
+    expect(dependsOn).toContain('build');
+    // smoke.js comes from a different project, so `^build` would not cover it.
+    expect(dependsOn).toContain('tool-smoke:build');
+    // Every file the installer ships must be produced by one of those builds.
+    expect(BUNDLE_FILES.map((f) => f.local).sort()).toEqual([
+      'dist/tool-remote-scripts/swap.js',
+      'dist/tool-smoke/smoke.js',
+    ]);
+  });
+});
