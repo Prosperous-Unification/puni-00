@@ -44,5 +44,7 @@ what was changed to break it; "result" is what the run reported.
   `/internal/push` directly rather than through them.
 - **Arrow-key movement between cells, and drag to reorder.** Neither exists, so
   neither is tested.
+- **Column visibility, ordering and resizing.** TanStack Table is now in place and
+  would carry them, but none is wired.
 - **`libs/domain/wbs-item.ts` and `dependency.ts`** are scaffold-era placeholders
   that contradict the shipped domain. No consumers, left in place — see task 6.1.
