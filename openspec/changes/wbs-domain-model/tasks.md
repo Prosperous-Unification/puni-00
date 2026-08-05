@@ -53,7 +53,8 @@ The riskiest code in the change. It is a pure function over a tree, so it is tes
 - [x] 7.1 `apps/be-01/src/service/broadcast.test.ts`, against a recording `Broadcaster` rather than a fake `PushClient` — the service should not know a gateway exists. Six cases, including one the spec did not list: a refused mutation broadcasts nothing.
 - [x] 7.2 **Negative test in gw-01.** `Proof:` the check was replaced with `if (false)` and exactly that one test failed. It also broke an existing test that subscribed to `doc:a` — a name from before any whitelist existed, now pointed at `presence`. That breakage is the guard working.
 - [x] 7.3 Both shapes, plus `GatewayBroadcaster`, which records to the durable event log **before** pushing and swallows a failed push: the mutation already committed and the log already has it, so a delivery problem must not tell the caller their edit did not happen.
-- [ ] 7.4 Two-socket integration test still to do. The unit level proves the payloads and the subscription check; what is unproven is the whole path be-01 -> /internal/push -> fan-out with real sockets.
+- [x] 7.4 `apps/gw-01/src/fan-out.integration.test.ts` — gw-01 listening on a real port, three real WebSockets with real JWTs. Two subscribed to the same project both receive the push; a third watching another project receives nothing. **What it does not cover:** be-01's half, which is `EventSequencer` then `PushClient` and has its own tests — the HTTP call here is made directly. `Proof:` the subscription guard replaced with `if (false)` fails the second case.
+- [x] 7.5 The refusal frame names the subscription it refuses, which made the first version of that assertion count a rejection as a delivery. It filters on `code === undefined` now.
 
 ## 8. The table
 
@@ -65,4 +66,4 @@ The riskiest code in the change. It is a pure function over a tree, so it is tes
 
 ## 9. Gate
 
-- [ ] 9.1 Run `bunx nx run-many -t test lint typecheck` and record the actual output in `verify.md`, with the failure-proof table for every negative test above: fault injected, test that observed it failing, result.
+- [x] 9.1 `verify.md` written: the uncached gate output, a failure-proof table of all fourteen checks with the fault injected and what the run reported, and an explicit list of what is not covered.
