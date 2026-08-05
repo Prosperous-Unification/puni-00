@@ -179,7 +179,24 @@ log "recording REGISTRY_PASS in $WBS_ROOT/.env so later deploys can re-authentic
 # Preserve every other line already in .env (app secrets live here too);
 # only the REGISTRY_PASS line itself is replaced.
 env_tmp="$WBS_ROOT/.env.tmp.$$"
-grep -v '^REGISTRY_PASS=' "$WBS_ROOT/.env" > "$env_tmp" 2>/dev/null || true
+# `grep ... 2>/dev/null || true` used to cover three cases with one behaviour.
+# On a first run the absent .env is the intended case and an empty tmp is
+# right. But an .env that EXISTS and cannot be read produced an empty tmp too,
+# and the mv below then replaced a file holding every other app secret with one
+# line. Silently, on a re-run, as root.
+#
+# -e and -r separate "nothing to preserve" from "cannot tell what to preserve".
+if [ ! -e "$WBS_ROOT/.env" ]; then
+  : > "$env_tmp"
+elif [ ! -r "$WBS_ROOT/.env" ]; then
+  die "$WBS_ROOT/.env exists but is not readable — refusing to rewrite it, which would drop every other secret it holds"
+else
+  grep_rc=0
+  grep -v '^REGISTRY_PASS=' "$WBS_ROOT/.env" > "$env_tmp" || grep_rc=$?
+  # grep exits 1 when no line matched — a file holding only REGISTRY_PASS, which
+  # is a real and acceptable state — and 2 on an actual read error.
+  [ "$grep_rc" -le 1 ] || die "could not read $WBS_ROOT/.env (grep exit $grep_rc) — refusing to rewrite it"
+fi
 printf 'REGISTRY_PASS=%s\n' "$REGISTRY_PASS" >> "$env_tmp"
 mv "$env_tmp" "$WBS_ROOT/.env"
 chown "$WBS_USER:$WBS_USER" "$WBS_ROOT/.env"

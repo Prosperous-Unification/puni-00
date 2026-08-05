@@ -9,6 +9,8 @@ import { drain } from './lib/drain';
 import { waitForHealthy } from './lib/health';
 import { flipColor, parseStateJson, renderStateJson } from './lib/state';
 import {
+  isFileAbsent,
+  parseRecordedColor,
   parseTierList,
   pollActiveConnections,
   readSiteCaddy,
@@ -422,5 +424,50 @@ describe('runSwaps', () => {
     });
     await runSwaps(['be', 'gw'], { be: 'b', gw: 'g' }, 'sha1', deps);
     expect(events).toEqual(['observe:be', 'execute:be', 'observe:gw', 'execute:gw']);
+  });
+});
+
+describe('parseRecordedColor', () => {
+  it('reads the recorded colour from a well-formed state file', () => {
+    const raw = JSON.stringify({ tier: 'be', activeColor: 'green', lastDeployedSha: 'abc' });
+    expect(parseRecordedColor('/srv/state/be.json', raw)).toBe('green');
+  });
+
+  // Absent and unreadable used to collapse to the same null, and null means
+  // "never deployed" to resolveLiveColor — so an unopenable file read as a
+  // fresh install and the planner would pick a colour that may be serving.
+  it('refuses a malformed state file rather than reporting no colour', () => {
+    expect(() => parseRecordedColor('/srv/state/be.json', '{not json')).toThrow(
+      /not valid state JSON/,
+    );
+  });
+
+  it('refuses an empty state file', () => {
+    expect(() => parseRecordedColor('/srv/state/be.json', '')).toThrow(/not valid state JSON/);
+  });
+
+  it('refuses JSON that is valid but is not a state record', () => {
+    expect(() => parseRecordedColor('/srv/state/be.json', '{"hello":"world"}')).toThrow(
+      /not valid state JSON/,
+    );
+  });
+});
+
+describe('isFileAbsent', () => {
+  it('recognises ENOENT, the one case a missing state file is allowed', () => {
+    expect(isFileAbsent(Object.assign(new Error('no such file'), { code: 'ENOENT' }))).toBe(true);
+  });
+
+  it('does not treat a permission error as absence', () => {
+    // Verified against Bun on 2026-08-05: a missing file throws code ENOENT and
+    // an unreadable one EACCES, so the distinction this relies on is real.
+    expect(isFileAbsent(Object.assign(new Error('permission denied'), { code: 'EACCES' }))).toBe(
+      false,
+    );
+  });
+
+  it('does not treat a non-errno value as absence', () => {
+    expect(isFileAbsent(new Error('something else'))).toBe(false);
+    expect(isFileAbsent(null)).toBe(false);
   });
 });
