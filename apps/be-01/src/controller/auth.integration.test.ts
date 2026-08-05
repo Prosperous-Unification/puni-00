@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test';
-import { jwtVerify } from 'jose';
+import { jwtVerify, SignJWT } from 'jose';
 
 import { buildApp } from '../app';
 import { TEST_JWT_KEY, testAuthService } from '../testing/auth-fixture';
@@ -107,10 +107,48 @@ describe('GET /api/auth/me', () => {
       json('/api/auth/register', { username: 'ada', password: 'lovelace99' }),
     );
     const { token } = (await reg.json()) as { token: string };
-    // Same payload, wrong signature: flipping the last character of the
-    // signature segment is enough, and proves the route verifies rather than
-    // merely decodes.
-    const tampered = token.slice(0, -1) + (token.endsWith('a') ? 'b' : 'a');
+    const sub = (await jwtVerify(token, new TextEncoder().encode(TEST_JWT_KEY))).payload.sub;
+
+    // Signed with a different key, not mutated.
+    //
+    // The previous version replaced the last character of the signature with
+    // 'a'. An HS256 signature is 32 bytes, which base64url-encodes to 43
+    // characters whose final one carries only 4 significant bits and 2 spare
+    // ones — so it is drawn from `048AEIMQUYcgkosw`, and any two characters
+    // sharing `index >> 2` decode to identical bytes. 'a' is index 26; 'Y' is
+    // 24; both give 6. A signature ending in 'Y' therefore "tampered" into the
+    // byte-identical original, and the assertion that tokens are *verified*
+    // rather than decoded passed a genuinely valid token. Roughly one run in
+    // sixteen: it survived nine CI runs and failed the tenth with 200.
+    const forged = await new SignJWT({ username: 'ada' })
+      .setProtectedHeader({ alg: 'HS256' })
+      .setSubject(sub ?? 'unknown')
+      .setIssuedAt()
+      .setExpirationTime('1h')
+      .sign(new TextEncoder().encode('a-different-key-of-at-least-32-chars!'));
+
+    const res = await a.handle(
+      new Request('http://localhost/api/auth/me', {
+        headers: { authorization: `Bearer ${forged}` },
+      }),
+    );
+    expect(res.status).toBe(401);
+  });
+
+  it('rejects a token whose signature bytes have been altered', async () => {
+    const a = app();
+    const reg = await a.handle(
+      json('/api/auth/register', { username: 'ada', password: 'lovelace99' }),
+    );
+    const { token } = (await reg.json()) as { token: string };
+
+    // Deterministic: the FIRST character of the signature carries six
+    // significant bits, so changing it always changes the decoded bytes —
+    // unlike the last character, which has two spare ones.
+    const [header, payload, signature] = token.split('.');
+    const first = signature.startsWith('A') ? 'B' : 'A';
+    const tampered = `${header}.${payload}.${first}${signature.slice(1)}`;
+
     const res = await a.handle(
       new Request('http://localhost/api/auth/me', {
         headers: { authorization: `Bearer ${tampered}` },
