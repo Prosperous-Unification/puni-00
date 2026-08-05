@@ -123,11 +123,17 @@ Checks that cannot fail have shipped here six times. This is the rule that stops
 
 ## Checks that cannot fail
 
-R5 exists because this failure keeps recurring — eight times so far. Fixed: `assertPragmas` with no runtime
+R5 exists because this failure keeps recurring — eleven times so far. Fixed: `assertPragmas` with no runtime
 caller, the migration lint's unreachable `ALTER TABLE ... RENAME COLUMN` branch, `readRemoteState`
 reading an unreadable file as never-deployed, `shellcheck … || echo`, the secrets scanner's
 `.catch(() => '')` (an unreadable file scanned as clean — in a CI gate), and `dev:setup` skipping a
 missing `.env.example`.
+
+Three more on 2026-08-05: `swap.js`'s `readRecordedColor` reading an unreadable state file as
+never-deployed; `configure.sh` replacing an unreadable `.env` with one line, dropping every
+other secret; and the install target shipping whatever was left in `dist/` while reporting
+"checksums verified against the local build" — true, about the stale file it had just
+installed. The last one was caught by checking the installed artifact, not by reading code.
 
 Prove your check fails when the thing is broken, and say so in the comment. A check whose
 failure mode has never been observed is a claim, not a gate.
