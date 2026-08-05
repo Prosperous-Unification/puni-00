@@ -215,8 +215,15 @@ export async function buildDeployPlan(
     assertMigrationFlag(newMigrations, migrationsAcknowledged);
     if (newMigrations) {
       const how = args.withMigrations ? '--with-migrations' : `--env=${args.layout.env}`;
+      // Only the ones this deploy actually adds. Printing the whole HEAD list
+      // told the operator that every migration in the repo was about to run --
+      // observed against prod, where it named the already-applied initial
+      // migration alongside the real one. Drizzle skips what is recorded, so
+      // the message overstated the change at exactly the moment the operator is
+      // deciding whether it is safe.
+      const added = headMigrations.filter((m) => !(beDeployedMigrations ?? []).includes(m));
       steps.push(
-        `[plan] be: new migrations present (${headMigrations.join(', ')}) — proceeding under ${how}`,
+        `[plan] be: new migrations present (${added.join(', ')}) — proceeding under ${how}`,
       );
     }
   } else if (newMigrations) {
