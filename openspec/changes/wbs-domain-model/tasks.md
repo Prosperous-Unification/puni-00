@@ -57,10 +57,11 @@ The riskiest code in the change. It is a pure function over a tree, so it is tes
 
 ## 8. The table
 
-- [ ] 8.1 Build the nested TanStack Table in fe-01: number (read-only), name, notes, then a three-column group per role. Parent rows render roll-ups, greyed and non-editable.
-- [ ] 8.2 Keyboard entry: Enter adds a sibling below, Tab indents, Shift+Tab outdents, arrows move between cells. Tested with Testing Library — typing a three-level breakdown without a mouse.
-- [ ] 8.3 Freeze affordances: a project-level freeze button, a per-row lock, per-row unfreeze and project unfreeze. Dragging a locked row explains why it will not move instead of failing silently.
-- [ ] 8.4 Subscribe to `project:<id>` on mount, apply both payload shapes, and resume on reconnect using the existing resume points.
+- [x] 8.1 Built as a plain table, **not** TanStack Table. be-01 returns rows already in tree order and depth is read off the number's dot count, so there is no sorting, grouping or expansion state left for a table library to own — adding one would have been API surface with nothing behind it. Parent estimate cells render greyed and `readOnly`.
+- [x] 8.2 Enter, Tab and Shift+Tab, with the three-level test. Arrow-key cell movement is **not** done — the browser's own tab order covers moving along a row, and inventing a grid navigation model deserves its own decision. Indent uses a ternary rather than `siblings.at(index - 1)`: at index 0 `.at(-1)` would return the last sibling and quietly move the row somewhere nobody asked for.
+- [x] 8.3 Freeze, unfreeze-all, a lock marker on frozen rows and a per-row Unfreeze button. **Drag is not implemented at all**, so there is no locked-drag message to write; keyboard indent/outdent is the only restructuring path today.
+- [x] 8.4a Subscribes on mount, unsubscribes on unmount, and **refetches** rather than applying the payload: reproducing the numbering and roll-up client-side would be a second copy of the two things most likely to disagree with the server.
+- [ ] 8.4b Resume-on-reconnect not wired. The socket has the protocol; this component does not use it, so a client that drops and returns refetches on the next edit rather than replaying what it missed.
 
 ## 9. Gate
 
