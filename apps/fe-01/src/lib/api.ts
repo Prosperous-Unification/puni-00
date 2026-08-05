@@ -10,6 +10,9 @@ export interface Session {
 
 const STORAGE_KEY = 'wbs.session';
 
+/** The site gate rejected us; the app was never reached. */
+export const EDGE_UNAUTHORIZED = 'edge_unauthorized';
+
 /**
  * Same-origin paths, never an absolute URL. The edge serves the app and
  * proxies `/api/*` and `/ws` on the same host, so a configured base URL would
@@ -25,8 +28,21 @@ async function post<T>(path: string, body: unknown): Promise<T> {
   });
   const text = await res.text();
   if (!res.ok) {
-    // The server's own error code is surfaced rather than a generic message:
-    // "taken" and "invalid_credentials" need different words in the UI.
+    // A 401 from the EDGE and a 401 from the APP mean opposite things, and the
+    // user can only fix one of them. Dev sits behind HTTP Basic auth on every
+    // path but /ws, so a rejected site password produces a 401 that never
+    // reached be-01 — and the old code reported it as `http_401`, rendered as
+    // "Something went wrong (http_401)". That is indistinguishable from a wrong
+    // account password, and it sent a real person hunting through the app for a
+    // fault that was one layer above it.
+    //
+    // `WWW-Authenticate` is the discriminator: the edge sets it on its
+    // challenge, and this API never does.
+    if (res.status === 401 && res.headers.get('www-authenticate') !== null) {
+      throw new Error(EDGE_UNAUTHORIZED);
+    }
+    // Otherwise the server's own error code is surfaced rather than a generic
+    // message: "taken" and "invalid_credentials" need different words.
     let code = `http_${String(res.status)}`;
     try {
       code = (JSON.parse(text) as { error?: string }).error ?? code;
@@ -35,7 +51,13 @@ async function post<T>(path: string, body: unknown): Promise<T> {
     }
     throw new Error(code);
   }
-  return JSON.parse(text) as T;
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    // A 200 that is not our JSON came from something between here and be-01.
+    // Throwing a named code beats a raw SyntaxError surfacing as the message.
+    throw new Error('unexpected_response');
+  }
 }
 
 export const register = (username: string, password: string): Promise<Session> =>

@@ -1,12 +1,20 @@
 import { useState } from 'react';
 
 import { Button } from '@/components/ui/button';
-import { login, register, saveSession, type Session } from '@/lib/api';
+import { EDGE_UNAUTHORIZED, login, register, saveSession, type Session } from '@/lib/api';
 
 const MESSAGES: Record<string, string> = {
   taken: 'That username is already registered. Try logging in.',
   invalid: 'Username must be 3–32 characters and the password at least 8.',
   invalid_credentials: 'Wrong username or password.',
+  // Not this app's login: the site itself is behind an HTTP Basic gate on dev,
+  // and a browser that cached a wrong password there keeps resending it without
+  // re-prompting. Naming the layer is the whole point of this message.
+  [EDGE_UNAUTHORIZED]:
+    'The site password was rejected — that is the browser’s own prompt, not this form. ' +
+    'Reload and re-enter it. If no prompt appears, your browser cached a wrong one: ' +
+    'open a private window, or clear the saved entry for this site.',
+  unexpected_response: 'The server replied with something this app could not read.',
 };
 
 export function AuthForm({ onSignedIn }: { onSignedIn: (s: Session) => void }) {
