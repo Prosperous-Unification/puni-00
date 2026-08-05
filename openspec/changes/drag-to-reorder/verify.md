@@ -60,6 +60,25 @@ The drop now uses the zone the last `dragover` computed rather than recomputing
 its own — so the marker on screen and the move that happens are one decision,
 not two that can disagree.
 
+## Against the running dev deployment
+
+The moves the drag produces, issued at `dev.wbs.bulletpoints.club` on `817db23`
+against dev's SQLite:
+
+```
+[move] start: 010 Strip | 020 Sand | 030 Paint
+[move] paint into strip: 010 Strip | 010.1 Paint | 020 Sand
+[move] sand below open strip: 010 Strip | 010.1 Sand | 010.2 Paint
+[move] sand above strip: 010 Sand | 020 Strip | 020.1 Paint
+[move] strip into its own child paint: 409 {"error":"cycle"}
+[move] frozen row moved: 409 {"error":"frozen"}
+[move] PASS
+```
+
+The last two matter most: they are the two rules the client also refuses, and
+this is the proof that the copy is guarding something real rather than standing
+in for a server rule that had quietly changed.
+
 ## What this does not cover
 
 - **A real browser.** Every assertion here is jsdom, which does not implement

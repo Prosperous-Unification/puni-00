@@ -17,7 +17,7 @@
 ## 3. Gate and verification
 
 - [x] 3.1 `verify.md`: the uncached gate and the failure-proof table.
-- [ ] 3.2 Exercise it on dev against a real project.
+- [x] 3.2 Exercised on dev against a real project, issuing exactly the moves the drag produces. `into` made Paint a child of Strip; `below` an open parent made Sand its first child at `010.1` rather than landing past the branch; `above` lifted Sand back to `010` at the root. be-01 refused the cycle with 409 `cycle` and the frozen row with 409 `frozen` — the same two rules the client refuses first, confirmed to exist on the other side rather than assumed.
 
 ## 4. Found while writing the tests
 
