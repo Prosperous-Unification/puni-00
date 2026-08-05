@@ -33,3 +33,9 @@ vite.config.*.timestamp*
 *.db-shm
 # SDD scratch workspace (ledger, briefs, review packages)
 .superpowers/
+
+# Reviewer transcripts and one-off prompts. Ephemeral by design: the codex
+# transcript for one review ran to 4,460 lines of tool traffic, and it was
+# staged for commit once before anyone noticed. Findings worth keeping go in
+# the change's verify.md.
+tmp/
