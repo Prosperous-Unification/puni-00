@@ -8,32 +8,37 @@ $ bunx nx format:check --all
 
 $ bunx nx run-many -t test lint typecheck build --parallel=2 --skip-nx-cache
 NX   Successfully ran targets test, lint, typecheck, build for 21 projects
-      be-01 (bun:test)   179 pass  0 fail
-      fe-01 (vitest)      39 pass  0 fail
+      bun:test (be-01, gw-01, libs, tools)   261 pass  0 fail
+      fe-01 (vitest)                          46 pass  0 fail
 
 $ bunx @fission-ai/openspec@1.3.0 validate --all
 ✓ change/resume-and-reconnect
 Totals: 5 passed, 0 failed (5 items)
 ```
 
-`bun test` from the repo root is not this gate and reports 19 failures on every
-commit, all of them fe-01 files asking `bun:test` for a DOM it has no jsdom to
-provide. Thirteen of those are this change's `project-stream.test.ts`, failing at
-`location.protocol` inside `websocketUrl`. Under `nx run-many -t test` — which is
-what CI runs — the same file passes 13 of 13. `LLM_README.md` previously claimed
-the root command collected none of fe-01's files; it collects all of them.
+`bun test` over the whole repo reports failures on every commit for fe-01's
+files, which ask `bun:test` for a DOM it has no jsdom to provide —
+`project-stream.test.ts` dies at `location.protocol` inside `websocketUrl`. The
+counts above are `bun test` over everything _except_ `apps/fe-01`, plus vitest
+for fe-01, which is what `nx run-many -t test` runs and what CI runs.
+`LLM_README.md` previously claimed the root command collected none of fe-01's
+files; it collects all of them, and that claim has been corrected.
 
-## Every check this change added, and the fault that broke it
+## Every check, and the fault that broke it
 
-| Check                                                                              | Fault injected                                                           | What the run reported                                                                                                                                         |
-| ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Replay is bounded (`replay-orchestrator.ts`)                                       | `if (missing > this.maxEvents) return denied;` deleted                   | only `denies a range larger than the cap rather than truncating it` failed                                                                                    |
-| A replay is complete or refused (`replay-orchestrator.ts`)                         | `isContiguousFrom` gate deleted, so a short range returned as success    | `denies a range retention has already removed` and `answers each subscription independently` both failed, each reporting a truncated replay as `replaying`    |
-| The broadcaster fills the buffer the orchestrator reads (`gateway-broadcaster.ts`) | `this.opts.buffer.record(...)` deleted from `publish`                    | only `fills the buffer the orchestrator replays from` failed — the log answers identically, so nothing else could observe the loss                            |
-| A replay reaches one socket (`ws.controller.ts`)                                   | the send also written to every socket in `subs.socketsFor(subscription)` | only `replays only to the socket that asked` failed                                                                                                           |
-| A subscription's reconnect loop dies with it (`project-stream.ts`)                 | `unsubscribed = true` deleted from `unsubscribe`                         | `stops reconnecting once the caller unsubscribes` and `opens nothing when a reconnect fires after the caller unsubscribed` both failed                        |
-| Retention is actually scheduled (`retention-timer.ts`)                             | `start()`'s body replaced with `this.handle = 'never-scheduled'`         | three of the four `RetentionTimer` tests failed; the fourth asserts only that a second `start` is a no-op                                                     |
-| `latestSeq` survives a prune (`event-log.ts`)                                      | —                                                                        | asserted directly: `pruneBeyond(1)` leaves `oldestSeq` at 1 and `latestSeq` at 1, because the sequence is read from `event_sequencer` and not from `MAX(seq)` |
+| Check                                                                                | Fault injected                                                           | What the run reported                                                                                                                                         |
+| ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Replay is bounded (`replay-orchestrator.ts`)                                         | `if (missing > this.maxEvents) return denied;` deleted                   | only `denies a range larger than the cap rather than truncating it` failed                                                                                    |
+| A replay is complete or refused (`replay-orchestrator.ts`)                           | `isContiguousFrom` gate deleted, so a short range returned as success    | `denies a range retention has already removed` and `answers each subscription independently` both failed, each reporting a truncated replay as `replaying`    |
+| The broadcaster fills the buffer the orchestrator reads (`gateway-broadcaster.ts`)   | `this.opts.buffer.record(...)` deleted from `publish`                    | only `fills the buffer the orchestrator replays from` failed — the log answers identically, so nothing else could observe the loss                            |
+| A replay reaches one socket (`ws.controller.ts`)                                     | the send also written to every socket in `subs.socketsFor(subscription)` | only `replays only to the socket that asked` failed                                                                                                           |
+| A subscription's reconnect loop dies with it (`project-stream.ts`)                   | `unsubscribed = true` deleted from `unsubscribe`                         | `stops reconnecting once the caller unsubscribes` and `opens nothing when a reconnect fires after the caller unsubscribed` both failed                        |
+| Retention is actually scheduled (`retention-timer.ts`)                               | `start()`'s body replaced with `this.handle = 'never-scheduled'`         | three of the four `RetentionTimer` tests failed; the fourth asserts only that a second `start` is a no-op                                                     |
+| `latestSeq` survives a prune (`event-log.ts`)                                        | —                                                                        | asserted directly: `pruneBeyond(1)` leaves `oldestSeq` at 1 and `latestSeq` at 1, because the sequence is read from `event_sequencer` and not from `MAX(seq)` |
+| A closed socket leaves its subscription (`gw-01/app.ts`)                             | `subs.removeAll(d.socket)` deleted from `close`                          | only `is not counted in the fan-out after it disconnects` failed, reporting `delivered_to_sockets: 2` for one live browser                                    |
+| One `ReplayBuffer` reaches both halves of resume (`services.ts`)                     | `buffer: replayBuffer` replaced with a freshly constructed one           | only `gives the broadcaster and the replay orchestrator the same buffer` failed — every class-level proof survived it                                         |
+| The process starts retention (`boot.ts`)                                             | `services.retention.start()` deleted                                     | only `starts the retention timer` failed; all five `RetentionTimer` tests still passed, which is the gap that made this test necessary                        |
+| A subscription's stream does not advance on an unapplied frame (`project-stream.ts`) | `sinceSeq` advanced in `receive` again                                   | `does not advance its resume point on a frame the caller failed to apply` failed, resuming from 5 for a tree still showing 4                                  |
 
 The fake scheduler in `project-stream.test.ts` models `clearTimeout` by removing
 the entry, not by counting the call. A fake that only counted would have passed
@@ -41,8 +46,9 @@ with `cancel` never wired up.
 
 ## Against the running dev deployment
 
-Two real WebSockets through the real edge at `dev.wbs.bulletpoints.club`, on
-`79e9cbe`, against dev's SQLite. `ada` drops and returns; `grace` stays connected
+Two real WebSockets through the real edge at `dev.wbs.bulletpoints.club`,
+against dev's SQLite. Run twice: on `79e9cbe`, and again on `3aaf2c2` after the
+cross-review fixes, with the same result. `ada` drops and returns; `grace` stays connected
 throughout, to prove a replay does not reach a socket that did not ask.
 
 ```
