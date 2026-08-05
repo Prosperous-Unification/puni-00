@@ -114,9 +114,9 @@ contract: `docs/runbook-prod-deploy.md`.**
 
 ## Open findings
 
-1. Smoke can pass while gateway→backend is broken. It now authenticates to `/internal/forward`, but
-   against `be-01` **directly** — `gw-01`'s `ForwardClient` is still never exercised. It also accepts
-   any 2xx without requiring `{ack:true}`.
+1. Smoke calls `/internal/forward` on `be-01` **directly**, so `gw-01`'s `ForwardClient` is still
+   never exercised — though a broken `BE_URL` now fails gw-01's health gate (finding 4). The "any
+   2xx passes" half is **closed 2026-08-06**: it requires `{ack:true}`.
 2. Rollback unimplemented. `--version` is _refused_ rather than ignored (2026-08-04), so it no
    longer looks like one; deploying an older commit still means checking it out and rebuilding.
 3. `configure.sh`'s root phase never run on a fresh host; `tool-bootstrap:push` wires it, but

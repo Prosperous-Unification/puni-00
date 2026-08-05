@@ -177,3 +177,38 @@ describe('checkInternalForward', () => {
     expect(Date.now() - start).toBeLessThan(1000);
   });
 });
+
+describe('checkInternalForward requires the ack, not just a 2xx', () => {
+  const okStatus = (body: string) =>
+    (() => Promise.resolve(new Response(body, { status: 200 }))) as unknown as typeof fetch;
+
+  it('fails a 200 whose body does not say ack', async () => {
+    // Open finding 1: any 2xx passed. A proxy, a stub, a be-01 that answered the
+    // route without doing anything — all of them looked like a working internal
+    // round trip, which is the one thing this check exists to prove.
+    const r = await checkInternalForward('http://x/internal/forward', 's', okStatus('{}'));
+
+    expect(r.ok).toBe(false);
+    expect(r.detail).toContain('ack');
+  });
+
+  it('fails a 200 that is not JSON at all', async () => {
+    const r = await checkInternalForward(
+      'http://x/internal/forward',
+      's',
+      okStatus('<html>proxy error</html>'),
+    );
+
+    expect(r.ok).toBe(false);
+  });
+
+  it('passes when be-01 acks', async () => {
+    const r = await checkInternalForward(
+      'http://x/internal/forward',
+      's',
+      okStatus('{"ack":true,"push_responses":[]}'),
+    );
+
+    expect(r.ok).toBe(true);
+  });
+});
