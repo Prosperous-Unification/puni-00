@@ -15,8 +15,28 @@ export type ProjectEvent =
   | { type: 'work_items_changed'; workItems: NumberedWorkItem[] }
   | { type: 'tree_replaced'; workItems: NumberedWorkItem[] };
 
+/**
+ * The subscription name carrying a project's edits.
+ *
+ * One function rather than a template literal at each call site: be-01 records
+ * events under this name, gw-01 matches sockets against it, and fe-01 subscribes
+ * with it. Three spellings of the same string is a silent no-op, not an error.
+ */
+export function subscriptionFor(projectId: string): string {
+  return `project:${projectId}`;
+}
+
 export interface Broadcaster {
   publish(projectId: string, event: ProjectEvent): Promise<void>;
+  /**
+   * Where the project's event stream has reached, or `-1` for a project that has
+   * never been edited.
+   *
+   * It lives on the broadcaster rather than on a second collaborator because the
+   * broadcaster is what advances the sequence; a reader that asked something else
+   * could be told a number the publisher had already moved past.
+   */
+  latestSeq(projectId: string): Promise<number>;
 }
 
 /** The work item and every ancestor above it, whose roll-ups its change moved. */

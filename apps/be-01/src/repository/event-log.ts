@@ -12,6 +12,16 @@ export interface EventLogRepo {
   recordEvent(subscription: string, message: unknown, createdAt: number): Promise<RecordedEvent>;
   rangeSince(subscription: string, sinceSeq: number): Promise<RecordedEvent[]>;
   oldestSeq(subscription: string): Promise<number | null>;
+  /**
+   * The sequence of the most recent event, or `-1` for a subscription that has
+   * recorded none.
+   *
+   * Read from `event_sequencer` rather than from `MAX(seq)` on the log: retention
+   * deletes log rows and the sequence must not move backwards when it does. A
+   * client resuming from a stale `MAX(seq)` would be told it was up to date while
+   * sitting behind every event that had been pruned.
+   */
+  latestSeq(subscription: string): Promise<number>;
   pruneBeyond(maxPerSubscription: number): Promise<number>;
 }
 
@@ -68,6 +78,15 @@ export class DrizzleEventLogRepo implements EventLogRepo {
       sql`SELECT seq FROM event_log WHERE subscription = ${subscription} ORDER BY seq ASC LIMIT 1`,
     );
     return rows[0]?.seq ?? null;
+  }
+
+  async latestSeq(subscription: string): Promise<number> {
+    await Promise.resolve();
+    const rows = this.db.all<{ next_seq: number }>(
+      sql`SELECT next_seq FROM event_sequencer WHERE subscription = ${subscription}`,
+    );
+    const row = rows.at(0);
+    return row === undefined ? -1 : row.next_seq - 1;
   }
 
   async pruneBeyond(maxPerSubscription: number): Promise<number> {

@@ -1,3 +1,21 @@
+> **Superseded 2026-08-05 by `resume-and-reconnect`.** Every unchecked item below
+> is either done differently or no longer wanted, and none of them should be
+> picked up as written:
+>
+> - The `EventBus` this proposed never appeared. `GatewayBroadcaster` took its
+>   place when the domain landed — same job (record, buffer, push, swallow a
+>   failed push), reached through the `Broadcaster` port the work item service
+>   already depends on.
+> - `ReplayOrchestrator` exists, but replays through the resume **response**
+>   rather than back through `PushClient`. `/internal/push` fans out to every
+>   socket on a subscription, so the design here would have made one client's
+>   reconnect refetch every other open browser. See that change's `design.md` D1.
+> - `RetentionTimer` is still absent; `retention-job.ts` is the function it would
+>   have wrapped, and nothing calls it on a schedule yet. That is a real open
+>   item, tracked in `LLM_README.md` rather than here.
+> - The `onForward` pure ack landed as proposed, with a test that it records
+>   nothing.
+
 ## 1. Test fixture and service skeletons
 
 - [ ] 1.1 Create `apps/be-01/src/__tests__/build-services.ts` exporting `buildTestServices(overrides?)` that opens a `:memory:` SQLite, runs migrations, instantiates `DrizzleEventLogRepo`, `ReplayBuffer({maxPerSubscription: 1000, maxAgeMs: 5*60_000})`, `EventSequencer`, a fake `PushClient` (collects `push` calls in an array), an `EventBus`, a `ReplayOrchestrator`, and returns the bundle. Allow `overrides` to substitute any service.

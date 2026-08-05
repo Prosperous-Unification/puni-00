@@ -1,5 +1,7 @@
+import { InternalResumeResponse } from '@wbs/contracts';
 import { createLogger } from '@wbs/observability';
 import { observabilityPlugin } from '@wbs/observability/server';
+import { parseOrThrow } from '@wbs/validation';
 import { Elysia } from 'elysia';
 
 import { internalController, type SocketLike } from './controller/internal.controller';
@@ -106,10 +108,11 @@ export function buildApp(opts: AppOptions) {
               },
               body: JSON.stringify({ resume_points: points, trace_id: crypto.randomUUID() }),
             });
-            return (await res.json()) as Record<
-              string,
-              { status: 'replaying'; count: number } | { status: 'denied'; reason: 'out_of_range' }
-            >;
+            // Parsed against the shared contract rather than cast. A be-01 that
+            // answered with the old count-only shape would otherwise reach the
+            // socket as a replay of `undefined` events and throw mid-frame,
+            // after the client had already been told to expect them.
+            return parseOrThrow(InternalResumeResponse, await res.json());
           },
           onInbound: () => {
             metrics.inbound();

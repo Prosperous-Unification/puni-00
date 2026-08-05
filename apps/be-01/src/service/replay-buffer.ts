@@ -33,6 +33,20 @@ export class ReplayBuffer {
     return list.filter((e) => e.seq > sinceSeq);
   }
 
+  /**
+   * Whether the buffer still holds `fromSeq` and so can serve a replay starting
+   * there.
+   *
+   * Asked instead of `oldestSeq() === null`, because an empty buffer is not
+   * evidence: a process that started a second ago has one, and so does a
+   * subscription nobody has edited. Only the oldest sequence distinguishes
+   * "starts too late" from "holds nothing yet".
+   */
+  covers(subscription: string, fromSeq: number): boolean {
+    const oldest = this.oldestSeq(subscription);
+    return oldest !== null && oldest <= fromSeq;
+  }
+
   oldestSeq(subscription: string): number | null {
     const list = this.store.get(subscription);
     if (!list || list.length === 0) return null;

@@ -7,6 +7,7 @@ import { inMemoryUsers, testAuthService } from '../testing/auth-fixture';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { inMemoryEstimates } from '../testing/estimate-fixture';
 import { inMemoryProjects } from '../testing/project-fixture';
+import { testReplay } from '../testing/replay-fixture';
 import { inMemoryWorkItems } from '../testing/work-item-fixture';
 
 function buildHarness() {
@@ -21,6 +22,7 @@ function buildHarness() {
       estimates: inMemoryEstimates(workItemStore),
       broadcast: recordingBroadcaster(),
     }),
+    replay: testReplay().replay,
     internalAuthSecret: 'x'.repeat(32),
     migrationsApplied: true,
   });
@@ -76,6 +78,27 @@ describe('work item routes', () => {
     const tree = await send(`/api/projects/${projectId}/work-items`, token);
     const body = (await tree.json()) as { workItems: { number: string; name: string }[] };
     expect(body.workItems.map((w) => [w.number, w.name])).toEqual([['010', 'Strip']]);
+  });
+
+  it('reports the sequence the tree was read at', async () => {
+    // The client subscribes after this read, so without a sequence it has no
+    // baseline to resume from and an edit landing between the two is lost.
+    const { token, send, projectId } = await setup();
+
+    const fresh = await send(`/api/projects/${projectId}/work-items`, token);
+    expect(((await fresh.json()) as { seq: number }).seq).toBe(-1);
+
+    await send(`/api/projects/${projectId}/work-items`, token, {
+      method: 'POST',
+      body: JSON.stringify({ parentId: null, afterId: null, name: 'Strip' }),
+    });
+    await send(`/api/projects/${projectId}/work-items`, token, {
+      method: 'POST',
+      body: JSON.stringify({ parentId: null, afterId: null, name: 'Sand' }),
+    });
+
+    const after = await send(`/api/projects/${projectId}/work-items`, token);
+    expect(((await after.json()) as { seq: number }).seq).toBe(1);
   });
 
   it('refuses a client that tries to choose the number', async () => {

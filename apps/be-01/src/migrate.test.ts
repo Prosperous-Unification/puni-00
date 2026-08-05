@@ -3,6 +3,7 @@ import { describe, expect, it } from 'bun:test';
 import { buildApp } from './app';
 import { testAuthService } from './testing/auth-fixture';
 import { testProjectService } from './testing/project-fixture';
+import { testReplay } from './testing/replay-fixture';
 import { testWorkItemService } from './testing/work-item-fixture';
 
 describe('migrate lifecycle', () => {
@@ -12,6 +13,7 @@ describe('migrate lifecycle', () => {
       auth: testAuthService(),
       projects: testProjectService(),
       workItems: testWorkItemService(),
+      replay: testReplay().replay,
       internalAuthSecret: 'x'.repeat(32),
       get migrationsApplied() {
         return state.migrationsApplied;

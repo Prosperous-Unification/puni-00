@@ -13,5 +13,11 @@ export function recordingBroadcaster(): RecordingBroadcaster {
       published.push({ projectId, event });
       return Promise.resolve();
     },
+    latestSeq(projectId) {
+      // One sequence per project, counting from zero, so this mirrors what the
+      // real sequencer would have assigned rather than a shared counter.
+      const forProject = published.filter((entry) => entry.projectId === projectId);
+      return Promise.resolve(forProject.length - 1);
+    },
   };
 }

@@ -41,7 +41,14 @@ export interface ProjectSummary {
 export interface ProjectApi {
   listProjects(): Promise<ProjectSummary[]>;
   createProject(name: string): Promise<ProjectSummary>;
-  tree(projectId: string): Promise<WorkItemView[]>;
+  /**
+   * The project's work items, and the event sequence they were read at.
+   *
+   * The sequence is what a socket resumes from, so it belongs to the read that
+   * produced the rows: taken separately it would describe a different moment
+   * than the tree on screen.
+   */
+  tree(projectId: string): Promise<{ workItems: WorkItemView[]; seq: number }>;
   roles(projectId: string): Promise<RoleView[]>;
   create(
     projectId: string,
@@ -87,12 +94,11 @@ export function httpProjectApi(token: string): ProjectApi {
       });
       return body.project;
     },
-    async tree(projectId) {
-      const body = await send<{ workItems: WorkItemView[] }>(
+    tree(projectId) {
+      return send<{ workItems: WorkItemView[]; seq: number }>(
         `/api/projects/${projectId}/work-items`,
         token,
       );
-      return body.workItems;
     },
     async roles(projectId) {
       const body = await send<{ roles: RoleView[] }>(`/api/projects/${projectId}`, token);

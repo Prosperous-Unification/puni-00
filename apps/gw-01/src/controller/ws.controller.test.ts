@@ -44,7 +44,7 @@ describe('handleWsMessage', () => {
     expect(captured).toEqual({ subscription: 'presence', message: { hi: true } });
   });
 
-  it('responds to resume with resume_ack listing replayed counts', async () => {
+  it('responds to resume with the replayed events, then resume_ack', async () => {
     const { sock, sent } = makeSocket();
     const subs = new SubscriptionMap<WsSocket>();
     await handleWsMessage({
@@ -56,16 +56,55 @@ describe('handleWsMessage', () => {
       forward: () => Promise.resolve({ ack: true }),
       resume: () =>
         Promise.resolve({
-          presence: { status: 'replaying', count: 3 },
+          presence: {
+            status: 'replaying',
+            events: [
+              { seq: 6, message: { a: 1 } },
+              { seq: 7, message: { a: 2 } },
+            ],
+          },
           'doc:b': { status: 'denied', reason: 'out_of_range' },
         }),
     });
-    const deniedFrame = JSON.parse(sent[0]) as Record<string, unknown>;
-    expect(deniedFrame['type']).toBe('resume_denied');
-    expect(deniedFrame['subscription']).toBe('doc:b');
-    const ack = JSON.parse(sent.at(-1)!) as Record<string, unknown>;
-    expect(ack['type']).toBe('resume_ack');
-    expect(ack['replayed']).toEqual({ presence: 3 });
+    const frames = sent.map((s) => JSON.parse(s) as Record<string, unknown>);
+
+    expect(frames.filter((f) => f['type'] === 'resume_denied')).toEqual([
+      { type: 'resume_denied', subscription: 'doc:b', reason: 'out_of_range' },
+    ]);
+    // The events carry the same shape as a live push, so the client needs no
+    // replay branch — and they arrive before the acknowledgement that counts them.
+    expect(frames.filter((f) => f['seq'] !== undefined)).toEqual([
+      { subscription: 'presence', seq: 6, message: { a: 1 } },
+      { subscription: 'presence', seq: 7, message: { a: 2 } },
+    ]);
+    expect(frames.at(-1)).toEqual({ type: 'resume_ack', replayed: { presence: 2 } });
+  });
+
+  it('replays only to the socket that asked', async () => {
+    // `/internal/push` fans out to every socket on the subscription. Replay must
+    // not: one laptop waking from sleep would make every other open browser
+    // refetch once per event it had missed.
+    const asking = makeSocket();
+    const bystander = makeSocket();
+    const subs = new SubscriptionMap<WsSocket>();
+    subs.subscribe('doc:a', asking.sock);
+    subs.subscribe('doc:a', bystander.sock);
+
+    await handleWsMessage({
+      data: JSON.stringify({ type: 'resume', resume_points: { 'doc:a': 0 } }),
+      socket: asking.sock,
+      subs,
+      connectionId: 'c-1',
+      clientId: 'u-1',
+      forward: () => Promise.resolve({ ack: true }),
+      resume: () =>
+        Promise.resolve({
+          'doc:a': { status: 'replaying', events: [{ seq: 1, message: { a: 1 } }] },
+        }),
+    });
+
+    expect(asking.sent).toHaveLength(2);
+    expect(bystander.sent).toEqual([]);
   });
 
   it('emits backend_unavailable error when forward throws', async () => {

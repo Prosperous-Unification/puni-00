@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { subscribeToProject } from '@/lib/project-stream';
 import { httpProjectApi, type ProjectSummary } from '@/lib/wbs-api';
 
-import { WbsTable } from './wbs-table';
+import { type SubscriptionHandlers, WbsTable } from './wbs-table';
 
 export interface ProjectPageProps {
   token: string;
@@ -13,8 +13,16 @@ export interface ProjectPageProps {
 export function ProjectPage({ token }: ProjectPageProps) {
   const api = useMemo(() => httpProjectApi(token), [token]);
   const subscribe = useMemo(
-    () => (projectId: string, onChange: () => void) =>
-      subscribeToProject(token, projectId, onChange),
+    () => (projectId: string, handlers: SubscriptionHandlers) =>
+      subscribeToProject({
+        token,
+        projectId,
+        // The table's first read has not happened yet, so the stream starts
+        // knowing nothing and the read reports its sequence through `seen`.
+        sinceSeq: -1,
+        onChange: handlers.onChange,
+        onConnectionChange: handlers.onConnectionChange,
+      }),
     [token],
   );
 

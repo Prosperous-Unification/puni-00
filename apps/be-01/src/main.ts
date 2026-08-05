@@ -14,6 +14,9 @@ import { EventSequencer } from './service/event-sequencer';
 import { GatewayBroadcaster } from './service/gateway-broadcaster';
 import { ProjectService } from './service/project.service';
 import { PushClient } from './service/push-client';
+import { ReplayBuffer } from './service/replay-buffer';
+import { ReplayOrchestrator } from './service/replay-orchestrator';
+import { RetentionTimer } from './service/retention-timer';
 import { WorkItemService } from './service/work-item.service';
 
 const cfg = loadConfig();
@@ -29,12 +32,45 @@ const auth = new AuthService({
 });
 const projectStore = new ProjectRepository(db);
 const projects = new ProjectService({ projects: projectStore });
+
+// One buffer, shared by the two halves of resume: the broadcaster fills it as
+// it publishes, the orchestrator serves reconnects from it. Two buffers would
+// both look healthy and one of them would always be empty.
+const eventLog = new DrizzleEventLogRepo(db);
+const replayBuffer = new ReplayBuffer({
+  maxPerSubscription: 1_000,
+  maxAgeMs: 5 * 60_000,
+});
+const replay = new ReplayOrchestrator({ log: eventLog, buffer: replayBuffer });
+
+// Constants rather than configuration: nothing about an environment changes the
+// right answer here, and a knob nobody sets is a knob nobody keeps correct.
+// 1,000 events per project is far more than a reconnect after a suspended laptop
+// needs, and the sweep is one indexed DELETE.
+const EVENT_LOG_MAX_PER_SUBSCRIPTION = 1_000;
+const RETENTION_INTERVAL_MS = 10 * 60_000;
+
+const retention = new RetentionTimer({
+  repo: eventLog,
+  maxPerSubscription: EVENT_LOG_MAX_PER_SUBSCRIPTION,
+  intervalMs: RETENTION_INTERVAL_MS,
+  onSweep: (removed) => {
+    if (removed > 0) logger.info({ removed }, 'event log pruned');
+  },
+  // Reported, not swallowed: the log growing without bound is the failure this
+  // timer exists to prevent, and a dead sweep looks healthy from outside.
+  onError: (err) => {
+    logger.error({ err }, 'event log retention sweep failed');
+  },
+});
+
 const workItems = new WorkItemService({
   workItems: new WorkItemRepository(db),
   projects: projectStore,
   estimates: new EstimateRepository(db),
   broadcast: new GatewayBroadcaster({
-    sequencer: new EventSequencer(new DrizzleEventLogRepo(db)),
+    sequencer: new EventSequencer(eventLog),
+    buffer: replayBuffer,
     push: new PushClient({ gwUrl: cfg.GW_URL, secret: cfg.INTERNAL_AUTH_SECRET }),
     // The event is already in the durable log and the mutation already
     // committed, so a client that reconnects still gets it on replay. Failing
@@ -74,9 +110,31 @@ const app = buildApp({
   auth,
   projects,
   workItems,
+  replay,
   internalAuthSecret: cfg.INTERNAL_AUTH_SECRET,
   version: process.env['VERSION'],
 });
+
+// Started before `listen` returns rather than inside it: the callback is skipped
+// on a port that fails to bind, and retention would then never run in exactly
+// the deployment that had a problem.
+retention.start();
+
+// An in-flight sweep is waited for on the way out. Without a handler the default
+// SIGTERM kills the process mid-DELETE, and blue and green share this file.
+for (const signal of ['SIGTERM', 'SIGINT'] as const) {
+  process.on(signal, () => {
+    void retention
+      .stop()
+      .catch((err: unknown) => {
+        logger.error({ err }, 'retention did not stop cleanly');
+      })
+      .finally(() => {
+        logger.info({ signal }, 'be-01 stopping');
+        process.exit(0);
+      });
+  });
+}
 
 app.listen(cfg.PORT, () => {
   if (!migrateOnStartup) {

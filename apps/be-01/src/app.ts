@@ -9,6 +9,7 @@ import { smokeController } from './controller/smoke.controller';
 import { workItemController } from './controller/work-item.controller';
 import type { AuthService } from './service/auth.service';
 import type { ProjectService } from './service/project.service';
+import type { ReplayOrchestrator } from './service/replay-orchestrator';
 import type { WorkItemService } from './service/work-item.service';
 
 export interface AppOptions {
@@ -33,6 +34,13 @@ export interface AppOptions {
    * failing every forward with a 401 that only shows up in a real deployment.
    */
   internalAuthSecret: string;
+  /**
+   * Required for the same reason as `auth`, and for one more: the stub this
+   * replaced answered every resume with `replaying, count: 0`, which no client
+   * could distinguish from "you missed nothing". An optional service would let
+   * that answer come back by accident.
+   */
+  replay: ReplayOrchestrator;
   version?: string;
 }
 
@@ -49,14 +57,13 @@ export function buildApp(opts: AppOptions) {
     .use(
       internalController({
         secret: opts.internalAuthSecret,
+        // A deliberate pure ack, not a stub. Every mutation in this product is
+        // an HTTP call to be-01; a client message arriving over the socket is
+        // acknowledged and carried no further, because there is no message the
+        // socket is the authority for. The test asserting a forward records no
+        // event and pushes nothing is what keeps this honest.
         onForward: () => Promise.resolve({ push_responses: [] }),
-        onResume: (points) => {
-          const out: Record<string, { status: 'replaying'; count: number }> = {};
-          for (const sub of Object.keys(points)) {
-            out[sub] = { status: 'replaying', count: 0 };
-          }
-          return Promise.resolve(out);
-        },
+        onResume: (points) => opts.replay.replay(points),
       }),
     )
     .get('/health', ({ set }) => {

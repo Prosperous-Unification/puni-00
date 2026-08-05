@@ -105,9 +105,19 @@ export class WorkItemService {
    * padding rules load-bearing: the numbers are built so that this one
    * lexicographic sort produces tree order across every level at once.
    */
-  async tree(projectId: string): Promise<{ workItems: NumberedWorkItem[] } | null> {
+  /**
+   * The project's work items, and the event sequence the read happened at.
+   *
+   * The sequence is read *before* the rows rather than after. Reading it after
+   * would let an event recorded mid-read be counted as already seen, and the
+   * client would resume from a point past a change its rows do not contain. Read
+   * first, the same event is replayed and the client refetches once too often —
+   * the harmless direction.
+   */
+  async tree(projectId: string): Promise<{ workItems: NumberedWorkItem[]; seq: number } | null> {
     const project = await this.opts.projects.findById(projectId);
     if (project === null) return null;
+    const seq = await this.opts.broadcast.latestSeq(projectId);
     const rows = await this.opts.workItems.listByProject(projectId);
     const numbers = deriveNumbers(rows);
     const totals = rollUp(rows, await this.opts.estimates.listByProject(projectId));
@@ -120,7 +130,7 @@ export class WorkItemService {
         rolledUp: hasChildren.has(row.id),
       }))
       .sort((a, b) => (a.number < b.number ? -1 : a.number > b.number ? 1 : 0));
-    return { workItems };
+    return { workItems, seq };
   }
 
   async create(

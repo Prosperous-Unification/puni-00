@@ -8,6 +8,7 @@ import {
 } from '@tanstack/react-table';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+import type { ProjectStream } from '@/lib/project-stream';
 import type { Days, ProjectApi, RoleView } from '@/lib/wbs-api';
 
 import { toTree, type TreeRow } from './wbs-rows';
@@ -16,10 +17,15 @@ export interface WbsTableProps {
   projectId: string;
   api: ProjectApi;
   /**
-   * Opens a live subscription and returns the unsubscribe. Optional so the
-   * table can be tested without a socket; supplied in the app.
+   * Opens a live subscription. Optional so the table can be tested without a
+   * socket; supplied in the app.
    */
-  subscribe?: (projectId: string, onChange: () => void) => () => void;
+  subscribe?: (projectId: string, handlers: SubscriptionHandlers) => ProjectStream;
+}
+
+export interface SubscriptionHandlers {
+  onChange: () => void;
+  onConnectionChange: (connected: boolean) => void;
 }
 
 const POINTS = ['optimistic', 'realistic', 'pessimistic'] as const;
@@ -76,9 +82,17 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
   const [expanded, setExpanded] = useState<ExpandedState>(true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [connected, setConnected] = useState(true);
   const focusNext = useRef<string | null>(null);
 
   const latestRefresh = useRef(0);
+  /**
+   * The live subscription, so a refresh can tell it where the read landed.
+   *
+   * A ref rather than state: reporting the sequence must not re-render, and the
+   * stream outlives every render between subscribe and unsubscribe.
+   */
+  const stream = useRef<ProjectStream | null>(null);
 
   const refresh = useCallback(async () => {
     // Every mutation and every socket event starts a refresh, and they can
@@ -89,8 +103,11 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
     latestRefresh.current = generation;
     const [tree, loadedRoles] = await Promise.all([api.tree(projectId), api.roles(projectId)]);
     if (generation !== latestRefresh.current) return;
-    setWorkItems(toTree(tree));
+    setWorkItems(toTree(tree.workItems));
     setRoles(loadedRoles);
+    // Reported after the generation check, so a superseded read cannot move the
+    // resume point to a moment whose rows were thrown away.
+    stream.current?.seen(tree.seq);
   }, [api, projectId]);
 
   useEffect(() => {
@@ -103,12 +120,20 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
   // renumber rows this client never touched.
   useEffect(() => {
     if (subscribe === undefined) return undefined;
-    return subscribe(projectId, () => {
-      void refresh().catch(() => {
-        // A failed refresh leaves the last good tree on screen. Clearing it
-        // would lose the user's place over a blip.
-      });
+    const opened = subscribe(projectId, {
+      onChange: () => {
+        void refresh().catch(() => {
+          // A failed refresh leaves the last good tree on screen. Clearing it
+          // would lose the user's place over a blip.
+        });
+      },
+      onConnectionChange: setConnected,
     });
+    stream.current = opened;
+    return () => {
+      opened.unsubscribe();
+      stream.current = null;
+    };
   }, [subscribe, projectId, refresh]);
 
   const run = useCallback(
@@ -367,6 +392,16 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
       </div>
 
       {error !== null && <p role="alert">{error}</p>}
+
+      {/*
+        Said out loud rather than left to be noticed. Someone else's edits stop
+        arriving the moment the socket drops, and a table that looks exactly the
+        same when it is no longer live is the failure this whole change exists
+        to remove.
+      */}
+      {!connected && (
+        <p role="status">Reconnecting — edits by other people may not be shown yet.</p>
+      )}
 
       <table>
         <thead>

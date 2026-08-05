@@ -1,9 +1,9 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
 import type { Days, ProjectApi, RoleView, WorkItemView } from '@/lib/wbs-api';
 
-import { keepOrdered, WbsTable } from './wbs-table';
+import { keepOrdered, type SubscriptionHandlers, WbsTable } from './wbs-table';
 
 // fe-01 tests require jsdom; only Vitest provides it. Skip under plain `bun test`.
 const hasDom = typeof document !== 'undefined';
@@ -22,8 +22,10 @@ const DEV: RoleView = { id: 'role-dev', name: 'Dev' };
 function fakeApi(): ProjectApi & { rows: WorkItemView[] } {
   const rows: WorkItemView[] = [];
   let next = 0;
+  let seq = -1;
 
   function renumber(): void {
+    seq += 1;
     const numberOf = new Map<string | null, string>([[null, '']]);
     const assign = (parentId: string | null, prefix: string): void => {
       const group = rows.filter((r) => r.parentId === parentId);
@@ -43,7 +45,10 @@ function fakeApi(): ProjectApi & { rows: WorkItemView[] } {
     rows,
     listProjects: () => Promise.resolve([{ id: 'p1', name: 'Rewire the shed', restricted: false }]),
     createProject: (name: string) => Promise.resolve({ id: 'p1', name, restricted: false }),
-    tree: () => Promise.resolve(rows.map((r) => ({ ...r }))),
+    tree: () =>
+      // The sequence advances with every mutation, the way be-01's does, so a
+      // test that asserts what the stream was told is asserting something real.
+      Promise.resolve({ workItems: rows.map((r) => ({ ...r })), seq }),
     roles: () => Promise.resolve([DEV]),
     create(_projectId, input) {
       next += 1;
@@ -250,10 +255,14 @@ describe('live edits from other people', () => {
       throw new Error('the table never subscribed');
     };
     let unsubscribed = false;
-    const subscribe = (_projectId: string, onChange: () => void) => {
-      notify = onChange;
-      return () => {
-        unsubscribed = true;
+    const seen: number[] = [];
+    const subscribe = (_projectId: string, handlers: SubscriptionHandlers) => {
+      notify = handlers.onChange;
+      return {
+        seen: (seq: number) => seen.push(seq),
+        unsubscribe: () => {
+          unsubscribed = true;
+        },
       };
     };
 
@@ -270,8 +279,42 @@ describe('live edits from other people', () => {
       expect(numbersOnScreen()).toEqual(['010']);
     });
 
+    // The stream resumes from what the table read, so every read must report
+    // where it landed — otherwise the next reconnect asks for a range that
+    // starts before the rows already on screen.
+    expect(seen.at(-1)).toBe(api.rows.length - 1);
+
     view.unmount();
     expect(unsubscribed).toBe(true);
+  });
+
+  itDom('says so while the connection is down', async () => {
+    // A table that looks identical whether or not it is live is the failure this
+    // is here to remove: other people's edits stop arriving silently.
+    const api = fakeApi();
+    let report: (connected: boolean) => void = () => {
+      throw new Error('the table never subscribed');
+    };
+    const subscribe = (_projectId: string, handlers: SubscriptionHandlers) => {
+      report = handlers.onConnectionChange;
+      return { seen: () => undefined, unsubscribe: () => undefined };
+    };
+
+    render(<WbsTable projectId="p1" api={api} subscribe={subscribe} />);
+    await waitFor(() => {
+      expect(screen.getAllByRole('row')).toHaveLength(1);
+    });
+    expect(screen.queryByRole('status')).toBeNull();
+
+    act(() => {
+      report(false);
+    });
+    expect(screen.getByRole('status').textContent).toContain('Reconnecting');
+
+    act(() => {
+      report(true);
+    });
+    expect(screen.queryByRole('status')).toBeNull();
   });
 });
 

@@ -7,6 +7,7 @@ import { inMemoryUsers, testAuthService } from '../testing/auth-fixture';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { inMemoryEstimates } from '../testing/estimate-fixture';
 import { inMemoryProjects } from '../testing/project-fixture';
+import { testReplay } from '../testing/replay-fixture';
 import { inMemoryWorkItems } from '../testing/work-item-fixture';
 
 function buildWorkItemService(projectStore: ReturnType<typeof inMemoryProjects>) {
@@ -27,6 +28,7 @@ function buildHarness() {
     auth,
     projects,
     workItems: buildWorkItemService(projectStore),
+    replay: testReplay().replay,
     internalAuthSecret: 'x'.repeat(32),
     migrationsApplied: true,
   });

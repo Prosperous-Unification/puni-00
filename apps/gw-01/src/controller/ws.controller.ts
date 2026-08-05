@@ -1,7 +1,7 @@
 import type { SubscriptionMap } from '../service/subscription-map';
 
 export type ResumeStatus =
-  | { status: 'replaying'; count: number }
+  | { status: 'replaying'; events: { seq: number; message: unknown }[] }
   | { status: 'denied'; reason: 'out_of_range' };
 
 export interface WsSocket {
@@ -67,16 +67,27 @@ export async function handleWsMessage(args: HandleWsMessageArgs): Promise<void> 
     const points = (msg['resume_points'] as Record<string, number> | undefined) ?? {};
     const result = await args.resume(points);
     const replayed: Record<string, number> = {};
-    const denied: string[] = [];
-    for (const [sub, r] of Object.entries(result)) {
-      if (r.status === 'replaying') replayed[sub] = r.count;
-      else denied.push(sub);
+    for (const [subscription, outcome] of Object.entries(result)) {
+      if (outcome.status === 'denied') {
+        args.socket.send(
+          JSON.stringify({ type: 'resume_denied', subscription, reason: 'out_of_range' }),
+        );
+        continue;
+      }
+      // To `args.socket`, never to `subs.socketsFor(subscription)`. The other
+      // sockets on this subscription received these events when they were live;
+      // sending them again is a refetch each, per event, per reconnecting peer.
+      // Proof: the send below also written to every socket in
+      // `subs.socketsFor(subscription)`, and only "replays only to the socket
+      // that asked" failed.
+      for (const event of outcome.events) {
+        args.socket.send(JSON.stringify({ subscription, seq: event.seq, message: event.message }));
+      }
+      replayed[subscription] = outcome.events.length;
     }
-    for (const sub of denied) {
-      args.socket.send(
-        JSON.stringify({ type: 'resume_denied', subscription: sub, reason: 'out_of_range' }),
-      );
-    }
+    // Last, and counted from the events actually written above: an
+    // acknowledgement that arrives first would let a client advance its
+    // sequence past frames it has not been handed yet.
     args.socket.send(JSON.stringify({ type: 'resume_ack', replayed }));
     return;
   }
