@@ -10,10 +10,12 @@ Two facts explain most decisions:
 
 - **The infra is the deliverable**, deliberately beyond what one host needs. Two external reviews
   called it over-engineered; that was considered and rejected. Don't re-argue it.
-- **The product is one feature deep.** Since 2026-08-04 it has accounts and presence: register,
-  log in, and see who else is connected (`/api/auth/*`, gw-01's roster). be-01 opens a database
-  and signs the tokens gw-01 verifies. Absent is the WBS domain itself — no work-breakdown
-  model. Persisted today: `users`, `examples`, `event_log`, `event_sequencer`.
+- **The product is two features deep, and the second is not on `main` yet.** `main` has accounts
+  and presence: register, log in, see who else is connected. `change/wbs-domain-model` adds the
+  work breakdown itself — projects, a nested table you type into, derived numbers with a freeze,
+  three-point estimates by role that roll up, edits arriving live, and a socket that reconnects
+  and replays what it missed. Persisted on that branch: `users`, `examples`, `event_log`,
+  `event_sequencer`, `project`, `role`, `work_item`, `estimate`.
 
 Tool choices bias novel over mainstream (Bun, Elysia, ArkType, Dagger) on purpose.
 
@@ -29,8 +31,7 @@ bun run dev                                     # be + gw + fe locally
 
 `bun test` from the repo root is **not** the gate and its failures do not mean what they say.
 It **does** collect fe-01's files — the older claim that it collected none of them was wrong — and
-19 of them fail on `location`, `localStorage` and the rest of the DOM `bun:test` has no jsdom to
-provide. Use `bunx nx run-many -t test`, which routes fe-01 to `bunx vitest run`. `build` needs
+they fail on `location`, `localStorage` and the rest of the DOM `bun:test` has no jsdom to provide. Use `bunx nx run-many -t test`, which routes fe-01 to `bunx vitest run`. `build` needs
 `shellcheck` (`brew install shellcheck`); it is no longer allowed to skip itself when absent.
 
 **Rules: `AGENTS.md`** (symlinked to CLAUDE.md/GEMINI.md) — read it, it governs every change.
@@ -98,8 +99,9 @@ contract: `docs/runbook-prod-deploy.md`.**
 - `bun:sqlite` defaults to no WAL, `busy_timeout=0`. Set **and asserted at open** in
   `be-01/src/repository/db.ts`; an ESLint rule bans importing `bun:sqlite` anywhere else under
   `apps/be-01/src`, because `busy_timeout`/`foreign_keys` are per-connection and a direct
-  `new Database()` silently loses them. `main.ts` opens the process connection through
-  `openDrizzle`, in that same file, for the same reason.
+  `new Database()` silently loses them. The process connection is opened by `boot.ts` through
+  `openConnection`, in that same file, for the same reason — and closed through the handle it
+  returns, because reaching into drizzle's `$client` is the same bypass one layer along.
 - **Migrations must be backward-compatible** — blue and green share one DB. `--stop-the-world` refuses.
   The pre-commit lint catches the obvious destructive statements; the actual compatibility judgement
   is yours, asserted by passing `--with-migrations`.
