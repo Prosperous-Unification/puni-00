@@ -61,4 +61,18 @@ describe('openDatabase', () => {
     }).toThrow(/journal_mode/);
     db.close();
   });
+
+  // The third pragma was set and never verified. It is the one the domain
+  // schema leans on: `work_item.project_id` and `estimate.work_item_id` are
+  // declared foreign keys, and with enforcement off SQLite parses them and
+  // ignores them, so an orphan row inserts cleanly and nothing complains until
+  // a read finds a work item whose project does not exist.
+  it('assertPragmas throws when foreign keys are not enforced', () => {
+    const db = openDatabase(join(dir, 'test.db'));
+    db.run('PRAGMA foreign_keys = OFF;');
+    expect(() => {
+      assertPragmas(db);
+    }).toThrow(/foreign_keys/);
+    db.close();
+  });
 });

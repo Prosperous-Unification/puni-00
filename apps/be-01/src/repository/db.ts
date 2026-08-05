@@ -56,4 +56,14 @@ export function assertPragmas(db: Database): void {
       `expected busy_timeout>=${String(BUSY_TIMEOUT_MS)}, got ${String(busy?.timeout)}`,
     );
   }
+  // The third pragma, verified for the same reason as the other two. A SQLite
+  // build without foreign key support accepts `PRAGMA foreign_keys = ON` and
+  // reports 0 afterwards, so setting it proves nothing. The domain schema
+  // declares foreign keys throughout and would then enforce none of them:
+  // orphan rows would insert silently and surface as a missing parent much
+  // later, in a read.
+  const foreignKeys = db.query<{ foreign_keys: number }, []>('PRAGMA foreign_keys;').get();
+  if (foreignKeys?.foreign_keys !== 1) {
+    throw new Error(`expected foreign_keys=1, got ${String(foreignKeys?.foreign_keys)}`);
+  }
 }

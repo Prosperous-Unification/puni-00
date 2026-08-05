@@ -1,15 +1,17 @@
 ## 1. Schema and migration
 
-- [ ] 1.1 Add `project`, `work_item`, `role` and `estimate` to `apps/be-01/src/repository/schema.ts` per `design.md`, with a `down.sql` that drops all four. Proven by `apps/be-01/src/repository/migrate.test.ts`: migrate up, assert the four tables exist, migrate down, assert they are gone and `users` survives.
+- [x] 1.1 Add `project`, `work_item`, `role` and `estimate` to `apps/be-01/src/repository/schema.ts` per `design.md`, with a `down.sql` that drops all four. Proven by `apps/be-01/src/repository/migrate.test.ts`: migrate up, assert the four tables exist, migrate down, assert they are gone and `users` survives. Migration `20260805154500_add_wbs_domain`.
+- [x] 1.1a **Unplanned, and a prerequisite for 1.1's foreign keys.** `openDatabase` set `PRAGMA foreign_keys = ON` on every connection and `assertPragmas` verified only WAL and `busy_timeout` — so the pragma the domain schema leans on was requested and never confirmed. A build without foreign key support accepts the pragma and reports 0, which would make every reference in the new tables decorative. `Proof:` the test in `db.test.ts` was watched failing with "Received function did not throw" before the check existed.
 - [ ] 1.2 Extend `buildTestServices` to seed a project with an owner, so every later test starts from a real row rather than a fixture literal.
 
 ## 2. Number derivation, without a database
 
 The riskiest code in the change. It is a pure function over a tree, so it is tested first and alone.
 
-- [ ] 2.1 Write failing tests in `apps/be-01/src/service/derive-numbers.test.ts`: roots number `010`/`020`/`030`; children nest to `010.1` and `010.2.1`; nine children stay one digit; a tenth repads the group to `010.01`–`010.10`; repadding one parent leaves a sibling parent untouched.
-- [ ] 2.2 Add the sort test that motivated the rule: assert `['010.1','010.10','010.2']` sorted byte-wise yields `010.01 < 010.02 … < 010.10` **after** derivation, and record in a `Proof:` comment that the unpadded form sorts `010.10` second.
-- [ ] 2.3 Implement `deriveNumbers(tree)` in `apps/be-01/src/service/derive-numbers.ts` as specified in `design.md`. No repository import.
+- [x] 2.1 Write failing tests in `apps/be-01/src/service/derive-numbers.test.ts`: roots number `010`/`020`/`030`; children nest to `010.1` and `010.2.1`; nine children stay one digit; a tenth repads the group to `010.01`–`010.10`; repadding one parent leaves a sibling parent untouched. Plus the hundredth root widening to `0010`–`1000`.
+- [x] 2.2 Add the sort test that motivated the rule: assert `['010.1','010.10','010.2']` sorted byte-wise yields `010.01 < 010.02 … < 010.10` **after** derivation, and record in a `Proof:` comment that the unpadded form sorts `010.10` second. **It first passed against the empty stub** — a check that could not fail — so it now asserts every number is present and non-empty before comparing.
+- [x] 2.3 Implement `deriveNumbers(tree)` in `apps/be-01/src/service/derive-numbers.ts` as specified in `design.md`. No repository import.
+- [x] 2.3a A work item unreachable from any root throws rather than being returned unnumbered, which covers both an orphaned `parentId` and a parent cycle. `Proof:` watched failing with "Received function did not throw".
 - [ ] 2.4 Extend the tests to frozen anchors: a group holding frozen `010` and frozen `020` derives `011` for a work item between them; a work item between frozen `010` and frozen `011` derives `0105`; a partially frozen group reports mixed widths.
 
 ## 3. Projects, ownership and the restriction check
