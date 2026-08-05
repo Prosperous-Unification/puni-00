@@ -105,16 +105,11 @@ function fakeApi(): ProjectApi & { rows: WorkItemView[] } {
   };
 }
 
-const LOCK = '🔒 ';
-
 const numbersOnScreen = () =>
   screen
     .getAllByRole('row')
     .slice(1)
-    .map((row) => {
-      const cell = row.querySelector('td');
-      return (cell?.textContent ?? '').replace(LOCK, '');
-    });
+    .map((row) => row.querySelector('[data-number]')?.textContent ?? '');
 
 const click = (name: string) => {
   fireEvent.click(screen.getByRole('button', { name }));
@@ -277,5 +272,49 @@ describe('live edits from other people', () => {
 
     view.unmount();
     expect(unsubscribed).toBe(true);
+  });
+});
+
+describe('collapsing a branch', () => {
+  itDom('hides the children of a collapsed parent and brings them back', async () => {
+    const api = fakeApi();
+    render(<WbsTable projectId="p1" api={api} />);
+
+    click('Add work item');
+    await screen.findByLabelText('Name of 010');
+    pressEnter('010');
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '020']);
+    });
+    pressTab('020');
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '010.1']);
+    });
+
+    click('Collapse 010');
+
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010']);
+    });
+    // The parent is still there and still shows its rolled-up figures; only the
+    // work beneath it is folded away.
+    expect(screen.getByLabelText('Dev optimistic for 010')).toBeDefined();
+
+    click('Expand 010');
+
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '010.1']);
+    });
+  });
+
+  itDom('offers no expander on a leaf', async () => {
+    const api = fakeApi();
+    render(<WbsTable projectId="p1" api={api} />);
+
+    click('Add work item');
+    await screen.findByLabelText('Name of 010');
+
+    expect(screen.queryByLabelText('Collapse 010')).toBeNull();
+    expect(screen.queryByLabelText('Expand 010')).toBeNull();
   });
 });

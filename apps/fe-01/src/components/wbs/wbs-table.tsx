@@ -1,12 +1,16 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-
 import {
-  type Days,
-  depthOf,
-  type ProjectApi,
-  type RoleView,
-  type WorkItemView,
-} from '@/lib/wbs-api';
+  createColumnHelper,
+  type ExpandedState,
+  flexRender,
+  getCoreRowModel,
+  getExpandedRowModel,
+  useReactTable,
+} from '@tanstack/react-table';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+
+import type { Days, ProjectApi, RoleView } from '@/lib/wbs-api';
+
+import { toTree, type TreeRow } from './wbs-rows';
 
 export interface WbsTableProps {
   projectId: string;
@@ -24,29 +28,32 @@ type Point = (typeof POINTS)[number];
 const showDays = (days: Days | undefined, point: Point): string =>
   days === undefined ? '' : String(days[point]);
 
+const column = createColumnHelper<TreeRow>();
+
 /**
  * The work breakdown: one grid that is a table and a nested list at once.
  *
- * Rows arrive from be-01 already in tree order — the numbering is built so a
- * single lexicographic sort produces it — so this component never re-sorts and
- * never rebuilds the hierarchy. Depth comes from the number's dot count, which
- * means indentation cannot disagree with the number shown beside it.
+ * TanStack Table owns exactly one thing here — which branches are open. Ordering
+ * is not its job: be-01 returns rows already in the order they read, because the
+ * numbering is built so a single lexicographic sort produces tree order across
+ * every level. Sorting them again on the client would be a second implementation
+ * of that, and the two would eventually disagree.
  *
- * Every edit is a request; the tree is refetched from the response rather than
- * patched locally, because a create or move can renumber rows this component
- * never touched and guessing which would be a second implementation of the
- * derivation.
+ * Every edit is a request and the tree is refetched, never patched locally. A
+ * create or a move can renumber rows this component never touched, and guessing
+ * which would be a second implementation of the derivation as well.
  */
 export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
-  const [workItems, setWorkItems] = useState<WorkItemView[]>([]);
+  const [workItems, setWorkItems] = useState<TreeRow[]>([]);
   const [roles, setRoles] = useState<RoleView[]>([]);
+  const [expanded, setExpanded] = useState<ExpandedState>(true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const focusNext = useRef<string | null>(null);
 
   const refresh = useCallback(async () => {
     const [tree, loadedRoles] = await Promise.all([api.tree(projectId), api.roles(projectId)]);
-    setWorkItems(tree);
+    setWorkItems(toTree(tree));
     setRoles(loadedRoles);
   }, [api, projectId]);
 
@@ -57,28 +64,16 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
   }, [refresh]);
 
   // Someone else's edit refetches rather than patching: a create or move can
-  // renumber rows this client never touched, and reproducing that here would be
-  // a second copy of the derivation.
+  // renumber rows this client never touched.
   useEffect(() => {
     if (subscribe === undefined) return undefined;
     return subscribe(projectId, () => {
       void refresh().catch(() => {
-        // A failed refresh after someone else's edit leaves the last good tree
-        // on screen. Clearing it would lose the user's place over a blip.
+        // A failed refresh leaves the last good tree on screen. Clearing it
+        // would lose the user's place over a blip.
       });
     });
   }, [subscribe, projectId, refresh]);
-
-  // A newly created row is focused once it exists in the DOM, so Enter-Enter-
-  // Enter types a list without touching the mouse.
-  useEffect(() => {
-    if (focusNext.current === null) return;
-    const input = document.querySelector<HTMLInputElement>(
-      `[data-name-input="${focusNext.current}"]`,
-    );
-    focusNext.current = null;
-    input?.focus();
-  }, [workItems]);
 
   const run = useCallback(
     async (action: () => Promise<void>) => {
@@ -96,52 +91,213 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
     [refresh],
   );
 
-  const addSibling = (after: WorkItemView) =>
-    run(async () => {
-      const created = await api.create(projectId, {
-        parentId: after.parentId,
-        afterId: after.id,
-        name: '',
-      });
-      focusNext.current = created.id;
-    });
+  /** Every row in the order the table renders them, ignoring collapse. */
+  const flat = useMemo(() => {
+    const out: TreeRow[] = [];
+    const walk = (rows: readonly TreeRow[]): void => {
+      for (const row of rows) {
+        out.push(row);
+        walk(row.subRows);
+      }
+    };
+    walk(workItems);
+    return out;
+  }, [workItems]);
+
+  const siblingsOf = useCallback(
+    (parentId: string | null) => flat.filter((row) => row.parentId === parentId),
+    [flat],
+  );
+
+  const addSibling = useCallback(
+    (after: TreeRow) =>
+      run(async () => {
+        const created = await api.create(projectId, {
+          parentId: after.parentId,
+          afterId: after.id,
+          name: '',
+        });
+        focusNext.current = created.id;
+      }),
+    [api, projectId, run],
+  );
 
   /** Indent: the row becomes the last child of the sibling above it. */
-  const indent = (row: WorkItemView) =>
-    run(async () => {
-      const siblings = workItems.filter((w) => w.parentId === row.parentId);
-      const index = siblings.findIndex((w) => w.id === row.id);
-      // A ternary rather than `siblings.at(index - 1)`: at index 0 there is no
-      // row above to indent under, and `.at(-1)` would helpfully return the last
-      // sibling — quietly moving the row to the wrong place.
-      const newParent = index > 0 ? siblings[index - 1] : undefined;
-      if (newParent === undefined) return;
-      const lastChild = workItems.filter((w) => w.parentId === newParent.id).at(-1) ?? null;
-      focusNext.current = row.id;
-      await api.move(row.id, newParent.id, lastChild?.id ?? null);
-    });
+  const indent = useCallback(
+    (row: TreeRow) =>
+      run(async () => {
+        const siblings = siblingsOf(row.parentId);
+        const index = siblings.findIndex((w) => w.id === row.id);
+        // A ternary rather than `siblings.at(index - 1)`: at index 0 there is no
+        // row above to indent under, and `.at(-1)` would return the last sibling
+        // — quietly moving the row somewhere nobody asked for.
+        const newParent = index > 0 ? siblings[index - 1] : undefined;
+        if (newParent === undefined) return;
+        const lastChild = newParent.subRows.at(-1) ?? null;
+        focusNext.current = row.id;
+        await api.move(row.id, newParent.id, lastChild?.id ?? null);
+      }),
+    [api, run, siblingsOf],
+  );
 
   /** Outdent: the row becomes the next sibling of its own parent. */
-  const outdent = (row: WorkItemView) =>
-    run(async () => {
-      if (row.parentId === null) return;
-      const parent = workItems.find((w) => w.id === row.parentId);
-      if (parent === undefined) return;
-      focusNext.current = row.id;
-      await api.move(row.id, parent.parentId, parent.id);
-    });
+  const outdent = useCallback(
+    (row: TreeRow) =>
+      run(async () => {
+        if (row.parentId === null) return;
+        const parent = flat.find((w) => w.id === row.parentId);
+        if (parent === undefined) return;
+        focusNext.current = row.id;
+        await api.move(row.id, parent.parentId, parent.id);
+      }),
+    [api, flat, run],
+  );
 
-  const onKeyDown = (event: React.KeyboardEvent, row: WorkItemView) => {
-    if (event.key === 'Enter') {
-      event.preventDefault();
-      void addSibling(row);
-      return;
-    }
-    if (event.key === 'Tab') {
-      event.preventDefault();
-      void (event.shiftKey ? outdent(row) : indent(row));
-    }
-  };
+  const onKeyDown = useCallback(
+    (event: React.KeyboardEvent, row: TreeRow) => {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        void addSibling(row);
+        return;
+      }
+      if (event.key === 'Tab') {
+        event.preventDefault();
+        void (event.shiftKey ? outdent(row) : indent(row));
+      }
+    },
+    [addSibling, indent, outdent],
+  );
+
+  const columns = useMemo(
+    () => [
+      column.display({
+        id: 'number',
+        header: 'Number',
+        cell: ({ row }) => (
+          <span style={{ paddingLeft: row.depth * 16, whiteSpace: 'nowrap' }}>
+            {row.getCanExpand() ? (
+              <button
+                type="button"
+                aria-label={`${row.getIsExpanded() ? 'Collapse' : 'Expand'} ${row.original.number}`}
+                onClick={row.getToggleExpandedHandler()}
+              >
+                {row.getIsExpanded() ? '▾' : '▸'}
+              </button>
+            ) : null}
+            {row.original.frozenNumber !== null && <span aria-label="Number is frozen">🔒</span>}
+            <span data-number>{row.original.number}</span>
+          </span>
+        ),
+      }),
+      column.display({
+        id: 'name',
+        header: 'Name',
+        cell: ({ row }) => (
+          <input
+            aria-label={`Name of ${row.original.number}`}
+            data-name-input={row.original.id}
+            // A callback ref rather than an effect: it fires exactly when this
+            // node mounts, so the focus cannot be lost to a later render
+            // arriving before the row does. That race is what
+            // Enter-Enter-Enter depends on not losing.
+            ref={(element) => {
+              if (element === null || focusNext.current !== row.original.id) return;
+              focusNext.current = null;
+              element.focus();
+            }}
+            defaultValue={row.original.name}
+            key={`${row.original.id}-${row.original.name}`}
+            onBlur={(e) => void run(() => api.patch(row.original.id, { name: e.target.value }))}
+            onKeyDown={(e) => {
+              onKeyDown(e, row.original);
+            }}
+          />
+        ),
+      }),
+      ...roles.flatMap((role) =>
+        POINTS.map((point) =>
+          column.display({
+            id: `${role.id}-${point}`,
+            header: `${role.name} ${point}`,
+            cell: ({ row }) => (
+              <input
+                aria-label={`${role.name} ${point} for ${row.original.number}`}
+                // A parent's figures are sums of what is below it, so the cell is
+                // shown and not editable — greyed rather than blank, because the
+                // number is real and worth reading.
+                readOnly={row.original.rolledUp}
+                style={row.original.rolledUp ? { color: '#666', background: '#f4f4f4' } : undefined}
+                defaultValue={showDays(row.original.estimates[role.id], point)}
+                key={`${row.original.id}-${role.id}-${point}-${showDays(row.original.estimates[role.id], point)}`}
+                onBlur={(e) => {
+                  if (row.original.rolledUp) return;
+                  const current = row.original.estimates[role.id] ?? {
+                    optimistic: 0,
+                    realistic: 0,
+                    pessimistic: 0,
+                  };
+                  const days = { ...current, [point]: Number(e.target.value) };
+                  void run(() => api.setEstimate(row.original.id, role.id, days));
+                }}
+              />
+            ),
+          }),
+        ),
+      ),
+      column.display({
+        id: 'notes',
+        header: 'Notes',
+        cell: ({ row }) => (
+          <input
+            aria-label={`Notes for ${row.original.number}`}
+            defaultValue={row.original.notes}
+            key={`${row.original.id}-notes-${row.original.notes}`}
+            onBlur={(e) => void run(() => api.patch(row.original.id, { notes: e.target.value }))}
+          />
+        ),
+      }),
+      column.display({
+        id: 'actions',
+        header: () => <span aria-label="Row actions" />,
+        cell: ({ row }) =>
+          row.original.frozenNumber !== null ? (
+            <button type="button" onClick={() => void run(() => api.unfreeze(row.original.id))}>
+              Unfreeze
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() =>
+                void run(() =>
+                  api.remove(row.original.id, {
+                    strategy: row.original.subRows.length > 0 ? 'promote' : undefined,
+                  }),
+                )
+              }
+            >
+              Delete
+            </button>
+          ),
+      }),
+    ],
+    // `busy` is deliberately absent. `flexRender` renders each `cell` function as
+    // a component type, so rebuilding these definitions gives every cell a new
+    // type and React unmounts and remounts the lot — losing focus, selection and
+    // any half-typed value. The toolbar buttons outside the table still disable;
+    // the row buttons do not, and a double-click on a deleted row just 404s.
+    [api, onKeyDown, roles, run],
+  );
+
+  const table = useReactTable({
+    data: workItems,
+    columns,
+    state: { expanded },
+    onExpandedChange: setExpanded,
+    getSubRows: (row) => row.subRows,
+    getRowId: (row) => row.id,
+    getCoreRowModel: getCoreRowModel(),
+    getExpandedRowModel: getExpandedRowModel(),
+  });
 
   return (
     <section>
@@ -162,7 +318,7 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
             void run(async () => {
               const created = await api.create(projectId, {
                 parentId: null,
-                afterId: workItems.filter((w) => w.parentId === null).at(-1)?.id ?? null,
+                afterId: siblingsOf(null).at(-1)?.id ?? null,
                 name: '',
               });
               focusNext.current = created.id;
@@ -178,128 +334,24 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
 
       <table>
         <thead>
-          <tr>
-            <th scope="col">Number</th>
-            <th scope="col">Name</th>
-            {roles.map((role) => (
-              <th key={role.id} scope="col" colSpan={POINTS.length}>
-                {role.name}
-              </th>
-            ))}
-            <th scope="col">Notes</th>
-            <th scope="col" aria-label="Row actions" />
-          </tr>
+          {table.getHeaderGroups().map((group) => (
+            <tr key={group.id}>
+              {group.headers.map((header) => (
+                <th key={header.id} scope="col">
+                  {flexRender(header.column.columnDef.header, header.getContext())}
+                </th>
+              ))}
+            </tr>
+          ))}
         </thead>
         <tbody>
-          {workItems.map((row) => {
-            const frozen = row.frozenNumber !== null;
-            return (
-              <tr key={row.id} data-frozen={frozen ? 'true' : 'false'}>
-                <td style={{ paddingLeft: 8 + depthOf(row) * 16, whiteSpace: 'nowrap' }}>
-                  {frozen && <span aria-label="Number is frozen">🔒 </span>}
-                  {row.number}
-                </td>
-                <td>
-                  <input
-                    aria-label={`Name of ${row.number}`}
-                    data-name-input={row.id}
-                    value={row.name}
-                    onChange={(e) => {
-                      const name = e.target.value;
-                      setWorkItems((current) =>
-                        current.map((w) => (w.id === row.id ? { ...w, name } : w)),
-                      );
-                    }}
-                    onBlur={(e) => void run(() => api.patch(row.id, { name: e.target.value }))}
-                    onKeyDown={(e) => {
-                      onKeyDown(e, row);
-                    }}
-                  />
-                </td>
-                {roles.flatMap((role) =>
-                  POINTS.map((point) => (
-                    <td key={`${role.id}-${point}`}>
-                      <input
-                        aria-label={`${role.name} ${point} for ${row.number}`}
-                        // A parent's figures are sums of what is below it, so the
-                        // cell is shown and not editable — greyed rather than
-                        // blank, because the number is real and worth reading.
-                        readOnly={row.rolledUp}
-                        style={row.rolledUp ? { color: '#666', background: '#f4f4f4' } : undefined}
-                        value={showDays(row.estimates[role.id], point)}
-                        onChange={(e) => {
-                          const next = Number(e.target.value);
-                          const current = row.estimates[role.id] ?? {
-                            optimistic: 0,
-                            realistic: 0,
-                            pessimistic: 0,
-                          };
-                          setWorkItems((items) =>
-                            items.map((w) =>
-                              w.id === row.id
-                                ? {
-                                    ...w,
-                                    estimates: {
-                                      ...w.estimates,
-                                      [role.id]: { ...current, [point]: next },
-                                    },
-                                  }
-                                : w,
-                            ),
-                          );
-                        }}
-                        onBlur={() => {
-                          const days = workItems.find((w) => w.id === row.id)?.estimates[role.id];
-                          if (days === undefined || row.rolledUp) return;
-                          void run(() => api.setEstimate(row.id, role.id, days));
-                        }}
-                      />
-                    </td>
-                  )),
-                )}
-                <td>
-                  <input
-                    aria-label={`Notes for ${row.number}`}
-                    value={row.notes}
-                    onChange={(e) => {
-                      const notes = e.target.value;
-                      setWorkItems((current) =>
-                        current.map((w) => (w.id === row.id ? { ...w, notes } : w)),
-                      );
-                    }}
-                    onBlur={(e) => void run(() => api.patch(row.id, { notes: e.target.value }))}
-                  />
-                </td>
-                <td>
-                  {frozen ? (
-                    <button
-                      type="button"
-                      onClick={() => void run(() => api.unfreeze(row.id))}
-                      disabled={busy}
-                    >
-                      Unfreeze
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() =>
-                        void run(() =>
-                          api.remove(row.id, {
-                            strategy: workItems.some((w) => w.parentId === row.id)
-                              ? 'promote'
-                              : undefined,
-                          }),
-                        )
-                      }
-                      disabled={busy}
-                    >
-                      Delete
-                    </button>
-                  )}
-                </td>
-              </tr>
-            );
-          })}
+          {table.getRowModel().rows.map((row) => (
+            <tr key={row.id} data-frozen={row.original.frozenNumber !== null ? 'true' : 'false'}>
+              {row.getVisibleCells().map((cell) => (
+                <td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>
+              ))}
+            </tr>
+          ))}
         </tbody>
       </table>
     </section>
