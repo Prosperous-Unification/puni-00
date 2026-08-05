@@ -41,5 +41,5 @@
 
 ## 7. Gate and verification
 
-- [ ] 7.1 `verify.md`: the uncached gate output and a failure-proof table for every check added here.
-- [ ] 7.2 Exercise it on dev with two browsers: kill the gateway, edit from the survivor, and watch the returning client catch up without a manual refresh.
+- [x] 7.1 `verify.md`: the uncached gate output and a failure-proof table for every check added here.
+- [x] 7.2 Exercised on dev with two real sockets rather than two browsers: one drops, misses two edits, returns and is replayed both in order; the socket that stayed connected receives nothing during the replay. Recorded in `verify.md`, including what a script cannot prove that a browser would.

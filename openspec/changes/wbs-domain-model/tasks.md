@@ -41,7 +41,7 @@ The riskiest code in the change. It is a pure function over a tree, so it is tes
 
 ## 6. Estimates and roll-up
 
-- [x] 6.1 The shared lib is `libs/domain` (there is no `shared-lib-01` — the scaffold prompt's name, not the repo's). **It already held an `Estimate` type with `hours` and a `low|medium|high` confidence, and a `WbsItem` with `title`/`estimateHours`** — scaffold-era placeholders describing a different product, with no consumers outside their own test. `estimate.ts` is now `ThreePointEstimate`, ordering enforced by `.narrow`. `wbs-item.ts` and `dependency.ts` are still placeholders and still contradict the shipped domain; left alone as out of scope, flagged here.
+- [x] 6.1 The shared lib is `libs/domain` (there is no `shared-lib-01` — the scaffold prompt's name, not the repo's). **It already held an `Estimate` type with `hours` and a `low|medium|high` confidence, and a `WbsItem` with `title`/`estimateHours`** — scaffold-era placeholders describing a different product, with no consumers outside their own test. `estimate.ts` is now `ThreePointEstimate`, ordering enforced by `.narrow`. `wbs-item.ts` and `dependency.ts` were **deleted 2026-08-05**. They had no consumers anywhere in the repo and described a different product — a `title`/`estimateHours` item under a ULID, against the shipped `name`/`notes` item under a UUID with three-point estimates by role. A type nobody imports is harmless; a type nobody imports that looks like the domain is a trap the next reader walks into. Dependencies are a later slice and will be shaped against the model that exists.
 - [x] 6.2 `PUT /api/work-items/:id/estimates/:roleId` called directly with `1/5/3` answers 400 `invalid_estimate`, with no front end in the path.
 - [x] 6.3 `rollUp` is a pure function over rows and estimates. `Proof:` collapsing its parent branch to always take the leaf path failed exactly the four summation tests.
 - [x] 6.4 **Negative test:** `Proof:` the `rolled_up` guard was replaced with `if (false)` and exactly that one test failed.
@@ -65,7 +65,7 @@ The riskiest code in the change. It is a pure function over a tree, so it is tes
 - [x] 8.2 Enter, Tab and Shift+Tab, with the three-level test. Arrow-key cell movement is **not** done — the browser's own tab order covers moving along a row, and inventing a grid navigation model deserves its own decision. Indent uses a ternary rather than `siblings.at(index - 1)`: at index 0 `.at(-1)` would return the last sibling and quietly move the row somewhere nobody asked for.
 - [x] 8.3 Freeze, unfreeze-all, a lock marker on frozen rows and a per-row Unfreeze button. **Drag is not implemented at all**, so there is no locked-drag message to write; keyboard indent/outdent is the only restructuring path today.
 - [x] 8.4a Subscribes on mount, unsubscribes on unmount, and **refetches** rather than applying the payload: reproducing the numbering and roll-up client-side would be a second copy of the two things most likely to disagree with the server.
-- [ ] 8.4b Resume-on-reconnect not wired. The socket has the protocol; this component does not use it, so a client that drops and returns refetches on the next edit rather than replaying what it missed.
+- [x] 8.4b Done 2026-08-05 by the `resume-and-reconnect` change, along with the reconnect the component did not have at all: one `WebSocket`, closed was closed. be-01's `/internal/resume` was a stub answering `replaying, count: 0` for everything, so wiring the client alone would have replayed nothing.
 
 ## 9. Gate
 

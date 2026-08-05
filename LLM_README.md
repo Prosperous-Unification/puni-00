@@ -27,8 +27,10 @@ bunx nx run-many -t test lint typecheck build   # the gate, part 2
 bun run dev                                     # be + gw + fe locally
 ```
 
-`bun test` from the repo root is **not** the whole suite — it runs 0 of fe-01's test files, which
-are Vitest/jsdom and invisible to `bun:test`, and reports a clean run anyway. `build` needs
+`bun test` from the repo root is **not** the gate and its failures do not mean what they say.
+It **does** collect fe-01's files — the older claim that it collected none of them was wrong — and
+19 of them fail on `location`, `localStorage` and the rest of the DOM `bun:test` has no jsdom to
+provide. Use `bunx nx run-many -t test`, which routes fe-01 to `bunx vitest run`. `build` needs
 `shellcheck` (`brew install shellcheck`); it is no longer allowed to skip itself when absent.
 
 **Rules: `AGENTS.md`** (symlinked to CLAUDE.md/GEMINI.md) — read it, it governs every change.
