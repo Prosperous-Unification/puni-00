@@ -335,19 +335,54 @@ async function liveRoutedColors(): Promise<Record<Tier, Color | null>> {
   };
 }
 
-async function readRecordedColor(tier: Tier): Promise<Color | null> {
-  const raw = await Bun.file(`${ROOT}/state/${tier}.json`)
-    .text()
-    .catch(() => null);
-  if (raw === null) return null;
+/**
+ * ENOENT means the file is genuinely absent — a tier that has never been
+ * deployed — which is the one case this reader is meant to tolerate. Every
+ * other errno is a file that exists and could not be read.
+ */
+export function isFileAbsent(e: unknown): boolean {
+  return e !== null && typeof e === 'object' && 'code' in e && e.code === 'ENOENT';
+}
+
+/**
+ * The recorded colour, or a thrown error naming why it could not be trusted.
+ *
+ * Absent and unreadable used to collapse to the same `null`, and `null` means
+ * "never deployed" to `resolveLiveColor`. So a state file that merely could not
+ * be opened — a bad mode, a directory in its place — read as a fresh install,
+ * and the planner would choose blue without knowing whether blue was already
+ * serving. This is the same defect `readRemoteState` had in tool-deploy, in the
+ * file that decides which colour to tear down.
+ *
+ * Split from the IO so it can be tested without a filesystem.
+ */
+export function parseRecordedColor(path: string, raw: string): Color {
   try {
     return parseStateJson(raw).activeColor;
-  } catch (e) {
-    console.warn(
-      `[swap-${tier}] ignoring unreadable state file: ${e instanceof Error ? e.message : String(e)}`,
+  } catch (e: unknown) {
+    throw new Error(
+      `${path} is present but is not valid state JSON ` +
+        `(${e instanceof Error ? e.message : String(e)}) — refusing rather than ` +
+        'treating it as never-deployed, which would let a swap pick a colour ' +
+        'that may already be serving.',
     );
-    return null;
   }
+}
+
+async function readRecordedColor(tier: Tier): Promise<Color | null> {
+  const path = `${ROOT}/state/${tier}.json`;
+  let raw: string;
+  try {
+    raw = await Bun.file(path).text();
+  } catch (e: unknown) {
+    if (isFileAbsent(e)) return null;
+    throw new Error(
+      `${path} exists but could not be read ` +
+        `(${e instanceof Error ? e.message : String(e)}) — refusing rather than ` +
+        'treating it as never-deployed.',
+    );
+  }
+  return parseRecordedColor(path, raw);
 }
 
 async function observe(tier: Tier): Promise<Observed> {
