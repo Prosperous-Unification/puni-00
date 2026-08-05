@@ -121,8 +121,9 @@ contract: `docs/runbook-prod-deploy.md`.**
    longer looks like one; deploying an older commit still means checking it out and rebuilding.
 3. `configure.sh`'s root phase never run on a fresh host; `tool-bootstrap:push` wires it, but
    only the plan is tested.
-4. Health endpoints are status flags, not dependency checks. be-01 trusts an in-memory boolean,
-   gw-01's is unconditional. Break `BE_URL` or delete the SQLite file and both still report 200.
+4. ~~Health endpoints are status flags.~~ **Closed 2026-08-06.** be-01 queries for a table its
+   migrations create; gw-01 probes be-01's `/health`. A wrong `DB_PATH` or `BE_URL` now 503s.
+   Still uncaught: deleting the file under an open connection, which unix keeps alive.
 
 Also known, lower priority: fe/smoke health accepts any non-empty body; the WS smoke passes on any
 first message _containing_ `"pong"`; gateway drain reads a malformed metrics body as zero live

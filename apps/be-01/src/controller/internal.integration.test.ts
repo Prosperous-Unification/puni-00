@@ -17,6 +17,7 @@ function buildHarness() {
     migrationsApplied: true,
     internalAuthSecret: SECRET,
     replay,
+    probeDatabase: () => 'ok',
   });
 
   function post(

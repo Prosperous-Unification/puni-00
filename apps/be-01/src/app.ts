@@ -7,6 +7,7 @@ import { internalController } from './controller/internal.controller';
 import { projectController } from './controller/project.controller';
 import { smokeController } from './controller/smoke.controller';
 import { workItemController } from './controller/work-item.controller';
+import type { DatabaseHealth } from './repository/health-probe';
 import type { AuthService } from './service/auth.service';
 import type { ProjectService } from './service/project.service';
 import type { ReplayOrchestrator } from './service/replay-orchestrator';
@@ -41,6 +42,16 @@ export interface AppOptions {
    * that answer come back by accident.
    */
   replay: ReplayOrchestrator;
+  /**
+   * Asks the database whether it is the one this process was built for.
+   *
+   * Required, and it runs on every `/health` call rather than once at startup.
+   * The endpoint used to answer from a boolean set before any query had been
+   * made, so a container pointed at the wrong `DB_PATH` passed the deploy's
+   * health gate and took traffic it could not serve. A health check that cannot
+   * fail is the failure `AGENTS.md` R5 is about.
+   */
+  probeDatabase: () => DatabaseHealth;
   version?: string;
 }
 
@@ -69,8 +80,23 @@ export function buildApp(opts: AppOptions) {
     .get('/health', ({ set }) => {
       if (!opts.migrationsApplied) {
         set.status = 503;
-        return { status: 'migrating' };
+        return { status: 'migrating' as const };
       }
-      return { status: 'ok' };
+      let schema: DatabaseHealth;
+      try {
+        schema = opts.probeDatabase();
+      } catch (err) {
+        // Caught and reported, not rethrown: a 500 from a health endpoint is
+        // indistinguishable at the gate from the process being wedged, and the
+        // operator reading the log needs to know which.
+        logger.error({ err }, 'health probe could not reach the database');
+        set.status = 503;
+        return { status: 'database_unreachable' as const };
+      }
+      if (schema !== 'ok') {
+        set.status = 503;
+        return { status: schema };
+      }
+      return { status: 'ok' as const };
     });
 }

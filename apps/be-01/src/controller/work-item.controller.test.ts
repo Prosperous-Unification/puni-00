@@ -23,6 +23,7 @@ function buildHarness() {
       broadcast: recordingBroadcaster(),
     }),
     replay: testReplay().replay,
+    probeDatabase: () => 'ok',
     internalAuthSecret: 'x'.repeat(32),
     migrationsApplied: true,
   });

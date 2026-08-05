@@ -14,6 +14,7 @@ describe('migrate lifecycle', () => {
       projects: testProjectService(),
       workItems: testWorkItemService(),
       replay: testReplay().replay,
+      probeDatabase: () => 'ok',
       internalAuthSecret: 'x'.repeat(32),
       get migrationsApplied() {
         return state.migrationsApplied;

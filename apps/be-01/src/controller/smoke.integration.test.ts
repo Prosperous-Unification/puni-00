@@ -15,6 +15,7 @@ describe('POST /api/smoke/echo', () => {
       projects: testProjectService(),
       workItems: testWorkItemService(),
       replay: testReplay().replay,
+      probeDatabase: () => 'ok',
       internalAuthSecret: TEST_SECRET,
       migrationsApplied: true,
     });
@@ -36,6 +37,7 @@ describe('POST /api/smoke/echo', () => {
       projects: testProjectService(),
       workItems: testWorkItemService(),
       replay: testReplay().replay,
+      probeDatabase: () => 'ok',
       internalAuthSecret: TEST_SECRET,
       migrationsApplied: true,
     });

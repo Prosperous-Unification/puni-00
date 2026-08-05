@@ -2,6 +2,7 @@ import type { Logger } from '@wbs/observability';
 
 import { buildApp } from './app';
 import { openConnection } from './repository/db';
+import { probeSchema } from './repository/health-probe';
 import { runMigrations } from './repository/migrate';
 import { type BeServices, buildServices } from './services';
 
@@ -63,6 +64,7 @@ export function bootBe01(opts: BootOptions): RunningBe {
     projects: services.projects,
     workItems: services.workItems,
     replay: services.replay,
+    probeDatabase: () => probeSchema(db),
     internalAuthSecret: opts.internalAuthSecret,
     version: opts.version,
   });

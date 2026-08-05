@@ -29,6 +29,7 @@ function buildHarness() {
     projects,
     workItems: buildWorkItemService(projectStore),
     replay: testReplay().replay,
+    probeDatabase: () => 'ok',
     internalAuthSecret: 'x'.repeat(32),
     migrationsApplied: true,
   });

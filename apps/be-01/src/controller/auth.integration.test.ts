@@ -15,6 +15,7 @@ function app() {
     projects: testProjectService(),
     workItems: testWorkItemService(),
     replay: testReplay().replay,
+    probeDatabase: () => 'ok',
     internalAuthSecret: TEST_SECRET,
     migrationsApplied: true,
   });
