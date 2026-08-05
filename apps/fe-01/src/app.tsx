@@ -19,11 +19,21 @@ export function App() {
       setChecked(true);
       return;
     }
-    void fetchMe(stored.token).then((user) => {
-      if (user === null) saveSession(null);
-      else setSession({ token: stored.token, user });
-      setChecked(true);
-    });
+    // `.catch` is not optional here: a rejected fetch — the site gate refusing
+    // the request, a dropped connection — would otherwise leave `checked` false
+    // forever and the app stuck on "Loading…", with no way to reach the form
+    // that could fix it. A failed check means "not signed in", never "wait".
+    void fetchMe(stored.token)
+      .then((user) => {
+        if (user === null) saveSession(null);
+        else setSession({ token: stored.token, user });
+      })
+      .catch(() => {
+        saveSession(null);
+      })
+      .finally(() => {
+        setChecked(true);
+      });
   }, []);
 
   if (!checked) return <main style={{ padding: 32 }}>Loading…</main>;
