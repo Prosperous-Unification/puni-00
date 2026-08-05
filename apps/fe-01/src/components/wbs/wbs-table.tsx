@@ -11,6 +11,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ProjectStream } from '@/lib/project-stream';
 import type { Days, ProjectApi, RoleView } from '@/lib/wbs-api';
 
+import { type DropRefusal, type DropZone, planMove, zoneFor } from './drag-drop';
 import { toTree, type TreeRow } from './wbs-rows';
 
 export interface WbsTableProps {
@@ -61,6 +62,30 @@ export function keepOrdered(current: Days, point: Point, value: number): Days {
   return next;
 }
 
+/**
+ * What a refused drop says out loud.
+ *
+ * `unchanged` is absent deliberately: dropping a row back where it was is not a
+ * mistake anyone needs telling about, and a message for it would fire constantly.
+ */
+const REFUSAL_MESSAGES: Partial<Record<DropRefusal, string>> = {
+  frozen: 'That row’s number is frozen. Unfreeze it before moving it.',
+  cycle: 'A row cannot be moved inside itself.',
+  not_found: 'That row is no longer here — the table has been refreshed.',
+};
+
+/**
+ * Opens `rowId`, whatever shape the expansion state is currently in.
+ *
+ * TanStack models "everything is open" as the boolean `true`, and a specific set
+ * as a record. Dropping into a branch that is closed has to open it — a row that
+ * lands somewhere invisible reads as a move that did nothing.
+ */
+function expandBranch(current: ExpandedState, rowId: string): ExpandedState {
+  if (current === true) return true;
+  return { ...current, [rowId]: true };
+}
+
 const column = createColumnHelper<TreeRow>();
 
 /**
@@ -83,6 +108,8 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [connected, setConnected] = useState(true);
+  const [dragging, setDragging] = useState<string | null>(null);
+  const [dropHint, setDropHint] = useState<{ rowId: string; zone: DropZone } | null>(null);
   const focusNext = useRef<string | null>(null);
 
   const latestRefresh = useRef(0);
@@ -170,6 +197,35 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
     [flat],
   );
 
+  /**
+   * Resolves a drop and sends the move, or refuses it out loud.
+   *
+   * The decision itself is `planMove`, which is pure and tested on its own; this
+   * only turns the answer into a request or a sentence. Dropping into a
+   * collapsed branch opens it, so the row is never moved somewhere invisible.
+   */
+  const dropOn = useCallback(
+    (targetId: string, zone: DropZone) => {
+      const draggedId = dragging;
+      setDragging(null);
+      setDropHint(null);
+      if (draggedId === null) return;
+
+      const plan = planMove(flat, draggedId, targetId, zone);
+      if (!plan.ok) {
+        // `unchanged` says nothing: it is not a mistake, and a message for it
+        // would fire every time someone put a row back.
+        const message = REFUSAL_MESSAGES[plan.reason];
+        if (message !== undefined) setError(message);
+        return;
+      }
+
+      if (zone === 'into') setExpanded((current) => expandBranch(current, targetId));
+      void run(() => api.move(draggedId, plan.parentId, plan.afterId));
+    },
+    [api, dragging, flat, run],
+  );
+
   const addSibling = useCallback(
     (after: TreeRow) =>
       run(async () => {
@@ -231,6 +287,33 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
 
   const columns = useMemo(
     () => [
+      column.display({
+        id: 'drag',
+        header: () => <span aria-label="Reorder" />,
+        cell: ({ row }) =>
+          // A frozen row offers no handle at all. be-01 refuses to move it and
+          // so does `planMove`; an affordance that cannot work should not invite
+          // the attempt in the first place.
+          row.original.frozenNumber !== null ? null : (
+            <span
+              draggable
+              role="button"
+              tabIndex={-1}
+              aria-label={`Reorder ${row.original.number}`}
+              title="Drag to move this row"
+              style={{ cursor: 'grab' }}
+              onDragStart={() => {
+                setDragging(row.original.id);
+              }}
+              onDragEnd={() => {
+                setDragging(null);
+                setDropHint(null);
+              }}
+            >
+              ⠿
+            </span>
+          ),
+      }),
       column.display({
         id: 'number',
         header: 'Number',
@@ -417,7 +500,37 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
         </thead>
         <tbody>
           {table.getRowModel().rows.map((row) => (
-            <tr key={row.id} data-frozen={row.original.frozenNumber !== null ? 'true' : 'false'}>
+            <tr
+              key={row.id}
+              data-frozen={row.original.frozenNumber !== null ? 'true' : 'false'}
+              data-drop={dropHint?.rowId === row.original.id ? dropHint.zone : undefined}
+              // The handlers sit on the row rather than in a column definition:
+              // `flexRender` renders each `cell` as a component *type*, so a
+              // definition that changed with the drag would remount every cell
+              // in the table on every pointer move.
+              onDragOver={(event) => {
+                if (dragging === null) return;
+                // Without this the browser refuses the drop outright.
+                event.preventDefault();
+                const box = event.currentTarget.getBoundingClientRect();
+                setDropHint({
+                  rowId: row.original.id,
+                  zone: zoneFor(event.clientY - box.top, box.height),
+                });
+              }}
+              onDragLeave={() => {
+                setDropHint((current) => (current?.rowId === row.original.id ? null : current));
+              }}
+              onDrop={(event) => {
+                event.preventDefault();
+                // The zone the last `dragover` worked out, not one recomputed
+                // here. That one is the marker the person was looking at when
+                // they let go, and a drop that lands somewhere other than where
+                // the line was drawn is the one thing drag must never do.
+                if (dropHint?.rowId !== row.original.id) return;
+                dropOn(row.original.id, dropHint.zone);
+              }}
+            >
               {row.getVisibleCells().map((cell) => (
                 <td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>
               ))}

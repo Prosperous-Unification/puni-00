@@ -385,3 +385,202 @@ describe('keepOrdered', () => {
     expect(keepOrdered(days(1, 2, 3), 'realistic', 2)).toEqual(days(1, 2, 3));
   });
 });
+
+/** The `<tr>` whose number cell reads `number`. */
+const rowFor = (number: string): HTMLElement => {
+  const found = screen
+    .getAllByRole('row')
+    .find((tr) => tr.querySelector('[data-number]')?.textContent === number);
+  if (found === undefined) throw new Error(`no row numbered ${number}`);
+  return found;
+};
+
+/** Pins a row's geometry so a drop can be aimed at a zone jsdom cannot lay out. */
+const withHeight = (element: HTMLElement, top: number, height: number): HTMLElement => {
+  element.getBoundingClientRect = () =>
+    ({ top, height, bottom: top + height, left: 0, right: 0, width: 0, x: 0, y: top }) as DOMRect;
+  return element;
+};
+
+/**
+ * jsdom has no `DragEvent`, so `fireEvent.dragOver(el, {clientY})` degrades to a
+ * plain `Event` and the coordinate is silently dropped — which made the first
+ * version of these tests pass on a zone nobody aimed at. A `MouseEvent` named
+ * `dragover` carries it, and React dispatches on the type either way.
+ */
+const dragEvent = (type: string, clientY: number) =>
+  new MouseEvent(type, { bubbles: true, cancelable: true, clientY });
+
+const dragOnto = (from: string, to: string, clientY: number) => {
+  fireEvent.dragStart(screen.getByLabelText(`Reorder ${from}`));
+  const target = rowFor(to);
+  fireEvent(target, dragEvent('dragover', clientY));
+  fireEvent(target, dragEvent('drop', clientY));
+};
+
+/** Three named root rows: `010 Strip`, `020 Sand`, `030 Paint`. */
+async function threeRoots() {
+  const api = fakeApi();
+  render(<WbsTable projectId="p1" api={api} />);
+  // Named, not left blank. Blank names made an ordering assertion compare three
+  // empty strings against three empty strings, which passes for any order.
+  for (const [number, name] of [
+    ['010', 'Strip'],
+    ['020', 'Sand'],
+    ['030', 'Paint'],
+  ]) {
+    click('Add work item');
+    await screen.findByLabelText(`Name of ${number}`);
+    typeName(number, name);
+    fireEvent.blur(screen.getByLabelText(`Name of ${number}`));
+    await waitFor(() => {
+      expect(screen.getByLabelText(`Name of ${number}`)).toHaveProperty('value', name);
+    });
+  }
+  return api;
+}
+
+const namesOnScreen = (): string[] =>
+  screen
+    .getAllByRole('row')
+    .slice(1)
+    .map((tr) => {
+      const input = tr.querySelector('input[data-name-input]');
+      // Thrown rather than defaulted: a row without a name input means the
+      // markup changed, and an empty string here would quietly pass an
+      // ordering assertion that is no longer looking at anything.
+      if (!(input instanceof HTMLInputElement)) throw new Error('a row has no name input');
+      return input.value;
+    });
+
+describe('dragging a row', () => {
+  itDom('makes the dragged row a child of the row it is dropped into', async () => {
+    await threeRoots();
+    expect(numbersOnScreen()).toEqual(['010', '020', '030']);
+
+    // The middle half of the row is "into". jsdom lays nothing out, so the
+    // geometry is pinned; the arithmetic itself is `zoneFor`'s own test.
+    withHeight(rowFor('010'), 0, 40);
+    dragOnto('030', '010', 20);
+
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '010.1', '020']);
+    });
+  });
+
+  itDom('puts the row above the target when dropped on its top quarter', async () => {
+    const api = await threeRoots();
+    expect(namesOnScreen()).toEqual(['Strip', 'Sand', 'Paint']);
+
+    withHeight(rowFor('010'), 0, 40);
+    dragOnto('030', '010', 2);
+
+    await waitFor(() => {
+      expect(namesOnScreen()).toEqual(['Paint', 'Strip', 'Sand']);
+    });
+    // Moved, not copied: the same three rows, still at the root.
+    expect(api.rows).toHaveLength(3);
+    expect(numbersOnScreen()).toEqual(['010', '020', '030']);
+  });
+
+  itDom('refuses to drag a frozen row and says why', async () => {
+    const api = await threeRoots();
+    click('Freeze numbering');
+    await waitFor(() => {
+      expect(screen.getAllByLabelText('Number is frozen')).toHaveLength(3);
+    });
+    const moved: unknown[] = [];
+    api.move = (...args: unknown[]) => {
+      moved.push(args);
+      return Promise.resolve();
+    };
+
+    // Frozen rows offer no handle at all — an affordance that cannot work
+    // should not invite the attempt.
+    expect(screen.queryByLabelText('Reorder 030')).toBeNull();
+
+    withHeight(rowFor('010'), 0, 40);
+    fireEvent.drop(rowFor('010'), { clientY: 20 });
+
+    expect(moved).toEqual([]);
+  });
+
+  itDom('refuses a drop inside the dragged row’s own subtree, with the reason', async () => {
+    const api = await threeRoots();
+    withHeight(rowFor('010'), 0, 40);
+    dragOnto('020', '010', 20);
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '010.1', '020']);
+    });
+
+    const moved: unknown[] = [];
+    api.move = (...args: unknown[]) => {
+      moved.push(args);
+      return Promise.resolve();
+    };
+
+    withHeight(rowFor('010.1'), 0, 40);
+    dragOnto('010', '010.1', 20);
+
+    expect(moved).toEqual([]);
+    expect(screen.getByRole('alert').textContent).toContain('inside itself');
+  });
+
+  itDom('sends nothing when a row is dropped where it already is', async () => {
+    const api = await threeRoots();
+    const moved: unknown[] = [];
+    api.move = (...args: unknown[]) => {
+      moved.push(args);
+      return Promise.resolve();
+    };
+
+    // The bottom quarter of the row directly above it.
+    withHeight(rowFor('010'), 0, 40);
+    dragOnto('020', '010', 38);
+
+    expect(moved).toEqual([]);
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+});
+
+describe('what a drag shows while it is happening', () => {
+  itDom('marks the row and the zone the drop would land in', async () => {
+    // The marker is not decoration: the drop uses the zone the last dragover
+    // worked out, so what is drawn and what happens are the same decision.
+    await threeRoots();
+    withHeight(rowFor('010'), 0, 40);
+
+    fireEvent.dragStart(screen.getByLabelText('Reorder 030'));
+    fireEvent(rowFor('010'), dragEvent('dragover', 2));
+    expect(rowFor('010').getAttribute('data-drop')).toBe('above');
+
+    fireEvent(rowFor('010'), dragEvent('dragover', 20));
+    expect(rowFor('010').getAttribute('data-drop')).toBe('into');
+
+    fireEvent.dragLeave(rowFor('010'));
+    expect(rowFor('010').getAttribute('data-drop')).toBeNull();
+  });
+
+  itDom('opens a collapsed branch it is dropped into', async () => {
+    // A row dropped into a closed branch is a row nobody can see, which reads
+    // as a move that did nothing.
+    await threeRoots();
+    withHeight(rowFor('010'), 0, 40);
+    dragOnto('020', '010', 20);
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '010.1', '020']);
+    });
+
+    click('Collapse 010');
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '020']);
+    });
+
+    withHeight(rowFor('010'), 0, 40);
+    dragOnto('020', '010', 20);
+
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '010.1', '010.2']);
+    });
+  });
+});
