@@ -3,11 +3,27 @@
 Prod is image-based blue/green, unchanged by the source-run dev work. Orientation
 lives in `LLM_README.md`; this is the operating detail.
 
-**h2puni is not provisioned to drive prod builds yet** (verified 2026-08-04): it has `bun`,
-`docker`, `git`, `node` (24.18.1 via Volta) and a running `dagger-engine` container, but
-**no `dagger` CLI**. There is now a checkout at `/home/puni1/wbs-dev/src`, but it belongs to
-dev — do not build from it. Installing the CLI is prerequisite work before the commands
-below run there.
+## The build host, as provisioned on 2026-08-05
+
+Three things had to exist before any command below could run. All three are in
+place; each is worth knowing about because each failed in its own way first.
+
+- **`dagger` v0.21.8** in `/home/puni1/.local/bin`, pinned to the engine's own
+  image tag (`registry.dagger.io/engine:v0.21.8`). A CLI newer than the engine
+  negotiates a version the engine will not serve. Installed as `puni1` — there is
+  **no passwordless sudo** on this host, and none is needed.
+- **A build checkout at `/home/puni1/wbs-build`**, cloned over https. It is not
+  dev's: `/home/puni1/wbs-dev/src` is `git reset --hard` by every dev deploy, so
+  building there races the deploy and loses local state.
+- **`h2puni` resolving to itself.** `tool-deploy`'s `DEFAULT_HOST` is the alias
+  `h2puni`, and the deploy runs _on_ h2puni, so it ssh's to itself. That alias
+  lives in h1claw's config; on h2puni it did not resolve at all, and puni1's own
+  key was not in its `authorized_keys`. Both fixed: `~/.ssh/config` maps the
+  alias to `127.0.0.1`, and the key was **appended** to the existing two.
+
+Verified end to end on 2026-08-05: images published to the registry, and
+`--all --with-migrations` (dry run, no `--execute`) produced a full three-tier
+plan against prod's real state.
 
 > Check tooling on h2puni with `ssh h2puni 'bash -lc "command -v node"'`. Volta and Bun are
 > on the PATH of a **login** shell only; a bare `ssh h2puni 'command -v node'` reports

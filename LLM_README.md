@@ -71,9 +71,9 @@ before any prod deploy; dev will not catch a regression in that path.
 
 ### prod — image-based, blue/green
 
-**h2puni is the build host and is not provisioned to drive prod builds yet** (verified
-2026-08-04): it has bun, docker, git and node, a running `dagger-engine` container, and
-**no `dagger` CLI**. Installing it is prerequisite work.
+**h2puni can build and publish** since 2026-08-05: pinned `dagger` v0.21.8, a build
+checkout at `/home/puni1/wbs-build` (**not** dev's), and the `h2puni` alias resolving
+to itself. Proven: images published, dry run planned the swap. Runbook has the why.
 
 Dagger builds `linux/amd64` → self-hosted registry (the only build/deploy contract) → the
 swap starts the idle colour, health-gates it, repoints Caddy, drains WS, stops the old
