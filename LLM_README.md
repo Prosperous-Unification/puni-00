@@ -118,19 +118,13 @@ contract: `docs/runbook-prod-deploy.md`.**
    the plan is tested, never a real fresh host.
 4. Health endpoints are status flags, not dependency checks. be-01 trusts an in-memory boolean,
    gw-01's is unconditional. Break `BE_URL` or delete the SQLite file and both still report 200.
-5. `swap.js`'s `readRecordedColor` collapses absent, unreadable and malformed state files to
-   `null` — the same defect already fixed in `tool-deploy`'s `readRemoteState`. Lower risk since
-   2026-08-04: live Caddy routing is now read as a parsed route, and it wins over this file.
-6. `configure.sh:182` — `grep -v '^REGISTRY_PASS=' .env > tmp 2>/dev/null || true`. On first run
-   the absent `.env` is the intended case, but an **unreadable** `.env` also yields an empty tmp,
-   and the next line `mv`s it into place: every other app secret in that file is silently dropped.
 
 Also known, lower priority: fe/smoke health accepts any non-empty body; the WS smoke passes on any
 first message _containing_ `"pong"`; gateway drain reads a malformed metrics body as zero live
 sockets; `tool-secrets` is a placeholder that only prints what it would run, despite its README.
 
-Checks that cannot fail have appeared **eight** times in this repo. The tally, and what each
-one taught, is in `AGENTS.md` under R5. Open: findings 5 and 6 above.
+Checks that cannot fail have appeared **eleven** times in this repo. The tally, and what each
+one taught, is in `AGENTS.md` under R5. Three were closed on 2026-08-05; none is open.
 
 ## More
 
