@@ -46,6 +46,31 @@ and promote, and fixing the first left the second untouched with every test
 green. Found by asking whether the fix covered both rather than trusting the
 suite to say. It has its own test now, and its own fault injection above.
 
+## Against the running dev deployment
+
+A plan with a parallel branch, built through the API at
+`dev.wbs.bulletpoints.club` on `c15cf39`, against dev's SQLite:
+
+```
+[sched] 010 Strip  start 0 end 3 slack 2
+[sched] 020 Sand   start 0 end 5 slack 0  ← critical
+[sched] 030 Paint  start 5 end 7 slack 0  ← critical
+[sched] 040 Tidy   start 0 end 1 slack 6
+[sched] paint starts at 5 (the longer predecessor): true
+[sched] project ends at day 7: true
+[sched] sand is critical: true
+[sched] strip has 2 days of slack: true
+[sched] tidy is not critical and has slack: true
+[sched] cycle refused: … -> 409: {"error":"cycle"}
+[sched] PASS
+```
+
+`Paint` waits for both `Strip` (3 days) and `Sand` (5 days) and starts on day 5,
+which is the point of the whole change: it waits for the **longer** one. `Sand`
+sets the project's length and is marked critical; `Strip` finishes two days early
+and its slack says so; `Tidy` depends on nothing and floats. The cycle is refused
+with a 409 rather than stored.
+
 ## Found by writing the "does not cover" section
 
 Listing the concurrency case as a caveat made it obvious it was not a caveat: two

@@ -32,5 +32,5 @@
 
 ## 5. Gate and verification
 
-- [ ] 5.1 `verify.md`: the uncached gate and the failure-proof table.
-- [ ] 5.2 Exercise it on dev: build a small plan with a parallel branch and confirm the critical path is the chain that is actually longer.
+- [x] 5.1 `verify.md`: the uncached gate, twelve fault injections, and what none of it covers.
+- [x] 5.2 Exercised on dev: a four-item plan with a parallel branch. `Paint` waits for both a 3-day and a 5-day predecessor and starts on day 5 — the longer one — `Sand` is critical and `Strip` shows its two days of slack. A cycle came back 409. Recorded in `verify.md`.
