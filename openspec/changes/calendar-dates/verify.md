@@ -39,3 +39,33 @@ screen.
 
 Holidays are a stated non-goal, so a plan that crosses one will read a day
 early for whoever observes it. That is a known limitation, not a defect.
+
+## A bug the tests did not catch, and dev did
+
+The first deploy of this change accepted `{"startNoEarlierThan":"next tuesday"}`
+with a 200 and then ignored it. The date parser had been added to `parseCreate`
+instead of `parsePatch` — the PATCH route never read the field at all, so it
+validated nothing and stored nothing.
+
+Nothing in the suite noticed, because every service-level test called
+`service.patch` directly and the controller's own suite had no test for the new
+field. Curling dev found it in one request. Both tests now exist
+(`refuses an earliest start that is not a calendar day`, and the round-trip),
+and both were watched failing with the parser removed again.
+
+The lesson is the repo's own: a check that no request path exercises is a claim.
+The service was right the whole time; the route in front of it was not.
+
+## Observed on dev, against the real database
+
+Deployed at `603b5b3`, both columns migrated on the restart.
+
+```
+$ PATCH .../projects/<id> {"startDate":"2026-02-31"}   422
+$ PATCH .../projects/<id> {"startDate":"2026-08-06"}   200
+$ GET   .../work-items    010 2026-08-06 → 2026-08-10   (2.5 days: Thu, Fri, Mon — the weekend skipped)
+                          020 2026-08-10 → 2026-08-21   (waits for 010)
+```
+
+The first row is the claim worth having: a two-and-a-half day task starting on
+a Thursday ends on the **Monday**, against real estimates in a real database.

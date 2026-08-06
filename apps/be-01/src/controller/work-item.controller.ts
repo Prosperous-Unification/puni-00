@@ -58,7 +58,6 @@ function parseCreate(body: unknown): CreateWorkItem {
     afterId: asIdOrNull(raw['afterId'], 'afterId'),
     name: asOptionalText(raw['name'], 'name'),
     notes: asOptionalText(raw['notes'], 'notes'),
-    startNoEarlierThan: asOptionalDate(raw['startNoEarlierThan'], 'startNoEarlierThan'),
   };
 }
 
@@ -94,6 +93,7 @@ function parsePatch(body: unknown): {
   return {
     name: asOptionalText(raw['name'], 'name'),
     notes: asOptionalText(raw['notes'], 'notes'),
+    startNoEarlierThan: asOptionalDate(raw['startNoEarlierThan'], 'startNoEarlierThan'),
   };
 }
 

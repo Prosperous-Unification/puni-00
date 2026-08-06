@@ -104,6 +104,51 @@ describe('work item routes', () => {
     expect(((await after.json()) as { seq: number }).seq).toBe(1);
   });
 
+  it('refuses an earliest start that is not a calendar day', async () => {
+    // The column is text, so a stored non-day would throw on every later read
+    // of the project. A 400 on one request is the cheap end of that.
+    const { token, send, projectId } = await setup();
+    const created = await send(`/api/projects/${projectId}/work-items`, token, {
+      method: 'POST',
+      body: JSON.stringify({ parentId: null, afterId: null, name: 'Strip' }),
+    });
+    const { id } = (await created.json()) as { id: string };
+
+    for (const bad of ['next tuesday', '2026-02-31', '06/08/2026', 7]) {
+      const res = await send(`/api/work-items/${id}`, token, {
+        method: 'PATCH',
+        body: JSON.stringify({ startNoEarlierThan: bad }),
+      });
+      expect([res.status, JSON.stringify(bad)]).toEqual([400, JSON.stringify(bad)]);
+    }
+  });
+
+  it('takes an earliest start and gives it back, and clears it', async () => {
+    const { token, send, projectId } = await setup();
+    const created = await send(`/api/projects/${projectId}/work-items`, token, {
+      method: 'POST',
+      body: JSON.stringify({ parentId: null, afterId: null, name: 'Strip' }),
+    });
+    const { id } = (await created.json()) as { id: string };
+
+    const set = await send(`/api/work-items/${id}`, token, {
+      method: 'PATCH',
+      body: JSON.stringify({ startNoEarlierThan: '2026-08-12' }),
+    });
+    expect(set.status).toBe(200);
+    expect((await set.json()) as { startNoEarlierThan: string }).toMatchObject({
+      startNoEarlierThan: '2026-08-12',
+    });
+
+    const cleared = await send(`/api/work-items/${id}`, token, {
+      method: 'PATCH',
+      body: JSON.stringify({ startNoEarlierThan: null }),
+    });
+    expect((await cleared.json()) as { startNoEarlierThan: string | null }).toMatchObject({
+      startNoEarlierThan: null,
+    });
+  });
+
   it('refuses a client that tries to choose the number', async () => {
     // Numbers are the system's to decide. Accepting one silently would let a
     // client write a label that the next derivation overwrites without warning.
