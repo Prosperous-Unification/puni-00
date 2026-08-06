@@ -201,6 +201,23 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   /** The row whose notes the pointer is over, so its rendered markdown can show. */
   const [hoveredNotes, setHoveredNotes] = useState<string | null>(null);
+  /**
+   * Roles whose columns are unfolded — the trio and the assignee, next to the
+   * final figure that is always on screen.
+   *
+   * Folded by default, which is the point: two roles cost ten columns and the
+   * dates fell off the screen. The final figure is what a plan is read by; the
+   * three numbers it came from and who does the work are needed while the
+   * plan is being written, which is when they are a click away. Local state, not
+   * shared: my unfolding must not reshuffle anyone else's table.
+   */
+  const [unfoldedRoles, setUnfoldedRoles] = useState<readonly string[]>([]);
+
+  const toggleRole = useCallback((roleId: string) => {
+    setUnfoldedRoles((current) =>
+      current.includes(roleId) ? current.filter((id) => id !== roleId) : [...current, roleId],
+    );
+  }, []);
   /** The project's start date, or null while the plan is not on a calendar. */
   const [startDate, setStartDate] = useState<string | null>(null);
   /**
@@ -891,6 +908,7 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
     createTeamFor,
     assignTo,
     createPersonFor,
+    toggleRole,
   });
   live.current = {
     api,
@@ -922,6 +940,7 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
     createTeamFor,
     assignTo,
     createPersonFor,
+    toggleRole,
   };
 
   const columns = useMemo(
@@ -1215,111 +1234,151 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
           />
         ),
       }),
-      ...roles.flatMap((role) => [
-        ...POINTS.map((point) =>
+      ...roles.flatMap((role) => {
+        const unfolded = unfoldedRoles.includes(role.id);
+        return [
           column.display({
-            id: `${role.id}-${point}`,
-            header: `${role.name} ${point}`,
+            id: `${role.id}-final`,
+            // The toggle lives on the column that never goes away, so nothing
+            // jumps when the group opens: it extends to the right of this one.
+            header: () => (
+              <button
+                type="button"
+                aria-expanded={unfolded}
+                aria-label={`${unfolded ? 'Fold' : 'Unfold'} ${role.name} estimates`}
+                title={
+                  unfolded
+                    ? 'Hide the three-point estimate and assignee'
+                    : 'Show the three-point estimate and assignee'
+                }
+                onClick={() => {
+                  live.current.toggleRole(role.id);
+                }}
+                style={{ font: 'inherit', fontWeight: 'inherit' }}
+              >
+                {role.name} {unfolded ? '▾' : '▸'}
+              </button>
+            ),
             cell: ({ row }) => {
-              const problem = live.current.trioProblemFor(row.original, role.id);
-              const wrong = problem?.points.includes(point) ?? false;
+              // A folded role must not be able to hide a complaint: a typed
+              // trio that saves nothing stays visible as a mark on the figure
+              // the fold leaves behind.
+              const problem = unfolded ? null : live.current.trioProblemFor(row.original, role.id);
               return (
-                <CellInput
-                  aria-label={`${role.name} ${point} for ${row.original.number}`}
-                  data-cell={cellKey(row.original.id, `${role.id}-${point}`)}
-                  // Narrow on purpose: these hold a number of days, and a box
-                  // sized for a sentence reads as if it wants one.
-                  size={5}
-                  aria-invalid={wrong}
+                <span
+                  data-final={role.id}
                   title={problem?.message}
-                  onKeyDown={(e) => {
-                    live.current.onArrowKey(e, row.original.id, `${role.id}-${point}`);
-                  }}
-                  // A parent's figures are sums of what is below it, so the cell is
-                  // shown and not editable — greyed rather than blank, because the
-                  // number is real and worth reading.
-                  readOnly={row.original.rolledUp}
-                  style={
-                    row.original.rolledUp
-                      ? { color: '#666', background: '#f4f4f4', width: '4.5em' }
-                      : wrong
-                        ? { background: '#fde8e8', borderColor: '#c00', width: '4.5em' }
-                        : { width: '4.5em' }
-                  }
-                  value={live.current.estimateValue(row.original, role.id, point)}
-                  commit={(typed) => {
-                    if (row.original.rolledUp) return;
-                    live.current.commitEstimate(row.original, role.id, point, typed);
-                  }}
-                />
+                  style={{ fontWeight: 600, color: problem === null ? undefined : '#c00' }}
+                >
+                  {showFinal(row.original.finalDays[role.id])}
+                  {problem !== null && ' !'}
+                </span>
               );
             },
           }),
-        ),
-        column.display({
-          id: `${role.id}-assignee`,
-          header: `${role.name} by`,
-          cell: ({ row }) => {
-            const assigned = row.original.assignees[role.id];
-            // Nobody on this role, and exactly one person on another: they are
-            // assumed to be doing this phase too, so the cell says so rather
-            // than reading as unassigned. Assigning anyone here ends the
-            // assumption by itself.
-            const assumed = assigned === undefined ? row.original.doesEveryPhase : null;
-            const nameOf = (id: string) =>
-              live.current.people.find((each) => each.id === id)?.name ?? '(unknown)';
-            return (
-              <span style={{ whiteSpace: 'nowrap' }}>
-                <CreatablePicker
-                  label={`${role.name} assignee for ${row.original.number}`}
-                  placeholder="search or add"
-                  entries={live.current.people.map((each) => ({
-                    id: each.id,
-                    name: each.name,
-                    detail:
-                      each.teamIds.length === 0
-                        ? 'free agent'
-                        : each.teamIds
-                            .map(
-                              (id) =>
-                                live.current.teams.find((team) => team.id === id)?.name ?? '?',
-                            )
-                            .join(', '),
-                  }))}
-                  value={assigned ?? null}
-                  onChoose={(id) => {
-                    live.current.assignTo(row.original.id, role.id, id);
-                  }}
-                  onCreate={(name) => {
-                    live.current.createPersonFor(row.original, role.id, name);
-                  }}
-                  onClear={() => {
-                    live.current.assignTo(row.original.id, role.id, null);
-                  }}
-                />
-                {assumed !== null && (
-                  <span
-                    data-assumed={role.id}
-                    title="Only one person is assigned, so they are assumed to do this phase too"
-                    style={{ color: '#666', marginLeft: 4 }}
-                  >
-                    ({nameOf(assumed)})
-                  </span>
-                )}
-              </span>
-            );
-          },
-        }),
-        column.display({
-          id: `${role.id}-final`,
-          header: `${role.name} days`,
-          cell: ({ row }) => (
-            <span data-final={role.id} style={{ fontWeight: 600 }}>
-              {showFinal(row.original.finalDays[role.id])}
-            </span>
-          ),
-        }),
-      ]),
+          ...(!unfolded
+            ? []
+            : [
+                ...POINTS.map((point) =>
+                  column.display({
+                    id: `${role.id}-${point}`,
+                    // The role's name is on the group column; repeating it three
+                    // times over is how the headers came to set the table's width.
+                    header: point,
+                    cell: ({ row }) => {
+                      const problem = live.current.trioProblemFor(row.original, role.id);
+                      const wrong = problem?.points.includes(point) ?? false;
+                      return (
+                        <CellInput
+                          aria-label={`${role.name} ${point} for ${row.original.number}`}
+                          data-cell={cellKey(row.original.id, `${role.id}-${point}`)}
+                          // Narrow on purpose: these hold a number of days, and a box
+                          // sized for a sentence reads as if it wants one.
+                          size={5}
+                          aria-invalid={wrong}
+                          title={problem?.message}
+                          onKeyDown={(e) => {
+                            live.current.onArrowKey(e, row.original.id, `${role.id}-${point}`);
+                          }}
+                          // A parent's figures are sums of what is below it, so the cell is
+                          // shown and not editable — greyed rather than blank, because the
+                          // number is real and worth reading.
+                          readOnly={row.original.rolledUp}
+                          style={
+                            row.original.rolledUp
+                              ? { color: '#666', background: '#f4f4f4', width: '4.5em' }
+                              : wrong
+                                ? { background: '#fde8e8', borderColor: '#c00', width: '4.5em' }
+                                : { width: '4.5em' }
+                          }
+                          value={live.current.estimateValue(row.original, role.id, point)}
+                          commit={(typed) => {
+                            if (row.original.rolledUp) return;
+                            live.current.commitEstimate(row.original, role.id, point, typed);
+                          }}
+                        />
+                      );
+                    },
+                  }),
+                ),
+                column.display({
+                  id: `${role.id}-assignee`,
+                  header: 'by',
+                  cell: ({ row }) => {
+                    const assigned = row.original.assignees[role.id];
+                    // Nobody on this role, and exactly one person on another: they are
+                    // assumed to be doing this phase too, so the cell says so rather
+                    // than reading as unassigned. Assigning anyone here ends the
+                    // assumption by itself.
+                    const assumed = assigned === undefined ? row.original.doesEveryPhase : null;
+                    const nameOf = (id: string) =>
+                      live.current.people.find((each) => each.id === id)?.name ?? '(unknown)';
+                    return (
+                      <span style={{ whiteSpace: 'nowrap' }}>
+                        <CreatablePicker
+                          label={`${role.name} assignee for ${row.original.number}`}
+                          placeholder="search or add"
+                          entries={live.current.people.map((each) => ({
+                            id: each.id,
+                            name: each.name,
+                            detail:
+                              each.teamIds.length === 0
+                                ? 'free agent'
+                                : each.teamIds
+                                    .map(
+                                      (id) =>
+                                        live.current.teams.find((team) => team.id === id)?.name ??
+                                        '?',
+                                    )
+                                    .join(', '),
+                          }))}
+                          value={assigned ?? null}
+                          onChoose={(id) => {
+                            live.current.assignTo(row.original.id, role.id, id);
+                          }}
+                          onCreate={(name) => {
+                            live.current.createPersonFor(row.original, role.id, name);
+                          }}
+                          onClear={() => {
+                            live.current.assignTo(row.original.id, role.id, null);
+                          }}
+                        />
+                        {assumed !== null && (
+                          <span
+                            data-assumed={role.id}
+                            title="Only one person is assigned, so they are assumed to do this phase too"
+                            style={{ color: '#666', marginLeft: 4 }}
+                          >
+                            ({nameOf(assumed)})
+                          </span>
+                        )}
+                      </span>
+                    );
+                  },
+                }),
+              ]),
+        ];
+      }),
       column.display({
         id: 'final-total',
         header: 'Total days',
@@ -1472,15 +1531,18 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
           ),
       }),
     ],
-    // Only `roles`, and only because a role's name is rendered in a header.
+    // `roles` because a role's name is rendered in a header, and
+    // `unfoldedRoles` because it decides which columns exist at all.
     // `flexRender` renders each `cell` function as a component type, so
     // rebuilding these definitions gives every cell a new type and React
-    // unmounts and remounts the lot — losing focus, selection and any half-typed
-    // value. Everything else the cells need is read through `live`, which is why
-    // `api`, `run` and `onKeyDown` are absent rather than forgotten. The toolbar
-    // buttons outside the table still disable; the row buttons do not, and a
-    // double-click on a deleted row just 404s.
-    [roles],
+    // unmounts and remounts the lot — losing focus, selection and any
+    // half-typed value. For `roles` that is rare and tolerated; for the fold
+    // it happens exactly on the click that asked for it, when the only focus
+    // to lose is the button's own. Estimate drafts live in `drafts`, not in
+    // the inputs, so a fold cannot swallow one. Everything else the cells need
+    // is read through `live`, which is why `api`, `run` and `onKeyDown` are
+    // absent rather than forgotten.
+    [roles, unfoldedRoles],
   );
 
   const table = useReactTable({

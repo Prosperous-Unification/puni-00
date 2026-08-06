@@ -288,6 +288,15 @@ const pressEnter = (number: string) => {
   fireEvent.keyDown(screen.getByLabelText(`Name of ${number}`), { key: 'Enter' });
 };
 
+/**
+ * Opens a role's folded columns — the trio and the assignee. Folded is the
+ * default, so every test that types an estimate or assigns someone does this
+ * first, exactly as a person would.
+ */
+const unfoldRole = (name: string) => {
+  fireEvent.click(screen.getByRole('button', { name: `Unfold ${name} estimates` }));
+};
+
 const pressTab = (number: string, shiftKey = false) => {
   fireEvent.keyDown(screen.getByLabelText(`Name of ${number}`), { key: 'Tab', shiftKey });
 };
@@ -467,6 +476,7 @@ describe('the WBS table', () => {
     const notes = screen.getByLabelText<HTMLInputElement>('Notes for 030');
     fireEvent.change(notes, { target: { value: 'measure twice' } });
     fireEvent.blur(notes);
+    unfoldRole('Dev');
     // A whole trio on 040 — one point alone is a draft, not an estimate, since
     // the table stopped inventing the other two.
     for (const point of ['optimistic', 'realistic', 'pessimistic'] as const) {
@@ -513,6 +523,11 @@ describe('the WBS table', () => {
     await waitFor(() => {
       expect(numbersOnScreen()).toEqual(['010', '020']);
     });
+    // Unfolded before typing: the fold rebuilds the column set, which
+    // remounts every cell, and a name typed but not yet committed would be
+    // reset to the server's value — the one cost of folding, paid on an
+    // explicit click.
+    unfoldRole('Dev');
     typeName('020', 'Sand');
 
     const moved: unknown[] = [];
@@ -540,6 +555,11 @@ describe('the WBS table', () => {
     await waitFor(() => {
       expect(numbersOnScreen()).toEqual(['010', '020']);
     });
+    // Unfolded before typing: the fold rebuilds the column set, which
+    // remounts every cell, and a name typed but not yet committed would be
+    // reset to the server's value — the one cost of folding, paid on an
+    // explicit click.
+    unfoldRole('Dev');
     typeName('020', 'Sand');
 
     const moved: unknown[] = [];
@@ -566,6 +586,11 @@ describe('the WBS table', () => {
     await waitFor(() => {
       expect(numbersOnScreen()).toEqual(['010', '020']);
     });
+    // Unfolded before typing: the fold rebuilds the column set, which
+    // remounts every cell, and a name typed but not yet committed would be
+    // reset to the server's value — the one cost of folding, paid on an
+    // explicit click.
+    unfoldRole('Dev');
     typeName('020', 'Sand');
 
     const moved: unknown[] = [];
@@ -616,6 +641,7 @@ describe('the WBS table', () => {
     });
     pressTab('020');
     await screen.findByLabelText('Name of 010.1');
+    unfoldRole('Dev');
 
     // A parent's figures are sums of what is below it. Typing into them would be
     // either ignored or double-counted, and neither is visible to whoever typed.
@@ -744,6 +770,7 @@ describe('collapsing a branch', () => {
     await waitFor(() => {
       expect(numbersOnScreen()).toEqual(['010', '010.1']);
     });
+    unfoldRole('Dev');
 
     click('Collapse 010');
 
@@ -779,6 +806,9 @@ describe('teams and assignees', () => {
     render(<WbsTable projectId="p1" api={api} />);
     click('Add work item');
     await screen.findByLabelText('Name of 010');
+    // Both phases, since assigning and the every-phase assumption span them.
+    unfoldRole('Dev');
+    unfoldRole('QA');
     return api;
   }
 
@@ -1119,6 +1149,81 @@ describe('names wrap and notes carry markdown', () => {
   });
 });
 
+describe('role columns fold away', () => {
+  async function oneRow() {
+    const api = fakeApi();
+    render(<WbsTable projectId="p1" api={api} />);
+    click('Add work item');
+    await screen.findByLabelText('Name of 010');
+    return api;
+  }
+
+  const headerTexts = () => screen.getAllByRole('columnheader').map((th) => th.textContent.trim());
+
+  itDom('starts folded: one column per role, the final figure kept', async () => {
+    await oneRow();
+
+    // The whole point of the fold: two roles cost ten columns and the dates
+    // fell off the screen. The figure a plan is read by stays.
+    expect(screen.queryByLabelText('Dev optimistic for 010')).toBeNull();
+    expect(screen.queryByLabelText('Dev assignee for 010')).toBeNull();
+    expect(rowFor('010').querySelector('[data-final="role-dev"]')).not.toBeNull();
+    expect(headerTexts()).toContain('Dev ▸');
+  });
+
+  itDom('unfolds to the trio and the assignee, and folds back', async () => {
+    await oneRow();
+
+    unfoldRole('Dev');
+
+    expect(screen.getByLabelText('Dev optimistic for 010')).toBeDefined();
+    expect(screen.getByLabelText('Dev assignee for 010')).toBeDefined();
+    // The other role stays folded — each opens on its own.
+    expect(screen.queryByLabelText('QA optimistic for 010')).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Fold Dev estimates' }));
+
+    expect(screen.queryByLabelText('Dev optimistic for 010')).toBeNull();
+  });
+
+  itDom('keeps a typed estimate draft across a fold and back', async () => {
+    // Drafts live in the table's state, not in the inputs, precisely so a
+    // fold cannot swallow one.
+    const api = await oneRow();
+    const sent: unknown[] = [];
+    api.setEstimate = (...args: unknown[]) => {
+      sent.push(args);
+      return Promise.resolve();
+    };
+    unfoldRole('Dev');
+    const cell = screen.getByLabelText<HTMLInputElement>('Dev optimistic for 010');
+    fireEvent.change(cell, { target: { value: '5' } });
+    fireEvent.blur(cell);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Fold Dev estimates' }));
+    unfoldRole('Dev');
+
+    expect(screen.getByLabelText<HTMLInputElement>('Dev optimistic for 010').value).toBe('5');
+    expect(sent).toEqual([]);
+  });
+
+  itDom('a folded role cannot hide a complaint', async () => {
+    await oneRow();
+    unfoldRole('Dev');
+    const cell = screen.getByLabelText<HTMLInputElement>('Dev optimistic for 010');
+    fireEvent.change(cell, { target: { value: '5' } });
+    fireEvent.blur(cell);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Fold Dev estimates' }));
+
+    // One point of a trio saves nothing; folded, that fact must still show on
+    // the figure the fold leaves behind.
+    const final = rowFor('010').querySelector('[data-final="role-dev"]');
+    expect(final?.textContent).toContain('!');
+    expect(final?.getAttribute('title')).toContain('not saved');
+  });
+});
+
 describe('estimates are never edited for you', () => {
   /** Types `value` into one estimate box and leaves it, the way a person does. */
   const typeEstimate = (number: string, point: string, value: string) => {
@@ -1136,6 +1241,7 @@ describe('estimates are never edited for you', () => {
     render(<WbsTable projectId="p1" api={api} />);
     click('Add work item');
     await screen.findByLabelText('Name of 010');
+    unfoldRole('Dev');
     return api;
   }
 
@@ -1290,6 +1396,8 @@ const dragOnto = (from: string, to: string, clientY: number) => {
 
 /** Three named root rows: `010 Strip`, `020 Sand`, `030 Paint`. */
 async function threeRoots() {
+  // Dev's columns take part in the keyboard grid below, so they are open.
+
   const api = fakeApi();
   render(<WbsTable projectId="p1" api={api} />);
   // Named, not left blank. Blank names made an ordering assertion compare three
@@ -1307,6 +1415,7 @@ async function threeRoots() {
       expect(screen.getByLabelText(`Name of ${number}`)).toHaveProperty('value', name);
     });
   }
+  unfoldRole('Dev');
   return api;
 }
 
