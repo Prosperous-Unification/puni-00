@@ -87,7 +87,7 @@ const statusFor = (reason: WorkItemRefusal): number =>
     ? 403
     : reason === 'not_found'
       ? 404
-      : reason === 'cycle' || reason === 'frozen' || reason === 'rolled_up'
+      : reason === 'cycle' || reason === 'frozen' || reason === 'rolled_up' || reason === 'ancestor'
         ? 409
         : 400;
 
@@ -187,6 +187,45 @@ export function workItemController(auth: AuthService, workItems: WorkItemService
         return { error: outcome.reason };
       }
       return { unfrozen: true };
+    })
+    .post('/work-items/:id/dependencies', async ({ params, body, headers, set }) => {
+      const user = await userFromHeaders(auth, headers);
+      if (user === null) {
+        set.status = 401;
+        return { error: 'unauthenticated' };
+      }
+      // Parsed by hand rather than through Elysia's `body` schema: Elysia strips
+      // unknown properties before the handler, so a typo'd field name would
+      // arrive as an absent one and the route would answer 200 having done
+      // nothing. The same reason the create route parses its own body.
+      const parsed: unknown = body;
+      const predecessorId =
+        typeof parsed === 'object' && parsed !== null && 'predecessorId' in parsed
+          ? parsed.predecessorId
+          : undefined;
+      if (typeof predecessorId !== 'string' || predecessorId === '') {
+        set.status = 400;
+        return { error: 'predecessor_required' };
+      }
+      const outcome = await workItems.addDependency(params.id, user.id, predecessorId);
+      if (!outcome.ok) {
+        set.status = statusFor(outcome.reason);
+        return { error: outcome.reason };
+      }
+      return { ok: true };
+    })
+    .delete('/work-items/:id/dependencies/:predecessorId', async ({ params, headers, set }) => {
+      const user = await userFromHeaders(auth, headers);
+      if (user === null) {
+        set.status = 401;
+        return { error: 'unauthenticated' };
+      }
+      const outcome = await workItems.removeDependency(params.id, user.id, params.predecessorId);
+      if (!outcome.ok) {
+        set.status = statusFor(outcome.reason);
+        return { error: outcome.reason };
+      }
+      return { ok: true };
     })
     .post('/work-items/:id/unfreeze', async ({ params, headers, set }) => {
       const user = await userFromHeaders(auth, headers);

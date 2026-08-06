@@ -30,3 +30,19 @@ export const RoleEstimate = type({
   estimate: ThreePointEstimate,
 });
 export type RoleEstimate = typeof RoleEstimate.infer;
+
+/**
+ * The PERT expected duration of a three-point estimate, in days.
+ *
+ * `(optimistic + 4 × realistic + pessimistic) / 6`. The realistic figure is
+ * weighted four times because it is the one someone actually thought about; the
+ * other two are the edges of the distribution and pull the answer only as far as
+ * they deserve. Which is why this is not the midpoint of optimistic and
+ * pessimistic, and why a `2 / 3 / 10` estimate expects 4 days rather than 6.
+ *
+ * Fractional on purpose. Rounding here would compound across a chain of forty
+ * work items into days that never existed.
+ */
+export function expectedDays(estimate: ThreePointEstimate): number {
+  return (estimate.optimistic + 4 * estimate.realistic + estimate.pessimistic) / 6;
+}

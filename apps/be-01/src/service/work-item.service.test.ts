@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'bun:test';
 
 import type { Project, ProjectStore, WorkItemStore } from '../repository';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
+import { inMemoryDependencies } from '../testing/dependency-fixture';
 import { inMemoryEstimates } from '../testing/estimate-fixture';
 import { inMemoryProjects } from '../testing/project-fixture';
 import { inMemoryWorkItems } from '../testing/work-item-fixture';
@@ -14,6 +15,7 @@ let projects: ProjectStore;
 let workItems: WorkItemStore;
 let service: WorkItemService;
 let projectId: string;
+let roleId: string;
 
 beforeEach(async () => {
   projects = inMemoryProjects();
@@ -22,6 +24,7 @@ beforeEach(async () => {
     workItems,
     projects,
     estimates: inMemoryEstimates(workItems),
+    dependencies: inMemoryDependencies(),
     broadcast: recordingBroadcaster(),
   });
   const project: Project = {
@@ -31,7 +34,8 @@ beforeEach(async () => {
     restricted: false,
     createdAt: 1,
   };
-  await projects.create(project, []);
+  roleId = crypto.randomUUID();
+  await projects.create(project, [{ id: roleId, projectId: project.id, name: 'Dev' }]);
   projectId = project.id;
 });
 
@@ -179,5 +183,101 @@ describe('deleting work items', () => {
       '020': 'Switches',
       '030': 'Cable',
     });
+  });
+});
+
+describe('dependencies', () => {
+  it('records an edge and reports it against the dependent work item', async () => {
+    const a = await add('Strip');
+    const b = await add('Sand');
+
+    expect(await service.addDependency(b, OWNER, a)).toEqual({ ok: true, result: null });
+
+    const tree = await service.tree(projectId);
+    expect(tree?.workItems.find((w) => w.id === b)?.dependsOn).toEqual([a]);
+    expect(tree?.workItems.find((w) => w.id === a)?.dependsOn).toEqual([]);
+  });
+
+  it('refuses an edge that closes a cycle and writes nothing', async () => {
+    const a = await add('Strip');
+    const b = await add('Sand');
+    await service.addDependency(b, OWNER, a);
+
+    expect(await service.addDependency(a, OWNER, b)).toEqual({ ok: false, reason: 'cycle' });
+
+    const tree = await service.tree(projectId);
+    expect(tree?.workItems.find((w) => w.id === a)?.dependsOn).toEqual([]);
+  });
+
+  it('refuses an edge onto its own parent', async () => {
+    const parent = await add('Phase');
+    const child = await add('Task', parent);
+
+    expect(await service.addDependency(child, OWNER, parent)).toEqual({
+      ok: false,
+      reason: 'ancestor',
+    });
+  });
+
+  it('refuses a predecessor that is not in the project', async () => {
+    const a = await add('Strip');
+
+    expect(await service.addDependency(a, OWNER, crypto.randomUUID())).toEqual({
+      ok: false,
+      reason: 'not_found',
+    });
+  });
+
+  it('removes an edge, and removing one that is not there is not an error', async () => {
+    const a = await add('Strip');
+    const b = await add('Sand');
+    await service.addDependency(b, OWNER, a);
+
+    expect(await service.removeDependency(b, OWNER, a)).toEqual({ ok: true, result: null });
+    expect(await service.removeDependency(b, OWNER, a)).toEqual({ ok: true, result: null });
+
+    const tree = await service.tree(projectId);
+    expect(tree?.workItems.find((w) => w.id === b)?.dependsOn).toEqual([]);
+  });
+
+  it("takes a work item's edges with it when it is deleted", async () => {
+    // The foreign keys refuse a delete that would orphan an edge, so this is not
+    // tidiness — without it, deleting a row that anything depends on fails.
+    const a = await add('Strip');
+    const b = await add('Sand');
+    await service.addDependency(b, OWNER, a);
+
+    expect(await service.remove(a, OWNER, null)).toEqual({ ok: true, result: null });
+
+    const tree = await service.tree(projectId);
+    expect(tree?.workItems.find((w) => w.id === b)?.dependsOn).toEqual([]);
+  });
+
+  it('takes the edges when a parent is deleted and its children are promoted', async () => {
+    // The other delete path. It removes one row rather than a subtree, and it
+    // had no edge cleanup at all — found by asking whether the first fix covered
+    // both branches rather than assuming the tests would have said.
+    const parent = await add('Phase');
+    await add('Task', parent);
+    const other = await add('Sand');
+    await service.addDependency(other, OWNER, parent);
+
+    expect(await service.remove(parent, OWNER, 'promote')).toEqual({ ok: true, result: null });
+
+    const tree = await service.tree(projectId);
+    expect(tree?.workItems.find((w) => w.id === other)?.dependsOn).toEqual([]);
+  });
+
+  it('schedules a dependent work item after the one it waits for', async () => {
+    const a = await add('Strip');
+    const b = await add('Sand');
+    await service.setEstimate(a, OWNER, roleId, { optimistic: 2, realistic: 2, pessimistic: 2 });
+    await service.setEstimate(b, OWNER, roleId, { optimistic: 3, realistic: 3, pessimistic: 3 });
+    await service.addDependency(b, OWNER, a);
+
+    const tree = await service.tree(projectId);
+    const sand = tree?.workItems.find((w) => w.id === b)?.schedule;
+
+    expect(sand).toMatchObject({ earliestStart: 2, earliestFinish: 5, critical: true });
   });
 });

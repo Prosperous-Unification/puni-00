@@ -1,18 +1,72 @@
+import { expectedDays } from '@wbs/domain';
+
 import type {
+  DependencyStore,
   EstimateStore,
   Project,
   ProjectStore,
   Reparented,
+  StoredEstimate,
   WorkItem,
   WorkItemPatch,
   WorkItemStore,
 } from '../repository';
 import type { Broadcaster } from './broadcast';
 import { withAncestors } from './broadcast';
+import { canDepend } from './dependency';
 import { deriveNumbers } from './derive-numbers';
 import { placeAfter, POSITION_STEP, type Sibling } from './place-sibling';
 import { canEdit } from './project.service';
 import { type Days, rollUp } from './roll-up';
+import { schedule, type Scheduled } from './schedule';
+
+/**
+ * What a work item shows before any schedule could be computed for it.
+ *
+ * Reached only when a row is absent from the schedule, which cannot happen for a
+ * row the schedule was given. It exists so the type has no optional field: an
+ * absent schedule and a zero-day one look identical to a caller, and only one of
+ * them is a plan.
+ */
+const UNSCHEDULED: Scheduled = {
+  duration: 0,
+  estimated: false,
+  earliestStart: 0,
+  earliestFinish: 0,
+  latestStart: 0,
+  latestFinish: 0,
+  float: 0,
+  critical: false,
+};
+
+/**
+ * Expected days per leaf: every role's PERT value, summed.
+ *
+ * Summing assumes the roles run one after another — Dev finishes, then QA
+ * starts. That is the common case and the conservative one; a team that runs
+ * them together sees a schedule slightly longer than reality, which is the
+ * harmless direction for a plan. Modelling it properly needs to know who does
+ * what and when, which needs assignees, which this does not have.
+ *
+ * A leaf with no estimate is **absent** from the map rather than zero, which is
+ * what lets the schedule report it as unestimated instead of instant.
+ */
+function durationsOf(
+  rows: readonly WorkItem[],
+  estimates: readonly StoredEstimate[],
+  hasChildren: ReadonlySet<string>,
+): Map<string, number> {
+  const durations = new Map<string, number>();
+  for (const estimate of estimates) {
+    if (hasChildren.has(estimate.workItemId)) continue;
+    if (!rows.some((row) => row.id === estimate.workItemId)) continue;
+    durations.set(
+      estimate.workItemId,
+      (durations.get(estimate.workItemId) ?? 0) + expectedDays(estimate),
+    );
+  }
+  return durations;
+}
 
 /**
  * A work item as a reader sees it: the stored row, the number derived for it and
@@ -23,6 +77,16 @@ export interface NumberedWorkItem extends WorkItem {
   estimates: Record<string, Days>;
   /** True when the estimates above are sums and therefore not editable here. */
   rolledUp: boolean;
+  /** The work items this one waits for, as written — either end may be a parent. */
+  dependsOn: string[];
+  /**
+   * When this can happen, in whole days from the project's day zero.
+   *
+   * `estimates` above is **effort** and this is **span**, and for a parent they
+   * are different numbers: two independent children of 3 and 4 days are 7 days
+   * of work inside a 4-day branch. Both are true and neither substitutes.
+   */
+  schedule: Scheduled;
 }
 
 export type DeleteStrategy = 'cascade' | 'promote';
@@ -33,7 +97,9 @@ export type WorkItemRefusal =
   | 'strategy_required'
   | 'cycle'
   | 'frozen'
-  | 'rolled_up';
+  | 'rolled_up'
+  /** A dependency onto the work item's own ancestor, descendant, or itself. */
+  | 'ancestor';
 
 export type WorkItemOutcome<T> = { ok: true; result: T } | { ok: false; reason: WorkItemRefusal };
 
@@ -53,6 +119,7 @@ export interface WorkItemServiceOptions {
   workItems: WorkItemStore;
   projects: ProjectStore;
   estimates: EstimateStore;
+  dependencies: DependencyStore;
   broadcast: Broadcaster;
   newId?: () => string;
 }
@@ -119,15 +186,27 @@ export class WorkItemService {
     if (project === null) return null;
     const seq = await this.opts.broadcast.latestSeq(projectId);
     const rows = await this.opts.workItems.listByProject(projectId);
+    const stored = await this.opts.estimates.listByProject(projectId);
+    const edges = await this.opts.dependencies.listByProject(projectId);
     const numbers = deriveNumbers(rows);
-    const totals = rollUp(rows, await this.opts.estimates.listByProject(projectId));
+    const totals = rollUp(rows, stored);
     const hasChildren = new Set(rows.map((row) => row.parentId).filter((id) => id !== null));
+    const timing = schedule(rows, edges, durationsOf(rows, stored, hasChildren));
+    const waitingFor = new Map<string, string[]>();
+    for (const found of edges) {
+      waitingFor.set(found.successorId, [
+        ...(waitingFor.get(found.successorId) ?? []),
+        found.predecessorId,
+      ]);
+    }
     const workItems = rows
       .map((row) => ({
         ...row,
         number: numbers.get(row.id) ?? '',
         estimates: Object.fromEntries(totals.get(row.id) ?? []),
         rolledUp: hasChildren.has(row.id),
+        dependsOn: waitingFor.get(row.id) ?? [],
+        schedule: timing.get(row.id) ?? UNSCHEDULED,
       }))
       .sort((a, b) => (a.number < b.number ? -1 : a.number > b.number ? 1 : 0));
     return { workItems, seq };
@@ -248,6 +327,11 @@ export class WorkItemService {
           await this.opts.estimates.set({ workItemId: parentId, roleId, ...days });
         }
       }
+      // Edges first, and every one touching anything in the subtree. The
+      // foreign keys refuse a delete that would orphan one, so this is not
+      // tidiness: without it, deleting a work item anything depends on fails
+      // with a constraint error the caller cannot act on.
+      for (const gone of doomed) await this.opts.dependencies.removeAllFor(gone);
       await this.opts.workItems.remove(doomed, []);
       await this.announceTree(workItem.projectId);
       return { ok: true, result: null };
@@ -263,6 +347,10 @@ export class WorkItemService {
         parentId: workItem.parentId,
         position: (i + 1) * POSITION_STEP,
       }));
+    // The same reason as the cascade branch above: an edge to a row that is
+    // going has nothing to point at, and the foreign keys say so. Only this row
+    // leaves here — its children are promoted, and their edges stay valid.
+    await this.opts.dependencies.removeAllFor(id);
     await this.opts.workItems.remove([id], promoted);
     await this.announceTree(workItem.projectId);
     return { ok: true, result: null };
@@ -338,6 +426,53 @@ export class WorkItemService {
   }
 
   /** Sends the whole tree, for a change that can renumber more than it touched. */
+  /**
+   * Records "`predecessorId` must finish before this starts".
+   *
+   * Broadcast as a whole-tree change, not a patch: one edge moves every date
+   * downstream of it, and working out which rows those are is the schedule's
+   * job, computed on read.
+   */
+  async addDependency(
+    id: string,
+    actorId: string,
+    predecessorId: string,
+  ): Promise<WorkItemOutcome<null>> {
+    const context = await this.contextFor(id, actorId);
+    if (!context.ok) return context;
+    const { workItem, rows } = context.result;
+
+    const existing = await this.opts.dependencies.listByProject(workItem.projectId);
+    // `rows` is this project's only, so a predecessor from another project is
+    // simply not among them and comes back `not_found` — the cross-project case
+    // is unrepresentable rather than separately guarded.
+    const refusal = canDepend(rows, existing, predecessorId, id);
+    if (refusal !== null) return { ok: false, reason: refusal };
+
+    await this.opts.dependencies.add({
+      id: this.newId(),
+      projectId: workItem.projectId,
+      predecessorId,
+      successorId: id,
+    });
+    await this.announceTree(workItem.projectId);
+    return { ok: true, result: null };
+  }
+
+  /** Removing an edge that was not there is not an error; the state asked for is the state left. */
+  async removeDependency(
+    id: string,
+    actorId: string,
+    predecessorId: string,
+  ): Promise<WorkItemOutcome<null>> {
+    const context = await this.contextFor(id, actorId);
+    if (!context.ok) return context;
+
+    await this.opts.dependencies.remove(predecessorId, id);
+    await this.announceTree(context.result.workItem.projectId);
+    return { ok: true, result: null };
+  }
+
   private async announceTree(projectId: string): Promise<void> {
     const tree = await this.tree(projectId);
     if (tree === null) return;

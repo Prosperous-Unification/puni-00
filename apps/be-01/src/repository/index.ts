@@ -125,6 +125,29 @@ export interface EstimateStore {
   moveAll(fromWorkItemId: string, toWorkItemId: string): Promise<void>;
 }
 
+/** A finish-to-start edge as it is stored: either end may be a parent. */
+export interface StoredDependency {
+  id: string;
+  projectId: string;
+  predecessorId: string;
+  successorId: string;
+}
+
+export interface DependencyStore {
+  listByProject(projectId: string): Promise<StoredDependency[]>;
+  /**
+   * Writes the edge, or does nothing if it is already there.
+   *
+   * Idempotent at the database through the unique pair rather than by asking
+   * first: two clients drawing the same arrow at once would both see "not there"
+   * and both insert.
+   */
+  add(dependency: StoredDependency): Promise<void>;
+  remove(predecessorId: string, successorId: string): Promise<void>;
+  /** Every edge touching a work item, so deleting the row can take them with it. */
+  removeAllFor(workItemId: string): Promise<void>;
+}
+
 export interface ProjectStore {
   /**
    * Writes the project and its starting roles together. A project that existed
