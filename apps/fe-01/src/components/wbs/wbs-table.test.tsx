@@ -318,6 +318,87 @@ describe('the WBS table', () => {
     expect(numbersOnScreen()).toEqual(['010', '010.1']);
   });
 
+  itDom('tab inside the text walks to the next cell instead of indenting', async () => {
+    const api = fakeApi();
+    render(<WbsTable projectId="p1" api={api} />);
+    click('Add work item');
+    await screen.findByLabelText('Name of 010');
+    pressEnter('010');
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '020']);
+    });
+    typeName('020', 'Sand');
+
+    const moved: unknown[] = [];
+    api.move = (...args: unknown[]) => {
+      moved.push(args);
+      return Promise.resolve();
+    };
+    const name = screen.getByLabelText<HTMLInputElement>('Name of 020');
+    name.focus();
+    name.setSelectionRange(2, 2);
+    fireEvent.keyDown(name, { key: 'Tab' });
+
+    const estimate = screen.getByLabelText<HTMLInputElement>('Dev optimistic for 020');
+    expect(document.activeElement).toBe(estimate);
+    expect(moved).toEqual([]);
+    expect(numbersOnScreen()).toEqual(['010', '020']);
+  });
+
+  itDom('shift-tab inside the text walks backwards instead of outdenting', async () => {
+    const api = fakeApi();
+    render(<WbsTable projectId="p1" api={api} />);
+    click('Add work item');
+    await screen.findByLabelText('Name of 010');
+    pressEnter('010');
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '020']);
+    });
+    typeName('020', 'Sand');
+
+    const moved: unknown[] = [];
+    api.move = (...args: unknown[]) => {
+      moved.push(args);
+      return Promise.resolve();
+    };
+    const name = screen.getByLabelText<HTMLInputElement>('Name of 020');
+    name.focus();
+    name.setSelectionRange(2, 2);
+    fireEvent.keyDown(name, { key: 'Tab', shiftKey: true });
+
+    // The row above's last editable cell — 010 is a leaf, so its notes.
+    expect(document.activeElement).toBe(screen.getByLabelText('Notes for 010'));
+    expect(moved).toEqual([]);
+  });
+
+  itDom('tab over a selection navigates rather than indenting', async () => {
+    const api = fakeApi();
+    render(<WbsTable projectId="p1" api={api} />);
+    click('Add work item');
+    await screen.findByLabelText('Name of 010');
+    pressEnter('010');
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '020']);
+    });
+    typeName('020', 'Sand');
+
+    const moved: unknown[] = [];
+    api.move = (...args: unknown[]) => {
+      moved.push(args);
+      return Promise.resolve();
+    };
+    const name = screen.getByLabelText<HTMLInputElement>('Name of 020');
+    name.focus();
+    // Anchored at the start: atStart alone would still indent this.
+    name.setSelectionRange(0, 3);
+    fireEvent.keyDown(name, { key: 'Tab' });
+
+    expect(document.activeElement).toBe(
+      screen.getByLabelText<HTMLInputElement>('Dev optimistic for 020'),
+    );
+    expect(moved).toEqual([]);
+  });
+
   itDom('backspace at the start of a root row moves nothing', async () => {
     const api = fakeApi();
     render(<WbsTable projectId="p1" api={api} />);

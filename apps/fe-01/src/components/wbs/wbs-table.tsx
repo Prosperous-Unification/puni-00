@@ -127,6 +127,50 @@ function caretOf(input: HTMLInputElement): Caret {
  */
 const showDay = (days: number): string => String(Math.round(days * 10) / 10);
 
+/**
+ * Every editable cell in the committed table, paired with the input that is it.
+ *
+ * Kept as pairs, so the cell a move names and the input it focuses cannot
+ * drift apart — an index into two separately filtered lists is one dropped
+ * entry away from focusing the wrong box. Read from the DOM at the moment a
+ * key arrives, never from a ref written during render: the committed DOM is
+ * the only thing that cannot be ahead of itself.
+ */
+function editableGrid(table: HTMLTableElement): { input: HTMLInputElement; cell: CellRef }[] {
+  return [...table.querySelectorAll<HTMLInputElement>('[data-cell]:not([readonly])')]
+    .map((input) => ({ input, parts: (input.dataset['cell'] ?? '').split('::') }))
+    .flatMap(({ input, parts }) => {
+      // A `data-cell` that is not `row::column` is markup this component did
+      // not write. Skipped rather than guessed at, and not thrown on: a
+      // keystroke is not the moment to take the table down.
+      const [row, column] = parts;
+      if (parts.length !== 2 || row === '' || column === '') return [];
+      return [{ input, cell: { rowId: row, columnId: column } satisfies CellRef }];
+    });
+}
+
+/**
+ * Focuses the grid cell `delta` places from `from`, selecting its text the
+ * way the browser's own Tab leaves a field. False at the grid's edge — the
+ * caller then leaves the key to the browser rather than eating it.
+ */
+function focusAdjacentCell(input: HTMLInputElement, from: CellRef, delta: 1 | -1): boolean {
+  const table = input.closest('table');
+  if (table === null) return false;
+  const grid = editableGrid(table);
+  const at = grid.findIndex(
+    (g) => g.cell.rowId === from.rowId && g.cell.columnId === from.columnId,
+  );
+  if (at === -1) return false;
+  // `.at(-1)` wraps to the far end, which would turn Shift+Tab in the first
+  // cell into a jump to the last one instead of leaving the key alone.
+  const next = at + delta < 0 ? undefined : grid.at(at + delta);
+  if (next === undefined) return false;
+  next.input.focus();
+  next.input.select();
+  return true;
+}
+
 const column = createColumnHelper<TreeRow>();
 
 /**
@@ -368,8 +412,25 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
         return;
       }
       if (event.key === 'Tab') {
-        event.preventDefault();
-        void (event.shiftKey ? outdent(row) : indent(row));
+        const input = event.currentTarget;
+        if (!(input instanceof HTMLInputElement)) return;
+        const caret = caretOf(input);
+        // One rule for the structure keys: they fire at position zero, where
+        // the key has no text meaning. Anywhere else — or over a selection —
+        // Tab is what it is in any table: the next field, text selected the
+        // way the browser's own Tab leaves it. At the grid's edge the key is
+        // left to the browser rather than eaten.
+        if (caret.atStart && !caret.hasSelection) {
+          event.preventDefault();
+          void (event.shiftKey ? outdent(row) : indent(row));
+          return;
+        }
+        const moved = focusAdjacentCell(
+          input,
+          { rowId: row.id, columnId: 'name' },
+          event.shiftKey ? -1 : 1,
+        );
+        if (moved) event.preventDefault();
         return;
       }
       if (event.key === 'Backspace') {
@@ -406,19 +467,7 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
     (event: React.KeyboardEvent<HTMLInputElement>, rowId: string, columnId: string) => {
       const table = event.currentTarget.closest('table');
       if (table === null) return;
-      // Kept as pairs, so the cell a move names and the input it focuses cannot
-      // drift apart — an index into two separately filtered lists is one dropped
-      // entry away from focusing the wrong box.
-      const grid = [...table.querySelectorAll<HTMLInputElement>('[data-cell]:not([readonly])')]
-        .map((input) => ({ input, parts: (input.dataset['cell'] ?? '').split('::') }))
-        .flatMap(({ input, parts }) => {
-          // A `data-cell` that is not `row::column` is markup this component did
-          // not write. Skipped rather than guessed at, and not thrown on: an
-          // arrow key is not the moment to take the table down.
-          const [row, column] = parts;
-          if (parts.length !== 2 || row === '' || column === '') return [];
-          return [{ input, cell: { rowId: row, columnId: column } satisfies CellRef }];
-        });
+      const grid = editableGrid(table);
 
       const move = nextCell(
         grid.map((g) => g.cell),
