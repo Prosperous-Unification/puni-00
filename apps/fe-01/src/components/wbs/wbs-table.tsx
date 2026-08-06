@@ -370,6 +370,20 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
       if (event.key === 'Tab') {
         event.preventDefault();
         void (event.shiftKey ? outdent(row) : indent(row));
+        return;
+      }
+      if (event.key === 'Backspace') {
+        // At position zero this key deletes nothing, so it is free — and
+        // "backspace at the start of the line" is the outliner reflex for
+        // "this does not belong under here". A selection keeps the key: the
+        // user is deleting text, even when the selection touches the start.
+        // Skipped rather than thrown on a non-input target, same as the grid.
+        const input = event.currentTarget;
+        if (!(input instanceof HTMLInputElement)) return;
+        const caret = caretOf(input);
+        if (!caret.atStart || caret.hasSelection || row.parentId === null) return;
+        event.preventDefault();
+        void outdent(row);
       }
     },
     [addSibling, indent, outdent],

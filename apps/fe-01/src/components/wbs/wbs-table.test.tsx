@@ -264,6 +264,79 @@ describe('the WBS table', () => {
     });
   });
 
+  itDom('backspace at the start of the name outdents the row', async () => {
+    const api = fakeApi();
+    render(<WbsTable projectId="p1" api={api} />);
+    click('Add work item');
+    await screen.findByLabelText('Name of 010');
+    pressEnter('010');
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '020']);
+    });
+    pressTab('020');
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '010.1']);
+    });
+
+    const name = screen.getByLabelText<HTMLInputElement>('Name of 010.1');
+    name.setSelectionRange(0, 0);
+    fireEvent.keyDown(name, { key: 'Backspace' });
+
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '020']);
+    });
+  });
+
+  itDom('backspace anywhere else, or over a selection, stays a backspace', async () => {
+    const api = fakeApi();
+    render(<WbsTable projectId="p1" api={api} />);
+    click('Add work item');
+    await screen.findByLabelText('Name of 010');
+    pressEnter('010');
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '020']);
+    });
+    pressTab('020');
+    await screen.findByLabelText('Name of 010.1');
+    typeName('010.1', 'Sockets');
+
+    const moved: unknown[] = [];
+    api.move = (...args: unknown[]) => {
+      moved.push(args);
+      return Promise.resolve();
+    };
+    const name = screen.getByLabelText<HTMLInputElement>('Name of 010.1');
+
+    // Mid-text: an ordinary backspace.
+    name.setSelectionRange(3, 3);
+    fireEvent.keyDown(name, { key: 'Backspace' });
+    // A selection anchored at the start: deleting it, not moving the row.
+    name.setSelectionRange(0, 3);
+    fireEvent.keyDown(name, { key: 'Backspace' });
+
+    expect(moved).toEqual([]);
+    expect(numbersOnScreen()).toEqual(['010', '010.1']);
+  });
+
+  itDom('backspace at the start of a root row moves nothing', async () => {
+    const api = fakeApi();
+    render(<WbsTable projectId="p1" api={api} />);
+    click('Add work item');
+    await screen.findByLabelText('Name of 010');
+
+    const moved: unknown[] = [];
+    api.move = (...args: unknown[]) => {
+      moved.push(args);
+      return Promise.resolve();
+    };
+    const name = screen.getByLabelText<HTMLInputElement>('Name of 010');
+    name.setSelectionRange(0, 0);
+    fireEvent.keyDown(name, { key: 'Backspace' });
+
+    expect(moved).toEqual([]);
+    expect(numbersOnScreen()).toEqual(['010']);
+  });
+
   itDom('shows a parent estimate cell as read-only and a leaf as editable', async () => {
     const api = fakeApi();
     render(<WbsTable projectId="p1" api={api} />);
