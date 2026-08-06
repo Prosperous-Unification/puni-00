@@ -1,5 +1,13 @@
-import { act, createEvent, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import {
+  act,
+  cleanup,
+  createEvent,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from '@testing-library/react';
+import { beforeEach, describe, expect, it } from 'vitest';
 
 import type { Days, EstimateMethod, ProjectApi, RoleView, WorkItemView } from '@/lib/wbs-api';
 
@@ -311,6 +319,12 @@ const unfoldRole = (name: string) => {
 const pressTab = (number: string, shiftKey = false) => {
   fireEvent.keyDown(screen.getByLabelText(`Name of ${number}`), { key: 'Tab', shiftKey });
 };
+
+// The table remembers each project's open branches in localStorage, so one
+// test's collapsing would arrive as the next test's starting shape.
+beforeEach(() => {
+  localStorage.clear();
+});
 
 describe('the WBS table', () => {
   itDom('types a three-level breakdown without touching the mouse', async () => {
@@ -3559,5 +3573,237 @@ describe('what the plan is still missing', () => {
     fireEvent.click(theBadge());
 
     expect(document.activeElement).toBe(screen.getByLabelText('Dev optimistic for 010'));
+  });
+});
+
+describe('finding a work item in the tree', () => {
+  /**
+   * A plan with a match three levels down and a branch with nothing in it.
+   *
+   * ```
+   * 010     Strip the walls
+   *  010.1   Sockets
+   *   010.1.1 Back boxes
+   *  010.2   Skirting
+   * 020     Paint
+   *  020.1   Undercoat
+   * ```
+   */
+  async function decorating(): Promise<ProjectApi & { rows: WorkItemView[] }> {
+    const api = fakeApi();
+    const strip = await api.create('p1', {
+      parentId: null,
+      afterId: null,
+      name: 'Strip the walls',
+    });
+    const sockets = await api.create('p1', {
+      parentId: strip.id,
+      afterId: null,
+      name: 'Sockets',
+    });
+    await api.create('p1', { parentId: sockets.id, afterId: null, name: 'Back boxes' });
+    await api.create('p1', { parentId: strip.id, afterId: sockets.id, name: 'Skirting' });
+    const paint = await api.create('p1', { parentId: null, afterId: strip.id, name: 'Paint' });
+    await api.create('p1', { parentId: paint.id, afterId: null, name: 'Undercoat' });
+    return api;
+  }
+
+  const EVERY_ROW = ['010', '010.1', '010.1.1', '010.2', '020', '020.1'];
+
+  /** Renders the plan above and waits for it to be on screen. */
+  async function shownPlan(): Promise<ProjectApi & { rows: WorkItemView[] }> {
+    const api = await decorating();
+    render(<WbsTable projectId="p1" api={api} />);
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(EVERY_ROW);
+    });
+    return api;
+  }
+
+  const findBox = () => screen.getByLabelText<HTMLInputElement>('Find');
+
+  const find = (typed: string) => {
+    fireEvent.change(findBox(), { target: { value: typed } });
+  };
+
+  itDom('keeps the rows that place a match, and drops everything else', async () => {
+    await shownPlan();
+
+    find('back boxes');
+
+    // `010` and `010.1` are context: without them the hit reads as a root of a
+    // plan it is three levels inside.
+    expect(numbersOnScreen()).toEqual(['010', '010.1', '010.1.1']);
+  });
+
+  itDom('reveals a match inside a branch the reader had closed', async () => {
+    await shownPlan();
+    click('Collapse 010.1');
+    expect(numbersOnScreen()).toEqual(['010', '010.1', '010.2', '020', '020.1']);
+
+    find('back boxes');
+
+    expect(numbersOnScreen()).toEqual(['010', '010.1', '010.1.1']);
+  });
+
+  itDom('marks the row that matched, so the rows around it read as context', async () => {
+    await shownPlan();
+
+    find('back boxes');
+
+    const hit = screen.getByLabelText('Name of 010.1.1');
+    expect(hit.dataset['match']).toBe('true');
+    expect(hit.style.background).not.toBe('');
+    const ancestor = screen.getByLabelText('Name of 010.1');
+    expect(ancestor.dataset['match']).toBeUndefined();
+    expect(ancestor.style.background).toBe('');
+  });
+
+  itDom('shows the whole subtree under a matched parent', async () => {
+    await shownPlan();
+
+    find('strip');
+
+    expect(numbersOnScreen()).toEqual(['010', '010.1', '010.1.1', '010.2']);
+    // Only the row whose own name matched is a hit; the three under it are
+    // there because their parent is.
+    expect(screen.getByLabelText('Name of 010').dataset['match']).toBe('true');
+    expect(screen.getByLabelText('Name of 010.1').dataset['match']).toBeUndefined();
+  });
+
+  itDom('shows an empty table and says so when nothing matches', async () => {
+    await shownPlan();
+
+    find('plumbing');
+
+    expect(numbersOnScreen()).toEqual([]);
+    expect(screen.getByText(/No matches for/).textContent).toContain('plumbing');
+  });
+
+  itDom('counts what is on screen against the whole plan', async () => {
+    await shownPlan();
+
+    find('back boxes');
+
+    expect(screen.getByText('3 of 6 rows')).toBeDefined();
+  });
+
+  itDom('clearing the search puts the reader’s own collapse back', async () => {
+    await shownPlan();
+    click('Collapse 010.1');
+    click('Collapse 020');
+    expect(numbersOnScreen()).toEqual(['010', '010.1', '010.2', '020']);
+
+    find('back boxes');
+    expect(numbersOnScreen()).toEqual(['010', '010.1', '010.1.1']);
+
+    // Escape, which is how a search is left.
+    fireEvent.keyDown(findBox(), { key: 'Escape' });
+
+    expect(findBox().value).toBe('');
+    expect(numbersOnScreen()).toEqual(['010', '010.1', '010.2', '020']);
+  });
+
+  itDom('the expansion controls stand down while a search is on', async () => {
+    await shownPlan();
+
+    find('back boxes');
+
+    // A triangle here would either lie about what the search opened or close a
+    // branch holding the hit.
+    expect(screen.queryByRole('button', { name: 'Collapse 010' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Collapse all' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Expand all' })).toBeDisabled();
+  });
+
+  itDom('the Find box is not a cell of the keyboard grid', async () => {
+    await shownPlan();
+
+    const box = findBox();
+    expect(box.getAttribute('data-cell')).toBeNull();
+    expect(box.closest('table')).toBeNull();
+  });
+
+  itDom('the arrows walk the rows a search left on screen', async () => {
+    await shownPlan();
+    find('skirting');
+    expect(numbersOnScreen()).toEqual(['010', '010.2']);
+
+    const name = screen.getByLabelText<HTMLTextAreaElement>('Name of 010');
+    name.focus();
+    name.setSelectionRange(name.value.length, name.value.length);
+    fireEvent.keyDown(name, { key: 'ArrowDown' });
+
+    // Not `010.1`: it is not on screen, so it is not in the grid the keys read
+    // out of the committed DOM.
+    expect(document.activeElement).toBe(screen.getByLabelText('Name of 010.2'));
+  });
+
+  itDom('re-derives from the rows that came back, so a renamed row can leave', async () => {
+    const api = await shownPlan();
+    find('skirting');
+    expect(numbersOnScreen()).toEqual(['010', '010.2']);
+
+    const name = screen.getByLabelText('Name of 010.2');
+    fireEvent.change(name, { target: { value: 'Trim' } });
+    fireEvent.blur(name);
+
+    // A row edited out of the match set disappears from the narrowed view.
+    // Deliberate: the alternative is a table showing a row that no longer
+    // answers the question on screen above it.
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual([]);
+    });
+    expect(api.rows.map((row) => row.name)).toContain('Trim');
+    expect(screen.getByText('0 of 6 rows')).toBeDefined();
+  });
+
+  itDom('collapses every branch and opens them all again', async () => {
+    await shownPlan();
+
+    click('Collapse all');
+    expect(numbersOnScreen()).toEqual(['010', '020']);
+
+    click('Expand all');
+    expect(numbersOnScreen()).toEqual(EVERY_ROW);
+  });
+
+  itDom('remembers a collapsed branch across a remount', async () => {
+    const api = await shownPlan();
+    click('Collapse 010.1');
+    expect(numbersOnScreen()).toEqual(['010', '010.1', '010.2', '020', '020.1']);
+
+    cleanup();
+    render(<WbsTable projectId="p1" api={api} />);
+
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '010.1', '010.2', '020', '020.1']);
+    });
+  });
+
+  itDom('remembers each project separately', async () => {
+    const api = await shownPlan();
+    click('Collapse all');
+    expect(numbersOnScreen()).toEqual(['010', '020']);
+
+    cleanup();
+    render(<WbsTable projectId="p2" api={api} />);
+
+    // A different project has its own memory, and no memory means everything
+    // open — not the shape the last project was left in.
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(EVERY_ROW);
+    });
+  });
+
+  itDom('drops a remembered expansion that is not one, rather than obeying it', async () => {
+    // localStorage is user-editable, so what comes back is a claim. A table
+    // that cannot be opened until somebody clears storage by hand is a worse
+    // answer than forgetting which triangles were pointing down.
+    localStorage.setItem('wbs.expanded.p1', 'not json at all');
+
+    await shownPlan();
+
+    expect(localStorage.getItem('wbs.expanded.p1')).toBe('true');
   });
 });

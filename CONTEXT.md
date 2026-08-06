@@ -82,6 +82,23 @@ leaves beneath its ends. be-01 decides; the picker predicts, to grey the row bef
 clicked.
 _Avoid_: invalid dependency, illegal link, blocked edge
 
+**Search**:
+What is typed into the table's Find box, and the narrowing it causes: the work items whose
+name contains it, the ancestors that place them and the descendants beneath them. Local to
+one reader, and it changes nothing — nobody else's table moves.
+_Avoid_: filter, query, lookup
+
+**Match**:
+A work item whose own name contains the search. Marked as such, because the rows kept
+around it are on screen as context rather than as answers.
+_Avoid_: hit, result, found row
+
+**Expansion**:
+Which branches of one project's tree are open, in one browser. Either every branch or a
+named set of them; a branch not named is closed. Remembered per project, per browser, and
+overridden on screen for as long as a search is running.
+_Avoid_: collapse state, open rows, fold
+
 **Restricted project**:
 A project only its owner may edit. Every authenticated account may still read it; an
 unrestricted project may be edited by any of them.

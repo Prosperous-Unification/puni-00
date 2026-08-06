@@ -36,6 +36,7 @@ import {
 import { NotesPreview } from './notes-preview';
 import { describeGaps, findEstimateGaps } from './plan-completeness';
 import { indentFor, pinnedCellStyle, STICKY_HEADER_CELL, TABLE_FRAME } from './table-frame';
+import { searchTree } from './tree-search';
 import { toTree, type TreeRow } from './wbs-rows';
 
 export interface WbsTableProps {
@@ -147,6 +148,79 @@ const REFUSAL_SUFFIX: Record<NonNullable<PickerEntry['refusal']>, string> = {
 function expandBranch(current: ExpandedState, rowId: string): ExpandedState {
   if (current === true) return true;
   return { ...current, [rowId]: true };
+}
+
+/** What a row matching the Find box is tinted, so a hit reads apart from its context. */
+const MATCH_TINT = '#fff3bf';
+
+/**
+ * Where this browser remembers which of one project's branches are open.
+ *
+ * Per project, because the shape being remembered is that project's tree.
+ * Per browser, like the chosen project beside it (`project-page.tsx`): my
+ * collapsing must not reshuffle anybody else's table.
+ */
+const expansionKey = (projectId: string): string => `wbs.expanded.${projectId}`;
+
+/**
+ * Whether a value read back out of storage is an expansion this table can use.
+ *
+ * TanStack models expansion as `true` — everything open — or a record of the
+ * rows that are open. Nothing else is one; `false` in particular is not, since
+ * the all-closed state is the empty record.
+ */
+function isExpansion(value: unknown): value is ExpandedState {
+  if (value === true) return true;
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  return Object.values(value).every((open) => typeof open === 'boolean');
+}
+
+/** `stored` as JSON, or nothing at all when it is not JSON. */
+function parsedOrNothing(stored: string): unknown {
+  try {
+    const claimed: unknown = JSON.parse(stored);
+    return claimed;
+  } catch {
+    // Nothing but this component writes the key, so the only way here is a
+    // hand-edited store. Recovered from below rather than rethrown.
+    return undefined;
+  }
+}
+
+/**
+ * The expansion this browser last saved for `projectId`, or everything open
+ * when it has never saved one.
+ *
+ * The stored value is a claim, not a fact. It is user-editable storage read at
+ * a boundary, so it is validated here and dropped — key and all — when it is
+ * not an expansion, the same posture `project-page.tsx` takes to a remembered
+ * project the list no longer holds. Deliberately not the "unknown is not OK"
+ * throw: the alternative is a table that cannot be opened at all until somebody
+ * clears storage by hand, over a preference about which triangles point down.
+ *
+ * Two things the remembered record does **not** do, both verified against
+ * `getExpandedRowModel` and `RowExpanding`'s `getIsExpanded`:
+ *
+ * - Ids naming rows that have since been deleted are harmless. Expansion is
+ *   read per row id, so a key nothing asks about is never looked at.
+ * - **A row created since the save arrives collapsed** while a record is in
+ *   force, because an absent key reads as closed (`expanded?.[row.id]`). Under
+ *   `true` — the state of a browser that has never collapsed anything — it
+ *   arrives open. That is TanStack's own rule, adopted rather than papered
+ *   over: the alternative is a fourth state to keep in step with the other
+ *   three.
+ */
+function rememberedExpansion(projectId: string): ExpandedState {
+  const stored = localStorage.getItem(expansionKey(projectId));
+  if (stored === null) return true;
+  const claimed = parsedOrNothing(stored);
+  if (isExpansion(claimed)) return claimed;
+  localStorage.removeItem(expansionKey(projectId));
+  return true;
+}
+
+function rememberExpansion(projectId: string, expanded: ExpandedState): void {
+  localStorage.setItem(expansionKey(projectId), JSON.stringify(expanded));
 }
 
 /** Whether two role lists say the same thing, so an equal one can be discarded. */
@@ -278,7 +352,48 @@ const column = createColumnHelper<TreeRow>();
 export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
   const [workItems, setWorkItems] = useState<TreeRow[]>([]);
   const [roles, setRoles] = useState<RoleView[]>([]);
-  const [expanded, setExpanded] = useState<ExpandedState>(true);
+  /**
+   * Which branches are open, as this browser last left them for this project.
+   *
+   * Read straight into the initial state rather than in an effect: an effect
+   * would render the default first and collapse the tree a frame later, which
+   * is the plan visibly rearranging itself under the reader on every load.
+   */
+  const [expanded, setExpanded] = useState<ExpandedState>(() => rememberedExpansion(projectId));
+  /** Which project the expansion above belongs to, so a save cannot pair it with another. */
+  const expansionProject = useRef(projectId);
+  /**
+   * Saves every change to the expansion, and swaps it whole for another
+   * project's.
+   *
+   * The two are one effect because they are one rule: the state and the key it
+   * is written under must always name the same project. Switching project
+   * re-reads first and saves nothing — this component is not remounted between
+   * projects (`project-page.tsx` renders it without a `key`), so without the
+   * swap the first save after a switch would stamp the old project's collapsed
+   * branches onto the new project's key.
+   */
+  useEffect(() => {
+    if (expansionProject.current !== projectId) {
+      expansionProject.current = projectId;
+      setExpanded(rememberedExpansion(projectId));
+      return;
+    }
+    // Proof: removed, `remembers a collapsed branch across a remount` failed
+    // with the branch open again, and `drops a remembered expansion that is
+    // not one` failed with the hand-edited value still in storage. Watched,
+    // 2026-08-06.
+    rememberExpansion(projectId, expanded);
+  }, [projectId, expanded]);
+  /**
+   * What has been typed into the Find box.
+   *
+   * The narrowing itself is not state: it is {@link searchTree} of the rows on
+   * screen and this string, re-derived every render. A remembered answer would
+   * narrow to a plan that no longer exists — every edit by anybody refetches
+   * the whole tree.
+   */
+  const [query, setQuery] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [connected, setConnected] = useState(true);
@@ -523,6 +638,26 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
     walk(workItems);
     return out;
   }, [workItems]);
+
+  /**
+   * What the Find box is asking for: which rows stay, which of them are hits,
+   * and what has to be open to show them.
+   *
+   * A pure function of the rows on screen and the query, memoised only so the
+   * table's own row model is not rebuilt on every unrelated render — never
+   * cached across a change to either. A structural edit refetches the tree and
+   * this narrows the tree that came back, which is why a row moved out of the
+   * match set disappears from the narrowed view.
+   */
+  const search = useMemo(() => searchTree(flat, query), [flat, query]);
+  /**
+   * Whether a search is on — which is the query having something in it other
+   * than spaces, and is exactly when {@link searchTree} hands back an overlay.
+   *
+   * One source of truth rather than a second trim beside it, which is how two
+   * answers to one question start to disagree.
+   */
+  const searching = search.expandedOverlay !== null;
 
   const siblingsOf = useCallback(
     (parentId: string | null) => flat.filter((row) => row.parentId === parentId),
@@ -1446,6 +1581,8 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
     assignTo,
     createPersonFor,
     toggleRole,
+    matchIds: search.matchIds,
+    searching,
   });
   live.current = {
     api,
@@ -1482,6 +1619,8 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
     assignTo,
     createPersonFor,
     toggleRole,
+    matchIds: search.matchIds,
+    searching,
   };
 
   const columns = useMemo(
@@ -1525,7 +1664,15 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
         header: 'Number',
         cell: ({ row }) => (
           <span style={{ paddingLeft: indentFor(row.depth), whiteSpace: 'nowrap' }}>
-            {row.getCanExpand() ? (
+            {/*
+              No triangles while a search is on. What is open during a search
+              is the search's answer — every kept row, so no match can be
+              hidden — and this control would have to either lie about that or
+              close a branch holding a hit. Its state also lives in the
+              reader's own expansion, which the search deliberately does not
+              touch, so a click here would appear to do nothing.
+            */}
+            {row.getCanExpand() && !live.current.searching ? (
               <button
                 type="button"
                 aria-label={`${row.getIsExpanded() ? 'Collapse' : 'Expand'} ${row.original.number}`}
@@ -1542,46 +1689,67 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
       column.display({
         id: 'name',
         header: 'Name',
-        cell: ({ row }) => (
-          <CellInput
-            aria-label={`Name of ${row.original.number}`}
-            data-name-input={row.original.id}
-            data-cell={cellKey(row.original.id, 'name')}
-            // A work item's name is a sentence, not a word, and an input
-            // scrolls it out of sight one character at a time. A textarea
-            // wraps, and `autoSize` is what stops it wrapping into a line
-            // nobody can see: the box is as tall as its name, focused or not.
-            // Enter is still "new work item" — the table preventDefaults it.
-            multiline
-            autoSize
-            rows={1}
-            maxRestRows={4}
-            style={{ width: '22em', resize: 'vertical', font: 'inherit' }}
-            // A callback ref rather than an effect: it fires exactly when this
-            // node is attached, so the focus cannot be lost to a later render
-            // arriving before the row does. That race is what
-            // Enter-Enter-Enter depends on not losing. It fires on every render
-            // rather than only the first, which the id check already tolerated.
-            onAttach={(element) => {
-              const wanted = focusNext.current;
-              // The Name column only: any other column is a cell this one has
-              // no business focusing, and it is landed on from the committed
-              // DOM by the effect that reads `focusNext` after a refresh.
-              if (wanted?.rowId !== row.original.id || wanted.columnId !== 'name') return;
-              focusNext.current = null;
-              element.focus();
-            }}
-            value={row.original.name}
-            commit={(typed) => {
-              void live.current.run(() => live.current.api.patch(row.original.id, { name: typed }));
-            }}
-            onKeyDown={(e) => {
-              live.current.onAltMove(e, row.original, 'name');
-              live.current.onKeyDown(e, row.original);
-              live.current.onArrowKey(e, row.original.id, 'name');
-            }}
-          />
-        ),
+        cell: ({ row }) => {
+          // Why this row is on screen, at a glance: a hit is tinted, and every
+          // other row in a narrowed table is context — an ancestor placing a
+          // hit, or work underneath one. Read through `live` rather than closed
+          // over, for the reason the dependency list below gives: `columns`
+          // must not depend on anything that changes per keystroke.
+          // Proof: hard-coded to false, `marks the row that matched, so the
+          // rows around it read as context` and `shows the whole subtree under
+          // a matched parent` failed — the second because it is the mark that
+          // says the parent is the hit and the subtree is not. Watched,
+          // 2026-08-06.
+          const matched = live.current.matchIds.has(row.original.id);
+          return (
+            <CellInput
+              aria-label={`Name of ${row.original.number}`}
+              data-name-input={row.original.id}
+              data-match={matched ? 'true' : undefined}
+              data-cell={cellKey(row.original.id, 'name')}
+              // A work item's name is a sentence, not a word, and an input
+              // scrolls it out of sight one character at a time. A textarea
+              // wraps, and `autoSize` is what stops it wrapping into a line
+              // nobody can see: the box is as tall as its name, focused or not.
+              // Enter is still "new work item" — the table preventDefaults it.
+              multiline
+              autoSize
+              rows={1}
+              maxRestRows={4}
+              style={{
+                width: '22em',
+                resize: 'vertical',
+                font: 'inherit',
+                ...(matched ? { background: MATCH_TINT } : {}),
+              }}
+              // A callback ref rather than an effect: it fires exactly when this
+              // node is attached, so the focus cannot be lost to a later render
+              // arriving before the row does. That race is what
+              // Enter-Enter-Enter depends on not losing. It fires on every render
+              // rather than only the first, which the id check already tolerated.
+              onAttach={(element) => {
+                const wanted = focusNext.current;
+                // The Name column only: any other column is a cell this one has
+                // no business focusing, and it is landed on from the committed
+                // DOM by the effect that reads `focusNext` after a refresh.
+                if (wanted?.rowId !== row.original.id || wanted.columnId !== 'name') return;
+                focusNext.current = null;
+                element.focus();
+              }}
+              value={row.original.name}
+              commit={(typed) => {
+                void live.current.run(() =>
+                  live.current.api.patch(row.original.id, { name: typed }),
+                );
+              }}
+              onKeyDown={(e) => {
+                live.current.onAltMove(e, row.original, 'name');
+                live.current.onKeyDown(e, row.original);
+                live.current.onArrowKey(e, row.original.id, 'name');
+              }}
+            />
+          );
+        },
       }),
       column.display({
         id: 'depends',
@@ -2160,13 +2328,34 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
   const table = useReactTable({
     data: workItems,
     columns,
-    state: { expanded },
+    // While a search is on, the expansion in force is the search's overlay:
+    // every kept row open, so a hit inside a branch this reader had closed is
+    // revealed rather than counted and hidden. The reader's own `expanded` is
+    // not merged into and not written over — clearing the box puts the plan
+    // back exactly as it was left, collapsed branches included.
+    //
+    // Proof: narrowed to the reader's own `expanded`, `reveals a match inside
+    // a branch the reader had closed` failed with the hit counted and hidden.
+    // And with the overlay committed into `expanded` on the way out — the
+    // merge this avoids — `clearing the search puts the reader’s own collapse
+    // back` failed with the whole plan open. Both watched, 2026-08-06.
+    state: { expanded: search.expandedOverlay ?? expanded },
     onExpandedChange: setExpanded,
     getSubRows: (row) => row.subRows,
     getRowId: (row) => row.id,
     getCoreRowModel: getCoreRowModel(),
     getExpandedRowModel: getExpandedRowModel(),
   });
+
+  /**
+   * The rows this render puts on screen.
+   *
+   * The overlay above opens every kept row; this drops the ones a search did
+   * not keep — the siblings that neither match nor sit on a match's line, which
+   * are open branches' children and so still in the row model. With nothing
+   * typed the kept set is every row and this filters nothing out.
+   */
+  const shownRows = table.getRowModel().rows.filter((row) => search.visibleIds.has(row.id));
 
   return (
     <section>
@@ -2197,6 +2386,83 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
         >
           Add work item
         </button>
+        {/*
+          The two ends of the expansion, which is otherwise one triangle at a
+          time — a forty-row plan takes forty clicks to fold. Both write the
+          reader's own expansion, and it is remembered per project from there.
+
+          Disabled while the Find box holds something, for the reason the
+          triangles are hidden then: what is open during a search is the
+          search's answer, and a button that appeared to do nothing would read
+          as broken. Not disabled by `busy`, unlike the buttons above: neither
+          asks be-01 for anything.
+        */}
+        <button
+          type="button"
+          disabled={searching}
+          title={
+            searching
+              ? 'Clear the Find box first — a search opens whatever it has to.'
+              : 'Close every branch'
+          }
+          onClick={() => {
+            setExpanded({});
+          }}
+        >
+          Collapse all
+        </button>
+        <button
+          type="button"
+          disabled={searching}
+          title={
+            searching
+              ? 'Clear the Find box first — a search opens whatever it has to.'
+              : 'Open every branch'
+          }
+          onClick={() => {
+            setExpanded(true);
+          }}
+        >
+          Expand all
+        </button>
+        {/*
+          Find. Deliberately without `data-cell`: this is not a cell of the
+          table's keyboard grid, and letting Tab and the arrows walk into it
+          from the last cell of a row would put the caret somewhere no edit can
+          be made.
+        */}
+        <input
+          aria-label="Find"
+          placeholder="Find…"
+          size={14}
+          title="Show work items whose name contains this, with the rows above and below them"
+          value={query}
+          onChange={(e) => {
+            setQuery(e.currentTarget.value);
+          }}
+          onKeyDown={(e) => {
+            // Escape empties the box, which is how a search is left — and
+            // leaving it puts every collapsed branch back, because the search
+            // never wrote to the reader's own expansion.
+            if (e.key !== 'Escape') return;
+            e.preventDefault();
+            setQuery('');
+          }}
+        />
+        {searching && (
+          <span role="status" style={{ alignSelf: 'center', color: '#555' }}>
+            {shownRows.length} of {flat.length} rows
+          </span>
+        )}
+        {/*
+          Said out loud rather than left to an empty table, which reads as a
+          plan that has been lost rather than a search that found nothing. The
+          count beside it stays, so `0 of 12 rows` says the twelve are still
+          there.
+        */}
+        {searching && search.matchIds.size === 0 && (
+          <span style={{ alignSelf: 'center' }}>No matches for “{query}”</span>
+        )}
         {/*
           How ready this plan is to be read, and the way to the rows that make
           it not ready. Absent entirely when every leaf is estimated for every
@@ -2311,7 +2577,7 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
             ))}
           </thead>
           <tbody>
-            {table.getRowModel().rows.map((row) => (
+            {shownRows.map((row) => (
               <tr
                 key={row.id}
                 data-frozen={row.original.frozenNumber !== null ? 'true' : 'false'}
