@@ -3,12 +3,14 @@ import { observabilityPlugin } from '@wbs/observability/server';
 import { Elysia } from 'elysia';
 
 import { authController } from './controller/auth.controller';
+import { directoryController } from './controller/directory.controller';
 import { internalController } from './controller/internal.controller';
 import { projectController } from './controller/project.controller';
 import { smokeController } from './controller/smoke.controller';
 import { workItemController } from './controller/work-item.controller';
 import type { DatabaseHealth } from './repository/health-probe';
 import type { AuthService } from './service/auth.service';
+import type { DirectoryService } from './service/directory.service';
 import type { ProjectService } from './service/project.service';
 import type { ReplayOrchestrator } from './service/replay-orchestrator';
 import type { WorkItemService } from './service/work-item.service';
@@ -29,6 +31,7 @@ export interface AppOptions {
   projects: ProjectService;
   /** Required for the same reason as `projects`. */
   workItems: WorkItemService;
+  directory: DirectoryService;
   /**
    * Shared secret gw-01 presents on /internal/*. Required — a default here
    * would silently diverge from the value gw-01 loads from the environment,
@@ -65,6 +68,7 @@ export function buildApp(opts: AppOptions) {
     .use(authController(opts.auth))
     .use(projectController(opts.auth, opts.projects))
     .use(workItemController(opts.auth, opts.workItems))
+    .use(directoryController(opts.auth, opts.directory))
     .use(
       internalController({
         secret: opts.internalAuthSecret,

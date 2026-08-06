@@ -1,5 +1,6 @@
 import type { FrozenNumber, Repositioned, WorkItem, WorkItemStore } from '../repository';
 import { WorkItemService } from '../service/work-item.service';
+import { inMemoryDirectory } from '../testing/directory-fixture';
 import { recordingBroadcaster } from './broadcast-fixture';
 import { inMemoryDependencies } from './dependency-fixture';
 import { inMemoryEstimates } from './estimate-fixture';
@@ -47,6 +48,8 @@ export function inMemoryWorkItems(): WorkItemStore {
           patch.startNoEarlierThan === undefined
             ? existing.startNoEarlierThan
             : patch.startNoEarlierThan,
+        serviceTeamId:
+          patch.serviceTeamId === undefined ? existing.serviceTeamId : patch.serviceTeamId,
       };
       byId.set(id, updated);
       return Promise.resolve(updated);
@@ -90,6 +93,7 @@ export function testWorkItemService(): WorkItemService {
     projects: inMemoryProjects(),
     estimates: inMemoryEstimates(workItems),
     dependencies: inMemoryDependencies(),
+    directory: inMemoryDirectory(),
     broadcast: recordingBroadcaster(),
   });
 }

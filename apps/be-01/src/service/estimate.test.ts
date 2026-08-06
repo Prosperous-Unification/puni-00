@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it } from 'bun:test';
 import type { EstimateStore, Project, ProjectStore, WorkItemStore } from '../repository';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { inMemoryDependencies } from '../testing/dependency-fixture';
+import { inMemoryDirectory } from '../testing/directory-fixture';
 import { inMemoryEstimates } from '../testing/estimate-fixture';
 import { inMemoryProjects } from '../testing/project-fixture';
 import { inMemoryWorkItems } from '../testing/work-item-fixture';
@@ -30,6 +31,7 @@ beforeEach(async () => {
     projects,
     estimates,
     dependencies: inMemoryDependencies(),
+    directory: inMemoryDirectory(),
     broadcast,
   });
   const project: Project = {

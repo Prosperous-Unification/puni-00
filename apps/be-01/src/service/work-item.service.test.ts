@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it } from 'bun:test';
 import type { Project, ProjectStore, WorkItemStore } from '../repository';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { inMemoryDependencies } from '../testing/dependency-fixture';
+import { inMemoryDirectory } from '../testing/directory-fixture';
 import { inMemoryEstimates } from '../testing/estimate-fixture';
 import { inMemoryProjects } from '../testing/project-fixture';
 import { inMemoryWorkItems } from '../testing/work-item-fixture';
@@ -17,16 +18,19 @@ let service: WorkItemService;
 let projectId: string;
 let roleId: string;
 let dependencies: ReturnType<typeof inMemoryDependencies>;
+let directory: ReturnType<typeof inMemoryDirectory>;
 
 beforeEach(async () => {
   projects = inMemoryProjects();
   workItems = inMemoryWorkItems();
   dependencies = inMemoryDependencies();
+  directory = inMemoryDirectory();
   service = new WorkItemService({
     workItems,
     projects,
     estimates: inMemoryEstimates(workItems),
     dependencies,
+    directory,
     broadcast: recordingBroadcaster(),
   });
   const project: Project = {
@@ -343,6 +347,59 @@ describe('dependencies', () => {
     const sand = tree?.workItems.find((w) => w.id === b)?.schedule;
 
     expect(sand).toMatchObject({ earliestStart: 2, earliestFinish: 5, critical: true });
+  });
+});
+
+describe('who is doing the work', () => {
+  it('reports nobody when nobody is assigned', async () => {
+    const id = await add('Strip');
+
+    const row = (await service.tree(projectId))?.workItems.find((w) => w.id === id);
+
+    expect(row?.assignees).toEqual({});
+    expect(row?.doesEveryPhase).toBeNull();
+  });
+
+  it('assumes one assignee does every phase, and stops assuming at two', async () => {
+    // Dany, 2026-08-06: "when just one is assigned it is assumed they do both
+    // dev and QA". Read from the assignments rather than written as a second
+    // row, so nobody is recorded against work they were never given.
+    const id = await add('Strip');
+    const qaRoleId = crypto.randomUUID();
+    await directory.assign(id, roleId, 'ada');
+    let row = (await service.tree(projectId))?.workItems.find((w) => w.id === id);
+    expect(row?.doesEveryPhase).toBe('ada');
+
+    await directory.assign(id, qaRoleId, 'grace');
+
+    row = (await service.tree(projectId))?.workItems.find((w) => w.id === id);
+    expect(row?.assignees).toEqual({ [roleId]: 'ada', [qaRoleId]: 'grace' });
+    expect(row?.doesEveryPhase).toBeNull();
+  });
+
+  it('assigns somebody who is not in the work item’s team', async () => {
+    // Dany's call: keep people and service/team decoupled for the work item. A
+    // platform engineer picking up billing work is an ordinary Tuesday.
+    const id = await add('Strip');
+    await service.patch(id, OWNER, { serviceTeamId: 'team-billing' });
+
+    const outcome = await service.assign(id, OWNER, roleId, 'ada-of-platform');
+
+    expect(outcome.ok).toBe(true);
+    const row = (await service.tree(projectId))?.workItems.find((w) => w.id === id);
+    expect(row?.assignees[roleId]).toBe('ada-of-platform');
+    expect(row?.serviceTeamId).toBe('team-billing');
+  });
+
+  it('clears an assignment', async () => {
+    const id = await add('Strip');
+    await service.assign(id, OWNER, roleId, 'ada');
+
+    await service.assign(id, OWNER, roleId, null);
+
+    expect((await service.tree(projectId))?.workItems.find((w) => w.id === id)?.assignees).toEqual(
+      {},
+    );
   });
 });
 

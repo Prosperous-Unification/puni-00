@@ -161,6 +161,11 @@ export const workItem = sqliteTable(
      * and leave nothing to say which of the two was right.
      */
     startNoEarlierThan: text('start_no_earlier_than'),
+    /**
+     * The service or team this work belongs to, or null. A label on the work,
+     * not a constraint on who may be assigned it.
+     */
+    serviceTeamId: text('service_team_id'),
   },
   (t) => [index('work_item_siblings').on(t.projectId, t.parentId, t.position)],
 );
@@ -210,6 +215,104 @@ export const estimate = sqliteTable(
 );
 
 export type EstimateRow = typeof estimate.$inferSelect;
+
+/**
+ * A service or team that work can be labelled with — global, not per project.
+ *
+ * Dany's ask, 2026-08-06: it behaves like a Jira label. Anyone may add one by
+ * typing a name the list does not have, and every project draws from the same
+ * list, because the same teams do work across projects and one list per
+ * project would be the same names typed again and again with typos between
+ * them.
+ *
+ * The name is unique at the database rather than only in the service: two
+ * people creating `Platform` at the same moment both pass a check-then-insert,
+ * and only a constraint stops the second.
+ */
+export const serviceTeam = sqliteTable(
+  'service_team',
+  {
+    id: text('id').primaryKey(),
+    name: text('name').notNull(),
+  },
+  (t) => [uniqueIndex('service_team_name').on(t.name)],
+);
+
+export type ServiceTeamRow = typeof serviceTeam.$inferSelect;
+
+/**
+ * Somebody who does work. Global, like the teams, and for the same reason.
+ *
+ * Not a `users` row: the people a plan assigns work to are mostly not accounts
+ * on this tool, and requiring them to be would make the field unusable on the
+ * day it is needed. If the two ever have to meet, they meet through a column
+ * added then, not through a foreign key guessed at now.
+ */
+export const person = sqliteTable(
+  'person',
+  {
+    id: text('id').primaryKey(),
+    name: text('name').notNull(),
+  },
+  (t) => [uniqueIndex('person_name').on(t.name)],
+);
+
+export type PersonRow = typeof person.$inferSelect;
+
+/**
+ * Which teams a person belongs to — several, deliberately.
+ *
+ * Dany, 2026-08-06: "one assignee might be from different service/teams". A
+ * person with no rows here is a **free agent**, which is computed on read
+ * rather than stored as membership of a magic team: a real "Free agents" row
+ * could be renamed, deleted or assigned work of its own, and then the default
+ * would mean whatever somebody last did to it.
+ */
+export const personTeam = sqliteTable(
+  'person_team',
+  {
+    personId: text('person_id')
+      .notNull()
+      .references(() => person.id, { onDelete: 'cascade' }),
+    serviceTeamId: text('service_team_id')
+      .notNull()
+      .references(() => serviceTeam.id, { onDelete: 'cascade' }),
+  },
+  (t) => [primaryKey({ columns: [t.personId, t.serviceTeamId] })],
+);
+
+export type PersonTeamRow = typeof personTeam.$inferSelect;
+
+/**
+ * Who does one work item's work for one role — one person per phase.
+ *
+ * The primary key is the pair, so a work item has at most one Dev and at most
+ * one QA. Dany, 2026-08-06: "one per dev, one per QA", and "when just one is
+ * assigned it is assumed they do both" — that last part is a **reading** of an
+ * absent row, not a second row written on somebody's behalf, so nobody is
+ * recorded against work they were never given.
+ *
+ * The person is deliberately unconstrained by the work item's `serviceTeamId`:
+ * Dany's call, "keep people and service/team lists decoupled for the work
+ * item". A team labels the work; a person does it; the two need not match.
+ */
+export const assignment = sqliteTable(
+  'assignment',
+  {
+    workItemId: text('work_item_id')
+      .notNull()
+      .references((): AnySQLiteColumn => workItem.id, { onDelete: 'cascade' }),
+    roleId: text('role_id')
+      .notNull()
+      .references(() => role.id, { onDelete: 'cascade' }),
+    personId: text('person_id')
+      .notNull()
+      .references(() => person.id, { onDelete: 'cascade' }),
+  },
+  (t) => [primaryKey({ columns: [t.workItemId, t.roleId] })],
+);
+
+export type AssignmentRow = typeof assignment.$inferSelect;
 
 /**
  * A finish-to-start dependency: `successor` cannot start until `predecessor`

@@ -14,6 +14,9 @@ const hasDom = typeof document !== 'undefined';
 const itDom = hasDom ? it : it.skip;
 
 const DEV: RoleView = { id: 'role-dev', name: 'Dev' };
+// A second role, because "one assignee is assumed to do every phase" is only
+// observable when there is another phase for them to be assumed into.
+const QA: RoleView = { id: 'role-qa', name: 'QA' };
 
 /**
  * A ProjectApi over an in-memory tree, numbering rows the way be-01 does.
@@ -30,6 +33,9 @@ function fakeApi(): ProjectApi & { rows: WorkItemView[] } {
   let seq = -1;
   let estimateMethod: EstimateMethod = 'pert';
   let startDate: string | null = null;
+  const teams: { id: string; name: string }[] = [];
+  const people: { id: string; name: string; teamIds: string[] }[] = [];
+  const assigned = new Map<string, string>();
 
   /** The final figure be-01 would report, under whichever method is set. */
   const finalOf = (days: Days): number =>
@@ -115,6 +121,15 @@ function fakeApi(): ProjectApi & { rows: WorkItemView[] } {
           // be-01 works the dates out; the fake only has to place them on the
           // calendar the same way, so the table is asserted on what it renders.
           dates: startDate === null ? null : { startsOn: startDate, endsOn: startDate },
+          assignees: Object.fromEntries(
+            [...assigned.entries()]
+              .filter(([key]) => key.startsWith(`${r.id}::`))
+              .map(([key, personId]) => [key.split('::')[1] ?? '', personId]),
+          ),
+          doesEveryPhase: (() => {
+            const mine = [...assigned.entries()].filter(([key]) => key.startsWith(`${r.id}::`));
+            return mine.length === 1 ? (mine[0]?.[1] ?? null) : null;
+          })(),
         })),
         seq,
         scheduleError: null,
@@ -126,12 +141,37 @@ function fakeApi(): ProjectApi & { rows: WorkItemView[] } {
       renumber();
       return Promise.resolve();
     },
+    listTeams: () => Promise.resolve([...teams]),
+    addTeam(name: string) {
+      // Idempotent by name, exactly as be-01 is: the picker's "type it if it
+      // is not in the list" must not be able to make two `Platform`s.
+      const already = teams.find((t) => t.name === name);
+      if (already !== undefined) return Promise.resolve(already);
+      const team = { id: `team${String(teams.length + 1)}`, name };
+      teams.push(team);
+      return Promise.resolve(team);
+    },
+    listPeople: () => Promise.resolve(people.map((p) => ({ ...p, teamIds: [...p.teamIds] }))),
+    addPerson(name: string, teamIds: readonly string[]) {
+      const already = people.find((p) => p.name === name);
+      if (already !== undefined) return Promise.resolve(already);
+      const person = { id: `person${String(people.length + 1)}`, name, teamIds: [...teamIds] };
+      people.push(person);
+      return Promise.resolve(person);
+    },
+    assign(workItemId: string, roleId: string, personId: string | null) {
+      const key = `${workItemId}::${roleId}`;
+      if (personId === null) assigned.delete(key);
+      else assigned.set(key, personId);
+      renumber();
+      return Promise.resolve();
+    },
     setStartDate(_projectId, day) {
       startDate = day;
       renumber();
       return Promise.resolve();
     },
-    roles: () => Promise.resolve([DEV]),
+    roles: () => Promise.resolve([DEV, QA]),
     create(_projectId, input) {
       next += 1;
       const id = `w${String(next)}`;
@@ -145,6 +185,9 @@ function fakeApi(): ProjectApi & { rows: WorkItemView[] } {
         notes: '',
         frozenNumber: null,
         startNoEarlierThan: null,
+        serviceTeamId: null,
+        assignees: {},
+        doesEveryPhase: null,
         rolledUp: false,
         estimates: {},
         dependsOn: [],
@@ -727,6 +770,125 @@ describe('collapsing a branch', () => {
 
     expect(screen.queryByLabelText('Collapse 010')).toBeNull();
     expect(screen.queryByLabelText('Expand 010')).toBeNull();
+  });
+});
+
+describe('teams and assignees', () => {
+  async function oneRow() {
+    const api = fakeApi();
+    render(<WbsTable projectId="p1" api={api} />);
+    click('Add work item');
+    await screen.findByLabelText('Name of 010');
+    return api;
+  }
+
+  /** The entries a creatable picker is offering, scoped to its own listbox. */
+  const offeredIn = (label: string) => {
+    const list = screen
+      .queryAllByRole('listbox')
+      .find((box) => box.getAttribute('aria-label') === label);
+    return list === undefined
+      ? []
+      : [...list.querySelectorAll('[role="option"]')].map((o) => o.textContent);
+  };
+
+  itDom('adds a team by typing a name the list does not have', async () => {
+    const api = await oneRow();
+    const label = 'Service or team for 010';
+
+    const picker = screen.getByLabelText(label);
+    fireEvent.focus(picker);
+    fireEvent.change(picker, { target: { value: 'Platform' } });
+    expect(offeredIn(label)).toEqual(['Add “Platform”']);
+    fireEvent.keyDown(picker, { key: 'Enter' });
+
+    await waitFor(() => {
+      expect(api.rows[0]?.serviceTeamId).toBe('team1');
+    });
+  });
+
+  itDom('offers an existing team rather than adding a second one', async () => {
+    const api = await oneRow();
+    await api.addTeam('Platform');
+    // Added behind the component's back, so a refresh has to bring it in —
+    // adding a row is the cheapest one to trigger.
+    click('Add work item');
+    await screen.findByLabelText('Name of 020');
+    const label = 'Service or team for 010';
+
+    const picker = screen.getByLabelText(label);
+    fireEvent.focus(picker);
+    fireEvent.change(picker, { target: { value: 'plat' } });
+
+    // A partial match offers the team *and* the chance to add a team actually
+    // called `plat` — both are things somebody might mean.
+    expect(offeredIn(label)).toEqual(['Platform', 'Add “plat”']);
+
+    // The exact name offers no "Add": that is how a list grows a second
+    // `Platform`, and be-01 is idempotent by name because it will be tried
+    // from two browsers at once anyway.
+    fireEvent.change(picker, { target: { value: 'Platform' } });
+    expect(offeredIn(label)).toEqual(['Platform']);
+  });
+
+  itDom('assigns a person who is in no team as a free agent', async () => {
+    const api = await oneRow();
+    const label = 'Dev assignee for 010';
+
+    const picker = screen.getByLabelText(label);
+    fireEvent.focus(picker);
+    fireEvent.change(picker, { target: { value: 'Ada' } });
+    fireEvent.keyDown(picker, { key: 'Enter' });
+
+    await waitFor(() => {
+      expect(screen.getByLabelText<HTMLInputElement>(label).value).toBe('Ada');
+    });
+    const people = await api.listPeople();
+    expect(people).toEqual([{ id: 'person1', name: 'Ada', teamIds: [] }]);
+  });
+
+  itDom('joins a new person to the work item’s team', async () => {
+    const api = await oneRow();
+    const team = await api.addTeam('Billing');
+    await api.patch('w1', { serviceTeamId: team.id });
+    // The tree has to come back carrying the team before the assignee picker
+    // can act on it.
+    const teamPicker = screen.getByLabelText('Service or team for 010');
+    fireEvent.focus(teamPicker);
+    fireEvent.change(teamPicker, { target: { value: 'Billing' } });
+    fireEvent.keyDown(teamPicker, { key: 'Enter' });
+    await waitFor(() => {
+      expect(api.rows[0]?.serviceTeamId).toBe(team.id);
+    });
+
+    const picker = screen.getByLabelText('Dev assignee for 010');
+    fireEvent.focus(picker);
+    fireEvent.change(picker, { target: { value: 'Grace' } });
+    fireEvent.keyDown(picker, { key: 'Enter' });
+
+    await waitFor(async () => {
+      expect(await api.listPeople()).toContainEqual({
+        id: 'person1',
+        name: 'Grace',
+        teamIds: [team.id],
+      });
+    });
+  });
+
+  itDom('says the single assignee is doing the other phase too', async () => {
+    await oneRow();
+
+    const picker = screen.getByLabelText('Dev assignee for 010');
+    fireEvent.focus(picker);
+    fireEvent.change(picker, { target: { value: 'Ada' } });
+    fireEvent.keyDown(picker, { key: 'Enter' });
+
+    await waitFor(() => {
+      expect(screen.getByLabelText<HTMLInputElement>('Dev assignee for 010').value).toBe('Ada');
+    });
+    // The QA cell is empty and says who is assumed to be covering it — which
+    // is a reading of one assignment, not a second one written down.
+    expect(rowFor('010').querySelector('[data-assumed]')?.textContent).toContain('Ada');
   });
 });
 
@@ -1907,6 +2069,12 @@ describe('dependencies in the table — cross-review findings', () => {
       Promise.resolve({ id: 'p1', name, restricted: false, lastOpenedAt: null }),
     openProject: () => Promise.resolve(),
     setEstimateMethod: () => Promise.resolve(),
+    setStartDate: () => Promise.resolve(),
+    listTeams: () => Promise.resolve([]),
+    addTeam: () => Promise.reject(new Error('not_in_these_tests')),
+    listPeople: () => Promise.resolve([]),
+    addPerson: () => Promise.reject(new Error('not_in_these_tests')),
+    assign: () => Promise.resolve(),
     renameProject: () => Promise.resolve(),
     roles: () => Promise.resolve([DEV]),
     tree: () =>
@@ -1927,6 +2095,11 @@ describe('dependencies in the table — cross-review findings', () => {
             dependsOn: [],
             finalDays: {},
             finalTotal: 0,
+            startNoEarlierThan: null,
+            serviceTeamId: null,
+            assignees: {},
+            doesEveryPhase: null,
+            dates: null,
             schedule: {
               duration: 7,
               estimated: true,

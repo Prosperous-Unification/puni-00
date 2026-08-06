@@ -73,6 +73,18 @@ export interface WorkItemView {
   dates: { startsOn: string; endsOn: string } | null;
   /** A day this item may not start before — a floor the dependencies can push past. */
   startNoEarlierThan: string | null;
+  /** The team this work is labelled with, or null. Never constrains who is assigned it. */
+  serviceTeamId: string | null;
+  /**
+   * Who does this work, by role id.
+   *
+   * `string | undefined` rather than `string`: a role nobody is assigned to is
+   * **absent** from this object, and a type saying otherwise would have every
+   * reader believing an index always finds somebody.
+   */
+  assignees: Record<string, string | undefined>;
+  /** The one person assumed to do every phase, when exactly one is assigned. */
+  doesEveryPhase: string | null;
   /**
    * `estimates` is **effort** and this is **span**. For a parent they differ:
    * two independent children of 3 and 4 days are 7 days of work in a 4-day
@@ -84,6 +96,19 @@ export interface WorkItemView {
 export interface RoleView {
   id: string;
   name: string;
+}
+
+/** A service or team, global to this deployment. */
+export interface TeamView {
+  id: string;
+  name: string;
+}
+
+/** Somebody who does work, and the teams they belong to. Empty means a free agent. */
+export interface PersonView {
+  id: string;
+  name: string;
+  teamIds: string[];
 }
 
 export interface DeleteOptions {
@@ -143,8 +168,21 @@ export interface ProjectApi {
   ): Promise<{ id: string }>;
   patch(
     id: string,
-    patch: { name?: string; notes?: string; startNoEarlierThan?: string | null },
+    patch: {
+      name?: string;
+      notes?: string;
+      startNoEarlierThan?: string | null;
+      serviceTeamId?: string | null;
+    },
   ): Promise<void>;
+  /** The global team list, and adding to it — idempotent by name at be-01. */
+  listTeams(): Promise<TeamView[]>;
+  addTeam(name: string): Promise<TeamView>;
+  listPeople(): Promise<PersonView[]>;
+  /** Adds a person; no teams means a free agent. */
+  addPerson(name: string, teamIds: readonly string[]): Promise<PersonView>;
+  /** Sets or (with `null`) clears who does one work item's work for one role. */
+  assign(workItemId: string, roleId: string, personId: string | null): Promise<void>;
   move(id: string, parentId: string | null, afterId: string | null): Promise<void>;
   remove(id: string, options?: DeleteOptions): Promise<void>;
   setEstimate(id: string, roleId: string, days: Days): Promise<void>;
@@ -203,6 +241,34 @@ export function httpProjectApi(token: string): ProjectApi {
         scheduleError: 'cycle' | null;
         estimateMethod: EstimateMethod;
       }>(`/api/projects/${projectId}/work-items`, token);
+    },
+    async listTeams() {
+      const body = await send<{ teams: TeamView[] }>('/api/teams', token);
+      return body.teams;
+    },
+    async addTeam(name) {
+      const body = await send<{ team: TeamView }>('/api/teams', token, {
+        method: 'POST',
+        body: JSON.stringify({ name }),
+      });
+      return body.team;
+    },
+    async listPeople() {
+      const body = await send<{ people: PersonView[] }>('/api/people', token);
+      return body.people;
+    },
+    async addPerson(name, teamIds) {
+      const body = await send<{ person: PersonView }>('/api/people', token, {
+        method: 'POST',
+        body: JSON.stringify({ name, teamIds }),
+      });
+      return body.person;
+    },
+    async assign(workItemId, roleId, personId) {
+      await send(`/api/work-items/${workItemId}/assignees/${roleId}`, token, {
+        method: 'PUT',
+        body: JSON.stringify({ personId }),
+      });
     },
     async setStartDate(projectId, startDate) {
       await send(`/api/projects/${projectId}`, token, {

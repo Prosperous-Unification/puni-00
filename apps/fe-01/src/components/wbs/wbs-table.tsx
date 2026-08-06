@@ -9,6 +9,7 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import type { ProjectStream } from '@/lib/project-stream';
+import type { PersonView, TeamView } from '@/lib/wbs-api';
 import {
   type Days,
   type EstimateMethod,
@@ -19,6 +20,7 @@ import {
 
 import { type CellElement, CellInput } from './cell-input';
 import { type Caret, type CellRef, nextCell } from './cell-navigation';
+import { CreatablePicker } from './creatable-picker';
 import { pickerEntries } from './dep-picker';
 import { parseDependencies, unknownMessage } from './depends-input';
 import { type DropRefusal, type DropZone, planMove, zoneFor } from './drag-drop';
@@ -201,6 +203,14 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
   const [hoveredNotes, setHoveredNotes] = useState<string | null>(null);
   /** The project's start date, or null while the plan is not on a calendar. */
   const [startDate, setStartDate] = useState<string | null>(null);
+  /**
+   * The global directory: every team and every person on this deployment.
+   *
+   * Global rather than per project — Dany's ask — so it is loaded once beside
+   * the tree rather than filtered by anything.
+   */
+  const [teams, setTeams] = useState<TeamView[]>([]);
+  const [people, setPeople] = useState<PersonView[]>([]);
   const [dragging, setDragging] = useState<string | null>(null);
   const [dropHint, setDropHint] = useState<{ rowId: string; zone: DropZone } | null>(null);
   /**
@@ -238,8 +248,15 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
     // arrive afterwards and repair it. Only the newest request may write.
     const generation = latestRefresh.current + 1;
     latestRefresh.current = generation;
-    const [tree, loadedRoles] = await Promise.all([api.tree(projectId), api.roles(projectId)]);
+    const [tree, loadedRoles, loadedTeams, loadedPeople] = await Promise.all([
+      api.tree(projectId),
+      api.roles(projectId),
+      api.listTeams(),
+      api.listPeople(),
+    ]);
     if (generation !== latestRefresh.current) return;
+    setTeams(loadedTeams);
+    setPeople(loadedPeople);
     setWorkItems(toTree(tree.workItems));
     setScheduleError(tree.scheduleError);
     setEstimateMethod(tree.estimateMethod);
@@ -780,6 +797,56 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
     [api, run],
   );
 
+  /** Labels a work item with a team, or takes the label off. */
+  const setTeamOf = useCallback(
+    (id: string, serviceTeamId: string | null) => {
+      void run(() => api.patch(id, { serviceTeamId }));
+    },
+    [api, run],
+  );
+
+  /** Adds a team nobody had yet and labels the work item with it, in one go. */
+  const createTeamFor = useCallback(
+    (id: string, name: string) => {
+      void run(async () => {
+        // be-01 is idempotent by name, so two browsers typing `Platform` at
+        // once end up on one team rather than two.
+        const team = await api.addTeam(name);
+        await api.patch(id, { serviceTeamId: team.id });
+      });
+    },
+    [api, run],
+  );
+
+  const assignTo = useCallback(
+    (id: string, roleId: string, personId: string | null) => {
+      void run(() => api.assign(id, roleId, personId));
+    },
+    [api, run],
+  );
+
+  /**
+   * Adds a person and assigns them, joining them to the work item's team.
+   *
+   * A person typed in against a work item labelled `Billing` almost certainly
+   * belongs to Billing, and saying so beats leaving every new person a free
+   * agent for somebody to sort out later. Typed in against an unlabelled work
+   * item, they are a free agent — which is the absence of a team rather than
+   * membership of one.
+   */
+  const createPersonFor = useCallback(
+    (row: TreeRow, roleId: string, name: string) => {
+      void run(async () => {
+        const person = await api.addPerson(
+          name,
+          row.serviceTeamId === null ? [] : [row.serviceTeamId],
+        );
+        await api.assign(row.id, roleId, person.id);
+      });
+    },
+    [api, run],
+  );
+
   /** Changes how the project turns its trios into one number, for everybody. */
   const chooseEstimateMethod = useCallback(
     (method: EstimateMethod) => {
@@ -817,6 +884,12 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
     hoveredNotes,
     setHoveredNotes,
     setNotBefore,
+    teams,
+    people,
+    setTeamOf,
+    createTeamFor,
+    assignTo,
+    createPersonFor,
   });
   live.current = {
     api,
@@ -841,6 +914,12 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
     hoveredNotes,
     setHoveredNotes,
     setNotBefore,
+    teams,
+    people,
+    setTeamOf,
+    createTeamFor,
+    assignTo,
+    createPersonFor,
   };
 
   const columns = useMemo(
@@ -1111,6 +1190,27 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
           />
         ),
       }),
+      column.display({
+        id: 'team',
+        header: 'Service/team',
+        cell: ({ row }) => (
+          <CreatablePicker
+            label={`Service or team for ${row.original.number}`}
+            placeholder="search or add"
+            entries={live.current.teams}
+            value={row.original.serviceTeamId}
+            onChoose={(id) => {
+              live.current.setTeamOf(row.original.id, id);
+            }}
+            onCreate={(name) => {
+              live.current.createTeamFor(row.original.id, name);
+            }}
+            onClear={() => {
+              live.current.setTeamOf(row.original.id, null);
+            }}
+          />
+        ),
+      }),
       ...roles.flatMap((role) => [
         ...POINTS.map((point) =>
           column.display({
@@ -1152,6 +1252,60 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
             },
           }),
         ),
+        column.display({
+          id: `${role.id}-assignee`,
+          header: `${role.name} by`,
+          cell: ({ row }) => {
+            const assigned = row.original.assignees[role.id];
+            // Nobody on this role, and exactly one person on another: they are
+            // assumed to be doing this phase too, so the cell says so rather
+            // than reading as unassigned. Assigning anyone here ends the
+            // assumption by itself.
+            const assumed = assigned === undefined ? row.original.doesEveryPhase : null;
+            const nameOf = (id: string) =>
+              live.current.people.find((each) => each.id === id)?.name ?? '(unknown)';
+            return (
+              <span style={{ whiteSpace: 'nowrap' }}>
+                <CreatablePicker
+                  label={`${role.name} assignee for ${row.original.number}`}
+                  placeholder="search or add"
+                  entries={live.current.people.map((each) => ({
+                    id: each.id,
+                    name: each.name,
+                    detail:
+                      each.teamIds.length === 0
+                        ? 'free agent'
+                        : each.teamIds
+                            .map(
+                              (id) =>
+                                live.current.teams.find((team) => team.id === id)?.name ?? '?',
+                            )
+                            .join(', '),
+                  }))}
+                  value={assigned ?? null}
+                  onChoose={(id) => {
+                    live.current.assignTo(row.original.id, role.id, id);
+                  }}
+                  onCreate={(name) => {
+                    live.current.createPersonFor(row.original, role.id, name);
+                  }}
+                  onClear={() => {
+                    live.current.assignTo(row.original.id, role.id, null);
+                  }}
+                />
+                {assumed !== null && (
+                  <span
+                    data-assumed={role.id}
+                    title="Only one person is assigned, so they are assumed to do this phase too"
+                    style={{ color: '#666', marginLeft: 4 }}
+                  >
+                    ({nameOf(assumed)})
+                  </span>
+                )}
+              </span>
+            );
+          },
+        }),
         column.display({
           id: `${role.id}-final`,
           header: `${role.name} days`,

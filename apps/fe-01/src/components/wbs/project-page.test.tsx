@@ -48,7 +48,21 @@ function fakeProjects(
       projects = projects.map((p) => (p.id === id ? { ...p, name } : p));
       return Promise.resolve();
     },
-    tree: () => Promise.resolve({ workItems: [], seq: -1, scheduleError: null }),
+    tree: () =>
+      Promise.resolve({
+        workItems: [],
+        seq: -1,
+        scheduleError: null,
+        estimateMethod: 'pert' as const,
+        startDate: null,
+      }),
+    setEstimateMethod: () => Promise.resolve(),
+    setStartDate: () => Promise.resolve(),
+    listTeams: () => Promise.resolve([]),
+    addTeam: () => Promise.reject(new Error('not_in_these_tests')),
+    listPeople: () => Promise.resolve([]),
+    addPerson: () => Promise.reject(new Error('not_in_these_tests')),
+    assign: () => Promise.reject(new Error('not_in_these_tests')),
     roles: () => Promise.resolve([]),
     create: () => Promise.reject(new Error('not_in_these_tests')),
     patch: () => Promise.reject(new Error('not_in_these_tests')),

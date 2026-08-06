@@ -8,6 +8,7 @@ import {
 
 import type {
   DependencyStore,
+  DirectoryStore,
   EstimateStore,
   Project,
   ProjectStore,
@@ -73,6 +74,22 @@ function durationsOf(
     );
   }
   return durations;
+}
+
+/**
+ * A row's assignees, and who — if anyone — is assumed to be doing every phase.
+ *
+ * Exactly one assignee means that person does the lot; two or more means each
+ * is doing their own, and none means nobody has been named. Reading it from
+ * the assignments rather than storing it keeps one fact in one place: assign
+ * the second role and the assumption ends by itself.
+ */
+function phasesOf(assignees: Record<string, string>): {
+  assignees: Record<string, string>;
+  doesEveryPhase: string | null;
+} {
+  const named = Object.values(assignees);
+  return { assignees, doesEveryPhase: named.length === 1 ? (named[0] ?? null) : null };
 }
 
 /**
@@ -174,6 +191,18 @@ export interface NumberedWorkItem extends WorkItem {
    * after: a one-day task starting Monday ends Monday.
    */
   dates: { startsOn: IsoDate; endsOn: IsoDate } | null;
+  /**
+   * Who is doing this work, by role id.
+   *
+   * A role with nobody assigned is absent rather than null. When exactly one
+   * role is assigned, `doesEveryPhase` names that person: Dany's "when just
+   * one is assigned it is assumed they do both dev and QA". It is reported as
+   * a reading of the assignments rather than written as a second row, so
+   * nobody is recorded against work they were never given, and assigning the
+   * other role simply stops the assumption.
+   */
+  assignees: Record<string, string>;
+  doesEveryPhase: string | null;
 }
 
 /** Why a project has no dates, when it has none. `null` is the ordinary case. */
@@ -209,6 +238,7 @@ export interface WorkItemServiceOptions {
   workItems: WorkItemStore;
   projects: ProjectStore;
   estimates: EstimateStore;
+  directory: DirectoryStore;
   dependencies: DependencyStore;
   broadcast: Broadcaster;
   newId?: () => string;
@@ -284,6 +314,14 @@ export class WorkItemService {
     const rows = await this.opts.workItems.listByProject(projectId);
     const stored = await this.opts.estimates.listByProject(projectId);
     const edges = await this.opts.dependencies.listByProject(projectId);
+    const assigned = await this.opts.directory.assignmentsOf(rows.map((row) => row.id));
+    const assigneesOf = new Map<string, Record<string, string>>();
+    for (const each of assigned) {
+      assigneesOf.set(each.workItemId, {
+        ...(assigneesOf.get(each.workItemId) ?? {}),
+        [each.roleId]: each.personId,
+      });
+    }
     const numbers = deriveNumbers(rows);
     const totals = rollUp(rows, stored);
     const hasChildren = new Set(rows.map((row) => row.parentId).filter((id) => id !== null));
@@ -341,6 +379,7 @@ export class WorkItemService {
         // work item from elsewhere — which the schema does not prevent — would
         // otherwise be reported as a dependency on a number nobody can see.
         dependsOn: (waitingFor.get(row.id) ?? []).filter((id) => rows.some((r) => r.id === id)),
+        ...phasesOf(assigneesOf.get(row.id) ?? {}),
         schedule: timing.get(row.id) ?? UNSCHEDULED,
         dates: datesOf(
           project.startDate,
@@ -386,6 +425,7 @@ export class WorkItemService {
       notes: input.notes ?? '',
       frozenNumber: null,
       startNoEarlierThan: null,
+      serviceTeamId: null,
     };
     await this.opts.workItems.insert(workItem, placed.renumbered);
     // A work item that had an estimate and now has a child no longer holds one:
@@ -410,6 +450,28 @@ export class WorkItemService {
     if (updated === null) return { ok: false, reason: 'not_found' };
     await this.announceWorkItem(updated.projectId, id);
     return { ok: true, result: updated };
+  }
+
+  /**
+   * Sets, replaces or clears who does one work item's work for one role.
+   *
+   * The person is deliberately **not** checked against the work item's
+   * `serviceTeamId`: Dany's call, 2026-08-06 — "keep people and service/team
+   * lists decoupled for the work item". A team labels the work, a person does
+   * it, and a platform engineer picking up a piece of billing work is an
+   * ordinary Tuesday rather than a mistake to refuse.
+   */
+  async assign(
+    id: string,
+    actorId: string,
+    roleId: string,
+    personId: string | null,
+  ): Promise<WorkItemOutcome<null>> {
+    const context = await this.contextFor(id, actorId);
+    if (!context.ok) return context;
+    await this.opts.directory.assign(id, roleId, personId);
+    await this.announceWorkItem(context.result.workItem.projectId, id);
+    return { ok: true, result: null };
   }
 
   async move(id: string, actorId: string, input: MoveWorkItem): Promise<WorkItemOutcome<null>> {

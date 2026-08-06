@@ -66,6 +66,8 @@ export interface WorkItem {
   frozenNumber: string | null;
   /** A day this item may not start before — a floor, never a pin. */
   startNoEarlierThan: IsoDate | null;
+  /** The service or team this work is labelled with, or null. */
+  serviceTeamId: string | null;
 }
 
 export interface WorkItemPatch {
@@ -73,6 +75,8 @@ export interface WorkItemPatch {
   notes?: string;
   /** `null` removes the constraint and lets the dependencies alone decide. */
   startNoEarlierThan?: IsoDate | null;
+  /** `null` takes the label off. Never constrains who may be assigned the work. */
+  serviceTeamId?: string | null;
 }
 
 /** A position write the caller has already worked out, applied with whatever prompted it. */
@@ -164,6 +168,48 @@ export interface DependencyStore {
   remove(predecessorId: string, successorId: string): Promise<void>;
   /** Every edge touching a work item, so deleting the row can take them with it. */
   removeAllFor(workItemId: string): Promise<void>;
+}
+
+/** A service or team work can be labelled with. Global, shared by every project. */
+export interface ServiceTeam {
+  id: string;
+  name: string;
+}
+
+/** Somebody who does work. Not an account on this tool. */
+export interface Person {
+  id: string;
+  name: string;
+}
+
+/** A person and the teams they belong to — empty means a free agent. */
+export interface PersonWithTeams extends Person {
+  teamIds: string[];
+}
+
+/** Who is doing one work item's work for one role. */
+export interface Assignment {
+  workItemId: string;
+  roleId: string;
+  personId: string;
+}
+
+export interface DirectoryStore {
+  listTeams(): Promise<ServiceTeam[]>;
+  /**
+   * Adds a team, or returns the one that already has that name.
+   *
+   * Idempotent by name at the database rather than by asking first: this list
+   * is typed into by everybody, and two people adding `Platform` at once both
+   * pass a check-then-insert.
+   */
+  addTeam(team: ServiceTeam): Promise<ServiceTeam>;
+  listPeople(): Promise<PersonWithTeams[]>;
+  /** Adds a person, or returns the one with that name, joining them to `teamIds`. */
+  addPerson(toAdd: Person, teamIds: readonly string[]): Promise<Person>;
+  assignmentsOf(workItemIds: readonly string[]): Promise<Assignment[]>;
+  /** Sets, replaces or (with `null`) removes one work item's assignee for one role. */
+  assign(workItemId: string, roleId: string, personId: string | null): Promise<void>;
 }
 
 export interface ProjectStore {

@@ -48,7 +48,8 @@ export class WorkItemRepository implements WorkItemStore {
     if (
       patch.name === undefined &&
       patch.notes === undefined &&
-      patch.startNoEarlierThan === undefined
+      patch.startNoEarlierThan === undefined &&
+      patch.serviceTeamId === undefined
     ) {
       return this.findById(id);
     }

@@ -87,6 +87,7 @@ function parsePatch(body: unknown): {
   name?: string;
   notes?: string;
   startNoEarlierThan?: IsoDate | null;
+  serviceTeamId?: string | null;
 } {
   const raw = asRecord(body);
   refuseDerivedFields(raw);
@@ -94,6 +95,8 @@ function parsePatch(body: unknown): {
     name: asOptionalText(raw['name'], 'name'),
     notes: asOptionalText(raw['notes'], 'notes'),
     startNoEarlierThan: asOptionalDate(raw['startNoEarlierThan'], 'startNoEarlierThan'),
+    serviceTeamId:
+      'serviceTeamId' in raw ? asIdOrNull(raw['serviceTeamId'], 'serviceTeamId') : undefined,
   };
 }
 
@@ -168,6 +171,24 @@ export function workItemController(auth: AuthService, workItems: WorkItemService
         return { error: outcome.reason };
       }
       return outcome.result;
+    })
+    .put('/work-items/:id/assignees/:roleId', async ({ params, body, headers, set }) => {
+      const user = await userFromHeaders(auth, headers);
+      if (user === null) {
+        set.status = 401;
+        return { error: 'unauthenticated' };
+      }
+      // `null` clears the assignment; anything else must be an id. A person
+      // who is not in the directory is refused by the foreign key rather than
+      // by a lookup here, which two concurrent requests could both pass.
+      const raw = asRecord(body);
+      const personId = asIdOrNull(raw['personId'], 'personId');
+      const outcome = await workItems.assign(params.id, user.id, params.roleId, personId);
+      if (!outcome.ok) {
+        set.status = statusFor(outcome.reason);
+        return { error: outcome.reason };
+      }
+      return { assigned: true };
     })
     .post('/work-items/:id/move', async ({ params, body, headers, set }) => {
       const user = await userFromHeaders(auth, headers);

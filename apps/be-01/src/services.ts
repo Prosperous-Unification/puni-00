@@ -2,12 +2,14 @@ import type { Logger } from '@wbs/observability';
 
 import type { Drizzle } from './repository/db';
 import { DependencyRepository } from './repository/dependency';
+import { DirectoryRepository } from './repository/directory';
 import { EstimateRepository } from './repository/estimate';
 import { DrizzleEventLogRepo } from './repository/event-log';
 import { ProjectRepository } from './repository/project';
 import { UserRepository } from './repository/user';
 import { WorkItemRepository } from './repository/work-item';
 import { AuthService } from './service/auth.service';
+import { DirectoryService } from './service/directory.service';
 import { EventSequencer } from './service/event-sequencer';
 import { GatewayBroadcaster } from './service/gateway-broadcaster';
 import { ProjectService } from './service/project.service';
@@ -40,6 +42,7 @@ export interface ServicesOptions {
 export interface BeServices {
   auth: AuthService;
   projects: ProjectService;
+  directory: DirectoryService;
   workItems: WorkItemService;
   replay: ReplayOrchestrator;
   retention: RetentionTimer;
@@ -58,6 +61,7 @@ export interface BeServices {
  */
 export function buildServices(opts: ServicesOptions): BeServices {
   const projectStore = new ProjectRepository(opts.db);
+  const directoryStore = new DirectoryRepository(opts.db);
   const eventLog = new DrizzleEventLogRepo(opts.db);
 
   // One buffer, shared by the two halves of resume: the broadcaster fills it as
@@ -74,11 +78,13 @@ export function buildServices(opts: ServicesOptions): BeServices {
       jwtKey: opts.jwtKey,
     }),
     projects: new ProjectService({ projects: projectStore }),
+    directory: new DirectoryService({ directory: directoryStore }),
     workItems: new WorkItemService({
       workItems: new WorkItemRepository(opts.db),
       projects: projectStore,
       estimates: new EstimateRepository(opts.db),
       dependencies: new DependencyRepository(opts.db),
+      directory: directoryStore,
       broadcast: new GatewayBroadcaster({
         sequencer: new EventSequencer(eventLog),
         buffer: replayBuffer,
