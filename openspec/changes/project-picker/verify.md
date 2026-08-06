@@ -38,8 +38,18 @@ input, scroll, or highlight — h1claw has no browser and no Playwright. Same
 standing gap named in `pick-deps-and-keep-the-project/verify.md`; it needs
 Dany's screen at <https://dev.wbs.bulletpoints.club>.
 
-The migration has run against a real SQLite file in the repository tests
-(`project.test.ts` migrates a temp database and reads it back) and its
-rollback is covered by `migrate-down.test.ts`. It has **not** run against
-dev's existing database yet — that happens on the next dev deploy, and be-01
-restarts on a migration change.
+## Observed on dev, against the real database
+
+Deployed at `c6ecd28`; the migration applied to dev's existing 30-project
+database on the restart a migration change triggers.
+
+```
+$ curl .../api/projects            (as ada)     30 projects, every lastOpenedAt null
+$ curl -X POST .../api/projects/978aa0f3.../opened  (as ada)     204
+$ curl .../api/projects            (as ada)     "New project df test" first, lastOpenedAt 1786031786939
+$ curl .../api/projects            (as grace)   unchanged order, every lastOpenedAt null
+```
+
+The last line is the one worth having: the per-account join was proved by a
+fixture and a temp database, and here it is against a shared file with two
+real accounts — ada's open moved ada's list and left grace's alone.
