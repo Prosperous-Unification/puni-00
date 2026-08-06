@@ -8,13 +8,13 @@ Nx monorepo, Bun everywhere — never npm.
 
 Two facts explain most decisions:
 
-- **The infra is the deliverable**, beyond what one host needs. Two external reviews called it
+- **The infra is the deliverable**, beyond what one host needs. Two reviews called it
   over-engineered; considered and rejected. Don't re-argue it.
-- **The product is two features deep, and the second is not on `main` yet.** `main` has accounts
-  and presence. `change/wbs-domain-model` adds the work breakdown: projects, a nested table you
-  type into and drag rows around, derived numbers with a freeze, three-point estimates by role
-  that roll up, live edits, and a socket that reconnects and replays what it missed. New tables
-  there: `project`, `role`, `work_item`, `estimate`.
+- **The product is a working WBS editor, all of it on `main` since 2026-08-06.** Accounts and
+  presence, projects, a nested table you type into and drag rows around, arrow keys between
+  cells, derived numbers with a freeze, three-point estimates by role that roll up, live edits,
+  and a socket that reconnects and replays what it missed. Tables: `user`, `project`, `role`,
+  `work_item`, `estimate`, `event_log`, `event_sequencer`.
 
 Tool choices bias novel over mainstream (Bun, Elysia, ArkType, Dagger) on purpose.
 
@@ -28,10 +28,9 @@ bunx nx run-many -t test lint typecheck build   # the gate, part 2
 bun run dev                                     # be + gw + fe locally
 ```
 
-`bun test` from the repo root is **not** the gate: it collects fe-01's files (the older claim that
-it collected none was wrong) and they fail on `location`, `localStorage` and the rest of the DOM
-`bun:test` has no jsdom for. Use `bunx nx run-many -t test`, which routes fe-01 to vitest. `build`
-needs `shellcheck`; it is no longer allowed to skip itself when absent.
+`bun test` at the repo root is **not** the gate: it collects fe-01's files and they fail on
+`location`, `localStorage` and the rest of the DOM `bun:test` has no jsdom for. Use
+`bunx nx run-many -t test`, which routes fe-01 to vitest. `build` needs `shellcheck`.
 
 **Rules: `AGENTS.md`** (symlinked to CLAUDE.md/GEMINI.md) — read it, it governs every change.
 
@@ -63,7 +62,8 @@ One container, `wbs-dev-src`, runs all three tiers from a bind-mounted checkout 
 `bun run dev`. **For application code the watchers are the deploy** — nothing is built,
 pushed or restarted. The lockfile, migrations, and config read once at startup trigger a
 restart; a changed `compose.yml` or `Dockerfile` fails the deploy with the command that
-applies it. Dev sits behind basic auth (`dany`) on every path but `/ws*`.
+applies it. Dev has **no edge password** since 2026-08-06 — be-01 and gw-01 guard themselves,
+and account registration is open to the internet.
 
 **Which changes reach a running process, and which do not: `docs/runbook-dev-deploy.md`.**
 

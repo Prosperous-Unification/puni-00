@@ -42,10 +42,15 @@ file, so its mounts, user, limits and image are still the old ones). Until 2026-
 second case was silent, and the deploy reported success for a change that was in effect
 nowhere. The env row is still silent, because a gitignored file cannot arrive in a push.
 
-Dev sits behind basic auth (`dany`, password in `/home/puni1/wbs-dev/basic-auth.env` on
-h2puni) on every path except `/ws*` — browsers cannot send an `Authorization` header on a
-WebSocket handshake, and gw-01 rejects unauthenticated sockets itself
-(`apps/gw-01/src/app.ts:46-55`).
+Dev has **no edge password**. It was removed 2026-08-06: it was a second login on top of the
+app's own, and a browser that had cached a wrong credential for the realm could not be talked
+out of it — which cost a real debugging session. The gated config is backed up beside
+`site-dev.caddy` on h2puni if it is ever wanted again.
+
+What still guards dev: be-01 requires an account on every `/api` route but register and login,
+and gw-01 closes any socket without a valid JWT in `?token=`
+(`apps/gw-01/src/app.ts`). **Account registration is open to the internet**, which is the
+trade that was made knowingly.
 
 Per-tier env lives in gitignored `apps/<tier>/.env` inside that checkout, **not** in
 compose `env_file`: compose merges every env file into one namespace, so `be-01.env` and
