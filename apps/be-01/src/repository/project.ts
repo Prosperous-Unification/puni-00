@@ -1,8 +1,8 @@
-import { desc, eq } from 'drizzle-orm';
+import { and, desc, eq, sql } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
-import type { Project, ProjectPatch, ProjectStore, Role } from './index';
-import { project, role } from './schema';
+import type { Project, ProjectPatch, ProjectStore, ProjectWithAccess, Role } from './index';
+import { project, projectAccess, role } from './schema';
 
 /**
  * `create` writes the project and its roles in one transaction. A project that
@@ -39,6 +39,50 @@ export class ProjectRepository implements ProjectStore {
 
   list(): Promise<Project[]> {
     return this.db.select().from(project).orderBy(desc(project.createdAt));
+  }
+
+  /**
+   * The caller's own order, in one query.
+   *
+   * The ordering rests on a SQLite fact worth naming: `ORDER BY x DESC` puts
+   * NULLs **last**, because NULL sorts below every value. That is exactly the
+   * rule this needs — never-opened projects after opened ones — and it is not
+   * portable, so a test watches it rather than a comment claiming it.
+   *
+   * The join is on both columns: `project_access` holds one row per pair, and
+   * joining on the project alone would attach somebody else's history to this
+   * caller's list — every project would then look opened, in the order the
+   * busiest account visited them.
+   */
+  listFor(userId: string): Promise<ProjectWithAccess[]> {
+    return this.db
+      .select({
+        id: project.id,
+        name: project.name,
+        ownerId: project.ownerId,
+        restricted: project.restricted,
+        createdAt: project.createdAt,
+        lastOpenedAt: projectAccess.lastOpenedAt,
+      })
+      .from(project)
+      .leftJoin(
+        projectAccess,
+        and(eq(projectAccess.projectId, project.id), eq(projectAccess.userId, userId)),
+      )
+      .orderBy(desc(projectAccess.lastOpenedAt), desc(project.createdAt));
+  }
+
+  async recordOpen(userId: string, projectId: string, at: number): Promise<void> {
+    await this.db
+      .insert(projectAccess)
+      .values({ userId, projectId, lastOpenedAt: at })
+      // The pair is the primary key, so a second open is an update rather than
+      // a constraint violation — and `at` is taken as given rather than
+      // maxed: the caller's clock is the one that saw the open happen.
+      .onConflictDoUpdate({
+        target: [projectAccess.userId, projectAccess.projectId],
+        set: { lastOpenedAt: sql`excluded.last_opened_at` },
+      });
   }
 
   async update(id: string, patch: ProjectPatch): Promise<Project | null> {

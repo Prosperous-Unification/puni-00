@@ -1,4 +1,4 @@
-import type { Project, ProjectPatch, ProjectStore, Role } from '../repository';
+import type { Project, ProjectPatch, ProjectStore, ProjectWithAccess, Role } from '../repository';
 
 /**
  * The roles a project starts with. Two sets of estimates is the default the
@@ -61,8 +61,35 @@ export class ProjectService {
     return { project, roles };
   }
 
-  list(): Promise<Project[]> {
-    return this.opts.projects.list();
+  /**
+   * The caller's list, in the caller's order.
+   *
+   * Takes the account id rather than answering one order for everybody: what
+   * "most recently opened" means is a fact about who is asking, and computing
+   * it anywhere but the query would mean reading every access row to sort a
+   * list the database can already sort.
+   */
+  list(actorId: string): Promise<ProjectWithAccess[]> {
+    return this.opts.projects.listFor(actorId);
+  }
+
+  /**
+   * Records that `actorId` is now working in `id`.
+   *
+   * Deliberately **not** gated by {@link canEdit}: every authenticated account
+   * may read every project, so gating this would leave a reader's own picker
+   * permanently sorted by creation date — the exact thing this change exists to
+   * fix. It is the caller's own navigation history and changes nothing anyone
+   * else can see.
+   */
+  async open(id: string, actorId: string): Promise<boolean> {
+    const project = await this.opts.projects.findById(id);
+    // A project that is not there is not opened. Recording it anyway would
+    // leave a row pointing at nothing, and the foreign key would refuse it in
+    // production while the fixture happily accepted it.
+    if (project === null) return false;
+    await this.opts.projects.recordOpen(actorId, id, this.now());
+    return true;
   }
 
   async read(id: string): Promise<ProjectWithRoles | null> {

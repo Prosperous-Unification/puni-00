@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { subscribeToProject } from '@/lib/project-stream';
 import { httpProjectApi, type ProjectApi, type ProjectSummary } from '@/lib/wbs-api';
 
+import { matchingProjects } from './project-picker';
 import { type SubscriptionHandlers, WbsTable } from './wbs-table';
 
 export interface ProjectPageProps {
@@ -55,6 +56,17 @@ export function ProjectPage({ token, api: apiOverride }: ProjectPageProps) {
    * rename and then creating a project sent the old draft to the new project.
    */
   const [rename, setRename] = useState<{ projectId: string; draft: string } | null>(null);
+  /**
+   * What has been typed into the picker, and which entry is highlighted — or
+   * null while the picker is closed.
+   *
+   * `null` rather than a separate `open` flag: "closed" and "nothing typed"
+   * are two different states (a closed picker shows the project's name, an
+   * open empty one shows every project), and two booleans that must agree is
+   * one more thing to keep in step. The highlight is an entry's id, never an
+   * index — the same reason the Depends on picker holds one (cross review #6).
+   */
+  const [search, setSearch] = useState<{ typed: string; highlightId: string | null } | null>(null);
 
   const load = useCallback(async () => {
     const found = await api.listProjects();
@@ -70,6 +82,10 @@ export function ProjectPage({ token, api: apiOverride }: ProjectPageProps) {
       if (remembered !== null && found.some((project) => project.id === remembered)) {
         return remembered;
       }
+      // A remembered id the list no longer holds is a claim that has been
+      // disproved, so it is dropped rather than left to be re-tested — and
+      // re-offered as a choice — on every future load.
+      if (remembered !== null) rememberProject(null);
       return found.length === 1 ? (found[0]?.id ?? null) : null;
     });
   }, [api]);
@@ -79,6 +95,28 @@ export function ProjectPage({ token, api: apiOverride }: ProjectPageProps) {
       setError(e instanceof Error ? e.message : 'load_failed');
     });
   }, [load]);
+
+  /**
+   * Tells be-01 which project this account is now in, which is what sorts the
+   * picker next time.
+   *
+   * On the selection rather than on the click, so every way of arriving at a
+   * project counts: picked from the list, restored from localStorage,
+   * auto-selected as the only one, or just created. Recording it in the click
+   * handler would have left the restored project — the commonest arrival of
+   * all — never marked as opened, and the ordering would drift by exactly the
+   * projects people return to most.
+   *
+   * A failure is swallowed on purpose: this is navigation history, and an
+   * error banner over a list that will simply be ordered slightly stale is
+   * noise about something the user cannot act on.
+   */
+  useEffect(() => {
+    if (selected === null) return;
+    void api.openProject(selected).catch(() => {
+      // Deliberate: see above.
+    });
+  }, [api, selected]);
 
   const create = () => {
     // An armed rename is cancelled, not carried: the draft was meant for the
@@ -129,6 +167,38 @@ export function ProjectPage({ token, api: apiOverride }: ProjectPageProps) {
 
   const selectedProject = projects.find((project) => project.id === selected);
 
+  /** The entries the picker is offering right now, or none while it is closed. */
+  const entries = search === null ? [] : matchingProjects(projects, search.typed);
+  // Resolved by id at render, so a highlight whose project has left the list is
+  // simply nothing rather than somebody else's project.
+  const highlighted =
+    search?.highlightId == null
+      ? undefined
+      : entries.find((entry) => entry.id === search.highlightId);
+  const listOpen = search !== null && entries.length > 0;
+
+  /** Takes a project: selects it, remembers it, and closes the picker. */
+  const choose = (id: string) => {
+    setSelected(id);
+    rememberProject(id);
+    setSearch(null);
+  };
+
+  /** Moves the picker highlight by `delta` over what is on offer, clamped. */
+  const moveHighlight = (delta: 1 | -1) => {
+    if (entries.length === 0) return;
+    setSearch((current) => {
+      if (current === null) return current;
+      const ids = entries.map((entry) => entry.id);
+      const at = current.highlightId === null ? -1 : ids.indexOf(current.highlightId);
+      // From nothing highlighted — or a highlight whose project left the list —
+      // Down enters at the top and Up at the bottom.
+      const from = at === -1 ? (delta === 1 ? -1 : ids.length) : at;
+      const to = Math.min(ids.length - 1, Math.max(0, from + delta));
+      return { ...current, highlightId: ids[to] ?? null };
+    });
+  };
+
   return (
     <section>
       <h2>Projects</h2>
@@ -136,22 +206,122 @@ export function ProjectPage({ token, api: apiOverride }: ProjectPageProps) {
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12 }}>
         {rename === null ? (
           <>
-            <select
-              aria-label="Project"
-              value={selected ?? ''}
-              onChange={(e) => {
-                const chosen = e.target.value === '' ? null : e.target.value;
-                setSelected(chosen);
-                rememberProject(chosen);
-              }}
-            >
-              <option value="">Choose a project…</option>
-              {projects.map((project) => (
-                <option key={project.id} value={project.id}>
-                  {project.name}
-                </option>
-              ))}
-            </select>
+            <span style={{ position: 'relative', display: 'inline-block' }}>
+              <input
+                aria-label="Project"
+                role="combobox"
+                aria-expanded={listOpen}
+                aria-controls={listOpen ? 'project-options' : undefined}
+                aria-activedescendant={
+                  highlighted === undefined ? undefined : `project-option-${highlighted.id}`
+                }
+                aria-autocomplete="list"
+                placeholder="Choose a project…"
+                size={28}
+                // Closed, the box reads as a label of what is open; typing in
+                // it is a search, and the typing is what is shown then.
+                value={search?.typed ?? selectedProject?.name ?? ''}
+                onFocus={() => {
+                  setSearch({ typed: '', highlightId: null });
+                }}
+                // A blur discards the typing and shows the selection again. It
+                // does not select the highlighted entry: a click elsewhere is
+                // not a choice, and choosing on the way out is how a picker
+                // silently changes the project under someone who left it.
+                onBlur={() => {
+                  setSearch(null);
+                }}
+                onChange={(e) => {
+                  const typed = e.target.value;
+                  // Typing is aiming at the narrowed-to project; emptying the
+                  // box aims at nothing again.
+                  const first =
+                    typed.trim() === '' ? undefined : matchingProjects(projects, typed)[0];
+                  setSearch({ typed, highlightId: first?.id ?? null });
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    moveHighlight(e.key === 'ArrowDown' ? 1 : -1);
+                    return;
+                  }
+                  if (e.key === 'Escape') {
+                    setSearch(null);
+                    return;
+                  }
+                  if (e.key !== 'Enter') return;
+                  e.preventDefault();
+                  // Nothing highlighted is not a choice. An empty box whose
+                  // list happens to be showing must not select the first
+                  // project on a stray Enter.
+                  if (highlighted !== undefined) choose(highlighted.id);
+                }}
+              />
+              {listOpen && (
+                <ul
+                  role="listbox"
+                  id="project-options"
+                  aria-label="Projects"
+                  // One preventDefault for the whole list, options included, by
+                  // bubbling: a mousedown here must not blur the input, or the
+                  // list would close before the click could land — on an option
+                  // and on the scrollbar alike (cross review #6's lesson,
+                  // learned on the Depends on picker).
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                  }}
+                  style={{
+                    position: 'absolute',
+                    top: '100%',
+                    left: 0,
+                    margin: 0,
+                    padding: 0,
+                    listStyle: 'none',
+                    background: '#fff',
+                    border: '1px solid #ccc',
+                    maxHeight: 240,
+                    overflowY: 'auto',
+                    zIndex: 10,
+                    minWidth: '100%',
+                  }}
+                >
+                  {entries.map((entry) => (
+                    // The ARIA combobox pattern is the boundary that makes this
+                    // safe: options are not focusable, and the keyboard drives
+                    // them from the input through aria-activedescendant.
+                    // eslint-disable-next-line jsx-a11y/click-events-have-key-events
+                    <li
+                      key={entry.id}
+                      id={`project-option-${entry.id}`}
+                      role="option"
+                      aria-selected={entry.id === highlighted?.id}
+                      ref={(element) => {
+                        // jsdom has no scrollIntoView; that boundary is the
+                        // test environment, not a browser this will meet.
+                        if (
+                          entry.id === highlighted?.id &&
+                          element !== null &&
+                          typeof element.scrollIntoView === 'function'
+                        ) {
+                          element.scrollIntoView({ block: 'nearest' });
+                        }
+                      }}
+                      style={{
+                        padding: '2px 6px',
+                        cursor: 'pointer',
+                        whiteSpace: 'nowrap',
+                        background: entry.id === highlighted?.id ? '#e8f0fe' : undefined,
+                      }}
+                      onClick={() => {
+                        choose(entry.id);
+                      }}
+                    >
+                      {entry.name}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </span>
             {selectedProject !== undefined && (
               <button
                 type="button"

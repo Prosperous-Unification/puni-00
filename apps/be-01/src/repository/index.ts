@@ -31,6 +31,11 @@ export interface Project {
   createdAt: number;
 }
 
+/** A project as one account sees it: null when that account has never opened it. */
+export interface ProjectWithAccess extends Project {
+  lastOpenedAt: number | null;
+}
+
 export interface Role {
   id: string;
   projectId: string;
@@ -158,6 +163,22 @@ export interface ProjectStore {
   findById(id: string): Promise<Project | null>;
   /** Every project, newest first. Readable by any account, so it is not filtered by owner. */
   list(): Promise<Project[]>;
+  /**
+   * Every project in `userId`'s own order: the ones that account has opened
+   * first, most recent before less recent, then the ones it never opened,
+   * newest created first.
+   *
+   * Not a filter — every account still sees every project, because reading is
+   * open. Only the order and the extra `lastOpenedAt` differ per caller.
+   */
+  listFor(userId: string): Promise<ProjectWithAccess[]>;
+  /**
+   * Records `userId` as having opened `projectId` at `at`, replacing whatever
+   * moment was recorded before. Idempotent by the primary key rather than by
+   * asking first: two tabs opening one project at once would both see "no row"
+   * and both insert.
+   */
+  recordOpen(userId: string, projectId: string, at: number): Promise<void>;
   /** Returns null when the project is gone. */
   update(id: string, patch: ProjectPatch): Promise<Project | null>;
   rolesOf(projectId: string): Promise<Role[]>;

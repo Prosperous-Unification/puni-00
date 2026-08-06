@@ -101,6 +101,49 @@ describe('ProjectRepository', () => {
     expect(await rejection(repo.create(shed, roles(shed.id, 'Dev', 'Dev')))).toMatch(/UNIQUE/);
   });
 
+  it('lists per account: opened first by recency, then never-opened by creation', async () => {
+    const a = project('A', 100);
+    const b = project('B', 200);
+    const c = project('C', 300);
+    for (const p of [a, b, c]) await repo.create(p, roles(p.id, 'Dev'));
+
+    await repo.recordOpen(ownerId, a.id, 1000);
+    await repo.recordOpen(ownerId, b.id, 2000);
+
+    const listed = await repo.listFor(ownerId);
+    expect(listed.map((p) => p.name)).toEqual(['B', 'A', 'C']);
+    expect(listed.map((p) => p.lastOpenedAt)).toEqual([2000, 1000, null]);
+  });
+
+  it('gives another account its own order', async () => {
+    const other = crypto.randomUUID();
+    await new UserRepository(openDrizzle(join(dir, 'test.db'))).create({
+      id: other,
+      username: 'other',
+      passwordHash: 'x',
+      createdAt: 1,
+    });
+    const a = project('A', 100);
+    const b = project('B', 200);
+    const c = project('C', 300);
+    for (const p of [a, b, c]) await repo.create(p, roles(p.id, 'Dev'));
+    await repo.recordOpen(ownerId, a.id, 1000);
+    await repo.recordOpen(other, c.id, 500);
+
+    expect((await repo.listFor(other)).map((p) => p.name)).toEqual(['C', 'B', 'A']);
+    expect((await repo.listFor(ownerId)).map((p) => p.name)).toEqual(['A', 'C', 'B']);
+  });
+
+  it('keeps one record per pair, holding the later moment', async () => {
+    const shed = project('Rewire the shed', 100);
+    await repo.create(shed, roles(shed.id, 'Dev'));
+
+    await repo.recordOpen(ownerId, shed.id, 1000);
+    await repo.recordOpen(ownerId, shed.id, 3000);
+
+    expect((await repo.listFor(ownerId)).map((p) => p.lastOpenedAt)).toEqual([3000]);
+  });
+
   it('refuses a project whose owner does not exist', async () => {
     // Proof that foreign keys are enforced rather than merely declared: this
     // insert parses fine and is rejected only because the pragma is on.

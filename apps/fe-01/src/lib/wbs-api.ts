@@ -62,11 +62,21 @@ export interface ProjectSummary {
   id: string;
   name: string;
   restricted: boolean;
+  /** When this account last opened it, or null if it never has. */
+  lastOpenedAt: number | null;
 }
 
 export interface ProjectApi {
+  /**
+   * Every project, in this account's own order: opened first by recency, then
+   * never-opened by creation date. The order is be-01's and is used as given —
+   * sorting again on the client would be a second implementation of the rule,
+   * and the two would eventually disagree.
+   */
   listProjects(): Promise<ProjectSummary[]>;
   createProject(name: string): Promise<ProjectSummary>;
+  /** Records this account as having opened the project, which is what sorts the picker. */
+  openProject(id: string): Promise<void>;
   /** Renames the project. be-01 answers `forbidden` on a restricted one. */
   renameProject(id: string, name: string): Promise<void>;
   /**
@@ -126,6 +136,9 @@ export function httpProjectApi(token: string): ProjectApi {
         body: JSON.stringify({ name }),
       });
       return body.project;
+    },
+    async openProject(id) {
+      await send(`/api/projects/${id}/opened`, token, { method: 'POST' });
     },
     async renameProject(id, name) {
       await send(`/api/projects/${id}`, token, {

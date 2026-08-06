@@ -76,6 +76,34 @@ export const project = sqliteTable('project', {
 export type ProjectRow = typeof project.$inferSelect;
 
 /**
+ * When one account last opened one project, and nothing else.
+ *
+ * The picker sorts by it, which is the whole reason it exists: "the project I
+ * was in yesterday" is how people find their way back, and creation order
+ * answers a question nobody asks. One row per pair, overwritten on each open —
+ * a log would answer "how often" and "when before that", which nothing asks.
+ *
+ * Its own table rather than a column anywhere: the fact belongs to the pair,
+ * not to the project (every account has a different answer) and not to the
+ * account (it has one per project).
+ */
+export const projectAccess = sqliteTable(
+  'project_access',
+  {
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id),
+    projectId: text('project_id')
+      .notNull()
+      .references(() => project.id),
+    lastOpenedAt: integer('last_opened_at').notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.projectId] })],
+);
+
+export type ProjectAccessRow = typeof projectAccess.$inferSelect;
+
+/**
  * One unit of work, placed in a tree by `parentId` and among its siblings by
  * `position`.
  *

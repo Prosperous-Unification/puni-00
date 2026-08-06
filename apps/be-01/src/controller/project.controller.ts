@@ -38,7 +38,24 @@ export function projectController(auth: AuthService, projects: ProjectService) {
         set.status = 401;
         return { error: 'unauthenticated' };
       }
-      return { projects: await projects.list() };
+      return { projects: await projects.list(user.id) };
+    })
+    .post('/:id/opened', async ({ params, headers, set }) => {
+      const user = await userFromHeaders(auth, headers);
+      if (user === null) {
+        set.status = 401;
+        return { error: 'unauthenticated' };
+      }
+      // No authorisation check beyond authentication: this is the caller's own
+      // navigation history, and every account may already read every project.
+      // See `ProjectService.open`.
+      const recorded = await projects.open(params.id, user.id);
+      if (!recorded) {
+        set.status = 404;
+        return { error: 'not_found' };
+      }
+      set.status = 204;
+      return null;
     })
     .get('/:id', async ({ params, headers, set }) => {
       const user = await userFromHeaders(auth, headers);

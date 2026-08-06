@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import type { ProjectApi, ProjectSummary } from '@/lib/wbs-api';
@@ -16,19 +16,30 @@ const itDom = hasDom ? it : it.skip;
  */
 function fakeProjects(
   initial: ProjectSummary[],
-): ProjectApi & { renamed: [string, string][]; drop: (id: string) => void } {
+): ProjectApi & { renamed: [string, string][]; opened: string[]; drop: (id: string) => void } {
   let projects = [...initial];
   const renamed: [string, string][] = [];
+  const opened: string[] = [];
   return {
     renamed,
+    opened,
     // A deletion that happened somewhere else: the next listProjects simply
     // no longer has the project.
     drop(id) {
       projects = projects.filter((p) => p.id !== id);
     },
     listProjects: () => Promise.resolve([...projects]),
+    openProject(id) {
+      opened.push(id);
+      return Promise.resolve();
+    },
     createProject(name) {
-      const project = { id: `p${String(projects.length + 1)}`, name, restricted: false };
+      const project = {
+        id: `p${String(projects.length + 1)}`,
+        name,
+        restricted: false,
+        lastOpenedAt: null,
+      };
       projects = [...projects, project];
       return Promise.resolve(project);
     },
@@ -53,19 +64,33 @@ function fakeProjects(
 }
 
 const TWO = [
-  { id: 'p1', name: 'Rewire the shed', restricted: false },
-  { id: 'p2', name: 'Paint the fence', restricted: false },
+  { id: 'p1', name: 'Rewire the shed', restricted: false, lastOpenedAt: null },
+  { id: 'p2', name: 'Paint the fence', restricted: false, lastOpenedAt: null },
 ];
 
 const pageWith = (api: ProjectApi) => render(<ProjectPage token="t" api={api} />);
 
-const picker = () => screen.getByLabelText<HTMLSelectElement>('Project');
+const picker = () => screen.getByLabelText<HTMLInputElement>('Project');
+
+/** The names on offer, in the order the picker is showing them. */
+const optionNames = () => screen.queryAllByRole('option').map((entry) => entry.textContent);
+
+/** Opens the list — the picker offers everything when it takes the focus. */
+function openPicker() {
+  fireEvent.focus(picker());
+}
 
 async function selectProject(id: string) {
   await waitFor(() => {
-    expect(picker().options.length).toBeGreaterThan(1);
+    expect(screen.getByLabelText('Project')).toBeDefined();
   });
-  fireEvent.change(picker(), { target: { value: id } });
+  openPicker();
+  await waitFor(() => {
+    expect(document.getElementById(`project-option-${id}`)).not.toBeNull();
+  });
+  const entry = document.getElementById(`project-option-${id}`);
+  if (entry === null) throw new Error(`no option for ${id}`);
+  fireEvent.click(entry);
 }
 
 beforeEach(() => {
@@ -76,22 +101,21 @@ describe('the chosen project survives a refresh', () => {
   itDom('selects the remembered project on the next load, with no click', async () => {
     pageWith(fakeProjects(TWO));
     await selectProject('p2');
-    expect(picker().value).toBe('p2');
+    expect(picker().value).toBe('Paint the fence');
 
     cleanup();
     pageWith(fakeProjects(TWO));
 
     await waitFor(() => {
-      expect(picker().value).toBe('p2');
+      expect(picker().value).toBe('Paint the fence');
     });
   });
 
-  itDom('ignores a remembered project the list no longer has', async () => {
+  itDom('ignores a remembered project the list no longer has, and forgets it', async () => {
     localStorage.setItem('wbs.project', 'gone');
     const api = fakeProjects(TWO);
-    // The select's value is no evidence here: a value with no matching option
-    // reads back as '' whether or not the page believed it. What the guard
-    // prevents is the table asking be-01 for the deleted project's tree.
+    // What the guard prevents is the table asking be-01 for the deleted
+    // project's tree.
     const asked: string[] = [];
     const realTree = api.tree.bind(api);
     api.tree = (projectId) => {
@@ -101,18 +125,148 @@ describe('the chosen project survives a refresh', () => {
     pageWith(api);
 
     await waitFor(() => {
-      expect(picker().options.length).toBe(3);
+      expect(localStorage.getItem('wbs.project')).toBeNull();
     });
     expect(picker().value).toBe('');
     expect(screen.queryByRole('button', { name: 'Rename' })).toBeNull();
     expect(asked).toEqual([]);
   });
+});
 
-  itDom('forgets the choice when the picker is put back to none', async () => {
+describe('the picker searches', () => {
+  itDom('narrows the list to what was typed, ignoring case', async () => {
     pageWith(fakeProjects(TWO));
+    await waitFor(() => {
+      expect(screen.getByLabelText('Project')).toBeDefined();
+    });
+    openPicker();
+    await waitFor(() => {
+      expect(optionNames()).toEqual(['Rewire the shed', 'Paint the fence']);
+    });
+
+    fireEvent.change(picker(), { target: { value: 'FENCE' } });
+
+    expect(optionNames()).toEqual(['Paint the fence']);
+  });
+
+  itDom('chooses with the keyboard alone, and shows that project’s table', async () => {
+    const api = fakeProjects(TWO);
+    const asked: string[] = [];
+    const realTree = api.tree.bind(api);
+    api.tree = (projectId) => {
+      asked.push(projectId);
+      return realTree(projectId);
+    };
+    pageWith(api);
+    await waitFor(() => {
+      expect(screen.getByLabelText('Project')).toBeDefined();
+    });
+    openPicker();
+    await waitFor(() => {
+      expect(optionNames().length).toBe(2);
+    });
+
+    fireEvent.keyDown(picker(), { key: 'ArrowDown' });
+    fireEvent.keyDown(picker(), { key: 'ArrowDown' });
+    fireEvent.keyDown(picker(), { key: 'Enter' });
+
+    await waitFor(() => {
+      expect(picker().value).toBe('Paint the fence');
+    });
+    expect(asked).toEqual(['p2']);
+  });
+
+  itDom('offers be-01’s order rather than sorting the names itself', async () => {
+    // be-01 answers in this account's recency order. `Paint` before `Rewire` is
+    // not alphabetical and not the id order — a client that re-sorted by either
+    // would show these two the other way round.
+    pageWith(
+      fakeProjects([
+        { id: 'p2', name: 'Paint the fence', restricted: false, lastOpenedAt: 900 },
+        { id: 'p1', name: 'Rewire the shed', restricted: false, lastOpenedAt: null },
+      ]),
+    );
+    await waitFor(() => {
+      expect(screen.getByLabelText('Project')).toBeDefined();
+    });
+    openPicker();
+
+    await waitFor(() => {
+      expect(optionNames()).toEqual(['Paint the fence', 'Rewire the shed']);
+    });
+  });
+
+  itDom('an Enter with nothing highlighted picks nothing', async () => {
+    const api = fakeProjects(TWO);
+    pageWith(api);
+    await waitFor(() => {
+      expect(screen.getByLabelText('Project')).toBeDefined();
+    });
+    openPicker();
+    await waitFor(() => {
+      expect(optionNames().length).toBe(2);
+    });
+
+    fireEvent.keyDown(picker(), { key: 'Enter' });
+
+    expect(picker().value).toBe('');
+    expect(api.opened).toEqual([]);
+  });
+
+  itDom('Escape closes the list without choosing', async () => {
+    const api = fakeProjects(TWO);
+    pageWith(api);
+    await waitFor(() => {
+      expect(screen.getByLabelText('Project')).toBeDefined();
+    });
+    openPicker();
+    await waitFor(() => {
+      expect(optionNames().length).toBe(2);
+    });
+
+    fireEvent.keyDown(picker(), { key: 'ArrowDown' });
+    fireEvent.keyDown(picker(), { key: 'Escape' });
+
+    expect(optionNames()).toEqual([]);
+    expect(api.opened).toEqual([]);
+  });
+});
+
+describe('opening a project is recorded', () => {
+  itDom('records the project that was picked', async () => {
+    const api = fakeProjects(TWO);
+    pageWith(api);
     await selectProject('p2');
-    fireEvent.change(picker(), { target: { value: '' } });
-    expect(localStorage.getItem('wbs.project')).toBeNull();
+
+    await waitFor(() => {
+      expect(api.opened).toEqual(['p2']);
+    });
+  });
+
+  itDom('records the project restored from a previous visit', async () => {
+    // The commonest arrival of all. Recording only on the click would leave
+    // the projects people return to most looking never-opened, and the
+    // ordering would drift by exactly those.
+    localStorage.setItem('wbs.project', 'p1');
+    const api = fakeProjects(TWO);
+    pageWith(api);
+
+    await waitFor(() => {
+      expect(api.opened).toEqual(['p1']);
+    });
+  });
+
+  itDom('shows no error when recording fails', async () => {
+    const api = fakeProjects(TWO);
+    api.openProject = () => Promise.reject(new Error('offline'));
+    pageWith(api);
+    await selectProject('p2');
+
+    await waitFor(() => {
+      expect(picker().value).toBe('Paint the fence');
+    });
+    // Navigation history nobody can act on: the project still opened.
+    expect(screen.queryByRole('alert')).toBeNull();
   });
 });
 
@@ -129,8 +283,7 @@ describe('renaming a project', () => {
     fireEvent.keyDown(name, { key: 'Enter' });
 
     await waitFor(() => {
-      expect(picker().value).toBe('p2');
-      expect(within(picker()).getByText('Stain the fence')).toBeDefined();
+      expect(picker().value).toBe('Stain the fence');
     });
     expect(api.renamed).toEqual([['p2', 'Stain the fence']]);
   });
@@ -147,7 +300,7 @@ describe('renaming a project', () => {
 
     expect(api.renamed).toEqual([]);
     expect(screen.queryByLabelText('Project name')).toBeNull();
-    expect(within(picker()).getByText('Paint the fence')).toBeDefined();
+    expect(picker().value).toBe('Paint the fence');
   });
 
   itDom('shows be-01’s refusal and keeps the old name', async () => {
@@ -187,8 +340,9 @@ describe('renaming a project', () => {
       expect(screen.queryByLabelText('Project name')).toBeNull();
     });
     expect(api.renamed).toEqual([]);
+    openPicker();
     await waitFor(() => {
-      expect(within(picker()).getByText('New project')).toBeDefined();
+      expect(optionNames()).toContain('New project');
     });
   });
 
@@ -203,7 +357,7 @@ describe('renaming a project', () => {
     fireEvent.blur(name);
 
     await waitFor(() => {
-      expect(within(picker()).getByText('Stain the fence')).toBeDefined();
+      expect(picker().value).toBe('Stain the fence');
     });
     expect(api.renamed).toEqual([['p2', 'Stain the fence']]);
   });
@@ -218,7 +372,7 @@ describe('renaming a project', () => {
 
     expect(api.renamed).toEqual([]);
     expect(screen.queryByLabelText('Project name')).toBeNull();
-    expect(within(picker()).getByText('Paint the fence')).toBeDefined();
+    expect(picker().value).toBe('Paint the fence');
   });
 
   itDom('an emptied draft cancels rather than blanking the name', async () => {
@@ -233,7 +387,7 @@ describe('renaming a project', () => {
 
     expect(api.renamed).toEqual([]);
     expect(screen.queryByLabelText('Project name')).toBeNull();
-    expect(within(picker()).getByText('Paint the fence')).toBeDefined();
+    expect(picker().value).toBe('Paint the fence');
   });
 });
 
@@ -254,7 +408,7 @@ describe('the selection is a claim too', () => {
     // The one project left is auto-selected — the read-back is 'p1', which a
     // held-forever 'p2' cannot produce (it would read back '').
     await waitFor(() => {
-      expect(picker().value).toBe('p1');
+      expect(picker().value).toBe('Rewire the shed');
     });
     expect(screen.getByRole('button', { name: 'Rename' })).toBeDefined();
   });

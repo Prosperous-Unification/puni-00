@@ -25,7 +25,18 @@ function buildWorkItemService(projectStore: ReturnType<typeof inMemoryProjects>)
 function buildHarness() {
   const auth = testAuthService(inMemoryUsers());
   const projectStore = inMemoryProjects();
-  const projects = new ProjectService({ projects: projectStore });
+  // A monotonic clock rather than `Date.now`: two projects created in one
+  // millisecond tie on `createdAt`, and an order test built on a tie proves
+  // nothing about the ordering — it reports whichever way the sort happened to
+  // land. Production ties too; this only removes the tie from the test.
+  let tick = 0;
+  const projects = new ProjectService({
+    projects: projectStore,
+    now: () => {
+      tick += 1;
+      return tick;
+    },
+  });
   const app = buildApp({
     auth,
     projects,
@@ -94,6 +105,72 @@ describe('projects', () => {
 
     const body = (await res.json()) as { projects: { name: string }[] };
     expect(body.projects.map((p) => p.name).sort()).toEqual(['Mine', 'Theirs']);
+  });
+
+  it('lists in the caller’s own order, opened first', async () => {
+    const { register, send } = buildHarness();
+    const mine = await register('owner');
+    const stranger = await register('stranger');
+    const first = await send('/api/projects', mine, created('First'));
+    await send('/api/projects', mine, created('Second'));
+    const { project } = (await first.json()) as { project: { id: string } };
+
+    // Only one of the two accounts opens `First`; the other's order must not
+    // move, or the join is attaching somebody else's history.
+    expect(
+      (await send(`/api/projects/${project.id}/opened`, mine, { method: 'POST' })).status,
+    ).toBe(204);
+
+    const mineBody = (await (await send('/api/projects', mine)).json()) as {
+      projects: { name: string; lastOpenedAt: number | null }[];
+    };
+    expect(mineBody.projects.map((p) => p.name)).toEqual(['First', 'Second']);
+    expect(mineBody.projects[0]?.lastOpenedAt).toBeGreaterThan(0);
+    expect(mineBody.projects[1]?.lastOpenedAt).toBeNull();
+
+    const theirBody = (await (await send('/api/projects', stranger)).json()) as {
+      projects: { name: string }[];
+    };
+    expect(theirBody.projects.map((p) => p.name)).toEqual(['Second', 'First']);
+  });
+
+  it('lets a reader record opening a project it may not edit', async () => {
+    const { register, send } = buildHarness();
+    const owner = await register('owner');
+    const stranger = await register('stranger');
+    const create = await send('/api/projects', owner, created('Restricted'));
+    const { project } = (await create.json()) as { project: { id: string } };
+    await send(`/api/projects/${project.id}`, owner, {
+      method: 'PATCH',
+      body: JSON.stringify({ restricted: true }),
+    });
+
+    const res = await send(`/api/projects/${project.id}/opened`, stranger, { method: 'POST' });
+
+    expect(res.status).toBe(204);
+    const body = (await (await send('/api/projects', stranger)).json()) as {
+      projects: { name: string; lastOpenedAt: number | null }[];
+    };
+    expect(body.projects[0]?.lastOpenedAt).toBeGreaterThan(0);
+  });
+
+  it('refuses to record an open of a project that is not there, and of nobody', async () => {
+    const { app, register, send } = buildHarness();
+    const token = await register('owner');
+
+    const missing = await send(`/api/projects/${crypto.randomUUID()}/opened`, token, {
+      method: 'POST',
+    });
+    expect(missing.status).toBe(404);
+
+    // Without the token at all: the route must not be an unauthenticated write.
+    const anonymous = await app.handle(
+      new Request(`http://localhost/api/projects/${crypto.randomUUID()}/opened`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+      }),
+    );
+    expect(anonymous.status).toBe(401);
   });
 
   it('lets a non-owner read a restricted project', async () => {
