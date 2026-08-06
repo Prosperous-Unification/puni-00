@@ -30,6 +30,7 @@ beforeEach(async () => {
     name: 'Rewire the shed',
     ownerId: OWNER,
     restricted: false,
+    estimateMethod: 'pert',
     createdAt: 1,
   };
   await projects.create(project, []);

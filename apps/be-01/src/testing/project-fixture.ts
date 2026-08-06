@@ -62,6 +62,7 @@ export function inMemoryProjects(): ProjectStore {
         ...existing,
         name: patch.name ?? existing.name,
         restricted: patch.restricted ?? existing.restricted,
+        estimateMethod: patch.estimateMethod ?? existing.estimateMethod,
       };
       projects.set(id, updated);
       return Promise.resolve(updated);

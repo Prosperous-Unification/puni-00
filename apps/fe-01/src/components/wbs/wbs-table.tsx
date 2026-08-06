@@ -9,13 +9,20 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import type { ProjectStream } from '@/lib/project-stream';
-import type { Days, ProjectApi, RoleView } from '@/lib/wbs-api';
+import {
+  type Days,
+  type EstimateMethod,
+  isEstimateMethod,
+  type ProjectApi,
+  type RoleView,
+} from '@/lib/wbs-api';
 
 import { CellInput } from './cell-input';
 import { type Caret, type CellRef, nextCell } from './cell-navigation';
 import { pickerEntries } from './dep-picker';
 import { parseDependencies, unknownMessage } from './depends-input';
 import { type DropRefusal, type DropZone, planMove, zoneFor } from './drag-drop';
+import { type Point, POINTS, sendableTrio, trioProblem, type TypedTrio } from './estimate-draft';
 import { toTree, type TreeRow } from './wbs-rows';
 
 export interface WbsTableProps {
@@ -33,38 +40,15 @@ export interface SubscriptionHandlers {
   onConnectionChange: (connected: boolean) => void;
 }
 
-const POINTS = ['optimistic', 'realistic', 'pessimistic'] as const;
-type Point = (typeof POINTS)[number];
-
 const showDays = (days: Days | undefined, point: Point): string =>
   days === undefined ? '' : String(days[point]);
 
-/**
- * The triple after one point was typed, with the other two nudged to keep
- * `optimistic <= realistic <= pessimistic`.
- *
- * be-01 enforces that ordering, so typing `5` into the optimistic cell of an
- * unestimated row used to send `5/0/0` and come back 400 — the row could never
- * be given its first estimate through the UI at all. Nudging the neighbours is
- * the least surprising resolution: the number you typed is the number you get,
- * and the others move only as far as they must.
- */
-export function keepOrdered(current: Days, point: Point, value: number): Days {
-  const next = { ...current, [point]: value };
-  if (point === 'optimistic') {
-    next.realistic = Math.max(next.realistic, next.optimistic);
-    next.pessimistic = Math.max(next.pessimistic, next.realistic);
-    return next;
-  }
-  if (point === 'realistic') {
-    next.optimistic = Math.min(next.optimistic, next.realistic);
-    next.pessimistic = Math.max(next.pessimistic, next.realistic);
-    return next;
-  }
-  next.realistic = Math.min(next.realistic, next.pessimistic);
-  next.optimistic = Math.min(next.optimistic, next.realistic);
-  return next;
-}
+/** A role's final figure, or nothing at all when no estimate under this row mentions it. */
+const showFinal = (days: number | undefined): string => (days === undefined ? '' : showDay(days));
+
+/** The key one estimate box's draft is held under: one row, one role, one point. */
+const draftKey = (rowId: string, roleId: string, point: Point): string =>
+  `${rowId}::${roleId}::${point}`;
 
 /**
  * What a refused drop says out loud.
@@ -194,6 +178,19 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
   const [busy, setBusy] = useState(false);
   const [connected, setConnected] = useState(true);
   const [scheduleError, setScheduleError] = useState<'cycle' | null>(null);
+  const [estimateMethod, setEstimateMethod] = useState<EstimateMethod>('pert');
+  /**
+   * Estimate boxes whose typed value has not been accepted by be-01 yet, by
+   * {@link draftKey}.
+   *
+   * These outlive the input they were typed into, on purpose. A trio is only
+   * sent once all three read sensibly, so `5` typed into an empty row's
+   * optimistic box is a number with nowhere to live until the other two
+   * arrive — and holding it in the DOM alone would lose it to the next
+   * refresh, which any peer's edit triggers. Cleared for the whole trio the
+   * moment it is sent.
+   */
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [dragging, setDragging] = useState<string | null>(null);
   const [dropHint, setDropHint] = useState<{ rowId: string; zone: DropZone } | null>(null);
   /**
@@ -235,6 +232,7 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
     if (generation !== latestRefresh.current) return;
     setWorkItems(toTree(tree.workItems));
     setScheduleError(tree.scheduleError);
+    setEstimateMethod(tree.estimateMethod);
     // Replaced only when the roles actually differ. Every read returns a fresh
     // array, and `roles` is the one dependency `columns` still has — so a new
     // array on every refresh rebuilt every column definition, which is how a
@@ -474,13 +472,17 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
           row.notes === '' &&
           row.subRows.length === 0 &&
           row.dependsOn.length === 0 &&
-          Object.keys(row.estimates).length === 0;
+          Object.keys(row.estimates).length === 0 &&
+          // A half-typed estimate is not stored yet — it is a draft waiting for
+          // the rest of its trio — and deleting the row would take it with it
+          // without ever having shown it as saved. Typing counts as content.
+          !Object.keys(drafts).some((key) => key.startsWith(`${row.id}::`));
         if (!empty) return;
         event.preventDefault();
         void removeEmptyRow(row);
       }
     },
-    [addSibling, indent, outdent, removeEmptyRow],
+    [addSibling, drafts, indent, outdent, removeEmptyRow],
   );
 
   /**
@@ -682,6 +684,82 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
    * banner above is there to prevent. A reviewer caught the columns still doing
    * it while `verify.md` claimed they did not.
    */
+  /**
+   * One trio as it currently reads: the draft where there is one, the stored
+   * figure where there is not.
+   *
+   * The draft wins because it is what the person typed and has not been told
+   * off about yet. A stored figure showing through under it would be the tool
+   * quietly disagreeing with the box.
+   */
+  const typedTrio = useCallback(
+    (row: TreeRow, roleId: string): TypedTrio => {
+      const stored = row.estimates[roleId];
+      const read = (point: Point): string =>
+        drafts[draftKey(row.id, roleId, point)] ?? showDays(stored, point);
+      return {
+        optimistic: read('optimistic'),
+        realistic: read('realistic'),
+        pessimistic: read('pessimistic'),
+      };
+    },
+    [drafts],
+  );
+
+  const estimateValue = useCallback(
+    (row: TreeRow, roleId: string, point: Point): string => typedTrio(row, roleId)[point],
+    [typedTrio],
+  );
+
+  /**
+   * What is wrong with this row-and-role's trio, or null.
+   *
+   * A parent's figures are rolled up rather than typed, so they are never
+   * anyone's mistake: complaining about a sum the tool computed would be the
+   * tool telling somebody off for its own arithmetic.
+   */
+  const trioProblemFor = useCallback(
+    (row: TreeRow, roleId: string) => (row.rolledUp ? null : trioProblem(typedTrio(row, roleId))),
+    [typedTrio],
+  );
+
+  /**
+   * Takes a typed estimate box: holds it as a draft, and sends the trio if the
+   * trio can now stand on its own.
+   *
+   * Nothing is repaired and nothing is sent until all three read sensibly —
+   * that is the whole of Dany's "never edit estimates". The drafts for the
+   * trio are cleared only once be-01 has the figures, so a refused request
+   * leaves what was typed on screen to be corrected rather than swallowed.
+   */
+  const commitEstimate = useCallback(
+    (row: TreeRow, roleId: string, point: Point, typed: string) => {
+      const next = { ...typedTrio(row, roleId), [point]: typed };
+      setDrafts((current) => ({ ...current, [draftKey(row.id, roleId, point)]: typed }));
+      const days = sendableTrio(next);
+      if (days === null) return;
+      void run(async () => {
+        await api.setEstimate(row.id, roleId, days);
+        // Rebuilt without this trio's keys rather than deleted from a copy:
+        // `delete` on a computed key is banned here, and filtering says the
+        // same thing without reaching into the object twice.
+        const gone = new Set(POINTS.map((each) => draftKey(row.id, roleId, each)));
+        setDrafts((current) =>
+          Object.fromEntries(Object.entries(current).filter(([key]) => !gone.has(key))),
+        );
+      });
+    },
+    [api, run, typedTrio],
+  );
+
+  /** Changes how the project turns its trios into one number, for everybody. */
+  const chooseEstimateMethod = useCallback(
+    (method: EstimateMethod) => {
+      void run(() => api.setEstimateMethod(projectId, method));
+    },
+    [api, projectId, run],
+  );
+
   const hasSchedule = useCallback(() => scheduleError === null, [scheduleError]);
   const showSchedule = useCallback(
     (days: number) => (scheduleError === null ? showDay(days) : '—'),
@@ -705,6 +783,9 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
     depEntriesFor,
     pickDependency,
     moveDepHighlight,
+    estimateValue,
+    trioProblemFor,
+    commitEstimate,
   });
   live.current = {
     api,
@@ -723,6 +804,9 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
     depEntriesFor,
     pickDependency,
     moveDepHighlight,
+    estimateValue,
+    trioProblemFor,
+    commitEstimate,
   };
 
   const columns = useMemo(
@@ -985,41 +1069,66 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
           />
         ),
       }),
-      ...roles.flatMap((role) =>
-        POINTS.map((point) =>
+      ...roles.flatMap((role) => [
+        ...POINTS.map((point) =>
           column.display({
             id: `${role.id}-${point}`,
             header: `${role.name} ${point}`,
-            cell: ({ row }) => (
-              <CellInput
-                aria-label={`${role.name} ${point} for ${row.original.number}`}
-                data-cell={cellKey(row.original.id, `${role.id}-${point}`)}
-                onKeyDown={(e) => {
-                  live.current.onArrowKey(e, row.original.id, `${role.id}-${point}`);
-                }}
-                // A parent's figures are sums of what is below it, so the cell is
-                // shown and not editable — greyed rather than blank, because the
-                // number is real and worth reading.
-                readOnly={row.original.rolledUp}
-                style={row.original.rolledUp ? { color: '#666', background: '#f4f4f4' } : undefined}
-                value={showDays(row.original.estimates[role.id], point)}
-                commit={(typed) => {
-                  if (row.original.rolledUp) return;
-                  const current = row.original.estimates[role.id] ?? {
-                    optimistic: 0,
-                    realistic: 0,
-                    pessimistic: 0,
-                  };
-                  const days = keepOrdered(current, point, Number(typed));
-                  void live.current.run(() =>
-                    live.current.api.setEstimate(row.original.id, role.id, days),
-                  );
-                }}
-              />
-            ),
+            cell: ({ row }) => {
+              const problem = live.current.trioProblemFor(row.original, role.id);
+              const wrong = problem?.points.includes(point) ?? false;
+              return (
+                <CellInput
+                  aria-label={`${role.name} ${point} for ${row.original.number}`}
+                  data-cell={cellKey(row.original.id, `${role.id}-${point}`)}
+                  // Narrow on purpose: these hold a number of days, and a box
+                  // sized for a sentence reads as if it wants one.
+                  size={5}
+                  aria-invalid={wrong}
+                  title={wrong ? problem.message : undefined}
+                  onKeyDown={(e) => {
+                    live.current.onArrowKey(e, row.original.id, `${role.id}-${point}`);
+                  }}
+                  // A parent's figures are sums of what is below it, so the cell is
+                  // shown and not editable — greyed rather than blank, because the
+                  // number is real and worth reading.
+                  readOnly={row.original.rolledUp}
+                  style={
+                    row.original.rolledUp
+                      ? { color: '#666', background: '#f4f4f4', width: '4.5em' }
+                      : wrong
+                        ? { background: '#fde8e8', borderColor: '#c00', width: '4.5em' }
+                        : { width: '4.5em' }
+                  }
+                  value={live.current.estimateValue(row.original, role.id, point)}
+                  commit={(typed) => {
+                    if (row.original.rolledUp) return;
+                    live.current.commitEstimate(row.original, role.id, point, typed);
+                  }}
+                />
+              );
+            },
           }),
         ),
-      ),
+        column.display({
+          id: `${role.id}-final`,
+          header: `${role.name} days`,
+          cell: ({ row }) => (
+            <span data-final={role.id} style={{ fontWeight: 600 }}>
+              {showFinal(row.original.finalDays[role.id])}
+            </span>
+          ),
+        }),
+      ]),
+      column.display({
+        id: 'final-total',
+        header: 'Total days',
+        cell: ({ row }) => (
+          <span data-final-total style={{ fontWeight: 600 }}>
+            {showDay(row.original.finalTotal)}
+          </span>
+        ),
+      }),
       column.display({
         id: 'start',
         header: 'Starts (day)',
@@ -1149,6 +1258,28 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
         >
           Add work item
         </button>
+        <label style={{ marginLeft: 'auto', display: 'flex', gap: 4, alignItems: 'center' }}>
+          Plan with
+          {/*
+            A project-wide setting rather than a per-reader preference: the
+            dates below are computed from it, and two people reading different
+            dates off one plan is the failure this must not have.
+          */}
+          <select
+            aria-label="Final estimate"
+            value={estimateMethod}
+            disabled={busy}
+            onChange={(e) => {
+              const chosen = e.target.value;
+              if (isEstimateMethod(chosen)) chooseEstimateMethod(chosen);
+            }}
+          >
+            <option value="pert">PERT</option>
+            <option value="optimistic">optimistic</option>
+            <option value="realistic">realistic</option>
+            <option value="pessimistic">pessimistic</option>
+          </select>
+        </label>
       </div>
 
       {error !== null && <p role="alert">{error}</p>}

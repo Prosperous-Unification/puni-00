@@ -50,6 +50,10 @@ export class ProjectService {
       name,
       ownerId,
       restricted: false,
+      // PERT is the default: it is the reason three points are collected, and
+      // a project that had to choose before it had any estimates would be
+      // choosing about risk it has not met yet.
+      estimateMethod: 'pert',
       createdAt: this.now(),
     };
     const roles = STARTING_ROLES.map((roleName) => ({

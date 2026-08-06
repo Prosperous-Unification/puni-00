@@ -1,9 +1,9 @@
 import { act, createEvent, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
-import type { Days, ProjectApi, RoleView, WorkItemView } from '@/lib/wbs-api';
+import type { Days, EstimateMethod, ProjectApi, RoleView, WorkItemView } from '@/lib/wbs-api';
 
-import { keepOrdered, type SubscriptionHandlers, WbsTable } from './wbs-table';
+import { type SubscriptionHandlers, WbsTable } from './wbs-table';
 
 // fe-01 tests require jsdom; only Vitest provides it. Skip under plain `bun test`.
 const hasDom = typeof document !== 'undefined';
@@ -24,6 +24,13 @@ function fakeApi(): ProjectApi & { rows: WorkItemView[] } {
   const edges: { predecessorId: string; successorId: string }[] = [];
   let next = 0;
   let seq = -1;
+  let estimateMethod: EstimateMethod = 'pert';
+
+  /** The final figure be-01 would report, under whichever method is set. */
+  const finalOf = (days: Days): number =>
+    estimateMethod === 'pert'
+      ? (days.optimistic + 4 * days.realistic + days.pessimistic) / 6
+      : days[estimateMethod];
 
   /**
    * The schedule be-01 would compute, in miniature.
@@ -80,8 +87,13 @@ function fakeApi(): ProjectApi & { rows: WorkItemView[] } {
 
   return {
     rows,
-    listProjects: () => Promise.resolve([{ id: 'p1', name: 'Rewire the shed', restricted: false }]),
-    createProject: (name: string) => Promise.resolve({ id: 'p1', name, restricted: false }),
+    listProjects: () =>
+      Promise.resolve([
+        { id: 'p1', name: 'Rewire the shed', restricted: false, lastOpenedAt: null },
+      ]),
+    createProject: (name: string) =>
+      Promise.resolve({ id: 'p1', name, restricted: false, lastOpenedAt: null }),
+    openProject: () => Promise.resolve(),
     renameProject: () => Promise.resolve(),
     tree: () =>
       // The sequence advances with every mutation, the way be-01's does, so a
@@ -91,10 +103,20 @@ function fakeApi(): ProjectApi & { rows: WorkItemView[] } {
           ...r,
           dependsOn: edges.filter((e) => e.successorId === r.id).map((e) => e.predecessorId),
           schedule: scheduleOf(r),
+          finalDays: Object.fromEntries(
+            Object.entries(r.estimates).map(([roleId, days]) => [roleId, finalOf(days)]),
+          ),
+          finalTotal: Object.values(r.estimates).reduce((total, days) => total + finalOf(days), 0),
         })),
         seq,
         scheduleError: null,
+        estimateMethod,
       }),
+    setEstimateMethod(_projectId, method) {
+      estimateMethod = method;
+      renumber();
+      return Promise.resolve();
+    },
     roles: () => Promise.resolve([DEV]),
     create(_projectId, input) {
       next += 1;
@@ -111,6 +133,8 @@ function fakeApi(): ProjectApi & { rows: WorkItemView[] } {
         rolledUp: false,
         estimates: {},
         dependsOn: [],
+        finalDays: {},
+        finalTotal: 0,
         schedule: {
           duration: 0,
           estimated: false,
@@ -385,9 +409,13 @@ describe('the WBS table', () => {
     const notes = screen.getByLabelText<HTMLInputElement>('Notes for 030');
     fireEvent.change(notes, { target: { value: 'measure twice' } });
     fireEvent.blur(notes);
-    const estimate = screen.getByLabelText<HTMLInputElement>('Dev optimistic for 040');
-    fireEvent.change(estimate, { target: { value: '3' } });
-    fireEvent.blur(estimate);
+    // A whole trio on 040 — one point alone is a draft, not an estimate, since
+    // the table stopped inventing the other two.
+    for (const point of ['optimistic', 'realistic', 'pessimistic'] as const) {
+      const estimate = screen.getByLabelText<HTMLInputElement>(`Dev ${point} for 040`);
+      fireEvent.change(estimate, { target: { value: '3' } });
+      fireEvent.blur(estimate);
+    }
     const depends = screen.getByLabelText<HTMLInputElement>('Add a dependency to 050');
     fireEvent.change(depends, { target: { value: '010' } });
     fireEvent.keyDown(depends, { key: 'Enter' });
@@ -687,27 +715,140 @@ describe('collapsing a branch', () => {
   });
 });
 
-describe('keepOrdered', () => {
-  const days = (optimistic: number, realistic: number, pessimistic: number) => ({
-    optimistic,
-    realistic,
-    pessimistic,
+describe('estimates are never edited for you', () => {
+  /** Types `value` into one estimate box and leaves it, the way a person does. */
+  const typeEstimate = (number: string, point: string, value: string) => {
+    const cell = screen.getByLabelText<HTMLInputElement>(`Dev ${point} for ${number}`);
+    fireEvent.change(cell, { target: { value } });
+    fireEvent.blur(cell);
+    return cell;
+  };
+
+  const estimateCell = (number: string, point: string) =>
+    screen.getByLabelText<HTMLInputElement>(`Dev ${point} for ${number}`);
+
+  async function oneRow() {
+    const api = fakeApi();
+    render(<WbsTable projectId="p1" api={api} />);
+    click('Add work item');
+    await screen.findByLabelText('Name of 010');
+    return api;
+  }
+
+  itDom('sends nothing, and keeps what was typed, until the trio is complete', async () => {
+    const api = await oneRow();
+    const sent: unknown[] = [];
+    api.setEstimate = (...args: unknown[]) => {
+      sent.push(args);
+      return Promise.resolve();
+    };
+
+    typeEstimate('010', 'optimistic', '5');
+
+    // The old table turned this into 5/5/5 and sent it — three numbers from
+    // one keystroke, two of which nobody typed.
+    expect(sent).toEqual([]);
+    expect(estimateCell('010', 'optimistic').value).toBe('5');
+    expect(estimateCell('010', 'realistic').value).toBe('');
   });
 
-  it('drags the other two up when optimistic is typed into an empty estimate', () => {
-    // be-01 rejects 5/0/0, so without this a row could never be given its first
-    // estimate through the UI — the request 400s and the edit is discarded.
-    expect(keepOrdered(days(0, 0, 0), 'optimistic', 5)).toEqual(days(5, 5, 5));
+  itDom('marks the boxes that are still empty rather than filling them', async () => {
+    await oneRow();
+
+    typeEstimate('010', 'optimistic', '5');
+
+    expect(estimateCell('010', 'realistic')).toHaveAttribute('aria-invalid', 'true');
+    expect(estimateCell('010', 'pessimistic')).toHaveAttribute('aria-invalid', 'true');
+    expect(estimateCell('010', 'realistic').title).toContain('not saved');
+    // The box holding a real number is not the mistake.
+    expect(estimateCell('010', 'optimistic')).toHaveAttribute('aria-invalid', 'false');
   });
 
-  it('keeps the typed value and moves only what it must', () => {
-    expect(keepOrdered(days(1, 2, 3), 'realistic', 9)).toEqual(days(1, 9, 9));
-    expect(keepOrdered(days(1, 2, 3), 'pessimistic', 0)).toEqual(days(0, 0, 0));
-    expect(keepOrdered(days(1, 2, 3), 'optimistic', 2)).toEqual(days(2, 2, 3));
+  itDom('marks both members of a pair that breaks the order, and sends nothing', async () => {
+    const api = await oneRow();
+    const sent: unknown[] = [];
+    api.setEstimate = (...args: unknown[]) => {
+      sent.push(args);
+      return Promise.resolve();
+    };
+
+    typeEstimate('010', 'optimistic', '5');
+    typeEstimate('010', 'realistic', '3');
+    typeEstimate('010', 'pessimistic', '10');
+
+    expect(sent).toEqual([]);
+    expect(estimateCell('010', 'optimistic')).toHaveAttribute('aria-invalid', 'true');
+    expect(estimateCell('010', 'realistic')).toHaveAttribute('aria-invalid', 'true');
+    expect(estimateCell('010', 'pessimistic')).toHaveAttribute('aria-invalid', 'false');
+    // And the numbers are exactly the ones typed — nothing was reordered.
+    expect(estimateCell('010', 'optimistic').value).toBe('5');
+    expect(estimateCell('010', 'realistic').value).toBe('3');
   });
 
-  it('leaves an already ordered triple alone', () => {
-    expect(keepOrdered(days(1, 2, 3), 'realistic', 2)).toEqual(days(1, 2, 3));
+  itDom('sends the trio, unaltered, once it reads sensibly', async () => {
+    const api = await oneRow();
+
+    typeEstimate('010', 'optimistic', '2');
+    typeEstimate('010', 'realistic', '3');
+    typeEstimate('010', 'pessimistic', '10');
+
+    await waitFor(() => {
+      expect(api.rows[0]?.estimates['role-dev']).toEqual({
+        optimistic: 2,
+        realistic: 3,
+        pessimistic: 10,
+      });
+    });
+    expect(estimateCell('010', 'optimistic')).toHaveAttribute('aria-invalid', 'false');
+  });
+
+  itDom('fixing the broken box sends the trio it was holding back', async () => {
+    const api = await oneRow();
+    typeEstimate('010', 'optimistic', '5');
+    typeEstimate('010', 'realistic', '3');
+    typeEstimate('010', 'pessimistic', '10');
+
+    typeEstimate('010', 'realistic', '7');
+
+    await waitFor(() => {
+      expect(api.rows[0]?.estimates['role-dev']).toEqual({
+        optimistic: 5,
+        realistic: 7,
+        pessimistic: 10,
+      });
+    });
+  });
+
+  itDom('shows the final figure be-01 computed, per role and in total', async () => {
+    const api = await oneRow();
+
+    typeEstimate('010', 'optimistic', '2');
+    typeEstimate('010', 'realistic', '3');
+    typeEstimate('010', 'pessimistic', '10');
+
+    await waitFor(() => {
+      expect(rowFor('010').querySelector('[data-final="role-dev"]')?.textContent).toBe('4');
+    });
+    expect(rowFor('010').querySelector('[data-final-total]')?.textContent).toBe('4');
+    expect(api.rows[0]?.estimates['role-dev']?.realistic).toBe(3);
+  });
+
+  itDom('follows the project’s chosen method', async () => {
+    await oneRow();
+    typeEstimate('010', 'optimistic', '2');
+    typeEstimate('010', 'realistic', '3');
+    typeEstimate('010', 'pessimistic', '10');
+    await waitFor(() => {
+      expect(rowFor('010').querySelector('[data-final="role-dev"]')?.textContent).toBe('4');
+    });
+
+    fireEvent.change(screen.getByLabelText('Final estimate'), {
+      target: { value: 'pessimistic' },
+    });
+
+    await waitFor(() => {
+      expect(rowFor('010').querySelector('[data-final="role-dev"]')?.textContent).toBe('10');
+    });
   });
 });
 
@@ -1374,9 +1515,18 @@ describe('dependencies in the table', () => {
 
   itDom('moves the dependent row’s start to when its predecessor finishes', async () => {
     const api = await threeRoots();
-    const cell = screen.getByLabelText('Dev realistic for 010');
-    fireEvent.change(cell, { target: { value: '4' } });
-    fireEvent.blur(cell);
+    // All three, typed. The old table nudged the neighbours of whichever box
+    // you filled; it no longer edits an estimate nobody typed, so a trio is
+    // saved only once it reads sensibly on its own.
+    for (const [point, value] of [
+      ['optimistic', '0'],
+      ['realistic', '4'],
+      ['pessimistic', '4'],
+    ] as const) {
+      const cell = screen.getByLabelText(`Dev ${point} for 010`);
+      fireEvent.change(cell, { target: { value } });
+      fireEvent.blur(cell);
+    }
     await waitFor(() => {
       expect(api.rows[0]?.estimates['role-dev']?.realistic).toBe(4);
     });
@@ -1409,7 +1559,19 @@ describe('dependencies in the table', () => {
 
 describe('picking dependencies from a list', () => {
   const depInput = (rowNumber: string) => screen.getByLabelText(`Add a dependency to ${rowNumber}`);
-  const optionTexts = () => screen.getAllByRole('option').map((option) => option.textContent);
+  /**
+   * The Depends on list's entries, scoped to that listbox.
+   *
+   * Not a bare `getAllByRole('option')`: the toolbar's estimate-method
+   * `<select>` contributes four options of its own, and a query across the
+   * whole page would read the picker's list as starting with `PERT`.
+   */
+  const optionTexts = () => {
+    const list = screen.queryAllByRole('listbox').find((box) => box.id.startsWith('dep-options-'));
+    return list === undefined
+      ? []
+      : [...list.querySelectorAll('[role="option"]')].map((option) => option.textContent);
+  };
 
   itDom('offers every other row, number and name together, while the cell is focused', async () => {
     await threeRoots();
@@ -1478,18 +1640,18 @@ describe('picking dependencies from a list', () => {
     await threeRoots();
     const input = depInput('020');
     fireEvent.focus(input);
-    expect(screen.getAllByRole('option')).toHaveLength(2);
+    expect(optionTexts()).toHaveLength(2);
     fireEvent.keyDown(input, { key: 'Escape' });
-    expect(screen.queryAllByRole('option')).toEqual([]);
+    expect(optionTexts()).toEqual([]);
   });
 
   itDom('leaving the cell closes the list', async () => {
     await threeRoots();
     const input = depInput('020');
     fireEvent.focus(input);
-    expect(screen.getAllByRole('option')).toHaveLength(2);
+    expect(optionTexts()).toHaveLength(2);
     fireEvent.blur(input);
-    expect(screen.queryAllByRole('option')).toEqual([]);
+    expect(optionTexts()).toEqual([]);
   });
 
   itDom('pressing the mouse on an option does not steal the focus', async () => {
@@ -1542,7 +1704,7 @@ describe('picking dependencies from a list', () => {
     await api.create('p1', { parentId: null, afterId: strip.id, name: 'Wedge' });
     notify();
     await waitFor(() => {
-      expect(screen.getAllByRole('option')).toHaveLength(3);
+      expect(optionTexts()).toHaveLength(3);
     });
     expect(input.getAttribute('aria-activedescendant')).toBe(`dep-option-${paint.id}`);
 
@@ -1583,14 +1745,19 @@ describe('dependencies in the table — cross-review findings', () => {
     scheduleError: 'cycle' | null,
     schedule: Partial<WorkItemView['schedule']> = {},
   ): ProjectApi => ({
-    listProjects: () => Promise.resolve([{ id: 'p1', name: 'P', restricted: false }]),
-    createProject: (name: string) => Promise.resolve({ id: 'p1', name, restricted: false }),
+    listProjects: () =>
+      Promise.resolve([{ id: 'p1', name: 'P', restricted: false, lastOpenedAt: null }]),
+    createProject: (name: string) =>
+      Promise.resolve({ id: 'p1', name, restricted: false, lastOpenedAt: null }),
+    openProject: () => Promise.resolve(),
+    setEstimateMethod: () => Promise.resolve(),
     renameProject: () => Promise.resolve(),
     roles: () => Promise.resolve([DEV]),
     tree: () =>
       Promise.resolve({
         seq: 0,
         scheduleError,
+        estimateMethod: 'pert' as const,
         workItems: [
           {
             id: 'w1',
@@ -1602,6 +1769,8 @@ describe('dependencies in the table — cross-review findings', () => {
             rolledUp: false,
             estimates: {},
             dependsOn: [],
+            finalDays: {},
+            finalTotal: 0,
             schedule: {
               duration: 7,
               estimated: true,

@@ -24,6 +24,7 @@ async function newProject(name: string): Promise<string> {
     name,
     ownerId: OWNER,
     restricted: false,
+    estimateMethod: 'pert',
     createdAt: 1,
   };
   await projects.create(project, []);

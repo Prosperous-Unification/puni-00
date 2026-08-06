@@ -34,6 +34,7 @@ beforeEach(async () => {
     name: 'Rewire the shed',
     ownerId: OWNER,
     restricted: false,
+    estimateMethod: 'pert',
     createdAt: 1,
   };
   roleId = crypto.randomUUID();
@@ -341,5 +342,54 @@ describe('dependencies', () => {
     const sand = tree?.workItems.find((w) => w.id === b)?.schedule;
 
     expect(sand).toMatchObject({ earliestStart: 2, earliestFinish: 5, critical: true });
+  });
+});
+
+describe('the project’s estimate method', () => {
+  /** A leaf with one three-point estimate, and the tree read back. */
+  async function estimated(method: 'pert' | 'optimistic' | 'realistic' | 'pessimistic') {
+    const id = await add('Strip');
+    await service.setEstimate(id, OWNER, roleId, {
+      optimistic: 2,
+      realistic: 3,
+      pessimistic: 10,
+    });
+    await projects.update(projectId, { estimateMethod: method });
+    const tree = await service.tree(projectId);
+    const row = tree?.workItems.find((w) => w.id === id);
+    return { tree, row };
+  }
+
+  it('reports the final figure per role and their sum, under PERT', async () => {
+    const { tree, row } = await estimated('pert');
+
+    expect(row?.finalDays[roleId]).toBe(4);
+    expect(row?.finalTotal).toBe(4);
+    expect(tree?.estimateMethod).toBe('pert');
+  });
+
+  it('reports the chosen point instead when the project chose one', async () => {
+    expect((await estimated('pessimistic')).row?.finalTotal).toBe(10);
+    expect((await estimated('optimistic')).row?.finalTotal).toBe(2);
+    expect((await estimated('realistic')).row?.finalTotal).toBe(3);
+  });
+
+  it('plans the dates with the same figure it prints', async () => {
+    // The schedule's durations and the number in the column beside them come
+    // from one call to `finalDays`. Two implementations is how a table comes to
+    // disagree with the dates printed next to it.
+    const { row } = await estimated('pessimistic');
+
+    expect(row?.schedule.earliestFinish).toBe(10);
+    expect(row?.schedule.duration).toBe(10);
+  });
+
+  it('leaves a role nobody estimated absent rather than zero', async () => {
+    const id = await add('Strip');
+
+    const row = (await service.tree(projectId))?.workItems.find((w) => w.id === id);
+
+    expect(row?.finalDays).toEqual({});
+    expect(row?.finalTotal).toBe(0);
   });
 });

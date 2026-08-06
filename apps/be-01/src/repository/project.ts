@@ -1,8 +1,28 @@
+import { type EstimateMethod, isEstimateMethod } from '@wbs/domain';
 import { and, desc, eq, sql } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
 import type { Project, ProjectPatch, ProjectStore, ProjectWithAccess, Role } from './index';
 import { project, projectAccess, role } from './schema';
+
+/**
+ * A stored row as a {@link Project}, checking the one column SQLite cannot
+ * constrain.
+ *
+ * `estimate_method` is text, so the database will hold `median` as happily as
+ * `pert`. Reading one is malformed trusted data and it throws rather than
+ * falling back to PERT: a project silently planned by a method nobody chose is
+ * a wrong answer delivered confidently, and R5 exists to stop exactly that.
+ */
+function toProject<T extends { estimateMethod: string }>(
+  row: T,
+): Omit<T, 'estimateMethod'> & { estimateMethod: EstimateMethod } {
+  if (!isEstimateMethod(row.estimateMethod)) {
+    throw new Error(`unknown estimate method in the database: ${row.estimateMethod}`);
+  }
+  // Narrowed by the check above, which is the boundary this function exists to be.
+  return { ...row, estimateMethod: row.estimateMethod };
+}
 
 /**
  * `create` writes the project and its roles in one transaction. A project that
@@ -34,11 +54,13 @@ export class ProjectRepository implements ProjectStore {
 
   async findById(id: string): Promise<Project | null> {
     const rows = await this.db.select().from(project).where(eq(project.id, id)).limit(1);
-    return rows[0] ?? null;
+    const found = rows.at(0);
+    return found === undefined ? null : toProject(found);
   }
 
-  list(): Promise<Project[]> {
-    return this.db.select().from(project).orderBy(desc(project.createdAt));
+  async list(): Promise<Project[]> {
+    const rows = await this.db.select().from(project).orderBy(desc(project.createdAt));
+    return rows.map(toProject);
   }
 
   /**
@@ -54,13 +76,14 @@ export class ProjectRepository implements ProjectStore {
    * caller's list — every project would then look opened, in the order the
    * busiest account visited them.
    */
-  listFor(userId: string): Promise<ProjectWithAccess[]> {
-    return this.db
+  async listFor(userId: string): Promise<ProjectWithAccess[]> {
+    const rows = await this.db
       .select({
         id: project.id,
         name: project.name,
         ownerId: project.ownerId,
         restricted: project.restricted,
+        estimateMethod: project.estimateMethod,
         createdAt: project.createdAt,
         lastOpenedAt: projectAccess.lastOpenedAt,
       })
@@ -70,6 +93,7 @@ export class ProjectRepository implements ProjectStore {
         and(eq(projectAccess.projectId, project.id), eq(projectAccess.userId, userId)),
       )
       .orderBy(desc(projectAccess.lastOpenedAt), desc(project.createdAt));
+    return rows.map(toProject);
   }
 
   async recordOpen(userId: string, projectId: string, at: number): Promise<void> {
@@ -88,9 +112,16 @@ export class ProjectRepository implements ProjectStore {
   async update(id: string, patch: ProjectPatch): Promise<Project | null> {
     // An empty patch would make drizzle emit `SET` with no assignments, which
     // SQLite rejects — so a request that changes nothing reads instead.
-    if (patch.name === undefined && patch.restricted === undefined) return this.findById(id);
+    if (
+      patch.name === undefined &&
+      patch.restricted === undefined &&
+      patch.estimateMethod === undefined
+    ) {
+      return this.findById(id);
+    }
     const rows = await this.db.update(project).set(patch).where(eq(project.id, id)).returning();
-    return rows[0] ?? null;
+    const updated = rows.at(0);
+    return updated === undefined ? null : toProject(updated);
   }
 
   rolesOf(projectId: string): Promise<Role[]> {

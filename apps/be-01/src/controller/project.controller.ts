@@ -1,3 +1,4 @@
+import { ESTIMATE_METHODS } from '@wbs/domain';
 import { Elysia, t } from 'elysia';
 
 import { userFromHeaders } from '../middleware/authenticated';
@@ -9,6 +10,10 @@ const newProject = t.Object({ name: t.String() });
 const projectPatch = t.Object({
   name: t.Optional(t.String()),
   restricted: t.Optional(t.Boolean()),
+  // The union rather than a bare string: an unknown method reaching the column
+  // would be read back as malformed data and throw on every later read of the
+  // project. Refusing it here is a 422 on one request instead.
+  estimateMethod: t.Optional(t.Union(ESTIMATE_METHODS.map((method) => t.Literal(method)))),
 });
 
 /**

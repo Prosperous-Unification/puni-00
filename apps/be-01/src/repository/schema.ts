@@ -70,6 +70,13 @@ export const project = sqliteTable('project', {
     .notNull()
     .references(() => users.id),
   restricted: integer('restricted', { mode: 'boolean' }).notNull().default(false),
+  /**
+   * Which of the four {@link EstimateMethod}s this project plans with. Text
+   * rather than an integer so a database anyone opens says `pessimistic`
+   * instead of `3`, and defaulted so every existing project keeps the PERT
+   * behaviour it already had.
+   */
+  estimateMethod: text('estimate_method').notNull().default('pert'),
   createdAt: integer('created_at').notNull(),
 });
 

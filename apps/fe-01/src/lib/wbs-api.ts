@@ -1,3 +1,20 @@
+/**
+ * How a project turns its three-point estimates into the one number it plans
+ * with. Mirrors `EstimateMethod` in `libs/domain`.
+ *
+ * Declared here rather than imported, like every other wire type in this file:
+ * `libs/domain` pulls in arktype for its runtime validation, and none of that
+ * belongs in a browser bundle. be-01 validates the value at its boundary — the
+ * client's copy is a description of what comes back, not the rule.
+ */
+export const ESTIMATE_METHODS = ['pert', 'optimistic', 'realistic', 'pessimistic'] as const;
+export type EstimateMethod = (typeof ESTIMATE_METHODS)[number];
+
+/** Whether `value` is one of the four, for reading a `<select>`'s string back. */
+export function isEstimateMethod(value: string): value is EstimateMethod {
+  return (ESTIMATE_METHODS as readonly string[]).includes(value);
+}
+
 export interface Days {
   optimistic: number;
   realistic: number;
@@ -34,6 +51,17 @@ export interface WorkItemView {
   estimates: Record<string, Days>;
   /** The work items this one waits for, by id. Either end may be a parent. */
   dependsOn: string[];
+  /**
+   * The one number this row is planned with, per role, and their sum — the
+   * project's estimate method applied to the trio above.
+   *
+   * be-01 computes both, from the same call the schedule's durations come
+   * from. Working them out here instead would be a second implementation of
+   * "the final estimate" sitting one column away from the dates it must agree
+   * with.
+   */
+  finalDays: Record<string, number>;
+  finalTotal: number;
   /**
    * `estimates` is **effort** and this is **span**. For a parent they differ:
    * two independent children of 3 and 4 days are 7 days of work in a 4-day
@@ -86,9 +114,14 @@ export interface ProjectApi {
    * produced the rows: taken separately it would describe a different moment
    * than the tree on screen.
    */
-  tree(
-    projectId: string,
-  ): Promise<{ workItems: WorkItemView[]; seq: number; scheduleError: 'cycle' | null }>;
+  tree(projectId: string): Promise<{
+    workItems: WorkItemView[];
+    seq: number;
+    scheduleError: 'cycle' | null;
+    estimateMethod: EstimateMethod;
+  }>;
+  /** Changes how the project turns its three-point estimates into one number. */
+  setEstimateMethod(projectId: string, method: EstimateMethod): Promise<void>;
   roles(projectId: string): Promise<RoleView[]>;
   create(
     projectId: string,
@@ -147,10 +180,18 @@ export function httpProjectApi(token: string): ProjectApi {
       });
     },
     tree(projectId) {
-      return send<{ workItems: WorkItemView[]; seq: number; scheduleError: 'cycle' | null }>(
-        `/api/projects/${projectId}/work-items`,
-        token,
-      );
+      return send<{
+        workItems: WorkItemView[];
+        seq: number;
+        scheduleError: 'cycle' | null;
+        estimateMethod: EstimateMethod;
+      }>(`/api/projects/${projectId}/work-items`, token);
+    },
+    async setEstimateMethod(projectId, method) {
+      await send(`/api/projects/${projectId}`, token, {
+        method: 'PATCH',
+        body: JSON.stringify({ estimateMethod: method }),
+      });
     },
     async roles(projectId) {
       const body = await send<{ roles: RoleView[] }>(`/api/projects/${projectId}`, token);

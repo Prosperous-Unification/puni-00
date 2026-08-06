@@ -33,7 +33,14 @@ beforeEach(async () => {
   });
   projectId = crypto.randomUUID();
   await new ProjectRepository(db).create(
-    { id: projectId, name: 'Rewire the shed', ownerId, restricted: false, createdAt: 1 },
+    {
+      id: projectId,
+      name: 'Rewire the shed',
+      ownerId,
+      restricted: false,
+      estimateMethod: 'pert',
+      createdAt: 1,
+    },
     [],
   );
 });

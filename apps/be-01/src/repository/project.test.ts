@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
-import { openDrizzle } from './db';
+import { openDatabase, openDrizzle } from './db';
 import type { Project, Role } from './index';
 import { runMigrations } from './migrate';
 import { ProjectRepository } from './project';
@@ -36,7 +36,14 @@ afterEach(() => {
 });
 
 function project(name: string, createdAt: number): Project {
-  return { id: crypto.randomUUID(), name, ownerId, restricted: false, createdAt };
+  return {
+    id: crypto.randomUUID(),
+    name,
+    ownerId,
+    restricted: false,
+    estimateMethod: 'pert',
+    createdAt,
+  };
 }
 
 function roles(projectId: string, ...names: string[]): Role[] {
@@ -68,6 +75,7 @@ describe('ProjectRepository', () => {
       name: 'Rewire the shed',
       ownerId,
       restricted: false,
+      estimateMethod: 'pert',
     });
     expect((await repo.rolesOf(shed.id)).map((r) => r.name)).toEqual(['Dev', 'QA']);
   });
@@ -142,6 +150,33 @@ describe('ProjectRepository', () => {
     await repo.recordOpen(ownerId, shed.id, 3000);
 
     expect((await repo.listFor(ownerId)).map((p) => p.lastOpenedAt)).toEqual([3000]);
+  });
+
+  it('patches the estimate method', async () => {
+    const shed = project('Rewire the shed', 100);
+    await repo.create(shed, roles(shed.id, 'Dev'));
+
+    const updated = await repo.update(shed.id, { estimateMethod: 'pessimistic' });
+
+    expect(updated).toMatchObject({ estimateMethod: 'pessimistic', name: 'Rewire the shed' });
+    expect(await repo.findById(shed.id)).toMatchObject({ estimateMethod: 'pessimistic' });
+  });
+
+  it('throws rather than planning with a method the database should not hold', async () => {
+    // `estimate_method` is text and SQLite will hold anything. Reading one back
+    // as PERT would plan a project by a method nobody chose, and say nothing.
+    // Written past the repository on purpose: this is the case where the
+    // *stored* value is wrong, which no amount of request validation prevents.
+    const shed = project('Rewire the shed', 100);
+    await repo.create(shed, roles(shed.id, 'Dev'));
+    const db = openDatabase(join(dir, 'test.db'));
+    try {
+      db.run(`UPDATE project SET estimate_method = 'median' WHERE id = '${shed.id}'`);
+    } finally {
+      db.close();
+    }
+
+    expect(await rejection(repo.findById(shed.id))).toMatch(/unknown estimate method/);
   });
 
   it('refuses a project whose owner does not exist', async () => {

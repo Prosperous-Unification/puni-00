@@ -1,4 +1,4 @@
-import { expectedDays } from '@wbs/domain';
+import { type EstimateMethod, finalDays } from '@wbs/domain';
 
 import type {
   DependencyStore,
@@ -40,7 +40,7 @@ const UNSCHEDULED: Scheduled = {
 };
 
 /**
- * Expected days per leaf: every role's PERT value, summed.
+ * Planning days per leaf: every role's final figure, summed.
  *
  * Summing assumes the roles run one after another — Dev finishes, then QA
  * starts. That is the common case and the conservative one; a team that runs
@@ -55,6 +55,7 @@ function durationsOf(
   rows: readonly WorkItem[],
   estimates: readonly StoredEstimate[],
   hasChildren: ReadonlySet<string>,
+  method: EstimateMethod,
 ): Map<string, number> {
   const durations = new Map<string, number>();
   for (const estimate of estimates) {
@@ -62,10 +63,31 @@ function durationsOf(
     if (!rows.some((row) => row.id === estimate.workItemId)) continue;
     durations.set(
       estimate.workItemId,
-      (durations.get(estimate.workItemId) ?? 0) + expectedDays(estimate),
+      (durations.get(estimate.workItemId) ?? 0) + finalDays(estimate, method),
     );
   }
   return durations;
+}
+
+/**
+ * One row's final figure per role, and their sum, under the project's method.
+ *
+ * Split out so the shape is built in one place: `finalDays` and `finalTotal`
+ * disagreeing would be two answers to one question, and the table prints both
+ * side by side.
+ */
+function finalsOf(
+  byRole: ReadonlyMap<string, Days>,
+  method: EstimateMethod,
+): { finalDays: Record<string, number>; finalTotal: number } {
+  const perRole: Record<string, number> = {};
+  let total = 0;
+  for (const [roleId, days] of byRole) {
+    const final = finalDays(days, method);
+    perRole[roleId] = final;
+    total += final;
+  }
+  return { finalDays: perRole, finalTotal: total };
 }
 
 /**
@@ -79,6 +101,20 @@ export interface NumberedWorkItem extends WorkItem {
   rolledUp: boolean;
   /** The work items this one waits for, as written — either end may be a parent. */
   dependsOn: string[];
+  /**
+   * The one number this row is planned with, per role, and their sum.
+   *
+   * Computed here rather than on the client, from the same {@link finalDays}
+   * the schedule's durations come from. Two implementations of "the final
+   * estimate" is how a table comes to disagree with the dates printed beside
+   * it, and this figure sits in the next column along from those dates.
+   *
+   * A role with no estimate anywhere below is absent, exactly as `estimates`
+   * is: absent and zero mean opposite things.
+   */
+  finalDays: Record<string, number>;
+  /** Every role's final figure, summed — the row's whole planning duration. */
+  finalTotal: number;
   /**
    * When this can happen, in whole days from the project's day zero.
    *
@@ -188,6 +224,7 @@ export class WorkItemService {
     workItems: NumberedWorkItem[];
     seq: number;
     scheduleError: ScheduleError;
+    estimateMethod: EstimateMethod;
   } | null> {
     const project = await this.opts.projects.findById(projectId);
     if (project === null) return null;
@@ -204,7 +241,7 @@ export class WorkItemService {
     // still work: the rows are there, and a plan nobody can open is worse than
     // one with no dates in it. The dates go, the rows stay, and the reason is
     // reported rather than left as a page of zeroes.
-    const durations = durationsOf(rows, stored, hasChildren);
+    const durations = durationsOf(rows, stored, hasChildren, project.estimateMethod);
     let timing = new Map<string, Scheduled>();
     let scheduleError: ScheduleError = null;
     try {
@@ -229,6 +266,12 @@ export class WorkItemService {
         ...row,
         number: numbers.get(row.id) ?? '',
         estimates: Object.fromEntries(totals.get(row.id) ?? []),
+        // A parent's final figure is its rolled-up totals put through the same
+        // method, not the sum of its children's finals. For PERT the two agree
+        // (the weighting is linear); for the others they agree too, since each
+        // picks one point and the points are summed. Doing it from the totals
+        // keeps one path rather than two that happen to match today.
+        ...finalsOf(totals.get(row.id) ?? new Map(), project.estimateMethod),
         rolledUp: hasChildren.has(row.id),
         // Only predecessors that are in this project. A stored edge naming a
         // work item from elsewhere — which the schema does not prevent — would
@@ -237,7 +280,7 @@ export class WorkItemService {
         schedule: timing.get(row.id) ?? UNSCHEDULED,
       }))
       .sort((a, b) => (a.number < b.number ? -1 : a.number > b.number ? 1 : 0));
-    return { workItems, seq, scheduleError };
+    return { workItems, seq, scheduleError, estimateMethod: project.estimateMethod };
   }
 
   async create(

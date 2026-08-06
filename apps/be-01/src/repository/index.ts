@@ -1,3 +1,5 @@
+import type { EstimateMethod } from '@wbs/domain';
+
 export interface Example {
   id: string;
   label: string;
@@ -28,6 +30,8 @@ export interface Project {
   name: string;
   ownerId: string;
   restricted: boolean;
+  /** How this project turns its three-point estimates into one planning number. */
+  estimateMethod: EstimateMethod;
   createdAt: number;
 }
 
@@ -45,6 +49,7 @@ export interface Role {
 export interface ProjectPatch {
   name?: string;
   restricted?: boolean;
+  estimateMethod?: EstimateMethod;
 }
 
 export interface WorkItem {
