@@ -61,6 +61,11 @@ One estimate written as one value — `2/3/8`, or `5` meaning all three are five
 folded role's cell takes, in place of three boxes.
 _Avoid_: quick entry, inline estimate, compact form
 
+**Estimate gap**:
+One leaf work item and one role it holds no estimate for. A work item with children never
+has one, because its figures are rolled up rather than typed.
+_Avoid_: missing estimate, unestimated row, TBD
+
 **Roll-up**:
 The sum of a parent's descendants' estimates, per role, computed on read and never stored.
 _Avoid_: aggregate, total, computed estimate

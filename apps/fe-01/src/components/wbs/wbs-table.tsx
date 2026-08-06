@@ -34,6 +34,7 @@ import {
   type TypedTrio,
 } from './estimate-draft';
 import { NotesPreview } from './notes-preview';
+import { describeGaps, findEstimateGaps } from './plan-completeness';
 import { indentFor, pinnedCellStyle, STICKY_HEADER_CELL, TABLE_FRAME } from './table-frame';
 import { toTree, type TreeRow } from './wbs-rows';
 
@@ -338,6 +339,20 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
    * continues.
    */
   const focusNext = useRef<CellRef | null>(null);
+  /**
+   * Where the readiness walk has got to: the leaf it last put the focus in,
+   * and the cell it asked for.
+   *
+   * The row rather than an index into the list of gaps, because that list is
+   * rebuilt by every edit — estimating the row you were standing on takes it
+   * out, and an index would then point at whichever row slid into its place. A
+   * row that has left the list starts the walk again from the top.
+   *
+   * A fresh object on every click on purpose: it is what the effect below
+   * fires on, so a plan with one gap left focuses that same cell again rather
+   * than the button doing nothing.
+   */
+  const [gapVisit, setGapVisit] = useState<{ rowId: string; cell: CellRef } | null>(null);
   /** The rendered table, so the focus can be found in the DOM that is committed. */
   const tableElement = useRef<HTMLTableElement | null>(null);
 
@@ -495,6 +510,123 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
     (parentId: string | null) => flat.filter((row) => row.parentId === parentId),
     [flat],
   );
+
+  /**
+   * What this plan is still short of, per leaf and per role.
+   *
+   * Recomputed from the tree on screen rather than tracked, for the reason
+   * nothing here is patched locally: an estimate can arrive from anybody, and
+   * a count kept alongside would be the second answer to a question that has
+   * one.
+   */
+  const gaps = useMemo(() => findEstimateGaps(flat, roles), [flat, roles]);
+
+  /**
+   * The work items between `rowId` and the root, nearest first.
+   *
+   * Terminates because `flat` is built by walking the nested tree down from
+   * its roots: every row in it is reachable from a root, so its parent chain
+   * is finite. A `parentId` cycle leaves both rows out of the tree `toTree`
+   * builds, and so out of `flat` and out of this.
+   */
+  const ancestorsOf = useCallback(
+    (rowId: string): string[] => {
+      const above: string[] = [];
+      let next = flat.find((row) => row.id === rowId)?.parentId ?? null;
+      while (next !== null) {
+        // Copied to a `const` because the closure below reads it: TypeScript
+        // drops the narrowing of a reassigned `let` inside a callback.
+        const parentId = next;
+        above.push(parentId);
+        next = flat.find((row) => row.id === parentId)?.parentId ?? null;
+      }
+      return above;
+    },
+    [flat],
+  );
+
+  /**
+   * Walks to the next leaf the plan has no estimate for, and asks for the
+   * focus in the cell that estimates it.
+   *
+   * The readiness badge's only behaviour. It reads nothing and writes nothing:
+   * a plan is judged complete or not by {@link findEstimateGaps}, and this
+   * carries the eye there. The cell aimed at is the **first role that leaf is
+   * missing** — a row costed for Dev and not QA is stood in front of its QA
+   * cell, because pointing at the number that is already there would be the
+   * tool asking for work that is done.
+   *
+   * The walk wraps, and a leaf inside a closed branch opens its ancestors on
+   * the way: focusing a cell that is not on screen is a keystroke landing
+   * somewhere nobody can see.
+   */
+  const walkToNextGap = useCallback(() => {
+    if (gaps.leaves.length === 0) return;
+    const at =
+      gapVisit === null ? -1 : gaps.leaves.findIndex((leaf) => leaf.rowId === gapVisit.rowId);
+    // `-1` is both "nothing visited yet" and "the row visited has since been
+    // estimated, or deleted". Both start at the top, which is the only place
+    // that is still true about the list as it now stands.
+    // Proof: `-1` folded up to `0` instead, `starts again from the top when
+    // the leaf it was on has been estimated` failed one row further down the
+    // list than anybody asked for. Watched, 2026-08-06.
+    //
+    // The modulo wraps. Proof: replaced with a clamp to the last entry, `moves
+    // on to the next leaf on the next click, and wraps at the end` failed on
+    // the third click, which sat where it was. Watched, 2026-08-06.
+    //
+    // Both indexes below are in range without a guard: the list is not empty,
+    // and `findEstimateGaps` never reports a leaf that is missing no role at
+    // all. Guards for them were written and `no-unnecessary-condition` refused
+    // them — dead branches, which is exactly the check that cannot fail.
+    const next = gaps.leaves[(at + 1) % gaps.leaves.length];
+    const roleId = next.missingRoleIds[0];
+    // Which cell edits this role depends on the fold: the combined cell while
+    // the role is folded, and the optimistic box while it is not, because
+    // `combined-trio-entry` deliberately never shows both editors at once.
+    // Proof: hard-coded to the folded cell, `lands in the first box while the
+    // role is unfolded, where the trio is typed` failed with the focus left on
+    // the body — the column it named is not an editable cell while the role is
+    // open. Watched, 2026-08-06.
+    const columnId = unfoldedRoles.includes(roleId) ? `${roleId}-optimistic` : `${roleId}-final`;
+    // Proof: removed, `opens a collapsed branch rather than focusing a cell
+    // nobody can see` failed with the child row still hidden. Watched,
+    // 2026-08-06.
+    setExpanded((current) => ancestorsOf(next.rowId).reduce(expandBranch, current));
+    setGapVisit({ rowId: next.rowId, cell: { rowId: next.rowId, columnId } });
+  }, [ancestorsOf, gapVisit, gaps, unfoldedRoles]);
+
+  /**
+   * Lands the focus on the cell the readiness walk asked for.
+   *
+   * An effect rather than a `focus()` in the click, because the click may have
+   * opened a branch as well: the row it names is not in this component's DOM
+   * until the render carrying that expansion is committed. Both state updates
+   * are made in one handler, so they batch into one render and this runs after
+   * it — reading the committed DOM, which is the only thing that cannot be
+   * ahead of itself.
+   *
+   * A cell that is not there is left alone: a peer's refetch can remove the
+   * row between the click and this, which is a modeled condition, and the next
+   * click starts the walk from the top anyway.
+   */
+  useEffect(() => {
+    const table = tableElement.current;
+    if (gapVisit === null || table === null) return;
+    const arrived = editableGrid(table).find(
+      (candidate) =>
+        candidate.cell.rowId === gapVisit.cell.rowId &&
+        candidate.cell.columnId === gapVisit.cell.columnId,
+    );
+    if (arrived === undefined) return;
+    // Proof: removed, five of this block's tests failed with the focus left
+    // wherever the last created row had put it. Watched, 2026-08-06.
+    arrived.input.focus();
+    // Selected, the way every arrival at an estimate cell is: the value at
+    // rest is a computed figure, and a caret dropped inside `4` turns the next
+    // `2/3/8` into `2/3/84`.
+    arrived.input.select();
+  }, [gapVisit]);
 
   /**
    * Resolves a drop and sends the move, or refuses it out loud.
@@ -2020,6 +2152,21 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
         >
           Add work item
         </button>
+        {/*
+          How ready this plan is to be read, and the way to the rows that make
+          it not ready. Absent entirely when every leaf is estimated for every
+          role: a complete plan needs no badge, and a tick that is always there
+          is a thing to stop seeing — this has to be noticed the day it appears.
+
+          Not disabled while the table is busy, unlike the buttons beside it:
+          it writes nothing, and a button that greys out during somebody else's
+          refetch reads as broken.
+        */}
+        {gaps.leaves.length > 0 && (
+          <button type="button" title={describeGaps(gaps)} onClick={walkToNextGap}>
+            {gaps.leaves.length} unestimated
+          </button>
+        )}
         <label style={{ marginLeft: 'auto', display: 'flex', gap: 4, alignItems: 'center' }}>
           Starts
           {/*

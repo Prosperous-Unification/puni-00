@@ -3257,3 +3257,150 @@ describe('adding several dependencies at once', () => {
     expect(screen.queryByRole('alert')).toBeNull();
   });
 });
+
+describe('what the plan is still missing', () => {
+  /** The readiness badge, or null when the plan is complete and it is gone. */
+  const badge = () => screen.queryByRole('button', { name: /unestimated/ });
+
+  /** The badge, thrown for rather than defaulted: a null here means test setup. */
+  const theBadge = (): HTMLElement => {
+    const found = badge();
+    if (found === null) throw new Error('no readiness badge on screen');
+    return found;
+  };
+
+  /** Rows with nothing typed into them yet, roles left folded — where a person starts. */
+  async function rows(count: number) {
+    const api = fakeApi();
+    render(<WbsTable projectId="p1" api={api} />);
+    for (const number of ['010', '020', '030'].slice(0, count)) {
+      click('Add work item');
+      await screen.findByLabelText(`Name of ${number}`);
+    }
+    return api;
+  }
+
+  /** Estimates one row and role through the folded cell, and waits for it to land. */
+  const estimate = async (number: string, role: 'Dev' | 'QA') => {
+    const cell = screen.getByLabelText<HTMLInputElement>(`${role} estimate for ${number}`);
+    fireEvent.change(cell, { target: { value: '5' } });
+    fireEvent.blur(cell);
+    await waitFor(() => {
+      expect(screen.getByLabelText<HTMLInputElement>(`${role} estimate for ${number}`).value).toBe(
+        '5',
+      );
+    });
+  };
+
+  itDom('counts the leaves that are short, not the roles they are short of', async () => {
+    // Two work items to go and fix, three role-sized holes between them. The
+    // badge is a number of rows a reader can walk; adding the per-role counts
+    // would print a bigger number than there are rows to visit.
+    await rows(3);
+    await estimate('010', 'Dev');
+    await estimate('010', 'QA');
+    await estimate('020', 'Dev');
+
+    expect(theBadge().textContent).toBe('2 unestimated');
+    expect(theBadge().getAttribute('title')).toBe('1 missing Dev, 2 missing QA');
+    // A native button, so Enter and Space activate it without this table
+    // binding a key. jsdom does not perform that activation, so it is the
+    // element itself that is asserted here.
+    expect(theBadge().tagName).toBe('BUTTON');
+  });
+
+  itDom('says nothing at all about a plan that is complete', async () => {
+    // A complete plan needs no badge. A permanent green tick is a thing to
+    // stop seeing, and this one has to be noticed the day it appears.
+    await rows(1);
+    expect(badge()).not.toBeNull();
+
+    await estimate('010', 'Dev');
+    await estimate('010', 'QA');
+
+    expect(badge()).toBeNull();
+  });
+
+  itDom('says nothing about a project with no work items in it', async () => {
+    const api = fakeApi();
+    render(<WbsTable projectId="p1" api={api} />);
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Add work item' })).toBeDefined();
+    });
+
+    expect(badge()).toBeNull();
+  });
+
+  itDom('lands the focus in the cell of the first role that leaf is missing', async () => {
+    // Per role, not per row: 010 has a Dev estimate and no QA one, so the cell
+    // to be standing in is QA's. Sending the focus to Dev would be the tool
+    // pointing at the one number that is already there.
+    await rows(2);
+    await estimate('010', 'Dev');
+
+    fireEvent.click(theBadge());
+
+    expect(document.activeElement).toBe(screen.getByLabelText('QA estimate for 010'));
+  });
+
+  itDom('moves on to the next leaf on the next click, and wraps at the end', async () => {
+    await rows(2);
+
+    fireEvent.click(theBadge());
+    expect(document.activeElement).toBe(screen.getByLabelText('Dev estimate for 010'));
+
+    fireEvent.click(theBadge());
+    expect(document.activeElement).toBe(screen.getByLabelText('Dev estimate for 020'));
+
+    // Wraps rather than stopping: the badge is a walk through what is left,
+    // and a button that stops working at the end reads as broken.
+    fireEvent.click(theBadge());
+    expect(document.activeElement).toBe(screen.getByLabelText('Dev estimate for 010'));
+  });
+
+  itDom('starts again from the top when the leaf it was on has been estimated', async () => {
+    await rows(3);
+    fireEvent.click(theBadge());
+    fireEvent.click(theBadge());
+    expect(document.activeElement).toBe(screen.getByLabelText('Dev estimate for 020'));
+
+    await estimate('020', 'Dev');
+    await estimate('020', 'QA');
+
+    // The row the cycle was standing on is no longer in the list. Rather than
+    // guess where it used to be, the walk starts over.
+    fireEvent.click(theBadge());
+    expect(document.activeElement).toBe(screen.getByLabelText('Dev estimate for 010'));
+  });
+
+  itDom('opens a collapsed branch rather than focusing a cell nobody can see', async () => {
+    const api = await rows(2);
+    pressTab('020');
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '010.1']);
+    });
+    click('Collapse 010');
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010']);
+    });
+    // The parent is a roll-up of the child, so the child is the only gap.
+    expect(theBadge().textContent).toBe('1 unestimated');
+    expect(api.rows).toHaveLength(2);
+
+    fireEvent.click(theBadge());
+
+    expect(numbersOnScreen()).toEqual(['010', '010.1']);
+    expect(document.activeElement).toBe(screen.getByLabelText('Dev estimate for 010.1'));
+  });
+
+  itDom('lands in the first box while the role is unfolded, where the trio is typed', async () => {
+    // Unfolded, the folded cell is the read-only figure again and the three
+    // boxes are the editor — so that is where the walk has to put the caret.
+    await rows(1);
+    unfoldRole('Dev');
+
+    fireEvent.click(theBadge());
+
+    expect(document.activeElement).toBe(screen.getByLabelText('Dev optimistic for 010'));
+  });
+});
