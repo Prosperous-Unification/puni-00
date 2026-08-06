@@ -132,3 +132,21 @@ describe('DependencyRepository', () => {
     expect(repo.add(edge(a, crypto.randomUUID()))).rejects.toThrow(/FOREIGN KEY/i);
   });
 });
+
+describe('a work item deleted by a release that knows nothing about edges', () => {
+  it('takes its dependencies with it rather than refusing the delete', async () => {
+    // agy, high. Blue and green share one SQLite file during a swap. The
+    // outgoing release has never heard of this table, so its plain
+    // `DELETE FROM work_item` would hit a foreign key it cannot see and answer
+    // 500 for an ordinary deletion. The cascade is what makes the migration
+    // safe to apply while the old release is still serving.
+    const a = await addWorkItem('Strip');
+    const b = await addWorkItem('Sand');
+    await repo.add(edge(a, b));
+
+    // Exactly what the old release runs: no edge cleanup first.
+    await new WorkItemRepository(db).remove([a], []);
+
+    expect(await repo.listByProject(projectId)).toEqual([]);
+  });
+});

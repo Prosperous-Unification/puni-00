@@ -200,3 +200,42 @@ describe('schedule — what it refuses and what it admits', () => {
     expect(schedule([], [], days({})).size).toBe(0);
   });
 });
+
+describe('schedule — on a graph the size of a real plan', () => {
+  /** `branches` parents of `perBranch` leaves each, chained one branch to the next. */
+  const bigPlan = (branches: number, perBranch: number) => {
+    const rows: WorkItem[] = [];
+    const edges: DependencyEdge[] = [];
+    const durations = new Map<string, number>();
+    for (let b = 0; b < branches; b++) {
+      rows.push(item(`branch-${String(b)}`));
+      for (let l = 0; l < perBranch; l++) {
+        const id = `leaf-${String(b)}-${String(l)}`;
+        rows.push(item(id, `branch-${String(b)}`));
+        durations.set(id, 1);
+      }
+      // Declared parent to parent, which is the expensive shape: it expands to
+      // every pair of leaves across the two branches.
+      if (b > 0) edges.push(edge(`branch-${String(b - 1)}`, `branch-${String(b)}`));
+    }
+    return { rows, edges, durations };
+  };
+
+  it('schedules a hundred branches of twenty leaves without falling over', () => {
+    // codex, high: the first version rebuilt the whole child index twice per
+    // edge and once per parent, and copied adjacency arrays with a spread. This
+    // is 2,000 leaves and 99 parent-to-parent edges, which expand to about
+    // 39,600 leaf edges. A number rather than an assurance — the claim in
+    // `verify.md` used to be "fine for hundreds", untested.
+    const { rows, edges, durations } = bigPlan(100, 20);
+
+    const started = performance.now();
+    const found = schedule(rows, edges, durations);
+    const took = performance.now() - started;
+
+    expect(found.size).toBe(rows.length);
+    // The last branch waits for all ninety-nine before it, each one day long.
+    expect(found.get('leaf-99-0')).toMatchObject({ earliestStart: 99, earliestFinish: 100 });
+    expect(took).toBeLessThan(4000);
+  });
+});

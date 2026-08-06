@@ -1035,3 +1035,98 @@ describe('dependencies in the table', () => {
     expect(row?.querySelector('[data-finish]')?.textContent).toContain('?');
   });
 });
+
+describe('dependencies in the table — cross-review findings', () => {
+  /**
+   * A tree read with a schedule this component did not compute.
+   *
+   * The `fakeApi` above works out its own miniature schedule, which makes the
+   * date tests a proof about the fake. Both reviewers said so. This returns
+   * fixed, distinctive numbers instead: what is asserted is that the table
+   * renders what be-01 sent, which is the only part of this the table owns.
+   */
+  const apiReturning = (
+    scheduleError: 'cycle' | null,
+    schedule: Partial<WorkItemView['schedule']> = {},
+  ): ProjectApi => ({
+    listProjects: () => Promise.resolve([{ id: 'p1', name: 'P', restricted: false }]),
+    createProject: (name: string) => Promise.resolve({ id: 'p1', name, restricted: false }),
+    roles: () => Promise.resolve([DEV]),
+    tree: () =>
+      Promise.resolve({
+        seq: 0,
+        scheduleError,
+        workItems: [
+          {
+            id: 'w1',
+            parentId: null,
+            number: '010',
+            name: 'Strip',
+            notes: '',
+            frozenNumber: null,
+            rolledUp: false,
+            estimates: {},
+            dependsOn: [],
+            schedule: {
+              duration: 7,
+              estimated: true,
+              earliestStart: 11,
+              earliestFinish: 18,
+              latestStart: 13,
+              latestFinish: 20,
+              float: 2,
+              critical: false,
+              ...schedule,
+            },
+          },
+        ],
+      }),
+    create: () => Promise.resolve({ id: 'w2' }),
+    patch: () => Promise.resolve(),
+    move: () => Promise.resolve(),
+    remove: () => Promise.resolve(),
+    setEstimate: () => Promise.resolve(),
+    freeze: () => Promise.resolve(),
+    unfreezeProject: () => Promise.resolve(),
+    unfreeze: () => Promise.resolve(),
+    addDependency: () => Promise.resolve(),
+    removeDependency: () => Promise.resolve(),
+  });
+
+  const cells = async () => {
+    const row = await waitFor(() => {
+      const found = screen
+        .getAllByRole('row')
+        .find((tr) => tr.querySelector('[data-number]')?.textContent === '010');
+      if (found === undefined) throw new Error('no row yet');
+      return found;
+    });
+    return {
+      start: row.querySelector('[data-start]')?.textContent,
+      finish: row.querySelector('[data-finish]')?.textContent,
+      float: row.querySelector('[data-float]')?.textContent,
+    };
+  };
+
+  itDom('shows the schedule be-01 sent, not one it worked out itself', async () => {
+    render(<WbsTable projectId="p1" api={apiReturning(null)} />);
+
+    expect(await cells()).toEqual({ start: '11', finish: '18', float: '2' });
+  });
+
+  itDom('names a critical row rather than printing its zero', async () => {
+    render(<WbsTable projectId="p1" api={apiReturning(null, { float: 0, critical: true })} />);
+
+    expect((await cells()).float).toBe('— critical');
+  });
+
+  itDom('shows dashes rather than zeroes when there is no schedule', async () => {
+    // agy, medium. A cycle sends every row the same zeroed schedule, and
+    // printing those reads as "everything happens on day zero" — a confident
+    // wrong answer, next to a banner saying no dates could be worked out.
+    render(<WbsTable projectId="p1" api={apiReturning('cycle')} />);
+
+    expect(await cells()).toEqual({ start: '—', finish: '—', float: '—' });
+    expect(screen.getByRole('alert').textContent).toContain('run in a circle');
+  });
+});

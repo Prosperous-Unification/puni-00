@@ -24,30 +24,88 @@ export interface Scheduled {
   critical: boolean;
 }
 
-/** Every work item that has no children — the only things with a duration. */
-function leavesOf(rows: readonly WorkItem[]): WorkItem[] {
-  const parents = new Set(rows.map((row) => row.parentId).filter((id) => id !== null));
-  return rows.filter((row) => !parents.has(row.id));
+/** The cycle a graph cannot be ordered around. Typed so callers catch this and nothing else. */
+export class ScheduleCycleError extends Error {
+  override name = 'ScheduleCycleError' as const;
+  constructor() {
+    super('dependency cycle: the schedule cannot be ordered');
+  }
 }
 
-/** `rootId` and every work item beneath it; a leaf is its own only leaf. */
-function leavesUnder(rows: readonly WorkItem[], rootId: string): string[] {
+/**
+ * The tree, indexed once: children by parent, and the leaves beneath every id.
+ *
+ * Built in one pass and shared by everything that needs it. The first version
+ * rebuilt the child index inside a helper called twice per edge and once per
+ * parent, which is quadratic in the rows before the edges are even expanded.
+ */
+export interface TreeIndex {
+  /** Every work item with no children — the only things with a duration. */
+  leafIds: string[];
+  /** For any id: the leaves beneath it. A leaf maps to itself. */
+  leavesUnder: Map<string, string[]>;
+}
+
+export function indexTree(rows: readonly WorkItem[]): TreeIndex {
   const childrenOf = new Map<string, WorkItem[]>();
   for (const row of rows) {
     if (row.parentId === null) continue;
-    childrenOf.set(row.parentId, [...(childrenOf.get(row.parentId) ?? []), row]);
+    const group = childrenOf.get(row.parentId);
+    if (group === undefined) childrenOf.set(row.parentId, [row]);
+    else group.push(row);
   }
-  const found: string[] = [];
-  const walk = (id: string): void => {
+
+  const leavesUnder = new Map<string, string[]>();
+  const walk = (id: string): string[] => {
+    const already = leavesUnder.get(id);
+    if (already !== undefined) return already;
     const children = childrenOf.get(id);
-    if (children === undefined) {
-      found.push(id);
-      return;
-    }
-    for (const child of children) walk(child.id);
+    const found = children === undefined ? [id] : children.flatMap((child) => walk(child.id));
+    leavesUnder.set(id, found);
+    return found;
   };
-  walk(rootId);
-  return found;
+  for (const row of rows) walk(row.id);
+
+  return {
+    leafIds: rows.filter((row) => !childrenOf.has(row.id)).map((row) => row.id),
+    leavesUnder,
+  };
+}
+
+/**
+ * The edges as the schedule sees them: every pair of leaves the written edges
+ * imply.
+ *
+ * Exported because `canDepend` must ask its question of **this** graph. Asking
+ * it of the written edges instead let through an edge whose expansion closed a
+ * cycle — the API accepted it, and every later read of the project threw. Two
+ * reviewers found that independently, with different examples.
+ */
+export function expandToLeaves(
+  index: TreeIndex,
+  edges: readonly DependencyEdge[],
+): DependencyEdge[] {
+  const isLeaf = new Set(index.leafIds);
+  const expanded: DependencyEdge[] = [];
+  for (const { predecessorId, successorId } of edges) {
+    for (const from of index.leavesUnder.get(predecessorId) ?? []) {
+      if (!isLeaf.has(from)) continue;
+      for (const to of index.leavesUnder.get(successorId) ?? []) {
+        if (isLeaf.has(to)) expanded.push({ predecessorId: from, successorId: to });
+      }
+    }
+  }
+  return expanded;
+}
+
+/** Whether the leaf graph can be ordered at all — the same question the sort asks. */
+export function hasCycle(index: TreeIndex, edges: readonly DependencyEdge[]): boolean {
+  try {
+    topological(index.leafIds, expandToLeaves(index, edges));
+    return false;
+  } catch {
+    return true;
+  }
 }
 
 /**
@@ -62,7 +120,9 @@ function topological(leafIds: readonly string[], edges: readonly DependencyEdge[
   const incoming = new Map(leafIds.map((id) => [id, 0]));
   const outgoing = new Map<string, string[]>();
   for (const { predecessorId, successorId } of edges) {
-    outgoing.set(predecessorId, [...(outgoing.get(predecessorId) ?? []), successorId]);
+    const group = outgoing.get(predecessorId);
+    if (group === undefined) outgoing.set(predecessorId, [successorId]);
+    else group.push(successorId);
     incoming.set(successorId, (incoming.get(successorId) ?? 0) + 1);
   }
 
@@ -82,9 +142,7 @@ function topological(leafIds: readonly string[], edges: readonly DependencyEdge[
   // Proof: this throw deleted and only `throws on a cyclic graph rather than
   // returning a schedule` failed — it returned a schedule with the cycle's rows
   // silently missing, which is exactly the undetectable wrongness it guards.
-  if (order.length !== leafIds.length) {
-    throw new Error('dependency cycle: the schedule cannot be ordered');
-  }
+  if (order.length !== leafIds.length) throw new ScheduleCycleError();
   return order;
 }
 
@@ -105,21 +163,13 @@ export function schedule(
   edges: readonly DependencyEdge[],
   durations: ReadonlyMap<string, number>,
 ): Map<string, Scheduled> {
-  const leaves = leavesOf(rows);
-  const leafIds = leaves.map((leaf) => leaf.id);
+  const index = indexTree(rows);
+  const { leafIds } = index;
   const isLeaf = new Set(leafIds);
 
-  // Expanded once, here. Storing the expansion would be a second copy to fall
+  // Expanded here rather than stored. Storing it would be a second copy to fall
   // out of date with the tree the moment a leaf is added under either end.
-  const leafEdges: DependencyEdge[] = [];
-  for (const { predecessorId, successorId } of edges) {
-    for (const from of leavesUnder(rows, predecessorId)) {
-      for (const to of leavesUnder(rows, successorId)) {
-        if (isLeaf.has(from) && isLeaf.has(to))
-          leafEdges.push({ predecessorId: from, successorId: to });
-      }
-    }
-  }
+  const leafEdges = expandToLeaves(index, edges);
 
   const order = topological(leafIds, leafEdges);
   const predecessorsOf = new Map<string, string[]>();
@@ -178,7 +228,7 @@ export function schedule(
   // days of work in a 4-day branch, and both are true.
   for (const row of rows) {
     if (isLeaf.has(row.id)) continue;
-    const beneath = leavesUnder(rows, row.id)
+    const beneath = (index.leavesUnder.get(row.id) ?? [])
       .map((id) => scheduled.get(id))
       .filter((s): s is Scheduled => s !== undefined);
     const starts = beneath.map((s) => s.earliestStart);

@@ -288,6 +288,42 @@ describe('dependencies', () => {
     expect(tree?.workItems[0]?.schedule).toMatchObject({ earliestStart: 0, estimated: false });
   });
 
+  it('lets a failure that is not a cycle out rather than calling it one', async () => {
+    // codex, high. An unqualified catch turned every exception in that block
+    // into "your dependencies run in a circle" — a stack overflow on a deep
+    // tree, a future mistake in the duration sum, anything. R5: unknown is not
+    // OK, and a confident wrong answer is the worst kind.
+    const a = await add('Strip');
+    const broken = {
+      ...dependencies,
+      listByProject: () => Promise.reject(new Error('the dependency table is on fire')),
+    };
+    const service2 = new WorkItemService({
+      workItems,
+      projects,
+      estimates: inMemoryEstimates(workItems),
+      dependencies: broken,
+      broadcast: recordingBroadcaster(),
+    });
+
+    expect(service2.tree(projectId)).rejects.toThrow(/on fire/);
+    expect(a).toBeDefined();
+  });
+
+  it('does not report a predecessor that is not in the project', async () => {
+    const a = await add('Strip');
+    await dependencies.add({
+      id: 'stray',
+      projectId,
+      predecessorId: crypto.randomUUID(),
+      successorId: a,
+    });
+
+    const tree = await service.tree(projectId);
+
+    expect(tree?.workItems.find((w) => w.id === a)?.dependsOn).toEqual([]);
+  });
+
   it('reports no schedule error for a project that schedules', async () => {
     await add('Strip');
 

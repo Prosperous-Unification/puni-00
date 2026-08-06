@@ -2,6 +2,7 @@ import { describe, expect, it } from 'bun:test';
 
 import type { StoredDependency, WorkItem } from '../repository';
 import { canDepend, type DependencyRefusal } from './dependency';
+import { schedule } from './schedule';
 
 let position = 0;
 const item = (id: string, parentId: string | null = null): WorkItem => ({
@@ -101,5 +102,64 @@ describe('canDepend', () => {
     // `phase → after` means both leaves under `phase` come first. Adding
     // `after → early` puts `early` after something that waits for `early`.
     expect(check('after', 'early', [edge('phase', 'after')])).toBe('cycle');
+  });
+});
+
+describe('canDepend — cross-review findings', () => {
+  /**
+   * ```
+   * phase          after
+   *   leaf
+   * ```
+   * codex's example. `phase → after` expands to `leaf → after`, which with an
+   * existing `after → leaf` is a cycle. The old search compared ids and never
+   * saw it: `leaf` is not `phase`, so reaching `leaf` did not count as reaching
+   * the parent the proposed edge was declared on.
+   */
+  it('refuses an edge whose expansion closes a cycle through a parent', () => {
+    const rows = [item('phase'), item('leaf', 'phase'), item('after')];
+
+    expect(canDepend(rows, [edge('after', 'leaf')], 'phase', 'after')).toBe('cycle');
+  });
+
+  /**
+   * ```
+   * a          b
+   *   a1         b1
+   * ```
+   * agy's example, found independently. `a1 → b1` exists; `b → a` expands to
+   * `b1 → a1`, which closes the loop.
+   */
+  it('refuses an edge between two branches whose leaves already point back', () => {
+    const rows = [item('a'), item('a1', 'a'), item('b'), item('b1', 'b')];
+
+    expect(canDepend(rows, [edge('a1', 'b1')], 'b', 'a')).toBe('cycle');
+  });
+
+  it('still allows the same shape when the leaves do not point back', () => {
+    // The mirror of the case above: if nothing runs the other way, the edge is
+    // an ordinary one and refusing it would be the opposite mistake.
+    const rows = [item('a'), item('a1', 'a'), item('b'), item('b1', 'b')];
+
+    expect(canDepend(rows, [edge('a1', 'b1')], 'a', 'b')).toBeNull();
+  });
+
+  it('accepts what the schedule accepts, over every pair in a fixture tree', () => {
+    // The equivalence stated rather than argued. For every ordered pair, the
+    // answer `canDepend` gives is the answer the schedule gives when it is
+    // handed the same edge — no edge accepted here can throw there.
+    const rows = [item('p'), item('p1', 'p'), item('p2', 'p'), item('q'), item('q1', 'q')];
+    const existing = [edge('p1', 'q1')];
+
+    for (const from of rows) {
+      for (const to of rows) {
+        const refusal = canDepend(rows, existing, from.id, to.id);
+        if (refusal !== null) continue;
+        const durations = new Map(rows.map((r) => [r.id, 1]));
+        expect(() =>
+          schedule(rows, [...existing, { predecessorId: from.id, successorId: to.id }], durations),
+        ).not.toThrow();
+      }
+    }
   });
 });

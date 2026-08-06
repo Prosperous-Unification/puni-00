@@ -465,6 +465,21 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
     [api, flat, run],
   );
 
+  /**
+   * Whether the numbers in the schedule columns mean anything.
+   *
+   * When be-01 could not order the graph it sends every row the same zeroed
+   * schedule, and printing those is a page of `0`s that reads as "everything
+   * happens on day zero" — a confident wrong answer of exactly the kind the
+   * banner above is there to prevent. A reviewer caught the columns still doing
+   * it while `verify.md` claimed they did not.
+   */
+  const hasSchedule = useCallback(() => scheduleError === null, [scheduleError]);
+  const showSchedule = useCallback(
+    (days: number) => (scheduleError === null ? showDay(days) : '—'),
+    [scheduleError],
+  );
+
   const live = useRef({
     api,
     projectId,
@@ -475,6 +490,8 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
     setDropHint,
     numbersOf,
     dependOn,
+    hasSchedule,
+    showSchedule,
   });
   live.current = {
     api,
@@ -486,6 +503,8 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
     setDropHint,
     numbersOf,
     dependOn,
+    hasSchedule,
+    showSchedule,
   };
 
   const columns = useMemo(
@@ -651,15 +670,17 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
       column.display({
         id: 'start',
         header: 'Starts (day)',
-        cell: ({ row }) => <span data-start>{showDay(row.original.schedule.earliestStart)}</span>,
+        cell: ({ row }) => (
+          <span data-start>{live.current.showSchedule(row.original.schedule.earliestStart)}</span>
+        ),
       }),
       column.display({
         id: 'finish',
         header: 'Ends (day)',
         cell: ({ row }) => (
           <span data-finish title={row.original.schedule.estimated ? undefined : 'No estimate yet'}>
-            {showDay(row.original.schedule.earliestFinish)}
-            {row.original.schedule.estimated ? '' : ' ?'}
+            {live.current.showSchedule(row.original.schedule.earliestFinish)}
+            {live.current.hasSchedule() && !row.original.schedule.estimated ? ' ?' : ''}
           </span>
         ),
       }),
@@ -668,7 +689,11 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
         header: 'Slack (days)',
         cell: ({ row }) => (
           <span data-float>
-            {row.original.schedule.critical ? '— critical' : showDay(row.original.schedule.float)}
+            {!live.current.hasSchedule()
+              ? '—'
+              : row.original.schedule.critical
+                ? '— critical'
+                : showDay(row.original.schedule.float)}
           </span>
         ),
       }),

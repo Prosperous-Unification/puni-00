@@ -1,4 +1,5 @@
 import type { StoredDependency, WorkItem } from '../repository';
+import { hasCycle, indexTree } from './schedule';
 
 export type DependencyRefusal = 'not_found' | 'ancestor' | 'cycle';
 
@@ -9,43 +10,6 @@ function isWithin(rows: readonly WorkItem[], candidateId: string, rootId: string
   while (cursor !== null && cursor !== undefined) {
     if (cursor === rootId) return true;
     cursor = parentOf.get(cursor);
-  }
-  return false;
-}
-
-/**
- * Whether `fromId` can already reach `toId` by following existing edges.
- *
- * Edges are followed **through the tree**: an edge on a parent constrains every
- * leaf beneath it, so reaching a parent reaches its descendants and reaching a
- * descendant means its ancestors are involved too. A search that only compared
- * the two ids written on each row would miss a cycle closed through a branch,
- * and the schedule would then throw on a graph the API had accepted.
- */
-function canReach(
-  rows: readonly WorkItem[],
-  edges: readonly StoredDependency[],
-  fromId: string,
-  toId: string,
-): boolean {
-  const seen = new Set<string>();
-  const queue = [fromId];
-  while (queue.length > 0) {
-    const here = queue.shift();
-    if (here === undefined || seen.has(here)) continue;
-    seen.add(here);
-    if (here === toId) return true;
-    for (const dependencyEdge of edges) {
-      // The edge applies if its predecessor is this work item, an ancestor of
-      // it, or a descendant of it — all three mean the two overlap in time.
-      // Proof: narrowed to `dependencyEdge.predecessorId === here` and only
-      // `follows the tree when a cycle runs through a parent` failed — the API
-      // accepted an edge the schedule would then have thrown on.
-      const touches =
-        isWithin(rows, here, dependencyEdge.predecessorId) ||
-        isWithin(rows, dependencyEdge.predecessorId, here);
-      if (touches) queue.push(dependencyEdge.successorId);
-    }
   }
   return false;
 }
@@ -77,11 +41,20 @@ export function canDepend(
     return 'ancestor';
   }
 
-  // The new edge says predecessor → successor. If the successor can already
-  // reach the predecessor, adding it closes a loop in which neither can start.
-  // Proof: this line deleted and the three cycle tests failed — the pair, the
-  // three-item loop, and the one closed through a parent.
-  if (canReach(rows, existing, successorId, predecessorId)) return 'cycle';
+  // Asked of the graph the schedule will actually build, not of the edges as
+  // written. The first version walked the written edges with its own tree-aware
+  // reachability, and it was subtly wrong in both directions — an edge whose
+  // *expansion* closed a cycle was accepted, and every later read of the project
+  // then threw. Both reviewers found it independently, with different examples.
+  //
+  // Expanding the proposed edge and asking whether the result can be ordered is
+  // the same question, asked of the same thing, by the same code. There is no
+  // second implementation left to disagree.
+  //
+  // Proof: this line deleted and every cycle test failed, including the two the
+  // old hand-rolled search let through.
+  const proposed = { id: 'proposed', projectId: '', predecessorId, successorId };
+  if (hasCycle(indexTree(rows), [...existing, proposed])) return 'cycle';
 
   return null;
 }

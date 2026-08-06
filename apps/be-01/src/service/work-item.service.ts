@@ -18,7 +18,7 @@ import { deriveNumbers } from './derive-numbers';
 import { placeAfter, POSITION_STEP, type Sibling } from './place-sibling';
 import { canEdit } from './project.service';
 import { type Days, rollUp } from './roll-up';
-import { schedule, type Scheduled } from './schedule';
+import { schedule, ScheduleCycleError, type Scheduled } from './schedule';
 
 /**
  * What a work item shows before any schedule could be computed for it.
@@ -204,11 +204,17 @@ export class WorkItemService {
     // still work: the rows are there, and a plan nobody can open is worse than
     // one with no dates in it. The dates go, the rows stay, and the reason is
     // reported rather than left as a page of zeroes.
+    const durations = durationsOf(rows, stored, hasChildren);
     let timing = new Map<string, Scheduled>();
     let scheduleError: ScheduleError = null;
     try {
-      timing = schedule(rows, edges, durationsOf(rows, stored, hasChildren));
-    } catch {
+      timing = schedule(rows, edges, durations);
+    } catch (err) {
+      // Only the modeled failure. An unqualified catch here turned every
+      // exception in this block — a stack overflow on a pathological tree, a
+      // future mistake in `durationsOf` — into "your dependencies run in a
+      // circle", which is a lie told confidently. R5: unknown is not OK.
+      if (!(err instanceof ScheduleCycleError)) throw err;
       scheduleError = 'cycle';
     }
     const waitingFor = new Map<string, string[]>();
@@ -224,7 +230,10 @@ export class WorkItemService {
         number: numbers.get(row.id) ?? '',
         estimates: Object.fromEntries(totals.get(row.id) ?? []),
         rolledUp: hasChildren.has(row.id),
-        dependsOn: waitingFor.get(row.id) ?? [],
+        // Only predecessors that are in this project. A stored edge naming a
+        // work item from elsewhere — which the schema does not prevent — would
+        // otherwise be reported as a dependency on a number nobody can see.
+        dependsOn: (waitingFor.get(row.id) ?? []).filter((id) => rows.some((r) => r.id === id)),
         schedule: timing.get(row.id) ?? UNSCHEDULED,
       }))
       .sort((a, b) => (a.number < b.number ? -1 : a.number > b.number ? 1 : 0));
