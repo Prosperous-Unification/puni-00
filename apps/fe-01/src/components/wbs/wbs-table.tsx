@@ -563,6 +563,44 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
         ),
       }),
       column.display({
+        id: 'depends',
+        header: 'Depends on',
+        cell: ({ row }) => {
+          const numbers = live.current.numbersOf(row.original.dependsOn);
+          return (
+            <span style={{ whiteSpace: 'nowrap' }}>
+              {numbers.map(({ id, number }) => (
+                <button
+                  key={id}
+                  type="button"
+                  aria-label={`Stop ${row.original.number} waiting for ${number}`}
+                  title="Remove this dependency"
+                  onClick={() =>
+                    void live.current.run(() =>
+                      live.current.api.removeDependency(row.original.id, id),
+                    )
+                  }
+                >
+                  {number} ✕
+                </button>
+              ))}
+              <input
+                aria-label={`Add a dependency to ${row.original.number}`}
+                placeholder="number"
+                size={6}
+                data-depends-input={row.original.id}
+                onKeyDown={(e) => {
+                  if (e.key !== 'Enter') return;
+                  e.preventDefault();
+                  live.current.dependOn(row.original.id, e.currentTarget.value);
+                  e.currentTarget.value = '';
+                }}
+              />
+            </span>
+          );
+        },
+      }),
+      column.display({
         id: 'name',
         header: 'Name',
         cell: ({ row }) => (
@@ -629,44 +667,6 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
           }),
         ),
       ),
-      column.display({
-        id: 'depends',
-        header: 'Depends on',
-        cell: ({ row }) => {
-          const numbers = live.current.numbersOf(row.original.dependsOn);
-          return (
-            <span style={{ whiteSpace: 'nowrap' }}>
-              {numbers.map(({ id, number }) => (
-                <button
-                  key={id}
-                  type="button"
-                  aria-label={`Stop ${row.original.number} waiting for ${number}`}
-                  title="Remove this dependency"
-                  onClick={() =>
-                    void live.current.run(() =>
-                      live.current.api.removeDependency(row.original.id, id),
-                    )
-                  }
-                >
-                  {number} ✕
-                </button>
-              ))}
-              <input
-                aria-label={`Add a dependency to ${row.original.number}`}
-                placeholder="number"
-                size={6}
-                data-depends-input={row.original.id}
-                onKeyDown={(e) => {
-                  if (e.key !== 'Enter') return;
-                  e.preventDefault();
-                  live.current.dependOn(row.original.id, e.currentTarget.value);
-                  e.currentTarget.value = '';
-                }}
-              />
-            </span>
-          );
-        },
-      }),
       column.display({
         id: 'start',
         header: 'Starts (day)',
