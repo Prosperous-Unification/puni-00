@@ -6,13 +6,48 @@ const OPTS = {
   beUrl: 'http://be',
   internalAuthSecret: 's'.repeat(32),
   jwtKey: 'k'.repeat(32),
+  // A backend that answers, so the tests below are about their own subject.
+  fetchImpl: (() => Promise.resolve(new Response('{"status":"ok"}'))) as unknown as typeof fetch,
 };
 
 describe('gw-01 /health', () => {
-  it('returns 200', async () => {
+  it('returns 200 when the backend it forwards to answers', async () => {
     const app = buildApp(OPTS);
     const res = await app.handle(new Request('http://localhost/health'));
     expect(res.status).toBe(200);
+  });
+
+  it('is unhealthy when be-01 cannot be reached', async () => {
+    // Open finding 4: this endpoint was unconditional. A gateway whose `BE_URL`
+    // was wrong passed the deploy's health gate, took the socket traffic, and
+    // failed every forward — which the smoke test could not see either, because
+    // it talks to be-01 directly.
+    const app = buildApp({
+      ...OPTS,
+      fetchImpl: (() =>
+        Promise.reject(new Error('connect ECONNREFUSED'))) as unknown as typeof fetch,
+    });
+
+    const res = await app.handle(new Request('http://localhost/health'));
+
+    expect(res.status).toBe(503);
+    expect((await res.json()) as { status: string }).toMatchObject({
+      status: 'backend_unreachable',
+    });
+  });
+
+  it('is unhealthy when be-01 answers but is not itself healthy', async () => {
+    const app = buildApp({
+      ...OPTS,
+      fetchImpl: (() =>
+        Promise.resolve(
+          new Response('{"status":"schema_missing"}', { status: 503 }),
+        )) as unknown as typeof fetch,
+    });
+
+    const res = await app.handle(new Request('http://localhost/health'));
+
+    expect(res.status).toBe(503);
   });
 });
 

@@ -161,13 +161,33 @@ export async function checkInternalForward(
       fetchImpl,
       timeoutMs,
     );
-    return {
-      ok: res.ok,
-      status: res.status,
-      detail: res.ok ? undefined : await res.text(),
-    };
+    const body = await res.text();
+    if (!res.ok) return { ok: false, status: res.status, detail: body };
+
+    // A 2xx is not the check. Design decision 9 is about proving the internal
+    // round trip *works*, and a proxy, a stub, or a be-01 that answered the route
+    // without doing anything all return 200 with something else in the body.
+    // `{ack:true}` is the only part of the response that means be-01 handled it.
+    if (!acknowledged(body)) {
+      return {
+        ok: false,
+        status: res.status,
+        detail: `2xx without {"ack":true}: ${body.slice(0, 200)}`,
+      };
+    }
+    return { ok: true, status: res.status, detail: undefined };
   } catch (err) {
     return { ok: false, status: 0, detail: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+/** Whether the body is be-01's `{ack:true}` and not something merely 200. */
+function acknowledged(body: string): boolean {
+  try {
+    return (JSON.parse(body) as { ack?: unknown }).ack === true;
+  } catch {
+    // Not JSON at all — an error page from something between here and be-01.
+    return false;
   }
 }
 

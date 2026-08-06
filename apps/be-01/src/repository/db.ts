@@ -39,8 +39,41 @@ export function openDatabase(dbPath: string): Database {
  * drizzle bun adapter in this one file is what guarantees every connection
  * went through the pragma assertions above.
  */
-export function openDrizzle(dbPath: string): SQLiteBunDatabase {
+export function openDrizzle(dbPath: string): Drizzle {
   return drizzle({ client: openDatabase(dbPath) });
+}
+
+/**
+ * The drizzle client type, re-exported so callers outside this folder can name
+ * it without importing the adapter — the ESLint rule that confines
+ * `drizzle-orm` to this directory is what guarantees every connection went
+ * through the pragma assertions.
+ */
+export type Drizzle = SQLiteBunDatabase;
+
+/** A drizzle client and the handle that closes the file underneath it. */
+export interface Connection {
+  db: Drizzle;
+  close: () => void;
+}
+
+/**
+ * A connection that can be closed again.
+ *
+ * The raw `Database` never leaves this file — reaching through drizzle's
+ * `$client` from a caller is the bypass the import rule exists to stop — so the
+ * close is handed out as a function instead. A process that exits without it
+ * leaves a WAL to be recovered by whoever opens the file next, which during a
+ * blue/green swap is the other colour, mid-request.
+ */
+export function openConnection(dbPath: string): Connection {
+  const client = openDatabase(dbPath);
+  return {
+    db: drizzle({ client }),
+    close: () => {
+      client.close();
+    },
+  };
 }
 
 /** Fails loudly if the pragmas were not actually adopted. */
@@ -55,5 +88,15 @@ export function assertPragmas(db: Database): void {
     throw new Error(
       `expected busy_timeout>=${String(BUSY_TIMEOUT_MS)}, got ${String(busy?.timeout)}`,
     );
+  }
+  // The third pragma, verified for the same reason as the other two. A SQLite
+  // build without foreign key support accepts `PRAGMA foreign_keys = ON` and
+  // reports 0 afterwards, so setting it proves nothing. The domain schema
+  // declares foreign keys throughout and would then enforce none of them:
+  // orphan rows would insert silently and surface as a missing parent much
+  // later, in a read.
+  const foreignKeys = db.query<{ foreign_keys: number }, []>('PRAGMA foreign_keys;').get();
+  if (foreignKeys?.foreign_keys !== 1) {
+    throw new Error(`expected foreign_keys=1, got ${String(foreignKeys?.foreign_keys)}`);
   }
 }

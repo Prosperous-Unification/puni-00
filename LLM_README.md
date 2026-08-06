@@ -8,12 +8,13 @@ Nx monorepo, Bun everywhere — never npm.
 
 Two facts explain most decisions:
 
-- **The infra is the deliverable**, deliberately beyond what one host needs. Two external reviews
-  called it over-engineered; that was considered and rejected. Don't re-argue it.
-- **The product is one feature deep.** Since 2026-08-04 it has accounts and presence: register,
-  log in, and see who else is connected (`/api/auth/*`, gw-01's roster). be-01 opens a database
-  and signs the tokens gw-01 verifies. Absent is the WBS domain itself — no work-breakdown
-  model. Persisted today: `users`, `examples`, `event_log`, `event_sequencer`.
+- **The infra is the deliverable**, beyond what one host needs. Two external reviews called it
+  over-engineered; considered and rejected. Don't re-argue it.
+- **The product is two features deep, and the second is not on `main` yet.** `main` has accounts
+  and presence. `change/wbs-domain-model` adds the work breakdown: projects, a nested table you
+  type into and drag rows around, derived numbers with a freeze, three-point estimates by role
+  that roll up, live edits, and a socket that reconnects and replays what it missed. New tables
+  there: `project`, `role`, `work_item`, `estimate`.
 
 Tool choices bias novel over mainstream (Bun, Elysia, ArkType, Dagger) on purpose.
 
@@ -27,9 +28,10 @@ bunx nx run-many -t test lint typecheck build   # the gate, part 2
 bun run dev                                     # be + gw + fe locally
 ```
 
-`bun test` from the repo root is **not** the whole suite — it runs 0 of fe-01's test files, which
-are Vitest/jsdom and invisible to `bun:test`, and reports a clean run anyway. `build` needs
-`shellcheck` (`brew install shellcheck`); it is no longer allowed to skip itself when absent.
+`bun test` from the repo root is **not** the gate: it collects fe-01's files (the older claim that
+it collected none was wrong) and they fail on `location`, `localStorage` and the rest of the DOM
+`bun:test` has no jsdom for. Use `bunx nx run-many -t test`, which routes fe-01 to vitest. `build`
+needs `shellcheck`; it is no longer allowed to skip itself when absent.
 
 **Rules: `AGENTS.md`** (symlinked to CLAUDE.md/GEMINI.md) — read it, it governs every change.
 
@@ -88,6 +90,8 @@ contract: `docs/runbook-prod-deploy.md`.**
 
 ## Landmines
 
+- **`columns` in `wbs-table.tsx` depends on `roles` alone**, and `roles` is replaced only when its
+  content differs. Anything else there remounts every cell and eats the focus; see the `live` ref.
 - `caddy reload` **exits 0 when it did nothing**. Verify against the admin API, never the exit
   code. The check parses the route for this environment's host and reads the upstream on the
   tier's port (`routedColorFromAdminConfig`); it was a substring test until 2026-08-04, which
@@ -96,35 +100,37 @@ contract: `docs/runbook-prod-deploy.md`.**
 - `bun:sqlite` defaults to no WAL, `busy_timeout=0`. Set **and asserted at open** in
   `be-01/src/repository/db.ts`; an ESLint rule bans importing `bun:sqlite` anywhere else under
   `apps/be-01/src`, because `busy_timeout`/`foreign_keys` are per-connection and a direct
-  `new Database()` silently loses them. `main.ts` opens the process connection through
-  `openDrizzle`, in that same file, for the same reason.
+  `new Database()` silently loses them. The process connection is opened by `boot.ts` through
+  `openConnection`, in that same file, for the same reason — and closed through the handle it
+  returns, because reaching into drizzle's `$client` is the same bypass one layer along.
 - **Migrations must be backward-compatible** — blue and green share one DB. `--stop-the-world` refuses.
   The pre-commit lint catches the obvious destructive statements; the actual compatibility judgement
   is yours, asserted by passing `--with-migrations`.
 - `.dockerignore` is **not recursive**: `**/*.db`, not `*.db`.
-- Server umask is `0002` — create sensitive files with their mode from birth, never chmod after.
-  `configure.sh` does not yet honour this (see findings).
+- Server umask is `0002` — create sensitive files with their mode from birth, never chmod after
+  (`configure.sh` does not yet honour this; see findings).
 - `--platform linux/amd64` is pinned **on the Dagger publish path**, which is the only supported one.
   A hand-run `docker build` from the Dockerfiles is not pinned. Dev is arm64, server is amd64.
 
 ## Open findings
 
-1. Smoke can pass while gateway→backend is broken. It now authenticates to `/internal/forward`, but
-   against `be-01` **directly** — `gw-01`'s `ForwardClient` is still never exercised. It also accepts
-   any 2xx without requiring `{ack:true}`.
-2. Rollback unimplemented. `--version` is now _refused_ rather than ignored (2026-08-04), so it
-   no longer looks like one; deploying an older commit still means checking it out and rebuilding.
-3. `configure.sh`'s root phase never run on a fresh host; `tool-bootstrap:push` wires it, but only
-   the plan is tested, never a real fresh host.
-4. Health endpoints are status flags, not dependency checks. be-01 trusts an in-memory boolean,
-   gw-01's is unconditional. Break `BE_URL` or delete the SQLite file and both still report 200.
+1. Smoke calls `/internal/forward` on `be-01` **directly**, so `gw-01`'s `ForwardClient` is still
+   never exercised — though a broken `BE_URL` now fails gw-01's health gate (finding 4). The "any
+   2xx passes" half is **closed 2026-08-06**: it requires `{ack:true}`.
+2. Rollback unimplemented. `--version` is _refused_ rather than ignored (2026-08-04), so it no
+   longer looks like one; deploying an older commit still means checking it out and rebuilding.
+3. `configure.sh`'s root phase never run on a fresh host; `tool-bootstrap:push` wires it, but
+   only the plan is tested.
+4. ~~Health endpoints are status flags.~~ **Closed 2026-08-06.** be-01 queries for a table its
+   migrations create; gw-01 probes be-01's `/health`. A wrong `DB_PATH` or `BE_URL` now 503s.
+   Still uncaught: deleting the file under an open connection, which unix keeps alive.
 
 Also known, lower priority: fe/smoke health accepts any non-empty body; the WS smoke passes on any
 first message _containing_ `"pong"`; gateway drain reads a malformed metrics body as zero live
-sockets; `tool-secrets` is a placeholder that only prints what it would run, despite its README.
+sockets; `tool-secrets` only prints what it would run, despite its README.
 
-Checks that cannot fail have appeared **eleven** times in this repo. The tally, and what each
-one taught, is in `AGENTS.md` under R5. Three were closed on 2026-08-05; none is open.
+Checks that cannot fail have appeared **eleven** times here. The tally, and what each taught, is
+in `AGENTS.md` under R5. Three were closed on 2026-08-05; none is open.
 
 ## More
 
@@ -139,6 +145,6 @@ one taught, is in `AGENTS.md` under R5. Three were closed on 2026-08-05; none is
 | `HUMAN_README.md`                                                       | operating prod; triage runbook; openclaw path  |
 | `openspec/changes/scaffold-tech-setup/`                                 | original scaffold — **stale**, spec above wins |
 
-Conventions: pure planners + thin IO shell; `strictTypeChecked`; comments say **why** and state what
-was/wasn't verified; never print a secret value. Explicit return types are the house style but are
-**not** enforced by a lint rule — plenty of existing code infers them.
+Conventions: pure planners + thin IO shell; `strictTypeChecked`; comments say **why** and state
+what was/wasn't verified; never print a secret value. Explicit return types are house style but
+**not** lint-enforced — plenty of existing code infers them.

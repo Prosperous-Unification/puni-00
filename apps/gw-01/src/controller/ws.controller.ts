@@ -1,7 +1,7 @@
 import type { SubscriptionMap } from '../service/subscription-map';
 
 export type ResumeStatus =
-  | { status: 'replaying'; count: number }
+  | { status: 'replaying'; events: { seq: number; message: unknown }[] }
   | { status: 'denied'; reason: 'out_of_range' };
 
 export interface WsSocket {
@@ -21,6 +21,24 @@ export interface HandleWsMessageArgs {
   onBackendUnavailable?: () => void;
   /** Current presence roster, for a client that asks instead of waiting. */
   roster?: () => string[];
+}
+
+/**
+ * The subscriptions a socket may join.
+ *
+ * Without this, `subscribe` registers whatever string it is handed. That was
+ * harmless while presence was the only channel; once a subscription names a
+ * project it becomes an open door onto internal channels, and a typo becomes a
+ * socket that silently receives nothing forever rather than an error.
+ *
+ * Project reads are open to every authenticated account by design, so this is a
+ * shape check rather than an authorisation one — the socket is already
+ * authenticated when it gets here.
+ */
+const PROJECT_SUBSCRIPTION = /^project:[0-9a-fA-F-]{36}$/;
+
+export function isKnownSubscription(subscription: string): boolean {
+  return subscription === 'presence' || PROJECT_SUBSCRIPTION.test(subscription);
 }
 
 export async function handleWsMessage(args: HandleWsMessageArgs): Promise<void> {
@@ -47,23 +65,60 @@ export async function handleWsMessage(args: HandleWsMessageArgs): Promise<void> 
   if (msg['type'] === 'resume') {
     args.onReconnect?.();
     const points = (msg['resume_points'] as Record<string, number> | undefined) ?? {};
-    const result = await args.resume(points);
+    let result: Record<string, ResumeStatus>;
+    try {
+      result = await args.resume(points);
+    } catch {
+      // be-01 unreachable, a non-2xx, or a body that does not match the
+      // contract — which is also what a gateway from after a partial rollout
+      // sees from a backend from before it. The client is told, rather than
+      // left on an open socket with stale rows and no reason to refetch.
+      // `unavailable`, not `out_of_range`: nothing is known about the range.
+      for (const subscription of Object.keys(points)) {
+        args.socket.send(
+          JSON.stringify({ type: 'resume_denied', subscription, reason: 'unavailable' }),
+        );
+      }
+      args.socket.send(JSON.stringify({ type: 'resume_ack', replayed: {} }));
+      return;
+    }
     const replayed: Record<string, number> = {};
-    const denied: string[] = [];
-    for (const [sub, r] of Object.entries(result)) {
-      if (r.status === 'replaying') replayed[sub] = r.count;
-      else denied.push(sub);
+    for (const [subscription, outcome] of Object.entries(result)) {
+      if (outcome.status === 'denied') {
+        args.socket.send(
+          JSON.stringify({ type: 'resume_denied', subscription, reason: 'out_of_range' }),
+        );
+        continue;
+      }
+      // To `args.socket`, never to `subs.socketsFor(subscription)`. The other
+      // sockets on this subscription received these events when they were live;
+      // sending them again is a refetch each, per event, per reconnecting peer.
+      // Proof: the send below also written to every socket in
+      // `subs.socketsFor(subscription)`, and only "replays only to the socket
+      // that asked" failed.
+      for (const event of outcome.events) {
+        args.socket.send(JSON.stringify({ subscription, seq: event.seq, message: event.message }));
+      }
+      replayed[subscription] = outcome.events.length;
     }
-    for (const sub of denied) {
-      args.socket.send(
-        JSON.stringify({ type: 'resume_denied', subscription: sub, reason: 'out_of_range' }),
-      );
-    }
+    // Last, and counted from the events actually written above: an
+    // acknowledgement that arrives first would let a client advance its
+    // sequence past frames it has not been handed yet.
     args.socket.send(JSON.stringify({ type: 'resume_ack', replayed }));
     return;
   }
 
   if (msg['type'] === 'subscribe' && typeof msg['subscription'] === 'string') {
+    if (!isKnownSubscription(msg['subscription'])) {
+      args.socket.send(
+        JSON.stringify({
+          type: 'error',
+          code: 'unknown_subscription',
+          subscription: msg['subscription'],
+        }),
+      );
+      return;
+    }
     args.subs.subscribe(msg['subscription'], args.socket);
     return;
   }

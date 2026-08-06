@@ -11,4 +11,9 @@ export class EventSequencer {
   recordEvent(subscription: string, message: unknown): Promise<RecordedEvent> {
     return this.repo.recordEvent(subscription, message, this.now());
   }
+
+  /** Where the stream has reached, or `-1` if nothing has been recorded on it. */
+  latestSeq(subscription: string): Promise<number> {
+    return this.repo.latestSeq(subscription);
+  }
 }

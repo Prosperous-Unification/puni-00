@@ -2,93 +2,120 @@ import { describe, expect, it } from 'bun:test';
 
 import { buildApp } from '../app';
 import { testAuthService } from '../testing/auth-fixture';
+import { testProjectService } from '../testing/project-fixture';
+import { testReplay } from '../testing/replay-fixture';
+import { testWorkItemService } from '../testing/work-item-fixture';
 
 const SECRET = 'test-secret-must-be-32-chars-at-least-!';
 
-describe('POST /internal/forward', () => {
-  it('rejects without X-Internal-Auth', async () => {
-    const app = buildApp({
-      auth: testAuthService(),
-      migrationsApplied: true,
-      internalAuthSecret: SECRET,
-    });
-    const res = await app.handle(
-      new Request('http://localhost/internal/forward', {
+function buildHarness() {
+  const { log, buffer, replay } = testReplay();
+  const app = buildApp({
+    auth: testAuthService(),
+    projects: testProjectService(),
+    workItems: testWorkItemService(),
+    migrationsApplied: true,
+    internalAuthSecret: SECRET,
+    replay,
+    probeDatabase: () => 'ok',
+  });
+
+  function post(
+    path: string,
+    body: unknown,
+    headers: Record<string, string> = {},
+  ): Promise<Response> {
+    return app.handle(
+      new Request(`http://localhost${path}`, {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ message: { type: 'ping' }, trace_id: 't' }),
+        headers: { 'content-type': 'application/json', ...headers },
+        body: JSON.stringify(body),
       }),
     );
+  }
+
+  const authed = { 'x-internal-auth': SECRET, 'x-client-id': 'u-1', 'x-connection-id': 'c-1' };
+  return { log, buffer, post, authed };
+}
+
+describe('POST /internal/forward', () => {
+  it('rejects without X-Internal-Auth', async () => {
+    const { post } = buildHarness();
+    const res = await post('/internal/forward', { message: { type: 'ping' }, trace_id: 't' });
     expect(res.status).toBe(401);
   });
 
   it('acks with auth + valid body', async () => {
-    const app = buildApp({
-      auth: testAuthService(),
-      migrationsApplied: true,
-      internalAuthSecret: SECRET,
-    });
-    const res = await app.handle(
-      new Request('http://localhost/internal/forward', {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          'x-internal-auth': SECRET,
-          'x-client-id': 'u-1',
-          'x-connection-id': 'c-1',
-        },
-        body: JSON.stringify({ message: { type: 'ping' }, trace_id: 't-1' }),
-      }),
+    const { post, authed } = buildHarness();
+    const res = await post(
+      '/internal/forward',
+      { message: { type: 'ping' }, trace_id: 't-1' },
+      authed,
     );
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { ack: boolean };
-    expect(body.ack).toBe(true);
+    expect((await res.json()) as { ack: boolean }).toMatchObject({ ack: true });
+  });
+
+  it('records no event and pushes nothing', async () => {
+    // The ack is deliberate, not a stub: every mutation in this product is an
+    // HTTP call, so a message arriving over the socket has nothing to change.
+    // This is what stops the ack drifting into a silent write path.
+    const { post, authed, log } = buildHarness();
+
+    await post('/internal/forward', { message: { type: 'ping' }, trace_id: 't-1' }, authed);
+
+    expect(await log.latestSeq('project:anything')).toBe(-1);
   });
 
   it('returns 400 on missing trace_id', async () => {
-    const app = buildApp({
-      auth: testAuthService(),
-      migrationsApplied: true,
-      internalAuthSecret: SECRET,
-    });
-    const res = await app.handle(
-      new Request('http://localhost/internal/forward', {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          'x-internal-auth': SECRET,
-        },
-        body: JSON.stringify({ message: { type: 'ping' } }),
-      }),
-    );
+    const { post, authed } = buildHarness();
+    const res = await post('/internal/forward', { message: { type: 'ping' } }, authed);
     expect(res.status).toBe(400);
   });
 });
 
 describe('POST /internal/resume', () => {
-  it('returns replaying status for known subscriptions', async () => {
-    const app = buildApp({
-      auth: testAuthService(),
-      migrationsApplied: true,
-      internalAuthSecret: SECRET,
-    });
-    const res = await app.handle(
-      new Request('http://localhost/internal/resume', {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          'x-internal-auth': SECRET,
-          'x-client-id': 'u-1',
-          'x-connection-id': 'c-1',
-        },
-        body: JSON.stringify({
-          resume_points: { 'doc:a': 0 },
-          trace_id: 't-1',
-        }),
-      }),
+  it('replays the recorded events after the requested sequence', async () => {
+    const { post, authed, log } = buildHarness();
+    await log.record('project:a', { type: 'tree_replaced', workItems: [] });
+    await log.record('project:a', { type: 'work_items_changed', workItems: [] });
+
+    const res = await post(
+      '/internal/resume',
+      { resume_points: { 'project:a': 0 }, trace_id: 't-1' },
+      authed,
     );
+
     expect(res.status).toBe(200);
-    const body = (await res.json()) as Record<string, { status: string; count: number }>;
-    expect(body['doc:a'].status).toBe('replaying');
+    expect((await res.json()) as unknown).toEqual({
+      'project:a': {
+        status: 'replaying',
+        events: [{ seq: 1, message: { type: 'work_items_changed', workItems: [] } }],
+      },
+    });
+  });
+
+  it('denies a subscription it cannot serve from the start requested', async () => {
+    // The stub this replaced answered `replaying` for every subscription, which
+    // is what a client with a sequence the server has never issued would have
+    // been told — silently, and forever.
+    const { post, authed } = buildHarness();
+
+    const res = await post(
+      '/internal/resume',
+      { resume_points: { 'project:never-seen': 4 }, trace_id: 't-1' },
+      authed,
+    );
+
+    expect(res.status).toBe(200);
+    expect((await res.json()) as unknown).toEqual({
+      'project:never-seen': { status: 'denied', reason: 'out_of_range' },
+    });
+  });
+
+  it('rejects without X-Internal-Auth', async () => {
+    const { post } = buildHarness();
+    const res = await post('/internal/resume', { resume_points: {}, trace_id: 't' });
+    expect(res.status).toBe(401);
   });
 });

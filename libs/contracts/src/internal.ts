@@ -29,9 +29,21 @@ export const InternalResumeRequest = type({
 });
 export type InternalResumeRequest = typeof InternalResumeRequest.infer;
 
+export const ReplayedEvent = type({ seq: 'number', message: 'unknown' });
+export type ReplayedEvent = typeof ReplayedEvent.infer;
+
+/**
+ * Per subscription: the events the client missed, or a refusal.
+ *
+ * The replaying variant carries the events themselves rather than a count. They
+ * travel back in this response and gw-01 writes them to the one socket that
+ * asked, because `/internal/push` fans out to every socket on the subscription —
+ * one client reconnecting would make every other client refetch. A count would
+ * also be a second statement of `events.length`, free to disagree with it.
+ */
 export const InternalResumeResponse = type({
   '[string]': [
-    { status: "'replaying'", count: 'number' },
+    { status: "'replaying'", events: ReplayedEvent.array() },
     '|',
     { status: "'denied'", reason: "'out_of_range'" },
   ],

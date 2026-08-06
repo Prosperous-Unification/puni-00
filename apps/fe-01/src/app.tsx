@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { AuthForm } from '@/components/auth/auth-form';
 import { PresencePanel } from '@/components/presence/presence-panel';
 import { Button } from '@/components/ui/button';
+import { ProjectPage } from '@/components/wbs/project-page';
 import { loadSession, me as fetchMe, saveSession, type Session } from '@/lib/api';
 
 export function App() {
@@ -56,6 +57,7 @@ export function App() {
               Log out
             </Button>
           </p>
+          <ProjectPage token={session.token} />
           <PresencePanel token={session.token} me={session.user.username} />
         </>
       )}

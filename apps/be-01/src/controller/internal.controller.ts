@@ -1,4 +1,8 @@
-import { InternalForwardRequest, InternalResumeRequest } from '@wbs/contracts';
+import {
+  InternalForwardRequest,
+  InternalResumeRequest,
+  type InternalResumeResponse,
+} from '@wbs/contracts';
 import { parseOrThrow, ValidationError } from '@wbs/validation';
 import { Elysia } from 'elysia';
 
@@ -19,12 +23,7 @@ export interface InternalDeps {
   onResume: (
     resumePoints: Record<string, number>,
     ctx: InternalCallContext,
-  ) => Promise<
-    Record<
-      string,
-      { status: 'replaying'; count: number } | { status: 'denied'; reason: 'out_of_range' }
-    >
-  >;
+  ) => Promise<InternalResumeResponse>;
 }
 
 export function internalController(deps: InternalDeps) {
