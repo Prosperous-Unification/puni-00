@@ -1,6 +1,7 @@
 import type { Logger } from '@wbs/observability';
 
 import type { Drizzle } from './repository/db';
+import { DependencyRepository } from './repository/dependency';
 import { EstimateRepository } from './repository/estimate';
 import { DrizzleEventLogRepo } from './repository/event-log';
 import { ProjectRepository } from './repository/project';
@@ -77,6 +78,7 @@ export function buildServices(opts: ServicesOptions): BeServices {
       workItems: new WorkItemRepository(opts.db),
       projects: projectStore,
       estimates: new EstimateRepository(opts.db),
+      dependencies: new DependencyRepository(opts.db),
       broadcast: new GatewayBroadcaster({
         sequencer: new EventSequencer(eventLog),
         buffer: replayBuffer,

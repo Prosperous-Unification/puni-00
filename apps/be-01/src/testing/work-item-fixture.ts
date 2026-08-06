@@ -1,6 +1,7 @@
 import type { FrozenNumber, Repositioned, WorkItem, WorkItemStore } from '../repository';
 import { WorkItemService } from '../service/work-item.service';
 import { recordingBroadcaster } from './broadcast-fixture';
+import { inMemoryDependencies } from './dependency-fixture';
 import { inMemoryEstimates } from './estimate-fixture';
 import { inMemoryProjects } from './project-fixture';
 
@@ -84,6 +85,7 @@ export function testWorkItemService(): WorkItemService {
     workItems,
     projects: inMemoryProjects(),
     estimates: inMemoryEstimates(workItems),
+    dependencies: inMemoryDependencies(),
     broadcast: recordingBroadcaster(),
   });
 }

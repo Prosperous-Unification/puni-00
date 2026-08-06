@@ -154,3 +154,52 @@ export const estimate = sqliteTable(
 );
 
 export type EstimateRow = typeof estimate.$inferSelect;
+
+/**
+ * A finish-to-start dependency: `successor` cannot start until `predecessor`
+ * finishes.
+ *
+ * Either end may be a parent, and that is the point — "the whole of 010 before
+ * 020" is what a planner writes, and drawing an edge from every leaf under 010
+ * would be tedious and wrong the moment a leaf is added. The expansion to leaves
+ * happens when the schedule is computed, not here; storing it would be a second
+ * copy to fall out of date with the tree.
+ *
+ * `projectId` is denormalised from the two work items so a project's edges are
+ * one indexed read rather than a join. It does **not** make a cross-project edge
+ * unrepresentable — the three foreign keys are independent, and nothing ties
+ * either endpoint's project to this one. `canDepend` refuses it, and the read
+ * drops an edge whose predecessor is not in the project; enforcing it in the
+ * schema would need composite keys. An earlier version of this comment claimed
+ * the stronger thing, which a reviewer was right to call out.
+ *
+ * The work-item references cascade on delete. The application removes edges
+ * before deleting a row, but blue and green share one SQLite file during a swap:
+ * the outgoing release knows nothing about this table, and its plain
+ * `DELETE FROM work_item` would hit a constraint it cannot see and answer 500.
+ * The cascade is what keeps a migration applied under the old release safe.
+ *
+ * The unique pair is what makes adding the same dependency twice a no-op at the
+ * database rather than a decision in the service.
+ */
+export const dependency = sqliteTable(
+  'dependency',
+  {
+    id: text('id').primaryKey(),
+    projectId: text('project_id')
+      .notNull()
+      .references(() => project.id),
+    predecessorId: text('predecessor_id')
+      .notNull()
+      .references((): AnySQLiteColumn => workItem.id, { onDelete: 'cascade' }),
+    successorId: text('successor_id')
+      .notNull()
+      .references((): AnySQLiteColumn => workItem.id, { onDelete: 'cascade' }),
+  },
+  (t) => [
+    index('dependency_project').on(t.projectId),
+    uniqueIndex('dependency_pair').on(t.predecessorId, t.successorId),
+  ],
+);
+
+export type DependencyRow = typeof dependency.$inferSelect;
