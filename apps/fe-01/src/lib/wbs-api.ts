@@ -67,6 +67,8 @@ export interface ProjectSummary {
 export interface ProjectApi {
   listProjects(): Promise<ProjectSummary[]>;
   createProject(name: string): Promise<ProjectSummary>;
+  /** Renames the project. be-01 answers `forbidden` on a restricted one. */
+  renameProject(id: string, name: string): Promise<void>;
   /**
    * The project's work items, and the event sequence they were read at.
    *
@@ -124,6 +126,12 @@ export function httpProjectApi(token: string): ProjectApi {
         body: JSON.stringify({ name }),
       });
       return body.project;
+    },
+    async renameProject(id, name) {
+      await send(`/api/projects/${id}`, token, {
+        method: 'PATCH',
+        body: JSON.stringify({ name }),
+      });
     },
     tree(projectId) {
       return send<{ workItems: WorkItemView[]; seq: number; scheduleError: 'cycle' | null }>(

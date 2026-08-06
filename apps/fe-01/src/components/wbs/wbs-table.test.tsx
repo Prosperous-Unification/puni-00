@@ -82,6 +82,7 @@ function fakeApi(): ProjectApi & { rows: WorkItemView[] } {
     rows,
     listProjects: () => Promise.resolve([{ id: 'p1', name: 'Rewire the shed', restricted: false }]),
     createProject: (name: string) => Promise.resolve({ id: 'p1', name, restricted: false }),
+    renameProject: () => Promise.resolve(),
     tree: () =>
       // The sequence advances with every mutation, the way be-01's does, so a
       // test that asserts what the stream was told is asserting something real.
@@ -1152,6 +1153,95 @@ describe('dependencies in the table', () => {
   });
 });
 
+describe('picking dependencies from a list', () => {
+  const depInput = (rowNumber: string) => screen.getByLabelText(`Add a dependency to ${rowNumber}`);
+  const optionTexts = () => screen.getAllByRole('option').map((option) => option.textContent);
+
+  itDom('offers every other row, number and name together, while the cell is focused', async () => {
+    await threeRoots();
+    fireEvent.focus(depInput('020'));
+    expect(optionTexts()).toEqual(['010 Strip', '030 Paint']);
+  });
+
+  itDom('narrows the list by name as letters are typed', async () => {
+    await threeRoots();
+    const input = depInput('020');
+    fireEvent.focus(input);
+    fireEvent.change(input, { target: { value: 'pai' } });
+    expect(optionTexts()).toEqual(['030 Paint']);
+  });
+
+  itDom('adds the clicked entry and keeps the list open for the next pick', async () => {
+    await threeRoots();
+    const input = depInput('020');
+    fireEvent.focus(input);
+    fireEvent.click(screen.getByRole('option', { name: '010 Strip' }));
+    await waitFor(() => {
+      expect(screen.getByLabelText('Stop 020 waiting for 010')).toBeDefined();
+    });
+    // Still open, cleared, and no longer offering what was just taken.
+    expect(optionTexts()).toEqual(['030 Paint']);
+    expect(input).toHaveProperty('value', '');
+  });
+
+  itDom('Enter adds the entry the typing narrowed to', async () => {
+    await threeRoots();
+    const input = depInput('020');
+    fireEvent.focus(input);
+    fireEvent.change(input, { target: { value: 'pa' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+    await waitFor(() => {
+      expect(screen.getByLabelText('Stop 020 waiting for 030')).toBeDefined();
+    });
+  });
+
+  itDom('arrows move the highlight and Enter takes it', async () => {
+    await threeRoots();
+    const input = depInput('020');
+    fireEvent.focus(input);
+    fireEvent.keyDown(input, { key: 'ArrowDown' });
+    fireEvent.keyDown(input, { key: 'ArrowDown' });
+    fireEvent.keyDown(input, { key: 'Enter' });
+    await waitFor(() => {
+      expect(screen.getByLabelText('Stop 020 waiting for 030')).toBeDefined();
+    });
+  });
+
+  itDom('Enter with nothing typed and nothing highlighted adds nothing', async () => {
+    const api = await threeRoots();
+    const added: unknown[] = [];
+    api.addDependency = (...args: unknown[]) => {
+      added.push(args);
+      return Promise.resolve();
+    };
+    const input = depInput('020');
+    fireEvent.focus(input);
+    fireEvent.keyDown(input, { key: 'Enter' });
+    expect(added).toEqual([]);
+  });
+
+  itDom('Escape closes the list', async () => {
+    await threeRoots();
+    const input = depInput('020');
+    fireEvent.focus(input);
+    expect(screen.getAllByRole('option')).toHaveLength(2);
+    fireEvent.keyDown(input, { key: 'Escape' });
+    expect(screen.queryAllByRole('option')).toEqual([]);
+  });
+
+  itDom('a typed list of numbers still lands as several dependencies', async () => {
+    await threeRoots();
+    const input = depInput('020');
+    fireEvent.focus(input);
+    fireEvent.change(input, { target: { value: '010, 030' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+    await waitFor(() => {
+      expect(screen.getByLabelText('Stop 020 waiting for 010')).toBeDefined();
+      expect(screen.getByLabelText('Stop 020 waiting for 030')).toBeDefined();
+    });
+  });
+});
+
 describe('dependencies in the table — cross-review findings', () => {
   /**
    * A tree read with a schedule this component did not compute.
@@ -1167,6 +1257,7 @@ describe('dependencies in the table — cross-review findings', () => {
   ): ProjectApi => ({
     listProjects: () => Promise.resolve([{ id: 'p1', name: 'P', restricted: false }]),
     createProject: (name: string) => Promise.resolve({ id: 'p1', name, restricted: false }),
+    renameProject: () => Promise.resolve(),
     roles: () => Promise.resolve([DEV]),
     tree: () =>
       Promise.resolve({

@@ -13,6 +13,7 @@ import type { Days, ProjectApi, RoleView } from '@/lib/wbs-api';
 
 import { CellInput } from './cell-input';
 import { type Caret, type CellRef, nextCell } from './cell-navigation';
+import { pickerEntries } from './dep-picker';
 import { parseDependencies, unknownMessage } from './depends-input';
 import { type DropRefusal, type DropZone, planMove, zoneFor } from './drag-drop';
 import { toTree, type TreeRow } from './wbs-rows';
@@ -151,6 +152,20 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
   const [scheduleError, setScheduleError] = useState<'cycle' | null>(null);
   const [dragging, setDragging] = useState<string | null>(null);
   const [dropHint, setDropHint] = useState<{ rowId: string; zone: DropZone } | null>(null);
+  /**
+   * The Depends on picker: which row's cell it is open under, what has been
+   * typed into it, and which entry the arrows have highlighted.
+   *
+   * `highlight: null` means nothing is highlighted, and it matters at Enter:
+   * an empty cell whose list happens to be showing must not add the first
+   * entry on a stray Enter. Typing sets it to `0` — the narrowed-to entry is
+   * what the typing was for — and the arrows move it.
+   */
+  const [depPicker, setDepPicker] = useState<{
+    rowId: string;
+    typed: string;
+    highlight: number | null;
+  } | null>(null);
   const focusNext = useRef<string | null>(null);
 
   const latestRefresh = useRef(0);
@@ -513,6 +528,38 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
     [api, flat, refresh],
   );
 
+  /** The rows the picker may offer `forRow`, narrowed by what is typed. */
+  const depEntriesFor = useCallback(
+    (forRow: { id: string; dependsOn: readonly string[] }, typed: string) =>
+      pickerEntries(flat, forRow, typed),
+    [flat],
+  );
+
+  /**
+   * Adds the picked dependency and keeps the picker open, cleared, for the
+   * next one — picking three predecessors is one visit, not three.
+   */
+  const pickDependency = useCallback(
+    (successorId: string, predecessorId: string) => {
+      setDepPicker((current) =>
+        current === null ? null : { ...current, typed: '', highlight: null },
+      );
+      void run(() => api.addDependency(successorId, predecessorId));
+    },
+    [api, run],
+  );
+
+  /** Moves the picker highlight by `delta`, clamped to the list. */
+  const moveDepHighlight = useCallback((rowId: string, delta: 1 | -1, count: number) => {
+    if (count === 0) return;
+    setDepPicker((current) => {
+      if (current?.rowId !== rowId) return current;
+      // From nothing highlighted, Down enters at the top and Up at the bottom.
+      const from = current.highlight ?? (delta === 1 ? -1 : count);
+      return { ...current, highlight: Math.min(count - 1, Math.max(0, from + delta)) };
+    });
+  }, []);
+
   /**
    * Whether the numbers in the schedule columns mean anything.
    *
@@ -540,6 +587,11 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
     dependOn,
     hasSchedule,
     showSchedule,
+    depPicker,
+    setDepPicker,
+    depEntriesFor,
+    pickDependency,
+    moveDepHighlight,
   });
   live.current = {
     api,
@@ -553,6 +605,11 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
     dependOn,
     hasSchedule,
     showSchedule,
+    depPicker,
+    setDepPicker,
+    depEntriesFor,
+    pickDependency,
+    moveDepHighlight,
   };
 
   const columns = useMemo(
@@ -615,8 +672,17 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
         header: 'Depends on',
         cell: ({ row }) => {
           const numbers = live.current.numbersOf(row.original.dependsOn);
+          // This cell's picker, or null while it is closed or under another row.
+          const picker =
+            live.current.depPicker?.rowId === row.original.id ? live.current.depPicker : null;
+          const entries =
+            picker === null ? [] : live.current.depEntriesFor(row.original, picker.typed);
+          // Clamped here rather than stored clamped: a pick shrinks the list
+          // under a highlight that was valid when the arrow moved it.
+          const highlight =
+            picker?.highlight == null ? null : Math.min(picker.highlight, entries.length - 1);
           return (
-            <span style={{ whiteSpace: 'nowrap' }}>
+            <span style={{ whiteSpace: 'nowrap', position: 'relative', display: 'inline-block' }}>
               {numbers.map(({ id, number }) => (
                 <button
                   key={id}
@@ -634,17 +700,123 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
               ))}
               <input
                 aria-label={`Add a dependency to ${row.original.number}`}
-                placeholder="010, 020"
-                title="One or more work item numbers, separated by commas or spaces"
-                size={10}
+                role="combobox"
+                aria-expanded={picker !== null && entries.length > 0}
+                aria-controls={`dep-options-${row.original.id}`}
+                aria-activedescendant={
+                  highlight === null ? undefined : `dep-option-${entries[highlight]?.id ?? ''}`
+                }
+                aria-autocomplete="list"
+                placeholder="search, or 010, 020"
+                title="Type to search by number or name, or a list of numbers separated by commas or spaces"
+                size={14}
                 data-depends-input={row.original.id}
+                value={picker?.typed ?? ''}
+                onFocus={() => {
+                  live.current.setDepPicker({
+                    rowId: row.original.id,
+                    typed: '',
+                    highlight: null,
+                  });
+                }}
+                onBlur={() => {
+                  live.current.setDepPicker((current) =>
+                    current?.rowId === row.original.id ? null : current,
+                  );
+                }}
+                onChange={(e) => {
+                  const typed = e.currentTarget.value;
+                  live.current.setDepPicker({
+                    rowId: row.original.id,
+                    typed,
+                    // Typing is aiming at the narrowed-to entry; emptying the
+                    // cell aims at nothing again.
+                    highlight: typed.trim() === '' ? null : 0,
+                  });
+                }}
                 onKeyDown={(e) => {
+                  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    live.current.moveDepHighlight(
+                      row.original.id,
+                      e.key === 'ArrowDown' ? 1 : -1,
+                      entries.length,
+                    );
+                    return;
+                  }
+                  if (e.key === 'Escape') {
+                    live.current.setDepPicker(null);
+                    return;
+                  }
                   if (e.key !== 'Enter') return;
                   e.preventDefault();
-                  live.current.dependOn(row.original.id, e.currentTarget.value);
-                  e.currentTarget.value = '';
+                  const chosen = highlight === null ? undefined : entries[highlight];
+                  if (chosen !== undefined) {
+                    live.current.pickDependency(row.original.id, chosen.id);
+                    return;
+                  }
+                  // No highlight to take — the typed flow: one number or a
+                  // separated list of them, exactly as this cell always worked.
+                  const typed = picker?.typed ?? e.currentTarget.value;
+                  if (typed.trim() === '') return;
+                  live.current.dependOn(row.original.id, typed);
+                  live.current.setDepPicker((current) =>
+                    current === null ? null : { ...current, typed: '', highlight: null },
+                  );
                 }}
               />
+              {picker !== null && entries.length > 0 && (
+                <ul
+                  role="listbox"
+                  id={`dep-options-${row.original.id}`}
+                  aria-label={`Work items ${row.original.number} can depend on`}
+                  style={{
+                    position: 'absolute',
+                    top: '100%',
+                    left: 0,
+                    margin: 0,
+                    padding: 0,
+                    listStyle: 'none',
+                    background: '#fff',
+                    border: '1px solid #ccc',
+                    maxHeight: 200,
+                    overflowY: 'auto',
+                    zIndex: 10,
+                    minWidth: '100%',
+                  }}
+                >
+                  {entries.map((entry, i) => (
+                    // The ARIA combobox pattern is the boundary that makes this
+                    // safe: options are not focusable, and the keyboard drives
+                    // them from the input above through aria-activedescendant
+                    // (ArrowUp/ArrowDown/Enter there).
+                    // eslint-disable-next-line jsx-a11y/click-events-have-key-events
+                    <li
+                      key={entry.id}
+                      id={`dep-option-${entry.id}`}
+                      role="option"
+                      aria-selected={i === highlight}
+                      style={{
+                        padding: '2px 6px',
+                        cursor: 'pointer',
+                        whiteSpace: 'nowrap',
+                        background: i === highlight ? '#e8f0fe' : undefined,
+                      }}
+                      // Prevented so the click that follows lands on an input
+                      // that still has focus — a blur here closes the list
+                      // before the click can pick from it.
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                      }}
+                      onClick={() => {
+                        live.current.pickDependency(row.original.id, entry.id);
+                      }}
+                    >
+                      {entry.number} {entry.name}
+                    </li>
+                  ))}
+                </ul>
+              )}
             </span>
           );
         },
