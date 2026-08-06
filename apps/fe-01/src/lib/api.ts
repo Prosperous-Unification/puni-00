@@ -16,9 +16,7 @@ export const EDGE_UNAUTHORIZED = 'edge_unauthorized';
 /**
  * Same-origin paths, never an absolute URL. The edge serves the app and
  * proxies `/api/*` and `/ws` on the same host, so a configured base URL would
- * be a second source of truth that is wrong on exactly one environment. It
- * also means dev's basic auth is already satisfied: the browser attaches the
- * credential it used to load the page to these requests too.
+ * be a second source of truth that is wrong on exactly one environment.
  */
 async function post<T>(path: string, body: unknown): Promise<T> {
   const res = await fetch(path, {
@@ -28,16 +26,18 @@ async function post<T>(path: string, body: unknown): Promise<T> {
   });
   const text = await res.text();
   if (!res.ok) {
-    // A 401 from the EDGE and a 401 from the APP mean opposite things, and the
-    // user can only fix one of them. Dev sits behind HTTP Basic auth on every
-    // path but /ws, so a rejected site password produces a 401 that never
-    // reached be-01 — and the old code reported it as `http_401`, rendered as
-    // "Something went wrong (http_401)". That is indistinguishable from a wrong
-    // account password, and it sent a real person hunting through the app for a
-    // fault that was one layer above it.
+    // A 401 from an EDGE and a 401 from the APP mean opposite things, and the
+    // user can only fix one of them. Dev used to sit behind HTTP Basic auth, and
+    // a rejected site password produced a 401 that never reached be-01 — which
+    // the old code reported as `http_401`, rendered as "Something went wrong
+    // (http_401)". Indistinguishable from a wrong account password, and it sent
+    // a real person hunting through the app for a fault one layer above it.
     //
-    // `WWW-Authenticate` is the discriminator: the edge sets it on its
-    // challenge, and this API never does.
+    // **Dev has had no edge password since 2026-08-06, so this branch is not
+    // reachable there today.** It is kept rather than deleted: any proxy in
+    // front of any environment can challenge, and the cost of being wrong about
+    // that again is an afternoon. `WWW-Authenticate` is the discriminator — an
+    // edge sets it on its challenge and this API never does.
     if (res.status === 401 && res.headers.get('www-authenticate') !== null) {
       throw new Error(EDGE_UNAUTHORIZED);
     }

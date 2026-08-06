@@ -58,7 +58,10 @@ ssh h2puni "bash -lc '
   cd /home/puni1/wbs-dev/src && bun /home/puni1/wbs-dev/bin/sync.ts $SHA
 '"
 
-DEV_PASS=$(ssh h2puni 'grep ^DEV_BASIC_AUTH_PASS= /home/puni1/wbs-dev/basic-auth.env | cut -d= -f2-')
+# No credential is fetched or sent. Dev's edge password was removed 2026-08-06;
+# these checks now reach the same thing a browser does, which is the point of
+# them. `/api/auth/me` below still answers 401-shaped JSON, because be-01's own
+# auth is what guards the app and that has not changed.
 
 # Printing a status code and exiting 0 regardless is how a 502 reads as a
 # successful deploy. Each tier is asserted, and a miss fails the script.
@@ -76,7 +79,7 @@ check() { # expected url label
   local got deadline
   deadline=$((SECONDS + DEADLINE_SECONDS))
   while :; do
-    got=$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 -u "dany:$DEV_PASS" "$2")
+    got=$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 "$2")
     if [ "$got" = "$1" ]; then
       printf '[dev-deploy] %-28s %s\n' "$3" "$got"
       return
@@ -112,7 +115,7 @@ check 404 https://dev.wbs.bulletpoints.club/ws 'gw (answered, not 502)'
 # for a route it could not match. This asserts a body only be-01 emits: the
 # auth controller's own JSON for a request with no token. It proves the
 # application layer is mounted, not merely that a process accepted a socket.
-identity=$(curl -s --max-time 15 -u "dany:$DEV_PASS" https://dev.wbs.bulletpoints.club/api/auth/me)
+identity=$(curl -s --max-time 15 https://dev.wbs.bulletpoints.club/api/auth/me)
 if [ "$identity" = '{"error":"missing_token"}' ]; then
   printf '[dev-deploy] %-28s %s\n' 'be (auth routes mounted)' 'ok'
 else
