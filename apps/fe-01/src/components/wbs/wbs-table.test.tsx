@@ -5,6 +5,10 @@ import type { Days, EstimateMethod, ProjectApi, RoleView, WorkItemView } from '@
 
 import { type SubscriptionHandlers, WbsTable } from './wbs-table';
 
+/** The two elements a table cell can be, since a wrapping cell is a textarea. */
+const isCell = (node: unknown): node is HTMLInputElement | HTMLTextAreaElement =>
+  node instanceof HTMLInputElement || node instanceof HTMLTextAreaElement;
+
 // fe-01 tests require jsdom; only Vitest provides it. Skip under plain `bun test`.
 const hasDom = typeof document !== 'undefined';
 const itDom = hasDom ? it : it.skip;
@@ -715,6 +719,90 @@ describe('collapsing a branch', () => {
   });
 });
 
+describe('names wrap and notes carry markdown', () => {
+  /** The wrapper the hover lives on — the cell's own parent. */
+  const notesCellOf = (number: string): HTMLElement => {
+    const found = screen.getByLabelText(`Notes for ${number}`).parentElement;
+    if (found === null) throw new Error(`notes cell for ${number} has no wrapper`);
+    return found;
+  };
+
+  async function oneRowWithNotes(notes: string) {
+    const api = fakeApi();
+    render(<WbsTable projectId="p1" api={api} />);
+    click('Add work item');
+    await screen.findByLabelText('Name of 010');
+    const cell = screen.getByLabelText('Notes for 010');
+    fireEvent.change(cell, { target: { value: notes } });
+    fireEvent.blur(cell);
+    await waitFor(() => {
+      expect(api.rows[0]?.notes).toBe(notes);
+    });
+    return api;
+  }
+
+  itDom('gives the name a box that wraps rather than one that scrolls', async () => {
+    const api = fakeApi();
+    render(<WbsTable projectId="p1" api={api} />);
+    await screen.findByLabelText('Name of 010').catch(() => undefined);
+    click('Add work item');
+
+    const name = await screen.findByLabelText('Name of 010');
+
+    // A textarea is the wrapping half of this; an input scrolls a long name
+    // out of sight one character at a time.
+    expect(name.tagName).toBe('TEXTAREA');
+  });
+
+  itDom('grows the notes box while it is being written in, and shrinks after', async () => {
+    await oneRowWithNotes('one');
+    const cell = screen.getByLabelText<HTMLTextAreaElement>('Notes for 010');
+
+    expect(cell.rows).toBe(1);
+    fireEvent.focus(cell);
+    expect(cell.rows).toBeGreaterThan(1);
+    fireEvent.blur(cell);
+    expect(cell.rows).toBe(1);
+  });
+
+  itDom('renders the markdown on hover, and nothing when there is no note', async () => {
+    await oneRowWithNotes('## Risks\n\n- the fuse box is *old*');
+
+    fireEvent.mouseEnter(notesCellOf('010'));
+
+    const preview = await screen.findByRole('tooltip');
+    // Rendered, not printed: a heading is an element and the emphasis is one
+    // too, which is the whole difference between this and the cell beneath it.
+    expect(preview.querySelector('h2')?.textContent).toBe('Risks');
+    expect(preview.querySelector('li em')?.textContent).toBe('old');
+  });
+
+  itDom('renders a script in a note as the text somebody typed', async () => {
+    // Notes are written by one person and read by everyone else on the
+    // project. react-markdown is used without rehype-raw precisely so this
+    // cannot become markup — watched here rather than asserted in a comment.
+    await oneRowWithNotes('<img src=x onerror="alert(1)"> and <script>alert(2)</script>');
+
+    fireEvent.mouseEnter(notesCellOf('010'));
+
+    const preview = await screen.findByRole('tooltip');
+    expect(preview.querySelector('img')).toBeNull();
+    expect(preview.querySelector('script')).toBeNull();
+    expect(preview.textContent).toContain('alert(1)');
+  });
+
+  itDom('shows no popover over a row with no notes', async () => {
+    const api = fakeApi();
+    render(<WbsTable projectId="p1" api={api} />);
+    click('Add work item');
+    await screen.findByLabelText('Name of 010');
+
+    fireEvent.mouseEnter(notesCellOf('010'));
+
+    expect(screen.queryByRole('tooltip')).toBeNull();
+  });
+});
+
 describe('estimates are never edited for you', () => {
   /** Types `value` into one estimate box and leaves it, the way a person does. */
   const typeEstimate = (number: string, point: string, value: string) => {
@@ -911,11 +999,11 @@ const namesOnScreen = (): string[] =>
     .getAllByRole('row')
     .slice(1)
     .map((tr) => {
-      const input = tr.querySelector('input[data-name-input]');
-      // Thrown rather than defaulted: a row without a name input means the
+      const input = tr.querySelector('[data-name-input]');
+      // Thrown rather than defaulted: a row without a name cell means the
       // markup changed, and an empty string here would quietly pass an
       // ordering assertion that is no longer looking at anything.
-      if (!(input instanceof HTMLInputElement)) throw new Error('a row has no name input');
+      if (!isCell(input)) throw new Error('a row has no name cell');
       return input.value;
     });
 
@@ -1256,7 +1344,9 @@ describe('moving between cells with the arrow keys', () => {
   /** Focuses a cell and puts the caret where a test needs it. */
   const focusCell = (label: string, caret: 'start' | 'end' | 'middle'): HTMLInputElement => {
     const input = screen.getByLabelText(label);
-    if (!(input instanceof HTMLInputElement)) throw new Error(`${label} is not an input`);
+    // Either element: the Name and Notes cells are textareas so their text
+    // wraps, and both carry the selection fields the keyboard code reads.
+    if (!isCell(input)) throw new Error(`${label} is not an editable cell`);
     input.focus();
     const at =
       caret === 'start'
@@ -1358,7 +1448,9 @@ describe('moving between cells with the arrow keys', () => {
 describe('arrow keys — cross-review findings', () => {
   const focus = (label: string, at: 'start' | 'end') => {
     const input = screen.getByLabelText(label);
-    if (!(input instanceof HTMLInputElement)) throw new Error(`${label} is not an input`);
+    // Either element: the Name and Notes cells are textareas so their text
+    // wraps, and both carry the selection fields the keyboard code reads.
+    if (!isCell(input)) throw new Error(`${label} is not an editable cell`);
     input.focus();
     const pos = at === 'start' ? 0 : input.value.length;
     input.setSelectionRange(pos, pos);
@@ -1367,7 +1459,7 @@ describe('arrow keys — cross-review findings', () => {
 
   const arrow = (key: string, init: Record<string, unknown> = {}) => {
     const active = document.activeElement;
-    if (!(active instanceof HTMLInputElement)) throw new Error('nothing focused');
+    if (!isCell(active)) throw new Error('nothing focused');
     fireEvent.keyDown(active, { key, ...init });
     return document.activeElement;
   };
@@ -1393,13 +1485,13 @@ describe('arrow keys — cross-review findings', () => {
     const arrived = arrow('ArrowRight');
 
     expect(arrived).toBe(screen.getByLabelText('Dev optimistic for 010'));
-    if (!(arrived instanceof HTMLInputElement)) throw new Error('not an input');
+    if (!isCell(arrived)) throw new Error('not an editable cell');
     expect(arrived.value).toBe('3');
     expect([arrived.selectionStart, arrived.selectionEnd]).toEqual([0, 0]);
 
     // And coming back the other way lands on the far edge, for the same reason.
     const back = arrow('ArrowLeft');
-    if (!(back instanceof HTMLInputElement)) throw new Error('not an input');
+    if (!isCell(back)) throw new Error('not an editable cell');
     expect(back).toBe(screen.getByLabelText('Name of 010'));
     expect([back.selectionStart, back.selectionEnd]).toEqual([
       back.value.length,

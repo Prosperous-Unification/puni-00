@@ -17,12 +17,13 @@ import {
   type RoleView,
 } from '@/lib/wbs-api';
 
-import { CellInput } from './cell-input';
+import { type CellElement, CellInput } from './cell-input';
 import { type Caret, type CellRef, nextCell } from './cell-navigation';
 import { pickerEntries } from './dep-picker';
 import { parseDependencies, unknownMessage } from './depends-input';
 import { type DropRefusal, type DropZone, planMove, zoneFor } from './drag-drop';
 import { type Point, POINTS, sendableTrio, trioProblem, type TypedTrio } from './estimate-draft';
+import { NotesPreview } from './notes-preview';
 import { toTree, type TreeRow } from './wbs-rows';
 
 export interface WbsTableProps {
@@ -81,6 +82,11 @@ function sameRoles(a: readonly RoleView[], b: readonly RoleView[]): boolean {
   );
 }
 
+/** Whether an event target is one of the two elements a cell can be. */
+function isCellElement(node: unknown): node is CellElement {
+  return node instanceof HTMLInputElement || node instanceof HTMLTextAreaElement;
+}
+
 /** The `data-cell` value for one editable cell, and the selector that finds it. */
 const cellKey = (rowId: string, columnId: string): string => `${rowId}::${columnId}`;
 
@@ -91,7 +97,7 @@ const cellKey = (rowId: string, columnId: string): string => `${rowId}::${column
  * treated as "not at either end", which leaves the key to the browser rather
  * than guessing a jump nobody asked for.
  */
-function caretOf(input: HTMLInputElement): Caret {
+function caretOf(input: CellElement): Caret {
   const start = input.selectionStart;
   const end = input.selectionEnd;
   if (start === null || end === null) {
@@ -120,8 +126,8 @@ const showDay = (days: number): string => String(Math.round(days * 10) / 10);
  * key arrives, never from a ref written during render: the committed DOM is
  * the only thing that cannot be ahead of itself.
  */
-function editableGrid(table: HTMLTableElement): { input: HTMLInputElement; cell: CellRef }[] {
-  return [...table.querySelectorAll<HTMLInputElement>('[data-cell]:not([readonly])')]
+function editableGrid(table: HTMLTableElement): { input: CellElement; cell: CellRef }[] {
+  return [...table.querySelectorAll<CellElement>('[data-cell]:not([readonly])')]
     .map((input) => ({ input, parts: (input.dataset['cell'] ?? '').split('::') }))
     .flatMap(({ input, parts }) => {
       // A `data-cell` that is not `row::column` is markup this component did
@@ -138,7 +144,7 @@ function editableGrid(table: HTMLTableElement): { input: HTMLInputElement; cell:
  * way the browser's own Tab leaves a field. False at the grid's edge — the
  * caller then leaves the key to the browser rather than eating it.
  */
-function focusAdjacentCell(input: HTMLInputElement, from: CellRef, delta: 1 | -1): boolean {
+function focusAdjacentCell(input: CellElement, from: CellRef, delta: 1 | -1): boolean {
   const table = input.closest('table');
   if (table === null) return false;
   const grid = editableGrid(table);
@@ -191,6 +197,8 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
    * moment it is sent.
    */
   const [drafts, setDrafts] = useState<Record<string, string>>({});
+  /** The row whose notes the pointer is over, so its rendered markdown can show. */
+  const [hoveredNotes, setHoveredNotes] = useState<string | null>(null);
   const [dragging, setDragging] = useState<string | null>(null);
   const [dropHint, setDropHint] = useState<{ rowId: string; zone: DropZone } | null>(null);
   /**
@@ -425,7 +433,9 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
       }
       if (event.key === 'Tab') {
         const input = event.currentTarget;
-        if (!(input instanceof HTMLInputElement)) return;
+        // Either element: the Name cell is a textarea so a long name wraps,
+        // and both carry the selection fields `caretOf` reads.
+        if (!isCellElement(input)) return;
         const caret = caretOf(input);
         // One rule for the structure keys: they fire at position zero, where
         // the key has no text meaning. Anywhere else — or over a selection —
@@ -452,7 +462,7 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
         // user is deleting text, even when the selection touches the start.
         // Skipped rather than thrown on a non-input target, same as the grid.
         const input = event.currentTarget;
-        if (!(input instanceof HTMLInputElement)) return;
+        if (!isCellElement(input)) return;
         const caret = caretOf(input);
         if (!caret.atStart || caret.hasSelection) return;
         if (row.parentId !== null) {
@@ -499,7 +509,7 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
    * can change, which is the same reason the derived number column is not here.
    */
   const onArrowKey = useCallback(
-    (event: React.KeyboardEvent<HTMLInputElement>, rowId: string, columnId: string) => {
+    (event: React.KeyboardEvent<CellElement>, rowId: string, columnId: string) => {
       const table = event.currentTarget.closest('table');
       if (table === null) return;
       const grid = editableGrid(table);
@@ -786,6 +796,8 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
     estimateValue,
     trioProblemFor,
     commitEstimate,
+    hoveredNotes,
+    setHoveredNotes,
   });
   live.current = {
     api,
@@ -807,6 +819,8 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
     estimateValue,
     trioProblemFor,
     commitEstimate,
+    hoveredNotes,
+    setHoveredNotes,
   };
 
   const columns = useMemo(
@@ -1048,6 +1062,14 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
             aria-label={`Name of ${row.original.number}`}
             data-name-input={row.original.id}
             data-cell={cellKey(row.original.id, 'name')}
+            // A work item's name is a sentence, not a word, and an input
+            // scrolls it out of sight one character at a time. A textarea
+            // wraps; Enter is still "new work item", because the table
+            // preventDefaults it.
+            multiline
+            rows={1}
+            expandedRows={3}
+            style={{ width: '22em', resize: 'vertical', font: 'inherit' }}
             // A callback ref rather than an effect: it fires exactly when this
             // node is attached, so the focus cannot be lost to a later render
             // arriving before the row does. That race is what
@@ -1162,21 +1184,51 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
       column.display({
         id: 'notes',
         header: 'Notes',
-        cell: ({ row }) => (
-          <CellInput
-            aria-label={`Notes for ${row.original.number}`}
-            data-cell={cellKey(row.original.id, 'notes')}
-            onKeyDown={(e) => {
-              live.current.onArrowKey(e, row.original.id, 'notes');
-            }}
-            value={row.original.notes}
-            commit={(typed) => {
-              void live.current.run(() =>
-                live.current.api.patch(row.original.id, { notes: typed }),
-              );
-            }}
-          />
-        ),
+        cell: ({ row }) => {
+          const hovered = live.current.hoveredNotes === row.original.id;
+          return (
+            <span
+              style={{ position: 'relative', display: 'inline-block' }}
+              onMouseEnter={() => {
+                live.current.setHoveredNotes(row.original.id);
+              }}
+              onMouseLeave={() => {
+                live.current.setHoveredNotes((current) =>
+                  current === row.original.id ? null : current,
+                );
+              }}
+            >
+              <CellInput
+                aria-label={`Notes for ${row.original.number}`}
+                data-cell={cellKey(row.original.id, 'notes')}
+                // Markdown is written in paragraphs, so this is the cell that
+                // most needs the room — one line at rest, several while it is
+                // being written in.
+                multiline
+                rows={1}
+                expandedRows={8}
+                style={{ width: '18em', resize: 'vertical', font: 'inherit' }}
+                onKeyDown={(e) => {
+                  live.current.onArrowKey(e, row.original.id, 'notes');
+                }}
+                value={row.original.notes}
+                commit={(typed) => {
+                  void live.current.run(() =>
+                    live.current.api.patch(row.original.id, { notes: typed }),
+                  );
+                }}
+              />
+              {/*
+                The rendered note, on hover, and only when there is one. A
+                popover over an empty note is a box of nothing that hides the
+                row beneath it.
+              */}
+              {hovered && row.original.notes.trim() !== '' && (
+                <NotesPreview notes={row.original.notes} number={row.original.number} />
+              )}
+            </span>
+          );
+        },
       }),
       column.display({
         id: 'actions',

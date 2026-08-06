@@ -5,7 +5,28 @@ type PassedThrough = Omit<
   'value' | 'defaultValue' | 'onChange' | 'onBlur' | 'ref'
 >;
 
+/**
+ * The two element types a cell can be.
+ *
+ * A `<textarea>` is what makes a long name wrap instead of scrolling out of
+ * sight, and it carries the same `selectionStart`/`selectionEnd`/`value` the
+ * keyboard code reads — so Tab, Backspace and the arrows keep working without
+ * knowing which one they are standing in.
+ */
+export type CellElement = HTMLInputElement | HTMLTextAreaElement;
+
 export interface CellInputProps extends PassedThrough {
+  /**
+   * Renders a `<textarea>` instead of an `<input>`, so the text wraps.
+   *
+   * Enter is not a newline in one of these: the table binds it to "new work
+   * item" and preventDefaults it, which is the behaviour a bulleted list has
+   * and the reason a name is one line of meaning however many lines it takes
+   * to show.
+   */
+  multiline?: boolean;
+  /** Visible rows while this textarea has the focus; ignored for an input. */
+  expandedRows?: number;
   /** What the server says this cell holds, as it should read on screen. */
   value: string;
   /**
@@ -22,7 +43,7 @@ export interface CellInputProps extends PassedThrough {
    * Called with the node every time React attaches it, which is more than once —
    * the ref callback is rebuilt on each render. Must be idempotent.
    */
-  onAttach?: (element: HTMLInputElement) => void;
+  onAttach?: (element: CellElement) => void;
 }
 
 /**
@@ -46,8 +67,15 @@ export interface CellInputProps extends PassedThrough {
  * 3. A blur sends only what actually differs from the value this cell was last
  *    showing. Clicking through a row writes nothing.
  */
-export function CellInput({ value, commit, onAttach, ...rest }: CellInputProps) {
-  const element = useRef<HTMLInputElement | null>(null);
+export function CellInput({
+  value,
+  commit,
+  onAttach,
+  multiline = false,
+  expandedRows = 6,
+  ...rest
+}: CellInputProps) {
+  const element = useRef<CellElement | null>(null);
   /** The value this node is currently showing, as far as this component knows. */
   const shown = useRef(value);
   /** Whether anyone has typed here since `shown` and the node last agreed. */
@@ -72,6 +100,66 @@ export function CellInput({ value, commit, onAttach, ...rest }: CellInputProps) 
     sync();
   }, [value, sync]);
 
+  /**
+   * What leaving a cell means, shared by both elements.
+   *
+   * Rule 3: only a value that actually differs from what this cell was last
+   * showing is sent. Clicking through a row writes nothing.
+   */
+  const onLeave = (): void => {
+    const node = element.current;
+    if (node === null) return;
+    // Cleared before either branch: it means "typed since `shown` and the node
+    // last agreed", and leaving it set would have the *next* visit to this cell
+    // hold back a peer's edit on the strength of typing that happened before
+    // the focus ever left.
+    typed.current = false;
+    if (node.value !== shown.current) {
+      // No `sync()` afterwards: `shown` is deliberately left holding the old
+      // value until the refetch this commit triggers comes back. Advancing it
+      // here would be recording a write that has not happened yet, and a failed
+      // request would then have nothing left to correct the cell from.
+      commit(node.value);
+      return;
+    }
+    // Nothing typed, or typed back to what it already said — so anything rule 2
+    // held back while the focus was here is safe to apply now.
+    sync();
+  };
+
+  const shared = {
+    defaultValue: value,
+    onChange: () => {
+      typed.current = true;
+    },
+  };
+
+  if (multiline) {
+    return (
+      <textarea
+        // The same props an input takes; React accepts the overlap and the two
+        // elements agree on everything this component uses.
+        {...(rest as ComponentProps<'textarea'>)}
+        ref={(node) => {
+          element.current = node;
+          if (node !== null) onAttach?.(node);
+        }}
+        {...shared}
+        onFocus={(event) => {
+          // Grown while it is being written in, back to one line when it is
+          // not: a table of six-line boxes is unreadable, and a one-line box
+          // is unwritable for anything longer than a sentence.
+          event.currentTarget.rows = expandedRows;
+          rest.onFocus?.(event as unknown as React.FocusEvent<HTMLInputElement>);
+        }}
+        onBlur={(event) => {
+          event.currentTarget.rows = 1;
+          onLeave();
+        }}
+      />
+    );
+  }
+
   return (
     <input
       {...rest}
@@ -79,30 +167,8 @@ export function CellInput({ value, commit, onAttach, ...rest }: CellInputProps) 
         element.current = node;
         if (node !== null) onAttach?.(node);
       }}
-      defaultValue={value}
-      onChange={() => {
-        typed.current = true;
-      }}
-      onBlur={() => {
-        const input = element.current;
-        if (input === null) return;
-        // Cleared before either branch: it means "typed since `shown` and the
-        // node last agreed", and leaving it set would have the *next* visit to
-        // this cell hold back a peer's edit on the strength of typing that
-        // happened before the focus ever left.
-        typed.current = false;
-        if (input.value !== shown.current) {
-          // No `sync()` afterwards: `shown` is deliberately left holding the old
-          // value until the refetch this commit triggers comes back. Advancing it
-          // here would be recording a write that has not happened yet, and a
-          // failed request would then have nothing left to correct the cell from.
-          commit(input.value);
-          return;
-        }
-        // Nothing typed, or typed back to what it already said — so anything rule
-        // 2 held back while the focus was here is safe to apply now.
-        sync();
-      }}
+      {...shared}
+      onBlur={onLeave}
     />
   );
 }
