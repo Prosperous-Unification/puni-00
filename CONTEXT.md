@@ -70,6 +70,18 @@ _Avoid_: missing estimate, unestimated row, TBD
 The sum of a parent's descendants' estimates, per role, computed on read and never stored.
 _Avoid_: aggregate, total, computed estimate
 
+**Dependency**:
+One work item waiting for another to finish before it starts. Either end may be a parent,
+which means every leaf beneath it. Held once per pair, in one direction.
+_Avoid_: link, blocker, edge (outside the graph code)
+
+**Refused dependency**:
+A dependency be-01 will not write: onto the work item itself, onto an ancestor or a
+descendant of it, or one that closes a loop once every dependency is expanded to the
+leaves beneath its ends. be-01 decides; the picker predicts, to grey the row before it is
+clicked.
+_Avoid_: invalid dependency, illegal link, blocked edge
+
 **Restricted project**:
 A project only its owner may edit. Every authenticated account may still read it; an
 unrestricted project may be edited by any of them.

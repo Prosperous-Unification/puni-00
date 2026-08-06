@@ -2957,6 +2957,163 @@ describe('picking dependencies from a list', () => {
   });
 });
 
+describe('the picker marks what be-01 would refuse', () => {
+  /**
+   * ```
+   * 010    Strip
+   *   010.1  Sand
+   * 020    Paint
+   * ```
+   * Built through the api before the render rather than through the table's own
+   * keyboard: the shape is the fixture here, not the thing under test.
+   */
+  const nested = async (
+    edges: readonly (readonly ['strip' | 'sand' | 'paint', 'strip' | 'sand' | 'paint'])[] = [],
+  ) => {
+    const api = fakeApi();
+    const strip = await api.create('p1', { parentId: null, afterId: null, name: 'Strip' });
+    const sand = await api.create('p1', { parentId: strip.id, afterId: null, name: 'Sand' });
+    const paint = await api.create('p1', { parentId: null, afterId: strip.id, name: 'Paint' });
+    const idOf = { strip: strip.id, sand: sand.id, paint: paint.id };
+    for (const [predecessor, successor] of edges) {
+      await api.addDependency(idOf[successor], idOf[predecessor]);
+    }
+    let notify: () => void = () => {
+      throw new Error('the table never subscribed');
+    };
+    const subscribe = (_projectId: string, handlers: SubscriptionHandlers) => {
+      notify = handlers.onChange;
+      return { seen: () => undefined, unsubscribe: () => undefined };
+    };
+    render(<WbsTable projectId="p1" api={api} subscribe={subscribe} />);
+    await screen.findByLabelText('Add a dependency to 010.1');
+    return {
+      api,
+      ...idOf,
+      notify: () => {
+        notify();
+      },
+    };
+  };
+
+  const optionTexts = () => {
+    const list = screen.queryAllByRole('listbox').find((box) => box.id.startsWith('dep-options-'));
+    return list === undefined
+      ? []
+      : [...list.querySelectorAll('[role="option"]')].map((option) => option.textContent);
+  };
+
+  const openPicker = (rowNumber: string) => {
+    const input = screen.getByLabelText<HTMLInputElement>(`Add a dependency to ${rowNumber}`);
+    fireEvent.focus(input);
+    return input;
+  };
+
+  /** Every call to `addDependency`, so "nothing was picked" is an observation. */
+  const watchAdds = (api: ProjectApi) => {
+    const added: [string, string][] = [];
+    const real = api.addDependency.bind(api);
+    api.addDependency = (id: string, predecessorId: string) => {
+      added.push([id, predecessorId]);
+      return real(id, predecessorId);
+    };
+    return added;
+  };
+
+  itDom('greys the row this one sits inside, and says so', async () => {
+    await nested();
+    openPicker('010.1');
+    expect(optionTexts()).toEqual(['010 Strip — contains this row', '020 Paint']);
+    const refused = screen.getByRole('option', { name: '010 Strip — contains this row' });
+    expect(refused.getAttribute('aria-disabled')).toBe('true');
+    expect(screen.getByRole('option', { name: '020 Paint' }).getAttribute('aria-disabled')).toBe(
+      'false',
+    );
+  });
+
+  itDom('greys the row that sits inside this one', async () => {
+    await nested();
+    openPicker('010');
+    expect(optionTexts()).toEqual(['010.1 Sand — inside this row', '020 Paint']);
+  });
+
+  itDom('greys the row that would loop, through the tree', async () => {
+    // `020 Paint` waits for `010.1 Sand`. Sand waiting for Paint is the loop —
+    // and so is `010 Strip` waiting for Paint, because Strip's only leaf is
+    // Sand and that is the graph be-01 orders.
+    await nested([['sand', 'paint']]);
+
+    openPicker('010.1');
+    expect(optionTexts()).toEqual(['010 Strip — contains this row', '020 Paint — would loop']);
+
+    fireEvent.blur(screen.getByLabelText('Add a dependency to 010.1'));
+    openPicker('010');
+    expect(optionTexts()).toEqual(['010.1 Sand — inside this row', '020 Paint — would loop']);
+  });
+
+  itDom('clicking a greyed row adds nothing', async () => {
+    const { api } = await nested();
+    const added = watchAdds(api);
+    openPicker('010.1');
+
+    fireEvent.click(screen.getByRole('option', { name: '010 Strip — contains this row' }));
+
+    expect(added).toEqual([]);
+    expect(screen.queryByLabelText('Stop 010.1 waiting for 010')).toBeNull();
+  });
+
+  itDom('the arrows step over a greyed row', async () => {
+    const { paint } = await nested();
+    const input = openPicker('010.1');
+
+    // One press. Down from nothing enters at the top of the list, and the top
+    // of this list is refused, so the first thing it may land on is `020`.
+    fireEvent.keyDown(input, { key: 'ArrowDown' });
+    expect(input.getAttribute('aria-activedescendant')).toBe(`dep-option-${paint}`);
+
+    // And back up again: still nothing above `020` to reach.
+    fireEvent.keyDown(input, { key: 'ArrowUp' });
+    expect(input.getAttribute('aria-activedescendant')).toBe(`dep-option-${paint}`);
+  });
+
+  itDom('drops a highlight that a peer’s edit has just made a loop', async () => {
+    // The graph moves under an open list. Nothing here is cached, so the mark
+    // is re-derived from the tree that arrived — and the entry the highlight
+    // was sitting on stops being pickable the moment it stops being writable.
+    const { api, sand, paint, notify } = await nested();
+    const input = openPicker('010.1');
+    fireEvent.keyDown(input, { key: 'ArrowDown' });
+    expect(input.getAttribute('aria-activedescendant')).toBe(`dep-option-${paint}`);
+
+    await api.addDependency(paint, sand);
+    notify();
+    await waitFor(() => {
+      expect(optionTexts()).toContain('020 Paint — would loop');
+    });
+    // Watched from here, so the peer's own edit above is not mistaken for one
+    // this cell made.
+    const added = watchAdds(api);
+    fireEvent.keyDown(input, { key: 'Enter' });
+
+    expect(added).toEqual([]);
+    expect(screen.queryByLabelText('Stop 010.1 waiting for 020')).toBeNull();
+  });
+
+  itDom('Enter takes nothing when the typing narrowed to a greyed row alone', async () => {
+    const { api } = await nested();
+    const added = watchAdds(api);
+    const input = openPicker('010.1');
+
+    fireEvent.change(input, { target: { value: 'strip' } });
+    expect(optionTexts()).toEqual(['010 Strip — contains this row']);
+    expect(input.getAttribute('aria-activedescendant')).toBeNull();
+    fireEvent.keyDown(input, { key: 'Enter' });
+
+    expect(added).toEqual([]);
+    expect(screen.queryByLabelText('Stop 010.1 waiting for 010')).toBeNull();
+  });
+});
+
 describe('dependencies in the table — cross-review findings', () => {
   /**
    * A tree read with a schedule this component did not compute.

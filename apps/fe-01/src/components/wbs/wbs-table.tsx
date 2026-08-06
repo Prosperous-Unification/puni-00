@@ -21,7 +21,7 @@ import {
 import { type CellElement, CellInput } from './cell-input';
 import { type Caret, type CellRef, nextCell } from './cell-navigation';
 import { CreatablePicker } from './creatable-picker';
-import { pickerEntries } from './dep-picker';
+import { pickerEntries, type PickerEntry } from './dep-picker';
 import { parseDependencies, unknownMessage } from './depends-input';
 import { type DropRefusal, type DropZone, planMove, zoneFor } from './drag-drop';
 import {
@@ -117,6 +117,24 @@ const REFUSAL_MESSAGES: Partial<Record<DropRefusal, string>> = {
   frozen: FROZEN_REFUSAL,
   cycle: 'A row cannot be moved inside itself.',
   not_found: 'That row is no longer here — the table has been refreshed.',
+};
+
+/**
+ * What a greyed entry in the Depends on list says about itself.
+ *
+ * The refusal be-01 would answer with, in the words of the table it is being
+ * read in: the reader is looking at rows and asking why this one is out, not
+ * reading an API's vocabulary. `— would loop` is the whole of the cycle
+ * explanation on purpose; the loop can run through any number of rows and
+ * naming them in a dropdown entry is a paragraph nobody reads.
+ *
+ * Exhaustive rather than `Partial`: a new refusal must not reach the list as a
+ * silently unexplained grey row.
+ */
+const REFUSAL_SUFFIX: Record<NonNullable<PickerEntry['refusal']>, string> = {
+  ancestor: 'contains this row',
+  descendant: 'inside this row',
+  cycle: 'would loop',
 };
 
 /**
@@ -1049,7 +1067,14 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
     [api, flat, refresh],
   );
 
-  /** The rows the picker may offer `forRow`, narrowed by what is typed. */
+  /**
+   * The rows the picker may offer `forRow`, narrowed by what is typed, each
+   * marked with the refusal be-01 would answer with.
+   *
+   * Recomputed from `flat` on every render rather than remembered: a peer's
+   * edit lands as a whole new tree, and a list that kept yesterday's marks
+   * would grey a row that has since moved out of this one.
+   */
   const depEntriesFor = useCallback(
     (forRow: { id: string; dependsOn: readonly string[] }, typed: string) =>
       pickerEntries(flat, forRow, typed),
@@ -1568,12 +1593,18 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
             live.current.depPicker?.rowId === row.original.id ? live.current.depPicker : null;
           const entries =
             picker === null ? [] : live.current.depEntriesFor(row.original, picker.typed);
+          // The entries a click or an Enter may actually take. A marked entry
+          // is on screen to be read, not to be picked: be-01 would refuse it,
+          // and the mark is this cell saying so before the click rather than
+          // after it.
+          const pickable = entries.filter((entry) => entry.refusal === undefined);
           // Resolved by id at render, so a highlight whose row has left the
-          // list is simply nothing rather than somebody else's row.
+          // list — or has since become one be-01 would refuse — is simply
+          // nothing rather than somebody else's row.
           const activeOption =
             picker?.highlightId == null
               ? undefined
-              : entries.find((entry) => entry.id === picker.highlightId);
+              : pickable.find((entry) => entry.id === picker.highlightId);
           const open = picker !== null && entries.length > 0;
           return (
             <span style={{ whiteSpace: 'nowrap', position: 'relative', display: 'inline-block' }}>
@@ -1625,7 +1656,9 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
                   const first =
                     typed.trim() === ''
                       ? undefined
-                      : live.current.depEntriesFor(row.original, typed)[0];
+                      : live.current
+                          .depEntriesFor(row.original, typed)
+                          .find((entry) => entry.refusal === undefined);
                   live.current.setDepPicker({
                     rowId: row.original.id,
                     typed,
@@ -1638,7 +1671,11 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
                     live.current.moveDepHighlight(
                       row.original.id,
                       e.key === 'ArrowDown' ? 1 : -1,
-                      entries.map((entry) => entry.id),
+                      // The refused entries are not in this list, so the
+                      // highlight steps over them: a highlight that could stop
+                      // on one would be an Enter that does nothing, which is
+                      // the click this change exists to prevent.
+                      pickable.map((entry) => entry.id),
                     );
                     return;
                   }
@@ -1702,6 +1739,11 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
                       id={`dep-option-${entry.id}`}
                       role="option"
                       aria-selected={entry.id === activeOption?.id}
+                      // Shown and refused, rather than quietly absent: a row
+                      // that vanishes from the list reads as a bug in the tool,
+                      // and one that says why it cannot be picked teaches the
+                      // shape of the plan.
+                      aria-disabled={entry.refusal !== undefined}
                       // The list scrolls; the highlighted entry must be where
                       // the eye is. jsdom has no scrollIntoView, hence the
                       // typeof — that boundary is the test environment, not a
@@ -1717,15 +1759,18 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
                       }}
                       style={{
                         padding: '2px 6px',
-                        cursor: 'pointer',
+                        cursor: entry.refusal === undefined ? 'pointer' : 'default',
                         whiteSpace: 'nowrap',
+                        color: entry.refusal === undefined ? undefined : '#999',
                         background: entry.id === activeOption?.id ? '#e8f0fe' : undefined,
                       }}
                       onClick={() => {
+                        if (entry.refusal !== undefined) return;
                         live.current.pickDependency(row.original.id, entry.id);
                       }}
                     >
                       {entry.number} {entry.name}
+                      {entry.refusal === undefined ? '' : ` — ${REFUSAL_SUFFIX[entry.refusal]}`}
                     </li>
                   ))}
                 </ul>
