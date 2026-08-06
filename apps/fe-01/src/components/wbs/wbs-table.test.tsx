@@ -920,8 +920,51 @@ describe('the plan on a calendar', () => {
     expect(api.rows.length).toBe(1);
   });
 
+  itDom('will not take an earliest start while the plan has no start date', async () => {
+    // Without a project start date there is no day zero, so be-01 ignores the
+    // constraint entirely. A date that saves and does nothing is worse than a
+    // field that will not take one — this shipped and was found on dev.
+    await oneRow();
+
+    const cell = screen.getByLabelText<HTMLInputElement>('Earliest start for 010');
+
+    expect(cell.disabled).toBe(true);
+    expect(cell.title).toContain('project start date');
+    // And the columns say which of the two they are showing.
+    expect(screen.getAllByRole('columnheader').map((th) => th.textContent.trim())).toContain(
+      'Starts (day)',
+    );
+  });
+
+  itDom('takes one once the plan is on a calendar, and drops the "(day)" label', async () => {
+    await oneRow();
+
+    fireEvent.change(screen.getByLabelText('Project start date'), {
+      target: { value: '2026-08-06' },
+    });
+
+    await waitFor(() => {
+      expect(screen.getByLabelText<HTMLInputElement>('Earliest start for 010').disabled).toBe(
+        false,
+      );
+    });
+    // Scoped to the column headers: the toolbar has a "Starts" label of its own.
+    const headers = screen.getAllByRole('columnheader').map((th) => th.textContent.trim());
+    expect(headers).toContain('Starts');
+    expect(headers).not.toContain('Starts (day)');
+  });
+
   itDom('sends a work item’s earliest start, and clears it again', async () => {
     const api = await oneRow();
+    // The field only takes a date once the plan is on a calendar.
+    fireEvent.change(screen.getByLabelText('Project start date'), {
+      target: { value: '2026-08-06' },
+    });
+    await waitFor(() => {
+      expect(screen.getByLabelText<HTMLInputElement>('Earliest start for 010').disabled).toBe(
+        false,
+      );
+    });
     const patched: unknown[] = [];
     const realPatch = api.patch.bind(api);
     api.patch = (id: string, patch: Record<string, unknown>) => {
@@ -966,6 +1009,53 @@ describe('names wrap and notes carry markdown', () => {
     });
     return api;
   }
+
+  /**
+   * jsdom does no layout, so `scrollHeight` is 0 for everything. Faking it is
+   * what makes the auto-sizing testable at all: the component reads it, and
+   * this is the only place its value can come from here.
+   */
+  const withScrollHeight = (node: HTMLElement, height: number) => {
+    Object.defineProperty(node, 'scrollHeight', { value: height, configurable: true });
+  };
+
+  itDom('grows the name box to fit a long name, focus or no focus', async () => {
+    // Dany, 2026-08-06: the name "must wrap instead of cutting text". A
+    // one-row textarea wraps and then hides everything past the first line,
+    // which is the same crop with extra steps.
+    const api = fakeApi();
+    render(<WbsTable projectId="p1" api={api} />);
+    click('Add work item');
+    const name = await screen.findByLabelText<HTMLTextAreaElement>('Name of 010');
+
+    withScrollHeight(name, 60);
+    fireEvent.change(name, { target: { value: 'a name long enough to need three lines' } });
+    // `name.blur()`, not `fireEvent.blur`: the latter dispatches the event
+    // without moving `document.activeElement`, so the component would still
+    // read the cell as focused and this test would prove nothing.
+    name.blur();
+
+    // Sized from its own content while nobody is in it — the whole point.
+    expect(name.style.height).toBe('60px');
+    expect(document.activeElement).not.toBe(name);
+  });
+
+  itDom('caps how tall a name box gets at rest, and lifts the cap to write in', async () => {
+    const api = fakeApi();
+    render(<WbsTable projectId="p1" api={api} />);
+    click('Add work item');
+    const name = await screen.findByLabelText<HTMLTextAreaElement>('Name of 010');
+
+    withScrollHeight(name, 400);
+    name.blur();
+    const restCap = name.style.maxHeight;
+    name.focus();
+
+    // At rest the table stays readable; in the cell, an essay is writable.
+    expect(restCap).toBe('5.6em');
+    expect(name.style.maxHeight).toBe('none');
+    expect(name.style.overflowY).toBe('auto');
+  });
 
   itDom('gives the name a box that wraps rather than one that scrolls', async () => {
     const api = fakeApi();
@@ -2180,10 +2270,12 @@ describe('the order of the columns', () => {
     // The schedule stays on the right, where it reads as an outcome of
     // everything to its left. "Not before" is the one input among them, and it
     // sits immediately before the dates it constrains.
+    // `(day)` while the plan has no start date: a bare `2.5` under "Starts"
+    // reads as a date that failed to load.
     expect(headers.slice(-6)).toEqual([
       'Not before',
-      'Starts',
-      'Ends',
+      'Starts (day)',
+      'Ends (day)',
       'Slack (days)',
       'Notes',
       '',

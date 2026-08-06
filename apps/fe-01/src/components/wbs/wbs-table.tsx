@@ -884,6 +884,7 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
     hoveredNotes,
     setHoveredNotes,
     setNotBefore,
+    startDate,
     teams,
     people,
     setTeamOf,
@@ -914,6 +915,7 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
     hoveredNotes,
     setHoveredNotes,
     setNotBefore,
+    startDate,
     teams,
     people,
     setTeamOf,
@@ -1163,11 +1165,13 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
             data-cell={cellKey(row.original.id, 'name')}
             // A work item's name is a sentence, not a word, and an input
             // scrolls it out of sight one character at a time. A textarea
-            // wraps; Enter is still "new work item", because the table
-            // preventDefaults it.
+            // wraps, and `autoSize` is what stops it wrapping into a line
+            // nobody can see: the box is as tall as its name, focused or not.
+            // Enter is still "new work item" — the table preventDefaults it.
             multiline
+            autoSize
             rows={1}
-            expandedRows={3}
+            maxRestRows={4}
             style={{ width: '22em', resize: 'vertical', font: 'inherit' }}
             // A callback ref rather than an effect: it fires exactly when this
             // node is attached, so the focus cannot be lost to a later render
@@ -1332,7 +1336,16 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
           <input
             type="date"
             aria-label={`Earliest start for ${row.original.number}`}
-            title="This work item may not start before this day. Its dependencies can still push it later."
+            // Disabled without a project start date, because there is then no
+            // day zero to count from and be-01 ignores the constraint
+            // entirely. A date that saves and does nothing is worse than one
+            // the field will not take.
+            disabled={live.current.startDate === null}
+            title={
+              live.current.startDate === null
+                ? 'Set the project start date first — without one there are no dates to constrain.'
+                : 'This work item may not start before this day. Its dependencies can still push it later.'
+            }
             data-not-before={row.original.id}
             style={{ font: 'inherit' }}
             value={row.original.startNoEarlierThan ?? ''}
@@ -1347,7 +1360,9 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
       }),
       column.display({
         id: 'start',
-        header: 'Starts',
+        // A bare `2.5` under "Starts" reads as a date that failed to load. The
+        // header says which of the two it is.
+        header: () => (live.current.startDate === null ? 'Starts (day)' : 'Starts'),
         cell: ({ row }) => (
           <span data-start>
             {row.original.dates?.startsOn ??
@@ -1357,7 +1372,7 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
       }),
       column.display({
         id: 'finish',
-        header: 'Ends',
+        header: () => (live.current.startDate === null ? 'Ends (day)' : 'Ends'),
         cell: ({ row }) => (
           <span data-finish title={row.original.schedule.estimated ? undefined : 'No estimate yet'}>
             {row.original.dates?.endsOn ??
