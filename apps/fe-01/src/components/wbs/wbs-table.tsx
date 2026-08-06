@@ -12,6 +12,7 @@ import type { ProjectStream } from '@/lib/project-stream';
 import type { Days, ProjectApi, RoleView } from '@/lib/wbs-api';
 
 import { type Caret, type CellRef, nextCell } from './cell-navigation';
+import { parseDependencies, unknownMessage } from './depends-input';
 import { type DropRefusal, type DropZone, planMove, zoneFor } from './drag-drop';
 import { toTree, type TreeRow } from './wbs-rows';
 
@@ -445,24 +446,70 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
   );
 
   /**
-   * Adds a dependency named by the *number* someone typed, not by an id.
+   * Adds the dependencies a typed list of *numbers* names — several at once.
    *
-   * Numbers are what is on screen. A typo is a number nobody has, and saying so
-   * beats a request that comes back 404 with an id in it that means nothing to
-   * the person reading.
+   * Numbers, not ids: numbers are what is on screen, and a typo is then a number
+   * nobody has rather than a 404 carrying a uuid that means nothing to whoever
+   * is reading it.
+   *
+   * Several, because a row that waits for three things is ordinary and typing
+   * `010, 020, 030` once beats three rounds of type-Enter. Each is still its own
+   * request — be-01 judges every edge against the graph including the ones just
+   * added, so asking it to take a batch would mean teaching it a second way to
+   * do the same thing.
+   *
+   * Partial success is deliberate. A typo in the middle keeps the numbers around
+   * it, and one refused as a cycle keeps the rest; what landed is visible in the
+   * chips and what did not is named. All-or-nothing here would throw away four
+   * correct entries over a fifth.
    */
   const dependOn = useCallback(
     (successorId: string, typed: string) => {
-      const wanted = typed.trim();
-      if (wanted === '') return;
-      const predecessor = flat.find((row) => row.number === wanted);
-      if (predecessor === undefined) {
-        setError(`No work item numbered ${wanted}.`);
+      const { found, unknown } = parseDependencies(typed, flat);
+      const notThere = unknownMessage(unknown);
+      if (found.length === 0) {
+        if (notThere !== null) setError(notThere);
         return;
       }
-      void run(() => api.addDependency(successorId, predecessor.id));
+
+      // Not routed through `run`, deliberately. `run` models all-or-nothing: it
+      // clears the error, does one thing, refreshes, and reports a throw. Here a
+      // partial success is a real outcome — some edges land, some are refused,
+      // and both the new chips and the reasons have to survive. Through `run`
+      // the first `setError` was wiped by its own reset, and a refusal skipped
+      // the refresh that would have shown the edges that did land.
+      void (async () => {
+        setBusy(true);
+        setError(null);
+        const refused: string[] = [];
+        try {
+          for (const predecessor of found) {
+            try {
+              await api.addDependency(successorId, predecessor.id);
+            } catch (e: unknown) {
+              // Collected rather than rethrown, so one refusal does not abandon
+              // the numbers after it. The reason is be-01's own word — `cycle`,
+              // `ancestor` — beside the number it belongs to.
+              refused.push(`${predecessor.number} (${e instanceof Error ? e.message : 'refused'})`);
+            }
+          }
+          await refresh();
+        } catch (e: unknown) {
+          setError(e instanceof Error ? e.message : 'request_failed');
+          setBusy(false);
+          return;
+        }
+        const problems = [
+          notThere,
+          refused.length === 0
+            ? null
+            : `${refused.length === 1 ? 'Refused' : 'These were refused'}: ${refused.join(', ')}.`,
+        ].filter((line): line is string => line !== null);
+        if (problems.length > 0) setError(problems.join(' '));
+        setBusy(false);
+      })();
     },
-    [api, flat, run],
+    [api, flat, refresh],
   );
 
   /**
@@ -586,8 +633,9 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
               ))}
               <input
                 aria-label={`Add a dependency to ${row.original.number}`}
-                placeholder="number"
-                size={6}
+                placeholder="010, 020"
+                title="One or more work item numbers, separated by commas or spaces"
+                size={10}
                 data-depends-input={row.original.id}
                 onKeyDown={(e) => {
                   if (e.key !== 'Enter') return;

@@ -1147,3 +1147,84 @@ describe('the order of the columns', () => {
     expect(headers.slice(-5)).toEqual(['Starts (day)', 'Ends (day)', 'Slack (days)', 'Notes', '']);
   });
 });
+
+describe('adding several dependencies at once', () => {
+  const typeDeps = (rowNumber: string, value: string) => {
+    const input = screen.getByLabelText(`Add a dependency to ${rowNumber}`);
+    fireEvent.change(input, { target: { value } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+  };
+
+  itDom('adds every number in one comma-separated list', async () => {
+    // A row that waits for three things is ordinary. Typing it three times was
+    // not. Asked for on 2026-08-06.
+    const api = await threeRoots();
+    const added: [string, string][] = [];
+    const real = api.addDependency.bind(api);
+    api.addDependency = (id: string, predecessorId: string) => {
+      added.push([id, predecessorId]);
+      return real(id, predecessorId);
+    };
+
+    typeDeps('030', '010, 020');
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Stop 030 waiting for 010')).toBeDefined();
+    });
+    expect(screen.getByLabelText('Stop 030 waiting for 020')).toBeDefined();
+    expect(added).toHaveLength(2);
+  });
+
+  itDom('takes spaces as readily as commas', async () => {
+    await threeRoots();
+
+    typeDeps('030', '010 020');
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Stop 030 waiting for 010')).toBeDefined();
+    });
+    expect(screen.getByLabelText('Stop 030 waiting for 020')).toBeDefined();
+  });
+
+  itDom('keeps the good numbers when one in the list is a typo', async () => {
+    // Discarding a correct entry because of the one beside it is how a field
+    // stops being used.
+    await threeRoots();
+
+    typeDeps('030', '010, 999');
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Stop 030 waiting for 010')).toBeDefined();
+    });
+    expect(screen.getByRole('alert').textContent).toContain('No work item numbered 999');
+  });
+
+  itDom('names every dependency the server refused, and keeps the rest', async () => {
+    const api = await threeRoots();
+    const real = api.addDependency.bind(api);
+    api.addDependency = (id: string, predecessorId: string) => {
+      const number = api.rows.find((r) => r.id === predecessorId)?.number;
+      if (number === '020') return Promise.reject(new Error('cycle'));
+      return real(id, predecessorId);
+    };
+
+    typeDeps('030', '010, 020');
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Stop 030 waiting for 010')).toBeDefined();
+    });
+    expect(screen.getByRole('alert').textContent).toContain('020 (cycle)');
+    expect(screen.queryByLabelText('Stop 030 waiting for 020')).toBeNull();
+  });
+
+  itDom('still takes a single number, which is most of the typing', async () => {
+    await threeRoots();
+
+    typeDeps('030', '010');
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Stop 030 waiting for 010')).toBeDefined();
+    });
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+});
