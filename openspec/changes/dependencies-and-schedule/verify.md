@@ -69,6 +69,20 @@ A plan with a parallel branch, built through the API at
 [sched] PASS
 ```
 
+And the reviewers' critical case, run against the same deployment on `3e8f39e`:
+
+```
+[cycle] leaf depends on after (after → leaf): accepted
+[cycle] after depends on phase — expands to leaf → after, closing the loop: 409 {"error":"cycle"}
+[cycle] project still reads: 3 rows, scheduleError: null
+[cycle] PASS
+```
+
+The first version of that script had the direction backwards — the route's `:id`
+is the _successor_ — so it drew the same edge twice and reported the bug as still
+present. Worth recording: a check that fails is not automatically a check that
+found something.
+
 `Paint` waits for both `Strip` (3 days) and `Sand` (5 days) and starts on day 5,
 which is the point of the whole change: it waits for the **longer** one. `Sand`
 sets the project's length and is marked critical; `Strip` finishes two days early
