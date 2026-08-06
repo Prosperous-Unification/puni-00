@@ -26,6 +26,7 @@ import { parseDependencies, unknownMessage } from './depends-input';
 import { type DropRefusal, type DropZone, planMove, zoneFor } from './drag-drop';
 import {
   isTrioEmpty,
+  parseTrioShorthand,
   type Point,
   POINTS,
   sendableTrio,
@@ -60,6 +61,40 @@ const showFinal = (days: number | undefined): string => (days === undefined ? ''
 /** The key one estimate box's draft is held under: one row, one role, one point. */
 const draftKey = (rowId: string, roleId: string, point: Point): string =>
   `${rowId}::${roleId}::${point}`;
+
+/**
+ * The key the folded cell's `o/r/p` draft is held under: one row, one role.
+ *
+ * The same `drafts` record as the boxes, because there is one pending
+ * estimate per row and role however it was typed — see
+ * {@link commitCombinedEstimate} for the rule that keeps it one. `combined`
+ * cannot collide with a {@link Point}, which is what makes one record safe.
+ */
+const combinedDraftKey = (rowId: string, roleId: string): string => `${rowId}::${roleId}::combined`;
+
+/** What the folded cell says about itself when there is nothing to complain about. */
+const SHORTHAND_HELP =
+  'Days as optimistic/realistic/pessimistic — 2/3/8. One number means all three. Empty clears it.';
+
+/**
+ * The drafts record without the named keys.
+ *
+ * Rebuilt rather than copied and `delete`d: `delete` on a computed key is
+ * banned here, and filtering says the same thing without reaching into the
+ * object twice.
+ */
+const dropDrafts = (
+  drafts: Readonly<Record<string, string>>,
+  gone: ReadonlySet<string>,
+): Record<string, string> =>
+  Object.fromEntries(Object.entries(drafts).filter(([key]) => !gone.has(key)));
+
+/** Every key one row-and-role's pending estimate can be held under. */
+const estimateDraftKeys = (rowId: string, roleId: string): ReadonlySet<string> =>
+  new Set([
+    ...POINTS.map((point) => draftKey(rowId, roleId, point)),
+    combinedDraftKey(rowId, roleId),
+  ]);
 
 /**
  * What a refused drop says out loud.
@@ -779,17 +814,19 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
   );
 
   /**
-   * Forgets the three drafts of one row-and-role, once be-01 has the answer.
+   * Forgets every draft of one row-and-role — the three boxes' and the folded
+   * cell's — once be-01 has the answer.
+   *
+   * All four together, whichever of them was typed: they are drafts of one
+   * estimate, and leaving the others behind would put a stale entry back on
+   * screen the moment the role was folded or unfolded.
    *
    * Rebuilt without those keys rather than deleted from a copy: `delete` on a
    * computed key is banned here, and filtering says the same thing without
    * reaching into the object twice.
    */
-  const forgetTrioDrafts = useCallback((rowId: string, roleId: string) => {
-    const gone = new Set(POINTS.map((point) => draftKey(rowId, roleId, point)));
-    setDrafts((current) =>
-      Object.fromEntries(Object.entries(current).filter(([key]) => !gone.has(key))),
-    );
+  const forgetEstimateDrafts = useCallback((rowId: string, roleId: string) => {
+    setDrafts((current) => dropDrafts(current, estimateDraftKeys(rowId, roleId)));
   }, []);
 
   /**
@@ -811,7 +848,15 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
   const commitEstimate = useCallback(
     (row: TreeRow, roleId: string, point: Point, typed: string) => {
       const next = { ...typedTrio(row, roleId), [point]: typed };
-      setDrafts((current) => ({ ...current, [draftKey(row.id, roleId, point)]: typed }));
+      setDrafts((current) => ({
+        // A box edited last drops the folded cell's pending shorthand for this
+        // trio: one row and role has one draft, whichever way it was typed.
+        // Proof: left as `...current`, `lets a box replace what the folded cell
+        // was holding` fails — the refused `8/3/2` came back over the box's
+        // own complaint. Watched, 2026-08-06.
+        ...dropDrafts(current, new Set([combinedDraftKey(row.id, roleId)])),
+        [draftKey(row.id, roleId, point)]: typed,
+      }));
       const days = sendableTrio(next);
       if (days === null) {
         // `hasOwn` rather than a truthiness test: what matters is whether
@@ -820,17 +865,116 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
         if (isTrioEmpty(next) && Object.hasOwn(row.estimates, roleId)) {
           void run(async () => {
             await api.clearEstimate(row.id, roleId);
-            forgetTrioDrafts(row.id, roleId);
+            forgetEstimateDrafts(row.id, roleId);
           });
         }
         return;
       }
       void run(async () => {
         await api.setEstimate(row.id, roleId, days);
-        forgetTrioDrafts(row.id, roleId);
+        forgetEstimateDrafts(row.id, roleId);
       });
     },
-    [api, forgetTrioDrafts, run, typedTrio],
+    [api, forgetEstimateDrafts, run, typedTrio],
+  );
+
+  /**
+   * What the folded role column's cell reads: the pending shorthand if there
+   * is one, and otherwise be-01's computed final figure.
+   *
+   * The one cell in the table whose value at rest is not what typing into it
+   * takes. That is deliberate and it is the point: a plan is read by the final
+   * figure, and the trio behind it is what an estimator types. The draft wins
+   * while it exists for the same reason a box's does — it is what the person
+   * typed and has not been told off about yet.
+   */
+  const combinedValue = useCallback(
+    (row: TreeRow, roleId: string): string =>
+      drafts[combinedDraftKey(row.id, roleId)] ?? showFinal(row.finalDays[roleId]),
+    [drafts],
+  );
+
+  /**
+   * What is wrong with what the folded column is showing for one row and role,
+   * or null.
+   *
+   * Two sources, never both at once: the folded cell's own shorthand if
+   * something is pending there, and otherwise the three boxes' trio — which is
+   * the complaint `role-columns-fold` put on the figure so a fold could not
+   * hide one. Precedence rather than a merge, because the draft that exists is
+   * the one somebody typed last, and it is the only one they can correct
+   * without unfolding.
+   */
+  const combinedProblem = useCallback(
+    (row: TreeRow, roleId: string): string | null => {
+      // `hasOwn` rather than a nullish test: an empty draft is a person having
+      // just emptied the cell, and it is the entry that reads as a clear —
+      // reading it as "nothing pending here" would show the stored figure back
+      // over the emptying.
+      // Proof: returning null instead of the boxes' complaint fails `a folded
+      // role cannot hide a complaint`, `marks the folded cell when the boxes
+      // hold a trio that saves nothing` and `lets a box replace what the
+      // folded cell was holding`. Watched, 2026-08-06.
+      const key = combinedDraftKey(row.id, roleId);
+      if (!Object.hasOwn(drafts, key)) return trioProblemFor(row, roleId)?.message ?? null;
+      const entry = parseTrioShorthand(drafts[key]);
+      return entry.kind === 'problem' ? entry.message : null;
+    },
+    [drafts, trioProblemFor],
+  );
+
+  /**
+   * Takes a whole trio typed into one cell as `o/r/p`, and sends it in one
+   * request — or holds it as a draft and complains, exactly as a box does.
+   *
+   * The shorthand is the estimating loop's short path: the role stays folded,
+   * one cell takes `2/3/8`, and be-01 is asked once rather than three times.
+   * `5` means `5/5/5` because the person typed one number meaning three equal
+   * ones; nothing here invents a figure, and a trio that runs backwards, has
+   * the wrong count or is not a number is refused whole — see
+   * {@link parseTrioShorthand}.
+   *
+   * Emptying the cell against a stored trio clears it through the same
+   * `clearEstimate` the three emptied boxes use; emptying it against nothing
+   * stored asks for nothing.
+   *
+   * Proof: made to send a two-number entry (`parseTrioShorthand` returning a
+   * trio for `2/3`), `sends nothing for two numbers where three were needed`
+   * in `wbs-table.test.tsx` fails; watched, 2026-08-06.
+   */
+  const commitCombinedEstimate = useCallback(
+    (row: TreeRow, roleId: string, typed: string) => {
+      const entry = parseTrioShorthand(typed);
+      setDrafts((current) => ({
+        // Last edit wins: this entry replaces whatever the three boxes were
+        // holding unsent for the same trio. Translating it into three box
+        // drafts instead would put figures into boxes nobody typed them into.
+        // Proof: left as `...current`, `lets a folded entry replace what the
+        // boxes were holding` fails — the box still held a `7` nobody could
+        // see. Watched, 2026-08-06.
+        ...dropDrafts(current, new Set(POINTS.map((point) => draftKey(row.id, roleId, point)))),
+        [combinedDraftKey(row.id, roleId)]: typed,
+      }));
+      if (entry.kind === 'problem') return;
+      if (entry.kind === 'empty') {
+        // `hasOwn`, as above: a stored `0 / 0 / 0` is an estimate to clear.
+        // Proof: inverted, `clears the stored trio when the cell is emptied`
+        // and `asks for nothing when a cell with no estimate is emptied` both
+        // fail — one clear lost, one deletion posted per cell tabbed through.
+        // Watched, 2026-08-06.
+        if (!Object.hasOwn(row.estimates, roleId)) return;
+        void run(async () => {
+          await api.clearEstimate(row.id, roleId);
+          forgetEstimateDrafts(row.id, roleId);
+        });
+        return;
+      }
+      void run(async () => {
+        await api.setEstimate(row.id, roleId, entry.days);
+        forgetEstimateDrafts(row.id, roleId);
+      });
+    },
+    [api, forgetEstimateDrafts, run],
   );
 
   /**
@@ -932,6 +1076,9 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
     estimateValue,
     trioProblemFor,
     commitEstimate,
+    combinedValue,
+    combinedProblem,
+    commitCombinedEstimate,
     hoveredNotes,
     setHoveredNotes,
     setNotBefore,
@@ -964,6 +1111,9 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
     estimateValue,
     trioProblemFor,
     commitEstimate,
+    combinedValue,
+    combinedProblem,
+    commitCombinedEstimate,
     hoveredNotes,
     setHoveredNotes,
     setNotBefore,
@@ -1297,14 +1447,57 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
               // A folded role must not be able to hide a complaint: a typed
               // trio that saves nothing stays visible as a mark on the figure
               // the fold leaves behind.
-              const problem = unfolded ? null : live.current.trioProblemFor(row.original, role.id);
+              const problem = unfolded ? null : live.current.combinedProblem(row.original, role.id);
+              // The whole trio in one cell, but only where both halves of that
+              // sentence hold: a folded role, so the three boxes are not on
+              // screen to disagree with it, and a leaf, because a parent's
+              // figure is a sum of what is below it and nothing to type into.
+              const shorthand = !unfolded && !row.original.rolledUp;
               return (
                 <span
                   data-final={role.id}
-                  title={problem?.message}
+                  // On the wrapper as well as on the input below: the marker is
+                  // its own hover target, and it is the half a reader of a
+                  // folded plan sees first.
+                  title={problem ?? undefined}
                   style={{ fontWeight: 600, color: problem === null ? undefined : '#c00' }}
                 >
-                  {showFinal(row.original.finalDays[role.id])}
+                  {shorthand ? (
+                    <CellInput
+                      aria-label={`${role.name} estimate for ${row.original.number}`}
+                      // In the keyboard grid, which is what makes Down-type-
+                      // Down-type work down a role's column. Proof: dropped,
+                      // `is a cell of the keyboard grid, so a column can be
+                      // typed down` fails. Watched, 2026-08-06.
+                      data-cell={cellKey(row.original.id, `${role.id}-final`)}
+                      size={7}
+                      placeholder="o/r/p"
+                      aria-invalid={problem !== null}
+                      title={problem ?? SHORTHAND_HELP}
+                      onKeyDown={(e) => {
+                        live.current.onArrowKey(e, row.original.id, `${role.id}-final`);
+                      }}
+                      // Selected on arrival, because the value at rest is a
+                      // computed figure and the syntax is a trio: there is no
+                      // sensible edit to make *inside* `4`, and a caret dropped
+                      // into it turns `2/3/8` into `2/3/84`.
+                      onFocus={(e) => {
+                        e.currentTarget.select();
+                      }}
+                      style={{
+                        width: '6em',
+                        font: 'inherit',
+                        fontWeight: 600,
+                        ...(problem === null ? {} : { background: '#fde8e8', borderColor: '#c00' }),
+                      }}
+                      value={live.current.combinedValue(row.original, role.id)}
+                      commit={(typed) => {
+                        live.current.commitCombinedEstimate(row.original, role.id, typed);
+                      }}
+                    />
+                  ) : (
+                    showFinal(row.original.finalDays[role.id])
+                  )}
                   {problem !== null && ' !'}
                 </span>
               );

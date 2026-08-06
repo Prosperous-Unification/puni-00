@@ -56,6 +56,11 @@ Three durations in days — optimistic, realistic, pessimistic — held for one 
 one role. A work item with children has no estimates of its own.
 _Avoid_: points, effort, sizing
 
+**Trio shorthand**:
+One estimate written as one value — `2/3/8`, or `5` meaning all three are five. What a
+folded role's cell takes, in place of three boxes.
+_Avoid_: quick entry, inline estimate, compact form
+
 **Roll-up**:
 The sum of a parent's descendants' estimates, per role, computed on read and never stored.
 _Avoid_: aggregate, total, computed estimate

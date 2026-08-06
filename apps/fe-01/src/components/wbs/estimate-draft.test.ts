@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import { isTrioEmpty, sendableTrio, trioProblem, type TypedTrio } from './estimate-draft';
+import {
+  isTrioEmpty,
+  parseTrioShorthand,
+  sendableTrio,
+  trioProblem,
+  type TypedTrio,
+} from './estimate-draft';
 
 const trio = (optimistic: string, realistic: string, pessimistic: string): TypedTrio => ({
   optimistic,
@@ -63,6 +69,115 @@ describe('sendableTrio', () => {
     expect(sendableTrio(trio('5', '0', '0'))).toBeNull();
     expect(sendableTrio(trio('5', '', ''))).toBeNull();
     expect(sendableTrio(trio('5', '3', '10'))).toBeNull();
+  });
+});
+
+describe('parseTrioShorthand', () => {
+  const days = (optimistic: number, realistic: number, pessimistic: number) => ({
+    kind: 'trio',
+    days: { optimistic, realistic, pessimistic },
+  });
+
+  /** The sentence a refused entry carries, or null when it was not refused. */
+  const refusal = (typed: string): string | null => {
+    const parsed = parseTrioShorthand(typed);
+    return parsed.kind === 'problem' ? parsed.message : null;
+  };
+
+  it('reads three numbers off one line', () => {
+    expect(parseTrioShorthand('2/3/8')).toEqual(days(2, 3, 8));
+  });
+
+  it('takes the spaces a person leaves around the numbers', () => {
+    expect(parseTrioShorthand(' 2 / 3 / 8 ')).toEqual(days(2, 3, 8));
+    expect(parseTrioShorthand('2/ 3/8')).toEqual(days(2, 3, 8));
+  });
+
+  it('takes decimals, because half a day is a real estimate', () => {
+    expect(parseTrioShorthand('0.5/1/2')).toEqual(days(0.5, 1, 2));
+  });
+
+  it('takes zero, which is an estimate rather than the absence of one', () => {
+    expect(parseTrioShorthand('0/0/0')).toEqual(days(0, 0, 0));
+  });
+
+  it('reads one number as the estimator typing all three the same', () => {
+    // Not the tool inventing two figures: `5` is one keystroke sequence that
+    // means one trio, said by the person typing it. The distinction matters —
+    // the old `keepOrdered` invented the two nobody typed, and this must not
+    // be read as its return.
+    expect(parseTrioShorthand('5')).toEqual(days(5, 5, 5));
+    expect(parseTrioShorthand(' 0.5 ')).toEqual(days(0.5, 0.5, 0.5));
+  });
+
+  it('says an empty cell is empty rather than wrong', () => {
+    // The caller turns this into a clear or into nothing at all; a complaint
+    // here would make an unestimated row glow red for being unestimated.
+    expect(parseTrioShorthand('')).toEqual({ kind: 'empty' });
+    expect(parseTrioShorthand('   ')).toEqual({ kind: 'empty' });
+  });
+
+  it('refuses a count that is neither one number nor three', () => {
+    expect(refusal('2/3')).toContain('three');
+    expect(refusal('1/2/3/4')).toContain('three');
+  });
+
+  it('refuses a figure missing between two slashes', () => {
+    // `Number('')` is 0, so this is the case that would silently become a
+    // zero somebody never typed.
+    expect(refusal('1//3')).toContain('number');
+  });
+
+  it('refuses what cannot be a number of days', () => {
+    expect(parseTrioShorthand('garbage').kind).toBe('problem');
+    expect(parseTrioShorthand('two/3/4').kind).toBe('problem');
+    expect(parseTrioShorthand('-1/2/3').kind).toBe('problem');
+    expect(parseTrioShorthand('-5').kind).toBe('problem');
+    expect(parseTrioShorthand('2 3 8').kind).toBe('problem');
+  });
+
+  it('complains about an out-of-order trio instead of sorting it', () => {
+    // Proof: making this reorder `8/3/2` into `2/3/8` fails this test — the
+    // whole of "estimates are never edited for you", in one line. Watched
+    // failing, 2026-08-06; see `combined-trio-entry/verify.md`.
+    expect(refusal('8/3/2')).toContain('optimistic');
+    expect(refusal('3/2/1')).toContain('optimistic');
+    expect(refusal('1/9/3')).toContain('optimistic');
+  });
+
+  it('agrees with the three boxes, trio for trio', () => {
+    // The property this whole change rests on: one cell and three boxes are
+    // two ways of typing the same estimate, so they must produce the same
+    // request or the shorthand is a second, quieter estimator.
+    const cases: [string, string, string][] = [
+      ['0', '0', '0'],
+      ['1', '2', '3'],
+      ['5', '5', '5'],
+      ['0.5', '1.5', '2'],
+      ['2', '3', '10'],
+      ['10', '20', '30'],
+      ['0', '0.1', '100'],
+    ];
+    for (const [optimistic, realistic, pessimistic] of cases) {
+      const boxes = sendableTrio(trio(optimistic, realistic, pessimistic));
+      expect(parseTrioShorthand(`${optimistic}/${realistic}/${pessimistic}`)).toEqual({
+        kind: 'trio',
+        days: boxes,
+      });
+    }
+  });
+
+  it('refuses exactly what the three boxes refuse', () => {
+    const refused: [string, string, string][] = [
+      ['5', '3', '10'],
+      ['9', '5', '1'],
+      ['two', '3', '4'],
+      ['1', '-2', '4'],
+    ];
+    for (const [optimistic, realistic, pessimistic] of refused) {
+      expect(sendableTrio(trio(optimistic, realistic, pessimistic))).toBeNull();
+      expect(parseTrioShorthand(`${optimistic}/${realistic}/${pessimistic}`).kind).toBe('problem');
+    }
   });
 });
 

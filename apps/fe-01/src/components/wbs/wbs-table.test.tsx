@@ -1235,6 +1235,342 @@ describe('role columns fold away', () => {
   });
 });
 
+describe('one cell for the whole trio', () => {
+  /** The folded role's cell: shows the final figure, takes `o/r/p`. */
+  const combinedCell = (number: string, role = 'Dev') =>
+    screen.getByLabelText<HTMLInputElement>(`${role} estimate for ${number}`);
+
+  /** Types shorthand into the folded cell and leaves it, the way a person does. */
+  const typeCombined = (number: string, value: string) => {
+    const cell = combinedCell(number);
+    fireEvent.change(cell, { target: { value } });
+    fireEvent.blur(cell);
+    return cell;
+  };
+
+  /** Records every estimate written, and still performs it. */
+  const watchWrites = (api: ProjectApi): unknown[][] => {
+    const written: unknown[][] = [];
+    const perform = api.setEstimate.bind(api);
+    api.setEstimate = (id: string, roleId: string, days: Days) => {
+      written.push([id, roleId, days]);
+      return perform(id, roleId, days);
+    };
+    return written;
+  };
+
+  /** One row, roles left folded — which is where a person starts. */
+  async function oneRow() {
+    const api = fakeApi();
+    render(<WbsTable projectId="p1" api={api} />);
+    click('Add work item');
+    await screen.findByLabelText('Name of 010');
+    return api;
+  }
+
+  itDom('sends one estimate for the trio typed into the folded cell', async () => {
+    // The dominant loop of an estimating session: no unfolding, one cell, one
+    // request. Three separate writes would each be a broadcast and a refetch
+    // for everybody else, and the two in the middle would be trios nobody
+    // meant to save.
+    const api = await oneRow();
+    const written = watchWrites(api);
+
+    typeCombined('010', '2/3/8');
+
+    await waitFor(() => {
+      expect(api.rows[0]?.estimates['role-dev']).toEqual({
+        optimistic: 2,
+        realistic: 3,
+        pessimistic: 8,
+      });
+    });
+    expect(written).toEqual([['w1', 'role-dev', { optimistic: 2, realistic: 3, pessimistic: 8 }]]);
+  });
+
+  itDom('goes back to showing be-01’s final figure once the trio lands', async () => {
+    // The honest shape of this cell: a computed figure at rest, shorthand
+    // while it is being typed into. `2/3/10` is PERT 4, which is not any of
+    // the three numbers typed.
+    await oneRow();
+
+    typeCombined('010', '2/3/10');
+
+    await waitFor(() => {
+      expect(combinedCell('010').value).toBe('4');
+    });
+  });
+
+  itDom('takes one number as the estimator saying all three are the same', async () => {
+    const api = await oneRow();
+    const written = watchWrites(api);
+
+    typeCombined('010', '5');
+
+    await waitFor(() => {
+      expect(api.rows[0]?.estimates['role-dev']).toEqual({
+        optimistic: 5,
+        realistic: 5,
+        pessimistic: 5,
+      });
+    });
+    expect(written).toHaveLength(1);
+  });
+
+  itDom('takes the spaces and the decimals a person types', async () => {
+    const api = await oneRow();
+
+    typeCombined('010', ' 0.5 / 1 / 2 ');
+
+    await waitFor(() => {
+      expect(api.rows[0]?.estimates['role-dev']).toEqual({
+        optimistic: 0.5,
+        realistic: 1,
+        pessimistic: 2,
+      });
+    });
+  });
+
+  itDom('sends nothing for a trio that runs backwards, and says why', async () => {
+    // Out of order is a complaint, not a sort. `8/3/2` is either a typo or a
+    // person thinking in the other direction, and guessing which is how the
+    // old table came to save numbers nobody typed.
+    const api = await oneRow();
+    const written = watchWrites(api);
+
+    const cell = typeCombined('010', '8/3/2');
+
+    expect(written).toEqual([]);
+    expect(api.rows[0]?.estimates['role-dev']).toBeUndefined();
+    expect(cell).toHaveAttribute('aria-invalid', 'true');
+    expect(cell.title).toContain('optimistic');
+    // What was typed stays typed. Clearing it would take the correction away
+    // from the only person who can make it.
+    expect(cell.value).toBe('8/3/2');
+  });
+
+  itDom('sends nothing for two numbers where three were needed', async () => {
+    // `2/3` is a half-typed trio, exactly like two filled boxes and one empty
+    // one, and it saves nothing for the same reason: be-01 stores a trio or
+    // nothing.
+    const api = await oneRow();
+    const written = watchWrites(api);
+
+    const cell = typeCombined('010', '2/3');
+
+    expect(written).toEqual([]);
+    expect(api.rows[0]?.estimates['role-dev']).toBeUndefined();
+    expect(cell).toHaveAttribute('aria-invalid', 'true');
+    expect(cell.value).toBe('2/3');
+  });
+
+  itDom('keeps a refused entry through somebody else’s refetch', async () => {
+    // Drafts live in the table's state rather than in the input, so the refetch
+    // every edit triggers cannot swallow a correction half made.
+    const api = await oneRow();
+    typeCombined('010', '1/2/3/4');
+
+    click('Add work item');
+    await screen.findByLabelText('Name of 020');
+
+    const cell = combinedCell('010');
+    expect(cell.value).toBe('1/2/3/4');
+    expect(cell).toHaveAttribute('aria-invalid', 'true');
+    expect(api.rows[0]?.estimates['role-dev']).toBeUndefined();
+  });
+
+  itDom('clears the stored trio when the cell is emptied', async () => {
+    const api = await oneRow();
+    typeCombined('010', '2/3/10');
+    await waitFor(() => {
+      expect(api.rows[0]?.estimates['role-dev']).toBeDefined();
+    });
+    const cleared: [string, string][] = [];
+    const perform = api.clearEstimate.bind(api);
+    api.clearEstimate = (id: string, roleId: string) => {
+      cleared.push([id, roleId]);
+      return perform(id, roleId);
+    };
+
+    typeCombined('010', '');
+
+    await waitFor(() => {
+      expect(cleared).toEqual([['w1', 'role-dev']]);
+    });
+    await waitFor(() => {
+      expect(api.rows[0]?.estimates['role-dev']).toBeUndefined();
+    });
+    expect(combinedCell('010').value).toBe('');
+    expect(combinedCell('010')).toHaveAttribute('aria-invalid', 'false');
+  });
+
+  itDom('asks for nothing when a cell with no estimate is emptied', async () => {
+    // Tabbing through an unestimated plan must not post a deletion per role
+    // per row. A space is what a person leaves behind after select-all.
+    const api = await oneRow();
+    const cleared: unknown[] = [];
+    api.clearEstimate = (...args: unknown[]) => {
+      cleared.push(args);
+      return Promise.resolve();
+    };
+    const written = watchWrites(api);
+
+    typeCombined('010', ' ');
+
+    expect(cleared).toEqual([]);
+    expect(written).toEqual([]);
+  });
+
+  itDom('gives way to the three boxes when the role is unfolded', async () => {
+    // Two editors for one trio side by side is two places to disagree. The
+    // combined cell is the folded role's; unfolded, the boxes are.
+    await oneRow();
+    expect(combinedCell('010')).toBeDefined();
+
+    unfoldRole('Dev');
+
+    expect(screen.queryByLabelText('Dev estimate for 010')).toBeNull();
+    expect(screen.getByLabelText('Dev optimistic for 010')).toBeDefined();
+  });
+
+  itDom('leaves a parent’s rolled-up figure to be read, not typed into', async () => {
+    const api = await oneRow();
+    pressEnter('010');
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '020']);
+    });
+    pressTab('020');
+    await screen.findByLabelText('Name of 010.1');
+
+    typeCombined('010.1', '2/3/10');
+    await waitFor(() => {
+      expect(api.rows.find((r) => r.id === 'w2')?.estimates['role-dev']).toBeDefined();
+    });
+
+    // The parent sums what is below it; there is nothing there to type. Its
+    // figure is still shown — read-only text where the leaf has a box.
+    expect(screen.queryByLabelText('Dev estimate for 010')).toBeNull();
+    expect(rowFor('010').querySelector('[data-final="role-dev"]')).not.toBeNull();
+    await waitFor(() => {
+      expect(combinedCell('010.1').value).toBe('4');
+    });
+  });
+
+  itDom('is a cell of the keyboard grid, so a column can be typed down', async () => {
+    // The whole point of the shorthand is typing estimates for many rows fast,
+    // and that is Down, type, Down, type.
+    const api = await oneRow();
+    click('Add work item');
+    await screen.findByLabelText('Name of 020');
+
+    const first = combinedCell('010');
+    first.focus();
+    first.setSelectionRange(0, 0);
+    fireEvent.keyDown(first, { key: 'ArrowDown' });
+
+    expect(document.activeElement).toBe(combinedCell('020'));
+    fireEvent.change(combinedCell('020'), { target: { value: '1/1/1' } });
+    fireEvent.blur(combinedCell('020'));
+    await waitFor(() => {
+      expect(api.rows[1]?.estimates['role-dev']).toEqual({
+        optimistic: 1,
+        realistic: 1,
+        pessimistic: 1,
+      });
+    });
+  });
+
+  itDom('lets a folded entry replace what the boxes were holding', async () => {
+    // One row and role has one pending draft, whichever way it was typed. The
+    // alternative is two half-typed estimates of one trio and a rule about
+    // which of them is real — and this is the case where it shows, because a
+    // refused entry is the one that stays.
+    const api = await oneRow();
+    const written = watchWrites(api);
+    unfoldRole('Dev');
+    const box = screen.getByLabelText<HTMLInputElement>('Dev optimistic for 010');
+    fireEvent.change(box, { target: { value: '7' } });
+    fireEvent.blur(box);
+    fireEvent.click(screen.getByRole('button', { name: 'Fold Dev estimates' }));
+
+    typeCombined('010', '8/3/2');
+
+    expect(combinedCell('010')).toHaveAttribute('aria-invalid', 'true');
+    // The `7` was a draft of this same trio, and the trio has since been typed
+    // again — differently, and last. It is not still waiting in a box.
+    unfoldRole('Dev');
+    const after = screen.getByLabelText<HTMLInputElement>('Dev optimistic for 010');
+    expect(after.value).toBe('');
+    expect(after).toHaveAttribute('aria-invalid', 'false');
+    expect(written).toEqual([]);
+  });
+
+  itDom('lets a box replace what the folded cell was holding', async () => {
+    // The same rule the other way round: the boxes were typed last, so the
+    // refused shorthand is gone and the complaint on the folded figure is the
+    // boxes' own.
+    const api = await oneRow();
+    const written = watchWrites(api);
+    typeCombined('010', '8/3/2');
+
+    unfoldRole('Dev');
+    const box = screen.getByLabelText<HTMLInputElement>('Dev optimistic for 010');
+    fireEvent.change(box, { target: { value: '1' } });
+    fireEvent.blur(box);
+    fireEvent.click(screen.getByRole('button', { name: 'Fold Dev estimates' }));
+
+    expect(combinedCell('010').value).toBe('');
+    expect(combinedCell('010')).toHaveAttribute('aria-invalid', 'true');
+    expect(combinedCell('010').title).toContain('not saved');
+    expect(written).toEqual([]);
+  });
+
+  itDom('lets a box win back over a refused folded entry', async () => {
+    const api = await oneRow();
+    typeCombined('010', '8/3/2');
+    expect(combinedCell('010')).toHaveAttribute('aria-invalid', 'true');
+
+    unfoldRole('Dev');
+    for (const [point, value] of [
+      ['optimistic', '1'],
+      ['realistic', '2'],
+      ['pessimistic', '3'],
+    ] as const) {
+      const box = screen.getByLabelText<HTMLInputElement>(`Dev ${point} for 010`);
+      fireEvent.change(box, { target: { value } });
+      fireEvent.blur(box);
+    }
+
+    await waitFor(() => {
+      expect(api.rows[0]?.estimates['role-dev']).toEqual({
+        optimistic: 1,
+        realistic: 2,
+        pessimistic: 3,
+      });
+    });
+    // Folded again, the cell shows the figure be-01 computed — not the `8/3/2`
+    // that was refused before the boxes said something else.
+    fireEvent.click(screen.getByRole('button', { name: 'Fold Dev estimates' }));
+    expect(combinedCell('010').value).toBe('2');
+    expect(combinedCell('010')).toHaveAttribute('aria-invalid', 'false');
+  });
+
+  itDom('marks the folded cell when the boxes hold a trio that saves nothing', async () => {
+    // The `!` marker `role-columns-fold` put on the figure now has an input
+    // under it, and the complaint has to reach both.
+    await oneRow();
+    unfoldRole('Dev');
+    const box = screen.getByLabelText<HTMLInputElement>('Dev optimistic for 010');
+    fireEvent.change(box, { target: { value: '5' } });
+    fireEvent.blur(box);
+    fireEvent.click(screen.getByRole('button', { name: 'Fold Dev estimates' }));
+
+    expect(combinedCell('010')).toHaveAttribute('aria-invalid', 'true');
+    expect(combinedCell('010').title).toContain('not saved');
+    expect(rowFor('010').querySelector('[data-final="role-dev"]')?.textContent).toContain('!');
+  });
+});
+
 describe('estimates are never edited for you', () => {
   /** Types `value` into one estimate box and leaves it, the way a person does. */
   const typeEstimate = (number: string, point: string, value: string) => {

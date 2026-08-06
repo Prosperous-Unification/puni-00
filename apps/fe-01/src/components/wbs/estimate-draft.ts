@@ -13,6 +13,16 @@ export interface TrioProblem {
 }
 
 /**
+ * The three sentences this module says, in one place each.
+ *
+ * The three boxes and the one combined cell are two ways of typing the same
+ * estimate, and a rule stated twice is a rule that eventually reads two ways.
+ */
+const DAYS_MESSAGE = 'Days must be a number, zero or more.';
+const ORDER_MESSAGE = 'Must read optimistic ≤ realistic ≤ pessimistic.';
+const COUNT_MESSAGE = 'Type three days as 2/3/8, or one number for all three.';
+
+/**
  * What is wrong with a trio as typed, or null when nothing is.
  *
  * This replaces the old `keepOrdered`, which silently rewrote the two numbers
@@ -43,7 +53,7 @@ export function trioProblem(typed: TypedTrio): TrioProblem | null {
     return !Number.isFinite(value) || value < 0;
   });
   if (unparseable.length > 0) {
-    return { points: unparseable, message: 'Days must be a number, zero or more.' };
+    return { points: unparseable, message: DAYS_MESSAGE };
   }
 
   const empty = POINTS.filter((point) => typed[point].trim() === '');
@@ -64,8 +74,78 @@ export function trioProblem(typed: TypedTrio): TrioProblem | null {
   if (broken.size === 0) return null;
   return {
     points: POINTS.filter((point) => broken.has(point)),
-    message: 'Must read optimistic ≤ realistic ≤ pessimistic.',
+    message: ORDER_MESSAGE,
   };
+}
+
+/**
+ * What one cell's worth of typed shorthand means.
+ *
+ * Three cases rather than a trio-or-error pair, because "nothing is typed
+ * here" is not an error and is not a request either: it is the gesture that
+ * clears a stored estimate, and the caller has to be able to tell it apart
+ * without inspecting the text again.
+ */
+export type TrioShorthand =
+  | { kind: 'empty' }
+  | { kind: 'trio'; days: Days }
+  | { kind: 'problem'; message: string };
+
+/** One part of a shorthand entry as days, or null when it is not days at all. */
+function readDays(part: string): number | null {
+  // The emptiness test comes first because `Number('')` is 0: without it
+  // `1//3` would parse as a zero nobody typed, which is the exact class of
+  // invention {@link trioProblem} exists to refuse.
+  if (part.trim() === '') return null;
+  const value = Number(part);
+  return Number.isFinite(value) && value >= 0 ? value : null;
+}
+
+/**
+ * The trio behind `2/3/8`, `0.5 / 1 / 2` or `5`, or why it is not one.
+ *
+ * The folded role column shows be-01's computed final figure at rest and
+ * takes this shorthand when it is typed into, so one cell replaces unfolding
+ * a role and filling three boxes — the loop an estimating session is almost
+ * entirely made of.
+ *
+ * It repairs nothing, in exactly the sense {@link trioProblem} does not: a
+ * count that is not three, a part that is not a number of days, and a trio
+ * that runs backwards are all complaints, and `8/3/2` is never quietly
+ * sorted into `2/3/8`. The one figure it produces that was not typed
+ * digit-for-digit is the single-number form, and that is the person saying
+ * all three are the same, not the tool guessing two of them.
+ *
+ * Proof: made to sort the trio instead of refusing it, `complains about an
+ * out-of-order trio instead of sorting it` in `estimate-draft.test.ts` fails;
+ * watched 2026-08-06.
+ */
+export function parseTrioShorthand(typed: string): TrioShorthand {
+  const text = typed.trim();
+  if (text === '') return { kind: 'empty' };
+
+  const parts = text.split('/');
+  // One number is all three, said once — and an order check on one figure
+  // against itself is a check that cannot fail, so this branch does not run
+  // one.
+  if (parts.length === 1) {
+    const only = readDays(text);
+    return only === null
+      ? { kind: 'problem', message: DAYS_MESSAGE }
+      : { kind: 'trio', days: { optimistic: only, realistic: only, pessimistic: only } };
+  }
+  if (parts.length !== 3) {
+    return { kind: 'problem', message: COUNT_MESSAGE };
+  }
+
+  const [first, second, third] = parts.map(readDays);
+  if (first === null || second === null || third === null) {
+    return { kind: 'problem', message: DAYS_MESSAGE };
+  }
+  if (first > second || second > third) {
+    return { kind: 'problem', message: ORDER_MESSAGE };
+  }
+  return { kind: 'trio', days: { optimistic: first, realistic: second, pessimistic: third } };
 }
 
 /**
