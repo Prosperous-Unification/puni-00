@@ -21,8 +21,45 @@ const DEV: RoleView = { id: 'role-dev', name: 'Dev' };
  */
 function fakeApi(): ProjectApi & { rows: WorkItemView[] } {
   const rows: WorkItemView[] = [];
+  const edges: { predecessorId: string; successorId: string }[] = [];
   let next = 0;
   let seq = -1;
+
+  /**
+   * The schedule be-01 would compute, in miniature.
+   *
+   * Not the real algorithm — one pass over rows already in tree order is enough
+   * for a fake, because these tests are about the table. What it does model
+   * faithfully is the part the table renders differently: an unestimated row,
+   * and a parent's span being its children's rather than their sum.
+   */
+  function scheduleOf(row: WorkItemView): WorkItemView['schedule'] {
+    const children = rows.filter((r) => r.parentId === row.id);
+    const own = Object.values(row.estimates).reduce(
+      (total, days) => total + (days.optimistic + 4 * days.realistic + days.pessimistic) / 6,
+      0,
+    );
+    const waits = edges
+      .filter((e) => e.successorId === row.id)
+      .map((e) => rows.find((r) => r.id === e.predecessorId))
+      .map((r) => (r === undefined ? 0 : scheduleOf(r).earliestFinish));
+    const start = Math.max(0, ...waits);
+    const duration = children.length > 0 ? 0 : own;
+    const finish =
+      children.length > 0
+        ? Math.max(0, ...children.map((c) => scheduleOf(c).earliestFinish))
+        : start + duration;
+    return {
+      duration,
+      estimated: children.length > 0 ? children.some((c) => scheduleOf(c).estimated) : own > 0,
+      earliestStart: start,
+      earliestFinish: finish,
+      latestStart: start,
+      latestFinish: finish,
+      float: 0,
+      critical: true,
+    };
+  }
 
   function renumber(): void {
     seq += 1;
@@ -48,7 +85,15 @@ function fakeApi(): ProjectApi & { rows: WorkItemView[] } {
     tree: () =>
       // The sequence advances with every mutation, the way be-01's does, so a
       // test that asserts what the stream was told is asserting something real.
-      Promise.resolve({ workItems: rows.map((r) => ({ ...r })), seq }),
+      Promise.resolve({
+        workItems: rows.map((r) => ({
+          ...r,
+          dependsOn: edges.filter((e) => e.successorId === r.id).map((e) => e.predecessorId),
+          schedule: scheduleOf(r),
+        })),
+        seq,
+        scheduleError: null,
+      }),
     roles: () => Promise.resolve([DEV]),
     create(_projectId, input) {
       next += 1;
@@ -64,6 +109,17 @@ function fakeApi(): ProjectApi & { rows: WorkItemView[] } {
         frozenNumber: null,
         rolledUp: false,
         estimates: {},
+        dependsOn: [],
+        schedule: {
+          duration: 0,
+          estimated: false,
+          earliestStart: 0,
+          earliestFinish: 0,
+          latestStart: 0,
+          latestFinish: 0,
+          float: 0,
+          critical: true,
+        },
       });
       renumber();
       return Promise.resolve({ id });
@@ -105,6 +161,20 @@ function fakeApi(): ProjectApi & { rows: WorkItemView[] } {
     unfreeze(id) {
       const row = rows.find((r) => r.id === id);
       if (row !== undefined) row.frozenNumber = null;
+      return Promise.resolve();
+    },
+    addDependency(id, predecessorId) {
+      // Mirrors the unique pair the real table has: adding the same edge twice
+      // is not two edges, and a fake that let it be would not be modelling it.
+      const already = edges.some((e) => e.predecessorId === predecessorId && e.successorId === id);
+      if (!already) edges.push({ predecessorId, successorId: id });
+      renumber();
+      return Promise.resolve();
+    },
+    removeDependency(id, predecessorId) {
+      const at = edges.findIndex((e) => e.predecessorId === predecessorId && e.successorId === id);
+      if (at >= 0) edges.splice(at, 1);
+      renumber();
       return Promise.resolve();
     },
   };
@@ -880,5 +950,88 @@ describe('arrow keys — cross-review findings', () => {
       focus(label, 'end');
       expect(arrow('ArrowDown')).toBe(screen.getByLabelText(label.replace('010', '020')));
     }
+  });
+});
+
+describe('dependencies in the table', () => {
+  const dependOn = (rowNumber: string, predecessorNumber: string) => {
+    const input = screen.getByLabelText(`Add a dependency to ${rowNumber}`);
+    fireEvent.change(input, { target: { value: predecessorNumber } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+  };
+
+  itDom('adds a dependency by the number that is on screen', async () => {
+    // Ids are not something anyone can look at. Numbers are what the table
+    // shows, so numbers are what it takes.
+    const api = await threeRoots();
+
+    dependOn('020', '010');
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Stop 020 waiting for 010')).toBeDefined();
+    });
+    expect(api.rows).toHaveLength(3);
+  });
+
+  itDom('says so when the number typed is not a work item', async () => {
+    const api = await threeRoots();
+    const added: unknown[] = [];
+    api.addDependency = (...args: unknown[]) => {
+      added.push(args);
+      return Promise.resolve();
+    };
+
+    dependOn('020', '999');
+
+    expect(added).toEqual([]);
+    expect(screen.getByRole('alert').textContent).toContain('No work item numbered 999');
+  });
+
+  itDom('removes a dependency from the chip that shows it', async () => {
+    await threeRoots();
+    dependOn('020', '010');
+    await waitFor(() => {
+      expect(screen.getByLabelText('Stop 020 waiting for 010')).toBeDefined();
+    });
+
+    fireEvent.click(screen.getByLabelText('Stop 020 waiting for 010'));
+
+    await waitFor(() => {
+      expect(screen.queryByLabelText('Stop 020 waiting for 010')).toBeNull();
+    });
+  });
+
+  itDom('moves the dependent row’s start to when its predecessor finishes', async () => {
+    const api = await threeRoots();
+    const cell = screen.getByLabelText('Dev realistic for 010');
+    fireEvent.change(cell, { target: { value: '4' } });
+    fireEvent.blur(cell);
+    await waitFor(() => {
+      expect(api.rows[0]?.estimates['role-dev']?.realistic).toBe(4);
+    });
+
+    dependOn('020', '010');
+
+    await waitFor(() => {
+      const row = screen
+        .getAllByRole('row')
+        .find((tr) => tr.querySelector('[data-number]')?.textContent === '020');
+      // `0 / 4 / 4` expects `(0 + 16 + 4) / 6` = 3.33… days. Displayed to one
+      // decimal, because a column of `3.3333333333333335` is unreadable — and
+      // rounded only here, never in the schedule.
+      expect(row?.querySelector('[data-start]')?.textContent).toBe('3.3');
+    });
+  });
+
+  itDom('marks a row with no estimate rather than showing a bare zero', async () => {
+    // A zero that means "instant" and a zero that means "nobody has looked" are
+    // the same number and opposite facts.
+    await threeRoots();
+
+    const row = screen
+      .getAllByRole('row')
+      .find((tr) => tr.querySelector('[data-number]')?.textContent === '010');
+
+    expect(row?.querySelector('[data-finish]')?.textContent).toContain('?');
   });
 });

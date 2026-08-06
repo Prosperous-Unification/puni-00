@@ -4,6 +4,24 @@ export interface Days {
   pessimistic: number;
 }
 
+/**
+ * When a work item can happen, in whole days from the project's day zero.
+ *
+ * No dates: a calendar brings weekends, holidays and timezones, and none of them
+ * are needed to answer what is waiting on what. `estimated` is what stops a
+ * zero-day row being read as instant when it means nobody has looked.
+ */
+export interface ScheduleView {
+  duration: number;
+  estimated: boolean;
+  earliestStart: number;
+  earliestFinish: number;
+  latestStart: number;
+  latestFinish: number;
+  float: number;
+  critical: boolean;
+}
+
 export interface WorkItemView {
   id: string;
   parentId: string | null;
@@ -14,6 +32,14 @@ export interface WorkItemView {
   /** True when the estimates are sums of descendants and so not editable here. */
   rolledUp: boolean;
   estimates: Record<string, Days>;
+  /** The work items this one waits for, by id. Either end may be a parent. */
+  dependsOn: string[];
+  /**
+   * `estimates` is **effort** and this is **span**. For a parent they differ:
+   * two independent children of 3 and 4 days are 7 days of work in a 4-day
+   * branch. Both are true, and the table labels them so.
+   */
+  schedule: ScheduleView;
 }
 
 export interface RoleView {
@@ -48,7 +74,9 @@ export interface ProjectApi {
    * produced the rows: taken separately it would describe a different moment
    * than the tree on screen.
    */
-  tree(projectId: string): Promise<{ workItems: WorkItemView[]; seq: number }>;
+  tree(
+    projectId: string,
+  ): Promise<{ workItems: WorkItemView[]; seq: number; scheduleError: 'cycle' | null }>;
   roles(projectId: string): Promise<RoleView[]>;
   create(
     projectId: string,
@@ -61,6 +89,9 @@ export interface ProjectApi {
   freeze(projectId: string): Promise<void>;
   unfreezeProject(projectId: string): Promise<void>;
   unfreeze(id: string): Promise<void>;
+  /** Records "`predecessorId` must finish before this starts". */
+  addDependency(id: string, predecessorId: string): Promise<void>;
+  removeDependency(id: string, predecessorId: string): Promise<void>;
 }
 
 /** The header the edge does not read; see `lib/api.ts` for why it is never `Authorization`. */
@@ -95,7 +126,7 @@ export function httpProjectApi(token: string): ProjectApi {
       return body.project;
     },
     tree(projectId) {
-      return send<{ workItems: WorkItemView[]; seq: number }>(
+      return send<{ workItems: WorkItemView[]; seq: number; scheduleError: 'cycle' | null }>(
         `/api/projects/${projectId}/work-items`,
         token,
       );
@@ -140,6 +171,17 @@ export function httpProjectApi(token: string): ProjectApi {
     },
     async unfreeze(id) {
       await send(`/api/work-items/${id}/unfreeze`, token, { method: 'POST' });
+    },
+    async addDependency(id, predecessorId) {
+      await send(`/api/work-items/${id}/dependencies`, token, {
+        method: 'POST',
+        body: JSON.stringify({ predecessorId }),
+      });
+    },
+    async removeDependency(id, predecessorId) {
+      await send(`/api/work-items/${id}/dependencies/${predecessorId}`, token, {
+        method: 'DELETE',
+      });
     },
   };
 }

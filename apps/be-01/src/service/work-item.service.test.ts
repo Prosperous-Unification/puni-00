@@ -16,15 +16,17 @@ let workItems: WorkItemStore;
 let service: WorkItemService;
 let projectId: string;
 let roleId: string;
+let dependencies: ReturnType<typeof inMemoryDependencies>;
 
 beforeEach(async () => {
   projects = inMemoryProjects();
   workItems = inMemoryWorkItems();
+  dependencies = inMemoryDependencies();
   service = new WorkItemService({
     workItems,
     projects,
     estimates: inMemoryEstimates(workItems),
-    dependencies: inMemoryDependencies(),
+    dependencies,
     broadcast: recordingBroadcaster(),
   });
   const project: Project = {
@@ -266,6 +268,30 @@ describe('dependencies', () => {
 
     const tree = await service.tree(projectId);
     expect(tree?.workItems.find((w) => w.id === other)?.dependsOn).toEqual([]);
+  });
+
+  it('still reads a project whose dependencies contain a cycle', async () => {
+    // The write path refuses a cycle, but two clients drawing conflicting edges
+    // at the same instant are each checked against the graph as they read it.
+    // If that ever lands, every read of the project must not throw — the rows
+    // are still there and a plan nobody can open is worse than one with no
+    // dates in it.
+    const a = await add('Strip');
+    const b = await add('Sand');
+    await dependencies.add({ id: 'x', projectId, predecessorId: a, successorId: b });
+    await dependencies.add({ id: 'y', projectId, predecessorId: b, successorId: a });
+
+    const tree = await service.tree(projectId);
+
+    expect(tree?.workItems).toHaveLength(2);
+    expect(tree?.scheduleError).toBe('cycle');
+    expect(tree?.workItems[0]?.schedule).toMatchObject({ earliestStart: 0, estimated: false });
+  });
+
+  it('reports no schedule error for a project that schedules', async () => {
+    await add('Strip');
+
+    expect((await service.tree(projectId))?.scheduleError).toBeNull();
   });
 
   it('schedules a dependent work item after the one it waits for', async () => {

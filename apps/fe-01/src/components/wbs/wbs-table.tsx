@@ -113,6 +113,17 @@ function caretOf(input: HTMLInputElement): Caret {
   return { atStart: start === 0, atEnd: end === input.value.length, hasSelection: start !== end };
 }
 
+/**
+ * A day offset as a person should read it.
+ *
+ * PERT is `(O + 4R + P) / 6`, so a perfectly ordinary estimate produces
+ * `3.3333333333333335` and a column full of those is unreadable. Rounded to one
+ * decimal **for display only** — the schedule keeps its fractions, because
+ * rounding inside the computation compounds across a chain of forty work items
+ * into days that never existed.
+ */
+const showDay = (days: number): string => String(Math.round(days * 10) / 10);
+
 const column = createColumnHelper<TreeRow>();
 
 /**
@@ -135,6 +146,7 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [connected, setConnected] = useState(true);
+  const [scheduleError, setScheduleError] = useState<'cycle' | null>(null);
   const [dragging, setDragging] = useState<string | null>(null);
   const [dropHint, setDropHint] = useState<{ rowId: string; zone: DropZone } | null>(null);
   const focusNext = useRef<string | null>(null);
@@ -158,6 +170,7 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
     const [tree, loadedRoles] = await Promise.all([api.tree(projectId), api.roles(projectId)]);
     if (generation !== latestRefresh.current) return;
     setWorkItems(toTree(tree.workItems));
+    setScheduleError(tree.scheduleError);
     // Replaced only when the roles actually differ. Every read returns a fresh
     // array, and `roles` is the one dependency `columns` still has — so a new
     // array on every refresh rebuilt every column definition, which is how a
@@ -414,8 +427,66 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
    * effects flush after a re-render, and a handler one render stale would act on
    * the tree that was on screen a moment ago.
    */
-  const live = useRef({ api, projectId, run, onKeyDown, onArrowKey, setDragging, setDropHint });
-  live.current = { api, projectId, run, onKeyDown, onArrowKey, setDragging, setDropHint };
+  /**
+   * The numbers of the work items an id list names, in the order given.
+   *
+   * A dependency is stored by id and read by number, because an id is not
+   * something anyone can look at. A row whose predecessor has since been deleted
+   * simply drops out of the list rather than rendering a blank chip — the tree
+   * refetches on every change, so this cannot be stale for long.
+   */
+  const numbersOf = useCallback(
+    (ids: readonly string[]) =>
+      ids.flatMap((id) => {
+        const found = flat.find((row) => row.id === id);
+        return found === undefined ? [] : [{ id, number: found.number }];
+      }),
+    [flat],
+  );
+
+  /**
+   * Adds a dependency named by the *number* someone typed, not by an id.
+   *
+   * Numbers are what is on screen. A typo is a number nobody has, and saying so
+   * beats a request that comes back 404 with an id in it that means nothing to
+   * the person reading.
+   */
+  const dependOn = useCallback(
+    (successorId: string, typed: string) => {
+      const wanted = typed.trim();
+      if (wanted === '') return;
+      const predecessor = flat.find((row) => row.number === wanted);
+      if (predecessor === undefined) {
+        setError(`No work item numbered ${wanted}.`);
+        return;
+      }
+      void run(() => api.addDependency(successorId, predecessor.id));
+    },
+    [api, flat, run],
+  );
+
+  const live = useRef({
+    api,
+    projectId,
+    run,
+    onKeyDown,
+    onArrowKey,
+    setDragging,
+    setDropHint,
+    numbersOf,
+    dependOn,
+  });
+  live.current = {
+    api,
+    projectId,
+    run,
+    onKeyDown,
+    onArrowKey,
+    setDragging,
+    setDropHint,
+    numbersOf,
+    dependOn,
+  };
 
   const columns = useMemo(
     () => [
@@ -540,6 +611,68 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
         ),
       ),
       column.display({
+        id: 'depends',
+        header: 'Depends on',
+        cell: ({ row }) => {
+          const numbers = live.current.numbersOf(row.original.dependsOn);
+          return (
+            <span style={{ whiteSpace: 'nowrap' }}>
+              {numbers.map(({ id, number }) => (
+                <button
+                  key={id}
+                  type="button"
+                  aria-label={`Stop ${row.original.number} waiting for ${number}`}
+                  title="Remove this dependency"
+                  onClick={() =>
+                    void live.current.run(() =>
+                      live.current.api.removeDependency(row.original.id, id),
+                    )
+                  }
+                >
+                  {number} ✕
+                </button>
+              ))}
+              <input
+                aria-label={`Add a dependency to ${row.original.number}`}
+                placeholder="number"
+                size={6}
+                data-depends-input={row.original.id}
+                onKeyDown={(e) => {
+                  if (e.key !== 'Enter') return;
+                  e.preventDefault();
+                  live.current.dependOn(row.original.id, e.currentTarget.value);
+                  e.currentTarget.value = '';
+                }}
+              />
+            </span>
+          );
+        },
+      }),
+      column.display({
+        id: 'start',
+        header: 'Starts (day)',
+        cell: ({ row }) => <span data-start>{showDay(row.original.schedule.earliestStart)}</span>,
+      }),
+      column.display({
+        id: 'finish',
+        header: 'Ends (day)',
+        cell: ({ row }) => (
+          <span data-finish title={row.original.schedule.estimated ? undefined : 'No estimate yet'}>
+            {showDay(row.original.schedule.earliestFinish)}
+            {row.original.schedule.estimated ? '' : ' ?'}
+          </span>
+        ),
+      }),
+      column.display({
+        id: 'float',
+        header: 'Slack (days)',
+        cell: ({ row }) => (
+          <span data-float>
+            {row.original.schedule.critical ? '— critical' : showDay(row.original.schedule.float)}
+          </span>
+        ),
+      }),
+      column.display({
         id: 'notes',
         header: 'Notes',
         cell: ({ row }) => (
@@ -649,6 +782,17 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
         same when it is no longer live is the failure this whole change exists
         to remove.
       */}
+      {/*
+        Not an error the user caused, and not one they can leave alone. The rows
+        are all still here — only the dates are gone — so this says which, rather
+        than letting a page of zeroes speak for itself.
+      */}
+      {scheduleError === 'cycle' && (
+        <p role="alert">
+          These dependencies run in a circle, so no dates can be worked out. Remove one to fix it.
+        </p>
+      )}
+
       {!connected && (
         <p role="status">Reconnecting — edits by other people may not be shown yet.</p>
       )}

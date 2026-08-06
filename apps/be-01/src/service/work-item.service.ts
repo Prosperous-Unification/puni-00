@@ -89,6 +89,9 @@ export interface NumberedWorkItem extends WorkItem {
   schedule: Scheduled;
 }
 
+/** Why a project has no dates, when it has none. `null` is the ordinary case. */
+export type ScheduleError = 'cycle' | null;
+
 export type DeleteStrategy = 'cascade' | 'promote';
 
 export type WorkItemRefusal =
@@ -181,7 +184,11 @@ export class WorkItemService {
    * first, the same event is replayed and the client refetches once too often —
    * the harmless direction.
    */
-  async tree(projectId: string): Promise<{ workItems: NumberedWorkItem[]; seq: number } | null> {
+  async tree(projectId: string): Promise<{
+    workItems: NumberedWorkItem[];
+    seq: number;
+    scheduleError: ScheduleError;
+  } | null> {
     const project = await this.opts.projects.findById(projectId);
     if (project === null) return null;
     const seq = await this.opts.broadcast.latestSeq(projectId);
@@ -191,7 +198,19 @@ export class WorkItemService {
     const numbers = deriveNumbers(rows);
     const totals = rollUp(rows, stored);
     const hasChildren = new Set(rows.map((row) => row.parentId).filter((id) => id !== null));
-    const timing = schedule(rows, edges, durationsOf(rows, stored, hasChildren));
+    // The write path refuses an edge that would close a cycle, but two clients
+    // drawing conflicting edges at the same instant are each checked against the
+    // graph as they read it. If one ever lands, every read of this project must
+    // still work: the rows are there, and a plan nobody can open is worse than
+    // one with no dates in it. The dates go, the rows stay, and the reason is
+    // reported rather than left as a page of zeroes.
+    let timing = new Map<string, Scheduled>();
+    let scheduleError: ScheduleError = null;
+    try {
+      timing = schedule(rows, edges, durationsOf(rows, stored, hasChildren));
+    } catch {
+      scheduleError = 'cycle';
+    }
     const waitingFor = new Map<string, string[]>();
     for (const found of edges) {
       waitingFor.set(found.successorId, [
@@ -209,7 +228,7 @@ export class WorkItemService {
         schedule: timing.get(row.id) ?? UNSCHEDULED,
       }))
       .sort((a, b) => (a.number < b.number ? -1 : a.number > b.number ? 1 : 0));
-    return { workItems, seq };
+    return { workItems, seq, scheduleError };
   }
 
   async create(
