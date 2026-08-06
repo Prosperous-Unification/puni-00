@@ -114,21 +114,21 @@ contract: `docs/runbook-prod-deploy.md`.**
 
 ## Open findings
 
-1. Rollback unimplemented. `--version` is _refused_ rather than ignored, so it no longer looks
-   like one; deploying an older commit means checking it out and rebuilding.
+Both open findings are **prod-phase** (Dany, 2026-08-06): recorded, not pending. Work stops at dev.
+
+1. Rollback unimplemented. `--version` is _refused_ rather than ignored, so deploying an older
+   commit means checking it out and rebuilding.
 2. `configure.sh`'s root phase never run on a fresh host; only the plan is tested.
 3. ~~A cell input's React `key` holds its value.~~ **Closed 2026-08-06:** `CellInput` assigns the
    node's value instead of replacing the node, and holds it back while that cell is typed in.
-4. ~~Smoke calls `/internal/forward` on `be-01` directly.~~ **Closed 2026-08-06:** the WS suite
-   also runs a backend-hop probe. Observed: a gw-01 with a wrong `INTERNAL_AUTH_SECRET` passes
-   all four health checks and fails only this one.
+4. ~~Smoke calls `/internal/forward` on `be-01` directly.~~ **Closed 2026-08-06:** a backend-hop
+   probe. A gw-01 with a wrong `INTERNAL_AUTH_SECRET` passes every other check; observed.
 5. ~~Health endpoints are status flags.~~ **Closed 2026-08-06:** be-01 queries for a table its
-   migrations create and gw-01 probes be-01, so a wrong `DB_PATH` or `BE_URL` 503s. Still
-   uncaught: deleting the file under an open connection, which unix keeps alive.
+   migrations create and gw-01 probes be-01. Still uncaught: deleting the file underneath.
 
-Lower priority: fe/smoke health accepts any non-empty body; the WS smoke passes on any first
-message _containing_ `"pong"`; gateway drain reads a malformed metrics body as zero live sockets;
-`tool-secrets` only prints what it would run, despite its README.
+Lower priority: fe/smoke health accepts any non-empty body; the WS ping passes on any first
+message _containing_ `"pong"`; drain reads a malformed metrics body as zero live sockets;
+`tool-secrets` only prints what it would run.
 
 Checks that cannot fail have appeared **thirteen** times here; the tally is in `AGENTS.md` under R5.
 

@@ -28,5 +28,5 @@
 
 - [x] 3.1 `verify.md`: the uncached gate, the failure-proof table, and the live
       run against a deliberately broken gw-01.
-- [ ] 3.2 Run on a real deploy. The smoke only executes from `tool-deploy` after a
-      swap, which is a prod deploy — Dany's call, not this change's.
+- [ ] 3.2 **Prod phase.** The smoke only executes from `tool-deploy` after a swap,
+      and that phase is deferred (Dany, 2026-08-06). Not this change's to open.
