@@ -27,6 +27,8 @@ export interface CellInputProps extends PassedThrough {
   multiline?: boolean;
   /** Visible rows while this textarea has the focus; ignored for an input. */
   expandedRows?: number;
+  /** Rows at rest. Only meaningful with `multiline`; a `<textarea>` prop, not an input's. */
+  rows?: number;
   /** What the server says this cell holds, as it should read on screen. */
   value: string;
   /**

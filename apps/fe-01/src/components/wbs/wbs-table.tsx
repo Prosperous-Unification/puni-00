@@ -1227,7 +1227,7 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
                   // sized for a sentence reads as if it wants one.
                   size={5}
                   aria-invalid={wrong}
-                  title={wrong ? problem.message : undefined}
+                  title={problem?.message}
                   onKeyDown={(e) => {
                     live.current.onArrowKey(e, row.original.id, `${role.id}-${point}`);
                   }}

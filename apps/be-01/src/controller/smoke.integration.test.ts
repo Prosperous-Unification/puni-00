@@ -2,6 +2,7 @@ import { describe, expect, it } from 'bun:test';
 
 import { buildApp } from '../app';
 import { testAuthService } from '../testing/auth-fixture';
+import { testDirectoryService } from '../testing/directory-fixture';
 import { testProjectService } from '../testing/project-fixture';
 import { testReplay } from '../testing/replay-fixture';
 import { testWorkItemService } from '../testing/work-item-fixture';
@@ -11,6 +12,7 @@ const TEST_SECRET = 'x'.repeat(32);
 describe('POST /api/smoke/echo', () => {
   it('returns the validated message', async () => {
     const app = buildApp({
+      directory: testDirectoryService(),
       auth: testAuthService(),
       projects: testProjectService(),
       workItems: testWorkItemService(),
@@ -33,6 +35,7 @@ describe('POST /api/smoke/echo', () => {
 
   it('rejects invalid body with 400', async () => {
     const app = buildApp({
+      directory: testDirectoryService(),
       auth: testAuthService(),
       projects: testProjectService(),
       workItems: testWorkItemService(),

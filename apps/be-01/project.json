@@ -38,7 +38,7 @@
     "typecheck": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "bunx tsc --noEmit -p apps/be-01/tsconfig.json"
+        "command": "bunx tsc --build --force apps/be-01/tsconfig.lib.json"
       }
     }
   }

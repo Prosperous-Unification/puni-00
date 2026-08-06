@@ -2,6 +2,7 @@ import { describe, expect, it } from 'bun:test';
 
 import { buildApp } from './app';
 import { testAuthService } from './testing/auth-fixture';
+import { testDirectoryService } from './testing/directory-fixture';
 import { testProjectService } from './testing/project-fixture';
 import { testReplay } from './testing/replay-fixture';
 import { testWorkItemService } from './testing/work-item-fixture';
@@ -10,6 +11,7 @@ describe('migrate lifecycle', () => {
   it('exposes 503 before migrations complete then 200 after', async () => {
     const state = { migrationsApplied: false };
     const app = buildApp({
+      directory: testDirectoryService(),
       auth: testAuthService(),
       projects: testProjectService(),
       workItems: testWorkItemService(),

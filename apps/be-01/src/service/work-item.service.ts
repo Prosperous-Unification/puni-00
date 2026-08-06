@@ -606,7 +606,12 @@ export class WorkItemService {
     await this.opts.workItems.setFrozenNumbers(
       rows
         .filter((row) => row.frozenNumber !== null)
-        .map((row) => ({ id: row.id, frozenNumber: null })),
+        .map((row) => ({
+          id: row.id,
+          frozenNumber: null,
+          startNoEarlierThan: null,
+          serviceTeamId: null,
+        })),
     );
     await this.announceTree(projectId);
     return { ok: true, result: null };

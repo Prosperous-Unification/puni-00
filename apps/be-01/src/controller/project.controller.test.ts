@@ -6,7 +6,7 @@ import { WorkItemService } from '../service/work-item.service';
 import { inMemoryUsers, testAuthService } from '../testing/auth-fixture';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { inMemoryDependencies } from '../testing/dependency-fixture';
-import { inMemoryDirectory } from '../testing/directory-fixture';
+import { inMemoryDirectory, testDirectoryService } from '../testing/directory-fixture';
 import { inMemoryEstimates } from '../testing/estimate-fixture';
 import { inMemoryProjects } from '../testing/project-fixture';
 import { testReplay } from '../testing/replay-fixture';
@@ -40,6 +40,7 @@ function buildHarness() {
     },
   });
   const app = buildApp({
+    directory: testDirectoryService(),
     auth,
     projects,
     workItems: buildWorkItemService(projectStore),

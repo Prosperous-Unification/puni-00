@@ -156,7 +156,14 @@ describe('review finding: between() across a digit-width boundary', () => {
     expect(() =>
       deriveNumbers([
         { id: 'a', parentId: null, position: 10, frozenNumber: '010' },
-        { id: 'mid', parentId: null, position: 15, frozenNumber: null },
+        {
+          id: 'mid',
+          parentId: null,
+          position: 15,
+          frozenNumber: null,
+          startNoEarlierThan: null,
+          serviceTeamId: null,
+        },
         { id: 'b', parentId: null, position: 20, frozenNumber: '0100' },
       ]),
     ).toThrow(/no label sorts between/);

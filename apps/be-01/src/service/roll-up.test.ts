@@ -11,6 +11,8 @@ const item = (id: string, parentId: string | null): WorkItem => ({
   name: id,
   notes: '',
   frozenNumber: null,
+  startNoEarlierThan: null,
+  serviceTeamId: null,
 });
 
 const held = (

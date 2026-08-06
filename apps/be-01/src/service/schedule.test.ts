@@ -13,6 +13,8 @@ const item = (id: string, parentId: string | null = null): WorkItem => ({
   name: id,
   notes: '',
   frozenNumber: null,
+  startNoEarlierThan: null,
+  serviceTeamId: null,
 });
 
 const edge = (predecessorId: string, successorId: string): DependencyEdge => ({

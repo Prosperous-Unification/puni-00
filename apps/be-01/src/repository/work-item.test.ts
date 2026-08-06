@@ -59,6 +59,8 @@ function row(parentId: string | null, position: number, name: string): WorkItem 
     name,
     notes: '',
     frozenNumber: null,
+    startNoEarlierThan: null,
+    serviceTeamId: null,
   };
 }
 

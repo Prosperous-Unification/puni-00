@@ -57,7 +57,17 @@ afterEach(() => {
 async function addWorkItem(name: string): Promise<string> {
   const id = crypto.randomUUID();
   await workItems.insert(
-    { id, projectId, parentId: null, position: 10, name, notes: '', frozenNumber: null },
+    {
+      id,
+      projectId,
+      parentId: null,
+      position: 10,
+      name,
+      notes: '',
+      frozenNumber: null,
+      startNoEarlierThan: null,
+      serviceTeamId: null,
+    },
     [],
   );
   return id;

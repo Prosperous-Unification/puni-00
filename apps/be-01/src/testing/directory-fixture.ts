@@ -5,6 +5,7 @@ import type {
   PersonWithTeams,
   ServiceTeam,
 } from '../repository';
+import { DirectoryService } from '../service/directory.service';
 
 /**
  * A DirectoryStore backed by Maps, for tests that do not need SQLite.
@@ -60,4 +61,9 @@ export function inMemoryDirectory(): DirectoryStore {
       return Promise.resolve();
     },
   };
+}
+
+/** A DirectoryService over the in-memory store, for tests that only need `buildApp` to construct. */
+export function testDirectoryService(directory: DirectoryStore = inMemoryDirectory()) {
+  return new DirectoryService({ directory });
 }

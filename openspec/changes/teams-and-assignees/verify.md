@@ -49,3 +49,42 @@ jsdom has no layout. Needs Dany's screen.
 Removing a team or a person is not implemented, so nothing here says what
 happens to assignments pointing at one. That is named as a non-goal rather
 than left to be discovered.
+
+## Observed on dev, and the gate that could not fail
+
+The first deploy of this change answered `/api/teams` with
+`undefined is not an object (evaluating 'directory.addTeam')`. `boot.ts` never
+passed the new service to `buildApp`, and `AppOptions.directory` is a required
+field — so this was a **type error that shipped**.
+
+It shipped because `bunx tsc --noEmit -p apps/be-01/tsconfig.json` compiles
+nothing. That file is solution-style: `"files": []`, `"include": []`, and two
+`references`. Without `--build`, `tsc` honours the empty include and exits 0.
+Proven rather than reasoned about: a deliberate
+`const x: number = 'not a number'` in `boot.ts` passed `nx typecheck be-01`.
+
+Both apps' `typecheck` targets now run `tsc --build --force` against the
+source project (`tsconfig.lib.json` / `tsconfig.app.json`), and the fix was
+watched catching the real bug: with the `directory` line removed from
+`boot.ts` again, `nx typecheck be-01` reports
+`boot.ts(59,24): error TS2345 … not assignable to parameter of type 'AppOptions'`.
+
+Turning it on found **seven real errors in this change's own code** — four in
+fe-01 alone, including a `tree()` whose declared response omitted `startDate`
+while the runtime one carried it — and three pre-existing ones in source:
+`apps/be-01/src/index.ts` re-exported a `./lib/be-01` that has never existed
+(deleted), `ValidationError.cause` needed `override`, and `brandedString`
+passed a runtime string to an ArkType overload that takes literals.
+
+It also revealed dead code that had been reading as configuration:
+`health.test.ts` set `probeDatabase` twice in one literal, three times over,
+so the first was silently discarded.
+
+**Left open, deliberately: the test projects.** `tsc --build
+apps/be-01/tsconfig.spec.json` still reports 10 errors, all pre-existing and
+none in this change (`push-client.test`'s fetch stubs lack `preconnect`,
+`retention-timer.test`'s timer casts, `boot.test`'s `ServiceName`). Fixing
+them is its own change; wiring the gate to include them before they are fixed
+would leave CI red for reasons nobody here caused. **This is the repo's
+fourteenth "check that cannot fail", and the first one found in the gate
+itself.**

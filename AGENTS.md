@@ -141,6 +141,14 @@ value alone, so it passed with the `key` that caused the bug still in place; and
 `internal-forward` check posts to be-01 itself, so it reports ok against a gw-01 whose secret
 be-01 rejects — watched passing, live, next to the new check failing.
 
+One more on 2026-08-06, and the first one found in the gate itself: `nx typecheck` ran
+`tsc --noEmit -p apps/<app>/tsconfig.json` against a solution-style config — `"files": []`,
+`"include": []`, two `references` — so it compiled **nothing**. A deliberate
+`const x: number = 'not a number'` passed it. A missing required field on `buildApp` reached
+dev and 500'd every `/api/teams` request. Both targets now run `tsc --build --force` against
+the source project, watched catching that exact bug. The test projects are not in the gate
+yet: 10 pre-existing errors, named in `teams-and-assignees/verify.md`, are their own change.
+
 Prove your check fails when the thing is broken, and say so in the comment. A check whose
 failure mode has never been observed is a claim, not a gate.
 

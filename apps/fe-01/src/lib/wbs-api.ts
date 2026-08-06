@@ -240,6 +240,7 @@ export function httpProjectApi(token: string): ProjectApi {
         seq: number;
         scheduleError: 'cycle' | null;
         estimateMethod: EstimateMethod;
+        startDate: string | null;
       }>(`/api/projects/${projectId}/work-items`, token);
     },
     async listTeams() {

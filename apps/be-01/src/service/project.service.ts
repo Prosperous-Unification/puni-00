@@ -56,7 +56,6 @@ export class ProjectService {
       // a project that had to choose before it had any estimates would be
       // choosing about risk it has not met yet.
       estimateMethod: 'pert',
-      startDate: null,
       // Not the day it was made: a plan with no start date is an ordinary
       // state, and inventing one would put dates on screen nobody chose.
       startDate: null,
