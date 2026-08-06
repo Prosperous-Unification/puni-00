@@ -97,13 +97,23 @@ const estimateDraftKeys = (rowId: string, roleId: string): ReadonlySet<string> =
   ]);
 
 /**
+ * The one sentence a frozen row's refusal says, however the move was asked for.
+ *
+ * Named rather than reached for through {@link REFUSAL_MESSAGES}: that record is
+ * `Partial`, so every read of it is a `string | undefined` the keyboard path
+ * would have to invent a fallback for — and two spellings of one refusal is how
+ * a drag and a keystroke come to disagree about the same rule.
+ */
+const FROZEN_REFUSAL = 'That row’s number is frozen. Unfreeze it before moving it.';
+
+/**
  * What a refused drop says out loud.
  *
  * `unchanged` is absent deliberately: dropping a row back where it was is not a
  * mistake anyone needs telling about, and a message for it would fire constantly.
  */
 const REFUSAL_MESSAGES: Partial<Record<DropRefusal, string>> = {
-  frozen: 'That row’s number is frozen. Unfreeze it before moving it.',
+  frozen: FROZEN_REFUSAL,
   cycle: 'A row cannot be moved inside itself.',
   not_found: 'That row is no longer here — the table has been refreshed.',
 };
@@ -130,6 +140,31 @@ function sameRoles(a: readonly RoleView[], b: readonly RoleView[]): boolean {
 /** Whether an event target is one of the two elements a cell can be. */
 function isCellElement(node: unknown): node is CellElement {
   return node instanceof HTMLInputElement || node instanceof HTMLTextAreaElement;
+}
+
+/** What one Alt+arrow does to the focused row's place in the tree. */
+type AltMove = 'up' | 'down' | 'outdent' | 'indent';
+
+/**
+ * The structural move an arrow means when Alt is held, or null for any other key.
+ *
+ * A function rather than a lookup record: indexing a record by an arbitrary
+ * `event.key` is exactly the unchecked access `noUncheckedIndexedAccess` exists
+ * to stop, and four cases read as well as four entries.
+ */
+function altMoveFor(key: string): AltMove | null {
+  switch (key) {
+    case 'ArrowUp':
+      return 'up';
+    case 'ArrowDown':
+      return 'down';
+    case 'ArrowLeft':
+      return 'outdent';
+    case 'ArrowRight':
+      return 'indent';
+    default:
+      return null;
+  }
 }
 
 /** The `data-cell` value for one editable cell, and the selector that finds it. */
@@ -290,7 +325,21 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
     typed: string;
     highlightId: string | null;
   } | null>(null);
-  const focusNext = useRef<string | null>(null);
+  /**
+   * The cell a structural edit asked the focus to land in once the refetched
+   * tree is on screen — a row **and a column**, because a row moved from an
+   * estimate box has to come back under the same box.
+   *
+   * Two consumers, one rule between them. The Name cell claims its own arrival
+   * in `onAttach`, which is the only way to win the race a newly created row
+   * has (see the comment there); every other column is focused by the effect
+   * below, from the committed DOM, once the tree it names is rendered. Creating
+   * and deleting rows still name the Name column, because that is where typing
+   * continues.
+   */
+  const focusNext = useRef<CellRef | null>(null);
+  /** The rendered table, so the focus can be found in the DOM that is committed. */
+  const tableElement = useRef<HTMLTableElement | null>(null);
 
   const latestRefresh = useRef(0);
   /**
@@ -380,6 +429,39 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
     setDropHint(null);
   }, [workItems]);
 
+  /**
+   * Lands the focus on the cell {@link focusNext} names, once the tree that
+   * holds it is on screen.
+   *
+   * Read from the committed DOM rather than from the render that asked for it:
+   * a move is a request and a refetch, and the row it names does not exist in
+   * this component's DOM until the refetched tree renders. A browser drops the
+   * focus when React reorders the rows — the node is detached and reinserted —
+   * so this is what puts it back, in the column the person was working in.
+   *
+   * The intent is cleared only once the cell is actually found. A refresh from
+   * somebody else's edit can land between the request and its own refetch, and
+   * clearing on that render would drop the focus on the floor rather than
+   * carrying it to the tree that arrives next.
+   */
+  useEffect(() => {
+    const wanted = focusNext.current;
+    const table = tableElement.current;
+    if (wanted === null || table === null) return;
+    const arrived = editableGrid(table).find(
+      (candidate) =>
+        candidate.cell.rowId === wanted.rowId && candidate.cell.columnId === wanted.columnId,
+    );
+    if (arrived === undefined) return;
+    focusNext.current = null;
+    // Proof: left as a lookup that focuses nothing, both `lands in the same
+    // column…` tests failed with the focus on the body. That is only visible
+    // because those tests drop the focus first, the way a browser does — jsdom
+    // keeps it on a node React moves, so without that the check could not fail.
+    // Watched, 2026-08-06.
+    arrived.input.focus();
+  }, [workItems]);
+
   const run = useCallback(
     async (action: () => Promise<void>) => {
       setBusy(true);
@@ -454,14 +536,20 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
           afterId: after.id,
           name: '',
         });
-        focusNext.current = created.id;
+        focusNext.current = { rowId: created.id, columnId: 'name' };
       }),
     [api, projectId, run],
   );
 
-  /** Indent: the row becomes the last child of the sibling above it. */
+  /**
+   * Indent: the row becomes the last child of the sibling above it.
+   *
+   * `landOn` is the column the focus should come back to. It defaults to the
+   * Name cell, which is where Tab is pressed from and where typing continues;
+   * an Alt+arrow passes the column it was pressed in instead.
+   */
   const indent = useCallback(
-    (row: TreeRow) =>
+    (row: TreeRow, landOn = 'name') =>
       run(async () => {
         const siblings = siblingsOf(row.parentId);
         const index = siblings.findIndex((w) => w.id === row.id);
@@ -471,23 +559,76 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
         const newParent = index > 0 ? siblings[index - 1] : undefined;
         if (newParent === undefined) return;
         const lastChild = newParent.subRows.at(-1) ?? null;
-        focusNext.current = row.id;
         await api.move(row.id, newParent.id, lastChild?.id ?? null);
+        // After the move, not before: a refused request then leaves the focus
+        // where the person left it rather than sending it after a row that
+        // never went anywhere.
+        focusNext.current = { rowId: row.id, columnId: landOn };
       }),
     [api, run, siblingsOf],
   );
 
   /** Outdent: the row becomes the next sibling of its own parent. */
   const outdent = useCallback(
-    (row: TreeRow) =>
+    (row: TreeRow, landOn = 'name') =>
       run(async () => {
         if (row.parentId === null) return;
         const parent = flat.find((w) => w.id === row.parentId);
         if (parent === undefined) return;
-        focusNext.current = row.id;
         await api.move(row.id, parent.parentId, parent.id);
+        // After the move, for the reason `indent` gives.
+        focusNext.current = { rowId: row.id, columnId: landOn };
       }),
     [api, flat, run],
+  );
+
+  /**
+   * Alt+Up / Alt+Down: the row swaps places with the sibling above or below it.
+   *
+   * Siblings only, and no wrap: at either end of a group the key does nothing.
+   * Reparenting is Alt+Left/Right's job and the drag's, and a key that silently
+   * moved a row into a different parent because it ran out of siblings would be
+   * the outliner equivalent of falling off the end of the page.
+   *
+   * The request carries **ids read from the tree this render was drawn from** —
+   * the parent it stays under and the sibling it lands after — never a computed
+   * position. A tree that has since changed then produces a stale-but-valid move
+   * for be-01 to judge (it refuses an `afterId` that is not a sibling of the
+   * group) rather than an invented place nobody aimed at.
+   */
+  const moveAmongSiblings = useCallback(
+    (row: TreeRow, direction: 'up' | 'down', landOn: string) => {
+      const siblings = siblingsOf(row.parentId);
+      const at = siblings.findIndex((sibling) => sibling.id === row.id);
+      // Not in the tree on screen: a peer deleted the row between the render and
+      // the keystroke. A modeled condition, like an arrow key on a cell that has
+      // gone — not a move to guess at.
+      if (at === -1) return;
+      const swapWith = direction === 'down' ? at + 1 : at - 1;
+      // The ends. Decided here rather than inside `run` so a held key at the top
+      // of a group is not a request and a refetch per repeat.
+      // Proof: replaced with a wrap to the other end of the group, `at the first
+      // sibling it moves nothing` and `at the last sibling it moves nothing`
+      // both failed on a move that was sent. Watched, 2026-08-06.
+      if (swapWith < 0 || swapWith >= siblings.length) return;
+      // Down: after the sibling it is passing. Up: after that sibling's own
+      // predecessor, which is `null` — first in the group — when there is none.
+      const afterId =
+        direction === 'down'
+          ? (siblings[swapWith]?.id ?? null)
+          : (siblings[swapWith - 1]?.id ?? null);
+      void run(async () => {
+        await api.move(row.id, row.parentId, afterId);
+        // Asked for only once be-01 has taken the move: a refused request leaves
+        // the focus where the person left it rather than chasing a row that did
+        // not go anywhere.
+        // Proof: `landOn` hard-coded to `name` here and in `indent`/`outdent`,
+        // and both `lands in the same column…` tests failed — the Name cell took
+        // the focus. Watched, 2026-08-06.
+        focusNext.current = { rowId: row.id, columnId: landOn };
+      });
+    },
+    [api, run, siblingsOf],
   );
 
   /** Removes a wholly empty row, landing the focus on the row above it. */
@@ -498,7 +639,7 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
         // A ternary rather than `flat.at(at - 1)`: removing the first row has
         // no row above, and `.at(-1)` would send the focus to the last one.
         const above = at > 0 ? flat[at - 1] : undefined;
-        focusNext.current = above?.id ?? null;
+        focusNext.current = above === undefined ? null : { rowId: above.id, columnId: 'name' };
         await api.remove(row.id);
       }),
     [api, flat, run],
@@ -620,6 +761,63 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
       next.setSelectionRange(caret, caret);
     },
     [],
+  );
+
+  /**
+   * Alt and an arrow: restructure the row this cell belongs to.
+   *
+   * The four keys carry structure from **any** cell and **any** caret position,
+   * which is what Tab and Backspace cannot do — those type, so they restructure
+   * only at position zero of the Name cell where the keystroke has no text
+   * meaning. Alt+arrow types nothing here: `nextCell` already leaves every
+   * modified arrow to the browser, so the grid gives nothing up by taking these.
+   *
+   * `preventDefault` for every arrow this owns, including the edges and the
+   * refusals. On macOS an un-prevented Alt+arrow jumps a word or a paragraph
+   * and inserts a character into the field as well; a key handled halfway is
+   * worse than either outcome. The trade — word-jump is no longer Alt's in
+   * these cells — is stated in the change's proposal, and plain arrows and
+   * Cmd+arrow still walk the caret.
+   *
+   * Not attached globally, and not to the dependency picker, the assignee
+   * picker or the date inputs: it lives on the cells that already route their
+   * own keys, which is where typing happens and where a row is being worked on.
+   */
+  const onAltMove = useCallback(
+    (event: React.KeyboardEvent, row: TreeRow, columnId: string) => {
+      // A second modifier is somebody else's shortcut, and an IME composition
+      // is using the arrows to pick a candidate — the same rule `nextCell`
+      // applies, for the same reason.
+      // Proof: narrowed to `!event.altKey` alone, `leaves a composing alt arrow,
+      // and one with a second modifier, alone` failed. Watched, 2026-08-06.
+      if (!event.altKey || event.ctrlKey || event.metaKey || event.nativeEvent.isComposing) return;
+      const move = altMoveFor(event.key);
+      if (move === null) return;
+      // Proof: removed, nine of this block's tests failed on a key the browser
+      // would still have acted on. Watched, 2026-08-06.
+      event.preventDefault();
+      // A held arrow repeats, and each repeat is a request and a refetch.
+      // Dropped rather than queued while one is in flight: the tree the next
+      // press would be judged against has not come back yet.
+      // Proof: removed, `drops a second alt+down while the first is in flight`
+      // failed with two moves asked for. Watched, 2026-08-06.
+      if (busy) return;
+      // be-01 refuses this too, and is the authority. Refusing here is what
+      // lets the reason be read — the drag's own sentence, so one rule does not
+      // acquire two wordings.
+      // Proof: removed, `refuses to move a frozen row and says why` failed on
+      // the move it sent. Watched, 2026-08-06.
+      if (row.frozenNumber !== null) {
+        setError(FROZEN_REFUSAL);
+        return;
+      }
+      if (move === 'up' || move === 'down') {
+        moveAmongSiblings(row, move, columnId);
+        return;
+      }
+      void (move === 'indent' ? indent(row, columnId) : outdent(row, columnId));
+    },
+    [busy, indent, moveAmongSiblings, outdent],
   );
 
   /**
@@ -1062,6 +1260,7 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
     run,
     onKeyDown,
     onArrowKey,
+    onAltMove,
     setDragging,
     setDropHint,
     numbersOf,
@@ -1097,6 +1296,7 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
     run,
     onKeyDown,
     onArrowKey,
+    onAltMove,
     setDragging,
     setDropHint,
     numbersOf,
@@ -1206,7 +1406,11 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
             // Enter-Enter-Enter depends on not losing. It fires on every render
             // rather than only the first, which the id check already tolerated.
             onAttach={(element) => {
-              if (focusNext.current !== row.original.id) return;
+              const wanted = focusNext.current;
+              // The Name column only: any other column is a cell this one has
+              // no business focusing, and it is landed on from the committed
+              // DOM by the effect that reads `focusNext` after a refresh.
+              if (wanted?.rowId !== row.original.id || wanted.columnId !== 'name') return;
               focusNext.current = null;
               element.focus();
             }}
@@ -1215,6 +1419,7 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
               void live.current.run(() => live.current.api.patch(row.original.id, { name: typed }));
             }}
             onKeyDown={(e) => {
+              live.current.onAltMove(e, row.original, 'name');
               live.current.onKeyDown(e, row.original);
               live.current.onArrowKey(e, row.original.id, 'name');
             }}
@@ -1475,6 +1680,7 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
                       aria-invalid={problem !== null}
                       title={problem ?? SHORTHAND_HELP}
                       onKeyDown={(e) => {
+                        live.current.onAltMove(e, row.original, `${role.id}-final`);
                         live.current.onArrowKey(e, row.original.id, `${role.id}-final`);
                       }}
                       // Selected on arrival, because the value at rest is a
@@ -1525,6 +1731,7 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
                           aria-invalid={wrong}
                           title={problem?.message}
                           onKeyDown={(e) => {
+                            live.current.onAltMove(e, row.original, `${role.id}-${point}`);
                             live.current.onArrowKey(e, row.original.id, `${role.id}-${point}`);
                           }}
                           // A parent's figures are sums of what is below it, so the cell is
@@ -1708,6 +1915,7 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
                 expandedRows={8}
                 style={{ width: '18em', resize: 'vertical', font: 'inherit' }}
                 onKeyDown={(e) => {
+                  live.current.onAltMove(e, row.original, 'notes');
                   live.current.onArrowKey(e, row.original.id, 'notes');
                 }}
                 value={row.original.notes}
@@ -1805,7 +2013,7 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
                 afterId: siblingsOf(null).at(-1)?.id ?? null,
                 name: '',
               });
-              focusNext.current = created.id;
+              focusNext.current = { rowId: created.id, columnId: 'name' };
             })
           }
           disabled={busy}
@@ -1891,7 +2099,7 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
           and two pixels between every pair of cells is two pixels the offsets
           do not know about.
         */}
-        <table style={{ borderCollapse: 'separate', borderSpacing: 0 }}>
+        <table ref={tableElement} style={{ borderCollapse: 'separate', borderSpacing: 0 }}>
           <thead>
             {table.getHeaderGroups().map((group) => (
               <tr key={group.id}>

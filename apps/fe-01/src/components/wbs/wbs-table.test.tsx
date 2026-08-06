@@ -2361,9 +2361,11 @@ describe('arrow keys — cross-review findings', () => {
   });
 
   itDom('leaves a modified arrow to the browser', async () => {
+    // Ctrl and Meta only. Alt is the grid's own now — it moves the row rather
+    // than the focus, which is `moving rows with alt and the arrows` below.
     await threeRoots();
 
-    for (const modifier of ['altKey', 'ctrlKey', 'metaKey']) {
+    for (const modifier of ['ctrlKey', 'metaKey']) {
       focus('Name of 010', 'end');
       expect(arrow('ArrowDown', { [modifier]: true })).toBe(screen.getByLabelText('Name of 010'));
     }
@@ -2406,6 +2408,285 @@ describe('arrow keys — cross-review findings', () => {
       focus(label, 'end');
       expect(arrow('ArrowDown')).toBe(screen.getByLabelText(label.replace('010', '020')));
     }
+  });
+});
+
+describe('moving rows with alt and the arrows', () => {
+  /**
+   * Focuses a cell and puts the caret where the test needs it.
+   *
+   * `middle` is the position that matters here: it is where Tab navigates and
+   * Backspace deletes a character, so a structural key that works there is the
+   * whole point of this block.
+   */
+  const focusAt = (label: string, caret: 'start' | 'middle' | 'end'): HTMLElement => {
+    const input = screen.getByLabelText(label);
+    if (!isCell(input)) throw new Error(`${label} is not an editable cell`);
+    input.focus();
+    const at =
+      caret === 'start'
+        ? 0
+        : caret === 'end'
+          ? input.value.length
+          : Math.floor(input.value.length / 2);
+    input.setSelectionRange(at, at);
+    return input;
+  };
+
+  /** Presses one Alt+arrow, and reports whether the browser would still act on it. */
+  const altArrow = (label: string, key: string, caret: 'start' | 'middle' | 'end' = 'middle') =>
+    fireEvent.keyDown(focusAt(label, caret), { key, altKey: true });
+
+  /** Records every move asked for, and makes none of them happen. */
+  const watchMoves = (api: ProjectApi): unknown[][] => {
+    const moved: unknown[][] = [];
+    api.move = (...args: unknown[]) => {
+      moved.push(args);
+      return Promise.resolve();
+    };
+    return moved;
+  };
+
+  itDom('swaps the row with the sibling below it', async () => {
+    const api = await threeRoots();
+
+    // Taken from the browser: on macOS an un-prevented Alt+arrow types a
+    // character into the field as well as moving the caret.
+    expect(altArrow('Name of 010', 'ArrowDown')).toBe(false);
+
+    await waitFor(() => {
+      expect(namesOnScreen()).toEqual(['Sand', 'Strip', 'Paint']);
+    });
+    // Moved, not copied, and still all at the root.
+    expect(api.rows).toHaveLength(3);
+    expect(numbersOnScreen()).toEqual(['010', '020', '030']);
+  });
+
+  itDom('swaps the row with the sibling above it', async () => {
+    await threeRoots();
+
+    expect(altArrow('Name of 030', 'ArrowUp')).toBe(false);
+
+    await waitFor(() => {
+      expect(namesOnScreen()).toEqual(['Strip', 'Paint', 'Sand']);
+    });
+  });
+
+  itDom('at the first sibling it moves nothing, and still takes the key', async () => {
+    const api = await threeRoots();
+    const moved = watchMoves(api);
+
+    // No wrap to the other end: running out of siblings is not a request to
+    // reparent, nor to jump to the bottom of the group.
+    expect(altArrow('Name of 010', 'ArrowUp')).toBe(false);
+
+    expect(moved).toEqual([]);
+    expect(namesOnScreen()).toEqual(['Strip', 'Sand', 'Paint']);
+    // Nothing to complain about either: a row at the top is not a mistake.
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  itDom('at the last sibling it moves nothing', async () => {
+    const api = await threeRoots();
+    const moved = watchMoves(api);
+
+    expect(altArrow('Name of 030', 'ArrowDown')).toBe(false);
+
+    expect(moved).toEqual([]);
+    expect(namesOnScreen()).toEqual(['Strip', 'Sand', 'Paint']);
+  });
+
+  itDom('indents from the middle of the text, where tab would not', async () => {
+    // The whole point of the change: Tab restructures only at position zero of
+    // the Name cell, so today this caret position means "next cell".
+    await threeRoots();
+
+    expect(altArrow('Name of 020', 'ArrowRight')).toBe(false);
+
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '010.1', '020']);
+    });
+    expect(namesOnScreen()).toEqual(['Strip', 'Sand', 'Paint']);
+  });
+
+  itDom('outdents from an estimate box', async () => {
+    await threeRoots();
+    pressTab('020');
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '010.1', '020']);
+    });
+
+    expect(altArrow('Dev optimistic for 010.1', 'ArrowLeft', 'end')).toBe(false);
+
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '020', '030']);
+    });
+    expect(namesOnScreen()).toEqual(['Strip', 'Sand', 'Paint']);
+  });
+
+  /**
+   * Waits for the table to stop working.
+   *
+   * `indent` and `outdent` route a dead key through the busy-and-refetch shell
+   * anyway, so a test that asserted the instant after the keystroke would be
+   * asserting into the middle of a refresh — and the next keystroke would be
+   * dropped by the busy rule rather than judged on its own merits.
+   */
+  const settle = async () => {
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Add work item' })).toHaveProperty(
+        'disabled',
+        false,
+      );
+    });
+  };
+
+  itDom('a root row has nothing to outdent into', async () => {
+    const api = await threeRoots();
+    const moved = watchMoves(api);
+
+    expect(altArrow('Name of 010', 'ArrowLeft')).toBe(false);
+    await settle();
+
+    expect(moved).toEqual([]);
+    expect(namesOnScreen()).toEqual(['Strip', 'Sand', 'Paint']);
+  });
+
+  itDom('a first sibling has nothing to indent under', async () => {
+    const api = await threeRoots();
+    const moved = watchMoves(api);
+
+    expect(altArrow('Name of 010', 'ArrowRight')).toBe(false);
+    await settle();
+
+    expect(moved).toEqual([]);
+    expect(namesOnScreen()).toEqual(['Strip', 'Sand', 'Paint']);
+  });
+
+  /**
+   * Drops the focus the way a browser does when React moves the row.
+   *
+   * jsdom keeps the focus on a node that is detached and reinserted; a browser
+   * does not, which is the whole reason the table puts the focus back after a
+   * move. Without this line the assertions below pass on a focus that was never
+   * lost — a check that cannot fail — and with it they observe the refocus
+   * itself. Proof: the refocus removed, both tests pass without this line and
+   * fail with it; watched, 2026-08-06.
+   */
+  const dropTheFocusAsABrowserWould = () => {
+    const focused = document.activeElement;
+    if (!isCell(focused)) throw new Error('nothing focused to drop');
+    focused.blur();
+  };
+
+  itDom('lands in the same column after an indent, not back in the name', async () => {
+    // The mechanism this proves twice over: `indent` on its own lands the focus
+    // in the Name cell, which is right for Enter and Backspace and wrong for a
+    // key pressed in an estimate box.
+    await threeRoots();
+
+    altArrow('Dev optimistic for 020', 'ArrowRight', 'end');
+    dropTheFocusAsABrowserWould();
+
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '010.1', '020']);
+    });
+    await waitFor(() => {
+      expect(document.activeElement).toBe(screen.getByLabelText('Dev optimistic for 010.1'));
+    });
+  });
+
+  itDom('lands in the same column after a sibling swap', async () => {
+    await threeRoots();
+
+    altArrow('Dev pessimistic for 010', 'ArrowDown', 'end');
+    dropTheFocusAsABrowserWould();
+
+    await waitFor(() => {
+      expect(namesOnScreen()).toEqual(['Sand', 'Strip', 'Paint']);
+    });
+    // The moved row is `020` now, and the focus is in the box it started in.
+    await waitFor(() => {
+      expect(document.activeElement).toBe(screen.getByLabelText('Dev pessimistic for 020'));
+    });
+  });
+
+  itDom('refuses to move a frozen row and says why', async () => {
+    const api = await threeRoots();
+    click('Freeze numbering');
+    await waitFor(() => {
+      expect(screen.getAllByLabelText('Number is frozen')).toHaveLength(3);
+    });
+    const moved = watchMoves(api);
+
+    expect(altArrow('Name of 010', 'ArrowDown')).toBe(false);
+
+    expect(moved).toEqual([]);
+    expect(screen.getByRole('alert').textContent).toContain('frozen');
+  });
+
+  itDom('drops a second alt+down while the first is in flight', async () => {
+    const api = await threeRoots();
+    const asked: unknown[][] = [];
+    const finish: (() => void)[] = [];
+    api.move = (...args: unknown[]) => {
+      asked.push(args);
+      return new Promise<void>((resolve) => finish.push(resolve));
+    };
+
+    altArrow('Name of 010', 'ArrowDown');
+    expect(asked).toHaveLength(1);
+
+    // A held key repeats. The second press arrives against a tree that has not
+    // come back yet, so it is dropped rather than queued.
+    altArrow('Name of 010', 'ArrowDown');
+    expect(asked).toHaveLength(1);
+
+    await act(async () => {
+      finish[0]?.();
+      await Promise.resolve();
+    });
+    // And once the first has landed, the key works again.
+    altArrow('Name of 010', 'ArrowDown');
+    expect(asked).toHaveLength(2);
+  });
+
+  itDom('a plain arrow is still navigation', async () => {
+    const api = await threeRoots();
+    const moved = watchMoves(api);
+
+    const name = focusAt('Name of 010', 'end');
+    fireEvent.keyDown(name, { key: 'ArrowDown' });
+
+    expect(document.activeElement).toBe(screen.getByLabelText('Name of 020'));
+    expect(moved).toEqual([]);
+  });
+
+  itDom('leaves a composing alt arrow, and one with a second modifier, alone', async () => {
+    const api = await threeRoots();
+    const moved = watchMoves(api);
+
+    for (const extra of [{ isComposing: true }, { ctrlKey: true }, { metaKey: true }]) {
+      const name = focusAt('Name of 010', 'middle');
+      expect(fireEvent.keyDown(name, { key: 'ArrowDown', altKey: true, ...extra })).toBe(true);
+    }
+
+    expect(moved).toEqual([]);
+    expect(namesOnScreen()).toEqual(['Strip', 'Sand', 'Paint']);
+  });
+
+  itDom('leaves the dependency picker’s own alt arrows alone', async () => {
+    // The handler lives on the grid cells, not on the document: the picker's
+    // input is not one of them and keeps its Up and Down for its own list.
+    const api = await threeRoots();
+    const moved = watchMoves(api);
+
+    const picker = screen.getByLabelText('Add a dependency to 020');
+    fireEvent.focus(picker);
+    fireEvent.keyDown(picker, { key: 'ArrowDown', altKey: true });
+
+    expect(moved).toEqual([]);
+    expect(namesOnScreen()).toEqual(['Strip', 'Sand', 'Paint']);
   });
 });
 
