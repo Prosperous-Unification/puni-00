@@ -23,5 +23,11 @@
 ## 3. Gate and verification
 
 - [x] 3.1 `verify.md`: the uncached gate and the failure-proof table.
-- [ ] 3.2 Deploy to dev and verify with two real sockets: one client types into a
-      name while the other renames the same row, and the caret stays put.
+- [x] 3.2 Deployed to dev at `fb5d54a` and verified with two real sockets over the
+      real edge: ada and grace both subscribed to one project, grace renamed the
+      row, and the frame carrying it arrived on ada's socket. That is the path the
+      fix rides on — a peer's edit reaching the client that has to survive it.
+- [ ] 3.3 **The caret itself, in a browser.** Not done and not doable from h1claw:
+      no browser and no Playwright on the box, and jsdom has no caret to move. What
+      3.2 proves is that the edit arrives; what nobody has watched is where the
+      caret is a moment later. `verify.md` says so under what this does not cover.

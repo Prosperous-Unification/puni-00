@@ -33,15 +33,33 @@ be made to: `typed` is only ever false when `sync` has already brought the node 
 deleted rather than kept as an unfalsifiable guard — which is the same rule that
 put the other three rows in this table.
 
+## On dev, with two real clients
+
+Deployed to dev at `fb5d54a` (`bin/dev-deploy.sh`; app shell 200, be-01 and gw-01
+answering, auth routes mounted). Two accounts, two real sockets through the real
+edge, both subscribed to one project:
+
+```
+  [ada  ] <- {"type":"presence","users":["ada","grace"]}
+  [grace] <- {"type":"presence","users":["ada","grace"]}
+grace renamed it — waiting for ada's socket
+  [ada  ] <- {"subscription":"project:b209096b…","seq":1,
+              "message":{"type":"work_items_changed","workItems":[{"id":"a9b90399…
+ada's socket received the change: true
+the row now reads: "Rewire the shed"
+```
+
+That is the path the fix rides on: a peer's edit reaching the client that has to
+survive it, on the deployed build rather than against a fake.
+
 ## What this does not cover
 
-- **A real browser's caret position.** jsdom reports focus but has no caret of its
-  own, so `document.activeElement` is what the tests assert. That the caret stays
-  at character 17 of a half-typed word, rather than merely that the element keeps
-  focus, has not been watched anywhere.
-- **Two real clients.** The peer's edit is delivered by calling the subscription's
-  `onChange` against a fake API, not by a second browser over a socket. Task 3.2
-  is that, on dev, and is not done.
+- **A real browser's caret position.** This is the gap, and it is the whole
+  point of the change. jsdom reports focus but has no caret, so the tests assert
+  `document.activeElement`; the dev run above proves the edit arrives but has no
+  DOM at all. h1claw has no browser and no Playwright, so nobody has yet watched a
+  caret stay at character 17 of a half-typed word while somebody else renamed the
+  row. Task 3.3.
 - **IME composition.** A composition in progress when a peer's edit arrives is
   held back by the same rule as any other typing, but nothing tests it.
 - **`readOnly` roll-up cells.** They cannot be typed in, so they never withhold;
