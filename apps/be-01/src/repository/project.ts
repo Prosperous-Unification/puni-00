@@ -84,6 +84,7 @@ export class ProjectRepository implements ProjectStore {
         ownerId: project.ownerId,
         restricted: project.restricted,
         estimateMethod: project.estimateMethod,
+        startDate: project.startDate,
         createdAt: project.createdAt,
         lastOpenedAt: projectAccess.lastOpenedAt,
       })
@@ -115,7 +116,8 @@ export class ProjectRepository implements ProjectStore {
     if (
       patch.name === undefined &&
       patch.restricted === undefined &&
-      patch.estimateMethod === undefined
+      patch.estimateMethod === undefined &&
+      patch.startDate === undefined
     ) {
       return this.findById(id);
     }

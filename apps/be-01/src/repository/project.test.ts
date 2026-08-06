@@ -42,6 +42,7 @@ function project(name: string, createdAt: number): Project {
     ownerId,
     restricted: false,
     estimateMethod: 'pert',
+    startDate: null,
     createdAt,
   };
 }
@@ -76,6 +77,7 @@ describe('ProjectRepository', () => {
       ownerId,
       restricted: false,
       estimateMethod: 'pert',
+      startDate: null,
     });
     expect((await repo.rolesOf(shed.id)).map((r) => r.name)).toEqual(['Dev', 'QA']);
   });

@@ -63,6 +63,17 @@ export interface WorkItemView {
   finalDays: Record<string, number>;
   finalTotal: number;
   /**
+   * When this happens on a calendar, or null while the project has no start
+   * date or the schedule could not be computed.
+   *
+   * Working days only, and `endsOn` is the last day the work is still on
+   * rather than the day after. Computed by be-01 with the project's start
+   * date; the client renders it and counts nothing.
+   */
+  dates: { startsOn: string; endsOn: string } | null;
+  /** A day this item may not start before — a floor the dependencies can push past. */
+  startNoEarlierThan: string | null;
+  /**
    * `estimates` is **effort** and this is **span**. For a parent they differ:
    * two independent children of 3 and 4 days are 7 days of work in a 4-day
    * branch. Both are true, and the table labels them so.
@@ -119,15 +130,21 @@ export interface ProjectApi {
     seq: number;
     scheduleError: 'cycle' | null;
     estimateMethod: EstimateMethod;
+    startDate: string | null;
   }>;
   /** Changes how the project turns its three-point estimates into one number. */
   setEstimateMethod(projectId: string, method: EstimateMethod): Promise<void>;
+  /** Puts the plan on a calendar, or `null` to take it off again. */
+  setStartDate(projectId: string, startDate: string | null): Promise<void>;
   roles(projectId: string): Promise<RoleView[]>;
   create(
     projectId: string,
     input: { parentId: string | null; afterId: string | null; name?: string },
   ): Promise<{ id: string }>;
-  patch(id: string, patch: { name?: string; notes?: string }): Promise<void>;
+  patch(
+    id: string,
+    patch: { name?: string; notes?: string; startNoEarlierThan?: string | null },
+  ): Promise<void>;
   move(id: string, parentId: string | null, afterId: string | null): Promise<void>;
   remove(id: string, options?: DeleteOptions): Promise<void>;
   setEstimate(id: string, roleId: string, days: Days): Promise<void>;
@@ -186,6 +203,12 @@ export function httpProjectApi(token: string): ProjectApi {
         scheduleError: 'cycle' | null;
         estimateMethod: EstimateMethod;
       }>(`/api/projects/${projectId}/work-items`, token);
+    },
+    async setStartDate(projectId, startDate) {
+      await send(`/api/projects/${projectId}`, token, {
+        method: 'PATCH',
+        body: JSON.stringify({ startDate }),
+      });
     },
     async setEstimateMethod(projectId, method) {
       await send(`/api/projects/${projectId}`, token, {

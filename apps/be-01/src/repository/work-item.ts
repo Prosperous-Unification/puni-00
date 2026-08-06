@@ -45,7 +45,13 @@ export class WorkItemRepository implements WorkItemStore {
   }
 
   async patch(id: string, patch: WorkItemPatch): Promise<WorkItem | null> {
-    if (patch.name === undefined && patch.notes === undefined) return this.findById(id);
+    if (
+      patch.name === undefined &&
+      patch.notes === undefined &&
+      patch.startNoEarlierThan === undefined
+    ) {
+      return this.findById(id);
+    }
     const rows = await this.db.update(workItem).set(patch).where(eq(workItem.id, id)).returning();
     return rows[0] ?? null;
   }

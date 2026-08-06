@@ -38,6 +38,7 @@ beforeEach(async () => {
     ownerId: OWNER,
     restricted: false,
     estimateMethod: 'pert',
+    startDate: null,
     createdAt: 1,
   };
   await projects.create(project, []);

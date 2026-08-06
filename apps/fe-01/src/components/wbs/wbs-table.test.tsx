@@ -29,6 +29,7 @@ function fakeApi(): ProjectApi & { rows: WorkItemView[] } {
   let next = 0;
   let seq = -1;
   let estimateMethod: EstimateMethod = 'pert';
+  let startDate: string | null = null;
 
   /** The final figure be-01 would report, under whichever method is set. */
   const finalOf = (days: Days): number =>
@@ -111,13 +112,22 @@ function fakeApi(): ProjectApi & { rows: WorkItemView[] } {
             Object.entries(r.estimates).map(([roleId, days]) => [roleId, finalOf(days)]),
           ),
           finalTotal: Object.values(r.estimates).reduce((total, days) => total + finalOf(days), 0),
+          // be-01 works the dates out; the fake only has to place them on the
+          // calendar the same way, so the table is asserted on what it renders.
+          dates: startDate === null ? null : { startsOn: startDate, endsOn: startDate },
         })),
         seq,
         scheduleError: null,
         estimateMethod,
+        startDate,
       }),
     setEstimateMethod(_projectId, method) {
       estimateMethod = method;
+      renumber();
+      return Promise.resolve();
+    },
+    setStartDate(_projectId, day) {
+      startDate = day;
       renumber();
       return Promise.resolve();
     },
@@ -134,6 +144,7 @@ function fakeApi(): ProjectApi & { rows: WorkItemView[] } {
         name: input.name ?? '',
         notes: '',
         frozenNumber: null,
+        startNoEarlierThan: null,
         rolledUp: false,
         estimates: {},
         dependsOn: [],
@@ -716,6 +727,59 @@ describe('collapsing a branch', () => {
 
     expect(screen.queryByLabelText('Collapse 010')).toBeNull();
     expect(screen.queryByLabelText('Expand 010')).toBeNull();
+  });
+});
+
+describe('the plan on a calendar', () => {
+  async function oneRow() {
+    const api = fakeApi();
+    render(<WbsTable projectId="p1" api={api} />);
+    click('Add work item');
+    await screen.findByLabelText('Name of 010');
+    return api;
+  }
+
+  itDom('shows day offsets until the project has a start date', async () => {
+    await oneRow();
+
+    expect(rowFor('010').querySelector('[data-start]')?.textContent).toBe('0');
+  });
+
+  itDom('shows dates once the project starts on a day', async () => {
+    const api = await oneRow();
+
+    fireEvent.change(screen.getByLabelText('Project start date'), {
+      target: { value: '2026-08-06' },
+    });
+
+    await waitFor(() => {
+      expect(rowFor('010').querySelector('[data-start]')?.textContent).toBe('2026-08-06');
+    });
+    expect(api.rows.length).toBe(1);
+  });
+
+  itDom('sends a work item’s earliest start, and clears it again', async () => {
+    const api = await oneRow();
+    const patched: unknown[] = [];
+    const realPatch = api.patch.bind(api);
+    api.patch = (id: string, patch: Record<string, unknown>) => {
+      patched.push(patch);
+      return realPatch(id, patch);
+    };
+
+    const cell = screen.getByLabelText('Earliest start for 010');
+    fireEvent.change(cell, { target: { value: '2026-08-12' } });
+    await waitFor(() => {
+      expect(patched).toEqual([{ startNoEarlierThan: '2026-08-12' }]);
+    });
+
+    // Cleared reads as '' from a date input, and means "no constraint" rather
+    // than "an empty date".
+    fireEvent.change(screen.getByLabelText('Earliest start for 010'), { target: { value: '' } });
+
+    await waitFor(() => {
+      expect(patched).toEqual([{ startNoEarlierThan: '2026-08-12' }, { startNoEarlierThan: null }]);
+    });
   });
 });
 
@@ -1940,7 +2004,17 @@ describe('the order of the columns', () => {
     expect(headers.slice(0, 4)).toEqual(['', 'Number', 'Depends on', 'Name']);
     // And the schedule stays on the right, where it reads as an outcome of
     // everything to its left rather than as something to fill in.
-    expect(headers.slice(-5)).toEqual(['Starts (day)', 'Ends (day)', 'Slack (days)', 'Notes', '']);
+    // The schedule stays on the right, where it reads as an outcome of
+    // everything to its left. "Not before" is the one input among them, and it
+    // sits immediately before the dates it constrains.
+    expect(headers.slice(-6)).toEqual([
+      'Not before',
+      'Starts',
+      'Ends',
+      'Slack (days)',
+      'Notes',
+      '',
+    ]);
   });
 });
 

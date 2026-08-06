@@ -35,6 +35,7 @@ beforeEach(async () => {
     ownerId: OWNER,
     restricted: false,
     estimateMethod: 'pert',
+    startDate: null,
     createdAt: 1,
   };
   roleId = crypto.randomUUID();
@@ -342,6 +343,104 @@ describe('dependencies', () => {
     const sand = tree?.workItems.find((w) => w.id === b)?.schedule;
 
     expect(sand).toMatchObject({ earliestStart: 2, earliestFinish: 5, critical: true });
+  });
+});
+
+describe('the calendar', () => {
+  // 2026-08-06 is a Thursday, so a two-day task spans Thursday and Friday and
+  // a three-day one runs into the Monday.
+  const THURSDAY = '2026-08-06';
+
+  const twoDaysOf = async (id: string) => {
+    await service.setEstimate(id, OWNER, roleId, { optimistic: 2, realistic: 2, pessimistic: 2 });
+  };
+
+  it('reports no dates while the project has no start date', async () => {
+    const id = await add('Strip');
+    await twoDaysOf(id);
+
+    const row = (await service.tree(projectId))?.workItems.find((w) => w.id === id);
+
+    // The ordinary state of an estimate nobody has committed to a date.
+    expect(row?.dates).toBeNull();
+    expect((await service.tree(projectId))?.startDate).toBeNull();
+  });
+
+  it('places the plan on working days, skipping the weekend', async () => {
+    const first = await add('Strip');
+    const second = await add('Sand');
+    await twoDaysOf(first);
+    await twoDaysOf(second);
+    await service.addDependency(second, OWNER, first);
+    await projects.update(projectId, { startDate: THURSDAY });
+
+    const tree = await service.tree(projectId);
+    const strip = tree?.workItems.find((w) => w.id === first);
+    const sand = tree?.workItems.find((w) => w.id === second);
+
+    // Thursday and Friday, then the next two working days — Monday and
+    // Tuesday. Saturday and Sunday are not days anyone works.
+    expect(strip?.dates).toEqual({ startsOn: '2026-08-06', endsOn: '2026-08-07' });
+    expect(sand?.dates).toEqual({ startsOn: '2026-08-10', endsOn: '2026-08-11' });
+  });
+
+  it('pushes an item later when it may not start before a date', async () => {
+    const id = await add('Strip');
+    await twoDaysOf(id);
+    await projects.update(projectId, { startDate: THURSDAY });
+    await service.patch(id, OWNER, { startNoEarlierThan: '2026-08-12' });
+
+    const row = (await service.tree(projectId))?.workItems.find((w) => w.id === id);
+
+    expect(row?.dates?.startsOn).toBe('2026-08-12');
+  });
+
+  it('lets a dependency push past the constraint, never the other way', async () => {
+    // The constraint is a floor, not a pin — Dany's call, so the calendar and
+    // the dependency tree cannot contradict each other. A predecessor that
+    // finishes later still wins.
+    const first = await add('Strip');
+    const second = await add('Sand');
+    await service.setEstimate(first, OWNER, roleId, {
+      optimistic: 6,
+      realistic: 6,
+      pessimistic: 6,
+    });
+    await twoDaysOf(second);
+    await service.addDependency(second, OWNER, first);
+    await projects.update(projectId, { startDate: THURSDAY });
+    // Day 1 is the Friday: earlier than where the predecessor leaves it.
+    await service.patch(second, OWNER, { startNoEarlierThan: '2026-08-07' });
+
+    const sand = (await service.tree(projectId))?.workItems.find((w) => w.id === second);
+
+    // Six working days from Thursday lands on the Friday after next.
+    expect(sand?.dates?.startsOn).toBe('2026-08-14');
+  });
+
+  it('reports no dates when the schedule itself failed', async () => {
+    const first = await add('Strip');
+    const second = await add('Sand');
+    await projects.update(projectId, { startDate: THURSDAY });
+    await dependencies.add({
+      id: 'a',
+      projectId,
+      predecessorId: first,
+      successorId: second,
+    });
+    await dependencies.add({
+      id: 'b',
+      projectId,
+      predecessorId: second,
+      successorId: first,
+    });
+
+    const tree = await service.tree(projectId);
+
+    // A date read off a schedule that could not be computed is the same
+    // confident lie as a page of zeroes.
+    expect(tree?.scheduleError).toBe('cycle');
+    expect(tree?.workItems.every((w) => w.dates === null)).toBe(true);
   });
 });
 

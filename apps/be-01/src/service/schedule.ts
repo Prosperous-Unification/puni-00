@@ -155,13 +155,26 @@ function topological(leafIds: readonly string[], edges: readonly DependencyEdge[
  * beneath its predecessor must finish before every leaf beneath its successor
  * starts, which is what a planner means by "the whole of 010 before 020".
  *
- * Everything is a whole-number offset from day zero. No calendar, no weekends —
- * see `design.md` D3 for why that is a decision rather than an omission.
+ * Everything here is an offset from day zero, in **working days**. The calendar
+ * lives one layer up: `work-item.service` turns the project's start date and
+ * these offsets into dates with `addWorkdays`, and turns a manual "start no
+ * earlier than" date back into the `notBefore` offsets below. Keeping the pass
+ * itself in numbers means weekends are counted in exactly one place.
  */
 export function schedule(
   rows: readonly WorkItem[],
   edges: readonly DependencyEdge[],
   durations: ReadonlyMap<string, number>,
+  /**
+   * The earliest offset each leaf may start at, from a manual constraint.
+   *
+   * Taken as a floor alongside the predecessors' finishes, never as a pin: a
+   * work item told "not before day 10" whose predecessor finishes on day 14
+   * starts on day 14. Dany's call — the constraint may only ever push an item
+   * later, so the dependency tree and the calendar cannot contradict each
+   * other. A leaf absent from the map is unconstrained.
+   */
+  notBefore: ReadonlyMap<string, number> = new Map(),
 ): Map<string, Scheduled> {
   const index = indexTree(rows);
   const { leafIds } = index;
@@ -185,6 +198,7 @@ export function schedule(
   for (const id of order) {
     const start = Math.max(
       0,
+      notBefore.get(id) ?? 0,
       ...(predecessorsOf.get(id) ?? []).map((p) => earliestFinish.get(p) ?? 0),
     );
     earliestStart.set(id, start);

@@ -199,6 +199,8 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   /** The row whose notes the pointer is over, so its rendered markdown can show. */
   const [hoveredNotes, setHoveredNotes] = useState<string | null>(null);
+  /** The project's start date, or null while the plan is not on a calendar. */
+  const [startDate, setStartDate] = useState<string | null>(null);
   const [dragging, setDragging] = useState<string | null>(null);
   const [dropHint, setDropHint] = useState<{ rowId: string; zone: DropZone } | null>(null);
   /**
@@ -241,6 +243,7 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
     setWorkItems(toTree(tree.workItems));
     setScheduleError(tree.scheduleError);
     setEstimateMethod(tree.estimateMethod);
+    setStartDate(tree.startDate);
     // Replaced only when the roles actually differ. Every read returns a fresh
     // array, and `roles` is the one dependency `columns` still has — so a new
     // array on every refresh rebuilt every column definition, which is how a
@@ -762,6 +765,21 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
     [api, run, typedTrio],
   );
 
+  /**
+   * Sets or clears one work item's "not before" day.
+   *
+   * A floor rather than a pin, which be-01 enforces: everything that depends
+   * on this row still moves with it, and a predecessor finishing later still
+   * wins. Dany's call — it keeps the calendar and the dependency tree from
+   * being able to contradict each other.
+   */
+  const setNotBefore = useCallback(
+    (id: string, day: string | null) => {
+      void run(() => api.patch(id, { startNoEarlierThan: day }));
+    },
+    [api, run],
+  );
+
   /** Changes how the project turns its trios into one number, for everybody. */
   const chooseEstimateMethod = useCallback(
     (method: EstimateMethod) => {
@@ -798,6 +816,7 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
     commitEstimate,
     hoveredNotes,
     setHoveredNotes,
+    setNotBefore,
   });
   live.current = {
     api,
@@ -821,6 +840,7 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
     commitEstimate,
     hoveredNotes,
     setHoveredNotes,
+    setNotBefore,
   };
 
   const columns = useMemo(
@@ -1152,18 +1172,42 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
         ),
       }),
       column.display({
-        id: 'start',
-        header: 'Starts (day)',
+        id: 'not-before',
+        header: 'Not before',
         cell: ({ row }) => (
-          <span data-start>{live.current.showSchedule(row.original.schedule.earliestStart)}</span>
+          <input
+            type="date"
+            aria-label={`Earliest start for ${row.original.number}`}
+            title="This work item may not start before this day. Its dependencies can still push it later."
+            data-not-before={row.original.id}
+            style={{ font: 'inherit' }}
+            value={row.original.startNoEarlierThan ?? ''}
+            onChange={(e) => {
+              // A date input reports '' when cleared, which is the caller
+              // saying "no constraint" rather than "an empty date".
+              const typed = e.target.value;
+              live.current.setNotBefore(row.original.id, typed === '' ? null : typed);
+            }}
+          />
+        ),
+      }),
+      column.display({
+        id: 'start',
+        header: 'Starts',
+        cell: ({ row }) => (
+          <span data-start>
+            {row.original.dates?.startsOn ??
+              live.current.showSchedule(row.original.schedule.earliestStart)}
+          </span>
         ),
       }),
       column.display({
         id: 'finish',
-        header: 'Ends (day)',
+        header: 'Ends',
         cell: ({ row }) => (
           <span data-finish title={row.original.schedule.estimated ? undefined : 'No estimate yet'}>
-            {live.current.showSchedule(row.original.schedule.earliestFinish)}
+            {row.original.dates?.endsOn ??
+              live.current.showSchedule(row.original.schedule.earliestFinish)}
             {live.current.hasSchedule() && !row.original.schedule.estimated ? ' ?' : ''}
           </span>
         ),
@@ -1311,6 +1355,24 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
           Add work item
         </button>
         <label style={{ marginLeft: 'auto', display: 'flex', gap: 4, alignItems: 'center' }}>
+          Starts
+          {/*
+            The day the whole plan begins. Setting it moves every date at once,
+            because every date is an offset from it — there is nothing stored
+            per row to drag along.
+          */}
+          <input
+            type="date"
+            aria-label="Project start date"
+            disabled={busy}
+            value={startDate ?? ''}
+            onChange={(e) => {
+              const typed = e.target.value;
+              void run(() => api.setStartDate(projectId, typed === '' ? null : typed));
+            }}
+          />
+        </label>
+        <label style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
           Plan with
           {/*
             A project-wide setting rather than a per-reader preference: the

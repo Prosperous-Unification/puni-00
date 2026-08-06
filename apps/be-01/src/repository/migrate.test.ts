@@ -14,6 +14,7 @@ const WBS = '20260805154500_add_wbs_domain';
 const DEPS = '20260806084828_add_dependencies';
 const ACCESS = '20260806160000_add_project_access';
 const METHOD = '20260806170000_add_estimate_method';
+const CAL = '20260806180000_add_calendar_dates';
 
 const WBS_TABLES = ['project', 'work_item', 'role', 'estimate'] as const;
 // Its own migration, reversed with the domain because it references `work_item`.
@@ -62,7 +63,7 @@ describe('the WBS domain migration', () => {
 
       const reversed = rollbackTo(db.path, FOLDER, USERS);
 
-      expect(reversed).toEqual([METHOD, ACCESS, DEPS, WBS]);
+      expect(reversed).toEqual([CAL, METHOD, ACCESS, DEPS, WBS]);
       for (const t of [...WBS_TABLES, ...DEPENDENCY_TABLES, ...ACCESS_TABLES])
         expect(tables(db.path)).not.toContain(t);
       // Reversing the domain must not take the accounts with it: the two

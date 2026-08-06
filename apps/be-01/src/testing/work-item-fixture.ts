@@ -43,6 +43,10 @@ export function inMemoryWorkItems(): WorkItemStore {
         ...existing,
         name: patch.name ?? existing.name,
         notes: patch.notes ?? existing.notes,
+        startNoEarlierThan:
+          patch.startNoEarlierThan === undefined
+            ? existing.startNoEarlierThan
+            : patch.startNoEarlierThan,
       };
       byId.set(id, updated);
       return Promise.resolve(updated);

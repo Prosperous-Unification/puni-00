@@ -77,6 +77,17 @@ export const project = sqliteTable('project', {
    * behaviour it already had.
    */
   estimateMethod: text('estimate_method').notNull().default('pert'),
+  /**
+   * The calendar day the plan begins, as `YYYY-MM-DD`, or null for a project
+   * that has not been placed on a calendar.
+   *
+   * Nullable rather than defaulted to the day the project was made: a plan
+   * with no start date is an ordinary state — an estimate nobody has committed
+   * to a date yet — and inventing one would put dates on screen that nobody
+   * chose. Without it the schedule still answers in day offsets, as it always
+   * has.
+   */
+  startDate: text('start_date'),
   createdAt: integer('created_at').notNull(),
 });
 
@@ -140,6 +151,16 @@ export const workItem = sqliteTable(
     name: text('name').notNull().default(''),
     notes: text('notes').notNull().default(''),
     frozenNumber: text('frozen_number'),
+    /**
+     * A calendar day this work item may not start before, or null.
+     *
+     * A **constraint**, never a pin: the schedule takes the later of this and
+     * whatever its dependencies allow, so a predecessor that slips still
+     * pushes this item along. Dany's call, 2026-08-06 — "keeps systems
+     * independent". A hard pin would let a date contradict the dependency tree
+     * and leave nothing to say which of the two was right.
+     */
+    startNoEarlierThan: text('start_no_earlier_than'),
   },
   (t) => [index('work_item_siblings').on(t.projectId, t.parentId, t.position)],
 );

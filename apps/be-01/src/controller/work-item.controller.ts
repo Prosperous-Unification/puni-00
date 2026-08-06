@@ -1,4 +1,5 @@
 import { ThreePointEstimate } from '@wbs/domain';
+import { isIsoDate, type IsoDate } from '@wbs/domain';
 import { parseOrThrow, ValidationError } from '@wbs/validation';
 import { Elysia } from 'elysia';
 
@@ -57,6 +58,7 @@ function parseCreate(body: unknown): CreateWorkItem {
     afterId: asIdOrNull(raw['afterId'], 'afterId'),
     name: asOptionalText(raw['name'], 'name'),
     notes: asOptionalText(raw['notes'], 'notes'),
+    startNoEarlierThan: asOptionalDate(raw['startNoEarlierThan'], 'startNoEarlierThan'),
   };
 }
 
@@ -68,7 +70,25 @@ function parseMove(body: unknown): MoveWorkItem {
   };
 }
 
-function parsePatch(body: unknown): { name?: string; notes?: string } {
+/**
+ * A calendar day, `null` to clear the constraint, or absent to leave it.
+ *
+ * Validated here rather than trusted: the column is text, and a date the
+ * scheduler cannot parse would throw on every later read of the project — a
+ * 422 on one request beats a plan nobody can open.
+ */
+function asOptionalDate(value: unknown, field: string): IsoDate | null | undefined {
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+  if (!isIsoDate(value)) throw new BadRequest(`${field}_must_be_a_date`);
+  return value;
+}
+
+function parsePatch(body: unknown): {
+  name?: string;
+  notes?: string;
+  startNoEarlierThan?: IsoDate | null;
+} {
   const raw = asRecord(body);
   refuseDerivedFields(raw);
   return {

@@ -43,6 +43,7 @@ beforeEach(async () => {
       ownerId,
       restricted: false,
       estimateMethod: 'pert',
+      startDate: null,
       createdAt: 1,
     },
     [{ id: crypto.randomUUID(), projectId, name: 'Dev' }],

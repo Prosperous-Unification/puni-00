@@ -1,3 +1,5 @@
+import { isIsoDate } from '@wbs/domain';
+
 import type { Project, ProjectPatch, ProjectStore, ProjectWithAccess, Role } from '../repository';
 
 /**
@@ -14,7 +16,7 @@ export interface ProjectWithRoles {
 
 export type UpdateOutcome =
   | { ok: true; result: Project }
-  | { ok: false; reason: 'not_found' | 'forbidden' };
+  | { ok: false; reason: 'not_found' | 'forbidden' | 'bad_start_date' };
 
 export interface ProjectServiceOptions {
   projects: ProjectStore;
@@ -54,6 +56,10 @@ export class ProjectService {
       // a project that had to choose before it had any estimates would be
       // choosing about risk it has not met yet.
       estimateMethod: 'pert',
+      startDate: null,
+      // Not the day it was made: a plan with no start date is an ordinary
+      // state, and inventing one would put dates on screen nobody chose.
+      startDate: null,
       createdAt: this.now(),
     };
     const roles = STARTING_ROLES.map((roleName) => ({
@@ -103,6 +109,12 @@ export class ProjectService {
   }
 
   async update(id: string, actorId: string, patch: ProjectPatch): Promise<UpdateOutcome> {
+    // `2026-02-31` matches the route's pattern and is not a day. Refused here
+    // rather than stored: the column is text, and a date the scheduler cannot
+    // parse would throw on every later read of this project.
+    if (patch.startDate != null && !isIsoDate(patch.startDate)) {
+      return { ok: false, reason: 'bad_start_date' };
+    }
     const project = await this.opts.projects.findById(id);
     if (project === null) return { ok: false, reason: 'not_found' };
     if (!canEdit(project, actorId)) return { ok: false, reason: 'forbidden' };

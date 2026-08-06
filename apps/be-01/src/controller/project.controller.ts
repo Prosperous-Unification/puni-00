@@ -14,6 +14,10 @@ const projectPatch = t.Object({
   // would be read back as malformed data and throw on every later read of the
   // project. Refusing it here is a 422 on one request instead.
   estimateMethod: t.Optional(t.Union(ESTIMATE_METHODS.map((method) => t.Literal(method)))),
+  // A day, or null to take the plan back off the calendar. The pattern is the
+  // shape only; `ProjectService.update` refuses a shape-valid non-day like
+  // `2026-02-31`, which is a date this schema cannot express.
+  startDate: t.Optional(t.Union([t.String({ pattern: '^\\d{4}-\\d{2}-\\d{2}$' }), t.Null()])),
 });
 
 /**
@@ -86,8 +90,10 @@ export function projectController(auth: AuthService, projects: ProjectService) {
         const outcome = await projects.update(params.id, user.id, body);
         if (!outcome.ok) {
           // 403 rather than 404 for a restricted project: the caller may read
-          // it, so pretending it is absent would contradict the next GET.
-          set.status = outcome.reason === 'forbidden' ? 403 : 404;
+          // it, so pretending it is absent would contradict the next GET. A
+          // date that is not a day is the caller's mistake, not a missing row.
+          set.status =
+            outcome.reason === 'forbidden' ? 403 : outcome.reason === 'bad_start_date' ? 422 : 404;
           return { error: outcome.reason };
         }
         return { project: outcome.result };

@@ -1,4 +1,10 @@
-import { type EstimateMethod, finalDays } from '@wbs/domain';
+import {
+  addWorkdays,
+  type EstimateMethod,
+  finalDays,
+  type IsoDate,
+  workdaysBetween,
+} from '@wbs/domain';
 
 import type {
   DependencyStore,
@@ -70,6 +76,38 @@ function durationsOf(
 }
 
 /**
+ * One row's span as calendar days, or null when it cannot have one.
+ *
+ * Null in two cases, both of them honest: the project is not on a calendar, or
+ * the schedule could not be computed at all. Printing a date from a schedule
+ * that failed would be the same confident lie as printing a page of zeroes,
+ * which the banner above the table exists to prevent.
+ *
+ * The finish is nudged back inside the span: a task of any length occupies the
+ * day it finishes on, so a one-day task starting Monday ends Monday rather
+ * than Tuesday. A zero-length row — a parent with nothing under it, or an
+ * unestimated leaf — starts and ends the same day.
+ */
+function datesOf(
+  startDate: IsoDate | null,
+  timing: Scheduled,
+  failed: boolean,
+): { startsOn: IsoDate; endsOn: IsoDate } | null {
+  if (startDate === null || failed) return null;
+  // The last day the work is still on: the day containing `earliestFinish`,
+  // minus the one it would otherwise spill into. `ceil - 1` rather than
+  // `finish - Number.EPSILON`, which was the first attempt and silently did
+  // nothing — at a finish of 4 the epsilon is smaller than the gap between
+  // representable doubles, so the subtraction rounded straight back to 4 and a
+  // two-day task claimed a third day. A zero-length row keeps its start.
+  const lastDay = Math.max(timing.earliestStart, Math.ceil(timing.earliestFinish) - 1);
+  return {
+    startsOn: addWorkdays(startDate, timing.earliestStart),
+    endsOn: addWorkdays(startDate, lastDay),
+  };
+}
+
+/**
  * One row's final figure per role, and their sum, under the project's method.
  *
  * Split out so the shape is built in one place: `finalDays` and `finalTotal`
@@ -123,6 +161,19 @@ export interface NumberedWorkItem extends WorkItem {
    * of work inside a 4-day branch. Both are true and neither substitutes.
    */
   schedule: Scheduled;
+  /**
+   * When this happens on a calendar, or null while the project has no start
+   * date.
+   *
+   * Working days only: weekends are skipped, so a five-day task starting on a
+   * Thursday ends on the following Wednesday. Public holidays are not modelled
+   * — they differ by country, company and year, and inventing them would put
+   * dates in a plan nobody can account for.
+   *
+   * `endsOn` is the day the work item is still being worked on, not the day
+   * after: a one-day task starting Monday ends Monday.
+   */
+  dates: { startsOn: IsoDate; endsOn: IsoDate } | null;
 }
 
 /** Why a project has no dates, when it has none. `null` is the ordinary case. */
@@ -225,6 +276,7 @@ export class WorkItemService {
     seq: number;
     scheduleError: ScheduleError;
     estimateMethod: EstimateMethod;
+    startDate: IsoDate | null;
   } | null> {
     const project = await this.opts.projects.findById(projectId);
     if (project === null) return null;
@@ -242,10 +294,22 @@ export class WorkItemService {
     // one with no dates in it. The dates go, the rows stay, and the reason is
     // reported rather than left as a page of zeroes.
     const durations = durationsOf(rows, stored, hasChildren, project.estimateMethod);
+    // A manual date becomes an offset before the pass, and offsets become dates
+    // after it: the schedule itself never sees a calendar, so weekends are
+    // counted in exactly one place. Without a project start date there is
+    // nothing to count from, so the constraints are simply not applied — a
+    // plan off the calendar is the state it has always been in.
+    const notBefore = new Map<string, number>();
+    if (project.startDate !== null) {
+      for (const row of rows) {
+        if (row.startNoEarlierThan === null) continue;
+        notBefore.set(row.id, workdaysBetween(project.startDate, row.startNoEarlierThan));
+      }
+    }
     let timing = new Map<string, Scheduled>();
     let scheduleError: ScheduleError = null;
     try {
-      timing = schedule(rows, edges, durations);
+      timing = schedule(rows, edges, durations, notBefore);
     } catch (err) {
       // Only the modeled failure. An unqualified catch here turned every
       // exception in this block — a stack overflow on a pathological tree, a
@@ -278,9 +342,20 @@ export class WorkItemService {
         // otherwise be reported as a dependency on a number nobody can see.
         dependsOn: (waitingFor.get(row.id) ?? []).filter((id) => rows.some((r) => r.id === id)),
         schedule: timing.get(row.id) ?? UNSCHEDULED,
+        dates: datesOf(
+          project.startDate,
+          timing.get(row.id) ?? UNSCHEDULED,
+          scheduleError !== null,
+        ),
       }))
       .sort((a, b) => (a.number < b.number ? -1 : a.number > b.number ? 1 : 0));
-    return { workItems, seq, scheduleError, estimateMethod: project.estimateMethod };
+    return {
+      workItems,
+      seq,
+      scheduleError,
+      estimateMethod: project.estimateMethod,
+      startDate: project.startDate,
+    };
   }
 
   async create(
@@ -310,6 +385,7 @@ export class WorkItemService {
       name: input.name ?? '',
       notes: input.notes ?? '',
       frozenNumber: null,
+      startNoEarlierThan: null,
     };
     await this.opts.workItems.insert(workItem, placed.renumbered);
     // A work item that had an estimate and now has a child no longer holds one:

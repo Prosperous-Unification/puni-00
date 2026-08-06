@@ -1,4 +1,4 @@
-import type { EstimateMethod } from '@wbs/domain';
+import type { EstimateMethod, IsoDate } from '@wbs/domain';
 
 export interface Example {
   id: string;
@@ -32,6 +32,8 @@ export interface Project {
   restricted: boolean;
   /** How this project turns its three-point estimates into one planning number. */
   estimateMethod: EstimateMethod;
+  /** The calendar day the plan begins, or null for a plan not yet on a calendar. */
+  startDate: IsoDate | null;
   createdAt: number;
 }
 
@@ -50,6 +52,8 @@ export interface ProjectPatch {
   name?: string;
   restricted?: boolean;
   estimateMethod?: EstimateMethod;
+  /** `null` takes the plan back off the calendar. */
+  startDate?: IsoDate | null;
 }
 
 export interface WorkItem {
@@ -60,11 +64,15 @@ export interface WorkItem {
   name: string;
   notes: string;
   frozenNumber: string | null;
+  /** A day this item may not start before — a floor, never a pin. */
+  startNoEarlierThan: IsoDate | null;
 }
 
 export interface WorkItemPatch {
   name?: string;
   notes?: string;
+  /** `null` removes the constraint and lets the dependencies alone decide. */
+  startNoEarlierThan?: IsoDate | null;
 }
 
 /** A position write the caller has already worked out, applied with whatever prompted it. */
