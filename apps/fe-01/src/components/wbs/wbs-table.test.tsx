@@ -1130,3 +1130,20 @@ describe('dependencies in the table — cross-review findings', () => {
     expect(screen.getByRole('alert').textContent).toContain('run in a circle');
   });
 });
+
+describe('the order of the columns', () => {
+  itDom('puts what a row waits for immediately after its number', async () => {
+    // Dependencies belong beside the identity of the row, not past its
+    // estimates: reading down the table you want the number and what it waits
+    // for together, and the numbers in "Depends on" refer to the column two to
+    // its left. Asked for on 2026-08-06.
+    await threeRoots();
+
+    const headers = screen.getAllByRole('columnheader').map((th) => th.textContent.trim());
+
+    expect(headers.slice(0, 4)).toEqual(['', 'Number', 'Depends on', 'Name']);
+    // And the schedule stays on the right, where it reads as an outcome of
+    // everything to its left rather than as something to fill in.
+    expect(headers.slice(-5)).toEqual(['Starts (day)', 'Ends (day)', 'Slack (days)', 'Notes', '']);
+  });
+});
