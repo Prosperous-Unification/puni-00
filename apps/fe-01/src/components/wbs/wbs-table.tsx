@@ -33,6 +33,7 @@ import {
   type TypedTrio,
 } from './estimate-draft';
 import { NotesPreview } from './notes-preview';
+import { indentFor, pinnedCellStyle, STICKY_HEADER_CELL, TABLE_FRAME } from './table-frame';
 import { toTree, type TreeRow } from './wbs-rows';
 
 export interface WbsTableProps {
@@ -1016,7 +1017,7 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
         id: 'number',
         header: 'Number',
         cell: ({ row }) => (
-          <span style={{ paddingLeft: row.depth * 16, whiteSpace: 'nowrap' }}>
+          <span style={{ paddingLeft: indentFor(row.depth), whiteSpace: 'nowrap' }}>
             {row.getCanExpand() ? (
               <button
                 type="button"
@@ -1029,6 +1030,45 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
             {row.original.frozenNumber !== null && <span aria-label="Number is frozen">🔒</span>}
             <span data-number>{row.original.number}</span>
           </span>
+        ),
+      }),
+      column.display({
+        id: 'name',
+        header: 'Name',
+        cell: ({ row }) => (
+          <CellInput
+            aria-label={`Name of ${row.original.number}`}
+            data-name-input={row.original.id}
+            data-cell={cellKey(row.original.id, 'name')}
+            // A work item's name is a sentence, not a word, and an input
+            // scrolls it out of sight one character at a time. A textarea
+            // wraps, and `autoSize` is what stops it wrapping into a line
+            // nobody can see: the box is as tall as its name, focused or not.
+            // Enter is still "new work item" — the table preventDefaults it.
+            multiline
+            autoSize
+            rows={1}
+            maxRestRows={4}
+            style={{ width: '22em', resize: 'vertical', font: 'inherit' }}
+            // A callback ref rather than an effect: it fires exactly when this
+            // node is attached, so the focus cannot be lost to a later render
+            // arriving before the row does. That race is what
+            // Enter-Enter-Enter depends on not losing. It fires on every render
+            // rather than only the first, which the id check already tolerated.
+            onAttach={(element) => {
+              if (focusNext.current !== row.original.id) return;
+              focusNext.current = null;
+              element.focus();
+            }}
+            value={row.original.name}
+            commit={(typed) => {
+              void live.current.run(() => live.current.api.patch(row.original.id, { name: typed }));
+            }}
+            onKeyDown={(e) => {
+              live.current.onKeyDown(e, row.original);
+              live.current.onArrowKey(e, row.original.id, 'name');
+            }}
+          />
         ),
       }),
       column.display({
@@ -1206,45 +1246,6 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
             </span>
           );
         },
-      }),
-      column.display({
-        id: 'name',
-        header: 'Name',
-        cell: ({ row }) => (
-          <CellInput
-            aria-label={`Name of ${row.original.number}`}
-            data-name-input={row.original.id}
-            data-cell={cellKey(row.original.id, 'name')}
-            // A work item's name is a sentence, not a word, and an input
-            // scrolls it out of sight one character at a time. A textarea
-            // wraps, and `autoSize` is what stops it wrapping into a line
-            // nobody can see: the box is as tall as its name, focused or not.
-            // Enter is still "new work item" — the table preventDefaults it.
-            multiline
-            autoSize
-            rows={1}
-            maxRestRows={4}
-            style={{ width: '22em', resize: 'vertical', font: 'inherit' }}
-            // A callback ref rather than an effect: it fires exactly when this
-            // node is attached, so the focus cannot be lost to a later render
-            // arriving before the row does. That race is what
-            // Enter-Enter-Enter depends on not losing. It fires on every render
-            // rather than only the first, which the id check already tolerated.
-            onAttach={(element) => {
-              if (focusNext.current !== row.original.id) return;
-              focusNext.current = null;
-              element.focus();
-            }}
-            value={row.original.name}
-            commit={(typed) => {
-              void live.current.run(() => live.current.api.patch(row.original.id, { name: typed }));
-            }}
-            onKeyDown={(e) => {
-              live.current.onKeyDown(e, row.original);
-              live.current.onArrowKey(e, row.original.id, 'name');
-            }}
-          />
-        ),
       }),
       column.display({
         id: 'team',
@@ -1683,62 +1684,86 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
         <p role="status">Reconnecting — edits by other people may not be shown yet.</p>
       )}
 
-      <table>
-        <thead>
-          {table.getHeaderGroups().map((group) => (
-            <tr key={group.id}>
-              {group.headers.map((header) => (
-                <th key={header.id} scope="col">
-                  {flexRender(header.column.columnDef.header, header.getContext())}
-                </th>
-              ))}
-            </tr>
-          ))}
-        </thead>
-        <tbody>
-          {table.getRowModel().rows.map((row) => (
-            <tr
-              key={row.id}
-              data-frozen={row.original.frozenNumber !== null ? 'true' : 'false'}
-              data-drop={dropHint?.rowId === row.original.id ? dropHint.zone : undefined}
-              // The handlers sit on the row rather than in a column definition:
-              // `flexRender` renders each `cell` as a component *type*, so a
-              // definition that changed with the drag would remount every cell
-              // in the table on every pointer move.
-              onDragOver={(event) => {
-                if (dragging === null) return;
-                // Without this the browser refuses the drop outright.
-                event.preventDefault();
-                const box = event.currentTarget.getBoundingClientRect();
-                setDropHint({
-                  rowId: row.original.id,
-                  zone: zoneFor(event.clientY - box.top, box.height),
-                });
-              }}
-              onDragLeave={() => {
-                setDropHint((current) => (current?.rowId === row.original.id ? null : current));
-              }}
-              onDrop={(event) => {
-                event.preventDefault();
-                // The zone the last `dragover` worked out, not one recomputed
-                // here. That one is the marker the person was looking at when
-                // they let go, and a drop that lands somewhere other than where
-                // the line was drawn is the one thing drag must never do.
-                if (dropHint?.rowId !== row.original.id) return;
-                dropOn(
-                  row.original.id,
-                  dropHint.zone,
-                  row.getIsExpanded() && row.subRows.length > 0,
-                );
-              }}
-            >
-              {row.getVisibleCells().map((cell) => (
-                <td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      {/*
+        The table scrolls inside this, in both directions, so the page never
+        scrolls sideways and the toolbar and the alerts above stay where they
+        were put. The heading row and the three identity columns are sticky
+        against this box — see `table-frame.ts` for why it has to be the one
+        that scrolls.
+      */}
+      <div data-table-frame style={TABLE_FRAME}>
+        {/*
+          `separate` with no spacing rather than the browser's default gap:
+          the pinned columns' offsets are the running total of their widths,
+          and two pixels between every pair of cells is two pixels the offsets
+          do not know about.
+        */}
+        <table style={{ borderCollapse: 'separate', borderSpacing: 0 }}>
+          <thead>
+            {table.getHeaderGroups().map((group) => (
+              <tr key={group.id}>
+                {group.headers.map((header) => (
+                  <th
+                    key={header.id}
+                    scope="col"
+                    style={{
+                      ...STICKY_HEADER_CELL,
+                      ...pinnedCellStyle(header.column.id, 'header'),
+                    }}
+                  >
+                    {flexRender(header.column.columnDef.header, header.getContext())}
+                  </th>
+                ))}
+              </tr>
+            ))}
+          </thead>
+          <tbody>
+            {table.getRowModel().rows.map((row) => (
+              <tr
+                key={row.id}
+                data-frozen={row.original.frozenNumber !== null ? 'true' : 'false'}
+                data-drop={dropHint?.rowId === row.original.id ? dropHint.zone : undefined}
+                // The handlers sit on the row rather than in a column definition:
+                // `flexRender` renders each `cell` as a component *type*, so a
+                // definition that changed with the drag would remount every cell
+                // in the table on every pointer move.
+                onDragOver={(event) => {
+                  if (dragging === null) return;
+                  // Without this the browser refuses the drop outright.
+                  event.preventDefault();
+                  const box = event.currentTarget.getBoundingClientRect();
+                  setDropHint({
+                    rowId: row.original.id,
+                    zone: zoneFor(event.clientY - box.top, box.height),
+                  });
+                }}
+                onDragLeave={() => {
+                  setDropHint((current) => (current?.rowId === row.original.id ? null : current));
+                }}
+                onDrop={(event) => {
+                  event.preventDefault();
+                  // The zone the last `dragover` worked out, not one recomputed
+                  // here. That one is the marker the person was looking at when
+                  // they let go, and a drop that lands somewhere other than where
+                  // the line was drawn is the one thing drag must never do.
+                  if (dropHint?.rowId !== row.original.id) return;
+                  dropOn(
+                    row.original.id,
+                    dropHint.zone,
+                    row.getIsExpanded() && row.subRows.length > 0,
+                  );
+                }}
+              >
+                {row.getVisibleCells().map((cell) => (
+                  <td key={cell.id} style={pinnedCellStyle(cell.column.id, 'body')}>
+                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </section>
   );
 }

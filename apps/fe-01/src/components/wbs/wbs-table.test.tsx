@@ -2456,16 +2456,24 @@ describe('dependencies in the table — cross-review findings', () => {
 });
 
 describe('the order of the columns', () => {
-  itDom('puts what a row waits for immediately after its number', async () => {
-    // Dependencies belong beside the identity of the row, not past its
-    // estimates: reading down the table you want the number and what it waits
-    // for together, and the numbers in "Depends on" refer to the column two to
-    // its left. Asked for on 2026-08-06.
+  itDom('opens with the number, the name, and then what the row waits for', async () => {
+    // "Depends on" sat between Number and Name until 2026-08-06, because
+    // dependencies belong beside the identity of a row and the numbers in the
+    // cell refer to the Number column. They still do, and they still are — the
+    // identity of a row is now Number *and* Name, with what it waits for
+    // immediately after both.
+    //
+    // What moved it is the pinned frame below. `position: sticky; left` holds
+    // a cell at a fixed offset from the left edge, which only lines up while
+    // the pinned columns are contiguous from that edge — so pinning Name, the
+    // thing a plan is read by while scrolling out to the dates, meant Name had
+    // to come third rather than fourth. Deliberate reversal, written down in
+    // `openspec/changes/sticky-table-frame/proposal.md`.
     await threeRoots();
 
     const headers = screen.getAllByRole('columnheader').map((th) => th.textContent.trim());
 
-    expect(headers.slice(0, 4)).toEqual(['', 'Number', 'Depends on', 'Name']);
+    expect(headers.slice(0, 4)).toEqual(['', 'Number', 'Name', 'Depends on']);
     // And the schedule stays on the right, where it reads as an outcome of
     // everything to its left rather than as something to fill in.
     // The schedule stays on the right, where it reads as an outcome of
@@ -2481,6 +2489,74 @@ describe('the order of the columns', () => {
       'Notes',
       '',
     ]);
+  });
+});
+
+describe('the frame the table scrolls inside', () => {
+  /**
+   * jsdom lays nothing out, so nothing here can watch a column actually stay
+   * put. What it can watch is every rule that makes it stay put arriving on
+   * the element it has to be on — which is where all three of these went
+   * wrong while this was being written. Whether the result reads well at 1280
+   * pixels is Dany's screen's to say; `verify.md` says so out loud.
+   */
+  itDom('scrolls the table rather than the page', async () => {
+    await threeRoots();
+
+    const frame = screen.getByRole('table').parentElement;
+
+    expect(frame?.dataset['tableFrame']).toBeDefined();
+    // Both axes: `overflow-x: auto` forces the other one to compute to `auto`
+    // regardless, and the bound on the height is what makes this box the
+    // scrollport the heading below sticks to.
+    expect(frame?.style.overflow).toBe('auto');
+    expect(frame?.style.maxHeight).not.toBe('');
+  });
+
+  itDom('keeps the column headings against the top of the frame', async () => {
+    await threeRoots();
+
+    const headers = screen.getAllByRole('columnheader');
+
+    expect(headers.length).toBeGreaterThan(6);
+    for (const header of headers) {
+      expect(header.style.position).toBe('sticky');
+      expect(header.style.top).toBe('0px');
+      // Transparent, the heading would have rows sliding through it.
+      expect(header.style.background).not.toBe('');
+    }
+  });
+
+  itDom('pins the handle, the number and the name, and nothing past them', async () => {
+    await threeRoots();
+
+    const cells = [...rowFor('020').querySelectorAll('td')];
+
+    // Each offset is the sum of the widths in front of it — 28, then 28+168.
+    expect(cells.slice(0, 3).map((td) => [td.style.position, td.style.left])).toEqual([
+      ['sticky', '0px'],
+      ['sticky', '28px'],
+      ['sticky', '196px'],
+    ]);
+    // Opaque, or the row scrolling behind a pinned cell shows through it.
+    for (const pinned of cells.slice(0, 3)) expect(pinned.style.background).not.toBe('');
+    // "Depends on" is the fourth column now, and it scrolls away like the rest.
+    expect(cells[3]?.style.position).toBe('');
+  });
+
+  itDom('pins the same three columns in the heading, over everything else', async () => {
+    await threeRoots();
+
+    const headers = screen.getAllByRole('columnheader');
+
+    // Sticky on both axes at once: scrolled right *and* down, the Number
+    // heading is the one cell that has to stay in its corner.
+    expect(headers[1]?.style.left).toBe('28px');
+    expect(headers[1]?.style.top).toBe('0px');
+    // And it crosses both of the others, so it paints over both.
+    const [pinnedBodyCell] = [...rowFor('020').querySelectorAll('td')].slice(1);
+    expect(Number(headers[1]?.style.zIndex)).toBeGreaterThan(Number(headers[6]?.style.zIndex));
+    expect(Number(headers[1]?.style.zIndex)).toBeGreaterThan(Number(pinnedBodyCell.style.zIndex));
   });
 });
 
