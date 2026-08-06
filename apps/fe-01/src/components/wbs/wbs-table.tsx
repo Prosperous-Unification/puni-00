@@ -404,6 +404,20 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
     [api, flat, run],
   );
 
+  /** Removes a wholly empty row, landing the focus on the row above it. */
+  const removeEmptyRow = useCallback(
+    (row: TreeRow) =>
+      run(async () => {
+        const at = flat.findIndex((w) => w.id === row.id);
+        // A ternary rather than `flat.at(at - 1)`: removing the first row has
+        // no row above, and `.at(-1)` would send the focus to the last one.
+        const above = at > 0 ? flat[at - 1] : undefined;
+        focusNext.current = above?.id ?? null;
+        await api.remove(row.id);
+      }),
+    [api, flat, run],
+  );
+
   const onKeyDown = useCallback(
     (event: React.KeyboardEvent, row: TreeRow) => {
       if (event.key === 'Enter') {
@@ -442,12 +456,31 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
         const input = event.currentTarget;
         if (!(input instanceof HTMLInputElement)) return;
         const caret = caretOf(input);
-        if (!caret.atStart || caret.hasSelection || row.parentId === null) return;
+        if (!caret.atStart || caret.hasSelection) return;
+        if (row.parentId !== null) {
+          event.preventDefault();
+          void outdent(row);
+          return;
+        }
+        // At root level outdenting has nowhere left to go, so this is Dany's
+        // "backspace again": a wholly empty item is removed, the way the last
+        // empty bullet of a list is. The Name is judged by the input rather
+        // than the committed value — deleting every character and pressing
+        // Backspace once more is one gesture, and blur has not happened yet.
+        // Anything the item still holds vetoes the removal: content is only
+        // ever deleted by the Delete button, never by a keystroke reflex.
+        const empty =
+          input.value === '' &&
+          row.notes === '' &&
+          row.subRows.length === 0 &&
+          row.dependsOn.length === 0 &&
+          Object.keys(row.estimates).length === 0;
+        if (!empty) return;
         event.preventDefault();
-        void outdent(row);
+        void removeEmptyRow(row);
       }
     },
-    [addSibling, indent, outdent],
+    [addSibling, indent, outdent, removeEmptyRow],
   );
 
   /**

@@ -318,6 +318,106 @@ describe('the WBS table', () => {
     expect(numbersOnScreen()).toEqual(['010', '010.1']);
   });
 
+  itDom('backspace in an empty root row removes it and puts the focus above', async () => {
+    const api = fakeApi();
+    render(<WbsTable projectId="p1" api={api} />);
+    click('Add work item');
+    await screen.findByLabelText('Name of 010');
+    pressEnter('010');
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '020']);
+    });
+
+    const name = screen.getByLabelText<HTMLInputElement>('Name of 020');
+    name.setSelectionRange(0, 0);
+    fireEvent.keyDown(name, { key: 'Backspace' });
+
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010']);
+    });
+    expect(document.activeElement).toBe(screen.getByLabelText('Name of 010'));
+  });
+
+  itDom('a nested empty row outdents on backspace, and is not removed', async () => {
+    const api = fakeApi();
+    render(<WbsTable projectId="p1" api={api} />);
+    click('Add work item');
+    await screen.findByLabelText('Name of 010');
+    pressEnter('010');
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '020']);
+    });
+    pressTab('020');
+    await screen.findByLabelText('Name of 010.1');
+
+    const removed: unknown[] = [];
+    api.remove = (...args: unknown[]) => {
+      removed.push(args);
+      return Promise.resolve();
+    };
+    const name = screen.getByLabelText<HTMLInputElement>('Name of 010.1');
+    name.setSelectionRange(0, 0);
+    fireEvent.keyDown(name, { key: 'Backspace' });
+
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '020']);
+    });
+    expect(removed).toEqual([]);
+  });
+
+  itDom('anything the item holds vetoes the backspace removal', async () => {
+    const api = fakeApi();
+    render(<WbsTable projectId="p1" api={api} />);
+    click('Add work item');
+    await screen.findByLabelText('Name of 010');
+    // 010 gets its child first, so the numbering of everything after is settled.
+    pressEnter('010');
+    await screen.findByLabelText('Name of 020');
+    pressTab('020');
+    await screen.findByLabelText('Name of 010.1');
+    // Four more root rows: one per remaining kind of content that must veto.
+    for (const upTo of ['020', '030', '040', '050'] as const) {
+      click('Add work item');
+      await screen.findByLabelText(`Name of ${upTo}`);
+    }
+
+    // 030 gets notes, 040 an estimate, 050 a dependency — committed by blur.
+    const notes = screen.getByLabelText<HTMLInputElement>('Notes for 030');
+    fireEvent.change(notes, { target: { value: 'measure twice' } });
+    fireEvent.blur(notes);
+    const estimate = screen.getByLabelText<HTMLInputElement>('Dev optimistic for 040');
+    fireEvent.change(estimate, { target: { value: '3' } });
+    fireEvent.blur(estimate);
+    const depends = screen.getByLabelText<HTMLInputElement>('Add a dependency to 050');
+    fireEvent.change(depends, { target: { value: '010' } });
+    fireEvent.keyDown(depends, { key: 'Enter' });
+    fireEvent.blur(depends);
+    await waitFor(() => {
+      expect(screen.getByLabelText('Notes for 030')).toHaveValue('measure twice');
+    });
+
+    const removed: unknown[] = [];
+    api.remove = (...args: unknown[]) => {
+      removed.push(args);
+      return Promise.resolve();
+    };
+
+    // 020: text typed into the Name and not yet committed is still a name.
+    const named = screen.getByLabelText<HTMLInputElement>('Name of 020');
+    fireEvent.change(named, { target: { value: 'Sand' } });
+    named.setSelectionRange(0, 0);
+    fireEvent.keyDown(named, { key: 'Backspace' });
+
+    for (const number of ['010', '030', '040', '050'] as const) {
+      const name = screen.getByLabelText<HTMLInputElement>(`Name of ${number}`);
+      name.setSelectionRange(0, 0);
+      fireEvent.keyDown(name, { key: 'Backspace' });
+    }
+
+    expect(removed).toEqual([]);
+    expect(numbersOnScreen()).toEqual(['010', '010.1', '020', '030', '040', '050']);
+  });
+
   itDom('tab inside the text walks to the next cell instead of indenting', async () => {
     const api = fakeApi();
     render(<WbsTable projectId="p1" api={api} />);
