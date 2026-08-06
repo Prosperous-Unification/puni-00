@@ -11,6 +11,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ProjectStream } from '@/lib/project-stream';
 import type { Days, ProjectApi, RoleView } from '@/lib/wbs-api';
 
+import { type Caret, type CellGrid, nextCell } from './cell-navigation';
 import { type DropRefusal, type DropZone, planMove, zoneFor } from './drag-drop';
 import { toTree, type TreeRow } from './wbs-rows';
 
@@ -91,6 +92,25 @@ function sameRoles(a: readonly RoleView[], b: readonly RoleView[]): boolean {
   return (
     a.length === b.length && a.every((role, i) => role.id === b[i]?.id && role.name === b[i]?.name)
   );
+}
+
+/** The `data-cell` value for one editable cell, and the selector that finds it. */
+const cellKey = (rowId: string, columnId: string): string => `${rowId}::${columnId}`;
+
+/**
+ * What the caret in an input is doing, for `nextCell` to decide on.
+ *
+ * `selectionStart`/`selectionEnd` are `null` on inputs that do not support them;
+ * treated as "not at either end", which leaves the key to the browser rather
+ * than guessing a jump nobody asked for.
+ */
+function caretOf(input: HTMLInputElement): Caret {
+  const start = input.selectionStart;
+  const end = input.selectionEnd;
+  if (start === null || end === null) {
+    return { atStart: false, atEnd: false, hasSelection: false };
+  }
+  return { atStart: start === 0, atEnd: end === input.value.length, hasSelection: start !== end };
 }
 
 const column = createColumnHelper<TreeRow>();
@@ -323,6 +343,47 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
   );
 
   /**
+   * The rows on screen and the columns worth stopping on, in display order.
+   *
+   * Rows come from the table's own model further down, so a collapsed branch's
+   * children are absent and Down lands on the next row a person can see. The
+   * derived number is not a column here: it cannot be edited, and stopping on it
+   * would be a keypress of nothing on every row.
+   */
+  const grid = useRef<CellGrid>({ rowIds: [], columnIds: [] });
+
+  /**
+   * Moves the focus between cells, or lets the browser have the key.
+   *
+   * The lookup is a query against the table element rather than a map of refs:
+   * a map has to be kept in step with a table that renumbers and reorders on
+   * every edit, and the first entry to go stale is the row that just moved.
+   */
+  const onArrowKey = useCallback(
+    (event: React.KeyboardEvent<HTMLInputElement>, rowId: string, columnId: string) => {
+      const target = nextCell(
+        grid.current,
+        { rowId, columnId },
+        event.key,
+        caretOf(event.currentTarget),
+      );
+      if (target === null) return;
+      const next = event.currentTarget
+        .closest('table')
+        ?.querySelector<HTMLInputElement>(
+          `[data-cell="${cellKey(target.rowId, target.columnId)}"]`,
+        );
+      if (next === null || next === undefined) return;
+      // Only now, and only because the move is happening: an unconditional
+      // `preventDefault` would take the caret keys away from every input.
+      event.preventDefault();
+      next.focus();
+      next.select();
+    },
+    [],
+  );
+
+  /**
    * The callbacks the cells use, read through a ref rather than closed over.
    *
    * `busy` was already kept out of the dependency list below, for the reason
@@ -335,8 +396,8 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
    * effects flush after a re-render, and a handler one render stale would act on
    * the tree that was on screen a moment ago.
    */
-  const live = useRef({ api, projectId, run, onKeyDown, setDragging, setDropHint });
-  live.current = { api, projectId, run, onKeyDown, setDragging, setDropHint };
+  const live = useRef({ api, projectId, run, onKeyDown, onArrowKey, setDragging, setDropHint });
+  live.current = { api, projectId, run, onKeyDown, onArrowKey, setDragging, setDropHint };
 
   const columns = useMemo(
     () => [
@@ -400,6 +461,7 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
           <input
             aria-label={`Name of ${row.original.number}`}
             data-name-input={row.original.id}
+            data-cell={cellKey(row.original.id, 'name')}
             // A callback ref rather than an effect: it fires exactly when this
             // node mounts, so the focus cannot be lost to a later render
             // arriving before the row does. That race is what
@@ -418,6 +480,7 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
             }
             onKeyDown={(e) => {
               live.current.onKeyDown(e, row.original);
+              live.current.onArrowKey(e, row.original.id, 'name');
             }}
           />
         ),
@@ -430,6 +493,10 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
             cell: ({ row }) => (
               <input
                 aria-label={`${role.name} ${point} for ${row.original.number}`}
+                data-cell={cellKey(row.original.id, `${role.id}-${point}`)}
+                onKeyDown={(e) => {
+                  live.current.onArrowKey(e, row.original.id, `${role.id}-${point}`);
+                }}
                 // A parent's figures are sums of what is below it, so the cell is
                 // shown and not editable — greyed rather than blank, because the
                 // number is real and worth reading.
@@ -460,6 +527,10 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
         cell: ({ row }) => (
           <input
             aria-label={`Notes for ${row.original.number}`}
+            data-cell={cellKey(row.original.id, 'notes')}
+            onKeyDown={(e) => {
+              live.current.onArrowKey(e, row.original.id, 'notes');
+            }}
             defaultValue={row.original.notes}
             key={`${row.original.id}-notes-${row.original.notes}`}
             onBlur={(e) =>
@@ -520,6 +591,14 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
     getCoreRowModel: getCoreRowModel(),
     getExpandedRowModel: getExpandedRowModel(),
   });
+
+  // Assigned during render, like `live`, and for the same reason: an arrow key
+  // can fire before effects flush after a re-render, and a grid one render stale
+  // would move focus around the table that was on screen a moment ago.
+  grid.current = {
+    rowIds: table.getRowModel().rows.map((row) => row.original.id),
+    columnIds: ['name', ...roles.flatMap((role) => POINTS.map((p) => `${role.id}-${p}`)), 'notes'],
+  };
 
   return (
     <section>

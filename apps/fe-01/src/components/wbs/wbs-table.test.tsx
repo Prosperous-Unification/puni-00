@@ -669,3 +669,106 @@ describe('a drag interrupted by someone else', () => {
     );
   });
 });
+
+describe('moving between cells with the arrow keys', () => {
+  /** Focuses a cell and puts the caret where a test needs it. */
+  const focusCell = (label: string, caret: 'start' | 'end' | 'middle'): HTMLInputElement => {
+    const input = screen.getByLabelText(label);
+    if (!(input instanceof HTMLInputElement)) throw new Error(`${label} is not an input`);
+    input.focus();
+    const at =
+      caret === 'start'
+        ? 0
+        : caret === 'end'
+          ? input.value.length
+          : Math.floor(input.value.length / 2);
+    input.setSelectionRange(at, at);
+    return input;
+  };
+
+  /** Returns whether the browser would still act on the key. */
+  const press = (input: HTMLInputElement, key: string): boolean =>
+    fireEvent.keyDown(input, { key });
+
+  itDom('moves down a column of estimates', async () => {
+    const api = await threeRoots();
+    expect(api.rows).toHaveLength(3);
+
+    const first = focusCell('Dev optimistic for 010', 'end');
+    press(first, 'ArrowDown');
+
+    expect(document.activeElement).toBe(screen.getByLabelText('Dev optimistic for 020'));
+  });
+
+  itDom('stays put at the bottom of a column', async () => {
+    await threeRoots();
+
+    const last = focusCell('Dev optimistic for 030', 'end');
+    press(last, 'ArrowDown');
+
+    expect(document.activeElement).toBe(last);
+  });
+
+  itDom('moves along a row once the caret has run out', async () => {
+    await threeRoots();
+
+    const name = focusCell('Name of 010', 'end');
+    press(name, 'ArrowRight');
+
+    expect(document.activeElement).toBe(screen.getByLabelText('Dev optimistic for 010'));
+  });
+
+  itDom('leaves the caret alone in the middle of a word', async () => {
+    // The rule that has to be right: hijacking this would make the table
+    // unusable for the thing it is mainly used for. jsdom does not move a caret
+    // for an arrow key, so "the browser still gets it" is asserted through
+    // `defaultPrevented` rather than through where the caret ended up.
+    await threeRoots();
+
+    const name = focusCell('Name of 010', 'middle');
+    const stillTheBrowsers = press(name, 'ArrowRight');
+
+    expect(document.activeElement).toBe(name);
+    expect(stillTheBrowsers).toBe(true);
+  });
+
+  itDom('takes the key only when it is moving the focus', async () => {
+    await threeRoots();
+
+    const first = focusCell('Dev optimistic for 010', 'end');
+    expect(press(first, 'ArrowDown')).toBe(false);
+
+    const last = focusCell('Dev optimistic for 030', 'end');
+    expect(press(last, 'ArrowDown')).toBe(true);
+  });
+
+  itDom('does not stop on the derived number', async () => {
+    await threeRoots();
+
+    const name = focusCell('Name of 010', 'start');
+    press(name, 'ArrowLeft');
+
+    expect(document.activeElement).toBe(name);
+  });
+
+  itDom('skips the children of a collapsed branch', async () => {
+    const api = await threeRoots();
+    withHeight(rowFor('010'), 0, 40);
+    dragOnto('020', '010', 20);
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '010.1', '020']);
+    });
+
+    click('Collapse 010');
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '020']);
+    });
+
+    // `010.1` is off screen; Down has to land on the next row a person can see.
+    const name = focusCell('Name of 010', 'end');
+    press(name, 'ArrowDown');
+
+    expect(document.activeElement).toBe(screen.getByLabelText('Name of 020'));
+    expect(api.rows).toHaveLength(3);
+  });
+});
