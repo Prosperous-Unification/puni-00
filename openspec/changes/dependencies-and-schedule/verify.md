@@ -8,7 +8,7 @@ $ bunx nx format:check --all
 
 $ bunx nx run-many -t test lint typecheck build --parallel=2 --skip-nx-cache
 NX   Successfully ran targets test, lint, typecheck, build for 21 projects
-      bun:test (be-01, gw-01, libs, tools)   662 pass  0 fail
+      bun:test (be-01, gw-01, libs, tools)   656 pass  0 fail
       fe-01 (vitest)                         111 pass  0 fail
 
 $ bunx @fission-ai/openspec@1.3.0 validate --all
