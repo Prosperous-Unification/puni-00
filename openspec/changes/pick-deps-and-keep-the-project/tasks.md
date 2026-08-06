@@ -57,3 +57,47 @@
       real edge with ada's account: create, PATCH the name, list shows it.
       The picker, persistence and rename input are browser behaviours and are
       **not watched** — `verify.md` says so plainly; they need Dany's screen.
+
+## 6. Cross review #6 (codex + agy + a Claude subagent) — all findings fixed
+
+Record: `~/.openclaw/workspace/notes/wbs-cross-review-2026-08-06-picker.md`.
+One critical, five real, one rejected with reason.
+
+- [x] 6.1 **Critical: rename bound to its project.** Failing test first:
+      creating a project mid-rename cancels the draft and no PATCH carries it
+      anywhere. Rename state is `{projectId, draft}`; the commit uses the
+      captured id. **Negative test:** `setRename(null)` removed from
+      `create()` — watched the test fail, restored.
+- [x] 6.2 **Empty and unchanged drafts cancel.** Failing tests first: a
+      whitespace draft and an untouched blur make no request and keep the
+      name. `commitOrCancelRename` trims and compares before sending.
+- [x] 6.3 **Blur commits a changed name** — the proposal's word, and the
+      rename mode's mouse exit. Failing test first.
+- [x] 6.4 **The refusal keeps the draft**, asserted now (the old test passed
+      with a catch that closed the input). Rename and post-success reload
+      fail separately: a list blip is not a failed rename.
+- [x] 6.5 **The current selection is a claim.** Failing test first: a project
+      deleted elsewhere is dropped on the next list load and the one project
+      left is auto-selected. **Negative test:** the membership check removed —
+      watched it fail (the read-back was chosen so the fault cannot hide:
+      'p1', not ''), restored.
+- [x] 6.6 **Blur closes the picker** — a shipped guard no test could see
+      break. Test added; **negative test:** the `onBlur` handler deleted —
+      watched it fail, restored.
+- [x] 6.7 **A mouse press anywhere on the list keeps the focus.** Failing
+      test first for the scrollbar case (the `ul` had no `preventDefault`;
+      jsdom cannot show the blur, so the tests observe the prevention).
+      The `li`'s own `preventDefault` turned out unfalsifiable beside the
+      `ul`'s — bubbling covers it — and was **removed rather than kept**;
+      **negative test:** the `ul` handler deleted fails both mousedown tests.
+- [x] 6.8 **The highlight follows its row.** Failing test first: a peer
+      insert under an open picker used to move an index-based highlight to a
+      row the user never aimed at; it is an entry id now, resolved at render,
+      and Enter takes the row the highlight shows. Also closes the picker on
+      a roles change (the one remount left), scrolls the highlighted entry
+      into view, and drops the invalid `aria-activedescendant`/`aria-controls`
+      values agy found.
+- [x] 6.9 **Rejected, with reason:** codex's render-tear through `live.current`
+      needs React to yield mid-render; nothing in this app triggers that, and
+      the ref-during-render pattern is the file's documented answer to the
+      stale-handler bug. Recorded in the review note, not fixed.

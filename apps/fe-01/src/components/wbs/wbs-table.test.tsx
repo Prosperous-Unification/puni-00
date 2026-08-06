@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, createEvent, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
 import type { Days, ProjectApi, RoleView, WorkItemView } from '@/lib/wbs-api';
@@ -1227,6 +1227,80 @@ describe('picking dependencies from a list', () => {
     expect(screen.getAllByRole('option')).toHaveLength(2);
     fireEvent.keyDown(input, { key: 'Escape' });
     expect(screen.queryAllByRole('option')).toEqual([]);
+  });
+
+  itDom('leaving the cell closes the list', async () => {
+    await threeRoots();
+    const input = depInput('020');
+    fireEvent.focus(input);
+    expect(screen.getAllByRole('option')).toHaveLength(2);
+    fireEvent.blur(input);
+    expect(screen.queryAllByRole('option')).toEqual([]);
+  });
+
+  itDom('pressing the mouse on an option does not steal the focus', async () => {
+    // In a real browser an unprevented mousedown blurs the input, the blur
+    // closes the list, and the click lands on nothing. jsdom fires no blur on
+    // its own, so the observable here is the prevention itself.
+    await threeRoots();
+    fireEvent.focus(depInput('020'));
+    const option = screen.getByRole('option', { name: '010 Strip' });
+    const press = createEvent.mouseDown(option);
+    fireEvent(option, press);
+    expect(press.defaultPrevented).toBe(true);
+  });
+
+  itDom('pressing the mouse on the list itself does not steal the focus either', async () => {
+    // The list scrolls past ~10 entries, and a scrollbar drag is a mousedown
+    // on the ul, not on any option. Unprevented, it blurred the input and the
+    // list unmounted under the pointer — cross review #6.
+    await threeRoots();
+    fireEvent.focus(depInput('020'));
+    const list = screen.getByRole('listbox');
+    const press = createEvent.mouseDown(list);
+    fireEvent(list, press);
+    expect(press.defaultPrevented).toBe(true);
+  });
+
+  itDom('the highlight follows its row when a peer edit reshuffles the list', async () => {
+    const api = fakeApi();
+    const strip = await api.create('p1', { parentId: null, afterId: null, name: 'Strip' });
+    const sand = await api.create('p1', { parentId: null, afterId: strip.id, name: 'Sand' });
+    const paint = await api.create('p1', { parentId: null, afterId: sand.id, name: 'Paint' });
+    let notify: () => void = () => {
+      throw new Error('the table never subscribed');
+    };
+    const subscribe = (_projectId: string, handlers: SubscriptionHandlers) => {
+      notify = handlers.onChange;
+      return { seen: () => undefined, unsubscribe: () => undefined };
+    };
+    render(<WbsTable projectId="p1" api={api} subscribe={subscribe} />);
+    const input = await screen.findByLabelText('Add a dependency to 020');
+
+    // Highlight Paint by hand: Down to Strip, Down again to Paint.
+    fireEvent.focus(input);
+    fireEvent.keyDown(input, { key: 'ArrowDown' });
+    fireEvent.keyDown(input, { key: 'ArrowDown' });
+    expect(input.getAttribute('aria-activedescendant')).toBe(`dep-option-${paint.id}`);
+
+    // A peer inserts a row between Strip and Sand. By index the highlight
+    // would now sit on the newcomer; it must stay on Paint.
+    await api.create('p1', { parentId: null, afterId: strip.id, name: 'Wedge' });
+    notify();
+    await waitFor(() => {
+      expect(screen.getAllByRole('option')).toHaveLength(3);
+    });
+    expect(input.getAttribute('aria-activedescendant')).toBe(`dep-option-${paint.id}`);
+
+    fireEvent.keyDown(input, { key: 'Enter' });
+    // After the insert the rows renumbered: Sand is 030 and Paint 040. The
+    // chip is the read the user gets, and it names the row the highlight was
+    // on — not the one that took its index. (`api.rows` keeps a static
+    // dependsOn; edges only materialize through tree(), so the chip is also
+    // the honest assertion.)
+    await waitFor(() => {
+      expect(screen.getByLabelText('Stop 030 waiting for 040')).toBeDefined();
+    });
   });
 
   itDom('a typed list of numbers still lands as several dependencies', async () => {

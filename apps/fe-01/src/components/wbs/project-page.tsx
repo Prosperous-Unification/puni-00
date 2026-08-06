@@ -46,17 +46,26 @@ export function ProjectPage({ token, api: apiOverride }: ProjectPageProps) {
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  /** The rename input's draft, or null while the picker is showing. */
-  const [renameDraft, setRenameDraft] = useState<string | null>(null);
+  /**
+   * The rename in progress, or null while the picker is showing.
+   *
+   * It carries the id of the project it was opened for, and the commit uses
+   * that id — never the current selection. Cross review #6's one critical
+   * finding, from all three reviewers: with only the draft stored, arming a
+   * rename and then creating a project sent the old draft to the new project.
+   */
+  const [rename, setRename] = useState<{ projectId: string; draft: string } | null>(null);
 
   const load = useCallback(async () => {
     const found = await api.listProjects();
     setProjects(found);
     setSelected((current) => {
-      if (current !== null) return current;
-      // The remembered project first, if it is still there. Then, selecting
-      // the only project saves a click on the common path; with several, the
-      // choice is the user's and nothing is guessed.
+      // The current selection and the remembered id are both claims, honoured
+      // only while the list still contains them — a project deleted elsewhere
+      // must not stay "selected" into a table asking for its tree. Then,
+      // selecting the only project saves a click on the common path; with
+      // several, the choice is the user's and nothing is guessed.
+      if (current !== null && found.some((project) => project.id === current)) return current;
       const remembered = localStorage.getItem(PROJECT_KEY);
       if (remembered !== null && found.some((project) => project.id === remembered)) {
         return remembered;
@@ -72,6 +81,9 @@ export function ProjectPage({ token, api: apiOverride }: ProjectPageProps) {
   }, [load]);
 
   const create = () => {
+    // An armed rename is cancelled, not carried: the draft was meant for the
+    // project it was opened on, and this click is about to select another.
+    setRename(null);
     void api
       .createProject('New project')
       .then(async (project) => {
@@ -84,21 +96,35 @@ export function ProjectPage({ token, api: apiOverride }: ProjectPageProps) {
       });
   };
 
-  const commitRename = (typed: string) => {
-    // Guarded by the render below: the Rename button exists only with a
-    // selection, so a null here is a state this component cannot reach.
-    if (selected === null) return;
+  /**
+   * Commits the rename if it says something, cancels if it does not.
+   *
+   * A draft that trims to nothing or to the name the project already has is a
+   * cancel — a blank name would leave the project unidentifiable in every
+   * picker, and an unchanged one is a request that changes nothing. A refusal
+   * keeps the draft on screen: `forbidden` must not eat what was typed. The
+   * post-success list reload fails separately — by then the rename landed,
+   * and reporting it as a rename failure would be a lie.
+   */
+  const commitOrCancelRename = (armed: { projectId: string; draft: string }) => {
+    const typed = armed.draft.trim();
+    const currentName = projects.find((project) => project.id === armed.projectId)?.name;
+    if (typed === '' || typed === currentName) {
+      setRename(null);
+      return;
+    }
     setError(null);
-    void api
-      .renameProject(selected, typed)
-      .then(async () => {
-        setRenameDraft(null);
-        await load();
-      })
-      .catch((e: unknown) => {
-        // The draft stays: a `forbidden` should not eat what was typed.
+    void api.renameProject(armed.projectId, typed).then(
+      async () => {
+        setRename(null);
+        await load().catch((e: unknown) => {
+          setError(e instanceof Error ? e.message : 'load_failed');
+        });
+      },
+      (e: unknown) => {
         setError(e instanceof Error ? e.message : 'rename_failed');
-      });
+      },
+    );
   };
 
   const selectedProject = projects.find((project) => project.id === selected);
@@ -108,7 +134,7 @@ export function ProjectPage({ token, api: apiOverride }: ProjectPageProps) {
       <h2>Projects</h2>
       {error !== null && <p role="alert">{error}</p>}
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12 }}>
-        {renameDraft === null ? (
+        {rename === null ? (
           <>
             <select
               aria-label="Project"
@@ -130,7 +156,7 @@ export function ProjectPage({ token, api: apiOverride }: ProjectPageProps) {
               <button
                 type="button"
                 onClick={() => {
-                  setRenameDraft(selectedProject.name);
+                  setRename({ projectId: selectedProject.id, draft: selectedProject.name });
                 }}
               >
                 Rename
@@ -140,19 +166,26 @@ export function ProjectPage({ token, api: apiOverride }: ProjectPageProps) {
         ) : (
           <input
             aria-label="Project name"
-            value={renameDraft}
+            value={rename.draft}
             // A callback ref rather than autoFocus: it fires when the node
             // attaches, which is the moment the button it replaces was clicked.
             ref={(element) => element?.focus()}
             onChange={(e) => {
-              setRenameDraft(e.target.value);
+              const draft = e.target.value;
+              setRename((current) => (current === null ? current : { ...current, draft }));
+            }}
+            // Blur commits — the proposal's word — which also gives the rename
+            // a mouse exit: click anywhere else and the mode resolves instead
+            // of sitting open forever.
+            onBlur={() => {
+              commitOrCancelRename(rename);
             }}
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
                 e.preventDefault();
-                commitRename(e.currentTarget.value);
+                commitOrCancelRename(rename);
               }
-              if (e.key === 'Escape') setRenameDraft(null);
+              if (e.key === 'Escape') setRename(null);
             }}
           />
         )}

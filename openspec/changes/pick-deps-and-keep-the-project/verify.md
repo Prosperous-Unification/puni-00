@@ -28,6 +28,32 @@ fail: the select's read-back value was no evidence at all. The test now observes
 the thing the guard prevents — a tree request for a project the list no longer
 has.
 
+## Cross review #6 — the fixes, and the fault that broke each
+
+Gate after the fixes, uncached: **21 projects green, 477 bun + 165 vitest**
+(fe-01 grew nine tests). `openspec validate --all --json`: 11 items, 0 invalid.
+
+| Check                                           | Fault injected                                               | What the run reported                                                                                               |
+| ----------------------------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------- |
+| A rename cannot retarget (`project-page.tsx`)   | `setRename(null)` removed from `create()`                    | only `creating a project mid-rename cancels the draft` failed — the input survived the click; restored, 11 pass     |
+| The selection is a claim (`project-page.tsx`)   | the `found.some(...)` membership check for `current` removed | only `a selected project deleted elsewhere is dropped` failed — the read-back was `''`, not `p1`; restored, 11 pass |
+| Blur closes the picker (`wbs-table.tsx`)        | the dep input's `onBlur` handler deleted                     | only `leaving the cell closes the list` failed — two options still rendered; restored, 62 pass                      |
+| A mouse press keeps the focus (`wbs-table.tsx`) | the `ul`'s `onMouseDown` preventDefault deleted              | **both** mousedown tests failed — option and scrollbar; restored, 62 pass                                           |
+
+Two checks in this round were **born red** rather than fault-injected: the `ul`
+preventDefault (the scrollbar test failed before the handler existed) and the
+id-based highlight (the peer-reshuffle test failed against the index-based
+implementation, `addDependency` receiving the row that took the index).
+
+One check was **removed rather than proved**: the `li`'s own
+`onMouseDown.preventDefault()`. With the `ul` handler in place, bubbling makes
+the `li`'s copy unfalsifiable — deleting it fails nothing — which is the same
+rule that removed `onBlur`'s second condition in the keep-focus change.
+
+And one test corrected itself: the first version of the highlight test asserted
+on `api.rows[...].dependsOn`, which the fake never materializes — it passed for
+the wrong reason before the chip assertion replaced it.
+
 ### The test environment grew a localStorage
 
 Under Bun + vitest + jsdom 24, `window` exists, `window.location.href` is

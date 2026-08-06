@@ -37,8 +37,11 @@ picker and the Depends on column:
 
 - From: no UI. The endpoint exists and nothing calls it.
 - To: a Rename button beside the picker swaps it for a text input; Enter or
-  blur commits, Escape cancels. be-01's `forbidden` on a restricted project is
-  shown, not swallowed.
+  blur commits, Escape cancels, and a draft that trims to nothing — or to the
+  unchanged name — is a cancel, not a request. The rename is bound to the
+  project it was opened for; moving the selection cancels it. be-01's
+  `forbidden` on a restricted project is shown, not swallowed, with the draft
+  kept.
 - Impact: fe-01 plus one `ProjectApi` method over the existing endpoint.
 
 ## Non-Goals

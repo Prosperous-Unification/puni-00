@@ -14,11 +14,18 @@ const itDom = hasDom ? it : it.skip;
  * emptily rather than throwing: selecting a project renders a real WbsTable,
  * and these tests are about the page around it, not the table.
  */
-function fakeProjects(initial: ProjectSummary[]): ProjectApi & { renamed: [string, string][] } {
+function fakeProjects(
+  initial: ProjectSummary[],
+): ProjectApi & { renamed: [string, string][]; drop: (id: string) => void } {
   let projects = [...initial];
   const renamed: [string, string][] = [];
   return {
     renamed,
+    // A deletion that happened somewhere else: the next listProjects simply
+    // no longer has the project.
+    drop(id) {
+      projects = projects.filter((p) => p.id !== id);
+    },
     listProjects: () => Promise.resolve([...projects]),
     createProject(name) {
       const project = { id: `p${String(projects.length + 1)}`, name, restricted: false };
@@ -157,6 +164,98 @@ describe('renaming a project', () => {
     await waitFor(() => {
       expect(screen.getByRole('alert').textContent).toContain('forbidden');
     });
+    // The draft survives the refusal — a `forbidden` must not eat what was
+    // typed. Without this the test passed with a catch that closed the input.
+    expect(screen.getByLabelText<HTMLInputElement>('Project name').value).toBe('Not allowed');
     expect(screen.getByText('Paint the fence')).toBeDefined();
+  });
+
+  itDom('creating a project mid-rename cancels the draft instead of retargeting it', async () => {
+    const api = fakeProjects(TWO);
+    pageWith(api);
+    await selectProject('p2');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Rename' }));
+    fireEvent.change(screen.getByLabelText('Project name'), {
+      target: { value: 'Meant for p2' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'New project' }));
+
+    // The draft is gone, nothing was renamed, and the new project keeps the
+    // name it was created with.
+    await waitFor(() => {
+      expect(screen.queryByLabelText('Project name')).toBeNull();
+    });
+    expect(api.renamed).toEqual([]);
+    await waitFor(() => {
+      expect(within(picker()).getByText('New project')).toBeDefined();
+    });
+  });
+
+  itDom('commits on blur when the name changed', async () => {
+    const api = fakeProjects(TWO);
+    pageWith(api);
+    await selectProject('p2');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Rename' }));
+    const name = screen.getByLabelText<HTMLInputElement>('Project name');
+    fireEvent.change(name, { target: { value: 'Stain the fence' } });
+    fireEvent.blur(name);
+
+    await waitFor(() => {
+      expect(within(picker()).getByText('Stain the fence')).toBeDefined();
+    });
+    expect(api.renamed).toEqual([['p2', 'Stain the fence']]);
+  });
+
+  itDom('a blur that changed nothing cancels without a request', async () => {
+    const api = fakeProjects(TWO);
+    pageWith(api);
+    await selectProject('p2');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Rename' }));
+    fireEvent.blur(screen.getByLabelText('Project name'));
+
+    expect(api.renamed).toEqual([]);
+    expect(screen.queryByLabelText('Project name')).toBeNull();
+    expect(within(picker()).getByText('Paint the fence')).toBeDefined();
+  });
+
+  itDom('an emptied draft cancels rather than blanking the name', async () => {
+    const api = fakeProjects(TWO);
+    pageWith(api);
+    await selectProject('p2');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Rename' }));
+    const name = screen.getByLabelText<HTMLInputElement>('Project name');
+    fireEvent.change(name, { target: { value: '   ' } });
+    fireEvent.keyDown(name, { key: 'Enter' });
+
+    expect(api.renamed).toEqual([]);
+    expect(screen.queryByLabelText('Project name')).toBeNull();
+    expect(within(picker()).getByText('Paint the fence')).toBeDefined();
+  });
+});
+
+describe('the selection is a claim too', () => {
+  itDom('a selected project deleted elsewhere is dropped on the next list load', async () => {
+    const api = fakeProjects(TWO);
+    pageWith(api);
+    await selectProject('p2');
+
+    // p2 vanishes behind our back; the next load is triggered by a rename
+    // commit, which is one of the two paths that refetch the list.
+    api.drop('p2');
+    fireEvent.click(screen.getByRole('button', { name: 'Rename' }));
+    const name = screen.getByLabelText<HTMLInputElement>('Project name');
+    fireEvent.change(name, { target: { value: 'Too late' } });
+    fireEvent.keyDown(name, { key: 'Enter' });
+
+    // The one project left is auto-selected — the read-back is 'p1', which a
+    // held-forever 'p2' cannot produce (it would read back '').
+    await waitFor(() => {
+      expect(picker().value).toBe('p1');
+    });
+    expect(screen.getByRole('button', { name: 'Rename' })).toBeDefined();
   });
 });

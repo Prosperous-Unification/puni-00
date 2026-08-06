@@ -33,6 +33,24 @@ itself and its existing predecessors SHALL NOT be offered.
 - **WHEN** `010, 030` is typed into the cell and Enter pressed
 - **THEN** both dependencies are added, exactly as the typed flow always did
 
+#### Scenario: leaving the cell closes the list
+
+- **WHEN** the Depends on cell loses focus
+- **THEN** no entries are offered until it is focused again
+
+#### Scenario: a mouse press on the list does not close it
+
+- **WHEN** the mouse is pressed anywhere on the open list — an entry or the
+  scrollbar of a list taller than its box
+- **THEN** the cell keeps the focus and the list stays open
+
+#### Scenario: the highlight follows its row
+
+- **WHEN** an entry is highlighted and another client's edit adds, removes or
+  reorders entries in the open list
+- **THEN** the highlight stays on the same work item — or on nothing, if that
+  work item left the list — and Enter adds only the highlighted work item
+
 ### Requirement: The chosen project survives a refresh
 
 fe-01 SHALL remember the selected project in this browser and select it again
@@ -51,22 +69,48 @@ the list no longer has SHALL be ignored without an error.
 
 ### Requirement: A project can be renamed from the UI
 
-fe-01 SHALL let the user rename the selected project through be-01's existing
-`PATCH /api/projects/:id`. The new name SHALL show in the picker without a
-manual reload. A refusal from be-01 — `forbidden` on a restricted project —
-SHALL be shown to the user.
+fe-01 SHALL let the user rename a project through be-01's existing
+`PATCH /api/projects/:id`. The rename SHALL be bound to the project it was
+opened for, never to whatever is selected when it commits. Enter or leaving
+the input commits; Escape cancels; a draft that trims to nothing or to the
+unchanged name cancels without a request. The new name SHALL show in the
+picker without a manual reload. A refusal from be-01 — `forbidden` on a
+restricted project — SHALL be shown with the typed draft kept.
 
 #### Scenario: renaming the selected project
 
-- **WHEN** Rename is pressed, a new name typed, and Enter pressed
+- **WHEN** Rename is pressed, a new name typed, and Enter pressed or the input
+  left
 - **THEN** the picker shows the new name and the project stays selected
 
 #### Scenario: cancelling a rename
 
-- **WHEN** Rename is pressed and Escape pressed
+- **WHEN** Rename is pressed and Escape pressed, or the input is left with the
+  name unchanged
 - **THEN** no request is made and the name is unchanged
+
+#### Scenario: an emptied draft is a cancel
+
+- **WHEN** the draft is emptied — or reduced to whitespace — and committed
+- **THEN** no request is made; the project keeps its name
+
+#### Scenario: the selection moves while a rename is armed
+
+- **WHEN** a rename is open and a new project is created
+- **THEN** the draft is cancelled and no project receives it
 
 #### Scenario: be-01 refuses
 
 - **WHEN** the rename request returns `forbidden`
-- **THEN** that reason is shown and the old name remains
+- **THEN** that reason is shown, the old name remains, and the draft is still
+  in the input
+
+### Requirement: The selection is honoured only while it exists
+
+fe-01 SHALL drop a selected project from the selection when a list reload no
+longer contains it, exactly as it treats the remembered id.
+
+#### Scenario: the selected project is deleted elsewhere
+
+- **WHEN** the selected project is absent from a reloaded project list
+- **THEN** it is no longer selected and no request is made for its tree

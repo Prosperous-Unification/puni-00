@@ -154,17 +154,20 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
   const [dropHint, setDropHint] = useState<{ rowId: string; zone: DropZone } | null>(null);
   /**
    * The Depends on picker: which row's cell it is open under, what has been
-   * typed into it, and which entry the arrows have highlighted.
+   * typed into it, and which entry is highlighted — by the entry's id, never
+   * an index. A peer edit can reshuffle the list under an open picker, and an
+   * index would silently move the highlight to a row the user never aimed at;
+   * an id follows its row, or disappears with it (cross review #6).
    *
-   * `highlight: null` means nothing is highlighted, and it matters at Enter:
-   * an empty cell whose list happens to be showing must not add the first
-   * entry on a stray Enter. Typing sets it to `0` — the narrowed-to entry is
-   * what the typing was for — and the arrows move it.
+   * `highlightId: null` means nothing is highlighted, and it matters at
+   * Enter: an empty cell whose list happens to be showing must not add the
+   * first entry on a stray Enter. Typing highlights the narrowed-to entry —
+   * that is what the typing was for — and the arrows move it.
    */
   const [depPicker, setDepPicker] = useState<{
     rowId: string;
     typed: string;
-    highlight: number | null;
+    highlightId: string | null;
   } | null>(null);
   const focusNext = useRef<string | null>(null);
 
@@ -542,23 +545,37 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
   const pickDependency = useCallback(
     (successorId: string, predecessorId: string) => {
       setDepPicker((current) =>
-        current === null ? null : { ...current, typed: '', highlight: null },
+        current === null ? null : { ...current, typed: '', highlightId: null },
       );
       void run(() => api.addDependency(successorId, predecessorId));
     },
     [api, run],
   );
 
-  /** Moves the picker highlight by `delta`, clamped to the list. */
-  const moveDepHighlight = useCallback((rowId: string, delta: 1 | -1, count: number) => {
-    if (count === 0) return;
-    setDepPicker((current) => {
-      if (current?.rowId !== rowId) return current;
-      // From nothing highlighted, Down enters at the top and Up at the bottom.
-      const from = current.highlight ?? (delta === 1 ? -1 : count);
-      return { ...current, highlight: Math.min(count - 1, Math.max(0, from + delta)) };
-    });
-  }, []);
+  /** Moves the picker highlight by `delta` over `entryIds`, clamped. */
+  const moveDepHighlight = useCallback(
+    (rowId: string, delta: 1 | -1, entryIds: readonly string[]) => {
+      if (entryIds.length === 0) return;
+      setDepPicker((current) => {
+        if (current?.rowId !== rowId) return current;
+        const at = current.highlightId === null ? -1 : entryIds.indexOf(current.highlightId);
+        // From nothing highlighted — or a highlight whose row left the list —
+        // Down enters at the top and Up at the bottom.
+        const from = at === -1 ? (delta === 1 ? -1 : entryIds.length) : at;
+        const to = Math.min(entryIds.length - 1, Math.max(0, from + delta));
+        return { ...current, highlightId: entryIds[to] ?? null };
+      });
+    },
+    [],
+  );
+
+  // A roles change rebuilds the column definitions and remounts every cell —
+  // the one remount this table still allows itself. React fires no blur on an
+  // unmounted input, so an open picker would stay open under a fresh, unfocused
+  // cell with no keyboard attached to it. Closed instead.
+  useEffect(() => {
+    setDepPicker(null);
+  }, [roles]);
 
   /**
    * Whether the numbers in the schedule columns mean anything.
@@ -677,10 +694,13 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
             live.current.depPicker?.rowId === row.original.id ? live.current.depPicker : null;
           const entries =
             picker === null ? [] : live.current.depEntriesFor(row.original, picker.typed);
-          // Clamped here rather than stored clamped: a pick shrinks the list
-          // under a highlight that was valid when the arrow moved it.
-          const highlight =
-            picker?.highlight == null ? null : Math.min(picker.highlight, entries.length - 1);
+          // Resolved by id at render, so a highlight whose row has left the
+          // list is simply nothing rather than somebody else's row.
+          const activeOption =
+            picker?.highlightId == null
+              ? undefined
+              : entries.find((entry) => entry.id === picker.highlightId);
+          const open = picker !== null && entries.length > 0;
           return (
             <span style={{ whiteSpace: 'nowrap', position: 'relative', display: 'inline-block' }}>
               {numbers.map(({ id, number }) => (
@@ -701,10 +721,10 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
               <input
                 aria-label={`Add a dependency to ${row.original.number}`}
                 role="combobox"
-                aria-expanded={picker !== null && entries.length > 0}
-                aria-controls={`dep-options-${row.original.id}`}
+                aria-expanded={open}
+                aria-controls={open ? `dep-options-${row.original.id}` : undefined}
                 aria-activedescendant={
-                  highlight === null ? undefined : `dep-option-${entries[highlight]?.id ?? ''}`
+                  activeOption === undefined ? undefined : `dep-option-${activeOption.id}`
                 }
                 aria-autocomplete="list"
                 placeholder="search, or 010, 020"
@@ -716,7 +736,7 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
                   live.current.setDepPicker({
                     rowId: row.original.id,
                     typed: '',
-                    highlight: null,
+                    highlightId: null,
                   });
                 }}
                 onBlur={() => {
@@ -726,12 +746,16 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
                 }}
                 onChange={(e) => {
                   const typed = e.currentTarget.value;
+                  // Typing is aiming at the narrowed-to entry; emptying the
+                  // cell aims at nothing again.
+                  const first =
+                    typed.trim() === ''
+                      ? undefined
+                      : live.current.depEntriesFor(row.original, typed)[0];
                   live.current.setDepPicker({
                     rowId: row.original.id,
                     typed,
-                    // Typing is aiming at the narrowed-to entry; emptying the
-                    // cell aims at nothing again.
-                    highlight: typed.trim() === '' ? null : 0,
+                    highlightId: first?.id ?? null,
                   });
                 }}
                 onKeyDown={(e) => {
@@ -740,7 +764,7 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
                     live.current.moveDepHighlight(
                       row.original.id,
                       e.key === 'ArrowDown' ? 1 : -1,
-                      entries.length,
+                      entries.map((entry) => entry.id),
                     );
                     return;
                   }
@@ -750,9 +774,8 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
                   }
                   if (e.key !== 'Enter') return;
                   e.preventDefault();
-                  const chosen = highlight === null ? undefined : entries[highlight];
-                  if (chosen !== undefined) {
-                    live.current.pickDependency(row.original.id, chosen.id);
+                  if (activeOption !== undefined) {
+                    live.current.pickDependency(row.original.id, activeOption.id);
                     return;
                   }
                   // No highlight to take — the typed flow: one number or a
@@ -761,7 +784,7 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
                   if (typed.trim() === '') return;
                   live.current.dependOn(row.original.id, typed);
                   live.current.setDepPicker((current) =>
-                    current === null ? null : { ...current, typed: '', highlight: null },
+                    current === null ? null : { ...current, typed: '', highlightId: null },
                   );
                 }}
               />
@@ -770,6 +793,15 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
                   role="listbox"
                   id={`dep-options-${row.original.id}`}
                   aria-label={`Work items ${row.original.number} can depend on`}
+                  // One preventDefault for the whole list — options included,
+                  // by bubbling. A mousedown anywhere here must not take the
+                  // input's focus: on an option, blur would close the list
+                  // before the click could pick; on the scrollbar, the list
+                  // unmounted under the pointer and everything past the fold
+                  // was unpickable by mouse (cross review #6).
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                  }}
                   style={{
                     position: 'absolute',
                     top: '100%',
@@ -785,7 +817,7 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
                     minWidth: '100%',
                   }}
                 >
-                  {entries.map((entry, i) => (
+                  {entries.map((entry) => (
                     // The ARIA combobox pattern is the boundary that makes this
                     // safe: options are not focusable, and the keyboard drives
                     // them from the input above through aria-activedescendant
@@ -795,18 +827,25 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
                       key={entry.id}
                       id={`dep-option-${entry.id}`}
                       role="option"
-                      aria-selected={i === highlight}
+                      aria-selected={entry.id === activeOption?.id}
+                      // The list scrolls; the highlighted entry must be where
+                      // the eye is. jsdom has no scrollIntoView, hence the
+                      // typeof — that boundary is the test environment, not a
+                      // browser this will meet.
+                      ref={(element) => {
+                        if (
+                          entry.id === activeOption?.id &&
+                          element !== null &&
+                          typeof element.scrollIntoView === 'function'
+                        ) {
+                          element.scrollIntoView({ block: 'nearest' });
+                        }
+                      }}
                       style={{
                         padding: '2px 6px',
                         cursor: 'pointer',
                         whiteSpace: 'nowrap',
-                        background: i === highlight ? '#e8f0fe' : undefined,
-                      }}
-                      // Prevented so the click that follows lands on an input
-                      // that still has focus — a blur here closes the list
-                      // before the click can pick from it.
-                      onMouseDown={(e) => {
-                        e.preventDefault();
+                        background: entry.id === activeOption?.id ? '#e8f0fe' : undefined,
                       }}
                       onClick={() => {
                         live.current.pickDependency(row.original.id, entry.id);
