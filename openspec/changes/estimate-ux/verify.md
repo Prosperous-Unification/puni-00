@@ -51,3 +51,19 @@ The pixels: the red fields, the narrower boxes, the two new columns and the
 "Plan with" selector. jsdom asserts `aria-invalid`, the titles and the rendered
 figures; nobody on this box has seen them. Standing browser gap — needs Dany's
 screen at <https://dev.wbs.bulletpoints.club>.
+
+## Observed on dev, against the real database
+
+Deployed at `3b83cac`; the column migration applied on the restart.
+
+```
+$ GET  .../work-items                  estimateMethod pert; 010 total 2.5, finish 2.5; 020 total 9.33, finish 11.83
+$ PATCH .../projects/<id> pessimistic  200
+$ GET  .../work-items                  method pessimistic; 010 total 10, finish 10; 020 total 11, finish 21
+$ PATCH .../projects/<id> median       422
+```
+
+The middle pair is the claim that matters: the printed figure and the date
+moved **together**, from one method change, against a real project with real
+estimates. A second implementation of the final estimate would have moved one
+and not the other.
