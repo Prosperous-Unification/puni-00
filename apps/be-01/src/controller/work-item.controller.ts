@@ -295,6 +295,24 @@ export function workItemController(auth: AuthService, workItems: WorkItemService
       }
       return { estimated: true };
     })
+    .delete('/work-items/:id/estimates/:roleId', async ({ params, headers, set }) => {
+      // Guarded exactly as the PUT above, and for the same reason: taking a
+      // trio away changes the plan as much as writing one does. Clearing an
+      // estimate that is not stored answers 200 rather than 404 — the
+      // estimate is what the request addresses, and its absence is the
+      // outcome asked for. A missing work item is still 404.
+      const user = await userFromHeaders(auth, headers);
+      if (user === null) {
+        set.status = 401;
+        return { error: 'unauthenticated' };
+      }
+      const outcome = await workItems.clearEstimate(params.id, user.id, params.roleId);
+      if (!outcome.ok) {
+        set.status = statusFor(outcome.reason);
+        return { error: outcome.reason };
+      }
+      return { cleared: true };
+    })
     .delete('/work-items/:id', async ({ params, request, headers, set }) => {
       const user = await userFromHeaders(auth, headers);
       if (user === null) {

@@ -69,6 +69,21 @@ export function trioProblem(typed: TypedTrio): TrioProblem | null {
 }
 
 /**
+ * Whether every box of a trio now reads empty.
+ *
+ * The one thing {@link sendableTrio} returning null does not tell its caller.
+ * "Nothing to send" covers three different situations — never typed, half
+ * typed, typed wrongly — and exactly one of them is a person taking an
+ * estimate back off. Emptying all three boxes of a stored trio is the gesture
+ * that clears it; emptying one or two is still a half-filled trio and still a
+ * complaint, because guessing that two blanks mean "delete it" would be the
+ * same assumption as repairing a trio nobody finished.
+ */
+export function isTrioEmpty(typed: TypedTrio): boolean {
+  return POINTS.every((point) => typed[point].trim() === '');
+}
+
+/**
  * The trio to send, or null when there is nothing to send.
  *
  * Null covers both "nothing typed yet" and "typed but wrong": neither is a
@@ -77,7 +92,7 @@ export function trioProblem(typed: TypedTrio): TrioProblem | null {
  */
 export function sendableTrio(typed: TypedTrio): Days | null {
   if (trioProblem(typed) !== null) return null;
-  if (POINTS.every((point) => typed[point].trim() === '')) return null;
+  if (isTrioEmpty(typed)) return null;
   return {
     optimistic: Number(typed.optimistic),
     realistic: Number(typed.realistic),

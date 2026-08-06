@@ -186,6 +186,14 @@ export interface ProjectApi {
   move(id: string, parentId: string | null, afterId: string | null): Promise<void>;
   remove(id: string, options?: DeleteOptions): Promise<void>;
   setEstimate(id: string, roleId: string, days: Days): Promise<void>;
+  /**
+   * Takes one work item's stored trio for one role back off.
+   *
+   * Idempotent at be-01, which is what lets the table call it from a gesture —
+   * emptying three boxes — rather than from a button that has to know whether
+   * there is anything there to remove.
+   */
+  clearEstimate(id: string, roleId: string): Promise<void>;
   freeze(projectId: string): Promise<void>;
   unfreezeProject(projectId: string): Promise<void>;
   unfreeze(id: string): Promise<void>;
@@ -314,6 +322,9 @@ export function httpProjectApi(token: string): ProjectApi {
         method: 'PUT',
         body: JSON.stringify(days),
       });
+    },
+    async clearEstimate(id, roleId) {
+      await send(`/api/work-items/${id}/estimates/${roleId}`, token, { method: 'DELETE' });
     },
     async freeze(projectId) {
       await send(`/api/projects/${projectId}/freeze`, token, { method: 'POST' });

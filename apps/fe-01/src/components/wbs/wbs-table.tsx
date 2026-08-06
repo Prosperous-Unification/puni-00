@@ -24,7 +24,14 @@ import { CreatablePicker } from './creatable-picker';
 import { pickerEntries } from './dep-picker';
 import { parseDependencies, unknownMessage } from './depends-input';
 import { type DropRefusal, type DropZone, planMove, zoneFor } from './drag-drop';
-import { type Point, POINTS, sendableTrio, trioProblem, type TypedTrio } from './estimate-draft';
+import {
+  isTrioEmpty,
+  type Point,
+  POINTS,
+  sendableTrio,
+  trioProblem,
+  type TypedTrio,
+} from './estimate-draft';
 import { NotesPreview } from './notes-preview';
 import { toTree, type TreeRow } from './wbs-rows';
 
@@ -771,32 +778,58 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
   );
 
   /**
-   * Takes a typed estimate box: holds it as a draft, and sends the trio if the
-   * trio can now stand on its own.
+   * Forgets the three drafts of one row-and-role, once be-01 has the answer.
    *
-   * Nothing is repaired and nothing is sent until all three read sensibly —
-   * that is the whole of Dany's "never edit estimates". The drafts for the
-   * trio are cleared only once be-01 has the figures, so a refused request
-   * leaves what was typed on screen to be corrected rather than swallowed.
+   * Rebuilt without those keys rather than deleted from a copy: `delete` on a
+   * computed key is banned here, and filtering says the same thing without
+   * reaching into the object twice.
+   */
+  const forgetTrioDrafts = useCallback((rowId: string, roleId: string) => {
+    const gone = new Set(POINTS.map((point) => draftKey(rowId, roleId, point)));
+    setDrafts((current) =>
+      Object.fromEntries(Object.entries(current).filter(([key]) => !gone.has(key))),
+    );
+  }, []);
+
+  /**
+   * Takes a typed estimate box: holds it as a draft, and either sends the trio
+   * once it can stand on its own or clears the stored one it just emptied.
+   *
+   * Nothing is repaired and nothing partial is sent — that is the whole of
+   * Dany's "never edit estimates", and emptying boxes does not weaken it. A
+   * deletion is only all three boxes reading empty against a trio be-01
+   * actually holds; one or two empty boxes is a half-filled trio and stays a
+   * complaint. The drafts for the trio are dropped only once be-01 has
+   * accepted the write, so a refused request leaves what was typed on screen
+   * to be corrected rather than swallowed.
+   *
+   * Proof: making the clear fire on `!== null` drafts instead of an empty trio
+   * — i.e. on one emptied box — fails `does not clear when only two of the
+   * three boxes are emptied` in `wbs-table.test.tsx`; watched, 2026-08-06.
    */
   const commitEstimate = useCallback(
     (row: TreeRow, roleId: string, point: Point, typed: string) => {
       const next = { ...typedTrio(row, roleId), [point]: typed };
       setDrafts((current) => ({ ...current, [draftKey(row.id, roleId, point)]: typed }));
       const days = sendableTrio(next);
-      if (days === null) return;
+      if (days === null) {
+        // `hasOwn` rather than a truthiness test: what matters is whether
+        // be-01 holds a trio for this row and role at all, and a stored
+        // `0 / 0 / 0` is one.
+        if (isTrioEmpty(next) && Object.hasOwn(row.estimates, roleId)) {
+          void run(async () => {
+            await api.clearEstimate(row.id, roleId);
+            forgetTrioDrafts(row.id, roleId);
+          });
+        }
+        return;
+      }
       void run(async () => {
         await api.setEstimate(row.id, roleId, days);
-        // Rebuilt without this trio's keys rather than deleted from a copy:
-        // `delete` on a computed key is banned here, and filtering says the
-        // same thing without reaching into the object twice.
-        const gone = new Set(POINTS.map((each) => draftKey(row.id, roleId, each)));
-        setDrafts((current) =>
-          Object.fromEntries(Object.entries(current).filter(([key]) => !gone.has(key))),
-        );
+        forgetTrioDrafts(row.id, roleId);
       });
     },
-    [api, run, typedTrio],
+    [api, forgetTrioDrafts, run, typedTrio],
   );
 
   /**

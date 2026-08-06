@@ -16,6 +16,10 @@ export function inMemoryEstimates(workItems: WorkItemStore): EstimateStore {
       rows.push(toSet);
       return Promise.resolve();
     },
+    remove(workItemId, roleId) {
+      rows = rows.filter((row) => !(row.workItemId === workItemId && row.roleId === roleId));
+      return Promise.resolve();
+    },
     moveAll(fromWorkItemId, toWorkItemId) {
       rows = rows.map((row) =>
         row.workItemId === fromWorkItemId ? { ...row, workItemId: toWorkItemId } : row,

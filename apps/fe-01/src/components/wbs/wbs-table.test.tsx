@@ -233,6 +233,17 @@ function fakeApi(): ProjectApi & { rows: WorkItemView[] } {
       if (row !== undefined) row.estimates[roleId] = days;
       return Promise.resolve();
     },
+    clearEstimate(id, roleId) {
+      const row = rows.find((r) => r.id === id);
+      // Rebuilt without the role rather than `delete`d on a computed key, the
+      // same way the table drops a trio's drafts.
+      if (row !== undefined) {
+        row.estimates = Object.fromEntries(
+          Object.entries(row.estimates).filter(([key]) => key !== roleId),
+        );
+      }
+      return Promise.resolve();
+    },
     freeze() {
       for (const row of rows) row.frozenNumber ??= row.number;
       return Promise.resolve();
@@ -1329,6 +1340,86 @@ describe('estimates are never edited for you', () => {
     });
   });
 
+  /** Records every clear the table asks for, and still performs it. */
+  const watchClears = (api: ProjectApi): [string, string][] => {
+    const cleared: [string, string][] = [];
+    const perform = api.clearEstimate.bind(api);
+    api.clearEstimate = (id: string, roleId: string) => {
+      cleared.push([id, roleId]);
+      return perform(id, roleId);
+    };
+    return cleared;
+  };
+
+  /** Types a stored `2 / 3 / 10` for Dev on `010` and waits for be-01 to hold it. */
+  async function estimated() {
+    const api = await oneRow();
+    typeEstimate('010', 'optimistic', '2');
+    typeEstimate('010', 'realistic', '3');
+    typeEstimate('010', 'pessimistic', '10');
+    await waitFor(() => {
+      expect(api.rows[0]?.estimates['role-dev']).toBeDefined();
+    });
+    return api;
+  }
+
+  itDom('clears the stored trio when all three boxes are emptied', async () => {
+    // Until now a trio could be overwritten but never taken back off. Emptying
+    // the three boxes is the only gesture that says "this row does not need
+    // this role", and it used to save nothing at all.
+    const api = await estimated();
+    const cleared = watchClears(api);
+
+    typeEstimate('010', 'optimistic', '');
+    typeEstimate('010', 'realistic', '');
+    typeEstimate('010', 'pessimistic', '');
+
+    await waitFor(() => {
+      expect(cleared).toEqual([['w1', 'role-dev']]);
+    });
+    await waitFor(() => {
+      expect(api.rows[0]?.estimates['role-dev']).toBeUndefined();
+    });
+    // The drafts went with it, so the boxes read from the tree again rather
+    // than from three empty strings the table is still holding.
+    expect(estimateCell('010', 'optimistic').value).toBe('');
+    expect(estimateCell('010', 'optimistic')).toHaveAttribute('aria-invalid', 'false');
+  });
+
+  itDom('does not clear when only two of the three boxes are emptied', async () => {
+    // The half-emptied trio stays exactly what it was before: a complaint. A
+    // clear here would be the tool deciding that two blanks mean "delete it",
+    // which is the same class of assumption as repairing a trio.
+    const api = await estimated();
+    const cleared = watchClears(api);
+
+    typeEstimate('010', 'optimistic', '');
+    typeEstimate('010', 'realistic', '');
+
+    expect(cleared).toEqual([]);
+    expect(api.rows[0]?.estimates['role-dev']).toEqual({
+      optimistic: 2,
+      realistic: 3,
+      pessimistic: 10,
+    });
+    expect(estimateCell('010', 'optimistic')).toHaveAttribute('aria-invalid', 'true');
+    expect(estimateCell('010', 'realistic')).toHaveAttribute('aria-invalid', 'true');
+    expect(estimateCell('010', 'realistic').title).toContain('not saved');
+    expect(estimateCell('010', 'pessimistic').value).toBe('10');
+  });
+
+  itDom('asks for nothing when three empty boxes were already empty', async () => {
+    // A row nobody estimated is the ordinary state. Tabbing through its boxes
+    // must not post a deletion for every role on every row it passes.
+    const api = await oneRow();
+    const cleared = watchClears(api);
+
+    typeEstimate('010', 'optimistic', '');
+    typeEstimate('010', 'pessimistic', '');
+
+    expect(cleared).toEqual([]);
+  });
+
   itDom('shows the final figure be-01 computed, per role and in total', async () => {
     const api = await oneRow();
 
@@ -2318,6 +2409,7 @@ describe('dependencies in the table — cross-review findings', () => {
     move: () => Promise.resolve(),
     remove: () => Promise.resolve(),
     setEstimate: () => Promise.resolve(),
+    clearEstimate: () => Promise.resolve(),
     freeze: () => Promise.resolve(),
     unfreezeProject: () => Promise.resolve(),
     unfreeze: () => Promise.resolve(),

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { sendableTrio, trioProblem, type TypedTrio } from './estimate-draft';
+import { isTrioEmpty, sendableTrio, trioProblem, type TypedTrio } from './estimate-draft';
 
 const trio = (optimistic: string, realistic: string, pessimistic: string): TypedTrio => ({
   optimistic,
@@ -63,5 +63,22 @@ describe('sendableTrio', () => {
     expect(sendableTrio(trio('5', '0', '0'))).toBeNull();
     expect(sendableTrio(trio('5', '', ''))).toBeNull();
     expect(sendableTrio(trio('5', '3', '10'))).toBeNull();
+  });
+});
+
+describe('isTrioEmpty', () => {
+  it('is true only when every box reads empty', () => {
+    expect(isTrioEmpty(trio('', '', ''))).toBe(true);
+    // Whitespace is what a person leaves behind when they select-all and type
+    // a space, and it is not a number of days either.
+    expect(isTrioEmpty(trio('  ', '', '\t'))).toBe(true);
+  });
+
+  it('is false while any box still holds something', () => {
+    // The distinction the table turns a deletion on. `5 / _ / _` is a
+    // half-typed trio and must stay a complaint, not become a clear.
+    expect(isTrioEmpty(trio('5', '', ''))).toBe(false);
+    expect(isTrioEmpty(trio('', '', '0'))).toBe(false);
+    expect(isTrioEmpty(trio('1', '2', '3'))).toBe(false);
   });
 });

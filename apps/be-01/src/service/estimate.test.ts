@@ -162,3 +162,59 @@ describe('roll-up through the tree', () => {
     expect((await shown()).get('Strip')?.[QA]).toBeUndefined();
   });
 });
+
+describe('clearing estimates', () => {
+  it('takes the trio away and leaves the other role alone', async () => {
+    const strip = await add('Strip');
+    await service.setEstimate(strip, OWNER, DEV, days(1, 2, 3));
+    await service.setEstimate(strip, OWNER, QA, days(4, 5, 6));
+
+    const outcome = await service.clearEstimate(strip, OWNER, DEV);
+
+    expect(outcome).toEqual({ ok: true, result: null });
+    expect((await shown()).get('Strip')).toEqual({ [QA]: days(4, 5, 6) });
+  });
+
+  it('is a success when there was nothing to clear', async () => {
+    // The state asked for is the state left. Two browsers emptying the same
+    // three boxes must not turn the second one into an error on screen.
+    const strip = await add('Strip');
+
+    expect(await service.clearEstimate(strip, OWNER, DEV)).toEqual({ ok: true, result: null });
+  });
+
+  it('refuses a stranger on a restricted project, and clears nothing', async () => {
+    const strip = await add('Strip');
+    await service.setEstimate(strip, OWNER, DEV, days(1, 2, 3));
+    await projects.update(projectId, { restricted: true });
+
+    const outcome = await service.clearEstimate(strip, 'not-the-owner', DEV);
+
+    expect(outcome).toEqual({ ok: false, reason: 'forbidden' });
+    expect((await shown()).get('Strip')?.[DEV]).toEqual(days(1, 2, 3));
+  });
+
+  it('refuses a work item that is not there', async () => {
+    expect(await service.clearEstimate(crypto.randomUUID(), OWNER, DEV)).toEqual({
+      ok: false,
+      reason: 'not_found',
+    });
+  });
+
+  it('tells the project’s subscribers, with the ancestors whose totals moved', async () => {
+    // The same narrow announce `setEstimate` sends. Without it a peer's table
+    // keeps showing a figure be-01 no longer holds until something else
+    // happens to refresh it.
+    const strip = await add('Strip');
+    const sockets = await add('Sockets', strip);
+    await service.setEstimate(sockets, OWNER, DEV, days(1, 2, 3));
+    broadcast.published.length = 0;
+
+    await service.clearEstimate(sockets, OWNER, DEV);
+
+    const last = broadcast.published.at(-1);
+    expect(last?.projectId).toBe(projectId);
+    expect(last?.event.type).toBe('work_items_changed');
+    expect(last?.event.workItems.map((w) => w.name)).toEqual(['Sockets', 'Strip']);
+  });
+});

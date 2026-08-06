@@ -137,6 +137,15 @@ export interface EstimateStore {
   /** Writes one work item's estimate for one role, replacing any earlier one. */
   set(estimate: StoredEstimate): Promise<void>;
   /**
+   * Takes away one work item's estimate for one role, leaving every other
+   * role on that work item and that role on every other work item alone.
+   *
+   * Removing one that is not stored is not an error: the state asked for is
+   * the state left, and two people emptying the same three boxes must not turn
+   * the second one into a failure on screen.
+   */
+  remove(workItemId: string, roleId: string): Promise<void>;
+  /**
    * Moves every estimate from one work item to another.
    *
    * Used in both directions by the same rule: an estimated work item that gains

@@ -69,6 +69,7 @@ function fakeProjects(
     move: () => Promise.reject(new Error('not_in_these_tests')),
     remove: () => Promise.reject(new Error('not_in_these_tests')),
     setEstimate: () => Promise.reject(new Error('not_in_these_tests')),
+    clearEstimate: () => Promise.reject(new Error('not_in_these_tests')),
     freeze: () => Promise.reject(new Error('not_in_these_tests')),
     unfreezeProject: () => Promise.reject(new Error('not_in_these_tests')),
     unfreeze: () => Promise.reject(new Error('not_in_these_tests')),

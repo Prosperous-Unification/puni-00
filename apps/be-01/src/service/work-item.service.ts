@@ -639,6 +639,34 @@ export class WorkItemService {
     return { ok: true, result: null };
   }
 
+  /**
+   * Takes one work item's estimate for one role back off.
+   *
+   * Idempotent: clearing a trio that is not stored is the state the caller
+   * asked for, so it succeeds rather than reporting a 404 for an estimate.
+   * A missing *work item* is still `not_found` — that is a different absence,
+   * and the same one `removeDependency` reports.
+   *
+   * No roll-up work is needed: a parent's figures are summed on read, never
+   * stored, so the announce below carries the recomputed ancestors with it.
+   * Not refused for a rolled-up work item either — one cannot hold a stored
+   * estimate to begin with, so the call is already a no-op there, and refusing
+   * it would make "clear what is not there" an error in exactly one place.
+   *
+   * Proof: dropping the `estimates.remove` call fails four tests across
+   * `estimate.test.ts` and `work-item.controller.test.ts`, including the
+   * parent roll-up one; dropping the announce fails `tells the project's
+   * subscribers, with the ancestors whose totals moved` alone. Both watched
+   * 2026-08-06 — see `openspec/changes/clear-estimate/verify.md`.
+   */
+  async clearEstimate(id: string, actorId: string, roleId: string): Promise<WorkItemOutcome<null>> {
+    const context = await this.contextFor(id, actorId);
+    if (!context.ok) return context;
+    await this.opts.estimates.remove(id, roleId);
+    await this.announceWorkItem(context.result.workItem.projectId, id);
+    return { ok: true, result: null };
+  }
+
   /** Sends the whole tree, for a change that can renumber more than it touched. */
   /**
    * Records "`predecessorId` must finish before this starts".
