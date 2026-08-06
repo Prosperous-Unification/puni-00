@@ -88,3 +88,31 @@ them is its own change; wiring the gate to include them before they are fixed
 would leave CI red for reasons nobody here caused. **This is the repo's
 fourteenth "check that cannot fail", and the first one found in the gate
 itself.**
+
+## Observed on dev, against the real database
+
+Deployed at `8e1c1bd`, all four tables and the `work_item` column migrated.
+
+```
+$ POST .../teams {"name":"Platform"}   → {"id":"97a81f46…","name":"Platform"}
+$ POST .../teams {"name":"Platform"}   → the same id
+$ POST .../teams {"name":"   "}        → 422
+$ POST .../people Ada   in Platform    → created
+$ POST .../people Grace with no teams  → created, teamIds []
+$ PATCH work-item     serviceTeamId=Platform            → 200
+$ PUT   .../assignees/<dev>  personId=Grace (free agent) → 200
+$ GET   .../work-items  assignees {dev: Grace}, doesEveryPhase Grace
+$ PUT   .../assignees/<qa>   personId=Ada                → 200
+$ GET   .../work-items  2 assignees, doesEveryPhase null
+$ PUT   .../assignees/<qa>   personId=null               → 200
+$ GET   .../work-items  1 assignee, doesEveryPhase back
+```
+
+Two claims worth having from that run. A **free agent was assigned to work
+labelled `Platform`** — the decoupling Dany asked for, against real rows
+rather than a fixture. And the lone-assignee assumption **ended when the
+second person arrived and came back when they left**, which is what "derived,
+not stored" has to mean in practice.
+
+Test data cleared afterwards; `Platform`, `Ada` and `Grace` remain in the
+global directory, which is what a global directory does.
