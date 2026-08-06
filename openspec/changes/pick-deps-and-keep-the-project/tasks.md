@@ -50,9 +50,10 @@
 
 ## 5. Gate and verification
 
-- [ ] 5.1 `bunx nx format:check --all`, the run-many gate over test, lint,
+- [x] 5.1 `bunx nx format:check --all`, the run-many gate over test, lint,
       typecheck and build, and `openspec validate --all --json` — recorded in
       `verify.md` with the failure-proof table.
-- [ ] 5.2 Deploy to dev, confirm the three behaviours through the real edge as
-      far as h1claw can (API-level rename; the picker and persistence need a
-      browser — state plainly in `verify.md` what was and was not watched).
+- [x] 5.2 Deployed to dev at `f49cc633`, healthy. Rename proven through the
+      real edge with ada's account: create, PATCH the name, list shows it.
+      The picker, persistence and rename input are browser behaviours and are
+      **not watched** — `verify.md` says so plainly; they need Dany's screen.
