@@ -123,7 +123,7 @@ Checks that cannot fail have shipped here six times. This is the rule that stops
 
 ## Checks that cannot fail
 
-R5 exists because this failure keeps recurring — eleven times so far. Fixed: `assertPragmas` with no runtime
+R5 exists because this failure keeps recurring — thirteen times so far. Fixed: `assertPragmas` with no runtime
 caller, the migration lint's unreachable `ALTER TABLE ... RENAME COLUMN` branch, `readRemoteState`
 reading an unreadable file as never-deployed, `shellcheck … || echo`, the secrets scanner's
 `.catch(() => '')` (an unreadable file scanned as clean — in a CI gate), and `dev:setup` skipping a
@@ -134,6 +134,12 @@ never-deployed; `configure.sh` replacing an unreadable `.env` with one line, dro
 other secret; and the install target shipping whatever was left in `dist/` while reporting
 "checksums verified against the local build" — true, about the stale file it had just
 installed. The last one was caught by checking the installed artifact, not by reading code.
+
+Two more on 2026-08-06, both in tests that guarded a real behaviour and could not see it break:
+`does not take the focus or the half-typed value` delivered a peer edit that left the field's
+value alone, so it passed with the `key` that caused the bug still in place; and the smoke's
+`internal-forward` check posts to be-01 itself, so it reports ok against a gw-01 whose secret
+be-01 rejects — watched passing, live, next to the new check failing.
 
 Prove your check fails when the thing is broken, and say so in the comment. A check whose
 failure mode has never been observed is a claim, not a gate.

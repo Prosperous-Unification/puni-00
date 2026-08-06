@@ -693,6 +693,122 @@ describe('someone else editing while you are typing', () => {
     expect(document.activeElement).toBe(screen.getByLabelText('Name of 010'));
     expect(screen.getByLabelText('Name of 010')).toHaveProperty('value', 'Strip the old wir');
   });
+
+  itDom('survives their edit landing in the very field being typed in', async () => {
+    // The test above only ever delivered an edit that left this row's name
+    // alone, so it passed while `key={`${id}-${name}`}` was still on the input:
+    // an unchanged name is an unchanged key. Changing the name is the case that
+    // remounted the node and dropped the focus to the body, and it is the one
+    // that happens whenever two people work on one row.
+    // Proof: `key` restored on the name input in `wbs-table.tsx` and only this
+    // test failed — `document.activeElement` was `<body>` and the value was the
+    // peer's, not the half-typed one.
+    const api = fakeApi();
+    let notify: () => void = () => {
+      throw new Error('the table never subscribed');
+    };
+    const subscribe = (_projectId: string, handlers: SubscriptionHandlers) => {
+      notify = handlers.onChange;
+      return { seen: () => undefined, unsubscribe: () => undefined };
+    };
+    render(<WbsTable projectId="p1" api={api} subscribe={subscribe} />);
+
+    click('Add work item');
+    const input = await screen.findByLabelText('Name of 010');
+    input.focus();
+    fireEvent.change(input, { target: { value: 'Strip the old wir' } });
+
+    // Their edit, to this row's name — the value this cell renders from.
+    api.rows[0].name = 'Rewire the shed';
+    await act(async () => {
+      notify();
+      await Promise.resolve();
+    });
+
+    expect(screen.getByLabelText('Name of 010')).toBe(input);
+    expect(document.activeElement).toBe(input);
+    expect(input).toHaveProperty('value', 'Strip the old wir');
+  });
+
+  itDom('shows their edit in a cell nobody is typing in', async () => {
+    // The other half of the rule, and the reason it is a separate test: a cell
+    // that simply never accepted a new value would pass both tests above.
+    // Proof: the `input.value = latest.current` assignment in `cell-input.tsx`
+    // deleted, and only this test failed — the cell still read 'Strip'.
+    const api = fakeApi();
+    let notify: () => void = () => {
+      throw new Error('the table never subscribed');
+    };
+    const subscribe = (_projectId: string, handlers: SubscriptionHandlers) => {
+      notify = handlers.onChange;
+      return { seen: () => undefined, unsubscribe: () => undefined };
+    };
+    render(<WbsTable projectId="p1" api={api} subscribe={subscribe} />);
+
+    click('Add work item');
+    const input = await screen.findByLabelText('Name of 010');
+    fireEvent.change(input, { target: { value: 'Strip' } });
+    fireEvent.blur(input);
+    await waitFor(() => {
+      expect(input).toHaveProperty('value', 'Strip');
+    });
+
+    api.rows[0].name = 'Rewire the shed';
+    await act(async () => {
+      notify();
+      await Promise.resolve();
+    });
+
+    expect(screen.getByLabelText('Name of 010')).toBe(input);
+    expect(input).toHaveProperty('value', 'Rewire the shed');
+  });
+
+  itDom('sends nothing when a cell is left without being typed in', async () => {
+    // Every blur used to be a PATCH of whatever the box held, so clicking
+    // through a row wrote every cell it passed. Each of those writes is a
+    // broadcast and a refetch for everyone else, and one of them is a revert: a
+    // cell whose peer edit was held back while its owner was typing, then typed
+    // back to what it said before, blurs holding the older of the two values.
+    // Proof: `input.value !== shown.current` in `cell-input.tsx`'s `onBlur`
+    // replaced with `true`, and only this test failed — one patch of a name
+    // nobody typed.
+    const api = fakeApi();
+    let notify: () => void = () => {
+      throw new Error('the table never subscribed');
+    };
+    const subscribe = (_projectId: string, handlers: SubscriptionHandlers) => {
+      notify = handlers.onChange;
+      return { seen: () => undefined, unsubscribe: () => undefined };
+    };
+    render(<WbsTable projectId="p1" api={api} subscribe={subscribe} />);
+
+    click('Add work item');
+    const input = await screen.findByLabelText('Name of 010');
+    fireEvent.change(input, { target: { value: 'Strip' } });
+    fireEvent.blur(input);
+    await waitFor(() => {
+      expect(api.rows[0].name).toBe('Strip');
+    });
+
+    const patched: unknown[] = [];
+    api.patch = (...args: unknown[]) => {
+      patched.push(args);
+      return Promise.resolve();
+    };
+
+    // Their edit lands, then this client focuses the cell and leaves it again
+    // without typing.
+    api.rows[0].name = 'Rewire the shed';
+    await act(async () => {
+      notify();
+      await Promise.resolve();
+    });
+    input.focus();
+    fireEvent.blur(input);
+
+    expect(patched).toEqual([]);
+    expect(input).toHaveProperty('value', 'Rewire the shed');
+  });
 });
 
 describe('a drag interrupted by someone else', () => {

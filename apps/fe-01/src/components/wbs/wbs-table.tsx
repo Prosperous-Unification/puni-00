@@ -11,6 +11,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ProjectStream } from '@/lib/project-stream';
 import type { Days, ProjectApi, RoleView } from '@/lib/wbs-api';
 
+import { CellInput } from './cell-input';
 import { type Caret, type CellRef, nextCell } from './cell-navigation';
 import { parseDependencies, unknownMessage } from './depends-input';
 import { type DropRefusal, type DropZone, planMove, zoneFor } from './drag-drop';
@@ -652,26 +653,24 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
         id: 'name',
         header: 'Name',
         cell: ({ row }) => (
-          <input
+          <CellInput
             aria-label={`Name of ${row.original.number}`}
             data-name-input={row.original.id}
             data-cell={cellKey(row.original.id, 'name')}
             // A callback ref rather than an effect: it fires exactly when this
-            // node mounts, so the focus cannot be lost to a later render
+            // node is attached, so the focus cannot be lost to a later render
             // arriving before the row does. That race is what
-            // Enter-Enter-Enter depends on not losing.
-            ref={(element) => {
-              if (element === null || focusNext.current !== row.original.id) return;
+            // Enter-Enter-Enter depends on not losing. It fires on every render
+            // rather than only the first, which the id check already tolerated.
+            onAttach={(element) => {
+              if (focusNext.current !== row.original.id) return;
               focusNext.current = null;
               element.focus();
             }}
-            defaultValue={row.original.name}
-            key={`${row.original.id}-${row.original.name}`}
-            onBlur={(e) =>
-              void live.current.run(() =>
-                live.current.api.patch(row.original.id, { name: e.target.value }),
-              )
-            }
+            value={row.original.name}
+            commit={(typed) => {
+              void live.current.run(() => live.current.api.patch(row.original.id, { name: typed }));
+            }}
             onKeyDown={(e) => {
               live.current.onKeyDown(e, row.original);
               live.current.onArrowKey(e, row.original.id, 'name');
@@ -685,7 +684,7 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
             id: `${role.id}-${point}`,
             header: `${role.name} ${point}`,
             cell: ({ row }) => (
-              <input
+              <CellInput
                 aria-label={`${role.name} ${point} for ${row.original.number}`}
                 data-cell={cellKey(row.original.id, `${role.id}-${point}`)}
                 onKeyDown={(e) => {
@@ -696,16 +695,15 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
                 // number is real and worth reading.
                 readOnly={row.original.rolledUp}
                 style={row.original.rolledUp ? { color: '#666', background: '#f4f4f4' } : undefined}
-                defaultValue={showDays(row.original.estimates[role.id], point)}
-                key={`${row.original.id}-${role.id}-${point}-${showDays(row.original.estimates[role.id], point)}`}
-                onBlur={(e) => {
+                value={showDays(row.original.estimates[role.id], point)}
+                commit={(typed) => {
                   if (row.original.rolledUp) return;
                   const current = row.original.estimates[role.id] ?? {
                     optimistic: 0,
                     realistic: 0,
                     pessimistic: 0,
                   };
-                  const days = keepOrdered(current, point, Number(e.target.value));
+                  const days = keepOrdered(current, point, Number(typed));
                   void live.current.run(() =>
                     live.current.api.setEstimate(row.original.id, role.id, days),
                   );
@@ -749,19 +747,18 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
         id: 'notes',
         header: 'Notes',
         cell: ({ row }) => (
-          <input
+          <CellInput
             aria-label={`Notes for ${row.original.number}`}
             data-cell={cellKey(row.original.id, 'notes')}
             onKeyDown={(e) => {
               live.current.onArrowKey(e, row.original.id, 'notes');
             }}
-            defaultValue={row.original.notes}
-            key={`${row.original.id}-notes-${row.original.notes}`}
-            onBlur={(e) =>
+            value={row.original.notes}
+            commit={(typed) => {
               void live.current.run(() =>
-                live.current.api.patch(row.original.id, { notes: e.target.value }),
-              )
-            }
+                live.current.api.patch(row.original.id, { notes: typed }),
+              );
+            }}
           />
         ),
       }),
