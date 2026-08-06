@@ -772,3 +772,113 @@ describe('moving between cells with the arrow keys', () => {
     expect(api.rows).toHaveLength(3);
   });
 });
+
+describe('arrow keys — cross-review findings', () => {
+  const focus = (label: string, at: 'start' | 'end') => {
+    const input = screen.getByLabelText(label);
+    if (!(input instanceof HTMLInputElement)) throw new Error(`${label} is not an input`);
+    input.focus();
+    const pos = at === 'start' ? 0 : input.value.length;
+    input.setSelectionRange(pos, pos);
+    return input;
+  };
+
+  const arrow = (key: string, init: Record<string, unknown> = {}) => {
+    const active = document.activeElement;
+    if (!(active instanceof HTMLInputElement)) throw new Error('nothing focused');
+    fireEvent.keyDown(active, { key, ...init });
+    return document.activeElement;
+  };
+
+  itDom('arrives with a collapsed caret, not a selection', async () => {
+    // agy, high. Arriving cells were selected, and a full selection reads as
+    // `hasSelection` — the rule that keeps Shift+Arrow out of the grid — so the
+    // next press in the same direction did nothing and crossing a row of
+    // populated cells took twice the keys.
+    //
+    // jsdom does not move a caret for an arrow key, so what is asserted is the
+    // caret this code puts there, on the edge the travel came from. Whether the
+    // browser then walks it across the value is the browser's own behaviour.
+    await threeRoots();
+    const optimistic = screen.getByLabelText('Dev optimistic for 010');
+    fireEvent.change(optimistic, { target: { value: '3' } });
+    fireEvent.blur(optimistic);
+    await waitFor(() => {
+      expect(screen.getByLabelText('Dev optimistic for 010')).toHaveProperty('value', '3');
+    });
+
+    focus('Name of 010', 'end');
+    const arrived = arrow('ArrowRight');
+
+    expect(arrived).toBe(screen.getByLabelText('Dev optimistic for 010'));
+    if (!(arrived instanceof HTMLInputElement)) throw new Error('not an input');
+    expect(arrived.value).toBe('3');
+    expect([arrived.selectionStart, arrived.selectionEnd]).toEqual([0, 0]);
+
+    // And coming back the other way lands on the far edge, for the same reason.
+    const back = arrow('ArrowLeft');
+    if (!(back instanceof HTMLInputElement)) throw new Error('not an input');
+    expect(back).toBe(screen.getByLabelText('Name of 010'));
+    expect([back.selectionStart, back.selectionEnd]).toEqual([
+      back.value.length,
+      back.value.length,
+    ]);
+  });
+
+  itDom('leaves an IME composition to the input', async () => {
+    // codex, high. Up and Down pick a candidate while composing; taking them
+    // moves the focus out of a half-written word and commits it.
+    await threeRoots();
+    focus('Name of 010', 'end');
+
+    expect(arrow('ArrowDown', { isComposing: true })).toBe(screen.getByLabelText('Name of 010'));
+  });
+
+  itDom('leaves a modified arrow to the browser', async () => {
+    await threeRoots();
+
+    for (const modifier of ['altKey', 'ctrlKey', 'metaKey']) {
+      focus('Name of 010', 'end');
+      expect(arrow('ArrowDown', { [modifier]: true })).toBe(screen.getByLabelText('Name of 010'));
+    }
+  });
+
+  itDom('never stops on a parent’s rolled-up figures', async () => {
+    // Both reviewers. A parent's estimates are sums and read-only; landing there
+    // is the same dead keypress the derived number column was excluded for.
+    const api = await threeRoots();
+    withHeight(rowFor('010'), 0, 40);
+    dragOnto('020', '010', 20);
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '010.1', '020']);
+    });
+    expect(api.rows.find((r) => r.number === '010')?.rolledUp).toBe(true);
+
+    // Along the parent's own row: name to notes, straight past the sums.
+    focus('Name of 010', 'end');
+    expect(arrow('ArrowRight')).toBe(screen.getByLabelText('Notes for 010'));
+
+    // And down the column from the child, past the parent below it.
+    focus('Dev optimistic for 010.1', 'end');
+    expect(arrow('ArrowDown')).toBe(screen.getByLabelText('Dev optimistic for 020'));
+  });
+
+  itDom('navigates from every editable cell, not just the ones the first tests used', async () => {
+    // codex, medium. The original tests moved from the name and from Dev
+    // optimistic only, so removing the handler from notes — or from realistic
+    // and pessimistic — left them green.
+    await threeRoots();
+    const columns = [
+      'Name of 010',
+      'Dev optimistic for 010',
+      'Dev realistic for 010',
+      'Dev pessimistic for 010',
+      'Notes for 010',
+    ];
+
+    for (const label of columns) {
+      focus(label, 'end');
+      expect(arrow('ArrowDown')).toBe(screen.getByLabelText(label.replace('010', '020')));
+    }
+  });
+});

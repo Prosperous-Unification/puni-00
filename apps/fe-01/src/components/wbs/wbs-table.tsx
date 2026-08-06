@@ -11,7 +11,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ProjectStream } from '@/lib/project-stream';
 import type { Days, ProjectApi, RoleView } from '@/lib/wbs-api';
 
-import { type Caret, type CellGrid, nextCell } from './cell-navigation';
+import { type Caret, type CellRef, nextCell } from './cell-navigation';
 import { type DropRefusal, type DropZone, planMove, zoneFor } from './drag-drop';
 import { toTree, type TreeRow } from './wbs-rows';
 
@@ -343,42 +343,60 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
   );
 
   /**
-   * The rows on screen and the columns worth stopping on, in display order.
-   *
-   * Rows come from the table's own model further down, so a collapsed branch's
-   * children are absent and Down lands on the next row a person can see. The
-   * derived number is not a column here: it cannot be edited, and stopping on it
-   * would be a keypress of nothing on every row.
-   */
-  const grid = useRef<CellGrid>({ rowIds: [], columnIds: [] });
-
-  /**
    * Moves the focus between cells, or lets the browser have the key.
    *
-   * The lookup is a query against the table element rather than a map of refs:
-   * a map has to be kept in step with a table that renumbers and reorders on
-   * every edit, and the first entry to go stale is the row that just moved.
+   * The grid is read from the table's own DOM at the moment the key arrives, not
+   * from a ref written during render. A ref written in render publishes rows
+   * that React may not have committed — or may abandon — and a key pressed in
+   * that window would look up a row the DOM does not have. Both reviewers found
+   * that; the committed DOM is the only thing that cannot be ahead of itself.
+   *
+   * `:not([readonly])` is what keeps focus off a parent's rolled-up figures.
+   * They are real numbers worth reading, and they are also numbers no keystroke
+   * can change, which is the same reason the derived number column is not here.
    */
   const onArrowKey = useCallback(
     (event: React.KeyboardEvent<HTMLInputElement>, rowId: string, columnId: string) => {
-      const target = nextCell(
-        grid.current,
+      const table = event.currentTarget.closest('table');
+      if (table === null) return;
+      // Kept as pairs, so the cell a move names and the input it focuses cannot
+      // drift apart — an index into two separately filtered lists is one dropped
+      // entry away from focusing the wrong box.
+      const grid = [...table.querySelectorAll<HTMLInputElement>('[data-cell]:not([readonly])')]
+        .map((input) => ({ input, parts: (input.dataset['cell'] ?? '').split('::') }))
+        .flatMap(({ input, parts }) => {
+          // A `data-cell` that is not `row::column` is markup this component did
+          // not write. Skipped rather than guessed at, and not thrown on: an
+          // arrow key is not the moment to take the table down.
+          const [row, column] = parts;
+          if (parts.length !== 2 || row === '' || column === '') return [];
+          return [{ input, cell: { rowId: row, columnId: column } satisfies CellRef }];
+        });
+
+      const move = nextCell(
+        grid.map((g) => g.cell),
         { rowId, columnId },
         event.key,
         caretOf(event.currentTarget),
+        {
+          isComposing: event.nativeEvent.isComposing,
+          altKey: event.altKey,
+          ctrlKey: event.ctrlKey,
+          metaKey: event.metaKey,
+        },
       );
-      if (target === null) return;
-      const next = event.currentTarget
-        .closest('table')
-        ?.querySelector<HTMLInputElement>(
-          `[data-cell="${cellKey(target.rowId, target.columnId)}"]`,
-        );
-      if (next === null || next === undefined) return;
+      if (move === null) return;
+
+      const next = grid.find(
+        (g) => g.cell.rowId === move.to.rowId && g.cell.columnId === move.to.columnId,
+      )?.input;
+      if (next === undefined) return;
       // Only now, and only because the move is happening: an unconditional
       // `preventDefault` would take the caret keys away from every input.
       event.preventDefault();
       next.focus();
-      next.select();
+      const caret = move.caretAt === 'start' ? 0 : next.value.length;
+      next.setSelectionRange(caret, caret);
     },
     [],
   );
@@ -591,14 +609,6 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
     getCoreRowModel: getCoreRowModel(),
     getExpandedRowModel: getExpandedRowModel(),
   });
-
-  // Assigned during render, like `live`, and for the same reason: an arrow key
-  // can fire before effects flush after a re-render, and a grid one render stale
-  // would move focus around the table that was on screen a moment ago.
-  grid.current = {
-    rowIds: table.getRowModel().rows.map((row) => row.original.id),
-    columnIds: ['name', ...roles.flatMap((role) => POINTS.map((p) => `${role.id}-${p}`)), 'notes'],
-  };
 
   return (
     <section>

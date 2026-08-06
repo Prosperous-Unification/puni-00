@@ -91,7 +91,7 @@ contract: `docs/runbook-prod-deploy.md`.**
 ## Landmines
 
 - **`columns` in `wbs-table.tsx` depends on `roles` alone**, and `roles` is replaced only when its
-  content differs. Anything else there remounts every cell and eats the focus; see the `live` ref.
+  content differs. Anything else remounts every cell and eats the focus; see the `live` ref.
 - `caddy reload` **exits 0 when it did nothing**. Verify against the admin API, never the exit
   code. The check parses the route for this environment's host and reads the upstream on the
   tier's port (`routedColorFromAdminConfig`); it was a substring test until 2026-08-04, which
@@ -114,23 +114,23 @@ contract: `docs/runbook-prod-deploy.md`.**
 
 ## Open findings
 
-1. Smoke calls `/internal/forward` on `be-01` **directly**, so `gw-01`'s `ForwardClient` is still
-   never exercised — though a broken `BE_URL` now fails gw-01's health gate (finding 4). The "any
-   2xx passes" half is **closed 2026-08-06**: it requires `{ack:true}`.
-2. Rollback unimplemented. `--version` is _refused_ rather than ignored (2026-08-04), so it no
-   longer looks like one; deploying an older commit still means checking it out and rebuilding.
-3. `configure.sh`'s root phase never run on a fresh host; `tool-bootstrap:push` wires it, but
-   only the plan is tested.
-4. ~~Health endpoints are status flags.~~ **Closed 2026-08-06.** be-01 queries for a table its
-   migrations create; gw-01 probes be-01's `/health`. A wrong `DB_PATH` or `BE_URL` now 503s.
-   Still uncaught: deleting the file under an open connection, which unix keeps alive.
+1. A cell input's React `key` holds its value, so a peer's edit to a field you are typing in
+   unmounts it and drops focus to the body. Found 2026-08-06.
+2. Smoke calls `/internal/forward` on `be-01` **directly**, so `gw-01`'s `ForwardClient` is never
+   exercised — though a broken `BE_URL` now fails gw-01's health gate. The "any 2xx passes" half
+   is **closed 2026-08-06**: it requires `{ack:true}`.
+3. Rollback unimplemented. `--version` is _refused_ rather than ignored, so it no longer looks
+   like one; deploying an older commit means checking it out and rebuilding.
+4. `configure.sh`'s root phase never run on a fresh host; only the plan is tested.
+5. ~~Health endpoints are status flags.~~ **Closed 2026-08-06:** be-01 queries for a table its
+   migrations create and gw-01 probes be-01, so a wrong `DB_PATH` or `BE_URL` 503s. Still
+   uncaught: deleting the file under an open connection, which unix keeps alive.
 
-Also known, lower priority: fe/smoke health accepts any non-empty body; the WS smoke passes on any
-first message _containing_ `"pong"`; gateway drain reads a malformed metrics body as zero live
-sockets; `tool-secrets` only prints what it would run, despite its README.
+Lower priority: fe/smoke health accepts any non-empty body; the WS smoke passes on any first
+message _containing_ `"pong"`; gateway drain reads a malformed metrics body as zero live sockets;
+`tool-secrets` only prints what it would run, despite its README.
 
-Checks that cannot fail have appeared **eleven** times here. The tally, and what each taught, is
-in `AGENTS.md` under R5. Three were closed on 2026-08-05; none is open.
+Checks that cannot fail have appeared **eleven** times here; the tally is in `AGENTS.md` under R5.
 
 ## More
 
