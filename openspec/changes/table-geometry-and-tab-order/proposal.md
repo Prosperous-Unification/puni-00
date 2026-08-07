@@ -95,6 +95,7 @@ did, and the pickers and the date box were not in the keyboard grid at all.
 fe-01 (`table-frame.ts`, `wbs-table.tsx`, `creatable-picker.tsx`,
 `keyboard-bindings.ts`, new `box-geometry.ts`, new `e2e/layout.spec.ts` and
 `playwright.config.ts`, new `tsconfig.e2e.json`, `project.json` targets
-`e2e`/`lint`/`typecheck`), root `package.json`, `.github/workflows/ci.yml`
-(new `pixels` job; `gate` untouched). No be-01 change, no migration, no deploy
+`e2e`/`lint`/`typecheck`), root `package.json`, `.gitignore`,
+`.github/workflows/ci.yml` (new `pixels` job; `gate` untouched), and
+`LLM_README.md`, which indexes both. No be-01 change, no migration, no deploy
 change.
