@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
-import { openDrizzle } from './db';
+import { openDatabase, openDrizzle } from './db';
 import type { Project, Role } from './index';
 import { runMigrations } from './migrate';
 import { ProjectRepository } from './project';
@@ -36,7 +36,16 @@ afterEach(() => {
 });
 
 function project(name: string, createdAt: number): Project {
-  return { id: crypto.randomUUID(), name, ownerId, restricted: false, createdAt };
+  return {
+    id: crypto.randomUUID(),
+    name,
+    ownerId,
+    restricted: false,
+    estimateMethod: 'pert',
+    startDate: null,
+    revision: 0,
+    createdAt,
+  };
 }
 
 function roles(projectId: string, ...names: string[]): Role[] {
@@ -68,6 +77,8 @@ describe('ProjectRepository', () => {
       name: 'Rewire the shed',
       ownerId,
       restricted: false,
+      estimateMethod: 'pert',
+      startDate: null,
     });
     expect((await repo.rolesOf(shed.id)).map((r) => r.name)).toEqual(['Dev', 'QA']);
   });
@@ -99,6 +110,76 @@ describe('ProjectRepository', () => {
     // concurrent role additions both pass a check-then-insert.
     const shed = project('Rewire the shed', 100);
     expect(await rejection(repo.create(shed, roles(shed.id, 'Dev', 'Dev')))).toMatch(/UNIQUE/);
+  });
+
+  it('lists per account: opened first by recency, then never-opened by creation', async () => {
+    const a = project('A', 100);
+    const b = project('B', 200);
+    const c = project('C', 300);
+    for (const p of [a, b, c]) await repo.create(p, roles(p.id, 'Dev'));
+
+    await repo.recordOpen(ownerId, a.id, 1000);
+    await repo.recordOpen(ownerId, b.id, 2000);
+
+    const listed = await repo.listFor(ownerId);
+    expect(listed.map((p) => p.name)).toEqual(['B', 'A', 'C']);
+    expect(listed.map((p) => p.lastOpenedAt)).toEqual([2000, 1000, null]);
+  });
+
+  it('gives another account its own order', async () => {
+    const other = crypto.randomUUID();
+    await new UserRepository(openDrizzle(join(dir, 'test.db'))).create({
+      id: other,
+      username: 'other',
+      passwordHash: 'x',
+      createdAt: 1,
+    });
+    const a = project('A', 100);
+    const b = project('B', 200);
+    const c = project('C', 300);
+    for (const p of [a, b, c]) await repo.create(p, roles(p.id, 'Dev'));
+    await repo.recordOpen(ownerId, a.id, 1000);
+    await repo.recordOpen(other, c.id, 500);
+
+    expect((await repo.listFor(other)).map((p) => p.name)).toEqual(['C', 'B', 'A']);
+    expect((await repo.listFor(ownerId)).map((p) => p.name)).toEqual(['A', 'C', 'B']);
+  });
+
+  it('keeps one record per pair, holding the later moment', async () => {
+    const shed = project('Rewire the shed', 100);
+    await repo.create(shed, roles(shed.id, 'Dev'));
+
+    await repo.recordOpen(ownerId, shed.id, 1000);
+    await repo.recordOpen(ownerId, shed.id, 3000);
+
+    expect((await repo.listFor(ownerId)).map((p) => p.lastOpenedAt)).toEqual([3000]);
+  });
+
+  it('patches the estimate method', async () => {
+    const shed = project('Rewire the shed', 100);
+    await repo.create(shed, roles(shed.id, 'Dev'));
+
+    const updated = await repo.update(shed.id, { estimateMethod: 'pessimistic' });
+
+    expect(updated).toMatchObject({ estimateMethod: 'pessimistic', name: 'Rewire the shed' });
+    expect(await repo.findById(shed.id)).toMatchObject({ estimateMethod: 'pessimistic' });
+  });
+
+  it('throws rather than planning with a method the database should not hold', async () => {
+    // `estimate_method` is text and SQLite will hold anything. Reading one back
+    // as PERT would plan a project by a method nobody chose, and say nothing.
+    // Written past the repository on purpose: this is the case where the
+    // *stored* value is wrong, which no amount of request validation prevents.
+    const shed = project('Rewire the shed', 100);
+    await repo.create(shed, roles(shed.id, 'Dev'));
+    const db = openDatabase(join(dir, 'test.db'));
+    try {
+      db.run(`UPDATE project SET estimate_method = 'median' WHERE id = '${shed.id}'`);
+    } finally {
+      db.close();
+    }
+
+    expect(await rejection(repo.findById(shed.id))).toMatch(/unknown estimate method/);
   });
 
   it('refuses a project whose owner does not exist', async () => {

@@ -46,3 +46,43 @@ export type RoleEstimate = typeof RoleEstimate.infer;
 export function expectedDays(estimate: ThreePointEstimate): number {
   return (estimate.optimistic + 4 * estimate.realistic + estimate.pessimistic) / 6;
 }
+
+/**
+ * How a project turns its three-point estimates into the one number it plans
+ * with.
+ *
+ * PERT is the default and the reason three points are collected at all. The
+ * other three are the honest answers to "we are quoting the best case" and
+ * "this date has to hold": a team committing a deadline plans on `pessimistic`,
+ * a team quoting a possibility plans on `optimistic`, and `realistic` is the
+ * single figure most people mean when they say "the estimate". Which one a
+ * project uses is a decision about risk appetite, not a calculation, so it is
+ * stored rather than inferred.
+ */
+export const ESTIMATE_METHODS = ['pert', 'optimistic', 'realistic', 'pessimistic'] as const;
+export type EstimateMethod = (typeof ESTIMATE_METHODS)[number];
+
+/** Whether `value` is one of the four methods — the boundary check for stored and posted data. */
+export function isEstimateMethod(value: unknown): value is EstimateMethod {
+  return typeof value === 'string' && (ESTIMATE_METHODS as readonly string[]).includes(value);
+}
+
+/**
+ * The one number a project plans this estimate with, in days.
+ *
+ * The single place the choice is applied. The schedule's durations and the
+ * figure shown beside the trio must be the same number — two implementations
+ * of "the final estimate" is exactly how a table comes to disagree with the
+ * dates printed next to it.
+ */
+export function finalDays(estimate: ThreePointEstimate, method: EstimateMethod): number {
+  if (method === 'pert') return expectedDays(estimate);
+  // Not a defensive flourish: `estimate[method]` for a method this does not
+  // know returns `undefined`, and the arithmetic downstream turns that into
+  // `NaN` — a schedule of NaN days that renders as blank cells and reports
+  // itself as estimated. Caught here, it is one loud error naming the value.
+  if (!isEstimateMethod(method)) {
+    throw new Error(`unknown estimate method: ${JSON.stringify(method)}`);
+  }
+  return estimate[method];
+}

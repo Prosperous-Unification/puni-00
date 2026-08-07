@@ -5,23 +5,38 @@ import { ProjectService } from '../service/project.service';
 import { WorkItemService } from '../service/work-item.service';
 import { inMemoryUsers, testAuthService } from '../testing/auth-fixture';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
+import { inMemoryCommandJournal } from '../testing/command-journal-fixture';
 import { inMemoryDependencies } from '../testing/dependency-fixture';
+import { inMemoryDirectory, testDirectoryService } from '../testing/directory-fixture';
 import { inMemoryEstimates } from '../testing/estimate-fixture';
 import { inMemoryProjects } from '../testing/project-fixture';
 import { testReplay } from '../testing/replay-fixture';
+import { inMemorySubtrees } from '../testing/subtree-fixture';
 import { inMemoryWorkItems } from '../testing/work-item-fixture';
 
 function buildHarness() {
   const projectStore = inMemoryProjects();
   const workItemStore = inMemoryWorkItems();
+  const estimateStore = inMemoryEstimates(workItemStore);
+  const dependencyStore = inMemoryDependencies();
+  const directoryStore = inMemoryDirectory();
   const app = buildApp({
+    directory: testDirectoryService(),
     auth: testAuthService(inMemoryUsers()),
     projects: new ProjectService({ projects: projectStore }),
     workItems: new WorkItemService({
       workItems: workItemStore,
       projects: projectStore,
-      estimates: inMemoryEstimates(workItemStore),
-      dependencies: inMemoryDependencies(),
+      estimates: estimateStore,
+      dependencies: dependencyStore,
+      directory: directoryStore,
+      subtrees: inMemorySubtrees({
+        workItems: workItemStore,
+        estimates: estimateStore,
+        dependencies: dependencyStore,
+        directory: directoryStore,
+      }),
+      journal: inMemoryCommandJournal(),
       broadcast: recordingBroadcaster(),
     }),
     replay: testReplay().replay,
@@ -102,6 +117,51 @@ describe('work item routes', () => {
 
     const after = await send(`/api/projects/${projectId}/work-items`, token);
     expect(((await after.json()) as { seq: number }).seq).toBe(1);
+  });
+
+  it('refuses an earliest start that is not a calendar day', async () => {
+    // The column is text, so a stored non-day would throw on every later read
+    // of the project. A 400 on one request is the cheap end of that.
+    const { token, send, projectId } = await setup();
+    const created = await send(`/api/projects/${projectId}/work-items`, token, {
+      method: 'POST',
+      body: JSON.stringify({ parentId: null, afterId: null, name: 'Strip' }),
+    });
+    const { id } = (await created.json()) as { id: string };
+
+    for (const bad of ['next tuesday', '2026-02-31', '06/08/2026', 7]) {
+      const res = await send(`/api/work-items/${id}`, token, {
+        method: 'PATCH',
+        body: JSON.stringify({ startNoEarlierThan: bad }),
+      });
+      expect([res.status, JSON.stringify(bad)]).toEqual([400, JSON.stringify(bad)]);
+    }
+  });
+
+  it('takes an earliest start and gives it back, and clears it', async () => {
+    const { token, send, projectId } = await setup();
+    const created = await send(`/api/projects/${projectId}/work-items`, token, {
+      method: 'POST',
+      body: JSON.stringify({ parentId: null, afterId: null, name: 'Strip' }),
+    });
+    const { id } = (await created.json()) as { id: string };
+
+    const set = await send(`/api/work-items/${id}`, token, {
+      method: 'PATCH',
+      body: JSON.stringify({ startNoEarlierThan: '2026-08-12' }),
+    });
+    expect(set.status).toBe(200);
+    expect((await set.json()) as { startNoEarlierThan: string }).toMatchObject({
+      startNoEarlierThan: '2026-08-12',
+    });
+
+    const cleared = await send(`/api/work-items/${id}`, token, {
+      method: 'PATCH',
+      body: JSON.stringify({ startNoEarlierThan: null }),
+    });
+    expect((await cleared.json()) as { startNoEarlierThan: string | null }).toMatchObject({
+      startNoEarlierThan: null,
+    });
   });
 
   it('refuses a client that tries to choose the number', async () => {
@@ -213,6 +273,217 @@ describe('work item routes', () => {
     const { send, projectId } = await setup();
     const res = await send(`/api/projects/${projectId}/work-items`, 'not-a-token');
     expect(res.status).toBe(401);
+  });
+});
+
+describe('clearing an estimate', () => {
+  /** A leaf under a parent, with the parent's id, so a roll-up is observable. */
+  async function parentAndTwoLeaves() {
+    const { token, send, projectId } = await setup();
+    const make = async (name: string, parentId: string | null): Promise<string> => {
+      const res = await send(`/api/projects/${projectId}/work-items`, token, {
+        method: 'POST',
+        body: JSON.stringify({ parentId, afterId: null, name }),
+      });
+      return ((await res.json()) as { id: string }).id;
+    };
+    const parentId = await make('Strip', null);
+    const sockets = await make('Sockets', parentId);
+    const boxes = await make('Back boxes', parentId);
+    return { token, send, projectId, parentId, sockets, boxes };
+  }
+
+  const estimatesOf = async (
+    send: (p: string, t: string, i?: { method?: string; body?: string }) => Promise<Response>,
+    token: string,
+    projectId: string,
+    name: string,
+  ) => {
+    const tree = await send(`/api/projects/${projectId}/work-items`, token);
+    const body = (await tree.json()) as {
+      workItems: { name: string; estimates: Record<string, unknown> }[];
+    };
+    return body.workItems.find((w) => w.name === name)?.estimates;
+  };
+
+  it('refuses an unauthenticated caller and leaves the estimate alone', async () => {
+    // The same guard the PUT carries. Without the assertion on the tree
+    // afterwards this would pass against a route that answered 401 *after*
+    // having already cleared the row.
+    const { token, send, projectId, sockets } = await parentAndTwoLeaves();
+    await send(`/api/work-items/${sockets}/estimates/role-dev`, token, {
+      method: 'PUT',
+      body: JSON.stringify({ optimistic: 1, realistic: 2, pessimistic: 3 }),
+    });
+
+    const res = await send(`/api/work-items/${sockets}/estimates/role-dev`, 'not-a-token', {
+      method: 'DELETE',
+    });
+
+    expect(res.status).toBe(401);
+    expect(await estimatesOf(send, token, projectId, 'Sockets')).toEqual({
+      'role-dev': { optimistic: 1, realistic: 2, pessimistic: 3 },
+    });
+  });
+
+  it('takes the trio out of the tree, and clearing it again is still a success', async () => {
+    const { token, send, projectId, sockets } = await parentAndTwoLeaves();
+    await send(`/api/work-items/${sockets}/estimates/role-dev`, token, {
+      method: 'PUT',
+      body: JSON.stringify({ optimistic: 1, realistic: 2, pessimistic: 3 }),
+    });
+
+    const first = await send(`/api/work-items/${sockets}/estimates/role-dev`, token, {
+      method: 'DELETE',
+    });
+    // Idempotent on purpose: two browsers can empty the same three boxes, and
+    // "it is already gone" is the state that was asked for, not a conflict.
+    const again = await send(`/api/work-items/${sockets}/estimates/role-dev`, token, {
+      method: 'DELETE',
+    });
+
+    expect([first.status, again.status]).toEqual([200, 200]);
+    expect(await estimatesOf(send, token, projectId, 'Sockets')).toEqual({});
+  });
+
+  it('leaves the other role on the same work item alone', async () => {
+    const { token, send, projectId, sockets } = await parentAndTwoLeaves();
+    for (const roleId of ['role-dev', 'role-qa']) {
+      await send(`/api/work-items/${sockets}/estimates/${roleId}`, token, {
+        method: 'PUT',
+        body: JSON.stringify({ optimistic: 1, realistic: 2, pessimistic: 3 }),
+      });
+    }
+
+    await send(`/api/work-items/${sockets}/estimates/role-dev`, token, { method: 'DELETE' });
+
+    expect(await estimatesOf(send, token, projectId, 'Sockets')).toEqual({
+      'role-qa': { optimistic: 1, realistic: 2, pessimistic: 3 },
+    });
+  });
+
+  it('drops the parent’s rolled-up figure to what is left below it', async () => {
+    // Nothing is stored on the parent — it is summed on read — so this is the
+    // test that says the sum actually re-read. Two leaves, not one: a parent
+    // whose only estimate vanished would also satisfy "the figure changed".
+    const { token, send, projectId, sockets, boxes } = await parentAndTwoLeaves();
+    await send(`/api/work-items/${sockets}/estimates/role-dev`, token, {
+      method: 'PUT',
+      body: JSON.stringify({ optimistic: 1, realistic: 2, pessimistic: 3 }),
+    });
+    await send(`/api/work-items/${boxes}/estimates/role-dev`, token, {
+      method: 'PUT',
+      body: JSON.stringify({ optimistic: 10, realistic: 20, pessimistic: 30 }),
+    });
+    expect(await estimatesOf(send, token, projectId, 'Strip')).toEqual({
+      'role-dev': { optimistic: 11, realistic: 22, pessimistic: 33 },
+    });
+
+    await send(`/api/work-items/${sockets}/estimates/role-dev`, token, { method: 'DELETE' });
+
+    expect(await estimatesOf(send, token, projectId, 'Strip')).toEqual({
+      'role-dev': { optimistic: 10, realistic: 20, pessimistic: 30 },
+    });
+  });
+
+  it('answers this route’s own 404 for a work item that is not there', async () => {
+    // The body, not just the status. Elysia answers an *unmatched* route with a
+    // 404 of its own, so a status-only assertion here passed with the whole
+    // DELETE route deleted — watched, and it is the reason this reads the body:
+    // `{ error: 'not_found' }` can only have come from the handler.
+    const { token, send } = await parentAndTwoLeaves();
+    const res = await send(`/api/work-items/${crypto.randomUUID()}/estimates/role-dev`, token, {
+      method: 'DELETE',
+    });
+    expect(res.status).toBe(404);
+    expect((await res.json()) as { error: string }).toEqual({ error: 'not_found' });
+  });
+});
+
+describe('duplicating a work item', () => {
+  const add = async (
+    send: (p: string, t: string, i?: { method?: string; body?: string }) => Promise<Response>,
+    token: string,
+    projectId: string,
+    name: string,
+    parentId: string | null = null,
+  ) => {
+    const res = await send(`/api/projects/${projectId}/work-items`, token, {
+      method: 'POST',
+      body: JSON.stringify({ parentId, afterId: null, name }),
+    });
+    return ((await res.json()) as { id: string }).id;
+  };
+
+  const namesOf = async (
+    send: (p: string, t: string, i?: { method?: string; body?: string }) => Promise<Response>,
+    token: string,
+    projectId: string,
+  ) => {
+    const tree = await send(`/api/projects/${projectId}/work-items`, token);
+    return ((await tree.json()) as { workItems: { id: string; name: string }[] }).workItems;
+  };
+
+  it('answers the id of the copy, and the next tree read holds it', async () => {
+    const { token, send, projectId } = await setup();
+    const strip = await add(send, token, projectId, 'Strip');
+    await add(send, token, projectId, 'Sockets', strip);
+
+    const res = await send(`/api/work-items/${strip}/duplicate`, token, { method: 'POST' });
+
+    expect(res.status).toBe(200);
+    const { id } = (await res.json()) as { id: string };
+    const rows = await namesOf(send, token, projectId);
+    expect(rows.find((w) => w.id === id)?.name).toBe('Strip (copy)');
+    expect(rows).toHaveLength(4);
+  });
+
+  it('refuses an unauthenticated caller, and copies nothing', async () => {
+    // The tree afterwards, not only the status: without it this would pass
+    // against a route that answered 401 having already written the copy.
+    const { token, send, projectId } = await setup();
+    const strip = await add(send, token, projectId, 'Strip');
+
+    const res = await send(`/api/work-items/${strip}/duplicate`, 'not-a-token', {
+      method: 'POST',
+    });
+
+    expect(res.status).toBe(401);
+    expect(await namesOf(send, token, projectId)).toHaveLength(1);
+  });
+
+  it('answers this route’s own 404 for a work item that is not there', async () => {
+    // The body, not the status alone: Elysia answers an unmatched route with a
+    // 404 of its own, so a status-only assertion passes with the route deleted.
+    const { token, send } = await setup();
+
+    const res = await send(`/api/work-items/${crypto.randomUUID()}/duplicate`, token, {
+      method: 'POST',
+    });
+
+    expect(res.status).toBe(404);
+    expect((await res.json()) as { error: string }).toEqual({ error: 'not_found' });
+  });
+
+  it('answers 403 to an account that may not edit a restricted project', async () => {
+    const { register, send } = buildHarness();
+    const owner = await register('owner');
+    const stranger = await register('stranger');
+    const create = await send('/api/projects', owner, {
+      method: 'POST',
+      body: JSON.stringify({ name: 'Restricted' }),
+    });
+    const { project } = (await create.json()) as { project: { id: string } };
+    const strip = await add(send, owner, project.id, 'Strip');
+    await send(`/api/projects/${project.id}`, owner, {
+      method: 'PATCH',
+      body: JSON.stringify({ restricted: true }),
+    });
+
+    const res = await send(`/api/work-items/${strip}/duplicate`, stranger, { method: 'POST' });
+
+    expect(res.status).toBe(403);
+    expect(await namesOf(send, owner, project.id)).toHaveLength(1);
   });
 });
 

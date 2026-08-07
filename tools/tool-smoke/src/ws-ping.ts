@@ -51,6 +51,121 @@ export async function runPingSmoke(opts: PingOptions): Promise<PingResult> {
 }
 
 /**
+ * The subscription the backend-hop probe resumes on.
+ *
+ * A zero UUID: it satisfies gw-01's `project:<uuid>` subscription shape, and
+ * `crypto.randomUUID()` cannot produce it, so no real project can ever be behind
+ * it. be-01's `event_sequencer` therefore has no row for it, `latestSeq` answers
+ * `-1`, and resuming from `0` is out of range — the *deterministic* refusal this
+ * probe is built on. be-01 reads its database to say so, which is the point: the
+ * answer cannot be produced by a gateway that never reached be-01.
+ */
+const PROBE_SUBSCRIPTION = 'project:00000000-0000-0000-0000-000000000000';
+
+/** How long to keep listening for a late forward failure after `resume_ack`. */
+const FORWARD_DRAIN_MS = 500;
+
+/** Every frame the probe saw, for a failure detail that says what did arrive. */
+const frames = (seen: readonly string[]): string =>
+  seen.length === 0 ? '(none)' : seen.join(' | ');
+
+/**
+ * Proves that **gw-01 itself** can reach be-01, over a real client socket.
+ *
+ * The health suite's `/internal/forward` check posts to be-01 directly, so it
+ * passes with gw-01's own `BE_URL` and `INTERNAL_AUTH_SECRET` completely wrong —
+ * it is a check of be-01's door, not of the gateway's key to it. gw-01's `/health`
+ * closed half of that gap by probing be-01's `/health`, but an unauthenticated
+ * `GET /health` says nothing about the shared secret the internal calls carry.
+ *
+ * Two messages, over one authenticated socket:
+ *
+ * 1. `{subscription, message}` — the only shape `handleWsMessage` forwards, so it
+ *    is the only way to exercise gw-01's `ForwardClient` from outside gw-01. A
+ *    forward that throws answers `{"type":"error","code":"backend_unavailable"}`;
+ *    a forward that works answers nothing at all.
+ * 2. `{"type":"resume"}` on {@link PROBE_SUBSCRIPTION}. gw-01 posts that to
+ *    be-01's `/internal/resume` carrying the same secret, and the two outcomes
+ *    are distinguishable at the client: `out_of_range` is be-01's answer and can
+ *    only come from a call that arrived; `unavailable` is gw-01's own catch,
+ *    which is what an unreachable or rejecting be-01 produces.
+ *
+ * What this does NOT prove: that a *successful* forward did anything. be-01's
+ * `onForward` is a no-op and nothing is echoed back, so the forward half is the
+ * absence of an error frame, drained for {@link FORWARD_DRAIN_MS} after the
+ * resume settles rather than awaited — the two calls are independent HTTP
+ * requests and gw-01 does not serialise them. A forward failure slower than that
+ * drain is missed. The resume half has no such hole: `resume_ack` ends the
+ * exchange, and the reason on the denial before it is what is asserted.
+ */
+export async function runBackendHopSmoke(opts: PingOptions): Promise<PingResult> {
+  const sock = opts.connect();
+  const seen: string[] = [];
+  return await new Promise<PingResult>((resolve) => {
+    let settled = false;
+    const finish = (ok: boolean, detail: string): void => {
+      if (settled) return;
+      settled = true;
+      sock.close();
+      resolve({ ok, detail });
+    };
+
+    const timer = setTimeout(() => {
+      finish(false, `no resume_ack within ${String(opts.timeoutMs)}ms — frames: ${frames(seen)}`);
+    }, opts.timeoutMs);
+    const stop = (ok: boolean, detail: string): void => {
+      clearTimeout(timer);
+      finish(ok, detail);
+    };
+
+    sock.addEventListener('open', () => {
+      // Proof: this line deleted, and only `asks be-01 something only be-01 can
+      // answer` failed — the resume half alone still passed, which is precisely
+      // the gap that let `ForwardClient` go unexercised in the first place.
+      sock.send(JSON.stringify({ subscription: PROBE_SUBSCRIPTION, message: { type: 'smoke' } }));
+      sock.send(JSON.stringify({ type: 'resume', resume_points: { [PROBE_SUBSCRIPTION]: 0 } }));
+    });
+
+    sock.addEventListener('message', (e) => {
+      seen.push(e.data);
+      let frame: Record<string, unknown>;
+      try {
+        frame = JSON.parse(e.data) as Record<string, unknown>;
+      } catch {
+        stop(false, `gw-01 sent something that is not JSON: ${e.data.slice(0, 200)}`);
+        return;
+      }
+
+      // Proof: this condition replaced with `false`, and both `fails when the
+      // forward is refused` and `fails when the forward error arrives after the
+      // resume settled` reported a refused forward as a healthy gateway.
+      if (frame['type'] === 'error' && frame['code'] === 'backend_unavailable') {
+        stop(false, `gw-01 could not forward to be-01: ${e.data}`);
+        return;
+      }
+      // Proof: this condition replaced with `false`, and only `fails when gw-01
+      // could not reach be-01 to resume` failed — a gateway that answered every
+      // resume out of its own catch block passed as one that had reached be-01.
+      if (frame['type'] === 'resume_denied' && frame['reason'] === 'unavailable') {
+        stop(false, `gw-01 could not reach be-01 to resume: ${e.data}`);
+        return;
+      }
+      if (frame['type'] !== 'resume_ack') return;
+
+      // be-01 answered. Held open a little longer only for a forward error that
+      // has not arrived yet — see this function's doc comment for what that
+      // does and does not settle.
+      // Proof: replaced with an immediate `stop(true, …)`, and only `fails when
+      // the forward error arrives after the resume settled` failed.
+      clearTimeout(timer);
+      setTimeout(() => {
+        finish(true, `gw-01 reached be-01 — frames: ${frames(seen)}`);
+      }, FORWARD_DRAIN_MS);
+    });
+  });
+}
+
+/**
  * gw-01's `/ws` upgrade is gated by `beforeHandle` on a valid JWT (see
  * apps/gw-01/src/app.ts) — connecting without `?token=` never reaches
  * `open`, it 401s at the HTTP-upgrade step. So a real WS smoke check has to
@@ -275,31 +390,33 @@ export async function runWsSuite(): Promise<boolean> {
   // client — fine for that narrower purpose, but it does not exercise
   // Caddy's routing or stream_close_delay.
   const override = process.env['SMOKE_WS_URL'];
-  const res =
+  const connect: () => SocketLike =
     override !== undefined
-      ? await runPingSmoke({
-          connect: () =>
-            new WebSocket(`${override}${override.includes('?') ? '&' : '?'}token=${token}`),
-          timeoutMs: 5000,
-        })
-      : await runPingSmoke({
-          connect: () =>
-            connectThroughCaddy({
-              host: process.env['SMOKE_CADDY_HOST'] ?? 'caddy',
-              port: 443,
-              path: `/ws?token=${token}`,
-              siteAddress: process.env['SITE_ADDRESS'] ?? 'wbs.bulletpoints.club',
-              // Secure by default — production has a real, publicly-trusted
-              // cert once DNS+ACME are live. Only relax for a deliberate,
-              // explicit opt-in (e.g. rehearsing against a self-signed cert
-              // before DNS exists), never silently.
-              rejectUnauthorized: process.env['SMOKE_TLS_INSECURE'] !== '1',
-            }),
-          timeoutMs: 5000,
-        });
+      ? () => new WebSocket(`${override}${override.includes('?') ? '&' : '?'}token=${token}`)
+      : () =>
+          connectThroughCaddy({
+            host: process.env['SMOKE_CADDY_HOST'] ?? 'caddy',
+            port: 443,
+            path: `/ws?token=${token}`,
+            siteAddress: process.env['SITE_ADDRESS'] ?? 'wbs.bulletpoints.club',
+            // Secure by default — production has a real, publicly-trusted
+            // cert once DNS+ACME are live. Only relax for a deliberate,
+            // explicit opt-in (e.g. rehearsing against a self-signed cert
+            // before DNS exists), never silently.
+            rejectUnauthorized: process.env['SMOKE_TLS_INSECURE'] !== '1',
+          });
 
-  console.log(`[smoke/ws] ${res.ok ? 'ok' : 'FAIL'} — ${res.detail}`);
-  return res.ok;
+  const ping = await runPingSmoke({ connect, timeoutMs: 5000 });
+  console.log(`[smoke/ws] ${ping.ok ? 'ok' : 'FAIL'} ping — ${ping.detail}`);
+
+  // Runs even when the ping failed, and on its own socket: the same reason
+  // `main.ts` runs both suites regardless — partial diagnostic output beats
+  // none, and "the socket answers but the gateway cannot reach the backend" is
+  // exactly the state worth naming separately.
+  const hop = await runBackendHopSmoke({ connect, timeoutMs: 5000 });
+  console.log(`[smoke/ws] ${hop.ok ? 'ok' : 'FAIL'} backend-hop — ${hop.detail}`);
+
+  return ping.ok && hop.ok;
 }
 
 async function main(): Promise<void> {

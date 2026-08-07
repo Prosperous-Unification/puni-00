@@ -1,10 +1,13 @@
 import { beforeEach, describe, expect, it } from 'bun:test';
 
-import type { Project, ProjectStore, WorkItemStore } from '../repository';
-import { recordingBroadcaster } from '../testing/broadcast-fixture';
+import type { EstimateStore, Project, ProjectStore, WorkItemStore } from '../repository';
+import { type RecordingBroadcaster, recordingBroadcaster } from '../testing/broadcast-fixture';
+import { inMemoryCommandJournal } from '../testing/command-journal-fixture';
 import { inMemoryDependencies } from '../testing/dependency-fixture';
+import { inMemoryDirectory } from '../testing/directory-fixture';
 import { inMemoryEstimates } from '../testing/estimate-fixture';
 import { inMemoryProjects } from '../testing/project-fixture';
+import { inMemorySubtrees } from '../testing/subtree-fixture';
 import { inMemoryWorkItems } from '../testing/work-item-fixture';
 import { WorkItemService } from './work-item.service';
 
@@ -17,23 +20,35 @@ let service: WorkItemService;
 let projectId: string;
 let roleId: string;
 let dependencies: ReturnType<typeof inMemoryDependencies>;
+let directory: ReturnType<typeof inMemoryDirectory>;
+let estimates: EstimateStore;
+let broadcast: RecordingBroadcaster;
 
 beforeEach(async () => {
   projects = inMemoryProjects();
   workItems = inMemoryWorkItems();
   dependencies = inMemoryDependencies();
+  directory = inMemoryDirectory();
+  estimates = inMemoryEstimates(workItems);
+  broadcast = recordingBroadcaster();
   service = new WorkItemService({
     workItems,
     projects,
-    estimates: inMemoryEstimates(workItems),
+    estimates,
     dependencies,
-    broadcast: recordingBroadcaster(),
+    directory,
+    subtrees: inMemorySubtrees({ workItems, estimates, dependencies, directory }),
+    journal: inMemoryCommandJournal(),
+    broadcast,
   });
   const project: Project = {
     id: crypto.randomUUID(),
     name: 'Rewire the shed',
     ownerId: OWNER,
     restricted: false,
+    estimateMethod: 'pert',
+    startDate: null,
+    revision: 0,
     createdAt: 1,
   };
   roleId = crypto.randomUUID();
@@ -46,6 +61,32 @@ async function add(name: string, parentId: string | null = null, afterId: string
   const outcome = await service.create(projectId, OWNER, { parentId, afterId, name });
   if (!outcome.ok) throw new Error(`create failed: ${outcome.reason}`);
   return outcome.result.id;
+}
+
+/**
+ * Puts `count` children under `parentId`, straight through the store.
+ *
+ * Not through `create`: five hundred creates are five hundred whole-tree
+ * announces, and the only thing under test here is how many rows there are.
+ */
+async function fill(parentId: string, count: number): Promise<void> {
+  for (let i = 0; i < count; i += 1) {
+    await workItems.insert(
+      {
+        id: crypto.randomUUID(),
+        projectId,
+        parentId,
+        position: (i + 1) * 10,
+        name: `Back box ${String(i)}`,
+        notes: '',
+        frozenNumber: null,
+        startNoEarlierThan: null,
+        serviceTeamId: null,
+        revision: 0,
+      },
+      [],
+    );
+  }
 }
 
 /** The project's work items as `number → name`, which is what a reader actually sees. */
@@ -303,6 +344,7 @@ describe('dependencies', () => {
       projects,
       estimates: inMemoryEstimates(workItems),
       dependencies: broken,
+      journal: inMemoryCommandJournal(),
       broadcast: recordingBroadcaster(),
     });
 
@@ -341,5 +383,367 @@ describe('dependencies', () => {
     const sand = tree?.workItems.find((w) => w.id === b)?.schedule;
 
     expect(sand).toMatchObject({ earliestStart: 2, earliestFinish: 5, critical: true });
+  });
+});
+
+describe('who is doing the work', () => {
+  it('reports nobody when nobody is assigned', async () => {
+    const id = await add('Strip');
+
+    const row = (await service.tree(projectId))?.workItems.find((w) => w.id === id);
+
+    expect(row?.assignees).toEqual({});
+    expect(row?.doesEveryPhase).toBeNull();
+  });
+
+  it('assumes one assignee does every phase, and stops assuming at two', async () => {
+    // Dany, 2026-08-06: "when just one is assigned it is assumed they do both
+    // dev and QA". Read from the assignments rather than written as a second
+    // row, so nobody is recorded against work they were never given.
+    const id = await add('Strip');
+    const qaRoleId = crypto.randomUUID();
+    await directory.assign(id, roleId, 'ada');
+    let row = (await service.tree(projectId))?.workItems.find((w) => w.id === id);
+    expect(row?.doesEveryPhase).toBe('ada');
+
+    await directory.assign(id, qaRoleId, 'grace');
+
+    row = (await service.tree(projectId))?.workItems.find((w) => w.id === id);
+    expect(row?.assignees).toEqual({ [roleId]: 'ada', [qaRoleId]: 'grace' });
+    expect(row?.doesEveryPhase).toBeNull();
+  });
+
+  it('assigns somebody who is not in the work item’s team', async () => {
+    // Dany's call: keep people and service/team decoupled for the work item. A
+    // platform engineer picking up billing work is an ordinary Tuesday.
+    const id = await add('Strip');
+    await service.patch(id, OWNER, { serviceTeamId: 'team-billing' });
+
+    const outcome = await service.assign(id, OWNER, roleId, 'ada-of-platform');
+
+    expect(outcome.ok).toBe(true);
+    const row = (await service.tree(projectId))?.workItems.find((w) => w.id === id);
+    expect(row?.assignees[roleId]).toBe('ada-of-platform');
+    expect(row?.serviceTeamId).toBe('team-billing');
+  });
+
+  it('clears an assignment', async () => {
+    const id = await add('Strip');
+    await service.assign(id, OWNER, roleId, 'ada');
+
+    await service.assign(id, OWNER, roleId, null);
+
+    expect((await service.tree(projectId))?.workItems.find((w) => w.id === id)?.assignees).toEqual(
+      {},
+    );
+  });
+});
+
+describe('duplicating a subtree', () => {
+  /** Duplicates, or fails the test with the refusal rather than an undefined id. */
+  async function duplicate(id: string, actorId = OWNER): Promise<string> {
+    const outcome = await service.duplicate(id, actorId);
+    if (!outcome.ok) throw new Error(`duplicate failed: ${outcome.reason}`);
+    return outcome.result.id;
+  }
+
+  /** The project's rows, by id, as a reader sees them. */
+  async function readTree() {
+    const tree = await service.tree(projectId);
+    if (tree === null) throw new Error('project vanished');
+    return tree.workItems;
+  }
+
+  it('lands the copy next to the original, with the numbers derived afresh', async () => {
+    const strip = await add('Strip');
+    const sockets = await add('Sockets', strip);
+    await add('Switches', strip, sockets);
+    // A later sibling, so "next sibling" is distinguishable from "appended".
+    await add('Test', null, strip);
+
+    await duplicate(strip);
+
+    expect(await numbered()).toEqual({
+      '010': 'Strip',
+      '010.1': 'Sockets',
+      '010.2': 'Switches',
+      '020': 'Strip (copy)',
+      '020.1': 'Sockets',
+      '020.2': 'Switches',
+      '030': 'Test',
+    });
+  });
+
+  it('copies notes, estimates, assignees, the team label and the date', async () => {
+    const strip = await add('Strip');
+    const socket = await add('Sockets', strip);
+    await service.patch(socket, OWNER, {
+      notes: 'Two gang, chased in',
+      serviceTeamId: 'team-sparks',
+      startNoEarlierThan: '2026-09-01',
+    });
+    await service.setEstimate(socket, OWNER, roleId, {
+      optimistic: 1,
+      realistic: 2,
+      pessimistic: 6,
+    });
+    await service.assign(socket, OWNER, roleId, 'ada');
+
+    const copyId = await duplicate(strip);
+
+    const copied = (await readTree()).find((w) => w.parentId === copyId);
+    expect(copied?.name).toBe('Sockets');
+    expect(copied?.notes).toBe('Two gang, chased in');
+    expect(copied?.serviceTeamId).toBe('team-sparks');
+    expect(copied?.startNoEarlierThan).toBe('2026-09-01');
+    expect(copied?.estimates[roleId]).toEqual({ optimistic: 1, realistic: 2, pessimistic: 6 });
+    expect(copied?.assignees[roleId]).toBe('ada');
+  });
+
+  /**
+   * The one that decides whether this feature is worth having. A copied phase
+   * whose edges still point at the original schedules the copy against work it
+   * has nothing to do with, and nothing on screen says so.
+   *
+   * Proof: with the remap dropped — the copied edges keeping their originals'
+   * ids — this failed on `dependsOn`, the copy waiting for the original's
+   * predecessor. Watched 2026-08-07.
+   */
+  it('remaps a dependency inside the subtree onto the copies', async () => {
+    const strip = await add('Strip');
+    const boxes = await add('Back boxes', strip);
+    const sockets = await add('Sockets', strip);
+    await service.addDependency(sockets, OWNER, boxes);
+
+    const copyId = await duplicate(strip);
+
+    const under = (await readTree()).filter((w) => w.parentId === copyId);
+    const copiedBoxes = under.find((w) => w.name === 'Back boxes');
+    const copiedSockets = under.find((w) => w.name === 'Sockets');
+    expect(copiedSockets?.dependsOn).toEqual([copiedBoxes?.id]);
+    expect(copiedSockets?.dependsOn).not.toContain(boxes);
+  });
+
+  it('leaves behind a dependency with one end outside the subtree', async () => {
+    const strip = await add('Strip');
+    const sockets = await add('Sockets', strip);
+    const survey = await add('Survey');
+    await service.addDependency(sockets, OWNER, survey);
+
+    const copyId = await duplicate(strip);
+
+    const rows = await readTree();
+    // A template starts unwired: the copy inherits nothing it did not contain.
+    expect(rows.find((w) => w.parentId === copyId)?.dependsOn).toEqual([]);
+    expect(rows.find((w) => w.id === sockets)?.dependsOn).toEqual([survey]);
+  });
+
+  /**
+   * Proof: with `frozenNumber` carried over from the source row, this failed —
+   * two rows claiming `010`, which is the exact thing freezing exists to stop.
+   * Watched 2026-08-07.
+   */
+  it('gives no copy a frozen number, and leaves every original with its own', async () => {
+    const strip = await add('Strip');
+    const sockets = await add('Sockets', strip);
+    await service.freeze(projectId, OWNER);
+
+    const copyId = await duplicate(strip);
+
+    const rows = await readTree();
+    const copies = rows.filter((w) => w.id === copyId || w.parentId === copyId);
+    expect(copies).toHaveLength(2);
+    expect(copies.every((w) => w.frozenNumber === null)).toBe(true);
+    expect(rows.find((w) => w.id === strip)?.frozenNumber).toBe('010');
+    expect(rows.find((w) => w.id === sockets)?.frozenNumber).toBe('010.1');
+  });
+
+  it('copies a leaf on its own', async () => {
+    const strip = await add('Strip');
+
+    const copyId = await duplicate(strip);
+
+    expect(copyId).not.toBe(strip);
+    expect(await numbered()).toEqual({ '010': 'Strip', '020': 'Strip (copy)' });
+  });
+
+  it('tells the project once, with the whole tree', async () => {
+    const strip = await add('Strip');
+    await add('Sockets', strip);
+    const before = broadcast.published.length;
+
+    await duplicate(strip);
+
+    const since = broadcast.published.slice(before);
+    expect(since).toHaveLength(1);
+    expect(since[0]?.event.type).toBe('tree_replaced');
+  });
+
+  it('refuses a subtree of more than 500 work items, changing nothing', async () => {
+    const root = await add('Strip');
+    await fill(root, 500);
+
+    const outcome = await service.duplicate(root, OWNER);
+
+    expect(outcome).toEqual({ ok: false, reason: 'too_large' });
+    expect(await readTree()).toHaveLength(501);
+  });
+
+  // The boundary itself, so the guard cannot quietly become `>=`: 500 rows is
+  // the largest copy there is, not the first one refused.
+  it('copies a subtree of exactly 500 work items', async () => {
+    const root = await add('Strip');
+    await fill(root, 499);
+
+    await duplicate(root);
+
+    expect(await readTree()).toHaveLength(1000);
+  });
+});
+
+describe('the calendar', () => {
+  // 2026-08-06 is a Thursday, so a two-day task spans Thursday and Friday and
+  // a three-day one runs into the Monday.
+  const THURSDAY = '2026-08-06';
+
+  const twoDaysOf = async (id: string) => {
+    await service.setEstimate(id, OWNER, roleId, { optimistic: 2, realistic: 2, pessimistic: 2 });
+  };
+
+  it('reports no dates while the project has no start date', async () => {
+    const id = await add('Strip');
+    await twoDaysOf(id);
+
+    const row = (await service.tree(projectId))?.workItems.find((w) => w.id === id);
+
+    // The ordinary state of an estimate nobody has committed to a date.
+    expect(row?.dates).toBeNull();
+    expect((await service.tree(projectId))?.startDate).toBeNull();
+  });
+
+  it('places the plan on working days, skipping the weekend', async () => {
+    const first = await add('Strip');
+    const second = await add('Sand');
+    await twoDaysOf(first);
+    await twoDaysOf(second);
+    await service.addDependency(second, OWNER, first);
+    await projects.update(projectId, { startDate: THURSDAY });
+
+    const tree = await service.tree(projectId);
+    const strip = tree?.workItems.find((w) => w.id === first);
+    const sand = tree?.workItems.find((w) => w.id === second);
+
+    // Thursday and Friday, then the next two working days — Monday and
+    // Tuesday. Saturday and Sunday are not days anyone works.
+    expect(strip?.dates).toEqual({ startsOn: '2026-08-06', endsOn: '2026-08-07' });
+    expect(sand?.dates).toEqual({ startsOn: '2026-08-10', endsOn: '2026-08-11' });
+  });
+
+  it('pushes an item later when it may not start before a date', async () => {
+    const id = await add('Strip');
+    await twoDaysOf(id);
+    await projects.update(projectId, { startDate: THURSDAY });
+    await service.patch(id, OWNER, { startNoEarlierThan: '2026-08-12' });
+
+    const row = (await service.tree(projectId))?.workItems.find((w) => w.id === id);
+
+    expect(row?.dates?.startsOn).toBe('2026-08-12');
+  });
+
+  it('lets a dependency push past the constraint, never the other way', async () => {
+    // The constraint is a floor, not a pin — Dany's call, so the calendar and
+    // the dependency tree cannot contradict each other. A predecessor that
+    // finishes later still wins.
+    const first = await add('Strip');
+    const second = await add('Sand');
+    await service.setEstimate(first, OWNER, roleId, {
+      optimistic: 6,
+      realistic: 6,
+      pessimistic: 6,
+    });
+    await twoDaysOf(second);
+    await service.addDependency(second, OWNER, first);
+    await projects.update(projectId, { startDate: THURSDAY });
+    // Day 1 is the Friday: earlier than where the predecessor leaves it.
+    await service.patch(second, OWNER, { startNoEarlierThan: '2026-08-07' });
+
+    const sand = (await service.tree(projectId))?.workItems.find((w) => w.id === second);
+
+    // Six working days from Thursday lands on the Friday after next.
+    expect(sand?.dates?.startsOn).toBe('2026-08-14');
+  });
+
+  it('reports no dates when the schedule itself failed', async () => {
+    const first = await add('Strip');
+    const second = await add('Sand');
+    await projects.update(projectId, { startDate: THURSDAY });
+    await dependencies.add({
+      id: 'a',
+      projectId,
+      predecessorId: first,
+      successorId: second,
+    });
+    await dependencies.add({
+      id: 'b',
+      projectId,
+      predecessorId: second,
+      successorId: first,
+    });
+
+    const tree = await service.tree(projectId);
+
+    // A date read off a schedule that could not be computed is the same
+    // confident lie as a page of zeroes.
+    expect(tree?.scheduleError).toBe('cycle');
+    expect(tree?.workItems.every((w) => w.dates === null)).toBe(true);
+  });
+});
+
+describe('the project’s estimate method', () => {
+  /** A leaf with one three-point estimate, and the tree read back. */
+  async function estimated(method: 'pert' | 'optimistic' | 'realistic' | 'pessimistic') {
+    const id = await add('Strip');
+    await service.setEstimate(id, OWNER, roleId, {
+      optimistic: 2,
+      realistic: 3,
+      pessimistic: 10,
+    });
+    await projects.update(projectId, { estimateMethod: method });
+    const tree = await service.tree(projectId);
+    const row = tree?.workItems.find((w) => w.id === id);
+    return { tree, row };
+  }
+
+  it('reports the final figure per role and their sum, under PERT', async () => {
+    const { tree, row } = await estimated('pert');
+
+    expect(row?.finalDays[roleId]).toBe(4);
+    expect(row?.finalTotal).toBe(4);
+    expect(tree?.estimateMethod).toBe('pert');
+  });
+
+  it('reports the chosen point instead when the project chose one', async () => {
+    expect((await estimated('pessimistic')).row?.finalTotal).toBe(10);
+    expect((await estimated('optimistic')).row?.finalTotal).toBe(2);
+    expect((await estimated('realistic')).row?.finalTotal).toBe(3);
+  });
+
+  it('plans the dates with the same figure it prints', async () => {
+    // The schedule's durations and the number in the column beside them come
+    // from one call to `finalDays`. Two implementations is how a table comes to
+    // disagree with the dates printed next to it.
+    const { row } = await estimated('pessimistic');
+
+    expect(row?.schedule.earliestFinish).toBe(10);
+    expect(row?.schedule.duration).toBe(10);
+  });
+
+  it('leaves a role nobody estimated absent rather than zero', async () => {
+    const id = await add('Strip');
+
+    const row = (await service.tree(projectId))?.workItems.find((w) => w.id === id);
+
+    expect(row?.finalDays).toEqual({});
+    expect(row?.finalTotal).toBe(0);
   });
 });

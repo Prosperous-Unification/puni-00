@@ -1,4 +1,5 @@
 import { ThreePointEstimate } from '@wbs/domain';
+import { isIsoDate, type IsoDate } from '@wbs/domain';
 import { parseOrThrow, ValidationError } from '@wbs/validation';
 import { Elysia } from 'elysia';
 
@@ -8,6 +9,7 @@ import type {
   CreateWorkItem,
   DeleteStrategy,
   MoveWorkItem,
+  UndoOutcome,
   WorkItemRefusal,
   WorkItemService,
 } from '../service/work-item.service';
@@ -68,12 +70,34 @@ function parseMove(body: unknown): MoveWorkItem {
   };
 }
 
-function parsePatch(body: unknown): { name?: string; notes?: string } {
+/**
+ * A calendar day, `null` to clear the constraint, or absent to leave it.
+ *
+ * Validated here rather than trusted: the column is text, and a date the
+ * scheduler cannot parse would throw on every later read of the project — a
+ * 422 on one request beats a plan nobody can open.
+ */
+function asOptionalDate(value: unknown, field: string): IsoDate | null | undefined {
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+  if (!isIsoDate(value)) throw new BadRequest(`${field}_must_be_a_date`);
+  return value;
+}
+
+function parsePatch(body: unknown): {
+  name?: string;
+  notes?: string;
+  startNoEarlierThan?: IsoDate | null;
+  serviceTeamId?: string | null;
+} {
   const raw = asRecord(body);
   refuseDerivedFields(raw);
   return {
     name: asOptionalText(raw['name'], 'name'),
     notes: asOptionalText(raw['notes'], 'notes'),
+    startNoEarlierThan: asOptionalDate(raw['startNoEarlierThan'], 'startNoEarlierThan'),
+    serviceTeamId:
+      'serviceTeamId' in raw ? asIdOrNull(raw['serviceTeamId'], 'serviceTeamId') : undefined,
   };
 }
 
@@ -81,15 +105,49 @@ function parsePatch(body: unknown): { name?: string; notes?: string } {
  * `cycle` is 409 rather than 400: the request is well formed and would be legal
  * against a different tree, so it conflicts with the current state rather than
  * being malformed. `strategy_required` is 400 — that request is incomplete.
+ *
+ * `too_large` joins the 409s for the same reason: a duplication refused for the
+ * size of the subtree beneath it would have been legal against a smaller one,
+ * and the request itself is fine. It is not 413 — nothing about the request
+ * body is too big.
  */
 const statusFor = (reason: WorkItemRefusal): number =>
   reason === 'forbidden'
     ? 403
     : reason === 'not_found'
       ? 404
-      : reason === 'cycle' || reason === 'frozen' || reason === 'rolled_up' || reason === 'ancestor'
+      : reason === 'cycle' ||
+          reason === 'frozen' ||
+          reason === 'rolled_up' ||
+          reason === 'ancestor' ||
+          reason === 'too_large'
         ? 409
         : 400;
+
+/**
+ * How an undo or a redo answers, in one place because the two routes must
+ * answer identically.
+ *
+ * Both refusals are 409. Neither request is malformed and both would have
+ * worked a moment earlier: an empty stack and a moved revision are states of
+ * the plan, not faults in what was asked. `stale_undo` carries the `detail`
+ * saying **which** row moved, because "that could not be undone" with no
+ * reason is a dead end for the person reading it — the whole point of this
+ * change is that a refusal says why out loud.
+ */
+function answerUndo(outcome: UndoOutcome, set: { status?: number | string }) {
+  if (outcome.ok) return { done: outcome.result.done, detail: outcome.result.detail };
+  if (outcome.reason === 'forbidden') {
+    set.status = 403;
+    return { error: outcome.reason };
+  }
+  if (outcome.reason === 'not_found') {
+    set.status = 404;
+    return { error: outcome.reason };
+  }
+  set.status = 409;
+  return { error: outcome.reason, detail: outcome.detail };
+}
 
 const isStrategy = (value: string | null): value is DeleteStrategy =>
   value === 'cascade' || value === 'promote';
@@ -121,7 +179,14 @@ export function workItemController(auth: AuthService, workItems: WorkItemService
         set.status = 404;
         return { error: 'not_found' };
       }
-      return tree;
+      // Carried on the tree rather than fetched from a route of its own. The
+      // tree is already read after every change this client makes and after
+      // every event from anybody else, which is exactly when the answer can
+      // have changed — a second endpoint would be a second round trip asking
+      // the same question at the same moments. It is per **account**, which is
+      // why it is added here and not inside `tree`: the broadcast reuses that
+      // read and has nobody to answer for.
+      return { ...tree, ...(await workItems.undoState(params.id, user.id)) };
     })
     .post('/projects/:id/work-items', async ({ params, body, headers, set }) => {
       const user = await userFromHeaders(auth, headers);
@@ -149,6 +214,24 @@ export function workItemController(auth: AuthService, workItems: WorkItemService
       }
       return outcome.result;
     })
+    .put('/work-items/:id/assignees/:roleId', async ({ params, body, headers, set }) => {
+      const user = await userFromHeaders(auth, headers);
+      if (user === null) {
+        set.status = 401;
+        return { error: 'unauthenticated' };
+      }
+      // `null` clears the assignment; anything else must be an id. A person
+      // who is not in the directory is refused by the foreign key rather than
+      // by a lookup here, which two concurrent requests could both pass.
+      const raw = asRecord(body);
+      const personId = asIdOrNull(raw['personId'], 'personId');
+      const outcome = await workItems.assign(params.id, user.id, params.roleId, personId);
+      if (!outcome.ok) {
+        set.status = statusFor(outcome.reason);
+        return { error: outcome.reason };
+      }
+      return { assigned: true };
+    })
     .post('/work-items/:id/move', async ({ params, body, headers, set }) => {
       const user = await userFromHeaders(auth, headers);
       if (user === null) {
@@ -161,6 +244,38 @@ export function workItemController(auth: AuthService, workItems: WorkItemService
         return { error: outcome.reason };
       }
       return { moved: true };
+    })
+    .post('/work-items/:id/duplicate', async ({ params, headers, set }) => {
+      // No body is read: what is copied and where it lands are the rule, not
+      // the caller's to choose. A body would be options nobody has asked for
+      // yet, and every one of them would have to survive forever.
+      const user = await userFromHeaders(auth, headers);
+      if (user === null) {
+        set.status = 401;
+        return { error: 'unauthenticated' };
+      }
+      const outcome = await workItems.duplicate(params.id, user.id);
+      if (!outcome.ok) {
+        set.status = statusFor(outcome.reason);
+        return { error: outcome.reason };
+      }
+      return outcome.result;
+    })
+    .post('/projects/:id/undo', async ({ params, headers, set }) => {
+      const user = await userFromHeaders(auth, headers);
+      if (user === null) {
+        set.status = 401;
+        return { error: 'unauthenticated' };
+      }
+      return answerUndo(await workItems.undo(params.id, user.id), set);
+    })
+    .post('/projects/:id/redo', async ({ params, headers, set }) => {
+      const user = await userFromHeaders(auth, headers);
+      if (user === null) {
+        set.status = 401;
+        return { error: 'unauthenticated' };
+      }
+      return answerUndo(await workItems.redo(params.id, user.id), set);
     })
     .post('/projects/:id/freeze', async ({ params, headers, set }) => {
       const user = await userFromHeaders(auth, headers);
@@ -253,6 +368,24 @@ export function workItemController(auth: AuthService, workItems: WorkItemService
         return { error: outcome.reason };
       }
       return { estimated: true };
+    })
+    .delete('/work-items/:id/estimates/:roleId', async ({ params, headers, set }) => {
+      // Guarded exactly as the PUT above, and for the same reason: taking a
+      // trio away changes the plan as much as writing one does. Clearing an
+      // estimate that is not stored answers 200 rather than 404 — the
+      // estimate is what the request addresses, and its absence is the
+      // outcome asked for. A missing work item is still 404.
+      const user = await userFromHeaders(auth, headers);
+      if (user === null) {
+        set.status = 401;
+        return { error: 'unauthenticated' };
+      }
+      const outcome = await workItems.clearEstimate(params.id, user.id, params.roleId);
+      if (!outcome.ok) {
+        set.status = statusFor(outcome.reason);
+        return { error: outcome.reason };
+      }
+      return { cleared: true };
     })
     .delete('/work-items/:id', async ({ params, request, headers, set }) => {
       const user = await userFromHeaders(auth, headers);

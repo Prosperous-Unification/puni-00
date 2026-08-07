@@ -12,9 +12,10 @@ Two facts explain most decisions:
   over-engineered; considered and rejected. Don't re-argue it.
 - **The product is a working WBS editor, all of it on `main` since 2026-08-06.** Accounts and
   presence, projects, a nested table you type into and drag rows around, arrow keys between
-  cells, derived numbers with a freeze, three-point estimates by role that roll up, live edits,
-  and a socket that reconnects and replays what it missed. Tables: `user`, `project`, `role`,
-  `work_item`, `estimate`, `event_log`, `event_sequencer`.
+  cells, derived numbers with a freeze, three-point estimates by role that roll up, a branch you
+  duplicate whole, live edits, a Cmd+Z that **refuses out loud** when a row has moved, and a
+  socket that reconnects and replays. Tables: `user`, `project`, `role`, `work_item`,
+  `estimate`, `command_journal`, `event_log`, `event_sequencer`.
 
 Tool choices bias novel over mainstream (Bun, Elysia, ArkType, Dagger) on purpose.
 
@@ -114,23 +115,22 @@ contract: `docs/runbook-prod-deploy.md`.**
 
 ## Open findings
 
-1. A cell input's React `key` holds its value, so a peer's edit to a field you are typing in
-   unmounts it and drops focus to the body. Found 2026-08-06.
-2. Smoke calls `/internal/forward` on `be-01` **directly**, so `gw-01`'s `ForwardClient` is never
-   exercised — though a broken `BE_URL` now fails gw-01's health gate. The "any 2xx passes" half
-   is **closed 2026-08-06**: it requires `{ack:true}`.
-3. Rollback unimplemented. `--version` is _refused_ rather than ignored, so it no longer looks
-   like one; deploying an older commit means checking it out and rebuilding.
-4. `configure.sh`'s root phase never run on a fresh host; only the plan is tested.
+Both open findings are **prod-phase** (Dany, 2026-08-06): recorded, not pending. Work stops at dev.
+
+1. Rollback unimplemented. `--version` is _refused_ rather than ignored, so deploying an older
+   commit means checking it out and rebuilding.
+2. `configure.sh`'s root phase never run on a fresh host; only the plan is tested.
+3. ~~A cell input's React `key` holds its value.~~ **Closed 2026-08-06:** `CellInput` assigns the
+   node's value instead of replacing the node, and holds it back while that cell is typed in.
+4. ~~Smoke calls `/internal/forward` on `be-01` directly.~~ **Closed 2026-08-06:** a backend-hop
+   probe. A gw-01 with a wrong `INTERNAL_AUTH_SECRET` passes every other check; observed.
 5. ~~Health endpoints are status flags.~~ **Closed 2026-08-06:** be-01 queries for a table its
-   migrations create and gw-01 probes be-01, so a wrong `DB_PATH` or `BE_URL` 503s. Still
-   uncaught: deleting the file under an open connection, which unix keeps alive.
+   migrations create and gw-01 probes be-01. Still uncaught: deleting the file underneath.
 
-Lower priority: fe/smoke health accepts any non-empty body; the WS smoke passes on any first
-message _containing_ `"pong"`; gateway drain reads a malformed metrics body as zero live sockets;
-`tool-secrets` only prints what it would run, despite its README.
-
-Checks that cannot fail have appeared **eleven** times here; the tally is in `AGENTS.md` under R5.
+Lower priority: fe/smoke health accepts any non-empty body; the WS ping passes on any first
+message _containing_ `"pong"`; drain reads a malformed metrics body as zero live sockets;
+`tool-secrets` only prints what it would run. Checks that cannot fail have appeared
+**thirteen** times here; the tally is in `AGENTS.md` under R5.
 
 ## More
 

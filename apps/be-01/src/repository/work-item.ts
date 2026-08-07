@@ -1,15 +1,18 @@
-import { eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
 import type {
   FrozenNumber,
   Reparented,
   Repositioned,
+  SubtreeCopy,
+  SubtreeStore,
   WorkItem,
   WorkItemPatch,
   WorkItemStore,
 } from './index';
-import { estimate, workItem } from './schema';
+import { bumpedWorkItem, bumpedWorkItemOnReparent, bumpWorkItems } from './revision';
+import { assignment, dependency, estimate, workItem } from './schema';
 
 /**
  * Every method that writes more than one row does so in one transaction.
@@ -18,6 +21,12 @@ import { estimate, workItem } from './schema';
  * pointing at a parent that is already gone, both produce a tree that cannot be
  * numbered. A reader landing between two separate writes would see that state
  * and have no way to tell it from the truth.
+ *
+ * **Revisions move in the `SET` of the statement that changes the row**, never
+ * in a second statement afterwards. A respaced sibling is the one write here
+ * that does not move one: its `position` changed, and position is storage
+ * detail — see the column's JSDoc in `schema.ts` for why the derived number is
+ * deliberately outside what a revision covers.
  */
 export class WorkItemRepository implements WorkItemStore {
   constructor(private readonly db: SQLiteBunDatabase) {}
@@ -45,8 +54,19 @@ export class WorkItemRepository implements WorkItemStore {
   }
 
   async patch(id: string, patch: WorkItemPatch): Promise<WorkItem | null> {
-    if (patch.name === undefined && patch.notes === undefined) return this.findById(id);
-    const rows = await this.db.update(workItem).set(patch).where(eq(workItem.id, id)).returning();
+    if (
+      patch.name === undefined &&
+      patch.notes === undefined &&
+      patch.startNoEarlierThan === undefined &&
+      patch.serviceTeamId === undefined
+    ) {
+      return this.findById(id);
+    }
+    const rows = await this.db
+      .update(workItem)
+      .set({ ...patch, revision: bumpedWorkItem })
+      .where(eq(workItem.id, id))
+      .returning();
     return rows[0] ?? null;
   }
 
@@ -64,7 +84,10 @@ export class WorkItemRepository implements WorkItemStore {
           .where(eq(workItem.id, moved.id))
           .run();
       }
-      tx.update(workItem).set({ parentId, position }).where(eq(workItem.id, id)).run();
+      tx.update(workItem)
+        .set({ parentId, position, revision: bumpedWorkItem })
+        .where(eq(workItem.id, id))
+        .run();
     });
   }
 
@@ -74,7 +97,7 @@ export class WorkItemRepository implements WorkItemStore {
     this.db.transaction((tx) => {
       for (const update of updates) {
         tx.update(workItem)
-          .set({ frozenNumber: update.frozenNumber })
+          .set({ frozenNumber: update.frozenNumber, revision: bumpedWorkItem })
           .where(eq(workItem.id, update.id))
           .run();
       }
@@ -97,8 +120,15 @@ export class WorkItemRepository implements WorkItemStore {
     const deepestFirst = [...ids].reverse();
     this.db.transaction((tx) => {
       for (const child of promoted) {
+        // A promoted child gained a new parent, which is a change to its own
+        // stored fields. Its former siblings are in this same list and gained
+        // only a position, which is not — see {@link bumpedWorkItemOnReparent}.
         tx.update(workItem)
-          .set({ parentId: child.parentId, position: child.position })
+          .set({
+            parentId: child.parentId,
+            position: child.position,
+            revision: bumpedWorkItemOnReparent(child.parentId),
+          })
           .where(eq(workItem.id, child.id))
           .run();
       }
@@ -106,6 +136,103 @@ export class WorkItemRepository implements WorkItemStore {
       for (const id of deepestFirst) {
         tx.delete(workItem).where(eq(workItem.id, id)).run();
       }
+    });
+  }
+}
+
+/**
+ * Writes a duplicated subtree, across the four tables it lives in, at once.
+ *
+ * Its own class rather than a method on {@link WorkItemRepository} because the
+ * transaction is genuinely wider than the work item table: hiding an estimate
+ * and dependency write inside the work item store would put them where nobody
+ * looking for them would find them. It is not, however, novel — `remove` above
+ * already deletes from `estimate` in its own transaction, for the same reason
+ * the foreign keys give: the writes are one act or neither.
+ *
+ * See `openspec/changes/duplicate-subtree/design.md` for why the alternative —
+ * atomic rows, then the other three stores in order — was rejected.
+ */
+export class SubtreeRepository implements SubtreeStore {
+  constructor(private readonly db: SQLiteBunDatabase) {}
+
+  /**
+   * The statement order is forced by the foreign keys, not chosen: rows before
+   * anything that references them, the reparenting after the rows it points
+   * at exist, and the dependencies last because each references two.
+   *
+   * **Which revisions move, and which do not.** Every row in `rows` is written
+   * for the first time and arrives at whatever revision the caller decided — 0
+   * for a copy, which has never been changed since it came into existence, and
+   * 0 again for a restore, because a row that has been away and come back is
+   * new to every reader holding a number for it. The estimates, assignments
+   * and edges belong to those rows, so counting them would count the act of
+   * coming into existence as a change to something.
+   *
+   * `reparented` and `removedEstimates` do move revisions, and must: they are
+   * writes to rows that were already there and that somebody may be holding a
+   * revision of. `bumpedWorkItemOnReparent` is what keeps a row that only
+   * changed position out of that — the same rule as everywhere else here.
+   *
+   * `async` is load-bearing, as it is in `ProjectRepository.create`:
+   * `db.transaction` is synchronous, so without it a constraint violation
+   * would throw before the promise this signature advertises exists, and a
+   * caller holding it with `.catch()` would never see the rejection.
+   */
+  async insertSubtree(copy: SubtreeCopy): Promise<void> {
+    await Promise.resolve();
+    this.db.transaction((tx) => {
+      for (const moved of copy.respaced) {
+        tx.update(workItem)
+          .set({ position: moved.position })
+          .where(eq(workItem.id, moved.id))
+          .run();
+      }
+      // One statement per row rather than one multi-row insert: a child
+      // referencing a parent in the same `VALUES` list depends on the order
+      // SQLite evaluates it in, which is not a contract worth resting a tree on.
+      for (const row of copy.rows) tx.insert(workItem).values(row).run();
+      // After the rows, because these point at them. A restored parent's
+      // children come home here, and a row that gained a parent gained a
+      // stored field of its own — see {@link bumpedWorkItemOnReparent} for why
+      // the former siblings alongside them do not count.
+      for (const child of copy.reparented) {
+        tx.update(workItem)
+          .set({
+            parentId: child.parentId,
+            position: child.position,
+            revision: bumpedWorkItemOnReparent(child.parentId),
+          })
+          .where(eq(workItem.id, child.id))
+          .run();
+      }
+      if (copy.estimates.length > 0)
+        tx.insert(estimate)
+          .values([...copy.estimates])
+          .run();
+      if (copy.assignments.length > 0)
+        tx.insert(assignment)
+          .values([...copy.assignments])
+          .run();
+      // Plain inserts, never `onConflictDoNothing`: every id here was generated
+      // for this copy, so a conflict is an id collision and swallowing it would
+      // hide the one thing that must never be quiet.
+      if (copy.dependencies.length > 0)
+        tx.insert(dependency)
+          .values([...copy.dependencies])
+          .run();
+      // Last, and in the same transaction as the rows that make it correct: a
+      // restored leaf and the parent still holding that leaf's figures would
+      // count the same days twice for as long as the window lasted.
+      for (const taken of copy.removedEstimates) {
+        tx.delete(estimate)
+          .where(and(eq(estimate.workItemId, taken.workItemId), eq(estimate.roleId, taken.roleId)))
+          .run();
+      }
+      bumpWorkItems(
+        tx,
+        copy.removedEstimates.map((taken) => taken.workItemId),
+      );
     });
   }
 }

@@ -1,9 +1,12 @@
 import type { FrozenNumber, Repositioned, WorkItem, WorkItemStore } from '../repository';
 import { WorkItemService } from '../service/work-item.service';
+import { inMemoryDirectory } from '../testing/directory-fixture';
 import { recordingBroadcaster } from './broadcast-fixture';
+import { inMemoryCommandJournal } from './command-journal-fixture';
 import { inMemoryDependencies } from './dependency-fixture';
 import { inMemoryEstimates } from './estimate-fixture';
 import { inMemoryProjects } from './project-fixture';
+import { inMemorySubtrees } from './subtree-fixture';
 
 /**
  * A WorkItemStore backed by a Map.
@@ -43,6 +46,12 @@ export function inMemoryWorkItems(): WorkItemStore {
         ...existing,
         name: patch.name ?? existing.name,
         notes: patch.notes ?? existing.notes,
+        startNoEarlierThan:
+          patch.startNoEarlierThan === undefined
+            ? existing.startNoEarlierThan
+            : patch.startNoEarlierThan,
+        serviceTeamId:
+          patch.serviceTeamId === undefined ? existing.serviceTeamId : patch.serviceTeamId,
       };
       byId.set(id, updated);
       return Promise.resolve(updated);
@@ -81,11 +90,17 @@ export function inMemoryWorkItems(): WorkItemStore {
 /** A WorkItemService over in-memory stores, for tests that only need `buildApp` to construct. */
 export function testWorkItemService(): WorkItemService {
   const workItems = inMemoryWorkItems();
+  const estimates = inMemoryEstimates(workItems);
+  const dependencies = inMemoryDependencies();
+  const directory = inMemoryDirectory();
   return new WorkItemService({
     workItems,
     projects: inMemoryProjects(),
-    estimates: inMemoryEstimates(workItems),
-    dependencies: inMemoryDependencies(),
+    estimates,
+    dependencies,
+    directory,
+    subtrees: inMemorySubtrees({ workItems, estimates, dependencies, directory }),
+    journal: inMemoryCommandJournal(),
     broadcast: recordingBroadcaster(),
   });
 }

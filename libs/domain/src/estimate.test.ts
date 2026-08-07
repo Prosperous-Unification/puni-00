@@ -1,7 +1,13 @@
 import { parseOrThrow, ValidationError } from '@wbs/validation';
 import { describe, expect, it } from 'bun:test';
 
-import { expectedDays, ThreePointEstimate } from './estimate';
+import {
+  ESTIMATE_METHODS,
+  expectedDays,
+  finalDays,
+  isEstimateMethod,
+  ThreePointEstimate,
+} from './estimate';
 
 describe('ThreePointEstimate', () => {
   it('accepts an ordered triple', () => {
@@ -44,5 +50,41 @@ describe('expectedDays', () => {
 
   it('is zero for an estimate of nothing', () => {
     expect(expectedDays({ optimistic: 0, realistic: 0, pessimistic: 0 })).toBe(0);
+  });
+});
+
+describe('finalDays', () => {
+  const estimate = { optimistic: 2, realistic: 3, pessimistic: 10 };
+
+  it('is PERT under the default method', () => {
+    expect(finalDays(estimate, 'pert')).toBe(4);
+  });
+
+  it('is the named point under the other three', () => {
+    expect(finalDays(estimate, 'optimistic')).toBe(2);
+    expect(finalDays(estimate, 'realistic')).toBe(3);
+    expect(finalDays(estimate, 'pessimistic')).toBe(10);
+  });
+
+  it('agrees with expectedDays on pert, whatever the numbers', () => {
+    // The two must not drift: the schedule's durations and the figure beside
+    // the trio are the same number, and this is what says so.
+    for (const trio of [
+      { optimistic: 0, realistic: 0, pessimistic: 0 },
+      { optimistic: 1, realistic: 2, pessimistic: 4 },
+      { optimistic: 0.5, realistic: 0.5, pessimistic: 9 },
+    ]) {
+      expect(finalDays(trio, 'pert')).toBe(expectedDays(trio));
+    }
+  });
+});
+
+describe('isEstimateMethod', () => {
+  it('accepts the four methods and nothing else', () => {
+    for (const method of ESTIMATE_METHODS) expect(isEstimateMethod(method)).toBe(true);
+    // The boundary check: a stored column or a posted body holding anything
+    // else is data this code cannot plan with, and saying so is the point.
+    for (const bad of ['PERT', 'median', '', null, undefined, 4, {}])
+      expect(isEstimateMethod(bad)).toBe(false);
   });
 });

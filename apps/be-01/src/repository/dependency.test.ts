@@ -37,7 +37,16 @@ beforeEach(async () => {
   });
   projectId = crypto.randomUUID();
   await new ProjectRepository(db).create(
-    { id: projectId, name: 'Rewire the shed', ownerId, restricted: false, createdAt: 1 },
+    {
+      id: projectId,
+      name: 'Rewire the shed',
+      ownerId,
+      restricted: false,
+      estimateMethod: 'pert',
+      startDate: null,
+      revision: 0,
+      createdAt: 1,
+    },
     [{ id: crypto.randomUUID(), projectId, name: 'Dev' }],
   );
 });
@@ -49,7 +58,18 @@ afterEach(() => {
 async function addWorkItem(name: string): Promise<string> {
   const id = crypto.randomUUID();
   await workItems.insert(
-    { id, projectId, parentId: null, position: 10, name, notes: '', frozenNumber: null },
+    {
+      id,
+      projectId,
+      parentId: null,
+      position: 10,
+      name,
+      notes: '',
+      frozenNumber: null,
+      startNoEarlierThan: null,
+      serviceTeamId: null,
+      revision: 0,
+    },
     [],
   );
   return id;

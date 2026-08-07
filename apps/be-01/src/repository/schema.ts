@@ -70,10 +70,76 @@ export const project = sqliteTable('project', {
     .notNull()
     .references(() => users.id),
   restricted: integer('restricted', { mode: 'boolean' }).notNull().default(false),
+  /**
+   * Which of the four {@link EstimateMethod}s this project plans with. Text
+   * rather than an integer so a database anyone opens says `pessimistic`
+   * instead of `3`, and defaulted so every existing project keeps the PERT
+   * behaviour it already had.
+   */
+  estimateMethod: text('estimate_method').notNull().default('pert'),
+  /**
+   * The calendar day the plan begins, as `YYYY-MM-DD`, or null for a project
+   * that has not been placed on a calendar.
+   *
+   * Nullable rather than defaulted to the day the project was made: a plan
+   * with no start date is an ordinary state — an estimate nobody has committed
+   * to a date yet — and inventing one would put dates on screen that nobody
+   * chose. Without it the schedule still answers in day offsets, as it always
+   * has.
+   */
+  startDate: text('start_date'),
+  /**
+   * How many times this project has been written to — see {@link workItem}'s
+   * `revision` for what a revision is and the rule that decides when one moves.
+   *
+   * The project's own stored fields (name, restriction, estimate method, start
+   * date) and its **satellites** move it. Its roles are a satellite: adding,
+   * renaming or removing one changes what every estimate in the project means.
+   * There is no write path for a role today beyond creating the project, so
+   * that half of the rule is stated rather than exercised — the first one added
+   * bumps this column, and `revision.test.ts` is where it will be asserted.
+   *
+   * A project's work items are **not** satellites of it. They are entities with
+   * revisions of their own, and folding them in here would make this counter
+   * move on every keystroke anybody types anywhere in the plan — a precondition
+   * on it would then fail for two people editing unrelated branches.
+   *
+   * `project_access.last_opened_at` does not move it either: whose screen a
+   * project is on is navigation history, not a change to the plan.
+   */
+  revision: integer('revision').notNull().default(0),
   createdAt: integer('created_at').notNull(),
 });
 
 export type ProjectRow = typeof project.$inferSelect;
+
+/**
+ * When one account last opened one project, and nothing else.
+ *
+ * The picker sorts by it, which is the whole reason it exists: "the project I
+ * was in yesterday" is how people find their way back, and creation order
+ * answers a question nobody asks. One row per pair, overwritten on each open —
+ * a log would answer "how often" and "when before that", which nothing asks.
+ *
+ * Its own table rather than a column anywhere: the fact belongs to the pair,
+ * not to the project (every account has a different answer) and not to the
+ * account (it has one per project).
+ */
+export const projectAccess = sqliteTable(
+  'project_access',
+  {
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id),
+    projectId: text('project_id')
+      .notNull()
+      .references(() => project.id),
+    lastOpenedAt: integer('last_opened_at').notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.projectId] })],
+);
+
+export type ProjectAccessRow = typeof projectAccess.$inferSelect;
 
 /**
  * One unit of work, placed in a tree by `parentId` and among its siblings by
@@ -105,6 +171,57 @@ export const workItem = sqliteTable(
     name: text('name').notNull().default(''),
     notes: text('notes').notNull().default(''),
     frozenNumber: text('frozen_number'),
+    /**
+     * A calendar day this work item may not start before, or null.
+     *
+     * A **constraint**, never a pin: the schedule takes the later of this and
+     * whatever its dependencies allow, so a predecessor that slips still
+     * pushes this item along. Dany's call, 2026-08-06 — "keeps systems
+     * independent". A hard pin would let a date contradict the dependency tree
+     * and leave nothing to say which of the two was right.
+     */
+    startNoEarlierThan: text('start_no_earlier_than'),
+    /**
+     * The service or team this work belongs to, or null. A label on the work,
+     * not a constraint on who may be assigned it.
+     */
+    serviceTeamId: text('service_team_id'),
+    /**
+     * How many times this work item has been written to: a monotonic counter
+     * that starts at 0 and is bumped by every write that changes what the work
+     * item means.
+     *
+     * **The rule of thumb: if a reader could see different data because of the
+     * write, the owning entity's revision moved.** That includes writes to the
+     * work item's **satellites** — rows in other tables that have no identity
+     * of their own and are only ever read through the work item they hang off:
+     *
+     * - an `estimate` bumps the work item it is for, and a handoff between two
+     *   work items bumps both;
+     * - an `assignment` bumps the work item it is on;
+     * - a `dependency` bumps **both** endpoints, because either end reads the
+     *   edge.
+     *
+     * What it deliberately does **not** cover is the work item's derived
+     * number. `position` is storage detail and the number a reader sees is
+     * computed from the whole tree, so one structural edit changes the number
+     * of rows nobody wrote to. Bumping all of them would make this counter
+     * global — every reader would conflict with every writer — so a revision
+     * covers the entity's own stored fields and its satellites, and never its
+     * place in somebody else's numbering. A client that cares about the
+     * numbers refetches the tree, which is what it already does.
+     *
+     * Bumped with SQL arithmetic (`revision = revision + 1`) in the same
+     * statement or transaction as the write it describes, never read into the
+     * process and written back: two writers that both read 4 would both write
+     * 5, and one of the two writes would then be invisible to the very check
+     * this column exists to serve.
+     *
+     * Nothing enforces a precondition on it yet — this column records the
+     * fact. Conditional undo and write preconditions are the consumers, and
+     * they are separate changes.
+     */
+    revision: integer('revision').notNull().default(0),
   },
   (t) => [index('work_item_siblings').on(t.projectId, t.parentId, t.position)],
 );
@@ -156,6 +273,104 @@ export const estimate = sqliteTable(
 export type EstimateRow = typeof estimate.$inferSelect;
 
 /**
+ * A service or team that work can be labelled with — global, not per project.
+ *
+ * Dany's ask, 2026-08-06: it behaves like a Jira label. Anyone may add one by
+ * typing a name the list does not have, and every project draws from the same
+ * list, because the same teams do work across projects and one list per
+ * project would be the same names typed again and again with typos between
+ * them.
+ *
+ * The name is unique at the database rather than only in the service: two
+ * people creating `Platform` at the same moment both pass a check-then-insert,
+ * and only a constraint stops the second.
+ */
+export const serviceTeam = sqliteTable(
+  'service_team',
+  {
+    id: text('id').primaryKey(),
+    name: text('name').notNull(),
+  },
+  (t) => [uniqueIndex('service_team_name').on(t.name)],
+);
+
+export type ServiceTeamRow = typeof serviceTeam.$inferSelect;
+
+/**
+ * Somebody who does work. Global, like the teams, and for the same reason.
+ *
+ * Not a `users` row: the people a plan assigns work to are mostly not accounts
+ * on this tool, and requiring them to be would make the field unusable on the
+ * day it is needed. If the two ever have to meet, they meet through a column
+ * added then, not through a foreign key guessed at now.
+ */
+export const person = sqliteTable(
+  'person',
+  {
+    id: text('id').primaryKey(),
+    name: text('name').notNull(),
+  },
+  (t) => [uniqueIndex('person_name').on(t.name)],
+);
+
+export type PersonRow = typeof person.$inferSelect;
+
+/**
+ * Which teams a person belongs to — several, deliberately.
+ *
+ * Dany, 2026-08-06: "one assignee might be from different service/teams". A
+ * person with no rows here is a **free agent**, which is computed on read
+ * rather than stored as membership of a magic team: a real "Free agents" row
+ * could be renamed, deleted or assigned work of its own, and then the default
+ * would mean whatever somebody last did to it.
+ */
+export const personTeam = sqliteTable(
+  'person_team',
+  {
+    personId: text('person_id')
+      .notNull()
+      .references(() => person.id, { onDelete: 'cascade' }),
+    serviceTeamId: text('service_team_id')
+      .notNull()
+      .references(() => serviceTeam.id, { onDelete: 'cascade' }),
+  },
+  (t) => [primaryKey({ columns: [t.personId, t.serviceTeamId] })],
+);
+
+export type PersonTeamRow = typeof personTeam.$inferSelect;
+
+/**
+ * Who does one work item's work for one role — one person per phase.
+ *
+ * The primary key is the pair, so a work item has at most one Dev and at most
+ * one QA. Dany, 2026-08-06: "one per dev, one per QA", and "when just one is
+ * assigned it is assumed they do both" — that last part is a **reading** of an
+ * absent row, not a second row written on somebody's behalf, so nobody is
+ * recorded against work they were never given.
+ *
+ * The person is deliberately unconstrained by the work item's `serviceTeamId`:
+ * Dany's call, "keep people and service/team lists decoupled for the work
+ * item". A team labels the work; a person does it; the two need not match.
+ */
+export const assignment = sqliteTable(
+  'assignment',
+  {
+    workItemId: text('work_item_id')
+      .notNull()
+      .references((): AnySQLiteColumn => workItem.id, { onDelete: 'cascade' }),
+    roleId: text('role_id')
+      .notNull()
+      .references(() => role.id, { onDelete: 'cascade' }),
+    personId: text('person_id')
+      .notNull()
+      .references(() => person.id, { onDelete: 'cascade' }),
+  },
+  (t) => [primaryKey({ columns: [t.workItemId, t.roleId] })],
+);
+
+export type AssignmentRow = typeof assignment.$inferSelect;
+
+/**
  * A finish-to-start dependency: `successor` cannot start until `predecessor`
  * finishes.
  *
@@ -203,3 +418,61 @@ export const dependency = sqliteTable(
 );
 
 export type DependencyRow = typeof dependency.$inferSelect;
+
+/**
+ * One command somebody ran, and everything needed to reverse it — the undo
+ * stack, held on the server so it survives a reload.
+ *
+ * **One stack per (project, account).** Undo is personal: reversing somebody
+ * else's last edit because it happened to be the newest is how a shared plan
+ * loses work nobody meant to lose. Two browser tabs of one account share one
+ * stack, which is accepted and stated in
+ * `openspec/changes/conditional-undo/design.md`.
+ *
+ * `seq` orders that stack and is assigned by SQLite from the pair's current
+ * maximum, inside the `INSERT` itself — the same rule as `work_item.revision`
+ * and for the same reason. Two processes sharing the file mid-swap would
+ * otherwise both read the same maximum and both write it, and the unique index
+ * on `(project_id, user_id, seq)` would then refuse the second insert, failing
+ * an edit that had already been applied.
+ *
+ * `payload` holds what the command did, as `{label, forward}`: the sentence
+ * shown after an undo, and the command a **redo** re-applies. `inverse` holds
+ * the compensating command that reverses it, carrying the before-state it
+ * needs — the old field value, the removed trio, the whole deleted subtree.
+ * `preconditions` holds `{workItemId: revision}` for every entity the command
+ * touched, at the revisions the command **left them at**: an undo applies only
+ * when every one of them still reads that number, and otherwise refuses out
+ * loud rather than overwriting whatever arrived since.
+ *
+ * `undone` is which half of the stack an entry is in — 0 is undoable, 1 is
+ * redoable. A redo flips it back. Undo and redo append nothing here: an undo
+ * that was itself journalled would be undoable, and pressing the key twice
+ * would toggle one change forever instead of walking back through two.
+ *
+ * The three JSON columns are text this process wrote and reads back. The
+ * service checks the command discriminator and nothing else; see
+ * `readCommand` for why, and for what that leaves unchecked.
+ */
+export const commandJournal = sqliteTable(
+  'command_journal',
+  {
+    id: text('id').primaryKey(),
+    projectId: text('project_id')
+      .notNull()
+      .references(() => project.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    seq: integer('seq').notNull(),
+    kind: text('kind').notNull(),
+    payload: text('payload').notNull(),
+    inverse: text('inverse').notNull(),
+    preconditions: text('preconditions').notNull(),
+    undone: integer('undone', { mode: 'boolean' }).notNull().default(false),
+    createdAt: integer('created_at').notNull(),
+  },
+  (t) => [uniqueIndex('command_journal_stack').on(t.projectId, t.userId, t.seq)],
+);
+
+export type CommandJournalRow = typeof commandJournal.$inferSelect;

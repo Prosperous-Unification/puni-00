@@ -1,3 +1,5 @@
+import type { EstimateMethod, IsoDate } from '@wbs/domain';
+
 export interface Example {
   id: string;
   label: string;
@@ -28,7 +30,23 @@ export interface Project {
   name: string;
   ownerId: string;
   restricted: boolean;
+  /** How this project turns its three-point estimates into one planning number. */
+  estimateMethod: EstimateMethod;
+  /** The calendar day the plan begins, or null for a plan not yet on a calendar. */
+  startDate: IsoDate | null;
+  /**
+   * How many times this project has been written to. Moves on its own stored
+   * fields and on its roles; never on a work item beneath it, and never on
+   * somebody opening it. See `schema.ts` for the rule and why it is bumped in
+   * SQL rather than in this process.
+   */
+  revision: number;
   createdAt: number;
+}
+
+/** A project as one account sees it: null when that account has never opened it. */
+export interface ProjectWithAccess extends Project {
+  lastOpenedAt: number | null;
 }
 
 export interface Role {
@@ -40,6 +58,9 @@ export interface Role {
 export interface ProjectPatch {
   name?: string;
   restricted?: boolean;
+  estimateMethod?: EstimateMethod;
+  /** `null` takes the plan back off the calendar. */
+  startDate?: IsoDate | null;
 }
 
 export interface WorkItem {
@@ -50,11 +71,25 @@ export interface WorkItem {
   name: string;
   notes: string;
   frozenNumber: string | null;
+  /** A day this item may not start before — a floor, never a pin. */
+  startNoEarlierThan: IsoDate | null;
+  /** The service or team this work is labelled with, or null. */
+  serviceTeamId: string | null;
+  /**
+   * How many times this work item has been written to, counting writes to its
+   * estimates, assignments and dependencies — and not counting a change to the
+   * number derived for it. See `schema.ts` for the whole rule.
+   */
+  revision: number;
 }
 
 export interface WorkItemPatch {
   name?: string;
   notes?: string;
+  /** `null` removes the constraint and lets the dependencies alone decide. */
+  startNoEarlierThan?: IsoDate | null;
+  /** `null` takes the label off. Never constrains who may be assigned the work. */
+  serviceTeamId?: string | null;
 }
 
 /** A position write the caller has already worked out, applied with whatever prompted it. */
@@ -115,6 +150,15 @@ export interface EstimateStore {
   /** Writes one work item's estimate for one role, replacing any earlier one. */
   set(estimate: StoredEstimate): Promise<void>;
   /**
+   * Takes away one work item's estimate for one role, leaving every other
+   * role on that work item and that role on every other work item alone.
+   *
+   * Removing one that is not stored is not an error: the state asked for is
+   * the state left, and two people emptying the same three boxes must not turn
+   * the second one into a failure on screen.
+   */
+  remove(workItemId: string, roleId: string): Promise<void>;
+  /**
    * Moves every estimate from one work item to another.
    *
    * Used in both directions by the same rule: an estimated work item that gains
@@ -148,6 +192,224 @@ export interface DependencyStore {
   removeAllFor(workItemId: string): Promise<void>;
 }
 
+/** A service or team work can be labelled with. Global, shared by every project. */
+export interface ServiceTeam {
+  id: string;
+  name: string;
+}
+
+/** Somebody who does work. Not an account on this tool. */
+export interface Person {
+  id: string;
+  name: string;
+}
+
+/** A person and the teams they belong to — empty means a free agent. */
+export interface PersonWithTeams extends Person {
+  teamIds: string[];
+}
+
+/** Who is doing one work item's work for one role. */
+export interface Assignment {
+  workItemId: string;
+  roleId: string;
+  personId: string;
+}
+
+export interface DirectoryStore {
+  listTeams(): Promise<ServiceTeam[]>;
+  /**
+   * Adds a team, or returns the one that already has that name.
+   *
+   * Idempotent by name at the database rather than by asking first: this list
+   * is typed into by everybody, and two people adding `Platform` at once both
+   * pass a check-then-insert.
+   */
+  addTeam(team: ServiceTeam): Promise<ServiceTeam>;
+  listPeople(): Promise<PersonWithTeams[]>;
+  /** Adds a person, or returns the one with that name, joining them to `teamIds`. */
+  addPerson(toAdd: Person, teamIds: readonly string[]): Promise<Person>;
+  assignmentsOf(workItemIds: readonly string[]): Promise<Assignment[]>;
+  /** Sets, replaces or (with `null`) removes one work item's assignee for one role. */
+  assign(workItemId: string, roleId: string, personId: string | null): Promise<void>;
+}
+
+/**
+ * A duplicated subtree, ready to be written: every copied row and everything
+ * that hangs off it, already carrying its new ids.
+ *
+ * It arrives as one value because it is written as one act — see
+ * {@link SubtreeStore.insertSubtree}. The caller has already decided every id,
+ * so nothing here is generated on the way in.
+ */
+export interface SubtreeCopy {
+  /**
+   * The copies, **parents before children**. `work_item.parent_id` references
+   * `work_item.id`, so any other order is refused by the database rather than
+   * silently reordered.
+   */
+  rows: readonly WorkItem[];
+  /** Existing siblings of the copied root whose positions the placement moved. */
+  respaced: readonly Repositioned[];
+  /**
+   * Rows already in the tree that this write moves back **under** one of
+   * `rows`, with the position each had before.
+   *
+   * Empty for a duplication, which invents every row it writes. It is what
+   * makes restoring a promoted deletion one act: the deleted parent comes back
+   * and the children that were promoted out of it go back beneath it, and a
+   * reader can never land between the two and see the same work twice.
+   *
+   * Applied after `rows`, because `parent_id` references a row that must
+   * already be there.
+   */
+  reparented: readonly Reparented[];
+  estimates: readonly StoredEstimate[];
+  assignments: readonly Assignment[];
+  /** Only the edges with both ends inside the subtree, remapped to the copies. */
+  dependencies: readonly StoredDependency[];
+  /**
+   * Estimates to take off a work item **outside** `rows`, in the same write.
+   *
+   * Empty for a duplication. It exists for the mirror of the rule in
+   * `WorkItemService.remove`: deleting a parent's last child hands that child's
+   * figures up to the parent, so putting the child back has to take them off
+   * again, or the same days are counted twice — once on the restored leaf and
+   * once on the parent that is no longer a leaf.
+   */
+  removedEstimates: readonly EstimateKey[];
+}
+
+/** One estimate row's whole identity: the pair its primary key is. */
+export interface EstimateKey {
+  workItemId: string;
+  roleId: string;
+}
+
+export interface SubtreeStore {
+  /**
+   * Writes a whole {@link SubtreeCopy} in one transaction, across all four
+   * tables it touches.
+   *
+   * Wider than any other store here on purpose. A copy applied in pieces can
+   * fail between them and leave rows that look like real work with no
+   * estimates and nobody assigned — a plan that is quietly wrong rather than
+   * visibly incomplete, and nothing in the tree says which rows they are.
+   *
+   * Throws whatever the database throws. A rejected write means **nothing**
+   * was written, which `work-item.test.ts` asserts against a deliberately
+   * broken foreign key rather than claiming it here.
+   */
+  insertSubtree(copy: SubtreeCopy): Promise<void>;
+}
+
+/**
+ * One command an account ran on one project, and what it takes to reverse it.
+ *
+ * The three JSON fields arrive parsed but **unvalidated beyond their shape** —
+ * see `command_journal` in `schema.ts` for what is written into them and
+ * `readCommand` in `service/compensating.ts` for the one thing that is checked.
+ */
+export interface JournalEntry {
+  id: string;
+  projectId: string;
+  userId: string;
+  /** This entry's place in the account's stack for this project; higher is newer. */
+  seq: number;
+  kind: string;
+  /** `{label, forward}` — what to say about it, and what a redo re-applies. */
+  payload: unknown;
+  /** The compensating command an undo applies, carrying its before-state. */
+  inverse: unknown;
+  /** `{workItemId: revision}` at the revisions the command left them at. */
+  preconditions: unknown;
+  /** True once undone: the entry has left the undo stack and joined the redo one. */
+  undone: boolean;
+  createdAt: number;
+}
+
+/** A journal entry on its way in, before the store decides where it sits in the stack. */
+export interface NewJournalEntry {
+  id: string;
+  projectId: string;
+  userId: string;
+  kind: string;
+  payload: unknown;
+  inverse: unknown;
+  preconditions: unknown;
+  createdAt: number;
+}
+
+/** Whether an account has anything to undo or redo on one project. */
+export interface UndoState {
+  undoable: boolean;
+  redoable: boolean;
+}
+
+/**
+ * The last {@link JOURNAL_DEPTH} commands each account ran on each project.
+ *
+ * Deep enough to walk back through a working session, shallow enough that the
+ * table does not grow without bound on a plan somebody edits every day. A
+ * number rather than a setting: nothing about an environment changes the right
+ * answer.
+ */
+export const JOURNAL_DEPTH = 50;
+
+export interface CommandJournalStore {
+  /**
+   * Appends a command to the account's stack for this project, **clearing that
+   * account's redo branch** and pruning past {@link JOURNAL_DEPTH}, in one
+   * transaction.
+   *
+   * The redo branch goes because it describes a future that no longer exists:
+   * having undone a rename and then typed something else, re-applying the
+   * rename would put back a value computed from a plan that has moved on. Only
+   * this account's branch goes — the stacks are per account.
+   */
+  append(entry: NewJournalEntry): Promise<void>;
+  /**
+   * The whole of one account's stack for one project, **oldest first**.
+   *
+   * All of it rather than just the end being asked for, because applying one
+   * entry re-stamps its neighbours: an undo is a write, and the entries below
+   * it hold revisions that this account's own undo has just walked past. It is
+   * bounded by {@link JOURNAL_DEPTH}, so this is fifty rows at worst.
+   */
+  entriesFor(projectId: string, userId: string): Promise<JournalEntry[]>;
+  /**
+   * Moves one entry between the two halves of the stack, and records the
+   * revisions the direction just applied left behind.
+   *
+   * The two go together because they describe one act. An entry that changed
+   * sides while keeping the preconditions of the direction it came from would
+   * be checked against revisions the tree has deliberately moved past — every
+   * redo would read as stale, and the redo half of the stack would be
+   * decorative.
+   */
+  flip(id: string, undone: boolean, preconditions: unknown): Promise<void>;
+  /**
+   * Rewrites one entry's preconditions where it stands, without moving it
+   * between the halves of the stack.
+   *
+   * For the neighbours of an entry that was just applied — see
+   * `Preconditions` in `service/compensating.ts` for when a neighbour may be
+   * re-stamped and when it must be left to refuse.
+   */
+  restamp(id: string, preconditions: unknown): Promise<void>;
+  /**
+   * Throws an entry away for good.
+   *
+   * What happens to an entry whose preconditions no longer hold: it can never
+   * apply again — the state it described is gone — and leaving it at the top
+   * would jam the stack, refusing every later press of the key for a change
+   * nobody can reach any more.
+   */
+  discard(id: string): Promise<void>;
+  /** Whether either half of the account's stack has anything in it. */
+  stateOf(projectId: string, userId: string): Promise<UndoState>;
+}
+
 export interface ProjectStore {
   /**
    * Writes the project and its starting roles together. A project that existed
@@ -158,6 +420,22 @@ export interface ProjectStore {
   findById(id: string): Promise<Project | null>;
   /** Every project, newest first. Readable by any account, so it is not filtered by owner. */
   list(): Promise<Project[]>;
+  /**
+   * Every project in `userId`'s own order: the ones that account has opened
+   * first, most recent before less recent, then the ones it never opened,
+   * newest created first.
+   *
+   * Not a filter — every account still sees every project, because reading is
+   * open. Only the order and the extra `lastOpenedAt` differ per caller.
+   */
+  listFor(userId: string): Promise<ProjectWithAccess[]>;
+  /**
+   * Records `userId` as having opened `projectId` at `at`, replacing whatever
+   * moment was recorded before. Idempotent by the primary key rather than by
+   * asking first: two tabs opening one project at once would both see "no row"
+   * and both insert.
+   */
+  recordOpen(userId: string, projectId: string, at: number): Promise<void>;
   /** Returns null when the project is gone. */
   update(id: string, patch: ProjectPatch): Promise<Project | null>;
   rolesOf(projectId: string): Promise<Role[]>;

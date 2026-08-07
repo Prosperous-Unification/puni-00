@@ -2,7 +2,9 @@ import { beforeEach, describe, expect, it } from 'bun:test';
 
 import type { EstimateStore, Project, ProjectStore, WorkItemStore } from '../repository';
 import { type RecordingBroadcaster, recordingBroadcaster } from '../testing/broadcast-fixture';
+import { inMemoryCommandJournal } from '../testing/command-journal-fixture';
 import { inMemoryDependencies } from '../testing/dependency-fixture';
+import { inMemoryDirectory } from '../testing/directory-fixture';
 import { inMemoryEstimates } from '../testing/estimate-fixture';
 import { inMemoryProjects } from '../testing/project-fixture';
 import { inMemoryWorkItems } from '../testing/work-item-fixture';
@@ -27,6 +29,8 @@ beforeEach(async () => {
     projects,
     estimates,
     dependencies: inMemoryDependencies(),
+    directory: inMemoryDirectory(),
+    journal: inMemoryCommandJournal(),
     broadcast,
   });
   const project: Project = {
@@ -34,6 +38,9 @@ beforeEach(async () => {
     name: 'Rewire the shed',
     ownerId: OWNER,
     restricted: false,
+    estimateMethod: 'pert',
+    startDate: null,
+    revision: 0,
     createdAt: 1,
   };
   await projects.create(project, []);
