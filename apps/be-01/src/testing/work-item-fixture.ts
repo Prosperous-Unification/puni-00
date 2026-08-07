@@ -5,6 +5,7 @@ import { recordingBroadcaster } from './broadcast-fixture';
 import { inMemoryDependencies } from './dependency-fixture';
 import { inMemoryEstimates } from './estimate-fixture';
 import { inMemoryProjects } from './project-fixture';
+import { inMemorySubtrees } from './subtree-fixture';
 
 /**
  * A WorkItemStore backed by a Map.
@@ -88,12 +89,16 @@ export function inMemoryWorkItems(): WorkItemStore {
 /** A WorkItemService over in-memory stores, for tests that only need `buildApp` to construct. */
 export function testWorkItemService(): WorkItemService {
   const workItems = inMemoryWorkItems();
+  const estimates = inMemoryEstimates(workItems);
+  const dependencies = inMemoryDependencies();
+  const directory = inMemoryDirectory();
   return new WorkItemService({
     workItems,
     projects: inMemoryProjects(),
-    estimates: inMemoryEstimates(workItems),
-    dependencies: inMemoryDependencies(),
-    directory: inMemoryDirectory(),
+    estimates,
+    dependencies,
+    directory,
+    subtrees: inMemorySubtrees({ workItems, estimates, dependencies, directory }),
     broadcast: recordingBroadcaster(),
   });
 }

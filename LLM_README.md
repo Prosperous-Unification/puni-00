@@ -12,9 +12,9 @@ Two facts explain most decisions:
   over-engineered; considered and rejected. Don't re-argue it.
 - **The product is a working WBS editor, all of it on `main` since 2026-08-06.** Accounts and
   presence, projects, a nested table you type into and drag rows around, arrow keys between
-  cells, derived numbers with a freeze, three-point estimates by role that roll up, live edits,
-  and a socket that reconnects and replays what it missed. Tables: `user`, `project`, `role`,
-  `work_item`, `estimate`, `event_log`, `event_sequencer`.
+  cells, derived numbers with a freeze, three-point estimates by role that roll up, a branch you
+  can duplicate whole, live edits, and a socket that reconnects and replays what it missed.
+  Tables: `user`, `project`, `role`, `work_item`, `estimate`, `event_log`, `event_sequencer`.
 
 Tool choices bias novel over mainstream (Bun, Elysia, ArkType, Dagger) on purpose.
 

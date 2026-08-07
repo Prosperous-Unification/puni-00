@@ -7,7 +7,7 @@ import { EstimateRepository } from './repository/estimate';
 import { DrizzleEventLogRepo } from './repository/event-log';
 import { ProjectRepository } from './repository/project';
 import { UserRepository } from './repository/user';
-import { WorkItemRepository } from './repository/work-item';
+import { SubtreeRepository, WorkItemRepository } from './repository/work-item';
 import { AuthService } from './service/auth.service';
 import { DirectoryService } from './service/directory.service';
 import { EventSequencer } from './service/event-sequencer';
@@ -85,6 +85,9 @@ export function buildServices(opts: ServicesOptions): BeServices {
       estimates: new EstimateRepository(opts.db),
       dependencies: new DependencyRepository(opts.db),
       directory: directoryStore,
+      // The one store that writes across all four of the tables above, because
+      // a duplicated subtree is one act — see {@link SubtreeRepository}.
+      subtrees: new SubtreeRepository(opts.db),
       broadcast: new GatewayBroadcaster({
         sequencer: new EventSequencer(eventLog),
         buffer: replayBuffer,

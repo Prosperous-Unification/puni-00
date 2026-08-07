@@ -67,6 +67,7 @@ function fakeProjects(
     create: () => Promise.reject(new Error('not_in_these_tests')),
     patch: () => Promise.reject(new Error('not_in_these_tests')),
     move: () => Promise.reject(new Error('not_in_these_tests')),
+    duplicate: () => Promise.reject(new Error('not_in_these_tests')),
     remove: () => Promise.reject(new Error('not_in_these_tests')),
     setEstimate: () => Promise.reject(new Error('not_in_these_tests')),
     clearEstimate: () => Promise.reject(new Error('not_in_these_tests')),

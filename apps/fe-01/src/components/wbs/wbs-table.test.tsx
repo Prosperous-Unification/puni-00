@@ -230,6 +230,56 @@ function fakeApi(): ProjectApi & { rows: WorkItemView[] } {
       renumber();
       return Promise.resolve();
     },
+    duplicate(id) {
+      const source = rows.find((r) => r.id === id);
+      if (source === undefined) return Promise.reject(new Error('not_found'));
+      // be-01's rules in miniature, because the table is asserted against
+      // them: the whole branch, the root renamed, no frozen numbers, and only
+      // the edges with both ends inside it.
+      const subtree: WorkItemView[] = [];
+      const collect = (row: WorkItemView): void => {
+        subtree.push(row);
+        for (const child of rows.filter((r) => r.parentId === row.id)) collect(child);
+      };
+      collect(source);
+      const copyOf = new Map<string, string>();
+      for (const row of subtree) {
+        next += 1;
+        copyOf.set(row.id, `w${String(next)}`);
+      }
+      const copyId = (originalId: string): string => {
+        const copied = copyOf.get(originalId);
+        if (copied === undefined) throw new Error(`no copy for ${originalId}`);
+        return copied;
+      };
+      const copies = subtree.map((row, index) => ({
+        ...row,
+        id: copyId(row.id),
+        parentId: index === 0 ? row.parentId : copyId(row.parentId ?? row.id),
+        name: index === 0 ? `${row.name} (copy)` : row.name,
+        frozenNumber: null,
+        estimates: { ...row.estimates },
+      }));
+      const inside = new Set(subtree.map((r) => r.id));
+      for (const edge of edges.filter(
+        (e) => inside.has(e.predecessorId) && inside.has(e.successorId),
+      )) {
+        edges.push({
+          predecessorId: copyId(edge.predecessorId),
+          successorId: copyId(edge.successorId),
+        });
+      }
+      for (const [key, personId] of [...assigned.entries()]) {
+        const [workItemId = '', roleId = ''] = key.split('::');
+        if (inside.has(workItemId)) assigned.set(`${copyId(workItemId)}::${roleId}`, personId);
+      }
+      const last = subtree.at(-1);
+      rows.splice(last === undefined ? rows.length : rows.indexOf(last) + 1, 0, ...copies);
+      renumber();
+      const root = copies.at(0);
+      if (root === undefined) throw new Error('a duplication copied nothing');
+      return Promise.resolve({ id: root.id });
+    },
     remove(id) {
       const index = rows.findIndex((r) => r.id === id);
       if (index >= 0) rows.splice(index, 1);
@@ -694,6 +744,69 @@ describe('the WBS table', () => {
       expect(screen.getByLabelText('Number is frozen')).toBeDefined();
     });
     expect(screen.getByRole('button', { name: 'Unfreeze' })).toBeDefined();
+  });
+});
+
+describe('duplicating a branch', () => {
+  /** A one-row project, already loaded, so the button has something to copy. */
+  async function shownRow(api: ProjectApi): Promise<void> {
+    await api.create('p1', { parentId: null, afterId: null, name: 'Strip' });
+    render(<WbsTable projectId="p1" api={api} />);
+    await screen.findByLabelText('Name of 010');
+  }
+
+  itDom('copies the branch and lands the caret in the copy’s name', async () => {
+    const api = fakeApi();
+    await api.create('p1', { parentId: null, afterId: null, name: 'Strip' });
+    await api.create('p1', { parentId: api.rows[0]?.id ?? null, afterId: null, name: 'Sockets' });
+    render(<WbsTable projectId="p1" api={api} />);
+    await screen.findByLabelText('Name of 010');
+
+    click('Duplicate 010');
+
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '010.1', '020', '020.1']);
+    });
+    expect(screen.getByLabelText('Name of 020')).toHaveProperty('value', 'Strip (copy)');
+    expect(screen.getByLabelText('Name of 020.1')).toHaveProperty('value', 'Sockets');
+    // Proof: with the `focusNext` write removed from `duplicateRow`, this
+    // failed with the focus left on the Duplicate button. Watched 2026-08-07.
+    await waitFor(() => {
+      expect(document.activeElement).toBe(screen.getByLabelText('Name of 020'));
+    });
+  });
+
+  itDom('offers Duplicate on a frozen row, which cannot be moved', async () => {
+    // Freezing stops a row moving, not a row being copied — the copy gets no
+    // frozen number of its own, so nothing that left the tool is duplicated.
+    const api = fakeApi();
+    await shownRow(api);
+
+    click('Freeze numbering');
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Unfreeze' })).toBeDefined();
+    });
+
+    click('Duplicate 010');
+
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '020']);
+    });
+  });
+
+  itDom('says why a duplication was refused, and copies nothing', async () => {
+    const api = fakeApi();
+    await shownRow({
+      ...api,
+      duplicate: () => Promise.reject(new Error('too_large')),
+    });
+
+    click('Duplicate 010');
+
+    await waitFor(() => {
+      expect(toastTexts()).toContain('too_large');
+    });
+    expect(numbersOnScreen()).toEqual(['010']);
   });
 });
 
@@ -3163,6 +3276,7 @@ describe('dependencies in the table — cross-review findings', () => {
     addPerson: () => Promise.reject(new Error('not_in_these_tests')),
     assign: () => Promise.resolve(),
     renameProject: () => Promise.resolve(),
+    duplicate: () => Promise.reject(new Error('not_in_these_tests')),
     roles: () => Promise.resolve([DEV]),
     tree: () =>
       Promise.resolve({

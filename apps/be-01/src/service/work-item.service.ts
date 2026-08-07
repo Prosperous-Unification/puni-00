@@ -14,6 +14,7 @@ import type {
   ProjectStore,
   Reparented,
   StoredEstimate,
+  SubtreeStore,
   WorkItem,
   WorkItemPatch,
   WorkItemStore,
@@ -218,7 +219,9 @@ export type WorkItemRefusal =
   | 'frozen'
   | 'rolled_up'
   /** A dependency onto the work item's own ancestor, descendant, or itself. */
-  | 'ancestor';
+  | 'ancestor'
+  /** A subtree past {@link MAX_DUPLICATED_ROWS}. */
+  | 'too_large';
 
 export type WorkItemOutcome<T> = { ok: true; result: T } | { ok: false; reason: WorkItemRefusal };
 
@@ -240,9 +243,23 @@ export interface WorkItemServiceOptions {
   estimates: EstimateStore;
   directory: DirectoryStore;
   dependencies: DependencyStore;
+  subtrees: SubtreeStore;
   broadcast: Broadcaster;
   newId?: () => string;
 }
+
+/**
+ * The largest subtree one duplication will copy.
+ *
+ * A judgement rather than a measurement: well above any phase somebody builds
+ * by hand, well below anything that makes one transaction slow. It exists
+ * because each duplication can double what the next one copies, and nothing
+ * else in the tool bounds that.
+ */
+export const MAX_DUPLICATED_ROWS = 500;
+
+/** What a duplicated root's name gains, so two identical siblings can be told apart in a picker. */
+const COPY_SUFFIX = ' (copy)';
 
 const asSibling = (workItem: WorkItem): Sibling => ({
   id: workItem.id,
@@ -502,6 +519,113 @@ export class WorkItemService {
     await this.opts.workItems.move(id, input.parentId, placed.position, placed.renumbered);
     await this.announceTree(workItem.projectId);
     return { ok: true, result: null };
+  }
+
+  /**
+   * Copies a work item and everything beneath it, as the next sibling of the
+   * original.
+   *
+   * One write, on the server, because the alternative is the client replaying
+   * a create and a patch per row: every intermediate state published to
+   * everybody watching, a refetch each time, and copied dependencies still
+   * pointing at the originals.
+   *
+   * What the copy carries, and what it deliberately does not, is in
+   * `openspec/changes/duplicate-subtree/specs/wbs-domain/spec.md`. Two of
+   * those rules are load-bearing enough to repeat here:
+   *
+   * - **No frozen numbers.** A frozen number is an identity that has left the
+   *   tool — it is in somebody's ticket, which is why {@link move} refuses a
+   *   frozen row. Two rows answering one ticket is the failure freezing
+   *   exists to prevent. The original is untouched, so a frozen work item can
+   *   still be duplicated: copying is not moving.
+   * - **Only internal dependencies.** An edge with one end outside the
+   *   subtree is left behind, so the copy schedules against its own work
+   *   rather than inheriting wiring nobody asked it to have.
+   *
+   * Refuses `too_large` past {@link MAX_DUPLICATED_ROWS}, having written
+   * nothing.
+   */
+  async duplicate(id: string, actorId: string): Promise<WorkItemOutcome<{ id: string }>> {
+    const context = await this.contextFor(id, actorId);
+    if (!context.ok) return context;
+    const { workItem, rows } = context.result;
+
+    // Ancestors-first, which is the order the copies have to be written in:
+    // `parent_id` references a row that must already be there.
+    const originals = subtreeOf(rows, id);
+    if (originals.length > MAX_DUPLICATED_ROWS) return { ok: false, reason: 'too_large' };
+
+    const newIds = new Map(originals.map((originalId) => [originalId, this.newId()]));
+    /**
+     * The copy of one original. Throws rather than defaulting: an id that was
+     * not copied means the map and the subtree disagree, and carrying the
+     * original's id through would wire the copy to the row it was copied from.
+     */
+    const copyOf = (originalId: string): string => {
+      const copied = newIds.get(originalId);
+      if (copied === undefined) throw new Error(`no copy was generated for ${originalId}`);
+      return copied;
+    };
+    /**
+     * A descendant's parent, which is always another row of the same subtree.
+     * A null here would mean `subtreeOf` returned a second root.
+     */
+    const parentInside = (source: WorkItem): string => {
+      if (source.parentId === null)
+        throw new Error(`${source.id} is below the root but parentless`);
+      return source.parentId;
+    };
+    const sourceOf = new Map(rows.map((row) => [row.id, row]));
+    const inside = new Set(originals);
+
+    const placed = placeAfter(this.groupUnder(rows, workItem.parentId), id);
+    const copies = originals.map((originalId, index) => {
+      const source = sourceOf.get(originalId);
+      if (source === undefined) throw new Error(`${originalId} is not a row of this project`);
+      const isRoot = index === 0;
+      return {
+        ...source,
+        id: copyOf(originalId),
+        // The root keeps the original's parent — it is its sibling. Everything
+        // below hangs off the copy of its own parent, never the original's.
+        parentId: isRoot ? source.parentId : copyOf(parentInside(source)),
+        // Descendants keep their positions: their whole sibling group is
+        // copied with them, so the order survives and stays distinct.
+        position: isRoot ? placed.position : source.position,
+        // Only the root is renamed. Its children are already told apart by the
+        // parent above them, and suffixing every one of them would rewrite a
+        // branch nobody asked to rename.
+        name: isRoot ? `${source.name}${COPY_SUFFIX}` : source.name,
+        frozenNumber: null,
+      };
+    });
+
+    const stored = await this.opts.estimates.listByProject(workItem.projectId);
+    const assigned = await this.opts.directory.assignmentsOf(originals);
+    const edges = await this.opts.dependencies.listByProject(workItem.projectId);
+
+    await this.opts.subtrees.insertSubtree({
+      rows: copies,
+      respaced: placed.renumbered,
+      estimates: stored
+        .filter((each) => inside.has(each.workItemId))
+        .map((each) => ({ ...each, workItemId: copyOf(each.workItemId) })),
+      assignments: assigned.map((each) => ({ ...each, workItemId: copyOf(each.workItemId) })),
+      dependencies: edges
+        .filter((edge) => inside.has(edge.predecessorId) && inside.has(edge.successorId))
+        .map((edge) => ({
+          id: this.newId(),
+          projectId: edge.projectId,
+          predecessorId: copyOf(edge.predecessorId),
+          successorId: copyOf(edge.successorId),
+        })),
+    });
+    // Once, at the end. The copy renumbers rows it never touched — every later
+    // sibling of the original, at every level — so it is the whole tree rather
+    // than the rows that were written.
+    await this.announceTree(workItem.projectId);
+    return { ok: true, result: { id: copyOf(id) } };
   }
 
   async remove(

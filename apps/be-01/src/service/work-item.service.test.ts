@@ -1,11 +1,12 @@
 import { beforeEach, describe, expect, it } from 'bun:test';
 
-import type { Project, ProjectStore, WorkItemStore } from '../repository';
-import { recordingBroadcaster } from '../testing/broadcast-fixture';
+import type { EstimateStore, Project, ProjectStore, WorkItemStore } from '../repository';
+import { type RecordingBroadcaster, recordingBroadcaster } from '../testing/broadcast-fixture';
 import { inMemoryDependencies } from '../testing/dependency-fixture';
 import { inMemoryDirectory } from '../testing/directory-fixture';
 import { inMemoryEstimates } from '../testing/estimate-fixture';
 import { inMemoryProjects } from '../testing/project-fixture';
+import { inMemorySubtrees } from '../testing/subtree-fixture';
 import { inMemoryWorkItems } from '../testing/work-item-fixture';
 import { WorkItemService } from './work-item.service';
 
@@ -19,19 +20,24 @@ let projectId: string;
 let roleId: string;
 let dependencies: ReturnType<typeof inMemoryDependencies>;
 let directory: ReturnType<typeof inMemoryDirectory>;
+let estimates: EstimateStore;
+let broadcast: RecordingBroadcaster;
 
 beforeEach(async () => {
   projects = inMemoryProjects();
   workItems = inMemoryWorkItems();
   dependencies = inMemoryDependencies();
   directory = inMemoryDirectory();
+  estimates = inMemoryEstimates(workItems);
+  broadcast = recordingBroadcaster();
   service = new WorkItemService({
     workItems,
     projects,
-    estimates: inMemoryEstimates(workItems),
+    estimates,
     dependencies,
     directory,
-    broadcast: recordingBroadcaster(),
+    subtrees: inMemorySubtrees({ workItems, estimates, dependencies, directory }),
+    broadcast,
   });
   const project: Project = {
     id: crypto.randomUUID(),
@@ -52,6 +58,31 @@ async function add(name: string, parentId: string | null = null, afterId: string
   const outcome = await service.create(projectId, OWNER, { parentId, afterId, name });
   if (!outcome.ok) throw new Error(`create failed: ${outcome.reason}`);
   return outcome.result.id;
+}
+
+/**
+ * Puts `count` children under `parentId`, straight through the store.
+ *
+ * Not through `create`: five hundred creates are five hundred whole-tree
+ * announces, and the only thing under test here is how many rows there are.
+ */
+async function fill(parentId: string, count: number): Promise<void> {
+  for (let i = 0; i < count; i += 1) {
+    await workItems.insert(
+      {
+        id: crypto.randomUUID(),
+        projectId,
+        parentId,
+        position: (i + 1) * 10,
+        name: `Back box ${String(i)}`,
+        notes: '',
+        frozenNumber: null,
+        startNoEarlierThan: null,
+        serviceTeamId: null,
+      },
+      [],
+    );
+  }
 }
 
 /** The project's work items as `number → name`, which is what a reader actually sees. */
@@ -400,6 +431,168 @@ describe('who is doing the work', () => {
     expect((await service.tree(projectId))?.workItems.find((w) => w.id === id)?.assignees).toEqual(
       {},
     );
+  });
+});
+
+describe('duplicating a subtree', () => {
+  /** Duplicates, or fails the test with the refusal rather than an undefined id. */
+  async function duplicate(id: string, actorId = OWNER): Promise<string> {
+    const outcome = await service.duplicate(id, actorId);
+    if (!outcome.ok) throw new Error(`duplicate failed: ${outcome.reason}`);
+    return outcome.result.id;
+  }
+
+  /** The project's rows, by id, as a reader sees them. */
+  async function readTree() {
+    const tree = await service.tree(projectId);
+    if (tree === null) throw new Error('project vanished');
+    return tree.workItems;
+  }
+
+  it('lands the copy next to the original, with the numbers derived afresh', async () => {
+    const strip = await add('Strip');
+    const sockets = await add('Sockets', strip);
+    await add('Switches', strip, sockets);
+    // A later sibling, so "next sibling" is distinguishable from "appended".
+    await add('Test', null, strip);
+
+    await duplicate(strip);
+
+    expect(await numbered()).toEqual({
+      '010': 'Strip',
+      '010.1': 'Sockets',
+      '010.2': 'Switches',
+      '020': 'Strip (copy)',
+      '020.1': 'Sockets',
+      '020.2': 'Switches',
+      '030': 'Test',
+    });
+  });
+
+  it('copies notes, estimates, assignees, the team label and the date', async () => {
+    const strip = await add('Strip');
+    const socket = await add('Sockets', strip);
+    await service.patch(socket, OWNER, {
+      notes: 'Two gang, chased in',
+      serviceTeamId: 'team-sparks',
+      startNoEarlierThan: '2026-09-01',
+    });
+    await service.setEstimate(socket, OWNER, roleId, {
+      optimistic: 1,
+      realistic: 2,
+      pessimistic: 6,
+    });
+    await service.assign(socket, OWNER, roleId, 'ada');
+
+    const copyId = await duplicate(strip);
+
+    const copied = (await readTree()).find((w) => w.parentId === copyId);
+    expect(copied?.name).toBe('Sockets');
+    expect(copied?.notes).toBe('Two gang, chased in');
+    expect(copied?.serviceTeamId).toBe('team-sparks');
+    expect(copied?.startNoEarlierThan).toBe('2026-09-01');
+    expect(copied?.estimates[roleId]).toEqual({ optimistic: 1, realistic: 2, pessimistic: 6 });
+    expect(copied?.assignees[roleId]).toBe('ada');
+  });
+
+  /**
+   * The one that decides whether this feature is worth having. A copied phase
+   * whose edges still point at the original schedules the copy against work it
+   * has nothing to do with, and nothing on screen says so.
+   *
+   * Proof: with the remap dropped — the copied edges keeping their originals'
+   * ids — this failed on `dependsOn`, the copy waiting for the original's
+   * predecessor. Watched 2026-08-07.
+   */
+  it('remaps a dependency inside the subtree onto the copies', async () => {
+    const strip = await add('Strip');
+    const boxes = await add('Back boxes', strip);
+    const sockets = await add('Sockets', strip);
+    await service.addDependency(sockets, OWNER, boxes);
+
+    const copyId = await duplicate(strip);
+
+    const under = (await readTree()).filter((w) => w.parentId === copyId);
+    const copiedBoxes = under.find((w) => w.name === 'Back boxes');
+    const copiedSockets = under.find((w) => w.name === 'Sockets');
+    expect(copiedSockets?.dependsOn).toEqual([copiedBoxes?.id]);
+    expect(copiedSockets?.dependsOn).not.toContain(boxes);
+  });
+
+  it('leaves behind a dependency with one end outside the subtree', async () => {
+    const strip = await add('Strip');
+    const sockets = await add('Sockets', strip);
+    const survey = await add('Survey');
+    await service.addDependency(sockets, OWNER, survey);
+
+    const copyId = await duplicate(strip);
+
+    const rows = await readTree();
+    // A template starts unwired: the copy inherits nothing it did not contain.
+    expect(rows.find((w) => w.parentId === copyId)?.dependsOn).toEqual([]);
+    expect(rows.find((w) => w.id === sockets)?.dependsOn).toEqual([survey]);
+  });
+
+  /**
+   * Proof: with `frozenNumber` carried over from the source row, this failed —
+   * two rows claiming `010`, which is the exact thing freezing exists to stop.
+   * Watched 2026-08-07.
+   */
+  it('gives no copy a frozen number, and leaves every original with its own', async () => {
+    const strip = await add('Strip');
+    const sockets = await add('Sockets', strip);
+    await service.freeze(projectId, OWNER);
+
+    const copyId = await duplicate(strip);
+
+    const rows = await readTree();
+    const copies = rows.filter((w) => w.id === copyId || w.parentId === copyId);
+    expect(copies).toHaveLength(2);
+    expect(copies.every((w) => w.frozenNumber === null)).toBe(true);
+    expect(rows.find((w) => w.id === strip)?.frozenNumber).toBe('010');
+    expect(rows.find((w) => w.id === sockets)?.frozenNumber).toBe('010.1');
+  });
+
+  it('copies a leaf on its own', async () => {
+    const strip = await add('Strip');
+
+    const copyId = await duplicate(strip);
+
+    expect(copyId).not.toBe(strip);
+    expect(await numbered()).toEqual({ '010': 'Strip', '020': 'Strip (copy)' });
+  });
+
+  it('tells the project once, with the whole tree', async () => {
+    const strip = await add('Strip');
+    await add('Sockets', strip);
+    const before = broadcast.published.length;
+
+    await duplicate(strip);
+
+    const since = broadcast.published.slice(before);
+    expect(since).toHaveLength(1);
+    expect(since[0]?.event.type).toBe('tree_replaced');
+  });
+
+  it('refuses a subtree of more than 500 work items, changing nothing', async () => {
+    const root = await add('Strip');
+    await fill(root, 500);
+
+    const outcome = await service.duplicate(root, OWNER);
+
+    expect(outcome).toEqual({ ok: false, reason: 'too_large' });
+    expect(await readTree()).toHaveLength(501);
+  });
+
+  // The boundary itself, so the guard cannot quietly become `>=`: 500 rows is
+  // the largest copy there is, not the first one refused.
+  it('copies a subtree of exactly 500 work items', async () => {
+    const root = await add('Strip');
+    await fill(root, 499);
+
+    await duplicate(root);
+
+    expect(await readTree()).toHaveLength(1000);
   });
 });
 

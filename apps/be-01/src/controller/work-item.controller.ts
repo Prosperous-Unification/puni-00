@@ -104,13 +104,22 @@ function parsePatch(body: unknown): {
  * `cycle` is 409 rather than 400: the request is well formed and would be legal
  * against a different tree, so it conflicts with the current state rather than
  * being malformed. `strategy_required` is 400 — that request is incomplete.
+ *
+ * `too_large` joins the 409s for the same reason: a duplication refused for the
+ * size of the subtree beneath it would have been legal against a smaller one,
+ * and the request itself is fine. It is not 413 — nothing about the request
+ * body is too big.
  */
 const statusFor = (reason: WorkItemRefusal): number =>
   reason === 'forbidden'
     ? 403
     : reason === 'not_found'
       ? 404
-      : reason === 'cycle' || reason === 'frozen' || reason === 'rolled_up' || reason === 'ancestor'
+      : reason === 'cycle' ||
+          reason === 'frozen' ||
+          reason === 'rolled_up' ||
+          reason === 'ancestor' ||
+          reason === 'too_large'
         ? 409
         : 400;
 
@@ -202,6 +211,22 @@ export function workItemController(auth: AuthService, workItems: WorkItemService
         return { error: outcome.reason };
       }
       return { moved: true };
+    })
+    .post('/work-items/:id/duplicate', async ({ params, headers, set }) => {
+      // No body is read: what is copied and where it lands are the rule, not
+      // the caller's to choose. A body would be options nobody has asked for
+      // yet, and every one of them would have to survive forever.
+      const user = await userFromHeaders(auth, headers);
+      if (user === null) {
+        set.status = 401;
+        return { error: 'unauthenticated' };
+      }
+      const outcome = await workItems.duplicate(params.id, user.id);
+      if (!outcome.ok) {
+        set.status = statusFor(outcome.reason);
+        return { error: outcome.reason };
+      }
+      return outcome.result;
     })
     .post('/projects/:id/freeze', async ({ params, headers, set }) => {
       const user = await userFromHeaders(auth, headers);

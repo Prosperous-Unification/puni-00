@@ -10,11 +10,15 @@ import { inMemoryDirectory, testDirectoryService } from '../testing/directory-fi
 import { inMemoryEstimates } from '../testing/estimate-fixture';
 import { inMemoryProjects } from '../testing/project-fixture';
 import { testReplay } from '../testing/replay-fixture';
+import { inMemorySubtrees } from '../testing/subtree-fixture';
 import { inMemoryWorkItems } from '../testing/work-item-fixture';
 
 function buildHarness() {
   const projectStore = inMemoryProjects();
   const workItemStore = inMemoryWorkItems();
+  const estimateStore = inMemoryEstimates(workItemStore);
+  const dependencyStore = inMemoryDependencies();
+  const directoryStore = inMemoryDirectory();
   const app = buildApp({
     directory: testDirectoryService(),
     auth: testAuthService(inMemoryUsers()),
@@ -22,9 +26,15 @@ function buildHarness() {
     workItems: new WorkItemService({
       workItems: workItemStore,
       projects: projectStore,
-      estimates: inMemoryEstimates(workItemStore),
-      dependencies: inMemoryDependencies(),
-      directory: inMemoryDirectory(),
+      estimates: estimateStore,
+      dependencies: dependencyStore,
+      directory: directoryStore,
+      subtrees: inMemorySubtrees({
+        workItems: workItemStore,
+        estimates: estimateStore,
+        dependencies: dependencyStore,
+        directory: directoryStore,
+      }),
       broadcast: recordingBroadcaster(),
     }),
     replay: testReplay().replay,
@@ -385,6 +395,93 @@ describe('clearing an estimate', () => {
     });
     expect(res.status).toBe(404);
     expect((await res.json()) as { error: string }).toEqual({ error: 'not_found' });
+  });
+});
+
+describe('duplicating a work item', () => {
+  const add = async (
+    send: (p: string, t: string, i?: { method?: string; body?: string }) => Promise<Response>,
+    token: string,
+    projectId: string,
+    name: string,
+    parentId: string | null = null,
+  ) => {
+    const res = await send(`/api/projects/${projectId}/work-items`, token, {
+      method: 'POST',
+      body: JSON.stringify({ parentId, afterId: null, name }),
+    });
+    return ((await res.json()) as { id: string }).id;
+  };
+
+  const namesOf = async (
+    send: (p: string, t: string, i?: { method?: string; body?: string }) => Promise<Response>,
+    token: string,
+    projectId: string,
+  ) => {
+    const tree = await send(`/api/projects/${projectId}/work-items`, token);
+    return ((await tree.json()) as { workItems: { id: string; name: string }[] }).workItems;
+  };
+
+  it('answers the id of the copy, and the next tree read holds it', async () => {
+    const { token, send, projectId } = await setup();
+    const strip = await add(send, token, projectId, 'Strip');
+    await add(send, token, projectId, 'Sockets', strip);
+
+    const res = await send(`/api/work-items/${strip}/duplicate`, token, { method: 'POST' });
+
+    expect(res.status).toBe(200);
+    const { id } = (await res.json()) as { id: string };
+    const rows = await namesOf(send, token, projectId);
+    expect(rows.find((w) => w.id === id)?.name).toBe('Strip (copy)');
+    expect(rows).toHaveLength(4);
+  });
+
+  it('refuses an unauthenticated caller, and copies nothing', async () => {
+    // The tree afterwards, not only the status: without it this would pass
+    // against a route that answered 401 having already written the copy.
+    const { token, send, projectId } = await setup();
+    const strip = await add(send, token, projectId, 'Strip');
+
+    const res = await send(`/api/work-items/${strip}/duplicate`, 'not-a-token', {
+      method: 'POST',
+    });
+
+    expect(res.status).toBe(401);
+    expect(await namesOf(send, token, projectId)).toHaveLength(1);
+  });
+
+  it('answers this route’s own 404 for a work item that is not there', async () => {
+    // The body, not the status alone: Elysia answers an unmatched route with a
+    // 404 of its own, so a status-only assertion passes with the route deleted.
+    const { token, send } = await setup();
+
+    const res = await send(`/api/work-items/${crypto.randomUUID()}/duplicate`, token, {
+      method: 'POST',
+    });
+
+    expect(res.status).toBe(404);
+    expect((await res.json()) as { error: string }).toEqual({ error: 'not_found' });
+  });
+
+  it('answers 403 to an account that may not edit a restricted project', async () => {
+    const { register, send } = buildHarness();
+    const owner = await register('owner');
+    const stranger = await register('stranger');
+    const create = await send('/api/projects', owner, {
+      method: 'POST',
+      body: JSON.stringify({ name: 'Restricted' }),
+    });
+    const { project } = (await create.json()) as { project: { id: string } };
+    const strip = await add(send, owner, project.id, 'Strip');
+    await send(`/api/projects/${project.id}`, owner, {
+      method: 'PATCH',
+      body: JSON.stringify({ restricted: true }),
+    });
+
+    const res = await send(`/api/work-items/${strip}/duplicate`, stranger, { method: 'POST' });
+
+    expect(res.status).toBe(403);
+    expect(await namesOf(send, owner, project.id)).toHaveLength(1);
   });
 });
 

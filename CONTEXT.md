@@ -17,6 +17,17 @@ One unit of work in a project. Holds a name, notes and a place in the tree; owns
 estimate directly once it has children. Never `item` alone — R2 forbids the bare noun.
 _Avoid_: item, task, row, node
 
+**Subtree**:
+One work item and every work item beneath it, to any depth. The unit a deletion and a
+duplication both address, because a branch is what a planner thinks in.
+_Avoid_: branch, descendants, group
+
+**Duplicate**:
+Copying a subtree whole, in one operation, as the next sibling of the original. The copies
+carry their originals' names, notes, estimates, labels, assignees and dates, and no frozen
+numbers.
+_Avoid_: clone, copy-paste, template
+
 **Work item number**:
 The label a work item is known by outside the tool, formed `010`, `020`, `010.1`,
 `010.01`. Derived from position unless frozen. Zero-prefixed so it sorts lexicographically,

@@ -184,6 +184,17 @@ export interface ProjectApi {
   /** Sets or (with `null`) clears who does one work item's work for one role. */
   assign(workItemId: string, roleId: string, personId: string | null): Promise<void>;
   move(id: string, parentId: string | null, afterId: string | null): Promise<void>;
+  /**
+   * Copies a work item and everything under it, as the next sibling of the
+   * original, answering the copy's id.
+   *
+   * One call rather than a create per row: be-01 writes the whole branch in one
+   * transaction, so nobody watching ever sees half a copy, and the copied
+   * dependencies point at the copies. What is and is not carried over — no
+   * frozen numbers, no edges leaving the branch — is be-01's rule, stated in
+   * `openspec/changes/duplicate-subtree/`.
+   */
+  duplicate(id: string): Promise<{ id: string }>;
   remove(id: string, options?: DeleteOptions): Promise<void>;
   setEstimate(id: string, roleId: string, days: Days): Promise<void>;
   /**
@@ -312,6 +323,9 @@ export function httpProjectApi(token: string): ProjectApi {
         method: 'POST',
         body: JSON.stringify({ parentId, afterId }),
       });
+    },
+    duplicate(id) {
+      return send<{ id: string }>(`/api/work-items/${id}/duplicate`, token, { method: 'POST' });
     },
     async remove(id, options) {
       const query = options?.strategy === undefined ? '' : `?strategy=${options.strategy}`;

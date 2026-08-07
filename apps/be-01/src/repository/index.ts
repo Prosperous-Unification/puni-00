@@ -221,6 +221,46 @@ export interface DirectoryStore {
   assign(workItemId: string, roleId: string, personId: string | null): Promise<void>;
 }
 
+/**
+ * A duplicated subtree, ready to be written: every copied row and everything
+ * that hangs off it, already carrying its new ids.
+ *
+ * It arrives as one value because it is written as one act — see
+ * {@link SubtreeStore.insertSubtree}. The caller has already decided every id,
+ * so nothing here is generated on the way in.
+ */
+export interface SubtreeCopy {
+  /**
+   * The copies, **parents before children**. `work_item.parent_id` references
+   * `work_item.id`, so any other order is refused by the database rather than
+   * silently reordered.
+   */
+  rows: readonly WorkItem[];
+  /** Existing siblings of the copied root whose positions the placement moved. */
+  respaced: readonly Repositioned[];
+  estimates: readonly StoredEstimate[];
+  assignments: readonly Assignment[];
+  /** Only the edges with both ends inside the subtree, remapped to the copies. */
+  dependencies: readonly StoredDependency[];
+}
+
+export interface SubtreeStore {
+  /**
+   * Writes a whole {@link SubtreeCopy} in one transaction, across all four
+   * tables it touches.
+   *
+   * Wider than any other store here on purpose. A copy applied in pieces can
+   * fail between them and leave rows that look like real work with no
+   * estimates and nobody assigned — a plan that is quietly wrong rather than
+   * visibly incomplete, and nothing in the tree says which rows they are.
+   *
+   * Throws whatever the database throws. A rejected write means **nothing**
+   * was written, which `work-item.test.ts` asserts against a deliberately
+   * broken foreign key rather than claiming it here.
+   */
+  insertSubtree(copy: SubtreeCopy): Promise<void>;
+}
+
 export interface ProjectStore {
   /**
    * Writes the project and its starting roles together. A project that existed

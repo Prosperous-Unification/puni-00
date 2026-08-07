@@ -1177,6 +1177,25 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     [api, run, siblingsOf],
   );
 
+  /**
+   * Copies a work item and everything under it, landing the caret on the copy.
+   *
+   * One request: be-01 writes the whole branch at once and sends the tree
+   * afterwards, so there is nothing to reconstruct here and nothing to undo if
+   * it is refused. The focus is asked for only after the copy has been taken,
+   * for the reason every other `focusNext` write here is — a refusal must
+   * leave the caret where the person left it rather than chase a row that does
+   * not exist.
+   */
+  const duplicateRow = useCallback(
+    (id: string) =>
+      run(async () => {
+        const copy = await api.duplicate(id);
+        focusNext.current = { rowId: copy.id, columnId: 'name' };
+      }),
+    [api, run],
+  );
+
   /** Removes a wholly empty row, landing the focus on the row above it. */
   const removeEmptyRow = useCallback(
     (row: TreeRow) =>
@@ -1817,6 +1836,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     api,
     projectId,
     run,
+    duplicateRow,
     onKeyDown,
     onArrowKey,
     onAltMove,
@@ -1855,6 +1875,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     api,
     projectId,
     run,
+    duplicateRow,
     onKeyDown,
     onArrowKey,
     onAltMove,
@@ -2552,30 +2573,49 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
       column.display({
         id: 'actions',
         header: () => <span aria-label="Row actions" />,
-        cell: ({ row }) =>
-          row.original.frozenNumber !== null ? (
+        cell: ({ row }) => (
+          <>
+            {/*
+              Offered on a frozen row as well, unlike Delete and unlike moving
+              one: a freeze pins the number a row left the tool under, and the
+              copy is given none. Copying is not moving.
+
+              Labelled with the row's number because every row has one of
+              these, and `Duplicate` alone would name as many buttons as there
+              are rows — to a screen reader and to a test alike.
+            */}
             <button
               type="button"
-              onClick={() =>
-                void live.current.run(() => live.current.api.unfreeze(row.original.id))
-              }
+              aria-label={`Duplicate ${row.original.number}`}
+              onClick={() => void live.current.duplicateRow(row.original.id)}
             >
-              Unfreeze
+              Duplicate
             </button>
-          ) : (
-            <button
-              type="button"
-              onClick={() =>
-                void live.current.run(() =>
-                  live.current.api.remove(row.original.id, {
-                    strategy: row.original.subRows.length > 0 ? 'promote' : undefined,
-                  }),
-                )
-              }
-            >
-              Delete
-            </button>
-          ),
+            {row.original.frozenNumber !== null ? (
+              <button
+                type="button"
+                onClick={() =>
+                  void live.current.run(() => live.current.api.unfreeze(row.original.id))
+                }
+              >
+                Unfreeze
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() =>
+                  void live.current.run(() =>
+                    live.current.api.remove(row.original.id, {
+                      strategy: row.original.subRows.length > 0 ? 'promote' : undefined,
+                    }),
+                  )
+                }
+              >
+                Delete
+              </button>
+            )}
+          </>
+        ),
       }),
     ],
     // `roles` because a role's name is rendered in a header, and
