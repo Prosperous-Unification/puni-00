@@ -3526,6 +3526,117 @@ describe('the frame the table scrolls inside', () => {
   });
 });
 
+describe('the widths the table is laid out by', () => {
+  /**
+   * jsdom lays nothing out, so none of this can watch a column stop short of
+   * its neighbour. What it can watch is the one thing that made the overlap
+   * possible — more than one opinion about how wide a column is — being gone
+   * from the markup: one declared width per column, the table adding up to the
+   * same total, and no control inside a cell asking for a width of its own.
+   */
+  itDom('declares every rendered column once, in the order they are rendered', async () => {
+    await threeRoots();
+
+    const cols = [...document.querySelectorAll<HTMLElement>('colgroup col')];
+    const headerCells = screen.getAllByRole('columnheader');
+
+    expect(cols.length).toBe(headerCells.length);
+    // In order, not merely in the same number: the pinned offsets are the
+    // running total of the first columns' widths, so a colgroup that declared
+    // the same widths in another order would lay Name out somewhere other than
+    // the 196px it is pinned at. These are the numbers the pin test asserts.
+    // Proof: the colgroup rendered from a reversed id list, this failed on
+    // `['110px','260px','90px']` against `['28px','168px','360px']`. Watched,
+    // 2026-08-07.
+    expect(cols.slice(0, 3).map((col) => col.style.width)).toEqual(['28px', '168px', '360px']);
+    for (const col of cols) expect(col.style.width).not.toBe('');
+  });
+
+  itDom('is as wide as its columns add up to, and divides that width by them', async () => {
+    await threeRoots();
+
+    const table = screen.getByRole('table');
+    const declared = [...document.querySelectorAll<HTMLElement>('colgroup col')].reduce(
+      (total, col) => total + Number.parseFloat(col.style.width),
+      0,
+    );
+
+    // `fixed`, or the browser sizes the columns from their content and the
+    // declared widths become decoration — which is the auto layout half of the
+    // overlap.
+    expect(table.style.tableLayout).toBe('fixed');
+    expect(table.style.width).toBe(`${String(declared)}px`);
+  });
+
+  itDom('gives every cell the chrome its declared width is measured with', async () => {
+    await threeRoots();
+
+    const cells = [
+      ...screen.getAllByRole('columnheader'),
+      ...rowFor('020').querySelectorAll<HTMLElement>('td'),
+    ];
+
+    expect(cells.length).toBeGreaterThan(12);
+    for (const cell of cells) {
+      // Or the padding is width the offsets never counted.
+      expect(cell.style.boxSizing).toBe('border-box');
+      // The backstop: whatever a cell ends up holding, it stops at the cell.
+      expect(cell.style.overflow).toBe('hidden');
+    }
+  });
+
+  itDom('lets no control in a cell assert a width of its own', async () => {
+    await threeRoots();
+
+    const controls = [
+      ...document.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>(
+        'tbody input:not([type=checkbox]), tbody textarea',
+      ),
+    ];
+
+    // The name, the dependency box, the service/team picker, the folded
+    // estimate, the three points, the assignee picker, the date.
+    expect(controls.length).toBeGreaterThan(6);
+    for (const control of controls) {
+      // A control that asks for `22em` is a second opinion about how wide its
+      // column is, and the one the browser takes when it is the wider of the
+      // two.
+      expect(['100%', 'auto', '']).toContain(control.style.width);
+      // `size` is the same claim in an attribute: an input sized for 14
+      // characters is as wide as 14 characters of the page's font.
+      expect(control.getAttribute('size')).toBeNull();
+    }
+  });
+
+  itDom('still lets the things that must leave a cell leave it', async () => {
+    // The cells clip, and two things in this table are meant to escape their
+    // cell: the dependency list and the notes preview. Both are
+    // `position: absolute` inside a `position: relative` wrapper, and an
+    // absolutely positioned box is clipped only by a *positioned* ancestor's
+    // overflow — so the invariant that keeps them visible is that those
+    // wrappers are positioned and do not clip. Asserted here because the cell's
+    // `overflow: hidden` is otherwise one wrapper style away from hiding them.
+    // Proof: `overflow: hidden` added to the dependency cell's wrapper span,
+    // this failed on `expected 'hidden' not to be 'hidden'`. Watched,
+    // 2026-08-07.
+    await threeRoots();
+    fireEvent.focus(screen.getByLabelText('Add a dependency to 020'));
+
+    const openList = screen.getByRole('listbox');
+    const notesBox = screen.getByLabelText('Notes for 020');
+    const wrappers = [openList.parentElement, notesBox.parentElement];
+
+    for (const wrapper of wrappers) {
+      expect(wrapper?.style.position).toBe('relative');
+      expect(wrapper?.style.overflow).not.toBe('hidden');
+      // The wrapper, not the cell: a `<td>` as the positioned ancestor would
+      // clip both of them with the very rule the cells now carry.
+      expect(wrapper?.tagName).toBe('SPAN');
+    }
+    expect(openList.closest('td')?.style.overflow).toBe('hidden');
+  });
+});
+
 describe('adding several dependencies at once', () => {
   const typeDeps = (rowNumber: string, value: string) => {
     const input = screen.getByLabelText(`Add a dependency to ${rowNumber}`);

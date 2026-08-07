@@ -38,7 +38,15 @@ import { KeyboardCheatSheet, opensCheatSheet } from './keyboard-cheat-sheet';
 import { NotesPreview } from './notes-preview';
 import { describeGaps, findEstimateGaps } from './plan-completeness';
 import { type PlanExport, planFileName, planToCsv, planToMarkdown } from './plan-export';
-import { indentFor, pinnedCellStyle, STICKY_HEADER_CELL, TABLE_FRAME } from './table-frame';
+import {
+  CELL,
+  indentFor,
+  pinnedCellStyle,
+  STICKY_HEADER_CELL,
+  TABLE_FRAME,
+  tableWidth,
+  widthFor,
+} from './table-frame';
 import { ToastStack, useToasts } from './toasts';
 import { searchTree } from './tree-search';
 import { toTree, type TreeRow } from './wbs-rows';
@@ -2105,7 +2113,11 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
               rows={1}
               maxRestRows={4}
               style={{
-                width: '22em',
+                // The cell's width, not a width of its own: `22em` was one of
+                // the three opinions that produced the overlap, and it is the
+                // colgroup's job now.
+                width: '100%',
+                boxSizing: 'border-box',
                 resize: 'vertical',
                 font: 'inherit',
                 ...(matched ? { background: MATCH_TINT } : {}),
@@ -2163,7 +2175,22 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
               : pickable.find((entry) => entry.id === picker.highlightId);
           const open = picker !== null && entries.length > 0;
           return (
-            <span style={{ whiteSpace: 'nowrap', position: 'relative', display: 'inline-block' }}>
+            <span
+              // `normal` rather than `nowrap`: a row waiting on six others has
+              // six chips, and a line of them that cannot wrap is a line that
+              // runs into the next column — or, now, one the cell clips. An
+              // uneven row height is a cost worth paying; a dependency nobody
+              // can see is not.
+              //
+              // Still the positioned ancestor for the listbox below, and still
+              // without `overflow: hidden`, so the list opens over the rows.
+              style={{
+                whiteSpace: 'normal',
+                position: 'relative',
+                display: 'block',
+                maxWidth: '100%',
+              }}
+            >
               {numbers.map(({ id, number }) => (
                 <button
                   key={id}
@@ -2190,7 +2217,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                 aria-autocomplete="list"
                 placeholder="search, or 010, 020"
                 title="Type to search by number or name, or a list of numbers separated by commas or spaces"
-                size={14}
+                style={{ width: '100%', boxSizing: 'border-box' }}
                 data-depends-input={row.original.id}
                 value={picker?.typed ?? ''}
                 onFocus={() => {
@@ -2368,15 +2395,26 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                 type="button"
                 aria-expanded={unfolded}
                 aria-label={`${unfolded ? 'Fold' : 'Unfold'} ${role.name} estimates`}
-                title={
+                // The role's own name, in full, because the button now shows as
+                // much of it as the column has room for and no more. A role
+                // called "Infrastructure and platform" used to set the width of
+                // everything under it instead.
+                title={`${role.name} — ${
                   unfolded
-                    ? 'Hide the three-point estimate and assignee'
-                    : 'Show the three-point estimate and assignee'
-                }
+                    ? 'hide the three-point estimate and assignee'
+                    : 'show the three-point estimate and assignee'
+                }`}
                 onClick={() => {
                   live.current.toggleRole(role.id);
                 }}
-                style={{ font: 'inherit', fontWeight: 'inherit' }}
+                style={{
+                  font: 'inherit',
+                  fontWeight: 'inherit',
+                  maxWidth: '100%',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
               >
                 {role.name} {unfolded ? '▾' : '▸'}
               </button>
@@ -2408,7 +2446,6 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                       // `is a cell of the keyboard grid, so a column can be
                       // typed down` fails. Watched, 2026-08-06.
                       data-cell={cellKey(row.original.id, `${role.id}-final`)}
-                      size={7}
                       placeholder="o/r/p"
                       aria-invalid={problem !== null}
                       title={problem ?? SHORTHAND_HELP}
@@ -2424,7 +2461,8 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                         e.currentTarget.select();
                       }}
                       style={{
-                        width: '6em',
+                        width: '100%',
+                        boxSizing: 'border-box',
                         font: 'inherit',
                         fontWeight: 600,
                         ...(problem === null ? {} : { background: '#fde8e8', borderColor: '#c00' }),
@@ -2459,8 +2497,8 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                           aria-label={`${role.name} ${point} for ${row.original.number}`}
                           data-cell={cellKey(row.original.id, `${role.id}-${point}`)}
                           // Narrow on purpose: these hold a number of days, and a box
-                          // sized for a sentence reads as if it wants one.
-                          size={5}
+                          // sized for a sentence reads as if it wants one. Which is
+                          // the column's width to say now, not this box's.
                           aria-invalid={wrong}
                           title={problem?.message}
                           onKeyDown={(e) => {
@@ -2471,13 +2509,15 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                           // shown and not editable — greyed rather than blank, because the
                           // number is real and worth reading.
                           readOnly={row.original.rolledUp}
-                          style={
-                            row.original.rolledUp
-                              ? { color: '#666', background: '#f4f4f4', width: '4.5em' }
+                          style={{
+                            width: '100%',
+                            boxSizing: 'border-box',
+                            ...(row.original.rolledUp
+                              ? { color: '#666', background: '#f4f4f4' }
                               : wrong
-                                ? { background: '#fde8e8', borderColor: '#c00', width: '4.5em' }
-                                : { width: '4.5em' }
-                          }
+                                ? { background: '#fde8e8', borderColor: '#c00' }
+                                : {}),
+                          }}
                           value={live.current.estimateValue(row.original, role.id, point)}
                           commit={(typed) => {
                             if (row.original.rolledUp) return;
@@ -2501,7 +2541,17 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                     const nameOf = (id: string) =>
                       live.current.people.find((each) => each.id === id)?.name ?? '(unknown)';
                     return (
-                      <span style={{ whiteSpace: 'nowrap' }}>
+                      // A flex row because the picker inside it is one now: the
+                      // assumed name has to sit beside the box and shrink with
+                      // it, rather than being pushed onto a line of its own.
+                      <span
+                        style={{
+                          display: 'flex',
+                          alignItems: 'baseline',
+                          maxWidth: '100%',
+                          minWidth: 0,
+                        }}
+                      >
                         <CreatablePicker
                           label={`${role.name} assignee for ${row.original.number}`}
                           placeholder="search or add"
@@ -2534,7 +2584,14 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                           <span
                             data-assumed={role.id}
                             title="Only one person is assigned, so they are assumed to do this phase too"
-                            style={{ color: '#666', marginLeft: 4 }}
+                            style={{
+                              color: '#666',
+                              marginLeft: 4,
+                              minWidth: 0,
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                            }}
                           >
                             ({nameOf(assumed)})
                           </span>
@@ -2573,7 +2630,10 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                 : 'This work item may not start before this day. Its dependencies can still push it later.'
             }
             data-not-before={row.original.id}
-            style={{ font: 'inherit' }}
+            // A date input carries an intrinsic width — the spinner and the
+            // picker icon — that is wider than this column on some browsers,
+            // so it is told to follow the column like every other control.
+            style={{ width: '100%', boxSizing: 'border-box', font: 'inherit' }}
             value={row.original.startNoEarlierThan ?? ''}
             onChange={(e) => {
               // A date input reports '' when cleared, which is the caller
@@ -2627,7 +2687,12 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
           const hovered = live.current.hoveredNotes === row.original.id;
           return (
             <span
-              style={{ position: 'relative', display: 'inline-block' }}
+              // `block`, not `inline-block`: a shrink-to-fit wrapper and a
+              // `width: 100%` textarea inside it define each other in a
+              // circle. Still the positioned ancestor, and still without
+              // `overflow: hidden`, so the preview below opens over the rows
+              // rather than being clipped to this cell.
+              style={{ position: 'relative', display: 'block', maxWidth: '100%' }}
               onMouseEnter={() => {
                 live.current.setHoveredNotes(row.original.id);
               }}
@@ -2646,7 +2711,12 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                 multiline
                 rows={1}
                 expandedRows={8}
-                style={{ width: '18em', resize: 'vertical', font: 'inherit' }}
+                style={{
+                  width: '100%',
+                  boxSizing: 'border-box',
+                  resize: 'vertical',
+                  font: 'inherit',
+                }}
                 onKeyDown={(e) => {
                   live.current.onAltMove(e, row.original, 'notes');
                   live.current.onArrowKey(e, row.original.id, 'notes');
@@ -2763,6 +2833,14 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    * typed the kept set is every row and this filters nothing out.
    */
   const shownRows = table.getRowModel().rows.filter((row) => search.visibleIds.has(row.id));
+
+  /**
+   * The columns this render puts on screen, in order — which is exactly what a
+   * `<colgroup>` declares and what the table's own width adds up. Read from the
+   * table model rather than listed here, so unfolding a role cannot leave the
+   * declared widths describing the columns of a moment ago.
+   */
+  const leafColumnIds = table.getVisibleLeafColumns().map((column) => column.id);
 
   return (
     <section>
@@ -3054,7 +3132,30 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
           and two pixels between every pair of cells is two pixels the offsets
           do not know about.
         */}
-        <table ref={tableElement} style={{ borderCollapse: 'separate', borderSpacing: 0 }}>
+        <table
+          ref={tableElement}
+          style={{
+            borderCollapse: 'separate',
+            borderSpacing: 0,
+            // `fixed` and a declared total, so the browser lays every column
+            // out at the width `table-frame.ts` says it has. Under the default
+            // `auto` the widths were a suggestion the content could outvote,
+            // and a column that came out wider than the offsets assumed is a
+            // pinned Name painted over "Depends on".
+            tableLayout: 'fixed',
+            width: tableWidth(leafColumnIds),
+          }}
+        >
+          {/*
+            The one place the declared widths reach the browser. `col` sizes a
+            column and nothing else about it, which is why the cells below
+            carry no width of their own.
+          */}
+          <colgroup>
+            {leafColumnIds.map((id) => (
+              <col key={id} style={{ width: widthFor(id) }} />
+            ))}
+          </colgroup>
           <thead>
             {table.getHeaderGroups().map((group) => (
               <tr key={group.id}>
@@ -3063,6 +3164,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                     key={header.id}
                     scope="col"
                     style={{
+                      ...CELL,
                       ...STICKY_HEADER_CELL,
                       ...pinnedCellStyle(header.column.id, 'header'),
                     }}
@@ -3111,7 +3213,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                 }}
               >
                 {row.getVisibleCells().map((cell) => (
-                  <td key={cell.id} style={pinnedCellStyle(cell.column.id, 'body')}>
+                  <td key={cell.id} style={{ ...CELL, ...pinnedCellStyle(cell.column.id, 'body') }}>
                     {flexRender(cell.column.columnDef.cell, cell.getContext())}
                   </td>
                 ))}

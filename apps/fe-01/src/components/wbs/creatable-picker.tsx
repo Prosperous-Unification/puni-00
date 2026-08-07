@@ -58,7 +58,14 @@ export function CreatablePicker({
   const open = typed !== null && (offered.length > 0 || canCreate);
 
   return (
-    <span style={{ position: 'relative', display: 'inline-block' }}>
+    // A flex row so the box and its ✕ share one cell's width instead of adding
+    // up to more than it: the input takes what is left over and the button
+    // keeps its own size. `minWidth: 0` on both, because a flex item refuses to
+    // shrink below its content by default and an input's default content width
+    // is about twenty characters — which is how this pair used to push past its
+    // column. Still the positioned ancestor of the list below, and still
+    // without `overflow: hidden`, so the list opens over the rows.
+    <span style={{ position: 'relative', display: 'flex', maxWidth: '100%', minWidth: 0 }}>
       <input
         aria-label={label}
         role="combobox"
@@ -66,8 +73,7 @@ export function CreatablePicker({
         aria-controls={open ? listId : undefined}
         aria-autocomplete="list"
         placeholder={placeholder}
-        size={14}
-        style={{ font: 'inherit' }}
+        style={{ font: 'inherit', flex: 1, minWidth: 0, width: 'auto' }}
         value={typed ?? chosen?.name ?? ''}
         onFocus={() => {
           setTyped('');
@@ -107,7 +113,7 @@ export function CreatablePicker({
           aria-label={`Clear ${label}`}
           title="Clear"
           onClick={onClear}
-          style={{ marginLeft: 2 }}
+          style={{ marginLeft: 2, flex: 'none' }}
         >
           ✕
         </button>
