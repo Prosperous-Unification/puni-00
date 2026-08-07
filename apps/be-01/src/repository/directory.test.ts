@@ -47,6 +47,7 @@ beforeEach(async () => {
     restricted: false,
     estimateMethod: 'pert',
     startDate: null,
+    revision: 0,
     createdAt: 1,
   };
   const roles: Role[] = [
@@ -65,6 +66,7 @@ beforeEach(async () => {
     frozenNumber: null,
     startNoEarlierThan: null,
     serviceTeamId: null,
+    revision: 0,
   };
   await workItems.insert(item, []);
 });
@@ -135,6 +137,7 @@ describe('DirectoryRepository', () => {
         frozenNumber: null,
         startNoEarlierThan: null,
         serviceTeamId: null,
+        revision: 0,
       },
       [],
     );

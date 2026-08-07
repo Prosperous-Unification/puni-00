@@ -43,6 +43,7 @@ function project(name: string, createdAt: number): Project {
     restricted: false,
     estimateMethod: 'pert',
     startDate: null,
+    revision: 0,
     createdAt,
   };
 }

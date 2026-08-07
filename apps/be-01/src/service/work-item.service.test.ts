@@ -46,6 +46,7 @@ beforeEach(async () => {
     restricted: false,
     estimateMethod: 'pert',
     startDate: null,
+    revision: 0,
     createdAt: 1,
   };
   roleId = crypto.randomUUID();
@@ -79,6 +80,7 @@ async function fill(parentId: string, count: number): Promise<void> {
         frozenNumber: null,
         startNoEarlierThan: null,
         serviceTeamId: null,
+        revision: 0,
       },
       [],
     );

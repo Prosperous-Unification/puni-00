@@ -54,6 +54,7 @@ beforeEach(async () => {
       restricted: false,
       estimateMethod: 'pert',
       startDate: null,
+      revision: 0,
       createdAt: 1,
     },
     [{ id: roleId, projectId, name: 'Dev' }],
@@ -76,6 +77,7 @@ function row(parentId: string | null, position: number, name: string): WorkItem 
     frozenNumber: null,
     startNoEarlierThan: null,
     serviceTeamId: null,
+    revision: 0,
   };
 }
 

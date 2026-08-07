@@ -41,6 +41,7 @@ beforeEach(async () => {
     restricted: false,
     estimateMethod: 'pert',
     startDate: null,
+    revision: 0,
     createdAt: 1,
   };
   await projects.create(project, []);

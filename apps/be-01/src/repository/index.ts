@@ -34,6 +34,13 @@ export interface Project {
   estimateMethod: EstimateMethod;
   /** The calendar day the plan begins, or null for a plan not yet on a calendar. */
   startDate: IsoDate | null;
+  /**
+   * How many times this project has been written to. Moves on its own stored
+   * fields and on its roles; never on a work item beneath it, and never on
+   * somebody opening it. See `schema.ts` for the rule and why it is bumped in
+   * SQL rather than in this process.
+   */
+  revision: number;
   createdAt: number;
 }
 
@@ -68,6 +75,12 @@ export interface WorkItem {
   startNoEarlierThan: IsoDate | null;
   /** The service or team this work is labelled with, or null. */
   serviceTeamId: string | null;
+  /**
+   * How many times this work item has been written to, counting writes to its
+   * estimates, assignments and dependencies — and not counting a change to the
+   * number derived for it. See `schema.ts` for the whole rule.
+   */
+  revision: number;
 }
 
 export interface WorkItemPatch {

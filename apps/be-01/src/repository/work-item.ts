@@ -11,6 +11,7 @@ import type {
   WorkItemPatch,
   WorkItemStore,
 } from './index';
+import { bumpedWorkItem, bumpedWorkItemOnReparent } from './revision';
 import { assignment, dependency, estimate, workItem } from './schema';
 
 /**
@@ -20,6 +21,12 @@ import { assignment, dependency, estimate, workItem } from './schema';
  * pointing at a parent that is already gone, both produce a tree that cannot be
  * numbered. A reader landing between two separate writes would see that state
  * and have no way to tell it from the truth.
+ *
+ * **Revisions move in the `SET` of the statement that changes the row**, never
+ * in a second statement afterwards. A respaced sibling is the one write here
+ * that does not move one: its `position` changed, and position is storage
+ * detail — see the column's JSDoc in `schema.ts` for why the derived number is
+ * deliberately outside what a revision covers.
  */
 export class WorkItemRepository implements WorkItemStore {
   constructor(private readonly db: SQLiteBunDatabase) {}
@@ -55,7 +62,11 @@ export class WorkItemRepository implements WorkItemStore {
     ) {
       return this.findById(id);
     }
-    const rows = await this.db.update(workItem).set(patch).where(eq(workItem.id, id)).returning();
+    const rows = await this.db
+      .update(workItem)
+      .set({ ...patch, revision: bumpedWorkItem })
+      .where(eq(workItem.id, id))
+      .returning();
     return rows[0] ?? null;
   }
 
@@ -73,7 +84,10 @@ export class WorkItemRepository implements WorkItemStore {
           .where(eq(workItem.id, moved.id))
           .run();
       }
-      tx.update(workItem).set({ parentId, position }).where(eq(workItem.id, id)).run();
+      tx.update(workItem)
+        .set({ parentId, position, revision: bumpedWorkItem })
+        .where(eq(workItem.id, id))
+        .run();
     });
   }
 
@@ -83,7 +97,7 @@ export class WorkItemRepository implements WorkItemStore {
     this.db.transaction((tx) => {
       for (const update of updates) {
         tx.update(workItem)
-          .set({ frozenNumber: update.frozenNumber })
+          .set({ frozenNumber: update.frozenNumber, revision: bumpedWorkItem })
           .where(eq(workItem.id, update.id))
           .run();
       }
@@ -106,8 +120,15 @@ export class WorkItemRepository implements WorkItemStore {
     const deepestFirst = [...ids].reverse();
     this.db.transaction((tx) => {
       for (const child of promoted) {
+        // A promoted child gained a new parent, which is a change to its own
+        // stored fields. Its former siblings are in this same list and gained
+        // only a position, which is not — see {@link bumpedWorkItemOnReparent}.
         tx.update(workItem)
-          .set({ parentId: child.parentId, position: child.position })
+          .set({
+            parentId: child.parentId,
+            position: child.position,
+            revision: bumpedWorkItemOnReparent(child.parentId),
+          })
           .where(eq(workItem.id, child.id))
           .run();
       }
@@ -139,6 +160,13 @@ export class SubtreeRepository implements SubtreeStore {
    * The statement order is forced by the foreign keys, not chosen: rows before
    * the estimates and assignments that reference them, and the dependencies
    * last because each references two rows.
+   *
+   * Nothing here bumps a revision. Every row written is new, and arrives at
+   * whatever revision the caller decided — 0, because a copy has never been
+   * changed since it came into existence. The estimates, assignments and edges
+   * belong to those new rows, so bumping them would count the act of being
+   * created as a change to something. The **original** is untouched by
+   * construction: it is not among `rows`, and copying it did not change it.
    *
    * `async` is load-bearing, as it is in `ProjectRepository.create`:
    * `db.transaction` is synchronous, so without it a constraint violation

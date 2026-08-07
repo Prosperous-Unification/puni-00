@@ -88,6 +88,26 @@ export const project = sqliteTable('project', {
    * has.
    */
   startDate: text('start_date'),
+  /**
+   * How many times this project has been written to — see {@link workItem}'s
+   * `revision` for what a revision is and the rule that decides when one moves.
+   *
+   * The project's own stored fields (name, restriction, estimate method, start
+   * date) and its **satellites** move it. Its roles are a satellite: adding,
+   * renaming or removing one changes what every estimate in the project means.
+   * There is no write path for a role today beyond creating the project, so
+   * that half of the rule is stated rather than exercised — the first one added
+   * bumps this column, and `revision.test.ts` is where it will be asserted.
+   *
+   * A project's work items are **not** satellites of it. They are entities with
+   * revisions of their own, and folding them in here would make this counter
+   * move on every keystroke anybody types anywhere in the plan — a precondition
+   * on it would then fail for two people editing unrelated branches.
+   *
+   * `project_access.last_opened_at` does not move it either: whose screen a
+   * project is on is navigation history, not a change to the plan.
+   */
+  revision: integer('revision').notNull().default(0),
   createdAt: integer('created_at').notNull(),
 });
 
@@ -166,6 +186,42 @@ export const workItem = sqliteTable(
      * not a constraint on who may be assigned it.
      */
     serviceTeamId: text('service_team_id'),
+    /**
+     * How many times this work item has been written to: a monotonic counter
+     * that starts at 0 and is bumped by every write that changes what the work
+     * item means.
+     *
+     * **The rule of thumb: if a reader could see different data because of the
+     * write, the owning entity's revision moved.** That includes writes to the
+     * work item's **satellites** — rows in other tables that have no identity
+     * of their own and are only ever read through the work item they hang off:
+     *
+     * - an `estimate` bumps the work item it is for, and a handoff between two
+     *   work items bumps both;
+     * - an `assignment` bumps the work item it is on;
+     * - a `dependency` bumps **both** endpoints, because either end reads the
+     *   edge.
+     *
+     * What it deliberately does **not** cover is the work item's derived
+     * number. `position` is storage detail and the number a reader sees is
+     * computed from the whole tree, so one structural edit changes the number
+     * of rows nobody wrote to. Bumping all of them would make this counter
+     * global — every reader would conflict with every writer — so a revision
+     * covers the entity's own stored fields and its satellites, and never its
+     * place in somebody else's numbering. A client that cares about the
+     * numbers refetches the tree, which is what it already does.
+     *
+     * Bumped with SQL arithmetic (`revision = revision + 1`) in the same
+     * statement or transaction as the write it describes, never read into the
+     * process and written back: two writers that both read 4 would both write
+     * 5, and one of the two writes would then be invisible to the very check
+     * this column exists to serve.
+     *
+     * Nothing enforces a precondition on it yet — this column records the
+     * fact. Conditional undo and write preconditions are the consumers, and
+     * they are separate changes.
+     */
+    revision: integer('revision').notNull().default(0),
   },
   (t) => [index('work_item_siblings').on(t.projectId, t.parentId, t.position)],
 );

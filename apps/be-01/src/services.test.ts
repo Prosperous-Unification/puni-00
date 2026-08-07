@@ -56,6 +56,7 @@ async function seedProject(db: ReturnType<typeof openDrizzle>): Promise<{
       restricted: false,
       estimateMethod: 'pert',
       startDate: null,
+      revision: 0,
       createdAt: 1,
     },
     [{ id: crypto.randomUUID(), projectId, name: 'Dev' }],

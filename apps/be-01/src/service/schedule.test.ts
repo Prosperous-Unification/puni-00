@@ -15,6 +15,7 @@ const item = (id: string, parentId: string | null = null): WorkItem => ({
   frozenNumber: null,
   startNoEarlierThan: null,
   serviceTeamId: null,
+  revision: 0,
 });
 
 const edge = (predecessorId: string, successorId: string): DependencyEdge => ({

@@ -13,6 +13,7 @@ const item = (id: string, parentId: string | null): WorkItem => ({
   frozenNumber: null,
   startNoEarlierThan: null,
   serviceTeamId: null,
+  revision: 0,
 });
 
 const held = (

@@ -138,6 +138,18 @@ dates are dates or day offsets, and when the figures were taken. Always the whol
 never the view of it.
 _Avoid_: report, download, dump, extract
 
+**Revision**:
+A count of how many times one work item or one project has been written to, starting at
+zero and never going down. Moves on the entity's own stored fields and on its satellites,
+and never on the number derived for it.
+_Avoid_: version, etag, timestamp, sequence
+
+**Satellite**:
+A row that belongs to one entity, has no identity anyone holds, and is only ever read
+through that entity — an estimate, an assignment, a role. Writing one moves the owner's
+revision; a dependency has two owners and moves both.
+_Avoid_: child row, detail, related record
+
 **Restricted project**:
 A project only its owner may edit. Every authenticated account may still read it; an
 unrestricted project may be edited by any of them.

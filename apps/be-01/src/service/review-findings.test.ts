@@ -27,6 +27,7 @@ async function newProject(name: string): Promise<string> {
     restricted: false,
     estimateMethod: 'pert',
     startDate: null,
+    revision: 0,
     createdAt: 1,
   };
   await projects.create(project, []);

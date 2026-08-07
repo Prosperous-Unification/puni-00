@@ -38,6 +38,7 @@ const insertItem = async (
     frozenNumber: null,
     startNoEarlierThan: null,
     serviceTeamId: null,
+    revision: 0,
   };
   await workItems.insert(item, []);
 };
@@ -67,6 +68,7 @@ beforeEach(async () => {
     restricted: false,
     estimateMethod: 'pert',
     startDate: null,
+    revision: 0,
     createdAt: 1,
   };
   const roles: Role[] = [

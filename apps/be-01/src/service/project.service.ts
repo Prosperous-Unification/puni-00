@@ -59,6 +59,10 @@ export class ProjectService {
       // Not the day it was made: a plan with no start date is an ordinary
       // state, and inventing one would put dates on screen nobody chose.
       startDate: null,
+      // Never written to since it came into being. Its starting roles arrive
+      // in the same transaction, so they are part of that beginning rather
+      // than a first change to it.
+      revision: 0,
       createdAt: this.now(),
     };
     const roles = STARTING_ROLES.map((roleName) => ({

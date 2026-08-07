@@ -55,6 +55,7 @@ function fakeProjects(
         scheduleError: null,
         estimateMethod: 'pert' as const,
         startDate: null,
+        projectRevision: 0,
       }),
     setEstimateMethod: () => Promise.resolve(),
     setStartDate: () => Promise.resolve(),

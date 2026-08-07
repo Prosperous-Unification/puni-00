@@ -143,6 +143,9 @@ function fakeApi(): ProjectApi & { rows: WorkItemView[] } {
         scheduleError: null,
         estimateMethod,
         startDate,
+        // Never moved by anything the table does: the fake's mutations are all
+        // work item writes, and be-01 keeps the project's revision off them.
+        projectRevision: 0,
       }),
     setEstimateMethod(_projectId, method) {
       estimateMethod = method;
@@ -188,6 +191,10 @@ function fakeApi(): ProjectApi & { rows: WorkItemView[] } {
       rows.splice(at, 0, {
         id,
         parentId: input.parentId,
+        // A new row has never been written to since it came into being, and
+        // this fake never writes to a row again — the table sends patches and
+        // refetches, so nothing here would move it.
+        revision: 0,
         number: '',
         name: input.name ?? '',
         notes: '',
@@ -3287,6 +3294,7 @@ describe('dependencies in the table — cross-review findings', () => {
           {
             id: 'w1',
             parentId: null,
+            revision: 0,
             number: '010',
             name: 'Strip',
             notes: '',

@@ -44,6 +44,7 @@ beforeEach(async () => {
       restricted: false,
       estimateMethod: 'pert',
       startDate: null,
+      revision: 0,
       createdAt: 1,
     },
     [{ id: crypto.randomUUID(), projectId, name: 'Dev' }],
@@ -67,6 +68,7 @@ async function addWorkItem(name: string): Promise<string> {
       frozenNumber: null,
       startNoEarlierThan: null,
       serviceTeamId: null,
+      revision: 0,
     },
     [],
   );

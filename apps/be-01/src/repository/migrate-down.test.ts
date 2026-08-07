@@ -23,6 +23,9 @@ const ACCESS = '20260806160000_add_project_access';
 const METHOD = '20260806170000_add_estimate_method';
 const CAL = '20260806180000_add_calendar_dates';
 const TEAMS = '20260806190000_add_teams_and_assignees';
+// Columns on `project` and `work_item` rather than tables of its own, so it
+// appears in the order and in nothing else this file checks.
+const REVISIONS = '20260807090000_add_revisions';
 
 function tempDb(): { path: string; cleanup: () => void } {
   const dir = mkdtempSync(join(tmpdir(), 'wbs-migrate-down-'));
@@ -101,6 +104,7 @@ describe('readMigrationFolders', () => {
       METHOD,
       CAL,
       TEAMS,
+      REVISIONS,
     ]);
     for (const f of folders) expect(f.downSql.trim()).not.toBe('');
   });
@@ -124,11 +128,21 @@ describe('rollbackTo, against a real database', () => {
     try {
       runMigrations(db.path, FOLDER);
       expect(tables(db.path)).toContain('users');
-      expect(appliedNames(db.path)).toEqual([INIT, USERS, WBS, DEPS, ACCESS, METHOD, CAL, TEAMS]);
+      expect(appliedNames(db.path)).toEqual([
+        INIT,
+        USERS,
+        WBS,
+        DEPS,
+        ACCESS,
+        METHOD,
+        CAL,
+        TEAMS,
+        REVISIONS,
+      ]);
 
       const reversed = rollbackTo(db.path, FOLDER, INIT);
 
-      expect(reversed).toEqual([TEAMS, CAL, METHOD, ACCESS, DEPS, WBS, USERS]);
+      expect(reversed).toEqual([REVISIONS, TEAMS, CAL, METHOD, ACCESS, DEPS, WBS, USERS]);
       expect(tables(db.path)).not.toContain('users');
       // The earlier migration's tables are untouched, which is the difference
       // between a rollback and a reset.
@@ -150,7 +164,17 @@ describe('rollbackTo, against a real database', () => {
       runMigrations(db.path, FOLDER);
 
       expect(tables(db.path)).toContain('users');
-      expect(appliedNames(db.path)).toEqual([INIT, USERS, WBS, DEPS, ACCESS, METHOD, CAL, TEAMS]);
+      expect(appliedNames(db.path)).toEqual([
+        INIT,
+        USERS,
+        WBS,
+        DEPS,
+        ACCESS,
+        METHOD,
+        CAL,
+        TEAMS,
+        REVISIONS,
+      ]);
     } finally {
       db.cleanup();
     }
@@ -162,7 +186,7 @@ describe('rollbackTo, against a real database', () => {
       runMigrations(db.path, FOLDER);
       const reversed = rollbackTo(db.path, FOLDER, ROLLBACK_ALL);
 
-      expect(reversed).toEqual([TEAMS, CAL, METHOD, ACCESS, DEPS, WBS, USERS, INIT]);
+      expect(reversed).toEqual([REVISIONS, TEAMS, CAL, METHOD, ACCESS, DEPS, WBS, USERS, INIT]);
       for (const t of [
         'users',
         'examples',
@@ -185,7 +209,7 @@ describe('rollbackTo, against a real database', () => {
     const db = tempDb();
     try {
       runMigrations(db.path, FOLDER);
-      expect(rollbackTo(db.path, FOLDER, TEAMS)).toEqual([]);
+      expect(rollbackTo(db.path, FOLDER, REVISIONS)).toEqual([]);
       expect(tables(db.path)).toContain('users');
     } finally {
       db.cleanup();

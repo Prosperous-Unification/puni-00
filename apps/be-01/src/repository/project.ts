@@ -3,6 +3,7 @@ import { and, desc, eq, sql } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
 import type { Project, ProjectPatch, ProjectStore, ProjectWithAccess, Role } from './index';
+import { bumpedProject } from './revision';
 import { project, projectAccess, role } from './schema';
 
 /**
@@ -85,6 +86,7 @@ export class ProjectRepository implements ProjectStore {
         restricted: project.restricted,
         estimateMethod: project.estimateMethod,
         startDate: project.startDate,
+        revision: project.revision,
         createdAt: project.createdAt,
         lastOpenedAt: projectAccess.lastOpenedAt,
       })
@@ -97,6 +99,15 @@ export class ProjectRepository implements ProjectStore {
     return rows.map(toProject);
   }
 
+  /**
+   * Deliberately does **not** move the project's revision. Which screen a
+   * project is on is one account's navigation history: nobody else's read of
+   * the plan differs because of it, so a write that had to be sure the plan had
+   * not changed must not be defeated by somebody opening it in another tab.
+   *
+   * Proof: bumping the project here fails `opening a project does not move its
+   * revision` in `service/revision.test.ts`.
+   */
   async recordOpen(userId: string, projectId: string, at: number): Promise<void> {
     await this.db
       .insert(projectAccess)
@@ -121,7 +132,13 @@ export class ProjectRepository implements ProjectStore {
     ) {
       return this.findById(id);
     }
-    const rows = await this.db.update(project).set(patch).where(eq(project.id, id)).returning();
+    // The bump rides in the same `SET` as the change it describes, so a patch
+    // that lands without moving the revision is not a state this can reach.
+    const rows = await this.db
+      .update(project)
+      .set({ ...patch, revision: bumpedProject })
+      .where(eq(project.id, id))
+      .returning();
     const updated = rows.at(0);
     return updated === undefined ? null : toProject(updated);
   }

@@ -151,6 +151,26 @@ function finalsOf(
  * its estimates by role — its own if it is a leaf, its descendants' sums if not.
  */
 export interface NumberedWorkItem extends WorkItem {
+  /**
+   * How many times this work item has been written to, including writes to its
+   * estimates, assignments and dependencies.
+   *
+   * Redeclared from {@link WorkItem} only to say what it means **for a reader**,
+   * which is the reason it is on the wire at all: hold it alongside the row you
+   * read, and a later write can ask to land only if the row has not moved
+   * since. Nothing asks that yet — conditional undo and write preconditions are
+   * the changes that will.
+   *
+   * It does **not** move when `number` does. A create anywhere above renumbers
+   * rows nobody wrote to, and a revision that tracked the derived number would
+   * be a project-wide counter with a work item's name on it.
+   *
+   * A created work item is 0. One created as the first child of a work item
+   * that held estimates is 1: the handoff of those estimates down to it is a
+   * second write, to a row that then genuinely holds something it did not
+   * before.
+   */
+  revision: number;
   number: string;
   estimates: Record<string, Days>;
   /** True when the estimates above are sums and therefore not editable here. */
@@ -324,6 +344,12 @@ export class WorkItemService {
     scheduleError: ScheduleError;
     estimateMethod: EstimateMethod;
     startDate: IsoDate | null;
+    /**
+     * The project row's own revision, which moves on its name, restriction,
+     * estimate method, start date and roles — and on none of the work items
+     * below it, each of which carries its own.
+     */
+    projectRevision: number;
   } | null> {
     const project = await this.opts.projects.findById(projectId);
     if (project === null) return null;
@@ -411,6 +437,7 @@ export class WorkItemService {
       scheduleError,
       estimateMethod: project.estimateMethod,
       startDate: project.startDate,
+      projectRevision: project.revision,
     };
   }
 
@@ -443,6 +470,10 @@ export class WorkItemService {
       frozenNumber: null,
       startNoEarlierThan: null,
       serviceTeamId: null,
+      // A row that has never been changed since it came into existence. The
+      // estimate handoff below is a real second write and leaves a first child
+      // at 1 — see {@link NumberedWorkItem.revision}.
+      revision: 0,
     };
     await this.opts.workItems.insert(workItem, placed.renumbered);
     // A work item that had an estimate and now has a child no longer holds one:
@@ -598,6 +629,10 @@ export class WorkItemService {
         // branch nobody asked to rename.
         name: isRoot ? `${source.name}${COPY_SUFFIX}` : source.name,
         frozenNumber: null,
+        // Not the original's count. A copy is a new row that has never been
+        // changed, and carrying the original's revision across would have a
+        // reader's precondition on one row pass against the other.
+        revision: 0,
       };
     });
 

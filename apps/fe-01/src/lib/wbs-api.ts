@@ -42,6 +42,21 @@ export interface ScheduleView {
 export interface WorkItemView {
   id: string;
   parentId: string | null;
+  /**
+   * How many times be-01 has written to this work item, counting writes to its
+   * estimates, assignees and dependencies.
+   *
+   * Nothing on screen uses it yet, and nothing sends it back. It is here so a
+   * client that holds a row can later say "apply this only if it has not moved
+   * since I read it" — the primitive conditional undo and write preconditions
+   * are both built on. be-01 owns the rule; this is a description of what
+   * arrives.
+   *
+   * It does **not** move when {@link WorkItemView.number} does. A create
+   * anywhere above renumbers rows nobody wrote to, and the table already
+   * refetches for that.
+   */
+  revision: number;
   number: string;
   name: string;
   notes: string;
@@ -156,6 +171,12 @@ export interface ProjectApi {
     scheduleError: 'cycle' | null;
     estimateMethod: EstimateMethod;
     startDate: string | null;
+    /**
+     * The project row's own revision: its name, restriction, estimate method,
+     * start date and roles. It does not move when a work item does — each
+     * carries its own.
+     */
+    projectRevision: number;
   }>;
   /** Changes how the project turns its three-point estimates into one number. */
   setEstimateMethod(projectId: string, method: EstimateMethod): Promise<void>;
@@ -260,6 +281,7 @@ export function httpProjectApi(token: string): ProjectApi {
         scheduleError: 'cycle' | null;
         estimateMethod: EstimateMethod;
         startDate: string | null;
+        projectRevision: number;
       }>(`/api/projects/${projectId}/work-items`, token);
     },
     async listTeams() {

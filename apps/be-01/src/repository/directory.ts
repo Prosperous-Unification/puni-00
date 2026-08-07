@@ -2,6 +2,7 @@ import { and, asc, eq } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
 import type { DirectoryStore, Person, PersonWithTeams, ServiceTeam } from './index';
+import { bumpWorkItems } from './revision';
 import { assignment, person, personTeam, serviceTeam } from './schema';
 
 /**
@@ -74,23 +75,33 @@ export class DirectoryRepository implements DirectoryStore {
     return rows.filter((row) => wanted.has(row.workItemId));
   }
 
+  /**
+   * An assignment is a satellite of the work item it is on, so setting or
+   * clearing one moves that work item's revision in the same transaction.
+   * The person named has none of their own: they are a directory entry rather
+   * than part of any plan.
+   */
   async assign(workItemId: string, roleId: string, personId: string | null): Promise<void> {
-    if (personId === null) {
-      // `and(...)`, not `&&`: the JS operator would evaluate to the second
-      // condition alone and delete every role's assignment on this work item.
-      await this.db
-        .delete(assignment)
-        .where(and(eq(assignment.workItemId, workItemId), eq(assignment.roleId, roleId)));
-      return;
-    }
-    await this.db
-      .insert(assignment)
-      .values({ workItemId, roleId, personId })
-      // The pair is the primary key, so reassigning is an update rather than a
-      // constraint violation.
-      .onConflictDoUpdate({
-        target: [assignment.workItemId, assignment.roleId],
-        set: { personId },
-      });
+    await Promise.resolve();
+    this.db.transaction((tx) => {
+      if (personId === null) {
+        // `and(...)`, not `&&`: the JS operator would evaluate to the second
+        // condition alone and delete every role's assignment on this work item.
+        tx.delete(assignment)
+          .where(and(eq(assignment.workItemId, workItemId), eq(assignment.roleId, roleId)))
+          .run();
+      } else {
+        tx.insert(assignment)
+          .values({ workItemId, roleId, personId })
+          // The pair is the primary key, so reassigning is an update rather
+          // than a constraint violation.
+          .onConflictDoUpdate({
+            target: [assignment.workItemId, assignment.roleId],
+            set: { personId },
+          })
+          .run();
+      }
+      bumpWorkItems(tx, [workItemId]);
+    });
   }
 }
