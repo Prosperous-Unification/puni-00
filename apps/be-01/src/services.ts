@@ -1,5 +1,6 @@
 import type { Logger } from '@wbs/observability';
 
+import { CommandJournalRepository } from './repository/command-journal';
 import type { Drizzle } from './repository/db';
 import { DependencyRepository } from './repository/dependency';
 import { DirectoryRepository } from './repository/directory';
@@ -88,6 +89,9 @@ export function buildServices(opts: ServicesOptions): BeServices {
       // The one store that writes across all four of the tables above, because
       // a duplicated subtree is one act — see {@link SubtreeRepository}.
       subtrees: new SubtreeRepository(opts.db),
+      // The undo stack, on the server so it survives a reload — one per
+      // account per project. See `command_journal` in `schema.ts`.
+      journal: new CommandJournalRepository(opts.db),
       broadcast: new GatewayBroadcaster({
         sequencer: new EventSequencer(eventLog),
         buffer: replayBuffer,

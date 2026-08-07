@@ -6,7 +6,7 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { useState } from 'react';
 import { describe, expect, it } from 'vitest';
 
-import { altStyleOf, KEY_BINDINGS, showKeys, WHERE_ORDER } from './keyboard-bindings';
+import { altStyleOf, KEY_BINDINGS, showKeys, undoChord, WHERE_ORDER } from './keyboard-bindings';
 import { KeyboardCheatSheet, opensCheatSheet } from './keyboard-cheat-sheet';
 
 // fe-01 tests require jsdom; only Vitest provides it. Skip under plain `bun test`.
@@ -86,6 +86,12 @@ const PROVEN_BY = new Map<string, readonly string[]>(
       'closes on Escape and gives the focus back to what had it',
       'clearing the search puts the reader’s own collapse back',
     ],
+    'Anywhere: Ctrl/⌘ + Z': [
+      'undoes the last change and says what it undid',
+      'leaves ctrl-z alone inside a name cell, where the browser owns it',
+      'names the change that stood in the way when an undo is refused',
+    ],
+    'Anywhere: Ctrl/⌘ + Shift + Z': ['redoes what was undone'],
   }),
 );
 
@@ -280,6 +286,41 @@ describe('the cheat sheet overlay', () => {
     fireEvent.click(screen.getByRole('heading', { name: 'Keyboard shortcuts' }));
 
     expect(screen.queryByRole('dialog')).not.toBeNull();
+  });
+});
+
+describe('what walks the undo stack', () => {
+  /** Ctrl and the letter, as the listener sees it. */
+  const chord = { key: 'z', ctrlKey: true, metaKey: false, altKey: false, shiftKey: false };
+
+  itDom('takes Ctrl or Meta, and Shift is which way', () => {
+    expect(undoChord(chord, null)).toBe('undo');
+    // A browser uppercases the letter when Shift is held.
+    expect(undoChord({ ...chord, key: 'Z', shiftKey: true }, null)).toBe('redo');
+    expect(undoChord({ ...chord, ctrlKey: false, metaKey: true }, null)).toBe('undo');
+  });
+
+  itDom('never inside a box somebody is typing in, where the browser owns it', () => {
+    render(
+      <>
+        <input aria-label="a box" />
+        <textarea aria-label="a bigger box" />
+      </>,
+    );
+    const editable = document.createElement('div');
+    editable.setAttribute('contenteditable', 'true');
+    document.body.append(editable);
+
+    expect(undoChord(chord, screen.getByLabelText('a box'))).toBeNull();
+    expect(undoChord(chord, screen.getByLabelText('a bigger box'))).toBeNull();
+    expect(undoChord(chord, editable)).toBeNull();
+    editable.remove();
+  });
+
+  itDom('leaves anything that is not the chord alone', () => {
+    expect(undoChord({ ...chord, ctrlKey: false }, null)).toBeNull();
+    expect(undoChord({ ...chord, altKey: true }, null)).toBeNull();
+    expect(undoChord({ ...chord, key: 'y' }, null)).toBeNull();
   });
 });
 

@@ -7,20 +7,32 @@ import {
 } from '@wbs/domain';
 
 import type {
+  CommandJournalStore,
   DependencyStore,
   DirectoryStore,
   EstimateStore,
+  JournalEntry,
   Project,
   ProjectStore,
   Reparented,
   StoredEstimate,
   SubtreeStore,
+  UndoState,
   WorkItem,
   WorkItemPatch,
   WorkItemStore,
 } from '../repository';
 import type { Broadcaster } from './broadcast';
 import { withAncestors } from './broadcast';
+import {
+  type CompensatingCommand,
+  quoteName,
+  readCommand,
+  readPayload,
+  readPreconditions,
+  type Revisions,
+  touchedBy,
+} from './compensating';
 import { canDepend } from './dependency';
 import { deriveNumbers } from './derive-numbers';
 import { placeAfter, POSITION_STEP, type Sibling } from './place-sibling';
@@ -264,9 +276,47 @@ export interface WorkItemServiceOptions {
   directory: DirectoryStore;
   dependencies: DependencyStore;
   subtrees: SubtreeStore;
+  /**
+   * Where every reversible command is written down.
+   *
+   * Required rather than optional. A service built without one would apply
+   * every mutation and record none of them, and the only symptom would be an
+   * undo key that quietly does nothing — the shape of failure `AGENTS.md` R5
+   * exists to keep out of this repo.
+   */
+  journal: CommandJournalStore;
   broadcast: Broadcaster;
   newId?: () => string;
+  now?: () => number;
 }
+
+/** Why an undo or a redo did not happen. */
+export type UndoRefusal =
+  | 'not_found'
+  | 'forbidden'
+  /** The account has nothing left in that half of its stack for this project. */
+  | 'nothing_to_undo'
+  /**
+   * Something the command touched has been written to since, so reversing it
+   * would overwrite a change nobody asked to lose. The entry is thrown away:
+   * it can never apply again, and leaving it would refuse every later press of
+   * the key for a change nobody can reach.
+   */
+  | 'stale_undo';
+
+export interface UndoDone {
+  /** What was reversed, as a sentence: `rename “Strip”`. */
+  done: string;
+  /** What could not be put back exactly, or null when everything was. */
+  detail: string | null;
+}
+
+export type UndoOutcome =
+  | { ok: true; result: UndoDone }
+  | { ok: false; reason: UndoRefusal; detail: string | null };
+
+/** Whether applying one compensating command worked, and what it could not do. */
+type ApplyOutcome = { ok: true; detail: string | null } | { ok: false; detail: string };
 
 /**
  * The largest subtree one duplication will copy.
@@ -314,11 +364,82 @@ function subtreeOf(rows: readonly WorkItem[], rootId: string): string[] {
   return collected;
 }
 
+/** One row of `rows`, or a throw: an id from the same read is not allowed to be missing. */
+function rowOf(rows: readonly WorkItem[], id: string): WorkItem {
+  const found = rows.find((row) => row.id === id);
+  if (found === undefined) throw new Error(`${id} is not a row of this project`);
+  return found;
+}
+
+/** A work item's name for a sentence, or the empty string when the row has gone. */
+function nameOf(rows: readonly WorkItem[], id: string): string {
+  return rows.find((row) => row.id === id)?.name ?? '';
+}
+
+/** Which fields a patch actually names. An absent field and a null one mean different things. */
+function fieldsOf(patch: WorkItemPatch): (keyof WorkItemPatch)[] {
+  const named: (keyof WorkItemPatch)[] = [];
+  if (patch.name !== undefined) named.push('name');
+  if (patch.notes !== undefined) named.push('notes');
+  if (patch.startNoEarlierThan !== undefined) named.push('startNoEarlierThan');
+  if (patch.serviceTeamId !== undefined) named.push('serviceTeamId');
+  return named;
+}
+
+/**
+ * The patch that puts `before` back, naming **only** the fields the forward
+ * patch named.
+ *
+ * Naming every field would be a rename that also silently restored a note
+ * somebody else edited in between — an undo that reverses more than the change
+ * it is undoing.
+ */
+function revertTo(before: WorkItem, patch: WorkItemPatch): WorkItemPatch {
+  const out: WorkItemPatch = {};
+  if (patch.name !== undefined) out.name = before.name;
+  if (patch.notes !== undefined) out.notes = before.notes;
+  if (patch.startNoEarlierThan !== undefined) out.startNoEarlierThan = before.startNoEarlierThan;
+  if (patch.serviceTeamId !== undefined) out.serviceTeamId = before.serviceTeamId;
+  return out;
+}
+
+/** The revisions of `ids` as `rows` holds them, skipping ids `rows` does not have. */
+function revisionsIn(rows: readonly WorkItem[], ids: readonly string[]): Revisions {
+  const byId = new Map(rows.map((row) => [row.id, row.revision]));
+  const out: Revisions = {};
+  for (const id of new Set(ids)) {
+    const revision = byId.get(id);
+    if (revision !== undefined) out[id] = revision;
+  }
+  return out;
+}
+
+/** A journalled command, as the mutation that ran it hands it over. */
+interface Recording {
+  /** What a redo re-applies. */
+  forward: CompensatingCommand;
+  /** What an undo applies. */
+  inverse: CompensatingCommand;
+  /** Every work item the command wrote to, whose revisions become its preconditions. */
+  touched: string[];
+  /**
+   * The project's rows as the mutation read them **before** writing.
+   *
+   * Every mutation already has this: it is what its own guards were decided
+   * against. It is here so the entry can record where the entities it touched
+   * started, which is what lets the entry below it survive this one's undo —
+   * see `Preconditions` in `compensating.ts`.
+   */
+  before: readonly WorkItem[];
+}
+
 export class WorkItemService {
   private readonly newId: () => string;
+  private readonly now: () => number;
 
   constructor(private readonly opts: WorkItemServiceOptions) {
     this.newId = opts.newId ?? (() => crypto.randomUUID());
+    this.now = opts.now ?? (() => Date.now());
   }
 
   /**
@@ -480,10 +601,51 @@ export class WorkItemService {
     // the estimate described the work, and the work is the child now. Moving it
     // down keeps the total identical, which is what makes this safe to do
     // silently — the plan's numbers do not shift under the user.
-    if (input.parentId !== null && !rows.some((row) => row.parentId === input.parentId)) {
-      await this.opts.estimates.moveAll(input.parentId, workItem.id);
+    const gainsFirstChild =
+      input.parentId !== null && !rows.some((row) => row.parentId === input.parentId)
+        ? input.parentId
+        : null;
+    // Read before the move, because afterwards they are the child's. This is
+    // the whole before-state an undo of this create has to put back.
+    const handedDown =
+      gainsFirstChild === null
+        ? []
+        : (await this.opts.estimates.listByProject(projectId)).filter(
+            (each) => each.workItemId === gainsFirstChild,
+          );
+    if (gainsFirstChild !== null) {
+      await this.opts.estimates.moveAll(gainsFirstChild, workItem.id);
     }
     await this.announceTree(projectId);
+    await this.record(projectId, actorId, 'create', `add ${quoteName(workItem.name)}`, {
+      forward: {
+        do: 'restore_subtree',
+        rows: [workItem],
+        rootPosition: workItem.position,
+        reparented: [],
+        estimates: handedDown.map((each) => ({ ...each, workItemId: workItem.id })),
+        assignments: [],
+        internalDependencies: [],
+        externalDependencies: [],
+        removedEstimates: handedDown.map((each) => ({
+          workItemId: each.workItemId,
+          roleId: each.roleId,
+        })),
+      },
+      inverse: {
+        do: 'delete_subtree',
+        rootId: workItem.id,
+        // Exactly this row and nothing else. A work item somebody has since
+        // built under is not one this undo may take away, and its own revision
+        // would not say so — a child is a row of its own.
+        expectedSubtree: [workItem.id],
+        remove: [workItem.id],
+        reparented: [],
+        setEstimates: handedDown,
+      },
+      touched: gainsFirstChild === null ? [workItem.id] : [workItem.id, gainsFirstChild],
+      before: rows,
+    });
     return { ok: true, result: workItem };
   }
 
@@ -494,9 +656,29 @@ export class WorkItemService {
   ): Promise<WorkItemOutcome<WorkItem>> {
     const context = await this.contextFor(id, actorId);
     if (!context.ok) return context;
+    const before = context.result.workItem;
     const updated = await this.opts.workItems.patch(id, patch);
     if (updated === null) return { ok: false, reason: 'not_found' };
     await this.announceWorkItem(updated.projectId, id);
+    // A patch naming no field wrote nothing — the store returns the row it
+    // found — so there is nothing to reverse. Journalling it would put an
+    // entry on the stack whose undo is visibly a no-op.
+    if (fieldsOf(patch).length > 0) {
+      await this.record(
+        updated.projectId,
+        actorId,
+        'patch',
+        patch.name === undefined
+          ? `edit ${quoteName(updated.name)}`
+          : `rename ${quoteName(updated.name)}`,
+        {
+          forward: { do: 'patch', workItemId: id, patch },
+          inverse: { do: 'patch', workItemId: id, patch: revertTo(before, patch) },
+          touched: [id],
+          before: context.result.rows,
+        },
+      );
+    }
     return { ok: true, result: updated };
   }
 
@@ -517,8 +699,26 @@ export class WorkItemService {
   ): Promise<WorkItemOutcome<null>> {
     const context = await this.contextFor(id, actorId);
     if (!context.ok) return context;
+    const { workItem } = context.result;
+    const before =
+      (await this.opts.directory.assignmentsOf([id])).find((each) => each.roleId === roleId)
+        ?.personId ?? null;
     await this.opts.directory.assign(id, roleId, personId);
-    await this.announceWorkItem(context.result.workItem.projectId, id);
+    await this.announceWorkItem(workItem.projectId, id);
+    await this.record(
+      workItem.projectId,
+      actorId,
+      personId === null ? 'unassign' : 'assign',
+      personId === null
+        ? `clear who does ${quoteName(workItem.name)}`
+        : `assign ${quoteName(workItem.name)}`,
+      {
+        forward: { do: 'assign', workItemId: id, roleId, personId },
+        inverse: { do: 'assign', workItemId: id, roleId, personId: before },
+        touched: [id],
+        before: context.result.rows,
+      },
+    );
     return { ok: true, result: null };
   }
 
@@ -545,10 +745,29 @@ export class WorkItemService {
       return { ok: false, reason: 'cycle' };
     }
 
+    // Where it was, read before it leaves: the sibling it sat directly after,
+    // or null when it was first. That is the shape `move` takes, so the
+    // inverse is the same command with the arguments it had before.
+    const wasAfter = this.groupUnder(rows, workItem.parentId)
+      .filter((sibling) => sibling.id !== id && sibling.position < workItem.position)
+      .sort((a, b) => a.position - b.position)
+      .at(-1);
+
     const group = this.groupUnder(rows, input.parentId).filter((sibling) => sibling.id !== id);
     const placed = placeAfter(group, input.afterId);
     await this.opts.workItems.move(id, input.parentId, placed.position, placed.renumbered);
     await this.announceTree(workItem.projectId);
+    await this.record(workItem.projectId, actorId, 'move', `move ${quoteName(workItem.name)}`, {
+      forward: { do: 'move', workItemId: id, parentId: input.parentId, afterId: input.afterId },
+      inverse: {
+        do: 'move',
+        workItemId: id,
+        parentId: workItem.parentId,
+        afterId: wasAfter?.id ?? null,
+      },
+      touched: [id],
+      before: rows,
+    });
     return { ok: true, result: null };
   }
 
@@ -640,26 +859,68 @@ export class WorkItemService {
     const assigned = await this.opts.directory.assignmentsOf(originals);
     const edges = await this.opts.dependencies.listByProject(workItem.projectId);
 
+    const copiedEstimates = stored
+      .filter((each) => inside.has(each.workItemId))
+      .map((each) => ({ ...each, workItemId: copyOf(each.workItemId) }));
+    const copiedAssignments = assigned.map((each) => ({
+      ...each,
+      workItemId: copyOf(each.workItemId),
+    }));
+    const copiedEdges = edges
+      .filter((edge) => inside.has(edge.predecessorId) && inside.has(edge.successorId))
+      .map((edge) => ({
+        id: this.newId(),
+        projectId: edge.projectId,
+        predecessorId: copyOf(edge.predecessorId),
+        successorId: copyOf(edge.successorId),
+      }));
+
     await this.opts.subtrees.insertSubtree({
       rows: copies,
       respaced: placed.renumbered,
-      estimates: stored
-        .filter((each) => inside.has(each.workItemId))
-        .map((each) => ({ ...each, workItemId: copyOf(each.workItemId) })),
-      assignments: assigned.map((each) => ({ ...each, workItemId: copyOf(each.workItemId) })),
-      dependencies: edges
-        .filter((edge) => inside.has(edge.predecessorId) && inside.has(edge.successorId))
-        .map((edge) => ({
-          id: this.newId(),
-          projectId: edge.projectId,
-          predecessorId: copyOf(edge.predecessorId),
-          successorId: copyOf(edge.successorId),
-        })),
+      reparented: [],
+      estimates: copiedEstimates,
+      assignments: copiedAssignments,
+      dependencies: copiedEdges,
+      removedEstimates: [],
     });
     // Once, at the end. The copy renumbers rows it never touched — every later
     // sibling of the original, at every level — so it is the whole tree rather
     // than the rows that were written.
     await this.announceTree(workItem.projectId);
+    const copyIds = copies.map((copy) => copy.id);
+    await this.record(
+      workItem.projectId,
+      actorId,
+      'duplicate',
+      `duplicate ${quoteName(workItem.name)}`,
+      {
+        forward: {
+          do: 'restore_subtree',
+          rows: copies,
+          rootPosition: placed.position,
+          reparented: [],
+          estimates: copiedEstimates,
+          assignments: copiedAssignments,
+          internalDependencies: copiedEdges,
+          externalDependencies: [],
+          removedEstimates: [],
+        },
+        inverse: {
+          do: 'delete_subtree',
+          rootId: copyOf(id),
+          expectedSubtree: copyIds,
+          remove: copyIds,
+          reparented: [],
+          setEstimates: [],
+        },
+        // Every copied row, all of them at 0. Anything typed into the copy
+        // moves one of these and the undo refuses rather than throwing away
+        // work somebody did in it.
+        touched: copyIds,
+        before: rows,
+      },
+    );
     return { ok: true, result: { id: copyOf(id) } };
   }
 
@@ -679,6 +940,10 @@ export class WorkItemService {
     // which of the two things they meant is theirs to say.
     if (children.length > 0 && strategy === null) return { ok: false, reason: 'strategy_required' };
 
+    const label = `delete ${quoteName(workItem.name)}`;
+    const storedEstimates = await this.opts.estimates.listByProject(workItem.projectId);
+    const allEdges = await this.opts.dependencies.listByProject(workItem.projectId);
+
     if (children.length === 0 || strategy === 'cascade') {
       // The mirror of the rule in `create`: a parent losing its last child takes
       // the estimates back, so the work is still described somewhere.
@@ -689,12 +954,22 @@ export class WorkItemService {
       // subtree's estimates were then deleted with it.
       const parentId = workItem.parentId;
       const doomed = subtreeOf(rows, id);
+      const inside = new Set(doomed);
+      const handedUp: StoredEstimate[] = [];
       if (parentId !== null && rows.filter((row) => row.parentId === parentId).length === 1) {
-        const totals = rollUp(rows, await this.opts.estimates.listByProject(workItem.projectId));
+        const totals = rollUp(rows, storedEstimates);
         for (const [roleId, days] of totals.get(id) ?? []) {
-          await this.opts.estimates.set({ workItemId: parentId, roleId, ...days });
+          handedUp.push({ workItemId: parentId, roleId, ...days });
         }
       }
+      for (const each of handedUp) await this.opts.estimates.set(each);
+      const cut = allEdges.filter(
+        (edge) => inside.has(edge.predecessorId) || inside.has(edge.successorId),
+      );
+      // Read before the delete, not after. `assignment.work_item_id` cascades,
+      // so a moment later there is nothing left to read and the restore would
+      // put the branch back with nobody on it.
+      const doomedAssignments = await this.opts.directory.assignmentsOf(doomed);
       // Edges first, and every one touching anything in the subtree. The
       // foreign keys refuse a delete that would orphan one, so this is not
       // tidiness: without it, deleting a work item anything depends on fails
@@ -702,6 +977,43 @@ export class WorkItemService {
       for (const gone of doomed) await this.opts.dependencies.removeAllFor(gone);
       await this.opts.workItems.remove(doomed, []);
       await this.announceTree(workItem.projectId);
+      await this.record(workItem.projectId, actorId, 'delete', label, {
+        forward: {
+          do: 'delete_subtree',
+          rootId: id,
+          expectedSubtree: doomed,
+          remove: doomed,
+          reparented: [],
+          setEstimates: handedUp,
+        },
+        inverse: {
+          do: 'restore_subtree',
+          rows: doomed.map((each) => rowOf(rows, each)),
+          rootPosition: workItem.position,
+          reparented: [],
+          estimates: storedEstimates.filter((each) => inside.has(each.workItemId)),
+          assignments: doomedAssignments,
+          internalDependencies: cut.filter(
+            (edge) => inside.has(edge.predecessorId) && inside.has(edge.successorId),
+          ),
+          externalDependencies: cut.filter(
+            (edge) => !inside.has(edge.predecessorId) || !inside.has(edge.successorId),
+          ),
+          removedEstimates: handedUp.map((each) => ({
+            workItemId: each.workItemId,
+            roleId: each.roleId,
+          })),
+        },
+        // Two deliberate absences. The deleted rows are not here — nothing can
+        // hold a revision of a row that is gone, and the restore's refusal to
+        // write over an id that exists is what guards them. Neither are the
+        // surviving ends of the edges that left with the branch: those edges
+        // are best-effort by design, and refusing to put a whole branch back
+        // because somebody renamed a neighbour would strand the work for a
+        // reason that has nothing to do with it.
+        touched: handedUp.map((each) => each.workItemId),
+        before: rows,
+      });
       return { ok: true, result: null };
     }
 
@@ -715,12 +1027,48 @@ export class WorkItemService {
         parentId: workItem.parentId,
         position: (i + 1) * POSITION_STEP,
       }));
+    const cut = allEdges.filter((edge) => edge.predecessorId === id || edge.successorId === id);
+    // Read before the delete: the assignment rows cascade with the work item.
+    const deletedAssignments = await this.opts.directory.assignmentsOf([id]);
     // The same reason as the cascade branch above: an edge to a row that is
     // going has nothing to point at, and the foreign keys say so. Only this row
     // leaves here — its children are promoted, and their edges stay valid.
     await this.opts.dependencies.removeAllFor(id);
     await this.opts.workItems.remove([id], promoted);
     await this.announceTree(workItem.projectId);
+    await this.record(workItem.projectId, actorId, 'delete', label, {
+      forward: {
+        do: 'delete_subtree',
+        rootId: id,
+        expectedSubtree: subtreeOf(rows, id),
+        remove: [id],
+        reparented: promoted,
+        setEstimates: [],
+      },
+      inverse: {
+        do: 'restore_subtree',
+        rows: [workItem],
+        rootPosition: workItem.position,
+        // Everyone the promotion rewrote, back where they were: the children
+        // under the row coming back, and the former siblings at the positions
+        // the promotion took from them. Restoring only the children would
+        // leave the group respaced around a gap that is no longer there.
+        reparented: promoted.map((each) => {
+          const was = rowOf(rows, each.id);
+          return { id: was.id, parentId: was.parentId, position: was.position };
+        }),
+        estimates: storedEstimates.filter((each) => each.workItemId === id),
+        assignments: deletedAssignments,
+        internalDependencies: [],
+        externalDependencies: cut,
+        removedEstimates: [],
+      },
+      // The promoted rows are preconditions because putting them back under the
+      // restored parent is part of the undo. The ends of the edges that left
+      // are not, for the reason given in the cascade branch above.
+      touched: promoted.map((each) => each.id),
+      before: rows,
+    });
     return { ok: true, result: null };
   }
 
@@ -744,6 +1092,19 @@ export class WorkItemService {
       .map((row) => ({ id: row.id, frozenNumber: numbers.get(row.id) ?? null }));
     await this.opts.workItems.setFrozenNumbers(updates);
     await this.announceTree(projectId);
+    // A freeze that pinned nothing — every number was already written down —
+    // is not a change to reverse.
+    if (updates.length > 0) {
+      await this.record(projectId, actorId, 'freeze', 'freeze the numbers', {
+        forward: { do: 'set_frozen', updates },
+        inverse: {
+          do: 'set_frozen',
+          updates: updates.map((each) => ({ id: each.id, frozenNumber: null })),
+        },
+        touched: updates.map((each) => each.id),
+        before: rows,
+      });
+    }
     return { ok: true, result: null };
   }
 
@@ -751,8 +1112,24 @@ export class WorkItemService {
   async unfreeze(id: string, actorId: string): Promise<WorkItemOutcome<null>> {
     const context = await this.contextFor(id, actorId);
     if (!context.ok) return context;
+    const { workItem } = context.result;
     await this.opts.workItems.setFrozenNumbers([{ id, frozenNumber: null }]);
-    await this.announceTree(context.result.workItem.projectId);
+    await this.announceTree(workItem.projectId);
+    await this.record(
+      workItem.projectId,
+      actorId,
+      'unfreeze',
+      `unfreeze ${quoteName(workItem.name)}`,
+      {
+        forward: { do: 'set_frozen', updates: [{ id, frozenNumber: null }] },
+        inverse: {
+          do: 'set_frozen',
+          updates: [{ id, frozenNumber: workItem.frozenNumber }],
+        },
+        touched: [id],
+        before: context.result.rows,
+      },
+    );
     return { ok: true, result: null };
   }
 
@@ -762,17 +1139,30 @@ export class WorkItemService {
     if (!canEdit(project, actorId)) return { ok: false, reason: 'forbidden' };
 
     const rows = await this.opts.workItems.listByProject(projectId);
+    const frozen = rows.filter((row) => row.frozenNumber !== null);
     await this.opts.workItems.setFrozenNumbers(
-      rows
-        .filter((row) => row.frozenNumber !== null)
-        .map((row) => ({
-          id: row.id,
-          frozenNumber: null,
-          startNoEarlierThan: null,
-          serviceTeamId: null,
-        })),
+      frozen.map((row) => ({
+        id: row.id,
+        frozenNumber: null,
+        startNoEarlierThan: null,
+        serviceTeamId: null,
+      })),
     );
     await this.announceTree(projectId);
+    if (frozen.length > 0) {
+      await this.record(projectId, actorId, 'unfreeze', 'unfreeze the whole plan', {
+        forward: {
+          do: 'set_frozen',
+          updates: frozen.map((row) => ({ id: row.id, frozenNumber: null })),
+        },
+        inverse: {
+          do: 'set_frozen',
+          updates: frozen.map((row) => ({ id: row.id, frozenNumber: row.frozenNumber })),
+        },
+        touched: frozen.map((row) => row.id),
+        before: rows,
+      });
+    }
     return { ok: true, result: null };
   }
 
@@ -791,10 +1181,26 @@ export class WorkItemService {
   ): Promise<WorkItemOutcome<null>> {
     const context = await this.contextFor(id, actorId);
     if (!context.ok) return context;
-    const { rows } = context.result;
+    const { rows, workItem } = context.result;
     if (rows.some((row) => row.parentId === id)) return { ok: false, reason: 'rolled_up' };
+    const before = await this.storedTrio(workItem.projectId, id, roleId);
     await this.opts.estimates.set({ workItemId: id, roleId, ...days });
-    await this.announceWorkItem(context.result.workItem.projectId, id);
+    await this.announceWorkItem(workItem.projectId, id);
+    await this.record(
+      workItem.projectId,
+      actorId,
+      'estimate',
+      `estimate ${quoteName(workItem.name)}`,
+      {
+        forward: { do: 'set_estimate', workItemId: id, roleId, days },
+        inverse:
+          before === null
+            ? { do: 'clear_estimate', workItemId: id, roleId }
+            : { do: 'set_estimate', workItemId: id, roleId, days: before },
+        touched: [id],
+        before: context.result.rows,
+      },
+    );
     return { ok: true, result: null };
   }
 
@@ -821,8 +1227,26 @@ export class WorkItemService {
   async clearEstimate(id: string, actorId: string, roleId: string): Promise<WorkItemOutcome<null>> {
     const context = await this.contextFor(id, actorId);
     if (!context.ok) return context;
+    const { workItem } = context.result;
+    const before = await this.storedTrio(workItem.projectId, id, roleId);
     await this.opts.estimates.remove(id, roleId);
-    await this.announceWorkItem(context.result.workItem.projectId, id);
+    await this.announceWorkItem(workItem.projectId, id);
+    // Clearing a trio that was not there changed nothing — the call is
+    // idempotent by design — so there is nothing to put back.
+    if (before !== null) {
+      await this.record(
+        workItem.projectId,
+        actorId,
+        'clear_estimate',
+        `clear the estimate on ${quoteName(workItem.name)}`,
+        {
+          forward: { do: 'clear_estimate', workItemId: id, roleId },
+          inverse: { do: 'set_estimate', workItemId: id, roleId, days: before },
+          touched: [id],
+          before: context.result.rows,
+        },
+      );
+    }
     return { ok: true, result: null };
   }
 
@@ -857,6 +1281,18 @@ export class WorkItemService {
       successorId: id,
     });
     await this.announceTree(workItem.projectId);
+    await this.record(
+      workItem.projectId,
+      actorId,
+      'add_dependency',
+      `make ${quoteName(workItem.name)} wait for ${quoteName(nameOf(rows, predecessorId))}`,
+      {
+        forward: { do: 'add_dependency', successorId: id, predecessorId },
+        inverse: { do: 'remove_dependency', successorId: id, predecessorId },
+        touched: [id, predecessorId],
+        before: rows,
+      },
+    );
     return { ok: true, result: null };
   }
 
@@ -868,10 +1304,475 @@ export class WorkItemService {
   ): Promise<WorkItemOutcome<null>> {
     const context = await this.contextFor(id, actorId);
     if (!context.ok) return context;
+    const { workItem, rows } = context.result;
 
+    const existed = (await this.opts.dependencies.listByProject(workItem.projectId)).some(
+      (edge) => edge.predecessorId === predecessorId && edge.successorId === id,
+    );
     await this.opts.dependencies.remove(predecessorId, id);
-    await this.announceTree(context.result.workItem.projectId);
+    await this.announceTree(workItem.projectId);
+    // The removal is idempotent, so a request for an edge that was not there
+    // changed nothing and there is nothing to put back.
+    if (existed) {
+      await this.record(
+        workItem.projectId,
+        actorId,
+        'remove_dependency',
+        `stop ${quoteName(workItem.name)} waiting for ${quoteName(nameOf(rows, predecessorId))}`,
+        {
+          forward: { do: 'remove_dependency', successorId: id, predecessorId },
+          inverse: { do: 'add_dependency', successorId: id, predecessorId },
+          touched: [id, predecessorId],
+          before: rows,
+        },
+      );
+    }
     return { ok: true, result: null };
+  }
+
+  /**
+   * Whether this account has anything to undo or redo on this project.
+   *
+   * Read by the controller alongside the tree rather than from its own route.
+   * The tree read is already the thing every client does after every change of
+   * its own and after every event from anybody else, so the answer arrives
+   * exactly when it can have changed — and {@link tree} itself stays free of
+   * an account, which matters because the broadcast reuses it.
+   */
+  undoState(projectId: string, actorId: string): Promise<UndoState> {
+    return this.opts.journal.stateOf(projectId, actorId);
+  }
+
+  /**
+   * Reverses this account's newest command on this project — **if nothing it
+   * touched has moved since**.
+   *
+   * The condition is the whole design. An undo is a write computed from a
+   * state that was read a while ago, so applying it blind is not "last writer
+   * wins" by accident but by construction: it puts back a value nobody
+   * currently on the plan asked for. Every entity the original command wrote
+   * to is checked against the revision that command left it at, and a single
+   * mismatch refuses the whole thing and says which row changed.
+   *
+   * A refused entry is **thrown away**. Its preconditions can never hold
+   * again — revisions do not go down — so keeping it would jam the stack,
+   * refusing every later press of the key for a change nobody can reach.
+   */
+  undo(projectId: string, actorId: string): Promise<UndoOutcome> {
+    return this.walkStack(projectId, actorId, 'undo');
+  }
+
+  /**
+   * Re-applies the command this account most recently undid on this project,
+   * under exactly the same condition.
+   *
+   * A redo is as much a write from a stale read as an undo is, and the
+   * asymmetry that would make it safe does not exist: between the undo and the
+   * redo anybody may have edited the same row. The redo branch is cleared the
+   * moment this account makes any forward change, because re-applying a
+   * command on top of a plan that has moved on is a different command.
+   */
+  redo(projectId: string, actorId: string): Promise<UndoOutcome> {
+    return this.walkStack(projectId, actorId, 'redo');
+  }
+
+  private async walkStack(
+    projectId: string,
+    actorId: string,
+    direction: 'undo' | 'redo',
+  ): Promise<UndoOutcome> {
+    const project = await this.opts.projects.findById(projectId);
+    if (project === null) return { ok: false, reason: 'not_found', detail: null };
+    // An undo is a mutation. Being allowed to read a restricted project is not
+    // being allowed to reverse somebody's work in it.
+    if (!canEdit(project, actorId)) return { ok: false, reason: 'forbidden', detail: null };
+
+    // The whole stack, because applying one entry re-stamps its neighbours.
+    // It is capped at fifty rows.
+    const stack = await this.opts.journal.entriesFor(projectId, actorId);
+    const entry: JournalEntry | undefined =
+      direction === 'undo'
+        ? [...stack].reverse().find((each) => !each.undone)
+        : stack.find((each) => each.undone);
+    if (entry === undefined) return { ok: false, reason: 'nothing_to_undo', detail: null };
+
+    const payload = readPayload(entry.payload);
+    const command = direction === 'undo' ? readCommand(entry.inverse) : payload.forward;
+    const preconditions = readPreconditions(entry.preconditions);
+
+    const moved = await this.staleness(projectId, preconditions.expected);
+    if (moved !== null) {
+      await this.opts.journal.discard(entry.id);
+      return { ok: false, reason: 'stale_undo', detail: moved };
+    }
+
+    const applied = await this.apply(projectId, command);
+    if (!applied.ok) {
+      await this.opts.journal.discard(entry.id);
+      return { ok: false, reason: 'stale_undo', detail: applied.detail };
+    }
+
+    // The entry now describes the other direction, so it checks the revisions
+    // this application left and remembers the ones it started from. Nothing is
+    // appended: an undo that was itself journalled would be undoable, and the
+    // key would toggle one change forever instead of walking back through two.
+    const now = await this.revisionsOf(projectId, touchedBy(command));
+    await this.opts.journal.flip(entry.id, direction === 'undo', {
+      expected: now,
+      from: preconditions.expected,
+    });
+    await this.rebase(stack, entry, direction, preconditions.from, now);
+    await this.announceTree(projectId);
+    return { ok: true, result: { done: payload.label, detail: applied.detail } };
+  }
+
+  /**
+   * Carries the entries this one was stacked on top of past the write the
+   * application just made.
+   *
+   * This is what lets somebody press the key twice. An undo is an ordinary
+   * mutation, so it moves the revisions of everything it touched — and the
+   * entry below, which recorded those entities as it left them, would then be
+   * checking against a number this account's own undo has walked past.
+   *
+   * The condition is exact and it is the whole safety of it: a neighbour is
+   * carried forward **only** where the revision it expects is the one the
+   * just-applied command started from. That equality says nobody wrote between
+   * the two commands, and therefore that the entity now holds precisely what
+   * the neighbour left it holding. Where somebody did write in between, the
+   * numbers do not match, nothing is re-stamped, and that entry refuses when
+   * it is reached — which is the entire point of the feature.
+   *
+   * Only the side being walked toward is touched: undoing carries the live
+   * entries below, redoing carries the undone ones above.
+   */
+  private async rebase(
+    stack: readonly JournalEntry[],
+    applied: JournalEntry,
+    direction: 'undo' | 'redo',
+    startedFrom: Revisions,
+    now: Revisions,
+  ): Promise<void> {
+    for (const other of stack) {
+      if (other.id === applied.id) continue;
+      const ahead = direction === 'undo' ? other.seq < applied.seq : other.seq > applied.seq;
+      if (!ahead) continue;
+      const their = readPreconditions(other.preconditions);
+      let changed = false;
+      const expected: Revisions = { ...their.expected };
+      for (const [id, reached] of Object.entries(now)) {
+        // Only where this neighbour has an opinion about the entity at all,
+        // and where that opinion is exactly the revision the applied command
+        // started from. Both halves matter: the first keeps a precondition
+        // from being invented for a row the neighbour never touched, and the
+        // second is what somebody else's write in between fails.
+        if (!Object.hasOwn(their.expected, id)) continue;
+        if (their.expected[id] !== startedFrom[id]) continue;
+        expected[id] = reached;
+        changed = true;
+      }
+      if (changed) await this.opts.journal.restamp(other.id, { ...their, expected });
+    }
+  }
+
+  /**
+   * Which entity has moved since the command ran, said in words a reader can
+   * act on — or null when every one of them is exactly where it was.
+   *
+   * A row that is **gone** counts as moved. Its revision cannot be compared to
+   * anything, and the change that removed it is a change the undo would be
+   * computed against.
+   */
+  private async staleness(projectId: string, expected: Revisions): Promise<string | null> {
+    const rows = await this.opts.workItems.listByProject(projectId);
+    const byId = new Map(rows.map((row) => [row.id, row]));
+    for (const [id, revision] of Object.entries(expected)) {
+      const row = byId.get(id);
+      if (row === undefined) return 'a work item this change touched has been deleted since';
+      if (row.revision !== revision) return `${quoteName(row.name)} has changed since`;
+    }
+    return null;
+  }
+
+  /**
+   * The current revisions of `ids`, skipping the ones that no longer exist.
+   *
+   * A row that is gone is deliberately absent rather than recorded as missing:
+   * nobody can hold a revision for it, and the guard that matters for a row
+   * that should stay gone is `restore_subtree` refusing to write over an id
+   * that is there.
+   */
+  private async revisionsOf(projectId: string, ids: readonly string[]): Promise<Revisions> {
+    const rows = await this.opts.workItems.listByProject(projectId);
+    return revisionsIn(rows, ids);
+  }
+
+  /**
+   * Applies one compensating command through the same stores every ordinary
+   * mutation writes through, so revisions move, satellites follow and the
+   * invariants hold.
+   *
+   * It re-checks the handful of rules a revision cannot express — a sibling
+   * that has to exist for a placement, a leaf that has become a parent, an id
+   * that is supposed to still be free — and answers `ok: false` rather than
+   * throwing. Those are conditions to report, not faults: the caller turns
+   * them into the same refusal a moved revision produces.
+   */
+  private async apply(projectId: string, command: CompensatingCommand): Promise<ApplyOutcome> {
+    switch (command.do) {
+      case 'patch': {
+        const updated = await this.opts.workItems.patch(command.workItemId, command.patch);
+        if (updated === null) return { ok: false, detail: 'the work item is no longer there' };
+        return { ok: true, detail: null };
+      }
+      case 'set_estimate': {
+        const rows = await this.opts.workItems.listByProject(projectId);
+        if (rows.some((row) => row.parentId === command.workItemId)) {
+          return { ok: false, detail: 'that work item has children now, so its figures are sums' };
+        }
+        await this.opts.estimates.set({
+          workItemId: command.workItemId,
+          roleId: command.roleId,
+          ...command.days,
+        });
+        return { ok: true, detail: null };
+      }
+      case 'clear_estimate':
+        await this.opts.estimates.remove(command.workItemId, command.roleId);
+        return { ok: true, detail: null };
+      case 'assign':
+        await this.opts.directory.assign(command.workItemId, command.roleId, command.personId);
+        return { ok: true, detail: null };
+      case 'add_dependency': {
+        const rows = await this.opts.workItems.listByProject(projectId);
+        const existing = await this.opts.dependencies.listByProject(projectId);
+        const refusal = canDepend(rows, existing, command.predecessorId, command.successorId);
+        if (refusal !== null) {
+          return { ok: false, detail: `that dependency would now be refused: ${refusal}` };
+        }
+        await this.opts.dependencies.add({
+          id: this.newId(),
+          projectId,
+          predecessorId: command.predecessorId,
+          successorId: command.successorId,
+        });
+        return { ok: true, detail: null };
+      }
+      case 'remove_dependency':
+        await this.opts.dependencies.remove(command.predecessorId, command.successorId);
+        return { ok: true, detail: null };
+      case 'move':
+        return this.applyMove(projectId, command.workItemId, command.parentId, command.afterId);
+      case 'set_frozen': {
+        const rows = await this.opts.workItems.listByProject(projectId);
+        const gone = command.updates.find((each) => !rows.some((row) => row.id === each.id));
+        if (gone !== undefined) {
+          return { ok: false, detail: 'a work item this change froze has been deleted since' };
+        }
+        await this.opts.workItems.setFrozenNumbers(command.updates);
+        return { ok: true, detail: null };
+      }
+      case 'delete_subtree':
+        return this.applyDelete(projectId, command);
+      case 'restore_subtree':
+        return this.applyRestore(projectId, command);
+    }
+  }
+
+  private async applyMove(
+    projectId: string,
+    id: string,
+    parentId: string | null,
+    afterId: string | null,
+  ): Promise<ApplyOutcome> {
+    const rows = await this.opts.workItems.listByProject(projectId);
+    const moving = rows.find((row) => row.id === id);
+    if (moving === undefined) return { ok: false, detail: 'the work item is no longer there' };
+    if (moving.frozenNumber !== null) {
+      return { ok: false, detail: 'that work item has been frozen since, so it cannot move' };
+    }
+    if (parentId !== null && !rows.some((row) => row.id === parentId)) {
+      return { ok: false, detail: 'the work item it sat under has been deleted since' };
+    }
+    const group = this.groupUnder(rows, parentId).filter((sibling) => sibling.id !== id);
+    // `placeAfter` throws on a sibling that is not in the group, which is the
+    // right answer for a caller that made the id up and the wrong one for a
+    // row somebody deleted while this entry sat on the stack.
+    if (afterId !== null && !group.some((sibling) => sibling.id === afterId)) {
+      return { ok: false, detail: 'the work item it sat after has been deleted since' };
+    }
+    const placed = placeAfter(group, afterId);
+    await this.opts.workItems.move(id, parentId, placed.position, placed.renumbered);
+    return { ok: true, detail: null };
+  }
+
+  private async applyDelete(
+    projectId: string,
+    command: Extract<CompensatingCommand, { do: 'delete_subtree' }>,
+  ): Promise<ApplyOutcome> {
+    const rows = await this.opts.workItems.listByProject(projectId);
+    if (!rows.some((row) => row.id === command.rootId)) {
+      return { ok: false, detail: 'the work item is no longer there' };
+    }
+    // The guard a revision cannot give. A child written under a work item is a
+    // row of its own and moves nothing on its parent, so a created row that
+    // has since been built on still reads at the revision it was created with
+    // — and taking it away would take somebody else's work with it.
+    const now = new Set(subtreeOf(rows, command.rootId));
+    const then = new Set(command.expectedSubtree);
+    if (now.size !== then.size || [...then].some((id) => !now.has(id))) {
+      return { ok: false, detail: 'work has been added or removed under that row since' };
+    }
+    for (const gone of command.remove) await this.opts.dependencies.removeAllFor(gone);
+    await this.opts.workItems.remove(command.remove, command.reparented);
+    for (const each of command.setEstimates) await this.opts.estimates.set(each);
+    return { ok: true, detail: null };
+  }
+
+  private async applyRestore(
+    projectId: string,
+    command: Extract<CompensatingCommand, { do: 'restore_subtree' }>,
+  ): Promise<ApplyOutcome> {
+    const root = command.rows.at(0);
+    if (root === undefined) throw new Error('a restore was journalled with no rows in it');
+    const rows = await this.opts.workItems.listByProject(projectId);
+    const taken = command.rows.find((row) => rows.some((each) => each.id === row.id));
+    if (taken !== undefined) {
+      // Nothing recreates an id, so this means something else is using one
+      // this branch owns. Remapping to fresh ids would leave every reference
+      // to the branch — journalled and otherwise — aimed at rows that are gone.
+      return { ok: false, detail: 'something already exists where that work item was' };
+    }
+    if (root.parentId !== null && !rows.some((each) => each.id === root.parentId)) {
+      return { ok: false, detail: 'the work item it sat under has been deleted since' };
+    }
+
+    // The sibling group as it will be once the reparenting has happened: the
+    // rows going back under this branch leave it, and the ones the deletion
+    // respaced take their old positions again. Placing against the group as it
+    // stands would put the branch beside rows that are about to move.
+    const backById = new Map(command.reparented.map((each) => [each.id, each]));
+    const projected = rows
+      .map((row) => {
+        const back = backById.get(row.id);
+        return back === undefined
+          ? row
+          : { ...row, parentId: back.parentId, position: back.position };
+      })
+      .filter((row) => row.parentId === root.parentId)
+      .map(asSibling);
+    const wasAfter = projected
+      .filter((sibling) => sibling.position < command.rootPosition)
+      .sort((a, b) => a.position - b.position)
+      .at(-1);
+    const placed = placeAfter(projected, wasAfter?.id ?? null);
+
+    await this.opts.subtrees.insertSubtree({
+      rows: command.rows.map((row) => ({
+        ...row,
+        position: row.id === root.id ? placed.position : row.position,
+        // A row that has been away and come back is new to every reader
+        // holding a number for it, so it starts again at 0 rather than
+        // resuming the count it had. The consequence is deliberate: an older
+        // entry on the stack that expected one of these rows at 4 now refuses,
+        // which is the safe direction — see `design.md`.
+        revision: 0,
+      })),
+      respaced: placed.renumbered,
+      reparented: command.reparented,
+      estimates: command.estimates,
+      assignments: command.assignments,
+      dependencies: command.internalDependencies,
+      removedEstimates: command.removedEstimates,
+    });
+
+    // The edges that leave the branch, one at a time and through the same
+    // guard an ordinary request goes through. This is the one part of a
+    // restore that can come back incomplete, and it says so rather than
+    // pretending otherwise.
+    const after = await this.opts.workItems.listByProject(projectId);
+    const skipped: string[] = [];
+    for (const edge of command.externalDependencies) {
+      const current = await this.opts.dependencies.listByProject(projectId);
+      const refusal = canDepend(after, current, edge.predecessorId, edge.successorId);
+      if (refusal !== null) {
+        skipped.push(refusal);
+        continue;
+      }
+      await this.opts.dependencies.add({
+        id: this.newId(),
+        projectId,
+        predecessorId: edge.predecessorId,
+        successorId: edge.successorId,
+      });
+    }
+    return {
+      ok: true,
+      detail:
+        skipped.length === 0
+          ? null
+          : `put back without ${String(skipped.length)} dependenc${skipped.length === 1 ? 'y' : 'ies'} the plan no longer allows (${[...new Set(skipped)].join(', ')})`,
+    };
+  }
+
+  /**
+   * Writes one command down, after it has been applied and announced.
+   *
+   * **Ordering, and what it costs.** The change is applied and broadcast
+   * first, then journalled. A journal write that throws therefore fails the
+   * request for a change that has already happened — the client refetches and
+   * sees it — while everybody else's view of the plan stays correct. The
+   * alternative, journalling before the broadcast, would trade an accurate
+   * error for a project full of readers sitting on a tree that has moved.
+   * Neither swallows the failure: the one thing this must never do is report
+   * success for a command it did not record, because the symptom would be an
+   * undo key that quietly skips a change. See `design.md`.
+   *
+   * The preconditions are read **after** the mutation, and are the revisions
+   * it left behind. Recording the revisions from before it would make an undo
+   * of somebody's own second edit pass when it must refuse.
+   */
+  private async record(
+    projectId: string,
+    actorId: string,
+    kind: string,
+    label: string,
+    recording: Recording,
+  ): Promise<void> {
+    await this.opts.journal.append({
+      id: this.newId(),
+      projectId,
+      userId: actorId,
+      kind,
+      payload: { label, forward: recording.forward },
+      inverse: recording.inverse,
+      preconditions: {
+        expected: await this.revisionsOf(projectId, recording.touched),
+        // The same entities as they were before the mutation, read off the row
+        // list the mutation's own guard produced. Nothing is checked against
+        // it — it is what tells a later undo whether the entry beneath this
+        // one is still describing an unbroken chain. See `Preconditions`.
+        from: revisionsIn(recording.before, recording.touched),
+      },
+      createdAt: this.now(),
+    });
+  }
+
+  /** One work item's stored trio for one role, or null when it holds none. */
+  private async storedTrio(
+    projectId: string,
+    workItemId: string,
+    roleId: string,
+  ): Promise<Days | null> {
+    const found = (await this.opts.estimates.listByProject(projectId)).find(
+      (each) => each.workItemId === workItemId && each.roleId === roleId,
+    );
+    if (found === undefined) return null;
+    return {
+      optimistic: found.optimistic,
+      realistic: found.realistic,
+      pessimistic: found.pessimistic,
+    };
   }
 
   private async announceTree(projectId: string): Promise<void> {

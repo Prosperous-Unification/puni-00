@@ -3,34 +3,14 @@ import { Fragment, useEffect, useRef } from 'react';
 import {
   type AltStyle,
   altStyleOf,
+  isTypingInto,
   KEY_BINDINGS,
+  type KeyPress,
   showKeys,
   WHERE_ORDER,
 } from './keyboard-bindings';
 
-/** The keystroke fields {@link opensCheatSheet} judges, so it needs no DOM event. */
-export interface KeyPress {
-  key: string;
-  ctrlKey: boolean;
-  metaKey: boolean;
-  altKey: boolean;
-}
-
-/**
- * Whether the person is typing into `target` rather than at the page.
- *
- * The guard is the event's **target**, not the focus: a keystroke on its way
- * into a text box is the one thing `?` must never be taken from, and the
- * target is what says which box that is.
- */
-function isTypingInto(target: EventTarget | null): boolean {
-  if (!(target instanceof HTMLElement)) return false;
-  if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) return true;
-  // The property is what a browser computes, including inherited editability;
-  // jsdom leaves it undefined, so the attribute is read beside it. In a
-  // browser the two agree on an element that carries the attribute itself.
-  return target.isContentEditable || target.getAttribute('contenteditable') === 'true';
-}
+export type { KeyPress } from './keyboard-bindings';
 
 /**
  * Whether this keystroke should open the cheat sheet.

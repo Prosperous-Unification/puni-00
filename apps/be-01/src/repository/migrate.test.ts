@@ -19,6 +19,8 @@ const TEAMS = '20260806190000_add_teams_and_assignees';
 // Columns on `project` and `work_item` rather than tables of its own, so it
 // appears in the order and in nothing else this file checks.
 const REVISIONS = '20260807090000_add_revisions';
+// One table of its own, referencing `project` and `users`, so it reverses first.
+const JOURNAL = '20260807180000_add_command_journal';
 
 const WBS_TABLES = ['project', 'work_item', 'role', 'estimate'] as const;
 // Its own migration, reversed with the domain because it references `work_item`.
@@ -69,7 +71,7 @@ describe('the WBS domain migration', () => {
 
       const reversed = rollbackTo(db.path, FOLDER, USERS);
 
-      expect(reversed).toEqual([REVISIONS, TEAMS, CAL, METHOD, ACCESS, DEPS, WBS]);
+      expect(reversed).toEqual([JOURNAL, REVISIONS, TEAMS, CAL, METHOD, ACCESS, DEPS, WBS]);
       for (const t of [...WBS_TABLES, ...DEPENDENCY_TABLES, ...ACCESS_TABLES, ...DIRECTORY_TABLES])
         expect(tables(db.path)).not.toContain(t);
       // Reversing the domain must not take the accounts with it: the two

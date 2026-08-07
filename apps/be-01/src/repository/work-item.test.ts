@@ -147,9 +147,11 @@ describe('WorkItemRepository', () => {
         { id: strip.id, position: 10 },
         { id: cable.id, position: 30 },
       ],
+      reparented: [],
       estimates: [],
       assignments: [],
       dependencies: [],
+      removedEstimates: [],
     });
 
     expect(byPosition(await repo.listByProject(projectId))).toEqual([
@@ -171,6 +173,7 @@ describe('WorkItemRepository', () => {
     await subtrees.insertSubtree({
       rows: [copiedRoot, copiedFirst, copiedSecond],
       respaced: [],
+      reparented: [],
       estimates: [
         { workItemId: copiedFirst.id, roleId, optimistic: 1, realistic: 2, pessimistic: 3 },
       ],
@@ -183,6 +186,7 @@ describe('WorkItemRepository', () => {
           successorId: copiedSecond.id,
         },
       ],
+      removedEstimates: [],
     });
 
     expect(byPosition(await repo.listByProject(projectId))).toHaveLength(6);
@@ -224,6 +228,7 @@ describe('WorkItemRepository', () => {
     const copy: SubtreeCopy = {
       rows: [copiedRoot, copiedChild],
       respaced: [],
+      reparented: [],
       estimates: [
         { workItemId: copiedChild.id, roleId, optimistic: 1, realistic: 2, pessimistic: 3 },
       ],
@@ -237,6 +242,7 @@ describe('WorkItemRepository', () => {
           successorId: copiedChild.id,
         },
       ],
+      removedEstimates: [],
     };
 
     // Awaited through a catch rather than `.rejects`, so the assertions below

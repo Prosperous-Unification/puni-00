@@ -33,6 +33,7 @@ import {
   trioProblem,
   type TypedTrio,
 } from './estimate-draft';
+import { undoChord } from './keyboard-bindings';
 import { KeyboardCheatSheet, opensCheatSheet } from './keyboard-cheat-sheet';
 import { NotesPreview } from './notes-preview';
 import { describeGaps, findEstimateGaps } from './plan-completeness';
@@ -117,6 +118,16 @@ const NO_CLIPBOARD =
 /** What a clipboard that refused the write says. The permission is the browser's to give. */
 const CLIPBOARD_REFUSED =
   'The browser refused the clipboard, so nothing was copied. Download the CSV instead.';
+
+/**
+ * What an empty undo stack says.
+ *
+ * "Yours" is load-bearing: the stack is per account, so a plan somebody else
+ * has been editing all morning still has nothing in it for this reader, and a
+ * message saying only "nothing to undo" would read as a bug.
+ */
+const NOTHING_TO_UNDO = 'There are none of your own changes left to undo on this plan.';
+const NOTHING_TO_REDO = 'There is nothing to put back — nothing of yours has been undone.';
 
 /**
  * The byte-order mark the downloaded CSV starts with.
@@ -488,6 +499,16 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
   /** Whether the key bindings are on screen. See {@link KeyboardCheatSheet}. */
   const [cheatSheetOpen, setCheatSheetOpen] = useState(false);
   /**
+   * Whether this reader has anything to undo or redo, as of the last tree read.
+   *
+   * Read off the tree rather than tracked here. Both halves of the stack are
+   * be-01's — a refused step throws its entry away, and a change of this
+   * reader's own clears their redo branch — so a count kept in the browser
+   * would be a second answer to a question that has one, and it would be wrong
+   * in exactly the cases that matter.
+   */
+  const [stack, setStack] = useState({ undoable: false, redoable: false });
+  /**
    * Roles whose columns are unfolded — the trio and the assignee, next to the
    * final figure that is always on screen.
    *
@@ -598,6 +619,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     setTeams(loadedTeams);
     setPeople(loadedPeople);
     setWorkItems(toTree(tree.workItems));
+    setStack({ undoable: tree.undoable, redoable: tree.redoable });
     setScheduleError(tree.scheduleError);
     setEstimateMethod(tree.estimateMethod);
     setStartDate(tree.startDate);
@@ -799,6 +821,84 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     },
     [pushToast, refreshOrMarkStale],
   );
+
+  /**
+   * One step along the undo stack, and the sentence that says what happened.
+   *
+   * Three outcomes, all of them said out loud, because a shortcut that
+   * silently does nothing is worse than no shortcut. A step that worked is an
+   * `info` — it is a fact to know, and it takes itself off. Both refusals are
+   * errors that stay until they are read: the reader asked for something and
+   * did not get it, and in the stale case somebody else's change is the reason.
+   *
+   * The tree is reread after a refusal too, not only after a success. be-01
+   * throws away the entry it refused — it can never apply again — so what
+   * there is left to undo has changed even though the plan has not.
+   */
+  const stepStack = useCallback(
+    async (direction: 'undo' | 'redo') => {
+      setBusy(true);
+      try {
+        let outcome;
+        try {
+          outcome = direction === 'undo' ? await api.undo(projectId) : await api.redo(projectId);
+        } catch (thrown: unknown) {
+          pushToast({ kind: 'error', text: failureText(thrown, 'request_failed') });
+          return;
+        }
+        if (outcome.ok) {
+          pushToast({
+            kind: 'info',
+            text: `${direction === 'undo' ? 'Undid' : 'Redid'}: ${outcome.done}${
+              outcome.detail === null ? '' : ` — ${outcome.detail}`
+            }`,
+          });
+        } else if (outcome.reason === 'nothing_to_undo') {
+          pushToast({
+            kind: 'error',
+            text: direction === 'undo' ? NOTHING_TO_UNDO : NOTHING_TO_REDO,
+          });
+        } else {
+          pushToast({
+            kind: 'error',
+            // be-01's own sentence about what moved, because a translation
+            // here would be a second vocabulary for one set of refusals.
+            text: `${direction === 'undo' ? 'That could not be undone' : 'That could not be put back'}: ${outcome.detail ?? 'the plan has changed since.'}`,
+          });
+        }
+        await refreshOrMarkStale();
+      } finally {
+        setBusy(false);
+      }
+    },
+    [api, projectId, pushToast, refreshOrMarkStale],
+  );
+
+  /**
+   * Cmd/Ctrl+Z anywhere on the page, and Shift with it to go the other way.
+   *
+   * On the window for the same reason `?` is: the change being reversed could
+   * have been made from any cell, any picker or the toolbar, and there is no
+   * one element to hang it on. {@link undoChord} is what keeps it out of the
+   * text boxes, where the browser's own undo is better than anything this
+   * could offer for a word somebody is halfway through typing.
+   *
+   * `preventDefault` here and nowhere else in this file's listeners: this is
+   * the one chord a browser would otherwise act on itself, undoing text in
+   * whatever field it last remembers rather than the change that was asked for.
+   */
+  useEffect(() => {
+    const walk = (event: KeyboardEvent) => {
+      const direction = undoChord(event, event.target);
+      if (direction === null) return;
+      event.preventDefault();
+      void stepStack(direction);
+    };
+    window.addEventListener('keydown', walk);
+    return () => {
+      window.removeEventListener('keydown', walk);
+    };
+  }, [stepStack]);
 
   /** Every row in the order the table renders them, ignoring collapse. */
   const flat = useMemo(() => {
@@ -2785,6 +2885,37 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
             {gaps.leaves.length} unestimated
           </button>
         )}
+        {/*
+          The way in for anyone who never learns the chord — which is most
+          people, and the reason the buttons are here at all rather than the
+          keyboard being the only route. Disabled by `busy` like every other
+          control that writes, and by an empty half of the stack: be-01 would
+          answer 409 and a button that is always live invites that.
+
+          The disabled state is read off the last tree read rather than counted
+          here. It is per account, and be-01 is the only thing that knows what
+          somebody else's edit did to it.
+        */}
+        <button
+          type="button"
+          disabled={busy || !stack.undoable}
+          title="Undo your last change to this plan (Ctrl/⌘ + Z)"
+          onClick={() => {
+            void stepStack('undo');
+          }}
+        >
+          Undo
+        </button>
+        <button
+          type="button"
+          disabled={busy || !stack.redoable}
+          title="Put back what you last undid (Ctrl/⌘ + Shift + Z)"
+          onClick={() => {
+            void stepStack('redo');
+          }}
+        >
+          Redo
+        </button>
         {/*
           The way in for anyone who was never told about `?`, which is most
           people the first time. Not disabled by `busy`: it asks be-01 for

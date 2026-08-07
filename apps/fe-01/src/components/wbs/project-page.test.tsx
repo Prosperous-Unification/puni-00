@@ -56,6 +56,8 @@ function fakeProjects(
         estimateMethod: 'pert' as const,
         startDate: null,
         projectRevision: 0,
+        undoable: false,
+        redoable: false,
       }),
     setEstimateMethod: () => Promise.resolve(),
     setStartDate: () => Promise.resolve(),
@@ -77,6 +79,8 @@ function fakeProjects(
     unfreeze: () => Promise.reject(new Error('not_in_these_tests')),
     addDependency: () => Promise.reject(new Error('not_in_these_tests')),
     removeDependency: () => Promise.reject(new Error('not_in_these_tests')),
+    undo: () => Promise.reject(new Error('not_in_these_tests')),
+    redo: () => Promise.reject(new Error('not_in_these_tests')),
   };
 }
 

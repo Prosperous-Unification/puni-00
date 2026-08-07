@@ -128,7 +128,78 @@ export const KEY_BINDINGS: readonly KeyBinding[] = [
     does: 'Closes this sheet. In the Find box, clears the search and puts your collapsed branches back.',
     where: 'Anywhere',
   },
+  {
+    keys: 'Ctrl/⌘ + Z',
+    does: 'Undoes your last change to this plan — but only when nothing it touched has been changed since, and it says whose change stopped it when something has. Not inside a box you are typing in: there, undo is the browser’s.',
+    where: 'Anywhere',
+  },
+  {
+    keys: 'Ctrl/⌘ + Shift + Z',
+    does: 'Puts back what you last undid, under exactly the same condition. Making any other change of your own clears what there was to put back.',
+    where: 'Anywhere',
+  },
 ];
+
+/** The keystroke fields a binding predicate judges, so it needs no DOM event. */
+export interface KeyPress {
+  key: string;
+  ctrlKey: boolean;
+  metaKey: boolean;
+  altKey: boolean;
+  shiftKey?: boolean;
+}
+
+/**
+ * Whether the person is typing into `target` rather than at the page.
+ *
+ * The guard is the event's **target**, not the focus: a keystroke on its way
+ * into a text box is the one thing a page-level shortcut must never take, and
+ * the target is what says which box that is.
+ */
+export function isTypingInto(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) return true;
+  // The property is what a browser computes, including inherited editability;
+  // jsdom leaves it undefined, so the attribute is read beside it. In a
+  // browser the two agree on an element that carries the attribute itself.
+  return target.isContentEditable || target.getAttribute('contenteditable') === 'true';
+}
+
+/** Which way along the undo stack a keystroke asks to go, or null for neither. */
+export type StackDirection = 'undo' | 'redo';
+
+/**
+ * Whether this keystroke is the undo or the redo chord, and which.
+ *
+ * **Never inside an editable element, and that is the whole rule.** A browser
+ * has its own undo for text somebody is typing, it is better than anything
+ * this table could offer for a half-typed word, and a shortcut that took
+ * Cmd+Z away from an input would lose keystrokes that never reached be-01 at
+ * all. Blur first: the table's undo walks back through changes that have
+ * landed, and nothing in a box has landed yet. Stated rather than guessed at —
+ * see `openspec/changes/conditional-undo/design.md`.
+ *
+ * `Ctrl` and `Meta` are both accepted rather than detected. Chrome on Linux
+ * sends Ctrl, Safari sends Meta, and a browser that sends both is asking for
+ * the same thing either way; guessing the platform to reject one of them
+ * would refuse the chord on whichever keyboard the guess got wrong.
+ *
+ * Proof: the `isTypingInto` guard removed, `leaves ctrl-z alone inside a name
+ * cell, where the browser owns it` failed with the table's own undo running
+ * over a half-typed name. Watched, 2026-08-07.
+ *
+ * @param pressed The keystroke, as much of it as this decision needs.
+ * @param target What the keystroke was aimed at — `event.target`, not the focus.
+ * @returns `undo`, `redo`, or null when this is somebody else's keystroke.
+ */
+export function undoChord(pressed: KeyPress, target: EventTarget | null): StackDirection | null {
+  // `Z` arrives uppercase when Shift is held, which is exactly the redo chord.
+  if (pressed.key !== 'z' && pressed.key !== 'Z') return null;
+  if (!pressed.ctrlKey && !pressed.metaKey) return null;
+  if (pressed.altKey) return null;
+  if (isTypingInto(target)) return null;
+  return pressed.shiftKey === true ? 'redo' : 'undo';
+}
 
 /**
  * Which label the `Alt` key should be given, or `unsure` when nothing said.

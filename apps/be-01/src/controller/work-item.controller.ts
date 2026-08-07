@@ -9,6 +9,7 @@ import type {
   CreateWorkItem,
   DeleteStrategy,
   MoveWorkItem,
+  UndoOutcome,
   WorkItemRefusal,
   WorkItemService,
 } from '../service/work-item.service';
@@ -123,6 +124,31 @@ const statusFor = (reason: WorkItemRefusal): number =>
         ? 409
         : 400;
 
+/**
+ * How an undo or a redo answers, in one place because the two routes must
+ * answer identically.
+ *
+ * Both refusals are 409. Neither request is malformed and both would have
+ * worked a moment earlier: an empty stack and a moved revision are states of
+ * the plan, not faults in what was asked. `stale_undo` carries the `detail`
+ * saying **which** row moved, because "that could not be undone" with no
+ * reason is a dead end for the person reading it — the whole point of this
+ * change is that a refusal says why out loud.
+ */
+function answerUndo(outcome: UndoOutcome, set: { status?: number | string }) {
+  if (outcome.ok) return { done: outcome.result.done, detail: outcome.result.detail };
+  if (outcome.reason === 'forbidden') {
+    set.status = 403;
+    return { error: outcome.reason };
+  }
+  if (outcome.reason === 'not_found') {
+    set.status = 404;
+    return { error: outcome.reason };
+  }
+  set.status = 409;
+  return { error: outcome.reason, detail: outcome.detail };
+}
+
 const isStrategy = (value: string | null): value is DeleteStrategy =>
   value === 'cascade' || value === 'promote';
 
@@ -153,7 +179,14 @@ export function workItemController(auth: AuthService, workItems: WorkItemService
         set.status = 404;
         return { error: 'not_found' };
       }
-      return tree;
+      // Carried on the tree rather than fetched from a route of its own. The
+      // tree is already read after every change this client makes and after
+      // every event from anybody else, which is exactly when the answer can
+      // have changed — a second endpoint would be a second round trip asking
+      // the same question at the same moments. It is per **account**, which is
+      // why it is added here and not inside `tree`: the broadcast reuses that
+      // read and has nobody to answer for.
+      return { ...tree, ...(await workItems.undoState(params.id, user.id)) };
     })
     .post('/projects/:id/work-items', async ({ params, body, headers, set }) => {
       const user = await userFromHeaders(auth, headers);
@@ -227,6 +260,22 @@ export function workItemController(auth: AuthService, workItems: WorkItemService
         return { error: outcome.reason };
       }
       return outcome.result;
+    })
+    .post('/projects/:id/undo', async ({ params, headers, set }) => {
+      const user = await userFromHeaders(auth, headers);
+      if (user === null) {
+        set.status = 401;
+        return { error: 'unauthenticated' };
+      }
+      return answerUndo(await workItems.undo(params.id, user.id), set);
+    })
+    .post('/projects/:id/redo', async ({ params, headers, set }) => {
+      const user = await userFromHeaders(auth, headers);
+      if (user === null) {
+        set.status = 401;
+        return { error: 'unauthenticated' };
+      }
+      return answerUndo(await workItems.redo(params.id, user.id), set);
     })
     .post('/projects/:id/freeze', async ({ params, headers, set }) => {
       const user = await userFromHeaders(auth, headers);

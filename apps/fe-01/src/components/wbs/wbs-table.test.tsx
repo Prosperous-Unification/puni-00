@@ -9,7 +9,14 @@ import {
 } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import type { Days, EstimateMethod, ProjectApi, RoleView, WorkItemView } from '@/lib/wbs-api';
+import type {
+  Days,
+  EstimateMethod,
+  ProjectApi,
+  RoleView,
+  UndoResult,
+  WorkItemView,
+} from '@/lib/wbs-api';
 
 import { type SubscriptionHandlers, WbsTable } from './wbs-table';
 
@@ -34,7 +41,12 @@ const QA: RoleView = { id: 'role-qa', name: 'QA' };
  * numbers it never touched, and a fake that kept numbers stable would let a
  * broken component pass.
  */
-function fakeApi(): ProjectApi & { rows: WorkItemView[] } {
+function fakeApi(): ProjectApi & {
+  rows: WorkItemView[];
+  stack: { undoable: boolean; redoable: boolean };
+  stackCalls: ('undo' | 'redo')[];
+  answerStackWith: (answer: UndoResult) => void;
+} {
   const rows: WorkItemView[] = [];
   const edges: { predecessorId: string; successorId: string }[] = [];
   let next = 0;
@@ -44,6 +56,19 @@ function fakeApi(): ProjectApi & { rows: WorkItemView[] } {
   const teams: { id: string; name: string }[] = [];
   const people: { id: string; name: string; teamIds: string[] }[] = [];
   const assigned = new Map<string, string>();
+  /**
+   * The undo stack as far as this table can see it, which is only what be-01
+   * reports and what it answers.
+   *
+   * Set by the tests rather than derived from the mutations above, deliberately:
+   * whether there is anything to undo is a fact about a per-account stack on
+   * the server — cleared by a refusal, cleared by anybody's forward edit — and
+   * a fake that guessed at it would be a second implementation of a rule this
+   * component does not own.
+   */
+  const stack = { undoable: false, redoable: false };
+  const stackCalls: ('undo' | 'redo')[] = [];
+  let stackAnswer: UndoResult = { ok: true, done: 'rename “Strip”', detail: null };
 
   /** The final figure be-01 would report, under whichever method is set. */
   const finalOf = (days: Days): number =>
@@ -106,6 +131,12 @@ function fakeApi(): ProjectApi & { rows: WorkItemView[] } {
 
   return {
     rows,
+    stack,
+    stackCalls,
+    /** What the next undo or redo answers, for the refusals be-01 models. */
+    answerStackWith(answer: UndoResult) {
+      stackAnswer = answer;
+    },
     listProjects: () =>
       Promise.resolve([
         { id: 'p1', name: 'Rewire the shed', restricted: false, lastOpenedAt: null },
@@ -146,6 +177,8 @@ function fakeApi(): ProjectApi & { rows: WorkItemView[] } {
         // Never moved by anything the table does: the fake's mutations are all
         // work item writes, and be-01 keeps the project's revision off them.
         projectRevision: 0,
+        undoable: stack.undoable,
+        redoable: stack.redoable,
       }),
     setEstimateMethod(_projectId, method) {
       estimateMethod = method;
@@ -335,6 +368,16 @@ function fakeApi(): ProjectApi & { rows: WorkItemView[] } {
       if (at >= 0) edges.splice(at, 1);
       renumber();
       return Promise.resolve();
+    },
+    undo() {
+      stackCalls.push('undo');
+      renumber();
+      return Promise.resolve(stackAnswer);
+    },
+    redo() {
+      stackCalls.push('redo');
+      renumber();
+      return Promise.resolve(stackAnswer);
     },
   };
 }
@@ -3322,6 +3365,8 @@ describe('dependencies in the table — cross-review findings', () => {
             },
           },
         ],
+        undoable: false,
+        redoable: false,
       }),
     create: () => Promise.resolve({ id: 'w2' }),
     patch: () => Promise.resolve(),
@@ -3334,6 +3379,8 @@ describe('dependencies in the table — cross-review findings', () => {
     unfreeze: () => Promise.resolve(),
     addDependency: () => Promise.resolve(),
     removeDependency: () => Promise.resolve(),
+    undo: () => Promise.reject(new Error('not_in_these_tests')),
+    redo: () => Promise.reject(new Error('not_in_these_tests')),
   });
 
   const cells = async () => {
@@ -4384,5 +4431,131 @@ describe('the keyboard cheat sheet', () => {
     expect(screen.getByRole('button', { name: 'Keyboard shortcuts' }).title).toBe(
       'Keyboard shortcuts (?)',
     );
+  });
+});
+
+describe('undo and redo', () => {
+  /** The chord as a browser delivers it, with `Z` uppercased by Shift. */
+  const pressUndo = (target: Element, shiftKey = false) =>
+    fireEvent.keyDown(target, { key: shiftKey ? 'Z' : 'z', ctrlKey: true, shiftKey });
+
+  itDom('undoes the last change and says what it undid', async () => {
+    const api = await threeRoots();
+    api.answerStackWith({ ok: true, done: 'rename “Strip”', detail: null });
+
+    pressUndo(screen.getByRole('table'));
+
+    await waitFor(() => {
+      expect(api.stackCalls).toEqual(['undo']);
+    });
+    await waitFor(() => {
+      expect(toastTexts()).toContain('Undid: rename “Strip”');
+    });
+  });
+
+  itDom('leaves ctrl-z alone inside a name cell, where the browser owns it', async () => {
+    const api = await threeRoots();
+
+    // The return value is `false` when something called `preventDefault`. A
+    // half-typed word is the browser's to undo, and taking the chord here
+    // would reverse a change that has landed instead of the letters on screen.
+    const stillTheBrowsers = pressUndo(screen.getByLabelText('Name of 010'));
+
+    expect(stillTheBrowsers).toBe(true);
+    expect(api.stackCalls).toEqual([]);
+    expect(toastTexts()).toEqual([]);
+  });
+
+  itDom('redoes what was undone', async () => {
+    const api = await threeRoots();
+    api.answerStackWith({ ok: true, done: 'rename “Strip”', detail: null });
+
+    pressUndo(screen.getByRole('table'), true);
+
+    await waitFor(() => {
+      expect(api.stackCalls).toEqual(['redo']);
+    });
+    await waitFor(() => {
+      expect(toastTexts()).toContain('Redid: rename “Strip”');
+    });
+  });
+
+  itDom('names the change that stood in the way when an undo is refused', async () => {
+    const api = await threeRoots();
+    api.answerStackWith({
+      ok: false,
+      reason: 'stale_undo',
+      detail: '“Sand it twice” has changed since',
+    });
+
+    pressUndo(screen.getByRole('table'));
+
+    await waitFor(() => {
+      expect(toastTexts()).toContain('That could not be undone: “Sand it twice” has changed since');
+    });
+  });
+
+  itDom('says whose stack is empty rather than leaving the key silent', async () => {
+    const api = await threeRoots();
+    api.answerStackWith({ ok: false, reason: 'nothing_to_undo', detail: null });
+
+    pressUndo(screen.getByRole('table'));
+
+    await waitFor(() => {
+      expect(toastTexts()).toContain(
+        'There are none of your own changes left to undo on this plan.',
+      );
+    });
+  });
+
+  itDom('says a partial restore out loud rather than reporting a clean undo', async () => {
+    const api = await threeRoots();
+    api.answerStackWith({
+      ok: true,
+      done: 'delete “Strip”',
+      detail: 'put back without 1 dependency the plan no longer allows (not_found)',
+    });
+
+    pressUndo(screen.getByRole('table'));
+
+    await waitFor(() => {
+      expect(toastTexts()).toContain(
+        'Undid: delete “Strip” — put back without 1 dependency the plan no longer allows (not_found)',
+      );
+    });
+  });
+
+  itDom('greys the buttons out until be-01 says there is something in that half', async () => {
+    const api = await threeRoots();
+
+    expect(screen.getByRole('button', { name: 'Undo' })).toHaveProperty('disabled', true);
+    expect(screen.getByRole('button', { name: 'Redo' })).toHaveProperty('disabled', true);
+
+    // be-01 is the only thing that knows: the stack is per account, and
+    // somebody else's edit can empty this reader's redo branch.
+    api.stack.undoable = true;
+    // Any refetch carries the answer; a socket event is the one nobody asked
+    // for, which is exactly the case the buttons must still follow.
+    click('Add work item');
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Undo' })).toHaveProperty('disabled', false);
+    });
+    expect(screen.getByRole('button', { name: 'Redo' })).toHaveProperty('disabled', true);
+  });
+
+  itDom('undoes from the toolbar for anyone who never learns the chord', async () => {
+    const api = await threeRoots();
+    api.stack.undoable = true;
+    click('Add work item');
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Undo' })).toHaveProperty('disabled', false);
+    });
+
+    click('Undo');
+
+    await waitFor(() => {
+      expect(api.stackCalls).toEqual(['undo']);
+    });
   });
 });

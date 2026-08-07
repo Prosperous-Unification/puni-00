@@ -2,6 +2,7 @@ import type { FrozenNumber, Repositioned, WorkItem, WorkItemStore } from '../rep
 import { WorkItemService } from '../service/work-item.service';
 import { inMemoryDirectory } from '../testing/directory-fixture';
 import { recordingBroadcaster } from './broadcast-fixture';
+import { inMemoryCommandJournal } from './command-journal-fixture';
 import { inMemoryDependencies } from './dependency-fixture';
 import { inMemoryEstimates } from './estimate-fixture';
 import { inMemoryProjects } from './project-fixture';
@@ -99,6 +100,7 @@ export function testWorkItemService(): WorkItemService {
     dependencies,
     directory,
     subtrees: inMemorySubtrees({ workItems, estimates, dependencies, directory }),
+    journal: inMemoryCommandJournal(),
     broadcast: recordingBroadcaster(),
   });
 }

@@ -33,11 +33,20 @@ export function inMemorySubtrees(stores: {
       for (const [index, row] of copy.rows.entries()) {
         await stores.workItems.insert(row, index === 0 ? copy.respaced : []);
       }
+      // After the rows, because the real transaction has no choice: these point
+      // at rows that must already exist. `move` is what the in-memory work item
+      // store offers for a reparent, and it applies exactly the same fields.
+      for (const child of copy.reparented) {
+        await stores.workItems.move(child.id, child.parentId, child.position, []);
+      }
       for (const estimate of copy.estimates) await stores.estimates.set(estimate);
       for (const assigned of copy.assignments) {
         await stores.directory.assign(assigned.workItemId, assigned.roleId, assigned.personId);
       }
       for (const edge of copy.dependencies) await stores.dependencies.add(edge);
+      for (const taken of copy.removedEstimates) {
+        await stores.estimates.remove(taken.workItemId, taken.roleId);
+      }
     },
   };
 }

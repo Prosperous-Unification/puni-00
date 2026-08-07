@@ -13,8 +13,9 @@ Two facts explain most decisions:
 - **The product is a working WBS editor, all of it on `main` since 2026-08-06.** Accounts and
   presence, projects, a nested table you type into and drag rows around, arrow keys between
   cells, derived numbers with a freeze, three-point estimates by role that roll up, a branch you
-  can duplicate whole, live edits, and a socket that reconnects and replays what it missed.
-  Tables: `user`, `project`, `role`, `work_item`, `estimate`, `event_log`, `event_sequencer`.
+  duplicate whole, live edits, a Cmd+Z that **refuses out loud** when a row has moved, and a
+  socket that reconnects and replays. Tables: `user`, `project`, `role`, `work_item`,
+  `estimate`, `command_journal`, `event_log`, `event_sequencer`.
 
 Tool choices bias novel over mainstream (Bun, Elysia, ArkType, Dagger) on purpose.
 
@@ -128,9 +129,8 @@ Both open findings are **prod-phase** (Dany, 2026-08-06): recorded, not pending.
 
 Lower priority: fe/smoke health accepts any non-empty body; the WS ping passes on any first
 message _containing_ `"pong"`; drain reads a malformed metrics body as zero live sockets;
-`tool-secrets` only prints what it would run.
-
-Checks that cannot fail have appeared **thirteen** times here; the tally is in `AGENTS.md` under R5.
+`tool-secrets` only prints what it would run. Checks that cannot fail have appeared
+**thirteen** times here; the tally is in `AGENTS.md` under R5.
 
 ## More
 

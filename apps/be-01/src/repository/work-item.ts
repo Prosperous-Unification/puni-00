@@ -1,4 +1,4 @@
-import { eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
 import type {
@@ -11,7 +11,7 @@ import type {
   WorkItemPatch,
   WorkItemStore,
 } from './index';
-import { bumpedWorkItem, bumpedWorkItemOnReparent } from './revision';
+import { bumpedWorkItem, bumpedWorkItemOnReparent, bumpWorkItems } from './revision';
 import { assignment, dependency, estimate, workItem } from './schema';
 
 /**
@@ -158,15 +158,21 @@ export class SubtreeRepository implements SubtreeStore {
 
   /**
    * The statement order is forced by the foreign keys, not chosen: rows before
-   * the estimates and assignments that reference them, and the dependencies
-   * last because each references two rows.
+   * anything that references them, the reparenting after the rows it points
+   * at exist, and the dependencies last because each references two.
    *
-   * Nothing here bumps a revision. Every row written is new, and arrives at
-   * whatever revision the caller decided — 0, because a copy has never been
-   * changed since it came into existence. The estimates, assignments and edges
-   * belong to those new rows, so bumping them would count the act of being
-   * created as a change to something. The **original** is untouched by
-   * construction: it is not among `rows`, and copying it did not change it.
+   * **Which revisions move, and which do not.** Every row in `rows` is written
+   * for the first time and arrives at whatever revision the caller decided — 0
+   * for a copy, which has never been changed since it came into existence, and
+   * 0 again for a restore, because a row that has been away and come back is
+   * new to every reader holding a number for it. The estimates, assignments
+   * and edges belong to those rows, so counting them would count the act of
+   * coming into existence as a change to something.
+   *
+   * `reparented` and `removedEstimates` do move revisions, and must: they are
+   * writes to rows that were already there and that somebody may be holding a
+   * revision of. `bumpedWorkItemOnReparent` is what keeps a row that only
+   * changed position out of that — the same rule as everywhere else here.
    *
    * `async` is load-bearing, as it is in `ProjectRepository.create`:
    * `db.transaction` is synchronous, so without it a constraint violation
@@ -186,6 +192,20 @@ export class SubtreeRepository implements SubtreeStore {
       // referencing a parent in the same `VALUES` list depends on the order
       // SQLite evaluates it in, which is not a contract worth resting a tree on.
       for (const row of copy.rows) tx.insert(workItem).values(row).run();
+      // After the rows, because these point at them. A restored parent's
+      // children come home here, and a row that gained a parent gained a
+      // stored field of its own — see {@link bumpedWorkItemOnReparent} for why
+      // the former siblings alongside them do not count.
+      for (const child of copy.reparented) {
+        tx.update(workItem)
+          .set({
+            parentId: child.parentId,
+            position: child.position,
+            revision: bumpedWorkItemOnReparent(child.parentId),
+          })
+          .where(eq(workItem.id, child.id))
+          .run();
+      }
       if (copy.estimates.length > 0)
         tx.insert(estimate)
           .values([...copy.estimates])
@@ -201,6 +221,18 @@ export class SubtreeRepository implements SubtreeStore {
         tx.insert(dependency)
           .values([...copy.dependencies])
           .run();
+      // Last, and in the same transaction as the rows that make it correct: a
+      // restored leaf and the parent still holding that leaf's figures would
+      // count the same days twice for as long as the window lasted.
+      for (const taken of copy.removedEstimates) {
+        tx.delete(estimate)
+          .where(and(eq(estimate.workItemId, taken.workItemId), eq(estimate.roleId, taken.roleId)))
+          .run();
+      }
+      bumpWorkItems(
+        tx,
+        copy.removedEstimates.map((taken) => taken.workItemId),
+      );
     });
   }
 }

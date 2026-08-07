@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'bun:test';
 
 import type { EstimateStore, Project, ProjectStore, WorkItemStore } from '../repository';
 import { type RecordingBroadcaster, recordingBroadcaster } from '../testing/broadcast-fixture';
+import { inMemoryCommandJournal } from '../testing/command-journal-fixture';
 import { inMemoryDependencies } from '../testing/dependency-fixture';
 import { inMemoryDirectory } from '../testing/directory-fixture';
 import { inMemoryEstimates } from '../testing/estimate-fixture';
@@ -45,6 +46,7 @@ beforeEach(async () => {
     estimates,
     dependencies: inMemoryDependencies(),
     directory: inMemoryDirectory(),
+    journal: inMemoryCommandJournal(),
     broadcast,
   });
   projectId = await newProject('Rewire the shed');

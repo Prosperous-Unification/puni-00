@@ -150,6 +150,30 @@ through that entity — an estimate, an assignment, a role. Writing one moves th
 revision; a dependency has two owners and moves both.
 _Avoid_: child row, detail, related record
 
+**Command journal**:
+The last fifty reversible commands one account ran on one project, held on the server in
+the order they happened. One stack per account per project — undo is personal, and
+reversing somebody else's change because it happened to be the newest is not undo.
+_Avoid_: history, audit log, activity, event log
+
+**Compensating command**:
+The command that reverses another one, carrying the before-state it needs — the old field
+value, the removed trio, the whole deleted subtree. Applied through the same paths any
+mutation goes through, so it is an ordinary write that happens to restore.
+_Avoid_: inverse operation, rollback, revert
+
+**Precondition**:
+The revisions a command left every entity it touched at, checked before that command is
+reversed or re-applied. All of them must still hold; one that does not is a refusal, never
+an overwrite.
+_Avoid_: guard, expected version, if-match
+
+**Stale undo**:
+An undo or redo refused because something it touched has been written to since. The entry
+is discarded — its preconditions can never hold again — and the reader is told which
+change stood in the way.
+_Avoid_: conflict, rejected undo, out of date undo
+
 **Restricted project**:
 A project only its owner may edit. Every authenticated account may still read it; an
 unrestricted project may be edited by any of them.

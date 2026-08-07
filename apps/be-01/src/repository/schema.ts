@@ -418,3 +418,61 @@ export const dependency = sqliteTable(
 );
 
 export type DependencyRow = typeof dependency.$inferSelect;
+
+/**
+ * One command somebody ran, and everything needed to reverse it — the undo
+ * stack, held on the server so it survives a reload.
+ *
+ * **One stack per (project, account).** Undo is personal: reversing somebody
+ * else's last edit because it happened to be the newest is how a shared plan
+ * loses work nobody meant to lose. Two browser tabs of one account share one
+ * stack, which is accepted and stated in
+ * `openspec/changes/conditional-undo/design.md`.
+ *
+ * `seq` orders that stack and is assigned by SQLite from the pair's current
+ * maximum, inside the `INSERT` itself — the same rule as `work_item.revision`
+ * and for the same reason. Two processes sharing the file mid-swap would
+ * otherwise both read the same maximum and both write it, and the unique index
+ * on `(project_id, user_id, seq)` would then refuse the second insert, failing
+ * an edit that had already been applied.
+ *
+ * `payload` holds what the command did, as `{label, forward}`: the sentence
+ * shown after an undo, and the command a **redo** re-applies. `inverse` holds
+ * the compensating command that reverses it, carrying the before-state it
+ * needs — the old field value, the removed trio, the whole deleted subtree.
+ * `preconditions` holds `{workItemId: revision}` for every entity the command
+ * touched, at the revisions the command **left them at**: an undo applies only
+ * when every one of them still reads that number, and otherwise refuses out
+ * loud rather than overwriting whatever arrived since.
+ *
+ * `undone` is which half of the stack an entry is in — 0 is undoable, 1 is
+ * redoable. A redo flips it back. Undo and redo append nothing here: an undo
+ * that was itself journalled would be undoable, and pressing the key twice
+ * would toggle one change forever instead of walking back through two.
+ *
+ * The three JSON columns are text this process wrote and reads back. The
+ * service checks the command discriminator and nothing else; see
+ * `readCommand` for why, and for what that leaves unchecked.
+ */
+export const commandJournal = sqliteTable(
+  'command_journal',
+  {
+    id: text('id').primaryKey(),
+    projectId: text('project_id')
+      .notNull()
+      .references(() => project.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    seq: integer('seq').notNull(),
+    kind: text('kind').notNull(),
+    payload: text('payload').notNull(),
+    inverse: text('inverse').notNull(),
+    preconditions: text('preconditions').notNull(),
+    undone: integer('undone', { mode: 'boolean' }).notNull().default(false),
+    createdAt: integer('created_at').notNull(),
+  },
+  (t) => [uniqueIndex('command_journal_stack').on(t.projectId, t.userId, t.seq)],
+);
+
+export type CommandJournalRow = typeof commandJournal.$inferSelect;

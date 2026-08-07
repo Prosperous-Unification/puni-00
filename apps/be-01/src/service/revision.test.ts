@@ -14,6 +14,7 @@ import { ProjectRepository } from '../repository/project';
 import { UserRepository } from '../repository/user';
 import { SubtreeRepository, WorkItemRepository } from '../repository/work-item';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
+import { inMemoryCommandJournal } from '../testing/command-journal-fixture';
 import { ProjectService } from './project.service';
 import { WorkItemService } from './work-item.service';
 
@@ -82,6 +83,7 @@ beforeEach(async () => {
     directory,
     dependencies,
     subtrees: new SubtreeRepository(db),
+    journal: inMemoryCommandJournal(),
     broadcast: recordingBroadcaster(),
   });
 

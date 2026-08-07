@@ -1,0 +1,267 @@
+import type {
+  Assignment,
+  EstimateKey,
+  FrozenNumber,
+  Reparented,
+  StoredDependency,
+  StoredEstimate,
+  WorkItem,
+  WorkItemPatch,
+} from '../repository';
+import type { Days } from './roll-up';
+
+/**
+ * One command, expressed so that it can be applied without knowing what it is
+ * compensating for.
+ *
+ * Every journalled change is stored twice in this vocabulary: once as the
+ * command a **redo** re-applies, and once as the command an **undo** applies.
+ * The two are the same shape on purpose — `apply` has one implementation, so
+ * undoing and redoing cannot drift apart, and an inverse is an ordinary
+ * mutation that happens to restore rather than a second write path with its
+ * own bugs.
+ *
+ * Each carries its whole before-state. Nothing here is recomputed from the
+ * tree at the moment it is applied: a value worked out then would be worked
+ * out from a plan that has moved on, which is the entire failure conditional
+ * undo exists to prevent.
+ */
+export type CompensatingCommand =
+  | { do: 'patch'; workItemId: string; patch: WorkItemPatch }
+  | { do: 'set_estimate'; workItemId: string; roleId: string; days: Days }
+  | { do: 'clear_estimate'; workItemId: string; roleId: string }
+  | { do: 'assign'; workItemId: string; roleId: string; personId: string | null }
+  | { do: 'add_dependency'; successorId: string; predecessorId: string }
+  | { do: 'remove_dependency'; successorId: string; predecessorId: string }
+  | { do: 'move'; workItemId: string; parentId: string | null; afterId: string | null }
+  | { do: 'set_frozen'; updates: FrozenNumber[] }
+  | DeleteSubtree
+  | RestoreSubtree;
+
+/**
+ * Takes a branch away again: the inverse of a create or a duplicate, and the
+ * re-application of a delete.
+ *
+ * `expectedSubtree` is the guard a revision cannot give. Adding a child under
+ * a work item writes a row of its own and moves nothing on the parent, so a
+ * created row that has since been built on reads at the revision it was
+ * created with. Deleting it would take somebody else's work with it, and this
+ * is what refuses instead.
+ */
+export interface DeleteSubtree {
+  do: 'delete_subtree';
+  /** The row whose whole subtree must still look the way the command left it. */
+  rootId: string;
+  /** Every id that was under `rootId`, including it, when the command ran. */
+  expectedSubtree: string[];
+  /** The ids actually deleted — all of `expectedSubtree` for a cascade, the root alone for a promotion. */
+  remove: string[];
+  /** Where the children being promoted out of `remove` go, and the respacing around them. */
+  reparented: Reparented[];
+  /** Estimates handed **up** to the surviving parent, exactly as the original delete wrote them. */
+  setEstimates: StoredEstimate[];
+}
+
+/**
+ * Puts a branch back: the inverse of a delete, and the re-application of a
+ * create or a duplicate.
+ *
+ * The rows come back with the ids they had. Nothing recreated them — a
+ * collision means something else is now using an id this branch owns, and that
+ * is refused rather than remapped: a restore that invented fresh ids would
+ * leave every journalled reference to the branch, and everybody else's, aimed
+ * at rows that are gone.
+ */
+export interface RestoreSubtree {
+  do: 'restore_subtree';
+  /** Ancestors first: `parent_id` references a row that has to be there already. */
+  rows: WorkItem[];
+  /** Where the root sat among its siblings, which is how the restore finds its slot again. */
+  rootPosition: number;
+  /** Rows to put back under the restored branch, at the positions they had before. */
+  reparented: Reparented[];
+  estimates: StoredEstimate[];
+  assignments: Assignment[];
+  /** Edges with both ends inside the branch: restored with it, in the same write. */
+  internalDependencies: StoredDependency[];
+  /**
+   * Edges with one end outside the branch, restored **best-effort**.
+   *
+   * They are the one part of a restore that can come back incomplete, and the
+   * one part whose other end is deliberately **not** a precondition. The row
+   * at the far end may have been deleted, moved under the branch, or wired
+   * into a path that would now close a circle, and each of those is judged
+   * against the plan as it stands when the restore runs. Refusing the whole
+   * restore for any of them would strand the branch for a reason that has
+   * nothing to do with it; putting the edge back regardless would hand the
+   * project a schedule nobody can compute. So the branch returns without that
+   * edge, and the answer says how many and why.
+   */
+  externalDependencies: StoredDependency[];
+  /** Estimates to take off the surviving parent, undoing the hand-up a delete did. */
+  removedEstimates: EstimateKey[];
+}
+
+/** What a journalled command did, in the words an undo says back. */
+export interface JournalPayload {
+  /** `rename “Strip”` — the sentence, already built, so it never re-derives a number that has moved. */
+  label: string;
+  /** What a redo re-applies. */
+  forward: CompensatingCommand;
+}
+
+/** `{workItemId: revision}`, for one moment in one entity's life. */
+export type Revisions = Record<string, number>;
+
+/**
+ * What an entry checks before it applies, and what lets the entry below it
+ * still apply afterwards.
+ *
+ * `expected` is the condition: every entity the last-applied direction touched,
+ * at the revision it left them. Nothing applies unless all of them still read
+ * exactly that.
+ *
+ * `from` is what those entities read **before** that direction ran, and it
+ * exists for one reason: an undo is itself a write. Undoing a rename moves the
+ * row again, so the entry below — the rename before it — would be checking
+ * against a revision that this account's own undo has just walked past, and a
+ * second press of the key would refuse for no reason a reader could accept.
+ *
+ * `from` is what makes the difference between that and a genuine conflict
+ * visible. After undoing E, the row holds exactly what the entry below left it
+ * holding **if and only if** `E.from` is what that entry recorded as its
+ * `expected` — nobody wrote between the two. When it matches, the entry below
+ * is re-stamped to the revision the undo produced and stays usable; when
+ * somebody else did write in between it does not match, is not re-stamped, and
+ * refuses. See `openspec/changes/conditional-undo/design.md`.
+ */
+export interface Preconditions {
+  expected: Revisions;
+  from: Revisions;
+}
+
+const COMMANDS = [
+  'patch',
+  'set_estimate',
+  'clear_estimate',
+  'assign',
+  'add_dependency',
+  'remove_dependency',
+  'move',
+  'set_frozen',
+  'delete_subtree',
+  'restore_subtree',
+] as const;
+
+/**
+ * A stored command, checked far enough to be dispatched on.
+ *
+ * **What is checked and what is not.** The discriminator is checked because it
+ * is the one thing that can genuinely be wrong: a release that removed a
+ * command kind would find rows written by the release before it, and
+ * dispatching on a value no branch handles is how a silent no-op reaches a
+ * user who asked for their work back. The fields are not checked. They were
+ * written by this process from typed values one statement earlier, and a
+ * second schema for them would be a second definition of every command — the
+ * honest limit is that a hand-edited row fails inside `apply` rather than here.
+ *
+ * @throws when the value is not an object, or names a command this release has no branch for.
+ */
+export function readCommand(value: unknown): CompensatingCommand {
+  if (typeof value !== 'object' || value === null || !('do' in value)) {
+    throw new Error(`a journal entry holds no command: ${JSON.stringify(value)}`);
+  }
+  // `'do' in value` has already narrowed `value` to an object that has it.
+  const named: unknown = value.do;
+  if (typeof named !== 'string' || !(COMMANDS as readonly string[]).includes(named)) {
+    throw new Error(`a journal entry names a command this release cannot apply: ${String(named)}`);
+  }
+  // The one cast in this file, and the boundary it crosses is named above: the
+  // discriminator has been checked, the fields are this process's own writing.
+  return value as CompensatingCommand;
+}
+
+/** The `{label, forward}` a journal entry's payload is, checked the same far and no further. */
+export function readPayload(value: unknown): JournalPayload {
+  if (typeof value !== 'object' || value === null || !('forward' in value) || !('label' in value)) {
+    throw new Error(`a journal entry holds no payload: ${JSON.stringify(value)}`);
+  }
+  const { label, forward }: { label: unknown; forward: unknown } = value;
+  if (typeof label !== 'string') throw new Error('a journal entry has no label');
+  return { label, forward: readCommand(forward) };
+}
+
+/** The two revision maps a journal entry's preconditions are. */
+export function readPreconditions(value: unknown): Preconditions {
+  if (typeof value !== 'object' || value === null || !('expected' in value) || !('from' in value)) {
+    throw new Error(`a journal entry holds no preconditions: ${JSON.stringify(value)}`);
+  }
+  return { expected: readRevisions(value.expected), from: readRevisions(value.from) };
+}
+
+function readRevisions(value: unknown): Revisions {
+  if (typeof value !== 'object' || value === null) {
+    throw new Error(`a journal entry holds revisions that are not a map: ${JSON.stringify(value)}`);
+  }
+  const out: Revisions = {};
+  for (const [id, revision] of Object.entries(value)) {
+    if (typeof revision !== 'number') {
+      throw new Error(`a journal entry expects ${id} at a revision that is not a number`);
+    }
+    out[id] = revision;
+  }
+  return out;
+}
+
+/**
+ * Every work item a command will have written to once it has been applied.
+ *
+ * This is what the **next** set of preconditions is read from, so it has to
+ * name everything and may name rows that will not exist afterwards — the ones
+ * a `delete_subtree` removes. The caller reads the revisions of whichever of
+ * them are still there; an id that is gone is not a precondition anybody can
+ * hold.
+ */
+export function touchedBy(command: CompensatingCommand): string[] {
+  switch (command.do) {
+    case 'patch':
+    case 'set_estimate':
+    case 'clear_estimate':
+    case 'assign':
+      return [command.workItemId];
+    case 'add_dependency':
+    case 'remove_dependency':
+      return [command.successorId, command.predecessorId];
+    case 'move':
+      return [command.workItemId];
+    case 'set_frozen':
+      return command.updates.map((each) => each.id);
+    case 'delete_subtree':
+      return [
+        ...command.remove,
+        ...command.reparented.map((each) => each.id),
+        ...command.setEstimates.map((each) => each.workItemId),
+      ];
+    case 'restore_subtree':
+      return [
+        ...command.rows.map((row) => row.id),
+        ...command.reparented.map((each) => each.id),
+        ...command.removedEstimates.map((each) => each.workItemId),
+        ...command.externalDependencies.flatMap((edge) => [edge.predecessorId, edge.successorId]),
+      ];
+  }
+}
+
+/**
+ * A work item's name as a sentence can carry it, shortened and quoted.
+ *
+ * The **name**, never the derived number: a number is recomputed from the
+ * whole tree on every read, so “Undid: rename 020” could name a different row
+ * by the time it is on screen. An unnamed row says so rather than quoting
+ * nothing.
+ */
+export function quoteName(name: string): string {
+  const trimmed = name.trim();
+  if (trimmed === '') return 'an unnamed work item';
+  return `“${trimmed.length > 40 ? `${trimmed.slice(0, 39)}…` : trimmed}”`;
+}

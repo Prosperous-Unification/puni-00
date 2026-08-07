@@ -131,6 +131,30 @@ export interface DeleteOptions {
 }
 
 /**
+ * What came of walking one step along the undo stack.
+ *
+ * A refusal is a **modeled answer** rather than a thrown error, because both
+ * of them are ordinary states of a shared plan rather than faults: a stack
+ * with nothing left in it, and a change somebody else has since written over.
+ * A network failure still throws — that is the caller's to report as a failed
+ * request, and it says nothing about the stack.
+ */
+export type UndoResult =
+  | {
+      ok: true;
+      /** What was reversed, as be-01 phrased it: `rename “Strip”`. */
+      done: string;
+      /** What could not be put back exactly, or null when everything was. */
+      detail: string | null;
+    }
+  | {
+      ok: false;
+      reason: 'nothing_to_undo' | 'stale_undo';
+      /** Which change stood in the way, for `stale_undo`. */
+      detail: string | null;
+    };
+
+/**
  * Everything the table does to a project.
  *
  * An interface rather than bare functions so the table can be driven by a fake
@@ -177,7 +201,28 @@ export interface ProjectApi {
      * carries its own.
      */
     projectRevision: number;
+    /**
+     * Whether **this account** has anything to undo or redo on this project.
+     *
+     * Carried on the tree rather than asked for separately: the tree is
+     * already reread after every change this client makes and every event from
+     * anybody else, which is exactly when these can have moved. A second
+     * endpoint would be a second round trip at the same moments.
+     */
+    undoable: boolean;
+    redoable: boolean;
   }>;
+  /**
+   * Reverses this account's last change to the project, **if nothing it
+   * touched has been written to since**.
+   *
+   * be-01 owns the condition and the wording of what it did; this is a
+   * description of what comes back. A refused step also discards the entry it
+   * refused, so the caller reads the tree again afterwards either way.
+   */
+  undo(projectId: string): Promise<UndoResult>;
+  /** Puts back what {@link ProjectApi.undo} took away, under the same condition. */
+  redo(projectId: string): Promise<UndoResult>;
   /** Changes how the project turns its three-point estimates into one number. */
   setEstimateMethod(projectId: string, method: EstimateMethod): Promise<void>;
   /** Puts the plan on a calendar, or `null` to take it off again. */
@@ -252,6 +297,37 @@ async function send<T>(path: string, token: string, init: RequestInit = {}): Pro
   return (text === '' ? null : JSON.parse(text)) as T;
 }
 
+/**
+ * One step along the undo stack, with be-01's two refusals read out of the 409
+ * rather than turned into a thrown code.
+ *
+ * `send` throws the `error` field for every non-2xx, which loses the `detail`
+ * beside it — and the detail is the whole value of a `stale_undo`: it names the
+ * change that stood in the way. Anything that is not one of the two modeled
+ * refusals still throws, through the same path as every other call.
+ */
+async function stepStack(path: string, token: string): Promise<UndoResult> {
+  const res = await fetch(path, { method: 'POST', headers: auth(token) });
+  const text = await res.text();
+  if (res.status === 409) {
+    const body = JSON.parse(text) as { error?: string; detail?: string | null };
+    if (body.error === 'nothing_to_undo' || body.error === 'stale_undo') {
+      return { ok: false, reason: body.error, detail: body.detail ?? null };
+    }
+  }
+  if (!res.ok) {
+    let code = `http_${String(res.status)}`;
+    try {
+      code = (JSON.parse(text) as { error?: string }).error ?? code;
+    } catch {
+      // A proxy error page rather than our JSON — the status is all there is.
+    }
+    throw new Error(code);
+  }
+  const body = JSON.parse(text) as { done: string; detail: string | null };
+  return { ok: true, done: body.done, detail: body.detail };
+}
+
 export function httpProjectApi(token: string): ProjectApi {
   return {
     async listProjects() {
@@ -282,7 +358,15 @@ export function httpProjectApi(token: string): ProjectApi {
         estimateMethod: EstimateMethod;
         startDate: string | null;
         projectRevision: number;
+        undoable: boolean;
+        redoable: boolean;
       }>(`/api/projects/${projectId}/work-items`, token);
+    },
+    undo(projectId) {
+      return stepStack(`/api/projects/${projectId}/undo`, token);
+    },
+    redo(projectId) {
+      return stepStack(`/api/projects/${projectId}/redo`, token);
     },
     async listTeams() {
       const body = await send<{ teams: TeamView[] }>('/api/teams', token);
