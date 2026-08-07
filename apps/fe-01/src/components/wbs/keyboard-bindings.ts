@@ -1,10 +1,12 @@
 /**
  * Where a binding applies, which is also how the cheat sheet is grouped.
  *
- * `Editing` is the keys that only fire in a Name cell — they type, so they
- * restructure only where the keystroke has no text meaning. `Moving rows` is
- * the Alt chords, which work from any cell and any caret position. The order
- * here is the order the sheet is read in.
+ * `Editing` is the keys pressed while typing in a cell. Enter and Backspace
+ * fire in a Name cell only; Tab and the arrows move from every cell, and what
+ * they do at the very start of a name is the restructuring half — the one
+ * place the keystroke has no text meaning. `Moving rows` is the Alt chords,
+ * which work from any cell and any caret position. The order here is the order
+ * the sheet is read in.
  */
 export type Where = 'Editing' | 'Moving rows' | 'Estimates' | 'Pickers' | 'Anywhere';
 
@@ -45,12 +47,12 @@ export const KEY_BINDINGS: readonly KeyBinding[] = [
   },
   {
     keys: 'Tab',
-    does: 'At the very start of a name, indents the row under the one above it. Anywhere else in the text, moves to the next cell.',
+    does: 'The next field, from any cell — and past the last one in a row, that row’s own Duplicate and Delete. In the name, at the very start, it still indents the row under the one above it.',
     where: 'Editing',
   },
   {
     keys: 'Shift + Tab',
-    does: 'At the very start of a name, outdents the row. Anywhere else, moves back to the previous cell.',
+    does: 'The previous field. In the name, at the very start, it outdents the row instead.',
     where: 'Editing',
   },
   {

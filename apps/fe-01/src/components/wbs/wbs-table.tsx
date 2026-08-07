@@ -362,6 +362,28 @@ function caretOf(input: CellElement): Caret {
  */
 const showDay = (days: number): string => String(Math.round(days * 10) / 10);
 
+/** Where a keyboard arrival puts the caret: over the whole value, or at one offset. */
+type Landing = 'all' | number;
+
+/**
+ * Focuses a cell and places its caret, where the element has a caret to place.
+ *
+ * A date input has none. `setSelectionRange` throws `InvalidStateError` on one,
+ * and `select()` has nothing to select there either, so the caret half is asked
+ * for only of a textarea or a text input and everything else is simply focused
+ * — which is all a date cell needs to be arrived in.
+ *
+ * Proof: the element check removed, `the arrows land in a date cell without
+ * asking it for a caret it has none of` failed with `InvalidStateError` thrown
+ * out of the arrow handler. Watched, 2026-08-07.
+ */
+function focusCellAt(input: CellElement, landing: Landing): void {
+  input.focus();
+  if (!(input instanceof HTMLTextAreaElement) && input.type !== 'text') return;
+  if (landing === 'all') input.select();
+  else input.setSelectionRange(landing, landing);
+}
+
 /**
  * Every editable cell in the committed table, paired with the input that is it.
  *
@@ -370,9 +392,16 @@ const showDay = (days: number): string => String(Math.round(days * 10) / 10);
  * entry away from focusing the wrong box. Read from the DOM at the moment a
  * key arrives, never from a ref written during render: the committed DOM is
  * the only thing that cannot be ahead of itself.
+ *
+ * `readonly` keeps the focus off a parent's rolled-up figures, and `disabled`
+ * off the earliest-start cell of a plan with no start date — a cell that
+ * refuses the focus is a keystroke that takes the key and lands nothing.
+ * Proof: `:not([disabled])` dropped, `steps over the date cell until the plan
+ * is on a calendar` failed with the focus left where it started. Watched,
+ * 2026-08-07.
  */
 function editableGrid(table: HTMLTableElement): { input: CellElement; cell: CellRef }[] {
-  return [...table.querySelectorAll<CellElement>('[data-cell]:not([readonly])')]
+  return [...table.querySelectorAll<CellElement>('[data-cell]:not([readonly]):not([disabled])')]
     .map((input) => ({ input, parts: (input.dataset['cell'] ?? '').split('::') }))
     .flatMap(({ input, parts }) => {
       // A `data-cell` that is not `row::column` is markup this component did
@@ -399,10 +428,12 @@ function focusAdjacentCell(input: CellElement, from: CellRef, delta: 1 | -1): bo
   if (at === -1) return false;
   // `.at(-1)` wraps to the far end, which would turn Shift+Tab in the first
   // cell into a jump to the last one instead of leaving the key alone.
+  // Proof: the guard removed so the index reached `.at(-1)`, `at the edges of
+  // the grid the key is left to the browser` failed — the key was taken and
+  // the focus jumped to the last cell of the table. Watched, 2026-08-07.
   const next = at + delta < 0 ? undefined : grid.at(at + delta);
   if (next === undefined) return false;
-  next.input.focus();
-  next.input.select();
+  focusCellAt(next.input, 'all');
   return true;
 }
 
@@ -1143,11 +1174,11 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     if (arrived === undefined) return;
     // Proof: removed, five of this block's tests failed with the focus left
     // wherever the last created row had put it. Watched, 2026-08-06.
-    arrived.input.focus();
+    //
     // Selected, the way every arrival at an estimate cell is: the value at
     // rest is a computed figure, and a caret dropped inside `4` turns the next
     // `2/3/8` into `2/3/84`.
-    arrived.input.select();
+    focusCellAt(arrived.input, 'all');
   }, [gapVisit]);
 
   /**
@@ -1390,6 +1421,34 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
   );
 
   /**
+   * Tab: the next field, or the previous one, from any cell in the grid.
+   *
+   * Every editable cell but the Name has this and nothing else for the key. The
+   * Name's own handler holds the outliner special case — at the very start of
+   * the text Tab indents the row and Shift+Tab outdents it — and everywhere
+   * else in the text it makes this same move.
+   *
+   * At the grid's edge `focusAdjacentCell` returns false and the key is left to
+   * the browser, which lands on that row's own Duplicate and Delete. That is
+   * the point rather than a leak: the row's actions are reachable at the end of
+   * a row and never in the middle of one, and no focus trap is added to stop a
+   * reader Tabbing out of the table altogether.
+   *
+   * Proof: dropped from the handler chain, `walks every field of a row in turn,
+   * and on into the next row` failed at the first cell that no longer moved.
+   * Watched, 2026-08-07.
+   */
+  const onTabKey = useCallback((event: React.KeyboardEvent, rowId: string, columnId: string) => {
+    if (event.key !== 'Tab') return;
+    const input = event.currentTarget;
+    // Skipped rather than thrown on a target that is not a cell, the same way
+    // the rest of the grid treats markup it did not write.
+    if (!isCellElement(input)) return;
+    const moved = focusAdjacentCell(input, { rowId, columnId }, event.shiftKey ? -1 : 1);
+    if (moved) event.preventDefault();
+  }, []);
+
+  /**
    * Moves the focus between cells, or lets the browser have the key.
    *
    * The grid is read from the table's own DOM at the moment the key arrives, not
@@ -1429,9 +1488,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
       // Only now, and only because the move is happening: an unconditional
       // `preventDefault` would take the caret keys away from every input.
       event.preventDefault();
-      next.focus();
-      const caret = move.caretAt === 'start' ? 0 : next.value.length;
-      next.setSelectionRange(caret, caret);
+      focusCellAt(next, move.caretAt === 'start' ? 0 : next.value.length);
     },
     [],
   );
@@ -1946,6 +2003,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     run,
     duplicateRow,
     onKeyDown,
+    onTabKey,
     onArrowKey,
     onAltMove,
     setDragging,
@@ -1985,6 +2043,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     run,
     duplicateRow,
     onKeyDown,
+    onTabKey,
     onArrowKey,
     onAltMove,
     setDragging,
@@ -2219,6 +2278,9 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                 title="Type to search by number or name, or a list of numbers separated by commas or spaces"
                 style={{ width: '100%', boxSizing: 'border-box' }}
                 data-depends-input={row.original.id}
+                // A cell of the keyboard grid, so Tab reaches this box and
+                // leaves it again rather than walking the chips' ✕ buttons.
+                data-cell={cellKey(row.original.id, 'depends')}
                 value={picker?.typed ?? ''}
                 onFocus={() => {
                   live.current.setDepPicker({
@@ -2249,6 +2311,21 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                   });
                 }}
                 onKeyDown={(e) => {
+                  if (e.key === 'Tab') {
+                    // The move blurs this input, which closes the list and
+                    // drops what was typed into it — this cell's blur contract
+                    // since it was written, now reached by Tab on purpose. The
+                    // typed text is a *search*: committing it on the way out
+                    // would add dependencies nobody confirmed.
+                    //
+                    // Proof: the call dropped, leaving only the `return`, both
+                    // `Tab from the depends input closes the picker…` and
+                    // `Shift+Tab from the depends input lands in the name…`
+                    // failed with the key left to the browser. Watched,
+                    // 2026-08-07.
+                    live.current.onTabKey(e, row.original.id, 'depends');
+                    return;
+                  }
                   if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
                     e.preventDefault();
                     live.current.moveDepHighlight(
@@ -2380,6 +2457,12 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
             onClear={() => {
               live.current.setTeamOf(row.original.id, null);
             }}
+            gridCell={{
+              dataCell: cellKey(row.original.id, 'team'),
+              onTabKey: (e) => {
+                live.current.onTabKey(e, row.original.id, 'team');
+              },
+            }}
           />
         ),
       }),
@@ -2451,6 +2534,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                       title={problem ?? SHORTHAND_HELP}
                       onKeyDown={(e) => {
                         live.current.onAltMove(e, row.original, `${role.id}-final`);
+                        live.current.onTabKey(e, row.original.id, `${role.id}-final`);
                         live.current.onArrowKey(e, row.original.id, `${role.id}-final`);
                       }}
                       // Selected on arrival, because the value at rest is a
@@ -2503,6 +2587,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                           title={problem?.message}
                           onKeyDown={(e) => {
                             live.current.onAltMove(e, row.original, `${role.id}-${point}`);
+                            live.current.onTabKey(e, row.original.id, `${role.id}-${point}`);
                             live.current.onArrowKey(e, row.original.id, `${role.id}-${point}`);
                           }}
                           // A parent's figures are sums of what is below it, so the cell is
@@ -2579,6 +2664,12 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                           onClear={() => {
                             live.current.assignTo(row.original.id, role.id, null);
                           }}
+                          gridCell={{
+                            dataCell: cellKey(row.original.id, `${role.id}-assignee`),
+                            onTabKey: (e) => {
+                              live.current.onTabKey(e, row.original.id, `${role.id}-assignee`);
+                            },
+                          }}
                         />
                         {assumed !== null && (
                           <span
@@ -2630,6 +2721,13 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                 : 'This work item may not start before this day. Its dependencies can still push it later.'
             }
             data-not-before={row.original.id}
+            // A cell of the keyboard grid like any other — while it is enabled.
+            // Disabled it is left out by `editableGrid`, which is what keeps
+            // Tab from stopping on a field that will not take the focus.
+            data-cell={cellKey(row.original.id, 'not-before')}
+            onKeyDown={(e) => {
+              live.current.onTabKey(e, row.original.id, 'not-before');
+            }}
             // A date input carries an intrinsic width — the spinner and the
             // picker icon — that is wider than this column on some browsers,
             // so it is told to follow the column like every other control.
@@ -2719,6 +2817,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                 }}
                 onKeyDown={(e) => {
                   live.current.onAltMove(e, row.original, 'notes');
+                  live.current.onTabKey(e, row.original.id, 'notes');
                   live.current.onArrowKey(e, row.original.id, 'notes');
                 }}
                 value={row.original.notes}

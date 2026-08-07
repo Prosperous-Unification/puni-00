@@ -672,8 +672,9 @@ describe('the WBS table', () => {
     name.setSelectionRange(2, 2);
     fireEvent.keyDown(name, { key: 'Tab' });
 
-    const estimate = screen.getByLabelText<HTMLInputElement>('Dev optimistic for 020');
-    expect(document.activeElement).toBe(estimate);
+    // The next field, which is the one beside the name: what a row waits for.
+    const next = screen.getByLabelText<HTMLInputElement>('Add a dependency to 020');
+    expect(document.activeElement).toBe(next);
     expect(moved).toEqual([]);
     expect(numbersOnScreen()).toEqual(['010', '020']);
   });
@@ -737,7 +738,7 @@ describe('the WBS table', () => {
     fireEvent.keyDown(name, { key: 'Tab' });
 
     expect(document.activeElement).toBe(
-      screen.getByLabelText<HTMLInputElement>('Dev optimistic for 020'),
+      screen.getByLabelText<HTMLInputElement>('Add a dependency to 020'),
     );
     expect(moved).toEqual([]);
   });
@@ -2425,7 +2426,10 @@ describe('moving between cells with the arrow keys', () => {
     const name = focusCell('Name of 010', 'end');
     press(name, 'ArrowRight');
 
-    expect(document.activeElement).toBe(screen.getByLabelText('Dev optimistic for 010'));
+    // The cell beside the name, which is every field the row has and not only
+    // the ones that are typed into: the pickers and the date joined the grid
+    // when Tab was made to reach them.
+    expect(document.activeElement).toBe(screen.getByLabelText('Add a dependency to 010'));
   });
 
   itDom('leaves the caret alone in the middle of a word', async () => {
@@ -2512,25 +2516,33 @@ describe('arrow keys — cross-review findings', () => {
     // caret this code puts there, on the edge the travel came from. Whether the
     // browser then walks it across the value is the browser's own behaviour.
     await threeRoots();
-    const optimistic = screen.getByLabelText('Dev optimistic for 010');
-    fireEvent.change(optimistic, { target: { value: '3' } });
-    fireEvent.blur(optimistic);
+    const typed: readonly (readonly [string, string])[] = [
+      ['Dev optimistic for 010', '3'],
+      ['Dev realistic for 010', '5'],
+    ];
+    for (const [label, days] of typed) {
+      const box = screen.getByLabelText(label);
+      fireEvent.change(box, { target: { value: days } });
+      fireEvent.blur(box);
+    }
     await waitFor(() => {
-      expect(screen.getByLabelText('Dev optimistic for 010')).toHaveProperty('value', '3');
+      expect(screen.getByLabelText('Dev realistic for 010')).toHaveProperty('value', '5');
     });
 
-    focus('Name of 010', 'end');
+    // Between two populated boxes, which is where a caret dropped on the wrong
+    // edge is felt: crossing a row of them is what took twice the keys.
+    focus('Dev optimistic for 010', 'end');
     const arrived = arrow('ArrowRight');
 
-    expect(arrived).toBe(screen.getByLabelText('Dev optimistic for 010'));
+    expect(arrived).toBe(screen.getByLabelText('Dev realistic for 010'));
     if (!isCell(arrived)) throw new Error('not an editable cell');
-    expect(arrived.value).toBe('3');
+    expect(arrived.value).toBe('5');
     expect([arrived.selectionStart, arrived.selectionEnd]).toEqual([0, 0]);
 
     // And coming back the other way lands on the far edge, for the same reason.
     const back = arrow('ArrowLeft');
     if (!isCell(back)) throw new Error('not an editable cell');
-    expect(back).toBe(screen.getByLabelText('Name of 010'));
+    expect(back).toBe(screen.getByLabelText('Dev optimistic for 010'));
     expect([back.selectionStart, back.selectionEnd]).toEqual([
       back.value.length,
       back.value.length,
@@ -2568,9 +2580,11 @@ describe('arrow keys — cross-review findings', () => {
     });
     expect(api.rows.find((r) => r.number === '010')?.rolledUp).toBe(true);
 
-    // Along the parent's own row: name to notes, straight past the sums.
-    focus('Name of 010', 'end');
-    expect(arrow('ArrowRight')).toBe(screen.getByLabelText('Notes for 010'));
+    // Along the parent's own row, backwards out of the notes: the three
+    // read-only boxes sit between them and the arrow lands past all of them,
+    // on the assignee.
+    focus('Notes for 010', 'start');
+    expect(arrow('ArrowLeft')).toBe(screen.getByLabelText('Dev assignee for 010'));
 
     // And down the column from the child, past the parent below it.
     focus('Dev optimistic for 010.1', 'end');
@@ -2594,6 +2608,222 @@ describe('arrow keys — cross-review findings', () => {
       focus(label, 'end');
       expect(arrow('ArrowDown')).toBe(screen.getByLabelText(label.replace('010', '020')));
     }
+  });
+});
+
+describe('Tab moves between the fields, from every cell', () => {
+  /** Focuses a cell and puts the caret where a test needs it. */
+  const focusCaret = (
+    label: string,
+    at: 'start' | 'middle' | 'end',
+  ): HTMLInputElement | HTMLTextAreaElement => {
+    const input = screen.getByLabelText(label);
+    // Either element: the Name and Notes cells are textareas so their text
+    // wraps, and both carry the selection fields the keyboard code reads.
+    if (!isCell(input)) throw new Error(`${label} is not an editable cell`);
+    input.focus();
+    const pos =
+      at === 'start' ? 0 : at === 'end' ? input.value.length : Math.floor(input.value.length / 2);
+    input.setSelectionRange(pos, pos);
+    return input;
+  };
+
+  /** Presses Tab where the focus is, and says whether the browser still gets the key. */
+  const tab = (shiftKey = false): boolean => {
+    const active = document.activeElement;
+    if (!isCell(active)) throw new Error('nothing focused');
+    return fireEvent.keyDown(active, { key: 'Tab', shiftKey });
+  };
+
+  /** Each label paired with the one after it, so a walk reads as its own steps. */
+  const stepsThrough = (labels: readonly string[]): (readonly [string, string])[] => {
+    const steps: (readonly [string, string])[] = [];
+    let previous: string | undefined;
+    for (const label of labels) {
+      if (previous !== undefined) steps.push([previous, label] as const);
+      previous = label;
+    }
+    return steps;
+  };
+
+  itDom('Tab moves from an estimate cell to the next editable cell', async () => {
+    await threeRoots();
+
+    focusCaret('Dev optimistic for 010', 'end');
+    expect(tab()).toBe(false);
+
+    expect(document.activeElement).toBe(screen.getByLabelText('Dev realistic for 010'));
+  });
+
+  itDom('Tab in the middle of a name navigates; at caret 0 it still indents', async () => {
+    await threeRoots();
+
+    // Mid-text, Tab is what it is in any table: the next field, and the tree
+    // is left alone.
+    focusCaret('Name of 020', 'middle');
+    tab();
+    expect(document.activeElement).toBe(screen.getByLabelText('Add a dependency to 020'));
+    expect(numbersOnScreen()).toEqual(['010', '020', '030']);
+
+    // At the very start it is still the outliner's indent, which is the one
+    // special case this change keeps.
+    focusCaret('Name of 020', 'start');
+    tab();
+
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '010.1', '020']);
+    });
+  });
+
+  itDom(
+    'Tab from the depends input closes the picker, discards the typed search, and moves once',
+    async () => {
+      const api = await threeRoots();
+      const added: unknown[] = [];
+      const realAdd = api.addDependency.bind(api);
+      api.addDependency = (id: string, predecessorId: string) => {
+        added.push([id, predecessorId]);
+        return realAdd(id, predecessorId);
+      };
+
+      const box = screen.getByLabelText<HTMLInputElement>('Add a dependency to 030');
+      box.focus();
+      fireEvent.change(box, { target: { value: 'Strip' } });
+      expect(screen.getByRole('listbox', { name: 'Work items 030 can depend on' })).toBeDefined();
+
+      expect(fireEvent.keyDown(box, { key: 'Tab' })).toBe(false);
+
+      // One cell along, not two: the handler moves the focus and takes the key,
+      // so the browser adds no move of its own.
+      expect(document.activeElement).toBe(screen.getByLabelText('Service or team for 030'));
+      expect(screen.queryByRole('listbox')).toBeNull();
+      // Typed text is a search, not a value. Leaving discards it, which is what
+      // leaving this cell has always done.
+      expect(added).toEqual([]);
+      expect(screen.getByLabelText('Add a dependency to 030')).toHaveProperty('value', '');
+    },
+  );
+
+  itDom('Shift+Tab from the depends input lands in the name, not on a chip button', async () => {
+    await threeRoots();
+
+    const box = screen.getByLabelText<HTMLInputElement>('Add a dependency to 030');
+    box.focus();
+    fireEvent.change(box, { target: { value: '010' } });
+    fireEvent.keyDown(box, { key: 'Enter' });
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Stop 030 waiting for 010' })).toBeDefined();
+    });
+
+    // The chip sits before the input inside this one cell, so the browser's own
+    // Shift+Tab would land on its ✕ — a dependency one keystroke from being
+    // removed by somebody who only meant to go back a field.
+    const again = screen.getByLabelText<HTMLInputElement>('Add a dependency to 030');
+    again.focus();
+    expect(fireEvent.keyDown(again, { key: 'Tab', shiftKey: true })).toBe(false);
+
+    expect(document.activeElement).toBe(screen.getByLabelText('Name of 030'));
+  });
+
+  itDom('walks every field of a row in turn, and on into the next row', async () => {
+    // The reason this walks all of them rather than sampling: a handler left
+    // off one cell is invisible to a test that starts in another, which is how
+    // Tab came to work in the name and nowhere else.
+    await threeRoots();
+
+    for (const [from, to] of stepsThrough([
+      'Name of 010',
+      'Add a dependency to 010',
+      'Service or team for 010',
+      'Dev optimistic for 010',
+      'Dev realistic for 010',
+      'Dev pessimistic for 010',
+      'Dev assignee for 010',
+      'QA estimate for 010',
+      'Notes for 010',
+      'Name of 020',
+    ])) {
+      focusCaret(from, 'end');
+      tab();
+      expect(document.activeElement).toBe(screen.getByLabelText(to));
+    }
+  });
+
+  itDom('steps over the date cell until the plan is on a calendar', async () => {
+    // Without a project start date the earliest-start field is disabled: a Tab
+    // that stopped there would take the key and land nothing, which is a dead
+    // keystroke in the middle of every row.
+    await threeRoots();
+    expect(screen.getByLabelText<HTMLInputElement>('Earliest start for 010').disabled).toBe(true);
+
+    focusCaret('QA estimate for 010', 'end');
+    tab();
+    expect(document.activeElement).toBe(screen.getByLabelText('Notes for 010'));
+
+    fireEvent.change(screen.getByLabelText('Project start date'), {
+      target: { value: '2026-08-06' },
+    });
+    await waitFor(() => {
+      expect(screen.getByLabelText<HTMLInputElement>('Earliest start for 010').disabled).toBe(
+        false,
+      );
+    });
+
+    focusCaret('QA estimate for 010', 'end');
+    tab();
+    expect(document.activeElement).toBe(screen.getByLabelText('Earliest start for 010'));
+
+    // And out again. A date input is focused rather than selected: it has no
+    // text caret to ask for.
+    expect(fireEvent.keyDown(screen.getByLabelText('Earliest start for 010'), { key: 'Tab' })).toBe(
+      false,
+    );
+    expect(document.activeElement).toBe(screen.getByLabelText('Notes for 010'));
+  });
+
+  itDom('the arrows land in a date cell without asking it for a caret it has none of', async () => {
+    // `setSelectionRange` throws `InvalidStateError` on a date input, and the
+    // arrows now have one to land on: the notes cell sits next to it.
+    await threeRoots();
+    fireEvent.change(screen.getByLabelText('Project start date'), {
+      target: { value: '2026-08-06' },
+    });
+    await waitFor(() => {
+      expect(screen.getByLabelText<HTMLInputElement>('Earliest start for 010').disabled).toBe(
+        false,
+      );
+    });
+
+    // Watched rather than left to the runner: React re-throws what a handler
+    // threw as an uncaught error, which the run reports away from the test that
+    // caused it. Collected here, the assertion is this test's own.
+    const thrown: unknown[] = [];
+    const collect = (event: ErrorEvent) => {
+      thrown.push(event.error);
+    };
+    window.addEventListener('error', collect);
+    focusCaret('Notes for 010', 'start');
+    fireEvent.keyDown(screen.getByLabelText('Notes for 010'), { key: 'ArrowLeft' });
+    window.removeEventListener('error', collect);
+
+    expect(thrown).toEqual([]);
+    expect(document.activeElement).toBe(screen.getByLabelText('Earliest start for 010'));
+  });
+
+  itDom('at the edges of the grid the key is left to the browser', async () => {
+    // No focus trap. Past the last cell of a row the next thing the browser
+    // finds is that row's own Duplicate and Delete — the actions are at the end
+    // of a row and never in the middle of one, which is what this makes
+    // consistent.
+    await threeRoots();
+
+    const last = focusCaret('Notes for 030', 'end');
+    expect(tab()).toBe(true);
+    expect(document.activeElement).toBe(last);
+
+    const first = focusCaret('Name of 010', 'end');
+    expect(tab(true)).toBe(true);
+    expect(document.activeElement).toBe(first);
   });
 });
 

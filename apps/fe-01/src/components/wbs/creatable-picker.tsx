@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { type KeyboardEvent, useState } from 'react';
 
 export interface PickableEntry {
   id: string;
@@ -18,6 +18,21 @@ export interface CreatablePickerProps {
   onCreate: (name: string) => void;
   onClear: () => void;
   placeholder?: string;
+  /**
+   * What joins this box to a table's keyboard grid, where it stands in one.
+   *
+   * Both halves together, because either alone is broken: `dataCell` makes the
+   * box somewhere the grid can land, and `onTabKey` is what lets Tab leave it
+   * again. A box carrying only the attribute is one the keyboard can walk into
+   * and not out of.
+   *
+   * Tab only. Enter, Escape and the typing stay this picker's own, and a
+   * picker rendered without this prop is untouched: its Tab is the browser's.
+   */
+  gridCell?: {
+    dataCell: string;
+    onTabKey: (event: KeyboardEvent<HTMLInputElement>) => void;
+  };
 }
 
 /**
@@ -41,6 +56,7 @@ export function CreatablePicker({
   onCreate,
   onClear,
   placeholder,
+  gridCell,
 }: CreatablePickerProps) {
   /** What has been typed, or null while the picker is closed. */
   const [typed, setTyped] = useState<string | null>(null);
@@ -73,6 +89,9 @@ export function CreatablePicker({
         aria-controls={open ? listId : undefined}
         aria-autocomplete="list"
         placeholder={placeholder}
+        data-cell={gridCell?.dataCell}
+        // A layout the grid does not touch: the attribute is what the table
+        // finds this box by, and it adds nothing to the flex row it sits in.
         style={{ font: 'inherit', flex: 1, minWidth: 0, width: 'auto' }}
         value={typed ?? chosen?.name ?? ''}
         onFocus={() => {
@@ -88,6 +107,17 @@ export function CreatablePicker({
           setTyped(e.target.value);
         }}
         onKeyDown={(e) => {
+          if (e.key === 'Tab') {
+            // First, and on its own: leaving is the table's move, and the blur
+            // it causes discards the typing exactly as any other blur here
+            // does. A picker with no `gridCell` leaves the key to the browser.
+            //
+            // Proof: the call dropped, leaving only the `return`, `walks every
+            // field of a row in turn, and on into the next row` failed with the
+            // focus left in the team box. Watched, 2026-08-07.
+            gridCell?.onTabKey(e);
+            return;
+          }
           if (e.key === 'Escape') {
             setTyped(null);
             return;
