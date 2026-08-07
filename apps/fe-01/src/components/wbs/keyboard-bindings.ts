@@ -2,11 +2,12 @@
  * Where a binding applies, which is also how the cheat sheet is grouped.
  *
  * `Editing` is the keys pressed while typing in a cell. Enter and Backspace
- * fire in a Name cell only; Tab and the arrows move from every cell, and what
- * they do at the very start of a name is the restructuring half — the one
- * place the keystroke has no text meaning. `Moving rows` is the Alt chords,
- * which work from any cell and any caret position. The order here is the order
- * the sheet is read in.
+ * fire in a Name cell only; Tab moves from every cell, and the arrows from the
+ * cells that are typed into — a picker or a date box keeps its own arrows and
+ * is left by Tab. What either does at the very start of a name is the
+ * restructuring half: the one place the keystroke has no text meaning.
+ * `Moving rows` is the Alt chords, which work from any cell and any caret
+ * position. The order here is the order the sheet is read in.
  */
 export type Where = 'Editing' | 'Moving rows' | 'Estimates' | 'Pickers' | 'Anywhere';
 

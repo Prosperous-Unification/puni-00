@@ -2580,13 +2580,20 @@ describe('arrow keys — cross-review findings', () => {
     });
     expect(api.rows.find((r) => r.number === '010')?.rolledUp).toBe(true);
 
-    // Along the parent's own row, backwards out of the notes: the three
-    // read-only boxes sit between them and the arrow lands past all of them,
-    // on the assignee.
-    focus('Notes for 010', 'start');
-    expect(arrow('ArrowLeft')).toBe(screen.getByLabelText('Dev assignee for 010'));
+    // Up the column from the child, where the parent's box is the row directly
+    // above: it is a sum, so there is nothing above this one to type into and
+    // the focus stays where it is.
+    //
+    // Proof: `:not([readonly])` stripped from `editableGrid`'s selector, this
+    // failed with the focus on `Dev optimistic for 010` — the parent's own
+    // rolled-up box. Watched, 2026-08-07. The row-wise half of this claim is
+    // `Shift+Tab steps over a parent’s read-only estimate boxes`: an arrow
+    // cannot reach the trio from the right, because the assignee picker
+    // between them is a cell Tab leaves and the arrows do not.
+    focus('Dev optimistic for 010.1', 'start');
+    expect(arrow('ArrowUp')).toBe(screen.getByLabelText('Dev optimistic for 010.1'));
 
-    // And down the column from the child, past the parent below it.
+    // And down the column from the child, past the row below it.
     focus('Dev optimistic for 010.1', 'end');
     expect(arrow('ArrowDown')).toBe(screen.getByLabelText('Dev optimistic for 020'));
   });
@@ -2808,6 +2815,32 @@ describe('Tab moves between the fields, from every cell', () => {
 
     expect(thrown).toEqual([]);
     expect(document.activeElement).toBe(screen.getByLabelText('Earliest start for 010'));
+  });
+
+  itDom('Shift+Tab steps over a parent’s read-only estimate boxes', async () => {
+    // A parent's trio is a sum of what is below it: the boxes are on screen to
+    // be read and take no typing, so the field before the assignee is the team
+    // and the three boxes between them are not stopped in. This is the row-wise
+    // half of `never stops on a parent’s rolled-up figures` — an arrow cannot
+    // make this trip, because the assignee picker in the way is a cell Tab
+    // leaves and the arrows do not.
+    //
+    // Proof: `:not([readonly])` stripped from `editableGrid`'s selector, this
+    // failed with the focus on `Dev pessimistic for 010`. Watched, 2026-08-07.
+    const api = await threeRoots();
+    withHeight(rowFor('010'), 0, 40);
+    dragOnto('020', '010', 20);
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '010.1', '020']);
+    });
+    expect(api.rows.find((r) => r.number === '010')?.rolledUp).toBe(true);
+    expect(screen.getByLabelText('Dev optimistic for 010')).toHaveProperty('readOnly', true);
+
+    const assignee = screen.getByLabelText('Dev assignee for 010');
+    assignee.focus();
+    expect(fireEvent.keyDown(assignee, { key: 'Tab', shiftKey: true })).toBe(false);
+
+    expect(document.activeElement).toBe(screen.getByLabelText('Service or team for 010'));
   });
 
   itDom('at the edges of the grid the key is left to the browser', async () => {
