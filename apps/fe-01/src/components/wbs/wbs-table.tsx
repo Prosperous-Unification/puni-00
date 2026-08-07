@@ -36,6 +36,7 @@ import {
 import { NotesPreview } from './notes-preview';
 import { describeGaps, findEstimateGaps } from './plan-completeness';
 import { indentFor, pinnedCellStyle, STICKY_HEADER_CELL, TABLE_FRAME } from './table-frame';
+import { ToastStack, useToasts } from './toasts';
 import { searchTree } from './tree-search';
 import { toTree, type TreeRow } from './wbs-rows';
 
@@ -73,6 +74,16 @@ const draftKey = (rowId: string, roleId: string, point: Point): string =>
  * cannot collide with a {@link Point}, which is what makes one record safe.
  */
 const combinedDraftKey = (rowId: string, roleId: string): string => `${rowId}::${roleId}::combined`;
+
+/**
+ * What a rejected request says, or `fallback` when it threw something that is
+ * not an `Error`.
+ *
+ * be-01's own word where there is one — `cycle`, `forbidden` — because a
+ * translation layer here would be a second vocabulary for one set of refusals.
+ */
+const failureText = (thrown: unknown, fallback: string): string =>
+  thrown instanceof Error ? thrown.message : fallback;
 
 /** What the folded cell says about itself when there is nothing to complain about. */
 const SHORTHAND_HELP =
@@ -394,7 +405,26 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
    * the whole tree.
    */
   const [query, setQuery] = useState('');
-  const [error, setError] = useState<string | null>(null);
+  /**
+   * What happened, in the corner, one message per event.
+   *
+   * Events, not states: a request that was refused, a gesture that was
+   * cancelled. The two banners below — the dependency cycle and the dropped
+   * socket — are states, and they stay banners, because a state is true until
+   * something changes it and a toast is a thing that happened once. See
+   * {@link ToastStack}.
+   */
+  const { toasts, pushToast, dismissToast } = useToasts();
+  /**
+   * Whether the last refetch failed, leaving the tree on screen possibly
+   * behind what be-01 holds.
+   *
+   * A state, so a banner rather than a toast, and it is the counterpart to
+   * keeping the last good tree on screen: rows that may be stale and no way to
+   * tell are worse than an empty table. Cleared by any refresh that lands —
+   * the retry button's, an edit's, or a peer's change event.
+   */
+  const [treeMayBeStale, setTreeMayBeStale] = useState(false);
   const [busy, setBusy] = useState(false);
   const [connected, setConnected] = useState(true);
   const [scheduleError, setScheduleError] = useState<'cycle' | null>(null);
@@ -512,6 +542,15 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
       api.listPeople(),
     ]);
     if (generation !== latestRefresh.current) return;
+    // This read landed, so whatever the last failed one left behind is over.
+    // After the generation check, not before: a superseded read must not
+    // vouch for a tree it is about to throw away, and the newest read is the
+    // one entitled to say the screen is current.
+    // Proof: removed, `raises the stale-tree banner when a socket refetch
+    // fails` and `clears the banner on a later successful refetch from any
+    // path` both failed with the banner still up after a clean reread.
+    // Watched, 2026-08-06.
+    setTreeMayBeStale(false);
     setTeams(loadedTeams);
     setPeople(loadedPeople);
     setWorkItems(toTree(tree.workItems));
@@ -528,11 +567,43 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
     stream.current?.seen(tree.seq);
   }, [api, projectId]);
 
-  useEffect(() => {
-    void refresh().catch((e: unknown) => {
-      setError(e instanceof Error ? e.message : 'load_failed');
-    });
+  /**
+   * Rereads the tree, and raises the stale banner instead of throwing when
+   * that fails.
+   *
+   * The last good tree stays on screen — clearing it would lose the reader's
+   * place over a blip — and the banner is what stops that being a silent lie
+   * about how current the rows are. Never rejects, deliberately: callers that
+   * have their own refusals to report (`dependOn`) must still report them
+   * after a failed reread.
+   */
+  const refreshOrMarkStale = useCallback(async () => {
+    try {
+      await refresh();
+    } catch {
+      // The reason is not shown. It is be-01's word for a network failure the
+      // reader did not cause and cannot act on beyond retrying, and the banner
+      // already says the one thing they can do about it.
+      //
+      // Proof: emptied to the silent catch this replaced, four of the block's
+      // tests failed — `raises the stale-tree banner when a socket refetch
+      // fails`, `clears the banner on a later successful refetch from any
+      // path`, `raises the banner when the refetch after an edit fails` and
+      // `shows both the refusal and the banner when the refetch failed too`.
+      // Watched, 2026-08-06.
+      setTreeMayBeStale(true);
+    }
   }, [refresh]);
+
+  useEffect(() => {
+    void refresh().catch((thrown: unknown) => {
+      // The first read, which is different from a failed reread: there is no
+      // last good tree to be stale, so this is an event to report rather than
+      // a state to sit under. "This plan may be out of date" over an empty
+      // table would be a sentence about a plan that never arrived.
+      pushToast({ kind: 'error', text: failureText(thrown, 'load_failed') });
+    });
+  }, [refresh, pushToast]);
 
   // Someone else's edit refetches rather than patching: a create or move can
   // renumber rows this client never touched.
@@ -540,10 +611,10 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
     if (subscribe === undefined) return undefined;
     const opened = subscribe(projectId, {
       onChange: () => {
-        void refresh().catch(() => {
-          // A failed refresh leaves the last good tree on screen. Clearing it
-          // would lose the user's place over a blip.
-        });
+        // No toast: nobody asked for this read, so nothing of theirs was
+        // refused. What it can leave behind is a tree that has fallen behind,
+        // and that is the banner's job.
+        void refreshOrMarkStale();
       },
       onConnectionChange: setConnected,
     });
@@ -552,7 +623,7 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
       opened.unsubscribe();
       stream.current = null;
     };
-  }, [subscribe, projectId, refresh]);
+  }, [subscribe, projectId, refreshOrMarkStale]);
 
   /**
    * A drag does not survive the tree changing underneath it.
@@ -571,11 +642,25 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
    */
   useEffect(() => {
     setDragging((current) => {
-      if (current !== null) setError('The table changed while you were dragging — try again.');
+      // `info`, not `error`: nothing was refused and nothing was lost, so this
+      // is context that may take itself off again rather than a failure
+      // waiting to be dismissed.
+      //
+      // Pushed from inside the updater because `dragging` cannot join this
+      // effect's dependencies — it would then re-run on every pickup and
+      // cancel the drag it was meant to survive. StrictMode invokes an updater
+      // twice, so this pushes twice under it; the stack collapses a repeated
+      // message into one line, which is what makes that harmless.
+      if (current !== null) {
+        pushToast({
+          kind: 'info',
+          text: 'The table changed while you were dragging — try again.',
+        });
+      }
       return null;
     });
     setDropHint(null);
-  }, [workItems]);
+  }, [workItems, pushToast]);
 
   /**
    * Lands the focus on the cell {@link focusNext} names, once the tree that
@@ -610,20 +695,41 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
     arrived.input.focus();
   }, [workItems]);
 
+  /**
+   * One edit: send it, then reread the tree.
+   *
+   * The two halves fail differently and are reported differently, which is the
+   * whole of this change's rule. A refused request is an **event** — somebody
+   * asked for something and did not get it — so it is a toast that stays until
+   * it is read. A reread that failed is a **state**: the request landed, and
+   * what is on screen may now be behind be-01, which is the banner.
+   *
+   * Nothing is cleared on the way in. The old version reset the error line
+   * before every request, so the reason a rename was refused vanished the
+   * moment anything else worked; toasts own their own lifecycle instead.
+   * Proof: the clear put back at the top of this function, `keeps a failure on
+   * screen when the next action succeeds` failed with the toast gone. Watched,
+   * 2026-08-06.
+   *
+   * A refused action skips the reread deliberately: be-01 changed nothing, so
+   * there is nothing new to read.
+   */
   const run = useCallback(
     async (action: () => Promise<void>) => {
       setBusy(true);
-      setError(null);
       try {
-        await action();
-        await refresh();
-      } catch (e: unknown) {
-        setError(e instanceof Error ? e.message : 'request_failed');
+        try {
+          await action();
+        } catch (thrown: unknown) {
+          pushToast({ kind: 'error', text: failureText(thrown, 'request_failed') });
+          return;
+        }
+        await refreshOrMarkStale();
       } finally {
         setBusy(false);
       }
     },
-    [refresh],
+    [pushToast, refreshOrMarkStale],
   );
 
   /** Every row in the order the table renders them, ignoring collapse. */
@@ -803,14 +909,14 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
         // `unchanged` says nothing: it is not a mistake, and a message for it
         // would fire every time someone put a row back.
         const message = REFUSAL_MESSAGES[plan.reason];
-        if (message !== undefined) setError(message);
+        if (message !== undefined) pushToast({ kind: 'error', text: message });
         return;
       }
 
       if (zone === 'into') setExpanded((current) => expandBranch(current, targetId));
       void run(() => api.move(draggedId, plan.parentId, plan.afterId));
     },
-    [api, dragging, flat, run],
+    [api, dragging, flat, pushToast, run],
   );
 
   const addSibling = useCallback(
@@ -1093,7 +1199,7 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
       // Proof: removed, `refuses to move a frozen row and says why` failed on
       // the move it sent. Watched, 2026-08-06.
       if (row.frozenNumber !== null) {
-        setError(FROZEN_REFUSAL);
+        pushToast({ kind: 'error', text: FROZEN_REFUSAL });
         return;
       }
       if (move === 'up' || move === 'down') {
@@ -1102,7 +1208,7 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
       }
       void (move === 'indent' ? indent(row, columnId) : outdent(row, columnId));
     },
-    [busy, indent, moveAmongSiblings, outdent],
+    [busy, indent, moveAmongSiblings, outdent, pushToast],
   );
 
   /**
@@ -1152,42 +1258,46 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
    * it, and one refused as a cycle keeps the rest; what landed is visible in the
    * chips and what did not is named. All-or-nothing here would throw away four
    * correct entries over a fifth.
+   *
+   * **One toast for the whole list**, however many entries were refused. Both
+   * UX reviewers killed a toast per change for being noise, and three boxes
+   * saying three halves of one answer is that failure wearing a different hat:
+   * a typed list is one gesture and its outcome is one sentence.
    */
   const dependOn = useCallback(
     (successorId: string, typed: string) => {
       const { found, unknown } = parseDependencies(typed, flat);
       const notThere = unknownMessage(unknown);
       if (found.length === 0) {
-        if (notThere !== null) setError(notThere);
+        if (notThere !== null) pushToast({ kind: 'error', text: notThere });
         return;
       }
 
-      // Not routed through `run`, deliberately. `run` models all-or-nothing: it
-      // clears the error, does one thing, refreshes, and reports a throw. Here a
-      // partial success is a real outcome — some edges land, some are refused,
-      // and both the new chips and the reasons have to survive. Through `run`
-      // the first `setError` was wiped by its own reset, and a refusal skipped
+      // Not routed through `run`, deliberately. `run` models all-or-nothing:
+      // one request, and a throw abandons the reread. Here a partial success is
+      // a real outcome — some edges land, some are refused, and both the new
+      // chips and the reasons have to survive. Through `run` a refusal skipped
       // the refresh that would have shown the edges that did land.
       void (async () => {
         setBusy(true);
-        setError(null);
         const refused: string[] = [];
         try {
           for (const predecessor of found) {
             try {
               await api.addDependency(successorId, predecessor.id);
-            } catch (e: unknown) {
+            } catch (thrown: unknown) {
               // Collected rather than rethrown, so one refusal does not abandon
               // the numbers after it. The reason is be-01's own word — `cycle`,
               // `ancestor` — beside the number it belongs to.
-              refused.push(`${predecessor.number} (${e instanceof Error ? e.message : 'refused'})`);
+              refused.push(`${predecessor.number} (${failureText(thrown, 'refused')})`);
             }
           }
-          await refresh();
-        } catch (e: unknown) {
-          setError(e instanceof Error ? e.message : 'request_failed');
+          // Never rejects: a failed reread raises the banner and returns, so
+          // the refusals below are still reported. The two are different facts
+          // and a reader who saw only one of them would be misled either way.
+          await refreshOrMarkStale();
+        } finally {
           setBusy(false);
-          return;
         }
         const problems = [
           notThere,
@@ -1195,11 +1305,13 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
             ? null
             : `${refused.length === 1 ? 'Refused' : 'These were refused'}: ${refused.join(', ')}.`,
         ].filter((line): line is string => line !== null);
-        if (problems.length > 0) setError(problems.join(' '));
-        setBusy(false);
+        // Proof: split into one push per line, `reports every refused
+        // dependency in one toast, not one each` failed with two. Watched,
+        // 2026-08-06.
+        if (problems.length > 0) pushToast({ kind: 'error', text: problems.join(' ') });
       })();
     },
-    [api, flat, refresh],
+    [api, flat, pushToast, refreshOrMarkStale],
   );
 
   /**
@@ -2520,7 +2632,29 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
         </label>
       </div>
 
-      {error !== null && <p role="alert">{error}</p>}
+      {/*
+        A state, so a banner: the rows on screen are the last ones that
+        arrived, and until a read lands they may be behind what be-01 holds.
+        The alternative was to say nothing, which left a plan that could be
+        minutes out of date looking exactly like one that was current.
+
+        The retry is the only control here, because it is the only thing the
+        reader can do about it — and it clears this by succeeding, not by being
+        pressed.
+      */}
+      {treeMayBeStale && (
+        <p role="alert" data-stale-tree>
+          This plan may be out of date — the last refresh failed.{' '}
+          <button
+            type="button"
+            onClick={() => {
+              void refreshOrMarkStale();
+            }}
+          >
+            Retry
+          </button>
+        </p>
+      )}
 
       {/*
         Said out loud rather than left to be noticed. Someone else's edits stop
@@ -2623,6 +2757,18 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
           </tbody>
         </table>
       </div>
+
+      {/*
+        Outside the scrolling frame on purpose: it is fixed to the corner of
+        the viewport, and the thing it replaced was a line above the table that
+        scrolled out of sight exactly when it mattered.
+
+        Proof that the line is really gone: restored as a second `role="alert"`
+        above the table, `says a refused rename in a toast, and puts nothing
+        above the table` failed on two alerts where it asserts one. Watched,
+        2026-08-06.
+      */}
+      <ToastStack toasts={toasts} onDismiss={dismissToast} />
     </section>
   );
 }

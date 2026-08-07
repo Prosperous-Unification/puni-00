@@ -288,6 +288,13 @@ const numbersOnScreen = () =>
     .slice(1)
     .map((row) => row.querySelector('[data-number]')?.textContent ?? '');
 
+/** What the toast stack is saying, newest first. */
+const toastTexts = (): string[] =>
+  [...document.querySelectorAll('[data-toast-text]')].map((node) => node.textContent);
+
+/** The stale-tree banner, or null while the tree on screen is believed current. */
+const staleBanner = (): Element | null => document.querySelector('[data-stale-tree]');
+
 const click = (name: string) => {
   fireEvent.click(screen.getByRole('button', { name }));
 };
@@ -2200,9 +2207,11 @@ describe('a drag interrupted by someone else', () => {
     fireEvent(target, dragEvent('drop', 20));
 
     expect(moved).toEqual([]);
-    expect(screen.getAllByRole('alert').at(-1)?.textContent).toContain(
-      'changed while you were dragging',
-    );
+    // Said in a toast, and an `info` one: nobody's request was refused and
+    // nothing was lost, so this is context that may take itself off again —
+    // not a failure waiting to be dismissed.
+    expect(toastTexts().at(-1)).toContain('changed while you were dragging');
+    expect(screen.queryByRole('alert')).toBeNull();
   });
 });
 
@@ -3805,5 +3814,204 @@ describe('finding a work item in the tree', () => {
     await shownPlan();
 
     expect(localStorage.getItem('wbs.expanded.p1')).toBe('true');
+  });
+});
+
+describe('failures you can see', () => {
+  /** Types a dependency list into a row's cell and sends it. */
+  const typeDeps = (rowNumber: string, value: string) => {
+    const input = screen.getByLabelText(`Add a dependency to ${rowNumber}`);
+    fireEvent.change(input, { target: { value } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+  };
+
+  /** A table subscribed to a socket, with the handle that fires a change event. */
+  async function subscribedTable() {
+    const api = fakeApi();
+    // Throws rather than doing nothing: a table that never subscribed must
+    // fail loudly here instead of quietly asserting a tree nothing refreshed.
+    let notify: () => void = () => {
+      throw new Error('the table never subscribed');
+    };
+    const subscribe = (_projectId: string, handlers: SubscriptionHandlers) => {
+      notify = handlers.onChange;
+      return { seen: () => undefined, unsubscribe: () => undefined };
+    };
+    render(<WbsTable projectId="p1" api={api} subscribe={subscribe} />);
+    await api.create('p1', { parentId: null, afterId: null, name: 'Strip' });
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual([]);
+    });
+    return {
+      api,
+      notify: () => {
+        notify();
+      },
+    };
+  }
+
+  itDom('says a refused rename in a toast, and puts nothing above the table', async () => {
+    const api = await threeRoots();
+    api.patch = () => Promise.reject(new Error('rename failed: forbidden'));
+
+    typeName('010', 'Renamed');
+    fireEvent.blur(screen.getByLabelText('Name of 010'));
+
+    await waitFor(() => {
+      expect(toastTexts()).toEqual(['rename failed: forbidden']);
+    });
+    // The single alert on screen is the toast itself. The top-of-page error
+    // line is gone: two alerts here would be the old one still rendering.
+    const alerts = screen.getAllByRole('alert');
+    expect(alerts).toHaveLength(1);
+    expect(alerts[0]?.closest('[data-toasts]')).not.toBeNull();
+  });
+
+  itDom('keeps a failure on screen when the next action succeeds', async () => {
+    // `run` used to clear the error line before every request, so the reason a
+    // rename was refused disappeared the moment anything else worked. A toast
+    // owns its own lifecycle: only its ✕ takes it off.
+    const api = await threeRoots();
+    const realPatch = api.patch.bind(api);
+    api.patch = () => Promise.reject(new Error('rename failed: forbidden'));
+
+    typeName('010', 'Renamed');
+    fireEvent.blur(screen.getByLabelText('Name of 010'));
+    await waitFor(() => {
+      expect(toastTexts()).toEqual(['rename failed: forbidden']);
+    });
+
+    api.patch = realPatch;
+    typeName('020', 'Sanded');
+    fireEvent.blur(screen.getByLabelText('Name of 020'));
+    await waitFor(() => {
+      expect(screen.getByLabelText('Name of 020')).toHaveProperty('value', 'Sanded');
+    });
+
+    expect(toastTexts()).toEqual(['rename failed: forbidden']);
+  });
+
+  itDom('takes a failure off when its ✕ is pressed', async () => {
+    const api = await threeRoots();
+    api.patch = () => Promise.reject(new Error('rename failed: forbidden'));
+
+    typeName('010', 'Renamed');
+    fireEvent.blur(screen.getByLabelText('Name of 010'));
+    await waitFor(() => {
+      expect(toastTexts()).toHaveLength(1);
+    });
+
+    click('Dismiss: rename failed: forbidden');
+
+    expect(toastTexts()).toEqual([]);
+  });
+
+  itDom('raises the stale-tree banner when a socket refetch fails', async () => {
+    const { api, notify } = await subscribedTable();
+    const realTree = api.tree.bind(api);
+    api.tree = () => Promise.reject(new Error('offline'));
+
+    act(() => {
+      notify();
+    });
+
+    await waitFor(() => {
+      expect(staleBanner()).not.toBeNull();
+    });
+    expect(staleBanner()?.textContent).toContain('may be out of date');
+    // The rows that were on screen are still on screen: a failed refetch does
+    // not throw the plan away, it says the plan may have moved on without it.
+    expect(numbersOnScreen()).toEqual([]);
+    // Nobody asked for this refetch, so nothing was refused: no toast.
+    expect(toastTexts()).toEqual([]);
+
+    api.tree = realTree;
+    click('Retry');
+
+    await waitFor(() => {
+      expect(staleBanner()).toBeNull();
+    });
+    expect(numbersOnScreen()).toEqual(['010']);
+  });
+
+  itDom('clears the banner on a later successful refetch from any path', async () => {
+    // The retry button is one way back; somebody else's edit arriving and
+    // refetching cleanly is another, and it is the common one.
+    const { api, notify } = await subscribedTable();
+    const realTree = api.tree.bind(api);
+    api.tree = () => Promise.reject(new Error('offline'));
+
+    act(() => {
+      notify();
+    });
+    await waitFor(() => {
+      expect(staleBanner()).not.toBeNull();
+    });
+
+    api.tree = realTree;
+    act(() => {
+      notify();
+    });
+
+    await waitFor(() => {
+      expect(staleBanner()).toBeNull();
+    });
+    expect(numbersOnScreen()).toEqual(['010']);
+  });
+
+  itDom('raises the banner when the refetch after an edit fails', async () => {
+    const api = await threeRoots();
+    api.tree = () => Promise.reject(new Error('offline'));
+
+    typeName('010', 'Renamed');
+    fireEvent.blur(screen.getByLabelText('Name of 010'));
+
+    await waitFor(() => {
+      expect(staleBanner()).not.toBeNull();
+    });
+    // The edit itself was taken. Only the reread failed, so there is nothing
+    // to refuse and nothing to toast.
+    expect(toastTexts()).toEqual([]);
+  });
+
+  itDom('reports every refused dependency in one toast, not one each', async () => {
+    // The reviewers killed a toast per change for being noise. Three lines
+    // saying three halves of one answer is the same failure.
+    const api = await threeRoots();
+    const real = api.addDependency.bind(api);
+    api.addDependency = (id: string, predecessorId: string) => {
+      const number = api.rows.find((r) => r.id === predecessorId)?.number;
+      if (number === '010' || number === '020') return Promise.reject(new Error('cycle'));
+      return real(id, predecessorId);
+    };
+
+    typeDeps('030', '010, 020, 999');
+
+    await waitFor(() => {
+      expect(toastTexts()).toHaveLength(1);
+    });
+    const said = toastTexts()[0] ?? '';
+    expect(said).toContain('999');
+    expect(said).toContain('010 (cycle)');
+    expect(said).toContain('020 (cycle)');
+  });
+
+  itDom('shows both the refusal and the banner when the refetch failed too', async () => {
+    // Two different facts: the request was refused, and what is on screen may
+    // no longer be what be-01 holds. Reporting one of them would be a lie by
+    // omission whichever one was dropped.
+    const api = await threeRoots();
+    api.addDependency = () => Promise.reject(new Error('cycle'));
+    api.tree = () => Promise.reject(new Error('offline'));
+
+    // A list, not one number: a single number is taken by the picker's
+    // highlight and goes through `run`, which does not reread after a refusal.
+    // The combined path is the one that refuses and rereads in one gesture.
+    typeDeps('030', '010, 020');
+
+    await waitFor(() => {
+      expect(staleBanner()).not.toBeNull();
+    });
+    expect(toastTexts()).toEqual([expect.stringContaining('010 (cycle), 020 (cycle)')]);
   });
 });

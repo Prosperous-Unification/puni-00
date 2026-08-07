@@ -99,6 +99,17 @@ named set of them; a branch not named is closed. Remembered per project, per bro
 overridden on screen for as long as a search is running.
 _Avoid_: collapse state, open rows, fold
 
+**Toast**:
+One message about something that just happened, shown in a corner of the screen. A failure
+waits there until it is dismissed; a note takes itself off. Reports events only — a
+condition that stays true is a banner.
+_Avoid_: notification, snackbar, flash, alert
+
+**Stale tree**:
+The rows on screen after a refetch failed: the last ones that arrived, and possibly behind
+what be-01 now holds. Ends at the next refetch that lands, whichever asked for it.
+_Avoid_: out of date, dirty, unsynced, desynced
+
 **Restricted project**:
 A project only its owner may edit. Every authenticated account may still read it; an
 unrestricted project may be edited by any of them.
