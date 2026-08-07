@@ -167,11 +167,20 @@ const PINNED_HEADER_LAYER = 3;
  * `overflow: hidden` is the backstop. Every control in a cell is sized to follow
  * that cell, but "paints into the neighbouring column" has to be structurally
  * impossible rather than a rule each control is trusted to keep — including for
- * a descendant nobody thought about. What genuinely needs to escape its cell —
- * the dependency listbox, the notes preview — is `position: absolute` inside a
- * `position: relative` wrapper, and an absolutely positioned box is clipped only
- * by a *positioned* ancestor's overflow. Those wrapper spans are the positioned
- * ancestor and they do not clip, so the popovers still open over the rows below.
+ * a descendant nobody thought about.
+ *
+ * It is a backstop with holes cut in it, and the rule that cuts them is worth
+ * stating exactly, because this comment first stated it backwards. An
+ * absolutely positioned box escapes an `overflow: hidden` ancestor only when
+ * its containing block — its nearest *positioned* ancestor — is **outside**
+ * that clipper. It is not enough for the containing block itself not to clip.
+ * Everything in this table that must escape its cell — the dependency listbox,
+ * the notes preview, a picker's list — sits in a `position: relative` wrapper
+ * span that is **inside** the `<td>`, so the `<td>`'s own clip cuts it to the
+ * cell rectangle no matter how the wrapper is styled. The columns carrying
+ * those popovers therefore spread this and then override `overflow` to
+ * `visible`; the exception, which columns it covers, and what still contains
+ * those cells are written out at `opensAPopover` in `wbs-table.tsx`.
  */
 export const CELL: CSSProperties = {
   boxSizing: 'border-box',

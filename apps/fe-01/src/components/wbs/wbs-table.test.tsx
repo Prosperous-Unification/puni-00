@@ -2844,10 +2844,12 @@ describe('Tab moves between the fields, from every cell', () => {
   });
 
   itDom('at the edges of the grid the key is left to the browser', async () => {
-    // No focus trap. Past the last cell of a row the next thing the browser
-    // finds is that row's own Duplicate and Delete — the actions are at the end
-    // of a row and never in the middle of one, which is what this makes
-    // consistent.
+    // No focus trap. The grid's edges are the first and last editable cells of
+    // the whole table, not of a row: Tab at the end of a row walks into the
+    // next one, and only past the last cell of the last row is the key left to
+    // the browser — which finds that row's own Duplicate and Delete. The
+    // actions are reachable at the end of the table and never from the middle
+    // of a row, which is what this makes consistent.
     await threeRoots();
 
     const last = focusCaret('Notes for 030', 'end');
@@ -3863,7 +3865,14 @@ describe('the widths the table is laid out by', () => {
       // Or the padding is width the offsets never counted.
       expect(cell.style.boxSizing).toBe('border-box');
       // The backstop: whatever a cell ends up holding, it stops at the cell.
-      expect(cell.style.overflow).toBe('hidden');
+      // The body cells holding a popover are exempt — the test below is where
+      // that exception is pinned, and it is restated here so this loop cannot
+      // be read as "every cell clips".
+      const column = cell.dataset['column'] ?? '';
+      const exempt =
+        cell.tagName === 'TD' &&
+        (['depends', 'notes', 'team'].includes(column) || column.endsWith('-assignee'));
+      expect(cell.style.overflow).toBe(exempt ? 'visible' : 'hidden');
     }
   });
 
@@ -3890,32 +3899,69 @@ describe('the widths the table is laid out by', () => {
     }
   });
 
-  itDom('still lets the things that must leave a cell leave it', async () => {
-    // The cells clip, and two things in this table are meant to escape their
-    // cell: the dependency list and the notes preview. Both are
-    // `position: absolute` inside a `position: relative` wrapper, and an
-    // absolutely positioned box is clipped only by a *positioned* ancestor's
-    // overflow — so the invariant that keeps them visible is that those
-    // wrappers are positioned and do not clip. Asserted here because the cell's
-    // `overflow: hidden` is otherwise one wrapper style away from hiding them.
-    // Proof: `overflow: hidden` added to the dependency cell's wrapper span,
-    // this failed on `expected 'hidden' not to be 'hidden'`. Watched,
+  itDom('does not clip the cells whose popovers open over the rows', async () => {
+    // The CSS rule, spelled out because the first version of this test
+    // asserted its opposite and called the wrong thing a proof: an absolutely
+    // positioned box escapes an `overflow: hidden` ancestor only when its
+    // containing block — its nearest *positioned* ancestor — is **outside**
+    // that clipper. Every popover in this table sits in a `position: relative`
+    // wrapper span that is *inside* the `<td>`, so the `<td>` cuts it to the
+    // cell rectangle however the wrapper is styled. The invariant is therefore
+    // about the cells, not the wrappers: the cells that hold a popover do not
+    // clip, and their neighbours do.
+    //
+    // Proof: the `opensAPopover` exception removed from the `<td>` style in
+    // `wbs-table.tsx`, this failed on
+    // `expected 'hidden' to be 'visible' // Object.is equality`. Watched,
     // 2026-08-07.
     await threeRoots();
     fireEvent.focus(screen.getByLabelText('Add a dependency to 020'));
 
+    const cellOf = (columnId: string): HTMLElement => {
+      const cell = rowFor('020').querySelector<HTMLElement>(`td[data-column="${columnId}"]`);
+      // Thrown rather than asserted away: a missing cell would otherwise read
+      // as `undefined` overflow and quietly satisfy nothing.
+      if (cell === null) throw new Error(`row 020 has no ${columnId} cell`);
+      return cell;
+    };
+
     const openList = screen.getByRole('listbox');
     const notesBox = screen.getByLabelText('Notes for 020');
-    const wrappers = [openList.parentElement, notesBox.parentElement];
+    const teamBox = screen.getByLabelText('Service or team for 020');
+    // The cells the popovers are really in. Without this the overflow
+    // assertions below would go on passing about columns the popovers had
+    // moved out of.
+    expect(openList.closest('td')).toBe(cellOf('depends'));
+    expect(notesBox.closest('td')).toBe(cellOf('notes'));
+    expect(teamBox.closest('td')).toBe(cellOf('team'));
 
-    for (const wrapper of wrappers) {
-      expect(wrapper?.style.position).toBe('relative');
-      expect(wrapper?.style.overflow).not.toBe('hidden');
-      // The wrapper, not the cell: a `<td>` as the positioned ancestor would
-      // clip both of them with the very rule the cells now carry.
+    expect(cellOf('depends').style.overflow).toBe('visible');
+    expect(cellOf('notes').style.overflow).toBe('visible');
+    // The service/team box and every assignee box are `CreatablePicker`s, and
+    // a picker's list is the same absolutely positioned popover in the same
+    // kind of wrapper. Their columns are named `<roleId>-assignee` at runtime,
+    // so they are found rather than written out.
+    expect(cellOf('team').style.overflow).toBe('visible');
+    const assigneeCells = [
+      ...rowFor('020').querySelectorAll<HTMLElement>('td[data-column$="-assignee"]'),
+    ];
+    // Or an empty list would satisfy the loop below without a picker column
+    // being rendered at all. One here: this plan has two roles and the second
+    // is folded, and a folded role shows one estimate box and no assignee.
+    expect(assigneeCells.length).toBeGreaterThan(0);
+    for (const cell of assigneeCells) expect(cell.style.overflow).toBe('visible');
+
+    // Still an exception. If the backstop had simply been dropped everywhere,
+    // every assertion above would pass and this one would not.
+    expect(cellOf('name').style.overflow).toBe('hidden');
+
+    // And the wrappers are still the positioned ancestors — which is what
+    // decides *where* each popover opens. `top: 100%` against a static wrapper
+    // would be measured from whatever ancestor is positioned instead.
+    for (const wrapper of [openList.parentElement, notesBox.parentElement]) {
       expect(wrapper?.tagName).toBe('SPAN');
+      expect(wrapper?.style.position).toBe('relative');
     }
-    expect(openList.closest('td')?.style.overflow).toBe('hidden');
   });
 });
 

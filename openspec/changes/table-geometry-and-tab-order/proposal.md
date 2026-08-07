@@ -31,9 +31,10 @@ did, and the pickers and the date box were not in the keyboard grid at all.
   is `table-layout: fixed` at the total of them. The pinned offsets are prefix
   sums of the same numbers.
 - Every control in a cell is `width: 100%` of the cell rather than a width of
-  its own, and every cell is `overflow: hidden` as the backstop. What has to
-  escape — the dependency listbox, the notes preview — is absolutely positioned
-  inside a wrapper that does not clip, and still does.
+  its own, and every cell is `overflow: hidden` as the backstop. A cell that
+  holds something which must open over the rows — the dependency listbox, the
+  notes preview, a picker's list — is exempt from that clip, because the `<td>`
+  is what clips an absolutely positioned box whose wrapper sits inside it.
 
 **Tab moves from every cell**
 

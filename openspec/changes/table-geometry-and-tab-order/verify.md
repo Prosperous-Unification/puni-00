@@ -23,7 +23,7 @@ The 32 new fe-01 tests: 5 in `table-frame.test.ts`, 13 in `box-geometry.test.ts`
 and 14 in `wbs-table.test.tsx` (6 for the widths and the column names, 8 for
 Tab).
 
-**The eight tests in `apps/fe-01/e2e/layout.spec.ts` are not in any figure
+**The ten tests in `apps/fe-01/e2e/layout.spec.ts` are not in any figure
 above, and have never been run.** There is no browser on the machine this
 change was written on and installing one was out of scope, so the layout gate
 has been verified as far as a machine without a rendering engine can verify it
@@ -33,7 +33,7 @@ first time in CI's new `pixels` job.
 ## The checks, and the faults that broke them
 
 Every row was watched failing with the fault in place and passing again with it
-removed, on 2026-08-07, except the four rows marked **PENDING** at the end.
+removed, on 2026-08-07, except the five rows marked **PENDING** at the end.
 
 ### The widths
 
@@ -42,7 +42,8 @@ removed, on 2026-08-07, except the four rows marked **PENDING** at the end.
 | The pinned offsets are prefix sums of the width table (`table-frame.ts`) | `PINNED_COLUMNS` written back out by hand with `number` at 180 instead of derived from `widthFor` | `is the same table the pinned offsets are prefix sums of` failed on `expected 180 to be 168`; in the same run the pre-existing `starts at the left edge and stacks each column after the last` failed on `{left: 28, width: 180}` against `{left: 28, width: 168}` |
 | An unsized column id is an error, not a width (`widthFor`)               | `throw new UnknownColumnError(columnId)` replaced by `return 120`                                 | `treats an id it never renders as an error, not a plausible width` failed on `expected function to throw an error, but it didn't`                                                                                                                                  |
 | The colgroup declares the columns **in order** (`wbs-table.tsx`)         | the colgroup rendered from a reversed id list                                                     | `declares every rendered column once, in the order they are rendered` failed on `['110px','260px','90px']` against `['28px','168px','360px']`                                                                                                                      |
-| The popovers are not clipped by the new `overflow: hidden`               | `overflow: 'hidden'` added to the dependency cell's wrapper span                                  | `still lets the things that must leave a cell leave it` failed on `expected 'hidden' not to be 'hidden'`                                                                                                                                                           |
+| The popover cells do not clip (`opensAPopover`, `wbs-table.tsx`)         | the `opensAPopover` spread removed from the `<td>` style                                          | `does not clip the cells whose popovers open over the rows` failed on `expected 'hidden' to be 'visible'`; in the same run `gives every cell the chrome its declared width is measured with` failed on the same comparison                                         |
+| …and covers the picker columns, not only `depends` and `notes`           | `opensAPopover` narrowed back to `new Set(['depends', 'notes'])`                                  | `does not clip the cells whose popovers open over the rows` failed on `expected 'hidden' to be 'visible'`, at the `team` cell                                                                                                                                      |
 | Every cell names its column (`wbs-table.tsx`)                            | `data-column` dropped from the `td`                                                               | `names every cell with the column it belongs to, in both halves of the table` failed on a row of `null`s against the header's names                                                                                                                                |
 
 Four more in this group were watched failing before the code existed rather
@@ -92,16 +93,17 @@ All thirteen were also watched failing before the module existed
 ### PENDING — the browser gate itself
 
 **None of these has been observed.** AGENTS.md R5: a check whose failure mode
-has never been observed is a claim, not a gate. The three faults are written
+has never been observed is a claim, not a gate. The four faults are written
 out as one-line changes at the foot of `apps/fe-01/e2e/layout.spec.ts`. This
 table is the record they have to be entered into before this change is merged.
 
-| Check                                                                                                                   | Fault to inject                                                                                              | Expected failure                                                                                                                       | Status      |
-| ----------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
-| A control stays inside its cell (`keeps every control inside the cell it belongs to`)                                   | `['name', 360]` → `['name', 100]` in `table-frame.ts`, and the Name cell's `width: '100%'` → `width: '22em'` | one entry in the list, naming `Name of 010 … runs past the name cell`                                                                  | **PENDING** |
-| Two width tables again (`lays every body row out with no two cells on top of each other`, and the heading-row test)     | `PINNED_COLUMNS` replaced by literals with `number` at 180                                                   | both adjacency tests fail: Name pinned at 208 while the colgroup lays it out at 196, so it sits 12px into "Depends on" even unscrolled | **PENDING** |
-| The pin itself (`holds the pinned columns there once the table is scrolled sideways`, and the `elementFromPoint` probe) | `position: 'sticky'` dropped from `pinnedCellStyle`                                                          | the measured lefts come back negative, having scrolled away with the row; the probe's `inside` names some other column                 | **PENDING** |
-| The gate runs at all (the `pixels` job)                                                                                 | —                                                                                                            | eight tests reported, and `wbs-table.png` in the uploaded artifact                                                                     | **PENDING** |
+| Check                                                                                                                     | Fault to inject                                                                                              | Expected failure                                                                                                                       | Status      |
+| ------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
+| A control stays inside its cell (`keeps every control inside the cell it belongs to`)                                     | `['name', 360]` → `['name', 100]` in `table-frame.ts`, and the Name cell's `width: '100%'` → `width: '22em'` | one entry in the list, naming `Name of 010 … runs past the name cell`                                                                  | **PENDING** |
+| Two width tables again (`lays every body row out with no two cells on top of each other`, and the heading-row test)       | `PINNED_COLUMNS` replaced by literals with `number` at 180                                                   | both adjacency tests fail: Name pinned at 208 while the colgroup lays it out at 196, so it sits 12px into "Depends on" even unscrolled | **PENDING** |
+| The pin itself (`holds the pinned columns there once the table is scrolled sideways`, and the `elementFromPoint` probe)   | `position: 'sticky'` dropped from `pinnedCellStyle`                                                          | the measured lefts come back negative, having scrolled away with the row; the probe's `inside` names some other column                 | **PENDING** |
+| The popovers really leave their cell (`opens the dependency list out past the bottom of its own cell`, and the notes one) | the `opensAPopover` spread dropped from the `<td>` style in `wbs-table.tsx` (FAULT D)                        | both fail on `ownsPixelBelow`, the message naming what showed through 4px below the cell — a cell of the row underneath                | **PENDING** |
+| The gate runs at all (the `pixels` job)                                                                                   | —                                                                                                            | ten tests reported, and `wbs-table.png` in the uploaded artifact                                                                       | **PENDING** |
 
 **Fault A is the one to read carefully.** The obvious expectation — "a control
 that overruns its column shows up as an overlap" — is wrong, and writing it
@@ -110,6 +112,74 @@ down is the point: a table never lays two cells on top of each other, so a
 containment test were dropped as redundant, that fault class would pass the
 gate untouched. The adjacency tests catch the other half, where the offsets and
 the layout disagree (fault B), and the two halves are not substitutes.
+
+## Cross-review, 2026-08-07
+
+Two reviewers read the whole branch after the tables above were written. Three
+findings, all fixed here; a fourth — RTL sticky offsets — was parked by both,
+because nothing in this product has an RTL contract to hold it to.
+
+**The cell clip really did cut the popovers off, and the reasoning that said it
+did not was wrong CSS.** The claim was that an absolutely positioned box is
+clipped only by a positioned ancestor's overflow, so a `position: relative`
+wrapper that does not clip keeps the dependency listbox and the notes preview
+visible. That is backwards. An absolutely positioned box escapes an
+`overflow: hidden` ancestor only when its containing block is **outside** that
+ancestor — and here the containing block is the wrapper span, which is
+_inside_ the `<td>` doing the clipping. Both popovers were being cut to the
+cell rectangle in a real browser; no jsdom test could see it, because jsdom
+lays nothing out and clips nothing.
+
+The fix keeps the backstop and cuts holes in it: a column holding a popover
+renders its `<td>` with `overflow: visible`, written out as an explicit
+exception (`opensAPopover` in `wbs-table.tsx`) with the rule stated beside it.
+Containment for those cells is now carried by their controls being `width: 100%`
+with `border-box` sizing — which `lets no control in a cell assert a width of
+its own` pins in jsdom and `keeps every control inside the cell it belongs to`
+measures in a browser.
+
+**Four kinds of column, where the finding named two.** The reviewers wrote the
+fix direction as `depends` and `notes`. Those are not the only cells with a
+popover in them: a `CreatablePicker`'s list is the same absolutely positioned
+box in the same kind of wrapper, and it is rendered in the service/team cell
+and in each role's assignee cell. Those columns were clipped by this branch's
+own `overflow: hidden` exactly as the other two were — a dropdown cut to a
+one-line cell is a picker nobody can pick from — so the exception covers them
+too, `<roleId>-assignee` matched by suffix the way `widthFor` sizes it. This is
+the one place this fix wave went past what was asked for, and it is called out
+here rather than folded in quietly. The narrowed version (`depends` and `notes`
+only) was watched failing at the `team` cell; the row is in the table above.
+
+The unit test that claimed to prove the old reasoning asserted the wrong
+condition (the wrappers' styles) and its `Proof:` narrative described a fault
+that could never have broken the real invariant. It has been rewritten to
+assert the cells — `depends`, `notes`, `team` and every `-assignee` column
+visible, `name` still hidden — and watched failing with the exception removed.
+The two browser tests that measure the escape in pixels are new and PENDING,
+above; they measure the dependency list and the notes preview, not the picker
+list, whose single "add this one" entry is too short to be sure of clearing the
+cell it hangs from.
+
+**One assertion in the browser spec could not fail.** The occlusion probe
+finished with
+`expect(PINNED_IDS).not.toContain(edge.outside ?? 'nothing at all')`, which
+passes when the probe finds nothing at all — the state a pinned block painting
+over the whole row would produce. It is now three assertions with distinct
+messages: the pixel past the pinned block belongs to some cell, that cell is
+not a pinned one, and it is the column the width table declares at that offset.
+The third is computed from the declared widths rather than written out as
+`depends`: by `SCROLLED` px both `depends` and `team` have scrolled in behind
+the pinned block, so the first unpinned column is not the one showing at its
+edge.
+
+**The cheat sheet described Tab wrongly.** It said that past the last field of
+a row Tab reaches that row's Duplicate and Delete. It does not: the grid is the
+whole table, so Tab at the end of a row walks into the first field of the next
+one, and the actions are reached only past the last field of the last row. The
+entry now says that, and the same wrong sentence has been corrected in the
+`onTabKey` JSDoc and in the comment on `at the edges of the grid the key is
+left to the browser`. `PROVEN_BY` names tests rather than copy, so it is
+unchanged and still passes.
 
 ## What is proven, and by what
 
@@ -124,12 +194,12 @@ started from their own directories, be-01 migrated a brand-new
 health waits on `:3100/health`, `:3200/health` and `:4200` all resolved — the
 run reached test execution and failed on
 `browserType.launch: Executable doesn't exist … chrome-headless-shell`, eight
-times. The webServers were torn down cleanly afterwards. So the config, the
-readiness, the database isolation, the ports and the Nx wiring are verified;
-the assertions are not.
+times — the spec held eight tests when that run was made. The webServers were
+torn down cleanly afterwards. So the config, the readiness, the database
+isolation, the ports and the Nx wiring are verified; the assertions are not.
 
 **Verified as text, not as behaviour:** the spec transpiles, resolves both of
-its imports of application source, and enumerates its eight tests
+its imports of application source, and enumerates its ten tests
 (`playwright test --list`); it passes `eslint` and `tsc --build` through a new
 `tsconfig.e2e.json` — and that typecheck was proven non-vacuous by putting
 `const x: number = 'nope'` first in the spec and then in the config and
@@ -137,7 +207,7 @@ watching each fail, because `nx typecheck` running against a solution-style
 config and compiling nothing is a failure this repo has already had once.
 
 **Not verified at all:** every assertion in `layout.spec.ts`. No rectangle in
-this change has been measured by a rendering engine. The four PENDING rows
+this change has been measured by a rendering engine. The five PENDING rows
 above are the whole of what CI has to establish.
 
 ## What is not verified here, beyond the browser

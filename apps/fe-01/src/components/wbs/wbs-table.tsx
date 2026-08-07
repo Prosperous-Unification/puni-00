@@ -146,6 +146,41 @@ const NOTHING_TO_REDO = 'There is nothing to put back — nothing of yours has b
  */
 const BOM = '\uFEFF';
 
+/**
+ * The columns by fixed id whose `<td>` must not clip, because something in them
+ * opens over the rows below. {@link opensAPopover} is what asks.
+ */
+const POPOVER_COLUMNS: ReadonlySet<string> = new Set(['depends', 'notes', 'team']);
+
+/**
+ * Whether this column holds something that opens over the rows below, and so
+ * needs its `<td>` exempted from {@link CELL}'s `overflow: hidden`.
+ *
+ * The CSS rule this exists for, stated because the first version of this change
+ * got it backwards and shipped every popover in the table cut off at the cell
+ * edge: an absolutely positioned box escapes an `overflow: hidden` ancestor only
+ * when its containing block — its nearest *positioned* ancestor — is **outside**
+ * that clipper. Every popover here is `position: absolute` inside a
+ * `position: relative` wrapper span, and that wrapper is inside the cell, so the
+ * `<td>`'s own clip cuts it to the cell rectangle however the wrapper is styled.
+ * Lifting the clip on the `<td>` is the only thing that lets one open.
+ *
+ * Four kinds of column, not two: the dependency listbox (`depends`), the notes
+ * preview (`notes`), and a `CreatablePicker`'s list — which is the service/team
+ * cell and each role's assignee cell. The assignee columns are named
+ * `<roleId>-assignee` at runtime, so they are matched by suffix, the same way
+ * `widthFor` sizes them.
+ *
+ * What still keeps these cells from painting into their neighbours, now that the
+ * structural backstop is off for them: every control inside them is
+ * `width: 100%` (or a flex child of a `maxWidth: 100%` row) with `border-box`
+ * sizing — asserted by `lets no control in a cell assert a width of its own` and
+ * measured in a browser by `keeps every control inside the cell it belongs to`
+ * in `e2e/layout.spec.ts`.
+ */
+const opensAPopover = (columnId: string): boolean =>
+  POPOVER_COLUMNS.has(columnId) || columnId.endsWith('-assignee');
+
 /** What the folded cell says about itself when there is nothing to complain about. */
 const SHORTHAND_HELP =
   'Days as optimistic/realistic/pessimistic — 2/3/8. One number means all three. Empty clears it.';
@@ -1428,11 +1463,13 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    * the text Tab indents the row and Shift+Tab outdents it — and everywhere
    * else in the text it makes this same move.
    *
-   * At the grid's edge `focusAdjacentCell` returns false and the key is left to
-   * the browser, which lands on that row's own Duplicate and Delete. That is
-   * the point rather than a leak: the row's actions are reachable at the end of
-   * a row and never in the middle of one, and no focus trap is added to stop a
-   * reader Tabbing out of the table altogether.
+   * The grid is the table, not one row: at the end of a row Tab walks into the
+   * first field of the next. Only at the grid's own edge — past the last
+   * editable cell of the last row — does `focusAdjacentCell` return false and
+   * the key go to the browser, which lands on that row's Duplicate and Delete.
+   * That is the point rather than a leak: the actions are reachable at the end
+   * of the table and never from the middle of a row, and no focus trap is added
+   * to stop a reader Tabbing out of the table altogether.
    *
    * Proof: dropped from the handler chain, `walks every field of a row in turn,
    * and on into the next row` failed at the first cell that no longer moved.
@@ -2241,8 +2278,10 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
               // uneven row height is a cost worth paying; a dependency nobody
               // can see is not.
               //
-              // Still the positioned ancestor for the listbox below, and still
-              // without `overflow: hidden`, so the list opens over the rows.
+              // The positioned ancestor the listbox below is placed against —
+              // which is what decides *where* the list opens, not whether it
+              // is clipped. The clipper is the `<td>`, and it is what
+              // {@link POPOVER_COLUMNS} exempts.
               style={{
                 whiteSpace: 'normal',
                 position: 'relative',
@@ -2787,9 +2826,10 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
             <span
               // `block`, not `inline-block`: a shrink-to-fit wrapper and a
               // `width: 100%` textarea inside it define each other in a
-              // circle. Still the positioned ancestor, and still without
-              // `overflow: hidden`, so the preview below opens over the rows
-              // rather than being clipped to this cell.
+              // circle. It is also the positioned ancestor the preview below
+              // is placed against — which decides where the preview opens, not
+              // whether it is clipped. The clipper is the `<td>`, and it is
+              // what {@link POPOVER_COLUMNS} exempts.
               style={{ position: 'relative', display: 'block', maxWidth: '100%' }}
               onMouseEnter={() => {
                 live.current.setHoveredNotes(row.original.id);
@@ -3323,7 +3363,15 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                     // See the `th` above: the layout gate measures these boxes
                     // and has to be able to name the one that moved.
                     data-column={cell.column.id}
-                    style={{ ...CELL, ...pinnedCellStyle(cell.column.id, 'body') }}
+                    style={{
+                      ...CELL,
+                      // The exception to the cell clip. See
+                      // {@link opensAPopover}: a popover's containing block is
+                      // the wrapper span *inside* this `<td>`, so this `<td>`
+                      // clips it unless it is told not to.
+                      ...(opensAPopover(cell.column.id) ? { overflow: 'visible' as const } : {}),
+                      ...pinnedCellStyle(cell.column.id, 'body'),
+                    }}
                   >
                     {flexRender(cell.column.columnDef.cell, cell.getContext())}
                   </td>

@@ -30,10 +30,18 @@ column id nothing declares SHALL be an error, never a fallback width.
 ### Requirement: Nothing paints outside the cell it belongs to
 
 No control in a cell SHALL assert a width of its own: each SHALL be the width
-of the cell it sits in. Every cell SHALL clip what overruns it. Content that
-must leave a cell — the dependency listbox, the notes preview — SHALL be
-absolutely positioned inside a wrapper that does not clip, and SHALL still open
-over the rows.
+of the cell it sits in. Every cell SHALL clip what overruns it, except the
+cells of the columns that hold something which opens over the rows below — the
+dependency listbox, the notes preview, and a picker's list in the service/team
+cell and in each role's assignee cell. Those cells SHALL NOT clip, and their
+popovers SHALL open over the rows below.
+
+A cell is what clips its own popover: an absolutely positioned box escapes an
+`overflow: hidden` ancestor only when its containing block is outside that
+ancestor, and every popover here is positioned against a wrapper inside its
+cell. So the exemption SHALL be carried by the cell, not by the wrapper, and
+containment of an exempt cell SHALL rest on every control in it being the width
+of that cell.
 
 #### Scenario: a long name in a narrow column
 
@@ -44,7 +52,15 @@ over the rows.
 #### Scenario: a picker on a scrolled table
 
 - **WHEN** the dependency picker is opened
-- **THEN** its list is readable over the rows below and over a pinned column
+- **THEN** its list is readable over the rows below and over a pinned column,
+  rather than cut off at the bottom edge of the cell it opened from
+
+#### Scenario: a popover taller than the cell it hangs from
+
+- **WHEN** the notes preview is shown, or a service/team or assignee picker is
+  opened, in a cell one line high
+- **THEN** the pixels below that cell belong to the popover, not to the row
+  underneath
 
 ### Requirement: The identity columns stay where they are declared to sit
 

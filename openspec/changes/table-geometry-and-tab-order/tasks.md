@@ -30,11 +30,12 @@
       wrapper wraps its chips onto a second line rather than clipping them.
       **Test:** `lets no control in a cell assert a width of its own`, watched
       failing on the name textarea's `22em`.
-- [x] 2.2 `overflow: hidden` on every cell as the backstop, and the two things
-      that must escape one proven still to.
-      **Test:** `still lets the things that must leave a cell leave it`.
-      **Negative test:** `overflow: hidden` added to the dependency cell's
-      wrapper span — it failed. Watched.
+- [x] 2.2 `overflow: hidden` on every cell as the backstop, with the columns
+      holding a popover exempted from it — the clipper is the `<td>`, not the
+      wrapper span inside it (`opensAPopover`).
+      **Test:** `does not clip the cells whose popovers open over the rows`.
+      **Negative test:** the `opensAPopover` spread removed from the `<td>`
+      style — it failed on `expected 'hidden' to be 'visible'`. Watched.
 
 ## 3. Tab from every cell
 

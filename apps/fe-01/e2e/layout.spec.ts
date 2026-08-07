@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { expect, type Page, test } from '@playwright/test';
 
 import { type Box, findOverlap, findOverrun } from '../src/components/wbs/box-geometry';
-import { PINNED_COLUMNS, pinnedGeometry } from '../src/components/wbs/table-frame';
+import { PINNED_COLUMNS, pinnedGeometry, widthFor } from '../src/components/wbs/table-frame';
 
 /**
  * The layout gate.
@@ -175,6 +175,68 @@ function measuredLefts(page: Page, columnIds: readonly string[]): Promise<Record
   }, columnIds);
 }
 
+/**
+ * Which column the width table declares at `tableX` px from the table's own
+ * left edge, given the columns this plan is showing in the order it shows them.
+ *
+ * @throws When no column covers that offset — a probe past the right edge of
+ * the declared table would otherwise be compared against nothing at all.
+ */
+function declaredColumnAt(order: readonly string[], tableX: number): string {
+  let right = 0;
+  for (const id of order) {
+    right += widthFor(id);
+    if (tableX < right) return id;
+  }
+  throw new Error(`${String(Math.round(tableX))}px is past the right edge of the declared table`);
+}
+
+/**
+ * How far a popover opened in `columnId` on the first row hangs below that
+ * cell, and whether the pixels below the cell are really its own.
+ *
+ * Both halves are needed and neither is the other. `getBoundingClientRect` is
+ * **not** clipped by an ancestor's `overflow: hidden` — a listbox cut off at
+ * the cell edge still reports its full height — so the overhang is only the
+ * precondition that makes the probe meaningful. `elementFromPoint` is hit
+ * testing, and hit testing does respect the clip: it is what says the popover
+ * is visible rather than merely laid out.
+ */
+function popoverEscape(
+  page: Page,
+  columnId: string,
+  popoverSelector: string,
+): Promise<{ overhang: number; ownsPixelBelow: boolean; found: string }> {
+  return page.evaluate(
+    ({ column, selector }) => {
+      const popover = document.querySelector(
+        `tbody tr:first-child td[data-column="${column}"] ${selector}`,
+      );
+      if (popover === null) {
+        throw new Error(`no ${selector} is open in the first row's ${column} cell`);
+      }
+      const cell = popover.closest('td');
+      if (cell === null) throw new Error(`the ${column} popover is not in a cell`);
+      const popoverBox = popover.getBoundingClientRect();
+      const cellBox = cell.getBoundingClientRect();
+      const at = document.elementFromPoint(popoverBox.x + popoverBox.width / 2, cellBox.bottom + 4);
+      return {
+        overhang: Math.round(popoverBox.bottom - cellBox.bottom),
+        ownsPixelBelow: at !== null && popover.contains(at),
+        // What is at that pixel instead, for the failure message: a clipped
+        // popover leaves the row underneath showing through.
+        found:
+          at === null
+            ? 'nothing at all'
+            : `<${at.tagName.toLowerCase()}> in the ${
+                at.closest('td')?.getAttribute('data-column') ?? 'no'
+              } column`,
+      };
+    },
+    { column: columnId, selector: popoverSelector },
+  );
+}
+
 let account = 0;
 
 test.beforeEach(async ({ page }) => {
@@ -256,19 +318,92 @@ test.describe('the table, measured by a browser', () => {
     // only question worth asking is which cell owns the pixel on each side of
     // the pinned block's right edge.
     const edge = await page.evaluate(() => {
-      const name = document.querySelector('tbody tr:first-child td[data-column="name"]');
+      const row = document.querySelector('tbody tr:first-child');
+      if (row === null) throw new Error('the plan has no rows');
+      const name = row.querySelector('td[data-column="name"]');
       if (name === null) throw new Error('the first row has no name cell');
+      const frame = document.querySelector('[data-table-frame]');
+      if (frame === null) throw new Error('the scrolling frame is not on the page');
       const box = name.getBoundingClientRect();
       const middle = box.y + box.height / 2;
       const columnAt = (x: number) =>
         document.elementFromPoint(x, middle)?.closest('td')?.getAttribute('data-column') ?? null;
-      return { inside: columnAt(box.right - 2), outside: columnAt(box.right + 2) };
+      return {
+        inside: columnAt(box.right - 2),
+        outside: columnAt(box.right + 2),
+        // The outside probe in the table's own coordinates, so the id painted
+        // there can be held against the id the width table declares for it.
+        outsideAt: box.right + 2 - frame.getBoundingClientRect().x + frame.scrollLeft,
+        order: [...row.querySelectorAll('td')].map(
+          (cell) => cell.getAttribute('data-column') ?? '(a cell with no data-column)',
+        ),
+      };
     });
 
     expect(edge.inside).toBe('name');
-    // Non-null and unpinned: a null means the probe missed the table entirely,
-    // and a pinned id means the pinned block is painting past its own width.
-    expect(PINNED_IDS.map(String)).not.toContain(edge.outside ?? 'nothing at all');
+    // Three assertions where there was one, because the one they replace could
+    // not fail. `expect(PINNED_IDS).not.toContain(edge.outside ?? 'nothing at
+    // all')` passed when the probe found *nothing* — and a pinned block
+    // painting over the whole row, or a table that never laid out, is exactly
+    // what "nothing at all" looks like.
+    expect(edge.outside, 'no cell owns the pixel past the pinned block').not.toBeNull();
+    // Not a pinned column: that is the pinned block painting past its own
+    // declared width, which is the fault this probe exists for.
+    expect(PINNED_IDS.map(String)).not.toContain(edge.outside);
+    // And it is the column the width table puts at that offset. Not written
+    // out as `depends`: `depends` is the first unpinned column, but by
+    // `SCROLLED` px it has scrolled in behind the pinned block along with
+    // `team`, so which column shows at the block's right edge is a fact about
+    // the declared widths — computed from them here, the same way the pinned
+    // offsets are.
+    expect(edge.outside).toBe(declaredColumnAt(edge.order, edge.outsideAt));
+  });
+
+  test('opens the dependency list out past the bottom of its own cell', async ({ page }) => {
+    await scrollFrameTo(page, 0);
+    // Two more rows first. The list 010 can depend on holds one entry in the
+    // seeded pair, and one line is short enough to fit inside a cell made tall
+    // by a wrapped name — which would leave the escape below with nothing to
+    // measure. Three entries cannot fit.
+    const addRow = page.getByRole('button', { name: 'Add work item' });
+    await addRow.click();
+    await expect(page.getByLabel('Name of 030')).toBeVisible();
+    await addRow.click();
+    await expect(page.getByLabel('Name of 040')).toBeVisible();
+
+    await page.getByLabel('Add a dependency to 010').click();
+    await expect(page.getByRole('listbox')).toBeVisible();
+
+    const escape = await popoverEscape(page, 'depends', '[role="listbox"]');
+    // Or the probe below the cell is a probe of empty space, and "the list
+    // owns that pixel" would be a question nobody asked.
+    expect(escape.overhang).toBeGreaterThan(8);
+    expect(
+      escape.ownsPixelBelow,
+      `4px below the depends cell is ${escape.found}, not the open list`,
+    ).toBe(true);
+  });
+
+  test('opens the notes preview out past the bottom of its own cell', async ({ page }) => {
+    const notes = page.getByLabel('Notes for 010');
+    // Three paragraphs, so the rendered preview is taller than the one-line
+    // box it hangs off — the same reason the dependency list above is given
+    // three entries.
+    await notes.fill('Racking survey\n\nAisle ends photographed\n\nMezzanine measured');
+    await notes.blur();
+    // The notes column is past the right edge of a 1400px viewport, and
+    // `elementFromPoint` takes viewport coordinates: unscrolled, the probe
+    // would be off screen and find nothing.
+    await notes.scrollIntoViewIfNeeded();
+    await notes.hover();
+    await expect(page.getByRole('tooltip', { name: 'Notes for 010, rendered' })).toBeVisible();
+
+    const escape = await popoverEscape(page, 'notes', '[role="tooltip"]');
+    expect(escape.overhang).toBeGreaterThan(8);
+    expect(
+      escape.ownsPixelBelow,
+      `4px below the notes cell is ${escape.found}, not the preview`,
+    ).toBe(true);
   });
 
   test('walks the row with Tab in the order the cells are in the DOM', async ({ page }) => {
@@ -311,7 +446,7 @@ test.describe('the table, measured by a browser', () => {
  * PROVING THIS GATE CAN FAIL — to be run in CI before this change merges.
  *
  * There is no browser on the machine this spec was written on, so none of the
- * three faults below has been watched failing yet. AGENTS.md R5 says a check
+ * four faults below has been watched failing yet. AGENTS.md R5 says a check
  * whose failure mode has never been observed is a claim rather than a gate, so
  * these are written as instructions and `verify.md` records them as pending
  * until CI has run them. Each is one line; push it on a scratch branch, read
@@ -343,4 +478,19 @@ test.describe('the table, measured by a browser', () => {
  * sideways` fails (the measured lefts come back negative, having scrolled
  * away), and `paints the pinned block over the row that scrolls behind it`
  * fails with `inside` naming some other column.
+ *
+ * FAULT D — the cell clipping the popovers that have to leave it. This is the
+ * fault the first version of this change shipped, on a wrong reading of the
+ * CSS: an absolutely positioned box escapes an `overflow: hidden` ancestor
+ * only when its containing block is *outside* that ancestor, and both popovers'
+ * containing block is a wrapper span inside the cell.
+ *   `wbs-table.tsx`: drop the `opensAPopover` spread from the `<td>` style.
+ * Expected: `opens the dependency list out past the bottom of its own cell` and
+ * `opens the notes preview out past the bottom of its own cell` both fail on
+ * `ownsPixelBelow`, naming what showed through instead — a cell of the row
+ * below. The overhang assertions do NOT fail on this, deliberately:
+ * `getBoundingClientRect` reports a clipped box at its full unclipped size, so
+ * a check written only on the rectangles would pass with both popovers sliced
+ * off at the cell edge. That is the vacuous version of this test, and the
+ * reason the hit test is the assertion and the overhang only its precondition.
  */

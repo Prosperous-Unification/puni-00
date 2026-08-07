@@ -79,8 +79,11 @@ export function CreatablePicker({
     // keeps its own size. `minWidth: 0` on both, because a flex item refuses to
     // shrink below its content by default and an input's default content width
     // is about twenty characters — which is how this pair used to push past its
-    // column. Still the positioned ancestor of the list below, and still
-    // without `overflow: hidden`, so the list opens over the rows.
+    // column. It is also the positioned ancestor the list below is placed
+    // against — which decides where the list opens, not whether it is clipped.
+    // The clipper is the `<td>` this sits in, and the columns this picker is
+    // rendered in are exempted from that clip by `opensAPopover` in
+    // `wbs-table.tsx`.
     <span style={{ position: 'relative', display: 'flex', maxWidth: '100%', minWidth: 0 }}>
       <input
         aria-label={label}
