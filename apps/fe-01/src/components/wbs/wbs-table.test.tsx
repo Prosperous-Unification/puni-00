@@ -7,7 +7,7 @@ import {
   screen,
   waitFor,
 } from '@testing-library/react';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import type { Days, EstimateMethod, ProjectApi, RoleView, WorkItemView } from '@/lib/wbs-api';
 
@@ -4013,5 +4013,167 @@ describe('failures you can see', () => {
       expect(staleBanner()).not.toBeNull();
     });
     expect(toastTexts()).toEqual([expect.stringContaining('010 (cycle), 020 (cycle)')]);
+  });
+});
+
+describe('sharing the plan', () => {
+  /**
+   * Puts a clipboard on `navigator` for one test.
+   *
+   * jsdom ships none, which is the same shape as an http page in a real
+   * browser — so the absent case below needs no stub at all, and the two
+   * present cases need this one.
+   */
+  const stubClipboard = (writeText: (text: string) => Promise<void>): void => {
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+  };
+
+  /**
+   * What `URL.createObjectURL` was handed, and what an anchor was told to
+   * download.
+   *
+   * jsdom implements neither the object URL nor a download, so both are
+   * replaced for the length of a test and put back after. The blob is kept
+   * rather than only counted: the file's first bytes are the assertion.
+   */
+  const captureDownloads = (): { blobs: Blob[]; names: string[]; revoked: string[] } => {
+    const blobs: Blob[] = [];
+    const names: string[] = [];
+    const revoked: string[] = [];
+    // jsdom defines neither, so this is an assignment rather than a spy.
+    const urls = URL as unknown as {
+      createObjectURL: (blob: Blob) => string;
+      revokeObjectURL: (url: string) => void;
+    };
+    urls.createObjectURL = (blob: Blob) => {
+      blobs.push(blob);
+      return `blob:plan-${String(blobs.length)}`;
+    };
+    urls.revokeObjectURL = (url: string) => {
+      revoked.push(url);
+    };
+    HTMLAnchorElement.prototype.click = function capture(this: HTMLAnchorElement) {
+      names.push(this.download);
+    };
+    return { blobs, names, revoked };
+  };
+
+  /**
+   * The bytes of a blob, through `FileReader`.
+   *
+   * jsdom's `Blob` has no `text()`, and the bytes are what is wanted anyway:
+   * `readAsText` strips a leading byte-order mark per spec, so a text read
+   * could not tell a file that carries one from a file that does not.
+   */
+  const readBlobBytes = (blob: Blob): Promise<Uint8Array> =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const read = reader.result;
+        if (read instanceof ArrayBuffer) resolve(new Uint8Array(read));
+        else reject(new Error('the downloaded blob read back as something else'));
+      };
+      reader.onerror = () => {
+        reject(new Error('the downloaded blob could not be read'));
+      };
+      reader.readAsArrayBuffer(blob);
+    });
+
+  afterEach(() => {
+    Reflect.deleteProperty(navigator, 'clipboard');
+    Reflect.deleteProperty(URL, 'createObjectURL');
+    Reflect.deleteProperty(URL, 'revokeObjectURL');
+    Reflect.deleteProperty(HTMLAnchorElement.prototype, 'click');
+  });
+
+  /** One named, estimated row, so an export has something to disagree about. */
+  const onePlannedRow = async (): Promise<ReturnType<typeof fakeApi>> => {
+    const api = fakeApi();
+    render(<WbsTable projectId="p1" api={api} projectName="Rewire the shed" />);
+    click('Add work item');
+    await screen.findByLabelText('Name of 010');
+    typeName('010', 'Strip, sand & paint');
+    fireEvent.blur(screen.getByLabelText('Name of 010'));
+    await waitFor(() => {
+      expect(screen.getByLabelText('Name of 010')).toHaveProperty('value', 'Strip, sand & paint');
+    });
+    return api;
+  };
+
+  itDom('offers both ways of taking the plan out of the tool', async () => {
+    const api = fakeApi();
+    render(<WbsTable projectId="p1" api={api} projectName="Rewire the shed" />);
+    expect(await screen.findByRole('button', { name: 'Copy as Markdown' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Download CSV' })).toBeInTheDocument();
+  });
+
+  itDom('copies the whole plan, header first, and says it did', async () => {
+    const copied: string[] = [];
+    stubClipboard((text) => {
+      copied.push(text);
+      return Promise.resolve();
+    });
+    await onePlannedRow();
+
+    click('Copy as Markdown');
+
+    await waitFor(() => {
+      expect(toastTexts()).toEqual(['Copied as Markdown.']);
+    });
+    const [markdown] = copied;
+    expect(markdown).toContain('**Project:** Rewire the shed');
+    expect(markdown).toContain('**Final figures:** PERT');
+    expect(markdown).toContain('| Strip, sand & paint |');
+    // An info toast, so no alert role: nothing was refused.
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  itDom('says so when the clipboard refuses the write', async () => {
+    stubClipboard(() => Promise.reject(new Error('NotAllowedError')));
+    await onePlannedRow();
+
+    click('Copy as Markdown');
+
+    await waitFor(() => {
+      expect(toastTexts()).toEqual([expect.stringContaining('refused the clipboard')]);
+    });
+    expect(screen.getAllByRole('alert')).toHaveLength(1);
+  });
+
+  itDom('says so when the page has no clipboard at all', async () => {
+    // No stub: jsdom has none, which is what an http page has.
+    await onePlannedRow();
+
+    click('Copy as Markdown');
+
+    await waitFor(() => {
+      expect(toastTexts()).toEqual([expect.stringContaining('no clipboard')]);
+    });
+    expect(screen.getAllByRole('alert')).toHaveLength(1);
+  });
+
+  itDom('downloads a CSV named after the project and the day, and lets the URL go', async () => {
+    const downloads = captureDownloads();
+    await onePlannedRow();
+
+    click('Download CSV');
+
+    expect(downloads.names).toHaveLength(1);
+    expect(downloads.names[0]).toMatch(/^rewire-the-shed-\d{4}-\d{2}-\d{2}\.csv$/);
+    expect(downloads.revoked).toEqual(['blob:plan-1']);
+    // `.at`, not `[0]`: the index signature would hand back a `Blob` whatever
+    // is in the array, and the guard below would then be checking nothing.
+    const file = downloads.blobs.at(0);
+    if (file === undefined) throw new Error('nothing was handed to createObjectURL');
+    expect(file.type).toBe('text/csv;charset=utf-8');
+    const bytes = await readBlobBytes(file);
+    // The byte-order mark first, or Excel on Windows reads the em dashes and
+    // every non-ASCII name as the system codepage.
+    expect([...bytes.slice(0, 3)]).toEqual([0xef, 0xbb, 0xbf]);
+    const text = new TextDecoder().decode(bytes);
+    expect(text).toContain('Project,Rewire the shed');
+    // The name holds a comma, so it is quoted rather than splitting the row.
+    expect(text).toContain('"Strip, sand & paint"');
+    expect(text).toContain('\r\n');
   });
 });

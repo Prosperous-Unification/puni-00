@@ -368,7 +368,17 @@ export function ProjectPage({ token, api: apiOverride }: ProjectPageProps) {
           Working in <strong>{selectedProject.name}</strong>
         </p>
       )}
-      {selected !== null && <WbsTable projectId={selected} api={api} subscribe={subscribe} />}
+      {selected !== null && (
+        <WbsTable
+          projectId={selected}
+          // The name the export's header and filename carry. Read from the
+          // list rather than held twice: a rename lands in `projects` and the
+          // next export says the new name.
+          projectName={selectedProject?.name}
+          api={api}
+          subscribe={subscribe}
+        />
+      )}
     </section>
   );
 }

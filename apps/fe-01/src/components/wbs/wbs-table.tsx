@@ -35,6 +35,7 @@ import {
 } from './estimate-draft';
 import { NotesPreview } from './notes-preview';
 import { describeGaps, findEstimateGaps } from './plan-completeness';
+import { type PlanExport, planFileName, planToCsv, planToMarkdown } from './plan-export';
 import { indentFor, pinnedCellStyle, STICKY_HEADER_CELL, TABLE_FRAME } from './table-frame';
 import { ToastStack, useToasts } from './toasts';
 import { searchTree } from './tree-search';
@@ -43,6 +44,14 @@ import { toTree, type TreeRow } from './wbs-rows';
 export interface WbsTableProps {
   projectId: string;
   api: ProjectApi;
+  /**
+   * What this project is called, for the export's header and its filename.
+   *
+   * Optional for the reason `subscribe` is: the table is driven by a fake in
+   * tests and the picker that holds the name is not on screen there. Supplied
+   * in the app — see {@link UNNAMED_PROJECT} for what an export says without it.
+   */
+  projectName?: string;
   /**
    * Opens a live subscription. Optional so the table can be tested without a
    * socket; supplied in the app.
@@ -84,6 +93,38 @@ const combinedDraftKey = (rowId: string, roleId: string): string => `${rowId}::$
  */
 const failureText = (thrown: unknown, fallback: string): string =>
   thrown instanceof Error ? thrown.message : fallback;
+
+/**
+ * What an export calls a project it was not told the name of.
+ *
+ * The picker always supplies one, so this is what a caller that has no picker
+ * produces — a document that says it does not know, rather than one carrying a
+ * uuid nobody can read or none at all.
+ */
+const UNNAMED_PROJECT = 'Untitled plan';
+
+/**
+ * What a page with no clipboard says.
+ *
+ * `navigator.clipboard` is absent entirely on an insecure origin — the dev
+ * deployment is one — so this is a condition to report, not a failure to
+ * throw on. It names the way out, which is the CSV beside it.
+ */
+const NO_CLIPBOARD =
+  'This page has no clipboard — that needs an https address. Download the CSV instead.';
+
+/** What a clipboard that refused the write says. The permission is the browser's to give. */
+const CLIPBOARD_REFUSED =
+  'The browser refused the clipboard, so nothing was copied. Download the CSV instead.';
+
+/**
+ * The byte-order mark the downloaded CSV starts with.
+ *
+ * Written as an escape rather than as the character it is: U+FEFF is
+ * zero-width, and a literal one in the source is a byte nobody reviewing this
+ * file can see.
+ */
+const BOM = '\uFEFF';
 
 /** What the folded cell says about itself when there is nothing to complain about. */
 const SHORTHAND_HELP =
@@ -360,7 +401,7 @@ const column = createColumnHelper<TreeRow>();
  * create or a move can renumber rows this component never touched, and guessing
  * which would be a second implementation of the derivation as well.
  */
-export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
+export function WbsTable({ projectId, projectName, api, subscribe }: WbsTableProps) {
   const [workItems, setWorkItems] = useState<TreeRow[]>([]);
   const [roles, setRoles] = useState<RoleView[]>([]);
   /**
@@ -779,6 +820,93 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
    * one.
    */
   const gaps = useMemo(() => findEstimateGaps(flat, roles), [flat, roles]);
+
+  /**
+   * The whole plan as a document, taken at the moment it is asked for.
+   *
+   * **Every row**, not the rows on screen: a collapsed branch and a running
+   * search are how one reader is looking at the plan, and an export that
+   * carried either would hand somebody else a plan with rows missing and
+   * nothing saying so. The figures are be-01's own — the export computes
+   * nothing, so it cannot disagree with the table it came off.
+   *
+   * The timestamp is read here, in the shell, and passed in: the two writers
+   * are pure, and a `Date.now()` inside one of them is a header nothing can
+   * assert.
+   */
+  const planForExport = useCallback(
+    (): PlanExport => ({
+      projectName: projectName ?? UNNAMED_PROJECT,
+      generatedAt: new Date().toISOString(),
+      method: estimateMethod,
+      startDate,
+      scheduleError,
+      roles,
+      teams,
+      people,
+      rows: flat,
+    }),
+    [projectName, estimateMethod, startDate, scheduleError, roles, teams, people, flat],
+  );
+
+  /**
+   * Puts the plan on the clipboard as Markdown, and says which of the three
+   * things that can happen did.
+   *
+   * A clipboard is a permission, not a function call: the object is absent on
+   * an insecure origin and the write can be refused after the object is
+   * there. Both are modeled conditions and both are reported — a Copy button
+   * that silently does nothing is the failure this whole toast system exists
+   * to remove. The success is an `info`, because it is a fact to know rather
+   * than a task, and it takes itself off.
+   */
+  const copyAsMarkdown = useCallback(() => {
+    const markdown = planToMarkdown(planForExport());
+    // The DOM lib types `navigator.clipboard` as always present. It is not —
+    // it is absent on http and in jsdom — so this annotation is the boundary
+    // between what the types claim and what a browser actually ships, and it
+    // is what makes the check below a real one rather than dead code.
+    const clipboard = navigator.clipboard as Clipboard | undefined;
+    if (clipboard === undefined) {
+      pushToast({ kind: 'error', text: NO_CLIPBOARD });
+      return;
+    }
+    void clipboard.writeText(markdown).then(
+      () => {
+        pushToast({ kind: 'info', text: 'Copied as Markdown.' });
+      },
+      () => {
+        // The browser's reason is not shown: it is a permission decision the
+        // reader did not make and cannot act on beyond using the other button.
+        pushToast({ kind: 'error', text: CLIPBOARD_REFUSED });
+      },
+    );
+  }, [planForExport, pushToast]);
+
+  /**
+   * Downloads the plan as a CSV, without asking be-01 for anything.
+   *
+   * A blob and an anchor click, which is the only way a page saves a file it
+   * generated itself. The object URL is revoked immediately after the click:
+   * the download already holds the blob, and an unrevoked URL keeps the whole
+   * file in memory for the life of the document.
+   *
+   * The byte-order mark is for one reader in particular — Excel on Windows
+   * reads a UTF-8 CSV as the system codepage without it, which turns every
+   * `—` and every non-ASCII name into mojibake. It is added here rather than
+   * in {@link planToCsv} because it is a fact about a file, not about the
+   * format.
+   */
+  const downloadCsv = useCallback(() => {
+    const plan = planForExport();
+    const csv = new Blob([BOM, planToCsv(plan)], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(csv);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = planFileName(plan);
+    anchor.click();
+    URL.revokeObjectURL(url);
+  }, [planForExport]);
 
   /**
    * The work items between `rowId` and the root, nearest first.
@@ -2590,6 +2718,28 @@ export function WbsTable({ projectId, api, subscribe }: WbsTableProps) {
             {gaps.leaves.length} unestimated
           </button>
         )}
+        {/*
+          Sharing the plan, which is what most of it is written for. Both take
+          the whole plan rather than what is on screen, and neither asks be-01
+          for anything — so neither is disabled by `busy`, and both work while
+          the socket is down or the tree is stale. What they cannot do is say
+          the figures are current; the header's timestamp is what says when
+          they were true.
+        */}
+        <button
+          type="button"
+          title="Copy the whole plan as a Markdown table, with a header saying how to read it"
+          onClick={copyAsMarkdown}
+        >
+          Copy as Markdown
+        </button>
+        <button
+          type="button"
+          title="Download the whole plan as a CSV, with a header saying how to read it"
+          onClick={downloadCsv}
+        >
+          Download CSV
+        </button>
         <label style={{ marginLeft: 'auto', display: 'flex', gap: 4, alignItems: 'center' }}>
           Starts
           {/*

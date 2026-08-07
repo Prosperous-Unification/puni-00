@@ -110,6 +110,13 @@ The rows on screen after a refetch failed: the last ones that arrived, and possi
 what be-01 now holds. Ends at the next refetch that lands, whichever asked for it.
 _Avoid_: out of date, dirty, unsynced, desynced
 
+**Plan export**:
+One project written out as a document somebody reads elsewhere — a Markdown table or a CSV
+file — headed by what the table alone cannot say: the estimate method by name, whether the
+dates are dates or day offsets, and when the figures were taken. Always the whole project,
+never the view of it.
+_Avoid_: report, download, dump, extract
+
 **Restricted project**:
 A project only its owner may edit. Every authenticated account may still read it; an
 unrestricted project may be edited by any of them.
