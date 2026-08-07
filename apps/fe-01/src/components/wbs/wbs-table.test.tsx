@@ -4177,3 +4177,90 @@ describe('sharing the plan', () => {
     expect(text).toContain('\r\n');
   });
 });
+
+describe('the keyboard cheat sheet', () => {
+  /** The sheet, or null while it is closed. */
+  const sheet = (): HTMLElement | null =>
+    screen.queryByRole('dialog', { name: 'Keyboard shortcuts' });
+
+  /** The sheet, or a thrown error rather than a null the assertions walk into. */
+  const openSheet = (): HTMLElement => {
+    const open = sheet();
+    if (open === null) throw new Error('the cheat sheet is not open');
+    return open;
+  };
+
+  /** The area outside the dialog, which closes it when it is clicked. */
+  const backdrop = (): Element => {
+    const found = document.querySelector('[data-cheat-sheet-backdrop]');
+    if (found === null) throw new Error('the cheat sheet has no backdrop');
+    return found;
+  };
+
+  itDom('opens the sheet when ? is pressed outside a cell', async () => {
+    await threeRoots();
+    expect(sheet()).toBeNull();
+
+    // At the table itself: a keystroke landing on the page rather than in a
+    // box somebody is typing into.
+    fireEvent.keyDown(screen.getByRole('table'), { key: '?' });
+
+    expect(openSheet().getAttribute('aria-modal')).toBe('true');
+    // One of the registry's groups, so this is asserting the sheet rendered
+    // the bindings rather than an empty box. What is in each group is
+    // `keyboard-cheat-sheet.test.tsx`'s business.
+    expect(screen.getByRole('heading', { name: 'Moving rows' })).toBeDefined();
+  });
+
+  itDom('a question mark typed into a name stays a question mark', async () => {
+    await threeRoots();
+
+    const stillTheBrowsers = fireEvent.keyDown(screen.getByLabelText('Name of 010'), { key: '?' });
+
+    // Nothing opened, and the keystroke was left to the field that wanted it.
+    expect(sheet()).toBeNull();
+    expect(stillTheBrowsers).toBe(true);
+  });
+
+  itDom('closes on Escape and gives the focus back to what had it', async () => {
+    await threeRoots();
+    const opener = screen.getByRole('button', { name: 'Keyboard shortcuts' });
+    // jsdom does not focus a clicked button; a browser does, and where the
+    // focus goes back to is what this test is about.
+    opener.focus();
+    click('Keyboard shortcuts');
+    expect(openSheet().contains(document.activeElement)).toBe(true);
+
+    fireEvent.keyDown(openSheet(), { key: 'Escape' });
+
+    expect(sheet()).toBeNull();
+    expect(document.activeElement).toBe(opener);
+  });
+
+  itDom('gives the focus back to the cell that had it', async () => {
+    await threeRoots();
+    const name = screen.getByLabelText('Name of 010');
+    name.focus();
+
+    // The keystroke lands on the page while the cell holds the focus, which is
+    // the only way `?` opens anything from a row: inside the cell it is a
+    // question mark.
+    fireEvent.keyDown(screen.getByRole('table'), { key: '?' });
+    expect(openSheet().contains(document.activeElement)).toBe(true);
+    fireEvent.click(backdrop());
+
+    expect(sheet()).toBeNull();
+    expect(document.activeElement).toBe(name);
+  });
+
+  itDom('opens from the toolbar for anyone who was never told about ?', async () => {
+    await threeRoots();
+
+    click('Keyboard shortcuts');
+
+    expect(openSheet()).toBeDefined();
+    expect(screen.getByRole('button', { name: 'Keyboard shortcuts' }).title).toBe(
+      'Keyboard shortcuts (?)',
+    );
+  });
+});

@@ -33,6 +33,7 @@ import {
   trioProblem,
   type TypedTrio,
 } from './estimate-draft';
+import { KeyboardCheatSheet, opensCheatSheet } from './keyboard-cheat-sheet';
 import { NotesPreview } from './notes-preview';
 import { describeGaps, findEstimateGaps } from './plan-completeness';
 import { type PlanExport, planFileName, planToCsv, planToMarkdown } from './plan-export';
@@ -484,6 +485,8 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   /** The row whose notes the pointer is over, so its rendered markdown can show. */
   const [hoveredNotes, setHoveredNotes] = useState<string | null>(null);
+  /** Whether the key bindings are on screen. See {@link KeyboardCheatSheet}. */
+  const [cheatSheetOpen, setCheatSheetOpen] = useState(false);
   /**
    * Roles whose columns are unfolded — the trio and the assignee, next to the
    * final figure that is always on screen.
@@ -645,6 +648,30 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
       pushToast({ kind: 'error', text: failureText(thrown, 'load_failed') });
     });
   }, [refresh, pushToast]);
+
+  /**
+   * `?` anywhere on the page opens the cheat sheet.
+   *
+   * On the window rather than on the table, because the point is that it works
+   * from wherever the reader is — and because the keys it documents are spread
+   * over the cells, the toolbar and two pickers, none of which is a single
+   * element to hang this on. {@link opensCheatSheet} is what keeps it out of
+   * the text boxes: it judges the event's target, so a `?` on its way into a
+   * name or the Find box is left alone.
+   *
+   * Never `preventDefault`: the keystrokes this takes are the ones no field
+   * wanted.
+   */
+  useEffect(() => {
+    const openOnQuestionMark = (event: KeyboardEvent) => {
+      if (!opensCheatSheet(event, event.target)) return;
+      setCheatSheetOpen(true);
+    };
+    window.addEventListener('keydown', openOnQuestionMark);
+    return () => {
+      window.removeEventListener('keydown', openOnQuestionMark);
+    };
+  }, []);
 
   // Someone else's edit refetches rather than patching: a create or move can
   // renumber rows this client never touched.
@@ -2719,6 +2746,21 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
           </button>
         )}
         {/*
+          The way in for anyone who was never told about `?`, which is most
+          people the first time. Not disabled by `busy`: it asks be-01 for
+          nothing and reads nothing that a refetch could change.
+        */}
+        <button
+          type="button"
+          aria-label="Keyboard shortcuts"
+          title="Keyboard shortcuts (?)"
+          onClick={() => {
+            setCheatSheetOpen(true);
+          }}
+        >
+          ⌨
+        </button>
+        {/*
           Sharing the plan, which is what most of it is written for. Both take
           the whole plan rather than what is on screen, and neither asks be-01
           for anything — so neither is disabled by `busy`, and both work while
@@ -2919,6 +2961,20 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         2026-08-06.
       */}
       <ToastStack toasts={toasts} onDismiss={dismissToast} />
+
+      {/*
+        Rendered only while it is open, which is what makes the focus return
+        work: the overlay stores what had the focus when it mounted and gives
+        it back when it unmounts, so all three ways of closing put the reader
+        back where they were without any of them saying so.
+      */}
+      {cheatSheetOpen && (
+        <KeyboardCheatSheet
+          onClose={() => {
+            setCheatSheetOpen(false);
+          }}
+        />
+      )}
     </section>
   );
 }

@@ -99,6 +99,16 @@ named set of them; a branch not named is closed. Remembered per project, per bro
 overridden on screen for as long as a search is running.
 _Avoid_: collapse state, open rows, fold
 
+**Key binding**:
+One key or chord the table acts on, what it does, and where it applies. Held once, as
+data, so the cheat sheet and the keyboard cannot disagree.
+_Avoid_: shortcut, hotkey, accelerator
+
+**Cheat sheet**:
+The modal list of every key binding, opened by `?` from outside a text box. It reads the
+keyboard out; it does not change it.
+_Avoid_: help, shortcuts dialog, legend
+
 **Toast**:
 One message about something that just happened, shown in a corner of the screen. A failure
 waits there until it is dismissed; a note takes itself off. Reports events only — a
