@@ -3815,6 +3815,25 @@ describe('the widths the table is laid out by', () => {
     for (const col of cols) expect(col.style.width).not.toBe('');
   });
 
+  itDom('names every cell with the column it belongs to, in both halves of the table', async () => {
+    await threeRoots();
+
+    const cols = [...document.querySelectorAll<HTMLElement>('colgroup col')];
+    const named = (cells: Element[]) => cells.map((cell) => cell.getAttribute('data-column'));
+
+    // The browser layout gate measures these boxes and compares them against
+    // the declared widths; a rectangle with no column name attached is a
+    // failure that cannot say which column moved. Asserted here because that
+    // gate needs a browser and this suite is the only thing the repo gate runs.
+    // Proof: `data-column` dropped from the `td`, this failed with a row of
+    // `null`s against the header's names. Watched, 2026-08-07.
+    expect(named(screen.getAllByRole('columnheader'))).toEqual(
+      named([...rowFor('020').querySelectorAll('td')]),
+    );
+    expect(named(screen.getAllByRole('columnheader')).length).toBe(cols.length);
+    for (const name of named(screen.getAllByRole('columnheader'))) expect(name).not.toBe(null);
+  });
+
   itDom('is as wide as its columns add up to, and divides that width by them', async () => {
     await threeRoots();
 

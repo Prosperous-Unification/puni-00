@@ -3262,6 +3262,12 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                   <th
                     key={header.id}
                     scope="col"
+                    // Which column this cell is, on the cell itself. Nothing in
+                    // the app reads it: the browser layout gate does
+                    // (`e2e/layout.spec.ts`), and a measured rectangle with no
+                    // name attached is a failure that says two numbers
+                    // disagreed without saying which column moved.
+                    data-column={header.column.id}
                     style={{
                       ...CELL,
                       ...STICKY_HEADER_CELL,
@@ -3312,7 +3318,13 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                 }}
               >
                 {row.getVisibleCells().map((cell) => (
-                  <td key={cell.id} style={{ ...CELL, ...pinnedCellStyle(cell.column.id, 'body') }}>
+                  <td
+                    key={cell.id}
+                    // See the `th` above: the layout gate measures these boxes
+                    // and has to be able to name the one that moved.
+                    data-column={cell.column.id}
+                    style={{ ...CELL, ...pinnedCellStyle(cell.column.id, 'body') }}
+                  >
                     {flexRender(cell.column.columnDef.cell, cell.getContext())}
                   </td>
                 ))}

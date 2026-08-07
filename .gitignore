@@ -22,6 +22,11 @@ pnpm-lock.yaml
 .idea/
 
 vite.config.*.timestamp*
+
+# What the browser layout gate leaves behind: the screenshot CI uploads, the
+# traces, and the HTML report. Diagnostics of one run, never of the repo.
+test-results/
+playwright-report/
 .claude/worktrees
 .nx/polygraph
 .nx/self-healing
