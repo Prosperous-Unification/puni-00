@@ -97,14 +97,16 @@ beforeEach(async () => {
   devId = crypto.randomUUID();
   qaId = crypto.randomUUID();
   const starting: Role[] = [
-    { id: devId, projectId, name: 'Dev' },
-    { id: qaId, projectId, name: 'QA' },
+    { id: devId, projectId, name: 'Dev', position: 10 },
+    { id: qaId, projectId, name: 'QA', position: 20 },
   ];
   await projects.create(project, starting);
 
   const other = newProject(ownerId, 'Re-tile the roof');
   otherProjectId = other.id;
-  await projects.create(other, [{ id: crypto.randomUUID(), projectId: other.id, name: 'Dev' }]);
+  await projects.create(other, [
+    { id: crypto.randomUUID(), projectId: other.id, name: 'Dev', position: 10 },
+  ]);
 
   await workItems.insert(newItem('strip', 10, 'Strip'), []);
   await workItems.insert(newItem('sand', 20, 'Sand'), []);
@@ -121,13 +123,33 @@ describe('RoleRepository', () => {
 
     const written = await roles.add({ id: 'design', projectId, name: 'Design' });
 
-    expect(written).toEqual({ ok: true, role: { id: 'design', projectId, name: 'Design' } });
-    // Membership, not order: role order is not a contract until `role.position`
-    // exists, and asserting one here would invent it.
+    expect(written).toEqual({
+      ok: true,
+      role: { id: 'design', projectId, name: 'Design', position: 30 },
+    });
     const names = (await roles.listByProject(projectId)).map((each) => each.name);
-    expect(names).toHaveLength(3);
-    expect(names).toContain('Design');
+    expect(names).toEqual(['Dev', 'QA', 'Design']);
     expect(await revisionOf(projectId)).toBe(before + 1);
+  });
+
+  it('reads a role added later last, however its name sorts', async () => {
+    // The order cannot be inferred from the rows: SQLite answers
+    // `WHERE project_id = ?` from `role_project_name`, so without an ORDER BY
+    // these come back `Analysis, Dev, QA` — and role order is what a work
+    // item's slices run in.
+    await roles.add({ id: 'analysis', projectId, name: 'Analysis' });
+
+    const names = (await roles.listByProject(projectId)).map((each) => each.name);
+
+    expect(names).toEqual(['Dev', 'QA', 'Analysis']);
+  });
+
+  it('reads the same order through the project, which is where the schedule asks', async () => {
+    await roles.add({ id: 'analysis-2', projectId, name: 'Analysis' });
+
+    const names = (await projects.rolesOf(projectId)).map((each) => each.name);
+
+    expect(names).toEqual(['Dev', 'QA', 'Analysis']);
   });
 
   it('refuses a name the project already holds, and leaves the roles as they were', async () => {
@@ -151,7 +173,10 @@ describe('RoleRepository', () => {
 
     const written = await roles.rename(qaId, 'Review');
 
-    expect(written).toEqual({ ok: true, role: { id: qaId, projectId, name: 'Review' } });
+    expect(written).toEqual({
+      ok: true,
+      role: { id: qaId, projectId, name: 'Review', position: 20 },
+    });
     expect(await revisionOf(projectId)).toBe(before + 1);
   });
 
@@ -177,7 +202,7 @@ describe('RoleRepository', () => {
   });
 
   it('finds a role by id, carrying the project it belongs to', async () => {
-    expect(await roles.findById(qaId)).toEqual({ id: qaId, projectId, name: 'QA' });
+    expect(await roles.findById(qaId)).toEqual({ id: qaId, projectId, name: 'QA', position: 20 });
   });
 
   it('counts the role’s estimates and hands back every assignment in the project', async () => {

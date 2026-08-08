@@ -190,7 +190,7 @@ describe('PATCH /api/projects/:id/roles/:roleId', () => {
 
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({
-      role: { id: project.qaId, projectId: project.id, name: 'Review' },
+      role: { id: project.qaId, projectId: project.id, name: 'Review', position: 20 },
     });
   });
 

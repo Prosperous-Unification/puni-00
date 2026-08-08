@@ -1,7 +1,8 @@
-import { eq, inArray } from 'drizzle-orm';
+import { eq, inArray, max } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
-import type { Role, RoleRemoval, RoleStore, RoleUsageRows, RoleWritten } from './index';
+import type { NewRole, Role, RoleRemoval, RoleStore, RoleUsageRows, RoleWritten } from './index';
+import { ROLE_POSITION_STEP } from './index';
 import { bumpProject, bumpWorkItems } from './revision';
 import { assignment, estimate, role, workItem } from './schema';
 
@@ -37,15 +38,23 @@ export class RoleRepository implements RoleStore {
   constructor(private readonly db: SQLiteBunDatabase) {}
 
   /**
-   * The project's roles, in the order the rows were written.
+   * The project's roles, in role order.
    *
-   * No `ORDER BY`, matching `ProjectRepository.rolesOf`, which this does not
-   * replace. Role order is not a contract yet — `role.position` arrives with
-   * the schedule change that needs one — so a caller that cares must not read
-   * one into this.
+   * The `ORDER BY` is load-bearing, not tidiness: without it SQLite answers
+   * `WHERE project_id = ?` from the `role_project_name` index and hands back
+   * the rows in **name** order, which puts a role called `Analysis` in front of
+   * `Dev` however late it was added — and role order is what a work item's
+   * slices run in.
+   *
+   * Proof: with the `orderBy` removed, `reads a role added later last, however
+   * its name sorts` fails with `Analysis, Dev, QA`; watched 2026-08-09.
    */
   listByProject(projectId: string): Promise<Role[]> {
-    return this.db.select().from(role).where(eq(role.projectId, projectId));
+    return this.db
+      .select()
+      .from(role)
+      .where(eq(role.projectId, projectId))
+      .orderBy(role.position, role.id);
   }
 
   async findById(roleId: string): Promise<Role | null> {
@@ -59,6 +68,10 @@ export class RoleRepository implements RoleStore {
    * The refusal comes from the unique index rather than from a read first: two
    * clients adding `Design` at the same moment both see it free.
    *
+   * The place it takes is read **inside** the transaction, so two roles added
+   * at the same moment cannot both be told the same last position — one of them
+   * would then sort by id, which is a UUID, which is no order at all.
+   *
    * Proof: with the `isDuplicateName` branch removed, `refuses a name the
    * project already holds, and leaves the roles as they were` fails with the
    * raw `SQLITE_CONSTRAINT_UNIQUE` instead of a refusal — the 500 this
@@ -66,14 +79,23 @@ export class RoleRepository implements RoleStore {
    * moves the project’s revision` fails, 1 expected and 0 read. Both watched
    * 2026-08-08.
    */
-  async add(toAdd: Role): Promise<RoleWritten> {
+  async add(toAdd: NewRole): Promise<RoleWritten> {
     await Promise.resolve();
     try {
-      this.db.transaction((tx) => {
-        tx.insert(role).values(toAdd).run();
+      return this.db.transaction((tx) => {
+        const last = tx
+          .select({ position: max(role.position) })
+          .from(role)
+          .where(eq(role.projectId, toAdd.projectId))
+          .get();
+        const written: Role = {
+          ...toAdd,
+          position: (last?.position ?? 0) + ROLE_POSITION_STEP,
+        };
+        tx.insert(role).values(written).run();
         bumpProject(tx, toAdd.projectId);
+        return { ok: true, role: written };
       });
-      return { ok: true, role: toAdd };
     } catch (err) {
       if (isDuplicateName(err)) return { ok: false, reason: 'taken' };
       throw err;

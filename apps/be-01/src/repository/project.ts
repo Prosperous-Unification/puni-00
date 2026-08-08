@@ -143,7 +143,21 @@ export class ProjectRepository implements ProjectStore {
     return updated === undefined ? null : toProject(updated);
   }
 
+  /**
+   * The project's roles, in role order — the same order and the same reason as
+   * {@link RoleRepository.listByProject}, which this does not replace: the
+   * schedule reads its role order through here.
+   *
+   * Proof: with the `orderBy` removed, `reads the same order through the
+   * project, which is where the schedule asks` fails with `Analysis, Dev, QA`
+   * — SQLite answers this from the `(project_id, name)` index; watched
+   * 2026-08-09.
+   */
   rolesOf(projectId: string): Promise<Role[]> {
-    return this.db.select().from(role).where(eq(role.projectId, projectId));
+    return this.db
+      .select()
+      .from(role)
+      .where(eq(role.projectId, projectId))
+      .orderBy(role.position, role.id);
   }
 }

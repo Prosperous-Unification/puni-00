@@ -53,7 +53,27 @@ export interface Role {
   id: string;
   projectId: string;
   name: string;
+  /**
+   * Where this role sits in the project's role order — see `schema.ts` for why
+   * the order has to be stored rather than read off the rows as they arrive.
+   */
+  position: number;
 }
+
+/**
+ * A role as a caller offers it. The project decides where in its order the role
+ * lands, in the same transaction that writes it: two clients adding a role at
+ * once would otherwise both read the same last place.
+ */
+export type NewRole = Omit<Role, 'position'>;
+
+/**
+ * The gap between two consecutive roles' positions.
+ *
+ * Ten, like a work item's, and for the same reason: a role can be put between
+ * two others without rewriting either.
+ */
+export const ROLE_POSITION_STEP = 10;
 
 /** Why a role could not be added or renamed. Both are states of the project, not faults. */
 export type RoleWriteRefusal = 'taken' | 'not_found';
@@ -83,6 +103,7 @@ export interface RoleRemoval {
 }
 
 export interface RoleStore {
+  /** In role order, which is the order every reader of a project's roles gets. */
   listByProject(projectId: string): Promise<Role[]>;
   /** By id alone: the caller checks the role belongs to the project it was asked about. */
   findById(roleId: string): Promise<Role | null>;
@@ -93,8 +114,11 @@ export interface RoleStore {
    * `Design` at the same moment both pass a check-then-insert. Moves the
    * project's revision in the same transaction — a role is a satellite of the
    * project, and adding one changes what every estimate in it means.
+   *
+   * The role lands last in the project's role order, and the written role
+   * carries the place it took.
    */
-  add(role: Role): Promise<RoleWritten>;
+  add(role: NewRole): Promise<RoleWritten>;
   /** The same rules as {@link RoleStore.add}, and `not_found` for a role that has gone. */
   rename(roleId: string, name: string): Promise<RoleWritten>;
   usageOf(projectId: string, roleId: string): Promise<RoleUsageRows>;

@@ -1,4 +1,5 @@
 import type { ProjectStore, Role, RoleRemoval, RoleStore, RoleUsageRows } from '../repository';
+import { ROLE_POSITION_STEP } from '../repository';
 import { RoleService } from '../service/role.service';
 import { recordingBroadcaster } from './broadcast-fixture';
 import { inMemoryProjects } from './project-fixture';
@@ -27,18 +28,30 @@ export function inMemoryRoles(seed: readonly Role[] = []): RoleStore & {
   return {
     rows,
     listByProject(projectId) {
-      return Promise.resolve(rows.filter((each) => each.projectId === projectId));
+      // Sorted, because production is: without the `ORDER BY` SQLite answers
+      // this from the name index, and a fixture that happened to return
+      // insertion order would let a test pass against an order production does
+      // not produce.
+      return Promise.resolve(
+        rows
+          .filter((each) => each.projectId === projectId)
+          .sort((a, b) => a.position - b.position || (a.id < b.id ? -1 : 1)),
+      );
     },
     findById(roleId) {
       return Promise.resolve(rows.find((each) => each.id === roleId) ?? null);
     },
     add(toAdd) {
-      const taken = rows.some(
-        (each) => each.projectId === toAdd.projectId && each.name === toAdd.name,
-      );
-      if (taken) return Promise.resolve({ ok: false, reason: 'taken' });
-      rows.push(toAdd);
-      return Promise.resolve({ ok: true, role: toAdd });
+      const held = rows.filter((each) => each.projectId === toAdd.projectId);
+      if (held.some((each) => each.name === toAdd.name)) {
+        return Promise.resolve({ ok: false, reason: 'taken' });
+      }
+      const written: Role = {
+        ...toAdd,
+        position: Math.max(0, ...held.map((each) => each.position)) + ROLE_POSITION_STEP,
+      };
+      rows.push(written);
+      return Promise.resolve({ ok: true, role: written });
     },
     rename(roleId, name) {
       const found = rows.find((each) => each.id === roleId);

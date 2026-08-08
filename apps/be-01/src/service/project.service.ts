@@ -1,11 +1,12 @@
 import { isIsoDate } from '@wbs/domain';
 
 import type { Project, ProjectPatch, ProjectStore, ProjectWithAccess, Role } from '../repository';
+import { ROLE_POSITION_STEP } from '../repository';
 
 /**
- * The roles a project starts with. Two sets of estimates is the default the
- * product asks for; a project that began with none would accept no estimates at
- * all until someone thought to add a role.
+ * The roles a project starts with, **in role order**. Two sets of estimates is
+ * the default the product asks for; a project that began with none would accept
+ * no estimates at all until someone thought to add a role.
  */
 export const STARTING_ROLES = ['Dev', 'QA'] as const;
 
@@ -65,10 +66,14 @@ export class ProjectService {
       revision: 0,
       createdAt: this.now(),
     };
-    const roles = STARTING_ROLES.map((roleName) => ({
+    // Positions written here rather than left to the store: `create` takes the
+    // seed as it is, and `STARTING_ROLES` is already an order — Dev is done
+    // before QA, which is the order the schedule runs a work item's slices in.
+    const roles = STARTING_ROLES.map((roleName, place) => ({
       id: this.newId(),
       projectId: project.id,
       name: roleName,
+      position: (place + 1) * ROLE_POSITION_STEP,
     }));
     await this.opts.projects.create(project, roles);
     return { project, roles };

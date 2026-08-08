@@ -69,7 +69,13 @@ export function inMemoryProjects(): ProjectStore {
       return Promise.resolve(updated);
     },
     rolesOf(projectId) {
-      return Promise.resolve(roles.get(projectId) ?? []);
+      // In role order, as production reads them — see `inMemoryRoles` for what
+      // an unordered read would let a test believe.
+      return Promise.resolve(
+        [...(roles.get(projectId) ?? [])].sort(
+          (a, b) => a.position - b.position || (a.id < b.id ? -1 : 1),
+        ),
+      );
     },
   };
 }

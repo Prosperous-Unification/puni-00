@@ -247,6 +247,22 @@ export const role = sqliteTable(
       .notNull()
       .references(() => project.id),
     name: text('name').notNull(),
+    /**
+     * Where this role sits in the project's role order, spaced in tens like
+     * {@link workItem}'s.
+     *
+     * The order is a contract now that the schedule runs a work item's slices
+     * in it, and it cannot be inferred: `WHERE project_id = ?` is answered from
+     * `role_project_name`, so a project's roles come back in **name** order
+     * unless a query says otherwise. `Dev, QA` only looks like the order they
+     * were seeded in.
+     *
+     * The default is what lets an outgoing release insert a role during a swap:
+     * its `INSERT` does not name this column, and blue and green share one
+     * file. Such a role lands first rather than last, which is a colour-swap
+     * window's worth of wrong order and not a lost row.
+     */
+    position: integer('position').notNull().default(0),
   },
   (t) => [uniqueIndex('role_project_name').on(t.projectId, t.name)],
 );

@@ -155,10 +155,16 @@ describe('RoleService.rename', () => {
 
     expect(outcome).toEqual({
       ok: true,
-      result: { id: qaId, projectId, name: 'Review' },
+      result: { id: qaId, projectId, name: 'Review', position: 20 },
     });
     expect(broadcast.published).toEqual([
-      { projectId, event: { type: 'role_renamed', role: { id: qaId, projectId, name: 'Review' } } },
+      {
+        projectId,
+        event: {
+          type: 'role_renamed',
+          role: { id: qaId, projectId, name: 'Review', position: 20 },
+        },
+      },
     ]);
   });
 
