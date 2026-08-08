@@ -62,6 +62,12 @@ A named kind of work a project estimates separately, unique by name within it. E
 project starts with `Dev` and `QA`, and may then be given others, renamed or emptied.
 _Avoid_: discipline, type, category
 
+**Role order**:
+The order a project works its roles in — `Dev` before `QA` before whatever was added
+after them. One order for the whole project, held per role, and the order every list of
+them is read in.
+_Avoid_: phase order, sequence, priority
+
 **Assumed assignee**:
 The person a work item with exactly one assignment is taken to be doing every role's work
 for. Read from the assignments rather than stored, so a second one ends the assumption.
@@ -95,6 +101,17 @@ _Avoid_: aggregate, total, computed estimate
 One work item waiting for another to finish before it starts. Either end may be a parent,
 which means every leaf beneath it. Held once per pair, in one direction.
 _Avoid_: link, blocker, edge (outside the graph code)
+
+**Slice**:
+One leaf work item's work for one role — the unit a schedule is computed in. A leaf in a
+project holding two roles is two slices, run one after the other in role order.
+_Avoid_: task, bar, segment, phase, item×role
+
+**Projection**:
+A work item's own schedule, read off its slices: the earliest of their starts, the latest
+of their finishes, the least of their slack. What leaves be-01 and what the table draws —
+slices themselves never do.
+_Avoid_: aggregate, summary, rollup (which is estimates, not time)
 
 **Refused dependency**:
 A dependency be-01 will not write: onto the work item itself, onto an ancestor or a
