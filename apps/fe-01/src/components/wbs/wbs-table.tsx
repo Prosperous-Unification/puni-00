@@ -101,14 +101,66 @@ const draftKey = (rowId: string, roleId: string, point: Point): string =>
 const combinedDraftKey = (rowId: string, roleId: string): string => `${rowId}::${roleId}::combined`;
 
 /**
- * What a rejected request says, or `fallback` when it threw something that is
- * not an `Error`.
+ * be-01's word for a rejected request, or `fallback` when it threw something
+ * that is not an `Error`.
  *
- * be-01's own word where there is one — `cycle`, `forbidden` — because a
- * translation layer here would be a second vocabulary for one set of refusals.
+ * The **code**, not a sentence: `send` throws the error word be-01 answered
+ * with (or `http_<status>`), and the two callers left here want the word
+ * itself. {@link refusalSentence} is what a toast says instead — see the note
+ * on each call for why these two are not it.
  */
 const failureText = (thrown: unknown, fallback: string): string =>
   thrown instanceof Error ? thrown.message : fallback;
+
+/**
+ * What a refused mutation says, by be-01's own word for the refusal.
+ *
+ * Every other refusal in this table is a full sentence — `That could not be
+ * undone: …`, `020 is frozen — unfreeze it first` — and these were the
+ * exception: `not_found` and `http_500` reached the corner of the screen
+ * verbatim, observed live on 2026-08-09. The translation lives here rather
+ * than in `wbs-api.ts` for the reason `auth-form.tsx` keeps its own map: the
+ * codes are be-01's contract and have to stay stable, and the sentence is a
+ * presentation decision that differs per surface.
+ *
+ * Not exhaustive on purpose. {@link refusalSentence} has a grammatical
+ * fallback that carries the code, so a word nobody has written a sentence for
+ * is still a sentence rather than a snake_case token.
+ */
+const REFUSAL_SENTENCES: Readonly<Record<string, string | undefined>> = {
+  not_found:
+    'That change could not be completed: its target is no longer here — someone may have deleted it.',
+  forbidden: 'That change could not be completed: this plan is not yours to change.',
+  // Reachable bare — the dependency **picker** takes one entry through `run`,
+  // where the typed list composes its own sentence and keeps the word instead.
+  cycle: 'That dependency could not be added: it would make a loop.',
+  ancestor: 'That dependency could not be added: the row it names is already above this one.',
+};
+
+/** What any 5xx says. Something answered, so never "the server did not answer". */
+const SERVER_REFUSAL = 'The server could not complete that change. Try again.';
+
+/**
+ * The sentence a refused mutation is reported in.
+ *
+ * @param thrown Whatever the request rejected with; anything that is not an
+ * `Error` reads as an unknown code rather than being guessed at.
+ */
+const refusalSentence = (thrown: unknown): string => {
+  const code = failureText(thrown, 'unknown');
+  const known = REFUSAL_SENTENCES[code];
+  if (known !== undefined) return known;
+  // The whole 5xx family, matched rather than listed: a proxy in front of
+  // be-01 can answer with any of them and none of them is the reader's doing.
+  if (/^http_5\d\d$/.test(code)) return SERVER_REFUSAL;
+  return `That change could not be completed (${code}).`;
+};
+
+/**
+ * be-01's word for "the row you named is not there", which is the one refusal
+ * that also says the tree on screen is out of date.
+ */
+const GONE = 'not_found';
 
 /**
  * What an export calls a project it was not told the name of.
@@ -914,6 +966,11 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
       // last good tree to be stale, so this is an event to report rather than
       // a state to sit under. "This plan may be out of date" over an empty
       // table would be a sentence about a plan that never arrived.
+      //
+      // Not `refusalSentence`: nothing was refused. This is the first read of
+      // the plan failing — a network word, not a verdict on a change somebody
+      // asked for — and "That change could not be completed" would name a
+      // change nobody made.
       pushToast({ kind: 'error', text: failureText(thrown, 'load_failed') });
     });
   }, [refresh, pushToast]);
@@ -1049,7 +1106,11 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    * 2026-08-06.
    *
    * A refused action skips the reread deliberately: be-01 changed nothing, so
-   * there is nothing new to read.
+   * there is nothing new to read. **One refusal is the exception.**
+   * {@link GONE} says the row this client acted on is not there any more, which
+   * is a fact about the tree on screen rather than about the request — without
+   * the reread the toast says a row is gone while the row stays on screen,
+   * which is the worst of both.
    *
    * The verdict is returned as well as toasted, because a toast is a sentence
    * and some callers need the fact. `CellInput` is the one: a refused edit
@@ -1065,7 +1126,14 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         try {
           await action();
         } catch (thrown: unknown) {
-          pushToast({ kind: 'error', text: failureText(thrown, 'request_failed') });
+          // Proof, two faults, both watched 2026-08-09. `refusalSentence`
+          // replaced by `failureText`, `says a row that has gone is gone, and
+          // rereads the tree that proves it` failed on `expected [ 'not_found' ]
+          // to include 'That change could not be completed: …'`. The reread
+          // below dropped, the same test failed on `expected [ '010', '020',
+          // '030' ] to deeply equal [ '010', '020' ]`.
+          pushToast({ kind: 'error', text: refusalSentence(thrown) });
+          if (failureText(thrown, '') === GONE) await refreshOrMarkStale();
           return 'refused';
         }
         await refreshOrMarkStale();
@@ -1098,7 +1166,10 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         try {
           outcome = direction === 'undo' ? await api.undo(projectId) : await api.redo(projectId);
         } catch (thrown: unknown) {
-          pushToast({ kind: 'error', text: failureText(thrown, 'request_failed') });
+          // The same register as `run`: be-01's two *modeled* refusals are read
+          // out of the 409 below and get their own sentences; anything else is
+          // a code, and a code is not a sentence.
+          pushToast({ kind: 'error', text: refusalSentence(thrown) });
           return;
         }
         if (outcome.ok) {
@@ -2244,6 +2315,12 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
               // Collected rather than rethrown, so one refusal does not abandon
               // the numbers after it. The reason is be-01's own word — `cycle`,
               // `ancestor` — beside the number it belongs to.
+              //
+              // The **word** here and a sentence everywhere else, deliberately:
+              // this list is already inside one (`These were refused: 010
+              // (cycle), 020 (ancestor).`), and five sentences spliced into a
+              // sixth is not a sentence. A single entry taken from the picker
+              // goes through `run` and does get {@link refusalSentence}.
               refused.push(`${predecessor.number} (${failureText(thrown, 'refused')})`);
             }
           }

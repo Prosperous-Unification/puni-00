@@ -928,7 +928,7 @@ describe('duplicating a branch', () => {
     takeRowAction('010', 'Duplicate');
 
     await waitFor(() => {
-      expect(toastTexts()).toContain('too_large');
+      expect(toastTexts()).toContain('That change could not be completed (too_large).');
     });
     expect(numbersOnScreen()).toEqual(['010']);
   });
@@ -1071,7 +1071,9 @@ describe('the row actions menu', () => {
     takeRowAction('020', 'Delete');
 
     await waitFor(() => {
-      expect(toastTexts()).toContain('forbidden');
+      expect(toastTexts()).toContain(
+        'That change could not be completed: this plan is not yours to change.',
+      );
     });
     expect(numbersOnScreen()).toEqual(['010', '020', '030']);
     // Proof: `focusNext` assigned before the `await` rather than after it, this
@@ -3051,7 +3053,9 @@ describe('someone else editing while you are typing', () => {
     fireEvent.change(cell, { target: { value: 'Strip the wiring\nmeasure twice, cut once' } });
     fireEvent.blur(cell);
     await waitFor(() => {
-      expect(toastTexts()).toContain('forbidden');
+      expect(toastTexts()).toContain(
+        'That change could not be completed: this plan is not yours to change.',
+      );
     });
 
     await theirEdit((row) => {
@@ -3284,7 +3288,9 @@ describe('a name and its notes in one box', () => {
 
     retype('Strip the wiring\nmeasure twice, cut once');
     await waitFor(() => {
-      expect(toastTexts()).toContain('forbidden');
+      expect(toastTexts()).toContain(
+        'That change could not be completed: this plan is not yours to change.',
+      );
     });
 
     api.patch = (id: string, patch: Record<string, string>) => {
@@ -3310,7 +3316,9 @@ describe('a name and its notes in one box', () => {
     retype('Strip the wiring\nmeasure twice, cut once');
 
     await waitFor(() => {
-      expect(toastTexts()).toContain('forbidden');
+      expect(toastTexts()).toContain(
+        'That change could not be completed: this plan is not yours to change.',
+      );
     });
     expect(api.rows[0]?.name).toBe('Strip');
     expect(api.rows[0]?.notes).toBe('measure twice');
@@ -5551,13 +5559,15 @@ describe('failures you can see', () => {
 
   itDom('says a refused rename in a toast, and puts nothing above the table', async () => {
     const api = await threeRoots();
-    api.patch = () => Promise.reject(new Error('rename failed: forbidden'));
+    api.patch = () => Promise.reject(new Error('forbidden'));
 
     typeName('010', 'Renamed');
     fireEvent.blur(screen.getByLabelText('Name of 010'));
 
     await waitFor(() => {
-      expect(toastTexts()).toEqual(['rename failed: forbidden']);
+      expect(toastTexts()).toEqual([
+        'That change could not be completed: this plan is not yours to change.',
+      ]);
     });
     // The single alert on screen is the toast itself. The top-of-page error
     // line is gone: two alerts here would be the old one still rendering.
@@ -5572,12 +5582,14 @@ describe('failures you can see', () => {
     // owns its own lifecycle: only its ✕ takes it off.
     const api = await threeRoots();
     const realPatch = api.patch.bind(api);
-    api.patch = () => Promise.reject(new Error('rename failed: forbidden'));
+    api.patch = () => Promise.reject(new Error('forbidden'));
 
     typeName('010', 'Renamed');
     fireEvent.blur(screen.getByLabelText('Name of 010'));
     await waitFor(() => {
-      expect(toastTexts()).toEqual(['rename failed: forbidden']);
+      expect(toastTexts()).toEqual([
+        'That change could not be completed: this plan is not yours to change.',
+      ]);
     });
 
     api.patch = realPatch;
@@ -5587,12 +5599,14 @@ describe('failures you can see', () => {
       expect(screen.getByLabelText('Name of 020')).toHaveProperty('value', 'Sanded');
     });
 
-    expect(toastTexts()).toEqual(['rename failed: forbidden']);
+    expect(toastTexts()).toEqual([
+      'That change could not be completed: this plan is not yours to change.',
+    ]);
   });
 
   itDom('takes a failure off when its ✕ is pressed', async () => {
     const api = await threeRoots();
-    api.patch = () => Promise.reject(new Error('rename failed: forbidden'));
+    api.patch = () => Promise.reject(new Error('forbidden'));
 
     typeName('010', 'Renamed');
     fireEvent.blur(screen.getByLabelText('Name of 010'));
@@ -5600,9 +5614,79 @@ describe('failures you can see', () => {
       expect(toastTexts()).toHaveLength(1);
     });
 
-    click('Dismiss: rename failed: forbidden');
+    click('Dismiss: That change could not be completed: this plan is not yours to change.');
 
     expect(toastTexts()).toEqual([]);
+  });
+
+  itDom('says a row that has gone is gone, and rereads the tree that proves it', async () => {
+    // The race a real user hits: somebody else deletes the row first, and this
+    // client's delete comes back `not_found`. The word itself reached the
+    // corner of the screen as `not_found` until 2026-08-09 — and the row it
+    // was about stayed on screen, because `run` skips the reread after a
+    // refusal. Both halves are the fix.
+    //
+    // Proof, two faults, both watched 2026-08-09. The mapping removed so the
+    // code is passed through, this failed on `expected [ 'not_found' ] to
+    // include 'That change could not be completed: its target is no longer
+    // here — someone may have deleted it.'`. The reread removed, it failed on
+    // `expected [ '010', '020', '030' ] to deeply equal [ '010', '020' ]` — a
+    // sentence saying a row is gone above the row, still there.
+    const api = await threeRoots();
+    const realRemove = api.remove.bind(api);
+    api.remove = async (id: string) => {
+      // The peer's delete, renumbering and all, and then be-01's answer to
+      // ours: there is no such row any more.
+      await realRemove(id);
+      throw new Error('not_found');
+    };
+
+    takeRowAction('020', 'Delete');
+
+    await waitFor(() => {
+      expect(toastTexts()).toContain(
+        'That change could not be completed: its target is no longer here — someone may have deleted it.',
+      );
+    });
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '020']);
+    });
+  });
+
+  itDom('says the server could not do it rather than showing a status', async () => {
+    // `http_500` is what `send` throws when be-01 answers with one and the body
+    // carries no word of its own. It was the toast, verbatim, until 2026-08-09.
+    // Not "the server did not answer": something answered, with a 500.
+    // Proof: the 5xx branch removed, this failed on `expected [ 'http_500' ] to
+    // include 'The server could not complete that change. Try again.'`.
+    // Watched, 2026-08-09.
+    const api = await threeRoots();
+    api.remove = () => Promise.reject(new Error('http_500'));
+
+    takeRowAction('020', 'Delete');
+
+    await waitFor(() => {
+      expect(toastTexts()).toContain('The server could not complete that change. Try again.');
+    });
+    // A 500 is not a "gone": nothing is reread and nothing leaves the screen.
+    expect(numbersOnScreen()).toEqual(['010', '020', '030']);
+  });
+
+  itDom('puts a code it has no sentence for inside one', async () => {
+    // The grammatical fallback `auth-form.tsx` established. A code nobody has
+    // written a sentence for is still a sentence, with the word in brackets for
+    // whoever is reading the console beside it.
+    // Proof: the fallback replaced by the bare code, this failed on `expected
+    // [ 'unknown_strategy' ] to include 'That change could not be completed
+    // (unknown_strategy).'`. Watched, 2026-08-09.
+    const api = await threeRoots();
+    api.remove = () => Promise.reject(new Error('unknown_strategy'));
+
+    takeRowAction('020', 'Delete');
+
+    await waitFor(() => {
+      expect(toastTexts()).toContain('That change could not be completed (unknown_strategy).');
+    });
   });
 
   itDom('raises the stale-tree banner when a socket refetch fails', async () => {
@@ -6315,7 +6399,9 @@ describe('the command chords', () => {
     nextOrCreate(cell);
 
     await waitFor(() => {
-      expect(toastTexts()).toContain('forbidden');
+      expect(toastTexts()).toContain(
+        'That change could not be completed: this plan is not yours to change.',
+      );
     });
     expect(numbersOnScreen()).toEqual(['010', '020', '030']);
     expect(document.activeElement).toBe(cell);
@@ -6417,7 +6503,9 @@ describe('the command chords', () => {
 
       refuseThePatch();
       await waitFor(() => {
-        expect(toastTexts()).toContain('forbidden');
+        expect(toastTexts()).toContain(
+          'That change could not be completed: this plan is not yours to change.',
+        );
       });
       await letTheLoopRun();
 
