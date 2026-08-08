@@ -94,10 +94,12 @@
       the reference to it; `fe-01:e2e`; `fe-01:lint` and `fe-01:typecheck`
       widened to cover the new files; the root `e2e` script; `test-results/`
       and `playwright-report/` gitignored.
-- [ ] 4.6 **Prove the gate non-vacuous.** Three one-line faults are written out
-      at the foot of `e2e/layout.spec.ts` with the test each must break. They
-      cannot be run here. **Open until CI has watched all three**, and
-      `verify.md` records them as PENDING.
+- [x] 4.6 **Prove the gate non-vacuous.** Done on h2puni, 2026-08-08, against a
+      real chromium: faults A, B, C and D each injected alone, watched, and
+      reverted, with the observed failure lines in `verify.md`. Two of the
+      predictions were wrong and are corrected there — fault C does not break
+      the `elementFromPoint` probe, which needed a fourth fault of its own
+      (the pin order reversed) before its assertion had ever been seen to fail.
 
 ## 5. Gate
 

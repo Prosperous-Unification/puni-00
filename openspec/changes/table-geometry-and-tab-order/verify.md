@@ -24,16 +24,21 @@ and 14 in `wbs-table.test.tsx` (6 for the widths and the column names, 8 for
 Tab).
 
 **The ten tests in `apps/fe-01/e2e/layout.spec.ts` are not in any figure
-above, and have never been run.** There is no browser on the machine this
-change was written on and installing one was out of scope, so the layout gate
-has been verified as far as a machine without a rendering engine can verify it
-— see "What is proven, and by what" below — and no further. It runs for the
-first time in CI's new `pixels` job.
+above.** They were written on a machine with no browser and first run on
+2026-08-08, on h2puni, against a real chromium and the real three-app stack:
+
+```
+$ bun run tools/dev/setup.ts && bunx playwright test --config apps/fe-01/playwright.config.ts
+  10 passed (17.1s)
+```
+
+Their fault table is "The browser gate itself", below.
 
 ## The checks, and the faults that broke them
 
 Every row was watched failing with the fault in place and passing again with it
-removed, on 2026-08-07, except the five rows marked **PENDING** at the end.
+removed: the unit-level tables on 2026-08-07 on h1claw, and "The browser gate
+itself" at the end on 2026-08-08 on h2puni, which is where a browser exists.
 
 ### The widths
 
@@ -90,20 +95,94 @@ where the repo gate runs it.
 All thirteen were also watched failing before the module existed
 (`Failed to resolve import "./box-geometry"`).
 
-### PENDING — the browser gate itself
+### The browser gate itself
 
-**None of these has been observed.** AGENTS.md R5: a check whose failure mode
-has never been observed is a claim, not a gate. The four faults are written
-out as one-line changes at the foot of `apps/fe-01/e2e/layout.spec.ts`. This
-table is the record they have to be entered into before this change is merged.
+**Observed on 2026-08-08**, on h2puni: a throwaway clone, bun pinned to CI's
+1.3.14, the three real servers, and chromium 151 inside
+`mcr.microsoft.com/playwright:v1.62.1-noble` — h2puni has no sudo, so
+`playwright install-deps` could not run and the official image supplied the
+system libraries instead. Each fault was injected alone and reverted before the
+next; the clean run either side reported **10 passed**.
 
-| Check                                                                                                                     | Fault to inject                                                                                              | Expected failure                                                                                                                       | Status      |
-| ------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
-| A control stays inside its cell (`keeps every control inside the cell it belongs to`)                                     | `['name', 360]` → `['name', 100]` in `table-frame.ts`, and the Name cell's `width: '100%'` → `width: '22em'` | one entry in the list, naming `Name of 010 … runs past the name cell`                                                                  | **PENDING** |
-| Two width tables again (`lays every body row out with no two cells on top of each other`, and the heading-row test)       | `PINNED_COLUMNS` replaced by literals with `number` at 180                                                   | both adjacency tests fail: Name pinned at 208 while the colgroup lays it out at 196, so it sits 12px into "Depends on" even unscrolled | **PENDING** |
-| The pin itself (`holds the pinned columns there once the table is scrolled sideways`, and the `elementFromPoint` probe)   | `position: 'sticky'` dropped from `pinnedCellStyle`                                                          | the measured lefts come back negative, having scrolled away with the row; the probe's `inside` names some other column                 | **PENDING** |
-| The popovers really leave their cell (`opens the dependency list out past the bottom of its own cell`, and the notes one) | the `opensAPopover` spread dropped from the `<td>` style in `wbs-table.tsx` (FAULT D)                        | both fail on `ownsPixelBelow`, the message naming what showed through 4px below the cell — a cell of the row underneath                | **PENDING** |
-| The gate runs at all (the `pixels` job)                                                                                   | —                                                                                                            | ten tests reported, and `wbs-table.png` in the uploaded artifact                                                                       | **PENDING** |
+| Check                                                                                                                   | Fault injected                                                                                               | What the run reported                                                                                                                                                                                                                                                       |
+| ----------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A control stays inside its cell (`keeps every control inside the cell it belongs to`)                                   | `['name', 360]` → `['name', 100]` in `table-frame.ts`, and the Name cell's `width: '100%'` → `width: '22em'` | failed on `["Name of 010 in name runs past the name cell", "Name of 020 in name runs past the name cell"]` against `[]`. Two more failed for a reason the prediction missed — a 260px-narrower table cannot scroll 400px, so `scrollFrameTo` failed on `expected 400 … 376` |
+| Two width tables again (`lays every body row out with no two cells on top of each other`, and the heading-row test)     | `PINNED_COLUMNS` replaced by literals with `number` at 180                                                   | **2 failed**, exactly those two, both on the pair `{id: 'name', x: 248, width: 360}` → `{id: 'depends', x: 596, width: 220}` — Name 12px into "Depends on" with the frame unscrolled                                                                                        |
+| The pin itself (`holds the pinned columns there once the table is scrolled sideways`)                                   | `position: 'sticky'` dropped from `pinnedCellStyle`                                                          | failed on `{drag: -400, number: -372, name: -204}` against `{drag: 0, number: 28, name: 196}` — the block scrolled away with its row. **1 failed, not 2**: see below                                                                                                        |
+| The pinned block stops at its own edge (`paints the pinned block over the row that scrolls behind it, and stops there`) | `PINNED_COLUMNS` pinned in the order `['name', 'number', 'drag']`                                            | failed on `expect(PINNED_IDS).not.toContain('number')`, received `["name", "number", "drag"]` — a pinned column owning the pixel past the block's right edge                                                                                                                |
+| The popovers really leave their cell (`opens the dependency list …`, and the notes one)                                 | the `opensAPopover` spread dropped from the `<td>` style in `wbs-table.tsx`                                  | **2 failed**, exactly those two, on `ownsPixelBelow`: `4px below the depends cell is <input> in the team column, not the open list` and `4px below the notes cell is <textarea> in the notes column, not the preview`                                                       |
+| The gate runs at all (the `pixels` job)                                                                                 | —                                                                                                            | ten tests reported and `wbs-table.png` in the uploaded artifact — see "The seed the gate never had" below for the run that first got there                                                                                                                                  |
+
+**Two predictions written without a browser were wrong.** Both are corrected in
+the comment at the foot of the spec rather than dropped.
+
+Fault A was predicted to fail one test and failed three: narrowing Name by
+260px leaves a table that cannot scroll 400px, so `scrollFrameTo`'s own
+precondition — `expect(reached).toBe(scrollLeft)`, added because an unscrolled
+table would make every sticky assertion pass meaninglessly — fired first in the
+two scrolled tests. That is the precondition working, not the pin being
+measured, and it is the reason those two are not evidence about the pin.
+
+Fault C was predicted to break the `elementFromPoint` probe as well, and does
+not. The probe asks which cell owns the pixel either side of the _measured_
+right edge of the Name cell, and an unpinned table answers correctly: the
+neighbour is where the declared widths put it. Losing the pin is invisible to a
+probe that follows the cell. So the probe needed a fault of its own, and finding
+one took three attempts — the two that did **not** break it are recorded here
+because a negative test that fails to fail is exactly what R5 is about:
+
+- dropping `position: 'sticky'` (fault C): 9 passed, the probe among them.
+- dropping `zIndex` from `pinnedCellStyle`: **10 passed**. A sticky cell is a
+  positioned element, so it already paints over the unpositioned cells sliding
+  behind it; those two z-indexes only order the sticky elements against each
+  other. The probe cannot see their absence, and nothing else in this spec can
+  either — stated rather than left as an assumption.
+- reversing the pin order: the probe failed, as tabled above.
+
+### The seed the gate never had
+
+The first CI run of the `pixels` job (31215500819) failed all ten tests
+identically in `beforeEach`, on
+`waiting for getByRole('button', { name: 'New project' })` after a 60s timeout.
+The page snapshot in the artifact showed why: `Something went wrong (http_404)`
+under the register form — the account was never created.
+
+`src/lib/api.ts` fetches same-origin paths, because the edge serves the app and
+proxies `/api/*` and `/ws` on the same host. Every environment gets that routing
+from Caddy (`tools/tool-compose/src/templates/site.caddy.tmpl`), including
+dev-in-a-container, so nothing had ever asked what a bare `bunx vite` does with
+`POST /api/auth/register`. It serves `index.html` and answers 404. The layout
+gate is the first thing to run this stack with no edge in front of it.
+
+`apps/fe-01/vite.config.ts` now carries the same two routes for the dev server —
+`/api` to be-01 with its prefix intact, `/ws` to gw-01 with the upgrade
+forwarded — read from `VITE_BE_URL`/`VITE_GW_URL` and throwing if the app has no
+`.env`, on `command === 'serve'` only so that `nx build fe-01` on a checkout
+with no `.env` is unaffected. Reverting that one block reproduces the ten
+timeouts exactly; the failure was watched before the fix and after reverting it,
+on h2puni, which is the proof for this change.
+
+This is the only production-source file this fix touched. It is dev-server
+configuration — nothing in `dist/apps/fe-01` changes — and `bun run dev` behind
+Caddy never reaches it, because Caddy answers `/api/*` before Vite sees it.
+
+The `command === 'serve'` guard and the throw were both watched, on h2puni:
+
+```
+$ nx run fe-01:build                          # .env present
+NX   Successfully ran target build for project fe-01
+$ mv apps/fe-01/.env /tmp && nx run fe-01:build
+NX   Successfully ran target build for project fe-01      # the gate job's case
+$ cd apps/fe-01 && bunx vite                  # still no .env
+error when starting dev server:
+Error: apps/fe-01/.env must set VITE_BE_URL and VITE_GW_URL; got
+VITE_BE_URL=(unset) VITE_GW_URL=(unset). Run `bun run dev:setup` to seed it
+from .env.example.
+```
+
+A build on a checkout with no dev settings is unaffected; a dev server that
+would proxy nowhere refuses to start rather than 404ing every request an hour
+later.
 
 **Fault A is the one to read carefully.** The obvious expectation — "a control
 that overruns its column shows up as an overlap" — is wrong, and writing it
@@ -198,6 +277,14 @@ times — the spec held eight tests when that run was made. The webServers were
 torn down cleanly afterwards. So the config, the readiness, the database
 isolation, the ports and the Nx wiring are verified; the assertions are not.
 
+**Proven by a browser, on h2puni, 2026-08-08:** every assertion in
+`layout.spec.ts`. Ten passing, and each of the four faults above watched
+breaking the tests named beside it. The stack was the same one CI starts —
+`bun run tools/dev/setup.ts`, then the three webServers from
+`playwright.config.ts` — run inside `mcr.microsoft.com/playwright:v1.62.1-noble`
+because h2puni has no sudo for `playwright install-deps`. Chromium 151, the
+image's own, not the one `playwright install` downloads for CI.
+
 **Verified as text, not as behaviour:** the spec transpiles, resolves both of
 its imports of application source, and enumerates its ten tests
 (`playwright test --list`); it passes `eslint` and `tsc --build` through a new
@@ -206,9 +293,9 @@ its imports of application source, and enumerates its ten tests
 watching each fail, because `nx typecheck` running against a solution-style
 config and compiling nothing is a failure this repo has already had once.
 
-**Not verified at all:** every assertion in `layout.spec.ts`. No rectangle in
-this change has been measured by a rendering engine. The five PENDING rows
-above are the whole of what CI has to establish.
+**Not verified on the machine this change was written on:** anything needing a
+rendering engine. h1claw has no browser and does not run builds, so every
+rectangle here was measured on h2puni and then again by CI's `pixels` job.
 
 ## What is not verified here, beyond the browser
 

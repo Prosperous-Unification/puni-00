@@ -161,11 +161,12 @@ jobs:
   # backend, so it is the slowest and flakiest thing here; making `gate` wait
   # for it would make every unrelated red slower to read. Both must pass.
   #
-  # Not proven non-vacuous yet. The three faults it is meant to catch are
-  # written out at the bottom of `apps/fe-01/e2e/layout.spec.ts` as one-line
-  # changes; `openspec/changes/table-geometry-and-tab-order/verify.md` records
-  # them as PENDING until a run has watched them fail. Until then this job is a
-  # claim, per AGENTS.md R5, and it says so.
+  # Proven non-vacuous on 2026-08-08. The faults are written out at the bottom
+  # of `apps/fe-01/e2e/layout.spec.ts`, each with the failure it was watched
+  # producing against a real chromium;
+  # `openspec/changes/table-geometry-and-tab-order/verify.md` has the run
+  # output, including the two faults that turned out NOT to break the test they
+  # were predicted to.
   pixels:
     runs-on: ubuntu-latest
     timeout-minutes: 15

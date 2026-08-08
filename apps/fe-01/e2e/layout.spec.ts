@@ -443,41 +443,63 @@ test.describe('the table, measured by a browser', () => {
 });
 
 /*
- * PROVING THIS GATE CAN FAIL — to be run in CI before this change merges.
+ * PROVING THIS GATE CAN FAIL — every fault below has now been watched.
  *
- * There is no browser on the machine this spec was written on, so none of the
- * four faults below has been watched failing yet. AGENTS.md R5 says a check
- * whose failure mode has never been observed is a claim rather than a gate, so
- * these are written as instructions and `verify.md` records them as pending
- * until CI has run them. Each is one line; push it on a scratch branch, read
- * the `pixels` job, revert.
+ * Run on h2puni on 2026-08-08, one fault at a time against the real stack and a
+ * real chromium, each reverted before the next. What each run reported is in
+ * `openspec/changes/table-geometry-and-tab-order/verify.md`; the observed
+ * failure is repeated in one line here so the fault and its evidence stay
+ * together. Two predictions written before a browser had ever seen this table
+ * turned out to be wrong, and both are corrected below rather than quietly
+ * dropped — an expectation nobody checked is the same category of claim R5 is
+ * about.
  *
  * FAULT A — a control that asserts a width of its own, in a column too narrow
  * for it. This is the fault class the change removes.
  *   `table-frame.ts`:  ['name', 360]  ->  ['name', 100]
  *   `wbs-table.tsx`:   the Name cell's `width: '100%'`  ->  `width: '22em'`
- * Expected: `keeps every control inside the cell it belongs to` fails, naming
- * `Name of 010 runs past the name cell`. The adjacency tests do NOT fail on
- * this, and that is not a gap: a table never lays two cells on top of each
- * other, so a control overrunning its column is only ever visible as
- * containment. Anyone reading this fault as "the overlap test would catch it"
- * has the wrong test in mind.
+ * Observed: `keeps every control inside the cell it belongs to` failed on
+ * `["Name of 010 in name runs past the name cell", "Name of 020 …"]` against
+ * `[]`. The adjacency tests did NOT fail on it, as written: a table never lays
+ * two cells on top of each other, so a control overrunning its column is only
+ * ever visible as containment. Two other tests did fail, for a reason the
+ * prediction missed — a 260px-narrower table no longer scrolls 400px, so
+ * `scrollFrameTo` failed its own precondition with `expected 400, received
+ * 376`. That is the precondition doing its job, not the pin being measured.
  *
  * FAULT B — two width tables again, which is the bug that shipped.
  *   `table-frame.ts`: replace the derived `PINNED_COLUMNS` with literals,
  *   `[{ id: 'drag', width: 28 }, { id: 'number', width: 180 }, { id: 'name', width: 360 }]`
- * Expected: `lays every body row out with no two cells on top of each other`
- * and the heading-row test both fail — Name is pinned at 208 while the
- * colgroup lays it out at 196, so it sits 12px into "Depends on" even
- * unscrolled. `table-frame.test.ts` catches this one too; the point of running
- * it here is that this spec sees it in the paint rather than in the numbers.
+ * Observed: exactly the two adjacency tests failed, both on the same pair —
+ * `{id: 'name', x: 248, width: 360}` followed by `{id: 'depends', x: 596}`,
+ * Name pinned 12px into "Depends on" with the frame unscrolled.
+ * `table-frame.test.ts` catches this one too; the point of running it here is
+ * that this spec sees it in the paint rather than in the numbers.
  *
  * FAULT C — the pin itself.
  *   `table-frame.ts`: drop `position: 'sticky'` from `pinnedCellStyle`.
- * Expected: `holds the pinned columns there once the table is scrolled
- * sideways` fails (the measured lefts come back negative, having scrolled
- * away), and `paints the pinned block over the row that scrolls behind it`
- * fails with `inside` naming some other column.
+ * Observed: `holds the pinned columns there once the table is scrolled
+ * sideways` failed on `{drag: -400, number: -372, name: -204}` against
+ * `{drag: 0, number: 28, name: 196}` — the block scrolled away with its row.
+ * The prediction that `paints the pinned block over the row that scrolls
+ * behind it` would fail with it was WRONG, and it is worth knowing why: that
+ * test asks which cell owns the pixel either side of the *measured* right edge
+ * of the Name cell, and an unpinned table answers that question correctly —
+ * the neighbour is where the declared widths say it is. Losing the pin is
+ * invisible to a probe that follows the cell.
+ *
+ * FAULT C2 — what the probe does see, found by injecting faults until one bit.
+ *   `table-frame.ts`: pin `['name', 'number', 'drag']` instead of
+ *   `['drag', 'number', 'name']`.
+ * Observed: `paints the pinned block over the row that scrolls behind it, and
+ * stops there` failed on `expect(PINNED_IDS).not.toContain('number')`, the
+ * received array `["name", "number", "drag"]` — a pinned column painting past
+ * the block's own right edge, which is the fault that assertion exists for.
+ * Two earlier candidates did NOT break it and are recorded because a failed
+ * attempt at a negative test is evidence too: dropping `zIndex` from
+ * `pinnedCellStyle` (a sticky cell is positioned, so it still paints over the
+ * unpositioned cells sliding behind it — the z-indexes only order the sticky
+ * elements against each other), and fault C above.
  *
  * FAULT D — the cell clipping the popovers that have to leave it. This is the
  * fault the first version of this change shipped, on a wrong reading of the
@@ -485,10 +507,10 @@ test.describe('the table, measured by a browser', () => {
  * only when its containing block is *outside* that ancestor, and both popovers'
  * containing block is a wrapper span inside the cell.
  *   `wbs-table.tsx`: drop the `opensAPopover` spread from the `<td>` style.
- * Expected: `opens the dependency list out past the bottom of its own cell` and
- * `opens the notes preview out past the bottom of its own cell` both fail on
- * `ownsPixelBelow`, naming what showed through instead — a cell of the row
- * below. The overhang assertions do NOT fail on this, deliberately:
+ * Observed: both popover tests failed on `ownsPixelBelow`, naming what showed
+ * through instead — `4px below the depends cell is <input> in the team column,
+ * not the open list` and `4px below the notes cell is <textarea> in the notes
+ * column, not the preview`. The overhang assertions did NOT fail, deliberately:
  * `getBoundingClientRect` reports a clipped box at its full unclipped size, so
  * a check written only on the rectangles would pass with both popovers sliced
  * off at the cell edge. That is the vacuous version of this test, and the
