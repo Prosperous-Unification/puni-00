@@ -144,6 +144,18 @@ which made a test weaker than it read:
   following it. Two guards, one outcome; the browser can only see the outer
   one.
 
+## One consequence of the matrix, stated because Dany will meet it
+
+The Depends-on box opens its list **on focus** — with nothing typed, every
+other work item is on offer — so the chords are inert there from the moment the
+focus arrives, and Escape is what gives them back. That is the routing matrix
+applied exactly as written ("the open list owns the keyboard; Escape first"),
+and `the same chords work in that box once the list is closed` is the test that
+pins it. It is also the one cell where the rule will be felt as friction: Ctrl+J
+out of a dependency box needs an Escape first. Recorded rather than quietly
+special-cased, because the alternative — letting the chords through a list with
+a highlighted entry in it — is the collision the rule exists to prevent.
+
 ## What nothing here can say — the acceptance probe
 
 Whether a chord reaches page JavaScript at all is the operating system's
