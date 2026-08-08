@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import type { Role, WorkItem } from '../repository';
 import { openDrizzle } from '../repository/db';
+import { DrizzleEventLogRepo } from '../repository/event-log';
 import { DirectoryRepository } from '../repository/directory';
 import { EstimateRepository } from '../repository/estimate';
 import { runMigrations } from '../repository/migrate';
@@ -14,7 +15,13 @@ import { RoleRepository } from '../repository/role';
 import { UserRepository } from '../repository/user';
 import { WorkItemRepository } from '../repository/work-item';
 import { recordingBroadcaster, type RecordingBroadcaster } from '../testing/broadcast-fixture';
+import type { Broadcaster } from './broadcast';
+import { EventSequencer } from './event-sequencer';
+import { GatewayBroadcaster } from './gateway-broadcaster';
 import { ProjectService } from './project.service';
+import { PushClient } from './push-client';
+import { ReplayBuffer } from './replay-buffer';
+import { ReplayOrchestrator } from './replay-orchestrator';
 import { RoleService } from './role.service';
 
 /**
@@ -28,6 +35,7 @@ import { RoleService } from './role.service';
 const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
 
 let dir: string;
+let db: ReturnType<typeof openDrizzle>;
 let roles: RoleService;
 let roleStore: RoleRepository;
 let projectStore: ProjectRepository;
@@ -65,7 +73,7 @@ beforeEach(async () => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-role-service-'));
   const path = join(dir, 'test.db');
   runMigrations(path, FOLDER);
-  const db = openDrizzle(path);
+  db = openDrizzle(path);
 
   projectStore = new ProjectRepository(db);
   roleStore = new RoleRepository(db);
@@ -235,6 +243,71 @@ describe('RoleService.remove', () => {
     expect(await roles.remove(projectId, crypto.randomUUID(), ownerId, true)).toEqual({
       ok: false,
       reason: 'not_found',
+    });
+  });
+});
+
+describe('role events', () => {
+  /** What the project's roles looked like at the moment each event was published. */
+  function watchingBroadcaster(): { rolesAtPublish: string[][] } & Broadcaster {
+    const rolesAtPublish: string[][] = [];
+    return {
+      rolesAtPublish,
+      async publish(watched: string) {
+        rolesAtPublish.push((await roleStore.listByProject(watched)).map((each) => each.name));
+      },
+      latestSeq: () => Promise.resolve(-1),
+    };
+  }
+
+  it('records the event after the write, never before it', async () => {
+    // The sequence-consistency rule, asserted where it is decided rather than
+    // reasoned about: a reader that acts on the event — a client rereading the
+    // project, the replay log recording it — must never see the project as it
+    // was before the change. Reading the roles from inside `publish` is the
+    // only moment that can tell the two orders apart.
+    const watching = watchingBroadcaster();
+    const service = new RoleService({
+      projects: projectStore,
+      roles: roleStore,
+      broadcast: watching,
+    });
+
+    await service.add(projectId, ownerId, 'Design');
+    await service.remove(projectId, qaId, ownerId, true);
+
+    expect(watching.rolesAtPublish[0]).toContain('Design');
+    expect(watching.rolesAtPublish[1]).not.toContain('QA');
+  });
+
+  it('replays a role event to a client that reconnects', async () => {
+    const eventLog = new DrizzleEventLogRepo(db);
+    const buffer = new ReplayBuffer({ maxPerSubscription: 100, maxAgeMs: 60_000 });
+    const durable = new RoleService({
+      projects: projectStore,
+      roles: roleStore,
+      broadcast: new GatewayBroadcaster({
+        sequencer: new EventSequencer(eventLog),
+        buffer,
+        // Nowhere to push, deliberately: the replay must come from what was
+        // recorded, not from a delivery that happened to succeed.
+        push: new PushClient({ gwUrl: 'http://gw.invalid', secret: 's'.repeat(32) }),
+        onPushFailed: () => undefined,
+      }),
+    });
+    const subscription = `project:${projectId}`;
+
+    await durable.add(projectId, ownerId, 'Design');
+    const seenUpTo = await eventLog.latestSeq(subscription);
+    await durable.remove(projectId, qaId, ownerId, true);
+
+    const replayed = await new ReplayOrchestrator({ log: eventLog, buffer }).replay({
+      [subscription]: seenUpTo,
+    });
+
+    expect(replayed[subscription]).toEqual({
+      status: 'replaying',
+      events: [{ seq: seenUpTo + 1, message: { type: 'role_removed', roleId: qaId } }],
     });
   });
 });

@@ -58,6 +58,10 @@ function cleanName(name: string): string | null {
  * Every write announces itself **after** the transaction has committed, so a
  * client that reads on the event reads a project the change is already in. See
  * {@link ProjectEvent}.
+ *
+ * Proof: with the publish moved ahead of the write in `add` and `remove`,
+ * `records the event after the write, never before it` fails — the roles read
+ * from inside the publish were still `Dev, QA`; watched 2026-08-08.
  */
 export class RoleService {
   private readonly newId: () => string;
