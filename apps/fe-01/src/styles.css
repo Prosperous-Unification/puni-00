@@ -1,0 +1,60 @@
+/*
+ * Tailwind v4 for this app, with its base layer deliberately never imported.
+ *
+ * `@import 'tailwindcss'` pulls three stylesheets: theme (the custom property
+ * palette), preflight (a global reset) and utilities. Only two of them are here.
+ * Preflight is a document-wide reset — `*, ::before, ::after { box-sizing:
+ * border-box }`, `font: inherit` on every form control, `border-width: 0` on
+ * everything — and this table's geometry is measured against a browser's own
+ * defaults: `table-frame.ts` sizes the `not-before` column from what Chromium
+ * makes an unconstrained `input[type=date]` in the table's own font, and
+ * preflight changes that font. Nothing in this app is styled by a class today,
+ * so a reset would only ever be a cost.
+ *
+ * The empty `base` slot in the layer order is kept on purpose: when a component
+ * library eventually needs a scoped reset it lands between theme and utilities,
+ * which is where its cascade weight belongs. Layer statements have no effect
+ * until something is written into them.
+ *
+ * What the omission is worth, measured rather than predicted, and the answer
+ * was not the expected one. Replacing the two imports below with
+ * `@import 'tailwindcss'` and running the browser gate turns `e2e/tailwind.spec.ts`
+ * red — heading margins zeroed, an input taking the page's 16px — and leaves
+ * every one of `layout.spec.ts`'s geometry assertions green. It has to: this
+ * table is styled inline, and the date input already carries
+ * `{ boxSizing: 'border-box', font: 'inherit' }` of its own, which is the pair
+ * of declarations preflight would have imposed on it. An inline style outranks
+ * every layer, so the reset cannot reach the cells at all today.
+ *
+ * That makes preflight harmless to the current table and dangerous to the next
+ * one: the moment a cell is styled by a class instead of a `style` prop, the
+ * reset is back in the cascade with nothing measuring it. `layout.spec.ts` is
+ * not the oracle for this fault — `e2e/tailwind.spec.ts` and `styles.test.ts`
+ * are, and both were watched failing. Runs in
+ * `docs/plans/2026-08-08-tailwind-spike-verify.md`.
+ */
+@layer theme, base, components, utilities;
+
+/*
+ * `source(none)` turns off automatic content detection, and `@source` names the
+ * one directory that replaces it. Left automatic, Tailwind walks up from this
+ * file to the git root and scans the whole monorepo — be-01's SQL, the deploy
+ * shell scripts, every markdown plan — so a class name would be whatever those
+ * files happen to contain. This app's markup is under `src`, and that is the
+ * whole of it.
+ */
+@import 'tailwindcss/theme.css' layer(theme);
+@import 'tailwindcss/utilities.css' layer(utilities) source(none);
+
+@source './';
+
+/*
+ * Tests are not markup. Tailwind's scanner takes every word that could be a
+ * class name out of every file it is given, string literals and comments
+ * included — so with the tests in scope, `styles.test.ts` naming a utility it
+ * asserts is *absent* put that utility in the bundle and made the assertion fail
+ * on itself. Watched 2026-08-09. Nothing under `src` renders from a `.test.`
+ * file, so the production stylesheet has no business reading one.
+ */
+@source not './**/*.test.ts';
+@source not './**/*.test.tsx';

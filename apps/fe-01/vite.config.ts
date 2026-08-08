@@ -1,5 +1,6 @@
 import { resolve } from 'node:path';
 
+import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import { defineConfig, loadEnv, type ProxyOptions } from 'vite';
 
@@ -67,7 +68,20 @@ function edgeRoutes(mode: string): Record<string, ProxyOptions> {
 }
 
 export default defineConfig(({ command, mode }) => ({
-  plugins: [react()],
+  // `src/styles.css` says which parts of Tailwind are imported and why the base
+  // layer is not one of them. This plugin is what compiles it, in dev and in
+  // build alike; `vitest.config.ts` deliberately does not carry it, so a unit
+  // test importing a stylesheet gets Vitest's stub rather than compiled CSS —
+  // `src/styles.test.ts` runs its own build for that reason.
+  //
+  // Editing this list changes the bundle, and until 2026-08-09 Nx could not see
+  // that: `nx.json`'s `production` named input excluded
+  // `{projectRoot}/vite.config.[jt]s`, so `nx run fe-01:build` answered from
+  // cache with a bundle built by a different plugin list. Watched — this file
+  // touched, `[local cache] … Nx read the output from the cache`, `dist`
+  // untouched. The exclusion is gone; the run is in
+  // `docs/plans/2026-08-08-tailwind-spike-verify.md`.
+  plugins: [react(), tailwindcss()],
   resolve: {
     alias: { '@': resolve(__dirname, 'src') },
   },

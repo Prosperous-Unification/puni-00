@@ -41,7 +41,17 @@ export function App() {
 
   return (
     <main style={{ padding: 32, fontFamily: 'sans-serif' }}>
-      <h1>WBS tool v2</h1>
+      {/*
+       * The tracer for the Tailwind integration, and the only class in this app
+       * that Tailwind is asked to compile on purpose. It is on the brand
+       * heading because that is chrome: nothing in `layout.spec.ts` measures it,
+       * and letter-spacing on an `h1` cannot reach the table. What it proves is
+       * the pipeline — a class written in a `.tsx` file, found by the scanner
+       * `src/styles.css` configures, emitted into the production bundle and
+       * applied by a real browser. `e2e/tailwind.spec.ts` reads the computed
+       * letter-spacing back off this element.
+       */}
+      <h1 className="tracking-tight">WBS tool v2</h1>
       {session === null ? (
         <AuthForm onSignedIn={setSession} />
       ) : (
