@@ -15,6 +15,7 @@
     "src/**/*.spec.tsx",
     "vitest.setup.ts",
     "vite.config.ts",
-    "vite.config.test.ts"
+    "vitest.config.ts",
+    "vite-config.test.ts"
   ]
 }

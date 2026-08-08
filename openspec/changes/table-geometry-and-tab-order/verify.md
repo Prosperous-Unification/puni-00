@@ -8,20 +8,21 @@ $ bunx nx format:check --all
 
 $ bunx nx run-many -t test lint typecheck build --parallel=2
 NX   Successfully ran targets test, lint, typecheck, build for 21 projects
-      fe-01 (vitest)   21 files   477 pass  0 fail   (445 before this change, +32)
+      fe-01 (vitest)   22 files   485 pass  0 fail   (445 before this change, +40)
 
 $ bunx nx run-many -t test lint typecheck --projects=fe-01 --skip-nx-cache
 NX   Successfully ran targets test, lint, typecheck for project fe-01
-      Test Files  21 passed (21)
-      Tests       477 passed (477)
+      Test Files  22 passed (22)
+      Tests       485 passed (485)
 
 $ bunx @fission-ai/openspec@1.3.0 validate --all --json
 {"items": 35, "passed": 35, "failed": 0}
 ```
 
-The 32 new fe-01 tests: 5 in `table-frame.test.ts`, 13 in `box-geometry.test.ts`
-and 14 in `wbs-table.test.tsx` (6 for the widths and the column names, 8 for
-Tab).
+The 40 new fe-01 tests: 5 in `table-frame.test.ts`, 13 in `box-geometry.test.ts`,
+14 in `wbs-table.test.tsx` (6 for the widths and the column names, 8 for Tab),
+and 8 in `vite-config.test.ts` — a file that existed before this change and had
+never been executed by anything, see "Cross-review, 2026-08-08".
 
 **The ten tests in `apps/fe-01/e2e/layout.spec.ts` are not in any figure
 above.** They were written on a machine with no browser and first run on
@@ -155,7 +156,7 @@ dev-in-a-container, so nothing had ever asked what a bare `bunx vite` does with
 gate is the first thing to run this stack with no edge in front of it.
 
 `apps/fe-01/vite.config.ts` now carries the same two routes for the dev server —
-`/api` to be-01 with its prefix intact, `/ws` to gw-01 with the upgrade
+`^/api/` to be-01 with its prefix intact, `/ws` to gw-01 with the upgrade
 forwarded — read from `VITE_BE_URL`/`VITE_GW_URL` and throwing if the app has no
 `.env`, on `command === 'serve'` only so that `nx build fe-01` on a checkout
 with no `.env` is unaffected. Reverting that one block reproduces the ten
@@ -234,10 +235,12 @@ condition (the wrappers' styles) and its `Proof:` narrative described a fault
 that could never have broken the real invariant. It has been rewritten to
 assert the cells — `depends`, `notes`, `team` and every `-assignee` column
 visible, `name` still hidden — and watched failing with the exception removed.
-The two browser tests that measure the escape in pixels are new and PENDING,
-above; they measure the dependency list and the notes preview, not the picker
-list, whose single "add this one" entry is too short to be sure of clearing the
-cell it hangs from.
+The two browser tests that measure the escape in pixels have since been watched
+failing on a real chromium, with the `opensAPopover` spread dropped from the
+`<td>` style: **2 failed**, exactly those two, on `ownsPixelBelow` — the row is
+in the fault table above and the run is task 4.6. They measure the dependency
+list and the notes preview, not the picker list, whose single "add this one"
+entry is too short to be sure of clearing the cell it hangs from.
 
 **One assertion in the browser spec could not fail.** The occlusion probe
 finished with
@@ -260,11 +263,54 @@ entry now says that, and the same wrong sentence has been corrected in the
 left to the browser`. `PROVEN_BY` names tests rather than copy, so it is
 unchanged and still passes.
 
+## Cross-review, 2026-08-08
+
+Both reviewers read the dev-server proxy on top of the branch. Two findings and
+a stale sentence, all three fixed here.
+
+**A test file that had never run once.** `apps/fe-01/vite.config.test.ts`
+asserted `config.server?.host` on a default export that had become a factory,
+so every one of its three assertions read `undefined` — and nothing failed,
+because nothing ran it. Two reasons, not one: `vitest.config.ts` included only
+`src/**`, and vitest's default `exclude` ends in
+`**/{…,vite,vitest,…}.config.*`, which swallows that filename whatever the
+include says. Watched: with the include widened but the name left alone,
+`bunx vitest run vite.config.test.ts` printed `No test files found, exiting with
+code 1`. So the file is now `apps/fe-01/vite-config.test.ts`, the include is
+`['src/**/*.{test,spec}.{ts,tsx}', '*.{test,spec}.{ts,tsx}']`, and the suite
+went from **21 files / 477 tests** to **22 files / 485 tests** with
+`vite-config.test.ts (8 tests)` named in the run.
+
+It calls the factory with a `ConfigEnv` for both commands and stubs `loadEnv` —
+otherwise the "no env" case would only ever run in CI and the "env set" case
+only ever here, each machine skipping the half the other proved. Five faults,
+one at a time, `bunx vitest run vite-config.test.ts` on h1claw:
+
+| Fault injected into `vite.config.ts`              | What the run reported                                                                                                    |
+| ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| the `server.proxy` line deleted                   | **4 failed** — two on `the serve config has no proxy to assert on`, two on `expected [Function] to throw an error`       |
+| `'^/api/'` back to the plain `'/api'` it replaced | **2 failed** — the key set, and the routing one on `/apiary`: `expected true to be false`                                |
+| the `'/ws'` entry deleted                         | **2 failed** — `expected { Object (^/api/) } to deeply equal { …(2) }`, then `expected false to be true` on `/ws`        |
+| the `command === 'serve'` guard dropped           | **1 failed** — `a build must not read apps/fe-01/.env`, thrown by the stub                                               |
+| the `!backend \|\| !gateway` guard dropped        | **2 failed** — both `expected [Function] to throw an error`                                                              |
+| `host: '0.0.0.0'` back to `'localhost'`           | **1 failed** — `expected 'localhost' to be '0.0.0.0'`, the oldest assertion in the file, seen failing for the first time |
+
+**`'/api'` was a prefix, and the edge's matcher is a subtree.** Vite matches a
+string proxy key with `startsWith` (`doesProxyContextMatchUrl`), so `'/api'`
+also forwarded `/apiary`, which Caddy's `handle /api/*` hands to the SPA —
+"/foo/\* will not match /foo or /foobar", its path matcher docs. The key is now
+the regex `^/api/`, which is the same set. `/ws` is left as a string on
+purpose: the template says `/ws*`, not `/ws/*`, and a string key already means
+exactly that prefix. The comment claiming the config matched the template
+"route for route" now says which matcher is which shape instead of claiming
+they are the same. `vite preview` throwing without an `.env` — the other
+reviewer's note — is stated in the `@throws` rather than changed.
+
 ## What is proven, and by what
 
 **Proven by the repo gate, on this machine:** the width table and its
-consumers, the Tab grid, and the geometry predicates — 477 fe-01 tests, the
-fault tables above.
+consumers, the Tab grid, the geometry predicates, and the dev-server proxy —
+485 fe-01 tests, the fault tables above.
 
 **Proven by running the stack, on this machine:** `bun run e2e` was run to the
 point of failure. `dev:setup` seeded three `.env` files, all three servers

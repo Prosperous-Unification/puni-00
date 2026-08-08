@@ -109,3 +109,12 @@
 - [x] 5.2 `format:check --all`, the run-many gate, and `openspec validate`,
       recorded in `verify.md` with the fault table and with what could not be
       run here.
+- [x] 5.3 **The dev-server proxy, after the second cross-review.**
+      `vite.config.test.ts` had never been executed by anything — outside the
+      vitest include, and its name inside vitest's default `exclude` — so its
+      assertions read `undefined` off a factory export and said nothing. It is
+      now `vite-config.test.ts`, it runs (22 files / 485 tests, up from 21 /
+      477), it calls the factory for `serve` and for `build`, and six faults
+      were watched breaking it; the proxy key is the regex `^/api/` rather than
+      the prefix `'/api'`, which also claimed `/apiary` where Caddy's `/api/*`
+      does not; `fe-01:lint` covers both config files. Tables in `verify.md`.

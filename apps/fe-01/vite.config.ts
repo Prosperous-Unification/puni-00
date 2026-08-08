@@ -16,9 +16,10 @@ import { defineConfig, loadEnv, type ProxyOptions } from 'vite';
  *
  * That is exactly the stack the layout gate starts: three servers, no edge.
  * Ten tests timed out in `beforeEach` waiting for a "New project" button behind
- * a signup that had 404'd. So the routing lives here too, matching the template
- * route for route: `/api/*` to be-01 with its prefix intact, `/ws` to gw-01
- * with the upgrade forwarded.
+ * a signup that had 404'd. So the routing lives here too, over the same two
+ * subtrees the template routes: `/api/*` to be-01 with its prefix intact, `/ws*`
+ * to gw-01 with the upgrade forwarded. The two matchers do not have the same
+ * shape, and the keys below do not either — see there.
  *
  * Proof: with this proxy removed, `bun run e2e` fails all ten tests in
  * `beforeEach` on `waiting for getByRole('button', { name: 'New project' })`,
@@ -27,7 +28,9 @@ import { defineConfig, loadEnv, type ProxyOptions } from 'vite';
  *
  * @throws When the app has no `.env`, rather than starting a dev server that
  * proxies nowhere. `bun run dev:setup` writes one; `nx run fe-01:e2e` runs that
- * first for the same reason.
+ * first for the same reason. `vite preview` is a `serve` command too, so it
+ * throws the same way on a checkout with no `.env`; nothing in this repo runs
+ * it, and a preview that quietly proxied nowhere would be the worse default.
  */
 function edgeRoutes(mode: string): Record<string, ProxyOptions> {
   const env = loadEnv(mode, process.cwd(), 'VITE_');
@@ -48,7 +51,17 @@ function edgeRoutes(mode: string): Record<string, ProxyOptions> {
   return {
     // `handle`, not `handle_path`, in the Caddy template: be-01 mounts its
     // controllers under /api already, so the prefix is passed through.
-    '/api': { target: backend },
+    //
+    // The key is a regex because a plain string one is a `startsWith` prefix
+    // here (`doesProxyContextMatchUrl`, vite/src/node/server/middlewares/proxy.ts),
+    // and `'/api'` would send `/apiary` to be-01 as well. Caddy's `/api/*` does
+    // not: "/foo/* will not match /foo or /foobar" (its path matcher docs), so
+    // both of those reach the SPA there. A key starting with `^` is compiled to
+    // a RegExp instead, which is the same subtree.
+    '^/api/': { target: backend },
+    // `/ws*` in the template, not `/ws/*` — a prefix that takes the bare path
+    // and anything under it. A string key already means exactly that, so this
+    // one is faithful as it stands.
     '/ws': { target: gateway, ws: true },
   };
 }
