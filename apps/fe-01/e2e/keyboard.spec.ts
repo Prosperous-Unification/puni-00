@@ -156,6 +156,46 @@ test.describe('the command chords, in a browser', () => {
     await expect(page.locator('tr[data-armed="true"]')).toHaveCount(0);
   });
 
+  test('a key still held when the row goes does not arm the row after it', async ({ page }) => {
+    // What `event.repeat` uniquely buys, through a real keyboard: the second
+    // press confirms on its first keydown, and the auto-repeats that follow
+    // arrive while the row is being deleted. Whatever slides up into the gap
+    // must not end up armed by a key nobody pressed again.
+    await seedRows(page, `e2e-keys-${String(Date.now())}-${String(account)}`, 3);
+
+    await page.getByLabel('Name of 020').click();
+    await page.keyboard.press('Control+d');
+    await expect(page.locator('tr[data-armed="true"] [data-number]')).toHaveText('020');
+
+    // Held down for the confirming press, so Chromium's own auto-repeat runs
+    // on through the delete and the refetch that follows it.
+    await page.keyboard.down('Control');
+    await page.keyboard.down('d');
+    await page.waitForTimeout(800);
+    await page.keyboard.up('d');
+    await page.keyboard.up('Control');
+
+    await expect(page.getByText('Deleted 020 — Cmd+Z restores')).toBeVisible();
+    expect(await numbersOnScreen(page)).toEqual(['010', '020']);
+    await expect(page.locator('tr[data-armed="true"]')).toHaveCount(0);
+  });
+
+  test('arming one row and pressing Ctrl+D in another arms the second, and deletes neither', async ({
+    page,
+  }) => {
+    await seedRows(page, `e2e-keys-${String(Date.now())}-${String(account)}`, 3);
+
+    await page.getByLabel('Name of 020').click();
+    await page.keyboard.press('Control+d');
+    await expect(page.locator('tr[data-armed="true"] [data-number]')).toHaveText('020');
+
+    await page.getByLabel('Name of 030').click();
+    await page.keyboard.press('Control+d');
+
+    await expect(page.locator('tr[data-armed="true"] [data-number]')).toHaveText('030');
+    expect(await numbersOnScreen(page)).toEqual(['010', '020', '030']);
+  });
+
   test('a held Ctrl+D arms once and never deletes', async ({ page }) => {
     await seedRows(page, `e2e-keys-${String(Date.now())}-${String(account)}`, 3);
 
