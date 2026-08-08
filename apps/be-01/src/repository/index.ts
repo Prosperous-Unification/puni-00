@@ -55,6 +55,62 @@ export interface Role {
   name: string;
 }
 
+/** Why a role could not be added or renamed. Both are states of the project, not faults. */
+export type RoleWriteRefusal = 'taken' | 'not_found';
+
+export type RoleWritten = { ok: true; role: Role } | { ok: false; reason: RoleWriteRefusal };
+
+/**
+ * What points at one role, read for the refusal that names it.
+ *
+ * The estimates are a count because a count is all anyone can act on. The
+ * assignments are **every assignment in the project**, not only this role's:
+ * whether a work item's assumed assignee moves when this role goes depends on
+ * what it holds for the *other* roles, so the answer cannot be computed from
+ * this role's rows alone. See `assumedAssigneeFlips`.
+ */
+export interface RoleUsageRows {
+  estimates: number;
+  assignments: readonly Assignment[];
+}
+
+/** What one confirmed removal took with it. */
+export interface RoleRemoval {
+  estimates: number;
+  assignments: number;
+  /** Every work item that lost an estimate or an assignment, and whose revision therefore moved. */
+  workItemIds: readonly string[];
+}
+
+export interface RoleStore {
+  listByProject(projectId: string): Promise<Role[]>;
+  /** By id alone: the caller checks the role belongs to the project it was asked about. */
+  findById(roleId: string): Promise<Role | null>;
+  /**
+   * Adds a role, or refuses a name the project already holds.
+   *
+   * Refused by the unique index rather than by asking first: two clients adding
+   * `Design` at the same moment both pass a check-then-insert. Moves the
+   * project's revision in the same transaction — a role is a satellite of the
+   * project, and adding one changes what every estimate in it means.
+   */
+  add(role: Role): Promise<RoleWritten>;
+  /** The same rules as {@link RoleStore.add}, and `not_found` for a role that has gone. */
+  rename(roleId: string, name: string): Promise<RoleWritten>;
+  usageOf(projectId: string, roleId: string): Promise<RoleUsageRows>;
+  /**
+   * Deletes the role's estimates, its assignments and the role row in one
+   * transaction, bumping the project and every work item that lost one of them.
+   *
+   * The estimates are deleted explicitly because `estimate.role_id` has no
+   * cascade: a bare delete of the row hits the foreign key and answers 500.
+   * Everything it deletes is chosen **inside** the transaction, so an estimate
+   * written after the caller counted is deleted too rather than left pointing
+   * at a role that is gone.
+   */
+  remove(projectId: string, roleId: string): Promise<RoleRemoval>;
+}
+
 export interface ProjectPatch {
   name?: string;
   restricted?: boolean;
