@@ -53,6 +53,13 @@ The changed fields SHALL be sent in a single request, so that a name and a note
 written together are one refusal, one entry on the undo stack and one undo.
 When neither field differs, nothing SHALL be sent.
 
+Text that be-01 refused SHALL stay in the cell until the person who typed it
+resolves it: no later refetch — somebody else's edit arriving, this browser's
+own next read, a reconnect — SHALL overwrite it, and leaving the cell again
+SHALL send it again. While a request is still out, leaving the cell again
+without having changed what it holds SHALL send nothing, so that one gesture
+stays one request and one entry on the undo stack.
+
 #### Scenario: their note, my name
 
 - **GIVEN** a work item being renamed in this browser
@@ -75,6 +82,19 @@ When neither field differs, nothing SHALL be sent.
 
 - **WHEN** the request is refused
 - **THEN** neither field is changed and the refusal is on screen
+
+#### Scenario: a refusal survives what arrives next
+
+- **GIVEN** a name and a note whose edit be-01 refused
+- **WHEN** someone else's edit to that work item arrives afterwards
+- **THEN** the refused text is still in the cell, and leaving the cell again
+  sends it again
+
+#### Scenario: one gesture, one request
+
+- **GIVEN** an edit whose request has not come back yet
+- **WHEN** the cell is focused and left again with nothing typed in between
+- **THEN** nothing further is sent
 
 #### Scenario: nothing to say
 

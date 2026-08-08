@@ -15,6 +15,24 @@ type PassedThrough = Omit<
  */
 export type CellElement = HTMLInputElement | HTMLTextAreaElement;
 
+/**
+ * What became of an edit this cell sent.
+ *
+ * `refused` covers everything that left be-01 without the edit — a 4xx, a
+ * dropped connection, a request that never went out. They are one event to a
+ * cell: the only copy of what was typed is the one on screen.
+ *
+ * `unsent` is the commit that asked be-01 for nothing, and it is not the same
+ * answer. A composite cell whose two texts differ only in their line endings
+ * sends no patch; an estimate cell holds a half-typed trio as a draft it
+ * renders from. Neither has anything for this component to hold back or to
+ * correct, and calling either of them `landed` would be recording a write.
+ */
+export type CommitOutcome = 'landed' | 'refused' | 'unsent';
+
+/** The answer a commit that sent nothing gives, as a settled promise. */
+export const unsent = (): Promise<CommitOutcome> => Promise.resolve('unsent');
+
 export interface CellInputProps extends PassedThrough {
   /**
    * Renders a `<textarea>` instead of an `<input>`, so the text wraps.
@@ -65,8 +83,12 @@ export interface CellInputProps extends PassedThrough {
    * local user never touched reads as one they emptied. Cells with one field
    * ignore it: for them `typed !== baseline` is the whole answer, and this
    * component has already asked it.
+   * @returns What be-01 did with it, once the request has settled — which is
+   * what lets this component hold a refused draft against every later refetch
+   * (rule 4) instead of leaving it in the DOM to be written over. A commit
+   * that sends nothing answers {@link unsent}.
    */
-  commit: (typed: string, baseline: string) => void;
+  commit: (typed: string, baseline: string) => Promise<CommitOutcome>;
   /**
    * Called with the node every time React attaches it, which is more than once —
    * the ref callback is rebuilt on each render. Must be idempotent.
@@ -94,6 +116,14 @@ export interface CellInputProps extends PassedThrough {
  *    until they leave it, and their own blur is what resolves the disagreement.
  * 3. A blur sends only what actually differs from the value this cell was last
  *    showing. Clicking through a row writes nothing.
+ * 4. A draft be-01 **refused** is held against every later refetch, focus or no
+ *    focus. Rule 2 only holds while the cell has the focus, and a refusal
+ *    arrives after the blur that caused it — so without this the only copy of
+ *    the typed text sits in the DOM waiting for the next peer edit to erase it.
+ * 5. The same text is not sent twice against the same baseline. `shown` stays
+ *    on the old value until the refetch lands, so a second focus-and-leave
+ *    inside that window looks exactly like a fresh edit to rule 3
+ *    — and one gesture would become two journal entries and two Cmd+Zs.
  */
 export function CellInput({
   value,
@@ -111,6 +141,23 @@ export function CellInput({
   const typed = useRef(false);
   /** The newest server value, readable from a blur handler as well as an effect. */
   const latest = useRef(value);
+  /**
+   * Whether the box holds text be-01 was asked for and refused (rule 4).
+   *
+   * Not `typed`: that one is only consulted while the cell has the focus, and
+   * by the time a refusal comes back the focus has gone — leaving it the only
+   * thing standing between a person's two typed fields and the next refetch
+   * would be leaving nothing there at all.
+   */
+  const refused = useRef(false);
+  /**
+   * The last submission this cell made, and what it was diffed against (rule 5).
+   *
+   * The baseline is half of it because it is what makes the record expire by
+   * itself: once a refetch has moved `shown`, the same text typed again is a
+   * different edit and is sent.
+   */
+  const sent = useRef<{ typed: string; baseline: string } | null>(null);
 
   /**
    * Sets the height to the text's own height, and caps how tall that gets
@@ -143,6 +190,15 @@ export function CellInput({
   const sync = useCallback(() => {
     const input = element.current;
     if (input === null || latest.current === shown.current) return;
+    // Rule 4, before rule 2 and without asking where the focus is: a refused
+    // draft is unsaved text that exists nowhere else, and the refusal landed
+    // after the blur that sent it. It is held until the person resolves it
+    // themselves — by leaving the cell again, which retries it, or by putting
+    // the box back to what it was showing, which abandons it.
+    // Proof: deleted, `keeps a refused draft on screen when the next refetch
+    // arrives` failed on `expected 'Rewire the shed\nmeasure twice' to be
+    // 'Strip the wiring\nmeasure twice, cut …'`. Watched, 2026-08-08.
+    if (refused.current) return;
     // Rule 2. `document.activeElement` rather than a focus/blur flag of our own:
     // the question is only ever asked about right now, and the DOM already knows
     // the answer without a second copy of it to keep in step.
@@ -165,7 +221,10 @@ export function CellInput({
    * What leaving a cell means, shared by both elements.
    *
    * Rule 3: only a value that actually differs from what this cell was last
-   * showing is sent. Clicking through a row writes nothing.
+   * showing is sent. Clicking through a row writes nothing. Rule 5 narrows
+   * that further — the same text against the same baseline is a resubmission
+   * of a request that is already out — and what the commit answers decides
+   * whether rule 4 holds what is in the box from here on.
    */
   const onLeave = (): void => {
     const node = element.current;
@@ -176,6 +235,15 @@ export function CellInput({
     // the focus ever left.
     typed.current = false;
     if (node.value !== shown.current) {
+      // Rule 5. `shown` has not moved since the last submission, so this is
+      // that submission again — the person clicked back into the cell and out
+      // of it while the request was still out, and be-01 has already been
+      // asked for exactly this.
+      // Proof: deleted, `sends one request however often the cell is left
+      // before it lands` failed on `expected [ [ 'w1', { …(2) } ], …(1) ] to
+      // have a length of 1 but got 2`. Watched, 2026-08-08.
+      if (sent.current?.typed === node.value && sent.current.baseline === shown.current) return;
+      sent.current = { typed: node.value, baseline: shown.current };
       // No `sync()` afterwards: `shown` is deliberately left holding the old
       // value until the refetch this commit triggers comes back. Advancing it
       // here would be recording a write that has not happened yet, and a failed
@@ -185,11 +253,38 @@ export function CellInput({
       // is compared against here: it is what this box was showing when the
       // typing started, which a peer's edit held back by rule 2 has
       // deliberately not moved. A composite cell diffs its fields against it.
-      commit(node.value, shown.current);
+      void commit(node.value, shown.current).then((outcome) => {
+        if (outcome !== 'landed') {
+          // Nothing of this edit is on the server — `refused` was turned down,
+          // `unsent` never went — so the record of a submission goes with it
+          // and leaving the cell again is a fresh ask rather than a duplicate.
+          // Proof: this line removed, `sends a refused edit again when the
+          // cell is left a second time` failed on `expected [] to deeply equal
+          // [ [ 'w1', { …(2) } ] ]` — the retry dropped as a duplicate of a
+          // request that never landed. Watched, 2026-08-08.
+          sent.current = null;
+          // Rule 4, and only for the refusal: an `unsent` commit is one where
+          // the box and be-01 already agree, so there is no draft to hold.
+          // Proof: this line removed, `keeps a refused draft on screen when
+          // the next refetch arrives` failed on the same assertion the gate in
+          // `sync` answers for — a refusal nothing records is a refusal
+          // nothing can hold. Watched, 2026-08-08.
+          refused.current = outcome === 'refused';
+          return;
+        }
+        refused.current = false;
+        // The refetch this commit triggered lands *before* it resolves, so a
+        // draft that rule 4 held back was held back through the one render
+        // that carried its answer. Nothing else would come.
+        sync();
+        resize(element.current);
+      });
       return;
     }
-    // Nothing typed, or typed back to what it already said — so anything rule 2
-    // held back while the focus was here is safe to apply now.
+    // Nothing typed, or typed back to what it already said — so there is no
+    // unsaved draft left to hold, and anything rule 2 or rule 4 held back
+    // while the focus was here is safe to apply now.
+    refused.current = false;
     sync();
   };
 

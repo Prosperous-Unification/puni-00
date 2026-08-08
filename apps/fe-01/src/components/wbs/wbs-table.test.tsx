@@ -2726,6 +2726,37 @@ describe('someone else editing while you are typing', () => {
     expect(patched).toEqual([['w1', { notes: 'measure twice, cut once' }]]);
     expect(api.rows[0]?.notes).toBe('measure twice, cut once');
   });
+
+  itDom('keeps a refused draft on screen when the next refetch arrives', async () => {
+    // codex round 1, finding 1. A refusal leaves the typed text in the box and
+    // nowhere else: be-01 has not got it, and the row this cell renders from
+    // still says what it always said. The next refetch — anybody's edit, this
+    // client's own next request, a reconnect — carries a value that differs
+    // from what the box was last showing, and rule 1 would write it in over
+    // two fields the person typed and was never told were lost.
+    //
+    // Proof: the `refused.current` gate deleted from `sync`, this failed on
+    // `expected 'Rewire the shed\nmeasure twice' to be 'Strip the wiring\n
+    // measure twice, cut …'` — both typed fields replaced by the server's,
+    // silently. Watched, 2026-08-08.
+    const { api, cell, theirEdit } = await peerAndMe('Strip', 'measure twice');
+    // Refused for a reason retyping cannot fix, so what is in the box is all
+    // there is of this edit anywhere.
+    api.patch = () => Promise.reject(new Error('forbidden'));
+
+    cell.focus();
+    fireEvent.change(cell, { target: { value: 'Strip the wiring\nmeasure twice, cut once' } });
+    fireEvent.blur(cell);
+    await waitFor(() => {
+      expect(toastTexts()).toContain('forbidden');
+    });
+
+    await theirEdit((row) => {
+      row.name = 'Rewire the shed';
+    });
+
+    expect(cell.value).toBe('Strip the wiring\nmeasure twice, cut once');
+  });
 });
 
 describe('a name and its notes in one box', () => {
@@ -2890,6 +2921,81 @@ describe('a name and its notes in one box', () => {
     expect(api.rows[0]?.name).toBe('');
     expect(api.rows[0]?.notes).toBe('measure twice');
     expect(screen.getByLabelText('Name of 010')).toHaveValue('\nmeasure twice');
+  });
+
+  itDom('sends one request however often the cell is left before it lands', async () => {
+    // codex round 1, finding 2. `shown` deliberately stays on the old value
+    // until the refetch this commit triggers comes back, so between the blur
+    // and that refetch the box and the baseline still disagree — and a second
+    // focus-and-leave in that window would send the identical patch again.
+    // Two requests are two journal entries and two Cmd+Zs for one gesture,
+    // which is the thing one atomic patch was for.
+    //
+    // Proof: the `sent.current` comparison deleted from `onLeave`, this
+    // failed on `expected [ [ 'w1', { …(2) } ], …(1) ] to have a length of 1
+    // but got 2` — the same name and note written twice. Watched, 2026-08-08.
+    const { api, patched, cell } = await noted('Strip', 'measure twice');
+    let land: () => void = () => {
+      throw new Error('nothing is in flight');
+    };
+    api.patch = (id: string, patch: Record<string, string>) => {
+      patched.push([id, patch]);
+      return new Promise<void>((resolve) => {
+        land = resolve;
+      });
+    };
+
+    cell.focus();
+    fireEvent.change(cell, { target: { value: 'Strip the wiring\nmeasure twice, cut once' } });
+    fireEvent.blur(cell);
+    await waitFor(() => {
+      expect(patched).toHaveLength(1);
+    });
+
+    // Clicked back into and out of while the first request is still out.
+    cell.focus();
+    fireEvent.blur(cell);
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(patched).toHaveLength(1);
+
+    await act(async () => {
+      land();
+      await Promise.resolve();
+    });
+    expect(patched).toHaveLength(1);
+  });
+
+  itDom('sends a refused edit again when the cell is left a second time', async () => {
+    // The other half of the rule above: an unchanged resubmission is dropped
+    // because be-01 already has it, so a resubmission of something be-01
+    // refused must not be. Leaving the cell is how a person retries.
+    //
+    // Proof: the `sent.current = null` on a refusal removed, this failed on
+    // `expected [] to deeply equal [ [ 'w1', { …(2) } ] ]` — the retry
+    // silently dropped as a duplicate of a request that never landed.
+    // Watched, 2026-08-08.
+    const { api, patched, cell } = await noted('Strip', 'measure twice');
+    api.patch = () => Promise.reject(new Error('forbidden'));
+
+    retype('Strip the wiring\nmeasure twice, cut once');
+    await waitFor(() => {
+      expect(toastTexts()).toContain('forbidden');
+    });
+
+    api.patch = (id: string, patch: Record<string, string>) => {
+      patched.push([id, patch]);
+      return Promise.resolve();
+    };
+    cell.focus();
+    fireEvent.blur(cell);
+
+    await waitFor(() => {
+      expect(patched).toEqual([
+        ['w1', { name: 'Strip the wiring', notes: 'measure twice, cut once' }],
+      ]);
+    });
   });
 
   itDom('a refused edit changes neither field and says so', async () => {

@@ -19,7 +19,7 @@ import {
 } from '@/lib/wbs-api';
 
 import { ActionsMenu } from './actions-menu';
-import { type CellElement, CellInput } from './cell-input';
+import { type CellElement, CellInput, type CommitOutcome, unsent } from './cell-input';
 import { type Caret, type CellRef, nextCell } from './cell-navigation';
 import { CreatablePicker } from './creatable-picker';
 import { pickerEntries, type PickerEntry } from './dep-picker';
@@ -914,18 +914,26 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    *
    * A refused action skips the reread deliberately: be-01 changed nothing, so
    * there is nothing new to read.
+   *
+   * The verdict is returned as well as toasted, because a toast is a sentence
+   * and some callers need the fact. `CellInput` is the one: a refused edit
+   * exists only in the box it was typed into, and the box has to be told so it
+   * can hold it against the next refetch (rule 4 there). A reread that failed
+   * is still `landed` — the write happened, and the banner is what says the
+   * screen may be behind.
    */
   const run = useCallback(
-    async (action: () => Promise<void>) => {
+    async (action: () => Promise<void>): Promise<CommitOutcome> => {
       setBusy(true);
       try {
         try {
           await action();
         } catch (thrown: unknown) {
           pushToast({ kind: 'error', text: failureText(thrown, 'request_failed') });
-          return;
+          return 'refused';
         }
         await refreshOrMarkStale();
+        return 'landed';
       } finally {
         setBusy(false);
       }
@@ -1492,15 +1500,18 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    * on `[['w1', {}]]`, an empty patch.
    */
   const commitNameCell = useCallback(
-    (rowId: string, typed: string, baseline: string) => {
+    (rowId: string, typed: string, baseline: string): Promise<CommitOutcome> => {
       const now = splitNameCell(normalizeNewlines(typed));
       const was = splitNameCell(normalizeNewlines(baseline));
       const patch = {
         ...(now.name === was.name ? {} : { name: now.name }),
         ...(now.notes === was.notes ? {} : { notes: now.notes }),
       };
-      if (Object.keys(patch).length === 0) return;
-      void run(() => api.patch(rowId, patch));
+      // Not `landed`: nothing was written. The two texts differ as text and
+      // mean the same thing, so there is nothing unsaved for the cell to hold
+      // and nothing for be-01 to have refused.
+      if (Object.keys(patch).length === 0) return unsent();
+      return run(() => api.patch(rowId, patch));
     },
     [api, run],
   );
@@ -1976,7 +1987,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    * three boxes are emptied` in `wbs-table.test.tsx`; watched, 2026-08-06.
    */
   const commitEstimate = useCallback(
-    (row: TreeRow, roleId: string, point: Point, typed: string) => {
+    (row: TreeRow, roleId: string, point: Point, typed: string): Promise<CommitOutcome> => {
       const next = { ...typedTrio(row, roleId), [point]: typed };
       setDrafts((current) => ({
         // A box edited last drops the folded cell's pending shorthand for this
@@ -1993,14 +2004,16 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         // be-01 holds a trio for this row and role at all, and a stored
         // `0 / 0 / 0` is one.
         if (isTrioEmpty(next) && Object.hasOwn(row.estimates, roleId)) {
-          void run(async () => {
+          return run(async () => {
             await api.clearEstimate(row.id, roleId);
             forgetEstimateDrafts(row.id, roleId);
           });
         }
-        return;
+        // A half-filled trio is a complaint, not a request: what was typed
+        // stays in `drafts`, which is where this cell's unsent text lives.
+        return unsent();
       }
-      void run(async () => {
+      return run(async () => {
         await api.setEstimate(row.id, roleId, days);
         forgetEstimateDrafts(row.id, roleId);
       });
@@ -2073,7 +2086,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    * in `wbs-table.test.tsx` fails; watched, 2026-08-06.
    */
   const commitCombinedEstimate = useCallback(
-    (row: TreeRow, roleId: string, typed: string) => {
+    (row: TreeRow, roleId: string, typed: string): Promise<CommitOutcome> => {
       const entry = parseTrioShorthand(typed);
       setDrafts((current) => ({
         // Last edit wins: this entry replaces whatever the three boxes were
@@ -2085,21 +2098,20 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         ...dropDrafts(current, new Set(POINTS.map((point) => draftKey(row.id, roleId, point)))),
         [combinedDraftKey(row.id, roleId)]: typed,
       }));
-      if (entry.kind === 'problem') return;
+      if (entry.kind === 'problem') return unsent();
       if (entry.kind === 'empty') {
         // `hasOwn`, as above: a stored `0 / 0 / 0` is an estimate to clear.
         // Proof: inverted, `clears the stored trio when the cell is emptied`
         // and `asks for nothing when a cell with no estimate is emptied` both
         // fail — one clear lost, one deletion posted per cell tabbed through.
         // Watched, 2026-08-06.
-        if (!Object.hasOwn(row.estimates, roleId)) return;
-        void run(async () => {
+        if (!Object.hasOwn(row.estimates, roleId)) return unsent();
+        return run(async () => {
           await api.clearEstimate(row.id, roleId);
           forgetEstimateDrafts(row.id, roleId);
         });
-        return;
       }
-      void run(async () => {
+      return run(async () => {
         await api.setEstimate(row.id, roleId, entry.days);
         forgetEstimateDrafts(row.id, roleId);
       });
@@ -2422,9 +2434,11 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                 // against the baseline rather than against this value are in
                 // {@link commitNameCell}.
                 value={composeNameCell(row.original.name, row.original.notes)}
-                commit={(typed, baseline) => {
-                  live.current.commitNameCell(row.original.id, typed, baseline);
-                }}
+                // Returned rather than dropped: what be-01 did with the edit is
+                // what tells the box whether the text in it has been saved.
+                commit={(typed, baseline) =>
+                  live.current.commitNameCell(row.original.id, typed, baseline)
+                }
                 onKeyDown={(e) => {
                   live.current.onAltMove(e, row.original, 'name');
                   live.current.onKeyDown(e, row.original);
@@ -2789,9 +2803,9 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                         ...(problem === null ? {} : { background: '#fde8e8', borderColor: '#c00' }),
                       }}
                       value={live.current.combinedValue(row.original, role.id)}
-                      commit={(typed) => {
-                        live.current.commitCombinedEstimate(row.original, role.id, typed);
-                      }}
+                      commit={(typed) =>
+                        live.current.commitCombinedEstimate(row.original, role.id, typed)
+                      }
                     />
                   ) : (
                     showFinal(row.original.finalDays[role.id])
@@ -2841,10 +2855,13 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                                 : {}),
                           }}
                           value={live.current.estimateValue(row.original, role.id, point)}
-                          commit={(typed) => {
-                            if (row.original.rolledUp) return;
-                            live.current.commitEstimate(row.original, role.id, point, typed);
-                          }}
+                          commit={(typed) =>
+                            // A rolled-up figure is a sum of the rows below it:
+                            // the box is read-only and there is nothing to send.
+                            row.original.rolledUp
+                              ? unsent()
+                              : live.current.commitEstimate(row.original, role.id, point, typed)
+                          }
                         />
                       );
                     },

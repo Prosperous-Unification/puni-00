@@ -17,6 +17,15 @@ export interface NameAndNotes {
  * trailing newline would round-trip through {@link splitNameCell} unnoticed
  * while every cell in the table grew a blank second line nobody typed.
  *
+ * Proof: the separator made unconditional — `` `${name}\n${notes}` `` for
+ * every row — `is the name alone when there are no notes` failed on
+ * `expected 'Strip the old wiring\n' to be 'Strip the old wiring'`, `never
+ * invents a trailing newline` on `expected true to be false`, and `reads a
+ * stored name that already holds a newline as a name and notes` on
+ * `expected { name: 'two', notes: 'lines\n' } to deeply equal { name: 'two',
+ * notes: 'lines' }` — the invented line riding round the trip. Watched,
+ * 2026-08-08.
+ *
  * @param name The work item's name, as be-01 holds it.
  * @param notes Its notes, as be-01 holds them; `''` when it has none.
  * @returns The text the cell shows and is edited as.
@@ -47,6 +56,19 @@ export function composeNameCell(name: string, notes: string): string {
  * here into a name ending in `\r`, which is a difference nobody can see and one
  * that would be stored, compared against and re-sent forever.
  *
+ * Proof, two faults, both watched on 2026-08-08. `indexOf` made `lastIndexOf`
+ * — the last newline rather than the first: `keeps every newline after the
+ * first inside the notes` failed on `expected { name: 'Strip\n## Risks\n', …
+ * } to deeply equal { name: 'Strip', … }`, taking three lines of notes into
+ * the name, and `keeps a blank line that has something under it` and the round
+ * trip failed with it. The two `slice`s replaced by
+ * `const [name, ...rest] = text.split('\n')` with `rest.join('')` — the
+ * classic version of this function, which loses the notes' own newlines:
+ * `keeps a blank line that has something under it` failed on
+ * `expected { name: 'Strip', notes: '- old' } to deeply equal { name: 'Strip',
+ * notes: '\n- old' }`, which in markdown is a list that has swallowed its
+ * heading.
+ *
  * @param text What the cell holds.
  * @returns The two fields it says be-01 should now hold.
  */
@@ -64,6 +86,16 @@ export function splitNameCell(text: string): NameAndNotes {
  * still produce. Both become `\n`, because {@link splitNameCell} splits on
  * `\n` and an unnormalised `\r` would ride along invisibly on the end of the
  * name.
+ *
+ * Proof: the body replaced with `return text`. In this module, `turns a pasted
+ * CRLF into one newline` failed on `expected 'Strip\r\nmeasure twice' to be
+ * 'Strip\nmeasure twice'` and `is what makes a pasted note split at the right
+ * place` on `expected { name: 'Strip\r', … } to deeply equal { name: 'Strip',
+ * … }`. On the production path, where the `\r` comes from be-01 rather than
+ * from a keyboard, `does not rewrite a note that was stored with Windows line
+ * endings` in `wbs-table.test.tsx` failed on `expected [ [ 'w1', …(1) ] ] to
+ * deeply equal []` — a patch sent by somebody who only clicked through the
+ * row. Watched, 2026-08-08.
  */
 export function normalizeNewlines(text: string): string {
   return text.replaceAll('\r\n', '\n').replaceAll('\r', '\n');

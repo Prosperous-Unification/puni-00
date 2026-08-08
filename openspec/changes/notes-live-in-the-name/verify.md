@@ -2,7 +2,8 @@
 
 ## The gate
 
-Run on h1claw, 2026-08-08, on `change/keys-notes-and-fit`.
+Run on h1claw, 2026-08-08, on `change/keys-notes-and-fit`. Re-run in full after
+the round-1 review fixes below; the numbers are that second run.
 
 ```
 $ bunx nx format:check --all
@@ -10,19 +11,21 @@ $ bunx nx format:check --all
 
 $ bunx nx run-many -t test lint typecheck build --parallel=2 --skip-nx-cache
 NX   Successfully ran targets test, lint, typecheck, build for 21 projects
-      fe-01 (vitest)   24 files   546 pass  0 fail   (23 files / 507 before this change, +39)
+      fe-01 (vitest)   24 files   549 pass  0 fail   (23 files / 507 before this change, +42)
+      be-01 (bun:test) 41 files   384 pass  0 fail   (383 before the round-1 fixes, +1)
 
 $ bunx nx run-many -t test --projects=fe-01 --skip-nx-cache
       Test Files  24 passed (24)
-      Tests       546 passed (546)
+      Tests       549 passed (549)
 
 $ bunx @fission-ai/openspec@1.3.0 validate --all --json
-{"items": 37, "passed": 37, "failed": 0}
+{"totals": {"items": 37, "passed": 37, "failed": 0}}
 ```
 
-The 39 new tests: **19** in the new `name-notes.test.ts`, **13** in
-`wbs-table.test.tsx`, **6** in `cell-navigation.test.ts` and **1** in
-`table-frame.test.ts`. Nine existing tests were rewritten rather than deleted —
+The 42 new fe-01 tests: **19** in the new `name-notes.test.ts`, **16** in
+`wbs-table.test.tsx` (13, plus the three the round-1 review asked for), **6** in
+`cell-navigation.test.ts` and **1** in `table-frame.test.ts`. The one new be-01
+test is in `controller/undo.controller.test.ts`, over real SQLite. Nine existing tests were rewritten rather than deleted —
 the walk of a row's fields, the grid's edges, the date cell's neighbours, the
 markdown-on-hover pair, the empty-row veto, the popover-clip test, the
 column-order test and the cell-chrome loop all lost a Notes cell and gained
@@ -58,6 +61,44 @@ peer's edit is written into the fake's row, `notify()` delivers it as a refetch
 while the focus is held in the textarea, the held-back value is asserted on
 screen, and only then does the blur happen. Nothing reaches into the component.
 
+### What a refusal survives, and what one gesture costs (round 1)
+
+codex's round-1 findings 1 and 2. A refused patch left the typed text in the
+DOM and nowhere else, and the same edit could be sent twice. `CellInput` gained
+rules 4 and 5 — a refused draft held against every later refetch, and no second
+send of the same text against the same baseline — and `commit` now answers
+`landed`, `refused` or `unsent` so the box can tell which happened. All three
+faults were watched on the final code on 2026-08-08, each failing its own test
+and only its own.
+
+| Check                                                     | Fault injected                                              | What the run reported                                                                                                                                                                                                     |
+| --------------------------------------------------------- | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A refused draft is held through the next refetch (rule 4) | the `if (refused.current) return` gate deleted from `sync`  | **1 failed** — `keeps a refused draft on screen when the next refetch arrives`, on `expected 'Rewire the shed\nmeasure twice' to be 'Strip the wiring\nmeasure twice, cut …'`: both typed fields replaced by the server's |
+| …and the cell is told so                                  | `refused.current = outcome === 'refused'` deleted           | **1 failed** — the same test, the same assertion: a refusal nothing recorded is a refusal nothing can hold                                                                                                                |
+| One gesture is one request (rule 5)                       | the `sent.current` comparison deleted from the blur handler | **1 failed** — `sends one request however often the cell is left before it lands`, on `expected [ [ 'w1', { …(2) } ], …(1) ] to have a length of 1 but got 2`                                                             |
+| …and a refusal is still retryable                         | `sent.current = null` deleted from the not-landed branch    | **1 failed** — `sends a refused edit again when the cell is left a second time`, on `expected [] to deeply equal [ [ 'w1', { …(2) } ] ]`: the retry dropped as a duplicate of a request that never landed                 |
+
+The refusal test runs through the same `peerAndMe` harness as the two clobber
+tests above — a real subscription, the peer's edit delivered as a refetch — so
+what holds the draft back is asserted against the arrival that would erase it.
+The one-request test holds the PATCH open (a promise the test resolves) and
+focuses and leaves the cell again while it is out, which is the window the
+finding named.
+
+### One gesture, one journal entry (round 1)
+
+codex's round-1 finding 3: the fe-01 test proves one HTTP call and stops there.
+Whether one call is one entry on the undo stack — and whether one Cmd+Z brings
+both fields back together — is be-01's, so it is asked of be-01, through the
+route, the service and the real `CommandJournalRepository` over real SQLite in
+`controller/undo.controller.test.ts`.
+
+| Check                                            | Fault injected                                                                 | What the run reported                                                                                                             |
+| ------------------------------------------------ | ------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
+| A `{name, notes}` patch is **one** journal entry | the same edit sent as two requests, `{ name }` then `{ notes }`                | **1 failed** — a fourth entry on the stack: `Expected - 0 / Received + 1`, the extra `"patch"`                                    |
+| …and one undo puts both fields back              | the same split, with the entry-count assertion taken out                       | **1 failed** — `Expected: "Strip" / Received: "Strip the wiring"`: one undo, one field, one Cmd+Z short                           |
+| …including the field the inverse has to carry    | `revertTo`'s `if (patch.notes !== undefined) out.notes = before.notes` deleted | **1 failed** — `Expected: "measure twice" / Received: "measure twice, cut once"`: the name back, the note left where nobody asked |
+
 ### The arrows, and which box owns Up and Down
 
 | Check                                                    | Fault injected                                                       | What the run reported                                                                                                                                                   |
@@ -86,11 +127,25 @@ the blur that would commit the emptying has not happened.
 
 ### The contract module
 
-All 19 tests in `name-notes.test.ts` were watched failing before the module
-existed — `Failed to resolve import "./name-notes"`. They pin the semantics the
-plan's reviewers asked to have chosen rather than guarded away: delete-line-1
-renames, an empty first line commits no name, `'name\n'` is no notes at all,
-and a blank line with something under it stays inside the notes.
+The wiring row first, for what it is worth and no more: all 19 tests in
+`name-notes.test.ts` were watched failing before the module existed —
+`Failed to resolve import "./name-notes"`. That proves the tests import the
+production module and nothing else about them, which is codex round 1,
+finding 5. The rows below are the semantic faults, one per function, each
+watched on 2026-08-08 and each recorded in a `Proof:` comment on the function
+it was injected into.
+
+| Check                                                     | Fault injected                                                                           | What the run reported                                                                                                                                                                                                                                                                      |
+| --------------------------------------------------------- | ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `composeNameCell` never invents a trailing newline        | the separator made unconditional, `` `${name}\n${notes}` `` for every row                | **3 failed** — `is the name alone when there are no notes` on `expected 'Strip the old wiring\n' to be 'Strip the old wiring'`, `never invents a trailing newline` on `expected true to be false`, and the stored-name-with-a-newline case on the notes coming back as `'lines\n'`         |
+| `splitNameCell` splits at the **first** newline           | `indexOf` made `lastIndexOf`                                                             | **3 failed** — `keeps every newline after the first inside the notes` on `expected { name: 'Strip\n## Risks\n', … } to deeply equal { name: 'Strip', … }`, three lines of notes taken into the name; plus the blank-line case and the round trip                                           |
+| …and keeps the notes' own newlines                        | the two `slice`s replaced by `const [name, ...rest] = text.split('\n')`, `rest.join('')` | **3 failed** — `keeps a blank line that has something under it` on `expected { name: 'Strip', notes: '- old' } to deeply equal { name: 'Strip', notes: '\n- old' }`: in markdown, a list that has swallowed its heading                                                                    |
+| `normalizeNewlines` is what makes a stored `\r\n` a no-op | the body replaced with `return text`                                                     | **3 failed** here — `turns a pasted CRLF into one newline` on `expected 'Strip\r\nmeasure twice' to be 'Strip\nmeasure twice'` — **and 1 on the production path**: `does not rewrite a note that was stored with Windows line endings` on `expected [ [ 'w1', …(1) ] ] to deeply equal []` |
+
+They pin the semantics the plan's reviewers asked to have chosen rather than
+guarded away: delete-line-1 renames, an empty first line commits no name,
+`'name\n'` is no notes at all, and a blank line with something under it stays
+inside the notes.
 
 ### The browser spec — expectations, not observations
 
@@ -117,16 +172,21 @@ been re-run against it; the footer says so where the observation is recorded.
 ## What is proven, and by what
 
 **Proven by the repo gate, on this machine:** the compose/split/normalize
-contract including every destructive edit it makes possible; that the Name cell
+contract including every destructive edit it makes possible, each function with
+a semantic fault of its own watched; that the Name cell
 shows both fields and writes back only the changed ones, in one request, diffed
 against what the box was showing rather than against the row; that a peer's
 edit to either field survives a local edit to the other, delivered through the
-real render path; that a refused patch changes neither field; that ↑ and ↓ stay
+real render path; that a refused patch changes neither field, stays on screen through the next
+refetch and is sent again by leaving the cell a second time; that one gesture
+is one request however often the cell is left while that request is out, and
+that one request is one row in `command_journal` and one Cmd+Z that restores
+the name and the note together; that ↑ and ↓ stay
 in the Name cell until the caret runs out and leave from the extremes, while
 one-line cells are untouched; that a note vetoes the empty-row Backspace from
 either side; that the Notes column is gone from the header row, the tab walk,
 the width table and the clip exemptions, and that the Name cell took the
-exemption over. 546 fe-01 tests, the fault tables above.
+exemption over. 549 fe-01 tests and 384 be-01 tests, the fault tables above.
 
 **Checked rather than assumed:** the cheat sheet's `PROVEN_BY` map. The arrows
 entry gained a sentence about the Name cell and the Backspace entry gained a

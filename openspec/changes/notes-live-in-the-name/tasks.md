@@ -82,3 +82,31 @@
 
 - [x] 6.1 `format:check --all`, the run-many gate and `openspec validate --all`,
       with the fault table in `verify.md` and every fault in it watched.
+
+## 7. Round 1 of the cross-review
+
+- [x] 7.1 `cell-input.tsx`: `commit` answers `landed` / `refused` / `unsent`,
+      and the cell holds a refused draft against every later refetch (rule 4)
+      and refuses to send the same text twice against the same baseline
+      (rule 5). `wbs-table.tsx`: `run` returns the verdict it already toasts;
+      `commitNameCell`, `commitEstimate` and `commitCombinedEstimate` return it.
+      **Tests** in `wbs-table.test.tsx`, three of them: the refused draft still
+      on screen after a peer's refetch, through the same peer harness as the
+      clobber pair; one request only, however often the cell is left while a
+      PATCH the test holds open is still out; and the refused edit sent again
+      when the cell is left a second time.
+      **Negative tests:** the `refused.current` gate deleted from `sync`; the
+      flag never set; the `sent.current` comparison deleted; the record
+      cleared nowhere on a refusal — each watched failing its own test and only
+      its own.
+- [x] 7.2 `controller/undo.controller.test.ts`: a `{name, notes}` PATCH through
+      the route, over real SQLite, is one `command_journal` row and one undo
+      that restores both fields.
+      **Negative tests:** the edit split into two requests (a fourth entry, and
+      an undo one field short); `revertTo`'s notes line deleted (the name back,
+      the note not).
+- [x] 7.3 `name-notes.ts`: a semantic fault per function watched and recorded
+      in a `Proof:` comment beside it — the invented trailing newline, the split
+      at the last newline, the split that loses the notes' own newlines, and
+      `normalizeNewlines` made the identity (watched on the production path as
+      well, through the stored-CRLF test).

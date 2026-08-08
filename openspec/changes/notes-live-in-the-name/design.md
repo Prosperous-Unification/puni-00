@@ -36,7 +36,39 @@ the same moment by construction.
 **One request, not two.** `api.patch` takes both fields, be-01 writes one
 journal entry per request, and the undo stack is that journal. Two requests
 would make one gesture two undos, and a refusal could land after a success and
-leave the row half written.
+leave the row half written. That be-01 really does write one entry, and that
+one undo really does restore both fields, is asserted through the route and the
+real journal in `controller/undo.controller.test.ts` — the front end's test can
+only ever prove one HTTP call.
+
+## What the commit answers, and what the box does with it
+
+`commit` returns `Promise<CommitOutcome>` — `landed`, `refused` or `unsent` —
+and that answer is the whole of what a cell knows about its own text. Two rules
+in `CellInput` are built on it, both from round 1 of the review:
+
+- **A refused draft is held (rule 4).** A refusal arrives _after_ the blur that
+  sent it, so rule 2 — "hold a peer's edit back while this cell has the focus"
+  — is no longer in force by the time it comes. The typed text is then in the
+  DOM and nowhere else: be-01 never got it, and the row this cell renders from
+  says what it always said. The next refetch of any kind would write over both
+  fields. So a refusal sets a flag `sync` consults before anything else, and it
+  is cleared only by the person: leaving the cell again retries the same text
+  (`shown` still holds the old baseline, so the diff is unchanged), and putting
+  the box back to what it was showing abandons it.
+- **The same text is not sent twice (rule 5).** `shown` deliberately does not
+  advance until the refetch lands, so inside that window a second focus-and-
+  leave looks exactly like a fresh edit. The cell records `{typed, baseline}`
+  on the way out and drops an identical resubmission. The record is cleared
+  whenever the answer is not `landed`, which is what keeps a deliberate retry
+  of a refused edit working — and it expires by itself, because a refetch that
+  moves `shown` moves the baseline half of it.
+
+`unsent` is not `landed`. Two commits ask be-01 for nothing: the composite cell
+whose two texts differ only in their line endings, and an estimate box holding
+a half-typed trio as a draft. Calling either of those "landed" would record a
+write that never happened; calling them "refused" would hold a draft nobody
+refused.
 
 ## The caret rule
 
