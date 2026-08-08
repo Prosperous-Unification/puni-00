@@ -168,7 +168,12 @@ test.describe('the command chords, in a browser', () => {
     expect(await numbersOnScreen(page)).toEqual(['010', '020']);
     // The row that took its place holds the name the deleted one did not.
     await expect(page.getByLabel('Name of 020')).not.toHaveValue('Sand the frames');
-    await expect(page.locator('tr[data-armed="true"]')).toHaveCount(0);
+    // Counted once, not `expect(locator).toHaveCount(0)`: that assertion
+    // retries for ten seconds, and an arm takes itself off after three — so
+    // the retrying form waits out the timer and passes against a row that
+    // really was armed. Watched doing exactly that on h2puni, 2026-08-08,
+    // with the `repeat` guard removed.
+    expect(await page.locator('tr[data-armed="true"]').count()).toBe(0);
   });
 
   test('a key still held when the row goes does not arm the row after it', async ({ page }) => {
@@ -199,7 +204,12 @@ test.describe('the command chords, in a browser', () => {
 
     await expect(page.getByText('Deleted 020 — Cmd+Z restores')).toBeVisible();
     expect(await numbersOnScreen(page)).toEqual(['010', '020']);
-    await expect(page.locator('tr[data-armed="true"]')).toHaveCount(0);
+    // Counted once, not `expect(locator).toHaveCount(0)`: that assertion
+    // retries for ten seconds, and an arm takes itself off after three — so
+    // the retrying form waits out the timer and passes against a row that
+    // really was armed. Watched doing exactly that on h2puni, 2026-08-08,
+    // with the `repeat` guard removed.
+    expect(await page.locator('tr[data-armed="true"]').count()).toBe(0);
   });
 
   test('arming one row and pressing Ctrl+D in another arms the second, and deletes neither', async ({
