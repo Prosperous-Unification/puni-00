@@ -96,3 +96,52 @@ describe('the WBS domain migration', () => {
     }
   });
 });
+
+describe('the role position migration', () => {
+  it('gives roles already in the database the order they were written in', () => {
+    // The backfill, against rows that existed before the column did — which is
+    // every project on the live server and the only situation that `UPDATE` is
+    // for. Reached by rolling back to the migration before it, writing roles
+    // the way the previous release wrote them, and migrating forward again.
+    const db = tempDb();
+    try {
+      runMigrations(db.path, FOLDER);
+      rollbackTo(db.path, FOLDER, JOURNAL);
+      const before = openDatabase(db.path);
+      try {
+        before.run(
+          "INSERT INTO users (id, username, password_hash, created_at) VALUES ('u', 'owner', 'x', 1)",
+        );
+        before.run(
+          'INSERT INTO project (id, name, owner_id, restricted, estimate_method, start_date, revision, created_at)' +
+            " VALUES ('p', 'Rewire the shed', 'u', 0, 'pert', NULL, 0, 1)",
+        );
+        // Written in the order the seed writes them and deliberately not in the
+        // order their names sort: a backfill reading the index rather than the
+        // rowid would hand these back the other way round.
+        before.run("INSERT INTO role (id, project_id, name) VALUES ('r1', 'p', 'Zebra')");
+        before.run("INSERT INTO role (id, project_id, name) VALUES ('r2', 'p', 'Alpha')");
+      } finally {
+        before.close();
+      }
+
+      runMigrations(db.path, FOLDER);
+
+      const after = openDatabase(db.path);
+      try {
+        const rows = after
+          .query<
+            { id: string; position: number },
+            []
+          >('SELECT id, position FROM role ORDER BY position')
+          .all();
+        expect(rows.map((row) => row.id)).toEqual(['r1', 'r2']);
+        expect(rows[0]?.position).toBeLessThan(rows[1]?.position ?? 0);
+      } finally {
+        after.close();
+      }
+    } finally {
+      db.cleanup();
+    }
+  });
+});

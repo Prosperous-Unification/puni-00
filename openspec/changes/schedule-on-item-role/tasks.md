@@ -14,6 +14,12 @@
 - [x] 1.3 The in-memory role and project fixtures sort the same way, because a
       fixture laxer than production lets a test pass against an order
       production does not produce.
+- [x] 1.4 **Unplanned:** the backfill had no test, and it is the only part of
+      the migration that touches data anybody already has. It is reached by
+      rolling back to the migration before it, writing roles the way the
+      previous release wrote them and migrating forward again — negative test
+      watched failing with the `UPDATE` set to a constant, both roles landing
+      at position 0.
 
 ## 2. The planner works in slices
 

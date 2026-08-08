@@ -8,7 +8,7 @@ $ bunx nx format:check --all
 
 $ bunx nx run-many -t test lint typecheck build --parallel=2
 NX   Successfully ran targets test, lint, typecheck, build for 21 projects
-     be-01 + libs (bun:test)   451 pass  0 fail  (47 files; was 434 on change/role-crud)
+     be-01 + libs (bun:test)   452 pass  0 fail  (47 files; was 434 on change/role-crud)
      fe-01 (vitest)            612 pass  0 fail  (25 files, not one of them edited)
 
 $ bunx nx run-many -t test --parallel=2 --skip-nx-cache
@@ -23,8 +23,15 @@ file is touched — which is itself part of the claim: the projection keeps the
 wire shape, so the client had nothing to adapt to. The worktree has no dev stack
 or chromium either.
 
-The migration lint runs (this change adds a `.sql` pair) and passes: the forward
-script is `ALTER TABLE ... ADD COLUMN` plus an `UPDATE`, and `down.sql` exists.
+```
+$ bun run tools/tool-git-hooks/src/hooks/migration-lint.ts \
+    apps/be-01/drizzle/20260809090000_add_role_position/migration.sql \
+    apps/be-01/drizzle/20260809090000_add_role_position/down.sql
+exit 0
+```
+
+The forward script is `ALTER TABLE ... ADD COLUMN` plus an `UPDATE`, and
+`down.sql` is beside it.
 
 ## The checks, and the faults that broke them
 
@@ -41,6 +48,7 @@ script is `ALTER TABLE ... ADD COLUMN` plus an `UPDATE`, and `down.sql` exists.
 | Slack is derived, not aggregated (`service/schedule.ts`, the projection) | `float` computed as `Math.min(...own.map((s) => s.float))`                        | the differential failed at seed 256: `r1.float` `12.333333333333332` became `12.33333333333333`                                                                              |
 | An unestimated slice is unestimated (`service/schedule.ts`)              | `estimated` hard-coded to `true`                                                  | the captured live plan came back with three rows claiming somebody had estimated them; `reports an unestimated leaf as unestimated` failed too                               |
 | An unestimated slice is still a node (`service/schedule.ts`, `keysOf`)   | slices with no estimate filtered out of the graph                                 | the captured live plan's unestimated row went from `float: 4.5, critical: false` to `float: 0, critical: true`                                                               |
+| The migration backfills the order (`20260809090000_add_role_position`)   | the `UPDATE` changed to `SET position = 0`                                        | `gives roles already in the database the order they were written in` failed with both roles at `0` — every existing project's order gone, silently                           |
 
 Every row was watched failing and then watched passing again on the same file,
 2026-08-09.
