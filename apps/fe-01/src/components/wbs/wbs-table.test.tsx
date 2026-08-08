@@ -6217,6 +6217,9 @@ describe('the command chords', () => {
   /** The keyup of D the confirm waits for: a held key can never reach it. */
   const releaseD = (box: Element) => fireEvent.keyUp(box, { key: 'd', code: 'KeyD' });
 
+  /** The sentence an armed row puts on screen, which is only true while it is armed. */
+  const armSays = (number: string) => `Ctrl+D again deletes ${number} — its children move up`;
+
   /** Which row is tinted as armed for deletion, by number. */
   const armedRow = (): string | null => {
     const row = document.querySelector('tr[data-armed="true"]');
@@ -6729,6 +6732,68 @@ describe('the command chords', () => {
     expect(api.rows).toHaveLength(3);
   });
 
+  itDom('the arm toast leaves with the arm, however the arm ends', async () => {
+    // The sentence is a promise about one row — "Ctrl+D again deletes 020" —
+    // and it was pushed independently of the state that made it true, so it sat
+    // on screen for its whole five seconds after the arm had gone. Observed
+    // live on 2026-08-09, next to a row that was no longer armed.
+    //
+    // Proof: `dismissToast` dropped from the armed-state effect's cleanup, this
+    // failed on `expected [ 'Ctrl+D again deletes 020 — its children move up' ]
+    // not to include 'Ctrl+D again deletes 020 — its children move up'`.
+    // Watched, 2026-08-09.
+    await threeRoots();
+    const cell = nameOf('020');
+    cell.focus();
+
+    armDelete(cell);
+    await waitFor(() => {
+      expect(toastTexts()).toContain(armSays('020'));
+    });
+
+    fireEvent.keyDown(cell, { key: 'Escape', code: 'Escape' });
+    await waitFor(() => {
+      expect(armedRow()).toBeNull();
+    });
+    expect(toastTexts()).not.toContain(armSays('020'));
+
+    // And again for the other way out, because the arm is a fresh object per
+    // press: the toast has to come back and then leave a second time.
+    releaseD(cell);
+    armDelete(cell);
+    await waitFor(() => {
+      expect(toastTexts()).toContain(armSays('020'));
+    });
+
+    fireEvent.focusOut(cell);
+    await waitFor(() => {
+      expect(armedRow()).toBeNull();
+    });
+    expect(toastTexts()).not.toContain(armSays('020'));
+  });
+
+  itDom('the arm toast leaves when the delete it promised happens', async () => {
+    // The pair seen together live: `Deleted 050 — Cmd+Z restores` under
+    // `Ctrl+D again deletes 050 — its children move up`, one of them about a
+    // row that no longer existed.
+    const api = await threeRoots();
+    const cell = nameOf('020');
+    cell.focus();
+
+    armDelete(cell);
+    await waitFor(() => {
+      expect(toastTexts()).toContain(armSays('020'));
+    });
+    releaseD(cell);
+    armDelete(cell);
+
+    await waitFor(() => {
+      expect(toastTexts()).toContain('Deleted 020 — Cmd+Z restores');
+    });
+    expect(toastTexts()).not.toContain(armSays('020'));
+    expect(api.rows).toHaveLength(2);
+  });
+
   itDom('Escape disarms it', async () => {
     await threeRoots();
     const cell = nameOf('020');
@@ -6813,6 +6878,9 @@ describe('the command chords', () => {
       expect(numbersOnScreen()).toEqual(['010', '020', '030']);
     });
     expect(armedRow()).toBeNull();
+    // The sentence goes with the tint: it named 020, and there is no armed 020
+    // any more for it to be true about.
+    expect(toastTexts()).not.toContain(armSays('020'));
   });
 
   itDom('a frozen row refuses to arm and says how to unfreeze it', async () => {

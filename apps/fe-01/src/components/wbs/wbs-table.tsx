@@ -53,7 +53,7 @@ import {
   tableMinWidth,
   widthFor,
 } from './table-frame';
-import { ToastStack, useToasts } from './toasts';
+import { type Toast, toastKey, ToastStack, useToasts } from './toasts';
 import { searchTree } from './tree-search';
 import { toTree, type TreeRow } from './wbs-rows';
 
@@ -1240,12 +1240,32 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    * `focusout` rather than a blur handler on the cell: the focus can leave by
    * the pointer, and the cell that was armed may not be the one that had it.
    *
-   * Proof: this effect's listeners removed, `leaving the cell disarms it,
-   * however the focus went` failed with the row still tinted. Watched,
-   * 2026-08-08.
+   * **The toast belongs to this effect**, which is the whole of the second
+   * change here. It used to be pushed from `armOrDeleteRow` and never taken
+   * off, so "Ctrl+D again deletes 020" outlived every one of the ways above —
+   * and the delete itself — for the five seconds an info toast lasts. Pushing
+   * it where the arm begins and dismissing it in the cleanup ties the sentence
+   * to the state that makes it true, re-arms included: a fresh arm is a fresh
+   * object, so the cleanup takes the old sentence off before the new one goes
+   * up.
+   *
+   * Proof, two faults. This effect's listeners removed: `leaving the cell
+   * disarms it, however the focus went` failed with the row still tinted —
+   * watched 2026-08-08. The `dismissToast` below dropped: `the arm toast
+   * leaves with the arm, however the arm ends`, `the arm toast leaves when the
+   * delete it promised happens` and `a peer renumbering the armed row disarms
+   * it` all failed on `expected [ … ] to not include 'Ctrl+D again deletes 020
+   * — its children move up'` — watched 2026-08-09.
    */
   useEffect(() => {
     if (armedDelete === null) return undefined;
+    const promise: Toast = {
+      // `info`: it is context with a way out of it, not a failure waiting to be
+      // dismissed — and it takes itself off if the reader walks away.
+      kind: 'info',
+      text: `Ctrl+D again deletes ${armedDelete.number} — its children move up`,
+    };
+    pushToast(promise);
     const disarm = () => {
       setArmedDelete(null);
     };
@@ -1259,12 +1279,13 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     window.addEventListener('blur', disarm);
     document.addEventListener('visibilitychange', onHidden);
     return () => {
+      dismissToast(toastKey(promise));
       clearTimeout(expiry);
       window.removeEventListener('focusout', disarm);
       window.removeEventListener('blur', disarm);
       document.removeEventListener('visibilitychange', onHidden);
     };
-  }, [armedDelete]);
+  }, [armedDelete, pushToast, dismissToast]);
 
   /**
    * A `keyup` of D, which is what the confirming press waits for.
@@ -2145,11 +2166,10 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         return;
       }
       dReleased.current = false;
+      // The state only. The sentence that goes with it is pushed — and taken
+      // off again — by the effect that owns the arm, so it cannot outlive the
+      // arm it describes.
       setArmedDelete({ rowId: row.id, number: row.number });
-      pushToast({
-        kind: 'info',
-        text: `Ctrl+D again deletes ${row.number} — its children move up`,
-      });
     },
     [armedDelete, deleteRow, disarmDelete, pushToast],
   );
