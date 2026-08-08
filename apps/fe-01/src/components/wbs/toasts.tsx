@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
+
 /**
  * What a toast is for: a failure somebody has to act on, or a fact they only
  * have to know.
@@ -161,16 +164,7 @@ export function ToastStack({ toasts, onDismiss }: ToastStackProps) {
     <div
       data-toasts
       aria-live="polite"
-      style={{
-        position: 'fixed',
-        right: 16,
-        bottom: 16,
-        zIndex: 50,
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 8,
-        maxWidth: '30em',
-      }}
+      className="fixed right-4 bottom-4 z-50 flex max-w-[30em] flex-col gap-2"
     >
       {shown.map((toast) => (
         <div
@@ -179,16 +173,15 @@ export function ToastStack({ toasts, onDismiss }: ToastStackProps) {
           // Only a failure is an alert. Spread rather than `role={undefined}`
           // so an info toast carries no role attribute at all.
           {...(toast.kind === 'error' ? { role: 'alert' } : {})}
-          style={{
-            display: 'flex',
-            alignItems: 'flex-start',
-            gap: 8,
-            padding: '6px 10px',
-            borderRadius: 4,
-            border: `1px solid ${toast.kind === 'error' ? '#c00' : '#ccc'}`,
-            background: toast.kind === 'error' ? '#fde8e8' : '#fff',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-          }}
+          // The kind still decides the colours, and it still decides them in
+          // one place — the tokens replace `#c00` on `#fde8e8`, so a dark set
+          // would re-point them rather than needing a second pair of literals.
+          className={cn(
+            'flex items-start gap-2 rounded-md border px-3 py-2 text-sm shadow-md',
+            toast.kind === 'error'
+              ? 'border-destructive/40 bg-destructive/10 text-foreground'
+              : 'bg-popover text-popover-foreground',
+          )}
         >
           <span data-toast-text>{toast.text}</span>
           {/*
@@ -198,20 +191,22 @@ export function ToastStack({ toasts, onDismiss }: ToastStackProps) {
             buttons are otherwise indistinguishable to anyone reading them one
             at a time.
           */}
-          <button
+          <Button
+            variant="ghost"
+            size="square"
             type="button"
             aria-label={`Dismiss: ${toast.text}`}
             onClick={() => {
               onDismiss(toastKey(toast));
             }}
-            style={{ marginLeft: 'auto', font: 'inherit', lineHeight: 1, cursor: 'pointer' }}
+            className="ml-auto h-5 w-5 shrink-0"
           >
-            ✕
-          </button>
+            <span aria-hidden="true">✕</span>
+          </Button>
         </div>
       ))}
       {collapsed > 0 && (
-        <div data-toast-more style={{ color: '#555', fontSize: '0.9em' }}>
+        <div data-toast-more className="text-muted-foreground text-xs">
           +{collapsed} more
         </div>
       )}

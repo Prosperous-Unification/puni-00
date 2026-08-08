@@ -1,6 +1,9 @@
 import { useState } from 'react';
 
 import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { EDGE_UNAUTHORIZED, login, register, saveSession, type Session } from '@/lib/api';
 
 const MESSAGES: Record<string, string> = {
@@ -43,50 +46,69 @@ export function AuthForm({ onSignedIn }: { onSignedIn: (s: Session) => void }) {
   }
 
   return (
-    <form
-      onSubmit={(e) => {
-        void submit(e);
-      }}
-      style={{ display: 'grid', gap: 12, maxWidth: 320 }}
-    >
-      <h2 style={{ margin: 0 }}>{mode === 'login' ? 'Log in' : 'Register'}</h2>
-      <label style={{ display: 'grid', gap: 4 }}>
-        Username
-        <input
-          value={username}
-          onChange={(e) => {
-            setUsername(e.target.value);
+    // The labels still wrap their inputs rather than pointing at them with
+    // `htmlFor`. That is the association `getByLabel('Username')` resolves in
+    // every test and every spec, and a swap that moved to ids would have had to
+    // rewrite the tests to keep them passing — which is the wrong way round.
+    <Card className="w-full max-w-sm">
+      <CardHeader>
+        <CardTitle>{mode === 'login' ? 'Log in' : 'Register'}</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <form
+          onSubmit={(e) => {
+            void submit(e);
           }}
-          autoComplete="username"
-          required
-        />
-      </label>
-      <label style={{ display: 'grid', gap: 4 }}>
-        Password
-        <input
-          type="password"
-          value={password}
-          onChange={(e) => {
-            setPassword(e.target.value);
-          }}
-          autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
-          required
-        />
-      </label>
-      <Button type="submit" disabled={busy}>
-        {busy ? 'Working…' : mode === 'login' ? 'Log in' : 'Create account'}
-      </Button>
-      {error !== null && <p style={{ color: '#b00', margin: 0 }}>{error}</p>}
-      <button
-        type="button"
-        onClick={() => {
-          setMode(mode === 'login' ? 'register' : 'login');
-          setError(null);
-        }}
-        style={{ background: 'none', border: 0, color: '#06c', cursor: 'pointer', padding: 0 }}
-      >
-        {mode === 'login' ? 'Need an account? Register' : 'Have an account? Log in'}
-      </button>
-    </form>
+          className="grid gap-4"
+        >
+          <Label>
+            Username
+            <Input
+              value={username}
+              onChange={(e) => {
+                setUsername(e.target.value);
+              }}
+              autoComplete="username"
+              required
+            />
+          </Label>
+          <Label>
+            Password
+            <Input
+              type="password"
+              value={password}
+              onChange={(e) => {
+                setPassword(e.target.value);
+              }}
+              autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+              required
+            />
+          </Label>
+          <Button type="submit" disabled={busy}>
+            {busy ? 'Working…' : mode === 'login' ? 'Log in' : 'Create account'}
+          </Button>
+          {/*
+            The same paragraph with the same silence to a screen reader as
+            before — `#b00` becomes `text-destructive` and nothing else. A
+            `role="alert"` belongs here and is deliberately not added by this
+            change: the aria contract is what the swaps are held to, and
+            improving one while restyling it hides the improvement in a diff
+            about colour.
+          */}
+          {error !== null && <p className="text-destructive text-sm">{error}</p>}
+          <Button
+            type="button"
+            variant="link"
+            className="h-auto justify-self-start p-0"
+            onClick={() => {
+              setMode(mode === 'login' ? 'register' : 'login');
+              setError(null);
+            }}
+          >
+            {mode === 'login' ? 'Need an account? Register' : 'Have an account? Log in'}
+          </Button>
+        </form>
+      </CardContent>
+    </Card>
   );
 }

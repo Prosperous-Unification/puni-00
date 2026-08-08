@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { subscribeToProject } from '@/lib/project-stream';
+import { cn } from '@/lib/utils';
 import { httpProjectApi, type ProjectApi, type ProjectSummary } from '@/lib/wbs-api';
 
 import { matchingProjects } from './project-picker';
@@ -201,13 +204,18 @@ export function ProjectPage({ token, api: apiOverride }: ProjectPageProps) {
 
   return (
     <section>
-      <h2>Projects</h2>
-      {error !== null && <p role="alert">{error}</p>}
-      <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12 }}>
+      <h2 className="mb-2 text-base font-semibold tracking-tight">Projects</h2>
+      {error !== null && (
+        <p role="alert" className="text-destructive mb-2 text-sm">
+          {error}
+        </p>
+      )}
+      <div className="mb-3 flex items-center gap-2">
         {rename === null ? (
           <>
-            <span style={{ position: 'relative', display: 'inline-block' }}>
-              <input
+            <span className="relative inline-block">
+              <Input
+                className="w-64"
                 aria-label="Project"
                 role="combobox"
                 aria-expanded={listOpen}
@@ -270,20 +278,7 @@ export function ProjectPage({ token, api: apiOverride }: ProjectPageProps) {
                   onMouseDown={(e) => {
                     e.preventDefault();
                   }}
-                  style={{
-                    position: 'absolute',
-                    top: '100%',
-                    left: 0,
-                    margin: 0,
-                    padding: 0,
-                    listStyle: 'none',
-                    background: '#fff',
-                    border: '1px solid #ccc',
-                    maxHeight: 240,
-                    overflowY: 'auto',
-                    zIndex: 10,
-                    minWidth: '100%',
-                  }}
+                  className="bg-popover text-popover-foreground absolute top-full left-0 z-10 m-0 max-h-60 min-w-full list-none overflow-y-auto rounded-md border p-1 text-sm shadow-md"
                 >
                   {entries.map((entry) => (
                     // The ARIA combobox pattern is the boundary that makes this
@@ -306,12 +301,10 @@ export function ProjectPage({ token, api: apiOverride }: ProjectPageProps) {
                           element.scrollIntoView({ block: 'nearest' });
                         }
                       }}
-                      style={{
-                        padding: '2px 6px',
-                        cursor: 'pointer',
-                        whiteSpace: 'nowrap',
-                        background: entry.id === highlighted?.id ? '#e8f0fe' : undefined,
-                      }}
+                      className={cn(
+                        'cursor-pointer rounded-sm px-2 py-1 whitespace-nowrap',
+                        entry.id === highlighted?.id && 'bg-accent text-accent-foreground',
+                      )}
                       onClick={() => {
                         choose(entry.id);
                       }}
@@ -323,18 +316,20 @@ export function ProjectPage({ token, api: apiOverride }: ProjectPageProps) {
               )}
             </span>
             {selectedProject !== undefined && (
-              <button
+              <Button
+                variant="outline"
                 type="button"
                 onClick={() => {
                   setRename({ projectId: selectedProject.id, draft: selectedProject.name });
                 }}
               >
                 Rename
-              </button>
+              </Button>
             )}
           </>
         ) : (
-          <input
+          <Input
+            className="w-64"
             aria-label="Project name"
             value={rename.draft}
             // A callback ref rather than autoFocus: it fires when the node
@@ -359,13 +354,13 @@ export function ProjectPage({ token, api: apiOverride }: ProjectPageProps) {
             }}
           />
         )}
-        <button type="button" onClick={create}>
+        <Button type="button" onClick={create}>
           New project
-        </button>
+        </Button>
       </div>
       {selectedProject !== undefined && (
-        <p>
-          Working in <strong>{selectedProject.name}</strong>
+        <p className="text-muted-foreground mb-3 text-sm">
+          Working in <strong className="text-foreground font-medium">{selectedProject.name}</strong>
         </p>
       )}
       {selected !== null && (

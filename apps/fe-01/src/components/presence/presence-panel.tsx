@@ -42,18 +42,18 @@ export function PresencePanel({ token, me }: { token: string; me: string }) {
   }, [token]);
 
   return (
-    <section style={{ marginTop: 24 }}>
-      <h2 style={{ marginBottom: 4 }}>
-        Online <small style={{ fontWeight: 400, color: '#666' }}>({status})</small>
+    <section className="mt-6">
+      <h2 className="mb-1 text-base font-semibold tracking-tight">
+        Online <small className="text-muted-foreground font-normal">({status})</small>
       </h2>
       {users.length === 0 ? (
-        <p style={{ color: '#666' }}>Nobody yet.</p>
+        <p className="text-muted-foreground text-sm">Nobody yet.</p>
       ) : (
-        <ul style={{ margin: 0, paddingLeft: 20 }}>
+        <ul className="m-0 list-disc pl-5 text-sm">
           {users.map((u) => (
             <li key={u}>
               {u}
-              {u === me && <span style={{ color: '#666' }}> (you)</span>}
+              {u === me && <span className="text-muted-foreground"> (you)</span>}
             </li>
           ))}
         </ul>

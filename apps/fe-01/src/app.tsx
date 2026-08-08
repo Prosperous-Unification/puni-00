@@ -37,28 +37,39 @@ export function App() {
       });
   }, []);
 
-  if (!checked) return <main style={{ padding: 32 }}>Loading…</main>;
+  if (!checked)
+    return (
+      <main className="bg-background text-muted-foreground min-h-screen p-8 font-sans">
+        Loading…
+      </main>
+    );
 
   return (
-    <main style={{ padding: 32, fontFamily: 'sans-serif' }}>
+    // The page's own type and colour, which used to be `fontFamily:
+    // 'sans-serif'` inline — the browser's generic sans, whatever that was on
+    // the machine. `font-sans` is the named stack `styles.css` declares, and
+    // the two colour tokens are what a dark set would re-point.
+    <main className="bg-background text-foreground min-h-screen p-8 font-sans">
       {/*
-       * The tracer for the Tailwind integration, and the only class in this app
-       * that Tailwind is asked to compile on purpose. It is on the brand
-       * heading because that is chrome: nothing in `layout.spec.ts` measures it,
-       * and letter-spacing on an `h1` cannot reach the table. What it proves is
-       * the pipeline — a class written in a `.tsx` file, found by the scanner
-       * `src/styles.css` configures, emitted into the production bundle and
-       * applied by a real browser. `e2e/tailwind.spec.ts` reads the computed
-       * letter-spacing back off this element.
+       * The tracer for the Tailwind integration, and still the assertion
+       * `e2e/tailwind.spec.ts` reads the computed letter-spacing off. The
+       * explicit size and weight beside it are not decoration: the scoped reset
+       * in `styles.css` takes an `h1`'s user-agent font-size and weight away,
+       * the way every reset does, so a heading now says how big it is.
        */}
-      <h1 className="tracking-tight">WBS tool v2</h1>
+      <h1 className="mb-6 text-2xl font-semibold tracking-tight">WBS tool v2</h1>
       {session === null ? (
         <AuthForm onSignedIn={setSession} />
       ) : (
         <>
-          <p>
-            Signed in as <strong>{session.user.username}</strong>{' '}
+          <p className="text-muted-foreground mb-4 flex items-center gap-2 text-sm">
+            <span>
+              Signed in as{' '}
+              <strong className="text-foreground font-medium">{session.user.username}</strong>
+            </span>
             <Button
+              variant="outline"
+              size="sm"
               onClick={() => {
                 saveSession(null);
                 setSession(null);

@@ -8,6 +8,8 @@ import {
 } from '@tanstack/react-table';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import type { ProjectStream } from '@/lib/project-stream';
 import type { PersonView, TeamView } from '@/lib/wbs-api';
 import {
@@ -3931,18 +3933,27 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         125% zoom — carried the whole page with it while the table itself was
         behaving perfectly. Observed on h2puni, 2026-08-08.
       */}
-      <div style={{ marginBottom: 12, display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-        <button type="button" onClick={() => void run(() => api.freeze(projectId))} disabled={busy}>
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          type="button"
+          onClick={() => void run(() => api.freeze(projectId))}
+          disabled={busy}
+        >
           Freeze numbering
-        </button>
-        <button
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
           type="button"
           onClick={() => void run(() => api.unfreezeProject(projectId))}
           disabled={busy}
         >
           Unfreeze all
-        </button>
-        <button
+        </Button>
+        <Button
+          size="sm"
           type="button"
           onClick={() =>
             void run(async () => {
@@ -3957,7 +3968,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
           disabled={busy}
         >
           Add work item
-        </button>
+        </Button>
         {/*
           The two ends of the expansion, which is otherwise one triangle at a
           time — a forty-row plan takes forty clicks to fold. Both write the
@@ -3969,7 +3980,9 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
           as broken. Not disabled by `busy`, unlike the buttons above: neither
           asks be-01 for anything.
         */}
-        <button
+        <Button
+          variant="outline"
+          size="sm"
           type="button"
           disabled={searching}
           title={
@@ -3982,8 +3995,10 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
           }}
         >
           Collapse all
-        </button>
-        <button
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
           type="button"
           disabled={searching}
           title={
@@ -3996,14 +4011,15 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
           }}
         >
           Expand all
-        </button>
+        </Button>
         {/*
           Find. Deliberately without `data-cell`: this is not a cell of the
           table's keyboard grid, and letting Tab and the arrows walk into it
           from the last cell of a row would put the caret somewhere no edit can
           be made.
         */}
-        <input
+        <Input
+          className="h-8 w-40 text-xs"
           aria-label="Find"
           placeholder="Find…"
           size={14}
@@ -4022,7 +4038,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
           }}
         />
         {searching && (
-          <span role="status" style={{ alignSelf: 'center', color: '#555' }}>
+          <span role="status" className="text-muted-foreground text-sm">
             {shownRows.length} of {flat.length} rows
           </span>
         )}
@@ -4033,7 +4049,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
           there.
         */}
         {searching && search.matchIds.size === 0 && (
-          <span style={{ alignSelf: 'center' }}>No matches for “{query}”</span>
+          <span className="text-sm">No matches for “{query}”</span>
         )}
         {/*
           How ready this plan is to be read, and the way to the rows that make
@@ -4046,9 +4062,15 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
           refetch reads as broken.
         */}
         {gaps.leaves.length > 0 && (
-          <button type="button" title={describeGaps(gaps)} onClick={walkToNextGap}>
+          <Button
+            variant="outline"
+            size="sm"
+            type="button"
+            title={describeGaps(gaps)}
+            onClick={walkToNextGap}
+          >
             {gaps.leaves.length} unestimated
-          </button>
+          </Button>
         )}
         {/*
           The way in for anyone who never learns the chord — which is most
@@ -4061,7 +4083,9 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
           here. It is per account, and be-01 is the only thing that knows what
           somebody else's edit did to it.
         */}
-        <button
+        <Button
+          variant="outline"
+          size="sm"
           type="button"
           disabled={busy || !stack.undoable}
           title="Undo your last change to this plan (Ctrl/⌘ + Z)"
@@ -4070,8 +4094,10 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
           }}
         >
           Undo
-        </button>
-        <button
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
           type="button"
           disabled={busy || !stack.redoable}
           title="Put back what you last undid (Ctrl/⌘ + Shift + Z)"
@@ -4080,13 +4106,15 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
           }}
         >
           Redo
-        </button>
+        </Button>
         {/*
           The way in for anyone who was never told about `?`, which is most
           people the first time. Not disabled by `busy`: it asks be-01 for
           nothing and reads nothing that a refetch could change.
         */}
-        <button
+        <Button
+          variant="outline"
+          size="sm"
           type="button"
           aria-label="Keyboard shortcuts"
           title="Keyboard shortcuts (?)"
@@ -4095,7 +4123,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
           }}
         >
           ⌨
-        </button>
+        </Button>
         {/*
           Sharing the plan, which is what most of it is written for. Both take
           the whole plan rather than what is on screen, and neither asks be-01
@@ -4104,21 +4132,25 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
           the figures are current; the header's timestamp is what says when
           they were true.
         */}
-        <button
+        <Button
+          variant="outline"
+          size="sm"
           type="button"
           title="Copy the whole plan as a Markdown table, with a header saying how to read it"
           onClick={copyAsMarkdown}
         >
           Copy as Markdown
-        </button>
-        <button
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
           type="button"
           title="Download the whole plan as a CSV, with a header saying how to read it"
           onClick={downloadCsv}
         >
           Download CSV
-        </button>
-        <label style={{ marginLeft: 'auto', display: 'flex', gap: 4, alignItems: 'center' }}>
+        </Button>
+        <label className="ml-auto flex items-center gap-1 text-sm">
           Starts
           {/*
             The day the whole plan begins. Setting it moves every date at once,
@@ -4126,6 +4158,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
             per row to drag along.
           */}
           <input
+            className="border-input bg-background h-8 rounded-md border px-2 text-sm"
             type="date"
             aria-label="Project start date"
             disabled={busy}
@@ -4136,7 +4169,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
             }}
           />
         </label>
-        <label style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+        <label className="flex items-center gap-1 text-sm">
           Plan with
           {/*
             A project-wide setting rather than a per-reader preference: the
@@ -4144,6 +4177,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
             dates off one plan is the failure this must not have.
           */}
           <select
+            className="border-input bg-background h-8 rounded-md border px-2 text-sm"
             aria-label="Final estimate"
             value={estimateMethod}
             disabled={busy}
@@ -4171,16 +4205,22 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         pressed.
       */}
       {treeMayBeStale && (
-        <p role="alert" data-stale-tree>
+        <p
+          role="alert"
+          data-stale-tree
+          className="border-destructive/40 bg-destructive/10 mb-3 flex items-center gap-2 rounded-md border px-3 py-2 text-sm"
+        >
           This plan may be out of date — the last refresh failed.{' '}
-          <button
+          <Button
+            variant="outline"
+            size="sm"
             type="button"
             onClick={() => {
               void refreshOrMarkStale();
             }}
           >
             Retry
-          </button>
+          </Button>
         </p>
       )}
 
@@ -4196,13 +4236,18 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         than letting a page of zeroes speak for itself.
       */}
       {scheduleError === 'cycle' && (
-        <p role="alert">
+        <p
+          className="border-destructive/40 bg-destructive/10 mb-3 rounded-md border px-3 py-2 text-sm"
+          role="alert"
+        >
           These dependencies run in a circle, so no dates can be worked out. Remove one to fix it.
         </p>
       )}
 
       {!connected && (
-        <p role="status">Reconnecting — edits by other people may not be shown yet.</p>
+        <p className="text-muted-foreground mb-3 text-sm" role="status">
+          Reconnecting — edits by other people may not be shown yet.
+        </p>
       )}
 
       {/*
