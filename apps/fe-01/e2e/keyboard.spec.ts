@@ -103,9 +103,15 @@ test.describe('the command chords, in a browser', () => {
     await page.route('**/api/**', async (route) => {
       const request = route.request();
       const method = request.method();
-      if (method === 'PATCH' || method === 'POST') {
-        writes.push(`${method} ${new URL(request.url()).pathname}`);
+      if (method !== 'PATCH' && method !== 'POST') {
+        await route.continue();
+        return;
       }
+      writes.push(`${method} ${new URL(request.url()).pathname}`);
+      // The save held open for half a second, so "did it wait for the answer"
+      // is a question with a window to ask it in. Only the save: delaying the
+      // create as well would say nothing about which came first.
+      if (method === 'PATCH') await new Promise((resolve) => setTimeout(resolve, 500));
       await route.continue();
     });
 
@@ -114,6 +120,15 @@ test.describe('the command chords, in a browser', () => {
     await last.pressSequentially('Sand the frames');
 
     await page.keyboard.press('ControlOrMeta+Enter');
+
+    // While the save is still out, nothing has been created. The order the two
+    // requests *go out* in cannot see the fault — both leave synchronously
+    // either way, and the first version of this test passed with the `await`
+    // dropped for exactly that reason. What an unawaited flush loses is the
+    // answer, so this is asserted inside the window the delay above holds
+    // open.
+    await expect(page.getByLabel('Name of 030')).toHaveCount(0);
+    expect(writes.filter((each) => each.startsWith('POST'))).toHaveLength(0);
 
     await expect(page.getByLabel('Name of 030')).toBeVisible();
     await expect(page.getByLabel('Name of 030')).toBeFocused();
@@ -167,11 +182,18 @@ test.describe('the command chords, in a browser', () => {
     await page.keyboard.press('Control+d');
     await expect(page.locator('tr[data-armed="true"] [data-number]')).toHaveText('020');
 
-    // Held down for the confirming press, so Chromium's own auto-repeat runs
-    // on through the delete and the refetch that follows it.
+    // Held down for the confirming press: the first `down` is the press that
+    // deletes, and each `down` after it — of a key already down — is an
+    // auto-repeat, `repeat: true`, exactly as a real held key produces. A
+    // `waitForTimeout` here would prove nothing: Playwright does not repeat a
+    // key on its own, and the first version of this test held one for 800ms
+    // and saw a single keydown.
     await page.keyboard.down('Control');
     await page.keyboard.down('d');
-    await page.waitForTimeout(800);
+    for (let repeated = 0; repeated < 6; repeated += 1) {
+      await page.keyboard.down('d');
+      await page.waitForTimeout(80);
+    }
     await page.keyboard.up('d');
     await page.keyboard.up('Control');
 
@@ -183,6 +205,13 @@ test.describe('the command chords, in a browser', () => {
   test('arming one row and pressing Ctrl+D in another arms the second, and deletes neither', async ({
     page,
   }) => {
+    // The scenario, in a browser — but not a proof of the same-row conjunct,
+    // and the difference is worth stating. Reaching another row here means
+    // moving the focus, and a focus change disarms before the second press
+    // ever arrives; the same-row check is what catches the case the focus rule
+    // cannot see, and it is watched failing in `wbs-table.test.tsx`, where a
+    // key can be aimed at a row without the focus following it. Two guards,
+    // one outcome, and this is the one a person actually performs.
     await seedRows(page, `e2e-keys-${String(Date.now())}-${String(account)}`, 3);
 
     await page.getByLabel('Name of 020').click();
@@ -201,13 +230,15 @@ test.describe('the command chords, in a browser', () => {
 
     await page.getByLabel('Name of 020').click();
 
-    // Held down, so the browser's own auto-repeat produces the second, third
-    // and fourth keydowns — each with `repeat: true` and no keyup between
-    // them. This is the sequence the two guards exist for, delivered by a real
-    // keyboard implementation rather than described by a test.
+    // A `down` of a key already down is an auto-repeat: `repeat: true`, and
+    // no keyup anywhere in the sequence. That is what the two guards exist
+    // for, and it is the shape a real held key has.
     await page.keyboard.down('Control');
     await page.keyboard.down('d');
-    await page.waitForTimeout(600);
+    for (let repeated = 0; repeated < 6; repeated += 1) {
+      await page.keyboard.down('d');
+      await page.waitForTimeout(80);
+    }
     await page.keyboard.up('d');
     await page.keyboard.up('Control');
 
