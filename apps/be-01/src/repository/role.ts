@@ -1,9 +1,9 @@
-import { eq } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
-import type { Role, RoleWritten } from './index';
-import { bumpProject } from './revision';
-import { role } from './schema';
+import type { Role, RoleRemoval, RoleStore, RoleUsageRows, RoleWritten } from './index';
+import { bumpProject, bumpWorkItems } from './revision';
+import { assignment, estimate, role, workItem } from './schema';
 
 /**
  * Whether a thrown error is SQLite refusing a second role of the same name in
@@ -33,7 +33,7 @@ function isDuplicateName(err: unknown): boolean {
  * satellite of the project: adding, renaming or removing one changes what every
  * estimate in it means. See `project.revision` in `schema.ts`.
  */
-export class RoleRepository {
+export class RoleRepository implements RoleStore {
   constructor(private readonly db: SQLiteBunDatabase) {}
 
   /**
@@ -107,5 +107,90 @@ export class RoleRepository {
       if (isDuplicateName(err)) return { ok: false, reason: 'taken' };
       throw err;
     }
+  }
+
+  /**
+   * What a removal would take with it, read for the refusal that names it.
+   *
+   * The assignments are the whole project's — see {@link RoleUsageRows} for why
+   * this role's own rows cannot answer the question.
+   */
+  async usageOf(projectId: string, roleId: string): Promise<RoleUsageRows> {
+    const held = await this.db
+      .select({ workItemId: estimate.workItemId })
+      .from(estimate)
+      .where(eq(estimate.roleId, roleId));
+    const ids = await this.db
+      .select({ id: workItem.id })
+      .from(workItem)
+      .where(eq(workItem.projectId, projectId));
+    // `inArray` with an empty list becomes `IN ()`, which SQLite refuses — and
+    // a project with no work items has no assignments by definition.
+    if (ids.length === 0) return { estimates: held.length, assignments: [] };
+    const assignments = await this.db
+      .select()
+      .from(assignment)
+      .where(
+        inArray(
+          assignment.workItemId,
+          ids.map((row) => row.id),
+        ),
+      );
+    return { estimates: held.length, assignments };
+  }
+
+  /**
+   * Removes the role and everything that hangs off it, in one transaction.
+   *
+   * The estimates are deleted **explicitly**: `estimate.role_id` has no
+   * `onDelete` cascade, so deleting the role row on its own hits the foreign
+   * key and answers 500 — which is what a role delete does today. The
+   * assignments are deleted explicitly too, though their column does cascade,
+   * so that what this reports having removed is what this statement removed
+   * rather than what the database did behind it.
+   *
+   * Which work items to bump is read **inside** the transaction, immediately
+   * before the deletes. An estimate written after the caller counted is
+   * therefore deleted with the rest and its work item's revision moves with it:
+   * the row can never be left pointing at a role that has gone, and a journal
+   * entry that touched it refuses instead of applying against a plan whose
+   * phases changed.
+   *
+   * Proof, both watched 2026-08-08: with the estimate delete removed, all three
+   * removal cases fail on `FOREIGN KEY constraint failed` — the 500 a bare role
+   * delete answers today; with the bump set narrowed to the assignments alone,
+   * `deletes an estimate written between the count and the confirmed removal`
+   * fails, the work item estimated after the count still reading its old
+   * revision.
+   *
+   * What no test here can observe is a writer landing **inside** this
+   * transaction: `bun:sqlite` transactions are synchronous, so the interleave
+   * the API actually faces — count, somebody else's write, confirm — is the one
+   * the test reproduces, and it is reproduced across the two calls rather than
+   * inside one.
+   */
+  async remove(projectId: string, roleId: string): Promise<RoleRemoval> {
+    await Promise.resolve();
+    return this.db.transaction((tx) => {
+      const estimated = tx
+        .select({ workItemId: estimate.workItemId })
+        .from(estimate)
+        .where(eq(estimate.roleId, roleId))
+        .all();
+      const assigned = tx
+        .select({ workItemId: assignment.workItemId })
+        .from(assignment)
+        .where(eq(assignment.roleId, roleId))
+        .all();
+      tx.delete(estimate).where(eq(estimate.roleId, roleId)).run();
+      tx.delete(assignment).where(eq(assignment.roleId, roleId)).run();
+      tx.delete(role).where(eq(role.id, roleId)).run();
+      const workItemIds = [
+        ...new Set([...estimated, ...assigned].map((row) => row.workItemId)),
+      ];
+      bumpWorkItems(tx, workItemIds);
+      bumpProject(tx, projectId);
+      return { estimates: estimated.length, assignments: assigned.length, workItemIds };
+    });
   }
 }

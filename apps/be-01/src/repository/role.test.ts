@@ -5,6 +5,8 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { openDrizzle } from './db';
+import { DirectoryRepository } from './directory';
+import { EstimateRepository } from './estimate';
 import type { Project, Role, WorkItem } from './index';
 import { runMigrations } from './migrate';
 import { ProjectRepository } from './project';
@@ -25,6 +27,9 @@ const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
 let dir: string;
 let roles: RoleRepository;
 let projects: ProjectRepository;
+let estimates: EstimateRepository;
+let directory: DirectoryRepository;
+let workItems: WorkItemRepository;
 let projectId: string;
 let otherProjectId: string;
 let devId: string;
@@ -60,6 +65,14 @@ const revisionOf = async (id: string): Promise<number> => {
   return found.revision;
 };
 
+const workItemRevisionOf = async (id: string): Promise<number> => {
+  const found = await workItems.findById(id);
+  if (found === null) throw new Error(`no work item ${id}`);
+  return found.revision;
+};
+
+const DAYS = { optimistic: 1, realistic: 2, pessimistic: 3 };
+
 beforeEach(async () => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-role-'));
   const path = join(dir, 'test.db');
@@ -67,6 +80,9 @@ beforeEach(async () => {
   const db = openDrizzle(path);
   roles = new RoleRepository(db);
   projects = new ProjectRepository(db);
+  estimates = new EstimateRepository(db);
+  directory = new DirectoryRepository(db);
+  workItems = new WorkItemRepository(db);
 
   const ownerId = crypto.randomUUID();
   await new UserRepository(db).create({
@@ -90,9 +106,9 @@ beforeEach(async () => {
   otherProjectId = other.id;
   await projects.create(other, [{ id: crypto.randomUUID(), projectId: other.id, name: 'Dev' }]);
 
-  const workItems = new WorkItemRepository(db);
   await workItems.insert(newItem('strip', 10, 'Strip'), []);
   await workItems.insert(newItem('sand', 20, 'Sand'), []);
+  await workItems.insert(newItem('paint', 30, 'Paint'), []);
 });
 
 afterEach(() => {
@@ -162,5 +178,93 @@ describe('RoleRepository', () => {
 
   it('finds a role by id, carrying the project it belongs to', async () => {
     expect(await roles.findById(qaId)).toEqual({ id: qaId, projectId, name: 'QA' });
+  });
+
+  it('counts the role’s estimates and hands back every assignment in the project', async () => {
+    await estimates.set({ workItemId: 'strip', roleId: qaId, ...DAYS });
+    await estimates.set({ workItemId: 'sand', roleId: qaId, ...DAYS });
+    await estimates.set({ workItemId: 'sand', roleId: devId, ...DAYS });
+    const ada = await directory.addPerson({ id: crypto.randomUUID(), name: 'Ada' }, []);
+    await directory.assign('strip', devId, ada.id);
+    await directory.assign('strip', qaId, ada.id);
+
+    const usage = await roles.usageOf(projectId, qaId);
+
+    expect(usage.estimates).toBe(2);
+    // Both of the work item's assignments, not only the QA one: what `strip`
+    // is assumed to be after QA goes depends on the Dev row staying.
+    expect(usage.assignments).toHaveLength(2);
+    expect(usage.assignments).toContainEqual({
+      workItemId: 'strip',
+      roleId: devId,
+      personId: ada.id,
+    });
+  });
+
+  it('removes the role’s estimates, its assignments and its row, and nothing else’s', async () => {
+    await estimates.set({ workItemId: 'strip', roleId: qaId, ...DAYS });
+    await estimates.set({ workItemId: 'strip', roleId: devId, ...DAYS });
+    await estimates.set({ workItemId: 'sand', roleId: qaId, ...DAYS });
+    const ada = await directory.addPerson({ id: crypto.randomUUID(), name: 'Ada' }, []);
+    await directory.assign('strip', qaId, ada.id);
+    await directory.assign('strip', devId, ada.id);
+
+    const removed = await roles.remove(projectId, qaId);
+
+    expect(removed.estimates).toBe(2);
+    expect(removed.assignments).toBe(1);
+    expect([...removed.workItemIds].sort()).toEqual(['sand', 'strip']);
+    expect(await roles.findById(qaId)).toBeNull();
+    // The other role's rows are the survivors that make the delete's WHERE
+    // clause provable: narrowed to the work item alone it would take these too.
+    expect(await estimates.listByProject(projectId)).toEqual([
+      { workItemId: 'strip', roleId: devId, ...DAYS },
+    ]);
+    expect(await directory.assignmentsOf(['strip', 'sand'])).toEqual([
+      { workItemId: 'strip', roleId: devId, personId: ada.id },
+    ]);
+    // A role of the same name in another project is not this project's business.
+    expect(await roles.listByProject(otherProjectId)).toHaveLength(1);
+  });
+
+  it('moves the project and every work item that lost something, and nothing else', async () => {
+    await estimates.set({ workItemId: 'strip', roleId: qaId, ...DAYS });
+    const ada = await directory.addPerson({ id: crypto.randomUUID(), name: 'Ada' }, []);
+    await directory.assign('sand', qaId, ada.id);
+    const projectBefore = await revisionOf(projectId);
+    const stripBefore = await workItemRevisionOf('strip');
+    const sandBefore = await workItemRevisionOf('sand');
+    const paintBefore = await workItemRevisionOf('paint');
+
+    await roles.remove(projectId, qaId);
+
+    expect(await revisionOf(projectId)).toBe(projectBefore + 1);
+    expect(await workItemRevisionOf('strip')).toBe(stripBefore + 1);
+    expect(await workItemRevisionOf('sand')).toBe(sandBefore + 1);
+    // Held nothing of that role's, so nobody's read of it differs and a
+    // precondition on it must survive.
+    expect(await workItemRevisionOf('paint')).toBe(paintBefore);
+  });
+
+  it('deletes an estimate written between the count and the confirmed removal', async () => {
+    await estimates.set({ workItemId: 'strip', roleId: qaId, ...DAYS });
+    const counted = await roles.usageOf(projectId, qaId);
+    expect(counted.estimates).toBe(1);
+
+    // The race the confirmation opens: somebody estimates the doomed role on a
+    // work item the counts never mentioned, between the refusal and the
+    // confirmed delete. The transaction chooses what it deletes for itself, so
+    // this is deleted with the rest rather than left pointing at a role that
+    // has gone — which is a foreign key error, a 500, and a project nobody can
+    // read afterwards.
+    await estimates.set({ workItemId: 'paint', roleId: qaId, ...DAYS });
+    const paintBefore = await workItemRevisionOf('paint');
+
+    const removed = await roles.remove(projectId, qaId);
+
+    expect(removed.estimates).toBe(2);
+    expect(await estimates.listByProject(projectId)).toEqual([]);
+    expect(await workItemRevisionOf('paint')).toBe(paintBefore + 1);
+    expect(await roles.findById(qaId)).toBeNull();
   });
 });
