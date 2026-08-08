@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, createEvent, fireEvent, render, screen } from '@testing-library/react';
 import { useState } from 'react';
 import { afterEach, describe, expect, it } from 'vitest';
 
@@ -139,6 +139,67 @@ describe('the row actions menu', () => {
       expect(taken).toEqual(['delete']);
       expect(screen.queryByRole('menu')).toBeNull();
       expect(document.activeElement).toBe(menuButton());
+      cleanup();
+    }
+  });
+
+  itDom('takes the key away from a modified Enter or Space, and takes nothing', () => {
+    // Half of a guard is worse than none. Returning early left the key
+    // unprevented, and a `<button>` fires a click of its own from Enter and
+    // from Space unless the keydown was prevented — so the browser took the
+    // item the guard had just refused. jsdom performs no default action, so
+    // what it can say is that the key was consumed, and
+    // `e2e/keyboard.spec.ts` says what a browser then does with it.
+    // Proof: `event.preventDefault()` moved back below the modifier guard,
+    // this failed on `expected true to be false` for Ctrl+Enter — the key
+    // handed to the browser to act on. Watched, 2026-08-09.
+    for (const key of ['Enter', ' ']) {
+      for (const modifier of ['ctrlKey', 'metaKey', 'altKey', 'shiftKey'] as const) {
+        const taken: string[] = [];
+        render(<Harness actions={twoActions(taken)} />);
+        fireEvent.keyDown(menuButton(), { key: 'ArrowDown' });
+
+        const event = createEvent.keyDown(items()[0], { key, [modifier]: true });
+        fireEvent(items()[0], event);
+
+        expect(event.defaultPrevented, `${key} with ${modifier}`).toBe(true);
+        expect(taken, `${key} with ${modifier}`).toEqual([]);
+        // And the menu is still open under the hand reading it.
+        expect(items(), `${key} with ${modifier}`).toHaveLength(2);
+        cleanup();
+      }
+    }
+  });
+
+  itDom('opens on a bare Enter, Space or ↓ and on no modified one', () => {
+    // The same rule on the button that opens it, where the leak is direct
+    // rather than a default click: this handler recognized the three keys and
+    // opened on them without looking at the modifiers at all, so every chord
+    // aimed at the plan opened a menu over the row it was aimed at.
+    // Proof: the modifier guard removed, this failed on `expected 'true' to be
+    // 'false'` for Ctrl+Enter — a menu opened by a keystroke nobody aimed at
+    // it. Watched, 2026-08-09.
+    for (const key of ['Enter', ' ', 'ArrowDown']) {
+      for (const modifier of ['ctrlKey', 'metaKey', 'altKey', 'shiftKey'] as const) {
+        render(<Harness actions={twoActions([])} />);
+        const button = menuButton();
+        button.focus();
+
+        const event = createEvent.keyDown(button, { key, [modifier]: true });
+        fireEvent(button, event);
+
+        expect(button.getAttribute('aria-expanded'), `${key} with ${modifier}`).toBe('false');
+        expect(screen.queryByRole('menu'), `${key} with ${modifier}`).toBeNull();
+        // Consumed all the same: a chord this button refuses must not reach
+        // the browser either, for the reason the table preventDefaults the
+        // ones it claims.
+        expect(event.defaultPrevented, `${key} with ${modifier}`).toBe(true);
+        cleanup();
+      }
+
+      render(<Harness actions={twoActions([])} />);
+      fireEvent.keyDown(menuButton(), { key });
+      expect(menuButton().getAttribute('aria-expanded'), key).toBe('true');
       cleanup();
     }
   });
