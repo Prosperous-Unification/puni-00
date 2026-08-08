@@ -98,10 +98,51 @@ scenario-level assertion it is, and it is not claimed as either guard's proof.
 
 ## What only a browser can say — h2puni
 
-`apps/fe-01/e2e/keyboard.spec.ts`, four tests, run on h2puni through
+`apps/fe-01/e2e/keyboard.spec.ts`, **six** tests, run on h2puni through
 `/home/puni1/wbs-e2e-work/run-e2e.sh` (the Playwright docker image; h1claw has
-no browser and does not build). Results and the fault runs are in the section
-below.
+no browser and does not build).
+
+```
+$ ssh h2puni 'cd /home/puni1/wbs-e2e-work && ./run-e2e.sh'
+  ✓  1 keyboard.spec.ts  types a note under a name with Enter, and the box grows to hold it
+  ✓  2 keyboard.spec.ts  Cmd+Enter saves the cell before it creates the row it lands in
+  ✓  3 keyboard.spec.ts  Ctrl+D arms on the first press and deletes on the second
+  ✓  4 keyboard.spec.ts  a key still held when the row goes does not arm the row after it
+  ✓  5 keyboard.spec.ts  arming one row and pressing Ctrl+D in another arms the second, …
+  ✓  6 keyboard.spec.ts  a held Ctrl+D arms once and never deletes
+  ✓  7–28 layout.spec.ts (unchanged, all green)
+  28 passed (46.6s)
+```
+
+### The browser faults, watched
+
+| fault injected                 | test that went red                                                 | how it failed                                                                                |
+| ------------------------------ | ------------------------------------------------------------------ | -------------------------------------------------------------------------------------------- |
+| `repeat` guard removed         | `a key still held when the row goes does not arm the row after it` | `expect(received).toBe(expected)` on the armed-row count                                     |
+| `await` dropped from the flush | `Cmd+Enter saves the cell before it creates the row it lands in`   | `expect(received).toHaveLength(expected)` — a POST inside the window the PATCH was held open |
+
+Restored and re-run green after each. Three findings from those runs, all of
+which made a test weaker than it read:
+
+- **The first "held key" tests held nothing.** They pressed `keyboard.down('d')`
+  once and waited 800ms: Playwright does not auto-repeat a key, so the test
+  that claimed to hold Ctrl+D delivered exactly one keydown. Verified against a
+  throwaway spec that logged what arrived — `["Control:false", "d:false",
+"d:true", "d:true", "d:true"]` — and rewritten to repeat `down('d')`, which
+  is what sets `repeat: true`.
+- **A retrying assertion waited out the arm timer.**
+  `expect(locator).toHaveCount(0)` retries for ten seconds; an arm expires after
+  three. With the `repeat` guard removed the row really was armed, and the
+  assertion sat there until the timer took it off, then passed. Watched doing
+  it, with the arm traced press by press. Both of those assertions are now a
+  one-shot `count()`.
+- **The same-row conjunct cannot be proven in a browser at all**, and the e2e
+  test says so rather than pretending. Reaching another row means moving the
+  focus, and the focus rule disarms before the second press arrives — so with
+  the conjunct removed, all six browser tests stay green. It is proven in
+  `wbs-table.test.tsx`, where a key can be aimed at a row without the focus
+  following it. Two guards, one outcome; the browser can only see the outer
+  one.
 
 ## What nothing here can say — the acceptance probe
 
