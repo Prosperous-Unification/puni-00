@@ -4219,7 +4219,22 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
           and two pixels between every pair of cells is two pixels the offsets
           do not know about.
         */}
+        {/*
+          `data-grid` marks the whole of the editable grid for the cascade, and
+          it is the only thing this change writes into the table. Every rule in
+          `styles.css`'s `@layer base` carries `:not([data-grid], [data-grid] *)`,
+          so the scoped reset the vendored components need stops at this
+          element: the cells, their inputs, the ⋯ menu and both pickers keep the
+          `box-sizing`, margins and platform font the browser gives them, which
+          is what `table-frame.ts`'s width table was measured against.
+
+          An attribute rather than a class, because it is a marker and not a
+          style — and because `X live-editing-extraction` re-anchors
+          `editableGrid` on this same container, where it reads `closest('table')`
+          today.
+        */}
         <table
+          data-grid
           ref={tableElement}
           style={{
             borderCollapse: 'separate',

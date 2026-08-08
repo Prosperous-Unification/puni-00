@@ -57,9 +57,106 @@ async function compileStylesheet(): Promise<string> {
 
 const stylesheet = await compileStylesheet();
 
+/**
+ * The guard every rule in the base layer has to carry, as it survives
+ * minification.
+ *
+ * Written as a pattern rather than as the literal string in `styles.css`
+ * because lightningcss rewrites what it is given — it drops the leading `*`
+ * from `*:not(…)` and takes the space out after the comma — and a check that
+ * compared source text to source text would be comparing the file with a
+ * paraphrase of itself.
+ */
+const GRID_GUARD = /:not\(\s*\[data-grid]\s*,\s*\[data-grid]\s+\*\s*\)/;
+
+/**
+ * One rule's selector list, split into the individual selectors it names.
+ *
+ * On top-level commas only, tracked by paren depth: `:not([data-grid],
+ * [data-grid] *)` carries a comma of its own, and splitting on every comma
+ * would hand back two halves of a guard and call the first of them unguarded.
+ *
+ * This split is the whole check. Written without it — asking whether the guard
+ * appears anywhere in the list — the assertion passed with
+ * `button, input:not(…), select:not(…)` in the layer, because the list still
+ * contained a guard. Watched 2026-08-09, on the first fault injected at it.
+ *
+ * @param list A rule's selector text, as the compiled stylesheet holds it.
+ * @returns One entry per selector, trimmed.
+ */
+function eachSelector(list: string): string[] {
+  const out: string[] = [];
+  let depth = 0;
+  let current = '';
+  for (const char of list) {
+    if (char === '(') depth += 1;
+    if (char === ')') depth -= 1;
+    if (char === ',' && depth === 0) {
+      out.push(current.trim());
+      current = '';
+      continue;
+    }
+    current += char;
+  }
+  out.push(current.trim());
+  return out.filter((selector) => selector !== '');
+}
+
+/**
+ * Every selector the compiled `@layer base` blocks declare, one entry each.
+ *
+ * A brace walk rather than a regex over the whole layer: the assertion below is
+ * about *each* selector, and a pattern that only proved the guard appears
+ * somewhere in the layer would pass with one unguarded rule sitting next to a
+ * guarded one — which is precisely the fault it is written to catch.
+ *
+ * @param css The compiled stylesheet.
+ * @returns Each selector, from every rule of every `@layer base` block.
+ * @throws When a block never closes, rather than silently returning the
+ * selectors it managed to read out of a stylesheet it did not understand.
+ */
+function baseLayerSelectors(css: string): string[] {
+  const selectors: string[] = [];
+  const opener = /@layer\s+base\s*\{/g;
+  let found = opener.exec(css);
+  while (found !== null) {
+    let depth = 1;
+    let at = found.index + found[0].length;
+    let list = '';
+    while (depth > 0) {
+      // The end of the string rather than an `undefined` from the index: with
+      // this project's TypeScript settings `css[at]` is typed `string`, so the
+      // nullish check the walk actually wants is one the compiler calls dead
+      // code — and a lint rule says so.
+      if (at >= css.length) {
+        throw new Error('an @layer base block in the compiled CSS never closed');
+      }
+      const char = css[at];
+      if (char === '{') {
+        depth += 1;
+        if (depth === 2) {
+          selectors.push(...eachSelector(list));
+          list = '';
+        }
+      } else if (char === '}') {
+        depth -= 1;
+        list = '';
+      } else if (depth === 1) {
+        list += char;
+      }
+      at += 1;
+    }
+    opener.lastIndex = at;
+    found = opener.exec(css);
+  }
+  return selectors;
+}
+
 /*
- * Proof, watched 2026-08-09 by injecting one fault at a time and reverting it.
- * The runs are in `docs/plans/2026-08-08-tailwind-spike-verify.md`.
+ * Proof, watched by injecting one fault at a time and reverting it. The runs
+ * from 2026-08-09 are in `openspec/changes/shadcn-foundation/verify.md`; the
+ * two the tailwind spike watched are in
+ * `docs/plans/2026-08-08-tailwind-spike-verify.md`.
  *
  *   - `className="tracking-tight"` off the `h1` in `app.tsx`: 1 failed,
  *     `expected '@layer properties{@supports (((-webki…' to contain
@@ -69,11 +166,12 @@ const stylesheet = await compileStylesheet();
  *     failed, `expected '…' not to contain '.tracking-widest'` — automatic
  *     detection walked up to the git root and found the name in a file that is
  *     not markup. That containment is the reason those lines exist.
- *   - the two imports replaced by `@import 'tailwindcss'`: 3 failed — `not to
- *     contain 'border-box'`, `not to match /font:\s*inherit/`, and `to match
- *     /@layer[^;{]*\bbase\b[^;{]*;/`, the base layer no longer a statement but a
- *     block full of reset. What that fault does to a real browser is the layout
- *     gate's answer, not this file's.
+ *   - the guard taken off one rule in `@layer base`: `scopes every rule in its
+ *     base layer away from the grid` failed naming that selector.
+ *   - the two imports replaced by `@import 'tailwindcss'`: `brings none of
+ *     Tailwind's own preflight with it` failed on `text-size-adjust`.
+ *   - `@layer theme, base, components, utilities;` reordered so `base` comes
+ *     last: `gives its reset less weight than any utility` failed.
  */
 describe('the Tailwind stylesheet this app ships', () => {
   it('compiles the tracer class written on the brand heading', () => {
@@ -89,29 +187,45 @@ describe('the Tailwind stylesheet this app ships', () => {
     expect(stylesheet).not.toContain('.tracking-widest');
   });
 
-  // Two tests rather than one with two assertions, and the reason is worth
-  // stating: `expect` throws on the first failure, so the second line of a
+  // One assertion per test throughout, and the reason is worth restating:
+  // `expect` throws on the first failure, so the second line of a
   // two-assertion test is never evaluated in the run that proves the first can
-  // fail. Watched — the `border-box` half failed and the `font: inherit` half
-  // was never reached, which is a check nobody has seen break.
-  it('brings no box-sizing reset with it', () => {
-    // Preflight's first rule, `*, ::before, ::after { box-sizing: border-box }`.
-    expect(stylesheet).not.toContain('border-box');
+  // fail — a check nobody has watched break.
+  it('brings none of Tailwind’s own preflight with it', () => {
+    // `-webkit-text-size-adjust: 100%` on `html, :host` is preflight's opening
+    // rule and appears nowhere else. The declarations this file's own reset
+    // shares with preflight — `border-box`, `font: inherit` — stopped being
+    // usable as the discriminator the moment there was a scoped reset to write,
+    // which is why the marker is one preflight has and this app does not want.
+    expect(stylesheet).not.toContain('text-size-adjust');
   });
 
-  it('leaves form controls the font the browser gives them', () => {
-    // Preflight's `button, input, … { font: inherit }`. This is the line the
-    // table's geometry cannot survive: `table-frame.ts` sizes the `not-before`
-    // column from what Chromium makes an unconstrained `input[type=date]` in
-    // the table's own font, and inheriting the page font changes that number.
-    expect(stylesheet).not.toMatch(/font:\s*inherit/);
+  it('writes its reset into the base layer, where the layer order put it', () => {
+    // The layer is now a block rather than the empty statement the tailwind
+    // spike left. That inversion is deliberate: the slot existed for exactly
+    // this.
+    expect(baseLayerSelectors(stylesheet).length).toBeGreaterThan(0);
   });
 
-  it('leaves the base layer declared and empty, for a scoped reset to land in', () => {
-    // Declared: the layer order is the whole reason a component library's reset
-    // can be added later without outranking the utilities. Empty: `@layer base`
-    // never opens a block here.
-    expect(stylesheet).toMatch(/@layer[^;{]*\bbase\b[^;{]*;/);
-    expect(stylesheet).not.toMatch(/@layer\s+base\s*\{/);
+  it('scopes every rule in its base layer away from the grid', () => {
+    // The whole of the geometry promise, and the only mechanical check of it
+    // there is. `layout.spec.ts` cannot see this fault — the table is styled
+    // inline and an inline style outranks every layer — so a reset that leaked
+    // into a `<td>` would be caught here and by `e2e/tailwind.spec.ts`, and by
+    // nothing else in the repository.
+    const unguarded = baseLayerSelectors(stylesheet).filter(
+      (selector) => !GRID_GUARD.test(selector),
+    );
+    expect(unguarded).toEqual([]);
+  });
+
+  it('gives its reset less weight than any utility', () => {
+    // Order in the compiled file, which is what the cascade reads for layers
+    // declared by `@layer theme, base, components, utilities;`. A reset that
+    // came out after the utilities would beat every `p-6` and `text-sm` in the
+    // app regardless of specificity.
+    expect(stylesheet.indexOf('@layer base{')).toBeLessThan(
+      stylesheet.indexOf('@layer utilities{'),
+    );
   });
 });

@@ -1,37 +1,32 @@
 /*
- * Tailwind v4 for this app, with its base layer deliberately never imported.
+ * Tailwind v4 for this app, with Tailwind's own base layer still never imported
+ * and this file's scoped reset written into the slot it left.
  *
  * `@import 'tailwindcss'` pulls three stylesheets: theme (the custom property
  * palette), preflight (a global reset) and utilities. Only two of them are here.
- * Preflight is a document-wide reset — `*, ::before, ::after { box-sizing:
+ * Preflight is a **document-wide** reset — `*, ::before, ::after { box-sizing:
  * border-box }`, `font: inherit` on every form control, `border-width: 0` on
  * everything — and this table's geometry is measured against a browser's own
  * defaults: `table-frame.ts` sizes the `not-before` column from what Chromium
- * makes an unconstrained `input[type=date]` in the table's own font, and
- * preflight changes that font. Nothing in this app is styled by a class today,
- * so a reset would only ever be a cost.
+ * makes an unconstrained `input[type=date]` in the table's own font.
  *
- * The empty `base` slot in the layer order is kept on purpose: when a component
- * library eventually needs a scoped reset it lands between theme and utilities,
- * which is where its cascade weight belongs. Layer statements have no effect
- * until something is written into them.
+ * shadcn's components need a reset all the same — `h-9 px-3` with a border only
+ * measures right under `border-box`, and a `<button>` that keeps the platform's
+ * 13.3px Arial cannot be given the app's type scale. So the reset is here, and
+ * every rule in it carries `:not([data-grid], [data-grid] *)`. `data-grid` is on
+ * the `<table>` in `wbs-table.tsx`; the cells, their inputs, the ⋯ menu and both
+ * pickers live inside it and are left exactly as the browser draws them.
  *
- * What the omission is worth, measured rather than predicted, and the answer
- * was not the expected one. Replacing the two imports below with
- * `@import 'tailwindcss'` and running the browser gate turns `e2e/tailwind.spec.ts`
- * red — heading margins zeroed, an input taking the page's 16px — and leaves
- * every one of `layout.spec.ts`'s geometry assertions green. It has to: this
- * table is styled inline, and the date input already carries
- * `{ boxSizing: 'border-box', font: 'inherit' }` of its own, which is the pair
- * of declarations preflight would have imposed on it. An inline style outranks
- * every layer, so the reset cannot reach the cells at all today.
- *
- * That makes preflight harmless to the current table and dangerous to the next
- * one: the moment a cell is styled by a class instead of a `style` prop, the
- * reset is back in the cascade with nothing measuring it. `layout.spec.ts` is
- * not the oracle for this fault — `e2e/tailwind.spec.ts` and `styles.test.ts`
- * are, and both were watched failing. Runs in
- * `docs/plans/2026-08-08-tailwind-spike-verify.md`.
+ * **Why a guard and not the inline styles that are already there.** The tailwind
+ * spike measured this rather than predicting it, and the answer was the
+ * uncomfortable one: with preflight fully enabled, all 22 of `layout.spec.ts`'s
+ * geometry assertions stay green, because the table is styled inline and an
+ * inline style outranks every layer. The geometry gate is blind to this fault
+ * and will stay blind until the first `<td>` is styled by a class. The oracles
+ * are `styles.test.ts`, which reads every selector this layer emits, and
+ * `e2e/tailwind.spec.ts`, which asks a real browser what a cell's `box-sizing`
+ * came out as. Both have been watched failing with the guard removed —
+ * `openspec/changes/shadcn-foundation/verify.md`.
  */
 @layer theme, base, components, utilities;
 
@@ -58,3 +53,182 @@
  */
 @source not './**/*.test.ts';
 @source not './**/*.test.tsx';
+
+/*
+ * The design tokens, in shadcn's own names, so a component vendored from the
+ * registry needs no edit to find its colours.
+ *
+ * Two blocks rather than one: these are the *values*, and `@theme inline` below
+ * is what turns them into utilities. Splitting them is what makes the dark set
+ * possible at all — `.dark` re-points the same custom properties, and every
+ * `bg-card` in the app follows without knowing anything about it.
+ *
+ * **Dark mode is configured, not shipped.** Nothing sets the `dark` class, and
+ * no toggle exists; this change is the foundation, and a theme switch is a
+ * feature with its own persistence and its own contrast review. What is bought
+ * here is that adding it later is one attribute rather than a palette audit.
+ *
+ * `oklch` rather than hex: it is the registry's own notation since Tailwind v4,
+ * and the lightness channel is what makes a hover shade a number rather than a
+ * guess.
+ */
+:root {
+  --radius: 0.5rem;
+
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.129 0.042 264.695);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.129 0.042 264.695);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.129 0.042 264.695);
+  --primary: oklch(0.208 0.042 265.755);
+  --primary-foreground: oklch(0.984 0.003 247.858);
+  --secondary: oklch(0.968 0.007 247.896);
+  --secondary-foreground: oklch(0.208 0.042 265.755);
+  --muted: oklch(0.968 0.007 247.896);
+  --muted-foreground: oklch(0.554 0.046 257.417);
+  --accent: oklch(0.968 0.007 247.896);
+  --accent-foreground: oklch(0.208 0.042 265.755);
+  --destructive: oklch(0.577 0.245 27.325);
+  --destructive-foreground: oklch(0.984 0.003 247.858);
+  --border: oklch(0.929 0.013 255.508);
+  --input: oklch(0.929 0.013 255.508);
+  --ring: oklch(0.704 0.04 256.788);
+}
+
+.dark {
+  --background: oklch(0.129 0.042 264.695);
+  --foreground: oklch(0.984 0.003 247.858);
+  --card: oklch(0.208 0.042 265.755);
+  --card-foreground: oklch(0.984 0.003 247.858);
+  --popover: oklch(0.208 0.042 265.755);
+  --popover-foreground: oklch(0.984 0.003 247.858);
+  --primary: oklch(0.929 0.013 255.508);
+  --primary-foreground: oklch(0.208 0.042 265.755);
+  --secondary: oklch(0.279 0.041 260.031);
+  --secondary-foreground: oklch(0.984 0.003 247.858);
+  --muted: oklch(0.279 0.041 260.031);
+  --muted-foreground: oklch(0.704 0.04 256.788);
+  --accent: oklch(0.279 0.041 260.031);
+  --accent-foreground: oklch(0.984 0.003 247.858);
+  --destructive: oklch(0.704 0.191 22.216);
+  --destructive-foreground: oklch(0.984 0.003 247.858);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.551 0.027 264.364);
+}
+
+/*
+ * The tokens as Tailwind theme keys, which is what emits `bg-card`,
+ * `text-muted-foreground`, `rounded-lg` and the rest.
+ *
+ * `inline` is load-bearing: without it Tailwind copies each value into the
+ * generated utility, and `.dark` re-pointing `--card` would then change
+ * nothing at all. With it the utility reads the custom property at use time,
+ * which is the whole mechanism a theme switch runs on.
+ *
+ * **`--font-sans` is the token, and its value is deliberately the generic
+ * family the table was measured against.** The obvious thing to write here is
+ * shadcn's `ui-sans-serif, system-ui, …` stack, and it was written, and the
+ * browser gate refused it: `layout.spec.ts` failed at 1280×800 with `the
+ * earliest-start field is 138px where this browser wants 143px`. The reason is
+ * the guard's blind side. The reset stops at `[data-grid]`, but **inheritance
+ * does not** — the cells carry `font: inherit` as inline styles of their own,
+ * so the face `<main>` is given is the face the table is laid out in, and
+ * `table-frame.ts`'s `not-before: 146` is a number Chromium gave for an
+ * unconstrained `input[type=date]` in `sans-serif`. A different face is a
+ * different number and a clipped date.
+ *
+ * So the token exists, everything reads it, and it says `sans-serif` until
+ * somebody changes the face **and** re-measures that column. `H
+ * header-fits-a-row` is the change that touches the type scale; this one is
+ * the foundation, and shipping a face here would have been a geometry change
+ * smuggled in under a palette.
+ */
+@theme inline {
+  --font-sans: sans-serif;
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+/*
+ * The scoped reset. Every selector here carries the same guard, and
+ * `styles.test.ts` reads the compiled layer back to check that none of them
+ * ever stops carrying it.
+ *
+ * What is in it is what the vendored components cannot do without, and nothing
+ * else. `border-box` because a shadcn control's height is `h-9` with a border
+ * inside it. `font: inherit` on form controls because a `<button>` otherwise
+ * keeps the platform's own 13.3px face and `text-sm` cannot reach it. Zeroed
+ * heading and paragraph margins because the chrome now spaces itself with
+ * `gap-*` and a user-agent `0.67em` on an `h1` fights it.
+ *
+ * What is deliberately NOT in it: preflight's `border-width: 0` on everything,
+ * and its `background-color: transparent` on buttons. Tailwind v4 emits
+ * `border-style` and `border-width` together in the `border` utility, so the
+ * preflight line that makes `border` work is redundant here — and it is the
+ * line most likely to erase a border somebody drew with a `style` prop. The
+ * button line is worse: it would strip every chrome button this change has not
+ * reached yet down to bare text, so a swap left for `H` would look broken
+ * rather than merely old. Author styles outrank the user agent's whatever the
+ * layer, so a vendored `<Button>` needs neither.
+ */
+@layer base {
+  *:not([data-grid], [data-grid] *),
+  :not([data-grid], [data-grid] *)::before,
+  :not([data-grid], [data-grid] *)::after {
+    box-sizing: border-box;
+  }
+
+  h1:not([data-grid], [data-grid] *),
+  h2:not([data-grid], [data-grid] *),
+  h3:not([data-grid], [data-grid] *),
+  h4:not([data-grid], [data-grid] *),
+  p:not([data-grid], [data-grid] *),
+  figure:not([data-grid], [data-grid] *),
+  blockquote:not([data-grid], [data-grid] *),
+  dl:not([data-grid], [data-grid] *),
+  dd:not([data-grid], [data-grid] *) {
+    margin: 0;
+  }
+
+  h1:not([data-grid], [data-grid] *),
+  h2:not([data-grid], [data-grid] *),
+  h3:not([data-grid], [data-grid] *),
+  h4:not([data-grid], [data-grid] *) {
+    font-size: inherit;
+    font-weight: inherit;
+  }
+
+  button:not([data-grid], [data-grid] *),
+  input:not([data-grid], [data-grid] *),
+  select:not([data-grid], [data-grid] *),
+  textarea:not([data-grid], [data-grid] *) {
+    font: inherit;
+    color: inherit;
+    letter-spacing: inherit;
+  }
+}
