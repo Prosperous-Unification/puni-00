@@ -22,6 +22,7 @@ import type {
   WorkItemPatch,
   WorkItemStore,
 } from '../repository';
+import { assumedAssignee } from './assumed-assignee';
 import type { Broadcaster } from './broadcast';
 import { withAncestors } from './broadcast';
 import {
@@ -92,17 +93,16 @@ function durationsOf(
 /**
  * A row's assignees, and who — if anyone — is assumed to be doing every phase.
  *
- * Exactly one assignee means that person does the lot; two or more means each
- * is doing their own, and none means nobody has been named. Reading it from
- * the assignments rather than storing it keeps one fact in one place: assign
- * the second role and the assumption ends by itself.
+ * The reading itself is {@link assumedAssignee}, shared with the role removal
+ * that has to say whose answer it would change. Written out twice, the two
+ * would drift, and the drift would show up as a confirmation naming the wrong
+ * people.
  */
 function phasesOf(assignees: Record<string, string>): {
   assignees: Record<string, string>;
   doesEveryPhase: string | null;
 } {
-  const named = Object.values(assignees);
-  return { assignees, doesEveryPhase: named.length === 1 ? (named[0] ?? null) : null };
+  return { assignees, doesEveryPhase: assumedAssignee(assignees) };
 }
 
 /**
