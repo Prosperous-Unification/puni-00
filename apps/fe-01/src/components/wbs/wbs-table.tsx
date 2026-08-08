@@ -36,6 +36,7 @@ import {
 } from './estimate-draft';
 import { undoChord } from './keyboard-bindings';
 import { KeyboardCheatSheet, opensCheatSheet } from './keyboard-cheat-sheet';
+import { composeNameCell, normalizeNewlines, splitNameCell } from './name-notes';
 import { NotesPreview } from './notes-preview';
 import { describeGaps, findEstimateGaps } from './plan-completeness';
 import { type PlanExport, planFileName, planToCsv, planToMarkdown } from './plan-export';
@@ -151,7 +152,7 @@ const BOM = '\uFEFF';
  * The columns by fixed id whose `<td>` must not clip, because something in them
  * opens over the rows below. {@link opensAPopover} is what asks.
  */
-const POPOVER_COLUMNS: ReadonlySet<string> = new Set(['depends', 'notes', 'team', 'actions']);
+const POPOVER_COLUMNS: ReadonlySet<string> = new Set(['depends', 'name', 'team', 'actions']);
 
 /**
  * Whether this column holds something that opens over the rows below, and so
@@ -166,12 +167,17 @@ const POPOVER_COLUMNS: ReadonlySet<string> = new Set(['depends', 'notes', 'team'
  * `<td>`'s own clip cuts it to the cell rectangle however the wrapper is styled.
  * Lifting the clip on the `<td>` is the only thing that lets one open.
  *
- * Five kinds of column, not two: the dependency listbox (`depends`), the notes
- * preview (`notes`), a `CreatablePicker`'s list — which is the service/team
- * cell and each role's assignee cell — and the row's own actions menu
- * (`actions`), which hangs a 140px box off a 40px cell one line high and is the
- * narrowest clip of the lot. The assignee columns are named `<roleId>-assignee`
- * at runtime, so they are matched by suffix, the same way `widthFor` sizes them.
+ * Five kinds of column, not two: the dependency listbox (`depends`), the
+ * rendered notes preview (`name` — the notes live in that box since the Notes
+ * column was folded into it), a `CreatablePicker`'s list — which is the
+ * service/team cell and each role's assignee cell — and the row's own actions
+ * menu (`actions`), which hangs a 140px box off a 40px cell one line high and
+ * is the narrowest clip of the lot. The assignee columns are named
+ * `<roleId>-assignee` at runtime, so they are matched by suffix, the same way
+ * `widthFor` sizes them.
+ *
+ * `name` is also a pinned column, and the two rules do not fight: the pin
+ * places the cell, the clip decides what may leave it, and the preview has to.
  *
  * What still keeps these cells from painting into their neighbours, now that the
  * structural backstop is off for them: every control inside them is
@@ -380,12 +386,27 @@ const cellKey = (rowId: string, columnId: string): string => `${rowId}::${column
  * than guessing a jump nobody asked for.
  */
 function caretOf(input: CellElement): Caret {
+  // The one place the two element types are told apart for the keyboard: a
+  // `<textarea>` is the Name cell, which holds the notes under the name, and
+  // {@link nextCell} gives Up and Down to the text there.
+  //
+  // Proof, both directions, watched 2026-08-08. Hard-coded `true`: `still
+  // walks a column of one-line boxes from any caret position` failed on
+  // `expected true to be false` — an estimate column that could no longer be
+  // filled downwards from mid-number. Hard-coded `false`: `keeps ↑ and ↓ in
+  // the name until the caret has run out of text` failed on the reverse.
+  const multiline = input instanceof HTMLTextAreaElement;
   const start = input.selectionStart;
   const end = input.selectionEnd;
   if (start === null || end === null) {
-    return { atStart: false, atEnd: false, hasSelection: false };
+    return { atStart: false, atEnd: false, hasSelection: false, multiline };
   }
-  return { atStart: start === 0, atEnd: end === input.value.length, hasSelection: start !== end };
+  return {
+    atStart: start === 0,
+    atEnd: end === input.value.length,
+    hasSelection: start !== end,
+    multiline,
+  };
 }
 
 /**
@@ -570,7 +591,10 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    * moment it is sent.
    */
   const [drafts, setDrafts] = useState<Record<string, string>>({});
-  /** The row whose notes the pointer is over, so its rendered markdown can show. */
+  /**
+   * The row whose Name cell the pointer is over, so its rendered notes can
+   * show. The notes are written in that box, which is why the hover is on it.
+   */
   const [hoveredNotes, setHoveredNotes] = useState<string | null>(null);
   /** Whether the key bindings are on screen. See {@link KeyboardCheatSheet}. */
   const [cheatSheetOpen, setCheatSheetOpen] = useState(false);
@@ -1431,6 +1455,56 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     [api, flat, run, siblingsOf],
   );
 
+  /**
+   * Commits the Name cell: a work item's name and its notes, typed as one text.
+   *
+   * **The diff is three-way, against the baseline rather than against the row
+   * on screen**, and that is the whole reason this function exists. Every edit
+   * refetches the tree, so a peer's change to the notes can arrive while this
+   * cell is being typed in — `CellInput` holds it back (rule 2) and hands the
+   * held value over as `baseline` on the way out. Comparing the typed fields
+   * against `row.notes` instead would read that peer's note as one this user
+   * had just deleted and send `notes: ''` over the top of it. Both reviewers
+   * found that from opposite ends before a line of it was written.
+   *
+   * **One request for the changed subset**, so an edit that touches both fields
+   * is one refusal, one journal entry and one Cmd+Z rather than two of each.
+   * Nothing is sent when neither field moved, which is reachable without
+   * anybody typing: a `<textarea>` normalises the newlines of whatever is
+   * assigned to it, so a note be-01 holds with `\r\n` — from an API client or
+   * another front end — differs from the box showing it as text while meaning
+   * the same thing. Every focus-and-leave of that row would otherwise rewrite
+   * it. That is where {@link normalizeNewlines} earns its place; the keyboard
+   * cannot put a `\r` in here.
+   *
+   * Proof, five faults, all watched on 2026-08-08. `was` re-pointed at the
+   * current row props off `flat`: `keeps a peer’s note when the name is what
+   * was being typed` failed on `expected 'measure twice' to be 'their note'`
+   * and `keeps a peer’s name when the notes are what was being typed` on
+   * `expected 'Strip' to be 'Rewire the shed'` — each field replaced by the
+   * stale one this client still had on screen. The `now.name === was.name`
+   * guard dropped so the name is always sent: `sends only the field that
+   * changed` failed on a patch carrying a name nobody retyped; the notes guard
+   * dropped, the same test failed on the other half. `normalizeNewlines`
+   * dropped from both sides: `does not rewrite a note that was stored with
+   * Windows line endings` failed on `expected [['w1', …]] to deeply equal []`.
+   * The `Object.keys(...).length === 0` return deleted: the same test failed
+   * on `[['w1', {}]]`, an empty patch.
+   */
+  const commitNameCell = useCallback(
+    (rowId: string, typed: string, baseline: string) => {
+      const now = splitNameCell(normalizeNewlines(typed));
+      const was = splitNameCell(normalizeNewlines(baseline));
+      const patch = {
+        ...(now.name === was.name ? {} : { name: now.name }),
+        ...(now.notes === was.notes ? {} : { notes: now.notes }),
+      };
+      if (Object.keys(patch).length === 0) return;
+      void run(() => api.patch(rowId, patch));
+    },
+    [api, run],
+  );
+
   /** Removes a wholly empty row, landing the focus on the row above it. */
   const removeEmptyRow = useCallback(
     (row: TreeRow) =>
@@ -1497,7 +1571,23 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         // than the committed value — deleting every character and pressing
         // Backspace once more is one gesture, and blur has not happened yet.
         // Anything the item still holds vetoes the removal: content is only
-        // ever deleted by the Delete button, never by a keystroke reflex.
+        // ever deleted by the actions menu, never by a keystroke reflex.
+        //
+        // `input.value` is now both fields in one read: this box holds the
+        // notes under the name, so a row with a note is not empty and cannot
+        // be emptied by deleting the name off the top of it. `row.notes` is
+        // the committed half of the same question, and it is not redundant:
+        // emptying the box is not the same as having emptied the work item,
+        // because the blur that would send the emptying has not happened and
+        // everyone else still has the note.
+        //
+        // Proof, both conjuncts, watched 2026-08-08. `row.notes` dropped: `a
+        // note that has not been deleted yet still vetoes the removal` failed
+        // on `expected [['w1']] to deeply equal []` — a row deleted out from
+        // under a note nobody had committed a deletion of. `input.value`
+        // dropped: `anything the item holds vetoes the backspace removal`
+        // failed on `expected [['w3']] to deeply equal []`, the row whose note
+        // was typed and committed in this same box.
         const empty =
           input.value === '' &&
           row.notes === '' &&
@@ -2103,6 +2193,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     busy,
     duplicateRow,
     deleteRow,
+    commitNameCell,
     onKeyDown,
     onTabKey,
     onArrowKey,
@@ -2147,6 +2238,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     busy,
     duplicateRow,
     deleteRow,
+    commitNameCell,
     onKeyDown,
     onTabKey,
     onArrowKey,
@@ -2263,57 +2355,93 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
           // says the parent is the hit and the subtree is not. Watched,
           // 2026-08-06.
           const matched = live.current.matchIds.has(row.original.id);
+          const hovered = live.current.hoveredNotes === row.original.id;
           return (
-            <CellInput
-              aria-label={`Name of ${row.original.number}`}
-              data-name-input={row.original.id}
-              data-match={matched ? 'true' : undefined}
-              data-cell={cellKey(row.original.id, 'name')}
-              // A work item's name is a sentence, not a word, and an input
-              // scrolls it out of sight one character at a time. A textarea
-              // wraps, and `autoSize` is what stops it wrapping into a line
-              // nobody can see: the box is as tall as its name, focused or not.
-              // Enter is still "new work item" — the table preventDefaults it.
-              multiline
-              autoSize
-              rows={1}
-              maxRestRows={4}
-              style={{
-                // The cell's width, not a width of its own: `22em` was one of
-                // the three opinions that produced the overlap, and it is the
-                // colgroup's job now.
-                width: '100%',
-                boxSizing: 'border-box',
-                resize: 'vertical',
-                font: 'inherit',
-                ...(matched ? { background: MATCH_TINT } : {}),
+            <span
+              // `block`, not `inline-block`: a shrink-to-fit wrapper and a
+              // `width: 100%` textarea inside it define each other in a circle.
+              // It is also the positioned ancestor the preview below is placed
+              // against — which decides where the preview opens, not whether it
+              // is clipped. The clipper is the `<td>`, and it is what
+              // {@link POPOVER_COLUMNS} exempts.
+              style={{ position: 'relative', display: 'block', maxWidth: '100%' }}
+              onMouseEnter={() => {
+                live.current.setHoveredNotes(row.original.id);
               }}
-              // A callback ref rather than an effect: it fires exactly when this
-              // node is attached, so the focus cannot be lost to a later render
-              // arriving before the row does. That race is what
-              // Enter-Enter-Enter depends on not losing. It fires on every render
-              // rather than only the first, which the id check already tolerated.
-              onAttach={(element) => {
-                const wanted = focusNext.current;
-                // The Name column only: any other column is a cell this one has
-                // no business focusing, and it is landed on from the committed
-                // DOM by the effect that reads `focusNext` after a refresh.
-                if (wanted?.rowId !== row.original.id || wanted.columnId !== 'name') return;
-                focusNext.current = null;
-                element.focus();
-              }}
-              value={row.original.name}
-              commit={(typed) => {
-                void live.current.run(() =>
-                  live.current.api.patch(row.original.id, { name: typed }),
+              onMouseLeave={() => {
+                live.current.setHoveredNotes((current) =>
+                  current === row.original.id ? null : current,
                 );
               }}
-              onKeyDown={(e) => {
-                live.current.onAltMove(e, row.original, 'name');
-                live.current.onKeyDown(e, row.original);
-                live.current.onArrowKey(e, row.original.id, 'name');
-              }}
-            />
+            >
+              <CellInput
+                aria-label={`Name of ${row.original.number}`}
+                data-name-input={row.original.id}
+                data-match={matched ? 'true' : undefined}
+                data-cell={cellKey(row.original.id, 'name')}
+                // A work item's name is a sentence, not a word, and an input
+                // scrolls it out of sight one character at a time. A textarea
+                // wraps, and `autoSize` is what stops it wrapping into a line
+                // nobody can see: the box is as tall as its name, focused or
+                // not. It holds the notes under the name as well, which is what
+                // `maxRestRows` caps — past four lines the box scrolls and the
+                // hover preview is where a long note is read.
+                // Enter is still "new work item" — the table preventDefaults it.
+                multiline
+                autoSize
+                rows={1}
+                maxRestRows={4}
+                style={{
+                  // The cell's width, not a width of its own: `22em` was one of
+                  // the three opinions that produced the overlap, and it is the
+                  // colgroup's job now.
+                  width: '100%',
+                  boxSizing: 'border-box',
+                  resize: 'vertical',
+                  font: 'inherit',
+                  ...(matched ? { background: MATCH_TINT } : {}),
+                }}
+                // A callback ref rather than an effect: it fires exactly when
+                // this node is attached, so the focus cannot be lost to a later
+                // render arriving before the row does. That race is what
+                // Enter-Enter-Enter depends on not losing. It fires on every
+                // render rather than only the first, which the id check already
+                // tolerated.
+                onAttach={(element) => {
+                  const wanted = focusNext.current;
+                  // The Name column only: any other column is a cell this one
+                  // has no business focusing, and it is landed on from the
+                  // committed DOM by the effect that reads `focusNext` after a
+                  // refresh.
+                  if (wanted?.rowId !== row.original.id || wanted.columnId !== 'name') return;
+                  focusNext.current = null;
+                  element.focus();
+                }}
+                // Both fields, as one text: the name, and the notes under it.
+                // The reverse trip and the rule that a peer's edit is diffed
+                // against the baseline rather than against this value are in
+                // {@link commitNameCell}.
+                value={composeNameCell(row.original.name, row.original.notes)}
+                commit={(typed, baseline) => {
+                  live.current.commitNameCell(row.original.id, typed, baseline);
+                }}
+                onKeyDown={(e) => {
+                  live.current.onAltMove(e, row.original, 'name');
+                  live.current.onKeyDown(e, row.original);
+                  live.current.onArrowKey(e, row.original.id, 'name');
+                }}
+              />
+              {/*
+                The rendered note, on hover, and only when there is one. A
+                popover over an empty note is a box of nothing that hides the
+                row beneath it. It hangs off the Name cell because that is where
+                the note is now written; the Notes column it used to hang off
+                does not exist.
+              */}
+              {hovered && row.original.notes.trim() !== '' && (
+                <NotesPreview notes={row.original.notes} number={row.original.number} />
+              )}
+            </span>
           );
         },
       }),
@@ -2886,68 +3014,6 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                 : showDay(row.original.schedule.float)}
           </span>
         ),
-      }),
-      column.display({
-        id: 'notes',
-        header: 'Notes',
-        cell: ({ row }) => {
-          const hovered = live.current.hoveredNotes === row.original.id;
-          return (
-            <span
-              // `block`, not `inline-block`: a shrink-to-fit wrapper and a
-              // `width: 100%` textarea inside it define each other in a
-              // circle. It is also the positioned ancestor the preview below
-              // is placed against — which decides where the preview opens, not
-              // whether it is clipped. The clipper is the `<td>`, and it is
-              // what {@link POPOVER_COLUMNS} exempts.
-              style={{ position: 'relative', display: 'block', maxWidth: '100%' }}
-              onMouseEnter={() => {
-                live.current.setHoveredNotes(row.original.id);
-              }}
-              onMouseLeave={() => {
-                live.current.setHoveredNotes((current) =>
-                  current === row.original.id ? null : current,
-                );
-              }}
-            >
-              <CellInput
-                aria-label={`Notes for ${row.original.number}`}
-                data-cell={cellKey(row.original.id, 'notes')}
-                // Markdown is written in paragraphs, so this is the cell that
-                // most needs the room — one line at rest, several while it is
-                // being written in.
-                multiline
-                rows={1}
-                expandedRows={8}
-                style={{
-                  width: '100%',
-                  boxSizing: 'border-box',
-                  resize: 'vertical',
-                  font: 'inherit',
-                }}
-                onKeyDown={(e) => {
-                  live.current.onAltMove(e, row.original, 'notes');
-                  live.current.onTabKey(e, row.original.id, 'notes');
-                  live.current.onArrowKey(e, row.original.id, 'notes');
-                }}
-                value={row.original.notes}
-                commit={(typed) => {
-                  void live.current.run(() =>
-                    live.current.api.patch(row.original.id, { notes: typed }),
-                  );
-                }}
-              />
-              {/*
-                The rendered note, on hover, and only when there is one. A
-                popover over an empty note is a box of nothing that hides the
-                row beneath it.
-              */}
-              {hovered && row.original.notes.trim() !== '' && (
-                <NotesPreview notes={row.original.notes} number={row.original.number} />
-              )}
-            </span>
-          );
-        },
       }),
       column.display({
         id: 'actions',

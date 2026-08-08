@@ -623,8 +623,11 @@ describe('the WBS table', () => {
     }
 
     // 030 gets notes, 040 an estimate, 050 a dependency — committed by blur.
-    const notes = screen.getByLabelText<HTMLInputElement>('Notes for 030');
-    fireEvent.change(notes, { target: { value: 'measure twice' } });
+    // The notes are typed under an empty first line, so 030 has notes and no
+    // name: this test is about a work item whose *only* content is a note, and
+    // a name typed above it would veto the removal for the wrong reason.
+    const notes = screen.getByLabelText<HTMLInputElement>('Name of 030');
+    fireEvent.change(notes, { target: { value: '\nmeasure twice' } });
     fireEvent.blur(notes);
     unfoldRole('Dev');
     // A whole trio on 040 — one point alone is a draft, not an estimate, since
@@ -639,8 +642,9 @@ describe('the WBS table', () => {
     fireEvent.keyDown(depends, { key: 'Enter' });
     fireEvent.blur(depends);
     await waitFor(() => {
-      expect(screen.getByLabelText('Notes for 030')).toHaveValue('measure twice');
+      expect(api.rows.find((row) => row.number === '030')?.notes).toBe('measure twice');
     });
+    expect(screen.getByLabelText('Name of 030')).toHaveValue('\nmeasure twice');
 
     const removed: unknown[] = [];
     api.remove = (...args: unknown[]) => {
@@ -662,6 +666,40 @@ describe('the WBS table', () => {
 
     expect(removed).toEqual([]);
     expect(numbersOnScreen()).toEqual(['010', '010.1', '020', '030', '040', '050']);
+  });
+
+  itDom('a note that has not been deleted yet still vetoes the removal', async () => {
+    // The committed half of "is this work item empty", and the reason the
+    // `row.notes` conjunct stays beside `input.value === ''` now that one box
+    // holds both fields: emptying the box is not the same as having emptied
+    // the work item. Nothing has been sent — the blur that would send it has
+    // not happened — so the note is still there for everyone else, and a
+    // keystroke reflex must not take the row it belongs to with it.
+    const api = fakeApi();
+    render(<WbsTable projectId="p1" api={api} />);
+    click('Add work item');
+    const name = await screen.findByLabelText<HTMLInputElement>('Name of 010');
+    fireEvent.change(name, { target: { value: '\nmeasure twice' } });
+    fireEvent.blur(name);
+    await waitFor(() => {
+      expect(api.rows[0]?.notes).toBe('measure twice');
+    });
+
+    const removed: unknown[] = [];
+    api.remove = (...args: unknown[]) => {
+      removed.push(args);
+      return Promise.resolve();
+    };
+
+    // Select it all and delete it, then Backspace once more — one gesture, and
+    // the blur that would commit the emptying has not happened.
+    const again = screen.getByLabelText<HTMLInputElement>('Name of 010');
+    fireEvent.change(again, { target: { value: '' } });
+    again.setSelectionRange(0, 0);
+    fireEvent.keyDown(again, { key: 'Backspace' });
+
+    expect(removed).toEqual([]);
+    expect(numbersOnScreen()).toEqual(['010']);
   });
 
   itDom('tab inside the text walks to the next cell instead of indenting', async () => {
@@ -723,8 +761,10 @@ describe('the WBS table', () => {
     name.setSelectionRange(2, 2);
     fireEvent.keyDown(name, { key: 'Tab', shiftKey: true });
 
-    // The row above's last editable cell — 010 is a leaf, so its notes.
-    expect(document.activeElement).toBe(screen.getByLabelText('Notes for 010'));
+    // The row above's last editable cell — 010 is a leaf and the plan has no
+    // start date, so its folded QA estimate. The Notes cell that used to be
+    // last is gone: those live under the name now.
+    expect(document.activeElement).toBe(screen.getByLabelText('QA estimate for 010'));
     expect(moved).toEqual([]);
   });
 
@@ -1417,24 +1457,33 @@ describe('the plan on a calendar', () => {
 });
 
 describe('names wrap and notes carry markdown', () => {
-  /** The wrapper the hover lives on — the cell's own parent. */
-  const notesCellOf = (number: string): HTMLElement => {
-    const found = screen.getByLabelText(`Notes for ${number}`).parentElement;
-    if (found === null) throw new Error(`notes cell for ${number} has no wrapper`);
+  /** The wrapper the hover lives on — the Name cell's own parent. */
+  const nameCellOf = (number: string): HTMLElement => {
+    const found = screen.getByLabelText(`Name of ${number}`).parentElement;
+    if (found === null) throw new Error(`name cell for ${number} has no wrapper`);
     return found;
   };
 
+  /**
+   * One row whose Name cell holds a name and, under it, these notes.
+   *
+   * Typed as one text through the one box, because that is the only way to
+   * write a note now: the Notes column is gone and its content lives under the
+   * first line of the name.
+   */
   async function oneRowWithNotes(notes: string) {
     const api = fakeApi();
     render(<WbsTable projectId="p1" api={api} />);
     click('Add work item');
-    await screen.findByLabelText('Name of 010');
-    const cell = screen.getByLabelText('Notes for 010');
-    fireEvent.change(cell, { target: { value: notes } });
+    const cell = await screen.findByLabelText('Name of 010');
+    fireEvent.change(cell, { target: { value: `Strip\n${notes}` } });
     fireEvent.blur(cell);
     await waitFor(() => {
       expect(api.rows[0]?.notes).toBe(notes);
     });
+    // Both fields, from one box and one request: the name is what was on the
+    // first line and nothing else.
+    expect(api.rows[0]?.name).toBe('Strip');
     return api;
   }
 
@@ -1498,21 +1547,35 @@ describe('names wrap and notes carry markdown', () => {
     expect(name.tagName).toBe('TEXTAREA');
   });
 
-  itDom('grows the notes box while it is being written in, and shrinks after', async () => {
-    await oneRowWithNotes('one');
-    const cell = screen.getByLabelText<HTMLTextAreaElement>('Notes for 010');
+  itDom('makes room for a note written under the name, focus or no focus', async () => {
+    // What the deleted Notes column's own `grows while it is being written in,
+    // and shrinks after` used to say, asked of the box the note is written in
+    // now. That cell expanded its `rows` on focus because it was cropped on
+    // purpose; this one auto-sizes, so the note has room at rest as well —
+    // which is the behaviour a plan is read with rather than written with.
+    const api = fakeApi();
+    render(<WbsTable projectId="p1" api={api} />);
+    click('Add work item');
+    const name = await screen.findByLabelText<HTMLTextAreaElement>('Name of 010');
 
-    expect(cell.rows).toBe(1);
-    fireEvent.focus(cell);
-    expect(cell.rows).toBeGreaterThan(1);
-    fireEvent.blur(cell);
-    expect(cell.rows).toBe(1);
+    withScrollHeight(name, 20);
+    fireEvent.change(name, { target: { value: 'Strip' } });
+    expect(name.style.height).toBe('20px');
+
+    withScrollHeight(name, 80);
+    fireEvent.change(name, { target: { value: 'Strip\n\n## Risks\n\n- the fuse box is old' } });
+    // `name.blur()`, not `fireEvent.blur`: the latter leaves
+    // `document.activeElement` where it was, so the component would still read
+    // the cell as focused.
+    name.blur();
+
+    expect(name.style.height).toBe('80px');
   });
 
   itDom('renders the markdown on hover, and nothing when there is no note', async () => {
     await oneRowWithNotes('## Risks\n\n- the fuse box is *old*');
 
-    fireEvent.mouseEnter(notesCellOf('010'));
+    fireEvent.mouseEnter(nameCellOf('010'));
 
     const preview = await screen.findByRole('tooltip');
     // Rendered, not printed: a heading is an element and the emphasis is one
@@ -1527,7 +1590,7 @@ describe('names wrap and notes carry markdown', () => {
     // cannot become markup — watched here rather than asserted in a comment.
     await oneRowWithNotes('<img src=x onerror="alert(1)"> and <script>alert(2)</script>');
 
-    fireEvent.mouseEnter(notesCellOf('010'));
+    fireEvent.mouseEnter(nameCellOf('010'));
 
     const preview = await screen.findByRole('tooltip');
     expect(preview.querySelector('img')).toBeNull();
@@ -1539,11 +1602,33 @@ describe('names wrap and notes carry markdown', () => {
     const api = fakeApi();
     render(<WbsTable projectId="p1" api={api} />);
     click('Add work item');
-    await screen.findByLabelText('Name of 010');
+    const name = await screen.findByLabelText('Name of 010');
+    // A named row with no note: the hover has a cell and a name to find, and
+    // still nothing to render. Hovering an empty row would pass this test
+    // against a preview that simply never opened.
+    fireEvent.change(name, { target: { value: 'Strip' } });
+    fireEvent.blur(name);
+    await waitFor(() => {
+      expect(api.rows[0]?.name).toBe('Strip');
+    });
 
-    fireEvent.mouseEnter(notesCellOf('010'));
+    fireEvent.mouseEnter(nameCellOf('010'));
 
     expect(screen.queryByRole('tooltip')).toBeNull();
+  });
+
+  itDom('reads the whole note in the preview while the box shows the first lines', async () => {
+    // The cap and the preview are one answer between them: the cell stops at
+    // four lines so forty rows still fit on a screen, and the hover is where
+    // the rest of a long note is read. Without the preview the cap would be a
+    // crop.
+    await oneRowWithNotes('## Risks\n\n- one\n- two\n- three\n- four\n- five\n- six');
+
+    fireEvent.mouseEnter(nameCellOf('010'));
+
+    const preview = await screen.findByRole('tooltip');
+    expect(preview.querySelectorAll('li')).toHaveLength(6);
+    expect(preview.getAttribute('aria-label')).toBe('Notes for 010, rendered');
   });
 });
 
@@ -2532,6 +2617,295 @@ describe('someone else editing while you are typing', () => {
     expect(patched).toEqual([]);
     expect(input).toHaveProperty('value', 'Rewire the shed');
   });
+
+  /**
+   * One row with a name and a note, a live subscription, and the two handles a
+   * peer-collision test needs: what be-01 was asked for, and the peer's own
+   * arrival.
+   *
+   * The whole point is that this goes through the real render path — the peer's
+   * edit reaches the cell as new props from a refetch, exactly as it does in
+   * the app, and `CellInput`'s rule 2 holds it back because this client is
+   * mid-word. A test that reached into the component would prove nothing about
+   * the arrival that causes the bug.
+   */
+  async function peerAndMe(name: string, notes: string) {
+    const api = fakeApi();
+    let notify: () => void = () => {
+      throw new Error('the table never subscribed');
+    };
+    const subscribe = (_projectId: string, handlers: SubscriptionHandlers) => {
+      notify = handlers.onChange;
+      return { seen: () => undefined, unsubscribe: () => undefined };
+    };
+    render(<WbsTable projectId="p1" api={api} subscribe={subscribe} />);
+
+    click('Add work item');
+    const cell = await screen.findByLabelText<HTMLTextAreaElement>('Name of 010');
+    fireEvent.change(cell, { target: { value: `${name}\n${notes}` } });
+    fireEvent.blur(cell);
+    await waitFor(() => {
+      expect(api.rows[0]?.notes).toBe(notes);
+    });
+
+    const patched: [string, Record<string, string>][] = [];
+    const real = api.patch.bind(api);
+    api.patch = (id: string, patch: Record<string, string>) => {
+      patched.push([id, patch]);
+      return real(id, patch);
+    };
+    /** Their edit, landing while this client is mid-word. */
+    const theirEdit = async (change: (row: WorkItemView) => void) => {
+      change(api.rows[0]);
+      await act(async () => {
+        notify();
+        await Promise.resolve();
+      });
+    };
+    return { api, patched, cell, theirEdit };
+  }
+
+  itDom('keeps a peer’s note when the name is what was being typed', async () => {
+    // codex #3 and agy #3, from opposite ends of the same hole. The commit is
+    // diffed against what this box was showing when the typing began, never
+    // against the row it renders from: their note arrived mid-word and was
+    // held back, so this client's blur has no idea it exists — and must not
+    // therefore send `notes: ''` over the top of it.
+    //
+    // Proof: `was` in `commitNameCell` re-pointed at the current row props,
+    // `splitNameCell(composeNameCell(here.name, here.notes))` off `flat`. This
+    // failed on `expected 'measure twice' to be 'their note'` — their note
+    // replaced with the stale one this client had on screen, by somebody who
+    // never saw theirs. Watched, 2026-08-08.
+    const { api, patched, cell, theirEdit } = await peerAndMe('Strip', 'measure twice');
+
+    cell.focus();
+    fireEvent.change(cell, { target: { value: 'Strip the old wir\nmeasure twice' } });
+    await theirEdit((row) => {
+      row.notes = 'their note';
+    });
+    // Held back rather than shown: this client is mid-word in the box their
+    // edit landed in, which is the collision that makes the diff hard.
+    expect(cell.value).toBe('Strip the old wir\nmeasure twice');
+
+    fireEvent.blur(cell);
+    await waitFor(() => {
+      expect(patched).toHaveLength(1);
+    });
+
+    // Their note first, because it is the harm: the request shape below is how
+    // it is avoided, and a test that only asserted the shape would report a
+    // clobber as a disagreement about JSON.
+    expect(api.rows[0]?.notes).toBe('their note');
+    expect(patched).toEqual([['w1', { name: 'Strip the old wir' }]]);
+    expect(api.rows[0]?.name).toBe('Strip the old wir');
+  });
+
+  itDom('keeps a peer’s name when the notes are what was being typed', async () => {
+    // The mirror of it, and a separate test for the reason the pair above is:
+    // a diff that got one direction right by accident would pass the other.
+    //
+    // Proof: the same fault. This failed on `expected 'Strip' to be 'Rewire
+    // the shed'` — their rename written over by somebody who was typing a
+    // note. Watched, 2026-08-08.
+    const { api, patched, cell, theirEdit } = await peerAndMe('Strip', 'measure twice');
+
+    cell.focus();
+    fireEvent.change(cell, { target: { value: 'Strip\nmeasure twice, cut once' } });
+    await theirEdit((row) => {
+      row.name = 'Rewire the shed';
+    });
+    expect(cell.value).toBe('Strip\nmeasure twice, cut once');
+
+    fireEvent.blur(cell);
+    await waitFor(() => {
+      expect(patched).toHaveLength(1);
+    });
+
+    expect(api.rows[0]?.name).toBe('Rewire the shed');
+    expect(patched).toEqual([['w1', { notes: 'measure twice, cut once' }]]);
+    expect(api.rows[0]?.notes).toBe('measure twice, cut once');
+  });
+});
+
+describe('a name and its notes in one box', () => {
+  /**
+   * One row, named and noted, with every `patch` recorded.
+   *
+   * The row is set up through the box itself rather than by writing to the
+   * fake, so what these tests start from is a state this component can
+   * actually produce.
+   */
+  async function noted(name: string, notes: string) {
+    const api = fakeApi();
+    render(<WbsTable projectId="p1" api={api} />);
+    click('Add work item');
+    const cell = await screen.findByLabelText<HTMLTextAreaElement>('Name of 010');
+    fireEvent.change(cell, { target: { value: notes === '' ? name : `${name}\n${notes}` } });
+    fireEvent.blur(cell);
+    await waitFor(() => {
+      expect(api.rows[0]?.name).toBe(name);
+    });
+    expect(api.rows[0]?.notes).toBe(notes);
+
+    const patched: [string, Record<string, string>][] = [];
+    const real = api.patch.bind(api);
+    api.patch = (id: string, patch: Record<string, string>) => {
+      patched.push([id, patch]);
+      return real(id, patch);
+    };
+    return { api, patched, cell };
+  }
+
+  /** Types a whole value into the Name cell and leaves it, the way a person does. */
+  const retype = (value: string) => {
+    const cell = screen.getByLabelText<HTMLTextAreaElement>('Name of 010');
+    cell.focus();
+    fireEvent.change(cell, { target: { value } });
+    fireEvent.blur(cell);
+  };
+
+  itDom('writes the first line as the name and the rest as the notes', async () => {
+    const api = fakeApi();
+    render(<WbsTable projectId="p1" api={api} />);
+    click('Add work item');
+    const cell = await screen.findByLabelText('Name of 010');
+
+    fireEvent.change(cell, { target: { value: 'Strip\n## Risks\n\n- the fuse box is old' } });
+    fireEvent.blur(cell);
+
+    await waitFor(() => {
+      expect(api.rows[0]?.name).toBe('Strip');
+    });
+    expect(api.rows[0]?.notes).toBe('## Risks\n\n- the fuse box is old');
+  });
+
+  itDom('sends one request for a name and a note typed together', async () => {
+    // One request, so one refusal, one journal entry and one Cmd+Z. Two
+    // patches would undo as two, which is a name and a note that came from one
+    // gesture coming back in two.
+    const { patched } = await noted('Strip', 'measure twice');
+
+    retype('Strip the wiring\nmeasure twice, cut once');
+
+    await waitFor(() => {
+      expect(patched).toEqual([
+        ['w1', { name: 'Strip the wiring', notes: 'measure twice, cut once' }],
+      ]);
+    });
+  });
+
+  itDom('sends only the field that changed', async () => {
+    // The subset, not the pair: a patch of both fields is a write to be-01 of
+    // a field nobody touched, and the last-writer-wins collision this whole
+    // design is trying not to have.
+    const { patched } = await noted('Strip', 'measure twice');
+
+    retype('Strip the wiring\nmeasure twice');
+    await waitFor(() => {
+      expect(patched).toEqual([['w1', { name: 'Strip the wiring' }]]);
+    });
+
+    retype('Strip the wiring\nmeasure twice, cut once');
+    await waitFor(() => {
+      expect(patched).toHaveLength(2);
+    });
+    expect(patched[1]).toEqual(['w1', { notes: 'measure twice, cut once' }]);
+  });
+
+  itDom('does not rewrite a note that was stored with Windows line endings', async () => {
+    // Where a `\r` actually reaches this code, which is not the keyboard: a
+    // `<textarea>` normalises whatever is assigned to it, so the box can never
+    // hold one — but the string this cell renders from is be-01's, and be-01
+    // takes what an API client or another front end sent it. The box's value
+    // and the server's then differ as text while meaning the same thing, and
+    // every focus-and-leave of that row would be a patch nobody typed.
+    const api = fakeApi();
+    let notify: () => void = () => {
+      throw new Error('the table never subscribed');
+    };
+    const subscribe = (_projectId: string, handlers: SubscriptionHandlers) => {
+      notify = handlers.onChange;
+      return { seen: () => undefined, unsubscribe: () => undefined };
+    };
+    render(<WbsTable projectId="p1" api={api} subscribe={subscribe} />);
+    click('Add work item');
+    const cell = await screen.findByLabelText<HTMLTextAreaElement>('Name of 010');
+    fireEvent.change(cell, { target: { value: 'Strip' } });
+    fireEvent.blur(cell);
+    await waitFor(() => {
+      expect(api.rows[0]?.name).toBe('Strip');
+    });
+
+    const patched: [string, Record<string, string>][] = [];
+    api.patch = (id: string, patch: Record<string, string>) => {
+      patched.push([id, patch]);
+      return Promise.resolve();
+    };
+    api.rows[0].notes = 'measure twice\r\ncut once';
+    await act(async () => {
+      notify();
+      await Promise.resolve();
+    });
+
+    // The box holds the browser's newlines; the server holds Windows's.
+    expect(cell.value).toBe('Strip\nmeasure twice\ncut once');
+
+    // Clicked into and out of, nothing typed.
+    cell.focus();
+    fireEvent.blur(cell);
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(patched).toEqual([]);
+    expect(api.rows[0]?.notes).toBe('measure twice\r\ncut once');
+  });
+
+  itDom('renames the work item when the first line is deleted', async () => {
+    // The edit this design has to be honest about, watched end to end: one
+    // merged field means what it says. Cmd+Z is the way back, and the plan's
+    // reviewers chose this over a guard that would make one field behave like
+    // two.
+    const { api, patched } = await noted('Strip', 'measure twice\nand again');
+
+    retype('measure twice\nand again');
+
+    await waitFor(() => {
+      expect(patched).toEqual([['w1', { name: 'measure twice', notes: 'and again' }]]);
+    });
+    expect(api.rows[0]?.name).toBe('measure twice');
+  });
+
+  itDom('commits an unnamed work item when the first line is emptied', async () => {
+    // Same rule, no special case: the completeness checker is what reports a
+    // work item with no name, and it does.
+    const { api, patched } = await noted('Strip', 'measure twice');
+
+    retype('\nmeasure twice');
+
+    await waitFor(() => {
+      expect(patched).toEqual([['w1', { name: '' }]]);
+    });
+    expect(api.rows[0]?.name).toBe('');
+    expect(api.rows[0]?.notes).toBe('measure twice');
+    expect(screen.getByLabelText('Name of 010')).toHaveValue('\nmeasure twice');
+  });
+
+  itDom('a refused edit changes neither field and says so', async () => {
+    // Atomicity is the whole reason the two fields travel in one request: a
+    // refusal has to leave the row as it was, not half written.
+    const { api } = await noted('Strip', 'measure twice');
+    api.patch = () => Promise.reject(new Error('forbidden'));
+
+    retype('Strip the wiring\nmeasure twice, cut once');
+
+    await waitFor(() => {
+      expect(toastTexts()).toContain('forbidden');
+    });
+    expect(api.rows[0]?.name).toBe('Strip');
+    expect(api.rows[0]?.notes).toBe('measure twice');
+  });
 });
 
 describe('a drag interrupted by someone else', () => {
@@ -2665,6 +3039,52 @@ describe('moving between cells with the arrow keys', () => {
     press(name, 'ArrowLeft');
 
     expect(document.activeElement).toBe(name);
+  });
+
+  itDom('keeps ↑ and ↓ in the name until the caret has run out of text', async () => {
+    // The Name cell holds the notes under the name, so Up and Down are how
+    // that text is walked. They leave the cell from the extremes only —
+    // position 0 and the end of the value — which is wrap-proof: a name wraps,
+    // so counting logical lines would let go of the key while the caret still
+    // had visual lines to climb. `e2e/layout.spec.ts` measures the wrapped case
+    // in a browser; jsdom cannot wrap anything.
+    await threeRoots();
+    const name = screen.getByLabelText<HTMLTextAreaElement>('Name of 020');
+    fireEvent.change(name, { target: { value: 'Sand the frames\nmeasure twice' } });
+    name.focus();
+
+    // Mid-text: the browser keeps both keys and the focus does not move.
+    name.setSelectionRange(6, 6);
+    expect(fireEvent.keyDown(name, { key: 'ArrowUp' })).toBe(true);
+    expect(document.activeElement).toBe(name);
+    expect(fireEvent.keyDown(name, { key: 'ArrowDown' })).toBe(true);
+    expect(document.activeElement).toBe(name);
+
+    // At the very start, Up leaves — the second press of a real keyboard,
+    // where the first walked the caret up to 0.
+    name.setSelectionRange(0, 0);
+    expect(fireEvent.keyDown(name, { key: 'ArrowUp' })).toBe(false);
+    expect(document.activeElement).toBe(screen.getByLabelText('Name of 010'));
+
+    // And at the very end, Down does.
+    name.focus();
+    name.setSelectionRange(name.value.length, name.value.length);
+    expect(fireEvent.keyDown(name, { key: 'ArrowDown' })).toBe(false);
+    expect(document.activeElement).toBe(screen.getByLabelText('Name of 030'));
+  });
+
+  itDom('still walks a column of one-line boxes from any caret position', async () => {
+    // The other half of the same rule, and the reason it is a separate test: a
+    // gate applied to every cell would break filling an estimate column down
+    // forty rows, where Up and Down do nothing to the text at all.
+    await threeRoots();
+    const box = screen.getByLabelText<HTMLInputElement>('Dev optimistic for 010');
+    fireEvent.change(box, { target: { value: '345' } });
+    box.focus();
+    box.setSelectionRange(1, 1);
+
+    expect(fireEvent.keyDown(box, { key: 'ArrowDown' })).toBe(false);
+    expect(document.activeElement).toBe(screen.getByLabelText('Dev optimistic for 020'));
   });
 
   itDom('skips the children of a collapsed branch', async () => {
@@ -2802,18 +3222,22 @@ describe('arrow keys — cross-review findings', () => {
 
   itDom('navigates from every editable cell, not just the ones the first tests used', async () => {
     // codex, medium. The original tests moved from the name and from Dev
-    // optimistic only, so removing the handler from notes — or from realistic
-    // and pessimistic — left them green.
+    // optimistic only, so removing the handler from the last cell of the row —
+    // or from realistic and pessimistic — left them green.
     await threeRoots();
     const columns = [
       'Name of 010',
       'Dev optimistic for 010',
       'Dev realistic for 010',
       'Dev pessimistic for 010',
-      'Notes for 010',
+      'QA estimate for 010',
     ];
 
     for (const label of columns) {
+      // `end` is load-bearing for the Name cell and inert for the rest: the
+      // box that holds the notes keeps Down until the caret has run out of
+      // text, and an estimate box is one line where it never has any to run
+      // out of.
       focus(label, 'end');
       expect(arrow('ArrowDown')).toBe(screen.getByLabelText(label.replace('010', '020')));
     }
@@ -2949,7 +3373,6 @@ describe('Tab moves between the fields, from every cell', () => {
       'Dev pessimistic for 010',
       'Dev assignee for 010',
       'QA estimate for 010',
-      'Notes for 010',
       'Name of 020',
     ])) {
       focusCaret(from, 'end');
@@ -2965,9 +3388,11 @@ describe('Tab moves between the fields, from every cell', () => {
     await threeRoots();
     expect(screen.getByLabelText<HTMLInputElement>('Earliest start for 010').disabled).toBe(true);
 
+    // Straight into the next row: the date is stepped over and it was the last
+    // cell of this one, now that the notes are written under the name.
     focusCaret('QA estimate for 010', 'end');
     tab();
-    expect(document.activeElement).toBe(screen.getByLabelText('Notes for 010'));
+    expect(document.activeElement).toBe(screen.getByLabelText('Name of 020'));
 
     fireEvent.change(screen.getByLabelText('Project start date'), {
       target: { value: '2026-08-06' },
@@ -2987,12 +3412,12 @@ describe('Tab moves between the fields, from every cell', () => {
     expect(fireEvent.keyDown(screen.getByLabelText('Earliest start for 010'), { key: 'Tab' })).toBe(
       false,
     );
-    expect(document.activeElement).toBe(screen.getByLabelText('Notes for 010'));
+    expect(document.activeElement).toBe(screen.getByLabelText('Name of 020'));
   });
 
   itDom('the arrows land in a date cell without asking it for a caret it has none of', async () => {
     // `setSelectionRange` throws `InvalidStateError` on a date input, and the
-    // arrows now have one to land on: the notes cell sits next to it.
+    // arrows have one to land on: the folded QA estimate sits next to it.
     await threeRoots();
     fireEvent.change(screen.getByLabelText('Project start date'), {
       target: { value: '2026-08-06' },
@@ -3011,8 +3436,8 @@ describe('Tab moves between the fields, from every cell', () => {
       thrown.push(event.error);
     };
     window.addEventListener('error', collect);
-    focusCaret('Notes for 010', 'start');
-    fireEvent.keyDown(screen.getByLabelText('Notes for 010'), { key: 'ArrowLeft' });
+    focusCaret('QA estimate for 010', 'end');
+    fireEvent.keyDown(screen.getByLabelText('QA estimate for 010'), { key: 'ArrowRight' });
     window.removeEventListener('error', collect);
 
     expect(thrown).toEqual([]);
@@ -3055,7 +3480,7 @@ describe('Tab moves between the fields, from every cell', () => {
     // where it used to be two.
     await threeRoots();
 
-    const last = focusCaret('Notes for 030', 'end');
+    const last = focusCaret('QA estimate for 030', 'end');
     expect(tab()).toBe(true);
     expect(document.activeElement).toBe(last);
 
@@ -3915,14 +4340,16 @@ describe('the order of the columns', () => {
     // sits immediately before the dates it constrains.
     // `(day)` while the plan has no start date: a bare `2.5` under "Starts"
     // reads as a date that failed to load.
-    expect(headers.slice(-6)).toEqual([
+    // No Notes column: a work item's notes are typed under its name, in the
+    // Name cell, and the column they had is gone.
+    expect(headers.slice(-5)).toEqual([
       'Not before',
       'Starts (day)',
       'Ends (day)',
       'Slack (days)',
-      'Notes',
       '',
     ]);
+    expect(headers).not.toContain('Notes');
   });
 });
 
@@ -4074,7 +4501,7 @@ describe('the widths the table is laid out by', () => {
       const column = cell.dataset['column'] ?? '';
       const exempt =
         cell.tagName === 'TD' &&
-        (['depends', 'notes', 'team', 'actions'].includes(column) || column.endsWith('-assignee'));
+        (['depends', 'name', 'team', 'actions'].includes(column) || column.endsWith('-assignee'));
       expect(cell.style.overflow).toBe(exempt ? 'visible' : 'hidden');
     }
   });
@@ -4131,18 +4558,22 @@ describe('the widths the table is laid out by', () => {
     openRowMenu('020');
     const openList = screen.getByRole('listbox');
     const openMenu = screen.getByRole('menu');
-    const notesBox = screen.getByLabelText('Notes for 020');
+    const nameBox = screen.getByLabelText('Name of 020');
     const teamBox = screen.getByLabelText('Service or team for 020');
     // The cells the popovers are really in. Without this the overflow
     // assertions below would go on passing about columns the popovers had
     // moved out of.
     expect(openList.closest('td')).toBe(cellOf('depends'));
-    expect(notesBox.closest('td')).toBe(cellOf('notes'));
+    expect(nameBox.closest('td')).toBe(cellOf('name'));
     expect(teamBox.closest('td')).toBe(cellOf('team'));
     expect(openMenu.closest('td')).toBe(cellOf('actions'));
 
     expect(cellOf('depends').style.overflow).toBe('visible');
-    expect(cellOf('notes').style.overflow).toBe('visible');
+    // The Name cell, which holds the notes and the rendered preview that hangs
+    // off them — the cell that used to clip is the one the popover moved into.
+    // Proof: `'name'` removed from `POPOVER_COLUMNS`, this failed on
+    // `expected 'hidden' to be 'visible'`. Watched, 2026-08-08.
+    expect(cellOf('name').style.overflow).toBe('visible');
     // The row's actions menu is the same absolutely positioned box in the same
     // kind of wrapper, in a cell 40px wide and one line high — the narrowest
     // clip in the table.
@@ -4165,12 +4596,12 @@ describe('the widths the table is laid out by', () => {
 
     // Still an exception. If the backstop had simply been dropped everywhere,
     // every assertion above would pass and this one would not.
-    expect(cellOf('name').style.overflow).toBe('hidden');
+    expect(cellOf('float').style.overflow).toBe('hidden');
 
     // And the wrappers are still the positioned ancestors — which is what
     // decides *where* each popover opens. `top: 100%` against a static wrapper
     // would be measured from whatever ancestor is positioned instead.
-    for (const wrapper of [openList.parentElement, notesBox.parentElement]) {
+    for (const wrapper of [openList.parentElement, nameBox.parentElement]) {
       expect(wrapper?.tagName).toBe('SPAN');
       expect(wrapper?.style.position).toBe('relative');
     }

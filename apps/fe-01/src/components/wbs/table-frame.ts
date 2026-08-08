@@ -31,7 +31,9 @@ const COLUMN_WIDTHS = new Map<string, number>([
   ['start', 70],
   ['finish', 70],
   ['float', 90],
-  ['notes', 260],
+  // No `notes`: a work item's notes are typed under its name, in the Name
+  // cell, and the column they had of their own is gone. 260px of a table that
+  // has to lose about 500 to stop scrolling sideways at 1280.
   // One ⋯ button, not a pair of labelled ones: 110 was the width Duplicate and
   // Delete needed side by side, and the menu they moved into hangs off this
   // cell rather than living in it.

@@ -2,10 +2,12 @@
  * Where a binding applies, which is also how the cheat sheet is grouped.
  *
  * `Editing` is the keys pressed while typing in a cell. Enter and Backspace
- * fire in a Name cell only; Tab moves from every cell, and the arrows from the
- * cells that are typed into — a picker or a date box keeps its own arrows and
- * is left by Tab. What either does at the very start of a name is the
- * restructuring half: the one place the keystroke has no text meaning.
+ * fire in a Name cell only — which is the box a work item's notes are written
+ * in as well, under the first line, since it took over the Notes column's job;
+ * Tab moves from every cell, and the arrows from the cells that are typed into
+ * — a picker or a date box keeps its own arrows and is left by Tab. What Tab
+ * or Backspace does at the very start of a name is the restructuring half: the
+ * one place the keystroke has no text meaning.
  * `Moving rows` is the Alt chords, which work from any cell and any caret
  * position. The order here is the order the sheet is read in.
  */
@@ -58,12 +60,12 @@ export const KEY_BINDINGS: readonly KeyBinding[] = [
   },
   {
     keys: 'Backspace',
-    does: 'At the very start of a name, outdents the row — and on a wholly empty top-level row, removes it, leaving the focus on the row above.',
+    does: 'At the very start of a name, outdents the row — and on a wholly empty top-level row, one with no note under the name either, removes it and leaves the focus on the row above.',
     where: 'Editing',
   },
   {
     keys: '↑ ↓ ← →',
-    does: 'Move between cells: up and down walk a column, left and right move on once the caret has run out of text.',
+    does: 'Move between cells: up and down walk a column, left and right move on once the caret has run out of text. In the name — which holds the note under it — up and down move the caret first, and leave the row only from the very start and the very end.',
     where: 'Editing',
   },
   {

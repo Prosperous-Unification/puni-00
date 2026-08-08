@@ -60,6 +60,8 @@ const PROVEN_BY = new Map<string, readonly string[]>(
       'moves down a column of estimates',
       'moves along a row once the caret has run out',
       'leaves the caret alone in the middle of a word',
+      'keeps ↑ and ↓ in the name until the caret has run out of text',
+      'still walks a column of one-line boxes from any caret position',
     ],
     'Moving rows: Alt + ↑ / Alt + ↓': [
       'swaps the row with the sibling below it',

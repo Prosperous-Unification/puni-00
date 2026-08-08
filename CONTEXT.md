@@ -120,6 +120,12 @@ The modal list of every key binding, opened by `?` from outside a text box. It r
 keyboard out; it does not change it.
 _Avoid_: help, shortcuts dialog, legend
 
+**Name cell**:
+The one box a work item's name and its notes are written in: the first line is the name,
+everything under it is the notes. They stay two fields in storage — the cell is where they
+are composed for reading and split again on the way out.
+_Avoid_: title field, notes column, description
+
 **Actions menu**:
 The list of things one work item can be asked to do — duplicate it, delete it, unfreeze
 its number — behind a single button on its row. One is open at a time, and it owns the

@@ -19,14 +19,13 @@ export interface CellInputProps extends PassedThrough {
   /**
    * Renders a `<textarea>` instead of an `<input>`, so the text wraps.
    *
-   * Enter is not a newline in one of these: the table binds it to "new work
-   * item" and preventDefaults it, which is the behaviour a bulleted list has
-   * and the reason a name is one line of meaning however many lines it takes
-   * to show.
+   * The Name cell is the one that uses it, and it holds real newlines: the
+   * first line is the work item's name and everything under it is its notes
+   * (`name-notes.ts`). Enter is still bound to "new work item" by the table
+   * and preventDefaulted there — the chord that makes it a newline is its own
+   * change.
    */
   multiline?: boolean;
-  /** Visible rows while this textarea has the focus; ignored for an input. */
-  expandedRows?: number;
   /** Rows at rest. Only meaningful with `multiline`; a `<textarea>` prop, not an input's. */
   rows?: number;
   /**
@@ -38,8 +37,10 @@ export interface CellInputProps extends PassedThrough {
    * follows the content whether or not the cell has the focus, capped by
    * `maxRestRows` so one essay does not push the table off the screen.
    *
-   * Not for Notes: those are cropped on purpose and expand only while being
-   * written in, which is what was asked for there.
+   * The cap is what keeps a long note from pushing the rest of the plan off
+   * the screen now that the notes live in this box: past `maxRestRows` the
+   * cell scrolls, and the rendered preview on hover is where a long note is
+   * read.
    */
   autoSize?: boolean;
   /** Lines an auto-sizing cell will grow to at rest before it scrolls instead. */
@@ -54,8 +55,18 @@ export interface CellInputProps extends PassedThrough {
    * writes the value that was on screen when the focus arrived over whatever has
    * happened since — which is a peer's edit reverted by someone who only clicked
    * through the row.
+   *
+   * @param typed What the box holds now.
+   * @param baseline What it was showing when this typing began — rule 2's held
+   * value, which is *not* the same as the current server value whenever a peer's
+   * edit arrived mid-word and was held back. A cell that edits more than one
+   * field at once (the Name cell holds the notes under the name) must diff
+   * against this rather than against the row it renders from, or the field the
+   * local user never touched reads as one they emptied. Cells with one field
+   * ignore it: for them `typed !== baseline` is the whole answer, and this
+   * component has already asked it.
    */
-  commit: (typed: string) => void;
+  commit: (typed: string, baseline: string) => void;
   /**
    * Called with the node every time React attaches it, which is more than once —
    * the ref callback is rebuilt on each render. Must be idempotent.
@@ -89,7 +100,6 @@ export function CellInput({
   commit,
   onAttach,
   multiline = false,
-  expandedRows = 6,
   autoSize = false,
   maxRestRows = 4,
   ...rest
@@ -170,7 +180,12 @@ export function CellInput({
       // value until the refetch this commit triggers comes back. Advancing it
       // here would be recording a write that has not happened yet, and a failed
       // request would then have nothing left to correct the cell from.
-      commit(node.value);
+      //
+      // `shown.current` is handed over as the baseline for the same reason it
+      // is compared against here: it is what this box was showing when the
+      // typing started, which a peer's edit held back by rule 2 has
+      // deliberately not moved. A composite cell diffs its fields against it.
+      commit(node.value, shown.current);
       return;
     }
     // Nothing typed, or typed back to what it already said — so anything rule 2
@@ -207,16 +222,14 @@ export function CellInput({
           resize(event.currentTarget);
         }}
         onFocus={(event) => {
-          // An auto-sizing box already fits its text; only a cropped one needs
-          // room made for it. Notes are cropped on purpose, so they grow here
-          // and shrink again on the way out.
-          if (autoSize) resize(event.currentTarget);
-          else event.currentTarget.rows = expandedRows;
+          // The cap comes off while the cell is being written in and goes back
+          // on when it is left: `resize` reads `document.activeElement` for
+          // which of the two this is.
+          resize(event.currentTarget);
           rest.onFocus?.(event as unknown as React.FocusEvent<HTMLInputElement>);
         }}
         onBlur={(event) => {
-          if (autoSize) resize(event.currentTarget);
-          else event.currentTarget.rows = 1;
+          resize(event.currentTarget);
           onLeave();
         }}
       />

@@ -41,7 +41,6 @@ describe('the width table', () => {
       'start',
       'finish',
       'float',
-      'notes',
       'actions',
     ]) {
       expect(widthFor(id)).toBeGreaterThan(0);
@@ -63,6 +62,17 @@ describe('the width table', () => {
     // Proof: written against the old 110 and watched failing on `expected 110
     // to be 40`. 2026-08-08.
     expect(widthFor('actions')).toBe(40);
+  });
+
+  it('has no width for a Notes column, because there is no Notes column', () => {
+    // The notes are typed under the name, in the Name cell. A width left
+    // behind here would be 260px of table nothing renders — and, worse, a
+    // colgroup that still had a `<col>` for it would shift every pinned offset
+    // after it. The throw is what makes leaving one behind impossible rather
+    // than merely untidy.
+    // Proof: `['notes', 260]` put back in `COLUMN_WIDTHS`, this failed on
+    // `expected [Function] to throw an error`. Watched, 2026-08-08.
+    expect(() => widthFor('notes')).toThrow(UnknownColumnError);
   });
 
   it('treats an id it never renders as an error, not a plausible width', () => {
@@ -106,7 +116,7 @@ describe('the pinned columns', () => {
     // like any other column.
     expect(pinnedGeometry('depends')).toBeUndefined();
     expect(pinnedCellStyle('depends', 'body')).toBeUndefined();
-    expect(pinnedCellStyle('notes', 'header')).toBeUndefined();
+    expect(pinnedCellStyle('float', 'header')).toBeUndefined();
   });
 
   it('runs contiguously from the edge, with no gap between the three', () => {

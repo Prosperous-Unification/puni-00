@@ -384,26 +384,76 @@ test.describe('the table, measured by a browser', () => {
     ).toBe(true);
   });
 
-  test('opens the notes preview out past the bottom of its own cell', async ({ page }) => {
-    const notes = page.getByLabel('Notes for 010');
-    // Three paragraphs, so the rendered preview is taller than the one-line
-    // box it hangs off — the same reason the dependency list above is given
-    // three entries.
-    await notes.fill('Racking survey\n\nAisle ends photographed\n\nMezzanine measured');
-    await notes.blur();
-    // The notes column is past the right edge of a 1400px viewport, and
-    // `elementFromPoint` takes viewport coordinates: unscrolled, the probe
-    // would be off screen and find nothing.
-    await notes.scrollIntoViewIfNeeded();
-    await notes.hover();
+  test('opens the notes preview out past the bottom of the name cell', async ({ page }) => {
+    // The notes are written under the name, in the Name cell, and the rendered
+    // preview hangs off that cell now — which is a pinned column, so this is
+    // also where "pinned" and "must not clip" are asked to hold at once.
+    const name = page.getByLabel('Name of 010');
+    // A name and three paragraphs under it, so the rendered preview is taller
+    // than the box it hangs off — the same reason the dependency list above is
+    // given three entries. The cap on the box is what makes that true: it
+    // shows four lines at rest and the preview holds the rest.
+    await name.fill(
+      'Racking survey\nAisle ends photographed\n\nMezzanine measured\n\nFire doors checked\n\nSprinkler heads counted',
+    );
+    await name.blur();
+    await name.hover();
     await expect(page.getByRole('tooltip', { name: 'Notes for 010, rendered' })).toBeVisible();
 
-    const escape = await popoverEscape(page, 'notes', '[role="tooltip"]');
+    const escape = await popoverEscape(page, 'name', '[role="tooltip"]');
     expect(escape.overhang).toBeGreaterThan(8);
     expect(
       escape.ownsPixelBelow,
-      `4px below the notes cell is ${escape.found}, not the preview`,
+      `4px below the name cell is ${escape.found}, not the preview`,
     ).toBe(true);
+  });
+
+  test('moves the caret through a wrapped name before it leaves the row', async ({ page }) => {
+    // The one assertion in this change that jsdom cannot make, and the reason
+    // the caret rule is "position 0 and the end of the value" rather than
+    // "the first and last logical line". This name is ONE logical line, long
+    // enough to wrap onto several visual ones in a 360px column: Up pressed in
+    // the middle of it must walk the caret up a visual line — the browser's own
+    // behaviour — and must not move the focus to the row above.
+    const name = page.getByLabel('Name of 020');
+    await name.fill(
+      'Draft the replacement layout including the mezzanine access stairs, the fire doors, the sprinkler heads and every aisle end that has to be photographed before the racking comes out',
+    );
+    await name.blur();
+
+    // Wrapped for real, or this test is about a one-line box: the rendered box
+    // is taller than a single line of its own font.
+    const lines = await name.evaluate((node) => {
+      const box = node.getBoundingClientRect();
+      const lineHeight = Number.parseFloat(getComputedStyle(node).lineHeight);
+      return Math.round(box.height / lineHeight);
+    });
+    expect(lines, 'the name has to wrap for this test to be about wrapping').toBeGreaterThan(2);
+
+    // The caret in the middle of the value, which is the middle of a wrapped
+    // line rather than the start of a logical one.
+    const middle = await name.evaluate((node) => {
+      const box = node as HTMLTextAreaElement;
+      box.focus();
+      const at = Math.floor(box.value.length / 2);
+      box.setSelectionRange(at, at);
+      return at;
+    });
+
+    await page.keyboard.press('ArrowUp');
+    await expect(name).toBeFocused();
+    const moved = await name.evaluate((node) => (node as HTMLTextAreaElement).selectionStart);
+    // The browser moved it, and it moved up rather than to the start: a visual
+    // line back is fewer characters than the whole first half of the value.
+    expect(moved).toBeLessThan(middle);
+    expect(moved).toBeGreaterThan(0);
+
+    // And from position 0 the row above takes the focus, the next press.
+    await name.evaluate((node) => {
+      (node as HTMLTextAreaElement).setSelectionRange(0, 0);
+    });
+    await page.keyboard.press('ArrowUp');
+    await expect(page.getByLabel('Name of 010')).toBeFocused();
   });
 
   test('opens a row’s actions menu out past the bottom of its own cell', async ({ page }) => {
@@ -580,7 +630,10 @@ test.describe('the table, measured by a browser', () => {
  * Observed: both popover tests failed on `ownsPixelBelow`, naming what showed
  * through instead — `4px below the depends cell is <input> in the team column,
  * not the open list` and `4px below the notes cell is <textarea> in the notes
- * column, not the preview`. The overhang assertions did NOT fail, deliberately:
+ * column, not the preview`. That second observation was made while a Notes
+ * column still existed; the preview hangs off the Name cell since 2026-08-08
+ * and the same fault has not been re-run against it — see fault G. The
+ * overhang assertions did NOT fail, deliberately:
  * `getBoundingClientRect` reports a clipped box at its full unclipped size, so
  * a check written only on the rectangles would pass with both popovers sliced
  * off at the cell edge. That is the vacuous version of this test, and the
@@ -608,4 +661,27 @@ test.describe('the table, measured by a browser', () => {
  * what only a browser can settle is the two assertions after it — where Tab
  * out of an open menu actually lands, and that a click on an item lands before
  * the blur closes the menu under it.
+ *
+ * THE TWO NOTES-IN-THE-NAME TESTS HAVE NOT BEEN RUN EITHER. Added on
+ * 2026-08-08 on the same machine with no browser;
+ * `openspec/changes/notes-live-in-the-name/verify.md` says so in the same
+ * words. Faults G and H are instructions, not observations.
+ *
+ * FAULT G — the Name cell clipping the preview that now hangs off it. It is a
+ * pinned column as well, which is the combination nothing has measured.
+ *   `wbs-table.tsx`: drop `'name'` from `POPOVER_COLUMNS`.
+ * Expected: `opens the notes preview out past the bottom of the name cell`
+ * fails on `ownsPixelBelow`, naming what shows through instead. The overhang
+ * assertion is expected NOT to fail, for the reason fault D gives.
+ *
+ * FAULT H — the caret rule written against logical lines instead of the ends
+ * of the value, which is what a browser is needed to tell apart.
+ *   `cell-navigation.ts`: replace the `caret.multiline` gate's
+ *   `caret.atStart` with `!caret.textBefore.includes('\n')` — the rule v1 of
+ *   the plan proposed, "leave from the first logical line".
+ * Expected: `moves the caret through a wrapped name before it leaves the row`
+ * fails at `await expect(name).toBeFocused()`, with the focus on `Name of 010`
+ * — the row above taken while the caret still had two visual lines to climb.
+ * jsdom cannot see this at all: it wraps nothing, so a name of any length is
+ * one visual line there and both rules agree.
  */

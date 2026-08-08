@@ -12,8 +12,8 @@ const ROWS = ['strip', 'sockets', 'sand'];
 const GRID = gridOf(ROWS);
 
 const at = (rowId: string, columnId: string): CellRef => ({ rowId, columnId });
-const FREE: Caret = { atStart: true, atEnd: true, hasSelection: false };
-const MIDDLE: Caret = { atStart: false, atEnd: false, hasSelection: false };
+const FREE: Caret = { atStart: true, atEnd: true, hasSelection: false, multiline: false };
+const MIDDLE: Caret = { atStart: false, atEnd: false, hasSelection: false, multiline: false };
 const PLAIN: KeyModifiers = {
   isComposing: false,
   altKey: false,
@@ -48,10 +48,11 @@ describe('nextCell — up and down', () => {
     expect(move(at('strip', 'name'), 'ArrowUp')).toBeNull();
   });
 
-  it('moves rows whatever the caret is doing', () => {
-    // Every cell here is a single-line input, where Up and Down do nothing at
-    // all — which is what makes filling a column down forty rows possible.
+  it('moves rows whatever the caret is doing in a single-line box', () => {
+    // An estimate box and the date are one line, where Up and Down do nothing
+    // at all — which is what makes filling a column down forty rows possible.
     expect(move(at('strip', 'name'), 'ArrowDown', MIDDLE)?.to).toEqual(at('sockets', 'name'));
+    expect(move(at('sockets', 'name'), 'ArrowUp', MIDDLE)?.to).toEqual(at('strip', 'name'));
   });
 
   it('follows the cells it was given, which exclude a collapsed branch', () => {
@@ -82,6 +83,57 @@ describe('nextCell — up and down', () => {
     expect(move(at('leaf-a', 'name'), 'ArrowDown', FREE, PLAIN, ragged)?.to).toEqual(
       at('parent', 'name'),
     );
+  });
+});
+
+describe('nextCell — up and down in a box that holds more than one line', () => {
+  /** A caret somewhere in the middle of a Name cell holding a name and notes. */
+  const INSIDE: Caret = { atStart: false, atEnd: false, hasSelection: false, multiline: true };
+  const TOP: Caret = { ...INSIDE, atStart: true };
+  const BOTTOM: Caret = { ...INSIDE, atEnd: true };
+
+  it('leaves the key alone anywhere but the very start', () => {
+    // The Name cell holds the notes now, so Up is the key that walks up
+    // through them. Taking it would make the second line of a note
+    // unreachable from the keyboard — and the browser's own Up is what walks
+    // a *wrapped* line, which nothing here can measure.
+    expect(move(at('sockets', 'name'), 'ArrowUp', INSIDE)).toBeNull();
+    expect(move(at('sockets', 'name'), 'ArrowUp', BOTTOM)).toBeNull();
+  });
+
+  it('leaves the cell from the very start', () => {
+    // One press of Up walks the caret to 0, the next one leaves. No visual-line
+    // measurement, and the same answer in jsdom as in a browser.
+    expect(move(at('sockets', 'name'), 'ArrowUp', TOP)?.to).toEqual(at('strip', 'name'));
+  });
+
+  it('leaves the key alone anywhere but the very end', () => {
+    expect(move(at('sockets', 'name'), 'ArrowDown', INSIDE)).toBeNull();
+    expect(move(at('sockets', 'name'), 'ArrowDown', TOP)).toBeNull();
+  });
+
+  it('leaves the cell from the very end', () => {
+    expect(move(at('sockets', 'name'), 'ArrowDown', BOTTOM)?.to).toEqual(at('sand', 'name'));
+  });
+
+  it('leaves the key alone when something is selected, at either end', () => {
+    // Shift+Up in a note is extending a selection upwards, exactly as
+    // Shift+Left is along a line — and a selection that reaches the start
+    // reads `atStart` without anybody having asked to leave.
+    const selecting: Caret = { ...TOP, atEnd: true, hasSelection: true };
+
+    expect(move(at('sockets', 'name'), 'ArrowUp', selecting)).toBeNull();
+    expect(move(at('sockets', 'name'), 'ArrowDown', selecting)).toBeNull();
+  });
+
+  it('does not change what left and right do', () => {
+    // The horizontal rule was already the caret's: it needs no help from this
+    // one, and applying the vertical gate to it would stop Right at the end of
+    // the first line.
+    expect(move(at('sockets', 'name'), 'ArrowRight', BOTTOM)?.to).toEqual(
+      at('sockets', 'dev-optimistic'),
+    );
+    expect(move(at('sockets', 'name'), 'ArrowRight', INSIDE)).toBeNull();
   });
 });
 

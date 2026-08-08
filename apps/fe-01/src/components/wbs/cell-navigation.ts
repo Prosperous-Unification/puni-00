@@ -9,6 +9,16 @@ export interface Caret {
   atStart: boolean;
   atEnd: boolean;
   hasSelection: boolean;
+  /**
+   * Whether this box holds more than one line — a `<textarea>` rather than an
+   * `<input>`.
+   *
+   * It decides whether Up and Down are text keys here. In a one-line box they
+   * do nothing at all, which is what lets them walk a column; in the Name cell,
+   * which holds the notes under the name, they are how the text is moved
+   * through. See {@link nextCell}.
+   */
+  multiline: boolean;
 }
 
 /** Which edge of the arriving cell the caret lands on, so travel continues. */
@@ -40,7 +50,9 @@ export interface KeyModifiers {
  * `null` is not a failure and not a swallowed error: it is how "the browser
  * should handle this" is said. Left with the caret mid-word means move the
  * caret, and hijacking that would break typing in the cells this table exists to
- * type into. A cell that is not in the list gets the same answer for a different
+ * type into. Up and Down are the same key in a box that holds more than one
+ * line — see {@link Caret.multiline}, and the block below that reads it. A cell
+ * that is not in the list gets the same answer for a different
  * reason — the row was removed between the render and the keypress, which is a
  * modeled condition here rather than malformed data to throw on.
  *
@@ -64,6 +76,26 @@ export function nextCell(
   if (here === -1) return null;
 
   if (key === 'ArrowUp' || key === 'ArrowDown') {
+    // In a box that holds more than one line, Up and Down belong to the text
+    // until the caret has run out of it — the same rule Left and Right have
+    // always had, on the other axis. The extremes are position 0 and the end of
+    // the value, never a count of logical lines: a name wraps, so the first
+    // line on screen is not the first line of the value, and one press of Up
+    // walks the caret up or to 0 while the next one leaves. Nothing here
+    // measures a visual line, which is why jsdom and a browser agree.
+    //
+    // Proof: this block deleted, `keeps ↑ and ↓ in the name until the caret has
+    // run out of text` failed on `expected false to be true` — the key taken
+    // and the focus moved out of a note being read. Watched, 2026-08-08. The
+    // other side of it is `caretOf` in `wbs-table.tsx`, which is where
+    // `multiline` comes from.
+    if (caret.multiline) {
+      // A selection means Shift is extending it upwards, not asking to leave —
+      // and one that reaches the start of the value reads `atStart` without
+      // anybody having asked for anything.
+      if (caret.hasSelection) return null;
+      if (!(key === 'ArrowUp' ? caret.atStart : caret.atEnd)) return null;
+    }
     const rowIds = [...new Set(cells.map((c) => c.rowId))];
     const rowIndex = rowIds.indexOf(from.rowId);
     const step = key === 'ArrowDown' ? 1 : -1;
