@@ -47,6 +47,7 @@ import {
   flexibleCellStyle,
   indentFor,
   pinnedCellStyle,
+  POPOVER_ROW_LAYER,
   STICKY_HEADER_CELL,
   TABLE_FRAME,
   tableMinWidth,
@@ -3493,7 +3494,14 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
 
   return (
     <section>
-      <div style={{ marginBottom: 12, display: 'flex', gap: 8 }}>
+      {/*
+        Wrapping, because this row of controls is the only thing on the page
+        that can make it scroll sideways: it is about 1245px of buttons at its
+        narrowest, and a window below that — a narrow one, or a wide one at
+        125% zoom — carried the whole page with it while the table itself was
+        behaving perfectly. Observed on h2puni, 2026-08-08.
+      */}
+      <div style={{ marginBottom: 12, display: 'flex', flexWrap: 'wrap', gap: 8 }}>
         <button type="button" onClick={() => void run(() => api.freeze(projectId))} disabled={busy}>
           Freeze numbering
         </button>
@@ -3898,6 +3906,21 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                       ...(opensAPopover(cell.column.id) ? { overflow: 'visible' as const } : {}),
                       ...flexibleCellStyle(cell.column.id),
                       ...pinnedCellStyle(cell.column.id, 'body'),
+                      // Last, so it wins over the pinned layer it is raising.
+                      // A pinned cell is sticky *with a z-index*, which makes
+                      // it a stacking context — so the preview hanging off
+                      // this one is trapped inside it and the next row's
+                      // pinned Name cell paints over it, whatever the
+                      // preview's own z-index says. The Name column is the
+                      // only cell in the table that is both pinned and holds a
+                      // popover, and this is the row it is open on.
+                      // Proof: found in a browser rather than reasoned about —
+                      // `4px below the name cell is <textarea> in the name
+                      // column, not the preview`, on h2puni 2026-08-08, with
+                      // `opensAPopover` and every other rule already correct.
+                      ...(cell.column.id === 'name' && hoveredNotes === row.original.id
+                        ? { zIndex: POPOVER_ROW_LAYER }
+                        : {}),
                     }}
                   >
                     {flexRender(cell.column.columnDef.cell, cell.getContext())}

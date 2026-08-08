@@ -10,6 +10,7 @@ import {
   PINNED_COLUMNS,
   pinnedCellStyle,
   pinnedGeometry,
+  POPOVER_ROW_LAYER,
   STICKY_HEADER_CELL,
   TABLE_FRAME,
   tableMinWidth,
@@ -273,8 +274,17 @@ describe('the pinned columns', () => {
     // so it is on top of both the header row and the pinned body cells.
     const header = pinnedCellStyle('number', 'header');
     expect(header?.background).toBe(STICKY_HEADER_CELL.background);
-    expect(header?.zIndex).toBe(3);
-    expect(STICKY_HEADER_CELL.zIndex).toBe(2);
+    expect(header?.zIndex).toBe(4);
+    expect(STICKY_HEADER_CELL.zIndex).toBe(3);
+
+    // And the layer a row is lifted to while a popover is open in one of its
+    // pinned cells: above the body cells that would otherwise paint over it,
+    // below the heading, which stays a heading.
+    // Proof: observed in a browser before it existed — `4px below the name
+    // cell is <textarea> in the name column, not the preview`, on h2puni,
+    // 2026-08-08.
+    expect(POPOVER_ROW_LAYER).toBeGreaterThan(Number(body?.zIndex));
+    expect(POPOVER_ROW_LAYER).toBeLessThan(Number(STICKY_HEADER_CELL.zIndex));
   });
 
   it('sticks the heading to the top of the frame', () => {

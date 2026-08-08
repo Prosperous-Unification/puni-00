@@ -18,7 +18,7 @@ import type {
   WorkItemView,
 } from '@/lib/wbs-api';
 
-import { tableMinWidth } from './table-frame';
+import { POPOVER_ROW_LAYER, tableMinWidth } from './table-frame';
 import { type SubscriptionHandlers, WbsTable } from './wbs-table';
 
 /** The two elements a table cell can be, since a wrapping cell is a textarea. */
@@ -1585,6 +1585,35 @@ describe('names wrap and notes carry markdown', () => {
     // too, which is the whole difference between this and the cell beneath it.
     expect(preview.querySelector('h2')?.textContent).toBe('Risks');
     expect(preview.querySelector('li em')?.textContent).toBe('old');
+  });
+
+  itDom('lifts the hovered row above the pinned cells the preview opens over', async () => {
+    // The one thing about this preview that no amount of correct CSS on the
+    // preview itself could fix, and that only a browser found: the Name cell
+    // is pinned, a pinned cell is `position: sticky` **with a z-index**, and
+    // that makes it a stacking context — so the preview inside it is trapped
+    // there and the next row's pinned Name cell paints straight over it.
+    // Proof: observed on h2puni before this existed, with `opensAPopover` and
+    // every other rule already right — `opens the notes preview out past the
+    // bottom of the name cell` failed on `4px below the name cell is
+    // <textarea> in the name column, not the preview`. 2026-08-08.
+    await oneRowWithNotes('## Risks');
+
+    const cell = (): HTMLElement => {
+      const found = nameCellOf('010').closest('td');
+      if (found === null) throw new Error('the name cell is not in a cell');
+      return found;
+    };
+    // At rest it is an ordinary pinned cell, or the lift below would be a
+    // rule that was always on and could not be seen to do anything.
+    expect(cell().style.zIndex).toBe('1');
+
+    fireEvent.mouseEnter(nameCellOf('010'));
+    await screen.findByRole('tooltip');
+
+    expect(Number(cell().style.zIndex)).toBe(POPOVER_ROW_LAYER);
+    fireEvent.mouseLeave(nameCellOf('010'));
+    expect(cell().style.zIndex).toBe('1');
   });
 
   itDom('renders a script in a note as the text somebody typed', async () => {

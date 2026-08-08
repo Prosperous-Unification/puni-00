@@ -423,8 +423,12 @@ test.describe('the table, measured by a browser', () => {
     await scrollFrameTo(page, 0);
     const controls = await controlBoxes(page);
     // Or an empty table would satisfy the assertion below without laying
-    // anything out at all. Two rows of this plan hold well over a dozen boxes.
-    expect(controls.length).toBeGreaterThan(12);
+    // anything out at all. Six boxes to a row — the name, the dependency box,
+    // the service/team picker, two folded role cells and the date — over the
+    // two rows this plan seeds. Written as the number it is: it was `> 12`
+    // until a browser first ran this, which was one more than a row has held
+    // since the Notes column was folded into the Name cell.
+    expect(controls.length).toBeGreaterThanOrEqual(12);
     expect(
       controls
         .filter(({ cell, control }) => findOverrun(cell, control) !== undefined)
@@ -582,7 +586,14 @@ test.describe('the table, measured by a browser', () => {
     // is taller than a single line of its own font.
     const lines = await name.evaluate((node) => {
       const box = node.getBoundingClientRect();
-      const lineHeight = Number.parseFloat(getComputedStyle(node).lineHeight);
+      const style = getComputedStyle(node);
+      // Chromium answers `normal` for a `line-height` nothing set, and
+      // `parseFloat('normal')` is `NaN` — which made every comparison below
+      // false and this precondition unfailable in the one direction that
+      // mattered. Observed on h2puni, 2026-08-08: `expected > 2, received
+      // NaN`. The font's own size is the fallback the browser is describing.
+      const lineHeight =
+        Number.parseFloat(style.lineHeight) || Number.parseFloat(style.fontSize) * 1.2;
       return Math.round(box.height / lineHeight);
     });
     expect(lines, 'the name has to wrap for this test to be about wrapping').toBeGreaterThan(2);
@@ -628,7 +639,16 @@ test.describe('the table, measured by a browser', () => {
     await actions.click();
     await expect(page.getByRole('menu')).toBeVisible();
 
-    const escape = await popoverEscape(page, 'actions', '[role="menu"]');
+    // The row whose menu is open is 030, the one just added — which is the
+    // LAST row, not the first. Probing `tr:first-child` looked right and
+    // could only ever throw: observed on h2puni, 2026-08-08, `no [role="menu"]
+    // is open in tbody tr:first-child td[data-column="actions"]`.
+    const escape = await popoverEscape(
+      page,
+      'actions',
+      '[role="menu"]',
+      'tbody tr:last-child td[data-column="actions"]',
+    );
     // Or the probe below the cell is a probe of empty space.
     expect(escape.overhang).toBeGreaterThan(8);
     expect(
@@ -767,12 +787,13 @@ test.describe('the table, measured by a browser', () => {
       await expect(page.getByLabel(`Name of ${number}`)).toBeVisible();
     }
 
-    // Four levels of indent, which is where `indentFor` stops.
+    // Four levels of indent, which is where `indentFor` stops. A child is
+    // numbered `.1`, not `.010` — the roots are the tens.
     for (const [number, indented] of [
-      ['040', '030.010'],
-      ['050', '030.010.010'],
-      ['060', '030.010.010.010'],
-      ['070', '030.010.010.010.010'],
+      ['040', '030.1'],
+      ['050', '030.1.1'],
+      ['060', '030.1.1.1'],
+      ['070', '030.1.1.1.1'],
     ]) {
       const box = page.getByLabel(`Name of ${number}`);
       await box.focus();
@@ -780,17 +801,21 @@ test.describe('the table, measured by a browser', () => {
       await expect(page.getByLabel(`Name of ${indented}`)).toBeVisible();
     }
 
-    const deep = page.getByLabel('Name of 030.010.010.010.010');
+    const deep = page.getByLabel('Name of 030.1.1.1.1');
     await deep.fill('Reticulating-the-splines-across-every-warehouse-aisle-end-simultaneously');
     await deep.blur();
 
-    const depends = page.getByLabel('Add a dependency to 030.010.010.010.010');
+    const depends = page.getByLabel('Add a dependency to 030.1.1.1.1');
     await depends.click();
-    await depends.fill('010, 020, 030, 030.010, 030.010.010, 030.010.010.010');
+    await depends.fill('010, 020, 030, 030.1, 030.1.1, 030.1.1.1');
     await depends.press('Enter');
     await expect(
-      page.getByRole('button', { name: 'Stop 030.010.010.010.010 waiting for 010' }),
+      page.getByRole('button', { name: 'Stop 030.1.1.1.1 waiting for 010' }),
     ).toBeVisible();
+    // Six of them, or this fixture is not about a column full of chips.
+    await expect(
+      page.getByRole('button', { name: /^Stop 030\.1\.1\.1\.1 waiting for / }),
+    ).toHaveCount(6);
 
     for (const viewport of VIEWPORTS) {
       await page.setViewportSize({ width: viewport.width, height: viewport.height });
@@ -851,7 +876,17 @@ test.describe('the table, measured by a browser', () => {
     // list is declared at 260 and hangs over its neighbours; this is the
     // measurement that number is chosen by.
     await page.setViewportSize({ width: 1280, height: 800 });
-    await page.getByLabel('Add a dependency to 020').click();
+    // Two more rows first. 020 already depends on 010 in the seeded plan, so
+    // its own list has nothing left to offer and never opens — observed on
+    // h2puni, 2026-08-08, `waiting for getByRole('listbox')`. 010 has three
+    // rows it could wait for.
+    const addRow = page.getByRole('button', { name: 'Add work item' });
+    await addRow.click();
+    await expect(page.getByLabel('Name of 030')).toBeVisible();
+    await addRow.click();
+    await expect(page.getByLabel('Name of 040')).toBeVisible();
+
+    await page.getByLabel('Add a dependency to 010').click();
     const list = page.getByRole('listbox');
     await expect(list).toBeVisible();
 
@@ -860,9 +895,7 @@ test.describe('the table, measured by a browser', () => {
       box?.width,
       'the dependency list is narrower than an entry needs',
     ).toBeGreaterThanOrEqual(260);
-    const cell = await page
-      .locator('tbody tr:nth-child(2) td[data-column="depends"]')
-      .boundingBox();
+    const cell = await page.locator('tbody tr:first-child td[data-column="depends"]').boundingBox();
     // Wider than its own cell, which is the thing the clip exemption is for.
     expect(box?.width).toBeGreaterThan(cell?.width ?? 0);
   });
@@ -877,8 +910,13 @@ test.describe('the table, measured by a browser', () => {
     const folded = page.getByLabel('QA estimate for 030');
     await folded.scrollIntoViewIfNeeded();
     await folded.click();
-    await folded.fill('@');
+    // A name, not a bare `@`: this deployment has no contributors yet, so a
+    // bare `@` offers nobody to assign and nobody to remove and the list does
+    // not open at all. Observed on h2puni, 2026-08-08, `waiting for
+    // getByRole('listbox', { name: 'QA assignee for 030' })`.
+    await folded.fill('@Kat');
     await expect(page.getByRole('listbox', { name: 'QA assignee for 030' })).toBeVisible();
+    await expect(page.getByRole('option', { name: 'Add “Kat”' })).toBeVisible();
 
     const escape = await popoverEscape(
       page,

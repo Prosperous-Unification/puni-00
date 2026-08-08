@@ -252,12 +252,27 @@ const ROW_BACKGROUND = '#fff';
  * body; a pinned body cell only crosses the cells scrolling behind it.
  *
  * The pickers inside the cells sit at `z-index: 10` and above, deliberately
- * higher than all three: an open list has to be readable over a pinned column,
- * and it closes the moment the person is done with it.
+ * higher than all of these: an open list has to be readable over a pinned
+ * column, and it closes the moment the person is done with it.
+ *
+ * {@link POPOVER_ROW_LAYER} is the fourth, and it exists because a browser
+ * found the reason. A pinned cell is `position: sticky` **with a z-index**,
+ * which makes it a stacking context — so a popover inside one is trapped in
+ * it, however high its own z-index, and the *next* row's pinned cell paints
+ * straight over it. The Name column is the only cell in this table that is
+ * both pinned and holds a popover, and the notes preview hanging off it was
+ * invisible under the row below until this layer existed. Observed on h2puni,
+ * 2026-08-08: `4px below the name cell is <textarea> in the name column, not
+ * the preview`.
+ *
+ * It sits above the other body cells and below both header layers, which is
+ * the whole of what it has to do: the preview opens downwards, over the rows,
+ * and the heading stays a heading.
  */
 const PINNED_BODY_LAYER = 1;
-const HEADER_LAYER = 2;
-const PINNED_HEADER_LAYER = 3;
+export const POPOVER_ROW_LAYER = 2;
+const HEADER_LAYER = 3;
+const PINNED_HEADER_LAYER = 4;
 
 /**
  * What every `<td>` and `<th>` carries, spread before anything a particular cell
