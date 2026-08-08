@@ -108,6 +108,16 @@ Tailwind's native modules has not been run anywhere yet.
 
 **~1–1.5 days.**
 
+**Done 2026-08-09 — `openspec/changes/shadcn-foundation/verify.md`.** Three
+things `H` must read first. The guard scopes the reset away from `[data-grid]`
+but **inheritance is not scoped**: shipping shadcn's `ui-sans-serif` stack moved
+the face the cells inherit and turned three of `layout.spec.ts`'s width tests
+red, so `--font-sans` is `sans-serif` until the change that moves the face also
+re-measures `not-before`. The toolbar's `input[type=date]` and `select` are
+still native, deliberately — a Radix Select rewrites the tests that name them.
+And `modal.tsx` has never been opened in a browser, because nothing in the app
+mounts one yet; `P` is where its focus trap gets a real page.
+
 ## H `header-fits-a-row` (P2.1)
 
 As v1, built on F: one bar (brand · project picker with rename/new folded
