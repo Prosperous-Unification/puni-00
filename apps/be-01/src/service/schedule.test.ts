@@ -1,8 +1,30 @@
 import { describe, expect, it } from 'bun:test';
 
 import type { WorkItem } from '../repository';
-import type { DependencyEdge } from './schedule';
-import { schedule } from './schedule';
+import type { DependencyEdge, Scheduled, ScheduledSlice, Slice } from './schedule';
+import { schedule as planSlices, sliceKey } from './schedule';
+
+/** The one role this file's fixtures plan in. Their subject is the graph, not the roles. */
+const ONLY_ROLE = 'role-dev';
+
+/**
+ * Every assertion below this line predates slices and is unchanged, because
+ * the change that introduced them promised no plan would move. `durations`
+ * becomes one slice per leaf and the projection is read back out — the
+ * expectations are the ones the previous engine was written against.
+ */
+const schedule = (
+  rows: readonly WorkItem[],
+  edges: readonly DependencyEdge[],
+  durations: ReadonlyMap<string, number>,
+  notBefore?: ReadonlyMap<string, number>,
+): Map<string, Scheduled> => {
+  const childless = new Set(rows.map((row) => row.parentId).filter((id) => id !== null));
+  const slices: Slice[] = rows
+    .filter((row) => !childless.has(row.id))
+    .map((row) => ({ workItemId: row.id, roleId: ONLY_ROLE, days: durations.get(row.id) ?? null }));
+  return planSlices(rows, edges, slices, notBefore).workItems;
+};
 
 let position = 0;
 const item = (id: string, parentId: string | null = null): WorkItem => ({
@@ -240,5 +262,184 @@ describe('schedule — on a graph the size of a real plan', () => {
     // The last branch waits for all ninety-nine before it, each one day long.
     expect(found.get('leaf-99-0')).toMatchObject({ earliestStart: 99, earliestFinish: 100 });
     expect(took).toBeLessThan(4000);
+  });
+});
+
+const DEV = 'role-dev';
+const QA = 'role-qa';
+
+const work = (workItemId: string, roleId: string | null, days: number | null): Slice => ({
+  workItemId,
+  roleId,
+  days,
+});
+
+/** One slice's schedule, or a throw — a test asserting on `undefined` asserts nothing. */
+const sliceOf = (
+  found: ReturnType<typeof planSlices>,
+  workItemId: string,
+  roleId: string | null,
+): ScheduledSlice => {
+  const each = found.slices.get(sliceKey(workItemId, roleId));
+  if (each === undefined) throw new Error(`no slice ${workItemId}/${String(roleId)}`);
+  return each;
+};
+
+describe('schedule — a work item’s roles run one after another', () => {
+  it('starts the second role when the first finishes', () => {
+    const rows = [item('a')];
+
+    const found = planSlices(rows, [], [work('a', DEV, 3), work('a', QA, 2)]);
+
+    expect(sliceOf(found, 'a', DEV)).toMatchObject({ earliestStart: 0, earliestFinish: 3 });
+    expect(sliceOf(found, 'a', QA)).toMatchObject({ earliestStart: 3, earliestFinish: 5 });
+  });
+
+  it('runs them in the order they are given, which is the project’s role order', () => {
+    const rows = [item('a')];
+
+    const found = planSlices(rows, [], [work('a', QA, 2), work('a', DEV, 3)]);
+
+    expect(sliceOf(found, 'a', QA)).toMatchObject({ earliestStart: 0, earliestFinish: 2 });
+    expect(sliceOf(found, 'a', DEV)).toMatchObject({ earliestStart: 2, earliestFinish: 5 });
+  });
+
+  it('gives an unestimated slice no time, and says nobody has looked', () => {
+    const rows = [item('a')];
+
+    const found = planSlices(rows, [], [work('a', DEV, null), work('a', QA, 4)]);
+
+    expect(sliceOf(found, 'a', DEV)).toMatchObject({
+      duration: 0,
+      estimated: false,
+      earliestStart: 0,
+      earliestFinish: 0,
+    });
+    expect(sliceOf(found, 'a', QA)).toMatchObject({ earliestStart: 0, earliestFinish: 4 });
+  });
+});
+
+describe('schedule — where a dependency lands on the slices', () => {
+  it('waits for the predecessor’s last role, not its first', () => {
+    const rows = [item('a'), item('b')];
+
+    const found = planSlices(
+      rows,
+      [edge('a', 'b')],
+      [work('a', DEV, 3), work('a', QA, 2), work('b', DEV, 1), work('b', QA, null)],
+    );
+
+    expect(sliceOf(found, 'b', DEV)).toMatchObject({ earliestStart: 5, earliestFinish: 6 });
+    expect(found.workItems.get('b')).toMatchObject({ earliestStart: 5, earliestFinish: 6 });
+  });
+
+  it('does not let an unestimated first role escape the wait', () => {
+    // The edge lands on `b`'s first slice, not its first *estimated* one. Landing
+    // it on `QA` would leave `Dev` with no predecessor at all: it would sit at
+    // day zero, and the row — which starts when its earliest slice does — would
+    // report `b` as starting before the thing it waits for.
+    const rows = [item('a'), item('b')];
+
+    const found = planSlices(
+      rows,
+      [edge('a', 'b')],
+      [work('a', DEV, 3), work('b', DEV, null), work('b', QA, 2)],
+    );
+
+    expect(sliceOf(found, 'b', DEV)).toMatchObject({ earliestStart: 3, earliestFinish: 3 });
+    expect(sliceOf(found, 'b', QA)).toMatchObject({ earliestStart: 3, earliestFinish: 5 });
+    expect(found.workItems.get('b')).toMatchObject({ earliestStart: 3, earliestFinish: 5 });
+  });
+
+  it('puts a not-before floor on the first slice, and thereby on all of them', () => {
+    const rows = [item('a')];
+
+    const found = planSlices(
+      rows,
+      [],
+      [work('a', DEV, null), work('a', QA, 2)],
+      new Map([['a', 4]]),
+    );
+
+    expect(sliceOf(found, 'a', DEV)).toMatchObject({ earliestStart: 4 });
+    expect(sliceOf(found, 'a', QA)).toMatchObject({ earliestStart: 4, earliestFinish: 6 });
+  });
+});
+
+describe('schedule — the projection back onto the work item', () => {
+  it('spans its slices and totals their durations', () => {
+    const rows = [item('before'), item('a')];
+
+    const found = planSlices(
+      rows,
+      [edge('before', 'a')],
+      [work('before', DEV, 2), work('a', DEV, 3), work('a', QA, 1)],
+    );
+
+    expect(found.workItems.get('a')).toMatchObject({
+      earliestStart: 2,
+      earliestFinish: 6,
+      duration: 4,
+      estimated: true,
+    });
+  });
+
+  it('is critical, with no slack, when its slices are on the long chain', () => {
+    const rows = [item('long'), item('short')];
+
+    const found = planSlices(
+      rows,
+      [],
+      [work('long', DEV, 4), work('long', QA, 2), work('short', DEV, 1), work('short', QA, null)],
+    );
+
+    expect(found.workItems.get('long')).toMatchObject({ float: 0, critical: true });
+    expect(found.workItems.get('short')).toMatchObject({ float: 5, critical: false });
+  });
+
+  it('schedules a leaf in a project that holds no roles at all', () => {
+    // Reachable: a project's last role can be removed. The rows must still be in
+    // the graph — a neighbour depends on one of them.
+    const rows = [item('a'), item('b')];
+
+    const found = planSlices(
+      rows,
+      [edge('a', 'b')],
+      [work('a', null, null), work('b', null, null)],
+    );
+
+    expect(found.workItems.get('a')).toMatchObject({ estimated: false, earliestFinish: 0 });
+    expect(found.workItems.get('b')).toMatchObject({ estimated: false, earliestStart: 0 });
+  });
+});
+
+describe('schedule — the slices it refuses to plan', () => {
+  it('refuses a leaf it was handed no slice for', () => {
+    // Nothing depends on `b` here, so nothing else would notice it was missing:
+    // it would simply be projected over no slices at all and come back with a
+    // start of Infinity, which is what the throw is instead of.
+    const rows = [item('a'), item('b')];
+
+    expect(() => planSlices(rows, [], [work('a', DEV, 3)])).toThrow(/no slice for/);
+  });
+
+  it('refuses a dependency onto a leaf it has no slice for, and does not call it a cycle', () => {
+    // The interesting half. An edge end that is not a slice key is a node the
+    // sort has never heard of, and an unreachable node is how it reports a
+    // cycle — so without the guard this answers "your dependencies run in a
+    // circle" about a graph with two work items and one edge.
+    const rows = [item('a'), item('b')];
+
+    expect(() => planSlices(rows, [edge('a', 'b')], [work('a', DEV, 3)])).toThrow(/no slice for/);
+  });
+
+  it('refuses a slice for a work item that is not a leaf', () => {
+    // A parent has no work of its own; scheduling one would give it a duration
+    // beside the span it is supposed to be.
+    const rows = [item('parent'), item('kid', 'parent')];
+
+    expect(() => planSlices(rows, [], [work('kid', DEV, 1), work('parent', DEV, 2)])).toThrow(
+      /not a leaf/,
+    );
   });
 });

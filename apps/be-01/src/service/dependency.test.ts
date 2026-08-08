@@ -158,9 +158,12 @@ describe('canDepend — cross-review findings', () => {
       for (const to of rows) {
         const refusal = canDepend(rows, existing, from.id, to.id);
         if (refusal !== null) continue;
-        const durations = new Map(rows.map((r) => [r.id, 1]));
+        const parents = new Set(rows.map((r) => r.parentId).filter((id) => id !== null));
+        const slices = rows
+          .filter((r) => !parents.has(r.id))
+          .map((r) => ({ workItemId: r.id, roleId: 'role-dev', days: 1 }));
         expect(() =>
-          schedule(rows, [...existing, { predecessorId: from.id, successorId: to.id }], durations),
+          schedule(rows, [...existing, { predecessorId: from.id, successorId: to.id }], slices),
         ).not.toThrow();
       }
     }

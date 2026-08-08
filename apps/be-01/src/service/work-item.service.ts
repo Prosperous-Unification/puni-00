@@ -39,7 +39,7 @@ import { deriveNumbers } from './derive-numbers';
 import { placeAfter, POSITION_STEP, type Sibling } from './place-sibling';
 import { canEdit } from './project.service';
 import { type Days, rollUp } from './roll-up';
-import { schedule, ScheduleCycleError, type Scheduled } from './schedule';
+import { schedule, ScheduleCycleError, type Scheduled, type Slice, sliceKey } from './schedule';
 
 /**
  * What a work item shows before any schedule could be computed for it.
@@ -61,33 +61,65 @@ const UNSCHEDULED: Scheduled = {
 };
 
 /**
- * Planning days per leaf: every role's final figure, summed.
+ * The project's plan as slices: one per leaf and role, in role order.
  *
- * Summing assumes the roles run one after another — Dev finishes, then QA
- * starts. That is the common case and the conservative one; a team that runs
- * them together sees a schedule slightly longer than reality, which is the
- * harmless direction for a plan. Modelling it properly needs to know who does
- * what and when, which needs assignees, which this does not have.
+ * The order is the project's, and it is the order the work runs in — Dev
+ * finishes, then QA starts. That was an assumption written as a sum until this
+ * change; it is now an edge, and the schedule can say when each role's part of
+ * a work item happens rather than only when the whole of it does.
  *
- * A leaf with no estimate is **absent** from the map rather than zero, which is
- * what lets the schedule report it as unestimated instead of instant.
+ * A pair nobody has estimated carries `null` rather than zero, which is what
+ * lets the schedule report it as unestimated instead of instant. Every leaf
+ * gets a slice for every role even so, because an unestimated `Dev` in front of
+ * an estimated `QA` is what hands `QA` the work item's predecessors.
+ *
+ * Two shapes the project's own role list does not cover:
+ *
+ * - **No roles at all.** Reachable — a project's last role can be removed. Each
+ *   leaf gets one slice belonging to nobody, so the plan still schedules
+ *   instead of losing every row that a neighbour depends on.
+ * - **An estimate naming a role the project does not hold.** Not reachable
+ *   through the API — every write that names a role is refused with
+ *   `unknown_role`, and `estimate.role_id` is a foreign key — but the days are
+ *   somebody's typing and they already count towards today's duration. They are
+ *   kept, in a slice after the roles the project does hold, rather than dropped
+ *   silently or thrown over the whole project's read.
  */
-function durationsOf(
+function slicesOf(
   rows: readonly WorkItem[],
   estimates: readonly StoredEstimate[],
   hasChildren: ReadonlySet<string>,
+  roleIds: readonly string[],
   method: EstimateMethod,
-): Map<string, number> {
-  const durations = new Map<string, number>();
+): Slice[] {
+  const inProject = new Set(rows.map((row) => row.id));
+  const held = new Set(roleIds);
+  const days = new Map<string, number>();
+  const unlisted = new Set<string>();
   for (const estimate of estimates) {
     if (hasChildren.has(estimate.workItemId)) continue;
-    if (!rows.some((row) => row.id === estimate.workItemId)) continue;
-    durations.set(
-      estimate.workItemId,
-      (durations.get(estimate.workItemId) ?? 0) + finalDays(estimate, method),
-    );
+    if (!inProject.has(estimate.workItemId)) continue;
+    days.set(sliceKey(estimate.workItemId, estimate.roleId), finalDays(estimate, method));
+    if (!held.has(estimate.roleId)) unlisted.add(estimate.roleId);
   }
-  return durations;
+
+  const order = [...roleIds, ...[...unlisted].sort()];
+  const slices: Slice[] = [];
+  for (const row of rows) {
+    if (hasChildren.has(row.id)) continue;
+    if (order.length === 0) {
+      slices.push({ workItemId: row.id, roleId: null, days: null });
+      continue;
+    }
+    for (const roleId of order) {
+      slices.push({
+        workItemId: row.id,
+        roleId,
+        days: days.get(sliceKey(row.id, roleId)) ?? null,
+      });
+    }
+  }
+  return slices;
 }
 
 /**
@@ -502,7 +534,16 @@ export class WorkItemService {
     // still work: the rows are there, and a plan nobody can open is worse than
     // one with no dates in it. The dates go, the rows stay, and the reason is
     // reported rather than left as a page of zeroes.
-    const durations = durationsOf(rows, stored, hasChildren, project.estimateMethod);
+    // Role order comes from the project, because the order the roles are read
+    // in is the order the work runs in — see `ProjectRepository.rolesOf`.
+    const roles = await this.opts.projects.rolesOf(projectId);
+    const slices = slicesOf(
+      rows,
+      stored,
+      hasChildren,
+      roles.map((each) => each.id),
+      project.estimateMethod,
+    );
     // A manual date becomes an offset before the pass, and offsets become dates
     // after it: the schedule itself never sees a calendar, so weekends are
     // counted in exactly one place. Without a project start date there is
@@ -518,11 +559,13 @@ export class WorkItemService {
     let timing = new Map<string, Scheduled>();
     let scheduleError: ScheduleError = null;
     try {
-      timing = schedule(rows, edges, durations, notBefore);
+      // The projection, not the slices: what a row shows is its own span, and
+      // nothing outside the planner is in the slice business yet.
+      timing = schedule(rows, edges, slices, notBefore).workItems;
     } catch (err) {
       // Only the modeled failure. An unqualified catch here turned every
       // exception in this block — a stack overflow on a pathological tree, a
-      // future mistake in `durationsOf` — into "your dependencies run in a
+      // future mistake in `slicesOf` — into "your dependencies run in a
       // circle", which is a lie told confidently. R5: unknown is not OK.
       if (!(err instanceof ScheduleCycleError)) throw err;
       scheduleError = 'cycle';
