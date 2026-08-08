@@ -11,8 +11,8 @@ import { inMemoryDirectory, testDirectoryService } from '../testing/directory-fi
 import { inMemoryEstimates } from '../testing/estimate-fixture';
 import { inMemoryProjects } from '../testing/project-fixture';
 import { testReplay } from '../testing/replay-fixture';
-import { inMemorySubtrees } from '../testing/subtree-fixture';
 import { testRoleService } from '../testing/role-fixture';
+import { inMemorySubtrees } from '../testing/subtree-fixture';
 import { inMemoryWorkItems } from '../testing/work-item-fixture';
 
 function buildHarness() {
@@ -210,7 +210,7 @@ describe('work item routes', () => {
   });
 
   it('renames through PATCH', async () => {
-    const { token, send, projectId, devId } = await setup();
+    const { token, send, projectId } = await setup();
     const created = await send(`/api/projects/${projectId}/work-items`, token, {
       method: 'POST',
       body: JSON.stringify({ parentId: null, afterId: null, name: 'Strip' }),
@@ -321,7 +321,7 @@ describe('clearing an estimate', () => {
     // The same guard the PUT carries. Without the assertion on the tree
     // afterwards this would pass against a route that answered 401 *after*
     // having already cleared the row.
-    const { token, send, projectId, sockets, devId, qaId } = await parentAndTwoLeaves();
+    const { token, send, projectId, sockets, devId } = await parentAndTwoLeaves();
     await send(`/api/work-items/${sockets}/estimates/${devId}`, token, {
       method: 'PUT',
       body: JSON.stringify({ optimistic: 1, realistic: 2, pessimistic: 3 }),
@@ -338,7 +338,7 @@ describe('clearing an estimate', () => {
   });
 
   it('takes the trio out of the tree, and clearing it again is still a success', async () => {
-    const { token, send, projectId, sockets, devId, qaId } = await parentAndTwoLeaves();
+    const { token, send, projectId, sockets, devId } = await parentAndTwoLeaves();
     await send(`/api/work-items/${sockets}/estimates/${devId}`, token, {
       method: 'PUT',
       body: JSON.stringify({ optimistic: 1, realistic: 2, pessimistic: 3 }),

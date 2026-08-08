@@ -18,8 +18,8 @@ import { ProjectService } from './service/project.service';
 import { PushClient } from './service/push-client';
 import { ReplayBuffer } from './service/replay-buffer';
 import { ReplayOrchestrator } from './service/replay-orchestrator';
-import { RoleService } from './service/role.service';
 import { RetentionTimer } from './service/retention-timer';
+import { RoleService } from './service/role.service';
 import { WorkItemService } from './service/work-item.service';
 
 /**

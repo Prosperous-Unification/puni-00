@@ -8,6 +8,7 @@ import { inMemoryDirectory } from '../testing/directory-fixture';
 import { inMemoryEstimates } from '../testing/estimate-fixture';
 import { inMemoryProjects } from '../testing/project-fixture';
 import { inMemoryWorkItems } from '../testing/work-item-fixture';
+import type { ProjectEvent } from './broadcast';
 import { WorkItemService } from './work-item.service';
 
 const OWNER = 'owner-account';
@@ -59,6 +60,21 @@ async function add(name: string, parentId: string | null = null): Promise<string
 // assertion here is on a payload that might legitimately not exist.
 const latest = () => broadcast.published.at(-1);
 
+/**
+ * The names an event carries, or a loud failure when it carries none.
+ *
+ * `ProjectEvent` also covers the role events, which carry a role rather than
+ * work items, so reading `workItems` off the union needs a narrowing — and a
+ * test that quietly read nothing would assert against an empty list.
+ */
+function namesIn(event: ProjectEvent | undefined): string[] {
+  if (event === undefined) throw new Error('nothing was published');
+  if (event.type !== 'work_items_changed' && event.type !== 'tree_replaced') {
+    throw new Error(`a ${event.type} event carries no work items`);
+  }
+  return event.workItems.map((each) => each.name);
+}
+
 describe('what a project subscriber receives', () => {
   it('sends the whole tree when a work item is created', async () => {
     await add('Strip');
@@ -93,7 +109,7 @@ describe('what a project subscriber receives', () => {
     expect(event?.type).toBe('work_items_changed');
     // The edited work item and the two above it, whose totals just changed —
     // and nothing else, which is the whole point of the narrow shape.
-    expect(event?.workItems.map((w) => w.name)).toEqual(['Back boxes', 'Sockets', 'Strip']);
+    expect(namesIn(event)).toEqual(['Back boxes', 'Sockets', 'Strip']);
   });
 
   it('sends a narrow patch when a name changes', async () => {
@@ -103,7 +119,7 @@ describe('what a project subscriber receives', () => {
     await service.patch(strip, OWNER, { name: 'Strip the old wiring' });
 
     expect(latest()?.event.type).toBe('work_items_changed');
-    expect(latest()?.event.workItems.map((w) => w.name)).toEqual(['Strip the old wiring']);
+    expect(namesIn(latest()?.event)).toEqual(['Strip the old wiring']);
   });
 
   it('sends the whole tree when the project is frozen', async () => {

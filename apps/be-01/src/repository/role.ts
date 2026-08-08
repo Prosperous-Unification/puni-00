@@ -185,9 +185,7 @@ export class RoleRepository implements RoleStore {
       tx.delete(estimate).where(eq(estimate.roleId, roleId)).run();
       tx.delete(assignment).where(eq(assignment.roleId, roleId)).run();
       tx.delete(role).where(eq(role.id, roleId)).run();
-      const workItemIds = [
-        ...new Set([...estimated, ...assigned].map((row) => row.workItemId)),
-      ];
+      const workItemIds = [...new Set([...estimated, ...assigned].map((row) => row.workItemId))];
       bumpWorkItems(tx, workItemIds);
       bumpProject(tx, projectId);
       return { estimates: estimated.length, assignments: assigned.length, workItemIds };

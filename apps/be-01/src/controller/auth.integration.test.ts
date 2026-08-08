@@ -5,8 +5,8 @@ import { buildApp } from '../app';
 import { TEST_JWT_KEY, testAuthService } from '../testing/auth-fixture';
 import { testDirectoryService } from '../testing/directory-fixture';
 import { testProjectService } from '../testing/project-fixture';
-import { testRoleService } from '../testing/role-fixture';
 import { testReplay } from '../testing/replay-fixture';
+import { testRoleService } from '../testing/role-fixture';
 import { testWorkItemService } from '../testing/work-item-fixture';
 
 const TEST_SECRET = 'x'.repeat(32);

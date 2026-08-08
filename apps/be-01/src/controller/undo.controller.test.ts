@@ -60,7 +60,11 @@ beforeEach(() => {
     directory: testDirectoryService(),
     auth: new AuthService({ users: new UserRepository(db), jwtKey: TEST_JWT_KEY }),
     projects: new ProjectService({ projects }),
-    roles: new RoleService({ projects, roles: new RoleRepository(db), broadcast: recordingBroadcaster() }),
+    roles: new RoleService({
+      projects,
+      roles: new RoleRepository(db),
+      broadcast: recordingBroadcaster(),
+    }),
     workItems: new WorkItemService({
       workItems,
       projects,

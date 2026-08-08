@@ -6,15 +6,15 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import type { Role, WorkItem } from '../repository';
 import { openDrizzle } from '../repository/db';
-import { DrizzleEventLogRepo } from '../repository/event-log';
 import { DirectoryRepository } from '../repository/directory';
 import { EstimateRepository } from '../repository/estimate';
+import { DrizzleEventLogRepo } from '../repository/event-log';
 import { runMigrations } from '../repository/migrate';
 import { ProjectRepository } from '../repository/project';
 import { RoleRepository } from '../repository/role';
 import { UserRepository } from '../repository/user';
 import { WorkItemRepository } from '../repository/work-item';
-import { recordingBroadcaster, type RecordingBroadcaster } from '../testing/broadcast-fixture';
+import { type RecordingBroadcaster, recordingBroadcaster } from '../testing/broadcast-fixture';
 import type { Broadcaster } from './broadcast';
 import { EventSequencer } from './event-sequencer';
 import { GatewayBroadcaster } from './gateway-broadcaster';
@@ -106,17 +106,20 @@ describe('RoleService.add', () => {
   it('adds a role and announces it', async () => {
     const outcome = await roles.add(projectId, ownerId, 'Design');
 
-    expect(outcome).toEqual({ ok: true, result: expect.objectContaining({ name: 'Design' }) });
+    if (!outcome.ok) throw new Error(`add refused: ${outcome.reason}`);
+    expect(outcome.result.name).toBe('Design');
+    expect(outcome.result.projectId).toBe(projectId);
+    // The very row that was written, not a shape that resembles it: the event
+    // carrying a different id from the answer is the failure worth catching.
     expect(broadcast.published).toEqual([
-      { projectId, event: { type: 'role_added', role: expect.objectContaining({ name: 'Design' }) } },
+      { projectId, event: { type: 'role_added', role: outcome.result } },
     ]);
   });
 
   it('trims the name, and refuses one that is only spaces', async () => {
-    expect(await roles.add(projectId, ownerId, '  Design  ')).toEqual({
-      ok: true,
-      result: expect.objectContaining({ name: 'Design' }),
-    });
+    const trimmed = await roles.add(projectId, ownerId, '  Design  ');
+    if (!trimmed.ok) throw new Error(`add refused: ${trimmed.reason}`);
+    expect(trimmed.result.name).toBe('Design');
     expect(await roles.add(projectId, ownerId, '   ')).toEqual({
       ok: false,
       reason: 'name_required',
@@ -141,10 +144,8 @@ describe('RoleService.add', () => {
       ok: false,
       reason: 'forbidden',
     });
-    expect(await roles.add(projectId, ownerId, 'Design')).toEqual({
-      ok: true,
-      result: expect.objectContaining({ name: 'Design' }),
-    });
+    // The owner of the restricted project still may.
+    expect((await roles.add(projectId, ownerId, 'Design')).ok).toBe(true);
   });
 });
 

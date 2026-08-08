@@ -61,10 +61,12 @@ export function assumedAssigneeFlips(
   }
   const flips: AssumedAssigneeFlip[] = [];
   for (const [workItemId, byRole] of byWorkItem) {
-    const { [roleId]: removed, ...left } = byRole;
     // Untouched by this removal: it holds nothing for the role, so the reading
-    // of its assignments cannot have moved.
-    if (removed === undefined) continue;
+    // of its assignments cannot have moved. `hasOwn` rather than an undefined
+    // check, because the index type says `string` and the linter is right that
+    // the comparison can never be true as far as the type is concerned.
+    if (!Object.hasOwn(byRole, roleId)) continue;
+    const left = Object.fromEntries(Object.entries(byRole).filter(([each]) => each !== roleId));
     const assumedNow = assumedAssignee(byRole);
     const assumedAfter = assumedAssignee(left);
     if (assumedNow === assumedAfter) continue;

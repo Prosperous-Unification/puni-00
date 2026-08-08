@@ -112,7 +112,10 @@ async function newProject(token: string): Promise<{ id: string; devId: string; q
     method: 'POST',
     body: JSON.stringify({ name: 'Rewire the shed' }),
   });
-  const body = (await res.json()) as { project: { id: string }; roles: { id: string; name: string }[] };
+  const body = (await res.json()) as {
+    project: { id: string };
+    roles: { id: string; name: string }[];
+  };
   const dev = body.roles.find((each) => each.name === 'Dev');
   const qa = body.roles.find((each) => each.name === 'QA');
   if (dev === undefined || qa === undefined) throw new Error('a project without its seed roles');
@@ -133,9 +136,10 @@ describe('POST /api/projects/:id/roles', () => {
     const res = await addRole(project.id, token, 'Design');
 
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({
-      role: { id: expect.any(String), projectId: project.id, name: 'Design' },
-    });
+    const body = (await res.json()) as { role: { id: string; projectId: string; name: string } };
+    expect(body.role.name).toBe('Design');
+    expect(body.role.projectId).toBe(project.id);
+    expect(await roleStore.findById(body.role.id)).toEqual(body.role);
     expect(await roleStore.listByProject(project.id)).toHaveLength(3);
   });
 
@@ -318,7 +322,7 @@ describe('DELETE /api/projects/:id/roles/:roleId', () => {
     // there is no compensating command for a role that took estimates with it.
     const undone = await send(`/api/projects/${project.id}/undo`, token, { method: 'POST' });
     expect(undone.status).toBe(200);
-    expect(await undone.json()).toMatchObject({ done: expect.stringContaining('rename') });
+    expect(((await undone.json()) as { done: string }).done).toContain('rename');
   });
 
   it('leaves an undo whose role has gone refusing as stale, not writing', async () => {
@@ -395,11 +399,10 @@ describe('DELETE /api/projects/:id/roles/:roleId', () => {
     });
     const strip = (await created.json()) as { id: string };
 
-    const estimated = await send(
-      `/api/work-items/${strip.id}/estimates/${design.role.id}`,
-      token,
-      { method: 'PUT', body: JSON.stringify({ optimistic: 1, realistic: 2, pessimistic: 3 }) },
-    );
+    const estimated = await send(`/api/work-items/${strip.id}/estimates/${design.role.id}`, token, {
+      method: 'PUT',
+      body: JSON.stringify({ optimistic: 1, realistic: 2, pessimistic: 3 }),
+    });
 
     expect(estimated.status).toBe(200);
     const tree = await send(`/api/projects/${project.id}/work-items`, token);

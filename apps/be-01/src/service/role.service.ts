@@ -19,9 +19,7 @@ export interface RoleServiceOptions {
 /** Why a role could not be added or renamed. All four are states, not faults. */
 export type RoleRefusal = 'not_found' | 'forbidden' | 'name_required' | 'taken';
 
-export type RoleOutcome =
-  | { ok: true; result: Role }
-  | { ok: false; reason: RoleRefusal };
+export type RoleOutcome = { ok: true; result: Role } | { ok: false; reason: RoleRefusal };
 
 /** What a removal would take with it, as the refusal reports it. */
 export interface RoleInUse {
@@ -127,7 +125,8 @@ export class RoleService {
     cascade: boolean,
   ): Promise<RemoveRoleOutcome> {
     const gate = await this.gate(projectId, roleId, actorId);
-    if (!gate.ok) return { ok: false, reason: gate.reason === 'forbidden' ? 'forbidden' : 'not_found' };
+    if (!gate.ok)
+      return { ok: false, reason: gate.reason === 'forbidden' ? 'forbidden' : 'not_found' };
 
     if (!cascade) {
       const usage = await this.opts.roles.usageOf(projectId, roleId);
@@ -168,7 +167,7 @@ export class RoleService {
     if (project === null) return { ok: false, reason: 'not_found' };
     if (!canEdit(project, actorId)) return { ok: false, reason: 'forbidden' };
     const role = await this.opts.roles.findById(roleId);
-    if (role === null || role.projectId !== projectId) return { ok: false, reason: 'not_found' };
+    if (role?.projectId !== projectId) return { ok: false, reason: 'not_found' };
     return { ok: true };
   }
 }

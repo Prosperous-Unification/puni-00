@@ -197,7 +197,6 @@ stack from being applied against a plan whose phases have changed.
 - **WHEN** a role is added and another removed
 - **THEN** the account's next undo reverses the rename
 
-
 ### Requirement: The starting roles are a seed, not a limit
 
 A new project SHALL still be created holding `Dev` and `QA`. Those two SHALL be
