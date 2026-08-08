@@ -249,8 +249,19 @@ interface Measured {
   frame: { scrollWidth: number; clientWidth: number; left: number; right: number };
   /** Every leaf column of the header row, in order, with its rect. */
   columns: { id: string; left: number; right: number; width: number }[];
-  /** The date input of the first row: whether its own value is cut off. */
-  date: { scrollWidth: number; clientWidth: number };
+  /**
+   * The date input of the first row: how wide it is laid out, and how wide the
+   * browser would make it if nothing constrained it.
+   *
+   * `scrollWidth <= clientWidth` was the obvious check and it is a check that
+   * cannot fail: Chromium lays an `input[type=date]` out at whatever width it
+   * is given and clips its own internals inside the element, so a 60px box
+   * reports no overflow at all while showing about half a date. Watched on
+   * h2puni, 2026-08-08, with `not-before` deliberately at 60px — every
+   * assertion passed. The intrinsic width is the one that answers the
+   * question, and this is the number the column is sized by.
+   */
+  date: { width: number; intrinsic: number };
 }
 
 function measure(page: Page): Promise<Measured> {
@@ -262,6 +273,22 @@ function measure(page: Page): Promise<Measured> {
     if (headers.length === 0) throw new Error('the table has no heading row');
     const dateInput = document.querySelector('tbody tr:first-child input[type="date"]');
     if (dateInput === null) throw new Error('the first row has no earliest-start field');
+    // What this browser would make the field if the column did not tell it
+    // otherwise: the same element, the same font, off screen, unconstrained.
+    // Measured rather than assumed, because it is a platform's number — the
+    // spinner, the separators and the picker icon — and not one this
+    // repository gets to choose.
+    const probe = document.createElement('input');
+    probe.type = 'date';
+    probe.value = '2026-08-08';
+    probe.style.font = getComputedStyle(dateInput).font;
+    probe.style.position = 'fixed';
+    probe.style.left = '-9999px';
+    probe.style.width = 'auto';
+    probe.style.boxSizing = 'border-box';
+    document.body.append(probe);
+    const intrinsic = probe.getBoundingClientRect().width;
+    probe.remove();
     return {
       document: {
         scrollWidth: document.documentElement.scrollWidth,
@@ -282,7 +309,7 @@ function measure(page: Page): Promise<Measured> {
           width: box.width,
         };
       }),
-      date: { scrollWidth: dateInput.scrollWidth, clientWidth: dateInput.clientWidth },
+      date: { width: dateInput.getBoundingClientRect().width, intrinsic },
     };
   });
 }
@@ -325,12 +352,15 @@ function expectItFits(measured: Measured, where: string): void {
   // The name column keeps its floor, which is the number the equation budgets.
   const name = measured.columns.find((column) => column.id === 'name');
   expect(name?.width, `${where}: the name column`).toBeGreaterThanOrEqual(FLEXIBLE_FLOOR - 1);
-  // The native date input's own furniture decides the `not-before` width, and
-  // this is the assertion that number is chosen by rather than argued about.
+  // The native date input's own furniture — the separators, the spinner and
+  // the picker icon — decides the `not-before` width, and this is the
+  // assertion that number is chosen by rather than argued about. 108px is what
+  // this browser asks for plus the cell's padding; a narrower column shows
+  // half a date, silently, because the element clips its own internals.
   expect(
-    measured.date.scrollWidth,
-    `${where}: the earliest-start field's value is clipped`,
-  ).toBeLessThanOrEqual(measured.date.clientWidth + 1);
+    measured.date.width,
+    `${where}: the earliest-start field is ${String(Math.round(measured.date.width))}px where this browser wants ${String(Math.round(measured.date.intrinsic))}px, so its value is cut off`,
+  ).toBeGreaterThanOrEqual(measured.date.intrinsic - 1);
 }
 
 /**
