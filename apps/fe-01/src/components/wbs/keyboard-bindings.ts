@@ -367,6 +367,59 @@ export function commandChordIn(event: KeyPressEvent): Command | null {
 }
 
 /**
+ * Whether this keystroke should open the cheat sheet.
+ *
+ * `?` alone, and only where it is not being typed. A modifier means somebody
+ * else's shortcut — the same rule the grid's arrows apply.
+ *
+ * It lives here rather than beside the sheet it opens because
+ * {@link isPageShortcut} has to ask all three predicates in one place, and a
+ * component importing a component to answer a question about a keystroke is
+ * the import cycle that arrangement produces. `keyboard-cheat-sheet.tsx`
+ * re-exports it, so its callers are unchanged.
+ *
+ * Proof: the `isTypingInto` guard removed, `a question mark typed into a name
+ * stays a question mark` failed with the sheet open over the row. Watched,
+ * 2026-08-07.
+ *
+ * @param pressed The keystroke, as much of it as this decision needs.
+ * @param target What the keystroke was aimed at — `event.target`, not the focus.
+ * @returns True when the sheet should open.
+ */
+export function opensCheatSheet(pressed: KeyPress, target: EventTarget | null): boolean {
+  if (pressed.key !== '?') return false;
+  if (pressed.ctrlKey || pressed.metaKey || pressed.altKey) return false;
+  return !isTypingInto(target);
+}
+
+/**
+ * Whether this keystroke is one the page as a whole answers to.
+ *
+ * The union of the three predicates above, and it exists for exactly one
+ * caller: `usePageShortcutsSuspended` in `components/ui/page-shortcuts.ts`,
+ * which is how an open dialog or sheet stops `?`, Cmd+Z and the command chords
+ * reaching the table underneath it. Asking the predicates rather than listing
+ * the chords again is the point — a chord added to {@link commandChord} is held
+ * back by a modal on the same commit, with nothing to remember.
+ *
+ * **`commandChord` is asked without the typing guard, deliberately.** The
+ * chords fire from inside cells, which are inputs; guarding them by `target`
+ * here would let Ctrl+N create a work item in the table behind an open sheet,
+ * which is the whole fault this predicate was written for. The cost is that a
+ * modal wanting Ctrl+Enter for its own submit has to say so itself; no modal
+ * in this app does, and the alternative leaks the fault back.
+ *
+ * @param pressed The keystroke, as much of it as this decision needs.
+ * @param target What the keystroke was aimed at — `event.target`, not the focus.
+ * @returns True when a page-level listener would act on this keystroke.
+ */
+export function isPageShortcut(pressed: KeyPress, target: EventTarget | null): boolean {
+  if (opensCheatSheet(pressed, target)) return true;
+  if (undoChord(pressed, target) !== null) return true;
+  return commandChord(pressed) !== null;
+}
+
+/**
  * Which label the `Alt` key should be given, or `unsure` when nothing said.
  *
  * `unsure` is a third answer rather than a default to one of the other two: a

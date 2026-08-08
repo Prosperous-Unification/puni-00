@@ -1,36 +1,21 @@
 import { Fragment, useEffect, useRef } from 'react';
 
+import { Button } from '@/components/ui/button';
+import { usePageShortcutsSuspended } from '@/components/ui/page-shortcuts';
+
 import {
   type AltStyle,
   altStyleOf,
-  isTypingInto,
   KEY_BINDINGS,
-  type KeyPress,
   showKeys,
   WHERE_ORDER,
 } from './keyboard-bindings';
 
 export type { KeyPress } from './keyboard-bindings';
-
-/**
- * Whether this keystroke should open the cheat sheet.
- *
- * `?` alone, and only where it is not being typed. A modifier means somebody
- * else's shortcut — the same rule the grid's arrows apply.
- *
- * Proof: the `isTypingInto` guard removed, `a question mark typed into a name
- * stays a question mark` failed with the sheet open over the row. Watched,
- * 2026-08-07.
- *
- * @param pressed The keystroke, as much of it as this decision needs.
- * @param target What the keystroke was aimed at — `event.target`, not the focus.
- * @returns True when the sheet should open.
- */
-export function opensCheatSheet(pressed: KeyPress, target: EventTarget | null): boolean {
-  if (pressed.key !== '?') return false;
-  if (pressed.ctrlKey || pressed.metaKey || pressed.altKey) return false;
-  return !isTypingInto(target);
-}
+// The predicate moved to `keyboard-bindings.ts`, where `isPageShortcut` can
+// reach it without a component importing a component. Re-exported because this
+// is the module its callers ask, and a move is not a reason to change them.
+export { opensCheatSheet } from './keyboard-bindings';
 
 /**
  * What `navigator` says about the platform, or nothing.
@@ -67,7 +52,16 @@ const TITLE_ID = 'keyboard-cheat-sheet-title';
  *
  * There is no focus trap. Tab leaves the dialog, which is a real gap and a
  * named non-goal of the change that added this — the ways out it does prove
- * are Escape, the ✕ and the backdrop.
+ * are Escape, the ✕ and the backdrop. It is also precisely why
+ * {@link usePageShortcutsSuspended} is called below rather than only from
+ * `ModalContent`: Tab out of this sheet lands in a cell of the table behind it,
+ * and until this change Ctrl+N there created a work item nobody could see. This
+ * sheet is a modal, so it holds the page's keyboard like one.
+ *
+ * Hand-rolled rather than Radix, and that is a decision rather than an
+ * oversight — `openspec/changes/shadcn-foundation/design.md`, the routing
+ * matrix. What this change gives it is the token palette and the shared rule;
+ * its markup, its focus handling and every one of its tests are untouched.
  *
  * The list itself is {@link KEY_BINDINGS} and nothing else. A binding written
  * out here instead would be a second description of the keyboard, and the
@@ -77,6 +71,10 @@ export function KeyboardCheatSheet({ onClose, altStyle }: KeyboardCheatSheetProp
   const dialog = useRef<HTMLDivElement | null>(null);
   const returnFocusTo = useRef<HTMLElement | null>(null);
   const style = altStyle ?? altStyleOf(navigatorSaid('platform'), navigatorSaid('userAgent'));
+
+  // Mounting is opening, so the sheet is open for exactly as long as this
+  // component exists.
+  usePageShortcutsSuspended(true);
 
   useEffect(() => {
     const had = document.activeElement;
@@ -119,15 +117,7 @@ export function KeyboardCheatSheet({ onClose, altStyle }: KeyboardCheatSheetProp
         event.preventDefault();
         onClose();
       }}
-      style={{
-        position: 'fixed',
-        inset: 0,
-        zIndex: 100,
-        background: 'rgba(0, 0, 0, 0.35)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-      }}
+      className="fixed inset-0 z-100 flex items-center justify-center bg-black/40"
     >
       <div
         role="dialog"
@@ -138,56 +128,38 @@ export function KeyboardCheatSheet({ onClose, altStyle }: KeyboardCheatSheetProp
         // open so the next Escape lands in this dialog rather than in the
         // table behind it.
         tabIndex={-1}
-        style={{
-          background: '#fff',
-          borderRadius: 6,
-          boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)',
-          padding: '16px 20px',
-          maxWidth: '46em',
-          maxHeight: '80vh',
-          overflowY: 'auto',
-        }}
+        className="bg-background text-foreground max-h-[80vh] max-w-[46em] overflow-y-auto rounded-lg border p-5 shadow-lg"
       >
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
-          <h2 id={TITLE_ID} style={{ margin: 0, fontSize: '1.1em' }}>
+        <div className="mb-3 flex items-baseline gap-3">
+          <h2 id={TITLE_ID} className="text-lg font-semibold tracking-tight">
             Keyboard shortcuts
           </h2>
-          <button
+          <Button
+            variant="ghost"
+            size="square"
             type="button"
             aria-label="Close the keyboard shortcuts"
             title="Close (Escape)"
             onClick={onClose}
-            style={{ marginLeft: 'auto' }}
+            className="ml-auto"
           >
-            ✕
-          </button>
+            <span aria-hidden="true">✕</span>
+          </Button>
         </div>
         {WHERE_ORDER.map((where) => (
-          <section key={where}>
-            <h3 style={{ fontSize: '0.95em', marginBottom: 4 }}>{where}</h3>
-            <dl
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'max-content 1fr',
-                gap: '4px 12px',
-                margin: 0,
-              }}
-            >
+          <section key={where} className="mb-4 last:mb-0">
+            <h3 className="text-muted-foreground mb-1.5 text-xs font-semibold tracking-wide uppercase">
+              {where}
+            </h3>
+            <dl className="grid grid-cols-[max-content_1fr] gap-x-3 gap-y-1 text-sm">
               {KEY_BINDINGS.filter((binding) => binding.where === where).map((binding) => (
                 <Fragment key={binding.keys}>
-                  <dt style={{ whiteSpace: 'nowrap' }}>
-                    <kbd
-                      style={{
-                        border: '1px solid #ccc',
-                        borderRadius: 3,
-                        background: '#f6f6f6',
-                        padding: '1px 5px',
-                      }}
-                    >
+                  <dt className="whitespace-nowrap">
+                    <kbd className="bg-muted text-foreground rounded-sm border px-1.5 py-0.5 text-xs">
                       {showKeys(binding.keys, style)}
                     </kbd>
                   </dt>
-                  <dd style={{ margin: 0 }}>{binding.does}</dd>
+                  <dd>{binding.does}</dd>
                 </Fragment>
               ))}
             </dl>
