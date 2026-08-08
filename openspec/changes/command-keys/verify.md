@@ -148,30 +148,38 @@ scenario-level assertion it is, and it is not claimed as either guard's proof.
 
 `apps/fe-01/e2e/keyboard.spec.ts`, **eight** tests since round 2, run on h2puni
 through `/home/puni1/wbs-e2e-work/run-e2e.sh` (the Playwright docker image;
-h1claw has no browser and does not build). The run below is the six-test one;
-the two round-2 tests are reported under it.
+h1claw has no browser and does not build). The run below is at `7bb87ce`, with
+the round-2 fixes in.
 
 ```
 $ ssh h2puni 'cd /home/puni1/wbs-e2e-work && ./run-e2e.sh'
   ✓  1 keyboard.spec.ts  types a note under a name with Enter, and the box grows to hold it
   ✓  2 keyboard.spec.ts  Cmd+Enter saves the cell before it creates the row it lands in
-  ✓  3 keyboard.spec.ts  Ctrl+D arms on the first press and deletes on the second
-  ✓  4 keyboard.spec.ts  a key still held when the row goes does not arm the row after it
-  ✓  5 keyboard.spec.ts  arming one row and pressing Ctrl+D in another arms the second, …
-  ✓  6 keyboard.spec.ts  a held Ctrl+D arms once and never deletes
-  ✓  7–28 layout.spec.ts (unchanged, all green)
-  28 passed (46.6s)
+  ✓  3 keyboard.spec.ts  a chord after a blur whose save is still out waits for that save
+  ✓  4 keyboard.spec.ts  Cmd+Enter in an open team picker takes no entry and creates none
+  ✓  5 keyboard.spec.ts  Ctrl+D arms on the first press and deletes on the second
+  ✓  6 keyboard.spec.ts  a key still held when the row goes does not arm the row after it
+  ✓  7 keyboard.spec.ts  arming one row and pressing Ctrl+D in another arms the second, …
+  ✓  8 keyboard.spec.ts  a held Ctrl+D arms once and never deletes
+  ✓  9–30 layout.spec.ts (unchanged, all green)
+  30 passed (51.4s)
 ```
 
-### The two round-2 browser tests
+### The two round-2 browser tests, and their faults
 
-**PENDING** — written, gate-green as source, not yet run against a browser.
-Filled in from the run, not from expectation.
+Both were watched failing on h2puni with the fix removed, one at a time,
+restored and re-run green after each.
 
-| test                                                               | what only a browser says                                                                                    | result      |
-| ------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------- | ----------- |
-| `a chord after a blur whose save is still out waits for that save` | the real request log inside a PATCH held open by a route handler: no POST while the first save is in flight | **PENDING** |
-| `Cmd+Enter in an open team picker takes no entry and creates none` | a real chord through a real combobox writes nothing at all — no team, no label, no row                      | **PENDING** |
+| fault injected                                                     | test that went red                                                 | how it failed                                                                                                                               |
+| ------------------------------------------------------------------ | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `return sent.current.landing` put back as `return unsent()`        | `a chord after a blur whose save is still out waits for that save` | `expect(received).toHaveLength(expected)` on the POST filter — a create inside the two seconds the PATCH was held open                      |
+| the `commandChordIn` consume guard removed from `creatable-picker` | `Cmd+Enter in an open team picker takes no entry and creates none` | `expect(received).toEqual(expected)`, `+ Received + 4` — four writes where the test expects none: the team created and 010 labelled with it |
+
+**One finding from the first run, and it was the test’s fault.** The closing
+assertion used `getByLabel('Service or team for 010')`, which in a browser
+resolves to **two** elements — the combobox and the listbox it opens carry the
+same accessible name — and Playwright refuses in strict mode. Every assertion
+the test exists for had already passed. It asks by role now.
 
 ### The browser faults, watched
 
