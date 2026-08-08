@@ -251,6 +251,15 @@ export function ActionsMenu({
                   return;
                 }
                 if (event.key !== 'Enter' && event.key !== ' ') return;
+                // A **bare** Enter takes the item. Cmd/Ctrl+Enter is the
+                // table's next-or-create chord, and the routing matrix says an
+                // open menu is inert to it: a chord aimed at the plan must not
+                // duplicate a branch because a menu happened to be open.
+                // Proof: this guard removed, `every chord is inert while a
+                // row’s ⋯ menu is open` failed on `expected [ { id: 'w1', … } ]
+                // to have a length of 3 but got 4` — Duplicate taken by a
+                // keystroke nobody aimed at it. Watched, 2026-08-08.
+                if (event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return;
                 event.preventDefault();
                 takeAction(action);
               }}

@@ -33,15 +33,45 @@ export type CommitOutcome = 'landed' | 'refused' | 'unsent';
 /** The answer a commit that sent nothing gives, as a settled promise. */
 export const unsent = (): Promise<CommitOutcome> => Promise.resolve('unsent');
 
+/**
+ * Every mounted cell's own "leave this cell now", by the node it belongs to.
+ *
+ * The keyboard needs it: Cmd+Enter and Ctrl+N have to send what is in the box
+ * **before** they move the focus or create a row, and the only thing they hold
+ * is `event.currentTarget`. Reaching it through the node rather than plumbing
+ * a commit thunk down to each of the four cell classes is what keeps the
+ * routing matrix's cells identical to each other — one call, whichever kind of
+ * box the chord was pressed in.
+ *
+ * A `WeakMap`, so a cell that unmounts takes its entry with it: a `Map` keyed
+ * by element is a leak of every row anybody has ever scrolled past.
+ */
+const flushes = new WeakMap<CellElement, () => Promise<CommitOutcome>>();
+
+/**
+ * Commits `node` exactly as leaving it would, and answers what be-01 did.
+ *
+ * `unsent` for a box that is not a {@link CellInput} — the date cell and the
+ * pickers, which write on the change or on the pick and hold no draft between
+ * keystrokes. That is a modeled state rather than an unknown: those boxes have
+ * nothing to flush, and the chord that called this still has to run.
+ *
+ * @param node The box the chord was pressed in.
+ * @returns What be-01 did with what was in it, once the request has settled.
+ */
+export function flushCell(node: CellElement): Promise<CommitOutcome> {
+  return flushes.get(node)?.() ?? unsent();
+}
+
 export interface CellInputProps extends PassedThrough {
   /**
    * Renders a `<textarea>` instead of an `<input>`, so the text wraps.
    *
    * The Name cell is the one that uses it, and it holds real newlines: the
    * first line is the work item's name and everything under it is its notes
-   * (`name-notes.ts`). Enter is still bound to "new work item" by the table
-   * and preventDefaulted there — the chord that makes it a newline is its own
-   * change.
+   * (`name-notes.ts`). Enter is the browser's own newline there since
+   * `command-keys` — a new work item is Ctrl+N, or Cmd/Ctrl+Enter at the end
+   * of the plan.
    */
   multiline?: boolean;
   /** Rows at rest. Only meaningful with `multiline`; a `<textarea>` prop, not an input's. */
@@ -240,10 +270,17 @@ export function CellInput({
    * that further — the same text against the same baseline is a resubmission
    * of a request that is already out — and what the commit answers decides
    * whether rule 4 holds what is in the box from here on.
+   *
+   * The outcome is returned as well as acted on, because a blur is no longer
+   * the only caller: Cmd+Enter and Ctrl+N flush the cell through
+   * {@link flushCell} and have to know whether be-01 took it before they move
+   * the focus or create a row. Rule 5 is what keeps that from doubling the
+   * request — the blur the focus move causes arrives at a cell whose `shown`
+   * has not advanced, sees its own submission recorded, and sends nothing.
    */
-  const onLeave = (): void => {
+  const onLeave = (): Promise<CommitOutcome> => {
     const node = element.current;
-    if (node === null) return;
+    if (node === null) return unsent();
     // Cleared before either branch: it means "typed since `shown` and the node
     // last agreed", and leaving it set would have the *next* visit to this cell
     // hold back a peer's edit on the strength of typing that happened before
@@ -257,7 +294,9 @@ export function CellInput({
       // Proof: deleted, `sends one request however often the cell is left
       // before it lands` failed on `expected [ [ 'w1', { …(2) } ], …(1) ] to
       // have a length of 1 but got 2`. Watched, 2026-08-08.
-      if (sent.current?.typed === node.value && sent.current.baseline === shown.current) return;
+      if (sent.current?.typed === node.value && sent.current.baseline === shown.current) {
+        return unsent();
+      }
       sent.current = { typed: node.value, baseline: shown.current };
       // No `sync()` afterwards: `shown` is deliberately left holding the old
       // value until the refetch this commit triggers comes back. Advancing it
@@ -268,7 +307,7 @@ export function CellInput({
       // is compared against here: it is what this box was showing when the
       // typing started, which a peer's edit held back by rule 2 has
       // deliberately not moved. A composite cell diffs its fields against it.
-      void commit(node.value, shown.current).then((outcome) => {
+      return commit(node.value, shown.current).then((outcome) => {
         if (outcome !== 'landed') {
           // Nothing of this edit is on the server — `refused` was turned down,
           // `unsent` never went — so the record of a submission goes with it
@@ -285,7 +324,7 @@ export function CellInput({
           // `sync` answers for — a refusal nothing records is a refusal
           // nothing can hold. Watched, 2026-08-08.
           refused.current = outcome === 'refused';
-          return;
+          return outcome;
         }
         refused.current = false;
         // The refetch this commit triggered lands *before* it resolves, so a
@@ -293,14 +332,37 @@ export function CellInput({
         // that carried its answer. Nothing else would come.
         sync();
         resize(element.current);
+        return outcome;
       });
-      return;
     }
     // Nothing typed, or typed back to what it already said — so there is no
     // unsaved draft left to hold, and anything rule 2 or rule 4 held back
     // while the focus was here is safe to apply now.
     refused.current = false;
     sync();
+    return unsent();
+  };
+
+  /**
+   * The newest {@link onLeave}, so the one {@link flushes} holds is never a
+   * render behind.
+   *
+   * Assigned during render for the reason `live` in `wbs-table.tsx` is: the
+   * `commit` this closes over is rebuilt on every render, an effect would
+   * publish it one render late, and a chord can be pressed before effects
+   * flush. What is registered in the map is a stable thunk that reads this,
+   * so a cell registers once per attach and still commits through its current
+   * props.
+   */
+  const leave = useRef(onLeave);
+  leave.current = onLeave;
+
+  /** Attaches the node and joins it to {@link flushes}, on every attach. */
+  const takeNode = (node: CellElement | null): void => {
+    element.current = node;
+    if (node === null) return;
+    flushes.set(node, () => leave.current());
+    onAttach?.(node);
   };
 
   /** One keystroke: this component's own bookkeeping, then the caller's. */
@@ -323,14 +385,11 @@ export function CellInput({
         // elements agree on everything this component uses.
         {...(rest as ComponentProps<'textarea'>)}
         ref={(node) => {
-          element.current = node;
-          if (node !== null) {
-            onAttach?.(node);
-            // On attach as well as on change: a row arriving from a refresh has
-            // never been typed in, and its name is exactly the one most likely
-            // to be long.
-            resize(node);
-          }
+          takeNode(node);
+          // On attach as well as on change: a row arriving from a refresh has
+          // never been typed in, and its name is exactly the one most likely
+          // to be long.
+          if (node !== null) resize(node);
         }}
         {...shared}
         onChange={(event) => {
@@ -346,7 +405,7 @@ export function CellInput({
         }}
         onBlur={(event) => {
           resize(event.currentTarget);
-          onLeave();
+          void onLeave();
         }}
       />
     );
@@ -355,12 +414,11 @@ export function CellInput({
   return (
     <input
       {...rest}
-      ref={(node) => {
-        element.current = node;
-        if (node !== null) onAttach?.(node);
-      }}
+      ref={takeNode}
       {...shared}
-      onBlur={onLeave}
+      onBlur={() => {
+        void onLeave();
+      }}
     />
   );
 }

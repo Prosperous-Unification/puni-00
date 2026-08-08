@@ -423,14 +423,25 @@ const typeName = (number: string, value: string) => {
 };
 
 /**
- * Keys are fired at a named row rather than at `document.activeElement`.
+ * Ctrl+N in a named row's Name cell: a new work item below it.
  *
+ * Keys are fired at a named row rather than at `document.activeElement`.
  * Focus is a real behaviour and gets its own assertion, but using it to steer
  * these tests would make every one of them fail for the same reason if focus
  * broke — and none of them would say which behaviour was actually wrong.
+ *
+ * This was `pressEnter` until `command-keys`. Enter in a name is now the
+ * browser's own newline — a work item's notes are written under its name in
+ * that box — and the tests that only ever used Enter as scaffolding to *get* a
+ * second row moved to the chord that makes one. What Enter does instead has
+ * its own tests in `the command chords`.
  */
-const pressEnter = (number: string) => {
-  fireEvent.keyDown(screen.getByLabelText(`Name of ${number}`), { key: 'Enter' });
+const pressNewItem = (number: string) => {
+  fireEvent.keyDown(screen.getByLabelText(`Name of ${number}`), {
+    key: 'n',
+    code: 'KeyN',
+    ctrlKey: true,
+  });
 };
 
 /**
@@ -461,8 +472,8 @@ describe('the WBS table', () => {
     await screen.findByLabelText('Name of 010');
     typeName('010', 'Strip');
 
-    // Enter makes a sibling; Tab makes that sibling a child of the row above.
-    pressEnter('010');
+    // Ctrl+N makes a sibling; Tab makes that sibling a child of the row above.
+    pressNewItem('010');
     await waitFor(() => {
       expect(numbersOnScreen()).toEqual(['010', '020']);
     });
@@ -473,7 +484,7 @@ describe('the WBS table', () => {
     });
 
     typeName('010.1', 'Sockets');
-    pressEnter('010.1');
+    pressNewItem('010.1');
     await waitFor(() => {
       expect(numbersOnScreen()).toEqual(['010', '010.1', '010.2']);
     });
@@ -490,7 +501,7 @@ describe('the WBS table', () => {
 
     click('Add work item');
     await screen.findByLabelText('Name of 010');
-    pressEnter('010');
+    pressNewItem('010');
     await waitFor(() => {
       expect(numbersOnScreen()).toEqual(['010', '020']);
     });
@@ -511,7 +522,7 @@ describe('the WBS table', () => {
     render(<WbsTable projectId="p1" api={api} />);
     click('Add work item');
     await screen.findByLabelText('Name of 010');
-    pressEnter('010');
+    pressNewItem('010');
     await waitFor(() => {
       expect(numbersOnScreen()).toEqual(['010', '020']);
     });
@@ -534,7 +545,7 @@ describe('the WBS table', () => {
     render(<WbsTable projectId="p1" api={api} />);
     click('Add work item');
     await screen.findByLabelText('Name of 010');
-    pressEnter('010');
+    pressNewItem('010');
     await waitFor(() => {
       expect(numbersOnScreen()).toEqual(['010', '020']);
     });
@@ -565,7 +576,7 @@ describe('the WBS table', () => {
     render(<WbsTable projectId="p1" api={api} />);
     click('Add work item');
     await screen.findByLabelText('Name of 010');
-    pressEnter('010');
+    pressNewItem('010');
     await waitFor(() => {
       expect(numbersOnScreen()).toEqual(['010', '020']);
     });
@@ -585,7 +596,7 @@ describe('the WBS table', () => {
     render(<WbsTable projectId="p1" api={api} />);
     click('Add work item');
     await screen.findByLabelText('Name of 010');
-    pressEnter('010');
+    pressNewItem('010');
     await waitFor(() => {
       expect(numbersOnScreen()).toEqual(['010', '020']);
     });
@@ -613,7 +624,7 @@ describe('the WBS table', () => {
     click('Add work item');
     await screen.findByLabelText('Name of 010');
     // 010 gets its child first, so the numbering of everything after is settled.
-    pressEnter('010');
+    pressNewItem('010');
     await screen.findByLabelText('Name of 020');
     pressTab('020');
     await screen.findByLabelText('Name of 010.1');
@@ -708,7 +719,7 @@ describe('the WBS table', () => {
     render(<WbsTable projectId="p1" api={api} />);
     click('Add work item');
     await screen.findByLabelText('Name of 010');
-    pressEnter('010');
+    pressNewItem('010');
     await waitFor(() => {
       expect(numbersOnScreen()).toEqual(['010', '020']);
     });
@@ -741,7 +752,7 @@ describe('the WBS table', () => {
     render(<WbsTable projectId="p1" api={api} />);
     click('Add work item');
     await screen.findByLabelText('Name of 010');
-    pressEnter('010');
+    pressNewItem('010');
     await waitFor(() => {
       expect(numbersOnScreen()).toEqual(['010', '020']);
     });
@@ -774,7 +785,7 @@ describe('the WBS table', () => {
     render(<WbsTable projectId="p1" api={api} />);
     click('Add work item');
     await screen.findByLabelText('Name of 010');
-    pressEnter('010');
+    pressNewItem('010');
     await waitFor(() => {
       expect(numbersOnScreen()).toEqual(['010', '020']);
     });
@@ -827,7 +838,7 @@ describe('the WBS table', () => {
 
     click('Add work item');
     await screen.findByLabelText('Name of 010');
-    pressEnter('010');
+    pressNewItem('010');
     await waitFor(() => {
       expect(numbersOnScreen()).toEqual(['010', '020']);
     });
@@ -1111,7 +1122,7 @@ describe('live edits from other people', () => {
 
     click('Add work item');
     const first = await screen.findByLabelText('Name of 010');
-    pressEnter('010');
+    pressNewItem('010');
 
     await waitFor(() => {
       expect(numbersOnScreen()).toEqual(['010', '020']);
@@ -1201,7 +1212,7 @@ describe('collapsing a branch', () => {
 
     click('Add work item');
     await screen.findByLabelText('Name of 010');
-    pressEnter('010');
+    pressNewItem('010');
     await waitFor(() => {
       expect(numbersOnScreen()).toEqual(['010', '020']);
     });
@@ -2182,7 +2193,7 @@ describe('one cell for the whole trio', () => {
 
   itDom('leaves a parent’s rolled-up figure to be read, not typed into', async () => {
     const api = await oneRow();
-    pressEnter('010');
+    pressNewItem('010');
     await waitFor(() => {
       expect(numbersOnScreen()).toEqual(['010', '020']);
     });
@@ -6076,5 +6087,642 @@ describe('undo and redo', () => {
     await waitFor(() => {
       expect(api.stackCalls).toEqual(['undo']);
     });
+  });
+});
+
+/**
+ * The command chords: one gesture family for structure, one for motion.
+ *
+ * Every row of the routing matrix in `openspec/changes/command-keys/design.md`
+ * is a test in here — chord × cell class, and the cells whose picker is open,
+ * where a chord must be inert because the list owns the keyboard.
+ */
+describe('the command chords', () => {
+  /** A chord as a browser delivers it, aimed at a named box. */
+  const chord = (
+    box: Element,
+    key: string,
+    modifiers: { code?: string; ctrl?: boolean; meta?: boolean; alt?: boolean; repeat?: boolean },
+  ) =>
+    fireEvent.keyDown(box, {
+      key,
+      code: modifiers.code ?? `Key${key.toUpperCase()}`,
+      ctrlKey: modifiers.ctrl ?? false,
+      metaKey: modifiers.meta ?? false,
+      altKey: modifiers.alt ?? false,
+      repeat: modifiers.repeat ?? false,
+    });
+
+  const nameOf = (number: string) =>
+    screen.getByLabelText<HTMLTextAreaElement>(`Name of ${number}`);
+  /** Whatever holds the focus, as a box the helpers above can be aimed at. */
+  const focused = (): Element => {
+    const active = document.activeElement;
+    // Thrown rather than defaulted: a chord test whose focus went nowhere must
+    // say so, not fire its next key at the document body and pass.
+    if (active === null) throw new Error('nothing has the focus');
+    return active;
+  };
+  /** Ctrl+N, the new-work-item chord, in the box named. */
+  const newItem = (box: Element) => chord(box, 'n', { code: 'KeyN', ctrl: true });
+  /** Cmd+Enter, the next-or-create chord. */
+  const nextOrCreate = (box: Element) => chord(box, 'Enter', { code: 'Enter', meta: true });
+  /** Ctrl+D, once. A confirming second press needs {@link releaseD} in between. */
+  const armDelete = (box: Element, repeat = false) =>
+    chord(box, 'd', { code: 'KeyD', ctrl: true, repeat });
+  /** The keyup of D the confirm waits for: a held key can never reach it. */
+  const releaseD = (box: Element) => fireEvent.keyUp(box, { key: 'd', code: 'KeyD' });
+
+  /** Which row is tinted as armed for deletion, by number. */
+  const armedRow = (): string | null => {
+    const row = document.querySelector('tr[data-armed="true"]');
+    return row === null ? null : (row.querySelector('[data-number]')?.textContent ?? '');
+  };
+
+  itDom('Enter in a name is a newline, and makes nothing', async () => {
+    // The whole of R1's second half: a note is typed under the name, which
+    // needs Enter to mean what it means in every other text box in the world.
+    const api = fakeApi();
+    render(<WbsTable projectId="p1" api={api} />);
+    click('Add work item');
+    const cell = await screen.findByLabelText('Name of 010');
+
+    const event = createEvent.keyDown(cell, { key: 'Enter', code: 'Enter' });
+    fireEvent(cell, event);
+
+    // Not taken: the browser writes the newline. jsdom performs no default
+    // action for a synthetic key, so this is the assertion it can make — the
+    // real newline is the browser spec's.
+    expect(event.defaultPrevented).toBe(false);
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010']);
+    });
+    expect(api.rows).toHaveLength(1);
+  });
+
+  itDom('Ctrl+N makes a sibling below this row, mid-table, and lands in its name', async () => {
+    await threeRoots();
+
+    newItem(nameOf('020'));
+
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '020', '030', '040']);
+    });
+    // Below 020, not at the end: that is what Ctrl+N has over Cmd+Enter.
+    expect(namesOnScreen()).toEqual(['Strip', 'Sand', '', 'Paint']);
+    expect(document.activeElement).toBe(nameOf('030'));
+  });
+
+  itDom('Alt+N is the same chord for the keyboards Ctrl+N never reaches', async () => {
+    // macOS turns Alt+N into a dead key, so the letter never arrives — the
+    // physical key does, and that is what this is matched on.
+    await threeRoots();
+
+    chord(nameOf('020'), 'Dead', { code: 'KeyN', alt: true });
+
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '020', '030', '040']);
+    });
+    expect(document.activeElement).toBe(nameOf('030'));
+  });
+
+  itDom('Ctrl+N works from an estimate cell, and sends what was in it first', async () => {
+    const api = await threeRoots();
+    const box = screen.getByLabelText('Dev optimistic for 020');
+    box.focus();
+    fireEvent.change(box, { target: { value: '3' } });
+
+    newItem(box);
+
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '020', '030', '040']);
+    });
+    // One box of a trio is a draft, not a request — the flush is still the
+    // cell's own commit path, and the row below it exists either way.
+    expect(document.activeElement).toBe(nameOf('030'));
+    expect(api.rows.find((row) => row.number === '020')?.estimates).toEqual({});
+  });
+
+  itDom('Cmd+Enter moves to the next row’s name', async () => {
+    await threeRoots();
+    const cell = nameOf('010');
+    cell.focus();
+
+    nextOrCreate(cell);
+
+    await waitFor(() => {
+      expect(document.activeElement).toBe(nameOf('020'));
+    });
+    expect(numbersOnScreen()).toEqual(['010', '020', '030']);
+  });
+
+  itDom('Cmd+Enter on the last row makes one and lands in it', async () => {
+    await threeRoots();
+    const cell = nameOf('030');
+    cell.focus();
+
+    nextOrCreate(cell);
+
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '020', '030', '040']);
+    });
+    expect(document.activeElement).toBe(nameOf('040'));
+  });
+
+  itDom('two Cmd+Enters on the last row make exactly one row', async () => {
+    // The chord runs a request and then another; two presses inside that
+    // window are one gesture arriving twice, not two work items.
+    // Proof: the in-flight gate removed, this failed on `expected [ '010',
+    // '020', '030', '040', '050' ] to deeply equal [ '010', '020', '030',
+    // '040' ]`. Watched, 2026-08-08.
+    const api = await threeRoots();
+    const cell = nameOf('030');
+    cell.focus();
+
+    nextOrCreate(cell);
+    nextOrCreate(cell);
+
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '020', '030', '040']);
+    });
+    expect(api.rows).toHaveLength(4);
+  });
+
+  itDom('waits for the save to land before it creates anything', async () => {
+    // codex #5, and the assertion has to be about *settling* rather than about
+    // the order the two calls go out in. Both leave synchronously either way —
+    // what an unawaited flush loses is the answer, and with it the right to
+    // decide whether to create at all. So the patch is held open and the
+    // create must not have happened while it hangs.
+    //
+    // Proof: the `await` dropped — `const outcome = 'landed'` with the flush
+    // fired and forgotten — this failed on `expected [ 'patch', 'create' ] to
+    // deeply equal [ 'patch' ]`, a row created against an answer nobody had.
+    // Watched, 2026-08-08.
+    const api = await threeRoots();
+    const asked: string[] = [];
+    let letThePatchLand: () => void = () => {
+      throw new Error('the patch was never sent');
+    };
+    const held = new Promise<void>((resolve) => {
+      letThePatchLand = resolve;
+    });
+    const realPatch = api.patch.bind(api);
+    api.patch = async (id: string, patch: Record<string, unknown>) => {
+      asked.push('patch');
+      await held;
+      return realPatch(id, patch);
+    };
+    const realCreate = api.create.bind(api);
+    api.create = (
+      projectId: string,
+      input: { parentId: string | null; afterId: string | null },
+    ) => {
+      asked.push('create');
+      return realCreate(projectId, input);
+    };
+
+    const cell = nameOf('030');
+    cell.focus();
+    fireEvent.change(cell, { target: { value: 'Paint the trim' } });
+    nextOrCreate(cell);
+
+    await waitFor(() => {
+      expect(asked).toEqual(['patch']);
+    });
+    // Still nothing created: the chord is waiting to hear what be-01 did.
+    expect(numbersOnScreen()).toEqual(['010', '020', '030']);
+
+    await act(async () => {
+      letThePatchLand();
+      await held;
+    });
+
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '020', '030', '040']);
+    });
+    expect(asked).toEqual(['patch', 'create']);
+    expect(api.rows.find((row) => row.id === 'w3')?.name).toBe('Paint the trim');
+  });
+
+  itDom('a refused save leaves the caret where it was and makes no row', async () => {
+    const api = await threeRoots();
+    api.patch = () => Promise.reject(new Error('forbidden'));
+
+    const cell = nameOf('030');
+    cell.focus();
+    fireEvent.change(cell, { target: { value: 'Paint the trim' } });
+    nextOrCreate(cell);
+
+    await waitFor(() => {
+      expect(toastTexts()).toContain('forbidden');
+    });
+    expect(numbersOnScreen()).toEqual(['010', '020', '030']);
+    expect(document.activeElement).toBe(cell);
+  });
+
+  itDom('Ctrl+H, J, K and L move between cells from a caret no arrow could leave', async () => {
+    await threeRoots();
+    const cell = nameOf('020');
+    cell.focus();
+    // Mid-text in a box that holds the notes as well: every arrow belongs to
+    // the text here, which is exactly what these four are for.
+    cell.setSelectionRange(2, 2);
+
+    chord(cell, 'j', { ctrl: true });
+    await waitFor(() => {
+      expect(document.activeElement).toBe(nameOf('030'));
+    });
+
+    chord(focused(), 'k', { ctrl: true });
+    await waitFor(() => {
+      expect(document.activeElement).toBe(nameOf('020'));
+    });
+
+    // Sideways, in the trio — where every box is a cell of the grid and none
+    // of them opens a list. The picker cells are the matrix's own rows below.
+    const optimistic = screen.getByLabelText<HTMLInputElement>('Dev optimistic for 020');
+    optimistic.focus();
+    fireEvent.change(optimistic, { target: { value: '3' } });
+    optimistic.setSelectionRange(1, 1);
+
+    chord(optimistic, 'l', { ctrl: true });
+    await waitFor(() => {
+      expect(document.activeElement).toBe(screen.getByLabelText('Dev realistic for 020'));
+    });
+
+    chord(focused(), 'h', { ctrl: true });
+    await waitFor(() => {
+      expect(document.activeElement).toBe(optimistic);
+    });
+  });
+
+  itDom('a chord at the grid’s edge is consumed rather than leaking to the browser', async () => {
+    // Ctrl+H in Chrome is the history. A chord this table advertises must never
+    // reach it, edge or no edge — so the key is taken whether or not it moved.
+    await threeRoots();
+    const cell = nameOf('010');
+    cell.focus();
+
+    const event = createEvent.keyDown(cell, { key: 'h', code: 'KeyH', ctrlKey: true });
+    fireEvent(cell, event);
+
+    expect(event.defaultPrevented).toBe(true);
+    expect(document.activeElement).toBe(cell);
+  });
+
+  itDom('Ctrl+D twice deletes the row, and says Cmd+Z puts it back', async () => {
+    const api = await threeRoots();
+    const cell = nameOf('020');
+    cell.focus();
+
+    armDelete(cell);
+    await waitFor(() => {
+      expect(toastTexts()).toContain('Ctrl+D again deletes 020 — its children move up');
+    });
+    expect(armedRow()).toBe('020');
+
+    releaseD(cell);
+    armDelete(cell);
+
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '020']);
+    });
+    expect(api.rows.map((row) => row.name)).toEqual(['Strip', 'Paint']);
+    expect(toastTexts()).toContain('Deleted 020 — Cmd+Z restores');
+    // The row that took its place, as the actions menu's delete does it.
+    expect(document.activeElement).toBe(nameOf('020'));
+    expect(armedRow()).toBeNull();
+  });
+
+  itDom('a held Ctrl+D never deletes, however long it is held', async () => {
+    // The repeat guard. A held key arms once and can never confirm: there is
+    // no keyup between the presses, and a repeat is not a press.
+    const api = await threeRoots();
+    const cell = nameOf('020');
+    cell.focus();
+
+    armDelete(cell);
+    for (let press = 0; press < 5; press += 1) armDelete(cell, true);
+
+    await waitFor(() => {
+      expect(armedRow()).toBe('020');
+    });
+    expect(api.rows).toHaveLength(3);
+  });
+
+  itDom(
+    'a repeat after the confirming press does not arm the row that took its place',
+    async () => {
+      // What `event.repeat` uniquely buys: the key is still down when the row
+      // goes, and the repeats that follow must not arm whatever slid up into it.
+      // Proof: the `repeat` guard removed, this failed on `expected '020' to be
+      // null` — the row that slid up into the gap armed by a key nobody pressed
+      // again. Watched, 2026-08-08.
+      const api = await threeRoots();
+      const cell = nameOf('020');
+      cell.focus();
+      armDelete(cell);
+      releaseD(cell);
+      armDelete(cell);
+      await waitFor(() => {
+        expect(api.rows).toHaveLength(2);
+      });
+
+      armDelete(focused(), true);
+      armDelete(focused(), true);
+
+      expect(armedRow()).toBeNull();
+    },
+  );
+
+  itDom('two presses with no release between them only re-arm', async () => {
+    // The keyup guard, on its own. Two keydowns and no keyup is what a held
+    // key looks like on a browser that does not set `repeat` — and what two
+    // keyboards produce. Dany's rule is that D must be *released* between the
+    // presses, so this can never be a delete.
+    // Proof: the `dReleased` conjunct dropped from the confirm, this failed on
+    // `expected null to be '020'` — one gesture destroying a row, so there was
+    // no arm left to find. Watched, 2026-08-08.
+    const api = await threeRoots();
+    const cell = nameOf('020');
+    cell.focus();
+
+    armDelete(cell);
+    armDelete(cell);
+
+    await waitFor(() => {
+      expect(armedRow()).toBe('020');
+    });
+    expect(numbersOnScreen()).toEqual(['010', '020', '030']);
+    expect(api.rows).toHaveLength(3);
+  });
+
+  itDom('arming 020 and pressing Ctrl+D on 030 arms 030 and deletes neither', async () => {
+    // Proof: the same-row check dropped, this failed on `expected null to be
+    // '030'` — the second press deleting the row the first one had armed
+    // rather than arming the one it was actually pressed in. Watched,
+    // 2026-08-08.
+    const api = await threeRoots();
+    armDelete(nameOf('020'));
+    await waitFor(() => {
+      expect(armedRow()).toBe('020');
+    });
+    releaseD(nameOf('020'));
+
+    armDelete(nameOf('030'));
+
+    await waitFor(() => {
+      expect(armedRow()).toBe('030');
+    });
+    expect(api.rows).toHaveLength(3);
+  });
+
+  itDom('any other keystroke disarms it, and a modifier on its own does not', async () => {
+    // agy #9: holding Control down to press the second D is a `Control`
+    // keydown of its own, and disarming on it would make the chord unusable.
+    const api = await threeRoots();
+    const cell = nameOf('020');
+    cell.focus();
+    armDelete(cell);
+    await waitFor(() => {
+      expect(armedRow()).toBe('020');
+    });
+    releaseD(cell);
+
+    for (const key of ['Control', 'Shift', 'Alt', 'Meta']) {
+      fireEvent.keyDown(cell, { key, code: key });
+    }
+    expect(armedRow()).toBe('020');
+
+    fireEvent.keyDown(cell, { key: 'x', code: 'KeyX' });
+
+    await waitFor(() => {
+      expect(armedRow()).toBeNull();
+    });
+    armDelete(cell);
+    // Re-armed rather than confirmed: the arm it would have confirmed is gone.
+    await waitFor(() => {
+      expect(armedRow()).toBe('020');
+    });
+    expect(api.rows).toHaveLength(3);
+  });
+
+  itDom('Escape disarms it', async () => {
+    await threeRoots();
+    const cell = nameOf('020');
+    cell.focus();
+    armDelete(cell);
+    await waitFor(() => {
+      expect(armedRow()).toBe('020');
+    });
+
+    fireEvent.keyDown(cell, { key: 'Escape', code: 'Escape' });
+
+    await waitFor(() => {
+      expect(armedRow()).toBeNull();
+    });
+  });
+
+  itDom('leaving the cell disarms it, however the focus went', async () => {
+    await threeRoots();
+    const cell = nameOf('020');
+    cell.focus();
+    armDelete(cell);
+    await waitFor(() => {
+      expect(armedRow()).toBe('020');
+    });
+
+    // A pointer-driven focus move, which is the one a keydown listener cannot
+    // see. `focusout` is what the DOM says about it either way.
+    fireEvent.focusOut(cell);
+
+    await waitFor(() => {
+      expect(armedRow()).toBeNull();
+    });
+  });
+
+  itDom('a peer renumbering the armed row disarms it', async () => {
+    // The arm holds the row's *id* and the number it promised to delete, and
+    // both halves are read back on every refresh: "Ctrl+D again deletes 020"
+    // stops being true the moment somebody else makes this row 030. The other
+    // branch of the same expression is the row that has gone altogether — a
+    // peer's delete — which cannot be asserted through the DOM, because a row
+    // that is not rendered carries no tint to look for.
+    //
+    // Proof: the comparison replaced by `return armed`, this failed on
+    // `expected '030' to be null` — a row still tinted, and a second Ctrl+D
+    // still live, under a sentence that named a different work item. Watched,
+    // 2026-08-08.
+    const api = fakeApi();
+    let notify: () => void = () => {
+      throw new Error('the table never subscribed');
+    };
+    render(
+      <WbsTable
+        projectId="p1"
+        api={api}
+        subscribe={(_projectId, handlers) => {
+          notify = handlers.onChange;
+          return { seen: () => undefined, unsubscribe: () => undefined };
+        }}
+      />,
+    );
+    for (const number of ['010', '020']) {
+      click('Add work item');
+      await screen.findByLabelText(`Name of ${number}`);
+    }
+
+    const cell = nameOf('020');
+    cell.focus();
+    armDelete(cell);
+    await waitFor(() => {
+      expect(armedRow()).toBe('020');
+    });
+
+    // Their new row, moved above the armed one, which renumbers it to 030.
+    const theirs = await api.create('p1', { parentId: null, afterId: null, name: 'Theirs' });
+    await api.move(theirs.id, null, null);
+    await act(async () => {
+      notify();
+      await Promise.resolve();
+    });
+
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '020', '030']);
+    });
+    expect(armedRow()).toBeNull();
+  });
+
+  itDom('a frozen row refuses to arm and says how to unfreeze it', async () => {
+    const api = await threeRoots();
+    click('Freeze numbering');
+    await waitFor(() => {
+      expect(api.rows[1]?.frozenNumber).toBe('020');
+    });
+
+    armDelete(nameOf('020'));
+
+    await waitFor(() => {
+      expect(toastTexts()).toContain('020 is frozen — unfreeze it first');
+    });
+    expect(armedRow()).toBeNull();
+  });
+
+  itDom('every chord is inert while the depends list is open', async () => {
+    // The routing matrix's fourth row: an open list owns the keyboard, and
+    // Escape is how it is given back.
+    const api = await threeRoots();
+    const box = screen.getByLabelText('Add a dependency to 020');
+    box.focus();
+    fireEvent.focus(box);
+    fireEvent.change(box, { target: { value: '010' } });
+    await screen.findByRole('listbox', { name: 'Work items 020 can depend on' });
+
+    newItem(box);
+    nextOrCreate(box);
+    armDelete(box);
+    chord(box, 'j', { ctrl: true });
+
+    expect(numbersOnScreen()).toEqual(['010', '020', '030']);
+    expect(armedRow()).toBeNull();
+    expect(document.activeElement).toBe(box);
+    expect(api.rows).toHaveLength(3);
+  });
+
+  itDom('the same chords work in that box once the list is closed', async () => {
+    // The other half of the matrix row, and what makes the first half a rule
+    // rather than a dead cell: closed, this box is a cell like any other.
+    await threeRoots();
+    const box = screen.getByLabelText('Add a dependency to 020');
+    box.focus();
+    fireEvent.focus(box);
+    fireEvent.change(box, { target: { value: '010' } });
+    await screen.findByRole('listbox', { name: 'Work items 020 can depend on' });
+    fireEvent.keyDown(box, { key: 'Escape' });
+
+    newItem(box);
+
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '020', '030', '040']);
+    });
+  });
+
+  itDom('every chord is inert while a team picker’s list is open', async () => {
+    const api = await threeRoots();
+    const box = screen.getByLabelText('Service or team for 020');
+    fireEvent.focus(box);
+    fireEvent.change(box, { target: { value: 'Plat' } });
+    await screen.findByRole('listbox', { name: 'Service or team for 020' });
+
+    newItem(box);
+    armDelete(box);
+
+    expect(numbersOnScreen()).toEqual(['010', '020', '030']);
+    expect(armedRow()).toBeNull();
+    expect(api.rows).toHaveLength(3);
+  });
+
+  itDom('the same chords work in a picker whose list is closed', async () => {
+    await threeRoots();
+    const box = screen.getByLabelText('Service or team for 020');
+    box.focus();
+
+    newItem(box);
+
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '020', '030', '040']);
+    });
+  });
+
+  itDom('every chord is inert while the folded cell’s @ list is open', async () => {
+    const api = await threeRoots();
+    // Folded, which is where the `@` picker lives.
+    fireEvent.click(screen.getByRole('button', { name: 'Fold Dev estimates' }));
+    const box = await screen.findByLabelText('Dev estimate for 020');
+    box.focus();
+    // A name nobody has: the list offers to add them, which is a list.
+    fireEvent.change(box, { target: { value: '@Ada' } });
+    await screen.findByRole('listbox', { name: 'Dev assignee for 020' });
+
+    newItem(box);
+    armDelete(box);
+
+    expect(numbersOnScreen()).toEqual(['010', '020', '030']);
+    expect(armedRow()).toBeNull();
+    expect(api.rows).toHaveLength(3);
+  });
+
+  itDom('every chord is inert while a row’s ⋯ menu is open', async () => {
+    const api = await threeRoots();
+    openRowMenu('020');
+    const item = screen.getByRole('menuitem', { name: 'Duplicate' });
+
+    newItem(item);
+    nextOrCreate(item);
+    armDelete(item);
+
+    expect(numbersOnScreen()).toEqual(['010', '020', '030']);
+    expect(armedRow()).toBeNull();
+    expect(api.rows).toHaveLength(3);
+  });
+
+  itDom('the date cell answers the chords, and keeps its own arrows', async () => {
+    const api = await threeRoots();
+    fireEvent.change(screen.getByLabelText('Project start date'), {
+      target: { value: '2026-08-10' },
+    });
+    const box = await screen.findByLabelText('Earliest start for 020');
+    await waitFor(() => {
+      expect(box).toHaveProperty('disabled', false);
+    });
+    box.focus();
+
+    newItem(box);
+
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '020', '030', '040']);
+    });
+    expect(api.rows).toHaveLength(4);
   });
 });

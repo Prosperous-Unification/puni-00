@@ -6,7 +6,14 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { useState } from 'react';
 import { describe, expect, it } from 'vitest';
 
-import { altStyleOf, KEY_BINDINGS, showKeys, undoChord, WHERE_ORDER } from './keyboard-bindings';
+import {
+  altStyleOf,
+  commandChord,
+  KEY_BINDINGS,
+  showKeys,
+  undoChord,
+  WHERE_ORDER,
+} from './keyboard-bindings';
 import { KeyboardCheatSheet, opensCheatSheet } from './keyboard-cheat-sheet';
 
 // fe-01 tests require jsdom; only Vitest provides it. Skip under plain `bun test`.
@@ -36,9 +43,33 @@ const PROVEN_BY = new Map<string, readonly string[]>(
   // `undefined`, and an index signature would hand back a `string[]` for a
   // binding nothing was written for — the vacuous version of this check.
   Object.entries({
-    'Editing: Enter': [
+    'Editing: Enter': ['Enter in a name is a newline, and makes nothing'],
+    'Editing: Ctrl/⌘ + Enter': [
+      'Cmd+Enter moves to the next row’s name',
+      'Cmd+Enter on the last row makes one and lands in it',
+      'waits for the save to land before it creates anything',
+      'a refused save leaves the caret where it was and makes no row',
+      'two Cmd+Enters on the last row make exactly one row',
+    ],
+    'Editing: Ctrl + N / Alt + N': [
+      'Ctrl+N makes a sibling below this row, mid-table, and lands in its name',
+      'Alt+N is the same chord for the keyboards Ctrl+N never reaches',
+      'Ctrl+N works from an estimate cell, and sends what was in it first',
       'types a three-level breakdown without touching the mouse',
       'focuses a newly created row so the next keystroke lands in it',
+    ],
+    'Editing: Ctrl + H / J / K / L': [
+      'Ctrl+H, J, K and L move between cells from a caret no arrow could leave',
+      'a chord at the grid’s edge is consumed rather than leaking to the browser',
+    ],
+    'Editing: Ctrl + D, twice': [
+      'Ctrl+D twice deletes the row, and says Cmd+Z puts it back',
+      'a held Ctrl+D never deletes, however long it is held',
+      'two presses with no release between them only re-arm',
+      'arming 020 and pressing Ctrl+D on 030 arms 030 and deletes neither',
+      'any other keystroke disarms it, and a modifier on its own does not',
+      'a peer renumbering the armed row disarms it',
+      'a frozen row refuses to arm and says how to unfreeze it',
     ],
     'Editing: Tab': [
       'types a three-level breakdown without touching the mouse',
@@ -333,6 +364,94 @@ describe('what walks the undo stack', () => {
     expect(undoChord({ ...chord, ctrlKey: false }, null)).toBeNull();
     expect(undoChord({ ...chord, altKey: true }, null)).toBeNull();
     expect(undoChord({ ...chord, key: 'y' }, null)).toBeNull();
+  });
+});
+
+describe('what a command chord is', () => {
+  /** No modifier at all, which every case below adds exactly what it needs to. */
+  const bare = {
+    key: '',
+    code: '',
+    ctrlKey: false,
+    metaKey: false,
+    altKey: false,
+    shiftKey: false,
+  };
+  /** Ctrl and a letter, which is the family Dany chose. */
+  const ctrl = (key: string, code: string) => ({ ...bare, key, code, ctrlKey: true });
+
+  itDom('reads Ctrl and h, j, k or l as the four directions', () => {
+    expect(commandChord(ctrl('h', 'KeyH'))).toBe('left');
+    expect(commandChord(ctrl('j', 'KeyJ'))).toBe('down');
+    expect(commandChord(ctrl('k', 'KeyK'))).toBe('up');
+    expect(commandChord(ctrl('l', 'KeyL'))).toBe('right');
+  });
+
+  itDom('reads Ctrl and n as a new work item, and Ctrl and d as a delete', () => {
+    expect(commandChord(ctrl('n', 'KeyN'))).toBe('new-item');
+    expect(commandChord(ctrl('d', 'KeyD'))).toBe('delete');
+  });
+
+  itDom('reads Alt and n as the same new work item, by the key’s place on the board', () => {
+    // macOS turns Alt+N into a dead key — `e.key` is `Dead` and no letter
+    // arrives at all — so the physical key is what this chord is matched on.
+    // It is the cross-platform half of the pair: Ctrl+N is Chrome's own New
+    // Window everywhere except macOS, so on Windows and Linux this is the one
+    // that reaches the page.
+    expect(commandChord({ ...bare, key: 'Dead', code: 'KeyN', altKey: true })).toBe('new-item');
+    expect(commandChord({ ...bare, key: 'n', code: 'KeyN', altKey: true })).toBe('new-item');
+    // Alt with anything else is somebody else's chord — the row moves are
+    // Alt+arrow, and they must not read as a create.
+    expect(commandChord({ ...bare, key: 'ArrowDown', code: 'ArrowDown', altKey: true })).toBeNull();
+    // No `code` at all is not a claim to have been Alt+N.
+    expect(commandChord({ ...bare, key: 'Dead', altKey: true })).toBeNull();
+  });
+
+  itDom('reads Enter with Ctrl or with Cmd as next-or-create, and bare Enter as neither', () => {
+    expect(commandChord({ ...bare, key: 'Enter', code: 'Enter', ctrlKey: true })).toBe(
+      'next-or-create',
+    );
+    expect(commandChord({ ...bare, key: 'Enter', code: 'Enter', metaKey: true })).toBe(
+      'next-or-create',
+    );
+    // The whole of change 4's point: a bare Enter in a name is a newline the
+    // browser writes, and this predicate must not claim it.
+    expect(commandChord({ ...bare, key: 'Enter', code: 'Enter' })).toBeNull();
+  });
+
+  itDom('never claims the Cmd variants of the letters', () => {
+    // Cmd+H is Hide on macOS and Cmd+N is New Window: neither reaches page JS,
+    // which is exactly why the Ctrl family was chosen. Claiming them here
+    // would put this predicate's answer at odds with what a browser delivers,
+    // and on Linux — where Cmd is the Windows key — would fire the chord off a
+    // keystroke nobody meant as one.
+    for (const key of ['h', 'j', 'k', 'l', 'n', 'd']) {
+      const code = `Key${key.toUpperCase()}`;
+      expect(commandChord({ ...bare, key, code, metaKey: true })).toBeNull();
+      // Both together is not a licence either.
+      expect(commandChord({ ...bare, key, code, ctrlKey: true, metaKey: true })).toBeNull();
+    }
+  });
+
+  itDom('leaves a chord somebody else has polluted with Shift or Alt alone', () => {
+    expect(commandChord({ ...ctrl('h', 'KeyH'), shiftKey: true })).toBeNull();
+    expect(commandChord({ ...ctrl('d', 'KeyD'), altKey: true })).toBeNull();
+    expect(commandChord({ ...ctrl('n', 'KeyN'), altKey: true })).toBeNull();
+    expect(commandChord({ ...bare, key: 'Enter', code: 'Enter', ctrlKey: true, shiftKey: true }))
+      // Ctrl+Shift+Enter is nobody's chord here, and Ctrl/⌘+Shift+Z is redo —
+      // a predicate loose about Shift is one that answers for both.
+      .toBeNull();
+    expect(
+      commandChord({ ...bare, key: 'Enter', code: 'Enter', ctrlKey: true, altKey: true }),
+    ).toBeNull();
+  });
+
+  itDom('leaves the letters alone with no modifier at all', () => {
+    // Typing `hjkl` into a name is four letters, not four moves.
+    for (const key of ['h', 'j', 'k', 'l', 'n', 'd']) {
+      expect(commandChord({ ...bare, key, code: `Key${key.toUpperCase()}` })).toBeNull();
+    }
+    expect(commandChord(ctrl('z', 'KeyZ'))).toBeNull();
   });
 });
 

@@ -19,8 +19,8 @@ import {
 } from '@/lib/wbs-api';
 
 import { ActionsMenu } from './actions-menu';
-import { type CellElement, CellInput, type CommitOutcome, unsent } from './cell-input';
-import { type Caret, type CellRef, nextCell } from './cell-navigation';
+import { type CellElement, CellInput, type CommitOutcome, flushCell, unsent } from './cell-input';
+import { type Caret, type CellRef, commandMove, type Direction, nextCell } from './cell-navigation';
 import { CreatablePicker, pickableLabel, PickerList, type PickerOption } from './creatable-picker';
 import { pickerEntries, type PickerEntry } from './dep-picker';
 import { parseDependencies, unknownMessage } from './depends-input';
@@ -34,7 +34,7 @@ import {
   trioProblem,
   type TypedTrio,
 } from './estimate-draft';
-import { undoChord } from './keyboard-bindings';
+import { type Command, commandChord, undoChord } from './keyboard-bindings';
 import { KeyboardCheatSheet, opensCheatSheet } from './keyboard-cheat-sheet';
 import { splitMention } from './mention';
 import { composeNameCell, normalizeNewlines, splitNameCell } from './name-notes';
@@ -360,6 +360,34 @@ function sameRoles(a: readonly RoleView[], b: readonly RoleView[]): boolean {
     a.length === b.length && a.every((role, i) => role.id === b[i]?.id && role.name === b[i]?.name)
   );
 }
+
+/**
+ * The keys that are held rather than pressed, which a pending Ctrl+D survives.
+ *
+ * agy #9: reaching the second Ctrl+D means holding Control down, and on many
+ * keyboards letting it go and taking it again. Every one of those is a
+ * `keydown` of its own, and disarming on them would make the chord unusable by
+ * anybody who does not press both keys in one motion.
+ *
+ * Proof: the exemption removed so every keydown disarms, `any other keystroke
+ * disarms it, and a modifier on its own does not` failed on `expected null to
+ * be '020'`. Watched, 2026-08-08.
+ */
+const MODIFIER_KEYS = new Set(['Control', 'Shift', 'Alt', 'Meta', 'CapsLock']);
+
+/**
+ * How long an armed Ctrl+D waits for its second press.
+ *
+ * Long enough to read the toast that says what it will do, short enough that a
+ * row cannot still be armed when the reader has moved on and forgotten. The
+ * timer is the *only* thing that expires an arm — there is no second elapsed
+ * check at the confirm, because a check the timer has already made unreachable
+ * is a check that cannot fail.
+ */
+const ARM_WINDOW_MS = 3000;
+
+/** The armed row's tint: a warning, and the only thing on screen that says so. */
+const ARMED_TINT = '#fde8e8';
 
 /** Whether an event target is one of the two elements a cell can be. */
 function isCellElement(node: unknown): node is CellElement {
@@ -722,6 +750,38 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    */
   const [openMenuRowId, setOpenMenuRowId] = useState<string | null>(null);
   /**
+   * The row one Ctrl+D has pointed at, waiting for the second one that deletes
+   * it — or null, which is almost always.
+   *
+   * The **number** is held beside the id because the toast promised it: "Ctrl+D
+   * again deletes 020". A refresh that renumbered the row, or moved it, or took
+   * it away has made that sentence untrue, and an arm whose sentence is untrue
+   * is disarmed rather than re-aimed. A fresh object per arm, because it is
+   * what the three-second timer fires on: re-arming the same row restarts it.
+   *
+   * State rather than a ref: the armed row is tinted, so this is rendered.
+   * Read through {@link live} for the reason `openMenuRowId` is.
+   */
+  const [armedDelete, setArmedDelete] = useState<{ rowId: string; number: string } | null>(null);
+  /**
+   * Whether D has been let go since the arm, which the confirm waits for.
+   *
+   * A ref, because nothing renders it, and it is the guard that makes a *held*
+   * Ctrl+D harmless: a key that is still down has produced no `keyup`, so the
+   * second press it appears to make can never be one. `event.repeat` is the
+   * other half — see {@link onCommandKey}.
+   */
+  const dReleased = useRef(false);
+  /**
+   * Whether a command chord's request is still out.
+   *
+   * A ref rather than `busy`, and the difference is the whole of what it buys:
+   * `busy` is state, so two chords in one tick both read the value from before
+   * either of them ran. Two Cmd+Enters on the last row are one gesture arriving
+   * twice; without this they are two work items.
+   */
+  const commandInFlight = useRef(false);
+  /**
    * The cell a structural edit asked the focus to land in once the refetched
    * tree is on screen — a row **and a column**, because a row moved from an
    * estimate box has to come back under the same box.
@@ -1075,6 +1135,65 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     };
   }, [stepStack]);
 
+  /**
+   * Everything that takes a pending Ctrl+D off, other than another keystroke.
+   *
+   * The arm is a promise about one row, made in a toast, and it is kept only
+   * while the reader is still looking at the row it was made about. Leaving the
+   * cell — by Tab, by a chord, or by clicking somewhere else entirely — ends
+   * it; so does the window losing the focus, the tab being hidden, and the
+   * three seconds running out. Nothing here is a nicety: a row that stays armed
+   * across a coffee break is a Ctrl+D that deletes something the person has
+   * stopped thinking about.
+   *
+   * `focusout` rather than a blur handler on the cell: the focus can leave by
+   * the pointer, and the cell that was armed may not be the one that had it.
+   *
+   * Proof: this effect's listeners removed, `leaving the cell disarms it,
+   * however the focus went` failed with the row still tinted. Watched,
+   * 2026-08-08.
+   */
+  useEffect(() => {
+    if (armedDelete === null) return undefined;
+    const disarm = () => {
+      setArmedDelete(null);
+    };
+    const onHidden = () => {
+      if (document.visibilityState === 'hidden') disarm();
+    };
+    // A fresh timer per arm, because `armedDelete` is a fresh object per arm:
+    // re-arming the same row starts the three seconds again.
+    const expiry = setTimeout(disarm, ARM_WINDOW_MS);
+    window.addEventListener('focusout', disarm);
+    window.addEventListener('blur', disarm);
+    document.addEventListener('visibilitychange', onHidden);
+    return () => {
+      clearTimeout(expiry);
+      window.removeEventListener('focusout', disarm);
+      window.removeEventListener('blur', disarm);
+      document.removeEventListener('visibilitychange', onHidden);
+    };
+  }, [armedDelete]);
+
+  /**
+   * A `keyup` of D, which is what the confirming press waits for.
+   *
+   * On the window rather than on the cell: the chord is pressed in a cell, and
+   * the key can be let go after the focus has moved or with the pointer
+   * somewhere else entirely. Missing the release would leave a row that can
+   * never be confirmed, which is the failure mode that reads as "the shortcut
+   * is broken".
+   */
+  useEffect(() => {
+    const released = (event: KeyboardEvent) => {
+      if (event.key === 'd' || event.key === 'D') dReleased.current = true;
+    };
+    window.addEventListener('keyup', released);
+    return () => {
+      window.removeEventListener('keyup', released);
+    };
+  }, []);
+
   /** Every row in the order the table renders them, ignoring collapse. */
   const flat = useMemo(() => {
     const out: TreeRow[] = [];
@@ -1087,6 +1206,28 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     walk(workItems);
     return out;
   }, [workItems]);
+
+  /**
+   * A pending Ctrl+D whose row the tree no longer holds — or no longer holds
+   * under the number the toast promised — is disarmed.
+   *
+   * "Ctrl+D again deletes 020" stops being true the moment somebody else
+   * deletes that row, or moves it, or creates one above it and renumbers it.
+   * The arm holds the id *and* the number for exactly this: matching on the id
+   * alone would leave the second press aimed at a row that is now 030 while
+   * the sentence on screen still says 020.
+   *
+   * Proof: this effect removed, `a peer deleting the armed row disarms it`
+   * failed on `expected '020' to be null` — an arm still tinted and still
+   * live on a row that had gone. Watched, 2026-08-08.
+   */
+  useEffect(() => {
+    setArmedDelete((armed) => {
+      if (armed === null) return null;
+      const still = flat.find((row) => row.id === armed.rowId);
+      return still?.number === armed.number ? armed : null;
+    });
+  }, [flat]);
 
   /**
    * What the Find box is asking for: which rows stay, which of them are hits,
@@ -1586,13 +1727,21 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     [api, flat, run],
   );
 
+  /**
+   * The Name cell's own keys: Tab and Backspace, and nothing else.
+   *
+   * Enter is deliberately absent. It made a work item until `command-keys`,
+   * and it is now the browser's own newline — which is what lets a note be
+   * typed under the name in the box that holds both. A new work item is Ctrl+N
+   * (Alt+N on the keyboards Chrome keeps Ctrl+N for) or Cmd/Ctrl+Enter at the
+   * end of the plan; see {@link onCommandKey}.
+   *
+   * Proof: the `preventDefault + addSibling` branch put back, `Enter in a name
+   * is a newline, and makes nothing` failed on `expected true to be false` —
+   * the key taken, and no note typeable under any name. Watched, 2026-08-08.
+   */
   const onKeyDown = useCallback(
     (event: React.KeyboardEvent, row: TreeRow) => {
-      if (event.key === 'Enter') {
-        event.preventDefault();
-        void addSibling(row);
-        return;
-      }
       if (event.key === 'Tab') {
         const input = event.currentTarget;
         // Either element: the Name cell is a textarea so a long name wraps,
@@ -1670,7 +1819,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         void removeEmptyRow(row);
       }
     },
-    [addSibling, drafts, indent, outdent, removeEmptyRow],
+    [drafts, indent, outdent, removeEmptyRow],
   );
 
   /**
@@ -1804,6 +1953,207 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
       void (move === 'indent' ? indent(row, columnId) : outdent(row, columnId));
     },
     [busy, indent, moveAmongSiblings, outdent, pushToast],
+  );
+
+  /** Takes the tint and the pending delete off, whatever the reason. */
+  const disarmDelete = useCallback(() => {
+    setArmedDelete(null);
+  }, []);
+
+  /**
+   * Moves the focus to a cell by the chord's own grid walk, and says whether
+   * there was one to move to.
+   *
+   * The DOM's grid, read at the moment the key arrives, for the reason
+   * {@link onArrowKey} gives: a ref written during render can be ahead of what
+   * React has committed.
+   */
+  const moveByCommand = useCallback(
+    (input: CellElement, from: CellRef, direction: Direction): boolean => {
+      const table = input.closest('table');
+      if (table === null) return false;
+      const grid = editableGrid(table);
+      const move = commandMove(
+        grid.map((g) => g.cell),
+        from,
+        direction,
+      );
+      if (move === null) return false;
+      const next = grid.find(
+        (g) => g.cell.rowId === move.to.rowId && g.cell.columnId === move.to.columnId,
+      )?.input;
+      if (next === undefined) return false;
+      focusCellAt(next, move.caretAt === 'start' ? 0 : next.value.length);
+      return true;
+    },
+    [],
+  );
+
+  /**
+   * The Name cell of the row after this one, or undefined on the last row.
+   *
+   * Read out of the committed grid rather than out of `flat`, so "the next row"
+   * means the next row **on screen**: a collapsed branch's children are not
+   * cells, and Cmd+Enter must not land in one of them.
+   */
+  const nextRowName = useCallback((input: CellElement, rowId: string): CellElement | undefined => {
+    const table = input.closest('table');
+    if (table === null) return undefined;
+    const grid = editableGrid(table);
+    const rowIds = [...new Set(grid.map((g) => g.cell.rowId))];
+    const at = rowIds.indexOf(rowId);
+    // `< 0` before the lookup, for `focusAdjacentCell`'s reason: `.at(-1)`
+    // would read the last row of the table as the one after this one.
+    if (at === -1) return undefined;
+    const next = rowIds.at(at + 1);
+    return next === undefined
+      ? undefined
+      : grid.find((g) => g.cell.rowId === next && g.cell.columnId === 'name')?.input;
+  }, []);
+
+  /**
+   * Ctrl+D: arm this row, or delete the one already armed.
+   *
+   * **Nothing here destroys anything on one gesture, and that is the price of
+   * putting a delete on a chord at all.** The first press tints the row and
+   * says what the second one will do; the second press has to satisfy all of
+   * it — the same row, a `keyup` of D since the arm, and a press rather than a
+   * key repeat.
+   *
+   * Proof, four faults, all watched 2026-08-08. The `repeat` conjunct removed:
+   * `a repeat after the confirming press does not arm the row that took its
+   * place` failed on `expected '020' to be null` — the key still down as the
+   * row went, arming whatever slid up into it. The `dReleased` conjunct
+   * removed: `two presses with no release between them only re-arm` failed on
+   * `expected null to be '020'` — one gesture destroying a row, so there was
+   * no arm left to find. The same-row conjunct removed: `arming 020 and
+   * pressing Ctrl+D on 030 arms 030 and deletes neither` failed on `expected
+   * null to be '030'`, the second press deleting a row the arm never pointed
+   * at. The frozen refusal removed: `a frozen row refuses to arm and says how
+   * to unfreeze it` failed on `expected [ Array(1) ] to include '020 is frozen
+   * — unfreeze it first'`.
+   *
+   * @param row The row the chord was pressed in.
+   * @param repeat Whether the browser says this is a held key repeating.
+   */
+  const armOrDeleteRow = useCallback(
+    (row: TreeRow, repeat: boolean) => {
+      // A key repeat is neither an arm nor a confirm. Before the frozen
+      // refusal too, so a held chord on a frozen row is one sentence.
+      if (repeat) return;
+      if (row.frozenNumber !== null) {
+        pushToast({ kind: 'error', text: `${row.number} is frozen — unfreeze it first` });
+        disarmDelete();
+        return;
+      }
+      if (armedDelete !== null && armedDelete.rowId === row.id && dReleased.current) {
+        disarmDelete();
+        void deleteRow(row).then((outcome) => {
+          if (outcome !== 'landed') return;
+          // The way back, in the sentence that says it happened: this is the
+          // one chord in the table that takes work away.
+          pushToast({ kind: 'info', text: `Deleted ${row.number} — Cmd+Z restores` });
+        });
+        return;
+      }
+      dReleased.current = false;
+      setArmedDelete({ rowId: row.id, number: row.number });
+      pushToast({
+        kind: 'info',
+        text: `Ctrl+D again deletes ${row.number} — its children move up`,
+      });
+    },
+    [armedDelete, deleteRow, disarmDelete, pushToast],
+  );
+
+  /**
+   * The command chords, from whichever cell they were pressed in.
+   *
+   * One handler for every cell class rather than one listener on the window,
+   * which is what keeps `isTypingInto` and the undo/redo page-level guard out
+   * of this entirely: these chords are only ever meant *inside* the grid, and a
+   * global listener would have to reconstruct which cell it was standing in.
+   * Each cell class calls this from its own `onKeyDown`, and the cells whose
+   * picker list is open do not call it at all — the open list owns the
+   * keyboard, and Escape is how it is given back.
+   *
+   * `preventDefault` for every chord this claims, including the ones that turn
+   * out to have nowhere to go. Ctrl+H at the left edge of the table is still
+   * Ctrl+H, and Chrome's answer to it is the history.
+   *
+   * The three chords that write flush the cell first and **await** it: the same
+   * commit a blur runs, through {@link flushCell}, so what was typed is be-01's
+   * before a row is created or the focus moves — and so a refusal leaves the
+   * caret where it was with nothing created. Rule 5 in `cell-input.tsx` is what
+   * keeps the blur that follows from sending it again.
+   *
+   * Proof, three faults, all watched 2026-08-08. The `await` dropped, the
+   * outcome hard-coded to `landed` and the flush fired and forgotten: `waits
+   * for the save to land before it creates anything` failed on `expected
+   * [ 'patch', 'create' ] to deeply equal [ 'patch' ]` — a row created against
+   * an answer nobody had. The `refused` return removed: `a refused save leaves
+   * the caret where it was and makes no row` failed on `expected [ '010',
+   * '020', '030', '040' ] to deeply equal [ '010', '020', '030' ]`. The
+   * `preventDefault` removed: `a chord at the grid’s edge is consumed rather
+   * than leaking to the browser` failed on `expected false to be true`.
+   */
+  const onCommandKey = useCallback(
+    (event: React.KeyboardEvent, row: TreeRow, columnId: string) => {
+      const command: Command | null = commandChord({
+        key: event.key,
+        code: event.nativeEvent.code,
+        ctrlKey: event.ctrlKey,
+        metaKey: event.metaKey,
+        altKey: event.altKey,
+        shiftKey: event.shiftKey,
+      });
+      if (command === null) {
+        // Every other keystroke is what disarms a pending Ctrl+D — except the
+        // modifiers, which are how the second Ctrl+D is reached at all. agy #9.
+        if (!MODIFIER_KEYS.has(event.key)) disarmDelete();
+        return;
+      }
+      event.preventDefault();
+      if (command === 'delete') {
+        armOrDeleteRow(row, event.nativeEvent.repeat);
+        return;
+      }
+      // Any command that is not the confirm is a keystroke like any other.
+      disarmDelete();
+      const input = event.currentTarget;
+      if (!isCellElement(input)) return;
+      if (command !== 'new-item' && command !== 'next-or-create') {
+        moveByCommand(input, { rowId: row.id, columnId }, command);
+        return;
+      }
+      // Read now, not in the continuation: `currentTarget` is nulled the
+      // moment this handler returns, and the tree the next row is found in is
+      // the one that was on screen when the chord was pressed.
+      const landsOn = nextRowName(input, row.id);
+      if (commandInFlight.current) return;
+      commandInFlight.current = true;
+      void (async () => {
+        try {
+          const outcome = await flushCell(input);
+          // A refused save is the only copy of what was typed. The caret stays
+          // in it, and nothing is created above or below it.
+          if (outcome === 'refused') return;
+          // The next row, where there is one — and a new sibling where there
+          // is not, which is what makes this the chord that walks a plan being
+          // written. Ctrl+N is the one that creates mid-table.
+          if (command === 'next-or-create' && landsOn !== undefined) {
+            // Selected on arrival, the way every other keyboard move into a
+            // cell in this table leaves it.
+            focusCellAt(landsOn, 'all');
+            return;
+          }
+          await addSibling(row);
+        } finally {
+          commandInFlight.current = false;
+        }
+      })();
+    },
+    [addSibling, armOrDeleteRow, disarmDelete, moveByCommand, nextRowName],
   );
 
   /**
@@ -2426,6 +2776,8 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     onTabKey,
     onArrowKey,
     onAltMove,
+    onCommandKey,
+    armedDelete,
     setDragging,
     setDropHint,
     numbersOf,
@@ -2478,6 +2830,8 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     onTabKey,
     onArrowKey,
     onAltMove,
+    onCommandKey,
+    armedDelete,
     setDragging,
     setDropHint,
     numbersOf,
@@ -2671,6 +3025,11 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                 }
                 onKeyDown={(e) => {
                   live.current.onAltMove(e, row.original, 'name');
+                  // Before the Name cell's own keys, and before the arrows:
+                  // Ctrl+Enter is a command here and a plain Enter is a
+                  // newline the browser writes, and only one handler may
+                  // answer for the pair.
+                  live.current.onCommandKey(e, row.original, 'name');
                   live.current.onKeyDown(e, row.original);
                   live.current.onArrowKey(e, row.original.id, 'name');
                 }}
@@ -2824,6 +3183,18 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                     live.current.setDepPicker(null);
                     return;
                   }
+                  if (!open) {
+                    // Closed, this is a cell like any other and the chords
+                    // reach it. Open, the list owns the keyboard — the routing
+                    // matrix's inert row, and the reason this is a condition
+                    // rather than an unconditional call.
+                    // Proof: the condition forced true, `every chord is inert
+                    // while the depends list is open` failed on `expected
+                    // <input …(11)></input> to be <input …(10)></input>` — the
+                    // focus taken out of a list somebody was reading. Watched,
+                    // 2026-08-08.
+                    live.current.onCommandKey(e, row.original, 'depends');
+                  }
                   if (e.key !== 'Enter') return;
                   e.preventDefault();
                   if (activeOption !== undefined) {
@@ -2947,6 +3318,9 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
               dataCell: cellKey(row.original.id, 'team'),
               onTabKey: (e) => {
                 live.current.onTabKey(e, row.original.id, 'team');
+              },
+              onCommandKey: (e) => {
+                live.current.onCommandKey(e, row.original, 'team');
               },
             }}
           />
@@ -3086,6 +3460,13 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                             options[0]?.take();
                             return;
                           }
+                        } else {
+                          // The routing matrix's inert row is this `else` and
+                          // nothing more: while the `@` list is open it owns
+                          // the keyboard, and Escape above is how it is given
+                          // back. A chord that fired through an open list
+                          // would create a row under a half-typed name search.
+                          live.current.onCommandKey(e, row.original, `${role.id}-final`);
                         }
                         live.current.onAltMove(e, row.original, `${role.id}-final`);
                         live.current.onTabKey(e, row.original.id, `${role.id}-final`);
@@ -3181,6 +3562,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                           title={problem?.message}
                           onKeyDown={(e) => {
                             live.current.onAltMove(e, row.original, `${role.id}-${point}`);
+                            live.current.onCommandKey(e, row.original, `${role.id}-${point}`);
                             live.current.onTabKey(e, row.original.id, `${role.id}-${point}`);
                             live.current.onArrowKey(e, row.original.id, `${role.id}-${point}`);
                           }}
@@ -3266,6 +3648,9 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                             onTabKey: (e) => {
                               live.current.onTabKey(e, row.original.id, `${role.id}-assignee`);
                             },
+                            onCommandKey: (e) => {
+                              live.current.onCommandKey(e, row.original, `${role.id}-assignee`);
+                            },
                           }}
                         />
                         {assumed !== null && (
@@ -3328,6 +3713,10 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
             // Tab from stopping on a field that will not take the focus.
             data-cell={cellKey(row.original.id, 'not-before')}
             onKeyDown={(e) => {
+              // The chords, and nothing else this cell does not already own: a
+              // native date input keeps its own arrows for the segment under
+              // the caret, which is why {@link onArrowKey} is absent here.
+              live.current.onCommandKey(e, row.original, 'not-before');
               live.current.onTabKey(e, row.original.id, 'not-before');
             }}
             // A date input carries an intrinsic width — the spinner and the
@@ -3859,6 +4248,13 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
               <tr
                 key={row.id}
                 data-frozen={row.original.frozenNumber !== null ? 'true' : 'false'}
+                // The armed row, said on the row rather than only in the
+                // toast: a sentence in the corner of the screen is not where
+                // somebody looks to find out which row a second Ctrl+D will
+                // take. The tint itself is on the cells below, because a
+                // pinned cell carries its own opaque background and would
+                // paint straight over a colour set here.
+                data-armed={armedDelete?.rowId === row.original.id ? 'true' : undefined}
                 data-drop={dropHint?.rowId === row.original.id ? dropHint.zone : undefined}
                 // The handlers sit on the row rather than in a column definition:
                 // `flexRender` renders each `cell` as a component *type*, so a
@@ -3921,6 +4317,9 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                       ...(cell.column.id === 'name' && hoveredNotes === row.original.id
                         ? { zIndex: POPOVER_ROW_LAYER }
                         : {}),
+                      // After the pinned background, so the warning is visible
+                      // on the three columns that hold the left edge too.
+                      ...(armedDelete?.rowId === row.original.id ? { background: ARMED_TINT } : {}),
                     }}
                   >
                     {flexRender(cell.column.columnDef.cell, cell.getContext())}

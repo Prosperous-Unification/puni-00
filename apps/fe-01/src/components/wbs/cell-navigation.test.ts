@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import { type Caret, type CellRef, type KeyModifiers, nextCell } from './cell-navigation';
+import {
+  type Caret,
+  type CellRef,
+  commandMove,
+  type KeyModifiers,
+  nextCell,
+} from './cell-navigation';
 
 const COLUMNS = ['name', 'dev-optimistic', 'dev-realistic', 'notes'];
 
@@ -210,5 +216,63 @@ describe('nextCell — keys that are not ours', () => {
     // browser keeps the key; nothing is guessed at.
     expect(move(at('ghost', 'name'), 'ArrowDown')).toBeNull();
     expect(move(at('strip', 'ghost'), 'ArrowDown')).toBeNull();
+  });
+});
+
+describe('commandMove — the four chords, which the caret has no say in', () => {
+  /** A caret in the middle of a multiline box: everything an arrow is stopped by. */
+  const STUCK: Caret = { atStart: false, atEnd: false, hasSelection: true, multiline: true };
+
+  it('walks the grid the way the arrows do', () => {
+    expect(commandMove(GRID, at('strip', 'dev-optimistic'), 'down')?.to).toEqual(
+      at('sockets', 'dev-optimistic'),
+    );
+    expect(commandMove(GRID, at('sand', 'notes'), 'up')?.to).toEqual(at('sockets', 'notes'));
+    expect(commandMove(GRID, at('strip', 'name'), 'right')?.to).toEqual(
+      at('strip', 'dev-optimistic'),
+    );
+    expect(commandMove(GRID, at('strip', 'dev-optimistic'), 'left')?.to).toEqual(
+      at('strip', 'name'),
+    );
+  });
+
+  it('moves from a caret no arrow could leave, which is the whole of the chord', () => {
+    // Mid-word, mid-note, over a selection: an arrow belongs to the text in
+    // every one of those and the chord belongs to the grid in all of them.
+    // Proof: the caret handed to `nextCell` narrowed to what the cell really
+    // holds — `STUCK` passed straight through — and this failed on all four
+    // directions at once. Watched, 2026-08-08.
+    for (const direction of ['left', 'down', 'up', 'right'] as const) {
+      expect(commandMove(GRID, at('sockets', 'dev-realistic'), direction)).not.toBeNull();
+    }
+    // And the same caret through the arrows, which is what it is being
+    // contrasted with: the text keeps every one of them.
+    expect(move(at('sockets', 'dev-realistic'), 'ArrowLeft', STUCK)).toBeNull();
+    expect(move(at('sockets', 'name'), 'ArrowUp', STUCK)).toBeNull();
+  });
+
+  it('keeps the arrows’ skip rules, so a ragged row is stepped over', () => {
+    // A parent's rolled-up figures are read-only and so are not in the grid at
+    // all: moving down a column looks for the next row that actually has it.
+    const ragged = [
+      ...gridOf(['strip'], COLUMNS),
+      ...gridOf(['parent'], ['name']),
+      ...gridOf(['sand'], COLUMNS),
+    ];
+
+    expect(commandMove(ragged, at('strip', 'dev-realistic'), 'down')?.to).toEqual(
+      at('sand', 'dev-realistic'),
+    );
+  });
+
+  it('stops at the grid’s edges rather than wrapping round', () => {
+    expect(commandMove(GRID, at('strip', 'name'), 'up')).toBeNull();
+    expect(commandMove(GRID, at('sand', 'notes'), 'down')).toBeNull();
+    expect(commandMove(GRID, at('strip', 'name'), 'left')).toBeNull();
+    expect(commandMove(GRID, at('sand', 'notes'), 'right')).toBeNull();
+  });
+
+  it('leaves the key alone for a cell the grid no longer holds', () => {
+    expect(commandMove(GRID, at('ghost', 'name'), 'down')).toBeNull();
   });
 });

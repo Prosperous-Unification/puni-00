@@ -137,3 +137,70 @@ export function nextCell(
   // whole reason this returns a caret position rather than just a cell.
   return { to: target, caretAt: key === 'ArrowRight' ? 'start' : 'end' };
 }
+
+/** The four directions Ctrl+H/J/K/L mean, named by what they do. */
+export type Direction = 'left' | 'down' | 'up' | 'right';
+
+/** The arrow each direction walks the grid as. */
+function arrowFor(direction: Direction): string {
+  switch (direction) {
+    case 'left':
+      return 'ArrowLeft';
+    case 'down':
+      return 'ArrowDown';
+    case 'up':
+      return 'ArrowUp';
+    case 'right':
+      return 'ArrowRight';
+  }
+}
+
+/**
+ * A caret with nothing in front of it and nothing behind it, in a box of one
+ * line — which is every gate {@link nextCell} has, opened.
+ *
+ * This constant *is* the bypass, held in one place and named, rather than four
+ * conditions removed from the walk below. `atStart` and `atEnd` together are
+ * what the left/right gate asks for; `multiline: false` is what the up/down
+ * gate asks for; `hasSelection: false` is what keeps a Shift-extended
+ * selection from reading as a refusal. Everything after that — the ragged-row
+ * skip, the read-only cells that are not in the grid, the refusal to wrap at
+ * either end — is the arrows' own behaviour, unchanged and deliberately
+ * shared: two implementations of "the next cell that way" would eventually
+ * disagree about a collapsed branch.
+ */
+const NO_TEXT_IN_THE_WAY: Caret = {
+  atStart: true,
+  atEnd: true,
+  hasSelection: false,
+  multiline: false,
+};
+
+/** No modifier, because {@link nextCell} leaves every modified arrow to the browser. */
+const UNMODIFIED: KeyModifiers = {
+  isComposing: false,
+  altKey: false,
+  ctrlKey: false,
+  metaKey: false,
+};
+
+/**
+ * Where a command chord should move the focus, or null at the grid's edge.
+ *
+ * The difference from {@link nextCell} is one sentence: the caret has no say.
+ * An arrow key belongs to the text until the text runs out, which is what
+ * makes typing in these cells bearable and what makes moving *out* of a long
+ * note four presses of ↑. Ctrl+H/J/K/L is the way out that never has to be
+ * argued with — the person asked for the grid, in a chord no text field wants.
+ *
+ * Null still means "there is nowhere to go", not "leave the key to the
+ * browser": the caller consumes the chord either way, because a Ctrl+H that
+ * reached Chrome at the left edge of the table would open the history.
+ */
+export function commandMove(
+  cells: readonly CellRef[],
+  from: CellRef,
+  direction: Direction,
+): CellMove | null {
+  return nextCell(cells, from, arrowFor(direction), NO_TEXT_IN_THE_WAY, UNMODIFIED);
+}

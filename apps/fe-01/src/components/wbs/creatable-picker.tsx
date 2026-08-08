@@ -120,6 +120,17 @@ export interface CreatablePickerProps {
   gridCell?: {
     dataCell: string;
     onTabKey: (event: KeyboardEvent<HTMLInputElement>) => void;
+    /**
+     * The table's command chords, offered **only while this list is closed**.
+     *
+     * The condition is this component's to apply rather than the table's,
+     * because whether a list is open is this component's own state and nothing
+     * outside it can read it. An open list owns the keyboard — that is the
+     * routing matrix's rule, and Escape is how it is given back — so a chord
+     * that fired through one would create a work item under a half-typed
+     * search nobody had finished.
+     */
+    onCommandKey: (event: KeyboardEvent<HTMLInputElement>) => void;
   };
 }
 
@@ -213,6 +224,12 @@ export function CreatablePicker({
             setTyped(null);
             return;
           }
+          // Proof: the `!open` guard dropped so the chords fired through an
+          // open list, `every chord is inert while a team picker’s list is
+          // open` failed on `expected '020' to be null` — a row armed for
+          // deletion by a Ctrl+D aimed at a list of teams. Watched,
+          // 2026-08-08.
+          if (!open) gridCell?.onCommandKey(e);
           if (e.key !== 'Enter') return;
           e.preventDefault();
           if (typed === null) return;
