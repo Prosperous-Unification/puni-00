@@ -98,6 +98,31 @@ route, the service and the real `CommandJournalRepository` over real SQLite in
 | …and one undo puts both fields back              | the same split, with the entry-count assertion taken out                       | **1 failed** — `Expected: "Strip" / Received: "Strip the wiring"`: one undo, one field, one Cmd+Z short                           |
 | …including the field the inverse has to carry    | `revertTo`'s `if (patch.notes !== undefined) out.notes = before.notes` deleted | **1 failed** — `Expected: "measure twice" / Received: "measure twice, cut once"`: the name back, the note left where nobody asked |
 
+### The answer a dropped resubmission gives (round 2)
+
+codex's round-2 finding 1, and it is the fix for round-1 finding 2 that made
+it: rule 5 recognized the resubmission and answered `unsent`. True of what was
+_sent_ — nothing was — and false about what was _happening_, because the first
+request was still out. The only caller that reads the answer is a chord, and it
+read it as permission to act: blur, click back into the unchanged cell,
+Cmd+Enter, and a row was created against a patch that might yet be refused.
+
+Rule 5 now records the request's promise beside `{typed, baseline}` and answers
+a matching flush with it. Both new tests are on the production path — a real
+`WbsTable`, a real chord, the fake's PATCH held open by the test — and both
+were watched failing on the final code, 2026-08-08.
+
+| Check                                          | Fault injected                                              | What the run reported                                                                                                                                                                     |
+| ---------------------------------------------- | ----------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A flush joins the request already in flight    | `return sent.current.landing` put back as `return unsent()` | **1 failed** — `a chord waits for the blur’s patch that is still out, and a refusal makes nothing`, on `expected [ 'patch', 'create' ] to deeply equal [ 'patch' ]`                       |
+| …and waiting is not refusing                   | the same line, same fault                                   | **1 failed** — `…and moves on once that patch lands`, on `expected <textarea …(5)></textarea> to be <textarea …(5)></textarea>`: the focus already in the next row while the save was out |
+| The dedup itself still holds (round 1, re-run) | the whole `sent.current` comparison deleted                 | **1 failed** — `sends one request however often the cell is left before it lands`, unchanged                                                                                              |
+
+The record is written **synchronously**, after the promise chain is built and
+before anything can await it: the `sent.current = null` that a refusal performs
+is a microtask away at the earliest, so a flush arriving in between still finds
+the request it belongs to.
+
 ### The arrows, and which box owns Up and Down
 
 | Check                                                    | Fault injected                                                       | What the run reported                                                                                                                                                   |

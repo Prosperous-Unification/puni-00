@@ -201,8 +201,18 @@ export function CellInput({
    * The baseline is half of it because it is what makes the record expire by
    * itself: once a refetch has moved `shown`, the same text typed again is a
    * different edit and is sent.
+   *
+   * `landing` is the third field because a flush is not only a blur. A chord
+   * that flushes a cell whose blur is still out has to be given **that**
+   * request's answer, not a settled `unsent`: `unsent` reads as "nothing is
+   * happening here", and the chord would create a row or move the focus while
+   * a patch that may yet be refused is in the air.
    */
-  const sent = useRef<{ typed: string; baseline: string } | null>(null);
+  const sent = useRef<{
+    typed: string;
+    baseline: string;
+    landing: Promise<CommitOutcome>;
+  } | null>(null);
 
   /**
    * Sets the height to the text's own height, and caps how tall that gets
@@ -290,14 +300,19 @@ export function CellInput({
       // Rule 5. `shown` has not moved since the last submission, so this is
       // that submission again — the person clicked back into the cell and out
       // of it while the request was still out, and be-01 has already been
-      // asked for exactly this.
-      // Proof: deleted, `sends one request however often the cell is left
-      // before it lands` failed on `expected [ [ 'w1', { …(2) } ], …(1) ] to
-      // have a length of 1 but got 2`. Watched, 2026-08-08.
+      // asked for exactly this. **The answer is the request's own**, so a
+      // chord that flushed this cell waits for what be-01 does with it rather
+      // than reading a settled `unsent` as permission to move.
+      // Proof, two faults, both watched 2026-08-08. This branch deleted:
+      // `sends one request however often the cell is left before it lands`
+      // failed on `expected [ [ 'w1', { …(2) } ], …(1) ] to have a length of 1
+      // but got 2`. The `return` narrowed back to `unsent()`: `a chord waits
+      // for the blur’s patch that is still out, and a refusal makes nothing`
+      // failed on `expected [ 'patch', 'create' ] to deeply equal [ 'patch' ]`
+      // — a row created against a request nobody had heard back from.
       if (sent.current?.typed === node.value && sent.current.baseline === shown.current) {
-        return unsent();
+        return sent.current.landing;
       }
-      sent.current = { typed: node.value, baseline: shown.current };
       // No `sync()` afterwards: `shown` is deliberately left holding the old
       // value until the refetch this commit triggers comes back. Advancing it
       // here would be recording a write that has not happened yet, and a failed
@@ -307,7 +322,7 @@ export function CellInput({
       // is compared against here: it is what this box was showing when the
       // typing started, which a peer's edit held back by rule 2 has
       // deliberately not moved. A composite cell diffs its fields against it.
-      return commit(node.value, shown.current).then((outcome) => {
+      const landing = commit(node.value, shown.current).then((outcome) => {
         if (outcome !== 'landed') {
           // Nothing of this edit is on the server — `refused` was turned down,
           // `unsent` never went — so the record of a submission goes with it
@@ -334,6 +349,12 @@ export function CellInput({
         resize(element.current);
         return outcome;
       });
+      // Recorded synchronously, before any continuation above can run: the
+      // record is what a flush arriving in the meantime is answered from, and
+      // the `sent.current = null` a refusal performs is a microtask away at
+      // the earliest.
+      sent.current = { typed: node.value, baseline: shown.current, landing };
+      return landing;
     }
     // Nothing typed, or typed back to what it already said — so there is no
     // unsaved draft left to hold, and anything rule 2 or rule 4 held back

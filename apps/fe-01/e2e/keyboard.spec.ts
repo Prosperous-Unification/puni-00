@@ -144,6 +144,86 @@ test.describe('the command chords, in a browser', () => {
     expect(writes.filter((each) => each.startsWith('POST'))).toHaveLength(1);
   });
 
+  test('a chord after a blur whose save is still out waits for that save', async ({ page }) => {
+    // codex round 2, finding 1, against a real event loop. The cell drops a
+    // resubmission of a request that is already out — the blur, then a click
+    // back into the unchanged cell — and the chord that flushes it in that
+    // window used to be told "nothing was sent". It read that as permission to
+    // create, and a refusal would then have arrived after the row existed.
+    await seedRows(page, `e2e-keys-${String(Date.now())}-${String(account)}`, 2);
+
+    const writes: string[] = [];
+    await page.route('**/api/**', async (route) => {
+      const request = route.request();
+      const method = request.method();
+      if (method !== 'PATCH' && method !== 'POST') {
+        await route.continue();
+        return;
+      }
+      writes.push(`${method} ${new URL(request.url()).pathname}`);
+      // Two seconds, so the window to ask the question in is far wider than
+      // anything Playwright's own actions cost.
+      if (method === 'PATCH') await new Promise((resolve) => setTimeout(resolve, 2000));
+      await route.continue();
+    });
+
+    const last = page.getByLabel('Name of 020');
+    await last.click();
+    await last.pressSequentially('Sand the frames');
+    // The blur is what sends it; the click back in is what makes the chord's
+    // flush a duplicate of a request nobody has heard back from yet.
+    await last.blur();
+    await last.click();
+    await page.keyboard.press('ControlOrMeta+Enter');
+
+    await page.waitForTimeout(700);
+    // Still inside the held window: nothing created, and the caret has not
+    // moved out of the only copy of what was typed.
+    expect(writes.filter((each) => each.startsWith('POST'))).toHaveLength(0);
+    expect(await page.getByLabel('Name of 030').count()).toBe(0);
+    await expect(last).toBeFocused();
+
+    // And waiting is not refusing: the save lands, and the chord it was
+    // holding happens.
+    await expect(page.getByLabel('Name of 030')).toBeVisible();
+    await expect(page.getByLabel('Name of 030')).toBeFocused();
+    await expect(page.getByLabel('Name of 020')).toHaveValue('Sand the frames');
+    expect(writes.filter((each) => each.startsWith('PATCH'))).toHaveLength(1);
+    expect(writes.filter((each) => each.startsWith('POST'))).toHaveLength(1);
+  });
+
+  test('Cmd+Enter in an open team picker takes no entry and creates none', async ({ page }) => {
+    // codex round 2, finding 2, where a browser can say what jsdom cannot: the
+    // chord arrived as a real keystroke through a real combobox, and no write
+    // left the page. The list was suppressing the table's handler and then
+    // reading the same key as its own bare Enter.
+    await seedRows(page, `e2e-keys-${String(Date.now())}-${String(account)}`, 1);
+
+    const writes: string[] = [];
+    await page.route('**/api/**', async (route) => {
+      const method = route.request().method();
+      if (method === 'PATCH' || method === 'POST') {
+        writes.push(`${method} ${new URL(route.request().url()).pathname}`);
+      }
+      await route.continue();
+    });
+
+    const team = page.getByLabel('Service or team for 010');
+    await team.click();
+    await team.pressSequentially('Platform');
+    await expect(page.getByRole('listbox', { name: 'Service or team for 010' })).toBeVisible();
+
+    await page.keyboard.press('ControlOrMeta+Enter');
+    await page.waitForTimeout(700);
+
+    // No team added, no work item labelled with one, and no row created: the
+    // chord was consumed by the open list and did nothing at all.
+    expect(writes).toEqual([]);
+    expect(await page.getByLabel('Name of 020').count()).toBe(0);
+    // The search is still there to go on typing.
+    await expect(team).toHaveValue('Platform');
+  });
+
   test('Ctrl+D arms on the first press and deletes on the second', async ({ page }) => {
     await seedRows(page, `e2e-keys-${String(Date.now())}-${String(account)}`, 3);
 

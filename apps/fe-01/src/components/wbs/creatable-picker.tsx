@@ -1,5 +1,7 @@
 import { type KeyboardEvent, type ReactNode, useState } from 'react';
 
+import { commandChordIn } from './keyboard-bindings';
+
 export interface PickableEntry {
   id: string;
   name: string;
@@ -224,12 +226,35 @@ export function CreatablePicker({
             setTyped(null);
             return;
           }
-          // Proof: the `!open` guard dropped so the chords fired through an
-          // open list, `every chord is inert while a team picker’s list is
-          // open` failed on `expected '020' to be null` — a row armed for
-          // deletion by a Ctrl+D aimed at a list of teams. Watched,
-          // 2026-08-08.
-          if (!open) gridCell?.onCommandKey(e);
+          if (open) {
+            // **Inert means consumed**, not merely "not the table's". The
+            // bare-Enter branch below reads no modifiers, so a Cmd/Ctrl+Enter
+            // that only skipped `onCommandKey` went on to choose the first
+            // entry or create one out of a half-typed search — codex round 2,
+            // finding 2. Taken from the browser as well, for the reason every
+            // chord this table claims is: Ctrl+D unhandled is a bookmark.
+            //
+            // Only where the box is a cell of a grid. A picker with no
+            // `gridCell` is not in a table, none of these keystrokes is a
+            // chord there, and this component promises to leave it alone.
+            //
+            // Proof: this guard removed, `Cmd+Enter in an open team picker
+            // takes no entry and creates none` failed on `expected 'team1' to
+            // be null` and `Cmd+Enter in an open assignee picker assigns
+            // nobody and adds nobody` on `expected [ 'assign w2 role-dev
+            // person1' ] to deeply equal []`. Watched, 2026-08-08.
+            if (gridCell !== undefined && commandChordIn(e) !== null) {
+              e.preventDefault();
+              return;
+            }
+          } else {
+            // Proof: the `!open` guard dropped so the chords fired through an
+            // open list, `every chord is inert while a team picker’s list is
+            // open` failed on `expected '020' to be null` — a row armed for
+            // deletion by a Ctrl+D aimed at a list of teams. Watched,
+            // 2026-08-08.
+            gridCell?.onCommandKey(e);
+          }
           if (e.key !== 'Enter') return;
           e.preventDefault();
           if (typed === null) return;

@@ -28,6 +28,19 @@ are the cells that **do not call it**, which is why "inert" is a condition in
 the picker rather than a special case in the handler. The picker knows whether
 its list is open; the handler cannot.
 
+**"Inert" means consumed, and round 2 of the review is why that sentence is
+here.** The first version read it as "does not call `onCommandKey`", which is
+only half a rule: the picker's own handler carried on to a bare
+`e.key === 'Enter'` branch that reads no modifiers, so Cmd/Ctrl+Enter chose the
+first team, assignee, dependency or mention — or created one out of a
+half-typed search. The folded `@` cell had a second way out, because
+`onAltMove` sat below the open-list branch and every Alt+arrow reached it: a
+row moved or indented while its people picker was open. So each open list now
+recognizes the chords at the top of its own handler — `commandChordIn`, and
+`altMoveIn` where the cell is wired to `onAltMove` — takes the key with
+`preventDefault`, and does nothing whatever with it. Nothing falls through, in
+either direction.
+
 Nothing is attached to `window`. The page-level guards — `isTypingInto`, the
 undo/redo listener, the `?` listener — are untouched, and a chord that means
 something only inside a cell is not something a page-level listener should
@@ -73,8 +86,18 @@ Two consequences worth writing down:
 - **The blur that follows does not send it again.** Moving the focus blurs the
   cell, which runs `onLeave` a second time. `CellInput`'s rule 5 already covers
   it: `shown` has not advanced, the submission is recorded, and the second call
-  returns `unsent`. This change did not add a guard for it; it checked that the
+  sends nothing. This change did not add a guard for it; it checked that the
   existing one holds.
+
+  What it did **not** check, and round 2 of the review found, is the other
+  order: a blur that starts a PATCH, a click back into the unchanged cell, and
+  then the chord. The flush was answered with `unsent` — the request is out,
+  so nothing new was sent — and the chord read that as "nothing to wait for",
+  creating a row or moving the focus while a patch that might yet be refused
+  was still in the air. Rule 5 now records the in-flight promise beside
+  `{typed, baseline}` and answers a matching flush with **that**, so the chord
+  awaits the real outcome: refused means nothing happened, landed means go on.
+
 - **Ordering cannot be asserted on when the calls go out.** Both leave
   synchronously either way. What an unawaited flush loses is the _answer_, so
   the unit test holds the PATCH open and asserts that nothing was created while

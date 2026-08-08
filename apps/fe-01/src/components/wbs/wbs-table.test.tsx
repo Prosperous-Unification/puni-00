@@ -6321,6 +6321,139 @@ describe('the command chords', () => {
     expect(document.activeElement).toBe(cell);
   });
 
+  /**
+   * A blur's PATCH held open, the cell refocused unchanged, and the chord
+   * pressed while that first request is still out.
+   *
+   * Rule 5 in `cell-input.tsx` recognizes the second leave as a resubmission
+   * of the request already in flight. What it must **not** do is answer the
+   * chord with `unsent`: the chord reads that as "nothing to wait for" and
+   * moves or creates against an answer nobody has yet.
+   *
+   * @param at The row whose Name cell is typed in and then chorded from.
+   * @returns The fake, the cell, the request log and the two ways to settle
+   * the held PATCH.
+   */
+  async function patchHeldOpen(at: string) {
+    const api = await threeRoots();
+    const asked: string[] = [];
+    let landThePatch: () => void = () => {
+      throw new Error('the patch was never sent');
+    };
+    let refuseThePatch: () => void = () => {
+      throw new Error('the patch was never sent');
+    };
+    const realPatch = api.patch.bind(api);
+    api.patch = (id: string, patch: Record<string, unknown>) => {
+      asked.push('patch');
+      return new Promise<void>((resolve, reject) => {
+        landThePatch = () => {
+          void realPatch(id, patch).then(resolve);
+        };
+        refuseThePatch = () => {
+          reject(new Error('forbidden'));
+        };
+      });
+    };
+    const realCreate = api.create.bind(api);
+    api.create = (
+      projectId: string,
+      input: { parentId: string | null; afterId: string | null },
+    ) => {
+      asked.push('create');
+      return realCreate(projectId, input);
+    };
+
+    const cell = nameOf(at);
+    cell.focus();
+    fireEvent.change(cell, { target: { value: `${cell.value} the trim` } });
+    // The blur is what starts the request the chord will have to wait for.
+    fireEvent.blur(cell);
+    await waitFor(() => {
+      expect(asked).toEqual(['patch']);
+    });
+    // Back in the cell, having typed nothing: the sequence the finding names.
+    cell.focus();
+    return {
+      api,
+      asked,
+      cell,
+      landThePatch: () => {
+        landThePatch();
+      },
+      refuseThePatch: () => {
+        refuseThePatch();
+      },
+    };
+  }
+
+  /** Turns of the microtask queue, enough for anything that never waited. */
+  const letTheLoopRun = () =>
+    act(async () => {
+      for (let turn = 0; turn < 20; turn += 1) await Promise.resolve();
+    });
+
+  itDom(
+    'a chord waits for the blur’s patch that is still out, and a refusal makes nothing',
+    async () => {
+      // codex round 2, finding 1. The dedup in rule 5 answered `unsent`
+      // immediately, which is the one answer that is not true here: the request
+      // *is* out, and the chord's whole contract is that a refused save leaves
+      // the caret where it was with nothing created.
+      //
+      // Proof: `return sent.current.landing` put back as `return unsent()`, this
+      // failed on `expected [ 'patch', 'create' ] to deeply equal [ 'patch' ]` —
+      // a row created against a request nobody had heard back from. Watched,
+      // 2026-08-08.
+      const { asked, cell, refuseThePatch } = await patchHeldOpen('030');
+
+      nextOrCreate(cell);
+      await letTheLoopRun();
+
+      // Nothing while it hangs: no create, and the caret has not moved.
+      expect(asked).toEqual(['patch']);
+      expect(numbersOnScreen()).toEqual(['010', '020', '030']);
+      expect(document.activeElement).toBe(cell);
+
+      refuseThePatch();
+      await waitFor(() => {
+        expect(toastTexts()).toContain('forbidden');
+      });
+      await letTheLoopRun();
+
+      // The refusal is the chord's answer as much as the blur's: nothing made,
+      // nowhere moved, and the only copy of what was typed still in the box for
+      // rule 4 to hold.
+      expect(asked).toEqual(['patch']);
+      expect(numbersOnScreen()).toEqual(['010', '020', '030']);
+      expect(document.activeElement).toBe(cell);
+      expect(cell.value).toBe('Paint the trim');
+    },
+  );
+
+  itDom('…and moves on once that patch lands', async () => {
+    // The other half: waiting is not refusing. When the request the chord
+    // joined comes back landed, the move it was holding happens.
+    //
+    // Proof: the same line put back as `return unsent()`, this failed on
+    // `expected <textarea …></textarea> to be <textarea …></textarea>` — the
+    // focus already in 020 while the save was still out. Watched, 2026-08-08.
+    const { cell, landThePatch } = await patchHeldOpen('010');
+
+    nextOrCreate(cell);
+    await letTheLoopRun();
+
+    expect(document.activeElement).toBe(cell);
+
+    landThePatch();
+
+    await waitFor(() => {
+      expect(document.activeElement).toBe(nameOf('020'));
+    });
+    expect(numbersOnScreen()).toEqual(['010', '020', '030']);
+    expect(nameOf('010').value).toBe('Strip the trim');
+  });
+
   itDom('Ctrl+H, J, K and L move between cells from a caret no arrow could leave', async () => {
     await threeRoots();
     const cell = nameOf('020');
@@ -6691,6 +6824,195 @@ describe('the command chords', () => {
     expect(numbersOnScreen()).toEqual(['010', '020', '030']);
     expect(armedRow()).toBeNull();
     expect(api.rows).toHaveLength(3);
+  });
+
+  /**
+   * The chord as an open list receives it, so what it did there can be read.
+   *
+   * `createEvent` rather than `fireEvent.keyDown`, because half of "inert"
+   * is that the key was **taken**: an open list that ignores Cmd+Enter and
+   * lets it through to the browser has not consumed it.
+   */
+  const chordInto = (box: Element, key: string, modifiers: { meta?: boolean; alt?: boolean }) => {
+    const event = createEvent.keyDown(box, {
+      key,
+      code: key === 'Enter' ? 'Enter' : key,
+      metaKey: modifiers.meta ?? false,
+      altKey: modifiers.alt ?? false,
+    });
+    fireEvent(box, event);
+    return event;
+  };
+
+  /** Every `assign` and `addPerson` the table asked for, in order. */
+  const watchPeopleWrites = (api: ProjectApi): string[] => {
+    const written: string[] = [];
+    const realAssign = api.assign.bind(api);
+    api.assign = (id: string, roleId: string, personId: string | null) => {
+      written.push(`assign ${id} ${roleId} ${String(personId)}`);
+      return realAssign(id, roleId, personId);
+    };
+    const realAdd = api.addPerson.bind(api);
+    api.addPerson = (name: string, teamIds: readonly string[]) => {
+      written.push(`addPerson ${name}`);
+      return realAdd(name, teamIds);
+    };
+    return written;
+  };
+
+  itDom('Cmd+Enter in an open team picker takes no entry and creates none', async () => {
+    // codex round 2, finding 2. The `!open` guard kept the chord away from the
+    // table's handler and stopped there: the bare `e.key === 'Enter'` branch
+    // underneath reads no modifiers, so the chord went on to choose the first
+    // entry — or to create one out of a half-typed search.
+    //
+    // Proof: the `commandChord` consume guard removed from
+    // `creatable-picker.tsx`, this failed on `expected 'team1' to be null` —
+    // 020 labelled with a team by a keystroke aimed at the plan. Watched,
+    // 2026-08-08.
+    const api = await threeRoots();
+    // A team on offer, made the way a person makes one: bare Enter still does.
+    const first = screen.getByLabelText('Service or team for 010');
+    fireEvent.focus(first);
+    fireEvent.change(first, { target: { value: 'Platform' } });
+    fireEvent.keyDown(first, { key: 'Enter', code: 'Enter' });
+    await waitFor(() => {
+      expect(api.rows[0]?.serviceTeamId).toBe('team1');
+    });
+
+    const box = screen.getByLabelText('Service or team for 020');
+    fireEvent.focus(box);
+    // Matches `Platform` without being it, so the list holds both an entry to
+    // choose and an `Add “Plat”` to create.
+    fireEvent.change(box, { target: { value: 'Plat' } });
+    await screen.findByRole('listbox', { name: 'Service or team for 020' });
+
+    const event = chordInto(box, 'Enter', { meta: true });
+    await letTheLoopRun();
+
+    expect(event.defaultPrevented).toBe(true);
+    // No assignment, no entry created, and no work item either.
+    expect(api.rows[1]?.serviceTeamId).toBeNull();
+    expect(await api.listTeams()).toHaveLength(1);
+    expect(numbersOnScreen()).toEqual(['010', '020', '030']);
+    // The search is still there to go on typing: consumed is not cleared.
+    expect(box).toHaveValue('Plat');
+  });
+
+  itDom('Cmd+Enter in an open assignee picker assigns nobody and adds nobody', async () => {
+    // The same component, the other column it is rendered in — and the writes
+    // it would have made are recorded rather than inferred.
+    //
+    // Proof: the same guard removed, this failed on `expected [ 'assign w2
+    // role-dev person1' ] to deeply equal []`. Watched, 2026-08-08.
+    const api = await threeRoots();
+    const first = screen.getByLabelText('Dev assignee for 010');
+    fireEvent.focus(first);
+    fireEvent.change(first, { target: { value: 'Kateryna' } });
+    fireEvent.keyDown(first, { key: 'Enter', code: 'Enter' });
+    await waitFor(() => {
+      expect(screen.getByLabelText('Dev assignee for 010')).toHaveValue('Kateryna');
+    });
+    const written = watchPeopleWrites(api);
+
+    const box = screen.getByLabelText('Dev assignee for 020');
+    fireEvent.focus(box);
+    fireEvent.change(box, { target: { value: 'Kat' } });
+    await screen.findByRole('listbox', { name: 'Dev assignee for 020' });
+
+    const event = chordInto(box, 'Enter', { meta: true });
+    await letTheLoopRun();
+
+    expect(event.defaultPrevented).toBe(true);
+    expect(written).toEqual([]);
+    expect(await api.listPeople()).toHaveLength(1);
+    expect(numbersOnScreen()).toEqual(['010', '020', '030']);
+  });
+
+  itDom('Cmd+Enter in the open depends list adds no dependency', async () => {
+    // Both of the box's Enter flows are in range here: an entry is highlighted
+    // *and* the typed text is a number a person could have meant.
+    //
+    // Proof: the consume guard removed from the depends `onKeyDown`, this
+    // failed on `expected null not to be null` — 020 waiting for 010 on a
+    // chord nobody aimed at the list. Watched, 2026-08-08.
+    await threeRoots();
+    const box = screen.getByLabelText('Add a dependency to 020');
+    box.focus();
+    fireEvent.focus(box);
+    fireEvent.change(box, { target: { value: '010' } });
+    await screen.findByRole('listbox', { name: 'Work items 020 can depend on' });
+    const highlighted = box.getAttribute('aria-activedescendant');
+    expect(highlighted).toBe('dep-option-w1');
+
+    const event = chordInto(box, 'Enter', { meta: true });
+    await letTheLoopRun();
+
+    expect(event.defaultPrevented).toBe(true);
+    expect(screen.queryByLabelText('Stop 020 waiting for 010')).toBeNull();
+    // Nothing about the list moved either: same search, same highlight.
+    expect(box).toHaveValue('010');
+    expect(box.getAttribute('aria-activedescendant')).toBe(highlighted);
+    expect(numbersOnScreen()).toEqual(['010', '020', '030']);
+  });
+
+  itDom('Cmd+Enter in the folded cell’s open @ list assigns nobody', async () => {
+    // Proof: the consume guard removed from the folded cell's `onKeyDown`,
+    // this failed on `expected [ 'assign w2 role-dev person1' ] to deeply
+    // equal []`. Watched, 2026-08-08.
+    const api = await threeRoots();
+    fireEvent.click(screen.getByRole('button', { name: 'Fold Dev estimates' }));
+    const first = await screen.findByLabelText('Dev estimate for 010');
+    fireEvent.focus(first);
+    fireEvent.change(first, { target: { value: '@Kateryna' } });
+    fireEvent.keyDown(first, { key: 'Enter' });
+    await waitFor(() => {
+      expect(rowFor('010').querySelector('[data-folded-assignee="role-dev"]')).not.toBeNull();
+    });
+    fireEvent.blur(first);
+    const written = watchPeopleWrites(api);
+
+    const box = screen.getByLabelText<HTMLInputElement>('Dev estimate for 020');
+    fireEvent.focus(box);
+    fireEvent.change(box, { target: { value: '@Kat' } });
+    await screen.findByRole('listbox', { name: 'Dev assignee for 020' });
+
+    const event = chordInto(box, 'Enter', { meta: true });
+    await letTheLoopRun();
+
+    expect(event.defaultPrevented).toBe(true);
+    expect(written).toEqual([]);
+    expect(await api.listPeople()).toHaveLength(1);
+    expect(rowFor('020').querySelector('[data-folded-assignee="role-dev"]')).toBeNull();
+    // The mention was not taken out of the box, because nothing was taken.
+    expect(box.value).toBe('@Kat');
+  });
+
+  itDom('Alt+arrows in the folded cell’s open @ list move no row', async () => {
+    // The one open list wired to `onAltMove`, and the finding's second half: a
+    // structural move is not something an open people picker may perform.
+    //
+    // Proof: the consume guard removed, this failed on `expected [ 'Strip',
+    // 'Paint', 'Sand' ] to deeply equal [ 'Strip', 'Sand', 'Paint' ]` — the
+    // row reordered under a half-typed name search. Watched, 2026-08-08.
+    await threeRoots();
+    fireEvent.click(screen.getByRole('button', { name: 'Fold Dev estimates' }));
+    const box = await screen.findByLabelText<HTMLInputElement>('Dev estimate for 020');
+    fireEvent.focus(box);
+    fireEvent.change(box, { target: { value: '@Ada' } });
+    await screen.findByRole('listbox', { name: 'Dev assignee for 020' });
+
+    const down = chordInto(box, 'ArrowDown', { alt: true });
+    await letTheLoopRun();
+    const right = chordInto(box, 'ArrowRight', { alt: true });
+    await letTheLoopRun();
+
+    expect(down.defaultPrevented).toBe(true);
+    expect(right.defaultPrevented).toBe(true);
+    // Neither moved among its siblings nor indented under one.
+    expect(namesOnScreen()).toEqual(['Strip', 'Sand', 'Paint']);
+    expect(numbersOnScreen()).toEqual(['010', '020', '030']);
+    expect(box.value).toBe('@Ada');
   });
 
   itDom('every chord is inert while a row’s ⋯ menu is open', async () => {

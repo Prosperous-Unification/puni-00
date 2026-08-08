@@ -78,6 +78,17 @@ created.
 Repeated presses while a chord's requests are still out SHALL be one gesture:
 two immediate presses on the last row create one work item, not two.
 
+Where the cell has nothing new to send because the request carrying that text
+is already out, the chord SHALL wait for **that** request and take its answer
+as its own.
+
+#### Scenario: a chord joins the save that is already out
+
+- **WHEN** a cell is left, the save it started is still out, the cell is
+  focused again without being typed in, and Cmd+Enter or Ctrl+N is pressed
+- **THEN** nothing is created and the focus does not move until that save
+  settles, and if it is refused nothing is created at all
+
 #### Scenario: the name is saved before the row below exists
 
 - **WHEN** a name is typed and Cmd+Enter is pressed on the last row
@@ -151,6 +162,10 @@ A cell SHALL ignore every command chord while a list is open in it — the
 dependency list, a team or assignee picker, the `@` mention picker — and a row
 SHALL ignore them while its ⋯ menu is open.
 
+A chord the open list ignores SHALL be consumed there: it SHALL NOT be read as
+the list's own unmodified key, SHALL NOT reach the browser, and SHALL leave the
+list exactly as it found it.
+
 Closing the list, which Escape does, SHALL give the chords back.
 
 #### Scenario: a chord aimed at an open list does nothing
@@ -158,6 +173,19 @@ Closing the list, which Escape does, SHALL give the chords back.
 - **WHEN** Ctrl+N or Ctrl+D is pressed with a picker's list open
 - **THEN** no work item is created, no row is marked, and the focus stays in
   the box
+
+#### Scenario: a modified Enter is not the list's Enter
+
+- **WHEN** Cmd/Ctrl+Enter is pressed with a team, assignee, dependency or `@`
+  list open
+- **THEN** no entry is taken, nothing is created, no dependency is added, the
+  highlight does not move, and no work item is created
+
+#### Scenario: a modified arrow is not the list's arrow
+
+- **WHEN** Alt and an arrow are pressed with the folded cell's `@` list open
+- **THEN** the row is neither moved among its siblings nor indented or
+  outdented
 
 #### Scenario: the same box answers once its list is closed
 

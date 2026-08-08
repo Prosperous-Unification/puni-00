@@ -329,6 +329,44 @@ export function commandChord(pressed: KeyPress): Command | null {
 }
 
 /**
+ * A keyboard event, as much of one as {@link commandChordIn} reads.
+ *
+ * Structural rather than React's own type, so this file still needs no
+ * component library to judge a keystroke — and `code` is under `nativeEvent`
+ * because that is where a React synthetic event carries the physical key that
+ * Alt+N is matched on.
+ */
+export interface KeyPressEvent {
+  key: string;
+  ctrlKey: boolean;
+  metaKey: boolean;
+  altKey: boolean;
+  shiftKey: boolean;
+  nativeEvent: { code: string };
+}
+
+/**
+ * {@link commandChord}, read straight off a keyboard event.
+ *
+ * The same six fields in the same order at four call sites was four chances to
+ * leave one of them out — and a `shiftKey` that never arrives makes the
+ * predicate answer for chords it was not given.
+ *
+ * @param event The keystroke, as a React keyboard event delivers it.
+ * @returns The command, or null when this is not one.
+ */
+export function commandChordIn(event: KeyPressEvent): Command | null {
+  return commandChord({
+    key: event.key,
+    code: event.nativeEvent.code,
+    ctrlKey: event.ctrlKey,
+    metaKey: event.metaKey,
+    altKey: event.altKey,
+    shiftKey: event.shiftKey,
+  });
+}
+
+/**
  * Which label the `Alt` key should be given, or `unsure` when nothing said.
  *
  * `unsure` is a third answer rather than a default to one of the other two: a

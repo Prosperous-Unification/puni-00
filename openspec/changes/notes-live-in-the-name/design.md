@@ -58,11 +58,22 @@ in `CellInput` are built on it, both from round 1 of the review:
   the box back to what it was showing abandons it.
 - **The same text is not sent twice (rule 5).** `shown` deliberately does not
   advance until the refetch lands, so inside that window a second focus-and-
-  leave looks exactly like a fresh edit. The cell records `{typed, baseline}`
-  on the way out and drops an identical resubmission. The record is cleared
-  whenever the answer is not `landed`, which is what keeps a deliberate retry
-  of a refused edit working — and it expires by itself, because a refetch that
-  moves `shown` moves the baseline half of it.
+  leave looks exactly like a fresh edit. The cell records
+  `{typed, baseline, landing}` on the way out and answers an identical
+  resubmission with `landing` — the promise of the request that is already
+  out — rather than sending a second one. The record is cleared whenever the
+  answer is not `landed`, which is what keeps a deliberate retry of a refused
+  edit working — and it expires by itself, because a refetch that moves `shown`
+  moves the baseline half of it.
+
+  **The promise is the third field because a flush is not only a blur.** Round
+  2 of the review found the first version answering `unsent` here, which is the
+  one answer that is untrue in that window: the request _is_ out. A chord that
+  flushed the cell read `unsent` as "nothing is happening" and created a row or
+  moved the focus while a patch that might still be refused was in the air —
+  the exact contract `command-keys` exists to hold. Returning the in-flight
+  promise makes the two callers agree: the blur ignores the answer as it always
+  did, and the chord waits for it.
 
 `unsent` is not `landed`. Two commits ask be-01 for nothing: the composite cell
 whose two texts differ only in their line endings, and an estimate box holding

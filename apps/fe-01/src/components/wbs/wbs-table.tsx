@@ -34,7 +34,7 @@ import {
   trioProblem,
   type TypedTrio,
 } from './estimate-draft';
-import { type Command, commandChord, undoChord } from './keyboard-bindings';
+import { type Command, commandChordIn, undoChord } from './keyboard-bindings';
 import { KeyboardCheatSheet, opensCheatSheet } from './keyboard-cheat-sheet';
 import { splitMention } from './mention';
 import { composeNameCell, normalizeNewlines, splitNameCell } from './name-notes';
@@ -417,6 +417,26 @@ function altMoveFor(key: string): AltMove | null {
     default:
       return null;
   }
+}
+
+/**
+ * The structural move a keystroke asks for, or null when it asks for none.
+ *
+ * The modifier rules live here rather than in {@link onAltMove} because two
+ * places need the same answer: the handler that performs the move, and the
+ * open `@` list that has to swallow the keystroke before the handler ever sees
+ * it. Two copies of "is this an Alt+arrow" is how one of them comes to accept
+ * a composing arrow the other refuses.
+ *
+ * A second modifier is somebody else's shortcut, and an IME composition is
+ * using the arrows to pick a candidate — the same rule `nextCell` applies.
+ * Proof: narrowed to `!event.altKey` alone, `leaves a composing alt arrow, and
+ * one with a second modifier, alone` failed on `expected false to be true`.
+ * Watched here 2026-08-08, and where this line lived before, 2026-08-06.
+ */
+function altMoveIn(event: React.KeyboardEvent): AltMove | null {
+  if (!event.altKey || event.ctrlKey || event.metaKey || event.nativeEvent.isComposing) return null;
+  return altMoveFor(event.key);
 }
 
 /** The `data-cell` value for one editable cell, and the selector that finds it. */
@@ -1920,13 +1940,10 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    */
   const onAltMove = useCallback(
     (event: React.KeyboardEvent, row: TreeRow, columnId: string) => {
-      // A second modifier is somebody else's shortcut, and an IME composition
-      // is using the arrows to pick a candidate — the same rule `nextCell`
-      // applies, for the same reason.
-      // Proof: narrowed to `!event.altKey` alone, `leaves a composing alt arrow,
-      // and one with a second modifier, alone` failed. Watched, 2026-08-06.
-      if (!event.altKey || event.ctrlKey || event.metaKey || event.nativeEvent.isComposing) return;
-      const move = altMoveFor(event.key);
+      // Which arrows this owns, and under which modifiers, is {@link altMoveIn}
+      // — shared with the open `@` list, which has to recognize exactly the
+      // same keystrokes in order to swallow them.
+      const move = altMoveIn(event);
       if (move === null) return;
       // Proof: removed, nine of this block's tests failed on a key the browser
       // would still have acted on. Watched, 2026-08-06.
@@ -2099,14 +2116,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    */
   const onCommandKey = useCallback(
     (event: React.KeyboardEvent, row: TreeRow, columnId: string) => {
-      const command: Command | null = commandChord({
-        key: event.key,
-        code: event.nativeEvent.code,
-        ctrlKey: event.ctrlKey,
-        metaKey: event.metaKey,
-        altKey: event.altKey,
-        shiftKey: event.shiftKey,
-      });
+      const command: Command | null = commandChordIn(event);
       if (command === null) {
         // Every other keystroke is what disarms a pending Ctrl+D — except the
         // modifiers, which are how the second Ctrl+D is reached at all. agy #9.
@@ -3166,6 +3176,18 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                     live.current.onTabKey(e, row.original.id, 'depends');
                     return;
                   }
+                  if (open && commandChordIn(e) !== null) {
+                    // Inert means consumed. Skipping `onCommandKey` was not
+                    // enough on its own: Cmd/⌘+Enter fell through to the Enter
+                    // branch below, which reads no modifiers, and added the
+                    // highlighted dependency — codex round 2, finding 2.
+                    // Proof: this guard removed, `Cmd+Enter in the open
+                    // depends list adds no dependency` failed on `expected
+                    // <button type="button" …(2)></button> to be null` — the
+                    // chip for an edge nobody confirmed. Watched, 2026-08-08.
+                    e.preventDefault();
+                    return;
+                  }
                   if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
                     e.preventDefault();
                     live.current.moveDepHighlight(
@@ -3445,6 +3467,25 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                       }}
                       onKeyDown={(e) => {
                         if (options.length > 0) {
+                          // Inert means consumed, and this is the one open list
+                          // that had two ways out of it. Cmd/⌘+Enter fell
+                          // through to the bare Enter below and assigned the
+                          // first person offered; every Alt+arrow went on to
+                          // `onAltMove` underneath and moved the row while its
+                          // list was open — codex round 2, finding 2.
+                          //
+                          // Proof, two faults, both watched 2026-08-08. This
+                          // guard removed: `Cmd+Enter in the folded cell’s open
+                          // @ list assigns nobody` failed on `expected
+                          // [ 'assign w2 role-dev person1' ] to deeply equal []`,
+                          // and `Alt+arrows in the folded cell’s open @ list
+                          // move no row` on `expected [ 'Strip', 'Paint',
+                          // 'Sand' ] to deeply equal [ 'Strip', 'Sand',
+                          // 'Paint' ]`.
+                          if (commandChordIn(e) !== null || altMoveIn(e) !== null) {
+                            e.preventDefault();
+                            return;
+                          }
                           if (e.key === 'Escape') {
                             // Closes the list and strips nothing: what was
                             // typed is still on screen to be corrected, and the

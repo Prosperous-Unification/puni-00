@@ -2,7 +2,8 @@
 
 ## The gate
 
-Run on h1claw, 2026-08-08, on `change/keys-notes-and-fit`.
+Run on h1claw, 2026-08-08, on `change/keys-notes-and-fit`. Re-run in full after
+the round-2 review fixes below; the numbers are that second run.
 
 ```
 $ bunx nx format:check --all
@@ -14,17 +15,24 @@ NX   Successfully ran targets test, lint, typecheck, build for 21 projects
 $ bunx nx run-many -t test lint typecheck --projects=fe-01 --skip-nx-cache
 NX   Successfully ran targets test, lint, typecheck for project fe-01
       Test Files  25 passed (25)
-      Tests       605 passed (605)     (565 before this change, +40)
+      Tests       612 passed (612)     (605 before the round-2 fixes, +7)
 
 $ bunx @fission-ai/openspec@1.3.0 validate --all --json
 "totals": { "items": 39, "passed": 39, "failed": 0 }
 ```
 
-The 40 new tests: **7** in `keyboard-cheat-sheet.test.tsx` (the `commandChord`
-predicate), **5** in `cell-navigation.test.ts` (`commandMove`), and **28** in
-`wbs-table.test.tsx`, which went from 242 declarations to 270. The 565 figure
-is `bunx vitest run --root apps/fe-01` on a worktree at the parent commit, run
-rather than subtracted.
+The 40 tests this change added before the round-2 fixes: **7** in
+`keyboard-cheat-sheet.test.tsx` (the `commandChord` predicate), **5** in
+`cell-navigation.test.ts` (`commandMove`), and **28** in `wbs-table.test.tsx`,
+which went from 242 declarations to 270. Round 2 adds **7** more, all in
+`wbs-table.test.tsx` — two for finding 1 and five for finding 2 — plus two
+browser tests in `e2e/keyboard.spec.ts`, which the gate above does not run.
+
+Both baselines were measured rather than subtracted: 605 is
+`bunx vitest run` from `apps/fe-01` at the commit the round-2 review read, and
+565 is the same command on a worktree at this branch's parent. **A reviewer
+quoted 565 as this branch's own total**; it is the figure from before the
+change, and the run above is what it is now.
 
 **The test migration was its own task, and it was one helper.** `grep` for
 Enter in `wbs-table.test.tsx` found the scaffolding behind everything: a single
@@ -64,6 +72,46 @@ from `apps/fe-01`, with the fault applied to the source and reverted after.
 | 15  | the depends `!open` condition forced true                                   | `every chord is inert while the depends list is open`                          | `expected <input …(11)></input> to be <input …(10)></input>`                    |
 | 16  | `actions-menu.tsx`'s modifier guard removed                                 | `every chord is inert while a row’s ⋯ menu is open`                            | `to have a length of 3 but got 4` — Duplicate taken by Cmd+Enter                |
 
+### Round 2, and what #14–#16 were not enough to say
+
+codex's round-2 finding 2. Faults #14 and #15 above proved that an open list
+does not call `onCommandKey`; they could not see that the same keystroke went
+on to be read as the list's own bare Enter three lines further down. The ⋯ menu
+was the one surface that had already been caught doing it (#16, and assumption
+C4-12) — the pickers had the same hole and nobody looked. The folded `@` cell
+had a second one: `onAltMove` sits **below** the open-list branch, so every
+Alt+arrow reached it and moved the row while its people picker was open.
+
+Each open list now recognizes the chords at the top of its own handler and
+consumes them. Five new tests, each asserting what the surface would actually
+have done — an assignment, a team, a dependency, a highlight, a row order —
+rather than "no new WBS row". All watched failing on the final code,
+2026-08-08.
+
+| #   | fault injected                                                     | test that went red                                                                  | how it failed                                                                                      |
+| --- | ------------------------------------------------------------------ | ----------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| 17  | the `commandChordIn` consume guard removed from `creatable-picker` | `Cmd+Enter in an open team picker takes no entry and creates none`                  | `expected 'team1' to be null` — 020 labelled by a keystroke aimed at the plan                      |
+| 18  | the same guard                                                     | `Cmd+Enter in an open assignee picker assigns nobody and adds nobody`               | `expected [ 'assign w2 role-dev person1' ] to deeply equal []`                                     |
+| 19  | the consume guard removed from the depends `onKeyDown`             | `Cmd+Enter in the open depends list adds no dependency`                             | `expected <button type="button" …(2)></button> to be null` — the chip for an edge nobody confirmed |
+| 20  | the consume guard removed from the folded `@` cell                 | `Cmd+Enter in the folded cell’s open @ list assigns nobody`                         | `expected [ 'assign w2 role-dev person1' ] to deeply equal []`                                     |
+| 21  | the same guard                                                     | `Alt+arrows in the folded cell’s open @ list move no row`                           | `expected [ 'Strip', 'Paint', 'Sand' ] to deeply equal [ 'Strip', 'Sand', 'Paint' ]`               |
+| 22  | `return sent.current.landing` put back as `return unsent()`        | `a chord waits for the blur’s patch that is still out, and a refusal makes nothing` | `expected [ 'patch', 'create' ] to deeply equal [ 'patch' ]`                                       |
+| 23  | the same line                                                      | `…and moves on once that patch lands`                                               | `expected <textarea …(5)></textarea> to be <textarea …(5)></textarea>`                             |
+| 24  | `altMoveIn`'s modifier guard narrowed to `!event.altKey`           | `leaves a composing alt arrow, and one with a second modifier, alone`               | `expected false to be true` — re-watched where the line now lives                                  |
+
+#22 and #23 are round-2 finding 1, whose home is `notes-live-in-the-name`; they
+are listed here as well because the contract they break is this change's — "a
+refused save leaves the caret where it was and makes no row". #24 is not a new
+check: `onAltMove`'s modifier rule moved into `altMoveIn` so the open `@` list
+could recognize exactly the same keystrokes, and a guard that moved was
+re-watched at its new address rather than assumed.
+
+**The guard is only where the box is a cell of the grid.** `CreatablePicker`
+consumes a chord only when it was given `gridCell` — a picker rendered outside
+a table is not in the routing matrix, none of these keystrokes is a chord
+there, and the component's promise to leave such a picker's keyboard alone
+still holds.
+
 Three of those did not reproduce on the first attempt, and the tests were the
 problem rather than the faults. They are recorded because they are the R5
 failure this repository keeps having, caught here rather than shipped:
@@ -98,9 +146,10 @@ scenario-level assertion it is, and it is not claimed as either guard's proof.
 
 ## What only a browser can say — h2puni
 
-`apps/fe-01/e2e/keyboard.spec.ts`, **six** tests, run on h2puni through
-`/home/puni1/wbs-e2e-work/run-e2e.sh` (the Playwright docker image; h1claw has
-no browser and does not build).
+`apps/fe-01/e2e/keyboard.spec.ts`, **eight** tests since round 2, run on h2puni
+through `/home/puni1/wbs-e2e-work/run-e2e.sh` (the Playwright docker image;
+h1claw has no browser and does not build). The run below is the six-test one;
+the two round-2 tests are reported under it.
 
 ```
 $ ssh h2puni 'cd /home/puni1/wbs-e2e-work && ./run-e2e.sh'
@@ -113,6 +162,16 @@ $ ssh h2puni 'cd /home/puni1/wbs-e2e-work && ./run-e2e.sh'
   ✓  7–28 layout.spec.ts (unchanged, all green)
   28 passed (46.6s)
 ```
+
+### The two round-2 browser tests
+
+**PENDING** — written, gate-green as source, not yet run against a browser.
+Filled in from the run, not from expectation.
+
+| test                                                               | what only a browser says                                                                                    | result      |
+| ------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------- | ----------- |
+| `a chord after a blur whose save is still out waits for that save` | the real request log inside a PATCH held open by a route handler: no POST while the first save is in flight | **PENDING** |
+| `Cmd+Enter in an open team picker takes no entry and creates none` | a real chord through a real combobox writes nothing at all — no team, no label, no row                      | **PENDING** |
 
 ### The browser faults, watched
 
