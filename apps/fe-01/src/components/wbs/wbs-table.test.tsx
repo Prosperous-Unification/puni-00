@@ -399,6 +399,24 @@ const click = (name: string) => {
   fireEvent.click(screen.getByRole('button', { name }));
 };
 
+/** Opens one row's ⋯ menu, the way a pointer does. */
+const openRowMenu = (number: string) => {
+  click(`Actions for ${number}`);
+};
+
+/**
+ * Opens a row's ⋯ menu and takes one of its items.
+ *
+ * The items are named plainly — `Duplicate`, not `Duplicate 010` — which is
+ * only unambiguous because one menu is open at a time. That rule is the subject
+ * of `opening one row’s menu closes the one already open`; if it broke, every
+ * use of this helper would fail on two elements with the same name.
+ */
+const takeRowAction = (number: string, label: string) => {
+  openRowMenu(number);
+  fireEvent.click(screen.getByRole('menuitem', { name: label }));
+};
+
 const typeName = (number: string, value: string) => {
   fireEvent.change(screen.getByLabelText(`Name of ${number}`), { target: { value } });
 };
@@ -794,7 +812,8 @@ describe('the WBS table', () => {
     await waitFor(() => {
       expect(screen.getByLabelText('Number is frozen')).toBeDefined();
     });
-    expect(screen.getByRole('button', { name: 'Unfreeze' })).toBeDefined();
+    openRowMenu('010');
+    expect(screen.getByRole('menuitem', { name: 'Unfreeze' })).toBeDefined();
   });
 });
 
@@ -813,7 +832,7 @@ describe('duplicating a branch', () => {
     render(<WbsTable projectId="p1" api={api} />);
     await screen.findByLabelText('Name of 010');
 
-    click('Duplicate 010');
+    takeRowAction('010', 'Duplicate');
 
     await waitFor(() => {
       expect(numbersOnScreen()).toEqual(['010', '010.1', '020', '020.1']);
@@ -821,7 +840,9 @@ describe('duplicating a branch', () => {
     expect(screen.getByLabelText('Name of 020')).toHaveProperty('value', 'Strip (copy)');
     expect(screen.getByLabelText('Name of 020.1')).toHaveProperty('value', 'Sockets');
     // Proof: with the `focusNext` write removed from `duplicateRow`, this
-    // failed with the focus left on the Duplicate button. Watched 2026-08-07.
+    // failed with the focus left on the Duplicate button. Watched 2026-08-07,
+    // and again on 2026-08-08 once the button became the ⋯ the menu returns
+    // the focus to.
     await waitFor(() => {
       expect(document.activeElement).toBe(screen.getByLabelText('Name of 020'));
     });
@@ -835,10 +856,10 @@ describe('duplicating a branch', () => {
 
     click('Freeze numbering');
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Unfreeze' })).toBeDefined();
+      expect(screen.getByLabelText('Number is frozen')).toBeDefined();
     });
 
-    click('Duplicate 010');
+    takeRowAction('010', 'Duplicate');
 
     await waitFor(() => {
       expect(numbersOnScreen()).toEqual(['010', '020']);
@@ -852,12 +873,193 @@ describe('duplicating a branch', () => {
       duplicate: () => Promise.reject(new Error('too_large')),
     });
 
-    click('Duplicate 010');
+    takeRowAction('010', 'Duplicate');
 
     await waitFor(() => {
       expect(toastTexts()).toContain('too_large');
     });
     expect(numbersOnScreen()).toEqual(['010']);
+  });
+});
+
+describe('the row actions menu', () => {
+  /** Three root rows, named, already on screen. */
+  async function threeRows(api: ProjectApi): Promise<void> {
+    for (const name of ['Strip', 'Sand', 'Paint']) {
+      await api.create('p1', { parentId: null, afterId: null, name });
+    }
+    render(<WbsTable projectId="p1" api={api} />);
+    await screen.findByLabelText('Name of 030');
+  }
+
+  itDom('offers Duplicate and Delete on an ordinary row', async () => {
+    const api = fakeApi();
+    await threeRows(api);
+
+    openRowMenu('020');
+
+    expect(screen.getAllByRole('menuitem').map((item) => item.textContent)).toEqual([
+      'Duplicate',
+      'Delete',
+    ]);
+    expect(screen.getByRole('button', { name: 'Actions for 020' })).toHaveAttribute(
+      'aria-expanded',
+      'true',
+    );
+  });
+
+  itDom('opening one row’s menu closes the one already open', async () => {
+    // One menu at a time, and it is not decoration: two open menus are two
+    // `Duplicate` items with the same accessible name, which is ambiguous to a
+    // screen reader and to `getByRole` alike.
+    // Proof: the cell's `open` widened to `openMenuRowId !== null`, so every
+    // row's menu opened at once: **11 tests failed**, this one on `Found
+    // multiple elements with the role "menuitem" and name "Duplicate"`.
+    // Watched, 2026-08-08.
+    const api = fakeApi();
+    await threeRows(api);
+
+    openRowMenu('010');
+    openRowMenu('020');
+
+    expect(screen.getByRole('button', { name: 'Actions for 010' })).toHaveAttribute(
+      'aria-expanded',
+      'false',
+    );
+    expect(screen.getAllByRole('menu')).toHaveLength(1);
+    expect(screen.getByRole('menuitem', { name: 'Duplicate' })).toBeDefined();
+  });
+
+  itDom('promotes the children of a parent it deletes', async () => {
+    const api = fakeApi();
+    await api.create('p1', { parentId: null, afterId: null, name: 'Strip' });
+    await api.create('p1', { parentId: api.rows[0]?.id ?? null, afterId: null, name: 'Sockets' });
+    await api.create('p1', { parentId: null, afterId: api.rows[0]?.id ?? null, name: 'Sand' });
+    const removed: [string, unknown][] = [];
+    const real = api.remove.bind(api);
+    api.remove = (id, options) => {
+      removed.push([id, options]);
+      return real(id, options);
+    };
+    render(<WbsTable projectId="p1" api={api} />);
+    await screen.findByLabelText('Name of 010.1');
+
+    takeRowAction('010', 'Delete');
+
+    await waitFor(() => {
+      expect(removed).toHaveLength(1);
+    });
+    // The rule the two buttons had and this menu keeps: a branch's children
+    // move up rather than being deleted with the row above them.
+    expect(removed[0]?.[1]).toEqual({ strategy: 'promote' });
+  });
+
+  itDom('sends no strategy for a leaf, which has nothing to promote', async () => {
+    const api = fakeApi();
+    const removed: unknown[] = [];
+    const real = api.remove.bind(api);
+    api.remove = (id, options) => {
+      removed.push(options);
+      return real(id, options);
+    };
+    await threeRows(api);
+
+    takeRowAction('020', 'Delete');
+
+    await waitFor(() => {
+      expect(removed).toHaveLength(1);
+    });
+    expect(removed[0]).toEqual({ strategy: undefined });
+  });
+
+  itDom('lands the caret in the next sibling’s name after a delete', async () => {
+    const api = fakeApi();
+    await threeRows(api);
+
+    takeRowAction('020', 'Delete');
+
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '020']);
+    });
+    // 030 was renumbered 020 by the delete: the row that took its place, which
+    // is where typing carries on.
+    // Proof: the `focusNext` write removed from `deleteRow`, this and the
+    // last-row test below both failed on `expected <body>…</body> to be
+    // <textarea …>` — the deleted row took the ⋯ button the focus had been
+    // given back to with it, so there was nothing left holding it. Watched,
+    // 2026-08-08.
+    await waitFor(() => {
+      expect(document.activeElement).toBe(screen.getByLabelText('Name of 020'));
+    });
+    expect(screen.getByLabelText('Name of 020')).toHaveProperty('value', 'Paint');
+  });
+
+  itDom('lands the caret in the row above when the last row is deleted', async () => {
+    const api = fakeApi();
+    await threeRows(api);
+
+    takeRowAction('030', 'Delete');
+
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '020']);
+    });
+    // Proof: `?? above` dropped, leaving only the next sibling, this failed
+    // alone on `expected <body>…</body> to be <textarea …>` — the last row has
+    // no sibling below it. Watched, 2026-08-08.
+    await waitFor(() => {
+      expect(document.activeElement).toBe(screen.getByLabelText('Name of 020'));
+    });
+    expect(screen.getByLabelText('Name of 020')).toHaveProperty('value', 'Sand');
+  });
+
+  itDom('says why a delete was refused, moves the focus nowhere and deletes nothing', async () => {
+    const api = fakeApi();
+    await threeRows({ ...api, remove: () => Promise.reject(new Error('forbidden')) });
+
+    takeRowAction('020', 'Delete');
+
+    await waitFor(() => {
+      expect(toastTexts()).toContain('forbidden');
+    });
+    expect(numbersOnScreen()).toEqual(['010', '020', '030']);
+    // Proof: `focusNext` assigned before the `await` rather than after it, this
+    // failed on `expected <textarea …> to be <button …>` — the caret in the
+    // name of a row nobody deleted. Watched, 2026-08-08.
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Actions for 020' }));
+  });
+
+  itDom('gives the focus back to the ⋯ button after unfreezing', async () => {
+    const api = fakeApi();
+    await threeRows(api);
+    click('Freeze numbering');
+    await waitFor(() => {
+      expect(screen.getAllByLabelText('Number is frozen')).toHaveLength(3);
+    });
+
+    takeRowAction('020', 'Unfreeze');
+
+    await waitFor(() => {
+      expect(screen.getAllByLabelText('Number is frozen')).toHaveLength(2);
+    });
+    // Nothing was created or removed, so nothing claims the caret: the menu's
+    // own rule — closes, and gives the focus back where it came from — is the
+    // whole answer here.
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Actions for 020' }));
+  });
+
+  itDom('offers no Delete on a frozen row', async () => {
+    const api = fakeApi();
+    await threeRows(api);
+    click('Freeze numbering');
+    await waitFor(() => {
+      expect(screen.getAllByLabelText('Number is frozen')).toHaveLength(3);
+    });
+
+    openRowMenu('020');
+
+    expect(screen.queryByRole('menuitem', { name: 'Delete' })).toBeNull();
+    expect(screen.getByRole('menuitem', { name: 'Unfreeze' })).toBeDefined();
+    expect(screen.getByRole('menuitem', { name: 'Duplicate' })).toBeDefined();
   });
 });
 
@@ -2847,9 +3049,10 @@ describe('Tab moves between the fields, from every cell', () => {
     // No focus trap. The grid's edges are the first and last editable cells of
     // the whole table, not of a row: Tab at the end of a row walks into the
     // next one, and only past the last cell of the last row is the key left to
-    // the browser — which finds that row's own Duplicate and Delete. The
-    // actions are reachable at the end of the table and never from the middle
-    // of a row, which is what this makes consistent.
+    // the browser — which finds that row's own ⋯ button. The actions are
+    // reachable at the end of the table and never from the middle of a row,
+    // which is what this makes consistent. One stop per row since 2026-08-08,
+    // where it used to be two.
     await threeRoots();
 
     const last = focusCaret('Notes for 030', 'end');
@@ -3871,7 +4074,7 @@ describe('the widths the table is laid out by', () => {
       const column = cell.dataset['column'] ?? '';
       const exempt =
         cell.tagName === 'TD' &&
-        (['depends', 'notes', 'team'].includes(column) || column.endsWith('-assignee'));
+        (['depends', 'notes', 'team', 'actions'].includes(column) || column.endsWith('-assignee'));
       expect(cell.style.overflow).toBe(exempt ? 'visible' : 'hidden');
     }
   });
@@ -3925,7 +4128,9 @@ describe('the widths the table is laid out by', () => {
       return cell;
     };
 
+    openRowMenu('020');
     const openList = screen.getByRole('listbox');
+    const openMenu = screen.getByRole('menu');
     const notesBox = screen.getByLabelText('Notes for 020');
     const teamBox = screen.getByLabelText('Service or team for 020');
     // The cells the popovers are really in. Without this the overflow
@@ -3934,9 +4139,16 @@ describe('the widths the table is laid out by', () => {
     expect(openList.closest('td')).toBe(cellOf('depends'));
     expect(notesBox.closest('td')).toBe(cellOf('notes'));
     expect(teamBox.closest('td')).toBe(cellOf('team'));
+    expect(openMenu.closest('td')).toBe(cellOf('actions'));
 
     expect(cellOf('depends').style.overflow).toBe('visible');
     expect(cellOf('notes').style.overflow).toBe('visible');
+    // The row's actions menu is the same absolutely positioned box in the same
+    // kind of wrapper, in a cell 40px wide and one line high — the narrowest
+    // clip in the table.
+    // Proof: `'actions'` removed from `POPOVER_COLUMNS`, this failed on
+    // `expected 'hidden' to be 'visible'`. Watched, 2026-08-08.
+    expect(cellOf('actions').style.overflow).toBe('visible');
     // The service/team box and every assignee box are `CreatablePicker`s, and
     // a picker's list is the same absolutely positioned popover in the same
     // kind of wrapper. Their columns are named `<roleId>-assignee` at runtime,

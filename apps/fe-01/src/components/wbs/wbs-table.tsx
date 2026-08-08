@@ -18,6 +18,7 @@ import {
   type RoleView,
 } from '@/lib/wbs-api';
 
+import { ActionsMenu } from './actions-menu';
 import { type CellElement, CellInput } from './cell-input';
 import { type Caret, type CellRef, nextCell } from './cell-navigation';
 import { CreatablePicker } from './creatable-picker';
@@ -150,7 +151,7 @@ const BOM = '\uFEFF';
  * The columns by fixed id whose `<td>` must not clip, because something in them
  * opens over the rows below. {@link opensAPopover} is what asks.
  */
-const POPOVER_COLUMNS: ReadonlySet<string> = new Set(['depends', 'notes', 'team']);
+const POPOVER_COLUMNS: ReadonlySet<string> = new Set(['depends', 'notes', 'team', 'actions']);
 
 /**
  * Whether this column holds something that opens over the rows below, and so
@@ -165,11 +166,12 @@ const POPOVER_COLUMNS: ReadonlySet<string> = new Set(['depends', 'notes', 'team'
  * `<td>`'s own clip cuts it to the cell rectangle however the wrapper is styled.
  * Lifting the clip on the `<td>` is the only thing that lets one open.
  *
- * Four kinds of column, not two: the dependency listbox (`depends`), the notes
- * preview (`notes`), and a `CreatablePicker`'s list — which is the service/team
- * cell and each role's assignee cell. The assignee columns are named
- * `<roleId>-assignee` at runtime, so they are matched by suffix, the same way
- * `widthFor` sizes them.
+ * Five kinds of column, not two: the dependency listbox (`depends`), the notes
+ * preview (`notes`), a `CreatablePicker`'s list — which is the service/team
+ * cell and each role's assignee cell — and the row's own actions menu
+ * (`actions`), which hangs a 140px box off a 40px cell one line high and is the
+ * narrowest clip of the lot. The assignee columns are named `<roleId>-assignee`
+ * at runtime, so they are matched by suffix, the same way `widthFor` sizes them.
  *
  * What still keeps these cells from painting into their neighbours, now that the
  * structural backstop is off for them: every control inside them is
@@ -628,6 +630,17 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     typed: string;
     highlightId: string | null;
   } | null>(null);
+  /**
+   * The row whose actions menu is open, or null while none is.
+   *
+   * One row id rather than a set, and that is the rule rather than a
+   * simplification: two open menus are two `menuitem`s called `Duplicate`, and
+   * an accessible name that matches several elements is ambiguous to a screen
+   * reader and to a test alike. Read through {@link live} for the reason
+   * `depPicker` is — `columns` must not depend on anything that changes on a
+   * click, or every cell in the table remounts under the menu that was opened.
+   */
+  const [openMenuRowId, setOpenMenuRowId] = useState<string | null>(null);
   /**
    * The cell a structural edit asked the focus to land in once the refetched
    * tree is on screen — a row **and a column**, because a row moved from an
@@ -1370,6 +1383,54 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     [api, run],
   );
 
+  /**
+   * Deletes a work item and lands the focus where its place went.
+   *
+   * The children come up rather than going with it (`strategy: 'promote'`),
+   * which is what the Delete button did and what the actions menu keeps.
+   *
+   * Where the caret lands: the Name of the next sibling in this row's own
+   * group, else the row above it in the flattened tree, else nowhere — a plan
+   * with one row leaves the focus on the ⋯ button the menu gave it back to.
+   * The target is read from the tree **on screen before the request**, because
+   * afterwards the row it was computed from is gone; for a parent, promoting
+   * lifts the children into the gap, so the next sibling is below them rather
+   * than immediately below it. That is the sibling group's own answer to "what
+   * took its place", and it is written down because the other reading — the
+   * first promoted child — is defensible too.
+   *
+   * Assigned only once be-01 has taken the delete, for the reason
+   * {@link duplicateRow} gives: a refusal must leave the focus where the person
+   * left it rather than move it into a row nobody deleted.
+   *
+   * Proof, three faults, all watched on 2026-08-08. The `focusNext` write
+   * removed: `lands the caret in the next sibling’s name after a delete` and
+   * `lands the caret in the row above when the last row is deleted` both failed
+   * on `expected <body>…</body> to be <textarea …>` — the deleted row takes its
+   * own ⋯ button with it, so nothing is left holding the focus. `?? above`
+   * dropped: the second of those failed alone. The assignment moved in front of
+   * the `await`: `says why a delete was refused, moves the focus nowhere and
+   * deletes nothing` failed on `expected <textarea …> to be <button …>`.
+   */
+  const deleteRow = useCallback(
+    (row: TreeRow) =>
+      run(async () => {
+        const siblings = siblingsOf(row.parentId);
+        const at = siblings.findIndex((sibling) => sibling.id === row.id);
+        const nextSibling = at === -1 ? undefined : siblings[at + 1];
+        const flatAt = flat.findIndex((each) => each.id === row.id);
+        // A ternary rather than `flat.at(flatAt - 1)`: deleting the first row
+        // has no row above, and `.at(-1)` would send the focus to the last one.
+        const above = flatAt > 0 ? flat[flatAt - 1] : undefined;
+        const landsOn = nextSibling ?? above;
+        await api.remove(row.id, {
+          strategy: row.subRows.length > 0 ? 'promote' : undefined,
+        });
+        focusNext.current = landsOn === undefined ? null : { rowId: landsOn.id, columnId: 'name' };
+      }),
+    [api, flat, run, siblingsOf],
+  );
+
   /** Removes a wholly empty row, landing the focus on the row above it. */
   const removeEmptyRow = useCallback(
     (row: TreeRow) =>
@@ -1466,10 +1527,11 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    * The grid is the table, not one row: at the end of a row Tab walks into the
    * first field of the next. Only at the grid's own edge — past the last
    * editable cell of the last row — does `focusAdjacentCell` return false and
-   * the key go to the browser, which lands on that row's Duplicate and Delete.
-   * That is the point rather than a leak: the actions are reachable at the end
-   * of the table and never from the middle of a row, and no focus trap is added
-   * to stop a reader Tabbing out of the table altogether.
+   * the key go to the browser, which lands on that row's ⋯ button. That is the
+   * point rather than a leak: the actions are reachable at the end of the table
+   * and never from the middle of a row, and no focus trap is added to stop a
+   * reader Tabbing out of the table altogether. One stop per row since the
+   * actions became a menu; it was two while they were buttons.
    *
    * Proof: dropped from the handler chain, `walks every field of a row in turn,
    * and on into the next row` failed at the first cell that no longer moved.
@@ -2038,7 +2100,9 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     api,
     projectId,
     run,
+    busy,
     duplicateRow,
+    deleteRow,
     onKeyDown,
     onTabKey,
     onArrowKey,
@@ -2051,6 +2115,8 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     showSchedule,
     depPicker,
     setDepPicker,
+    openMenuRowId,
+    setOpenMenuRowId,
     depEntriesFor,
     pickDependency,
     moveDepHighlight,
@@ -2078,7 +2144,9 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     api,
     projectId,
     run,
+    busy,
     duplicateRow,
+    deleteRow,
     onKeyDown,
     onTabKey,
     onArrowKey,
@@ -2091,6 +2159,8 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     showSchedule,
     depPicker,
     setDepPicker,
+    openMenuRowId,
+    setOpenMenuRowId,
     depEntriesFor,
     pickDependency,
     moveDepHighlight,
@@ -2883,47 +2953,53 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         id: 'actions',
         header: () => <span aria-label="Row actions" />,
         cell: ({ row }) => (
-          <>
-            {/*
-              Offered on a frozen row as well, unlike Delete and unlike moving
-              one: a freeze pins the number a row left the tool under, and the
-              copy is given none. Copying is not moving.
-
-              Labelled with the row's number because every row has one of
-              these, and `Duplicate` alone would name as many buttons as there
-              are rows — to a screen reader and to a test alike.
-            */}
-            <button
-              type="button"
-              aria-label={`Duplicate ${row.original.number}`}
-              onClick={() => void live.current.duplicateRow(row.original.id)}
-            >
-              Duplicate
-            </button>
-            {row.original.frozenNumber !== null ? (
-              <button
-                type="button"
-                onClick={() =>
-                  void live.current.run(() => live.current.api.unfreeze(row.original.id))
-                }
-              >
-                Unfreeze
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={() =>
-                  void live.current.run(() =>
-                    live.current.api.remove(row.original.id, {
-                      strategy: row.original.subRows.length > 0 ? 'promote' : undefined,
-                    }),
-                  )
-                }
-              >
-                Delete
-              </button>
-            )}
-          </>
+          <ActionsMenu
+            number={row.original.number}
+            // Read through `live`, both of them, for the reason every other
+            // cell here reads its state that way: `columns` may depend on
+            // `roles` and `unfoldedRoles` and nothing else, or a click on one
+            // menu remounts every cell in the table.
+            open={live.current.openMenuRowId === row.original.id}
+            busy={live.current.busy}
+            onOpen={() => {
+              live.current.setOpenMenuRowId(row.original.id);
+            }}
+            onClose={() => {
+              // Only this row's own menu, so a menu that has already been
+              // replaced by another row's cannot close the new one on its way
+              // out.
+              live.current.setOpenMenuRowId((current) =>
+                current === row.original.id ? null : current,
+              );
+            }}
+            actions={[
+              {
+                id: 'duplicate',
+                // Offered on a frozen row as well, unlike Delete and unlike
+                // moving one: a freeze pins the number a row left the tool
+                // under, and the copy is given none. Copying is not moving.
+                label: 'Duplicate',
+                run: () => {
+                  void live.current.duplicateRow(row.original.id);
+                },
+              },
+              row.original.frozenNumber !== null
+                ? {
+                    id: 'unfreeze',
+                    label: 'Unfreeze',
+                    run: () => {
+                      void live.current.run(() => live.current.api.unfreeze(row.original.id));
+                    },
+                  }
+                : {
+                    id: 'delete',
+                    label: 'Delete',
+                    run: () => {
+                      void live.current.deleteRow(row.original);
+                    },
+                  },
+            ]}
+          />
         ),
       }),
     ],

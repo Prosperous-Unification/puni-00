@@ -120,6 +120,12 @@ The modal list of every key binding, opened by `?` from outside a text box. It r
 keyboard out; it does not change it.
 _Avoid_: help, shortcuts dialog, legend
 
+**Actions menu**:
+The list of things one work item can be asked to do — duplicate it, delete it, unfreeze
+its number — behind a single button on its row. One is open at a time, and it owns the
+keyboard while it is.
+_Avoid_: context menu, row menu, kebab, overflow menu
+
 **Toast**:
 One message about something that just happened, shown in a corner of the screen. A failure
 waits there until it is dismissed; a note takes itself off. Reports events only — a

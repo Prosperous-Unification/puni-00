@@ -32,7 +32,10 @@ const COLUMN_WIDTHS = new Map<string, number>([
   ['finish', 70],
   ['float', 90],
   ['notes', 260],
-  ['actions', 110],
+  // One ⋯ button, not a pair of labelled ones: 110 was the width Duplicate and
+  // Delete needed side by side, and the menu they moved into hangs off this
+  // cell rather than living in it.
+  ['actions', 40],
 ]);
 
 /**

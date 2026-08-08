@@ -48,7 +48,7 @@ export const KEY_BINDINGS: readonly KeyBinding[] = [
   },
   {
     keys: 'Tab',
-    does: 'The next field, from any cell, and on into the next row at the end of one. Past the last field in the table it leaves the grid, onto that last row’s Duplicate and Delete. In the name, at the very start, it still indents the row under the one above it.',
+    does: 'The next field, from any cell, and on into the next row at the end of one. Past the last field in the table it leaves the grid, onto that last row’s ⋯ menu. In the name, at the very start, it still indents the row under the one above it.',
     where: 'Editing',
   },
   {

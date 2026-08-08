@@ -55,6 +55,16 @@ describe('the width table', () => {
     expect(widthFor('r1-assignee')).toBeGreaterThan(0);
   });
 
+  it('sizes the actions column for one ⋯ button rather than two labelled ones', () => {
+    // 110px was Duplicate and Delete side by side. They are one menu now, and
+    // the menu hangs off this cell rather than living in it — so the column is
+    // the button's own width, and the 70px it gives back is the first of the
+    // ~500 this table has to lose to stop scrolling sideways at 1280.
+    // Proof: written against the old 110 and watched failing on `expected 110
+    // to be 40`. 2026-08-08.
+    expect(widthFor('actions')).toBe(40);
+  });
+
   it('treats an id it never renders as an error, not a plausible width', () => {
     // A default here is the bug all over again: a column nobody sized would be
     // laid out at one width and offset from another, silently.

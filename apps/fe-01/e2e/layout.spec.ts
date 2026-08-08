@@ -406,6 +406,76 @@ test.describe('the table, measured by a browser', () => {
     ).toBe(true);
   });
 
+  test('opens a row’s actions menu out past the bottom of its own cell', async ({ page }) => {
+    // A row with nothing typed into it, so its cells are one line high and a
+    // two-item menu cannot fit inside one — the same reason the dependency list
+    // above is given three entries. The seeded rows have wrapped names and are
+    // two lines tall.
+    await page.getByRole('button', { name: 'Add work item' }).click();
+    await expect(page.getByLabel('Name of 030')).toBeVisible();
+
+    const actions = page.getByRole('button', { name: 'Actions for 030' });
+    // `actions` is the last column of the table and `elementFromPoint` takes
+    // viewport coordinates: unscrolled, the probe would be off screen.
+    await actions.scrollIntoViewIfNeeded();
+    await actions.click();
+    await expect(page.getByRole('menu')).toBeVisible();
+
+    const escape = await popoverEscape(page, 'actions', '[role="menu"]');
+    // Or the probe below the cell is a probe of empty space.
+    expect(escape.overhang).toBeGreaterThan(8);
+    expect(
+      escape.ownsPixelBelow,
+      `4px below the actions cell is ${escape.found}, not the open menu`,
+    ).toBe(true);
+  });
+
+  test('drives the actions menu from the keyboard, and gives the focus back', async ({ page }) => {
+    // The half jsdom cannot have. `fireEvent` performs no default action, so a
+    // unit test can assert that Tab was left alone and that the button holds
+    // the focus — but not where the browser's own Tab then carries it, and not
+    // that a click on an item lands before the blur closes the menu under it.
+    const label = (): Promise<string | null> =>
+      page.evaluate(() => document.activeElement?.getAttribute('aria-label') ?? null);
+    const focusedText = (): Promise<string | null> =>
+      page.evaluate(() => document.activeElement?.textContent ?? null);
+
+    const actions = page.getByRole('button', { name: 'Actions for 010' });
+    await actions.focus();
+    await page.keyboard.press('ArrowDown');
+
+    await expect(page.getByRole('menu')).toBeVisible();
+    expect(await focusedText()).toBe('Duplicate');
+    await page.keyboard.press('ArrowDown');
+    expect(await focusedText()).toBe('Delete');
+    await page.keyboard.press('ArrowUp');
+    expect(await focusedText()).toBe('Duplicate');
+
+    // Escape closes and hands the focus back to the button it opened from.
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('menu')).toHaveCount(0);
+    expect(await label()).toBe('Actions for 010');
+
+    // Tab out of an open menu is not trapped: the menu closes, the focus goes
+    // back to the button, and the browser's own Tab carries it on from there —
+    // to the next tab stop in the DOM, which is the next row's Name.
+    await page.keyboard.press('Enter');
+    await expect(page.getByRole('menu')).toBeVisible();
+    await page.keyboard.press('Tab');
+    await expect(page.getByRole('menu')).toHaveCount(0);
+    expect(await label()).toBe('Name of 020');
+
+    // And taking an item leaves the caret where the work carries on: in the
+    // copy's Name, which the table asks for once be-01 has taken the copy.
+    await actions.focus();
+    await page.keyboard.press('Enter');
+    await page.keyboard.press('Enter');
+    await expect(page.getByLabel('Name of 020')).toHaveValue(
+      'Survey the existing warehouse racking and photograph every aisle end (copy)',
+    );
+    await expect(page.getByLabel('Name of 020')).toBeFocused();
+  });
+
   test('walks the row with Tab in the order the cells are in the DOM', async ({ page }) => {
     // The production grid's own selector, `readonly` and `disabled` included:
     // a parent's rolled-up figures and the earliest-start cell of a plan with
@@ -515,4 +585,27 @@ test.describe('the table, measured by a browser', () => {
  * a check written only on the rectangles would pass with both popovers sliced
  * off at the cell edge. That is the vacuous version of this test, and the
  * reason the hit test is the assertion and the overhang only its precondition.
+ *
+ * THE TWO ACTIONS-MENU TESTS BELOW HAVE NOT BEEN RUN. They were added on
+ * 2026-08-08 on a machine with no browser, and the faults for them are written
+ * here as instructions rather than as observations —
+ * `openspec/changes/actions-menu/verify.md` says so in the same words. Nothing
+ * in this file may be read as evidence until the run happens on h2puni.
+ *
+ * FAULT E — the actions cell clipping the menu that has to leave it. This is
+ * the narrowest clip in the table: a 140px menu off a 40px cell one line high.
+ *   `wbs-table.tsx`: drop `'actions'` from `POPOVER_COLUMNS`.
+ * Expected: `opens a row’s actions menu out past the bottom of its own cell`
+ * fails on `ownsPixelBelow`, naming whatever shows through instead. The
+ * overhang assertion is expected NOT to fail, for the reason fault D gives.
+ *
+ * FAULT F — the focus not really moving into the menu.
+ *   `actions-menu.tsx`: drop `item.focus()` from the effect that follows the
+ *   active item.
+ * Expected: `drives the actions menu from the keyboard, and gives the focus
+ * back` fails at the first `expect(await focusedText()).toBe('Duplicate')`,
+ * with the ⋯ button still holding the focus. The unit tests catch this one too;
+ * what only a browser can settle is the two assertions after it — where Tab
+ * out of an open menu actually lands, and that a click on an item lands before
+ * the blur closes the menu under it.
  */
