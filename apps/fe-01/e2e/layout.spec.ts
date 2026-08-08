@@ -779,7 +779,7 @@ test.describe('the table, measured by a browser', () => {
   test('fits a deep plan with an unbreakable name and six dependencies', async ({ page }) => {
     // The content fixture: the deepest numbering the indent goes to, a name
     // with no space in it to wrap at, and enough chips in a 110px column to
-    // make the row several lines tall. Every one of those is a way a cell has
+    // make a row several lines tall. Every one of those is a way a cell has
     // pushed its column wider than declared in the past.
     const addRow = page.getByRole('button', { name: 'Add work item' });
     for (const number of ['030', '040', '050', '060', '070']) {
@@ -787,35 +787,45 @@ test.describe('the table, measured by a browser', () => {
       await expect(page.getByLabel(`Name of ${number}`)).toBeVisible();
     }
 
-    // Four levels of indent, which is where `indentFor` stops. A child is
-    // numbered `.1`, not `.010` — the roots are the tens.
-    for (const [number, indented] of [
+    // Four levels deep, which is where `indentFor` stops. Tab indents a row
+    // under its **previous sibling**, so each row takes one more press than
+    // the one before it and passes through the numbers on the way — written
+    // out because guessing them cost a browser run: `030.1.1` was expected
+    // from a single press on 050 and 030.2 is what a single press makes.
+    const chains = [
       ['040', '030.1'],
-      ['050', '030.1.1'],
-      ['060', '030.1.1.1'],
-      ['070', '030.1.1.1.1'],
-    ]) {
-      const box = page.getByLabel(`Name of ${number}`);
-      await box.focus();
-      await box.press('Tab');
-      await expect(page.getByLabel(`Name of ${indented}`)).toBeVisible();
+      ['050', '030.2', '030.1.1'],
+      ['060', '030.2', '030.1.2', '030.1.1.1'],
+      ['070', '030.2', '030.1.2', '030.1.1.2', '030.1.1.1.1'],
+    ];
+    for (const chain of chains) {
+      for (const [step, number] of chain.entries()) {
+        if (step === 0) continue;
+        const box = page.getByLabel(`Name of ${chain[step - 1] ?? ''}`);
+        await box.focus();
+        await box.press('Tab');
+        await expect(page.getByLabel(`Name of ${number}`)).toBeVisible();
+      }
     }
 
     const deep = page.getByLabel('Name of 030.1.1.1.1');
     await deep.fill('Reticulating-the-splines-across-every-warehouse-aisle-end-simultaneously');
     await deep.blur();
 
-    const depends = page.getByLabel('Add a dependency to 030.1.1.1.1');
+    // Six more roots for 020 to wait for — its own subtree cannot supply them,
+    // and an ancestor is a dependency be-01 refuses.
+    const chips = ['040', '050', '060', '070', '080', '090'];
+    for (const number of chips) {
+      await addRow.click();
+      await expect(page.getByLabel(`Name of ${number}`)).toBeVisible();
+    }
+    const depends = page.getByLabel('Add a dependency to 020');
     await depends.click();
-    await depends.fill('010, 020, 030, 030.1, 030.1.1, 030.1.1.1');
+    await depends.fill(chips.join(', '));
     await depends.press('Enter');
-    await expect(
-      page.getByRole('button', { name: 'Stop 030.1.1.1.1 waiting for 010' }),
-    ).toBeVisible();
-    // Six of them, or this fixture is not about a column full of chips.
-    await expect(
-      page.getByRole('button', { name: /^Stop 030\.1\.1\.1\.1 waiting for / }),
-    ).toHaveCount(6);
+    // Seven, with the one the plan was seeded with: a `depends` cell several
+    // lines tall, which is the shape this fixture is for.
+    await expect(page.getByRole('button', { name: /^Stop 020 waiting for / })).toHaveCount(7);
 
     for (const viewport of VIEWPORTS) {
       await page.setViewportSize({ width: viewport.width, height: viewport.height });
