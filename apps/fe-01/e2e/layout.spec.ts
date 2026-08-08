@@ -787,16 +787,19 @@ test.describe('the table, measured by a browser', () => {
       await expect(page.getByLabel(`Name of ${number}`)).toBeVisible();
     }
 
-    // Four levels deep, which is where `indentFor` stops. Tab indents a row
-    // under its **previous sibling**, so each row takes one more press than
-    // the one before it and passes through the numbers on the way — written
-    // out because guessing them cost a browser run: `030.1.1` was expected
-    // from a single press on 050 and 030.2 is what a single press makes.
+    // Four levels deep, which is where `indentFor` stops. Two facts about the
+    // numbering decide every string below, and both cost a browser run to
+    // learn: Tab indents a row under its **previous sibling**, so getting one
+    // level deeper takes one more press; and every number is derived from
+    // position, so indenting a root **renumbers the roots after it** — which
+    // is why each chain starts at `040` again rather than at the row that was
+    // called `050` a moment ago. Guessing produced `030.1.1` from one press,
+    // and then `040.1` from a row that had quietly been renumbered.
     const chains = [
       ['040', '030.1'],
-      ['050', '030.2', '030.1.1'],
-      ['060', '030.2', '030.1.2', '030.1.1.1'],
-      ['070', '030.2', '030.1.2', '030.1.1.2', '030.1.1.1.1'],
+      ['040', '030.2', '030.1.1'],
+      ['040', '030.2', '030.1.2', '030.1.1.1'],
+      ['040', '030.2', '030.1.2', '030.1.1.2', '030.1.1.1.1'],
     ];
     for (const chain of chains) {
       for (const [step, number] of chain.entries()) {
