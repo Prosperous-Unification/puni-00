@@ -34,12 +34,11 @@ is being written in, and shrinks after` was about a box that no longer exists,
 and `makes room for a note written under the name, focus or no focus` asks the
 same question of the box the note is written in now.
 
-**The two Playwright tests in `apps/fe-01/e2e/layout.spec.ts` have not been
-run.** There is no browser on this machine. They are written, they are
-type-checked and linted by `fe-01:typecheck` and `fe-01:lint` through
-`tsconfig.e2e.json`, and their faults are recorded below as **expectations, not
-observations** — the same wording is in the spec's own footer so nobody reads it
-as evidence.
+**The two Playwright tests in `apps/fe-01/e2e/layout.spec.ts` were not run at
+that commit** — there is no browser on this machine. They ran on h2puni on
+2026-08-08, during change 3, and the section below has been rewritten from
+expectations into observations. One of them **found a real bug on its first
+run**, which is recorded there rather than glossed.
 
 ## The checks, and the faults that broke them
 
@@ -147,27 +146,49 @@ guarded away: delete-line-1 renames, an empty first line commits no name,
 `'name\n'` is no notes at all, and a blank line with something under it stays
 inside the notes.
 
-### The browser spec — expectations, not observations
+### The browser spec — RUN, both faults observed, and one real bug found
 
-Written on a machine with no browser. Both faults are named in the footer of
-`apps/fe-01/e2e/layout.spec.ts` as instructions for the h2puni run, and neither
-has been seen to fail:
+**Run on h2puni on 2026-08-08**, inside the official Playwright image against
+the real three-tier stack — the branch at `5e0e6bc`, 22 tests, all passing
+before and after each fault, one fault at a time. codex's round-1 finding 4
+asked for exactly this section.
 
-- **Fault G** — `'name'` dropped from `POPOVER_COLUMNS`. Expected: `opens the
-notes preview out past the bottom of the name cell` fails on
-  `ownsPixelBelow`, naming what shows through instead. The overhang assertion
-  is expected _not_ to fail, for the reason fault D already recorded:
-  `getBoundingClientRect` reports a clipped box at its full unclipped size.
-- **Fault H** — the caret rule written against logical lines rather than the
-  ends of the value, which is what v1 of the plan proposed. Expected: `moves the
-caret through a wrapped name before it leaves the row` fails at
-  `await expect(name).toBeFocused()`, the row above having taken the focus while
-  the caret still had visual lines to climb.
+| Check                                                | Fault injected                                                  | What the run reported                                                                                                                                             |
+| ---------------------------------------------------- | --------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| The Name cell does not clip the preview (G)          | `'name'` dropped from `POPOVER_COLUMNS`                         | **1 failed** — `opens the notes preview out past the bottom of the name cell`, on `4px below the name cell is <textarea> in the name column, not the preview`     |
+| ↑ in a wrapped name moves the caret, not the row (H) | the `caret.multiline` gate's `caret.atStart` replaced by `true` | **1 failed** — `moves the caret through a wrapped name before it leaves the row`, at `await expect(name).toBeFocused()` — `Expected: focused, Received: inactive` |
+
+Fault H's instruction named `!caret.textBefore.includes('\n')`, and `Caret` has
+no such field. For a name that is **one logical line** — which this fixture's
+deliberately is — the logical-line rule the plan's v1 proposed evaluates to
+`true` at every caret position, so `true` is that rule, injected. The
+substitution is recorded in the spec's footer beside the observation.
+
+### The bug this test found before any fault was injected
+
+`opens the notes preview out past the bottom of the name cell` **failed on its
+very first browser run with the code exactly as this change shipped it** —
+`4px below the name cell is <textarea> in the name column, not the preview`,
+the identical sentence fault G produces. `opensAPopover` was already right and
+made no difference to it.
+
+The cause is the combination this document called out as unmeasured (assumption
+C2-11, "no cell in this table has been both pinned and a popover column
+before"). A pinned cell is `position: sticky` **with a z-index**, which makes
+it a stacking context — so the preview inside it was trapped there, and the
+_next_ row's pinned Name cell painted straight over it however high the
+preview's own z-index went. In pixels the preview was invisible; in jsdom every
+rule was on the right element.
+
+Fixed in the change-3 commit that carries this run: `table-frame.ts` gains a
+`POPOVER_ROW_LAYER` between the pinned body cells and the heading, and the
+hovered row's Name cell is lifted to it. `lifts the hovered row above the
+pinned cells the preview opens over` in `wbs-table.test.tsx` pins the rule, and
+fault G is now distinguishable from the bug that was underneath it.
 
 Fault D's second observation — `4px below the notes cell is <textarea> in the
-notes column, not the preview` — was made on 2026-08-08 while a Notes column
-still existed. The preview hangs off the Name cell now and that fault has not
-been re-run against it; the footer says so where the observation is recorded.
+notes column, not the preview` — was made while a Notes column still existed.
+Fault G above is that fault re-run against the Name cell it moved into.
 
 ## What is proven, and by what
 
@@ -195,11 +216,11 @@ clause, so both new arrow tests were added to the map and
 `wbs-table.test.tsx`; the ones this change rewrote kept their names, which was
 checked rather than hoped for.
 
-**Not verified here:** anything needing a rendering engine. That the preview is
-really unclipped in pixels now that it hangs off a _pinned_ column — a
-combination this table has never had — and that ↑ in a wrapped name moves the
-caret rather than the focus. Both are the browser spec's, and the browser spec
-has not run. h1claw has no browser and does not build.
+**Verified in a browser on h2puni, 2026-08-08:** that the preview is really
+unclipped in pixels now that it hangs off a _pinned_ column — which took a fix
+to become true, see above — and that ↑ in a wrapped name moves the caret rather
+than the focus. Both were this document's open items; both now have a run
+behind them, and the first of them is the reason running it mattered.
 
 **Deliberately not covered:** typing a newline. Enter is still "new work item"
 in this change — the chord that makes it a newline is `command-keys`, section 4

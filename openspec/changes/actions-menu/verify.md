@@ -27,12 +27,11 @@ row), and **1** in `table-frame.test.ts` (the width). Four existing tests were
 rewritten to go through the menu rather than the two buttons it replaced, and
 two more had a stale sentence corrected; none was deleted.
 
-**The two new tests in `apps/fe-01/e2e/layout.spec.ts` have not been run.**
-There is no browser on this machine. They are written, they are type-checked
-and linted by `fe-01:typecheck` and `fe-01:lint` through `tsconfig.e2e.json`,
-and the faults for them are recorded below as **expectations, not
-observations** — the same wording is in the spec's own footer so nobody reads
-it as evidence.
+**The two new tests in `apps/fe-01/e2e/layout.spec.ts` were not run at that
+commit** — there is no browser on this machine. They ran on h2puni on
+2026-08-08, during change 3, and the section below has been rewritten from
+expectations into observations. Nothing in this document is a prediction any
+more.
 
 ## The checks, and the faults that broke them
 
@@ -72,29 +71,48 @@ Unfreeze and popover tests rewritten to go through the menu.
 | -------------------------- | ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
 | `actions` is 40px, not 110 | the test run against the unchanged width table | `sizes the actions column for one ⋯ button rather than two labelled ones` failed on `expected 110 to be 40` |
 
-### The browser spec — expectations, not observations
+### The browser spec — RUN, and both faults observed
 
-Written on a machine with no browser. Both faults are named in the footer of
-`apps/fe-01/e2e/layout.spec.ts` as instructions for the h2puni run, and neither
-has been seen to fail:
+**Run on h2puni on 2026-08-08**, inside the official Playwright image, against
+the real three-tier stack — the branch at `5e0e6bc`, 22 tests, all passing
+before and after each fault, one fault at a time. This section replaces the
+expectations that stood here; codex's round-1 finding 4 asked for exactly that.
 
-- **Fault E** — `'actions'` dropped from `POPOVER_COLUMNS`. Expected:
-  `opens a row’s actions menu out past the bottom of its own cell` fails on
-  `ownsPixelBelow`, naming what shows through instead. The overhang assertion
-  is expected _not_ to fail, for the reason the existing fault D records:
-  `getBoundingClientRect` reports a clipped box at its full unclipped size.
-- **Fault F** — `item.focus()` dropped from the effect that follows the active
-  item. Expected: `drives the actions menu from the keyboard, and gives the
-focus back` fails at its first assertion, with the ⋯ button still holding the
-  focus.
+| Check                                       | Fault injected                                                      | What the run reported                                                                                                                                                                                                               |
+| ------------------------------------------- | ------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| The actions cell does not clip its menu (E) | `'actions'` dropped from `POPOVER_COLUMNS`                          | **2 failed** — `opens a row’s actions menu out past the bottom of its own cell` and `opens the last row’s actions menu at the right edge of a laptop`, on `4px below the actions cell is <div> in the no column, not the open menu` |
+| DOM focus really moves into the menu (F)    | `item.focus()` dropped from the effect that follows the active item | **1 failed** — `drives the actions menu from the keyboard, and gives the focus back`, on `Expected: "Duplicate", Received: "⋯"` — the ⋯ button still holding the focus                                                              |
 
-The prediction most likely to be wrong is the Tab one, and it is worth naming
-in advance: the spec expects Tab out of an open menu to land on the **next
-row's Name**, because the menu closes and returns the focus to its own button
-synchronously and the browser's Tab then walks the DOM from there. If React's
-flush happens after the default action instead, the focus will land on the
-menu item that is still on screen — which is a real focus trap and a bug, not a
-test to relax.
+Two things the predictions got right and one they could not have: the overhang
+assertions did **not** fail under E, exactly as fault D's note said they would
+not; `drives the actions menu from the keyboard` passed throughout E, because
+clipping is invisible to the focus; and the menu's own tests could not tell
+either of those apart until a browser did.
+
+### The Tab prediction, settled
+
+This document named the assertion most likely to be wrong: Tab out of an open
+menu was expected to land on the **next row's Name**, and would have landed on
+the still-open menu item if React flushed the close _after_ the browser's
+default action — a real focus trap, and a bug rather than a test to relax.
+
+**It lands on `Name of 020`.** `expect(await label()).toBe('Name of 020')`
+passed on the first browser run and on every run since, and so did the
+click-beats-blur assertion after it (`Duplicate` taken by Enter, the copy's
+Name focused with the copied text in it). The close and the focus return are
+synchronous inside the handler, so the browser's Tab acts on the ⋯ button, and
+the menu is already gone. Nothing was changed.
+
+### What the browser also found
+
+Two of this change's own tests **could not have passed**, and only a run could
+say so. `keeps every control inside the cell it belongs to` asserted more than
+twelve controls from a plan that has held exactly twelve since the Notes column
+moved into the Name cell; and this change's own menu-escape test opened the
+LAST row's menu and probed the FIRST row's cell — `no [role="menu"] is open in
+tbody tr:first-child td[data-column="actions"]`, a throw it could only ever
+have produced. Both are fixed in the commit that carries this run, and the
+spec's footer records them.
 
 ## What is proven, and by what
 
@@ -111,11 +129,11 @@ row's ⋯ menu"), and `PROVEN_BY` names behaviour tests rather than copy, so
 nothing in it needed to move — `keyboard-cheat-sheet.test.tsx`, 21 passed, run
 after the rewording.
 
-**Not verified here:** anything needing a rendering engine. That the menu is
-really unclipped in pixels, that DOM focus lands where the arrows say in a real
-browser, where Tab out of the menu goes, and that a click on an item beats the
-blur that closes it — all four are the browser spec's, and the browser spec has
-not run. h1claw has no browser and does not build.
+**Verified in a browser on h2puni, 2026-08-08:** that the menu is really
+unclipped in pixels, on the last row and at the right-hand edge of a 1280px
+window; that DOM focus lands where the arrows say; where Tab out of the menu
+goes; and that a click on an item beats the blur that closes it. All four were
+this document's open items and all four now have a run behind them.
 
 **Deliberately not covered:** a menu opened by a keyboard chord (there is
 none — Tab past the last field of the last row is still how the ⋯ button is
@@ -129,6 +147,5 @@ handler called `preventDefault`, and that the menu closed with the focus back
 on the button. It cannot assert the third, which is where the focus then goes,
 because jsdom performs no default action for a synthetic key event. A menu that
 closed and left the focus on the button but was somehow still in the tab order
-would pass it. That gap is exactly what the browser spec's Tab assertion is
-for, and it is the reason that assertion is written even though it cannot be
-run yet.
+would pass it. That gap is what the browser spec's Tab assertion is for, and
+that assertion has now run: the focus lands on the next row's Name.

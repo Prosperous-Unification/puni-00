@@ -1119,49 +1119,108 @@ test.describe('the table, measured by a browser', () => {
  * off at the cell edge. That is the vacuous version of this test, and the
  * reason the hit test is the assertion and the overhang only its precondition.
  *
- * THE TWO ACTIONS-MENU TESTS BELOW HAVE NOT BEEN RUN. They were added on
- * 2026-08-08 on a machine with no browser, and the faults for them are written
- * here as instructions rather than as observations —
- * `openspec/changes/actions-menu/verify.md` says so in the same words. Nothing
- * in this file may be read as evidence until the run happens on h2puni.
- *
  * FAULT E — the actions cell clipping the menu that has to leave it. This is
- * the narrowest clip in the table: a 140px menu off a 40px cell one line high.
+ * the narrowest clip the actions column can have: a 140px menu off a 40px cell
+ * one line high.
  *   `wbs-table.tsx`: drop `'actions'` from `POPOVER_COLUMNS`.
- * Expected: `opens a row’s actions menu out past the bottom of its own cell`
- * fails on `ownsPixelBelow`, naming whatever shows through instead. The
- * overhang assertion is expected NOT to fail, for the reason fault D gives.
+ * Observed on h2puni, 2026-08-08: BOTH menu-escape tests failed on
+ * `ownsPixelBelow` — `4px below the actions cell is <div> in the no column,
+ * not the open menu`, and the same sentence for the last row's. The overhang
+ * assertions did NOT fail, as fault D predicted, and `drives the actions menu
+ * from the keyboard` passed throughout: clipping is invisible to the focus.
  *
  * FAULT F — the focus not really moving into the menu.
  *   `actions-menu.tsx`: drop `item.focus()` from the effect that follows the
  *   active item.
- * Expected: `drives the actions menu from the keyboard, and gives the focus
- * back` fails at the first `expect(await focusedText()).toBe('Duplicate')`,
- * with the ⋯ button still holding the focus. The unit tests catch this one too;
- * what only a browser can settle is the two assertions after it — where Tab
- * out of an open menu actually lands, and that a click on an item lands before
- * the blur closes the menu under it.
+ * Observed on h2puni, 2026-08-08: `drives the actions menu from the keyboard,
+ * and gives the focus back` failed at the first `expect(await
+ * focusedText()).toBe('Duplicate')` — `Expected: "Duplicate", Received: "⋯"`,
+ * the ⋯ button still holding the focus, exactly as predicted.
  *
- * THE TWO NOTES-IN-THE-NAME TESTS HAVE NOT BEEN RUN EITHER. Added on
- * 2026-08-08 on the same machine with no browser;
- * `openspec/changes/notes-live-in-the-name/verify.md` says so in the same
- * words. Faults G and H are instructions, not observations.
+ * THE TAB PREDICTION, SETTLED. `actions-menu/verify.md` named the assertion
+ * most likely to be wrong: Tab out of an open menu was expected to land on the
+ * next row's Name, and would have landed on the still-open menu item if React
+ * flushed the close after the browser's default action — a real focus trap.
+ * It lands on `Name of 020`. The whole keyboard test passed on the first
+ * browser run and on every run since. No bug, no change.
  *
  * FAULT G — the Name cell clipping the preview that now hangs off it. It is a
- * pinned column as well, which is the combination nothing has measured.
+ * pinned column as well, which is the combination nothing had measured.
  *   `wbs-table.tsx`: drop `'name'` from `POPOVER_COLUMNS`.
- * Expected: `opens the notes preview out past the bottom of the name cell`
- * fails on `ownsPixelBelow`, naming what shows through instead. The overhang
- * assertion is expected NOT to fail, for the reason fault D gives.
+ * Observed on h2puni, 2026-08-08: `opens the notes preview out past the bottom
+ * of the name cell` failed on `4px below the name cell is <textarea> in the
+ * name column, not the preview`. The overhang assertion did not fail.
+ *
+ * AND THE SAME SENTENCE WITH NO FAULT AT ALL, which is how this test found a
+ * real bug on its very first browser run. A pinned cell is `position: sticky`
+ * **with a z-index**, so it is a stacking context — the preview inside it was
+ * trapped there and the *next* row's pinned Name cell painted straight over
+ * it, whatever the preview's own z-index said. `opensAPopover` was already
+ * correct and made no difference. Fixed by lifting the hovered row's Name cell
+ * to `POPOVER_ROW_LAYER` (`table-frame.ts`), which is why the fault above can
+ * now be told apart from the bug underneath it.
  *
  * FAULT H — the caret rule written against logical lines instead of the ends
  * of the value, which is what a browser is needed to tell apart.
- *   `cell-navigation.ts`: replace the `caret.multiline` gate's
- *   `caret.atStart` with `!caret.textBefore.includes('\n')` — the rule v1 of
- *   the plan proposed, "leave from the first logical line".
- * Expected: `moves the caret through a wrapped name before it leaves the row`
- * fails at `await expect(name).toBeFocused()`, with the focus on `Name of 010`
- * — the row above taken while the caret still had two visual lines to climb.
- * jsdom cannot see this at all: it wraps nothing, so a name of any length is
- * one visual line there and both rules agree.
+ *   `cell-navigation.ts`: the `caret.multiline` gate's `caret.atStart`
+ *   replaced by `true`. The plan's instruction named
+ *   `!caret.textBefore.includes('\n')`, and `Caret` has no such field — for a
+ *   name that is ONE logical line, which this fixture's is, that rule is
+ *   `true` at every caret position, so this is that rule injected.
+ * Observed on h2puni, 2026-08-08: `moves the caret through a wrapped name
+ * before it leaves the row` failed at `await expect(name).toBeFocused()` —
+ * `Expected: focused, Received: inactive`, the row above taken while the caret
+ * still had visual lines to climb. jsdom cannot see this at all.
+ *
+ * FAULT I — a fixed width for the Name column, which is the table that made
+ * the window fit it rather than the other way round.
+ *   `table-frame.ts`: `['name', 360]` back in `COLUMN_WIDTHS` and `name` out
+ *   of `FLEXIBLE_COLUMNS`.
+ * Observed on h2puni, 2026-08-08: three failed — `fits every laptop width with
+ * the roles folded` on `1280×800: the folded equation should fit this viewport,
+ * Expected: <= 1200, Received: 1304`; `gives the name column everything the
+ * other columns did not take` on `Expected: 256, Received: 360`; and the deep
+ * fixture on `the frame scrolls sideways with 1304px of table in 1200px of
+ * frame`.
+ *
+ * FAULT J — the backstop under the minimum: the pin itself.
+ *   `table-frame.ts`: drop `'name'` from `PINNED_COLUMNS`.
+ * Observed on h2puni, 2026-08-08: three failed, all on `declaredLeft`'s own
+ * refusal — `Error: name is not a pinned column` — including `scrolls the
+ * frame below the table's minimum, with the name still pinned`. That throw is
+ * the check doing its job: a spec that asked where an unpinned column sits
+ * would otherwise compare a measurement against nothing.
+ *
+ * FAULT K — the date column narrower than the browser will have it.
+ *   `table-frame.ts`: `['not-before', 146]` → 60.
+ * Observed on h2puni, 2026-08-08: two failed — `the earliest-start field is
+ * 52px where this browser wants 138px, so its value is cut off, Expected: >=
+ * 137, Received: 52`.
+ * THE FIRST VERSION OF THIS ASSERTION COULD NOT FAIL, and it is recorded
+ * because that is the failure mode this repository keeps having. It compared
+ * the input's `scrollWidth` against its `clientWidth`; Chromium lays an
+ * `input[type=date]` out at whatever width it is given and clips its own
+ * internals *inside* the element, so at 60px it reported no overflow at all
+ * and every assertion passed. What replaced it measures an unconstrained
+ * `input[type=date]` in the table's own font and holds the column against that
+ * — which is also what moved `not-before` from the planned 108 to 146.
+ *
+ * FAULT L — the folded role's cell clipping the `@` people picker, which is
+ * the narrowest clip in the table: a list off a 96px cell one line high.
+ *   `wbs-table.tsx`: drop the `-final` suffix from `opensAPopover`.
+ * Observed on h2puni, 2026-08-08: `opens the folded role's @ picker out past
+ * the bottom of a 96px cell` failed on `4px below the folded QA cell is <div>
+ * in the no column, not the open list`.
+ *
+ * FOUR TESTS IN THIS FILE COULD NOT HAVE PASSED, and a browser is the only
+ * thing that could say so. They were written on a machine with none, over
+ * changes 1 and 2, and the first run on h2puni reported every one of them:
+ * `keeps every control inside the cell it belongs to` wanted more than twelve
+ * boxes from a plan that has held exactly twelve since the Notes column moved
+ * into the Name cell; `opens a row's actions menu out past the bottom of its
+ * own cell` opened the LAST row's menu and probed the FIRST row's cell, which
+ * could only ever throw; `moves the caret through a wrapped name` divided by
+ * `parseFloat('normal')`, which is `NaN`, so its wrapping precondition was
+ * unfailable; and the dependency-list test clicked a box on the one row whose
+ * list has nothing left to offer. All four are fixed above.
  */
