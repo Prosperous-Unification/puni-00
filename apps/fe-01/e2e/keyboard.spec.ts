@@ -208,7 +208,11 @@ test.describe('the command chords, in a browser', () => {
       await route.continue();
     });
 
-    const team = page.getByLabel('Service or team for 010');
+    // By role, not by label: the list this box opens carries the same
+    // `aria-label` — it is the accessible name of the pair — so `getByLabel`
+    // matches both and Playwright refuses in strict mode. Observed on h2puni,
+    // 2026-08-08.
+    const team = page.getByRole('combobox', { name: 'Service or team for 010' });
     await team.click();
     await team.pressSequentially('Platform');
     await expect(page.getByRole('listbox', { name: 'Service or team for 010' })).toBeVisible();
