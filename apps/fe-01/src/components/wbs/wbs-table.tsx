@@ -630,8 +630,8 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    *
    * **At most one, which is what makes the table fit.** A folded role costs
    * 96px and an unfolded one 372, and the width equation in `table-frame.ts`
-   * says the difference plainly: two folded roles need 1106px and fit a 1280
-   * laptop, while one of them unfolded needs 1382 and does not. So this is an
+   * says the difference plainly: two folded roles need 1144px and fit a 1280
+   * laptop, while one of them unfolded needs 1420 and does not. So this is an
    * accordion — unfolding a role folds whichever was open — rather than a set
    * that can grow until the dates fall off the screen again. Dany's call,
    * 2026-08-08.

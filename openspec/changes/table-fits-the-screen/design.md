@@ -14,8 +14,8 @@ scrolls and the pinned columns hold the left edge exactly as they always have.
 
 `tableMinWidth` is computed per render from the columns actually on screen, and
 that is what makes it honest rather than a constant somebody has to remember to
-update: two roles folded is `714 + 192 + 200 = 1106`, one of them open is
-`714 + 372 + 96 + 200 = 1382`. The first fits a 1280 laptop and the second does
+update: two roles folded is `752 + 192 + 200 = 1144`, one of them open is
+`752 + 372 + 96 + 200 = 1420`. The first fits a 1280 laptop and the second does
 not, and the accordion below is that difference made into behaviour.
 
 `table-frame.test.ts` pins those three numbers and `wbs-table.test.tsx` asserts

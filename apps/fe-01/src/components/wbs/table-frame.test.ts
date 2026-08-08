@@ -139,7 +139,7 @@ describe('the width table', () => {
       depends: 110,
       team: 120,
       'final-total': 52,
-      'not-before': 108,
+      'not-before': 146,
       start: 52,
       finish: 52,
       float: 56,
@@ -176,13 +176,13 @@ describe('the width table', () => {
       'float',
       'actions',
     ];
-    // 714px of fixed columns plus Name's 200px floor. The three states the
+    // 752px of fixed columns plus Name's 200px floor. The three states the
     // browser gate measures, computed here so a width change that breaks one
     // of them fails in the repo gate rather than only in a browser:
     // two roles folded fits a 1280 laptop, three folded still does, and one
     // role unfolded does not — which is why unfolding is an accordion.
-    expect(tableMinWidth([...fixed, 'r1-final', 'r2-final'])).toBe(1106);
-    expect(tableMinWidth([...fixed, 'r1-final', 'r2-final', 'r3-final'])).toBe(1202);
+    expect(tableMinWidth([...fixed, 'r1-final', 'r2-final'])).toBe(1144);
+    expect(tableMinWidth([...fixed, 'r1-final', 'r2-final', 'r3-final'])).toBe(1240);
     expect(
       tableMinWidth([
         ...fixed,
@@ -193,7 +193,7 @@ describe('the width table', () => {
         'r1-assignee',
         'r2-final',
       ]),
-    ).toBe(1382);
+    ).toBe(1420);
   });
 
   it('makes the declared width include the cell chrome, and clips what overruns', () => {

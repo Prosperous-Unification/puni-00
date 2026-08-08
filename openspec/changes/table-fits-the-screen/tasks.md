@@ -13,8 +13,8 @@
       flexible set.
 - [x] 1.3 `tableMinWidth` replaces `tableWidth`, budgeting the floor for each
       flexible column.
-      **Tests:** the three states — two folded 1106, three folded 1202, one
-      unfolded 1382.
+      **Tests:** the three states — two folded 1144, three folded 1240, one
+      unfolded 1420.
       **Negative test:** the flexible branch replaced by `widthFor`, and by
       `0`.
 - [x] 1.4 `PINNED_COLUMNS` carries `width: undefined` for a flexible column and

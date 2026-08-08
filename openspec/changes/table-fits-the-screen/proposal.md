@@ -16,10 +16,10 @@ remaining column is compacted to the figure it actually holds, and the Name
 column stops being a number at all.
 
 The arithmetic is the point, and it is why this is a change rather than a
-tidy-up. With the v1.1 widths the fixed columns come to **714px**; Name's floor
+tidy-up. With the v1.1 widths the fixed columns come to **752px**; Name's floor
 is **200**; a folded role is **96** and an unfolded one **372**. So two roles
-folded need 1106px and fit a 1280 laptop with room to spare, while one of them
-unfolded needs 1382 and does not — which is what makes unfolding an accordion
+folded need 1144px and fit a 1280 laptop with room to spare, while one of them
+unfolded needs 1420 and does not — which is what makes unfolding an accordion
 rather than a set, and what keeps the pinned columns as the backstop under
 everything narrower than the state's own minimum.
 
@@ -33,7 +33,9 @@ instead of an estimate column that hides the person until 372px are spent.
 
 - `table-frame.ts`: every fixed column compacted (drag 28→24, number 168→100
   with the indent step 16→12, depends 220→110, team 160→120, final-total 70→52,
-  not-before 130→108, start 70→52, finish 70→52, float 90→56; a folded role
+  not-before 130→146 — more than it was asked to be, because an unconstrained
+  `input[type=date]` asks this Chromium for 138px and the browser gate is what
+  found that out — start 70→52, finish 70→52, float 90→56; a folded role
   110→96, a point box 76→52, an unfolded assignee 160→120).
 - `name` leaves the width table for a `FLEXIBLE_COLUMNS` set: the `<colgroup>`
   emits no width for it and it absorbs whatever the others leave. `widthFor`
@@ -52,8 +54,8 @@ instead of an estimate column that hides the person until 372px are spent.
 
 **One role open at a time**
 
-- Unfolding a role folds whichever was open. Not a preference: 1106px fits a
-  laptop and 1382 does not.
+- Unfolding a role folds whichever was open. Not a preference: 1144px fits a
+  laptop and 1420 does not.
 
 **`@` assigns from the folded cell**
 

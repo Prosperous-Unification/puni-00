@@ -18,7 +18,7 @@ import { POINTS } from './estimate-draft';
  * These numbers are the compaction Dany asked for on 2026-08-08 ("compact
  * every column as far as it will go"), and every one of them is a figure the
  * browser gate measures rather than a preference: the table has to fit a
- * 1280px laptop with two roles folded, and `714 + 2×96 + 200` is what makes
+ * 1280px laptop with two roles folded, and `752 + 2×96 + 200` is what makes
  * that true. `name` is deliberately absent — see {@link FLEXIBLE_COLUMNS}.
  *
  * A `Map` rather than a plain object because the id being looked up is a
@@ -38,11 +38,14 @@ const COLUMN_WIDTHS = new Map<string, number>([
   ['depends', 110],
   ['team', 120],
   ['final-total', 52],
-  // The native date input's own furniture — a spinner and a picker icon —
-  // decides this one, and the browser gate asserts the value is not clipped at
-  // it. If a rendering ever refuses 108 the number moves up to what the
-  // assertion finds.
-  ['not-before', 108],
+  // The one column this repository does not get to choose. A native date
+  // input's own furniture — the separators, the spinner and the picker icon —
+  // sets a floor, and the browser gate measures it rather than arguing with
+  // it: an unconstrained `input[type=date]` in the table's font asks Chromium
+  // for **138px**, so the column is that plus {@link CELL}'s 8px of padding.
+  // The plan proposed 108; a browser said no, and the assertion is what the
+  // number moves with if a future one asks for more.
+  ['not-before', 146],
   ['start', 52],
   ['finish', 52],
   ['float', 56],
@@ -144,8 +147,8 @@ export function widthFor(columnId: string): number {
  * `sticky-table-frame` built and Dany kept.
  *
  * It is a per-state number rather than a constant, and that is what makes it
- * honest: two roles folded is `714 + 192 + 200 = 1106`, one of them unfolded is
- * `714 + 372 + 96 + 200 = 1382`. The first fits a 1280 laptop and the second
+ * honest: two roles folded is `752 + 192 + 200 = 1144`, one of them unfolded is
+ * `752 + 372 + 96 + 200 = 1420`. The first fits a 1280 laptop and the second
  * does not — which is why unfolding is an accordion, and why the number is
  * computed from the columns actually on screen rather than asserted once.
  *

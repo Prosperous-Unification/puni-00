@@ -1703,8 +1703,8 @@ describe('role columns fold away', () => {
 
   itDom('unfolds one role at a time, so the table still fits the window', async () => {
     // The accordion, and it is arithmetic rather than taste: a folded role
-    // costs 96px and an unfolded one 372, so two roles folded need 1106px and
-    // fit a 1280 laptop while one of them open needs 1382 and does not.
+    // costs 96px and an unfolded one 372, so two roles folded need 1144px and
+    // fit a 1280 laptop while one of them open needs 1420 and does not.
     // `table-frame.test.ts` pins those three numbers; this is the behaviour
     // that keeps the table on the second of them.
     // Proof: `toggleRole` put back to `[...current, roleId]`, this failed on
@@ -1718,14 +1718,14 @@ describe('role columns fold away', () => {
     expect(screen.getByLabelText('QA optimistic for 010')).toBeDefined();
     expect(screen.queryByLabelText('Dev optimistic for 010')).toBeNull();
     // And the width the table declares follows, which is the whole reason.
-    expect(screen.getByRole('table').style.minWidth).toBe('1382px');
+    expect(screen.getByRole('table').style.minWidth).toBe('1420px');
 
     // Folding the open one leaves nothing open, rather than putting the other
     // one back.
     fireEvent.click(screen.getByRole('button', { name: 'Fold QA estimates' }));
     expect(screen.queryByLabelText('QA optimistic for 010')).toBeNull();
     expect(screen.queryByLabelText('Dev optimistic for 010')).toBeNull();
-    expect(screen.getByRole('table').style.minWidth).toBe('1106px');
+    expect(screen.getByRole('table').style.minWidth).toBe('1144px');
   });
 
   itDom('says what the fold button does, which is no longer hiding the assignee', async () => {
@@ -4892,17 +4892,17 @@ describe('the widths the table is laid out by', () => {
     // total is what this replaces: it made the window fit the table.
     // Proof: the `<table>` put back to a declared total —
     // `width: tableMinWidth(leafColumnIds)` with no `minWidth` — this failed
-    // on `expected '1382px' to be '100%'`. Watched, 2026-08-08.
+    // on `expected '1420px' to be '100%'`. Watched, 2026-08-08.
     expect(table.style.width).toBe('100%');
     expect(table.style.minWidth).toBe(`${String(tableMinWidth(columnIds))}px`);
     // Not a constant, which is the point of computing it per render: this
-    // plan has Dev unfolded and QA folded, so the floor is the 714px of fixed
+    // plan has Dev unfolded and QA folded, so the floor is the 752px of fixed
     // columns plus 372 for the open role, 96 for the closed one and Name's
-    // 200. Folded it would be 1106 — the difference is why unfolding is an
+    // 200. Folded it would be 1144 — the difference is why unfolding is an
     // accordion.
-    expect(table.style.minWidth).toBe('1382px');
+    expect(table.style.minWidth).toBe('1420px');
     fireEvent.click(screen.getByRole('button', { name: 'Fold Dev estimates' }));
-    expect(screen.getByRole('table').style.minWidth).toBe('1106px');
+    expect(screen.getByRole('table').style.minWidth).toBe('1144px');
   });
 
   itDom('gives every cell the chrome its declared width is measured with', async () => {
