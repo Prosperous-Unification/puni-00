@@ -393,6 +393,9 @@ export function schedule(
     if (place.at === 0) baseOf.set(place.workItemId, start);
     const base = baseOf.get(place.workItemId) ?? start;
     earliestStart.set(key, start);
+    // Anchored, not accumulated. Proof: written as `start + days`, `answers what
+    // the previous engine answered` failed at seed 260 — a work item's late start
+    // of 10.666666666666666 became 10.666666666666668; watched 2026-08-09.
     earliestFinish.set(key, base + offsets[place.at + 1]);
   }
 
@@ -415,6 +418,10 @@ export function schedule(
     const ceiling = ceilingOf.get(place.workItemId) ?? finish;
     const total = offsets[own.length];
     latestFinish.set(key, finish);
+    // Anchored for the same reason, from the other end. Proof: written as
+    // `finish - days`, the differential failed at seed 255 with a late start of
+    // 0 becoming 6.661338147750939e-16 — and a slack of zero is a red row;
+    // watched 2026-08-09.
     latestStart.set(key, ceiling - (total - offsets[place.at]));
   }
 
@@ -428,8 +435,10 @@ export function schedule(
         workItemId: slice.workItemId,
         roleId: slice.roleId,
         duration: slice.days ?? 0,
-        // Proof: hard-coded to `true` and two tests failed — the unestimated leaf
-        // and the parent above it both claimed someone had looked.
+        // Proof: hard-coded to `true` and the captured live plan came back with
+        // three of its rows claiming somebody had estimated them, along with
+        // `reports an unestimated leaf as unestimated, not merely as zero` and
+        // the parent above it; watched 2026-08-09.
         estimated: slice.days !== null,
         earliestStart: start,
         earliestFinish: earliestFinish.get(key) ?? 0,
@@ -490,6 +499,10 @@ function projectOntoWorkItems(
       earliestFinish: Math.max(...own.map((s) => s.earliestFinish)),
       latestStart: late,
       latestFinish: Math.max(...own.map((s) => s.latestFinish)),
+      // Proof: aggregated as `Math.min(...own.map((s) => s.float))` and
+      // `answers what the previous engine answered` failed at seed 256, a row's
+      // slack of 12.333333333333332 becoming 12.33333333333333; watched
+      // 2026-08-09.
       float: late - start,
       critical: late - start === 0,
     });
