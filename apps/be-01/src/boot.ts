@@ -62,6 +62,7 @@ export function bootBe01(opts: BootOptions): RunningBe {
     },
     auth: services.auth,
     projects: services.projects,
+    roles: services.roles,
     workItems: services.workItems,
     directory: services.directory,
     replay: services.replay,

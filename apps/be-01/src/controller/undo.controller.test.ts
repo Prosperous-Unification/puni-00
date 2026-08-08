@@ -12,10 +12,12 @@ import { DirectoryRepository } from '../repository/directory';
 import { EstimateRepository } from '../repository/estimate';
 import { runMigrations } from '../repository/migrate';
 import { ProjectRepository } from '../repository/project';
+import { RoleRepository } from '../repository/role';
 import { UserRepository } from '../repository/user';
 import { SubtreeRepository, WorkItemRepository } from '../repository/work-item';
 import { AuthService } from '../service/auth.service';
 import { ProjectService } from '../service/project.service';
+import { RoleService } from '../service/role.service';
 import { WorkItemService } from '../service/work-item.service';
 import { TEST_JWT_KEY } from '../testing/auth-fixture';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
@@ -58,6 +60,7 @@ beforeEach(() => {
     directory: testDirectoryService(),
     auth: new AuthService({ users: new UserRepository(db), jwtKey: TEST_JWT_KEY }),
     projects: new ProjectService({ projects }),
+    roles: new RoleService({ projects, roles: new RoleRepository(db), broadcast: recordingBroadcaster() }),
     workItems: new WorkItemService({
       workItems,
       projects,

@@ -12,6 +12,7 @@ import { inMemoryEstimates } from '../testing/estimate-fixture';
 import { inMemoryProjects } from '../testing/project-fixture';
 import { testReplay } from '../testing/replay-fixture';
 import { inMemorySubtrees } from '../testing/subtree-fixture';
+import { testRoleService } from '../testing/role-fixture';
 import { inMemoryWorkItems } from '../testing/work-item-fixture';
 
 function buildHarness() {
@@ -24,6 +25,7 @@ function buildHarness() {
     directory: testDirectoryService(),
     auth: testAuthService(inMemoryUsers()),
     projects: new ProjectService({ projects: projectStore }),
+    roles: testRoleService(projectStore),
     workItems: new WorkItemService({
       workItems: workItemStore,
       projects: projectStore,

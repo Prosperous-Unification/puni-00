@@ -11,6 +11,7 @@ import { runMigrations } from './repository/migrate';
 import { testAuthService } from './testing/auth-fixture';
 import { testDirectoryService } from './testing/directory-fixture';
 import { testProjectService } from './testing/project-fixture';
+import { testRoleService } from './testing/role-fixture';
 import { testReplay } from './testing/replay-fixture';
 import { testWorkItemService } from './testing/work-item-fixture';
 
@@ -23,6 +24,7 @@ describe('GET /health', () => {
       auth: testAuthService(),
       projects: testProjectService(),
       workItems: testWorkItemService(),
+      roles: testRoleService(),
       replay: testReplay().replay,
       probeDatabase: () => 'ok',
       internalAuthSecret: TEST_SECRET,
@@ -40,6 +42,7 @@ describe('GET /health', () => {
       auth: testAuthService(),
       projects: testProjectService(),
       workItems: testWorkItemService(),
+      roles: testRoleService(),
       replay: testReplay().replay,
       probeDatabase: () => 'ok',
       internalAuthSecret: TEST_SECRET,
@@ -63,6 +66,7 @@ describe('/health tells the truth about the database', () => {
         auth: testAuthService(),
         projects: testProjectService(),
         workItems: testWorkItemService(),
+        roles: testRoleService(),
         replay: testReplay().replay,
         internalAuthSecret: TEST_SECRET,
         migrationsApplied: true,
@@ -90,6 +94,7 @@ describe('/health tells the truth about the database', () => {
         auth: testAuthService(),
         projects: testProjectService(),
         workItems: testWorkItemService(),
+        roles: testRoleService(),
         replay: testReplay().replay,
         internalAuthSecret: TEST_SECRET,
         migrationsApplied: true,
@@ -111,6 +116,7 @@ describe('/health tells the truth about the database', () => {
       auth: testAuthService(),
       projects: testProjectService(),
       workItems: testWorkItemService(),
+      roles: testRoleService(),
       replay: testReplay().replay,
       internalAuthSecret: TEST_SECRET,
       migrationsApplied: true,
