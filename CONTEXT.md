@@ -58,9 +58,19 @@ Widening every child number under one parent when that parent gains a tenth chil
 _Avoid_: renumbering, padding fix
 
 **Role**:
-A named kind of work a project estimates separately. Every project starts with `Dev` and
-`QA`.
+A named kind of work a project estimates separately, unique by name within it. Every
+project starts with `Dev` and `QA`, and may then be given others, renamed or emptied.
 _Avoid_: discipline, type, category
+
+**Assumed assignee**:
+The person a work item with exactly one assignment is taken to be doing every role's work
+for. Read from the assignments rather than stored, so a second one ends the assumption.
+_Avoid_: default assignee, implicit owner, cover
+
+**Role usage**:
+What a role's removal would take with it: the estimates and assignments that hold it, and
+the work items whose assumed assignee it would change.
+_Avoid_: references, dependents, blast radius
 
 **Estimate**:
 Three durations in days — optimistic, realistic, pessimistic — held for one work item and

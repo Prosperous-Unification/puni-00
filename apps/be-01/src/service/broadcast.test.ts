@@ -43,7 +43,9 @@ beforeEach(async () => {
     revision: 0,
     createdAt: 1,
   };
-  await projects.create(project, []);
+  // Seeded with the role the estimates below name — the service refuses one
+  // the project does not hold.
+  await projects.create(project, [{ id: 'role-dev', projectId: project.id, name: 'Dev' }]);
   projectId = project.id;
 });
 

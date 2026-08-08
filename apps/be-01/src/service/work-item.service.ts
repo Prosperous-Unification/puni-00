@@ -253,7 +253,14 @@ export type WorkItemRefusal =
   /** A dependency onto the work item's own ancestor, descendant, or itself. */
   | 'ancestor'
   /** A subtree past {@link MAX_DUPLICATED_ROWS}. */
-  | 'too_large';
+  | 'too_large'
+  /**
+   * A role the project does not hold — usually one somebody removed while this
+   * caller had it on screen. `estimate.role_id` and `assignment.role_id` are
+   * foreign keys, so without this the write reaches the database and answers
+   * 500 for a request whose only fault is being out of date.
+   */
+  | 'unknown_role';
 
 export type WorkItemOutcome<T> = { ok: true; result: T } | { ok: false; reason: WorkItemRefusal };
 
@@ -700,6 +707,8 @@ export class WorkItemService {
     const context = await this.contextFor(id, actorId);
     if (!context.ok) return context;
     const { workItem } = context.result;
+    if (!(await this.holdsRole(workItem.projectId, roleId)))
+      return { ok: false, reason: 'unknown_role' };
     const before =
       (await this.opts.directory.assignmentsOf([id])).find((each) => each.roleId === roleId)
         ?.personId ?? null;
@@ -1183,6 +1192,8 @@ export class WorkItemService {
     if (!context.ok) return context;
     const { rows, workItem } = context.result;
     if (rows.some((row) => row.parentId === id)) return { ok: false, reason: 'rolled_up' };
+    if (!(await this.holdsRole(workItem.projectId, roleId)))
+      return { ok: false, reason: 'unknown_role' };
     const before = await this.storedTrio(workItem.projectId, id, roleId);
     await this.opts.estimates.set({ workItemId: id, roleId, ...days });
     await this.announceWorkItem(workItem.projectId, id);
@@ -1530,6 +1541,13 @@ export class WorkItemService {
         if (rows.some((row) => row.parentId === command.workItemId)) {
           return { ok: false, detail: 'that work item has children now, so its figures are sums' };
         }
+        // The phase the trio belonged to has been removed since. Putting the
+        // figures back would be a foreign key error on a key somebody pressed
+        // to be safe, so the entry is refused and discarded like any other
+        // command the plan has moved past.
+        if (!(await this.holdsRole(projectId, command.roleId))) {
+          return { ok: false, detail: 'that phase is no longer in this project' };
+        }
         await this.opts.estimates.set({
           workItemId: command.workItemId,
           roleId: command.roleId,
@@ -1541,6 +1559,9 @@ export class WorkItemService {
         await this.opts.estimates.remove(command.workItemId, command.roleId);
         return { ok: true, detail: null };
       case 'assign':
+        if (command.personId !== null && !(await this.holdsRole(projectId, command.roleId))) {
+          return { ok: false, detail: 'that phase is no longer in this project' };
+        }
         await this.opts.directory.assign(command.workItemId, command.roleId, command.personId);
         return { ok: true, detail: null };
       case 'add_dependency': {
@@ -1756,6 +1777,24 @@ export class WorkItemService {
       },
       createdAt: this.now(),
     });
+  }
+
+  /**
+   * Whether the project still holds this role.
+   *
+   * Asked on every write that names one, because a role can be removed while a
+   * client has it on screen — and both `estimate` and `assignment` reference it
+   * by foreign key. Reading the project's roles rather than taking a role store
+   * of its own: the answer is one column of a list this service already reads.
+   *
+   * Proof: with both calls removed, `refuses an estimate and an assignee for a
+   * role that has gone, rather than 500ing` fails with two 500s, and `leaves an
+   * undo whose role has gone refusing as stale, not writing` 500s too; watched
+   * 2026-08-08.
+   */
+  private async holdsRole(projectId: string, roleId: string): Promise<boolean> {
+    const roles = await this.opts.projects.rolesOf(projectId);
+    return roles.some((each) => each.id === roleId);
   }
 
   /** One work item's stored trio for one role, or null when it holds none. */

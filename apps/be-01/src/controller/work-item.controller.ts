@@ -114,7 +114,7 @@ function parsePatch(body: unknown): {
 const statusFor = (reason: WorkItemRefusal): number =>
   reason === 'forbidden'
     ? 403
-    : reason === 'not_found'
+    : reason === 'not_found' || reason === 'unknown_role'
       ? 404
       : reason === 'cycle' ||
           reason === 'frozen' ||

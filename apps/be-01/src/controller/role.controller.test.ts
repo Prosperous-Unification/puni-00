@@ -297,6 +297,120 @@ describe('DELETE /api/projects/:id/roles/:roleId', () => {
     expect(await roleStore.findById(project.qaId)).not.toBeNull();
   });
 
+  it('appends nothing to the account’s undo stack', async () => {
+    const token = await register('owner');
+    const project = await newProject(token);
+    const created = await send(`/api/projects/${project.id}/work-items`, token, {
+      method: 'POST',
+      body: JSON.stringify({ parentId: null, afterId: null, name: 'Strip' }),
+    });
+    const strip = (await created.json()) as { id: string };
+    await send(`/api/work-items/${strip.id}`, token, {
+      method: 'PATCH',
+      body: JSON.stringify({ name: 'Strip the paint' }),
+    });
+
+    await addRole(project.id, token, 'Design');
+    await send(`/api/projects/${project.id}/roles/${project.qaId}`, token, { method: 'DELETE' });
+
+    // The role changes are not on the stack, so the key still reaches the
+    // rename — as the project's start date behaves, and for the same reason:
+    // there is no compensating command for a role that took estimates with it.
+    const undone = await send(`/api/projects/${project.id}/undo`, token, { method: 'POST' });
+    expect(undone.status).toBe(200);
+    expect(await undone.json()).toMatchObject({ done: expect.stringContaining('rename') });
+  });
+
+  it('leaves an undo whose role has gone refusing as stale, not writing', async () => {
+    const token = await register('owner');
+    const project = await newProject(token);
+    const created = await send(`/api/projects/${project.id}/work-items`, token, {
+      method: 'POST',
+      body: JSON.stringify({ parentId: null, afterId: null, name: 'Strip' }),
+    });
+    const strip = (await created.json()) as { id: string };
+    await send(`/api/work-items/${strip.id}/estimates/${project.qaId}`, token, {
+      method: 'PUT',
+      body: JSON.stringify({ optimistic: 1, realistic: 2, pessimistic: 3 }),
+    });
+    // Cleared, so the entry on top of the stack is one whose *inverse writes*:
+    // undoing it puts the trio back. That is the entry that would reach for a
+    // role that is not there.
+    await send(`/api/work-items/${strip.id}/estimates/${project.qaId}`, token, {
+      method: 'DELETE',
+    });
+
+    await send(`/api/projects/${project.id}/roles/${project.qaId}?cascade=true`, token, {
+      method: 'DELETE',
+    });
+
+    // The removal moved the work item's revision, so the entry's precondition
+    // no longer holds. Without that bump this undo would try to write a trio
+    // for a role that is not there — a foreign key error, a 500, on a key
+    // somebody pressed to be safe.
+    const undone = await send(`/api/projects/${project.id}/undo`, token, { method: 'POST' });
+    expect(undone.status).toBe(409);
+    expect(await undone.json()).toMatchObject({ error: 'stale_undo' });
+    expect(await estimates.listByProject(project.id)).toEqual([]);
+  });
+
+  it('refuses an estimate and an assignee for a role that has gone, rather than 500ing', async () => {
+    const token = await register('owner');
+    const project = await newProject(token);
+    const created = await send(`/api/projects/${project.id}/work-items`, token, {
+      method: 'POST',
+      body: JSON.stringify({ parentId: null, afterId: null, name: 'Strip' }),
+    });
+    const strip = (await created.json()) as { id: string };
+    const ada = await directory.addPerson({ id: crypto.randomUUID(), name: 'Ada' }, []);
+    await send(`/api/projects/${project.id}/roles/${project.qaId}`, token, { method: 'DELETE' });
+
+    // A tab that was open when somebody else removed the phase. Both of these
+    // used to reach the foreign key and answer 500 — the request is about a
+    // role that is not in the project, which is the caller's world being out
+    // of date rather than this process being broken.
+    const estimated = await send(`/api/work-items/${strip.id}/estimates/${project.qaId}`, token, {
+      method: 'PUT',
+      body: JSON.stringify(DAYS),
+    });
+    expect(estimated.status).toBe(404);
+    expect(await estimated.json()).toEqual({ error: 'unknown_role' });
+
+    const assigned = await send(`/api/work-items/${strip.id}/assignees/${project.qaId}`, token, {
+      method: 'PUT',
+      body: JSON.stringify({ personId: ada.id }),
+    });
+    expect(assigned.status).toBe(404);
+    expect(await assigned.json()).toEqual({ error: 'unknown_role' });
+  });
+
+  it('takes estimates for a role added after the project was made', async () => {
+    const token = await register('owner');
+    const project = await newProject(token);
+    const added = await addRole(project.id, token, 'Design');
+    const design = (await added.json()) as { role: { id: string } };
+    const created = await send(`/api/projects/${project.id}/work-items`, token, {
+      method: 'POST',
+      body: JSON.stringify({ parentId: null, afterId: null, name: 'Strip' }),
+    });
+    const strip = (await created.json()) as { id: string };
+
+    const estimated = await send(
+      `/api/work-items/${strip.id}/estimates/${design.role.id}`,
+      token,
+      { method: 'PUT', body: JSON.stringify({ optimistic: 1, realistic: 2, pessimistic: 3 }) },
+    );
+
+    expect(estimated.status).toBe(200);
+    const tree = await send(`/api/projects/${project.id}/work-items`, token);
+    const body = (await tree.json()) as {
+      workItems: { estimates: Record<string, unknown> }[];
+    };
+    // `STARTING_ROLES` is the seed and not the set: the third role holds
+    // estimates the tree reports beside the two the project was made with.
+    expect(body.workItems[0]?.estimates).toHaveProperty(design.role.id);
+  });
+
   it('takes the cascade only when it is asked for by name', async () => {
     const token = await register('owner');
     const project = await newProject(token);

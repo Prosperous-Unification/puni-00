@@ -31,7 +31,9 @@ async function newProject(name: string): Promise<string> {
     revision: 0,
     createdAt: 1,
   };
-  await projects.create(project, []);
+  // Seeded with the role the estimates below name. The service refuses a role
+  // the project does not hold, and production's foreign key refuses it harder.
+  await projects.create(project, [{ id: 'role-dev', projectId: project.id, name: 'Dev' }]);
   return project.id;
 }
 

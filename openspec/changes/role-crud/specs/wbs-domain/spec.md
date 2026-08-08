@@ -128,6 +128,30 @@ with a server error.
 - **THEN** the removal succeeds, that estimate is gone, and that third work
   item's revision has moved
 
+### Requirement: A write naming a role the project does not hold is refused
+
+Writing an estimate or an assignee for a role the project does not hold SHALL be
+refused as an unknown role, never answered with a server error. A role can be
+removed while somebody has it on screen, so this is an ordinary state of a
+client rather than a fault.
+
+Reversing a command that would write an estimate or an assignment for a role
+that has since been removed SHALL refuse the same way the stack refuses anything
+the plan has moved past, and SHALL write nothing.
+
+#### Scenario: a phase that went while a tab was open
+
+- **GIVEN** a role that has been removed
+- **WHEN** an estimate or an assignee is written for it
+- **THEN** the request is refused as an unknown role and nothing is written
+
+#### Scenario: undoing into a role that has gone
+
+- **GIVEN** an account that cleared an estimate, whose role was then removed
+- **WHEN** that account presses undo
+- **THEN** the undo refuses rather than putting the trio back against a role
+  that is not there
+
 ### Requirement: A role change is announced as a durable event
 
 Adding, renaming and removing a role SHALL each record a typed event on the
@@ -173,12 +197,6 @@ stack from being applied against a plan whose phases have changed.
 - **WHEN** a role is added and another removed
 - **THEN** the account's next undo reverses the rename
 
-#### Scenario: an estimate whose role has gone
-
-- **GIVEN** an account that estimated a work item for a role
-- **WHEN** that role is removed and the account presses undo
-- **THEN** the undo refuses as stale rather than writing an estimate for a role
-  that is not there
 
 ### Requirement: The starting roles are a seed, not a limit
 
