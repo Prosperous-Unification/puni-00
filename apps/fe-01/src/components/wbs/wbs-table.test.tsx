@@ -6898,6 +6898,70 @@ describe('the command chords', () => {
     expect(armedRow()).toBeNull();
   });
 
+  itDom('a late create does not take the focus back off a cell somebody moved to', async () => {
+    // codex's mechanism for the one-off chord leak seen live on 2026-08-09. A
+    // structural edit records the cell to focus when its refetch lands, and
+    // that intent used to fire whatever the reader had done in the meantime —
+    // so a create still in flight yanked the caret out of a folded cell with
+    // an open `@` list, closed the list, and the keys still being typed landed
+    // in an ordinary cell and made a row.
+    //
+    // The wanted steals are the ones where the reader never left: Ctrl+N,
+    // Alt+N, Cmd+Enter, Duplicate and Delete all still move the caret, and
+    // their own tests are what say so.
+    //
+    // Proof: the staleness check dropped from both consumers, this failed on
+    // `expected <textarea …>…</textarea> to be <input …>` — the caret pulled
+    // into the new row's name, out of the box that was being typed in.
+    // Watched, 2026-08-09.
+    const api = await threeRoots();
+    let letTheCreateLand: () => void = () => {
+      throw new Error('nothing was ever created');
+    };
+    const realCreate = api.create.bind(api);
+    api.create = async (
+      projectId: string,
+      input: { parentId: string | null; afterId: string | null },
+    ) => {
+      await new Promise<void>((resolve) => {
+        letTheCreateLand = resolve;
+      });
+      return realCreate(projectId, input);
+    };
+
+    // The command, from the last row so nothing above it is renumbered.
+    const from = nameOf('030');
+    from.focus();
+    newItem(from);
+    await waitFor(() => {
+      expect(typeof letTheCreateLand).toBe('function');
+    });
+
+    // And now the reader goes somewhere else entirely and starts typing a
+    // name into a folded role's cell, which opens the people list.
+    const folded = screen.getByLabelText<HTMLInputElement>('QA estimate for 010');
+    folded.focus();
+    fireEvent.focus(folded);
+    fireEvent.change(folded, { target: { value: '@Ada' } });
+    await screen.findByRole('listbox', { name: 'QA assignee for 010' });
+
+    await act(async () => {
+      letTheCreateLand();
+      await Promise.resolve();
+    });
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '020', '030', '040']);
+    });
+
+    // The row was made — the edit is not what is being refused here — and the
+    // caret is still where the person put it, with the list still open under
+    // the name they are halfway through.
+    expect(api.rows).toHaveLength(4);
+    expect(document.activeElement).toBe(folded);
+    expect(folded.value).toBe('@Ada');
+    expect(screen.getByRole('listbox', { name: 'QA assignee for 010' })).toBeDefined();
+  });
+
   itDom('every chord is inert while the depends list is open', async () => {
     // The routing matrix's fourth row: an open list owns the keyboard, and
     // Escape is how it is given back.

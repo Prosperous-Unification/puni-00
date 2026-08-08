@@ -495,6 +495,31 @@ function altMoveIn(event: React.KeyboardEvent): AltMove | null {
 const cellKey = (rowId: string, columnId: string): string => `${rowId}::${columnId}`;
 
 /**
+ * The `data-cell` of whatever holds the focus, or null when that is not a cell
+ * of the grid at all — a ⋯ button, a toolbar button, or nothing.
+ *
+ * Null is a real answer here rather than a missing one: "the reader is not
+ * standing in a cell" is exactly the state a command taken from the actions
+ * menu leaves behind, and it is what tells a pending focus intent apart from a
+ * reader who has moved on.
+ */
+function focusedCellKey(): string | null {
+  const active = document.activeElement;
+  return active instanceof HTMLElement ? (active.dataset['cell'] ?? null) : null;
+}
+
+/**
+ * Whether a list is open somewhere in the table: the folded cell's `@`
+ * mentions, the dependency picker, or a {@link CreatablePicker}'s.
+ *
+ * Read from the committed DOM rather than from the three pieces of state that
+ * can open one, for {@link editableGrid}'s reason and one more: they are three,
+ * and a fourth list would have to remember to join them here.
+ */
+const aListIsOpenIn = (table: HTMLTableElement): boolean =>
+  table.querySelector('[role="listbox"]') !== null;
+
+/**
  * What the caret in an input is doing, for `nextCell` to decide on.
  *
  * `selectionStart`/`selectionEnd` are `null` on inputs that do not support them;
@@ -867,6 +892,16 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    */
   const focusNext = useRef<CellRef | null>(null);
   /**
+   * The cell the command now running was issued from, or null when it came
+   * from a button rather than from the grid.
+   *
+   * Written at the top of {@link run}, which is the synchronous moment the
+   * gesture happened — not where {@link focusNext} is written, because that
+   * happens once the request has been answered, which is the far side of the
+   * window this exists to measure. {@link focusIntentIsStale} reads it.
+   */
+  const commandFrom = useRef<string | null>(null);
+  /**
    * Where the readiness walk has got to: the leaf it last put the focus in,
    * and the cell it asked for.
    *
@@ -1057,6 +1092,36 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
   }, [workItems, pushToast]);
 
   /**
+   * Whether a pending {@link focusNext} has been overtaken by the person using
+   * the table, and so must not fire.
+   *
+   * A structural edit is a request and a refetch, and the reader is free to do
+   * something else in between. Two of those somethings make the focus move a
+   * theft rather than a service, and both were observed on 2026-08-09: the
+   * caret was pulled out of a folded cell with an open `@` list mid-burst, the
+   * list closed with it, and the keys still coming landed in an ordinary cell
+   * and made a row.
+   *
+   * - **A list is open.** Whatever it is attached to, it owns the keyboard
+   *   until Escape gives it back, and moving the focus closes it.
+   * - **The focus is in a different cell from the one the command came from.**
+   *   That is the fact that separates the wanted steals from this one: after
+   *   Ctrl+N, Alt+N, Cmd+Enter, Duplicate or Delete the reader is still in the
+   *   cell they pressed it in — or on the ⋯ button, which is no cell at all
+   *   and reads as "leave it alone", not as "somewhere else".
+   *
+   * Conservative on purpose: with nothing focused, or the focus already in the
+   * cell the intent names, the intent stands.
+   */
+  const focusIntentIsStale = useCallback((wanted: CellRef): boolean => {
+    const table = tableElement.current;
+    if (table !== null && aListIsOpenIn(table)) return true;
+    const standingIn = focusedCellKey();
+    if (standingIn === null || standingIn === commandFrom.current) return false;
+    return standingIn !== cellKey(wanted.rowId, wanted.columnId);
+  }, []);
+
+  /**
    * Lands the focus on the cell {@link focusNext} names, once the tree that
    * holds it is on screen.
    *
@@ -1075,6 +1140,15 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     const wanted = focusNext.current;
     const table = tableElement.current;
     if (wanted === null || table === null) return;
+    // Cancelled rather than left pending: the reader has moved on, so this
+    // intent is not waiting for a tree that has yet to arrive — it is over.
+    // Proof: this dropped here and in the Name cell's `onAttach`, `a late
+    // create does not take the focus back off a cell somebody moved to` failed
+    // on `expected <textarea …> to be <input …>`. Watched, 2026-08-09.
+    if (focusIntentIsStale(wanted)) {
+      focusNext.current = null;
+      return;
+    }
     const arrived = editableGrid(table).find(
       (candidate) =>
         candidate.cell.rowId === wanted.rowId && candidate.cell.columnId === wanted.columnId,
@@ -1087,7 +1161,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     // keeps it on a node React moves, so without that the check could not fail.
     // Watched, 2026-08-06.
     arrived.input.focus();
-  }, [workItems]);
+  }, [workItems, focusIntentIsStale]);
 
   /**
    * One edit: send it, then reread the tree.
@@ -1121,6 +1195,11 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    */
   const run = useCallback(
     async (action: () => Promise<void>): Promise<CommitOutcome> => {
+      // Read here, synchronously, because this is the moment the gesture
+      // happened. {@link focusIntentIsStale} compares it against where the
+      // focus is when the refetch lands, and everything between the two is the
+      // window in which the reader may have gone somewhere else.
+      commandFrom.current = focusedCellKey();
       setBusy(true);
       try {
         try {
@@ -2879,6 +2958,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     duplicateRow,
     deleteRow,
     commitNameCell,
+    focusIntentIsStale,
     onKeyDown,
     onTabKey,
     onArrowKey,
@@ -2933,6 +3013,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     duplicateRow,
     deleteRow,
     commitNameCell,
+    focusIntentIsStale,
     onKeyDown,
     onTabKey,
     onArrowKey,
@@ -3117,6 +3198,14 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                   // committed DOM by the effect that reads `focusNext` after a
                   // refresh.
                   if (wanted?.rowId !== row.original.id || wanted.columnId !== 'name') return;
+                  // The same qualification the effect makes, and it has to be
+                  // made here too: this callback fires during the commit that
+                  // brings the row in, so it wins the race against the effect
+                  // and would land the focus before the effect could refuse.
+                  if (live.current.focusIntentIsStale(wanted)) {
+                    focusNext.current = null;
+                    return;
+                  }
                   focusNext.current = null;
                   element.focus();
                 }}
