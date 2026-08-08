@@ -1,8 +1,10 @@
 ## 1. Positional Tab
 
 - [x] 1.1 Failing tests in `wbs-table.test.tsx`: Tab mid-text in `010`'s name
-      focuses `010`'s first estimate cell with its text selected and requests
-      no move; Shift+Tab mid-text in `020`'s name focuses the row above's last
+      focuses the next editable cell of `010` with its text selected and
+      requests no move — the first estimate box then, the dependency box since
+      `table-geometry-and-tab-order` put the pickers in the same grid;
+      Shift+Tab mid-text in `020`'s name focuses the row above's last
       editable cell; Tab over a selection navigates rather than indents. Each
       watches `api.move`.
 - [x] 1.2 Implement in `wbs-table.tsx`: extract the arrow keys' committed-DOM

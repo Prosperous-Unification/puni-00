@@ -672,8 +672,9 @@ describe('the WBS table', () => {
     name.setSelectionRange(2, 2);
     fireEvent.keyDown(name, { key: 'Tab' });
 
-    const estimate = screen.getByLabelText<HTMLInputElement>('Dev optimistic for 020');
-    expect(document.activeElement).toBe(estimate);
+    // The next field, which is the one beside the name: what a row waits for.
+    const next = screen.getByLabelText<HTMLInputElement>('Add a dependency to 020');
+    expect(document.activeElement).toBe(next);
     expect(moved).toEqual([]);
     expect(numbersOnScreen()).toEqual(['010', '020']);
   });
@@ -737,7 +738,7 @@ describe('the WBS table', () => {
     fireEvent.keyDown(name, { key: 'Tab' });
 
     expect(document.activeElement).toBe(
-      screen.getByLabelText<HTMLInputElement>('Dev optimistic for 020'),
+      screen.getByLabelText<HTMLInputElement>('Add a dependency to 020'),
     );
     expect(moved).toEqual([]);
   });
@@ -2425,7 +2426,10 @@ describe('moving between cells with the arrow keys', () => {
     const name = focusCell('Name of 010', 'end');
     press(name, 'ArrowRight');
 
-    expect(document.activeElement).toBe(screen.getByLabelText('Dev optimistic for 010'));
+    // The cell beside the name, which is every field the row has and not only
+    // the ones that are typed into: the pickers and the date joined the grid
+    // when Tab was made to reach them.
+    expect(document.activeElement).toBe(screen.getByLabelText('Add a dependency to 010'));
   });
 
   itDom('leaves the caret alone in the middle of a word', async () => {
@@ -2512,25 +2516,33 @@ describe('arrow keys — cross-review findings', () => {
     // caret this code puts there, on the edge the travel came from. Whether the
     // browser then walks it across the value is the browser's own behaviour.
     await threeRoots();
-    const optimistic = screen.getByLabelText('Dev optimistic for 010');
-    fireEvent.change(optimistic, { target: { value: '3' } });
-    fireEvent.blur(optimistic);
+    const typed: readonly (readonly [string, string])[] = [
+      ['Dev optimistic for 010', '3'],
+      ['Dev realistic for 010', '5'],
+    ];
+    for (const [label, days] of typed) {
+      const box = screen.getByLabelText(label);
+      fireEvent.change(box, { target: { value: days } });
+      fireEvent.blur(box);
+    }
     await waitFor(() => {
-      expect(screen.getByLabelText('Dev optimistic for 010')).toHaveProperty('value', '3');
+      expect(screen.getByLabelText('Dev realistic for 010')).toHaveProperty('value', '5');
     });
 
-    focus('Name of 010', 'end');
+    // Between two populated boxes, which is where a caret dropped on the wrong
+    // edge is felt: crossing a row of them is what took twice the keys.
+    focus('Dev optimistic for 010', 'end');
     const arrived = arrow('ArrowRight');
 
-    expect(arrived).toBe(screen.getByLabelText('Dev optimistic for 010'));
+    expect(arrived).toBe(screen.getByLabelText('Dev realistic for 010'));
     if (!isCell(arrived)) throw new Error('not an editable cell');
-    expect(arrived.value).toBe('3');
+    expect(arrived.value).toBe('5');
     expect([arrived.selectionStart, arrived.selectionEnd]).toEqual([0, 0]);
 
     // And coming back the other way lands on the far edge, for the same reason.
     const back = arrow('ArrowLeft');
     if (!isCell(back)) throw new Error('not an editable cell');
-    expect(back).toBe(screen.getByLabelText('Name of 010'));
+    expect(back).toBe(screen.getByLabelText('Dev optimistic for 010'));
     expect([back.selectionStart, back.selectionEnd]).toEqual([
       back.value.length,
       back.value.length,
@@ -2568,11 +2580,20 @@ describe('arrow keys — cross-review findings', () => {
     });
     expect(api.rows.find((r) => r.number === '010')?.rolledUp).toBe(true);
 
-    // Along the parent's own row: name to notes, straight past the sums.
-    focus('Name of 010', 'end');
-    expect(arrow('ArrowRight')).toBe(screen.getByLabelText('Notes for 010'));
+    // Up the column from the child, where the parent's box is the row directly
+    // above: it is a sum, so there is nothing above this one to type into and
+    // the focus stays where it is.
+    //
+    // Proof: `:not([readonly])` stripped from `editableGrid`'s selector, this
+    // failed with the focus on `Dev optimistic for 010` — the parent's own
+    // rolled-up box. Watched, 2026-08-07. The row-wise half of this claim is
+    // `Shift+Tab steps over a parent’s read-only estimate boxes`: an arrow
+    // cannot reach the trio from the right, because the assignee picker
+    // between them is a cell Tab leaves and the arrows do not.
+    focus('Dev optimistic for 010.1', 'start');
+    expect(arrow('ArrowUp')).toBe(screen.getByLabelText('Dev optimistic for 010.1'));
 
-    // And down the column from the child, past the parent below it.
+    // And down the column from the child, past the row below it.
     focus('Dev optimistic for 010.1', 'end');
     expect(arrow('ArrowDown')).toBe(screen.getByLabelText('Dev optimistic for 020'));
   });
@@ -2594,6 +2615,250 @@ describe('arrow keys — cross-review findings', () => {
       focus(label, 'end');
       expect(arrow('ArrowDown')).toBe(screen.getByLabelText(label.replace('010', '020')));
     }
+  });
+});
+
+describe('Tab moves between the fields, from every cell', () => {
+  /** Focuses a cell and puts the caret where a test needs it. */
+  const focusCaret = (
+    label: string,
+    at: 'start' | 'middle' | 'end',
+  ): HTMLInputElement | HTMLTextAreaElement => {
+    const input = screen.getByLabelText(label);
+    // Either element: the Name and Notes cells are textareas so their text
+    // wraps, and both carry the selection fields the keyboard code reads.
+    if (!isCell(input)) throw new Error(`${label} is not an editable cell`);
+    input.focus();
+    const pos =
+      at === 'start' ? 0 : at === 'end' ? input.value.length : Math.floor(input.value.length / 2);
+    input.setSelectionRange(pos, pos);
+    return input;
+  };
+
+  /** Presses Tab where the focus is, and says whether the browser still gets the key. */
+  const tab = (shiftKey = false): boolean => {
+    const active = document.activeElement;
+    if (!isCell(active)) throw new Error('nothing focused');
+    return fireEvent.keyDown(active, { key: 'Tab', shiftKey });
+  };
+
+  /** Each label paired with the one after it, so a walk reads as its own steps. */
+  const stepsThrough = (labels: readonly string[]): (readonly [string, string])[] => {
+    const steps: (readonly [string, string])[] = [];
+    let previous: string | undefined;
+    for (const label of labels) {
+      if (previous !== undefined) steps.push([previous, label] as const);
+      previous = label;
+    }
+    return steps;
+  };
+
+  itDom('Tab moves from an estimate cell to the next editable cell', async () => {
+    await threeRoots();
+
+    focusCaret('Dev optimistic for 010', 'end');
+    expect(tab()).toBe(false);
+
+    expect(document.activeElement).toBe(screen.getByLabelText('Dev realistic for 010'));
+  });
+
+  itDom('Tab in the middle of a name navigates; at caret 0 it still indents', async () => {
+    await threeRoots();
+
+    // Mid-text, Tab is what it is in any table: the next field, and the tree
+    // is left alone.
+    focusCaret('Name of 020', 'middle');
+    tab();
+    expect(document.activeElement).toBe(screen.getByLabelText('Add a dependency to 020'));
+    expect(numbersOnScreen()).toEqual(['010', '020', '030']);
+
+    // At the very start it is still the outliner's indent, which is the one
+    // special case this change keeps.
+    focusCaret('Name of 020', 'start');
+    tab();
+
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '010.1', '020']);
+    });
+  });
+
+  itDom(
+    'Tab from the depends input closes the picker, discards the typed search, and moves once',
+    async () => {
+      const api = await threeRoots();
+      const added: unknown[] = [];
+      const realAdd = api.addDependency.bind(api);
+      api.addDependency = (id: string, predecessorId: string) => {
+        added.push([id, predecessorId]);
+        return realAdd(id, predecessorId);
+      };
+
+      const box = screen.getByLabelText<HTMLInputElement>('Add a dependency to 030');
+      box.focus();
+      fireEvent.change(box, { target: { value: 'Strip' } });
+      expect(screen.getByRole('listbox', { name: 'Work items 030 can depend on' })).toBeDefined();
+
+      expect(fireEvent.keyDown(box, { key: 'Tab' })).toBe(false);
+
+      // One cell along, not two: the handler moves the focus and takes the key,
+      // so the browser adds no move of its own.
+      expect(document.activeElement).toBe(screen.getByLabelText('Service or team for 030'));
+      expect(screen.queryByRole('listbox')).toBeNull();
+      // Typed text is a search, not a value. Leaving discards it, which is what
+      // leaving this cell has always done.
+      expect(added).toEqual([]);
+      expect(screen.getByLabelText('Add a dependency to 030')).toHaveProperty('value', '');
+    },
+  );
+
+  itDom('Shift+Tab from the depends input lands in the name, not on a chip button', async () => {
+    await threeRoots();
+
+    const box = screen.getByLabelText<HTMLInputElement>('Add a dependency to 030');
+    box.focus();
+    fireEvent.change(box, { target: { value: '010' } });
+    fireEvent.keyDown(box, { key: 'Enter' });
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Stop 030 waiting for 010' })).toBeDefined();
+    });
+
+    // The chip sits before the input inside this one cell, so the browser's own
+    // Shift+Tab would land on its ✕ — a dependency one keystroke from being
+    // removed by somebody who only meant to go back a field.
+    const again = screen.getByLabelText<HTMLInputElement>('Add a dependency to 030');
+    again.focus();
+    expect(fireEvent.keyDown(again, { key: 'Tab', shiftKey: true })).toBe(false);
+
+    expect(document.activeElement).toBe(screen.getByLabelText('Name of 030'));
+  });
+
+  itDom('walks every field of a row in turn, and on into the next row', async () => {
+    // The reason this walks all of them rather than sampling: a handler left
+    // off one cell is invisible to a test that starts in another, which is how
+    // Tab came to work in the name and nowhere else.
+    await threeRoots();
+
+    for (const [from, to] of stepsThrough([
+      'Name of 010',
+      'Add a dependency to 010',
+      'Service or team for 010',
+      'Dev optimistic for 010',
+      'Dev realistic for 010',
+      'Dev pessimistic for 010',
+      'Dev assignee for 010',
+      'QA estimate for 010',
+      'Notes for 010',
+      'Name of 020',
+    ])) {
+      focusCaret(from, 'end');
+      tab();
+      expect(document.activeElement).toBe(screen.getByLabelText(to));
+    }
+  });
+
+  itDom('steps over the date cell until the plan is on a calendar', async () => {
+    // Without a project start date the earliest-start field is disabled: a Tab
+    // that stopped there would take the key and land nothing, which is a dead
+    // keystroke in the middle of every row.
+    await threeRoots();
+    expect(screen.getByLabelText<HTMLInputElement>('Earliest start for 010').disabled).toBe(true);
+
+    focusCaret('QA estimate for 010', 'end');
+    tab();
+    expect(document.activeElement).toBe(screen.getByLabelText('Notes for 010'));
+
+    fireEvent.change(screen.getByLabelText('Project start date'), {
+      target: { value: '2026-08-06' },
+    });
+    await waitFor(() => {
+      expect(screen.getByLabelText<HTMLInputElement>('Earliest start for 010').disabled).toBe(
+        false,
+      );
+    });
+
+    focusCaret('QA estimate for 010', 'end');
+    tab();
+    expect(document.activeElement).toBe(screen.getByLabelText('Earliest start for 010'));
+
+    // And out again. A date input is focused rather than selected: it has no
+    // text caret to ask for.
+    expect(fireEvent.keyDown(screen.getByLabelText('Earliest start for 010'), { key: 'Tab' })).toBe(
+      false,
+    );
+    expect(document.activeElement).toBe(screen.getByLabelText('Notes for 010'));
+  });
+
+  itDom('the arrows land in a date cell without asking it for a caret it has none of', async () => {
+    // `setSelectionRange` throws `InvalidStateError` on a date input, and the
+    // arrows now have one to land on: the notes cell sits next to it.
+    await threeRoots();
+    fireEvent.change(screen.getByLabelText('Project start date'), {
+      target: { value: '2026-08-06' },
+    });
+    await waitFor(() => {
+      expect(screen.getByLabelText<HTMLInputElement>('Earliest start for 010').disabled).toBe(
+        false,
+      );
+    });
+
+    // Watched rather than left to the runner: React re-throws what a handler
+    // threw as an uncaught error, which the run reports away from the test that
+    // caused it. Collected here, the assertion is this test's own.
+    const thrown: unknown[] = [];
+    const collect = (event: ErrorEvent) => {
+      thrown.push(event.error);
+    };
+    window.addEventListener('error', collect);
+    focusCaret('Notes for 010', 'start');
+    fireEvent.keyDown(screen.getByLabelText('Notes for 010'), { key: 'ArrowLeft' });
+    window.removeEventListener('error', collect);
+
+    expect(thrown).toEqual([]);
+    expect(document.activeElement).toBe(screen.getByLabelText('Earliest start for 010'));
+  });
+
+  itDom('Shift+Tab steps over a parent’s read-only estimate boxes', async () => {
+    // A parent's trio is a sum of what is below it: the boxes are on screen to
+    // be read and take no typing, so the field before the assignee is the team
+    // and the three boxes between them are not stopped in. This is the row-wise
+    // half of `never stops on a parent’s rolled-up figures` — an arrow cannot
+    // make this trip, because the assignee picker in the way is a cell Tab
+    // leaves and the arrows do not.
+    //
+    // Proof: `:not([readonly])` stripped from `editableGrid`'s selector, this
+    // failed with the focus on `Dev pessimistic for 010`. Watched, 2026-08-07.
+    const api = await threeRoots();
+    withHeight(rowFor('010'), 0, 40);
+    dragOnto('020', '010', 20);
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '010.1', '020']);
+    });
+    expect(api.rows.find((r) => r.number === '010')?.rolledUp).toBe(true);
+    expect(screen.getByLabelText('Dev optimistic for 010')).toHaveProperty('readOnly', true);
+
+    const assignee = screen.getByLabelText('Dev assignee for 010');
+    assignee.focus();
+    expect(fireEvent.keyDown(assignee, { key: 'Tab', shiftKey: true })).toBe(false);
+
+    expect(document.activeElement).toBe(screen.getByLabelText('Service or team for 010'));
+  });
+
+  itDom('at the edges of the grid the key is left to the browser', async () => {
+    // No focus trap. The grid's edges are the first and last editable cells of
+    // the whole table, not of a row: Tab at the end of a row walks into the
+    // next one, and only past the last cell of the last row is the key left to
+    // the browser — which finds that row's own Duplicate and Delete. The
+    // actions are reachable at the end of the table and never from the middle
+    // of a row, which is what this makes consistent.
+    await threeRoots();
+
+    const last = focusCaret('Notes for 030', 'end');
+    expect(tab()).toBe(true);
+    expect(document.activeElement).toBe(last);
+
+    const first = focusCaret('Name of 010', 'end');
+    expect(tab(true)).toBe(true);
+    expect(document.activeElement).toBe(first);
   });
 });
 
@@ -3523,6 +3788,180 @@ describe('the frame the table scrolls inside', () => {
     const [pinnedBodyCell] = [...rowFor('020').querySelectorAll('td')].slice(1);
     expect(Number(headers[1]?.style.zIndex)).toBeGreaterThan(Number(headers[6]?.style.zIndex));
     expect(Number(headers[1]?.style.zIndex)).toBeGreaterThan(Number(pinnedBodyCell.style.zIndex));
+  });
+});
+
+describe('the widths the table is laid out by', () => {
+  /**
+   * jsdom lays nothing out, so none of this can watch a column stop short of
+   * its neighbour. What it can watch is the one thing that made the overlap
+   * possible — more than one opinion about how wide a column is — being gone
+   * from the markup: one declared width per column, the table adding up to the
+   * same total, and no control inside a cell asking for a width of its own.
+   */
+  itDom('declares every rendered column once, in the order they are rendered', async () => {
+    await threeRoots();
+
+    const cols = [...document.querySelectorAll<HTMLElement>('colgroup col')];
+    const headerCells = screen.getAllByRole('columnheader');
+
+    expect(cols.length).toBe(headerCells.length);
+    // In order, not merely in the same number: the pinned offsets are the
+    // running total of the first columns' widths, so a colgroup that declared
+    // the same widths in another order would lay Name out somewhere other than
+    // the 196px it is pinned at. These are the numbers the pin test asserts.
+    // Proof: the colgroup rendered from a reversed id list, this failed on
+    // `['110px','260px','90px']` against `['28px','168px','360px']`. Watched,
+    // 2026-08-07.
+    expect(cols.slice(0, 3).map((col) => col.style.width)).toEqual(['28px', '168px', '360px']);
+    for (const col of cols) expect(col.style.width).not.toBe('');
+  });
+
+  itDom('names every cell with the column it belongs to, in both halves of the table', async () => {
+    await threeRoots();
+
+    const cols = [...document.querySelectorAll<HTMLElement>('colgroup col')];
+    const named = (cells: Element[]) => cells.map((cell) => cell.getAttribute('data-column'));
+
+    // The browser layout gate measures these boxes and compares them against
+    // the declared widths; a rectangle with no column name attached is a
+    // failure that cannot say which column moved. Asserted here because that
+    // gate needs a browser and this suite is the only thing the repo gate runs.
+    // Proof: `data-column` dropped from the `td`, this failed with a row of
+    // `null`s against the header's names. Watched, 2026-08-07.
+    expect(named(screen.getAllByRole('columnheader'))).toEqual(
+      named([...rowFor('020').querySelectorAll('td')]),
+    );
+    expect(named(screen.getAllByRole('columnheader')).length).toBe(cols.length);
+    for (const name of named(screen.getAllByRole('columnheader'))) expect(name).not.toBe(null);
+  });
+
+  itDom('is as wide as its columns add up to, and divides that width by them', async () => {
+    await threeRoots();
+
+    const table = screen.getByRole('table');
+    const declared = [...document.querySelectorAll<HTMLElement>('colgroup col')].reduce(
+      (total, col) => total + Number.parseFloat(col.style.width),
+      0,
+    );
+
+    // `fixed`, or the browser sizes the columns from their content and the
+    // declared widths become decoration — which is the auto layout half of the
+    // overlap.
+    expect(table.style.tableLayout).toBe('fixed');
+    expect(table.style.width).toBe(`${String(declared)}px`);
+  });
+
+  itDom('gives every cell the chrome its declared width is measured with', async () => {
+    await threeRoots();
+
+    const cells = [
+      ...screen.getAllByRole('columnheader'),
+      ...rowFor('020').querySelectorAll<HTMLElement>('td'),
+    ];
+
+    expect(cells.length).toBeGreaterThan(12);
+    for (const cell of cells) {
+      // Or the padding is width the offsets never counted.
+      expect(cell.style.boxSizing).toBe('border-box');
+      // The backstop: whatever a cell ends up holding, it stops at the cell.
+      // The body cells holding a popover are exempt — the test below is where
+      // that exception is pinned, and it is restated here so this loop cannot
+      // be read as "every cell clips".
+      const column = cell.dataset['column'] ?? '';
+      const exempt =
+        cell.tagName === 'TD' &&
+        (['depends', 'notes', 'team'].includes(column) || column.endsWith('-assignee'));
+      expect(cell.style.overflow).toBe(exempt ? 'visible' : 'hidden');
+    }
+  });
+
+  itDom('lets no control in a cell assert a width of its own', async () => {
+    await threeRoots();
+
+    const controls = [
+      ...document.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>(
+        'tbody input:not([type=checkbox]), tbody textarea',
+      ),
+    ];
+
+    // The name, the dependency box, the service/team picker, the folded
+    // estimate, the three points, the assignee picker, the date.
+    expect(controls.length).toBeGreaterThan(6);
+    for (const control of controls) {
+      // A control that asks for `22em` is a second opinion about how wide its
+      // column is, and the one the browser takes when it is the wider of the
+      // two.
+      expect(['100%', 'auto', '']).toContain(control.style.width);
+      // `size` is the same claim in an attribute: an input sized for 14
+      // characters is as wide as 14 characters of the page's font.
+      expect(control.getAttribute('size')).toBeNull();
+    }
+  });
+
+  itDom('does not clip the cells whose popovers open over the rows', async () => {
+    // The CSS rule, spelled out because the first version of this test
+    // asserted its opposite and called the wrong thing a proof: an absolutely
+    // positioned box escapes an `overflow: hidden` ancestor only when its
+    // containing block — its nearest *positioned* ancestor — is **outside**
+    // that clipper. Every popover in this table sits in a `position: relative`
+    // wrapper span that is *inside* the `<td>`, so the `<td>` cuts it to the
+    // cell rectangle however the wrapper is styled. The invariant is therefore
+    // about the cells, not the wrappers: the cells that hold a popover do not
+    // clip, and their neighbours do.
+    //
+    // Proof: the `opensAPopover` exception removed from the `<td>` style in
+    // `wbs-table.tsx`, this failed on
+    // `expected 'hidden' to be 'visible' // Object.is equality`. Watched,
+    // 2026-08-07.
+    await threeRoots();
+    fireEvent.focus(screen.getByLabelText('Add a dependency to 020'));
+
+    const cellOf = (columnId: string): HTMLElement => {
+      const cell = rowFor('020').querySelector<HTMLElement>(`td[data-column="${columnId}"]`);
+      // Thrown rather than asserted away: a missing cell would otherwise read
+      // as `undefined` overflow and quietly satisfy nothing.
+      if (cell === null) throw new Error(`row 020 has no ${columnId} cell`);
+      return cell;
+    };
+
+    const openList = screen.getByRole('listbox');
+    const notesBox = screen.getByLabelText('Notes for 020');
+    const teamBox = screen.getByLabelText('Service or team for 020');
+    // The cells the popovers are really in. Without this the overflow
+    // assertions below would go on passing about columns the popovers had
+    // moved out of.
+    expect(openList.closest('td')).toBe(cellOf('depends'));
+    expect(notesBox.closest('td')).toBe(cellOf('notes'));
+    expect(teamBox.closest('td')).toBe(cellOf('team'));
+
+    expect(cellOf('depends').style.overflow).toBe('visible');
+    expect(cellOf('notes').style.overflow).toBe('visible');
+    // The service/team box and every assignee box are `CreatablePicker`s, and
+    // a picker's list is the same absolutely positioned popover in the same
+    // kind of wrapper. Their columns are named `<roleId>-assignee` at runtime,
+    // so they are found rather than written out.
+    expect(cellOf('team').style.overflow).toBe('visible');
+    const assigneeCells = [
+      ...rowFor('020').querySelectorAll<HTMLElement>('td[data-column$="-assignee"]'),
+    ];
+    // Or an empty list would satisfy the loop below without a picker column
+    // being rendered at all. One here: this plan has two roles and the second
+    // is folded, and a folded role shows one estimate box and no assignee.
+    expect(assigneeCells.length).toBeGreaterThan(0);
+    for (const cell of assigneeCells) expect(cell.style.overflow).toBe('visible');
+
+    // Still an exception. If the backstop had simply been dropped everywhere,
+    // every assertion above would pass and this one would not.
+    expect(cellOf('name').style.overflow).toBe('hidden');
+
+    // And the wrappers are still the positioned ancestors — which is what
+    // decides *where* each popover opens. `top: 100%` against a static wrapper
+    // would be measured from whatever ancestor is positioned instead.
+    for (const wrapper of [openList.parentElement, notesBox.parentElement]) {
+      expect(wrapper?.tagName).toBe('SPAN');
+      expect(wrapper?.style.position).toBe('relative');
+    }
   });
 });
 

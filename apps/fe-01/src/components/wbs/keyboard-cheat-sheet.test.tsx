@@ -43,10 +43,14 @@ const PROVEN_BY = new Map<string, readonly string[]>(
     'Editing: Tab': [
       'types a three-level breakdown without touching the mouse',
       'tab inside the text walks to the next cell instead of indenting',
+      'Tab moves from an estimate cell to the next editable cell',
+      'Tab in the middle of a name navigates; at caret 0 it still indents',
+      'walks every field of a row in turn, and on into the next row',
     ],
     'Editing: Shift + Tab': [
       'outdents with shift-tab',
       'shift-tab inside the text walks backwards instead of outdenting',
+      'Shift+Tab from the depends input lands in the name, not on a chip button',
     ],
     'Editing: Backspace': [
       'backspace at the start of the name outdents the row',

@@ -1,5 +1,92 @@
 import type { CSSProperties } from 'react';
 
+import { POINTS } from './estimate-draft';
+
+/**
+ * Every column the table can show by a fixed id, with the width
+ * `table-layout: fixed` holds it to, in px.
+ *
+ * THE single source of truth for how wide anything in this table is: the
+ * `<colgroup>` renders these numbers, {@link tableWidth} adds them up, and the
+ * pinned offsets are prefix sums of the same numbers — so the geometry the
+ * offsets assume is the geometry the browser lays out. The overlap this
+ * replaces came from three width systems at once (declared px on the pinned
+ * cells, auto table layout everywhere else, em-sized inputs inside the cells)
+ * with no invariant tying any of them together, which is how a pinned Name
+ * came to paint over "Depends on".
+ *
+ * A `Map` rather than a plain object because the id being looked up is a
+ * column id from the table model, not a key known here: a `Record<string,
+ * number>` would type every miss as a `number` and the check below as dead
+ * code, which is precisely the check that must not be dead.
+ */
+const COLUMN_WIDTHS = new Map<string, number>([
+  ['drag', 28],
+  ['number', 168],
+  ['name', 360],
+  ['depends', 220],
+  ['team', 160],
+  ['final-total', 70],
+  ['not-before', 130],
+  ['start', 70],
+  ['finish', 70],
+  ['float', 90],
+  ['notes', 260],
+  ['actions', 110],
+]);
+
+/**
+ * The widths of a role's columns, which have no fixed ids: a role is created at
+ * runtime and its columns are named `<roleId>-final`, `<roleId>-<point>` and
+ * `<roleId>-assignee`. Sized by suffix, because the role half of the id is
+ * whatever the project called it.
+ */
+const ROLE_FINAL_WIDTH = 110;
+const ROLE_POINT_WIDTH = 76;
+const ROLE_ASSIGNEE_WIDTH = 160;
+
+/** An id the width table has never heard of — a typo, or a new column nobody sized. */
+export class UnknownColumnError extends Error {
+  constructor(columnId: string) {
+    super(
+      `No declared width for column "${columnId}". Every rendered column ` +
+        `must be in COLUMN_WIDTHS or use a role suffix — an unlisted one would ` +
+        `silently get a wrong width, which is the overlap bug all over again.`,
+    );
+    this.name = 'UnknownColumnError';
+  }
+}
+
+/**
+ * How wide the column with this id is laid out, in px.
+ *
+ * @throws {UnknownColumnError} when nothing declares a width for that id.
+ * Unknown is not OK here: a column that fell through to a default would be laid
+ * out at one width while the pinned offsets were summed from another, and the
+ * two disagreeing is exactly the overlap this module exists to make impossible.
+ */
+export function widthFor(columnId: string): number {
+  const declared = COLUMN_WIDTHS.get(columnId);
+  if (declared !== undefined) return declared;
+  if (columnId.includes('-')) {
+    if (columnId.endsWith('-final')) return ROLE_FINAL_WIDTH;
+    if (columnId.endsWith('-assignee')) return ROLE_ASSIGNEE_WIDTH;
+    const point = columnId.slice(columnId.lastIndexOf('-') + 1);
+    if ((POINTS as readonly string[]).includes(point)) return ROLE_POINT_WIDTH;
+  }
+  throw new UnknownColumnError(columnId);
+}
+
+/**
+ * How wide the whole table is: the sum of the columns it is currently showing.
+ *
+ * Set on the `<table>` so `table-layout: fixed` has a total to divide among the
+ * declared columns rather than a percentage of a frame narrower than the plan.
+ */
+export function tableWidth(columnIds: readonly string[]): number {
+  return columnIds.reduce((total, id) => total + widthFor(id), 0);
+}
+
 /**
  * The columns held at the left edge while the table is scrolled sideways, in
  * order from that edge, each with the width it is held to.
@@ -11,17 +98,15 @@ import type { CSSProperties } from 'react';
  * `openspec/changes/sticky-table-frame/proposal.md` has the reversal written
  * down.
  *
- * The widths are declared rather than measured because each offset is the sum of
- * the widths in front of it: Name lands beside Number only if Number's width is
- * known. Only `drag` and `number` are load-bearing that way. Name is last, so
- * nothing is positioned from its width — it is a suggestion, and the textarea
- * inside it already asks for about this much.
+ * The widths come from {@link COLUMN_WIDTHS} rather than being repeated here:
+ * each offset is the sum of the widths in front of it, so Name lands beside
+ * Number only while the number this offsets by is the number the browser lays
+ * Number out at. Two lists of widths is one list too many.
  */
-export const PINNED_COLUMNS = [
-  { id: 'drag', width: 28 },
-  { id: 'number', width: 168 },
-  { id: 'name', width: 360 },
-] as const;
+export const PINNED_COLUMNS = (['drag', 'number', 'name'] as const).map((id) => ({
+  id,
+  width: widthFor(id),
+}));
 
 /** How many levels the Number column indents a row before it stops. */
 export const DEEPEST_INDENT = 4;
@@ -70,6 +155,39 @@ const ROW_BACKGROUND = '#fff';
 const PINNED_BODY_LAYER = 1;
 const HEADER_LAYER = 2;
 const PINNED_HEADER_LAYER = 3;
+
+/**
+ * What every `<td>` and `<th>` carries, spread before anything a particular cell
+ * adds.
+ *
+ * `border-box` is what makes the declared width the width including the cell's
+ * own padding — without it every column is a few pixels wider than the offset
+ * computed from it and the pinned edge drifts a little further with each one.
+ *
+ * `overflow: hidden` is the backstop. Every control in a cell is sized to follow
+ * that cell, but "paints into the neighbouring column" has to be structurally
+ * impossible rather than a rule each control is trusted to keep — including for
+ * a descendant nobody thought about.
+ *
+ * It is a backstop with holes cut in it, and the rule that cuts them is worth
+ * stating exactly, because this comment first stated it backwards. An
+ * absolutely positioned box escapes an `overflow: hidden` ancestor only when
+ * its containing block — its nearest *positioned* ancestor — is **outside**
+ * that clipper. It is not enough for the containing block itself not to clip.
+ * Everything in this table that must escape its cell — the dependency listbox,
+ * the notes preview, a picker's list — sits in a `position: relative` wrapper
+ * span that is **inside** the `<td>`, so the `<td>`'s own clip cuts it to the
+ * cell rectangle no matter how the wrapper is styled. The columns carrying
+ * those popovers therefore spread this and then override `overflow` to
+ * `visible`; the exception, which columns it covers, and what still contains
+ * those cells are written out at `opensAPopover` in `wbs-table.tsx`.
+ */
+export const CELL: CSSProperties = {
+  boxSizing: 'border-box',
+  padding: '1px 4px',
+  verticalAlign: 'top',
+  overflow: 'hidden',
+};
 
 /**
  * What every header cell carries so the column headings survive scrolling a long

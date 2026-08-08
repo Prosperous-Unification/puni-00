@@ -20,13 +20,32 @@
       "executor": "nx:run-commands",
       "options": { "command": "bunx vitest run", "cwd": "apps/fe-01" }
     },
+    "e2e": {
+      "executor": "nx:run-commands",
+      "options": {
+        "commands": [
+          "bun run tools/dev/setup.ts",
+          "bunx playwright test --config apps/fe-01/playwright.config.ts"
+        ],
+        "parallel": false
+      },
+      "cache": false
+    },
     "lint": {
       "executor": "nx:run-commands",
-      "options": { "command": "bunx eslint apps/fe-01/src" }
+      "options": {
+        "command": "bunx eslint apps/fe-01/src apps/fe-01/e2e apps/fe-01/playwright.config.ts apps/fe-01/vite.config.ts apps/fe-01/vitest.config.ts apps/fe-01/vite-config.test.ts"
+      }
     },
     "typecheck": {
       "executor": "nx:run-commands",
-      "options": { "command": "bunx tsc --build --force apps/fe-01/tsconfig.app.json" }
+      "options": {
+        "commands": [
+          "bunx tsc --build --force apps/fe-01/tsconfig.app.json",
+          "bunx tsc --build --force apps/fe-01/tsconfig.e2e.json"
+        ],
+        "parallel": false
+      }
     }
   }
 }

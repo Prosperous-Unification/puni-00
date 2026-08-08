@@ -27,18 +27,18 @@ bun run dev:setup                               # writes the .env files dev need
 bunx nx format:check --all                      # the gate, part 1
 bunx nx run-many -t test lint typecheck build   # the gate, part 2
 bun run dev                                     # be + gw + fe locally
+bun run e2e                                     # the browser layout gate (needs chromium)
 ```
 
-`bun test` at the repo root is **not** the gate: it collects fe-01's files and they fail on
-`location`, `localStorage` and the rest of the DOM `bun:test` has no jsdom for. Use
-`bunx nx run-many -t test`, which routes fe-01 to vitest. `build` needs `shellcheck`.
+`bun test` at the repo root is **not** the gate: it collects fe-01's files, which fail on the
+DOM `bun:test` has no jsdom for. Use `bunx nx run-many -t test`. `build` needs `shellcheck`.
 
 **Rules: `AGENTS.md`** (symlinked to CLAUDE.md/GEMINI.md) — read it, it governs every change.
 
 `.github/workflows/ci.yml` runs the gate above plus the secrets scan, migration lint and
-`openspec validate` on every push and PR. lefthook runs a subset pre-commit and `--no-verify`
-skips it; CI is not skippable. Format uses `--all` on purpose: the default base-ref comparison
-checks nothing on a push to main.
+`openspec validate` on every push and PR; job `pixels` runs `bun run e2e`, one chromium
+measuring the WBS table against the real stack. lefthook runs a subset pre-commit and
+`--no-verify` skips it; CI is not. Format uses `--all`: the base-ref default checks nothing.
 
 ## Deploy
 

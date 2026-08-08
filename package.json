@@ -16,7 +16,8 @@
     "dev:be": "nx run be-01:serve",
     "dev:gw": "nx run gw-01:serve",
     "dev:fe": "nx run fe-01:serve",
-    "dev:setup": "bun run tools/dev/setup.ts"
+    "dev:setup": "bun run tools/dev/setup.ts",
+    "e2e": "nx run fe-01:e2e"
   },
   "dependencies": {
     "@elysiajs/opentelemetry": "^1.4.11",
@@ -45,6 +46,7 @@
     "@nx/workspace": "22.7.0",
     "@opentelemetry/exporter-trace-otlp-proto": "^0.221.0",
     "@opentelemetry/sdk-trace-base": "^2.10.0",
+    "@playwright/test": "^1.62.1",
     "@swc-node/register": "1.11.1",
     "@swc/core": "1.15.8",
     "@swc/helpers": "0.5.21",

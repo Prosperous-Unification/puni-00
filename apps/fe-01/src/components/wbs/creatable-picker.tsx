@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { type KeyboardEvent, useState } from 'react';
 
 export interface PickableEntry {
   id: string;
@@ -18,6 +18,21 @@ export interface CreatablePickerProps {
   onCreate: (name: string) => void;
   onClear: () => void;
   placeholder?: string;
+  /**
+   * What joins this box to a table's keyboard grid, where it stands in one.
+   *
+   * Both halves together, because either alone is broken: `dataCell` makes the
+   * box somewhere the grid can land, and `onTabKey` is what lets Tab leave it
+   * again. A box carrying only the attribute is one the keyboard can walk into
+   * and not out of.
+   *
+   * Tab only. Enter, Escape and the typing stay this picker's own, and a
+   * picker rendered without this prop is untouched: its Tab is the browser's.
+   */
+  gridCell?: {
+    dataCell: string;
+    onTabKey: (event: KeyboardEvent<HTMLInputElement>) => void;
+  };
 }
 
 /**
@@ -41,6 +56,7 @@ export function CreatablePicker({
   onCreate,
   onClear,
   placeholder,
+  gridCell,
 }: CreatablePickerProps) {
   /** What has been typed, or null while the picker is closed. */
   const [typed, setTyped] = useState<string | null>(null);
@@ -58,7 +74,17 @@ export function CreatablePicker({
   const open = typed !== null && (offered.length > 0 || canCreate);
 
   return (
-    <span style={{ position: 'relative', display: 'inline-block' }}>
+    // A flex row so the box and its ✕ share one cell's width instead of adding
+    // up to more than it: the input takes what is left over and the button
+    // keeps its own size. `minWidth: 0` on both, because a flex item refuses to
+    // shrink below its content by default and an input's default content width
+    // is about twenty characters — which is how this pair used to push past its
+    // column. It is also the positioned ancestor the list below is placed
+    // against — which decides where the list opens, not whether it is clipped.
+    // The clipper is the `<td>` this sits in, and the columns this picker is
+    // rendered in are exempted from that clip by `opensAPopover` in
+    // `wbs-table.tsx`.
+    <span style={{ position: 'relative', display: 'flex', maxWidth: '100%', minWidth: 0 }}>
       <input
         aria-label={label}
         role="combobox"
@@ -66,8 +92,10 @@ export function CreatablePicker({
         aria-controls={open ? listId : undefined}
         aria-autocomplete="list"
         placeholder={placeholder}
-        size={14}
-        style={{ font: 'inherit' }}
+        data-cell={gridCell?.dataCell}
+        // A layout the grid does not touch: the attribute is what the table
+        // finds this box by, and it adds nothing to the flex row it sits in.
+        style={{ font: 'inherit', flex: 1, minWidth: 0, width: 'auto' }}
         value={typed ?? chosen?.name ?? ''}
         onFocus={() => {
           setTyped('');
@@ -82,6 +110,17 @@ export function CreatablePicker({
           setTyped(e.target.value);
         }}
         onKeyDown={(e) => {
+          if (e.key === 'Tab') {
+            // First, and on its own: leaving is the table's move, and the blur
+            // it causes discards the typing exactly as any other blur here
+            // does. A picker with no `gridCell` leaves the key to the browser.
+            //
+            // Proof: the call dropped, leaving only the `return`, `walks every
+            // field of a row in turn, and on into the next row` failed with the
+            // focus left in the team box. Watched, 2026-08-07.
+            gridCell?.onTabKey(e);
+            return;
+          }
           if (e.key === 'Escape') {
             setTyped(null);
             return;
@@ -107,7 +146,7 @@ export function CreatablePicker({
           aria-label={`Clear ${label}`}
           title="Clear"
           onClick={onClear}
-          style={{ marginLeft: 2 }}
+          style={{ marginLeft: 2, flex: 'none' }}
         >
           ✕
         </button>

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  CELL,
   DEEPEST_INDENT,
   indentFor,
   PINNED_COLUMNS,
@@ -8,7 +9,76 @@ import {
   pinnedGeometry,
   STICKY_HEADER_CELL,
   TABLE_FRAME,
+  tableWidth,
+  UnknownColumnError,
+  widthFor,
 } from './table-frame';
+
+describe('the width table', () => {
+  it('is the same table the pinned offsets are prefix sums of', () => {
+    // The overlap this replaces came from two width systems disagreeing: the
+    // offsets assumed one set of numbers and the browser laid out another. One
+    // table, read by both, is what makes that disagreement unrepresentable.
+    // Proof: PINNED_COLUMNS written back out by hand with `number` at 180,
+    // this failed on `expected 180 to be 168`. Watched, 2026-08-07.
+    let left = 0;
+    for (const { id, width } of PINNED_COLUMNS) {
+      expect(pinnedGeometry(id)).toEqual({ left, width });
+      expect(width).toBe(widthFor(id));
+      left += width;
+    }
+  });
+
+  it('has a width for every column the table renders', () => {
+    for (const id of [
+      'drag',
+      'number',
+      'name',
+      'depends',
+      'team',
+      'final-total',
+      'not-before',
+      'start',
+      'finish',
+      'float',
+      'notes',
+      'actions',
+    ]) {
+      expect(widthFor(id)).toBeGreaterThan(0);
+    }
+    // A role's columns are named for a role that only exists at runtime, so
+    // they are sized by suffix. One per literal in `POINTS`.
+    expect(widthFor('r1-final')).toBeGreaterThan(0);
+    expect(widthFor('r1-optimistic')).toBeGreaterThan(0);
+    expect(widthFor('r1-realistic')).toBeGreaterThan(0);
+    expect(widthFor('r1-pessimistic')).toBeGreaterThan(0);
+    expect(widthFor('r1-assignee')).toBeGreaterThan(0);
+  });
+
+  it('treats an id it never renders as an error, not a plausible width', () => {
+    // A default here is the bug all over again: a column nobody sized would be
+    // laid out at one width and offset from another, silently.
+    // Proof: the throw replaced with `return 120`, this failed on `expected
+    // function to throw an error, but it didn't`. Watched, 2026-08-07.
+    expect(() => widthFor('serviec')).toThrow(UnknownColumnError);
+    // A typo that happens to carry a dash must not fall through the role
+    // suffixes into a width either.
+    expect(() => widthFor('role-dev-realsitic')).toThrow(UnknownColumnError);
+  });
+
+  it('adds a table up from its columns', () => {
+    expect(tableWidth(['drag', 'number'])).toBe(widthFor('drag') + widthFor('number'));
+  });
+
+  it('makes the declared width include the cell chrome, and clips what overruns', () => {
+    // `border-box` or every column is its padding wider than the offset worked
+    // out from it, and the pinned edge drifts by a couple of pixels a column.
+    expect(CELL.boxSizing).toBe('border-box');
+    // The backstop: a descendant this plan missed cannot paint into the
+    // neighbouring column, whatever it asks for.
+    expect(CELL.overflow).toBe('hidden');
+  });
+});
 
 describe('the pinned columns', () => {
   it('starts at the left edge and stacks each column after the last', () => {

@@ -151,3 +151,56 @@ jobs:
       # this exits 1 with failed: 1. Restored, it exits 0 with passed: 2.
       - name: OpenSpec
         run: bunx @fission-ai/openspec@1.3.0 validate --all --json
+
+  # The eyes. Everything the `gate` job runs sees this table through jsdom,
+  # which lays nothing out: the overlap that prompted this job passed 450 unit
+  # tests while a pinned Name painted over "Depends on" on screen. One chromium,
+  # the real three-app stack, and arithmetic on bounding boxes.
+  #
+  # Independent of `gate` on purpose. It needs a browser download and a running
+  # backend, so it is the slowest and flakiest thing here; making `gate` wait
+  # for it would make every unrelated red slower to read. Both must pass.
+  #
+  # Proven non-vacuous on 2026-08-08. The faults are written out at the bottom
+  # of `apps/fe-01/e2e/layout.spec.ts`, each with the failure it was watched
+  # producing against a real chromium;
+  # `openspec/changes/table-geometry-and-tab-order/verify.md` has the run
+  # output, including the two faults that turned out NOT to break the test they
+  # were predicted to.
+  pixels:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      # The same pin as `gate` above, copied rather than floated, for the same
+      # reason: bun is part of what is being tested here — it runs be-01 and
+      # gw-01 — and `latest` changes the verdict with no commit to blame.
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+
+      - name: Install
+        run: bun install --frozen-lockfile
+
+      # Chromium alone, with its system libraries. `--with-deps` is not
+      # optional on a bare runner: without it the browser downloads and then
+      # fails to start on a missing shared object, which reads as a broken
+      # spec rather than a missing package.
+      - name: Install chromium
+        run: bunx playwright install --with-deps chromium
+
+      # Starts be-01, gw-01 and Vite itself (see playwright.config.ts) against
+      # a per-run SQLite file, and waits for all three health URLs before the
+      # first test. `bun run e2e` seeds the three `.env` files first — a fresh
+      # checkout has none, and every app refuses to boot without one.
+      - name: Layout gate
+        run: bun run e2e
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: wbs-table-screenshot
+          path: |
+            apps/fe-01/test-results/
+            apps/fe-01/playwright-report/

@@ -38,7 +38,15 @@ import { KeyboardCheatSheet, opensCheatSheet } from './keyboard-cheat-sheet';
 import { NotesPreview } from './notes-preview';
 import { describeGaps, findEstimateGaps } from './plan-completeness';
 import { type PlanExport, planFileName, planToCsv, planToMarkdown } from './plan-export';
-import { indentFor, pinnedCellStyle, STICKY_HEADER_CELL, TABLE_FRAME } from './table-frame';
+import {
+  CELL,
+  indentFor,
+  pinnedCellStyle,
+  STICKY_HEADER_CELL,
+  TABLE_FRAME,
+  tableWidth,
+  widthFor,
+} from './table-frame';
 import { ToastStack, useToasts } from './toasts';
 import { searchTree } from './tree-search';
 import { toTree, type TreeRow } from './wbs-rows';
@@ -137,6 +145,41 @@ const NOTHING_TO_REDO = 'There is nothing to put back — nothing of yours has b
  * file can see.
  */
 const BOM = '\uFEFF';
+
+/**
+ * The columns by fixed id whose `<td>` must not clip, because something in them
+ * opens over the rows below. {@link opensAPopover} is what asks.
+ */
+const POPOVER_COLUMNS: ReadonlySet<string> = new Set(['depends', 'notes', 'team']);
+
+/**
+ * Whether this column holds something that opens over the rows below, and so
+ * needs its `<td>` exempted from {@link CELL}'s `overflow: hidden`.
+ *
+ * The CSS rule this exists for, stated because the first version of this change
+ * got it backwards and shipped every popover in the table cut off at the cell
+ * edge: an absolutely positioned box escapes an `overflow: hidden` ancestor only
+ * when its containing block — its nearest *positioned* ancestor — is **outside**
+ * that clipper. Every popover here is `position: absolute` inside a
+ * `position: relative` wrapper span, and that wrapper is inside the cell, so the
+ * `<td>`'s own clip cuts it to the cell rectangle however the wrapper is styled.
+ * Lifting the clip on the `<td>` is the only thing that lets one open.
+ *
+ * Four kinds of column, not two: the dependency listbox (`depends`), the notes
+ * preview (`notes`), and a `CreatablePicker`'s list — which is the service/team
+ * cell and each role's assignee cell. The assignee columns are named
+ * `<roleId>-assignee` at runtime, so they are matched by suffix, the same way
+ * `widthFor` sizes them.
+ *
+ * What still keeps these cells from painting into their neighbours, now that the
+ * structural backstop is off for them: every control inside them is
+ * `width: 100%` (or a flex child of a `maxWidth: 100%` row) with `border-box`
+ * sizing — asserted by `lets no control in a cell assert a width of its own` and
+ * measured in a browser by `keeps every control inside the cell it belongs to`
+ * in `e2e/layout.spec.ts`.
+ */
+const opensAPopover = (columnId: string): boolean =>
+  POPOVER_COLUMNS.has(columnId) || columnId.endsWith('-assignee');
 
 /** What the folded cell says about itself when there is nothing to complain about. */
 const SHORTHAND_HELP =
@@ -354,6 +397,28 @@ function caretOf(input: CellElement): Caret {
  */
 const showDay = (days: number): string => String(Math.round(days * 10) / 10);
 
+/** Where a keyboard arrival puts the caret: over the whole value, or at one offset. */
+type Landing = 'all' | number;
+
+/**
+ * Focuses a cell and places its caret, where the element has a caret to place.
+ *
+ * A date input has none. `setSelectionRange` throws `InvalidStateError` on one,
+ * and `select()` has nothing to select there either, so the caret half is asked
+ * for only of a textarea or a text input and everything else is simply focused
+ * — which is all a date cell needs to be arrived in.
+ *
+ * Proof: the element check removed, `the arrows land in a date cell without
+ * asking it for a caret it has none of` failed with `InvalidStateError` thrown
+ * out of the arrow handler. Watched, 2026-08-07.
+ */
+function focusCellAt(input: CellElement, landing: Landing): void {
+  input.focus();
+  if (!(input instanceof HTMLTextAreaElement) && input.type !== 'text') return;
+  if (landing === 'all') input.select();
+  else input.setSelectionRange(landing, landing);
+}
+
 /**
  * Every editable cell in the committed table, paired with the input that is it.
  *
@@ -362,9 +427,16 @@ const showDay = (days: number): string => String(Math.round(days * 10) / 10);
  * entry away from focusing the wrong box. Read from the DOM at the moment a
  * key arrives, never from a ref written during render: the committed DOM is
  * the only thing that cannot be ahead of itself.
+ *
+ * `readonly` keeps the focus off a parent's rolled-up figures, and `disabled`
+ * off the earliest-start cell of a plan with no start date — a cell that
+ * refuses the focus is a keystroke that takes the key and lands nothing.
+ * Proof: `:not([disabled])` dropped, `steps over the date cell until the plan
+ * is on a calendar` failed with the focus left where it started. Watched,
+ * 2026-08-07.
  */
 function editableGrid(table: HTMLTableElement): { input: CellElement; cell: CellRef }[] {
-  return [...table.querySelectorAll<CellElement>('[data-cell]:not([readonly])')]
+  return [...table.querySelectorAll<CellElement>('[data-cell]:not([readonly]):not([disabled])')]
     .map((input) => ({ input, parts: (input.dataset['cell'] ?? '').split('::') }))
     .flatMap(({ input, parts }) => {
       // A `data-cell` that is not `row::column` is markup this component did
@@ -391,10 +463,12 @@ function focusAdjacentCell(input: CellElement, from: CellRef, delta: 1 | -1): bo
   if (at === -1) return false;
   // `.at(-1)` wraps to the far end, which would turn Shift+Tab in the first
   // cell into a jump to the last one instead of leaving the key alone.
+  // Proof: the guard removed so the index reached `.at(-1)`, `at the edges of
+  // the grid the key is left to the browser` failed — the key was taken and
+  // the focus jumped to the last cell of the table. Watched, 2026-08-07.
   const next = at + delta < 0 ? undefined : grid.at(at + delta);
   if (next === undefined) return false;
-  next.input.focus();
-  next.input.select();
+  focusCellAt(next.input, 'all');
   return true;
 }
 
@@ -1135,11 +1209,11 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     if (arrived === undefined) return;
     // Proof: removed, five of this block's tests failed with the focus left
     // wherever the last created row had put it. Watched, 2026-08-06.
-    arrived.input.focus();
+    //
     // Selected, the way every arrival at an estimate cell is: the value at
     // rest is a computed figure, and a caret dropped inside `4` turns the next
     // `2/3/8` into `2/3/84`.
-    arrived.input.select();
+    focusCellAt(arrived.input, 'all');
   }, [gapVisit]);
 
   /**
@@ -1382,6 +1456,36 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
   );
 
   /**
+   * Tab: the next field, or the previous one, from any cell in the grid.
+   *
+   * Every editable cell but the Name has this and nothing else for the key. The
+   * Name's own handler holds the outliner special case — at the very start of
+   * the text Tab indents the row and Shift+Tab outdents it — and everywhere
+   * else in the text it makes this same move.
+   *
+   * The grid is the table, not one row: at the end of a row Tab walks into the
+   * first field of the next. Only at the grid's own edge — past the last
+   * editable cell of the last row — does `focusAdjacentCell` return false and
+   * the key go to the browser, which lands on that row's Duplicate and Delete.
+   * That is the point rather than a leak: the actions are reachable at the end
+   * of the table and never from the middle of a row, and no focus trap is added
+   * to stop a reader Tabbing out of the table altogether.
+   *
+   * Proof: dropped from the handler chain, `walks every field of a row in turn,
+   * and on into the next row` failed at the first cell that no longer moved.
+   * Watched, 2026-08-07.
+   */
+  const onTabKey = useCallback((event: React.KeyboardEvent, rowId: string, columnId: string) => {
+    if (event.key !== 'Tab') return;
+    const input = event.currentTarget;
+    // Skipped rather than thrown on a target that is not a cell, the same way
+    // the rest of the grid treats markup it did not write.
+    if (!isCellElement(input)) return;
+    const moved = focusAdjacentCell(input, { rowId, columnId }, event.shiftKey ? -1 : 1);
+    if (moved) event.preventDefault();
+  }, []);
+
+  /**
    * Moves the focus between cells, or lets the browser have the key.
    *
    * The grid is read from the table's own DOM at the moment the key arrives, not
@@ -1421,9 +1525,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
       // Only now, and only because the move is happening: an unconditional
       // `preventDefault` would take the caret keys away from every input.
       event.preventDefault();
-      next.focus();
-      const caret = move.caretAt === 'start' ? 0 : next.value.length;
-      next.setSelectionRange(caret, caret);
+      focusCellAt(next, move.caretAt === 'start' ? 0 : next.value.length);
     },
     [],
   );
@@ -1938,6 +2040,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     run,
     duplicateRow,
     onKeyDown,
+    onTabKey,
     onArrowKey,
     onAltMove,
     setDragging,
@@ -1977,6 +2080,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     run,
     duplicateRow,
     onKeyDown,
+    onTabKey,
     onArrowKey,
     onAltMove,
     setDragging,
@@ -2105,7 +2209,11 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
               rows={1}
               maxRestRows={4}
               style={{
-                width: '22em',
+                // The cell's width, not a width of its own: `22em` was one of
+                // the three opinions that produced the overlap, and it is the
+                // colgroup's job now.
+                width: '100%',
+                boxSizing: 'border-box',
                 resize: 'vertical',
                 font: 'inherit',
                 ...(matched ? { background: MATCH_TINT } : {}),
@@ -2163,7 +2271,24 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
               : pickable.find((entry) => entry.id === picker.highlightId);
           const open = picker !== null && entries.length > 0;
           return (
-            <span style={{ whiteSpace: 'nowrap', position: 'relative', display: 'inline-block' }}>
+            <span
+              // `normal` rather than `nowrap`: a row waiting on six others has
+              // six chips, and a line of them that cannot wrap is a line that
+              // runs into the next column — or, now, one the cell clips. An
+              // uneven row height is a cost worth paying; a dependency nobody
+              // can see is not.
+              //
+              // The positioned ancestor the listbox below is placed against —
+              // which is what decides *where* the list opens, not whether it
+              // is clipped. The clipper is the `<td>`, and it is what
+              // {@link POPOVER_COLUMNS} exempts.
+              style={{
+                whiteSpace: 'normal',
+                position: 'relative',
+                display: 'block',
+                maxWidth: '100%',
+              }}
+            >
               {numbers.map(({ id, number }) => (
                 <button
                   key={id}
@@ -2190,8 +2315,11 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                 aria-autocomplete="list"
                 placeholder="search, or 010, 020"
                 title="Type to search by number or name, or a list of numbers separated by commas or spaces"
-                size={14}
+                style={{ width: '100%', boxSizing: 'border-box' }}
                 data-depends-input={row.original.id}
+                // A cell of the keyboard grid, so Tab reaches this box and
+                // leaves it again rather than walking the chips' ✕ buttons.
+                data-cell={cellKey(row.original.id, 'depends')}
                 value={picker?.typed ?? ''}
                 onFocus={() => {
                   live.current.setDepPicker({
@@ -2222,6 +2350,21 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                   });
                 }}
                 onKeyDown={(e) => {
+                  if (e.key === 'Tab') {
+                    // The move blurs this input, which closes the list and
+                    // drops what was typed into it — this cell's blur contract
+                    // since it was written, now reached by Tab on purpose. The
+                    // typed text is a *search*: committing it on the way out
+                    // would add dependencies nobody confirmed.
+                    //
+                    // Proof: the call dropped, leaving only the `return`, both
+                    // `Tab from the depends input closes the picker…` and
+                    // `Shift+Tab from the depends input lands in the name…`
+                    // failed with the key left to the browser. Watched,
+                    // 2026-08-07.
+                    live.current.onTabKey(e, row.original.id, 'depends');
+                    return;
+                  }
                   if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
                     e.preventDefault();
                     live.current.moveDepHighlight(
@@ -2353,6 +2496,12 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
             onClear={() => {
               live.current.setTeamOf(row.original.id, null);
             }}
+            gridCell={{
+              dataCell: cellKey(row.original.id, 'team'),
+              onTabKey: (e) => {
+                live.current.onTabKey(e, row.original.id, 'team');
+              },
+            }}
           />
         ),
       }),
@@ -2368,15 +2517,26 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                 type="button"
                 aria-expanded={unfolded}
                 aria-label={`${unfolded ? 'Fold' : 'Unfold'} ${role.name} estimates`}
-                title={
+                // The role's own name, in full, because the button now shows as
+                // much of it as the column has room for and no more. A role
+                // called "Infrastructure and platform" used to set the width of
+                // everything under it instead.
+                title={`${role.name} — ${
                   unfolded
-                    ? 'Hide the three-point estimate and assignee'
-                    : 'Show the three-point estimate and assignee'
-                }
+                    ? 'hide the three-point estimate and assignee'
+                    : 'show the three-point estimate and assignee'
+                }`}
                 onClick={() => {
                   live.current.toggleRole(role.id);
                 }}
-                style={{ font: 'inherit', fontWeight: 'inherit' }}
+                style={{
+                  font: 'inherit',
+                  fontWeight: 'inherit',
+                  maxWidth: '100%',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
               >
                 {role.name} {unfolded ? '▾' : '▸'}
               </button>
@@ -2408,12 +2568,12 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                       // `is a cell of the keyboard grid, so a column can be
                       // typed down` fails. Watched, 2026-08-06.
                       data-cell={cellKey(row.original.id, `${role.id}-final`)}
-                      size={7}
                       placeholder="o/r/p"
                       aria-invalid={problem !== null}
                       title={problem ?? SHORTHAND_HELP}
                       onKeyDown={(e) => {
                         live.current.onAltMove(e, row.original, `${role.id}-final`);
+                        live.current.onTabKey(e, row.original.id, `${role.id}-final`);
                         live.current.onArrowKey(e, row.original.id, `${role.id}-final`);
                       }}
                       // Selected on arrival, because the value at rest is a
@@ -2424,7 +2584,8 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                         e.currentTarget.select();
                       }}
                       style={{
-                        width: '6em',
+                        width: '100%',
+                        boxSizing: 'border-box',
                         font: 'inherit',
                         fontWeight: 600,
                         ...(problem === null ? {} : { background: '#fde8e8', borderColor: '#c00' }),
@@ -2459,25 +2620,28 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                           aria-label={`${role.name} ${point} for ${row.original.number}`}
                           data-cell={cellKey(row.original.id, `${role.id}-${point}`)}
                           // Narrow on purpose: these hold a number of days, and a box
-                          // sized for a sentence reads as if it wants one.
-                          size={5}
+                          // sized for a sentence reads as if it wants one. Which is
+                          // the column's width to say now, not this box's.
                           aria-invalid={wrong}
                           title={problem?.message}
                           onKeyDown={(e) => {
                             live.current.onAltMove(e, row.original, `${role.id}-${point}`);
+                            live.current.onTabKey(e, row.original.id, `${role.id}-${point}`);
                             live.current.onArrowKey(e, row.original.id, `${role.id}-${point}`);
                           }}
                           // A parent's figures are sums of what is below it, so the cell is
                           // shown and not editable — greyed rather than blank, because the
                           // number is real and worth reading.
                           readOnly={row.original.rolledUp}
-                          style={
-                            row.original.rolledUp
-                              ? { color: '#666', background: '#f4f4f4', width: '4.5em' }
+                          style={{
+                            width: '100%',
+                            boxSizing: 'border-box',
+                            ...(row.original.rolledUp
+                              ? { color: '#666', background: '#f4f4f4' }
                               : wrong
-                                ? { background: '#fde8e8', borderColor: '#c00', width: '4.5em' }
-                                : { width: '4.5em' }
-                          }
+                                ? { background: '#fde8e8', borderColor: '#c00' }
+                                : {}),
+                          }}
                           value={live.current.estimateValue(row.original, role.id, point)}
                           commit={(typed) => {
                             if (row.original.rolledUp) return;
@@ -2501,7 +2665,17 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                     const nameOf = (id: string) =>
                       live.current.people.find((each) => each.id === id)?.name ?? '(unknown)';
                     return (
-                      <span style={{ whiteSpace: 'nowrap' }}>
+                      // A flex row because the picker inside it is one now: the
+                      // assumed name has to sit beside the box and shrink with
+                      // it, rather than being pushed onto a line of its own.
+                      <span
+                        style={{
+                          display: 'flex',
+                          alignItems: 'baseline',
+                          maxWidth: '100%',
+                          minWidth: 0,
+                        }}
+                      >
                         <CreatablePicker
                           label={`${role.name} assignee for ${row.original.number}`}
                           placeholder="search or add"
@@ -2529,12 +2703,25 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                           onClear={() => {
                             live.current.assignTo(row.original.id, role.id, null);
                           }}
+                          gridCell={{
+                            dataCell: cellKey(row.original.id, `${role.id}-assignee`),
+                            onTabKey: (e) => {
+                              live.current.onTabKey(e, row.original.id, `${role.id}-assignee`);
+                            },
+                          }}
                         />
                         {assumed !== null && (
                           <span
                             data-assumed={role.id}
                             title="Only one person is assigned, so they are assumed to do this phase too"
-                            style={{ color: '#666', marginLeft: 4 }}
+                            style={{
+                              color: '#666',
+                              marginLeft: 4,
+                              minWidth: 0,
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                            }}
                           >
                             ({nameOf(assumed)})
                           </span>
@@ -2573,7 +2760,17 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                 : 'This work item may not start before this day. Its dependencies can still push it later.'
             }
             data-not-before={row.original.id}
-            style={{ font: 'inherit' }}
+            // A cell of the keyboard grid like any other — while it is enabled.
+            // Disabled it is left out by `editableGrid`, which is what keeps
+            // Tab from stopping on a field that will not take the focus.
+            data-cell={cellKey(row.original.id, 'not-before')}
+            onKeyDown={(e) => {
+              live.current.onTabKey(e, row.original.id, 'not-before');
+            }}
+            // A date input carries an intrinsic width — the spinner and the
+            // picker icon — that is wider than this column on some browsers,
+            // so it is told to follow the column like every other control.
+            style={{ width: '100%', boxSizing: 'border-box', font: 'inherit' }}
             value={row.original.startNoEarlierThan ?? ''}
             onChange={(e) => {
               // A date input reports '' when cleared, which is the caller
@@ -2627,7 +2824,13 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
           const hovered = live.current.hoveredNotes === row.original.id;
           return (
             <span
-              style={{ position: 'relative', display: 'inline-block' }}
+              // `block`, not `inline-block`: a shrink-to-fit wrapper and a
+              // `width: 100%` textarea inside it define each other in a
+              // circle. It is also the positioned ancestor the preview below
+              // is placed against — which decides where the preview opens, not
+              // whether it is clipped. The clipper is the `<td>`, and it is
+              // what {@link POPOVER_COLUMNS} exempts.
+              style={{ position: 'relative', display: 'block', maxWidth: '100%' }}
               onMouseEnter={() => {
                 live.current.setHoveredNotes(row.original.id);
               }}
@@ -2646,9 +2849,15 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                 multiline
                 rows={1}
                 expandedRows={8}
-                style={{ width: '18em', resize: 'vertical', font: 'inherit' }}
+                style={{
+                  width: '100%',
+                  boxSizing: 'border-box',
+                  resize: 'vertical',
+                  font: 'inherit',
+                }}
                 onKeyDown={(e) => {
                   live.current.onAltMove(e, row.original, 'notes');
+                  live.current.onTabKey(e, row.original.id, 'notes');
                   live.current.onArrowKey(e, row.original.id, 'notes');
                 }}
                 value={row.original.notes}
@@ -2763,6 +2972,14 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    * typed the kept set is every row and this filters nothing out.
    */
   const shownRows = table.getRowModel().rows.filter((row) => search.visibleIds.has(row.id));
+
+  /**
+   * The columns this render puts on screen, in order — which is exactly what a
+   * `<colgroup>` declares and what the table's own width adds up. Read from the
+   * table model rather than listed here, so unfolding a role cannot leave the
+   * declared widths describing the columns of a moment ago.
+   */
+  const leafColumnIds = table.getVisibleLeafColumns().map((column) => column.id);
 
   return (
     <section>
@@ -3054,7 +3271,30 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
           and two pixels between every pair of cells is two pixels the offsets
           do not know about.
         */}
-        <table ref={tableElement} style={{ borderCollapse: 'separate', borderSpacing: 0 }}>
+        <table
+          ref={tableElement}
+          style={{
+            borderCollapse: 'separate',
+            borderSpacing: 0,
+            // `fixed` and a declared total, so the browser lays every column
+            // out at the width `table-frame.ts` says it has. Under the default
+            // `auto` the widths were a suggestion the content could outvote,
+            // and a column that came out wider than the offsets assumed is a
+            // pinned Name painted over "Depends on".
+            tableLayout: 'fixed',
+            width: tableWidth(leafColumnIds),
+          }}
+        >
+          {/*
+            The one place the declared widths reach the browser. `col` sizes a
+            column and nothing else about it, which is why the cells below
+            carry no width of their own.
+          */}
+          <colgroup>
+            {leafColumnIds.map((id) => (
+              <col key={id} style={{ width: widthFor(id) }} />
+            ))}
+          </colgroup>
           <thead>
             {table.getHeaderGroups().map((group) => (
               <tr key={group.id}>
@@ -3062,7 +3302,14 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                   <th
                     key={header.id}
                     scope="col"
+                    // Which column this cell is, on the cell itself. Nothing in
+                    // the app reads it: the browser layout gate does
+                    // (`e2e/layout.spec.ts`), and a measured rectangle with no
+                    // name attached is a failure that says two numbers
+                    // disagreed without saying which column moved.
+                    data-column={header.column.id}
                     style={{
+                      ...CELL,
                       ...STICKY_HEADER_CELL,
                       ...pinnedCellStyle(header.column.id, 'header'),
                     }}
@@ -3111,7 +3358,21 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                 }}
               >
                 {row.getVisibleCells().map((cell) => (
-                  <td key={cell.id} style={pinnedCellStyle(cell.column.id, 'body')}>
+                  <td
+                    key={cell.id}
+                    // See the `th` above: the layout gate measures these boxes
+                    // and has to be able to name the one that moved.
+                    data-column={cell.column.id}
+                    style={{
+                      ...CELL,
+                      // The exception to the cell clip. See
+                      // {@link opensAPopover}: a popover's containing block is
+                      // the wrapper span *inside* this `<td>`, so this `<td>`
+                      // clips it unless it is told not to.
+                      ...(opensAPopover(cell.column.id) ? { overflow: 'visible' as const } : {}),
+                      ...pinnedCellStyle(cell.column.id, 'body'),
+                    }}
+                  >
                     {flexRender(cell.column.columnDef.cell, cell.getContext())}
                   </td>
                 ))}

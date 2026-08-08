@@ -17,8 +17,10 @@ left to the browser.
 #### Scenario: tab inside the text walks the table
 
 - **WHEN** the caret sits past the start of `010`'s name and Tab is pressed
-- **THEN** focus lands on `010`'s first estimate cell, its text selected, and
-  no move is requested
+- **THEN** focus lands on the next editable cell of `010` in DOM order, its
+  text selected, and no move is requested. That neighbour was the first
+  estimate box when this was written; `table-geometry-and-tab-order` put the
+  dependency box into the same grid, and it is that box now
 
 #### Scenario: shift-tab inside the text walks backwards
 
