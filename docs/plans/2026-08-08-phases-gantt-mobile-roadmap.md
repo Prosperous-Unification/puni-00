@@ -82,6 +82,15 @@ the preflight line before trusting the geometry.
 **~0.5 day.** If this spike fights the stack for more than a day, that is a
 finding to bring back, not a fight to win silently.
 
+**Done 2026-08-09 — `docs/plans/2026-08-08-tailwind-spike-verify.md`.** It did
+not fight the stack. Three things F must read first: 2's premise is wrong —
+unscoped preflight leaves every one of `layout.spec.ts`'s 22 tests green,
+because the table is styled inline and an inline style outranks every layer, so
+the fault needed its own oracle (`e2e/tailwind.spec.ts`); `ui/button.tsx`'s
+long-inert Tailwind classes go live the moment utilities compile, which
+restyles two chrome buttons; and the alpine/amd64 container build with
+Tailwind's native modules has not been run anywhere yet.
+
 ## F `shadcn-foundation` — chrome components (P2.3a)
 
 1. shadcn init; vendored components owned under repo rules. Tokens (font,
