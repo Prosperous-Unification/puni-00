@@ -132,6 +132,25 @@ its number — behind a single button on its row. One is open at a time, and it 
 keyboard while it is.
 _Avoid_: context menu, row menu, kebab, overflow menu
 
+**Flexible column**:
+The one column of the table with no declared width — the name — which takes whatever the
+declared ones leave, down to a floor it does not shrink past. Not an unsized column: asking
+for its width is an error, because the pinned offsets are sums of declared widths.
+_Avoid_: auto column, fill column, stretch
+
+**Table minimum width**:
+The narrowest the table may be laid out for the columns it is currently showing: every
+declared width plus each flexible column's floor. Above it nothing scrolls sideways; below
+it the frame scrolls and the pinned columns hold the left edge.
+_Avoid_: total width, table width, min size
+
+**Mention**:
+A person looked up from inside another box, written as `@` and part of their name — in the
+folded role cell, where `2/3/8@kat` is one gesture. Held apart from whatever the box is
+otherwise for: the estimate never sees the mention and the mention never becomes an
+estimate.
+_Avoid_: at-mention, tag, autocomplete
+
 **Toast**:
 One message about something that just happened, shown in a corner of the screen. A failure
 waits there until it is dismissed; a note takes itself off. Reports events only — a

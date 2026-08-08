@@ -94,6 +94,20 @@ export interface CellInputProps extends PassedThrough {
    * the ref callback is rebuilt on each render. Must be idempotent.
    */
   onAttach?: (element: CellElement) => void;
+  /**
+   * Called with the node on every keystroke, before anything is committed.
+   *
+   * For a cell that has to react to text as it is typed rather than when it is
+   * left — the folded estimate cell opens its `@` people picker from here. It
+   * is deliberately given the node rather than the text: the caller both reads
+   * what is in the box and, on a pick, writes the mention back out of it.
+   *
+   * A prop rather than the `onInput` this component would otherwise pass
+   * through: `onChange` is the event this component already treats as "somebody
+   * typed here", and hanging a second meaning off a second name for the same
+   * event is how the two come to disagree about which keystrokes counted.
+   */
+  onTyped?: (box: CellElement) => void;
 }
 
 /**
@@ -129,6 +143,7 @@ export function CellInput({
   value,
   commit,
   onAttach,
+  onTyped,
   multiline = false,
   autoSize = false,
   maxRestRows = 4,
@@ -288,10 +303,16 @@ export function CellInput({
     sync();
   };
 
+  /** One keystroke: this component's own bookkeeping, then the caller's. */
+  const tookAKeystroke = (node: CellElement): void => {
+    typed.current = true;
+    onTyped?.(node);
+  };
+
   const shared = {
     defaultValue: value,
-    onChange: () => {
-      typed.current = true;
+    onChange: (event: { currentTarget: CellElement }) => {
+      tookAKeystroke(event.currentTarget);
     },
   };
 
@@ -313,7 +334,7 @@ export function CellInput({
         }}
         {...shared}
         onChange={(event) => {
-          typed.current = true;
+          tookAKeystroke(event.currentTarget);
           resize(event.currentTarget);
         }}
         onFocus={(event) => {

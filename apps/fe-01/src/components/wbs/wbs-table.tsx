@@ -21,7 +21,7 @@ import {
 import { ActionsMenu } from './actions-menu';
 import { type CellElement, CellInput, type CommitOutcome, unsent } from './cell-input';
 import { type Caret, type CellRef, nextCell } from './cell-navigation';
-import { CreatablePicker } from './creatable-picker';
+import { CreatablePicker, pickableLabel, PickerList, type PickerOption } from './creatable-picker';
 import { pickerEntries, type PickerEntry } from './dep-picker';
 import { parseDependencies, unknownMessage } from './depends-input';
 import { type DropRefusal, type DropZone, planMove, zoneFor } from './drag-drop';
@@ -36,17 +36,20 @@ import {
 } from './estimate-draft';
 import { undoChord } from './keyboard-bindings';
 import { KeyboardCheatSheet, opensCheatSheet } from './keyboard-cheat-sheet';
+import { splitMention } from './mention';
 import { composeNameCell, normalizeNewlines, splitNameCell } from './name-notes';
 import { NotesPreview } from './notes-preview';
 import { describeGaps, findEstimateGaps } from './plan-completeness';
 import { type PlanExport, planFileName, planToCsv, planToMarkdown } from './plan-export';
 import {
   CELL,
+  FLEXIBLE_COLUMNS,
+  flexibleCellStyle,
   indentFor,
   pinnedCellStyle,
   STICKY_HEADER_CELL,
   TABLE_FRAME,
-  tableWidth,
+  tableMinWidth,
   widthFor,
 } from './table-frame';
 import { ToastStack, useToasts } from './toasts';
@@ -167,14 +170,15 @@ const POPOVER_COLUMNS: ReadonlySet<string> = new Set(['depends', 'name', 'team',
  * `<td>`'s own clip cuts it to the cell rectangle however the wrapper is styled.
  * Lifting the clip on the `<td>` is the only thing that lets one open.
  *
- * Five kinds of column, not two: the dependency listbox (`depends`), the
+ * Six kinds of column, not two: the dependency listbox (`depends`), the
  * rendered notes preview (`name` — the notes live in that box since the Notes
  * column was folded into it), a `CreatablePicker`'s list — which is the
- * service/team cell and each role's assignee cell — and the row's own actions
- * menu (`actions`), which hangs a 140px box off a 40px cell one line high and
- * is the narrowest clip of the lot. The assignee columns are named
- * `<roleId>-assignee` at runtime, so they are matched by suffix, the same way
- * `widthFor` sizes them.
+ * service/team cell and each role's assignee cell — the row's own actions
+ * menu (`actions`), which hangs a 140px box off a 40px cell one line high, and
+ * a folded role's own cell (`<roleId>-final`), where an `@` opens the people
+ * picker over a 96px column. That last one is the narrowest clip of the lot.
+ * Both kinds of role column are named for a role that only exists at runtime,
+ * so they are matched by suffix, the same way `widthFor` sizes them.
  *
  * `name` is also a pinned column, and the two rules do not fight: the pin
  * places the cell, the clip decides what may leave it, and the preview has to.
@@ -187,11 +191,22 @@ const POPOVER_COLUMNS: ReadonlySet<string> = new Set(['depends', 'name', 'team',
  * in `e2e/layout.spec.ts`.
  */
 const opensAPopover = (columnId: string): boolean =>
-  POPOVER_COLUMNS.has(columnId) || columnId.endsWith('-assignee');
+  POPOVER_COLUMNS.has(columnId) || columnId.endsWith('-assignee') || columnId.endsWith('-final');
+
+/**
+ * How wide the Depends on list opens, in px, whatever its column is.
+ *
+ * The column is 110px — enough for the chips, which wrap — and an entry in
+ * this list is a number and a work item's name. A list held to its own column
+ * would be a list nobody can read; it hangs over the columns beside it, which
+ * is what `opensAPopover` exempts the cell for. The browser gate measures it.
+ */
+const DEP_LIST_WIDTH = 260;
 
 /** What the folded cell says about itself when there is nothing to complain about. */
 const SHORTHAND_HELP =
-  'Days as optimistic/realistic/pessimistic — 2/3/8. One number means all three. Empty clears it.';
+  'Days as optimistic/realistic/pessimistic — 2/3/8. One number means all three. Empty clears it. ' +
+  '@ looks somebody up to do it.';
 
 /**
  * The drafts record without the named keys.
@@ -609,21 +624,34 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    */
   const [stack, setStack] = useState({ undoable: false, redoable: false });
   /**
-   * Roles whose columns are unfolded — the trio and the assignee, next to the
-   * final figure that is always on screen.
+   * Roles whose columns are unfolded — the three points, next to the final
+   * figure and its assignee, which are always on screen.
    *
-   * Folded by default, which is the point: two roles cost ten columns and the
-   * dates fell off the screen. The final figure is what a plan is read by; the
-   * three numbers it came from and who does the work are needed while the
-   * plan is being written, which is when they are a click away. Local state, not
-   * shared: my unfolding must not reshuffle anyone else's table.
+   * **At most one, which is what makes the table fit.** A folded role costs
+   * 96px and an unfolded one 372, and the width equation in `table-frame.ts`
+   * says the difference plainly: two folded roles need 1106px and fit a 1280
+   * laptop, while one of them unfolded needs 1382 and does not. So this is an
+   * accordion — unfolding a role folds whichever was open — rather than a set
+   * that can grow until the dates fall off the screen again. Dany's call,
+   * 2026-08-08.
+   *
+   * A list rather than a `string | null` because it is what the column builder
+   * asks (`unfoldedRoles.includes(role.id)`) and what the `columns` memo may
+   * depend on; the invariant is on the writer below, which is the only one.
+   * Local state, not shared: my unfolding must not reshuffle anyone else's
+   * table.
    */
   const [unfoldedRoles, setUnfoldedRoles] = useState<readonly string[]>([]);
 
+  /**
+   * Unfolds a role, folding whatever was unfolded — or folds it again.
+   *
+   * Proof: written as `[...current, roleId]`, `unfolds one role at a time, so
+   * the table still fits the window` failed on `expected <input …(5)></input>
+   * to be null`. Watched, 2026-08-08.
+   */
   const toggleRole = useCallback((roleId: string) => {
-    setUnfoldedRoles((current) =>
-      current.includes(roleId) ? current.filter((id) => id !== roleId) : [...current, roleId],
-    );
+    setUnfoldedRoles((current) => (current.includes(roleId) ? [] : [roleId]));
   }, []);
   /** The project's start date, or null while the plan is not on a calendar. */
   const [startDate, setStartDate] = useState<string | null>(null);
@@ -654,6 +682,33 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     typed: string;
     highlightId: string | null;
   } | null>(null);
+  /**
+   * The `@` mention open in a folded role's cell: whose cell, and what has been
+   * typed after the `@`.
+   *
+   * One at a time, for `depPicker`'s reason: one box is being typed into. Read
+   * through {@link live}, because `columns` may depend on `roles` and
+   * `unfoldedRoles` and nothing else.
+   *
+   * `typed: ''` is a bare `@` — everybody offered — and is not the same as no
+   * mention at all. {@link splitMention} is what tells the two apart.
+   */
+  const [mention, setMention] = useState<{ rowId: string; roleId: string; typed: string } | null>(
+    null,
+  );
+  /**
+   * The folded estimate box that has the focus, and what it was showing when
+   * the focus arrived.
+   *
+   * Both are the `@` gesture's, and both are refs rather than state because
+   * neither is rendered: the node is what the mention is stripped out of, and
+   * the focus-time value is what goes back in when the estimate half turns out
+   * to be empty. That case is not somebody clearing an estimate — it is the
+   * select-on-focus this cell has always done, with `@` typed over the whole
+   * selection. Clearing an estimate is emptying the cell with no `@` in it.
+   */
+  const foldedBox = useRef<CellElement | null>(null);
+  const foldedAtFocus = useRef('');
   /**
    * The row whose actions menu is open, or null while none is.
    *
@@ -2086,8 +2141,18 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    * in `wbs-table.test.tsx` fails; watched, 2026-08-06.
    */
   const commitCombinedEstimate = useCallback(
-    (row: TreeRow, roleId: string, typed: string): Promise<CommitOutcome> => {
-      const entry = parseTrioShorthand(typed);
+    (row: TreeRow, roleId: string, typed: string, baseline: string): Promise<CommitOutcome> => {
+      // The estimate half, always — {@link parseTrioShorthand} never sees a
+      // mention. Two things follow, and both are refusals to send rather than
+      // repairs: a cell left with `@ka` still in it whose estimate half is
+      // what the cell was already showing has nothing to commit (`4.8@ka` is a
+      // figure this tool computed and a search nobody finished, not somebody
+      // asking for 4.8/4.8/4.8), and an *empty* estimate half beside a mention
+      // is the select-on-focus rather than somebody clearing an estimate.
+      // Emptying a cell with no `@` in it still clears it.
+      const { estimate, mention: fragment } = splitMention(typed);
+      if (fragment !== null && (estimate.trim() === '' || estimate === baseline)) return unsent();
+      const entry = parseTrioShorthand(estimate);
       setDrafts((current) => ({
         // Last edit wins: this entry replaces whatever the three boxes were
         // holding unsent for the same trio. Translating it into three box
@@ -2096,7 +2161,9 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         // boxes were holding` fails — the box still held a `7` nobody could
         // see. Watched, 2026-08-06.
         ...dropDrafts(current, new Set(POINTS.map((point) => draftKey(row.id, roleId, point)))),
-        [combinedDraftKey(row.id, roleId)]: typed,
+        // The estimate half, so a draft rendered back into the box can never
+        // carry a mention somebody abandoned.
+        [combinedDraftKey(row.id, roleId)]: estimate,
       }));
       if (entry.kind === 'problem') return unsent();
       if (entry.kind === 'empty') {
@@ -2192,6 +2259,154 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     [api, projectId, run],
   );
 
+  /**
+   * Takes the focus into a folded role's cell, remembering what it holds.
+   *
+   * Called from the box's own `onFocus`, before the select that cell has
+   * always done — the value has to be read while it is still there.
+   */
+  const enterFoldedCell = useCallback((box: CellElement) => {
+    foldedBox.current = box;
+    foldedAtFocus.current = box.value;
+  }, []);
+
+  /**
+   * Reads a folded role's box on every keystroke and opens or closes its `@`
+   * picker.
+   *
+   * The estimate half is not touched here and no draft is written: what has
+   * been typed lives in the box until the cell is left, exactly as it did
+   * before mentions existed. All this does is decide whether a list is open
+   * and what it is filtered by.
+   */
+  const readFoldedCell = useCallback((rowId: string, roleId: string, box: CellElement) => {
+    const { mention: fragment } = splitMention(box.value);
+    setMention(fragment === null ? null : { rowId, roleId, typed: fragment });
+  }, []);
+
+  /**
+   * Takes the `@fragment` back out of the focused folded box, leaving the
+   * estimate half exactly as it was.
+   *
+   * The empty case is the one worth reading: a cell is selected on focus, so
+   * `@` typed straight into one replaces the figure it was showing, and an
+   * empty estimate half committed on the blur that follows would clear an
+   * estimate the person never touched. So an empty half is put back to what
+   * the cell held when the focus arrived. Emptying a cell deliberately — with
+   * no `@` in it — still clears the estimate, which is the gesture the cheat
+   * sheet documents.
+   */
+  const takeMentionOut = useCallback(() => {
+    const box = foldedBox.current;
+    if (box !== null) {
+      const { estimate } = splitMention(box.value);
+      box.value = estimate.trim() === '' ? foldedAtFocus.current : estimate;
+    }
+    setMention(null);
+  }, []);
+
+  /**
+   * Closes the `@` list and leaves the box exactly as it is — Escape's answer,
+   * and the same one every picker in this table gives it.
+   */
+  const closeMention = useCallback(() => {
+    setMention(null);
+  }, []);
+
+  /** Leaves a folded cell: the mention goes with the focus, the estimate stays. */
+  const leaveFoldedCell = useCallback(() => {
+    takeMentionOut();
+    foldedBox.current = null;
+  }, [takeMentionOut]);
+
+  /**
+   * What the `@` picker in one folded cell is offering.
+   *
+   * The same three kinds of entry the unfolded assignee column has, in the
+   * order they are read in: the people whose names contain what was typed,
+   * `Add "…"` when nothing matches it exactly, and `Remove …` when somebody is
+   * already assigned. Enter takes the first of them, which is
+   * {@link CreatablePicker}'s rule — so `Remove` is first on a bare `@` and
+   * nowhere else, and `@ka⏎` can never be the gesture that unassigns anybody.
+   */
+  const mentionOptions = useCallback(
+    (row: TreeRow, roleId: string): PickerOption[] => {
+      const open = mention;
+      if (open?.rowId !== row.id || open.roleId !== roleId) return [];
+      const wanted = open.typed.trim().toLowerCase();
+      const assigned = row.assignees[roleId];
+      const assignedPerson = people.find((each) => each.id === assigned);
+      const matching = people.filter(
+        (each) => wanted === '' || each.name.toLowerCase().includes(wanted),
+      );
+      const exact = people.some((each) => each.name.toLowerCase() === wanted);
+      return [
+        ...(wanted === '' && assignedPerson !== undefined
+          ? [
+              {
+                key: '(remove)',
+                label: `Remove ${assignedPerson.name}`,
+                selected: false,
+                take: () => {
+                  assignTo(row.id, roleId, null);
+                  takeMentionOut();
+                },
+              },
+            ]
+          : []),
+        ...matching.map((each) => ({
+          key: each.id,
+          label: pickableLabel({
+            id: each.id,
+            name: each.name,
+            detail:
+              each.teamIds.length === 0
+                ? 'free agent'
+                : each.teamIds
+                    .map((id) => teams.find((team) => team.id === id)?.name ?? '?')
+                    .join(', '),
+          }),
+          selected: each.id === assigned,
+          take: () => {
+            assignTo(row.id, roleId, each.id);
+            takeMentionOut();
+          },
+        })),
+        ...(wanted !== '' && !exact
+          ? [
+              {
+                key: '(add)',
+                label: `Add “${open.typed.trim()}”`,
+                selected: false,
+                take: () => {
+                  createPersonFor(row, roleId, open.typed.trim());
+                  takeMentionOut();
+                },
+              },
+            ]
+          : []),
+      ];
+    },
+    [assignTo, createPersonFor, mention, people, takeMentionOut, teams],
+  );
+
+  /**
+   * What a schedule column's heading says about itself, in a `title`.
+   *
+   * The headings are one word each — the columns are 52px — so the fact that
+   * decides how to read the figures under them cannot be in the heading text:
+   * without a project start date these are day numbers counted from day zero,
+   * and with one they are calendar dates. A bare `2.5` under "Start" reads as
+   * a date that failed to load, and this sentence is where that is answered.
+   */
+  const startDateHint = useCallback(
+    (what: string): string =>
+      startDate === null
+        ? `This work item's ${what}, in days from the start of the plan. Set a project start date to see real dates.`
+        : `This work item's ${what}.`,
+    [startDate],
+  );
+
   const hasSchedule = useCallback(() => scheduleError === null, [scheduleError]);
   const showSchedule = useCallback(
     (days: number) => (scheduleError === null ? showDay(days) : '—'),
@@ -2216,6 +2431,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     dependOn,
     hasSchedule,
     showSchedule,
+    startDateHint,
     depPicker,
     setDepPicker,
     openMenuRowId,
@@ -2229,6 +2445,12 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     combinedValue,
     combinedProblem,
     commitCombinedEstimate,
+    mention,
+    enterFoldedCell,
+    readFoldedCell,
+    closeMention,
+    leaveFoldedCell,
+    mentionOptions,
     hoveredNotes,
     setHoveredNotes,
     setNotBefore,
@@ -2261,6 +2483,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     dependOn,
     hasSchedule,
     showSchedule,
+    startDateHint,
     depPicker,
     setDepPicker,
     openMenuRowId,
@@ -2274,6 +2497,12 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     combinedValue,
     combinedProblem,
     commitCombinedEstimate,
+    mention,
+    enterFoldedCell,
+    readFoldedCell,
+    closeMention,
+    leaveFoldedCell,
+    mentionOptions,
     hoveredNotes,
     setHoveredNotes,
     setNotBefore,
@@ -2636,7 +2865,12 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                     maxHeight: 200,
                     overflowY: 'auto',
                     zIndex: 10,
-                    minWidth: '100%',
+                    // Wider than its own column on purpose, since that column
+                    // is 110px: an entry is a work item's number and its name,
+                    // and a list as narrow as the box it drops from would show
+                    // the number and about four letters. It escapes the cell
+                    // either way — see `opensAPopover`.
+                    minWidth: DEP_LIST_WIDTH,
                   }}
                 >
                   {entries.map((entry) => (
@@ -2733,10 +2967,16 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                 // much of it as the column has room for and no more. A role
                 // called "Infrastructure and platform" used to set the width of
                 // everything under it instead.
+                // The assignee no longer folds away — it is beside the figure
+                // in this very cell, and `@` assigns from there — so the
+                // button is about the three points and nothing else. It says
+                // the accordion out loud too, because unfolding this role
+                // folds whichever one was open and a table that reshuffles
+                // without saying why reads as a bug.
                 title={`${role.name} — ${
                   unfolded
-                    ? 'hide the three-point estimate and assignee'
-                    : 'show the three-point estimate and assignee'
+                    ? 'fold the three points back into the figure'
+                    : 'show the three points behind the figure; any other role folds'
                 }`}
                 onClick={() => {
                   live.current.toggleRole(role.id);
@@ -2763,6 +3003,22 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
               // screen to disagree with it, and a leaf, because a parent's
               // figure is a sum of what is below it and nothing to type into.
               const shorthand = !unfolded && !row.original.rolledUp;
+              const assigned = row.original.assignees[role.id];
+              // Nobody on this role and exactly one person on another: they are
+              // assumed to be doing this phase too. The same rule the unfolded
+              // column has, in the cell that is always on screen — which is the
+              // whole reason the assignee stopped folding away.
+              const assumed = assigned === undefined ? row.original.doesEveryPhase : null;
+              const shows = assigned ?? assumed;
+              const shownName =
+                shows === null
+                  ? null
+                  : (live.current.people.find((each) => each.id === shows)?.name ?? '(unknown)');
+              // Only while this role is folded: unfolded, the assignee has a
+              // column of its own with a picker in it, and two ways to assign
+              // one person side by side is two things to keep in step.
+              const options = unfolded ? [] : live.current.mentionOptions(row.original, role.id);
+              const listId = `mention-${row.original.id}-${role.id}`;
               return (
                 <span
                   data-final={role.id}
@@ -2770,7 +3026,26 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                   // its own hover target, and it is the half a reader of a
                   // folded plan sees first.
                   title={problem ?? undefined}
-                  style={{ fontWeight: 600, color: problem === null ? undefined : '#c00' }}
+                  // A flex row, because this cell holds two things now: the
+                  // figure (or the box it is typed into) and who is doing it.
+                  // `relative` makes it the positioned ancestor the `@` list
+                  // opens against — the clip that would cut the list to 96px is
+                  // the `<td>`'s, which {@link opensAPopover} lifts.
+                  // The blur is the mention's: it bubbles from the box inside,
+                  // and leaving the cell has to take a half-typed `@ka` with
+                  // it. Nothing else in here can hold the focus.
+                  onBlur={() => {
+                    live.current.leaveFoldedCell();
+                  }}
+                  style={{
+                    position: 'relative',
+                    display: 'flex',
+                    alignItems: 'baseline',
+                    maxWidth: '100%',
+                    minWidth: 0,
+                    fontWeight: 600,
+                    color: problem === null ? undefined : '#c00',
+                  }}
                 >
                   {shorthand ? (
                     <CellInput
@@ -2780,10 +3055,37 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                       // `is a cell of the keyboard grid, so a column can be
                       // typed down` fails. Watched, 2026-08-06.
                       data-cell={cellKey(row.original.id, `${role.id}-final`)}
+                      role="combobox"
+                      aria-expanded={options.length > 0}
+                      aria-controls={options.length > 0 ? listId : undefined}
+                      aria-autocomplete="list"
                       placeholder="o/r/p"
                       aria-invalid={problem !== null}
                       title={problem ?? SHORTHAND_HELP}
+                      // Every keystroke, so an `@` opens the people picker as
+                      // it is typed. The estimate half is not read here and no
+                      // draft is written — that is still the blur's job.
+                      onTyped={(box) => {
+                        live.current.readFoldedCell(row.original.id, role.id, box);
+                      }}
                       onKeyDown={(e) => {
+                        if (options.length > 0) {
+                          if (e.key === 'Escape') {
+                            // Closes the list and strips nothing: what was
+                            // typed is still on screen to be corrected, and the
+                            // blur that follows is what takes it back out.
+                            e.preventDefault();
+                            live.current.closeMention();
+                            return;
+                          }
+                          if (e.key === 'Enter') {
+                            // The first entry, which is `CreatablePicker`'s
+                            // rule: what is offered first is what is taken.
+                            e.preventDefault();
+                            options[0]?.take();
+                            return;
+                          }
+                        }
                         live.current.onAltMove(e, row.original, `${role.id}-final`);
                         live.current.onTabKey(e, row.original.id, `${role.id}-final`);
                         live.current.onArrowKey(e, row.original.id, `${role.id}-final`);
@@ -2791,8 +3093,10 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                       // Selected on arrival, because the value at rest is a
                       // computed figure and the syntax is a trio: there is no
                       // sensible edit to make *inside* `4`, and a caret dropped
-                      // into it turns `2/3/8` into `2/3/84`.
+                      // into it turns `2/3/8` into `2/3/84`. What the selection
+                      // replaces is remembered first — see `enterFoldedCell`.
                       onFocus={(e) => {
+                        live.current.enterFoldedCell(e.currentTarget);
                         e.currentTarget.select();
                       }}
                       style={{
@@ -2800,17 +3104,55 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                         boxSizing: 'border-box',
                         font: 'inherit',
                         fontWeight: 600,
+                        flex: 1,
+                        minWidth: 0,
                         ...(problem === null ? {} : { background: '#fde8e8', borderColor: '#c00' }),
                       }}
                       value={live.current.combinedValue(row.original, role.id)}
-                      commit={(typed) =>
-                        live.current.commitCombinedEstimate(row.original, role.id, typed)
+                      commit={(typed, baseline) =>
+                        live.current.commitCombinedEstimate(row.original, role.id, typed, baseline)
                       }
                     />
                   ) : (
                     showFinal(row.original.finalDays[role.id])
                   )}
                   {problem !== null && ' !'}
+                  {shownName !== null && (
+                    // `4.8 · Kat`, truncated, with the whole name in the
+                    // tooltip: 96px holds a figure and about four characters of
+                    // a person. Grey and in brackets where nobody is assigned
+                    // and somebody is assumed, exactly as the unfolded column
+                    // reads it.
+                    <span
+                      data-folded-assignee={role.id}
+                      {...(assigned === undefined ? { 'data-assumed': role.id } : {})}
+                      title={
+                        assigned === undefined
+                          ? `${shownName} — only one person is assigned, so they are assumed to do this phase too`
+                          : shownName
+                      }
+                      style={{
+                        marginLeft: 4,
+                        flex: 'none',
+                        minWidth: 0,
+                        maxWidth: '60%',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                        fontWeight: 'normal',
+                        color: assigned === undefined ? '#666' : undefined,
+                      }}
+                    >
+                      · {assigned === undefined ? `(${shownName})` : shownName}
+                    </span>
+                  )}
+                  {options.length > 0 && (
+                    <PickerList
+                      id={listId}
+                      label={`${role.name} assignee for ${row.original.number}`}
+                      options={options}
+                    />
+                  )}
                 </span>
               );
             },
@@ -2950,7 +3292,12 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
       }),
       column.display({
         id: 'final-total',
-        header: 'Total days',
+        // One word, because the column is 52px wide: it holds a number of days
+        // and the roles beside it hold days too. The sentence it used to be
+        // moved into the `title`, where a reader who wants it can still get it.
+        header: () => (
+          <span title="Every role's final figure for this work item, added up">Days</span>
+        ),
         cell: ({ row }) => (
           <span data-final-total style={{ fontWeight: 600 }}>
             {showDay(row.original.finalTotal)}
@@ -2998,9 +3345,11 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
       }),
       column.display({
         id: 'start',
-        // A bare `2.5` under "Starts" reads as a date that failed to load. The
-        // header says which of the two it is.
-        header: () => (live.current.startDate === null ? 'Starts (day)' : 'Starts'),
+        // A bare `2.5` under "Start" reads as a date that failed to load, and
+        // the header used to say which of the two it was — in 52px it cannot,
+        // so the distinction moved into the `title`. The column is a figure
+        // either way and the cell shows which kind it is.
+        header: () => <span title={live.current.startDateHint('earliest start')}>Start</span>,
         cell: ({ row }) => (
           <span data-start>
             {row.original.dates?.startsOn ??
@@ -3010,7 +3359,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
       }),
       column.display({
         id: 'finish',
-        header: () => (live.current.startDate === null ? 'Ends (day)' : 'Ends'),
+        header: () => <span title={live.current.startDateHint('earliest finish')}>End</span>,
         cell: ({ row }) => (
           <span data-finish title={row.original.schedule.estimated ? undefined : 'No estimate yet'}>
             {row.original.dates?.endsOn ??
@@ -3021,7 +3370,9 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
       }),
       column.display({
         id: 'float',
-        header: 'Slack (days)',
+        header: () => (
+          <span title="Days this work item can slip before the plan's end moves">Slack</span>
+        ),
         cell: ({ row }) => (
           <span data-float>
             {!live.current.hasSchedule()
@@ -3435,23 +3786,38 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
           style={{
             borderCollapse: 'separate',
             borderSpacing: 0,
-            // `fixed` and a declared total, so the browser lays every column
-            // out at the width `table-frame.ts` says it has. Under the default
-            // `auto` the widths were a suggestion the content could outvote,
-            // and a column that came out wider than the offsets assumed is a
-            // pinned Name painted over "Depends on".
+            // `fixed`, so the browser lays every column out at the width
+            // `table-frame.ts` says it has. Under the default `auto` the
+            // widths were a suggestion the content could outvote, and a column
+            // that came out wider than the offsets assumed is a pinned Name
+            // painted over "Depends on".
             tableLayout: 'fixed',
-            width: tableWidth(leafColumnIds),
+            // The frame's width, never a declared total: every fixed column
+            // takes its declared px and Name absorbs whatever is left, so the
+            // table fits the window instead of the window having to fit the
+            // table. The minimum is the floor under that — the fixed columns
+            // plus Name's own floor — and below it the frame scrolls sideways
+            // with the pinned columns holding the left edge, which is the one
+            // case `width: 100%` cannot cover.
+            width: '100%',
+            minWidth: tableMinWidth(leafColumnIds),
           }}
         >
           {/*
             The one place the declared widths reach the browser. `col` sizes a
             column and nothing else about it, which is why the cells below
             carry no width of their own.
+
+            A flexible column gets a `<col>` with no width at all — not a
+            width of `auto`, which is the same thing said less clearly — and
+            `table-layout: fixed` hands it whatever the declared ones leave.
           */}
           <colgroup>
             {leafColumnIds.map((id) => (
-              <col key={id} style={{ width: widthFor(id) }} />
+              <col
+                key={id}
+                style={FLEXIBLE_COLUMNS.has(id) ? undefined : { width: widthFor(id) }}
+              />
             ))}
           </colgroup>
           <thead>
@@ -3470,6 +3836,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                     style={{
                       ...CELL,
                       ...STICKY_HEADER_CELL,
+                      ...flexibleCellStyle(header.column.id),
                       ...pinnedCellStyle(header.column.id, 'header'),
                     }}
                   >
@@ -3529,6 +3896,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                       // the wrapper span *inside* this `<td>`, so this `<td>`
                       // clips it unless it is told not to.
                       ...(opensAPopover(cell.column.id) ? { overflow: 'visible' as const } : {}),
+                      ...flexibleCellStyle(cell.column.id),
                       ...pinnedCellStyle(cell.column.id, 'body'),
                     }}
                   >

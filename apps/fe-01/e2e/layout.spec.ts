@@ -4,7 +4,14 @@ import { join } from 'node:path';
 import { expect, type Page, test } from '@playwright/test';
 
 import { type Box, findOverlap, findOverrun } from '../src/components/wbs/box-geometry';
-import { PINNED_COLUMNS, pinnedGeometry, widthFor } from '../src/components/wbs/table-frame';
+import {
+  FLEXIBLE_COLUMNS,
+  FLEXIBLE_FLOOR,
+  PINNED_COLUMNS,
+  pinnedGeometry,
+  tableMinWidth,
+  widthFor,
+} from '../src/components/wbs/table-frame';
 
 /**
  * The layout gate.
@@ -27,8 +34,25 @@ import { PINNED_COLUMNS, pinnedGeometry, widthFor } from '../src/components/wbs/
  * one failure and seven skips.
  */
 
-/** How far the frame is scrolled sideways for the sticky half of the checks. */
-const SCROLLED = 400;
+/**
+ * How far the frame is scrolled sideways for the sticky half of the checks.
+ *
+ * Small, because the table fits now. Since 2026-08-08 it is `width: 100%` with
+ * a minimum of about 1106px for a two-role plan, so at any ordinary viewport
+ * there is nothing to scroll at all — {@link NARROW} is the width these tests
+ * run at, and this is inside what it leaves over.
+ */
+const SCROLLED = 150;
+
+/**
+ * A viewport narrower than the table's own minimum, which is the only state
+ * the pinned columns are visible in.
+ *
+ * That is the backstop Dany kept: above the minimum there is no horizontal
+ * scroll and the pins do nothing, below it the frame scrolls and they hold the
+ * left edge. Every sticky assertion in this file has to be made down here now.
+ */
+const NARROW = { width: 900, height: 900 } as const;
 
 /** The columns held at the left edge, and the offsets they are held at. */
 const PINNED_IDS = PINNED_COLUMNS.map((pinned) => pinned.id);
@@ -182,13 +206,131 @@ function measuredLefts(page: Page, columnIds: readonly string[]): Promise<Record
  * @throws When no column covers that offset — a probe past the right edge of
  * the declared table would otherwise be compared against nothing at all.
  */
-function declaredColumnAt(order: readonly string[], tableX: number): string {
+function declaredColumnAt(
+  order: readonly string[],
+  tableX: number,
+  measured: Readonly<Partial<Record<string, number>>>,
+): string {
   let right = 0;
   for (const id of order) {
-    right += widthFor(id);
+    // A flexible column has no declared width — it is whatever the frame left
+    // over — so its own measurement stands in for one. Everything else is
+    // still held against the number `table-frame.ts` declares, which is what
+    // makes this a check rather than a tautology.
+    if (FLEXIBLE_COLUMNS.has(id)) {
+      const width = measured[id];
+      if (width === undefined) throw new Error(`the flexible ${id} column was not measured`);
+      right += width;
+    } else {
+      right += widthFor(id);
+    }
     if (tableX < right) return id;
   }
   throw new Error(`${String(Math.round(tableX))}px is past the right edge of the declared table`);
+}
+
+/** The two laptops the table has to fit, named so a failure says which one. */
+const VIEWPORTS = [
+  { name: '1280×800', width: 1280, height: 800 },
+  { name: '1512×982', width: 1512, height: 982 },
+] as const;
+
+/**
+ * Everything the width equation makes a claim about, measured at once.
+ *
+ * One `evaluate` rather than six, because every number here has to describe the
+ * same layout: a viewport resize between two of them would compare a column
+ * from one table against a frame from another.
+ */
+interface Measured {
+  /** The page itself. `scrollWidth > clientWidth` here is the failure R6 is about. */
+  document: { scrollWidth: number; clientWidth: number };
+  /** The scrolling frame. Its own overflow is the h-scroll people see. */
+  frame: { scrollWidth: number; clientWidth: number; left: number; right: number };
+  /** Every leaf column of the header row, in order, with its rect. */
+  columns: { id: string; left: number; right: number; width: number }[];
+  /** The date input of the first row: whether its own value is cut off. */
+  date: { scrollWidth: number; clientWidth: number };
+}
+
+function measure(page: Page): Promise<Measured> {
+  return page.evaluate(() => {
+    const frame = document.querySelector('[data-table-frame]');
+    if (frame === null) throw new Error('the scrolling frame is not on the page');
+    const frameBox = frame.getBoundingClientRect();
+    const headers = [...document.querySelectorAll('thead th')];
+    if (headers.length === 0) throw new Error('the table has no heading row');
+    const dateInput = document.querySelector('tbody tr:first-child input[type="date"]');
+    if (dateInput === null) throw new Error('the first row has no earliest-start field');
+    return {
+      document: {
+        scrollWidth: document.documentElement.scrollWidth,
+        clientWidth: document.documentElement.clientWidth,
+      },
+      frame: {
+        scrollWidth: frame.scrollWidth,
+        clientWidth: frame.clientWidth,
+        left: frameBox.left,
+        right: frameBox.right,
+      },
+      columns: headers.map((header) => {
+        const box = header.getBoundingClientRect();
+        return {
+          id: header.getAttribute('data-column') ?? '(a cell with no data-column)',
+          left: box.left,
+          right: box.right,
+          width: box.width,
+        };
+      }),
+      date: { scrollWidth: dateInput.scrollWidth, clientWidth: dateInput.clientWidth },
+    };
+  });
+}
+
+/** What the width table says this state needs, from the columns really on screen. */
+const equationFor = (measured: Measured): number =>
+  tableMinWidth(measured.columns.map((column) => column.id));
+
+/**
+ * Every assertion that holds whenever the equation fits the frame.
+ *
+ * Written once and called from each state, because the point of the matrix is
+ * that the same claims hold in every one of them — a per-state copy would be
+ * six chances to assert something slightly weaker where it mattered.
+ */
+function expectItFits(measured: Measured, where: string): void {
+  // The page never scrolls sideways, in any state: that is what the frame is
+  // for, and it is the assertion Dany's R6 actually asks for.
+  expect(
+    measured.document.scrollWidth,
+    `${where}: the page itself scrolls sideways`,
+  ).toBeLessThanOrEqual(measured.document.clientWidth);
+  // And where the equation fits the frame, neither does the frame.
+  expect(
+    measured.frame.scrollWidth,
+    `${where}: the frame scrolls sideways with ${String(equationFor(measured))}px of table in ${String(measured.frame.clientWidth)}px of frame`,
+  ).toBeLessThanOrEqual(measured.frame.clientWidth);
+  // Every column inside the frame it is laid out in, to the pixel. Rounded by
+  // 1px: sub-pixel layout is the browser's, and a column half a pixel past the
+  // edge is not the failure this is looking for.
+  expect(
+    measured.columns
+      .filter(
+        (column) =>
+          column.left < measured.frame.left - 1 || column.right > measured.frame.right + 1,
+      )
+      .map((column) => `${column.id} is outside the frame`),
+    where,
+  ).toEqual([]);
+  // The name column keeps its floor, which is the number the equation budgets.
+  const name = measured.columns.find((column) => column.id === 'name');
+  expect(name?.width, `${where}: the name column`).toBeGreaterThanOrEqual(FLEXIBLE_FLOOR - 1);
+  // The native date input's own furniture decides the `not-before` width, and
+  // this is the assertion that number is chosen by rather than argued about.
+  expect(
+    measured.date.scrollWidth,
+    `${where}: the earliest-start field's value is clipped`,
+  ).toBeLessThanOrEqual(measured.date.clientWidth + 1);
 }
 
 /**
@@ -206,14 +348,19 @@ function popoverEscape(
   page: Page,
   columnId: string,
   popoverSelector: string,
+  /**
+   * The cell to look in, where it is not the first row's `columnId` one — a
+   * last-row probe, or a column named for a role that only exists at runtime.
+   * `columnId` then names the cell for the failure message and nothing else.
+   */
+  cellSelector?: string,
 ): Promise<{ overhang: number; ownsPixelBelow: boolean; found: string }> {
   return page.evaluate(
-    ({ column, selector }) => {
-      const popover = document.querySelector(
-        `tbody tr:first-child td[data-column="${column}"] ${selector}`,
-      );
+    ({ column, selector, cell: where }) => {
+      const inside = where ?? `tbody tr:first-child td[data-column="${column}"]`;
+      const popover = document.querySelector(`${inside} ${selector}`);
       if (popover === null) {
-        throw new Error(`no ${selector} is open in the first row's ${column} cell`);
+        throw new Error(`no ${selector} is open in ${inside}`);
       }
       const cell = popover.closest('td');
       if (cell === null) throw new Error(`the ${column} popover is not in a cell`);
@@ -233,7 +380,7 @@ function popoverEscape(
               } column`,
       };
     },
-    { column: columnId, selector: popoverSelector },
+    { column: columnId, selector: popoverSelector, cell: cellSelector },
   );
 }
 
@@ -299,6 +446,7 @@ test.describe('the table, measured by a browser', () => {
     // the declared widths, so a column laid out wider than it was declared
     // moves the pin and nothing else — visible only once something scrolls
     // behind it.
+    await page.setViewportSize(NARROW);
     await scrollFrameTo(page, SCROLLED);
     expect(await measuredLefts(page, PINNED_IDS)).toEqual({
       drag: declaredLeft('drag'),
@@ -310,6 +458,7 @@ test.describe('the table, measured by a browser', () => {
   test('paints the pinned block over the row that scrolls behind it, and stops there', async ({
     page,
   }) => {
+    await page.setViewportSize(NARROW);
     await scrollFrameTo(page, SCROLLED);
     // `elementFromPoint`, not a sweep over the boxes. Once the frame is
     // scrolled, unpinned cells legitimately sit *underneath* the pinned block
@@ -337,6 +486,14 @@ test.describe('the table, measured by a browser', () => {
         order: [...row.querySelectorAll('td')].map(
           (cell) => cell.getAttribute('data-column') ?? '(a cell with no data-column)',
         ),
+        // The flexible column's own width, which the declared widths cannot
+        // supply: it is whatever the frame left over.
+        measured: Object.fromEntries(
+          [...row.querySelectorAll('td')].map((cell) => [
+            cell.getAttribute('data-column') ?? '(a cell with no data-column)',
+            cell.getBoundingClientRect().width,
+          ]),
+        ),
       };
     });
 
@@ -356,7 +513,7 @@ test.describe('the table, measured by a browser', () => {
     // `team`, so which column shows at the block's right edge is a fact about
     // the declared widths — computed from them here, the same way the pinned
     // offsets are.
-    expect(edge.outside).toBe(declaredColumnAt(edge.order, edge.outsideAt));
+    expect(edge.outside).toBe(declaredColumnAt(edge.order, edge.outsideAt, edge.measured));
   });
 
   test('opens the dependency list out past the bottom of its own cell', async ({ page }) => {
@@ -524,6 +681,248 @@ test.describe('the table, measured by a browser', () => {
       'Survey the existing warehouse racking and photograph every aisle end (copy)',
     );
     await expect(page.getByLabel('Name of 020')).toBeFocused();
+  });
+
+  test('fits every laptop width with the roles folded', async ({ page }) => {
+    // The state a plan is read in, and the one R6 is actually about: two roles
+    // folded is 714px of fixed columns plus two 96px roles plus Name's 200
+    // floor — 1106px — so both of these have room to spare.
+    for (const viewport of VIEWPORTS) {
+      await page.setViewportSize({ width: viewport.width, height: viewport.height });
+      const measured = await measure(page);
+      // Or this is a check about a table that never laid out. Eleven fixed
+      // columns and one per folded role.
+      expect(measured.columns.length).toBeGreaterThan(11);
+      expect(
+        equationFor(measured),
+        `${viewport.name}: the folded equation should fit this viewport`,
+      ).toBeLessThanOrEqual(measured.frame.clientWidth);
+      expectItFits(measured, `${viewport.name}, both roles folded`);
+    }
+  });
+
+  test('gives the name column everything the other columns did not take', async ({ page }) => {
+    // The half of "fits" that a minimum width alone would not prove: the table
+    // is as wide as the frame and the flexible column is where the difference
+    // went. A fixed Name width satisfies the overflow assertions above and
+    // fails this one.
+    for (const viewport of VIEWPORTS) {
+      await page.setViewportSize({ width: viewport.width, height: viewport.height });
+      const measured = await measure(page);
+      const name = measured.columns.find((column) => column.id === 'name');
+      const others = measured.columns
+        .filter((column) => column.id !== 'name')
+        .reduce((total, column) => total + column.width, 0);
+      expect(name?.width, viewport.name).toBeCloseTo(measured.frame.clientWidth - others, 0);
+      // And it really did grow past its floor at these widths, or the
+      // assertion above would hold for a table that simply fitted.
+      expect(name?.width, viewport.name).toBeGreaterThan(FLEXIBLE_FLOOR);
+    }
+  });
+
+  test('holds the equation with one role unfolded, and scrolls only where it must', async ({
+    page,
+  }) => {
+    // The accordion's arithmetic, measured: one role open is 1382px, which
+    // fits 1512 and does not fit 1280. Both answers are asserted — the second
+    // is the pinned backstop doing its job, not a failure.
+    for (const role of ['Dev', 'QA']) {
+      await page.getByRole('button', { name: `Unfold ${role} estimates` }).click();
+      await expect(page.getByLabel(`${role} optimistic for 010`)).toBeVisible();
+      // The other role folded itself, which is what keeps this to 1382.
+      const other = role === 'Dev' ? 'QA' : 'Dev';
+      await expect(page.getByLabel(`${other} optimistic for 010`)).toHaveCount(0);
+
+      for (const viewport of VIEWPORTS) {
+        await page.setViewportSize({ width: viewport.width, height: viewport.height });
+        const measured = await measure(page);
+        const needed = equationFor(measured);
+        expect(
+          measured.document.scrollWidth,
+          `${viewport.name}, ${role} unfolded: the page itself scrolls sideways`,
+        ).toBeLessThanOrEqual(measured.document.clientWidth);
+        if (needed <= measured.frame.clientWidth) {
+          expectItFits(measured, `${viewport.name}, ${role} unfolded`);
+        } else {
+          // Below the minimum the frame scrolls — that is the whole of the
+          // backstop, and asserting it is what stops "it fits" being a claim
+          // about a table that quietly clipped instead.
+          expect(
+            measured.frame.scrollWidth,
+            `${viewport.name}, ${role} unfolded: ${String(needed)}px of table in ${String(measured.frame.clientWidth)}px of frame and nothing to scroll`,
+          ).toBeGreaterThan(measured.frame.clientWidth);
+        }
+      }
+    }
+  });
+
+  test('fits a deep plan with an unbreakable name and six dependencies', async ({ page }) => {
+    // The content fixture: the deepest numbering the indent goes to, a name
+    // with no space in it to wrap at, and enough chips in a 110px column to
+    // make the row several lines tall. Every one of those is a way a cell has
+    // pushed its column wider than declared in the past.
+    const addRow = page.getByRole('button', { name: 'Add work item' });
+    for (const number of ['030', '040', '050', '060', '070']) {
+      await addRow.click();
+      await expect(page.getByLabel(`Name of ${number}`)).toBeVisible();
+    }
+
+    // Four levels of indent, which is where `indentFor` stops.
+    for (const [number, indented] of [
+      ['040', '030.010'],
+      ['050', '030.010.010'],
+      ['060', '030.010.010.010'],
+      ['070', '030.010.010.010.010'],
+    ]) {
+      const box = page.getByLabel(`Name of ${number}`);
+      await box.focus();
+      await box.press('Tab');
+      await expect(page.getByLabel(`Name of ${indented}`)).toBeVisible();
+    }
+
+    const deep = page.getByLabel('Name of 030.010.010.010.010');
+    await deep.fill('Reticulating-the-splines-across-every-warehouse-aisle-end-simultaneously');
+    await deep.blur();
+
+    const depends = page.getByLabel('Add a dependency to 030.010.010.010.010');
+    await depends.click();
+    await depends.fill('010, 020, 030, 030.010, 030.010.010, 030.010.010.010');
+    await depends.press('Enter');
+    await expect(
+      page.getByRole('button', { name: 'Stop 030.010.010.010.010 waiting for 010' }),
+    ).toBeVisible();
+
+    for (const viewport of VIEWPORTS) {
+      await page.setViewportSize({ width: viewport.width, height: viewport.height });
+      const measured = await measure(page);
+      expectItFits(measured, `${viewport.name}, a deep plan with long content`);
+    }
+  });
+
+  test('scrolls the frame below the table’s minimum, with the name still pinned', async ({
+    page,
+  }) => {
+    // The backstop, at a width no laptop has: the table cannot be 1106px wide
+    // in a 900px window, so the frame scrolls and the three identity columns
+    // hold the left edge — Name at 124, the sum of the two fixed columns in
+    // front of it, while it is scrolling.
+    await page.setViewportSize(NARROW);
+    const measured = await measure(page);
+    expect(equationFor(measured)).toBeGreaterThan(measured.frame.clientWidth);
+    expect(
+      measured.frame.scrollWidth,
+      'the frame has nothing to scroll at a width below the table’s own minimum',
+    ).toBeGreaterThan(measured.frame.clientWidth);
+    // And the page still does not, which is what the frame is for.
+    expect(measured.document.scrollWidth).toBeLessThanOrEqual(measured.document.clientWidth);
+
+    await scrollFrameTo(page, SCROLLED);
+    expect(await measuredLefts(page, PINNED_IDS)).toEqual({
+      drag: declaredLeft('drag'),
+      number: declaredLeft('number'),
+      name: declaredLeft('name'),
+    });
+    // Written out as well as derived, because 124 is the number the change is
+    // judged by and a geometry that agreed with itself about 0 would satisfy
+    // the comparison above.
+    expect(declaredLeft('name')).toBe(124);
+  });
+
+  test('keeps the page from scrolling sideways at 125% zoom', async ({ page }) => {
+    // A reader with larger type is the case a fixed-width table fails first.
+    // Chromium's `zoom` on the root scales the layout the way the browser's
+    // own zoom control does, so 1280 becomes 1024 CSS px — below the folded
+    // minimum — and the frame is what has to absorb it.
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.addStyleTag({ content: 'html { zoom: 1.25; }' });
+    const measured = await measure(page);
+    expect(
+      measured.document.scrollWidth,
+      'the page scrolls sideways at 125% zoom',
+    ).toBeLessThanOrEqual(measured.document.clientWidth);
+    // The frame took it, which is the only way the assertion above can be true
+    // here — or the zoom did nothing and this test is about 1280 again.
+    expect(equationFor(measured)).toBeGreaterThan(measured.frame.clientWidth);
+    expect(measured.frame.scrollWidth).toBeGreaterThan(measured.frame.clientWidth);
+  });
+
+  test('opens the dependency list wider than the column it drops from', async ({ page }) => {
+    // 110px of column, and an entry is a number and a work item's name. The
+    // list is declared at 260 and hangs over its neighbours; this is the
+    // measurement that number is chosen by.
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.getByLabel('Add a dependency to 020').click();
+    const list = page.getByRole('listbox');
+    await expect(list).toBeVisible();
+
+    const box = await list.boundingBox();
+    expect(
+      box?.width,
+      'the dependency list is narrower than an entry needs',
+    ).toBeGreaterThanOrEqual(260);
+    const cell = await page
+      .locator('tbody tr:nth-child(2) td[data-column="depends"]')
+      .boundingBox();
+    // Wider than its own cell, which is the thing the clip exemption is for.
+    expect(box?.width).toBeGreaterThan(cell?.width ?? 0);
+  });
+
+  test('opens the folded role’s @ picker out past the bottom of a 96px cell', async ({ page }) => {
+    // The narrowest clip in the table, on the last row and at a laptop width:
+    // a list of people hanging off a cell 96px wide and one line high.
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.getByRole('button', { name: 'Add work item' }).click();
+    await expect(page.getByLabel('Name of 030')).toBeVisible();
+
+    const folded = page.getByLabel('QA estimate for 030');
+    await folded.scrollIntoViewIfNeeded();
+    await folded.click();
+    await folded.fill('@');
+    await expect(page.getByRole('listbox', { name: 'QA assignee for 030' })).toBeVisible();
+
+    const escape = await popoverEscape(
+      page,
+      'last',
+      '[role="listbox"]',
+      'tbody tr:last-child td[data-column$="-final"]',
+    );
+    expect(escape.overhang).toBeGreaterThan(8);
+    expect(
+      escape.ownsPixelBelow,
+      `4px below the folded QA cell is ${escape.found}, not the open list`,
+    ).toBe(true);
+  });
+
+  test('opens the last row’s actions menu at the right edge of a laptop', async ({ page }) => {
+    // The menu, in the state the table is actually used in: 1280px, roles
+    // folded, on the bottom row and against the right-hand edge — which is
+    // where a clipped popover is invisible rather than merely cut short.
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.getByRole('button', { name: 'Add work item' }).click();
+    await expect(page.getByLabel('Name of 030')).toBeVisible();
+
+    const actions = page.getByRole('button', { name: 'Actions for 030' });
+    await actions.scrollIntoViewIfNeeded();
+    await actions.click();
+    await expect(page.getByRole('menu')).toBeVisible();
+
+    const escape = await popoverEscape(
+      page,
+      'last',
+      '[role="menu"]',
+      'tbody tr:last-child td[data-column="actions"]',
+    );
+    expect(escape.overhang).toBeGreaterThan(8);
+    expect(
+      escape.ownsPixelBelow,
+      `4px below the last row's actions cell is ${escape.found}, not the open menu`,
+    ).toBe(true);
+    // And the whole menu is inside the window, or "visible" means visible to
+    // `elementFromPoint` and to nobody else.
+    const box = await page.getByRole('menu').boundingBox();
+    const width = await page.evaluate(() => document.documentElement.clientWidth);
+    expect(box?.x, 'the menu opens off the left of the window').toBeGreaterThanOrEqual(0);
+    expect((box?.x ?? 0) + (box?.width ?? 0)).toBeLessThanOrEqual(width);
   });
 
   test('walks the row with Tab in the order the cells are in the DOM', async ({ page }) => {

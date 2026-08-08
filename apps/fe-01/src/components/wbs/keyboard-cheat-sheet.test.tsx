@@ -73,6 +73,12 @@ const PROVEN_BY = new Map<string, readonly string[]>(
     'Estimates: 5': ['takes one number as the estimator saying all three are the same'],
     'Estimates: Empty it': ['clears the stored trio when the cell is emptied'],
     'Pickers: Type': ['narrows the list by name as letters are typed'],
+    'Pickers: @': [
+      'opens the people picker on an @ and filters it by what follows',
+      'assigns on Enter and takes the @ back out, leaving the trio alone',
+      'adds a contributor nobody had, and offers to remove the one assigned',
+      'never lets the @ half read as an estimate, half-typed or abandoned',
+    ],
     'Pickers: ↑ ↓': [
       'arrows move the highlight and Enter takes it',
       'the arrows step over a greyed row',

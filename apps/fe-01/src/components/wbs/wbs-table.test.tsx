@@ -18,6 +18,7 @@ import type {
   WorkItemView,
 } from '@/lib/wbs-api';
 
+import { tableMinWidth } from './table-frame';
 import { type SubscriptionHandlers, WbsTable } from './wbs-table';
 
 /** The two elements a table cell can be, since a wrapping cell is a textarea. */
@@ -1244,9 +1245,11 @@ describe('teams and assignees', () => {
     render(<WbsTable projectId="p1" api={api} />);
     click('Add work item');
     await screen.findByLabelText('Name of 010');
-    // Both phases, since assigning and the every-phase assumption span them.
+    // Dev only: unfolding is an accordion since 2026-08-08, so a second
+    // unfold would fold this one. QA stays folded, which is where the
+    // every-phase assumption is now read — in the folded cell, beside the
+    // figure.
     unfoldRole('Dev');
-    unfoldRole('QA');
     return api;
   }
 
@@ -1399,12 +1402,12 @@ describe('the plan on a calendar', () => {
     expect(cell.disabled).toBe(true);
     expect(cell.title).toContain('project start date');
     // And the columns say which of the two they are showing.
-    expect(screen.getAllByRole('columnheader').map((th) => th.textContent.trim())).toContain(
-      'Starts (day)',
-    );
+    // And the column says which of the two it is showing — in its `title`,
+    // because the heading itself is one word wide now.
+    expect(headerTitled('Start')).toContain('days from the start of the plan');
   });
 
-  itDom('takes one once the plan is on a calendar, and drops the "(day)" label', async () => {
+  itDom('takes one once the plan is on a calendar, and drops the "(day)" wording', async () => {
     await oneRow();
 
     fireEvent.change(screen.getByLabelText('Project start date'), {
@@ -1418,8 +1421,8 @@ describe('the plan on a calendar', () => {
     });
     // Scoped to the column headers: the toolbar has a "Starts" label of its own.
     const headers = screen.getAllByRole('columnheader').map((th) => th.textContent.trim());
-    expect(headers).toContain('Starts');
-    expect(headers).not.toContain('Starts (day)');
+    expect(headers).toContain('Start');
+    expect(headerTitled('Start')).not.toContain('days from the start of the plan');
   });
 
   itDom('sends a work item’s earliest start, and clears it again', async () => {
@@ -1669,6 +1672,54 @@ describe('role columns fold away', () => {
     expect(screen.queryByLabelText('Dev optimistic for 010')).toBeNull();
   });
 
+  itDom('unfolds one role at a time, so the table still fits the window', async () => {
+    // The accordion, and it is arithmetic rather than taste: a folded role
+    // costs 96px and an unfolded one 372, so two roles folded need 1106px and
+    // fit a 1280 laptop while one of them open needs 1382 and does not.
+    // `table-frame.test.ts` pins those three numbers; this is the behaviour
+    // that keeps the table on the second of them.
+    // Proof: `toggleRole` put back to `[...current, roleId]`, this failed on
+    // `expected <input …(5)></input> to be null` — QA's three boxes on screen
+    // beside Dev's. Watched, 2026-08-08.
+    await oneRow();
+
+    unfoldRole('Dev');
+    unfoldRole('QA');
+
+    expect(screen.getByLabelText('QA optimistic for 010')).toBeDefined();
+    expect(screen.queryByLabelText('Dev optimistic for 010')).toBeNull();
+    // And the width the table declares follows, which is the whole reason.
+    expect(screen.getByRole('table').style.minWidth).toBe('1382px');
+
+    // Folding the open one leaves nothing open, rather than putting the other
+    // one back.
+    fireEvent.click(screen.getByRole('button', { name: 'Fold QA estimates' }));
+    expect(screen.queryByLabelText('QA optimistic for 010')).toBeNull();
+    expect(screen.queryByLabelText('Dev optimistic for 010')).toBeNull();
+    expect(screen.getByRole('table').style.minWidth).toBe('1106px');
+  });
+
+  itDom('says what the fold button does, which is no longer hiding the assignee', async () => {
+    // The copy is the change: who is doing the work is in the folded cell now,
+    // so a button claiming to hide it would be describing the table of a week
+    // ago. And it says the accordion out loud, because a table that reshuffles
+    // without warning reads as a bug.
+    // Proof: the old copy restored, this failed on `expected 'Dev — show the
+    // three-point estimate a…' to contain 'show the three points behind the
+    // figu…'`. Watched, 2026-08-08.
+    await oneRow();
+
+    const folded = screen.getByRole('button', { name: 'Unfold Dev estimates' });
+    expect(folded.title).toContain('show the three points behind the figure');
+    expect(folded.title).toContain('any other role folds');
+    expect(folded.title).not.toContain('assignee');
+
+    unfoldRole('Dev');
+    const open = screen.getByRole('button', { name: 'Fold Dev estimates' });
+    expect(open.title).toContain('fold the three points back into the figure');
+    expect(open.title).not.toContain('assignee');
+  });
+
   itDom('keeps a typed estimate draft across a fold and back', async () => {
     // Drafts live in the table's state, not in the inputs, precisely so a
     // fold cannot swallow one.
@@ -1704,6 +1755,201 @@ describe('role columns fold away', () => {
     const final = rowFor('010').querySelector('[data-final="role-dev"]');
     expect(final?.textContent).toContain('!');
     expect(final?.getAttribute('title')).toContain('not saved');
+  });
+});
+
+describe('assigning from a folded role’s cell with @', () => {
+  /** One row and two roles, both folded — where a person starts. */
+  async function oneRow() {
+    const api = fakeApi();
+    render(<WbsTable projectId="p1" api={api} />);
+    click('Add work item');
+    await screen.findByLabelText('Name of 010');
+    return api;
+  }
+
+  const foldedCell = (role = 'Dev') =>
+    screen.getByLabelText<HTMLInputElement>(`${role} estimate for 010`);
+
+  /** Focuses the folded box and puts `text` in it, keystroke by keystroke’s event. */
+  const typeInto = (cell: HTMLInputElement, text: string): HTMLInputElement => {
+    fireEvent.focus(cell);
+    fireEvent.change(cell, { target: { value: text } });
+    return cell;
+  };
+
+  /** Records every estimate written, and still performs it. */
+  const watchEstimates = (api: ProjectApi): unknown[][] => {
+    const written: unknown[][] = [];
+    const perform = api.setEstimate.bind(api);
+    api.setEstimate = (id: string, roleId: string, days: Days) => {
+      written.push([id, roleId, days]);
+      return perform(id, roleId, days);
+    };
+    return written;
+  };
+
+  /** What a folded role's cell says about who is doing the work, or null. */
+  const assigneeShown = (role = 'role-dev'): string | null =>
+    rowFor('010').querySelector(`[data-folded-assignee="${role}"]`)?.textContent ?? null;
+
+  /** The `@` picker's entries, in the order they are offered. */
+  const offered = (role = 'Dev'): (string | null)[] => {
+    const list = screen
+      .queryAllByRole('listbox')
+      .find((box) => box.getAttribute('aria-label') === `${role} assignee for 010`);
+    return list === undefined
+      ? []
+      : [...list.querySelectorAll('[role="option"]')].map((option) => option.textContent);
+  };
+
+  /** Puts a person on the directory the way a person does: `@name` in a cell. */
+  const addPersonThrough = async (role: string, name: string): Promise<void> => {
+    fireEvent.keyDown(typeInto(foldedCell(role), `@${name}`), { key: 'Enter' });
+    await waitFor(() => {
+      expect(assigneeShown(role === 'Dev' ? 'role-dev' : 'role-qa')).toContain(name);
+    });
+    fireEvent.blur(foldedCell(role));
+  };
+
+  itDom('opens the people picker on an @ and filters it by what follows', async () => {
+    await oneRow();
+    await addPersonThrough('Dev', 'Kateryna');
+    await addPersonThrough('QA', 'Ada');
+
+    const cell = foldedCell();
+    expect(offered()).toEqual([]);
+
+    // An estimate is not a mention: nothing opens until the `@` is typed.
+    typeInto(cell, '2/3/8');
+    expect(offered()).toEqual([]);
+
+    fireEvent.change(cell, { target: { value: '2/3/8@' } });
+    expect(offered()).toEqual(['Remove Kateryna', 'Kateryna — free agent', 'Ada — free agent']);
+
+    fireEvent.change(cell, { target: { value: '2/3/8@ad' } });
+    expect(offered()).toEqual(['Ada — free agent', 'Add “ad”']);
+  });
+
+  itDom('assigns on Enter and takes the @ back out, leaving the trio alone', async () => {
+    // Dany's one gesture: `2/3/8@ka⏎` — trio typed, Kateryna assigned. The box
+    // is left holding the trio and nothing else, and the blur that follows
+    // sends exactly that.
+    const api = await oneRow();
+    await addPersonThrough('QA', 'Kateryna');
+
+    const cell = typeInto(foldedCell(), '2/3/8@ka');
+    fireEvent.keyDown(cell, { key: 'Enter' });
+
+    await waitFor(() => {
+      expect(assigneeShown('role-dev')).toBe('· Kateryna');
+    });
+    // The mention is gone and the estimate half is untouched.
+    expect(cell.value).toBe('2/3/8');
+    expect(offered()).toEqual([]);
+
+    fireEvent.blur(cell);
+    await waitFor(() => {
+      expect(api.rows[0]?.estimates['role-dev']).toEqual({
+        optimistic: 2,
+        realistic: 3,
+        pessimistic: 8,
+      });
+    });
+  });
+
+  itDom('never lets the @ half read as an estimate, half-typed or abandoned', async () => {
+    // The rule that holds the two apart. `@ka` alone is somebody looking a
+    // person up in a cell that was selected on focus — not somebody clearing
+    // the estimate that selection replaced — and `4@ka` left behind is the
+    // figure this tool computed, not a request for 4/4/4.
+    // Proof: the `splitMention` call in `commitCombinedEstimate` replaced by
+    // `const estimate = typed`, this failed on `expected '@ka' to be '4'` —
+    // the mention committed as a shorthand estimate. Watched, 2026-08-08.
+    const api = await oneRow();
+    await addPersonThrough('QA', 'Kateryna');
+    const written = watchEstimates(api);
+
+    // An estimate to lose.
+    const first = foldedCell();
+    fireEvent.focus(first);
+    fireEvent.change(first, { target: { value: '4' } });
+    fireEvent.blur(first);
+    await waitFor(() => {
+      expect(foldedCell().value).toBe('4');
+    });
+    expect(written).toHaveLength(1);
+
+    // A mention typed over the whole selection: no complaint while it is
+    // half-typed, and the figure back in the box when the cell is left.
+    const cell = typeInto(foldedCell(), '@ka');
+    expect(cell.getAttribute('aria-invalid')).toBe('false');
+    fireEvent.blur(cell);
+    await waitFor(() => {
+      expect(foldedCell().value).toBe('4');
+    });
+    expect(written).toHaveLength(1);
+
+    // And a mention abandoned beside the figure the cell was already showing
+    // asks be-01 for nothing at all.
+    const again = typeInto(foldedCell(), '4@ka');
+    fireEvent.keyDown(again, { key: 'Escape' });
+    expect(offered()).toEqual([]);
+    fireEvent.blur(again);
+    await waitFor(() => {
+      expect(foldedCell().value).toBe('4');
+    });
+    expect(written).toHaveLength(1);
+  });
+
+  itDom('adds a contributor nobody had, and offers to remove the one assigned', async () => {
+    const api = await oneRow();
+
+    const cell = typeInto(foldedCell(), '@Grace');
+    expect(offered()).toEqual(['Add “Grace”']);
+    fireEvent.keyDown(cell, { key: 'Enter' });
+
+    // The figure and who is doing it, in the one cell that never folds away.
+    await waitFor(() => {
+      expect(assigneeShown('role-dev')).toBe('· Grace');
+    });
+    expect(await api.listPeople()).toEqual([{ id: 'person1', name: 'Grace', teamIds: [] }]);
+
+    // A bare `@` offers to take them off again — first, so Enter on it is the
+    // gesture that unassigns, and `@gr⏎` never can be.
+    const again = typeInto(foldedCell(), '@');
+    expect(offered()).toEqual(['Remove Grace', 'Grace — free agent']);
+    fireEvent.keyDown(again, { key: 'Enter' });
+    await waitFor(() => {
+      expect(assigneeShown('role-dev')).toBeNull();
+    });
+  });
+
+  itDom('shows the assumed name in grey beside the figure of the other phase', async () => {
+    // One person on one phase is read as doing the others too, and the folded
+    // cell is where that is now visible — it used to need the role unfolded.
+    await oneRow();
+
+    fireEvent.keyDown(typeInto(foldedCell(), '@Ada'), { key: 'Enter' });
+    await waitFor(() => {
+      expect(assigneeShown('role-dev')).toBe('· Ada');
+    });
+
+    const dev = rowFor('010').querySelector('[data-folded-assignee="role-dev"]');
+    const qa = rowFor('010').querySelector('[data-folded-assignee="role-qa"]');
+    expect(dev?.textContent).toBe('· Ada');
+    expect(dev?.getAttribute('data-assumed')).toBeNull();
+    // Bracketed and grey: a reading of one assignment, not a second one
+    // written down.
+    expect(qa?.textContent).toBe('· (Ada)');
+    expect(qa?.getAttribute('data-assumed')).toBe('role-qa');
+    expect((qa as HTMLElement | null)?.style.color).toBe('rgb(102, 102, 102)');
+  });
+
+  itDom('says nothing where nobody is assigned and nobody is assumed', async () => {
+    await oneRow();
+
+    expect(rowFor('010').querySelector('[data-folded-assignee="role-dev"]')).toBeNull();
   });
 });
 
@@ -2260,6 +2506,23 @@ describe('estimates are never edited for you', () => {
     });
   });
 });
+
+/**
+ * What the column heading reading `text` says about itself in its `title`.
+ *
+ * The schedule columns are one word wide, so the sentence that says whether
+ * their figures are dates or day numbers lives in the tooltip rather than in
+ * the heading. Read from the heading's own descendant, which is where the
+ * `title` is: the `<th>` carries the sticky chrome and the span carries the
+ * words.
+ */
+const headerTitled = (text: string): string => {
+  const header = screen.getAllByRole('columnheader').find((th) => th.textContent.trim() === text);
+  if (header === undefined) throw new Error(`no column heading reads ${text}`);
+  const titled = header.querySelector('[title]');
+  if (titled === null) throw new Error(`the ${text} heading says nothing about itself`);
+  return titled.getAttribute('title') ?? '';
+};
 
 /** The `<tr>` whose number cell reads `number`. */
 const rowFor = (number: string): HTMLElement => {
@@ -4444,17 +4707,11 @@ describe('the order of the columns', () => {
     // The schedule stays on the right, where it reads as an outcome of
     // everything to its left. "Not before" is the one input among them, and it
     // sits immediately before the dates it constrains.
-    // `(day)` while the plan has no start date: a bare `2.5` under "Starts"
-    // reads as a date that failed to load.
+    // One word each: at 52px a heading has room for a word and the sentence
+    // it used to be lives in the `title`.
     // No Notes column: a work item's notes are typed under its name, in the
     // Name cell, and the column they had is gone.
-    expect(headers.slice(-5)).toEqual([
-      'Not before',
-      'Starts (day)',
-      'Ends (day)',
-      'Slack (days)',
-      '',
-    ]);
+    expect(headers.slice(-5)).toEqual(['Not before', 'Start', 'End', 'Slack', '']);
     expect(headers).not.toContain('Notes');
   });
 });
@@ -4499,12 +4756,21 @@ describe('the frame the table scrolls inside', () => {
 
     const cells = [...rowFor('020').querySelectorAll('td')];
 
-    // Each offset is the sum of the widths in front of it — 28, then 28+168.
+    // Each offset is the sum of the widths in front of it — 24, then 24+100.
     expect(cells.slice(0, 3).map((td) => [td.style.position, td.style.left])).toEqual([
       ['sticky', '0px'],
-      ['sticky', '28px'],
-      ['sticky', '196px'],
+      ['sticky', '24px'],
+      ['sticky', '124px'],
     ]);
+    // Pinned and still flexible: the pin places the Name cell and the colgroup
+    // sizes it, and a `width` here would be the second opinion that put a
+    // pinned Name over "Depends on" in the first place.
+    // Proof: `pinnedCellStyle` made to declare `width: pinned.width ?? 360`
+    // again, this failed on `expected '360px' to be ''`. Watched, 2026-08-08.
+    expect(cells[2]?.style.width).toBe('');
+    expect(cells[1]?.style.width).toBe('100px');
+    // And the floor that keeps it readable while the frame is scrolling.
+    expect(cells[2]?.style.minWidth).toBe('200px');
     // Opaque, or the row scrolling behind a pinned cell shows through it.
     for (const pinned of cells.slice(0, 3)) expect(pinned.style.background).not.toBe('');
     // "Depends on" is the fourth column now, and it scrolls away like the rest.
@@ -4518,7 +4784,7 @@ describe('the frame the table scrolls inside', () => {
 
     // Sticky on both axes at once: scrolled right *and* down, the Number
     // heading is the one cell that has to stay in its corner.
-    expect(headers[1]?.style.left).toBe('28px');
+    expect(headers[1]?.style.left).toBe('24px');
     expect(headers[1]?.style.top).toBe('0px');
     // And it crosses both of the others, so it paints over both.
     const [pinnedBodyCell] = [...rowFor('020').querySelectorAll('td')].slice(1);
@@ -4549,8 +4815,17 @@ describe('the widths the table is laid out by', () => {
     // Proof: the colgroup rendered from a reversed id list, this failed on
     // `['110px','260px','90px']` against `['28px','168px','360px']`. Watched,
     // 2026-08-07.
-    expect(cols.slice(0, 3).map((col) => col.style.width)).toEqual(['28px', '168px', '360px']);
-    for (const col of cols) expect(col.style.width).not.toBe('');
+    //
+    // Name is the third and it declares nothing at all: it is the one column
+    // that takes what the others leave, which is what makes the table fit the
+    // window instead of the other way round.
+    // Proof: the colgroup made to declare `360` for a flexible column, this
+    // failed on `expected ['24px','100px','360px'] to deeply equal
+    // ['24px','100px','']`. Watched, 2026-08-08.
+    expect(cols.slice(0, 3).map((col) => col.style.width)).toEqual(['24px', '100px', '']);
+    for (const [at, col] of cols.entries()) {
+      expect(col.style.width === '').toBe(at === 2);
+    }
   });
 
   itDom('names every cell with the column it belongs to, in both halves of the table', async () => {
@@ -4572,20 +4847,33 @@ describe('the widths the table is laid out by', () => {
     for (const name of named(screen.getAllByRole('columnheader'))) expect(name).not.toBe(null);
   });
 
-  itDom('is as wide as its columns add up to, and divides that width by them', async () => {
+  itDom('is as wide as the frame, and never narrower than its own equation', async () => {
     await threeRoots();
 
     const table = screen.getByRole('table');
-    const declared = [...document.querySelectorAll<HTMLElement>('colgroup col')].reduce(
-      (total, col) => total + Number.parseFloat(col.style.width),
-      0,
-    );
+    const columnIds = screen
+      .getAllByRole('columnheader')
+      .map((th) => th.getAttribute('data-column') ?? '');
 
     // `fixed`, or the browser sizes the columns from their content and the
     // declared widths become decoration — which is the auto layout half of the
     // overlap.
     expect(table.style.tableLayout).toBe('fixed');
-    expect(table.style.width).toBe(`${String(declared)}px`);
+    // The frame's width, and the equation as the floor under it. A declared
+    // total is what this replaces: it made the window fit the table.
+    // Proof: the `<table>` put back to a declared total —
+    // `width: tableMinWidth(leafColumnIds)` with no `minWidth` — this failed
+    // on `expected '1382px' to be '100%'`. Watched, 2026-08-08.
+    expect(table.style.width).toBe('100%');
+    expect(table.style.minWidth).toBe(`${String(tableMinWidth(columnIds))}px`);
+    // Not a constant, which is the point of computing it per render: this
+    // plan has Dev unfolded and QA folded, so the floor is the 714px of fixed
+    // columns plus 372 for the open role, 96 for the closed one and Name's
+    // 200. Folded it would be 1106 — the difference is why unfolding is an
+    // accordion.
+    expect(table.style.minWidth).toBe('1382px');
+    fireEvent.click(screen.getByRole('button', { name: 'Fold Dev estimates' }));
+    expect(screen.getByRole('table').style.minWidth).toBe('1106px');
   });
 
   itDom('gives every cell the chrome its declared width is measured with', async () => {
@@ -4607,7 +4895,11 @@ describe('the widths the table is laid out by', () => {
       const column = cell.dataset['column'] ?? '';
       const exempt =
         cell.tagName === 'TD' &&
-        (['depends', 'name', 'team', 'actions'].includes(column) || column.endsWith('-assignee'));
+        (['depends', 'name', 'team', 'actions'].includes(column) ||
+          column.endsWith('-assignee') ||
+          // A folded role's cell opens the `@` people picker over a 96px
+          // column, which is the narrowest clip in the table.
+          column.endsWith('-final'));
       expect(cell.style.overflow).toBe(exempt ? 'visible' : 'hidden');
     }
   });
@@ -4699,6 +4991,16 @@ describe('the widths the table is laid out by', () => {
     // is folded, and a folded role shows one estimate box and no assignee.
     expect(assigneeCells.length).toBeGreaterThan(0);
     for (const cell of assigneeCells) expect(cell.style.overflow).toBe('visible');
+
+    // A folded role's cell: `@` opens the people picker there, over a column
+    // 96px wide. `final-total` is not one of these — it ends in `total`, and
+    // it still clips, which is what says the suffix match is a match and not a
+    // blanket.
+    // Proof: the `-final` suffix dropped from `opensAPopover`, this and
+    // `gives every cell the chrome its declared width is measured with` both
+    // failed on `expected 'hidden' to be 'visible'`. Watched, 2026-08-08.
+    expect(cellOf('role-qa-final').style.overflow).toBe('visible');
+    expect(cellOf('final-total').style.overflow).toBe('hidden');
 
     // Still an exception. If the backstop had simply been dropped everywhere,
     // every assertion above would pass and this one would not.

@@ -104,6 +104,11 @@ export const KEY_BINDINGS: readonly KeyBinding[] = [
     where: 'Pickers',
   },
   {
+    keys: '@',
+    does: 'In a folded role’s cell, looks somebody up to do the work: type @ and the name. Enter takes the first one offered, or adds a contributor nobody had. On its own, @ offers to take the current one off. What is typed in front of the @ stays the estimate — 2/3/8@kat is one gesture.',
+    where: 'Pickers',
+  },
+  {
     keys: '↑ ↓',
     does: 'Move the highlight in the Depends on list, stepping over the rows it would refuse.',
     where: 'Pickers',
