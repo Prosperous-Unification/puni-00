@@ -261,6 +261,11 @@ export const role = sqliteTable(
      * its `INSERT` does not name this column, and blue and green share one
      * file. Such a role lands first rather than last, which is a colour-swap
      * window's worth of wrong order and not a lost row.
+     *
+     * Proof: with `DEFAULT 0` removed from the migration, `lets the outgoing
+     * release keep inserting roles against the migrated schema` fails on the
+     * old release's three-column `INSERT` with `NOT NULL constraint failed:
+     * role.position`; watched 2026-08-09.
      */
     position: integer('position').notNull().default(0),
   },

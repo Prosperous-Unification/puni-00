@@ -131,12 +131,41 @@ successor `min` are ordinary CPM; only the two additions are anchored. The item
 therefore finishes at `base + total`, which is the expression today's engine
 evaluates, with the same two operands in the same order.
 
-The residual: `total` is now summed in **role order**, where `durationsOf`
-summed in estimate-row order. For one or two roles that is the same double
-(addition commutes; it is association that does not). For three or more it can
-differ in the last bit — and no project has ever held three roles, because the
-write path for a third arrived yesterday in `role-crud`. Stated here so the
-next reader knows it is bounded rather than absent.
+### D5a — What "identical" is a claim about, and the order that makes it one
+
+`total` is summed in **role order**. `durationsOf` summed in the order the
+estimate rows arrived in, and until this change nothing ordered them:
+`EstimateRepository.listByProject` had no `ORDER BY`, so the order was the query
+planner's to pick. Floating-point addition is commutative and **not**
+associative, so:
+
+- **Two addends: identical, whatever the order.** `a + b` is `b + a` to the bit.
+- **Three or more: not identical across orders.** Valid PERT finals exist whose
+  totals come out `10` one way and `10.000000000000002` the other, and a finish
+  is read through `Math.ceil(finish) - 1`, so those two are a different **day**
+  on the screen.
+
+So the claim is scoped to what can actually be in a database, and the order is
+fixed so that it stays scoped:
+
+1. **Every project in any released database holds at most `Dev` and `QA`.** The
+   write path for a third role is `role-crud`, which is this change's base
+   branch and ships in the same release train. So every plan that exists today
+   is a two-addend plan, and its identity holds regardless of the order the old
+   engine's totals were summed in. The differential proves that rather than
+   asserting it: for the two-role corpus it hands the previous engine a
+   **shuffled** sum, and the run is green. Make that corpus three-role and the
+   run goes red — the class is real, and the test can see it.
+2. **From three roles on, the order is defined rather than inherited.**
+   `EstimateRepository.listByProject` now orders by the role's position, the
+   adapter slices in the same order, and the spec says so. There is no earlier
+   number for a three-role plan to differ from, because there are no three-role
+   plans until this release. A second differential covers that corpus with both
+   sides summed in role order.
+
+The `ORDER BY` is the load-bearing half. Without it a three-role project's
+finish would depend on the query planner, and a plan could change the day it
+ends because SQLite chose a different index.
 
 ### D6 — Role order is a column, because the seed order is not readable
 
