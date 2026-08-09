@@ -149,6 +149,15 @@ dev and 500'd every `/api/teams` request. Both targets now run `tsc --build --fo
 the source project, watched catching that exact bug. The test projects are not in the gate
 yet: 10 pre-existing errors, named in `teams-and-assignees/verify.md`, are their own change.
 
+Two more on 2026-08-09, in `P phases-ui`, and **neither shipped** — which is why the tally is
+still thirteen. `page-shortcuts.test.tsx` had six checks about an open modal and none about a
+closed one, so nothing could see `ModalContent` suspending the page's keyboard the moment a
+dialog was _declared_; `P` is `Modal`'s first production caller and 49 unrelated tests went
+red the hour it mounted one. And `P`'s own `unfoldedRoles` sanitizer, which the plan asked
+for, was written, its negative watched **passing** with the line deleted, and the line removed:
+`columns` maps over `roles`, so a dead id in the accordion selects nothing. Write the negative
+before you believe the line.
+
 Prove your check fails when the thing is broken, and say so in the comment. A check whose
 failure mode has never been observed is a claim, not a gate.
 
