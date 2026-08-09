@@ -635,6 +635,15 @@ test.describe('the chart, after the browser has scaled it', () => {
     //    chose to let CI's pixels job be the first browser run. Until someone
     //    watches it fail, the alpha half of this check is a claim, not a gate
     //    — verify.md of `gantt-polish` says so too.
+    // The ghost's geometry before its paint: a translucent rect of no area
+    // has the right computed fill and no pixels, which is the sixteenth
+    // check's shape wearing the new mark. Non-zero both ways, and no taller
+    // than the row band a bar is allowed.
+    const ghost = await rectOf(page, '[data-gantt-bracket]');
+    expect(ghost.right - ghost.left, "the parent's ghost bar has no width").toBeGreaterThan(0);
+    expect(ghost.bottom - ghost.top, "the parent's ghost bar has no height").toBeGreaterThan(0);
+    expect(ghost.bottom - ghost.top, 'the ghost spills out of its row').toBeLessThanOrEqual(28);
+
     const paint = await page.evaluate(() => {
       const node = (where: string): Element => {
         const found = document.querySelector(where);
@@ -652,10 +661,18 @@ test.describe('the chart, after the browser has scaled it', () => {
         // paint asserted as alpha 1 would pass the solid-work check by
         // accident.
         const probe = document.createElement('div');
+        // A sentinel first: an invalid assignment leaves the property alone,
+        // and the probe would then answer with the body's inherited colour —
+        // alpha 1, a wrong paint read as a solid one. Seeing the sentinel
+        // survive is how `none` or a paint-server fill is told apart.
+        probe.style.color = 'rgb(1, 2, 3)';
         probe.style.color = color;
         document.body.append(probe);
         const resolved = getComputedStyle(probe).color;
         probe.remove();
+        if (resolved === 'rgb(1, 2, 3)' && color !== 'rgb(1, 2, 3)') {
+          throw new Error(`not a colour at all: ${color}`);
+        }
         const body = /^[a-z-]+\(([^)]+)\)$/.exec(resolved)?.[1];
         if (body === undefined) throw new Error(`unreadable paint: ${resolved}`);
         const slashed = /\/\s*([\d.]+%?)\s*$/.exec(body)?.[1];
@@ -759,6 +776,18 @@ test.describe('the chart, after the browser has scaled it', () => {
       await paintedAt(page, `[data-gantt-arrow-head="${String(id)}"]`),
       'the left-edge arrow head is not painted at its own centre',
     ).toBe('itself');
+
+    // 3. The switch, asked in the one place jsdom cannot answer: a real click
+    //    on a button inside a sticky, z-indexed subtree of an overflow-auto
+    //    scroller — the exact arrangement that has eaten clicks here twice
+    //    (R5 #14, #15). Both marks go and both come back.
+    const toggle = page.locator('[data-gantt-arrows-toggle]');
+    await toggle.click();
+    await expect(page.locator('[data-gantt-arrow]')).toHaveCount(0);
+    await expect(page.locator('[data-gantt-arrow-head]')).toHaveCount(0);
+    await toggle.click();
+    await expect(page.locator('[data-gantt-arrow]')).toHaveCount(2);
+    await expect(page.locator('[data-gantt-arrow-head]')).toHaveCount(2);
   });
 
   test('holds the labels at the left edge with the chart scrolled fully right', async ({

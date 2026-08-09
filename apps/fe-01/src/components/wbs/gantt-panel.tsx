@@ -293,10 +293,12 @@ function barClasses(critical: boolean, estimated: boolean): string {
  * `LABEL_CHAR_PX` is an estimate and is allowed to be: it decides only whether a name
  * is swapped for initials or dropped, and it is deliberately generous so the
  * swap happens before a name is clipped rather than after. The browser gate is
- * what judges the result.
+ * what judges the result. 5 is the 9px reading of the 5.5 this held at
+ * `text-[10px]` — the label dropped a size in `gantt-polish` and the estimate
+ * follows the font it measures.
  */
 const LABEL_PAD_PX = 3;
-const LABEL_CHAR_PX = 5.5;
+const LABEL_CHAR_PX = 5;
 
 /**
  * A calendar day's month as a person says it: `Aug 2026`, never `2026-08`.
@@ -325,6 +327,10 @@ export function monthWords(date: IsoDate): string {
     'Dec',
   ] as const;
   const monthIndex = Number(date.slice(5, 7)) - 1;
+  // Proof: this guard deleted, the lookup ran unchecked and the fault came
+  // back as the string `undefined 2026`. `refuses a month no calendar has,
+  // out loud` alone failed, on `expected [Function] to throw an error`.
+  // Watched 2026-08-09.
   if (!Number.isInteger(monthIndex) || monthIndex < 0 || monthIndex > 11) {
     throw new Error(`${date} names a month no calendar has`);
   }
@@ -765,7 +771,7 @@ export function GanttPanel({
           style={{ width: LABEL_COLUMN_PX }}
         >
           <div
-            className="text-muted-foreground border-border bg-muted/40 flex items-center justify-between border-b px-2 text-[10px] font-semibold tracking-wide uppercase"
+            className="text-muted-foreground border-border bg-background sticky top-0 z-20 flex items-center justify-between border-b px-2 text-[10px] font-semibold tracking-wide uppercase"
             style={{ height: ROW_PX }}
           >
             <span>
@@ -779,8 +785,10 @@ export function GanttPanel({
               })()}
             </span>
             {/*
-              The arrows switch, in the one corner that is sticky both ways: it
-              has to stay reachable however far a 60-row chart has scrolled.
+              The arrows switch, in the one corner that is sticky both ways —
+              `left-0` from the label column, `top-0` of its own, like the axis
+              beside it: it has to stay reachable however far a 60-row chart
+              has scrolled, in either direction.
               `aria-pressed` is the state — a toggle, not two buttons.
             */}
             <button
@@ -840,7 +848,7 @@ export function GanttPanel({
           */}
           <div
             data-gantt-axis
-            className="border-border bg-muted/40 flex border-b"
+            className="border-border bg-background sticky top-0 z-10 flex border-b"
             // The same band the SVG keeps at its left, so workday 0's cell
             // starts where the SVG's user x=0 does. Without it the whole
             // calendar sits {@link CHART_PAD_PX} left of the bars it labels.

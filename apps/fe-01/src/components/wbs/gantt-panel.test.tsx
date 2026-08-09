@@ -1010,6 +1010,9 @@ describe('the marks that had to be seen', () => {
     expect(ghost.height).toBe(leaf.height);
     const attributeOf = (selector: string, attribute: string): string | null =>
       document.querySelector(selector)?.getAttribute(attribute) ?? null;
+    // Not-null before equal: two rects that both lost their radii would agree
+    // on null, and `expect(null).toBe(null)` is a check that cannot fail.
+    expect(attributeOf('[data-gantt-bracket="hull"]', 'rx')).not.toBeNull();
     expect(attributeOf('[data-gantt-bracket="hull"]', 'rx')).toBe(
       attributeOf('[data-gantt-bar="strip-dev"]', 'rx'),
     );
@@ -2154,6 +2157,19 @@ describe('the caption follows the scroll', () => {
     expect(monthWords('2026-08-17')).toBe('Aug 2026');
     expect(monthWords('2026-12-01')).toBe('Dec 2026');
     expect(monthWords('2027-01-31')).toBe('Jan 2027');
+  });
+
+  itDom('refuses a month no calendar has, out loud', () => {
+    // The production caller only ever hands this validated dates, so the unit
+    // boundary is where the guard can be seen at all. Without it the table
+    // indexes past its end and the caption reads `undefined 2026` — a corner
+    // quietly printing nonsense instead of a fault reaching the boundary.
+    //
+    // Proof: the range guard deleted, so the lookup ran unchecked. This test
+    // alone failed, on `expected [Function] to throw an error` — the fault
+    // came back as the string 'undefined 2026'. Watched 2026-08-09.
+    expect(() => monthWords('2026-13-01')).toThrow('names a month no calendar has');
+    expect(() => monthWords('not a date')).toThrow('names a month no calendar has');
   });
 });
 
