@@ -118,6 +118,60 @@ beforeEach(() => {
   localStorage.clear();
 });
 
+/**
+ * Where the project controls are, and what they are called there.
+ *
+ * `H header-fits-a-row` moved every one of them into a `banner` and turned two
+ * of them into icon buttons. Nothing in the repository asserted that the page
+ * had a landmark, or that the two buttons kept their names — `Rename` and
+ * `New project` were found by name in eleven places and named in none of them,
+ * which is a contract every test depends on and no test states. These are the
+ * assertions, written by the change that moved them, per `F
+ * shadcn-foundation`'s rule.
+ */
+describe('the header bar', () => {
+  itDom('puts the project controls in a banner', async () => {
+    pageWith(fakeProjects(TWO));
+    await selectProject('p2');
+
+    const bar = screen.getByRole('banner');
+    expect(bar.contains(picker())).toBe(true);
+    expect(bar.contains(screen.getByRole('button', { name: 'Rename' }))).toBe(true);
+    expect(bar.contains(screen.getByRole('button', { name: 'New project' }))).toBe(true);
+  });
+
+  itDom('gives the header the slots the app fills, in the bar itself', async () => {
+    render(
+      <ProjectPage
+        token="t"
+        api={fakeProjects(TWO)}
+        presence={<p>who is here</p>}
+        account={<button type="button">the account</button>}
+      />,
+    );
+    await waitFor(() => {
+      expect(screen.getByLabelText('Project')).toBeDefined();
+    });
+
+    const bar = screen.getByRole('banner');
+    expect(bar.contains(screen.getByText('who is here'))).toBe(true);
+    expect(bar.contains(screen.getByRole('button', { name: 'the account' }))).toBe(true);
+  });
+
+  itDom('leaves the table out of the banner and in the page’s main', async () => {
+    pageWith(fakeProjects(TWO));
+    await selectProject('p2');
+
+    // The half that says the landmark is a bar rather than the whole page: a
+    // `<header>` wrapped around everything would satisfy the assertions above.
+    const bar = screen.getByRole('banner');
+    const grid = document.querySelector('[data-grid]');
+    expect(grid).not.toBeNull();
+    expect(bar.contains(grid)).toBe(false);
+    expect(document.querySelector('main')?.contains(grid)).toBe(true);
+  });
+});
+
 describe('the chosen project survives a refresh', () => {
   itDom('selects the remembered project on the next load, with no click', async () => {
     pageWith(fakeProjects(TWO));
@@ -341,7 +395,13 @@ describe('renaming a project', () => {
     // The draft survives the refusal — a `forbidden` must not eat what was
     // typed. Without this the test passed with a catch that closed the input.
     expect(screen.getByLabelText<HTMLInputElement>('Project name').value).toBe('Not allowed');
-    expect(screen.getByText('Paint the fence')).toBeDefined();
+    // And the project is still called what it was called. This used to read
+    // the "Working in …" line, which `H header-fits-a-row` removed with the
+    // rest of the stacked chrome; the picker is where a project's name is
+    // shown now, and it shows it the moment the rename mode ends. Same claim,
+    // one keystroke later, against the control that carries it today.
+    fireEvent.keyDown(screen.getByLabelText('Project name'), { key: 'Escape' });
+    expect(picker().value).toBe('Paint the fence');
   });
 
   itDom('creating a project mid-rename cancels the draft instead of retargeting it', async () => {

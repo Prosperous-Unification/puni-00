@@ -214,6 +214,46 @@
     box-sizing: border-box;
   }
 
+  /*
+   * The user agent's 8px on `<body>`, which `H header-fits-a-row` had to take
+   * off: the signed-in page is one window tall, and a window's worth of page
+   * inside a body indented by 8px is 816px of document in an 800px window — the
+   * page scrolled vertically by exactly the margin, behind a frame that was
+   * already the thing meant to scroll. Measured before it was fixed:
+   * `scrollHeight 816, clientHeight 800`.
+   *
+   * The guard is meaningless on `body` — no body is ever inside the grid — and
+   * it is here anyway, because `styles.test.ts` reads every selector this layer
+   * emits and asks whether it carries one. An exception would have to be an
+   * exception in that test too, and a reset with one exception is a reset with
+   * however many the next person needs.
+   */
+  body:not([data-grid], [data-grid] *) {
+    margin: 0;
+  }
+
+  /*
+   * The chain that makes "one window tall" a percentage rather than `100vh`,
+   * and the difference is not academic. `vh` is the *initial containing
+   * block*'s height and CSS `zoom` does not touch it: at `html { zoom: 1.25 }`
+   * — the proxy `layout.spec.ts` and `header.spec.ts` both read 125% through —
+   * `100vh` is still 800 units, which paint as 1000px in an 800px window and
+   * scroll the page by exactly 200. Measured. A percentage resolves against the
+   * real box at every zoom instead.
+   *
+   * `#root` is in it because React's mount point is a real element between
+   * `body` and the app: a height it does not carry is a height the page cannot
+   * inherit, and `h-full` on the app's own wrapper would resolve against `auto`
+   * and quietly do nothing. It is named here rather than classed in
+   * `index.html` because `@source` scans `src` and would emit no utility for a
+   * class it never sees.
+   */
+  html:not([data-grid], [data-grid] *),
+  body:not([data-grid], [data-grid] *),
+  #root:not([data-grid], [data-grid] *) {
+    height: 100%;
+  }
+
   h1:not([data-grid], [data-grid] *),
   h2:not([data-grid], [data-grid] *),
   h3:not([data-grid], [data-grid] *),

@@ -3925,15 +3925,28 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
   const leafColumnIds = table.getVisibleLeafColumns().map((column) => column.id);
 
   return (
-    <section>
+    /*
+      A link in the chain from `<main>` down to the frame: this section takes
+      the height its parent has, and passes the remainder — what the toolbar and
+      any banner leave — to the frame at the bottom of it. `min-h-0` is what
+      lets it shrink below the table's own height; without it the whole chain
+      falls back to content height and the frame never scrolls. `ProjectPage`
+      has the same pair on `<main>`, and `table-frame.ts` has the why.
+    */
+    <section className="flex min-h-0 flex-1 flex-col">
       {/*
         Wrapping, because this row of controls is the only thing on the page
         that can make it scroll sideways: it is about 1245px of buttons at its
         narrowest, and a window below that — a narrow one, or a wide one at
         125% zoom — carried the whole page with it while the table itself was
         behaving perfectly. Observed on h2puni, 2026-08-08.
+
+        `mb-2` and `gap-1.5` rather than 3 and 2: the same controls, tightened
+        under a header bar that is now one row, because every pixel between the
+        top of the window and the first row of the plan is a pixel the plan does
+        not get. Nothing about the wrapping changed.
       */}
-      <div className="mb-3 flex flex-wrap items-center gap-2">
+      <div data-toolbar className="mb-1.5 flex shrink-0 flex-wrap items-center gap-x-1.5 gap-y-1">
         <Button
           variant="outline"
           size="sm"

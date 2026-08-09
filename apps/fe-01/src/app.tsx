@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 
 import { AuthForm } from '@/components/auth/auth-form';
+import { AccountMenu } from '@/components/chrome/account-menu';
 import { PresencePanel } from '@/components/presence/presence-panel';
-import { Button } from '@/components/ui/button';
 import { ProjectPage } from '@/components/wbs/project-page';
 import { loadSession, me as fetchMe, saveSession, type Session } from '@/lib/api';
 
@@ -39,49 +39,62 @@ export function App() {
 
   if (!checked)
     return (
-      <main className="bg-background text-muted-foreground min-h-screen p-8 font-sans">
-        Loading…
+      <main className="bg-background text-muted-foreground min-h-full p-8 font-sans">Loading…</main>
+    );
+
+  if (session === null)
+    return (
+      // The page's own type and colour, which used to be `fontFamily:
+      // 'sans-serif'` inline — the browser's generic sans, whatever that was on
+      // the machine. `font-sans` is the named stack `styles.css` declares, and
+      // the two colour tokens are what a dark set would re-point.
+      <main className="bg-background text-foreground min-h-full p-8 font-sans">
+        {/*
+         * The tracer for the Tailwind integration, and still the assertion
+         * `e2e/tailwind.spec.ts` reads the computed letter-spacing off. The
+         * explicit size and weight beside it are not decoration: the scoped
+         * reset in `styles.css` takes an `h1`'s user-agent font-size and weight
+         * away, the way every reset does, so a heading now says how big it is.
+         *
+         * The signed-out page keeps its own layout: it is a form on an empty
+         * page, it fits any window, and giving it the signed-in page's
+         * viewport-height flex would buy nothing and cost a second thing to
+         * keep in step.
+         */}
+        <h1 className="mb-6 text-2xl font-semibold tracking-tight">WBS tool v2</h1>
+        <AuthForm onSignedIn={setSession} />
       </main>
     );
 
   return (
-    // The page's own type and colour, which used to be `fontFamily:
-    // 'sans-serif'` inline — the browser's generic sans, whatever that was on
-    // the machine. `font-sans` is the named stack `styles.css` declares, and
-    // the two colour tokens are what a dark set would re-point.
-    <main className="bg-background text-foreground min-h-screen p-8 font-sans">
-      {/*
-       * The tracer for the Tailwind integration, and still the assertion
-       * `e2e/tailwind.spec.ts` reads the computed letter-spacing off. The
-       * explicit size and weight beside it are not decoration: the scoped reset
-       * in `styles.css` takes an `h1`'s user-agent font-size and weight away,
-       * the way every reset does, so a heading now says how big it is.
-       */}
-      <h1 className="mb-6 text-2xl font-semibold tracking-tight">WBS tool v2</h1>
-      {session === null ? (
-        <AuthForm onSignedIn={setSession} />
-      ) : (
-        <>
-          <p className="text-muted-foreground mb-4 flex items-center gap-2 text-sm">
-            <span>
-              Signed in as{' '}
-              <strong className="text-foreground font-medium">{session.user.username}</strong>
-            </span>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                saveSession(null);
-                setSession(null);
-              }}
-            >
-              Log out
-            </Button>
-          </p>
-          <ProjectPage token={session.token} />
-          <PresencePanel token={session.token} me={session.user.username} />
-        </>
-      )}
-    </main>
+    /*
+     * The signed-in page is exactly one window tall, and that is what makes the
+     * table's frame the thing that scrolls: `h-full` fixes the outer height —
+     * against `#root`, `body` and `html`, which `styles.css` gives the window's
+     * height and which is `100vh` done in a way CSS `zoom` cannot lie about —
+     * the header takes what it needs, and the frame takes the rest. A `min-h-`
+     * of anything would grow with the table instead: the frame would be as tall
+     * as its own content, nothing would ever scroll inside it, and the sticky
+     * heading row would ride up the page. See `table-frame.ts`.
+     *
+     * Nothing here hides the overflow. A window too short for the frame's own
+     * minimum leaves the page scrolling vertically, which is the honest fallback:
+     * clipping it would put rows below the fold with no way to reach them.
+     */
+    <div className="bg-background text-foreground flex h-full flex-col font-sans">
+      <ProjectPage
+        token={session.token}
+        presence={<PresencePanel token={session.token} me={session.user.username} />}
+        account={
+          <AccountMenu
+            username={session.user.username}
+            onSignOut={() => {
+              saveSession(null);
+              setSession(null);
+            }}
+          />
+        }
+      />
+    </div>
   );
 }

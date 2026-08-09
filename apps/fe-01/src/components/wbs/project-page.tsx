@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
 
+import { AppHeader } from '@/components/chrome/app-header';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { subscribeToProject } from '@/lib/project-stream';
@@ -13,6 +14,17 @@ export interface ProjectPageProps {
   token: string;
   /** Injected in tests; the app lets it default to the real one. */
   api?: ProjectApi;
+  /**
+   * Who else is in the project, for the right-hand end of the header bar.
+   *
+   * A node rather than the panel itself, because what it needs — the session's
+   * own username — is the app's and not this page's, and because a page that
+   * built its own presence panel would open a gateway socket in every test
+   * that renders one.
+   */
+  presence?: ReactNode;
+  /** The account menu, for the same reason and the same end of the bar. */
+  account?: ReactNode;
 }
 
 /**
@@ -30,8 +42,22 @@ function rememberProject(id: string | null): void {
   else localStorage.setItem(PROJECT_KEY, id);
 }
 
-/** Picks a project, remembers the pick, renames it, then hands it to the table. */
-export function ProjectPage({ token, api: apiOverride }: ProjectPageProps) {
+/**
+ * Picks a project, remembers the pick, renames it, then hands it to the table.
+ *
+ * It renders the page's two structural pieces: the {@link AppHeader} the picker
+ * lives in, and the `<main>` the table fills. The header is here rather than in
+ * `App` because the picker is the bar's widest control and its state — the
+ * list, the selection, the rename in progress — is this page's; `App` passes in
+ * the two slots that belong to the session instead.
+ *
+ * `<main>` is a column flex that takes the rest of the window, and from it down
+ * to `TABLE_FRAME` there is one unbroken `flex-1` / `min-h-0` chain. Break a
+ * link of it and the frame stops being the thing that scrolls — the page starts
+ * scrolling instead and the heading row scrolls away with it, which is the
+ * failure `table-frame.ts` describes.
+ */
+export function ProjectPage({ token, api: apiOverride, presence, account }: ProjectPageProps) {
   const api = useMemo(() => apiOverride ?? httpProjectApi(token), [apiOverride, token]);
   const subscribe = useMemo(
     () => (projectId: string, handlers: SubscriptionHandlers) =>
@@ -202,178 +228,206 @@ export function ProjectPage({ token, api: apiOverride }: ProjectPageProps) {
     });
   };
 
-  return (
-    <section>
-      <h2 className="mb-2 text-base font-semibold tracking-tight">Projects</h2>
-      {error !== null && (
-        <p role="alert" className="text-destructive mb-2 text-sm">
-          {error}
-        </p>
-      )}
-      <div className="mb-3 flex items-center gap-2">
-        {rename === null ? (
-          <>
-            <span className="relative inline-block">
-              <Input
-                className="w-64"
-                aria-label="Project"
-                role="combobox"
-                aria-expanded={listOpen}
-                aria-controls={listOpen ? 'project-options' : undefined}
-                aria-activedescendant={
-                  highlighted === undefined ? undefined : `project-option-${highlighted.id}`
-                }
-                aria-autocomplete="list"
-                placeholder="Choose a project…"
-                size={28}
-                // Closed, the box reads as a label of what is open; typing in
-                // it is a search, and the typing is what is shown then.
-                value={search?.typed ?? selectedProject?.name ?? ''}
-                onFocus={() => {
-                  setSearch({ typed: '', highlightId: null });
-                }}
-                // A blur discards the typing and shows the selection again. It
-                // does not select the highlighted entry: a click elsewhere is
-                // not a choice, and choosing on the way out is how a picker
-                // silently changes the project under someone who left it.
-                onBlur={() => {
-                  setSearch(null);
-                }}
-                onChange={(e) => {
-                  const typed = e.target.value;
-                  // Typing is aiming at the narrowed-to project; emptying the
-                  // box aims at nothing again.
-                  const first =
-                    typed.trim() === '' ? undefined : matchingProjects(projects, typed)[0];
-                  setSearch({ typed, highlightId: first?.id ?? null });
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-                    e.preventDefault();
-                    moveHighlight(e.key === 'ArrowDown' ? 1 : -1);
-                    return;
-                  }
-                  if (e.key === 'Escape') {
-                    setSearch(null);
-                    return;
-                  }
-                  if (e.key !== 'Enter') return;
-                  e.preventDefault();
-                  // Nothing highlighted is not a choice. An empty box whose
-                  // list happens to be showing must not select the first
-                  // project on a stray Enter.
-                  if (highlighted !== undefined) choose(highlighted.id);
-                }}
-              />
-              {listOpen && (
-                <ul
-                  role="listbox"
-                  id="project-options"
-                  aria-label="Projects"
-                  // One preventDefault for the whole list, options included, by
-                  // bubbling: a mousedown here must not blur the input, or the
-                  // list would close before the click could land — on an option
-                  // and on the scrollbar alike (cross review #6's lesson,
-                  // learned on the Depends on picker).
-                  onMouseDown={(e) => {
-                    e.preventDefault();
-                  }}
-                  className="bg-popover text-popover-foreground absolute top-full left-0 z-10 m-0 max-h-60 min-w-full list-none overflow-y-auto rounded-md border p-1 text-sm shadow-md"
-                >
-                  {entries.map((entry) => (
-                    // The ARIA combobox pattern is the boundary that makes this
-                    // safe: options are not focusable, and the keyboard drives
-                    // them from the input through aria-activedescendant.
-                    // eslint-disable-next-line jsx-a11y/click-events-have-key-events
-                    <li
-                      key={entry.id}
-                      id={`project-option-${entry.id}`}
-                      role="option"
-                      aria-selected={entry.id === highlighted?.id}
-                      ref={(element) => {
-                        // jsdom has no scrollIntoView; that boundary is the
-                        // test environment, not a browser this will meet.
-                        if (
-                          entry.id === highlighted?.id &&
-                          element !== null &&
-                          typeof element.scrollIntoView === 'function'
-                        ) {
-                          element.scrollIntoView({ block: 'nearest' });
-                        }
-                      }}
-                      className={cn(
-                        'cursor-pointer rounded-sm px-2 py-1 whitespace-nowrap',
-                        entry.id === highlighted?.id && 'bg-accent text-accent-foreground',
-                      )}
-                      onClick={() => {
-                        choose(entry.id);
-                      }}
-                    >
-                      {entry.name}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </span>
-            {selectedProject !== undefined && (
-              <Button
-                variant="outline"
-                type="button"
-                onClick={() => {
-                  setRename({ projectId: selectedProject.id, draft: selectedProject.name });
-                }}
-              >
-                Rename
-              </Button>
-            )}
-          </>
-        ) : (
-          <Input
-            className="w-64"
-            aria-label="Project name"
-            value={rename.draft}
-            // A callback ref rather than autoFocus: it fires when the node
-            // attaches, which is the moment the button it replaces was clicked.
-            ref={(element) => element?.focus()}
-            onChange={(e) => {
-              const draft = e.target.value;
-              setRename((current) => (current === null ? current : { ...current, draft }));
-            }}
-            // Blur commits — the proposal's word — which also gives the rename
-            // a mouse exit: click anywhere else and the mode resolves instead
-            // of sitting open forever.
-            onBlur={() => {
-              commitOrCancelRename(rename);
-            }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault();
-                commitOrCancelRename(rename);
+  /**
+   * The project controls, as one group of the header bar.
+   *
+   * `min-w-0` on the box and on the group is what lets the picker be the part
+   * that gives way: without it a flex item refuses to shrink below its content
+   * and the bar wraps at the width the longest project name asks for.
+   */
+  const projectControls = (
+    <div className="flex min-w-0 flex-1 items-center gap-1">
+      {rename === null ? (
+        <>
+          <span className="relative inline-block max-w-72 min-w-0 flex-1">
+            <Input
+              className="h-8 w-full"
+              aria-label="Project"
+              role="combobox"
+              aria-expanded={listOpen}
+              aria-controls={listOpen ? 'project-options' : undefined}
+              aria-activedescendant={
+                highlighted === undefined ? undefined : `project-option-${highlighted.id}`
               }
-              if (e.key === 'Escape') setRename(null);
-            }}
-          />
-        )}
-        <Button type="button" onClick={create}>
-          New project
-        </Button>
-      </div>
-      {selectedProject !== undefined && (
-        <p className="text-muted-foreground mb-3 text-sm">
-          Working in <strong className="text-foreground font-medium">{selectedProject.name}</strong>
-        </p>
-      )}
-      {selected !== null && (
-        <WbsTable
-          projectId={selected}
-          // The name the export's header and filename carry. Read from the
-          // list rather than held twice: a rename lands in `projects` and the
-          // next export says the new name.
-          projectName={selectedProject?.name}
-          api={api}
-          subscribe={subscribe}
+              aria-autocomplete="list"
+              placeholder="Choose a project…"
+              size={28}
+              // Closed, the box reads as a label of what is open; typing in
+              // it is a search, and the typing is what is shown then.
+              value={search?.typed ?? selectedProject?.name ?? ''}
+              onFocus={() => {
+                setSearch({ typed: '', highlightId: null });
+              }}
+              // A blur discards the typing and shows the selection again. It
+              // does not select the highlighted entry: a click elsewhere is
+              // not a choice, and choosing on the way out is how a picker
+              // silently changes the project under someone who left it.
+              onBlur={() => {
+                setSearch(null);
+              }}
+              onChange={(e) => {
+                const typed = e.target.value;
+                // Typing is aiming at the narrowed-to project; emptying the
+                // box aims at nothing again.
+                const first =
+                  typed.trim() === '' ? undefined : matchingProjects(projects, typed)[0];
+                setSearch({ typed, highlightId: first?.id ?? null });
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                  e.preventDefault();
+                  moveHighlight(e.key === 'ArrowDown' ? 1 : -1);
+                  return;
+                }
+                if (e.key === 'Escape') {
+                  setSearch(null);
+                  return;
+                }
+                if (e.key !== 'Enter') return;
+                e.preventDefault();
+                // Nothing highlighted is not a choice. An empty box whose
+                // list happens to be showing must not select the first
+                // project on a stray Enter.
+                if (highlighted !== undefined) choose(highlighted.id);
+              }}
+            />
+            {listOpen && (
+              <ul
+                role="listbox"
+                id="project-options"
+                aria-label="Projects"
+                // One preventDefault for the whole list, options included, by
+                // bubbling: a mousedown here must not blur the input, or the
+                // list would close before the click could land — on an option
+                // and on the scrollbar alike (cross review #6's lesson,
+                // learned on the Depends on picker).
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                }}
+                className="bg-popover text-popover-foreground absolute top-full left-0 z-10 m-0 max-h-60 min-w-full list-none overflow-y-auto rounded-md border p-1 text-sm shadow-md"
+              >
+                {entries.map((entry) => (
+                  // The ARIA combobox pattern is the boundary that makes this
+                  // safe: options are not focusable, and the keyboard drives
+                  // them from the input through aria-activedescendant.
+                  // eslint-disable-next-line jsx-a11y/click-events-have-key-events
+                  <li
+                    key={entry.id}
+                    id={`project-option-${entry.id}`}
+                    role="option"
+                    aria-selected={entry.id === highlighted?.id}
+                    ref={(element) => {
+                      // jsdom has no scrollIntoView; that boundary is the
+                      // test environment, not a browser this will meet.
+                      if (
+                        entry.id === highlighted?.id &&
+                        element !== null &&
+                        typeof element.scrollIntoView === 'function'
+                      ) {
+                        element.scrollIntoView({ block: 'nearest' });
+                      }
+                    }}
+                    className={cn(
+                      'cursor-pointer rounded-sm px-2 py-1 whitespace-nowrap',
+                      entry.id === highlighted?.id && 'bg-accent text-accent-foreground',
+                    )}
+                    onClick={() => {
+                      choose(entry.id);
+                    }}
+                  >
+                    {entry.name}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </span>
+          {selectedProject !== undefined && (
+            <Button
+              variant="outline"
+              size="square"
+              type="button"
+              // The name every test knows this control by, kept exactly while
+              // the label it used to carry left the bar: an icon button in a
+              // one-row header is a smaller thing with the same accessible
+              // name, and `aria-label` is what makes those two facts one.
+              aria-label="Rename"
+              title="Rename this project"
+              onClick={() => {
+                setRename({ projectId: selectedProject.id, draft: selectedProject.name });
+              }}
+            >
+              ✎
+            </Button>
+          )}
+        </>
+      ) : (
+        <Input
+          className="h-8 max-w-72 min-w-0 flex-1"
+          aria-label="Project name"
+          value={rename.draft}
+          // A callback ref rather than autoFocus: it fires when the node
+          // attaches, which is the moment the button it replaces was clicked.
+          ref={(element) => element?.focus()}
+          onChange={(e) => {
+            const draft = e.target.value;
+            setRename((current) => (current === null ? current : { ...current, draft }));
+          }}
+          // Blur commits — the proposal's word — which also gives the rename
+          // a mouse exit: click anywhere else and the mode resolves instead
+          // of sitting open forever.
+          onBlur={() => {
+            commitOrCancelRename(rename);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              commitOrCancelRename(rename);
+            }
+            if (e.key === 'Escape') setRename(null);
+          }}
         />
       )}
-    </section>
+      <Button
+        size="square"
+        type="button"
+        aria-label="New project"
+        title="Start a new project"
+        onClick={create}
+      >
+        +
+      </Button>
+    </div>
+  );
+
+  return (
+    <>
+      <AppHeader project={projectControls} presence={presence} account={account} />
+      {/*
+        The rest of the window, and a column flex so the frame below can have
+        what the toolbar does not. `min-h-0` is the load-bearing half: a flex
+        item's default `min-height: auto` refuses to shrink below its content,
+        so without it the table's own height would push this box past the
+        bottom of the screen and the frame would never be the thing that
+        scrolls.
+      */}
+      <main className="flex min-h-0 flex-1 flex-col px-4 py-2">
+        {error !== null && (
+          <p role="alert" className="text-destructive mb-2 text-sm">
+            {error}
+          </p>
+        )}
+        {selected !== null && (
+          <WbsTable
+            projectId={selected}
+            // The name the export's header and filename carry. Read from the
+            // list rather than held twice: a rename lands in `projects` and the
+            // next export says the new name.
+            projectName={selectedProject?.name}
+            api={api}
+            subscribe={subscribe}
+          />
+        )}
+      </main>
+    </>
   );
 }
