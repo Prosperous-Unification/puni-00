@@ -24,7 +24,20 @@ export type ProjectEvent =
   | { type: 'tree_replaced'; workItems: NumberedWorkItem[] }
   | { type: 'role_added'; role: Role }
   | { type: 'role_renamed'; role: Role }
-  | { type: 'role_removed'; roleId: string };
+  | { type: 'role_removed'; roleId: string }
+  /**
+   * Something in the global directory that this project reads has changed — a
+   * person or team renamed, or one removed and its assignments and labels taken
+   * with it.
+   *
+   * It carries nothing, deliberately. The directory is global and a project
+   * reads its people and teams alongside its tree on every refresh, so the only
+   * useful thing to say is "read again". A payload would be a second copy of a
+   * list the client is about to fetch anyway, and it would have to be
+   * reconciled against the tree it has not fetched yet — the same argument the
+   * three role events make for carrying the role and not the tree.
+   */
+  | { type: 'directory_changed' };
 
 /**
  * The subscription name carrying a project's edits.

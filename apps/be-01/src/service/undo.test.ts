@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
-import type { JournalEntry, Person, Role, WorkItem } from '../repository';
+import type { JournalEntry, Role, WorkItem } from '../repository';
 import { CommandJournalRepository } from '../repository/command-journal';
 import { openDrizzle } from '../repository/db';
 import { DependencyRepository } from '../repository/dependency';
@@ -16,6 +16,7 @@ import { commandJournal } from '../repository/schema';
 import { UserRepository } from '../repository/user';
 import { SubtreeRepository, WorkItemRepository } from '../repository/work-item';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
+import { personAdded } from '../testing/directory-fixture';
 import { ProjectService } from './project.service';
 import { type UndoOutcome, WorkItemService } from './work-item.service';
 
@@ -445,6 +446,42 @@ describe('undoing each kind of change', () => {
   });
 });
 
+describe('a replay never resurrects a directory row that has gone', () => {
+  it('refuses a redo whose person has since been removed, and writes nothing', async () => {
+    // The redo re-applies an assignment through the same guarded store the
+    // forward write used. `assignment.person_id` is a foreign key, so a replay
+    // routed around that path is a 500 on a key somebody pressed to be safe.
+    const strip = await root('Strip');
+    const alice = await person('Alice');
+    await workItems.assign(strip, ownerId, dev(), alice);
+    expect(expectDone(await undone())).toBe('assign “Strip”');
+    await directoryStore.removePerson(alice, true);
+
+    const outcome = await workItems.redo(projectId, ownerId);
+
+    if (outcome.ok) throw new Error(`expected a refusal, got: ${outcome.result.done}`);
+    expect(outcome.reason).toBe('stale_undo');
+    expect(outcome.detail).toBe('that person is no longer in the directory.');
+    expect(await directoryStore.assignmentsOf([strip])).toEqual([]);
+  });
+
+  it('refuses an undo that would put back a label whose team has gone', async () => {
+    const strip = await root('Strip');
+    const platform = await directoryStore.addTeam({ id: crypto.randomUUID(), name: 'Platform' });
+    await workItems.patch(strip, ownerId, { serviceTeamId: platform.id });
+    await workItems.patch(strip, ownerId, { serviceTeamId: null });
+    await directoryStore.removeTeam(platform.id, true);
+
+    // `work_item.service_team_id` has no foreign key, so the undo would not
+    // fail — it would quietly write the dead id back and leave it there.
+    const outcome = await undone();
+
+    if (outcome.ok) throw new Error(`expected a refusal, got: ${outcome.result.done}`);
+    expect(outcome.detail).toBe('that service team is no longer in the directory.');
+    expect((await found(strip))?.serviceTeamId).toBeNull();
+  });
+});
+
 describe('an undo refuses when what it touched has moved', () => {
   it('refuses a rename somebody else has renamed over, and leaves their name alone', async () => {
     const strip = await root('Strip');
@@ -831,6 +868,6 @@ async function allEntries(): Promise<{ seq: number; kind: string }[]> {
 
 /** A person in the global directory, for the assignment cases. */
 async function person(name: string): Promise<string> {
-  const added: Person = await directoryStore.addPerson({ id: crypto.randomUUID(), name }, []);
+  const added = await personAdded(directoryStore.addPerson({ id: crypto.randomUUID(), name }, []));
   return added.id;
 }

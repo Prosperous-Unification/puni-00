@@ -104,7 +104,11 @@ export function buildServices(opts: ServicesOptions): BeServices {
       roles: new RoleRepository(opts.db),
       broadcast,
     }),
-    directory: new DirectoryService({ directory: directoryStore }),
+    // The same broadcaster the roles and the work items use, so a directory
+    // event takes its place in the project's one sequence — a client resuming
+    // from a work item's sequence must not be replayed a rename it has seen,
+    // or miss one it has not.
+    directory: new DirectoryService({ directory: directoryStore, broadcast }),
     workItems: new WorkItemService({
       workItems: new WorkItemRepository(opts.db),
       projects: projectStore,

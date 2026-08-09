@@ -1,4 +1,10 @@
-import type { FrozenNumber, Repositioned, WorkItem, WorkItemStore } from '../repository';
+import type {
+  DirectoryStore,
+  FrozenNumber,
+  Repositioned,
+  WorkItem,
+  WorkItemStore,
+} from '../repository';
 import { WorkItemService } from '../service/work-item.service';
 import { inMemoryDirectory } from '../testing/directory-fixture';
 import { recordingBroadcaster } from './broadcast-fixture';
@@ -16,7 +22,18 @@ import { inMemorySubtrees } from './subtree-fixture';
  * fixture that applied only the primary write would let a test pass while the
  * respacing that keeps siblings distinct was silently dropped.
  */
-export function inMemoryWorkItems(): WorkItemStore {
+export function inMemoryWorkItems(
+  /**
+   * The directory a `serviceTeamId` is checked against, as production checks it
+   * inside `patch`'s own transaction.
+   *
+   * Optional because most callers never label anything, and a fixture that
+   * invented a team list would be answering a question it cannot know. Given
+   * one, `patch` refuses an unknown team exactly as the repository does; without
+   * one it cannot, and no test may assert that refusal through it.
+   */
+  teams?: Pick<DirectoryStore, 'listTeams'>,
+): WorkItemStore {
   const byId = new Map<string, WorkItem>();
 
   function reposition(updates: readonly Repositioned[]): void {
@@ -39,9 +56,14 @@ export function inMemoryWorkItems(): WorkItemStore {
       byId.set(workItem.id, workItem);
       return Promise.resolve();
     },
-    patch(id, patch) {
+    async patch(id, patch) {
       const existing = byId.get(id);
-      if (existing === undefined) return Promise.resolve(null);
+      if (existing === undefined) return { ok: false, reason: 'not_found' };
+      const wanted = patch.serviceTeamId;
+      if (teams !== undefined && wanted !== undefined && wanted !== null) {
+        const held = await teams.listTeams();
+        if (!held.some((each) => each.id === wanted)) return { ok: false, reason: 'unknown_team' };
+      }
       const updated: WorkItem = {
         ...existing,
         name: patch.name ?? existing.name,
@@ -54,7 +76,7 @@ export function inMemoryWorkItems(): WorkItemStore {
           patch.serviceTeamId === undefined ? existing.serviceTeamId : patch.serviceTeamId,
       };
       byId.set(id, updated);
-      return Promise.resolve(updated);
+      return { ok: true, workItem: updated };
     },
     move(id, parentId, position, respaced) {
       const existing = byId.get(id);
@@ -89,10 +111,10 @@ export function inMemoryWorkItems(): WorkItemStore {
 
 /** A WorkItemService over in-memory stores, for tests that only need `buildApp` to construct. */
 export function testWorkItemService(): WorkItemService {
-  const workItems = inMemoryWorkItems();
+  const directory = inMemoryDirectory();
+  const workItems = inMemoryWorkItems(directory);
   const estimates = inMemoryEstimates(workItems);
   const dependencies = inMemoryDependencies();
-  const directory = inMemoryDirectory();
   return new WorkItemService({
     workItems,
     projects: inMemoryProjects(),

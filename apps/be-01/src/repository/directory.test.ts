@@ -4,6 +4,7 @@ import { join } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
+import { personAdded } from '../testing/directory-fixture';
 import { openDrizzle } from './db';
 import { DirectoryRepository } from './directory';
 import type { Project, Role, WorkItem } from './index';
@@ -89,8 +90,10 @@ describe('DirectoryRepository', () => {
   it('keeps a person in several teams at once', async () => {
     const platform = await repo.addTeam({ id: crypto.randomUUID(), name: 'Platform' });
     const billing = await repo.addTeam({ id: crypto.randomUUID(), name: 'Billing' });
-    const ada = await repo.addPerson({ id: crypto.randomUUID(), name: 'Ada' }, [platform.id]);
-    await repo.addPerson({ id: crypto.randomUUID(), name: 'Ada' }, [billing.id]);
+    const ada = await personAdded(
+      repo.addPerson({ id: crypto.randomUUID(), name: 'Ada' }, [platform.id]),
+    );
+    await personAdded(repo.addPerson({ id: crypto.randomUUID(), name: 'Ada' }, [billing.id]));
 
     const people = await repo.listPeople();
 
@@ -100,7 +103,7 @@ describe('DirectoryRepository', () => {
   });
 
   it('leaves a person with no team a free agent, not a member of anything', async () => {
-    await repo.addPerson({ id: crypto.randomUUID(), name: 'Grace' }, []);
+    await personAdded(repo.addPerson({ id: crypto.randomUUID(), name: 'Grace' }, []));
 
     // The empty array, not a magic team id: a real "Free agents" row could be
     // renamed, deleted or given work of its own.
@@ -108,8 +111,8 @@ describe('DirectoryRepository', () => {
   });
 
   it('holds one assignee per role, replacing rather than adding', async () => {
-    const ada = await repo.addPerson({ id: crypto.randomUUID(), name: 'Ada' }, []);
-    const grace = await repo.addPerson({ id: crypto.randomUUID(), name: 'Grace' }, []);
+    const ada = await personAdded(repo.addPerson({ id: crypto.randomUUID(), name: 'Ada' }, []));
+    const grace = await personAdded(repo.addPerson({ id: crypto.randomUUID(), name: 'Grace' }, []));
 
     await repo.assign(itemId, roleId, ada.id);
     await repo.assign(itemId, roleId, grace.id);
@@ -124,7 +127,7 @@ describe('DirectoryRepository', () => {
     // survivor to prove it. The first attempt at this test had one work item,
     // so narrowing the delete to the role alone — which would clear that role
     // on every work item in the database — passed it.
-    const ada = await repo.addPerson({ id: crypto.randomUUID(), name: 'Ada' }, []);
+    const ada = await personAdded(repo.addPerson({ id: crypto.randomUUID(), name: 'Ada' }, []));
     const otherItemId = crypto.randomUUID();
     await workItems.insert(
       {
@@ -155,14 +158,31 @@ describe('DirectoryRepository', () => {
     expect(left).toContainEqual({ workItemId: itemId, roleId: otherRoleId, personId: ada.id });
   });
 
-  it('refuses an assignment to somebody who is not in the directory', async () => {
-    // Proof the foreign keys are enforced rather than merely declared.
-    let message = '(resolved without throwing)';
-    try {
-      await repo.assign(itemId, roleId, crypto.randomUUID());
-    } catch (err) {
-      message = String(err);
-    }
-    expect(message).toMatch(/FOREIGN KEY/);
+  it('refuses an assignment naming a person who has been removed', async () => {
+    // The person is read inside the write's own transaction, so this is a
+    // typed refusal rather than the foreign key it used to be — a client
+    // holding a picker rendered a moment too early is out of date, not broken.
+    const gone = crypto.randomUUID();
+
+    expect(await repo.assign(itemId, roleId, gone)).toEqual({
+      ok: false,
+      reason: 'unknown_person',
+    });
+    expect(await repo.assignmentsOf([itemId])).toEqual([]);
+  });
+
+  it('refuses a label naming a team that has been removed', async () => {
+    const platform = await repo.addTeam({ id: crypto.randomUUID(), name: 'Platform' });
+    await workItems.patch(itemId, { serviceTeamId: platform.id });
+    await repo.removeTeam(platform.id, true);
+
+    // `work_item.service_team_id` has no foreign key, so nothing under this
+    // would refuse the write: without the read in the update's own transaction
+    // the row simply carries an id the directory does not hold.
+    expect(await workItems.patch(itemId, { serviceTeamId: platform.id })).toEqual({
+      ok: false,
+      reason: 'unknown_team',
+    });
+    expect((await workItems.findById(itemId))?.serviceTeamId).toBeNull();
   });
 });

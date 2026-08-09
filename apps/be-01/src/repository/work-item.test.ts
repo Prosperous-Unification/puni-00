@@ -4,6 +4,7 @@ import { join } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
+import { personAdded } from '../testing/directory-fixture';
 import { openDrizzle } from './db';
 import { DependencyRepository } from './dependency';
 import { DirectoryRepository } from './directory';
@@ -59,7 +60,8 @@ beforeEach(async () => {
     },
     [{ id: roleId, projectId, name: 'Dev', position: 10 }],
   );
-  personId = (await directory.addPerson({ id: crypto.randomUUID(), name: 'Ada' }, [])).id;
+  personId = (await personAdded(directory.addPerson({ id: crypto.randomUUID(), name: 'Ada' }, [])))
+    .id;
 });
 
 afterEach(() => {

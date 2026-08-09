@@ -4,7 +4,7 @@ import type { EstimateStore, Project, ProjectStore, WorkItemStore } from '../rep
 import { type RecordingBroadcaster, recordingBroadcaster } from '../testing/broadcast-fixture';
 import { inMemoryCommandJournal } from '../testing/command-journal-fixture';
 import { inMemoryDependencies } from '../testing/dependency-fixture';
-import { inMemoryDirectory } from '../testing/directory-fixture';
+import { inMemoryDirectory, personAdded } from '../testing/directory-fixture';
 import { inMemoryEstimates } from '../testing/estimate-fixture';
 import { inMemoryProjects } from '../testing/project-fixture';
 import { inMemorySubtrees } from '../testing/subtree-fixture';
@@ -26,9 +26,9 @@ let broadcast: RecordingBroadcaster;
 
 beforeEach(async () => {
   projects = inMemoryProjects();
-  workItems = inMemoryWorkItems();
   dependencies = inMemoryDependencies();
   directory = inMemoryDirectory();
+  workItems = inMemoryWorkItems(directory);
   estimates = inMemoryEstimates(workItems);
   broadcast = recordingBroadcaster();
   service = new WorkItemService({
@@ -56,6 +56,19 @@ beforeEach(async () => {
     { id: roleId, projectId: project.id, name: 'Dev', position: 10 },
   ]);
   projectId = project.id;
+  // The people these tests assign. They have to be in the directory because
+  // production reads the person inside the assignment's own transaction and
+  // refuses one it does not hold — a fixture that let an unknown id through
+  // would be laxer than the schema it stands for.
+  for (const name of ['ada', 'grace', 'kat', 'ada-of-platform']) {
+    await personAdded(directory.addPerson({ id: name, name }, []));
+  }
+  // The same for the teams these tests label with: `patch` reads the team
+  // inside the update's own transaction, because `work_item.service_team_id`
+  // has no foreign key to do it.
+  for (const name of ['team-billing', 'team-sparks']) {
+    await directory.addTeam({ id: name, name });
+  }
 });
 
 /** Creates under `parentId`, after `afterId`, returning the new id. */
@@ -580,6 +593,32 @@ describe('who is doing the work', () => {
     expect(row?.serviceTeamId).toBe('team-billing');
   });
 
+  it('refuses an assignment naming a person the directory has lost', async () => {
+    // A picker rendered before somebody was removed. Out of date, not broken:
+    // a typed 4xx rather than the foreign key the write used to reach.
+    const id = await add('Strip');
+    await directory.removePerson('ada', true);
+
+    const outcome = await service.assign(id, OWNER, roleId, 'ada');
+
+    expect(outcome).toEqual({ ok: false, reason: 'unknown_person' });
+    expect(await directory.assignmentsOf([id])).toEqual([]);
+  });
+
+  it('refuses a label naming a team the directory has lost, leaving the old one', async () => {
+    const id = await add('Strip');
+    await service.patch(id, OWNER, { serviceTeamId: 'team-sparks' });
+    await directory.removeTeam('team-billing', true);
+
+    const outcome = await service.patch(id, OWNER, { serviceTeamId: 'team-billing' });
+
+    expect(outcome).toEqual({ ok: false, reason: 'unknown_team' });
+    // The label it already had, not a null and not the dead id: a refused
+    // write leaves the row exactly where it was.
+    const row = (await service.tree(projectId))?.workItems.find((w) => w.id === id);
+    expect(row?.serviceTeamId).toBe('team-sparks');
+  });
+
   it('clears an assignment', async () => {
     const id = await add('Strip');
     await service.assign(id, OWNER, roleId, 'ada');
@@ -1023,11 +1062,15 @@ describe('the slices the schedule placed, on the wire', () => {
     const hull = created.result.id;
     await service.setEstimate(hull, OWNER, devId, flat(3));
     await service.setEstimate(hull, OWNER, qaId, flat(2));
-    const kat = await directory.addPerson({ id: crypto.randomUUID(), name: 'Kat' }, []);
-    const ada = await directory.addPerson({ id: crypto.randomUUID(), name: 'Ada' }, []);
+    const kat = await personAdded(
+      directory.addPerson({ id: crypto.randomUUID(), name: 'Kat' }, []),
+    );
+    const ada = await personAdded(
+      directory.addPerson({ id: crypto.randomUUID(), name: 'Ada' }, []),
+    );
     // Somebody in the directory that nobody on this plan is: the payload names
     // who is on the plan, not who could be.
-    await directory.addPerson({ id: crypto.randomUUID(), name: 'Unbooked' }, []);
+    await personAdded(directory.addPerson({ id: crypto.randomUUID(), name: 'Unbooked' }, []));
     await directory.assign(hull, devId, kat.id);
     await directory.assign(hull, qaId, ada.id);
     return { id, devId, qaId };

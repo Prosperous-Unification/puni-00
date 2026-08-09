@@ -17,6 +17,7 @@ import { RoleRepository } from '../repository/role';
 import { UserRepository } from '../repository/user';
 import { SubtreeRepository, WorkItemRepository } from '../repository/work-item';
 import { type RecordingBroadcaster, recordingBroadcaster } from '../testing/broadcast-fixture';
+import { personAdded } from '../testing/directory-fixture';
 import type { Broadcaster } from './broadcast';
 import { EventSequencer } from './event-sequencer';
 import { GatewayBroadcaster } from './gateway-broadcaster';
@@ -227,7 +228,9 @@ describe('RoleService.remove', () => {
   it('refuses a role that is used, counting what would go', async () => {
     await estimates.set({ workItemId: 'strip', roleId: qaId, ...DAYS });
     await estimates.set({ workItemId: 'sand', roleId: qaId, ...DAYS });
-    const ada = await directory.addPerson({ id: crypto.randomUUID(), name: 'Ada' }, []);
+    const ada = await personAdded(
+      directory.addPerson({ id: crypto.randomUUID(), name: 'Ada' }, []),
+    );
     await directory.assign('strip', qaId, ada.id);
     await directory.assign('strip', devId, ada.id);
 
@@ -379,7 +382,9 @@ describe('a role removed between the check and the write', () => {
   });
 
   it('refuses the assignee the same way', async () => {
-    const ada = await directory.addPerson({ id: crypto.randomUUID(), name: 'Ada' }, []);
+    const ada = await personAdded(
+      directory.addPerson({ id: crypto.randomUUID(), name: 'Ada' }, []),
+    );
 
     const outcome = await serviceWritingIntoTheGap().assign('strip', ownerId, qaId, ada.id);
 
@@ -387,11 +392,13 @@ describe('a role removed between the check and the write', () => {
     expect(await directory.assignmentsOf(['strip'])).toEqual([]);
   });
 
-  it('still throws a foreign key that is not about the role', async () => {
+  it('names the person, not the phase, when it is the person who has gone', async () => {
     // The person is the one that has gone, and the role is exactly where it
     // was. Reporting `unknown_role` for that would be a confident lie about
-    // which of the request's ids is wrong — and R5's line: only the modeled
-    // condition is converted, everything else is still unknown.
+    // which of the request's ids is wrong. It is `unknown_person` now rather
+    // than the raw foreign key it used to be — `DirectoryRepository.assign`
+    // reads the person inside its own transaction — but the thing being
+    // asserted is unchanged: `writeNamingRole` must not claim the phase.
     const workItems = new WorkItemService({
       workItems: new WorkItemRepository(db),
       projects: projectStore,
@@ -403,16 +410,11 @@ describe('a role removed between the check and the write', () => {
       broadcast: recordingBroadcaster(),
     });
 
-    let thrown: unknown = null;
-    try {
-      await workItems.assign('strip', ownerId, qaId, 'nobody-by-that-id');
-    } catch (err) {
-      thrown = err;
-    }
+    const outcome = await workItems.assign('strip', ownerId, qaId, 'nobody-by-that-id');
 
-    expect(thrown).toBeInstanceOf(Error);
-    expect(String(thrown)).toContain('FOREIGN KEY constraint failed');
+    expect(outcome).toEqual({ ok: false, reason: 'unknown_person' });
     expect(await roleStore.findById(qaId)).not.toBeNull();
+    expect(await directory.assignmentsOf(['strip'])).toEqual([]);
   });
 });
 

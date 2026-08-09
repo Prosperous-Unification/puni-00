@@ -39,15 +39,7 @@ plan: `docs/plans/2026-08-09-directory-table-header-gantt.md`, section D1.
 - To: `DELETE` refuses by default carrying the directory usage — affected
   projects, work items and members by name, per Dany's call — and removes
   it on an explicit `cascade=true` call in one transaction, nulling
-  `work_item.service_team_id` labels **before** the team row is deleted and
-  dropping assignments. The label column carries a real FK to
-  `service_team(id)` — verified 2026-08-09 by replaying every migration into
-  a scratch DB and reading `PRAGMA foreign_key_list(work_item)`; the Drizzle
-  model omits it and earlier drafts said "no FK exists", which was wrong.
-  With `foreign_keys=ON` asserted per connection, a delete that has not
-  nulled the labels first is rejected by SQLite, so the ordering inside the
-  transaction is a contract, not a style choice, and the Drizzle column
-  gains the matching `.references()` so the model stops lying.
+  `work_item.service_team_id` labels (no FK exists) and dropping assignments.
 - Impact: non-breaking API-wise; destructive by design once confirmed.
 
 **Stale directory ids refuse instead of 500 or dangle**

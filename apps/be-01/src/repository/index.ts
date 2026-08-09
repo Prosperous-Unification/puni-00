@@ -198,6 +198,29 @@ export interface WorkItemPatch {
   serviceTeamId?: string | null;
 }
 
+/**
+ * What a patch answered: the written row, or the reason nothing was written.
+ *
+ * `unknown_team` is a `serviceTeamId` the directory no longer holds, decided
+ * **inside the transaction that performs the update**. It is not a service-level
+ * precheck's answer: `work_item.service_team_id` has no foreign key, so a check
+ * one statement earlier passes for a team removed in the gap and the update
+ * then stores an id nothing holds, for ever, with nothing to report it.
+ */
+export type WorkItemPatched =
+  | { ok: true; workItem: WorkItem }
+  | { ok: false; reason: 'not_found' | 'unknown_team' };
+
+/**
+ * What an assignment write answered.
+ *
+ * `unknown_person` is decided inside the write's own transaction, for the
+ * mirror-image reason: `assignment.person_id` *does* have a foreign key, so a
+ * person removed in the gap makes the insert answer a raw constraint failure —
+ * a 500 for a request whose only fault is being out of date.
+ */
+export type AssignmentWritten = { ok: true } | { ok: false; reason: 'unknown_person' };
+
 /** A position write the caller has already worked out, applied with whatever prompted it. */
 export interface Repositioned {
   id: string;
@@ -224,7 +247,12 @@ export interface WorkItemStore {
    * wrong for whoever read it.
    */
   insert(workItem: WorkItem, respaced: readonly Repositioned[]): Promise<void>;
-  patch(id: string, patch: WorkItemPatch): Promise<WorkItem | null>;
+  /**
+   * Applies the patch and validates any `serviceTeamId` it names **in one
+   * transaction** — see {@link WorkItemPatched}. A patch naming no field writes
+   * nothing and answers the row it found.
+   */
+  patch(id: string, patch: WorkItemPatch): Promise<WorkItemPatched>;
   move(
     id: string,
     parentId: string | null,
@@ -322,6 +350,107 @@ export interface Assignment {
   personId: string;
 }
 
+/**
+ * What a directory write answered.
+ *
+ * `taken` is the unique index on the name refusing a second row, translated
+ * rather than thrown — two people renaming towards the same name is an ordinary
+ * race, not a fault. `not_found` is an id the directory no longer holds, which
+ * is the loser of two removals and a client working from a stale picker.
+ */
+export type DirectoryWriteRefusal = 'not_found' | 'taken';
+
+/**
+ * Every project a directory write touched, collected **inside the write's own
+ * transaction** — the projects holding a work item that carries the renamed
+ * team or an assignment naming the renamed person.
+ *
+ * It rides on the outcome rather than being read again afterwards because the
+ * rows it is read from are exactly the rows the write is about: a second read
+ * would be answering a question about a directory that had already moved on.
+ */
+export type TouchedProjects = readonly string[];
+
+export type ServiceTeamWritten =
+  | { ok: true; team: ServiceTeam; projectIds: TouchedProjects }
+  | { ok: false; reason: DirectoryWriteRefusal };
+
+/**
+ * A change to one person: a new name, a new set of memberships, or both.
+ *
+ * `teamIds` is a **full replacement**, so an absent field and an empty array
+ * mean different things: absent leaves the memberships alone, empty makes the
+ * person a free agent.
+ */
+export interface PersonPatch {
+  name?: string;
+  teamIds?: readonly string[];
+}
+
+export type PersonWritten =
+  | { ok: true; person: PersonWithTeams; projectIds: TouchedProjects }
+  | { ok: false; reason: DirectoryWriteRefusal | 'unknown_team' };
+
+/**
+ * What a create answered.
+ *
+ * `unknown_team` refuses the **whole** create rather than making the person and
+ * dropping the membership: `person_team.service_team_id` is a foreign key, so
+ * the alternative is not a partial success but a raw constraint failure — a 500
+ * for a client whose picker was rendered a moment too early.
+ */
+export type PersonAdded = { ok: true; person: Person } | { ok: false; reason: 'unknown_team' };
+
+/**
+ * The rows a refused directory removal is described from, read in one place for
+ * both the fast path and the transaction that decides.
+ *
+ * **Whole projects, not only the touched rows.** A work item's number is
+ * derived from the tree it sits in, so naming `3.1` needs every sibling and
+ * ancestor around it; reading only the rows that point at the entity would name
+ * them by a number nobody's screen shows.
+ *
+ * `assignments` are every assignment in those projects rather than the ones
+ * naming the entity, for the reason {@link RoleUsageRows} gives: whether a work
+ * item's **assumed assignee** moves depends on what it holds for the *other*
+ * roles.
+ */
+export interface DirectoryUsageRows {
+  workItems: readonly WorkItem[];
+  projects: readonly { id: string; name: string }[];
+  assignments: readonly Assignment[];
+  roles: readonly { id: string; name: string }[];
+  /** Every person an assignment above names, so an effect can say who rather than which id. */
+  people: readonly Person[];
+  /**
+   * People whose membership the removal would drop, **other than the entity
+   * being removed**. Empty for a person: their own memberships name nobody
+   * else and go with them, so they force no confirmation.
+   */
+  members: readonly Person[];
+}
+
+/** What one confirmed directory removal took with it. */
+export interface DirectoryRemoval {
+  /** Every work item that lost an assignment or a label, and whose revision therefore moved. */
+  workItemIds: readonly string[];
+  /** Every project one of those work items sits in — who has to be told. */
+  projectIds: readonly string[];
+}
+
+/**
+ * What a removal's own transaction decided, which is the only answer that
+ * counts.
+ *
+ * `in_use` carries the usage the **transaction** read, not the usage anybody
+ * counted earlier: an assignment written between a caller's count and its
+ * confirmation is what this refusal is for.
+ */
+export type DirectoryRemoved =
+  | { ok: true; removal: DirectoryRemoval }
+  | { ok: false; reason: 'not_found' }
+  | { ok: false; reason: 'in_use'; usage: DirectoryUsageRows };
+
 export interface DirectoryStore {
   listTeams(): Promise<ServiceTeam[]>;
   /**
@@ -332,12 +461,65 @@ export interface DirectoryStore {
    * pass a check-then-insert.
    */
   addTeam(team: ServiceTeam): Promise<ServiceTeam>;
+  /**
+   * Renames one team, or says why it could not.
+   *
+   * Refused by the unique index rather than by asking first, exactly as
+   * {@link DirectoryStore.addTeam} is: two clients renaming towards `Platform`
+   * at the same moment both pass a check-then-update.
+   */
+  renameTeam(teamId: string, name: string): Promise<ServiceTeamWritten>;
   listPeople(): Promise<PersonWithTeams[]>;
-  /** Adds a person, or returns the one with that name, joining them to `teamIds`. */
-  addPerson(toAdd: Person, teamIds: readonly string[]): Promise<Person>;
+  /**
+   * Adds a person, or returns the one with that name, joining them to
+   * `teamIds` — the person and every membership in **one** transaction, with
+   * the teams read inside it. See {@link PersonAdded}.
+   */
+  addPerson(toAdd: Person, teamIds: readonly string[]): Promise<PersonAdded>;
+  /**
+   * Renames a person and replaces their memberships, in **one** transaction.
+   *
+   * The two are one write because a caller may send both and the spec forbids
+   * them being observable half-applied. A `teamIds` entry naming a team the
+   * directory no longer holds refuses the whole patch as `unknown_team` and
+   * writes nothing — the id is read in the same transaction as the writes, so
+   * a team removed after some earlier check cannot slip between them.
+   */
+  patchPerson(personId: string, patch: PersonPatch): Promise<PersonWritten>;
+  /**
+   * What points at this person right now — a **fast path** for the refusal,
+   * never the authority for it. Between this answer and any delete, anybody may
+   * assign them. {@link DirectoryStore.removePerson} is what decides.
+   */
+  usageOfPerson(personId: string): Promise<DirectoryUsageRows>;
+  /** The same, for a team: the work items labelled with it and the people in it. */
+  usageOfTeam(teamId: string): Promise<DirectoryUsageRows>;
+  /**
+   * Counts what points at the person, refuses an unconfirmed removal that would
+   * take any of it, and otherwise drops their assignments, their memberships
+   * and the person — all in **one** transaction, moving the revision of every
+   * work item that lost an assignment.
+   *
+   * The count lives inside the transaction because it *is* the decision: a
+   * caller that asked without `cascade` consented to nothing, so an assignment
+   * written after that caller's own count must refuse the removal rather than
+   * be deleted by it.
+   */
+  removePerson(personId: string, cascade: boolean): Promise<DirectoryRemoved>;
+  /**
+   * The same for a team, and it **nulls the labels itself**:
+   * `work_item.service_team_id` has no foreign key, so deleting the team row on
+   * its own would leave every labelled work item pointing at an id the
+   * directory no longer holds — a dangle nothing would ever report.
+   */
+  removeTeam(teamId: string, cascade: boolean): Promise<DirectoryRemoved>;
   assignmentsOf(workItemIds: readonly string[]): Promise<Assignment[]>;
-  /** Sets, replaces or (with `null`) removes one work item's assignee for one role. */
-  assign(workItemId: string, roleId: string, personId: string | null): Promise<void>;
+  /**
+   * Sets, replaces or (with `null`) removes one work item's assignee for one
+   * role, validating the person **inside the write's own transaction** — see
+   * {@link AssignmentWritten}.
+   */
+  assign(workItemId: string, roleId: string, personId: string | null): Promise<AssignmentWritten>;
 }
 
 /**

@@ -79,26 +79,33 @@ What a role's removal would take with it: the estimates and assignments that hol
 the work items whose assumed assignee it would change.
 _Avoid_: references, dependents, blast radius
 
-**Person**:
-Someone work is assigned to, named once for the whole deployment. A directory entry, not
-an account — a person never signs in and an account is never assignable.
-_Avoid_: user, member, resource
+**Directory**:
+The people and service teams every project draws from — one list for the whole
+deployment, readable and writable by any signed-in account. Not a per-project list, and
+not an account on this tool.
+_Avoid_: roster, address book, org chart, users
 
 **Service team**:
-A named label a work item carries to say whose plate the work is on, deliberately
-decoupled from who is assigned. Global, like people.
-_Avoid_: squad, group, department
+A team work can be labelled with. A label on the work, never a constraint on who may be
+assigned it, and unique by name across the directory.
+_Avoid_: department, squad, group, service
 
-**Directory**:
-The deployment-wide set of people and service teams and who belongs to what. Shared by
-every project and every account; nothing in it is project-scoped.
-_Avoid_: roster, registry, org
+**Person**:
+Somebody who does work, named in the directory and assigned to a work item's role. Not an
+account: most of the people a plan names never sign in.
+_Avoid_: user, resource, member, assignee (which is the assignment, not the person)
+
+**Free agent**:
+A person who belongs to no service team. The absence of memberships, never membership of
+a "Free agents" row — a real row could be renamed, deleted or given work of its own.
+_Avoid_: unassigned, independent, teamless
 
 **Directory usage**:
-What a person's or team's removal would take with it, named per project, work item and
-member: the assignments, team labels and memberships that hold it, and the work items
-whose assumed assignee it would change.
-_Avoid_: references, dependents, blast radius
+What removing a person or a service team would take with it, named rather than counted:
+the affected projects with their work items by number and name, each work item's effects,
+and the people whose membership would be dropped. What a refusal carries so that the
+second, confirming request is agreeing to something it has seen.
+_Avoid_: references, impact, blast radius, dependents
 
 **Membership chip**:
 One team a person belongs to, drawn on the directory page as a token that removes that

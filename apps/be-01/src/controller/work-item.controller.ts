@@ -110,11 +110,18 @@ function parsePatch(body: unknown): {
  * size of the subtree beneath it would have been legal against a smaller one,
  * and the request itself is fine. It is not 413 — nothing about the request
  * body is too big.
+ *
+ * `unknown_person` and `unknown_team` join `unknown_role` on 404: an id the
+ * directory no longer holds is a thing that is not there, whichever of the
+ * request's ids named it.
  */
 const statusFor = (reason: WorkItemRefusal): number =>
   reason === 'forbidden'
     ? 403
-    : reason === 'not_found' || reason === 'unknown_role'
+    : reason === 'not_found' ||
+        reason === 'unknown_role' ||
+        reason === 'unknown_person' ||
+        reason === 'unknown_team'
       ? 404
       : reason === 'cycle' ||
           reason === 'frozen' ||
