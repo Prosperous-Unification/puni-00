@@ -393,30 +393,53 @@ export function opensCheatSheet(pressed: KeyPress, target: EventTarget | null): 
 }
 
 /**
+ * Whether a listener on `window` would act on this keystroke, wherever it was
+ * aimed.
+ *
+ * The two shortcuts `wbs-table.tsx` registers on the window itself: `?` and the
+ * undo/redo chord. They fire for a keystroke aimed at **anything on the page**,
+ * including an element in a portal that is not in the table's DOM at all — which
+ * is exactly why an open dialog had to be given a rule about them.
+ *
+ * Both already refuse a keystroke aimed at a box somebody is typing in, so this
+ * answers false for those without anything extra being said here.
+ *
+ * @param pressed The keystroke, as much of it as this decision needs.
+ * @param target What the keystroke was aimed at — `event.target`, not the focus.
+ * @returns True when a window-level listener would act on this keystroke.
+ */
+export function isWindowShortcut(pressed: KeyPress, target: EventTarget | null): boolean {
+  return opensCheatSheet(pressed, target) || undoChord(pressed, target) !== null;
+}
+
+/**
  * Whether this keystroke is one the page as a whole answers to.
  *
- * The union of the three predicates above, and it exists for exactly one
- * caller: `usePageShortcutsSuspended` in `components/ui/page-shortcuts.ts`,
- * which is how an open dialog or sheet stops `?`, Cmd+Z and the command chords
- * reaching the table underneath it. Asking the predicates rather than listing
- * the chords again is the point — a chord added to {@link commandChord} is held
- * back by a modal on the same commit, with nothing to remember.
+ * {@link isWindowShortcut} plus the command chords, which are not on the window
+ * — they are React handlers on the cells — so they can only fire for a
+ * keystroke whose target is a cell.
  *
- * **`commandChord` is asked without the typing guard, deliberately.** The
- * chords fire from inside cells, which are inputs; guarding them by `target`
+ * The union exists for one caller: `usePageShortcutsSuspended` in
+ * `components/ui/page-shortcuts.ts`, which is how an open dialog or sheet stops
+ * `?`, Cmd+Z and the chords reaching the table underneath it. Asking the
+ * predicates rather than listing the chords again is the point — a chord added
+ * to {@link commandChord} is held back by a modal on the same commit, with
+ * nothing to remember.
+ *
+ * **`commandChord` is asked without a typing guard, deliberately.** The chords
+ * fire from inside cells, and a cell is an input; guarding them by `target`
  * here would let Ctrl+N create a work item in the table behind an open sheet,
- * which is the whole fault this predicate was written for. The cost is that a
- * modal wanting Ctrl+Enter for its own submit has to say so itself; no modal
- * in this app does, and the alternative leaks the fault back.
+ * which is the whole fault this predicate was written for. What makes that
+ * safe for a modal's own fields is the caller's business, not this one's — see
+ * `page-shortcuts.ts`, which asks this question only about keystrokes aimed
+ * outside the surface.
  *
  * @param pressed The keystroke, as much of it as this decision needs.
  * @param target What the keystroke was aimed at — `event.target`, not the focus.
  * @returns True when a page-level listener would act on this keystroke.
  */
 export function isPageShortcut(pressed: KeyPress, target: EventTarget | null): boolean {
-  if (opensCheatSheet(pressed, target)) return true;
-  if (undoChord(pressed, target) !== null) return true;
-  return commandChord(pressed) !== null;
+  return isWindowShortcut(pressed, target) || commandChord(pressed) !== null;
 }
 
 /**

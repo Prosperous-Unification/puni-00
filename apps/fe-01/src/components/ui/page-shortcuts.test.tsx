@@ -221,6 +221,11 @@ describe('a modal holds the page’s keyboard back', () => {
     // reaches `api.create`. It is reachable behind a modal for real: this app's
     // cheat sheet does not trap the focus and says so, so Tab out of it lands
     // here — which is the fault `agy #10` reported.
+    //
+    // This is also the **outside**-the-surface half of the rule the second
+    // review corrected, and the check that the correction did not widen both
+    // sides: with `isOnModalSurface` forced true for every target, this test
+    // failed on `api.create` being called once. Watched.
     const cell = screen.getByLabelText('Name of 010');
     openModal();
 
@@ -232,6 +237,25 @@ describe('a modal holds the page’s keyboard back', () => {
     await settle();
 
     expect(stub.create).not.toHaveBeenCalled();
+  });
+
+  // The chords, on the surface's own side of the line. Both reviews found this
+  // one: the first version of the hook asked `isPageShortcut` about every
+  // keystroke wherever it was aimed, and `commandChord` carries no typing guard
+  // — deliberately, because a cell is an input — so `Ctrl+Enter` and `Ctrl+H`
+  // typed into a dialog's own field were swallowed before the field's handler
+  // ran. `P phases-ui`'s dialog wants Cmd+Enter for its submit and could not
+  // have had it.
+  itDom('lets a command chord reach a field on the surface', async () => {
+    await renderTable(silentApi().api);
+    const reached: string[] = [];
+    openModal((key) => reached.push(key));
+    const field = screen.getByLabelText('Something to type in');
+
+    press(field, { key: 'Enter', ctrlKey: true, code: 'Enter' });
+    press(field, { key: 'h', ctrlKey: true, code: 'KeyH' });
+
+    expect(reached).toEqual(['Enter', 'h']);
   });
 
   // The other half of the rule, and the reason the three above are not enough

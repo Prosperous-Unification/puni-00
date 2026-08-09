@@ -1,6 +1,26 @@
 import { useEffect } from 'react';
 
-import { isPageShortcut } from '@/components/wbs/keyboard-bindings';
+import { isPageShortcut, isWindowShortcut } from '@/components/wbs/keyboard-bindings';
+
+/**
+ * What counts as being on a modal surface.
+ *
+ * `data-modal-surface` is what `ModalContent` writes; `role="dialog"` catches
+ * the hand-rolled cheat sheet, which is a modal by every other measure and does
+ * not go through that component. Matched with `closest`, so a field nested
+ * anywhere inside either one answers yes.
+ */
+const MODAL_SURFACE = '[data-modal-surface], [role="dialog"]';
+
+/**
+ * Whether this keystroke was aimed at something on an open modal surface.
+ *
+ * @param target What the keystroke was aimed at — `event.target`, not the focus.
+ * @returns True when the target is a surface or sits inside one.
+ */
+function isOnModalSurface(target: EventTarget | null): boolean {
+  return target instanceof Element && target.closest(MODAL_SURFACE) !== null;
+}
 
 /**
  * Holds the page's own keyboard back for as long as a modal surface is open.
@@ -24,12 +44,33 @@ import { isPageShortcut } from '@/components/wbs/keyboard-bindings';
  * `stopImmediatePropagation` there is what makes "the page's shortcuts are off"
  * true rather than a claim about listener registration order.
  *
+ * **The rule asks a different question on each side of the surface**, and this
+ * is the correction both reviews asked for. A command chord is not on the
+ * window: `Ctrl + N / D / H J K L` and `Ctrl/⌘ + Enter` are React handlers on
+ * the **cells**, so they can only fire for a keystroke whose target is a cell —
+ * and no cell is an ancestor of a portal.
+ *
+ * - **Target outside the surface**: {@link isPageShortcut}, the whole family.
+ *   That is the table's cells, its toolbar, and the page behind the dialog.
+ * - **Target on the surface**: {@link isWindowShortcut} only. The chords are
+ *   let through, because nothing of the page's could have acted on them and the
+ *   modal's own field is entitled to them — `P phases-ui`'s dialog wants
+ *   Cmd+Enter for its submit, and the first version of this hook made that
+ *   impossible. Probed live: `Ctrl+H` and `Ctrl+Enter` on an input inside an
+ *   open modal were both swallowed.
+ *
+ * **Not "let everything on the surface through", which was the obvious form and
+ * is wrong.** `?` and Cmd+Z are on the window, so they fire for a keystroke
+ * aimed at the dialog's own ✕ as readily as at a cell — and a dialog whose
+ * Cancel button undoes a change in the plan behind it is the fault this hook
+ * exists for, wearing a hat. `opensCheatSheet` and `undoChord` already refuse a
+ * target somebody is typing into, so a text box on the surface keeps both.
+ *
  * **What it deliberately does not do.**
  *
- * - No `preventDefault`. The browser's own Cmd+Z inside a text box in the
- *   dialog is better than anything this app could offer for a half-typed word,
- *   and `undoChord` already answers null for a typing target, so that keystroke
- *   is never claimed here in the first place.
+ * - No `preventDefault`. The browser's own Cmd+Z inside a text box is better
+ *   than anything this app could offer for a half-typed word, and it is never
+ *   claimed here in the first place.
  * - Nothing about Escape, Tab or the arrows. Those belong to whichever modal is
  *   open — Radix dismisses and traps on them — and a rule that swallowed them
  *   would take the ways out of the dialog with it.
@@ -37,11 +78,13 @@ import { isPageShortcut } from '@/components/wbs/keyboard-bindings';
  *   the same keystroke; stopping an already-stopped event is not a thing that
  *   can go wrong.
  *
- * Proof: the `window.addEventListener` line commented out, all four tests in
- * `page-shortcuts.test.tsx` failed — the cheat sheet opening over an open
- * modal, `api.undo` called once, `api.create` called once, and the cheat sheet
- * failing to hold Cmd+Z back. Watched 2026-08-09, quoted in
- * `openspec/changes/shadcn-foundation/verify.md`.
+ * Proof: the `window.addEventListener` line commented out, all four holding
+ * tests in `page-shortcuts.test.tsx` failed — the cheat sheet opening over an
+ * open modal, `api.undo` called once, `api.create` called once, and the cheat
+ * sheet failing to hold Cmd+Z back. And with `isWindowShortcut` above widened
+ * back to `isPageShortcut`, `lets a command chord reach a field on the surface`
+ * failed on `expected [] to deeply equal [ 'Enter', 'h' ]`. Watched 2026-08-09,
+ * quoted in `openspec/changes/shadcn-foundation/verify.md`.
  *
  * @param isOpen Whether the modal surface asking is on screen right now.
  */
@@ -49,7 +92,10 @@ export function usePageShortcutsSuspended(isOpen: boolean): void {
   useEffect(() => {
     if (!isOpen) return undefined;
     const swallow = (event: KeyboardEvent) => {
-      if (!isPageShortcut(event, event.target)) return;
+      const claimed = isOnModalSurface(event.target)
+        ? isWindowShortcut(event, event.target)
+        : isPageShortcut(event, event.target);
+      if (!claimed) return;
       event.stopImmediatePropagation();
     };
     window.addEventListener('keydown', swallow, true);
