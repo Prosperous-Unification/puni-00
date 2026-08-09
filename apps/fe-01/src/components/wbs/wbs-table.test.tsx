@@ -6158,6 +6158,130 @@ describe('dependencies in the table — cross-review findings', () => {
   });
 });
 
+describe('the chart under a plan being edited', () => {
+  /**
+   * An api whose schedule moves when a not-before lands, the way be-01's does.
+   *
+   * `tree()` serves the schedule the last `patch` implies: no floor is day 11,
+   * a floor is day 16. The numbers are distinctive rather than computed — what
+   * is under test is that the open chart draws the read that followed the
+   * edit, not that this fake can schedule.
+   */
+  const apiWithMovableFloor = (): ProjectApi => {
+    let floored = false;
+    const scheduleNow = () => ({
+      duration: 7,
+      estimated: true,
+      earliestStart: floored ? 16 : 11,
+      earliestFinish: floored ? 23 : 18,
+      latestStart: floored ? 18 : 13,
+      latestFinish: floored ? 25 : 20,
+      float: 2,
+      critical: false,
+    });
+    return {
+      listProjects: () =>
+        Promise.resolve([{ id: 'p1', name: 'P', restricted: false, lastOpenedAt: null }]),
+      createProject: (name: string) =>
+        Promise.resolve({ id: 'p1', name, restricted: false, lastOpenedAt: null }),
+      openProject: () => Promise.resolve(),
+      setEstimateMethod: () => Promise.resolve(),
+      setStartDate: () => Promise.resolve(),
+      listTeams: () => Promise.resolve([]),
+      addTeam: () => Promise.reject(new Error('not_in_these_tests')),
+      listPeople: () => Promise.resolve([]),
+      addPerson: () => Promise.reject(new Error('not_in_these_tests')),
+      assign: () => Promise.resolve(),
+      renameProject: () => Promise.resolve(),
+      duplicate: () => Promise.reject(new Error('not_in_these_tests')),
+      roles: () => Promise.resolve([DEV]),
+      addRole: () => Promise.reject(new Error('not_in_these_tests')),
+      renameRole: () => Promise.reject(new Error('not_in_these_tests')),
+      removeRole: () => Promise.reject(new Error('not_in_these_tests')),
+      tree: () =>
+        Promise.resolve({
+          seq: 0,
+          scheduleError: null,
+          startDate: '2026-08-03',
+          projectRevision: 0,
+          slices: [
+            {
+              id: `w1::${DEV.id}`,
+              workItemId: 'w1',
+              roleId: DEV.id,
+              personId: null,
+              boundBy: 'projectStart' as const,
+              resourcePredecessorId: null,
+              ...scheduleNow(),
+            },
+          ],
+          roles: [DEV],
+          assignedPeople: [],
+          estimateMethod: 'pert' as const,
+          workItems: [
+            {
+              id: 'w1',
+              parentId: null,
+              revision: 0,
+              number: '010',
+              name: 'Strip',
+              notes: '',
+              frozenNumber: null,
+              rolledUp: false,
+              estimates: {},
+              dependsOn: [],
+              finalDays: {},
+              finalTotal: 0,
+              startNoEarlierThan: floored ? '2026-08-10' : null,
+              serviceTeamId: null,
+              assignees: {},
+              doesEveryPhase: null,
+              dates: null,
+              schedule: scheduleNow(),
+            },
+          ],
+          undoable: false,
+          redoable: false,
+        }),
+      create: () => Promise.resolve({ id: 'w2' }),
+      patch: (_id: string, body: object) => {
+        if ('startNoEarlierThan' in body) floored = body.startNoEarlierThan !== null;
+        return Promise.resolve();
+      },
+      move: () => Promise.resolve(),
+      remove: () => Promise.resolve(),
+      setEstimate: () => Promise.resolve(),
+      clearEstimate: () => Promise.resolve(),
+      freeze: () => Promise.resolve(),
+      unfreezeProject: () => Promise.resolve(),
+      unfreeze: () => Promise.resolve(),
+      addDependency: () => Promise.resolve(),
+      removeDependency: () => Promise.resolve(),
+      undo: () => Promise.reject(new Error('not_in_these_tests')),
+      redo: () => Promise.reject(new Error('not_in_these_tests')),
+    };
+  };
+
+  itDom('redraws the open chart when a not-before edit moves the schedule', async () => {
+    render(<WbsTable projectId="p1" api={apiWithMovableFloor()} />);
+    await waitFor(() => rowFor('010'));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Gantt' }));
+    const bar = () => document.querySelector('[data-gantt-bar]');
+    expect(bar()?.getAttribute('data-start')).toBe('11');
+
+    typeIntoNotBefore('010', '2026-08-10');
+
+    // The chart is on screen the whole time, and the read that followed the
+    // edit is what it must be drawing — a bar still on day 11 is the schedule
+    // of a moment ago under a table already showing the new one.
+    await waitFor(() => {
+      expect(bar()?.getAttribute('data-start')).toBe('16');
+    });
+    expect(rowFor('010').querySelector('[data-start]')?.textContent).toBe('16');
+  });
+});
+
 describe('the order of the columns', () => {
   itDom('opens with the number, the name, and then what the row waits for', async () => {
     // "Depends on" sat between Number and Name until 2026-08-06, because
