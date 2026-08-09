@@ -16,7 +16,8 @@
       "{workspaceRoot}/tsconfig.base.json",
       "{workspaceRoot}/eslint.config.js",
       "{workspaceRoot}/.prettierrc.json",
-      "{workspaceRoot}/package.json"
+      "{workspaceRoot}/package.json",
+      "{workspaceRoot}/bun.lock"
     ]
   },
   "targetDefaults": {
