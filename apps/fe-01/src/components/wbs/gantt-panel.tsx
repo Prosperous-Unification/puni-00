@@ -2,6 +2,7 @@ import { addWorkdays, type IsoDate } from '@wbs/domain/workday';
 
 import {
   type GanttBar,
+  type GanttDependencyArrow,
   type GanttPlan,
   type GanttRowLabel,
   inkOn,
@@ -58,8 +59,27 @@ const ROW_MIDDLE = 0.5;
  */
 const WEEK_DAYS = 5;
 
-/** How wide a not-before flag is, in workdays — the unit the chart is drawn in. */
-const FLAG_WIDTH = 0.35;
+/**
+ * The not-before caret: how far it reaches, in CSS pixels, and how much clear
+ * air it keeps between itself and the bar below it, in rows.
+ *
+ * It lives in the {@link BAR_INSET} band **above** the bar, and that is the
+ * whole of the fix it exists for: drawn on the bar's own left edge — which is
+ * where it is in every plan where the date is what holds the row — it was
+ * painted over by the bar and, on a critical row, by a 2px ring as well. A
+ * marker nobody can see is not a marker.
+ *
+ * The clearance is what keeps the caret's box off the bar's box, and it is
+ * asserted as rectangles in `e2e/gantt.spec.ts` rather than as path data: two
+ * `d` strings can be provably apart and still overlap once one of them is
+ * stroked.
+ *
+ * Pixels for the length and rows for the band, because the band **is** a
+ * fraction of a row and the length is a decision about legibility — the same
+ * split {@link BAR_RADIUS_PX} documents.
+ */
+const NOT_BEFORE_LENGTH_PX = 8;
+const NOT_BEFORE_CLEARANCE = 0.03;
 
 /**
  * How round a bar's corners are, in CSS pixels — turned into the user space's
@@ -76,6 +96,98 @@ const FLAG_WIDTH = 0.35;
  * decision made in pixels in the first place and has no other honest unit.
  */
 const BAR_RADIUS_PX = 3;
+
+/**
+ * A dependency arrow's approach and its head, in CSS pixels — turned into the
+ * user space's two units where they are used.
+ *
+ * `ARROW_APPROACH_PX` is how far the line steps clear of a bar before it turns,
+ * and `ARROW_HEAD_PX`/`ARROW_HEAD_HALF_PX` are the head's length and half its
+ * base. Pixels rather than workdays for the reason {@link BAR_RADIUS_PX} gives:
+ * an arrowhead is a decision about how big a mark has to be to be seen, and a
+ * workday is not a size. Divided by {@link DAY_PX} and {@link ROW_PX} at the
+ * point of use, so the head stays a triangle rather than becoming a sliver if
+ * the two scales ever part.
+ *
+ * The approach is longer than the head on purpose: the head sits **inside** the
+ * final horizontal run, so a head longer than the run it is drawn on would
+ * start before the corner and read as a bend rather than as a point.
+ */
+const ARROW_APPROACH_PX = 10;
+const ARROW_HEAD_PX = 7;
+const ARROW_HEAD_HALF_PX = 3.5;
+
+/**
+ * The two paths one dependency arrow is drawn from: the elbow, and the filled
+ * head at the end of it.
+ *
+ * **The head is a path and not a `<marker>`.** A marker's contents are laid out
+ * in the marker's own viewport, but the element is placed by the referencing
+ * geometry's user space — which here is `preserveAspectRatio="none"` over a
+ * viewBox measured in workdays by rows, so `markerUnits="userSpaceOnUse"` buys
+ * a triangle that is still stretched by whatever ratio the panel happens to be
+ * sized at. A path in the same units the rest of the chart is drawn in, with
+ * each axis divided by its own scale, is the only shape that stays a triangle —
+ * and it is an element a test can find and a browser can measure the box of.
+ *
+ * **Two routes, and the second one is the fault this was rewritten for.** A
+ * finish-to-start dependency very often has `toStart === fromFinish`: the
+ * successor begins the day the predecessor ends. The old elbow then collapsed
+ * into a vertical line **on** the successor's left edge, underneath its bar and
+ * — on a critical row — underneath a 2px ring, which is a dependency drawn and
+ * invisible. So when there is no room between the two, the line steps out past
+ * the predecessor's right edge, crosses in the clear band at the far side of
+ * the predecessor's row, and comes back to enter the successor's left edge from
+ * **outside** it. With room, the plain elbow does the same thing in three
+ * points.
+ *
+ * Either way the last run is horizontal and arrives at the successor's start,
+ * so the head always points right and never has to be rotated.
+ */
+function arrowRoute(arrow: GanttDependencyArrow): { elbow: string; head: string } {
+  const at = (x: number, y: number): string => `${String(x)} ${String(y)}`;
+  const approach = ARROW_APPROACH_PX / DAY_PX;
+  const fromY = arrow.fromRowIndex + ROW_MIDDLE;
+  const toY = arrow.toRowIndex + ROW_MIDDLE;
+  // Where the line turns down onto the successor's row: one approach clear of
+  // its left edge, so the head has a straight run to sit on.
+  const turn = arrow.toStart - approach;
+  // Which band a jogging arrow crosses in: the clear inset at the far side of
+  // the **predecessor's** row, on the side the successor is on. Not the inset
+  // above the successor's own bar, which is where a not-before caret stands —
+  // the browser showed those two marks crossing, and a line running through an
+  // arrowhead-sized triangle makes a puzzle of both. Either way it is air: no
+  // bar is ever drawn inside {@link BAR_INSET}.
+  const crossing =
+    arrow.toRowIndex > arrow.fromRowIndex
+      ? arrow.fromRowIndex + 1 - BAR_INSET / 2
+      : arrow.fromRowIndex + BAR_INSET / 2;
+  const elbow =
+    arrow.toStart - arrow.fromFinish >= 2 * approach
+      ? [
+          `M ${at(arrow.fromFinish, fromY)}`,
+          `L ${at(turn, fromY)}`,
+          `L ${at(turn, toY)}`,
+          `L ${at(arrow.toStart, toY)}`,
+        ]
+      : [
+          `M ${at(arrow.fromFinish, fromY)}`,
+          `L ${at(arrow.fromFinish + approach, fromY)}`,
+          `L ${at(arrow.fromFinish + approach, crossing)}`,
+          `L ${at(turn, crossing)}`,
+          `L ${at(turn, toY)}`,
+          `L ${at(arrow.toStart, toY)}`,
+        ];
+  const headX = ARROW_HEAD_PX / DAY_PX;
+  const headY = ARROW_HEAD_HALF_PX / ROW_PX;
+  return {
+    elbow: elbow.join(' '),
+    head:
+      `M ${at(arrow.toStart, toY)} ` +
+      `L ${at(arrow.toStart - headX, toY - headY)} ` +
+      `L ${at(arrow.toStart - headX, toY + headY)} Z`,
+  };
+}
 
 /**
  * The classes a bar carries beyond its two colours, and the two facts they say.
@@ -268,6 +380,23 @@ export function barWords(bar: GanttBar, startDate: IsoDate | null): string {
     bar.critical ? 'On the critical path — no float' : `Float ${dayWords(bar.float)}`,
     bar.floorWords,
   ].join('\n');
+}
+
+/**
+ * What a not-before caret says on hover: the date the row cannot start before.
+ *
+ * The mark itself can only say *where*, and a workday on a scaled axis is not a
+ * date anybody can read off. The offset is turned back into a date by the same
+ * `addWorkdays` the axis above it is printed with — `wbs-table.tsx`'s
+ * `notBeforeOffsetOf` got the offset out of the stored date with that function's
+ * own inverse, so this reads back the day that was typed.
+ *
+ * Without a project start date there is no date to name, and the axis is
+ * offsets: the sentence says the offset, exactly as {@link spanWords} does.
+ */
+function notBeforeWords(startDate: IsoDate | null, offset: number): string {
+  if (startDate === null) return `No earlier than workday ${daysNumber(offset)}`;
+  return `No earlier than ${addWorkdays(startDate, offset)}`;
 }
 
 /**
@@ -464,34 +593,56 @@ export function GanttPanel({
                 />
               ))}
 
+              {/*
+                A summary row's span, drawn as a bracket whose legs **drop**:
+                the top line sits where a bar's top would be and the two ends
+                fall to the row's middle, which is the shape a reader already
+                reads as "everything under here". It used to be the same four
+                points the other way up — a 1px trough that read as a scratch.
+                2px non-scaling, at the foreground's full strength, because it
+                is one of the two marks on the chart that says something no bar
+                says.
+              */}
               {chart.brackets.map((bracket) => (
                 <path
                   key={bracket.rowId}
                   data-gantt-bracket={bracket.rowId}
                   d={
-                    `M ${String(bracket.start)} ${String(bracket.rowIndex + BAR_INSET)} ` +
-                    `L ${String(bracket.start)} ${String(bracket.rowIndex + ROW_MIDDLE)} ` +
-                    `L ${String(bracket.finish)} ${String(bracket.rowIndex + ROW_MIDDLE)} ` +
-                    `L ${String(bracket.finish)} ${String(bracket.rowIndex + BAR_INSET)}`
+                    `M ${String(bracket.start)} ${String(bracket.rowIndex + ROW_MIDDLE)} ` +
+                    `L ${String(bracket.start)} ${String(bracket.rowIndex + BAR_INSET)} ` +
+                    `L ${String(bracket.finish)} ${String(bracket.rowIndex + BAR_INSET)} ` +
+                    `L ${String(bracket.finish)} ${String(bracket.rowIndex + ROW_MIDDLE)}`
                   }
-                  className="stroke-foreground fill-none"
+                  className="stroke-foreground fill-none [stroke-width:2]"
                   vectorEffect="non-scaling-stroke"
                 />
               ))}
 
-              {chart.arrows.map((arrow) => (
-                <path
-                  key={`${arrow.predecessorId}->${arrow.successorId}`}
-                  data-gantt-arrow={`${arrow.predecessorId}->${arrow.successorId}`}
-                  d={
-                    `M ${String(arrow.fromFinish)} ${String(arrow.fromRowIndex + ROW_MIDDLE)} ` +
-                    `L ${String(arrow.toStart)} ${String(arrow.fromRowIndex + ROW_MIDDLE)} ` +
-                    `L ${String(arrow.toStart)} ${String(arrow.toRowIndex + ROW_MIDDLE)}`
-                  }
-                  className="stroke-foreground/70 fill-none"
-                  vectorEffect="non-scaling-stroke"
-                />
-              ))}
+              {/*
+                A stored dependency: an elbow that always arrives horizontally at
+                the successor's left edge, and a filled head on the end of it.
+                See {@link arrowRoute} — the head is a path rather than a
+                `<marker>`, and the route jogs when the two bars touch.
+              */}
+              {chart.arrows.map((arrow) => {
+                const route = arrowRoute(arrow);
+                const id = `${arrow.predecessorId}->${arrow.successorId}`;
+                return (
+                  <g key={id}>
+                    <path
+                      data-gantt-arrow={id}
+                      d={route.elbow}
+                      className="stroke-foreground fill-none [stroke-width:1.5]"
+                      vectorEffect="non-scaling-stroke"
+                    />
+                    {/*
+                      No `vector-effect` and no stroke: the head is filled, so
+                      nothing about it is a stroke width to hold steady.
+                    */}
+                    <path data-gantt-arrow-head={id} d={route.head} className="fill-foreground" />
+                  </g>
+                );
+              })}
 
               {/*
               Drawn unlike a dependency, because it is not one: nobody wrote this
@@ -513,18 +664,28 @@ export function GanttPanel({
                 />
               ))}
 
+              {/*
+                Where a row's own start date holds it: a caret in the clear band
+                above the bar, pointing at the day. Above and not on, because on
+                is where it was and where nothing could see it — see
+                {@link NOT_BEFORE_LENGTH_PX}. The `<title>` names the date,
+                which is the one thing the mark's position cannot say.
+              */}
               {chart.notBeforeFlags.map((flag) => (
                 <path
                   key={`${String(flag.rowIndex)}@${String(flag.offset)}`}
                   data-gantt-not-before={flag.rowIndex}
                   d={
-                    `M ${String(flag.offset)} ${String(flag.rowIndex + BAR_INSET)} ` +
-                    `L ${String(flag.offset + FLAG_WIDTH)} ${String(flag.rowIndex + BAR_INSET)} ` +
-                    `L ${String(flag.offset)} ${String(flag.rowIndex + ROW_MIDDLE)} Z`
+                    `M ${String(flag.offset)} ${String(flag.rowIndex + NOT_BEFORE_CLEARANCE)} ` +
+                    `L ${String(flag.offset + NOT_BEFORE_LENGTH_PX / DAY_PX)} ` +
+                    `${String(flag.rowIndex + BAR_INSET / 2)} ` +
+                    `L ${String(flag.offset)} ` +
+                    `${String(flag.rowIndex + BAR_INSET - NOT_BEFORE_CLEARANCE)} Z`
                   }
                   className="fill-foreground"
-                  vectorEffect="non-scaling-stroke"
-                />
+                >
+                  <title>{notBeforeWords(startDate, flag.offset)}</title>
+                </path>
               ))}
 
               {chart.bars.map((bar) => (

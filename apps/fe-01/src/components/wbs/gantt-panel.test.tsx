@@ -1,4 +1,5 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import type { IsoDate } from '@wbs/domain/workday';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import type {
@@ -374,6 +375,11 @@ describe('the chart is drawn in workdays', () => {
     //   link    — `expected 'nothing on the chart at [data-gantt-p…' to contain '[stroke-dasharray:4_3]'`
     //   flag    — `expected 'nothing on the chart at [data-gantt-n…' to match /^M 4 /`
     // Watched, 2026-08-09.
+    // An existence check and nothing more, deliberately: the bracket's four
+    // points were reordered so its legs drop rather than rise, and **both**
+    // shapes contain `L 5 0.5` — one as the corner, the other as the end of a
+    // leg. Which way up it is asserted in `the marks that had to be seen`,
+    // where the relation between the points is the assertion.
     expect(markAttribute('[data-gantt-bracket="hull"]', 'd')).toContain('L 5 0.5');
     expect(markAttribute('[data-gantt-arrow="strip->sand"]', 'd')).toContain('M 3 1.5');
     // Dashed and its own colour: a hand-off is not a dependency, and the two
@@ -418,6 +424,194 @@ describe('the chart is drawn in workdays', () => {
 
     expect(document.querySelectorAll('rect')).toHaveLength(0);
     expect(screen.getByRole('status').textContent).toContain('run in a circle');
+  });
+});
+
+/**
+ * The three marks a live Chrome could not see, asserted as shapes.
+ *
+ * All three were drawn, all three were gated, and all three were invisible on
+ * screen: a 1px headless elbow that collapsed onto the successor's own left
+ * edge whenever a dependency was tight, a not-before flag painted **under** the
+ * bar it belongs to, and a hairline bracket that read as a scratch. Nothing in
+ * this file could see any of it, because every one of them draws the mark — the
+ * fault was where the mark was, and how heavy.
+ *
+ * So these assertions are about the **relations between points**, not about
+ * path text: the head arrives left of the bar it points at, the caret's whole
+ * box is above the bar's top edge, the bracket's ends fall from its line. The
+ * pixels are `e2e/gantt.spec.ts`'s, and the two halves are named in each
+ * `Proof:` below.
+ */
+describe('the marks that had to be seen', () => {
+  /**
+   * The points of a path's `d`, in the user space the chart is drawn in.
+   *
+   * @throws When the path is not there, or holds no point at all — either of
+   * which would otherwise make every assertion below vacuously true of an empty
+   * list.
+   */
+  function pointsOf(selector: string): { x: number; y: number }[] {
+    const d = document.querySelector(selector)?.getAttribute('d');
+    if (d === null || d === undefined) throw new Error(`nothing on the chart at ${selector}`);
+    const points = [...d.matchAll(/[ML] (-?[\d.]+) (-?[\d.]+)/g)].map((match) => ({
+      x: Number(match[1]),
+      y: Number(match[2]),
+    }));
+    if (points.length === 0) throw new Error(`the path at ${selector} has no points: ${d}`);
+    return points;
+  }
+
+  /** One number off a mark, as the browser will read it. */
+  function attributeNumber(selector: string, attribute: string): number {
+    const raw = document.querySelector(selector)?.getAttribute(attribute);
+    if (raw === null || raw === undefined) {
+      throw new Error(`nothing on the chart at ${selector} carries ${attribute}`);
+    }
+    return Number(raw);
+  }
+
+  /**
+   * A parent over two leaves, the second of which starts the workday the first
+   * finishes and is held there by a date of its own.
+   *
+   * The tight case on purpose: `sand` starts at 3 and `strip` finishes at 3, so
+   * the arrow has no room, and `sand`'s not-before offset is 3 as well, so the
+   * caret and the bar's left edge are the same x. Both are the commonest shape
+   * in a real plan and both are the shape the old drawing lost.
+   */
+  const touchingPlan = (): GanttPlan =>
+    planOf({
+      rows: [
+        rowAt('hull', 0, 5, { leaf: false }),
+        rowAt('strip', 0, 3, { depth: 1 }),
+        rowAt('sand', 3, 5, { depth: 1, notBeforeOffset: 3 }),
+      ],
+      slices: [sliceAt('strip-dev', 'strip', 0, 3), sliceAt('sand-dev', 'sand', 3, 5)],
+      dependencies: [{ predecessorId: 'strip', successorId: 'sand' }],
+    });
+
+  const drawTouchingPlan = (startDate: IsoDate | null = null): void => {
+    render(
+      <GanttPanel
+        plan={touchingPlan()}
+        startDate={startDate}
+        scheduleError={null}
+        onPickRow={() => undefined}
+      />,
+    );
+  };
+
+  itDom('leaves the successor’s left edge alone when the two bars touch', () => {
+    drawTouchingPlan();
+
+    const route = pointsOf('[data-gantt-arrow="strip->sand"]');
+    const last = route.at(-1);
+    const beforeLast = route.at(-2);
+    // Proof: `arrowRoute` given back its old three points — `M fromFinish,
+    // fromY L toStart, fromY L toStart, toY`. With `toStart === fromFinish ===
+    // 3` those collapse to a bare vertical **on** the successor's left edge, at
+    // 1px, under the bar and under a critical ring: the arrow this repository
+    // shipped and nobody could see. This test alone failed, `1 failed | 30
+    // passed`, on `the arrow arrives from above the successor’s left edge, not
+    // from outside it: expected 3 to be less than 3`. Watched 2026-08-09.
+    expect(last).toEqual({ x: 3, y: 2.5 });
+    expect(
+      beforeLast?.x ?? Number.NaN,
+      'the arrow arrives from above the successor’s left edge, not from outside it',
+    ).toBeLessThan(3);
+    // And it got there by stepping past the predecessor's right edge rather
+    // than by running down the shared edge: something in the route is to the
+    // right of the touching point.
+    expect(Math.max(...route.map((point) => point.x))).toBeGreaterThan(3);
+    // And it is drawn heavily enough to be one of the marks rather than an
+    // artefact of the gridlines it crosses. What 1.5 actually measures is
+    // `e2e/gantt.spec.ts`'s to say; jsdom computes no style at all.
+    //
+    // Proof: `[stroke-width:1.5]` struck from the class, leaving the 1px
+    // hairline. This test alone failed, `1 failed | 30 passed`, on `expected
+    // 'stroke-foreground fill-none' to contain '[stroke-width:1.5]'`. Watched
+    // 2026-08-09.
+    expect(
+      document.querySelector('[data-gantt-arrow="strip->sand"]')?.getAttribute('class'),
+    ).toContain('[stroke-width:1.5]');
+  });
+
+  itDom('points a filled head at the successor’s start', () => {
+    drawTouchingPlan();
+
+    const head = pointsOf('[data-gantt-arrow-head="strip->sand"]');
+    // Proof: the `<path data-gantt-arrow-head>` deleted from the SVG, which is
+    // the whole of what "an arrow with no arrowhead" is. This test alone failed
+    // — `1 failed | 30 passed` — on `Error: nothing on the chart at
+    // [data-gantt-arrow-head="strip->sand"]`, thrown by `pointsOf` rather than
+    // asserted as `undefined`, so the message names the mark. Watched
+    // 2026-08-09.
+    expect(head.at(0)).toEqual({ x: 3, y: 2.5 });
+    // A triangle whose base is behind its point: both other corners are left of
+    // the successor's edge, so the head sits in the approach and not on the bar.
+    expect(head.slice(1).every((corner) => corner.x < 3)).toBe(true);
+    expect(document.querySelector('[data-gantt-arrow-head]')?.getAttribute('class')).toContain(
+      'fill-foreground',
+    );
+  });
+
+  itDom('puts the not-before caret clear of the bar that starts on it', () => {
+    drawTouchingPlan();
+
+    // The bar's own top edge, read off the rect rather than recomputed: what is
+    // being asserted is that the caret is above **this bar as drawn**, and a
+    // constant repeated here could go on agreeing with a bar that moved.
+    const barTop = attributeNumber('[data-gantt-bar="sand-dev"]', 'y');
+    const caret = pointsOf('[data-gantt-not-before="2"]');
+    // Proof: the caret's `d` put back where it was — `M offset,BAR_INSET L
+    // offset+0.35,BAR_INSET L offset,ROW_MIDDLE Z`, a triangle hanging off the
+    // bar's own top-left corner, drawn before the bars and therefore painted
+    // over by this one. This test alone failed, `1 failed | 30 passed`, on `the
+    // caret is not clear of the bar it belongs to: expected 2.18 to be less
+    // than 2.18`. Watched 2026-08-09.
+    expect(caret).toHaveLength(3);
+    for (const corner of caret) {
+      expect(corner.y, 'the caret is not clear of the bar it belongs to').toBeLessThan(barTop);
+      expect(corner.y).toBeGreaterThan(2);
+    }
+    // And it stands at the day, not somewhere near it.
+    expect(Math.min(...caret.map((corner) => corner.x))).toBe(3);
+  });
+
+  itDom('says which date the caret is holding the row at', () => {
+    // Monday 2026-08-10, the fixture the axis tests use: workday 3 is the
+    // Thursday, which is what the row's own Start column would print.
+    drawTouchingPlan('2026-08-10');
+
+    // Proof: the `<title>` child deleted from the caret. This test alone failed,
+    // `1 failed | 30 passed`, on `expected undefined to be 'No earlier
+    // than 2026-08-13'` — a mark
+    // that says where and never what. Watched 2026-08-09.
+    expect(document.querySelector('[data-gantt-not-before="2"] title')?.textContent).toBe(
+      'No earlier than 2026-08-13',
+    );
+  });
+
+  itDom('drops the summary bracket’s legs from its line, in a stroke that is seen', () => {
+    drawTouchingPlan();
+
+    const bracket = pointsOf('[data-gantt-bracket="hull"]');
+    // Proof: the four points put back in their old order — the flat line at the
+    // row's middle and the ends rising to the bar inset, at the default 1px.
+    // This test alone failed, `1 failed | 30 passed`, on `the bracket's legs do
+    // not drop from its line: expected 0.18 to be greater than 0.5`. The
+    // stroke-width half was watched separately, with `[stroke-width:2]` struck
+    // from the class: `expected 'stroke-foreground fill-none' to contain
+    // '[stroke-width:2]'`. Watched 2026-08-09.
+    expect(bracket).toHaveLength(4);
+    const [legStart, lineStart, lineEnd, legEnd] = bracket;
+    expect(legStart.y, 'the bracket’s legs do not drop from its line').toBeGreaterThan(lineStart.y);
+    expect(lineStart.y).toBe(lineEnd.y);
+    expect(legEnd.y).toBe(legStart.y);
+    expect(document.querySelector('[data-gantt-bracket="hull"]')?.getAttribute('class')).toContain(
+      '[stroke-width:2]',
+    );
   });
 });
 
