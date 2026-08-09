@@ -138,6 +138,12 @@ depends on that accident.
 - The committed `bun run e2e` path is **unverified for this change** — see the note above. What
   was run is the same spec files through a config on other ports; the committed config was
   observed measuring another checkout entirely.
+- **h2puni was not used.** `tasks.md` §6.2 and §6.3 name it; the browser runs recorded here are
+  a local chromium on darwin/arm64 against locally started servers. Nothing was run on a build
+  box, and the amd64 rendering path is untested for this change.
+- The branch is cut from `75d01a8`, not from `4f2b583`, so it carries `name-title-body`'s
+  in-flight commits underneath it. That is where the two pre-existing peer-edit browser failures
+  live; they are not this change's and were not touched.
 - The three pre-existing browser failures listed above were confirmed pre-existing and otherwise
   left alone.
 - Nothing was pushed, merged, or deployed.

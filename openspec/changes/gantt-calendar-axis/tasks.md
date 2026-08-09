@@ -163,7 +163,8 @@ step earlier.
   - "bands every other row so a wide chart can be read across"
   - "holds a not-before flag at the workday its date is, not its calendar day" —
     its title is now the opposite of the contract; re-derived and renamed
-- [x] 6.2 `apps/fe-01/e2e/gantt.spec.ts`, the alignment check "draws a bar at the
+- [x] 6.2 (run on a **local** chromium, not h2puni — see `verify.md`)
+      `apps/fe-01/e2e/gantt.spec.ts`, the alignment check "draws a bar at the
       pixel its workday says, under its own axis cell" — re-derived: the pixel is
       the scale's answer for `data-start` times `DAY_PX`, not `data-start` times
       `DAY_PX`, and the axis cell is looked up by calendar offset. The seeded plan
@@ -172,7 +173,7 @@ step earlier.
       workday, watched failing on the first bar past the weekend, and watched
       **passing** on a horizon inside week one, which is why the fixture is
       widened before the check is believed
-- [x] 6.3 The rest of the browser checks re-derived and green on h2puni, with the
+- [x] 6.3 (same: local chromium, not h2puni) The rest of the browser checks re-derived and green, with the
       weekend columns in the screenshot — test: "draws the arrow head, the caret
       and the bracket where they can be seen" (the sixteenth check's own test —
       the bar is still found through the caret's row and its area still asserted
