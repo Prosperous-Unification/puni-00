@@ -8,9 +8,14 @@ import { DateField } from './date-field';
 const hasDom = typeof document !== 'undefined';
 const itDom = hasDom ? it : it.skip;
 
-/** The field with a day on it, and the list of everything it has sent. */
-function shownDay(day: string): { box: HTMLInputElement; sent: string[] } {
+/** The field with a day on it, everything it has sent, and every way out it has reported. */
+function shownDay(day: string): {
+  box: HTMLInputElement;
+  sent: string[];
+  exits: ('commit' | 'cancel')[];
+} {
   const sent: string[] = [];
+  const exits: ('commit' | 'cancel')[] = [];
   render(
     <DateField
       aria-label="Starts"
@@ -18,9 +23,12 @@ function shownDay(day: string): { box: HTMLInputElement; sent: string[] } {
       commit={(typed) => {
         sent.push(typed);
       }}
+      onExit={(how) => {
+        exits.push(how);
+      }}
     />,
   );
-  return { box: screen.getByLabelText<HTMLInputElement>('Starts'), sent };
+  return { box: screen.getByLabelText<HTMLInputElement>('Starts'), sent, exits };
 }
 
 describe('a date field holds what is being typed into it', () => {
@@ -96,6 +104,107 @@ describe('a date field holds what is being typed into it', () => {
     fireEvent.blur(box);
 
     expect(sent).toEqual([]);
+  });
+});
+
+describe('how an edit ends', () => {
+  itDom('Enter commits and says so', () => {
+    // The one way out that does not leave the field, and the table's earliest
+    // start cell closes on it: the day is sent first, then the exit reported,
+    // so a caller that unmounts this on the report cannot unmount it before the
+    // day has gone.
+    const { box, sent, exits } = shownDay('2026-08-20');
+    box.focus();
+    fireEvent.change(box, { target: { value: '2026-08-17' } });
+
+    fireEvent.keyDown(box, { key: 'Enter' });
+
+    expect(sent).toEqual(['2026-08-17']);
+    expect(exits).toEqual(['commit']);
+  });
+
+  itDom('leaving the field commits and says so', () => {
+    const { box, sent, exits } = shownDay('2026-08-20');
+    box.focus();
+    fireEvent.change(box, { target: { value: '2026-08-17' } });
+
+    fireEvent.blur(box);
+
+    expect(sent).toEqual(['2026-08-17']);
+    expect(exits).toEqual(['commit']);
+  });
+
+  itDom('reports leaving a box nobody typed in as a commit all the same', () => {
+    // Nothing to send is not the same as a cancel: the edit ended the ordinary
+    // way and the caller closes the editor either way. `sent` is what says
+    // whether anything went.
+    const { box, sent, exits } = shownDay('2026-08-20');
+    box.focus();
+
+    fireEvent.blur(box);
+
+    expect(sent).toEqual([]);
+    expect(exits).toEqual(['commit']);
+  });
+
+  itDom('Escape exits without committing', () => {
+    // Everything this suite can honestly claim about Escape, and it is worth
+    // saying what it cannot: the blur Escape causes is **not** proved here. The
+    // caller unmounts this editor on the report, an unmounted field receives no
+    // blur, and jsdom would have to be handed a synthetic one the production
+    // path never delivers — a check that could not fail (R5, and the shape of
+    // #14/#15). `e2e/keyboard.spec.ts` is where the suppression is proved.
+    //
+    // Proof: `onExit?.('cancel')` removed from the Escape branch, this failed
+    // on `expected [] to deeply equal [ 'cancel' ]`. Watched, 2026-08-09.
+    const { box, sent, exits } = shownDay('2026-06-01');
+    box.focus();
+    fireEvent.change(box, { target: { value: '2026-07-01' } });
+
+    fireEvent.keyDown(box, { key: 'Escape' });
+
+    expect(exits).toEqual(['cancel']);
+    expect(sent).toEqual([]);
+  });
+
+  itDom('puts back the day the server agreed, for a field that stays on screen', () => {
+    // The toolbar's project start date is not unmounted by Escape — it is
+    // always on screen — so abandoning an edit there has to leave the box
+    // reading what be-01 holds rather than the day nobody saved.
+    const { box } = shownDay('2026-06-01');
+    box.focus();
+    fireEvent.change(box, { target: { value: '2026-07-01' } });
+
+    fireEvent.keyDown(box, { key: 'Escape' });
+
+    expect(box.value).toBe('2026-06-01');
+  });
+
+  itDom('has nothing left for the blur after an Escape to send', () => {
+    // Escape does not suppress that blur; it makes it harmless, by putting the
+    // box back to the day the server agreed. So the blur is an ordinary way out
+    // — it reports a commit — and it sends nothing, because there is nothing
+    // that differs from what be-01 holds.
+    //
+    // The blur is delivered by hand here, which is why this is not the proof of
+    // anything a browser does: `e2e/keyboard.spec.ts` is where a real one
+    // arrives.
+    const { box, sent, exits } = shownDay('2026-06-01');
+    box.focus();
+    fireEvent.change(box, { target: { value: '2026-07-01' } });
+    fireEvent.keyDown(box, { key: 'Escape' });
+
+    fireEvent.blur(box);
+
+    expect(sent).toEqual([]);
+    expect(exits).toEqual(['cancel', 'commit']);
+
+    // And the field is editable again straight after: abandoning one edit does
+    // not abandon the next.
+    box.focus();
+    fireEvent.change(box, { target: { value: '2026-07-02' } });
+    fireEvent.blur(box);
+    expect(sent).toEqual(['2026-07-02']);
   });
 });
 

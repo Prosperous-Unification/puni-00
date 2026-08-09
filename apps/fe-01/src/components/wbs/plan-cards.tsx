@@ -6,6 +6,7 @@ import { PickerList, type PickerOption } from './creatable-picker';
 import { type CellElement, cellKey } from './editable-grid';
 import type { CommitOutcome } from './live-editing';
 import { composeNameCell } from './name-notes';
+import type { PrintedDay } from './short-date';
 import { indentFor } from './table-frame';
 import type { TreeRow } from './wbs-rows';
 
@@ -77,11 +78,30 @@ export interface PlanCardsProps {
   /** The numbers of the work items this one waits for. */
   waitsFor: (row: TreeRow) => string[];
   teamName: (row: TreeRow) => string | null;
-  /** When this work item happens: dates on a plan with a start date, day offsets without. */
-  spanOf: (row: TreeRow) => { start: string; finish: string };
+  /**
+   * When this work item happens: short dates on a plan with a start date, day
+   * offsets without.
+   *
+   * The table's own function, not a card-shaped copy of it. One plan read on a
+   * phone and on a laptop may not disagree about how a day is written.
+   */
+  spanOf: (row: TreeRow) => { start: PrintedDay; finish: PrintedDay };
   /** A figure as the table prints one, so two renderers cannot round differently. */
   showDay: (days: number) => string;
 }
+
+/**
+ * What a card's span says in full, or nothing where there is nothing fuller to
+ * say.
+ *
+ * Both ends in one attribute because a card has one span, and the ends can
+ * disagree about whether they are dates at all — a schedule that failed
+ * computes neither.
+ */
+const cardSpanTitle = (span: { start: PrintedDay; finish: PrintedDay }): string | undefined =>
+  span.start.iso === null || span.finish.iso === null
+    ? undefined
+    : `${span.start.iso} → ${span.finish.iso}`;
 
 /** A tap target big enough to hit — 44px, which is `min-h-11` in this scale. */
 const TAP = 'min-h-11';
@@ -316,8 +336,13 @@ export function PlanCards({
               off the same fields the table's columns print.
             */}
             <p className="text-muted-foreground flex flex-wrap gap-x-3 text-sm">
-              <span data-card-span>
-                {span.start} → {span.finish}
+              {/*
+                The days in full behind the short ones, the same bargain the
+                table's Start and End cells make — a phone has no hover, and
+                the attribute is still what a test and a screen reader read.
+              */}
+              <span data-card-span title={cardSpanTitle(span)}>
+                {span.start.text} → {span.finish.text}
               </span>
               {waits.length > 0 && <span data-card-waits>waits for {waits.join(', ')}</span>}
               {team !== null && <span data-card-team>{team}</span>}

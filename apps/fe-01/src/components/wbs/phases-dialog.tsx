@@ -21,7 +21,7 @@ import {
 
 import { commandChordIn } from './keyboard-bindings';
 import { CARDS_BELOW } from './plan-renderer';
-import { foldedTableMinWidth } from './table-frame';
+import { foldedTableMinWidth, type FrameLayoutState } from './table-frame';
 
 /** What a work item's number is, or null once it is no longer in the tree on screen. */
 export type NumberOf = (workItemId: string) => string | null;
@@ -81,6 +81,14 @@ export function flipSentence(
 export interface PhasesDialogProps {
   /** The phases the table is currently drawing columns for. */
   roles: readonly RoleView[];
+  /**
+   * The plan the table is drawing, as far as a width depends on it.
+   *
+   * Passed down rather than assumed, because the figure below is the table's
+   * own minimum and the table's minimum moves with this: a plan where nobody
+   * has set an earliest start is 28px narrower than one where somebody has.
+   */
+  frameState: FrameLayoutState;
   numberOf: NumberOf;
   nameOf: NameOf;
   addRole: (name: string) => Promise<RoleView>;
@@ -118,6 +126,7 @@ interface Confirming {
  */
 export function PhasesDialog({
   roles,
+  frameState,
   numberOf,
   nameOf,
   addRole,
@@ -274,7 +283,17 @@ export function PhasesDialog({
     form.requestSubmit();
   }
 
-  const minWidth = foldedTableMinWidth(roles.length);
+  /**
+   * How wide the table would be with these phases folded.
+   *
+   * The phases' **real** ids, not their number: every width resolves per
+   * column id, so a figure summed from stand-in ids would answer about columns
+   * that do not exist while the table lays out the ones that do.
+   */
+  const minWidth = foldedTableMinWidth(
+    roles.map((role) => role.id),
+    frameState,
+  );
 
   /** Opens and closes, and leaves nothing half-answered behind on the way out. */
   function onOpenChange(next: boolean): void {

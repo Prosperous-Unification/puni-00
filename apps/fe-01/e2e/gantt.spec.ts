@@ -14,7 +14,17 @@ import { CHART_PAD_PX, DAY_PX, ROW_PX } from '../src/components/wbs/gantt-panel'
  * goes nowhere (`aria-busy` on the toolbar is that window, said out loud).
  */
 async function setDate(page: Page, label: string, day: string): Promise<void> {
-  const box = page.getByLabel(label);
+  // A row's earliest-start cell is text at rest since `T2 compact-columns` and
+  // mounts its editor only for the cell being edited, so it is opened first.
+  // The toolbar's project start date is always an editor and is left alone.
+  // A click rather than a `mousedown`: React flushes inside the mousedown
+  // dispatch and the browser's own focus default then closes what it opened —
+  // see `e2e/keyboard.spec.ts`.
+  if ((await page.getByLabel(label, { exact: true }).getAttribute('type')) !== 'date') {
+    await page.getByLabel(label, { exact: true }).click();
+  }
+  const box = page.getByLabel(label, { exact: true });
+  await expect(box).toHaveAttribute('type', 'date');
   await box.fill(day);
   // `blur`, not `press('Tab')`: Chrome's date input owns Tab for stepping
   // between its own day/month/year segments, so a Tab from the day segment
@@ -168,7 +178,9 @@ async function seedPlan(
 
   // The day be-01 says this row starts, typed back in as the day it may not
   // start before: the caret and the bar's left edge on the same workday.
-  const startsOn = await rowOf(page, '010.2').locator('[data-start]').textContent();
+  // From the cell's `title`, not its text: the columns print `14 Aug` since `T2
+  // compact-columns` and carry the whole `YYYY-MM-DD` in the attribute.
+  const startsOn = await rowOf(page, '010.2').locator('[data-start]').getAttribute('title');
   if (startsOn === null || !/^\d{4}-\d{2}-\d{2}$/.test(startsOn)) {
     throw new Error(
       `010.2's Start cell reads ${String(startsOn)}, which is not a date to hold it at`,

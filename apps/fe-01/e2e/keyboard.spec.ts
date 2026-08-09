@@ -46,6 +46,18 @@ async function seedRows(page: Page, account: string, rows: number): Promise<void
   }
 }
 
+/**
+ * Puts the plan on a calendar, which is what the earliest-start cells need
+ * before they will open at all: without a project start date there is no day
+ * zero and be-01 ignores the constraint, so the column is a rendered disabled
+ * state.
+ */
+async function setProjectStart(page: Page): Promise<void> {
+  await page.getByLabel('Project start date').fill('2026-06-01');
+  await page.getByLabel('Project start date').blur();
+  await expect(page.getByLabel('Earliest start for 010', { exact: true })).toBeEnabled();
+}
+
 /** Every work item number on screen, top to bottom. */
 function numbersOnScreen(page: Page): Promise<string[]> {
   return page.evaluate(() =>
@@ -376,6 +388,163 @@ test.describe('the command chords, in a browser', () => {
 
     await page.keyboard.press('Enter');
     await expect(page.getByRole('menu')).toBeVisible();
+  });
+
+  test('a click opens the earliest-start editor, which a mousedown did not', async ({ page }) => {
+    // R5 #14/#15's fault class, found again and in a browser again. Opening the
+    // editor from `onMouseDown` mounted it inside the `mousedown` dispatch —
+    // React flushes a discrete update there — so the at-rest input was gone
+    // before Chromium performed that event's **default action**, focusing the
+    // node it had hit-tested. Focusing a detached node moves the focus to
+    // `<body>`; that blurred the editor; a blur is an exit; the editor closed.
+    // A click on the cell did nothing at all, and jsdom — which performs no
+    // default action — could see the handler and never the outcome.
+    //
+    // Proof: `onClick` on the at-rest earliest-start input changed back to
+    // `onMouseDown`, this failed on `Expected: 1 / Received: 0` — no editor on
+    // the page after the click — while every case in `wbs-table.test.tsx`
+    // stayed green, because they open it with Enter. Watched, 2026-08-09.
+    await seedRows(page, `e2e-keys-${String(Date.now())}-${String(account)}`, 1);
+    await setProjectStart(page);
+
+    await page.getByLabel('Earliest start for 010', { exact: true }).click();
+
+    await expect(page.locator('tbody input[type="date"]')).toHaveCount(1);
+    await expect(page.locator('tbody input[type="date"]')).toBeFocused();
+  });
+
+  test('Escape leaves the stored day alone, blur and all', async ({ page }) => {
+    // The half of the edit-exit contract jsdom cannot reach. Escape closes the
+    // editor, closing gives the focus back to the cell, and giving the focus
+    // back **blurs the editor** — the very gesture that abandoned the edit
+    // would otherwise commit it. The unit suite cannot see that: the editor is
+    // unmounted on the way out and an unmounted field receives no blur, so a
+    // synthetic one would be a check that could not fail.
+    //
+    // Proof: the whole `event.key === 'Escape'` branch removed from
+    // `date-field.tsx`, this failed on `Expected: 0 / Received: 1` — the editor
+    // still open, Escape having done nothing at all. Watched, 2026-08-09.
+    //
+    // What this test does **not** prove is the blur: the editor is unmounted on
+    // the way out, so there is no blur here to send anything. The field that
+    // does stay on screen is the toolbar's, and its own test above is where
+    // that half is watched.
+    await seedRows(page, `e2e-keys-${String(Date.now())}-${String(account)}`, 1);
+    await setProjectStart(page);
+
+    await page.getByLabel('Earliest start for 010', { exact: true }).click();
+    const editor = page.locator('tbody input[type="date"]');
+    await editor.fill('2026-07-01');
+    await page.keyboard.press('Escape');
+
+    await expect(page.locator('tbody input[type="date"]')).toHaveCount(0);
+    // The cell has the focus back, and the day the row never had.
+    await expect(page.getByLabel('Earliest start for 010', { exact: true })).toBeFocused();
+    await expect(page.getByLabel('Earliest start for 010', { exact: true })).toHaveValue('—');
+    // And it is still gone after a reload, which is the only thing that can say
+    // be-01 was never told.
+    await page.reload();
+    await expect(page.getByLabel('Earliest start for 010', { exact: true })).toHaveValue('—');
+  });
+
+  test('Escape puts the project start date back, and leaving it does not send the abandoned day', async ({
+    page,
+  }) => {
+    // The one date field on this page that is **not** unmounted by Escape: the
+    // toolbar's project start date is always on screen, so the blur an Escape
+    // is followed by is a real blur on a live element — and it is the only
+    // place the "nothing will be sent afterwards" half of the contract can be
+    // observed at all.
+    //
+    // A flag suppressing that blur was written first and deleted for exactly
+    // that reason: with the row editor unmounted on the way out there is no
+    // blur to suppress, and here the flag sat behind the value reset and was
+    // never reached. Watched passing with the flag removed, which is what a
+    // check that cannot fail looks like.
+    //
+    // Proof: `node.value = agreed.current` removed from the Escape branch of
+    // `date-field.tsx`, this failed on `expected "2026-09-09" to be
+    // "2026-06-01"` — the abandoned day committed by the blur and saved.
+    // Watched, 2026-08-09.
+    await seedRows(page, `e2e-keys-${String(Date.now())}-${String(account)}`, 1);
+    await setProjectStart(page);
+
+    const starts = page.getByLabel('Project start date');
+    await starts.fill('2026-09-09');
+    await page.keyboard.press('Escape');
+
+    // Put back in the box, before anything has been sent.
+    await expect(starts).toHaveValue('2026-06-01');
+
+    // And left, which is the gesture that used to send it.
+    await page.getByLabel('Name of 010').click();
+
+    await expect(starts).toHaveValue('2026-06-01');
+    await page.reload();
+    await expect(page.getByLabel('Project start date')).toHaveValue('2026-06-01');
+  });
+
+  test('saves a day picked from the native calendar when the field is left', async ({ page }) => {
+    // Chrome returns the focus to the input when its own picker closes, so
+    // there is no earlier moment this component can see than the field being
+    // left — which is why `DateField` commits on the way out rather than on
+    // `change`. jsdom has no picker and no default action; only a browser can
+    // say the picked day survived.
+    //
+    // The pick is delivered as the browser delivers one — a `change` the
+    // element itself fires, with the focus still in the box — rather than as
+    // typing, which is the case `holds a date typed one segment at a time`
+    // already covers in jsdom.
+    //
+    // Proof: the editor's `commit` in `wbs-table.tsx` cut to
+    // `() => undefined`, this failed on `Expected: "3 Jul" / Received: "—"` —
+    // the picked day never leaving the box. Watched, 2026-08-09.
+    await seedRows(page, `e2e-keys-${String(Date.now())}-${String(account)}`, 2);
+    await setProjectStart(page);
+
+    await page.getByLabel('Earliest start for 010', { exact: true }).click();
+    const editor = page.locator('tbody input[type="date"]');
+    await editor.evaluate((node) => {
+      if (!(node instanceof HTMLInputElement)) throw new Error('the editor is not an input');
+      node.focus();
+      node.value = '2026-07-03';
+      node.dispatchEvent(new Event('input', { bubbles: true }));
+      node.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    await expect(page.locator('tbody input[type="date"]')).toHaveCount(1);
+
+    // Left by clicking another row's name, which is what a person does next.
+    await page.getByLabel('Name of 020').click();
+
+    await expect(page.getByLabel('Earliest start for 010', { exact: true })).toHaveValue('3 Jul');
+    await page.reload();
+    await expect(page.getByLabel('Earliest start for 010', { exact: true })).toHaveValue('3 Jul');
+  });
+
+  test('does not lose the edit to a Tab out of the date segments', async ({ page }) => {
+    // **Tab does not leave a date input in Chrome**: it steps between the day,
+    // month and year segments, so a keyboard leaves this box on the third Tab.
+    // Measured rather than assumed on 2026-08-09 — `document.activeElement` was
+    // still the box after one Tab — and this is what says the day survives the
+    // whole trip.
+    //
+    // Proof: the editor's `commit` in `wbs-table.tsx` cut to
+    // `() => undefined`, this failed on `Expected: "5 Jul" / Received: "—"`.
+    // Watched, 2026-08-09.
+    await seedRows(page, `e2e-keys-${String(Date.now())}-${String(account)}`, 2);
+    await setProjectStart(page);
+
+    await page.getByLabel('Earliest start for 010', { exact: true }).click();
+    const editor = page.locator('tbody input[type="date"]');
+    await editor.fill('2026-07-05');
+
+    // Three, which is what it takes: Chrome's date input steps between its
+    // day, month and year segments before the key leaves the box at all.
+    for (let press = 0; press < 3; press += 1) await page.keyboard.press('Tab');
+
+    await expect(page.getByLabel('Earliest start for 010', { exact: true })).toHaveValue('5 Jul');
+    await page.reload();
+    await expect(page.getByLabel('Earliest start for 010', { exact: true })).toHaveValue('5 Jul');
   });
 
   test('a held Ctrl+D arms once and never deletes', async ({ page }) => {

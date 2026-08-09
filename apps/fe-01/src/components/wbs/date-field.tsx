@@ -19,6 +19,20 @@ export interface DateFieldProps extends PassedThrough {
    * arrived over whatever has happened since.
    */
   commit: (day: string) => void;
+  /**
+   * How this edit ended, called once, after {@link commit} has had its chance.
+   *
+   * `'commit'` for Enter and for leaving the field: the day in the box has been
+   * sent, if it differed from the one already agreed. `'cancel'` for Escape:
+   * nothing was sent, and nothing will be — Escape puts the box back to the day
+   * the server agreed, so the blur it causes has nothing left to send.
+   *
+   * Optional because the toolbar's project start date has no editor lifecycle
+   * to report: it is always on screen, and leaving it is not closing it. The
+   * table's earliest-start cell is the caller this exists for — it mounts this
+   * component only while a cell is being edited, and this is what unmounts it.
+   */
+  onExit?: (how: 'commit' | 'cancel') => void;
 }
 
 /**
@@ -69,7 +83,7 @@ export interface DateFieldProps extends PassedThrough {
  * over a reader who is in the box` failed on `expected '2026-09-01' to be
  * '2026-08-17'`. All watched, 2026-08-09.
  */
-export function DateField({ value, commit, onKeyDown, ...rest }: DateFieldProps) {
+export function DateField({ value, commit, onExit, onKeyDown, ...rest }: DateFieldProps) {
   const box = useRef<HTMLInputElement | null>(null);
   /**
    * The day this box last agreed with the server about — what a commit is
@@ -122,10 +136,44 @@ export function DateField({ value, commit, onKeyDown, ...rest }: DateFieldProps)
         // Before the caller's handler, because the caller's is what moves the
         // caret on: `Ctrl/⌘ + Enter` from a row's date cell lands in the next
         // row, and the date has to have been sent by then.
-        if (event.key === 'Enter') commitIfChanged();
+        if (event.key === 'Enter') {
+          // The commit is made first and reported second, deliberately: an
+          // `onExit?.(commitAndSay())` never evaluates its argument when there
+          // is no `onExit`, so the toolbar's date field would stop saving
+          // anything at all. Watched — three cases in `date-field.test.tsx`
+          // failed on `expected [] to deeply equal [ '2026-08-17' ]`.
+          // 2026-08-09.
+          commitIfChanged();
+          onExit?.('commit');
+        }
+        if (event.key === 'Escape') {
+          const node = box.current;
+          // The ref is this component's own wiring: a keystroke can only have
+          // come from the node React attached here.
+          if (node === null)
+            throw new Error('A date field took a key without ever being attached.');
+          // **Back to the day the server agreed, and that is what makes the
+          // blur after an Escape harmless**: `commitIfChanged` sends nothing
+          // when the box already holds `agreed`, so there is no abandoned value
+          // left for a blur to commit. A flag suppressing that blur instead was
+          // written first and deleted: with the editor unmounted on the way out
+          // there is no blur to suppress at all, and on the field that *does*
+          // stay on screen — the toolbar's project start date — the flag was
+          // unreachable behind this line. A check that could not fail.
+          //
+          // Proof: this line removed, `e2e/keyboard.spec.ts`'s `Escape puts the
+          // project start date back, and leaving it does not send the abandoned
+          // day` failed on `expected "2026-09-09" to be "2026-06-01"`.
+          // Watched in Chromium, 2026-08-09.
+          node.value = agreed.current;
+          onExit?.('cancel');
+        }
         onKeyDown?.(event);
       }}
-      onBlur={commitIfChanged}
+      onBlur={() => {
+        commitIfChanged();
+        onExit?.('commit');
+      }}
     />
   );
 }

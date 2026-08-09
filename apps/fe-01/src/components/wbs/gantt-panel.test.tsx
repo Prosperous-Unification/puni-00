@@ -1377,6 +1377,29 @@ function columnText(columnId: string, at: number): string {
   return cell.textContent;
 }
 
+/**
+ * The whole day one schedule column is showing a short date for.
+ *
+ * The columns print `13 Aug` since `T2 compact-columns`; the day in full is in
+ * the cell's `title`, which is the form the axis under the chart is labelled
+ * in and so the form the two can be compared in.
+ *
+ * @throws when the cell carries no `title` at all — a column printing workday
+ * offsets has none, and comparing an axis date against nothing would be a
+ * check that could not fail.
+ */
+function columnDay(columnId: string, at: number): string {
+  const cell = [...document.querySelectorAll(`td[data-column="${columnId}"]`)].at(at);
+  if (cell === undefined) throw new Error(`the table has no ${columnId} cell at row ${String(at)}`);
+  const day = cell.querySelector('[title]')?.getAttribute('title');
+  if (day === undefined || day === null) {
+    throw new Error(`the ${columnId} cell at row ${String(at)} is not showing a date at all`);
+  }
+  // The End column says two things in one attribute — the day, and what its
+  // `?` marker means — and only the day is comparable with an axis label.
+  return day.split(' — ')[0] ?? day;
+}
+
 describe('the chart mirrors the plan', () => {
   itDom('leaves a collapsed branch’s children off the chart', async () => {
     await showTheChart();
@@ -1485,15 +1508,18 @@ describe('the workday axis agrees with the columns', () => {
     // This failed on `expected '2026-08-17' to be '2026-08-14'` — the axis
     // claiming a Monday for work the End column says finished on the Friday.
     // Watched, 2026-08-09.
-    expect(axisDateOn(bar.getAttribute('data-start') ?? '')).toBe(columnText('start', 2));
-    expect(axisDateOn(bar.getAttribute('data-last-day') ?? '')).toBe(columnText('finish', 2));
+    expect(axisDateOn(bar.getAttribute('data-start') ?? '')).toBe(columnDay('start', 2));
+    expect(axisDateOn(bar.getAttribute('data-last-day') ?? '')).toBe(columnDay('finish', 2));
     // The same two days in the sentence the bar shows on hover, which is where
     // a reader meets the rule rather than in an attribute.
     expect(bar.querySelector('title')?.textContent).toContain('2026-08-13 → 2026-08-14');
     // And the fixture's own claim about what be-01 printed, so a panel and a
     // table that agreed on the wrong dates would still be caught.
-    expect(columnText('start', 2)).toBe('2026-08-13');
-    expect(columnText('finish', 2)).toBe('2026-08-14');
+    expect(columnDay('start', 2)).toBe('2026-08-13');
+    expect(columnDay('finish', 2)).toBe('2026-08-14');
+    // And what the column actually shows, which is the short form of that same
+    // day: the axis is labelled in full and the cell is not.
+    expect(columnText('start', 2)).toBe('13 Aug');
   });
 
   itDom('holds a not-before flag at the workday its date is, not its calendar day', async () => {

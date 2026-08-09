@@ -7,11 +7,21 @@ import { type Box, findOverlap, findOverrun } from '../src/components/wbs/box-ge
 import {
   FLEXIBLE_COLUMNS,
   FLEXIBLE_FLOOR,
-  PINNED_COLUMNS,
-  pinnedGeometry,
-  tableMinWidth,
+  frameLayout,
+  type FrameLayoutState,
+  NUMBER_ENVELOPE,
+  PINNED_COLUMN_IDS,
   widthFor,
 } from '../src/components/wbs/table-frame';
+
+/**
+ * The plan {@link seedPlan} builds, as far as a column's width depends on it.
+ *
+ * No row in it sets an earliest start, so the `not-before` column is at its
+ * narrow 56px here. A test that dates a row says so with its own state — see
+ * `the earliest-start column is as narrow as the plan lets it be`.
+ */
+const SEEDED_PLAN: FrameLayoutState = { hasAnyNotBefore: false };
 
 /**
  * The layout gate.
@@ -38,7 +48,7 @@ import {
  * How far the frame is scrolled sideways for the sticky half of the checks.
  *
  * Small, because the table fits now. Since 2026-08-08 it is `width: 100%` with
- * a minimum of about 1106px for a two-role plan, so at any ordinary viewport
+ * a minimum of about 1123px for a two-role plan, so at any ordinary viewport
  * there is nothing to scroll at all — {@link NARROW} is the width these tests
  * run at, and this is inside what it leaves over.
  */
@@ -55,7 +65,7 @@ const SCROLLED = 150;
 const NARROW = { width: 900, height: 900 } as const;
 
 /** The columns held at the left edge, and the offsets they are held at. */
-const PINNED_IDS = PINNED_COLUMNS.map((pinned) => pinned.id);
+const PINNED_IDS = PINNED_COLUMN_IDS;
 
 /**
  * Where the pinned column with this id is declared to sit, in px from the
@@ -72,7 +82,10 @@ const PINNED_IDS = PINNED_COLUMNS.map((pinned) => pinned.id);
  * compare a measured offset against nothing at all.
  */
 function declaredLeft(columnId: string): number {
-  const geometry = pinnedGeometry(columnId);
+  // Resolved from the pinned columns alone, which is all an offset is: each is
+  // the sum of the declared widths in front of it, and every column in front
+  // of a pinned one is itself pinned.
+  const geometry = frameLayout(PINNED_COLUMN_IDS, SEEDED_PLAN).pinned.get(columnId);
   if (geometry === undefined) throw new Error(`${columnId} is not a pinned column`);
   return geometry.left;
 }
@@ -121,6 +134,131 @@ async function seedPlan(page: Page, account: string): Promise<void> {
   await estimate.fill('2/3/8');
   await estimate.blur();
   await expect(estimate).not.toHaveValue('');
+
+  // A project start date, because without one the earliest-start cells are a
+  // rendered disabled state that never opens an editor — and the editor is
+  // what {@link measure} has to measure. No row sets an earliest start of its
+  // own, so the column stays at its narrow width; see {@link SEEDED_PLAN}.
+  await page.getByLabel('Project start date').fill('2026-06-01');
+  await page.getByLabel('Project start date').blur();
+  await expect(page.getByLabel('Earliest start for 010')).toBeEnabled();
+}
+
+/**
+ * Opens the first row's earliest-start editor, the way a reader does.
+ *
+ * The cell is text at rest since `T2 compact-columns`, so there is no date
+ * input on the page until one is asked for.
+ */
+async function openEarliestStart(page: Page): Promise<void> {
+  await page.getByLabel('Earliest start for 010').click();
+  await expect(page.locator('tbody tr:first-child input[type="date"]')).toBeVisible();
+}
+
+/**
+ * The number of the row that fills the Number column's display envelope: eleven
+ * characters at the deepest indent, with a child under it so it carries an
+ * expander too.
+ *
+ * A root's own three characters plus a dotted single-character segment for each
+ * level down to `DEEPEST_INDENT`, which is exactly {@link NUMBER_ENVELOPE}'s
+ * shape — `030` here rather than `010` because {@link seedDeepBranch} builds
+ * the branch under the third root.
+ */
+const ENVELOPE_NUMBER = '030.1.1.1.1';
+
+/**
+ * And one past it: a level deeper again, which the indent stops following but
+ * the number does not.
+ *
+ * Depth is only one of the three ways be-01 grows a number past eleven
+ * characters — a group past nine siblings and an insertion against a frozen
+ * anchor are the others — and it is the one a browser can build in five
+ * keystrokes.
+ */
+const PAST_ENVELOPE_NUMBER = '030.1.1.1.1.1.1';
+
+/**
+ * Builds a branch five levels deep under the third root.
+ *
+ * Two facts about the numbering decide every string below, and both cost a
+ * browser run to learn: Tab indents a row under its **previous sibling**, so
+ * getting one level deeper takes one more press; and every number is derived
+ * from position, so indenting a root **renumbers the roots after it** — which
+ * is why each chain starts at `040` again rather than at the row that was
+ * called `050` a moment ago.
+ */
+async function seedDeepBranch(page: Page): Promise<void> {
+  const addRow = page.getByRole('button', { name: 'Add work item' });
+  for (const number of ['030', '040', '050', '060', '070', '080', '090']) {
+    await addRow.click();
+    await expect(page.getByLabel(`Name of ${number}`)).toBeVisible();
+  }
+
+  const chains = [
+    ['040', '030.1'],
+    ['040', '030.2', '030.1.1'],
+    ['040', '030.2', '030.1.2', '030.1.1.1'],
+    ['040', '030.2', '030.1.2', '030.1.1.2', '030.1.1.1.1'],
+    ['040', '030.2', '030.1.2', '030.1.1.2', '030.1.1.1.2', '030.1.1.1.1.1'],
+    ['040', '030.2', '030.1.2', '030.1.1.2', '030.1.1.1.2', '030.1.1.1.1.2', '030.1.1.1.1.1.1'],
+  ];
+  for (const chain of chains) {
+    for (const [step, number] of chain.entries()) {
+      if (step === 0) continue;
+      // `exact`, because a deeper row's number has this one as its prefix and
+      // the accessible names are `Name of 030.1.1.1.1` and `Name of
+      // 030.1.1.1.1.1`. Without it the locator matches both and refuses.
+      const box = page.getByLabel(`Name of ${chain[step - 1] ?? ''}`, { exact: true });
+      await box.focus();
+      await box.press('Tab');
+      await expect(page.getByLabel(`Name of ${number}`, { exact: true })).toBeVisible();
+    }
+  }
+}
+
+/** Everything one Number cell's geometry has to answer for. */
+interface NumberCell {
+  /** How wide the drawn content is, including the indent in front of it. */
+  contentWidth: number;
+  /** Its right edge, and the cell's, so "fits" is a fact rather than an arithmetic claim. */
+  contentRight: number;
+  cellRight: number;
+  cellWidth: number;
+  cellHeight: number;
+  /** More content than the cell shows, which is the truncation. */
+  clipped: boolean;
+  /** The whole number, wherever the cell carries it. */
+  title: string | null;
+  hasExpander: boolean;
+  hasLock: boolean;
+}
+
+/** Measures the Number cell of the row numbered `number`. */
+function numberCellNeeds(page: Page, number: string): Promise<NumberCell> {
+  return page.evaluate((wanted) => {
+    const cell = [...document.querySelectorAll('td[data-column="number"]')].find(
+      (each) => each.querySelector('[data-number]')?.textContent === wanted,
+    );
+    if (cell === undefined) throw new Error(`no row is numbered ${wanted}`);
+    const drawn = cell.firstElementChild;
+    if (drawn === null) throw new Error(`the ${wanted} Number cell draws nothing`);
+    const cellBox = cell.getBoundingClientRect();
+    const drawnBox = drawn.getBoundingClientRect();
+    return {
+      // The padding the declared width includes: `CELL` is `border-box`, so a
+      // content width compared against the column has to carry it.
+      contentWidth: drawnBox.width + (cellBox.width - cell.clientWidth) + 8,
+      contentRight: drawnBox.right,
+      cellRight: cellBox.right,
+      cellWidth: Math.round(cellBox.width),
+      cellHeight: Math.round(cellBox.height),
+      clipped: cell.scrollWidth > cell.clientWidth,
+      title: drawn.getAttribute('title'),
+      hasExpander: cell.querySelector('button') !== null,
+      hasLock: cell.querySelector('[aria-label="Number is frozen"]') !== null,
+    };
+  }, number);
 }
 
 /** Puts the frame at `scrollLeft`, deterministically — never a wheel gesture. */
@@ -222,7 +360,7 @@ function declaredColumnAt(
       if (width === undefined) throw new Error(`the flexible ${id} column was not measured`);
       right += width;
     } else {
-      right += widthFor(id);
+      right += widthFor(id, SEEDED_PLAN);
     }
     if (tableX < right) return id;
   }
@@ -250,29 +388,46 @@ interface Measured {
   /** Every leaf column of the header row, in order, with its rect. */
   columns: { id: string; left: number; right: number; width: number }[];
   /**
-   * The date input of the first row: how wide it is laid out, and how wide the
-   * browser would make it if nothing constrained it.
+   * The first row's earliest start: the cell at rest, the editor open on it,
+   * and how wide the browser would make an unconstrained date input.
    *
-   * `scrollWidth <= clientWidth` was the obvious check and it is a check that
-   * cannot fail: Chromium lays an `input[type=date]` out at whatever width it
-   * is given and clips its own internals inside the element, so a 60px box
-   * reports no overflow at all while showing about half a date. Watched on
-   * h2puni, 2026-08-08, with `not-before` deliberately at 60px — every
-   * assertion passed. The intrinsic width is the one that answers the
-   * question, and this is the number the column is sized by.
+   * Three numbers rather than two since `T2 compact-columns`, because the cell
+   * and the editor are no longer the same thing: the cell holds a short date
+   * and is 84px or 56, and the editor is opened on demand and is deliberately
+   * wider than its column — it escapes the cell rather than sizing it.
+   *
+   * `scrollWidth <= clientWidth` was the obvious check on the editor and it is
+   * a check that cannot fail: Chromium lays an `input[type=date]` out at
+   * whatever width it is given and clips its own internals inside the element,
+   * so a 60px box reports no overflow at all while showing about half a date.
+   * Watched on h2puni, 2026-08-08, with `not-before` deliberately at 60px —
+   * every assertion passed. The intrinsic width is the one that answers the
+   * question, and this is the number `DATE_EDITOR_WIDTH` is sized by.
    */
-  date: { width: number; intrinsic: number };
+  earliestStart: { cell: number; editor: number; intrinsic: number };
 }
 
-function measure(page: Page): Promise<Measured> {
-  return page.evaluate(() => {
+/**
+ * Everything the width equation claims, with an editor open on the first row's
+ * earliest start.
+ *
+ * The editor is opened because the platform's own number can only be measured
+ * against one that exists, and closed again on the way out so the next thing
+ * this test does sees the table at rest. Everything else is read in a single
+ * `evaluate`, because every number has to describe the same layout.
+ */
+async function measure(page: Page): Promise<Measured> {
+  await openEarliestStart(page);
+  const measured = await page.evaluate(() => {
     const frame = document.querySelector('[data-table-frame]');
     if (frame === null) throw new Error('the scrolling frame is not on the page');
     const frameBox = frame.getBoundingClientRect();
     const headers = [...document.querySelectorAll('thead th')];
     if (headers.length === 0) throw new Error('the table has no heading row');
-    const dateInput = document.querySelector('tbody tr:first-child input[type="date"]');
-    if (dateInput === null) throw new Error('the first row has no earliest-start field');
+    const restCell = document.querySelector('tbody tr:first-child td[data-column="not-before"]');
+    if (restCell === null) throw new Error('the first row has no earliest-start cell');
+    const dateInput = restCell.querySelector('input[type="date"]');
+    if (dateInput === null) throw new Error('no earliest-start editor is open on the first row');
     // What this browser would make the field if the column did not tell it
     // otherwise: the same element, the same font, off screen, unconstrained.
     // Measured rather than assumed, because it is a platform's number — the
@@ -309,14 +464,25 @@ function measure(page: Page): Promise<Measured> {
           width: box.width,
         };
       }),
-      date: { width: dateInput.getBoundingClientRect().width, intrinsic },
+      earliestStart: {
+        cell: restCell.getBoundingClientRect().width,
+        editor: dateInput.getBoundingClientRect().width,
+        intrinsic,
+      },
     };
   });
+  // Escape rather than a click elsewhere: it abandons the edit, so measuring
+  // cannot leave a date on a row that never had one.
+  await page.keyboard.press('Escape');
+  return measured;
 }
 
 /** What the width table says this state needs, from the columns really on screen. */
 const equationFor = (measured: Measured): number =>
-  tableMinWidth(measured.columns.map((column) => column.id));
+  frameLayout(
+    measured.columns.map((column) => column.id),
+    SEEDED_PLAN,
+  ).minWidth;
 
 /**
  * Every assertion that holds whenever the equation fits the frame.
@@ -353,14 +519,19 @@ function expectItFits(measured: Measured, where: string): void {
   const name = measured.columns.find((column) => column.id === 'name');
   expect(name?.width, `${where}: the name column`).toBeGreaterThanOrEqual(FLEXIBLE_FLOOR - 1);
   // The native date input's own furniture — the separators, the spinner and
-  // the picker icon — decides the `not-before` width, and this is the
-  // assertion that number is chosen by rather than argued about. 108px is what
-  // this browser asks for plus the cell's padding; a narrower column shows
+  // the picker icon — decides `DATE_EDITOR_WIDTH`, and this is the assertion
+  // that number is chosen by rather than argued about. A narrower editor shows
   // half a date, silently, because the element clips its own internals.
   expect(
-    measured.date.width,
-    `${where}: the earliest-start field is ${String(Math.round(measured.date.width))}px where this browser wants ${String(Math.round(measured.date.intrinsic))}px, so its value is cut off`,
-  ).toBeGreaterThanOrEqual(measured.date.intrinsic - 1);
+    measured.earliestStart.editor,
+    `${where}: the earliest-start editor is ${String(Math.round(measured.earliestStart.editor))}px where this browser wants ${String(Math.round(measured.earliestStart.intrinsic))}px, so its value is cut off`,
+  ).toBeGreaterThanOrEqual(measured.earliestStart.intrinsic - 1);
+  // And the column it opened over is the narrow one it is meant to be. The
+  // editor escaping its cell is the whole reason the column may be this small.
+  expect(
+    measured.columns.find((column) => column.id === 'not-before')?.width,
+    `${where}: the earliest-start column`,
+  ).toBeLessThan(measured.earliestStart.intrinsic);
 }
 
 /**
@@ -742,7 +913,7 @@ test.describe('the table, measured by a browser', () => {
   test('fits every laptop width with the roles folded', async ({ page }) => {
     // The state a plan is read in, and the one R6 is actually about: two roles
     // folded is 714px of fixed columns plus two 96px roles plus Name's 200
-    // floor — 1106px — so both of these have room to spare.
+    // floor — 1123px — so both of these have room to spare.
     for (const viewport of VIEWPORTS) {
       await page.setViewportSize({ width: viewport.width, height: viewport.height });
       const measured = await measure(page);
@@ -876,7 +1047,7 @@ test.describe('the table, measured by a browser', () => {
   test('scrolls the frame below the table’s minimum, with the name still pinned', async ({
     page,
   }) => {
-    // The backstop, at a width no laptop has: the table cannot be 1106px wide
+    // The backstop, at a width no laptop has: the table cannot be 1123px wide
     // in a 900px window, so the frame scrolls and the three identity columns
     // hold the left edge — Name at 124, the sum of the two fixed columns in
     // front of it, while it is scrolling.
@@ -899,7 +1070,7 @@ test.describe('the table, measured by a browser', () => {
     // Written out as well as derived, because 124 is the number the change is
     // judged by and a geometry that agreed with itself about 0 would satisfy
     // the comparison above.
-    expect(declaredLeft('name')).toBe(124);
+    expect(declaredLeft('name')).toBe(193);
   });
 
   test('keeps the page from scrolling sideways at 125% zoom', async ({ page }) => {
@@ -1010,6 +1181,122 @@ test.describe('the table, measured by a browser', () => {
     const width = await page.evaluate(() => document.documentElement.clientWidth);
     expect(box?.x, 'the menu opens off the left of the window').toBeGreaterThanOrEqual(0);
     expect((box?.x ?? 0) + (box?.width ?? 0)).toBeLessThanOrEqual(width);
+  });
+
+  test('is as narrow as the plan lets the earliest-start column be', async ({ page }) => {
+    // The two at-rest states, measured. The seeded plan sets no earliest start
+    // anywhere, so the column is the narrow one; the moment any row in the
+    // project sets a day it is the wide one, on every row at once.
+    //
+    // Proof: `PLAN_WIDTHS`'s `not-before` entry replaced by a constant 84, the
+    // first assertion here failed on `expected 84 to be 56`. Watched,
+    // 2026-08-09.
+    const undated = await measure(page);
+    expect(undated.columns.find((column) => column.id === 'not-before')?.width).toBe(56);
+    // The cell really is that column: a `<colgroup>` that declared one width
+    // while the browser laid out another is the whole fault this file exists
+    // for.
+    expect(Math.round(undated.earliestStart.cell)).toBe(56);
+
+    await openEarliestStart(page);
+    await page.locator('tbody tr:first-child input[type="date"]').fill('2026-06-10');
+    await page.locator('tbody tr:first-child input[type="date"]').blur();
+    await expect(page.getByLabel('Earliest start for 010')).toHaveValue('10 Jun');
+
+    const dated = await measure(page);
+    expect(dated.columns.find((column) => column.id === 'not-before')?.width).toBe(84);
+    expect(Math.round(dated.earliestStart.cell)).toBe(84);
+  });
+
+  test('opens an editor no narrower than this browser’s own unconstrained field', async ({
+    page,
+  }) => {
+    // The one number in `table-frame.ts` this repository does not get to
+    // choose, held against what Chromium actually wants. `scrollWidth <=
+    // clientWidth` was the obvious check here and it could not fail: a date
+    // input clips its own internals and reports no overflow at 60px while
+    // showing about half a date. Watched on h2puni, 2026-08-08.
+    //
+    // Proof: `DATE_EDITOR_WIDTH` set to 60, this failed on `Expected: >= 137 /
+    // Received: 60`, and `fits every laptop width with the roles folded` with
+    // it. Watched, 2026-08-09.
+    const measured = await measure(page);
+
+    expect(measured.earliestStart.editor).toBeGreaterThanOrEqual(
+      measured.earliestStart.intrinsic - 1,
+    );
+    // And it is wider than the cell it opened in, which is the whole design:
+    // the editor escapes its column rather than sizing it.
+    expect(measured.earliestStart.editor).toBeGreaterThan(measured.earliestStart.cell);
+  });
+
+  test('the Number column fits its envelope', async ({ page }) => {
+    // There is no longest work item number, so the column is sized to a stated
+    // envelope instead: eleven characters at the deepest indent the column
+    // allows, beside the row's expander and its frozen-number lock. This is
+    // the browser that picks that width — `COLUMN_WIDTHS`'s figure is asserted
+    // against a measurement, never read off the markup.
+    //
+    // Proof: `['number', 169]` set to 56, this failed on `Expected: >=
+    // 168.59375 / Received: 56` — the envelope wanting three times what the
+    // column declared. Watched, 2026-08-09.
+    //
+    // 169 is what that measurement picked, and it is **larger** than the 100
+    // this column had: 48px of indent, a 12.5px expander, a 20px lock, 80px of
+    // eleven-character number and the cell's 8px of padding. The column had
+    // been clipping its own envelope since the 168 → 100 compaction and
+    // nothing had measured it.
+    await seedDeepBranch(page);
+    const envelope = page.getByLabel(`Name of ${ENVELOPE_NUMBER}`, { exact: true });
+    await expect(envelope).toBeVisible();
+    expect(ENVELOPE_NUMBER.length).toBe(NUMBER_ENVELOPE.length);
+
+    // Frozen, so the lock is on the row and the measurement includes it.
+    await page.getByRole('button', { name: 'Freeze numbering' }).click();
+    await expect(page.getByLabel('Number is frozen').first()).toBeVisible();
+
+    const needed = await numberCellNeeds(page, ENVELOPE_NUMBER);
+
+    expect(needed.contentWidth).toBeGreaterThan(0);
+    // The declared width holds everything the cell has to draw: the indent, the
+    // expander, the lock and eleven characters of number.
+    expect(widthFor('number', SEEDED_PLAN)).toBeGreaterThanOrEqual(needed.contentWidth);
+    // And all of it is really inside the column rather than merely declared to
+    // be: `overflow: hidden` would hide the difference otherwise.
+    expect(needed.contentRight).toBeLessThanOrEqual(needed.cellRight + 1);
+    expect(needed.hasExpander).toBe(true);
+    expect(needed.hasLock).toBe(true);
+  });
+
+  test('clips a number past the envelope and keeps it whole in the title', async ({ page }) => {
+    // The bargain the short dates make, in the Number column: a number the
+    // envelope cannot hold is truncated rather than allowed to widen a column
+    // that every row in the table would then move with. Nothing is lost — the
+    // whole number is in the cell's `title`.
+    //
+    // Proof: `whiteSpace: 'nowrap'` removed from the Number cell, this failed
+    // on `expected true to be false` — a wrapped number overflows its cell
+    // downwards rather than sideways, so there is no clip left to observe and
+    // the row grows instead. Watched, 2026-08-09.
+    await seedDeepBranch(page);
+    const past = page.getByLabel(`Name of ${PAST_ENVELOPE_NUMBER}`, { exact: true });
+    await expect(past).toBeVisible();
+    expect(PAST_ENVELOPE_NUMBER.length).toBeGreaterThan(NUMBER_ENVELOPE.length);
+    // Frozen, so both rows carry the lock and the two measurements below differ
+    // by their numbers and by nothing else.
+    await page.getByRole('button', { name: 'Freeze numbering' }).click();
+    await expect(page.getByLabel('Number is frozen').first()).toBeVisible();
+
+    const envelope = await numberCellNeeds(page, ENVELOPE_NUMBER);
+    const overrun = await numberCellNeeds(page, PAST_ENVELOPE_NUMBER);
+
+    // The column is the width it was: a longer number moved nothing.
+    expect(overrun.cellWidth).toBe(envelope.cellWidth);
+    // Clipped rather than wrapped — one line, and more content than fits.
+    expect(overrun.clipped).toBe(true);
+    expect(overrun.cellHeight).toBe(envelope.cellHeight);
+    // And still readable, whole, on hover.
+    expect(overrun.title).toBe(PAST_ENVELOPE_NUMBER);
   });
 
   test('walks the row with Tab in the order the cells are in the DOM', async ({ page }) => {

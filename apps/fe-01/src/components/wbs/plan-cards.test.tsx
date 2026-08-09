@@ -39,7 +39,17 @@ const notImplemented = (what: string): never => {
  * from the same tree the table is — and importing a test file to borrow its
  * fixture would run its 289 tests again.
  */
-function fakeApi(options: { refusePatch?: boolean } = {}): ProjectApi & {
+/**
+ * A plan on a calendar, in the reader's own year, so the short dates print
+ * without one. Built from `new Date()` rather than written out, because "this
+ * year" is what decides whether the year is shown at all.
+ */
+const DATED_PLAN = {
+  startsOn: `${String(new Date().getFullYear())}-06-01`,
+  endsOn: `${String(new Date().getFullYear())}-06-03`,
+} as const;
+
+function fakeApi(options: { refusePatch?: boolean; dated?: boolean } = {}): ProjectApi & {
   patched: { id: string; name?: string; notes?: string }[];
   assignments: string[];
 } {
@@ -99,7 +109,7 @@ function fakeApi(options: { refusePatch?: boolean } = {}): ProjectApi & {
         roles: roleList.map((role) => ({ ...role })),
         assignedPeople: people.map(({ id, name }) => ({ id, name })),
         estimateMethod: 'pert' as const,
-        startDate: null,
+        startDate: options.dated === true ? DATED_PLAN.startsOn : null,
         projectRevision: 0,
         undoable: false,
         redoable: false,
@@ -123,7 +133,7 @@ function fakeApi(options: { refusePatch?: boolean } = {}): ProjectApi & {
         dependsOn: [],
         finalDays: {},
         finalTotal: 0,
-        dates: null,
+        dates: options.dated === true ? { ...DATED_PLAN } : null,
         startNoEarlierThan: null,
         serviceTeamId: null,
         assignees: {},
@@ -453,6 +463,51 @@ describe('the plan on a phone', () => {
 
     expect(box.style.maxHeight).toBe('11.2em');
     expect(box.style.overflowY).toBe('auto');
+  });
+
+  itDom('prints a span in the very words the table’s columns print', async () => {
+    // The parity rule, asserted across the breakpoint rather than against a
+    // literal: one plan read on a phone and on a laptop may not disagree about
+    // how a day is written. Both renderers are handed the table's own
+    // `spanOf`, and this is what says so.
+    //
+    // Proof: the card's span rendered as `span.start.iso ?? span.start.text`
+    // — the raw ISO the cards used to print — this failed on `expected
+    // '2026-06-01 → 2026-06-03' to be '1 Jun → 3 Jun'`. Watched, 2026-08-09.
+    const api = fakeApi({ dated: true });
+    widthIs(PHONE);
+    render(<WbsTable projectId="p1" api={api} />);
+    await addAWorkItem();
+
+    const onCard = document.querySelector('[data-card-span]');
+    expect(onCard?.textContent).toBe('1 Jun → 3 Jun');
+    // And the full days are still a hover away, the same bargain the table's
+    // cells make.
+    expect(onCard?.getAttribute('title')).toBe(`${DATED_PLAN.startsOn} → ${DATED_PLAN.endsOn}`);
+
+    resizeTo(LAPTOP);
+
+    expect(document.querySelector('[data-start]')?.textContent).toBe('1 Jun');
+    expect(document.querySelector('[data-finish]')?.textContent).toContain('3 Jun');
+  });
+
+  itDom('prints the workday offsets the columns print, on a plan with no start date', async () => {
+    // The fallback, on both faces: without a project start date there are no
+    // dates to shorten and both renderers count days from day zero.
+    const api = fakeApi();
+    widthIs(PHONE);
+    render(<WbsTable projectId="p1" api={api} />);
+    await addAWorkItem();
+
+    const onCard = document.querySelector('[data-card-span]');
+    expect(onCard?.textContent).toBe('0 → 0');
+    // Nothing fuller to say, so nothing said: a `title` repeating the cell is
+    // noise a screen reader has to read out.
+    expect(onCard?.getAttribute('title')).toBe(null);
+
+    resizeTo(LAPTOP);
+
+    expect(document.querySelector('[data-start]')?.textContent).toBe('0');
   });
 
   itDom('offers nothing to drag a card by', async () => {

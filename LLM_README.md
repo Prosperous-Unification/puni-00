@@ -92,7 +92,7 @@ contract: `docs/runbook-prod-deploy.md`.**
 ## Landmines
 
 - **`columns` in `wbs-table.tsx` depends on `roles` alone**, and `roles` is replaced only when its
-  content differs. Anything else remounts every cell and eats the focus; see the `live` ref.
+  content differs. Anything else remounts every cell and eats the focus; see the `live` ref. Widths resolve through `table-frame.ts`'s `frameLayout` and never enter a column definition.
 - `caddy reload` **exits 0 when it did nothing**. Verify against the admin API, never the exit
   code. The check parses the route for this environment's host and reads the upstream on the
   tier's port (`routedColorFromAdminConfig`); it was a substring test until 2026-08-04, which
