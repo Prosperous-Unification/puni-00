@@ -10,6 +10,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Modal, ModalContent, ModalHeader, ModalTitle, ModalTrigger } from '@/components/ui/modal';
 import type { ProjectStream } from '@/lib/project-stream';
 import type { PersonView, TeamView } from '@/lib/wbs-api';
 import {
@@ -59,8 +60,10 @@ import { splitMention } from './mention';
 import { composeNameCell, normalizeNewlines, splitNameCell } from './name-notes';
 import { NotesPreview } from './notes-preview';
 import { PhasesDialog } from './phases-dialog';
+import { type CardAssignee, PlanCards } from './plan-cards';
 import { describeGaps, findEstimateGaps } from './plan-completeness';
 import { type PlanExport, planFileName, planToCsv, planToMarkdown } from './plan-export';
+import { useRendererForViewport } from './plan-renderer';
 import {
   CELL,
   FLEXIBLE_COLUMNS,
@@ -577,6 +580,34 @@ function caretOf(input: CellElement): Caret {
  */
 const showDay = (days: number): string => String(Math.round(days * 10) / 10);
 
+/**
+ * Whether a click inside the toolbar sheet is one that should close it.
+ *
+ * Taking a control on the sheet is taking it on the plan behind the sheet, and
+ * the plan is what wants looking at next — a phone screen is 390px and the
+ * sheet is most of it. So a click on one of the sheet's own controls closes it.
+ *
+ * Two exemptions, and each is a fault this was written after meeting:
+ *
+ * - **A control that opens a surface of its own.** `PhasesDialog` is on this
+ *   sheet, and closing the sheet unmounts the dialog its trigger was about to
+ *   open. Radix marks such a trigger `aria-haspopup="dialog"`, which is the
+ *   question asked here.
+ * - **A click on another surface entirely.** React sends a portal's events up
+ *   the **React** tree, so every click inside that phases dialog arrives here
+ *   even though the dialog is nowhere near this element in the DOM — and would
+ *   close the sheet under it, mid-click, on the way to adding a phase.
+ *
+ * @param target What was clicked — `event.target`, not the handler's element.
+ * @param surface The sheet's own surface, which is `event.currentTarget`.
+ */
+function closesTheSheet(target: EventTarget | null, surface: Element): boolean {
+  if (!(target instanceof Element)) return false;
+  if (target.closest('[data-modal-surface]') !== surface) return false;
+  const control = target.closest('button');
+  return control !== null && control.getAttribute('aria-haspopup') === null;
+}
+
 const column = createColumnHelper<TreeRow>();
 
 /**
@@ -844,11 +875,34 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
   /**
    * The rendered grid, so the focus can be found in the DOM that is committed.
    *
-   * This renderer's grid is a `<table>`; {@link editableGrid} and the rest of
-   * `editable-grid.ts` only ever ask it for `[data-cell]` descendants, which is
-   * what lets `M mobile-cards` hand them a list of cards instead.
+   * An `HTMLElement` rather than an `HTMLTableElement` since `M mobile-cards`:
+   * it holds the `<table>` at laptop width and {@link PlanCards}' list below the
+   * breakpoint. {@link editableGrid} and the rest of `editable-grid.ts` only ever
+   * ask it for `[data-cell]` descendants, so neither of them knows the
+   * difference.
    */
-  const gridElement = useRef<HTMLTableElement | null>(null);
+  const gridElement = useRef<HTMLElement | null>(null);
+  /**
+   * Which of the two renderers is drawing the plan, and whether the toolbar is
+   * open as a sheet under the cards.
+   *
+   * The sheet is closed on every renderer change rather than only on the way
+   * out: a window dragged wide with the sheet open would otherwise leave a
+   * modal over a table that has the toolbar in a row of its own.
+   */
+  const renderer = useRendererForViewport();
+  const [toolbarSheetOpen, setToolbarSheetOpen] = useState(false);
+  /**
+   * Whether the sheet closing was a control on it being taken, rather than
+   * Escape, the ✕ or a tap outside.
+   *
+   * A ref because nothing renders it, and because it is read from Radix's own
+   * close handler one turn of the event loop after the click that set it.
+   */
+  const sheetActedOnThePlan = useRef(false);
+  useEffect(() => {
+    setToolbarSheetOpen(false);
+  }, [renderer]);
 
   const latestRefresh = useRef(0);
   /**
@@ -2874,6 +2928,58 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     [scheduleError],
   );
 
+  /**
+   * When a work item happens: real dates once the plan is on a calendar, and
+   * day offsets from day zero until then.
+   *
+   * One function for both figures and both renderers, because the fallback is
+   * the interesting half: `dates` is null both while the project has no start
+   * date and while the schedule could not be computed at all, and a second copy
+   * of that sentence in the card renderer is one edit away from disagreeing
+   * with the columns.
+   */
+  const spanOf = useCallback(
+    (row: TreeRow) => ({
+      start: row.dates?.startsOn ?? showSchedule(row.schedule.earliestStart),
+      finish: row.dates?.endsOn ?? showSchedule(row.schedule.earliestFinish),
+    }),
+    [showSchedule],
+  );
+
+  /**
+   * Who is doing one phase of one work item, and whether anybody said so.
+   *
+   * The assumption — nobody named on this phase and exactly one person named on
+   * another, so they are taken to be doing all of it — is be-01's
+   * (`doesEveryPhase`), and this is the one place either renderer reads it.
+   * `(unknown)` rather than nothing for a person the directory has not got:
+   * somebody is assigned, and printing an empty cell would say nobody is.
+   */
+  const assigneeOn = useCallback(
+    (row: TreeRow, roleId: string): CardAssignee | null => {
+      const named = row.assignees[roleId];
+      const shows = named ?? row.doesEveryPhase;
+      if (shows === null) return null;
+      return {
+        name: people.find((each) => each.id === shows)?.name ?? '(unknown)',
+        assumed: named === undefined,
+      };
+    },
+    [people],
+  );
+
+  /** The numbers of the work items one waits for, in the order it holds them. */
+  const waitsFor = useCallback(
+    (row: TreeRow) => numbersOf(row.dependsOn).map((each) => each.number),
+    [numbersOf],
+  );
+
+  /** What a work item is labelled with, or null where nothing is. */
+  const teamName = useCallback(
+    (row: TreeRow) => teams.find((team) => team.id === row.serviceTeamId)?.name ?? null,
+    [teams],
+  );
+
   const live = useRef({
     api,
     projectId,
@@ -2925,6 +3031,10 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     assignTo,
     createPersonFor,
     toggleRole,
+    spanOf,
+    assigneeOn,
+    waitsFor,
+    teamName,
     matchIds: search.matchIds,
     searching,
   });
@@ -2979,6 +3089,10 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     assignTo,
     createPersonFor,
     toggleRole,
+    spanOf,
+    assigneeOn,
+    waitsFor,
+    teamName,
     matchIds: search.matchIds,
     searching,
   };
@@ -3500,17 +3614,12 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
               // screen to disagree with it, and a leaf, because a parent's
               // figure is a sum of what is below it and nothing to type into.
               const shorthand = !unfolded && !row.original.rolledUp;
-              const assigned = row.original.assignees[role.id];
               // Nobody on this role and exactly one person on another: they are
               // assumed to be doing this phase too. The same rule the unfolded
               // column has, in the cell that is always on screen — which is the
-              // whole reason the assignee stopped folding away.
-              const assumed = assigned === undefined ? row.original.doesEveryPhase : null;
-              const shows = assigned ?? assumed;
-              const shownName =
-                shows === null
-                  ? null
-                  : (live.current.people.find((each) => each.id === shows)?.name ?? '(unknown)');
+              // whole reason the assignee stopped folding away. Read through
+              // {@link assigneeOn}, which is where a card reads it too.
+              const doing = live.current.assigneeOn(row.original, role.id);
               // Only while this role is folded: unfolded, the assignee has a
               // column of its own with a picker in it, and two ways to assign
               // one person side by side is two things to keep in step.
@@ -3640,7 +3749,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                     showFinal(row.original.finalDays[role.id])
                   )}
                   {problem !== null && ' !'}
-                  {shownName !== null && (
+                  {doing !== null && (
                     // `4.8 · Kat`, truncated, with the whole name in the
                     // tooltip: 96px holds a figure and about four characters of
                     // a person. Grey and in brackets where nobody is assigned
@@ -3648,11 +3757,11 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                     // reads it.
                     <span
                       data-folded-assignee={role.id}
-                      {...(assigned === undefined ? { 'data-assumed': role.id } : {})}
+                      {...(doing.assumed ? { 'data-assumed': role.id } : {})}
                       title={
-                        assigned === undefined
-                          ? `${shownName} — only one person is assigned, so they are assumed to do this phase too`
-                          : shownName
+                        doing.assumed
+                          ? `${doing.name} — only one person is assigned, so they are assumed to do this phase too`
+                          : doing.name
                       }
                       style={{
                         marginLeft: 4,
@@ -3663,10 +3772,10 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                         textOverflow: 'ellipsis',
                         whiteSpace: 'nowrap',
                         fontWeight: 'normal',
-                        color: assigned === undefined ? '#666' : undefined,
+                        color: doing.assumed ? '#666' : undefined,
                       }}
                     >
-                      · {assigned === undefined ? `(${shownName})` : shownName}
+                      · {doing.assumed ? `(${doing.name})` : doing.name}
                     </span>
                   )}
                   {options.length > 0 && (
@@ -3881,20 +3990,14 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         // so the distinction moved into the `title`. The column is a figure
         // either way and the cell shows which kind it is.
         header: () => <span title={live.current.startDateHint('earliest start')}>Start</span>,
-        cell: ({ row }) => (
-          <span data-start>
-            {row.original.dates?.startsOn ??
-              live.current.showSchedule(row.original.schedule.earliestStart)}
-          </span>
-        ),
+        cell: ({ row }) => <span data-start>{live.current.spanOf(row.original).start}</span>,
       }),
       column.display({
         id: 'finish',
         header: () => <span title={live.current.startDateHint('earliest finish')}>End</span>,
         cell: ({ row }) => (
           <span data-finish title={row.original.schedule.estimated ? undefined : 'No estimate yet'}>
-            {row.original.dates?.endsOn ??
-              live.current.showSchedule(row.original.schedule.earliestFinish)}
+            {live.current.spanOf(row.original).finish}
             {live.current.hasSchedule() && !row.original.schedule.estimated ? ' ?' : ''}
           </span>
         ),
@@ -4022,6 +4125,299 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    */
   const leafColumnIds = table.getVisibleLeafColumns().map((column) => column.id);
 
+  /**
+   * Every control the toolbar holds, as one node.
+   *
+   * Built once and rendered in one of two places: the row above the table, or
+   * the sheet the cards open. One list rather than two, because a control added
+   * to a copy is a control one renderer does not have — and the sheet is the
+   * only way to any of these on a phone.
+   */
+  const toolbarControls = (
+    <>
+      <Button
+        variant="outline"
+        size="sm"
+        type="button"
+        onClick={() => void run(() => api.freeze(projectId))}
+        disabled={busy}
+      >
+        Freeze numbering
+      </Button>
+      <Button
+        variant="outline"
+        size="sm"
+        type="button"
+        onClick={() => void run(() => api.unfreezeProject(projectId))}
+        disabled={busy}
+      >
+        Unfreeze all
+      </Button>
+      <Button
+        size="sm"
+        type="button"
+        onClick={() =>
+          void run(async () => {
+            const created = await api.create(projectId, {
+              parentId: null,
+              afterId: siblingsOf(null).at(-1)?.id ?? null,
+              name: '',
+            });
+            focusIntent.current.wants({ rowId: created.id, columnId: 'name' });
+          })
+        }
+        disabled={busy}
+      >
+        Add work item
+      </Button>
+      {/*
+        The two ends of the expansion, which is otherwise one triangle at a
+        time — a forty-row plan takes forty clicks to fold. Both write the
+        reader's own expansion, and it is remembered per project from there.
+
+        Disabled while the Find box holds something, for the reason the
+        triangles are hidden then: what is open during a search is the
+        search's answer, and a button that appeared to do nothing would read
+        as broken. Not disabled by `busy`, unlike the buttons above: neither
+        asks be-01 for anything.
+      */}
+      <Button
+        variant="outline"
+        size="sm"
+        type="button"
+        disabled={searching}
+        title={
+          searching
+            ? 'Clear the Find box first — a search opens whatever it has to.'
+            : 'Close every branch'
+        }
+        onClick={() => {
+          setExpanded({});
+        }}
+      >
+        Collapse all
+      </Button>
+      <Button
+        variant="outline"
+        size="sm"
+        type="button"
+        disabled={searching}
+        title={
+          searching
+            ? 'Clear the Find box first — a search opens whatever it has to.'
+            : 'Open every branch'
+        }
+        onClick={() => {
+          setExpanded(true);
+        }}
+      >
+        Expand all
+      </Button>
+      {/*
+        The phases, which are the project's to choose since `R1 role-crud`.
+        The button belongs to the dialog rather than sitting beside it: Radix
+        restores the focus to its **trigger** on close and to nothing at all
+        without one, so the two are one component. The surface itself lands in
+        a portal, not here.
+
+        Not disabled by `busy`: it has its own in-flight state, and a button
+        that went dead while somebody else's edit was refetching would be
+        unopenable on a plan two people are working on.
+      */}
+      <PhasesDialog
+        roles={roles}
+        numberOf={(workItemId) => flat.find((row) => row.id === workItemId)?.number ?? null}
+        nameOf={(personId) => people.find((person) => person.id === personId)?.name ?? null}
+        addRole={(name) => api.addRole(projectId, name)}
+        renameRole={(roleId, name) => api.renameRole(projectId, roleId, name)}
+        removeRole={(roleId, cascade) => api.removeRole(projectId, roleId, cascade)}
+        // The same reread every other change on this page makes, which is what
+        // puts the new columns on the table and the new list in the dialog.
+        onChanged={refreshOrMarkStale}
+      />
+      {/*
+        Find. Deliberately without `data-cell`: this is not a cell of the
+        table's keyboard grid, and letting Tab and the arrows walk into it
+        from the last cell of a row would put the caret somewhere no edit can
+        be made.
+      */}
+      <Input
+        className="h-8 w-40 text-xs"
+        aria-label="Find"
+        placeholder="Find…"
+        size={14}
+        title="Show work items whose name contains this, with the rows above and below them"
+        value={query}
+        onChange={(e) => {
+          setQuery(e.currentTarget.value);
+        }}
+        onKeyDown={(e) => {
+          // Escape empties the box, which is how a search is left — and
+          // leaving it puts every collapsed branch back, because the search
+          // never wrote to the reader's own expansion.
+          if (e.key !== 'Escape') return;
+          e.preventDefault();
+          setQuery('');
+        }}
+      />
+      {searching && (
+        <span role="status" className="text-muted-foreground text-sm">
+          {shownRows.length} of {flat.length} rows
+        </span>
+      )}
+      {/*
+        Said out loud rather than left to an empty table, which reads as a
+        plan that has been lost rather than a search that found nothing. The
+        count beside it stays, so `0 of 12 rows` says the twelve are still
+        there.
+      */}
+      {searching && search.matchIds.size === 0 && (
+        <span className="text-sm">No matches for “{query}”</span>
+      )}
+      {/*
+        How ready this plan is to be read, and the way to the rows that make
+        it not ready. Absent entirely when every leaf is estimated for every
+        role: a complete plan needs no badge, and a tick that is always there
+        is a thing to stop seeing — this has to be noticed the day it appears.
+
+        Not disabled while the table is busy, unlike the buttons beside it:
+        it writes nothing, and a button that greys out during somebody else's
+        refetch reads as broken.
+      */}
+      {gaps.leaves.length > 0 && (
+        <Button
+          variant="outline"
+          size="sm"
+          type="button"
+          title={describeGaps(gaps)}
+          onClick={walkToNextGap}
+        >
+          {gaps.leaves.length} unestimated
+        </Button>
+      )}
+      {/*
+        The way in for anyone who never learns the chord — which is most
+        people, and the reason the buttons are here at all rather than the
+        keyboard being the only route. Disabled by `busy` like every other
+        control that writes, and by an empty half of the stack: be-01 would
+        answer 409 and a button that is always live invites that.
+
+        The disabled state is read off the last tree read rather than counted
+        here. It is per account, and be-01 is the only thing that knows what
+        somebody else's edit did to it.
+      */}
+      <Button
+        variant="outline"
+        size="sm"
+        type="button"
+        disabled={busy || !stack.undoable}
+        title="Undo your last change to this plan (Ctrl/⌘ + Z)"
+        onClick={() => {
+          void stepStack('undo');
+        }}
+      >
+        Undo
+      </Button>
+      <Button
+        variant="outline"
+        size="sm"
+        type="button"
+        disabled={busy || !stack.redoable}
+        title="Put back what you last undid (Ctrl/⌘ + Shift + Z)"
+        onClick={() => {
+          void stepStack('redo');
+        }}
+      >
+        Redo
+      </Button>
+      {/*
+        The way in for anyone who was never told about `?`, which is most
+        people the first time. Not disabled by `busy`: it asks be-01 for
+        nothing and reads nothing that a refetch could change.
+      */}
+      <Button
+        variant="outline"
+        size="sm"
+        type="button"
+        aria-label="Keyboard shortcuts"
+        title="Keyboard shortcuts (?)"
+        onClick={() => {
+          setCheatSheetOpen(true);
+        }}
+      >
+        ⌨
+      </Button>
+      {/*
+        Sharing the plan, which is what most of it is written for. Both take
+        the whole plan rather than what is on screen, and neither asks be-01
+        for anything — so neither is disabled by `busy`, and both work while
+        the socket is down or the tree is stale. What they cannot do is say
+        the figures are current; the header's timestamp is what says when
+        they were true.
+      */}
+      <Button
+        variant="outline"
+        size="sm"
+        type="button"
+        title="Copy the whole plan as a Markdown table, with a header saying how to read it"
+        onClick={copyAsMarkdown}
+      >
+        Copy as Markdown
+      </Button>
+      <Button
+        variant="outline"
+        size="sm"
+        type="button"
+        title="Download the whole plan as a CSV, with a header saying how to read it"
+        onClick={downloadCsv}
+      >
+        Download CSV
+      </Button>
+      <label className="ml-auto flex items-center gap-1 text-sm">
+        Starts
+        {/*
+          The day the whole plan begins. Setting it moves every date at once,
+          because every date is an offset from it — there is nothing stored
+          per row to drag along.
+        */}
+        <input
+          className="border-input bg-background h-8 rounded-md border px-2 text-sm"
+          type="date"
+          aria-label="Project start date"
+          disabled={busy}
+          value={startDate ?? ''}
+          onChange={(e) => {
+            const typed = e.target.value;
+            void run(() => api.setStartDate(projectId, typed === '' ? null : typed));
+          }}
+        />
+      </label>
+      <label className="flex items-center gap-1 text-sm">
+        Plan with
+        {/*
+          A project-wide setting rather than a per-reader preference: the
+          dates below are computed from it, and two people reading different
+          dates off one plan is the failure this must not have.
+        */}
+        <select
+          className="border-input bg-background h-8 rounded-md border px-2 text-sm"
+          aria-label="Final estimate"
+          value={estimateMethod}
+          disabled={busy}
+          onChange={(e) => {
+            const chosen = e.target.value;
+            if (isEstimateMethod(chosen)) chooseEstimateMethod(chosen);
+          }}
+        >
+          <option value="pert">PERT</option>
+          <option value="optimistic">optimistic</option>
+          <option value="realistic">realistic</option>
+          <option value="pessimistic">pessimistic</option>
+        </select>
+      </label>
+    </>
+  );
+
   return (
     /*
       A link in the chain from `<main>` down to the frame: this section takes
@@ -4033,299 +4429,68 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     */
     <section className="flex min-h-0 flex-1 flex-col">
       {/*
+        Two places for one toolbar, and which one is a fact about the viewport.
+
         Wrapping, because this row of controls is the only thing on the page
         that can make it scroll sideways: it is about 1245px of buttons at its
         narrowest, and a window below that — a narrow one, or a wide one at
         125% zoom — carried the whole page with it while the table itself was
-        behaving perfectly. Observed on h2puni, 2026-08-08.
-
-        `mb-2` and `gap-1.5` rather than 3 and 2: the same controls, tightened
-        under a header bar that is now one row, because every pixel between the
-        top of the window and the first row of the plan is a pixel the plan does
-        not get. Nothing about the wrapping changed.
+        behaving perfectly. Observed on h2puni, 2026-08-08. On a phone it does
+        not wrap, it folds: 1245px of controls above a 390px screen is a page
+        of buttons with the plan somewhere under them.
       */}
-      <div data-toolbar className="mb-1.5 flex shrink-0 flex-wrap items-center gap-x-1.5 gap-y-1">
-        <Button
-          variant="outline"
-          size="sm"
-          type="button"
-          onClick={() => void run(() => api.freeze(projectId))}
-          disabled={busy}
-        >
-          Freeze numbering
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          type="button"
-          onClick={() => void run(() => api.unfreezeProject(projectId))}
-          disabled={busy}
-        >
-          Unfreeze all
-        </Button>
-        <Button
-          size="sm"
-          type="button"
-          onClick={() =>
-            void run(async () => {
-              const created = await api.create(projectId, {
-                parentId: null,
-                afterId: siblingsOf(null).at(-1)?.id ?? null,
-                name: '',
-              });
-              focusIntent.current.wants({ rowId: created.id, columnId: 'name' });
-            })
-          }
-          disabled={busy}
-        >
-          Add work item
-        </Button>
-        {/*
-          The two ends of the expansion, which is otherwise one triangle at a
-          time — a forty-row plan takes forty clicks to fold. Both write the
-          reader's own expansion, and it is remembered per project from there.
-
-          Disabled while the Find box holds something, for the reason the
-          triangles are hidden then: what is open during a search is the
-          search's answer, and a button that appeared to do nothing would read
-          as broken. Not disabled by `busy`, unlike the buttons above: neither
-          asks be-01 for anything.
-        */}
-        <Button
-          variant="outline"
-          size="sm"
-          type="button"
-          disabled={searching}
-          title={
-            searching
-              ? 'Clear the Find box first — a search opens whatever it has to.'
-              : 'Close every branch'
-          }
-          onClick={() => {
-            setExpanded({});
-          }}
-        >
-          Collapse all
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          type="button"
-          disabled={searching}
-          title={
-            searching
-              ? 'Clear the Find box first — a search opens whatever it has to.'
-              : 'Open every branch'
-          }
-          onClick={() => {
-            setExpanded(true);
-          }}
-        >
-          Expand all
-        </Button>
-        {/*
-          The phases, which are the project's to choose since `R1 role-crud`.
-          The button belongs to the dialog rather than sitting beside it: Radix
-          restores the focus to its **trigger** on close and to nothing at all
-          without one, so the two are one component. The surface itself lands in
-          a portal, not here.
-
-          Not disabled by `busy`: it has its own in-flight state, and a button
-          that went dead while somebody else's edit was refetching would be
-          unopenable on a plan two people are working on.
-        */}
-        <PhasesDialog
-          roles={roles}
-          numberOf={(workItemId) => flat.find((row) => row.id === workItemId)?.number ?? null}
-          nameOf={(personId) => people.find((person) => person.id === personId)?.name ?? null}
-          addRole={(name) => api.addRole(projectId, name)}
-          renameRole={(roleId, name) => api.renameRole(projectId, roleId, name)}
-          removeRole={(roleId, cascade) => api.removeRole(projectId, roleId, cascade)}
-          // The same reread every other change on this page makes, which is what
-          // puts the new columns on the table and the new list in the dialog.
-          onChanged={refreshOrMarkStale}
-        />
-        {/*
-          Find. Deliberately without `data-cell`: this is not a cell of the
-          table's keyboard grid, and letting Tab and the arrows walk into it
-          from the last cell of a row would put the caret somewhere no edit can
-          be made.
-        */}
-        <Input
-          className="h-8 w-40 text-xs"
-          aria-label="Find"
-          placeholder="Find…"
-          size={14}
-          title="Show work items whose name contains this, with the rows above and below them"
-          value={query}
-          onChange={(e) => {
-            setQuery(e.currentTarget.value);
-          }}
-          onKeyDown={(e) => {
-            // Escape empties the box, which is how a search is left — and
-            // leaving it puts every collapsed branch back, because the search
-            // never wrote to the reader's own expansion.
-            if (e.key !== 'Escape') return;
-            e.preventDefault();
-            setQuery('');
-          }}
-        />
-        {searching && (
-          <span role="status" className="text-muted-foreground text-sm">
-            {shownRows.length} of {flat.length} rows
-          </span>
-        )}
-        {/*
-          Said out loud rather than left to an empty table, which reads as a
-          plan that has been lost rather than a search that found nothing. The
-          count beside it stays, so `0 of 12 rows` says the twelve are still
-          there.
-        */}
-        {searching && search.matchIds.size === 0 && (
-          <span className="text-sm">No matches for “{query}”</span>
-        )}
-        {/*
-          How ready this plan is to be read, and the way to the rows that make
-          it not ready. Absent entirely when every leaf is estimated for every
-          role: a complete plan needs no badge, and a tick that is always there
-          is a thing to stop seeing — this has to be noticed the day it appears.
-
-          Not disabled while the table is busy, unlike the buttons beside it:
-          it writes nothing, and a button that greys out during somebody else's
-          refetch reads as broken.
-        */}
-        {gaps.leaves.length > 0 && (
-          <Button
-            variant="outline"
-            size="sm"
-            type="button"
-            title={describeGaps(gaps)}
-            onClick={walkToNextGap}
-          >
-            {gaps.leaves.length} unestimated
-          </Button>
-        )}
-        {/*
-          The way in for anyone who never learns the chord — which is most
-          people, and the reason the buttons are here at all rather than the
-          keyboard being the only route. Disabled by `busy` like every other
-          control that writes, and by an empty half of the stack: be-01 would
-          answer 409 and a button that is always live invites that.
-
-          The disabled state is read off the last tree read rather than counted
-          here. It is per account, and be-01 is the only thing that knows what
-          somebody else's edit did to it.
-        */}
-        <Button
-          variant="outline"
-          size="sm"
-          type="button"
-          disabled={busy || !stack.undoable}
-          title="Undo your last change to this plan (Ctrl/⌘ + Z)"
-          onClick={() => {
-            void stepStack('undo');
-          }}
-        >
-          Undo
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          type="button"
-          disabled={busy || !stack.redoable}
-          title="Put back what you last undid (Ctrl/⌘ + Shift + Z)"
-          onClick={() => {
-            void stepStack('redo');
-          }}
-        >
-          Redo
-        </Button>
-        {/*
-          The way in for anyone who was never told about `?`, which is most
-          people the first time. Not disabled by `busy`: it asks be-01 for
-          nothing and reads nothing that a refetch could change.
-        */}
-        <Button
-          variant="outline"
-          size="sm"
-          type="button"
-          aria-label="Keyboard shortcuts"
-          title="Keyboard shortcuts (?)"
-          onClick={() => {
-            setCheatSheetOpen(true);
-          }}
-        >
-          ⌨
-        </Button>
-        {/*
-          Sharing the plan, which is what most of it is written for. Both take
-          the whole plan rather than what is on screen, and neither asks be-01
-          for anything — so neither is disabled by `busy`, and both work while
-          the socket is down or the tree is stale. What they cannot do is say
-          the figures are current; the header's timestamp is what says when
-          they were true.
-        */}
-        <Button
-          variant="outline"
-          size="sm"
-          type="button"
-          title="Copy the whole plan as a Markdown table, with a header saying how to read it"
-          onClick={copyAsMarkdown}
-        >
-          Copy as Markdown
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          type="button"
-          title="Download the whole plan as a CSV, with a header saying how to read it"
-          onClick={downloadCsv}
-        >
-          Download CSV
-        </Button>
-        <label className="ml-auto flex items-center gap-1 text-sm">
-          Starts
-          {/*
-            The day the whole plan begins. Setting it moves every date at once,
-            because every date is an offset from it — there is nothing stored
-            per row to drag along.
-          */}
-          <input
-            className="border-input bg-background h-8 rounded-md border px-2 text-sm"
-            type="date"
-            aria-label="Project start date"
-            disabled={busy}
-            value={startDate ?? ''}
-            onChange={(e) => {
-              const typed = e.target.value;
-              void run(() => api.setStartDate(projectId, typed === '' ? null : typed));
-            }}
-          />
-        </label>
-        <label className="flex items-center gap-1 text-sm">
-          Plan with
-          {/*
-            A project-wide setting rather than a per-reader preference: the
-            dates below are computed from it, and two people reading different
-            dates off one plan is the failure this must not have.
-          */}
-          <select
-            className="border-input bg-background h-8 rounded-md border px-2 text-sm"
-            aria-label="Final estimate"
-            value={estimateMethod}
-            disabled={busy}
-            onChange={(e) => {
-              const chosen = e.target.value;
-              if (isEstimateMethod(chosen)) chooseEstimateMethod(chosen);
-            }}
-          >
-            <option value="pert">PERT</option>
-            <option value="optimistic">optimistic</option>
-            <option value="realistic">realistic</option>
-            <option value="pessimistic">pessimistic</option>
-          </select>
-        </label>
-      </div>
+      {renderer === 'cards' ? (
+        <div data-toolbar-sheet className="mb-1.5 flex shrink-0 items-center gap-2">
+          <Modal open={toolbarSheetOpen} onOpenChange={setToolbarSheetOpen}>
+            {/*
+              The trigger belongs to the modal rather than sitting beside it,
+              for `PhasesDialog`'s reason: Radix restores the focus to its
+              trigger on close, and to nothing at all without one.
+            */}
+            <ModalTrigger asChild>
+              <Button variant="outline" type="button" className="min-h-11">
+                Plan actions
+              </Button>
+            </ModalTrigger>
+            <ModalContent
+              side="bottom"
+              // Taking a control on this sheet is taking it on the plan behind
+              // it, and the plan is what wants looking at next.
+              onClickCapture={(event) => {
+                if (!closesTheSheet(event.target, event.currentTarget)) return;
+                sheetActedOnThePlan.current = true;
+                setToolbarSheetOpen(false);
+              }}
+              // Radix restores the focus to the trigger when a modal closes,
+              // and it does it on a timer — so it lands *after* the refetch a
+              // control on this sheet started, and takes the caret back off the
+              // work item that control created. Refused for that one case only:
+              // a sheet closed by Escape, by the ✕ or by a tap outside has
+              // taken nothing on the plan, and the trigger is exactly where the
+              // focus belongs.
+              //
+              // Proof: this handler removed, `lands the focus in the card of a
+              // work item it just created` failed on `expected <button …> to be
+              // <textarea …>` — Radix's restore arriving last. Watched,
+              // 2026-08-09.
+              onCloseAutoFocus={(event) => {
+                if (!sheetActedOnThePlan.current) return;
+                sheetActedOnThePlan.current = false;
+                event.preventDefault();
+              }}
+            >
+              <ModalHeader>
+                <ModalTitle>Plan actions</ModalTitle>
+              </ModalHeader>
+              <div className="flex flex-wrap items-center gap-2">{toolbarControls}</div>
+            </ModalContent>
+          </Modal>
+        </div>
+      ) : (
+        <div data-toolbar className="mb-1.5 flex shrink-0 flex-wrap items-center gap-x-1.5 gap-y-1">
+          {toolbarControls}
+        </div>
+      )}
 
       {/*
         A state, so a banner: the rows on screen are the last ones that
@@ -4383,188 +4548,238 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         </p>
       )}
 
-      {/*
-        The table scrolls inside this, in both directions, so the page never
-        scrolls sideways and the toolbar and the alerts above stay where they
-        were put. The heading row and the three identity columns are sticky
-        against this box — see `table-frame.ts` for why it has to be the one
-        that scrolls.
-      */}
-      <div data-table-frame style={TABLE_FRAME}>
-        {/*
-          `separate` with no spacing rather than the browser's default gap:
-          the pinned columns' offsets are the running total of their widths,
-          and two pixels between every pair of cells is two pixels the offsets
-          do not know about.
-        */}
-        {/*
-          `data-grid` marks the whole of the editable grid for the cascade, and
-          it is the only thing this change writes into the table. Every rule in
-          `styles.css`'s `@layer base` carries `:not([data-grid], [data-grid] *)`,
-          so the scoped reset the vendored components need stops at this
-          element: the cells, their inputs, the ⋯ menu and both pickers keep the
-          `box-sizing`, margins and platform font the browser gives them, which
-          is what `table-frame.ts`'s width table was measured against.
-
-          An attribute rather than a class, because it is a marker and not a
-          style — and because `editable-grid.ts` finds the grid by it: since
-          `X live-editing-extraction` that module reads this attribute rather
-          than `closest('table')`, so a renderer that is not a table still has
-          a grid (agy #11).
-        */}
-        <table
-          data-grid
-          ref={gridElement}
-          style={{
-            borderCollapse: 'separate',
-            borderSpacing: 0,
-            // `fixed`, so the browser lays every column out at the width
-            // `table-frame.ts` says it has. Under the default `auto` the
-            // widths were a suggestion the content could outvote, and a column
-            // that came out wider than the offsets assumed is a pinned Name
-            // painted over "Depends on".
-            tableLayout: 'fixed',
-            // The frame's width, never a declared total: every fixed column
-            // takes its declared px and Name absorbs whatever is left, so the
-            // table fits the window instead of the window having to fit the
-            // table. The minimum is the floor under that — the fixed columns
-            // plus Name's own floor — and below it the frame scrolls sideways
-            // with the pinned columns holding the left edge, which is the one
-            // case `width: 100%` cannot cover.
-            width: '100%',
-            minWidth: tableMinWidth(leafColumnIds),
+      {renderer === 'cards' ? (
+        /*
+          The same rows, the same order, the same open branches: `shownRows` is
+          the table model's answer and both renderers draw it. What the cards
+          get instead of the frame is an ordinary scrolling column — there is
+          nothing sticky to hold, because there are no columns to pin.
+        */
+        <PlanCards
+          rows={shownRows.map((row) => ({
+            row: row.original,
+            depth: row.depth,
+            // No triangle while a search is on, for the reason the Number
+            // column gives: what is open during a search is the search's own
+            // answer, and a control that appeared to do nothing reads as broken.
+            expandable: row.getCanExpand() && !searching,
+            expanded: row.getIsExpanded(),
+            toggleBranch: row.getToggleExpandedHandler(),
+          }))}
+          roles={roles}
+          gridRef={(node) => {
+            gridElement.current = node;
           }}
-        >
+          commitName={commitNameCell}
+          claimFocus={(node, cell) => {
+            focusIntent.current.landOnAttached(node, cell, gridElement.current);
+          }}
+          estimateValue={combinedValue}
+          estimateProblem={combinedProblem}
+          commitEstimate={commitCombinedEstimate}
+          enterEstimate={enterFoldedCell}
+          readEstimate={readFoldedCell}
+          closeMention={closeMention}
+          leaveEstimate={leaveFoldedCell}
+          mentionOptions={mentionOptions}
+          assigneeOn={assigneeOn}
+          waitsFor={waitsFor}
+          teamName={teamName}
+          spanOf={spanOf}
+          showDay={showDay}
+        />
+      ) : (
+        /*
+          The table scrolls inside this, in both directions, so the page never
+          scrolls sideways and the toolbar and the alerts above stay where they
+          were put. The heading row and the three identity columns are sticky
+          against this box — see `table-frame.ts` for why it has to be the one
+          that scrolls.
+        */
+        <div data-table-frame style={TABLE_FRAME}>
           {/*
-            The one place the declared widths reach the browser. `col` sizes a
-            column and nothing else about it, which is why the cells below
-            carry no width of their own.
-
-            A flexible column gets a `<col>` with no width at all — not a
-            width of `auto`, which is the same thing said less clearly — and
-            `table-layout: fixed` hands it whatever the declared ones leave.
+            `separate` with no spacing rather than the browser's default gap:
+            the pinned columns' offsets are the running total of their widths,
+            and two pixels between every pair of cells is two pixels the offsets
+            do not know about.
           */}
-          <colgroup>
-            {leafColumnIds.map((id) => (
-              <col
-                key={id}
-                style={FLEXIBLE_COLUMNS.has(id) ? undefined : { width: widthFor(id) }}
-              />
-            ))}
-          </colgroup>
-          <thead>
-            {table.getHeaderGroups().map((group) => (
-              <tr key={group.id}>
-                {group.headers.map((header) => (
-                  <th
-                    key={header.id}
-                    scope="col"
-                    // Which column this cell is, on the cell itself. Nothing in
-                    // the app reads it: the browser layout gate does
-                    // (`e2e/layout.spec.ts`), and a measured rectangle with no
-                    // name attached is a failure that says two numbers
-                    // disagreed without saying which column moved.
-                    data-column={header.column.id}
-                    style={{
-                      ...CELL,
-                      ...STICKY_HEADER_CELL,
-                      ...flexibleCellStyle(header.column.id),
-                      ...pinnedCellStyle(header.column.id, 'header'),
-                    }}
-                  >
-                    {flexRender(header.column.columnDef.header, header.getContext())}
-                  </th>
-                ))}
-              </tr>
-            ))}
-          </thead>
-          <tbody>
-            {shownRows.map((row) => (
-              <tr
-                key={row.id}
-                data-frozen={row.original.frozenNumber !== null ? 'true' : 'false'}
-                // The armed row, said on the row rather than only in the
-                // toast: a sentence in the corner of the screen is not where
-                // somebody looks to find out which row a second Ctrl+D will
-                // take. The tint itself is on the cells below, because a
-                // pinned cell carries its own opaque background and would
-                // paint straight over a colour set here.
-                data-armed={armedDelete?.rowId === row.original.id ? 'true' : undefined}
-                data-drop={dropHint?.rowId === row.original.id ? dropHint.zone : undefined}
-                // The handlers sit on the row rather than in a column definition:
-                // `flexRender` renders each `cell` as a component *type*, so a
-                // definition that changed with the drag would remount every cell
-                // in the table on every pointer move.
-                onDragOver={(event) => {
-                  if (dragging === null) return;
-                  // Without this the browser refuses the drop outright.
-                  event.preventDefault();
-                  const box = event.currentTarget.getBoundingClientRect();
-                  setDropHint({
-                    rowId: row.original.id,
-                    zone: zoneFor(event.clientY - box.top, box.height),
-                  });
-                }}
-                onDragLeave={() => {
-                  setDropHint((current) => (current?.rowId === row.original.id ? null : current));
-                }}
-                onDrop={(event) => {
-                  event.preventDefault();
-                  // The zone the last `dragover` worked out, not one recomputed
-                  // here. That one is the marker the person was looking at when
-                  // they let go, and a drop that lands somewhere other than where
-                  // the line was drawn is the one thing drag must never do.
-                  if (dropHint?.rowId !== row.original.id) return;
-                  dropOn(
-                    row.original.id,
-                    dropHint.zone,
-                    row.getIsExpanded() && row.subRows.length > 0,
-                  );
-                }}
-              >
-                {row.getVisibleCells().map((cell) => (
-                  <td
-                    key={cell.id}
-                    // See the `th` above: the layout gate measures these boxes
-                    // and has to be able to name the one that moved.
-                    data-column={cell.column.id}
-                    style={{
-                      ...CELL,
-                      // The exception to the cell clip. See
-                      // {@link opensAPopover}: a popover's containing block is
-                      // the wrapper span *inside* this `<td>`, so this `<td>`
-                      // clips it unless it is told not to.
-                      ...(opensAPopover(cell.column.id) ? { overflow: 'visible' as const } : {}),
-                      ...flexibleCellStyle(cell.column.id),
-                      ...pinnedCellStyle(cell.column.id, 'body'),
-                      // Last, so it wins over the pinned layer it is raising.
-                      // A pinned cell is sticky *with a z-index*, which makes
-                      // it a stacking context — so the preview hanging off
-                      // this one is trapped inside it and the next row's
-                      // pinned Name cell paints over it, whatever the
-                      // preview's own z-index says. The Name column is the
-                      // only cell in the table that is both pinned and holds a
-                      // popover, and this is the row it is open on.
-                      // Proof: found in a browser rather than reasoned about —
-                      // `4px below the name cell is <textarea> in the name
-                      // column, not the preview`, on h2puni 2026-08-08, with
-                      // `opensAPopover` and every other rule already correct.
-                      ...(cell.column.id === 'name' && hoveredNotes === row.original.id
-                        ? { zIndex: POPOVER_ROW_LAYER }
-                        : {}),
-                      // After the pinned background, so the warning is visible
-                      // on the three columns that hold the left edge too.
-                      ...(armedDelete?.rowId === row.original.id ? { background: ARMED_TINT } : {}),
-                    }}
-                  >
-                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+          {/*
+            `data-grid` marks the whole of the editable grid for the cascade, and
+            it is the only thing this change writes into the table. Every rule in
+            `styles.css`'s `@layer base` carries `:not([data-grid], [data-grid] *)`,
+            so the scoped reset the vendored components need stops at this
+            element: the cells, their inputs, the ⋯ menu and both pickers keep the
+            `box-sizing`, margins and platform font the browser gives them, which
+            is what `table-frame.ts`'s width table was measured against.
+
+            An attribute rather than a class, because it is a marker and not a
+            style — and because `editable-grid.ts` finds the grid by it: since
+            `X live-editing-extraction` that module reads this attribute rather
+            than `closest('table')`, so a renderer that is not a table still has
+            a grid (agy #11).
+          */}
+          <table
+            data-grid
+            // A callback rather than the ref object itself: `gridElement` holds
+            // an `HTMLElement` since `M mobile-cards` — a `<table>` here and a
+            // list of cards below the breakpoint — and React will not hand a
+            // widened ref object to a `<table>`.
+            ref={(node) => {
+              gridElement.current = node;
+            }}
+            style={{
+              borderCollapse: 'separate',
+              borderSpacing: 0,
+              // `fixed`, so the browser lays every column out at the width
+              // `table-frame.ts` says it has. Under the default `auto` the
+              // widths were a suggestion the content could outvote, and a column
+              // that came out wider than the offsets assumed is a pinned Name
+              // painted over "Depends on".
+              tableLayout: 'fixed',
+              // The frame's width, never a declared total: every fixed column
+              // takes its declared px and Name absorbs whatever is left, so the
+              // table fits the window instead of the window having to fit the
+              // table. The minimum is the floor under that — the fixed columns
+              // plus Name's own floor — and below it the frame scrolls sideways
+              // with the pinned columns holding the left edge, which is the one
+              // case `width: 100%` cannot cover.
+              width: '100%',
+              minWidth: tableMinWidth(leafColumnIds),
+            }}
+          >
+            {/*
+              The one place the declared widths reach the browser. `col` sizes a
+              column and nothing else about it, which is why the cells below
+              carry no width of their own.
+
+              A flexible column gets a `<col>` with no width at all — not a
+              width of `auto`, which is the same thing said less clearly — and
+              `table-layout: fixed` hands it whatever the declared ones leave.
+            */}
+            <colgroup>
+              {leafColumnIds.map((id) => (
+                <col
+                  key={id}
+                  style={FLEXIBLE_COLUMNS.has(id) ? undefined : { width: widthFor(id) }}
+                />
+              ))}
+            </colgroup>
+            <thead>
+              {table.getHeaderGroups().map((group) => (
+                <tr key={group.id}>
+                  {group.headers.map((header) => (
+                    <th
+                      key={header.id}
+                      scope="col"
+                      // Which column this cell is, on the cell itself. Nothing in
+                      // the app reads it: the browser layout gate does
+                      // (`e2e/layout.spec.ts`), and a measured rectangle with no
+                      // name attached is a failure that says two numbers
+                      // disagreed without saying which column moved.
+                      data-column={header.column.id}
+                      style={{
+                        ...CELL,
+                        ...STICKY_HEADER_CELL,
+                        ...flexibleCellStyle(header.column.id),
+                        ...pinnedCellStyle(header.column.id, 'header'),
+                      }}
+                    >
+                      {flexRender(header.column.columnDef.header, header.getContext())}
+                    </th>
+                  ))}
+                </tr>
+              ))}
+            </thead>
+            <tbody>
+              {shownRows.map((row) => (
+                <tr
+                  key={row.id}
+                  data-frozen={row.original.frozenNumber !== null ? 'true' : 'false'}
+                  // The armed row, said on the row rather than only in the
+                  // toast: a sentence in the corner of the screen is not where
+                  // somebody looks to find out which row a second Ctrl+D will
+                  // take. The tint itself is on the cells below, because a
+                  // pinned cell carries its own opaque background and would
+                  // paint straight over a colour set here.
+                  data-armed={armedDelete?.rowId === row.original.id ? 'true' : undefined}
+                  data-drop={dropHint?.rowId === row.original.id ? dropHint.zone : undefined}
+                  // The handlers sit on the row rather than in a column definition:
+                  // `flexRender` renders each `cell` as a component *type*, so a
+                  // definition that changed with the drag would remount every cell
+                  // in the table on every pointer move.
+                  onDragOver={(event) => {
+                    if (dragging === null) return;
+                    // Without this the browser refuses the drop outright.
+                    event.preventDefault();
+                    const box = event.currentTarget.getBoundingClientRect();
+                    setDropHint({
+                      rowId: row.original.id,
+                      zone: zoneFor(event.clientY - box.top, box.height),
+                    });
+                  }}
+                  onDragLeave={() => {
+                    setDropHint((current) => (current?.rowId === row.original.id ? null : current));
+                  }}
+                  onDrop={(event) => {
+                    event.preventDefault();
+                    // The zone the last `dragover` worked out, not one recomputed
+                    // here. That one is the marker the person was looking at when
+                    // they let go, and a drop that lands somewhere other than where
+                    // the line was drawn is the one thing drag must never do.
+                    if (dropHint?.rowId !== row.original.id) return;
+                    dropOn(
+                      row.original.id,
+                      dropHint.zone,
+                      row.getIsExpanded() && row.subRows.length > 0,
+                    );
+                  }}
+                >
+                  {row.getVisibleCells().map((cell) => (
+                    <td
+                      key={cell.id}
+                      // See the `th` above: the layout gate measures these boxes
+                      // and has to be able to name the one that moved.
+                      data-column={cell.column.id}
+                      style={{
+                        ...CELL,
+                        // The exception to the cell clip. See
+                        // {@link opensAPopover}: a popover's containing block is
+                        // the wrapper span *inside* this `<td>`, so this `<td>`
+                        // clips it unless it is told not to.
+                        ...(opensAPopover(cell.column.id) ? { overflow: 'visible' as const } : {}),
+                        ...flexibleCellStyle(cell.column.id),
+                        ...pinnedCellStyle(cell.column.id, 'body'),
+                        // Last, so it wins over the pinned layer it is raising.
+                        // A pinned cell is sticky *with a z-index*, which makes
+                        // it a stacking context — so the preview hanging off
+                        // this one is trapped inside it and the next row's
+                        // pinned Name cell paints over it, whatever the
+                        // preview's own z-index says. The Name column is the
+                        // only cell in the table that is both pinned and holds a
+                        // popover, and this is the row it is open on.
+                        // Proof: found in a browser rather than reasoned about —
+                        // `4px below the name cell is <textarea> in the name
+                        // column, not the preview`, on h2puni 2026-08-08, with
+                        // `opensAPopover` and every other rule already correct.
+                        ...(cell.column.id === 'name' && hoveredNotes === row.original.id
+                          ? { zIndex: POPOVER_ROW_LAYER }
+                          : {}),
+                        // After the pinned background, so the warning is visible
+                        // on the three columns that hold the left edge too.
+                        ...(armedDelete?.rowId === row.original.id
+                          ? { background: ARMED_TINT }
+                          : {}),
+                      }}
+                    >
+                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {/*
         Outside the scrolling frame on purpose: it is fixed to the corner of
