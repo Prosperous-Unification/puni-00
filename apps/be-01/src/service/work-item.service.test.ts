@@ -988,6 +988,139 @@ describe('the slices the schedule placed, on the wire', () => {
     expect(tree?.slices).toEqual([]);
   });
 
+  /**
+   * A project with two phases, its own rows, and somebody on each phase.
+   *
+   * Its own project rather than the fixture's, because the order of the phases
+   * is the point and the fixture has one.
+   */
+  async function twoPhasePlan(): Promise<{ id: string; devId: string; qaId: string }> {
+    const id = crypto.randomUUID();
+    const devId = crypto.randomUUID();
+    const qaId = crypto.randomUUID();
+    await projects.create(
+      {
+        id,
+        name: 'Refit',
+        ownerId: OWNER,
+        restricted: false,
+        estimateMethod: 'pert',
+        startDate: null,
+        revision: 0,
+        createdAt: 1,
+      },
+      [
+        { id: devId, projectId: id, name: 'Dev', position: 10 },
+        { id: qaId, projectId: id, name: 'QA', position: 20 },
+      ],
+    );
+    const created = await service.create(id, OWNER, {
+      parentId: null,
+      afterId: null,
+      name: 'Hull',
+    });
+    if (!created.ok) throw new Error(`create failed: ${created.reason}`);
+    const hull = created.result.id;
+    await service.setEstimate(hull, OWNER, devId, flat(3));
+    await service.setEstimate(hull, OWNER, qaId, flat(2));
+    const kat = await directory.addPerson({ id: crypto.randomUUID(), name: 'Kat' }, []);
+    const ada = await directory.addPerson({ id: crypto.randomUUID(), name: 'Ada' }, []);
+    // Somebody in the directory that nobody on this plan is: the payload names
+    // who is on the plan, not who could be.
+    await directory.addPerson({ id: crypto.randomUUID(), name: 'Unbooked' }, []);
+    await directory.assign(hull, devId, kat.id);
+    await directory.assign(hull, qaId, ada.id);
+    return { id, devId, qaId };
+  }
+
+  it('carries the phases its slices were placed under, in the engine’s order', async () => {
+    const plan = await twoPhasePlan();
+
+    const tree = await service.tree(plan.id);
+
+    // The order is the schedule's own: `slicesOf` is handed
+    // `roles.map((each) => each.id)`, and a bar's place in its row is that
+    // list's order. A payload carrying the roles in any other order would put
+    // QA's bar before Dev's on a chart that had no way to know.
+    //
+    // Proof: `roles: [...roles].reverse()` on the way out. This failed on
+    // `expect(received).toEqual(expected)` printing `- "Dev"` before `"QA"`;
+    // watched 2026-08-09.
+    expect(tree?.roles.map((role) => role.name)).toEqual(['Dev', 'QA']);
+    // And the invariant a chart is drawn on: every slice is under a phase this
+    // payload lists. `layOutGantt` throws on the alternative.
+    const listed = new Set(tree?.roles.map((role) => role.id));
+    expect(tree?.slices.map((slice) => slice.roleId).filter((id) => id !== null)).toHaveLength(2);
+    for (const slice of tree?.slices ?? []) {
+      expect(listed.has(slice.roleId ?? '')).toBe(true);
+    }
+  });
+
+  it('names everybody its slices are assigned to, and nobody else', async () => {
+    const plan = await twoPhasePlan();
+
+    const tree = await service.tree(plan.id);
+
+    // Proof: the filter inverted (`!assignedIds.has`), so the payload named
+    // everybody nobody is. This failed on `expect(received).toEqual(expected)`
+    // with `- "Ada"`, `- "Kat"` and `+ "Unbooked"`; watched 2026-08-09.
+    expect(tree?.assignedPeople.map((person) => person.name).sort()).toEqual(['Ada', 'Kat']);
+    // Every assigned id has a name here — the fact a bar's colour and its
+    // on-bar label are both read from.
+    const named = new Set(tree?.assignedPeople.map((person) => person.id));
+    const assignedTo = (tree?.slices ?? [])
+      .map((slice) => slice.personId)
+      .filter((id): id is string => id !== null);
+    expect(assignedTo).toHaveLength(2);
+    for (const personId of assignedTo) expect(named.has(personId)).toBe(true);
+  });
+
+  it('answers from one read of the phases, whatever a later read would say', async () => {
+    const plan = await twoPhasePlan();
+    // A peer removes QA in the moment between this client's tree read and the
+    // separate role read it used to pair with it. `rolesOf` answers the first
+    // caller with both phases and everybody after with one — which is exactly
+    // what the two requests saw, and why the chart used to be handed a slice
+    // under a phase its role list no longer had.
+    let reads = 0;
+    const shifting: ProjectStore = {
+      ...projects,
+      async rolesOf(projectId) {
+        reads += 1;
+        const all = await projects.rolesOf(projectId);
+        return reads === 1 ? all : all.filter((role) => role.name !== 'QA');
+      },
+    };
+    const readingOnce = new WorkItemService({
+      workItems,
+      projects: shifting,
+      estimates,
+      dependencies,
+      directory,
+      subtrees: inMemorySubtrees({ workItems, estimates, dependencies, directory }),
+      journal: inMemoryCommandJournal(),
+      broadcast,
+    });
+
+    const tree = await readingOnce.tree(plan.id);
+
+    // The payload is whole: the phases in it are the phases its slices are
+    // under, on one read.
+    //
+    // Proof: `roles` in the returned object replaced by a second
+    // `await this.opts.projects.rolesOf(projectId)` — the second request, which
+    // is what the client used to make. This failed on
+    // `expect(received).toEqual(expected)` with `- "QA"` — the payload one
+    // phase short of the slices in it, which is the skew itself. Watched
+    // 2026-08-09.
+    expect(tree?.roles.map((role) => role.name)).toEqual(['Dev', 'QA']);
+    const listed = new Set(tree?.roles.map((role) => role.id));
+    for (const slice of tree?.slices ?? []) expect(listed.has(slice.roleId ?? '')).toBe(true);
+    // And the separate read really does disagree, so the assertion above is
+    // about carrying the list rather than about a store that never moved.
+    expect((await shifting.rolesOf(plan.id)).map((role) => role.name)).toEqual(['Dev']);
+  });
+
   it('adds slices and moves nothing else in the payload', async () => {
     const strip = await add('Strip');
     await service.setEstimate(strip, OWNER, roleId, flat(3));
@@ -997,8 +1130,10 @@ describe('the slices the schedule placed, on the wire', () => {
     // Additive, asserted rather than asserted about: every name the payload
     // carried before is still there, and `slices` is the only new one.
     expect(Object.keys(tree ?? {}).sort()).toEqual([
+      'assignedPeople',
       'estimateMethod',
       'projectRevision',
+      'roles',
       'scheduleError',
       'seq',
       'slices',

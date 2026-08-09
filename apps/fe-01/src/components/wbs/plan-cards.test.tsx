@@ -94,6 +94,10 @@ function fakeApi(options: { refusePatch?: boolean } = {}): ProjectApi & {
           boundBy: 'projectStart' as const,
           resourcePredecessorId: null,
         })),
+        // The same two lists `roles` and `listPeople` answer with, on the read
+        // that carried the slices: the chart is drawn from this payload alone.
+        roles: roleList.map((role) => ({ ...role })),
+        assignedPeople: people.map(({ id, name }) => ({ id, name })),
         estimateMethod: 'pert' as const,
         startDate: null,
         projectRevision: 0,

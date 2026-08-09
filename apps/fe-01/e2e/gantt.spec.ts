@@ -1,6 +1,6 @@
 import { expect, type Locator, type Page, test } from '@playwright/test';
 
-import { DAY_PX, ROW_PX } from '../src/components/wbs/gantt-panel';
+import { CHART_PAD_PX, DAY_PX, ROW_PX } from '../src/components/wbs/gantt-panel';
 
 /**
  * The Gantt panel, measured by the engine that draws it.
@@ -152,21 +152,78 @@ async function seedPlan(
 }
 
 /**
+ * The smallest plan whose arrows leave the schedule at **both** ends.
+ *
+ * Four roots and two dependencies, and no indenting: `020` waits for `010` and
+ * neither is estimated, so both sit at workday 0 — the successor's start is the
+ * canvas's own left edge, which is where an arrow's approach goes negative.
+ * `040` waits for the estimated `030`, so it starts on the horizon and its
+ * arrow's outward leg is the only thing past it.
+ *
+ * Unestimated on purpose rather than by omission: it is the state every row of
+ * every plan is in for its first few minutes, so the left-edge arrow is not an
+ * edge case at all.
+ */
+async function seedEdgeRoutes(page: Page, account: string): Promise<void> {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Need an account? Register' }).click();
+  await page.getByLabel('Username').fill(account);
+  await page.getByLabel('Password').fill('gantt-gate-password');
+  await page.getByRole('button', { name: 'Create account' }).click();
+
+  await page.getByRole('button', { name: 'New project' }).click();
+  await expect(page.getByRole('button', { name: 'Add work item' })).toBeVisible();
+  await page.getByLabel('Project start date').fill(PLAN_START);
+
+  const addRow = page.getByRole('button', { name: 'Add work item' });
+  for (const number of ['010', '020', '030', '040']) {
+    await addRow.click();
+    await expect(page.getByLabel(`Name of ${number}`)).toBeVisible();
+  }
+
+  // The one estimate in the plan, so the horizon is four workdays and `040`
+  // starts on it.
+  const estimate = page.getByLabel('Dev estimate for 030');
+  await estimate.fill('2/4/6');
+  await estimate.blur();
+  await expect(estimate).not.toHaveValue('');
+
+  for (const [waiting, on] of [
+    ['020', '010'],
+    ['040', '030'],
+  ]) {
+    const depends = page.getByLabel(`Add a dependency to ${waiting}`);
+    await depends.click();
+    await depends.fill(on);
+    await depends.press('Enter');
+    await expect(
+      page.getByRole('button', { name: `Stop ${waiting} waiting for ${on}` }),
+    ).toBeVisible();
+  }
+}
+
+/**
  * Opens the Gantt panel and waits until it has drawn something.
  *
  * The toggle is one toolbar control under both renderers, but below the phone
  * breakpoint that toolbar is a sheet — so which gesture opens the chart is the
  * face's business and this is where it is written down once.
  */
-async function openTheChart(page: Page, { throughTheSheet = false } = {}): Promise<void> {
+async function openTheChart(
+  page: Page,
+  { throughTheSheet = false, drawn = '[data-gantt-bar]' } = {},
+): Promise<void> {
   if (throughTheSheet) {
     await page.getByRole('button', { name: 'Plan actions' }).click();
     await expect(page.getByRole('dialog', { name: 'Plan actions' })).toBeVisible();
   }
   await page.getByRole('button', { name: 'Gantt', exact: true }).click();
   await expect(page.locator('[data-gantt-chart]')).toBeVisible();
-  // A chart with no bar on it would make every measurement below vacuous.
-  await expect(page.locator('[data-gantt-bar]').first()).toBeVisible();
+  // A chart with nothing on it would make every measurement below vacuous. The
+  // mark is a parameter because a plan of unestimated rows draws bars of no
+  // width, and a box with no area is never `toBeVisible` — those fixtures wait
+  // for the arrow instead, which is what they are about.
+  await expect(page.locator(drawn).first()).toBeVisible();
 }
 
 /** One rectangle, as the browser lays it out. */
@@ -203,6 +260,46 @@ async function rectOf(page: Page, selector: string): Promise<Rect> {
       height: box.height,
     };
   }, selector);
+}
+
+/**
+ * What the browser actually paints at a point inside a mark's own box.
+ *
+ * The one question `getBoundingClientRect` cannot answer, and the reason this
+ * fix needed a browser: an `<svg>` carries the UA's `overflow: hidden`, so a
+ * path routed outside the viewBox is **not painted and not hit-testable** —
+ * while its box goes on measuring exactly as if it were there. Every jsdom
+ * assertion about such a mark passes, and so does every rectangle assertion
+ * here. `elementFromPoint` is the browser saying which ink is on that pixel.
+ *
+ * @param page The page holding the chart.
+ * @param selector The mark to probe.
+ * @param at How far across the box to probe, 0 → 1. The arrow head is a
+ * triangle pointing right, so a quarter in is thick and the tip is not.
+ * @returns `'itself'` when the mark is what is painted there, and otherwise a
+ * description of what was, so the failure names the thing in the way.
+ * @throws When nothing matches the selector, or the box has no area.
+ */
+async function paintedAt(page: Page, selector: string, at = 0.25): Promise<string> {
+  return page.evaluate(
+    ({ where, across }) => {
+      const node = document.querySelector(where);
+      if (node === null) throw new Error(`nothing on the page at ${where}`);
+      const box = node.getBoundingClientRect();
+      if (box.width <= 0 || box.height <= 0) {
+        throw new Error(`${where} is drawn with no area to probe`);
+      }
+      const hit = document.elementFromPoint(
+        box.left + box.width * across,
+        box.top + box.height / 2,
+      );
+      if (hit === node) return 'itself';
+      if (hit === null) return 'nothing at all — the point is off the viewport';
+      const attributes = [...hit.attributes].map((each) => each.name).join(' ');
+      return `<${hit.tagName} ${attributes}>`;
+    },
+    { where: selector, across: at },
+  );
 }
 
 /**
@@ -288,10 +385,15 @@ test.describe('the chart, after the browser has scaled it', () => {
     // The transform itself, on both axes: one workday is `DAY_PX` across and
     // one row is `ROW_PX` down, which is what `preserveAspectRatio="none"` over
     // a viewBox of workdays by rows means and what no jsdom test can perform.
+    //
+    // `CHART_PAD_PX` is in the arithmetic because the canvas begins one band
+    // left of workday 0 — the band the arrow routes and the caret live in, and
+    // without which a browser clips them. The bars are still the engine's
+    // numbers; it is the SVG's own left edge that is no longer workday 0.
     for (const bar of bars) {
       expect(
-        Math.abs(bar.left - chart.left - bar.start * DAY_PX),
-        `${bar.id} is not ${String(bar.start)} workdays from the chart's left edge`,
+        Math.abs(bar.left - chart.left - CHART_PAD_PX - bar.start * DAY_PX),
+        `${bar.id} is not ${String(bar.start)} workdays from workday 0`,
       ).toBeLessThanOrEqual(NEARLY);
       expect(
         Math.abs(bar.top - chart.top - bar.userY * ROW_PX),
@@ -384,6 +486,14 @@ test.describe('the chart, after the browser has scaled it', () => {
     expect(head.left, 'the arrow head is not in front of the bar it points at').toBeLessThan(
       successor.left,
     );
+    // And it is **painted**, which is a different claim from the three above:
+    // a head clipped off the canvas reports this same box and puts no ink
+    // anywhere. See {@link paintedAt}. The left-edge case, where that actually
+    // happened, is the test below.
+    expect(
+      await paintedAt(page, '[data-gantt-arrow-head]'),
+      'nothing of the arrow head is painted where its box says it is',
+    ).toBe('itself');
     const viewport = page.viewportSize();
     expect(viewport, 'this project declares no viewport').not.toBeNull();
     expect(head.top).toBeGreaterThanOrEqual(0);
@@ -417,6 +527,71 @@ test.describe('the chart, after the browser has scaled it', () => {
     });
     expect(strokes.bracket, 'the summary bracket is a hairline').toBeGreaterThanOrEqual(2);
     expect(strokes.arrow, 'the dependency arrow is a hairline').toBeGreaterThanOrEqual(1.5);
+  });
+
+  /**
+   * The two arrows that route outside the schedule, and the fix that lets them
+   * be seen.
+   *
+   * `arrowRoute` steps `ARROW_APPROACH_PX` clear of a bar before it turns, so a
+   * successor at **workday 0** is approached through negative x and an arrow off
+   * the **last** bar leaves past the horizon. The canvas used to be the
+   * schedule exactly, and an `<svg>`'s own `overflow: hidden` clipped both: the
+   * head of a left-edge arrow painted nothing at all, measured here, while its
+   * `getBoundingClientRect` went on reporting a box 7px wide. jsdom cannot hold
+   * this — it has no clip and no hit test — so this is the only place the fix
+   * is a fact.
+   */
+  test('paints an arrow that routes off either end of the schedule', async ({ page }) => {
+    await seedEdgeRoutes(page, nextAccount());
+    await openTheChart(page, { drawn: '[data-gantt-arrow-head]' });
+
+    // Two arrows: `020` waits for `010` and both are unestimated, so the
+    // successor starts at workday 0 and the route reaches left of the
+    // schedule; `040` waits for the estimated `030`, so it starts on the
+    // horizon and the route reaches right of it. Asserted, because one arrow
+    // would make half of this test vacuous.
+    await expect(page.locator('[data-gantt-arrow-head]')).toHaveCount(2);
+
+    // 1. Every mark's box is inside the canvas it is drawn on. This is the
+    //    arithmetic the padded viewBox exists for, and it is measurable here
+    //    because a clipped box still measures — it is the *canvas* that moved.
+    const chart = await rectOf(page, '[data-gantt-chart]');
+    const outside = await page.evaluate((canvas) => {
+      const marks = [...document.querySelectorAll('[data-gantt-arrow], [data-gantt-arrow-head]')];
+      if (marks.length === 0) throw new Error('no arrows on the chart to measure');
+      return marks
+        .map((mark) => ({ name: mark.getAttribute('d') ?? '', box: mark.getBoundingClientRect() }))
+        .filter((mark) => mark.box.left < canvas.left - 1 || mark.box.right > canvas.right + 1)
+        .map((mark) => mark.name);
+    }, chart);
+    expect(outside, 'a mark is drawn outside the canvas, where nothing paints').toEqual([]);
+
+    // 2. And the ink is really there. `elementFromPoint` at the left-most
+    //    head's own centre: the case that used to paint zero pixels.
+    //
+    // Proof: the viewBox put back to `0 0 horizon rowCount`, the SVG's width
+    // back to `horizon * DAY_PX`, and the axis's and labels' `CHART_PAD_PX`
+    // offsets removed — the drawing as it was. Assertion 1 failed first, on `a
+    // mark is drawn outside the canvas, where nothing paints`, listing all
+    // three: the left-edge elbow `M 0 0.5 L 0.357… L -0.357… L 0 1.5`, its head
+    // `M 0 1.5 L -0.25 1.375 L -0.25 1.625 Z`, and the right-edge elbow out to
+    // `4.357…` past a horizon of 4. With that assertion replaced by a `void`,
+    // assertion 2 failed on `the left-edge arrow head is not painted at its own
+    // centre: expected "itself", received "<BUTTON type data-gantt-label title
+    // class style>"` — the row label the clipped head's pixel actually belongs
+    // to. Watched 2026-08-09.
+    const heads = page.locator('[data-gantt-arrow-head]');
+    const boxes = await heads.evaluateAll((marks) =>
+      marks.map((mark, index) => ({ index, left: mark.getBoundingClientRect().left })),
+    );
+    const leftmost = [...boxes].sort((one, other) => one.left - other.left)[0];
+    expect(leftmost, 'no arrow head to probe').toBeDefined();
+    const id = await heads.nth(leftmost.index).getAttribute('data-gantt-arrow-head');
+    expect(
+      await paintedAt(page, `[data-gantt-arrow-head="${String(id)}"]`),
+      'the left-edge arrow head is not painted at its own centre',
+    ).toBe('itself');
   });
 
   test('holds the labels at the left edge with the chart scrolled fully right', async ({

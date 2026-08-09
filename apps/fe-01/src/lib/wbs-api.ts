@@ -167,6 +167,18 @@ export interface RoleView {
 }
 
 /**
+ * Somebody an assignment on the tree names — their id and what they are called.
+ *
+ * A {@link PersonView} without the teams, because that is all the chart needs
+ * and all be-01 sends on this read: the teams are a question about who could be
+ * assigned, which is `/api/people`'s and the pickers'.
+ */
+export interface AssignedPersonView {
+  id: string;
+  name: string;
+}
+
+/**
  * One work item whose {@link WorkItemView.doesEveryPhase} a removal would move.
  *
  * Nobody wrote these rows: the assumption is derived from a work item holding
@@ -293,6 +305,24 @@ export interface ProjectApi {
      * would be the same stale lie in a different shape.
      */
     slices: SliceView[];
+    /**
+     * The phases the slices above were placed under, in the engine's own order.
+     *
+     * The same list {@link ProjectApi.roles} answers with, carried here so that
+     * a chart drawn from this read never has to pair it with another one. Both
+     * are needed and they are not the same fact: this one describes **these**
+     * slices, and the separate read is what the column headers and the phases
+     * dialog edit.
+     */
+    roles: RoleView[];
+    /**
+     * The names of everybody an assignment on these rows points at.
+     *
+     * Not the directory — {@link ProjectApi.listPeople} is that, and the
+     * pickers offer from it. This is who is on the plan that just arrived, so a
+     * bar can be painted and labelled from one moment's answer.
+     */
+    assignedPeople: AssignedPersonView[];
     estimateMethod: EstimateMethod;
     startDate: string | null;
     /**
@@ -542,6 +572,8 @@ export function httpProjectApi(token: string): ProjectApi {
         seq: number;
         scheduleError: 'cycle' | null;
         slices: SliceView[];
+        roles: RoleView[];
+        assignedPeople: AssignedPersonView[];
         estimateMethod: EstimateMethod;
         startDate: string | null;
         projectRevision: number;

@@ -12,9 +12,11 @@ import type {
   DirectoryStore,
   EstimateStore,
   JournalEntry,
+  Person,
   Project,
   ProjectStore,
   Reparented,
+  Role,
   StoredEstimate,
   SubtreeStore,
   UndoState,
@@ -578,6 +580,34 @@ export class WorkItemService {
      * computes would be the same confident lie in a different shape.
      */
     slices: IdentifiedSlice[];
+    /**
+     * The project's roles, in the order the engine ran the slices in.
+     *
+     * The same array `slicesOf` was given, carried on the read that produced
+     * the slices rather than left to `/api/projects/:id` — which is a second
+     * request at a second moment. A chart reads a slice's `roleId` to place its
+     * bar and to name its phase, and a peer removing a phase between the two
+     * reads left a client holding slices under a role its own role list no
+     * longer had. Within one payload that skew cannot exist.
+     *
+     * Read **after** the rows and before the schedule, so a phase added between
+     * them is at worst a role nothing points at, never a slice with no role.
+     */
+    roles: Role[];
+    /**
+     * Every person an assignment on these rows names, by id and name.
+     *
+     * The names, not the whole directory: a chart paints a bar in its
+     * assignee's colour and writes their name on it, and both are facts about
+     * the slices in this very payload. `/api/people` answers a different question — who
+     * could be assigned — and is still what the pickers read.
+     *
+     * Read after {@link DirectoryStore.assignmentsOf} on purpose. People are
+     * only ever added, so a person created between the two reads is one this
+     * list has and no assignment names; the other order would hand out an
+     * assignment to somebody unnamed.
+     */
+    assignedPeople: Person[];
     estimateMethod: EstimateMethod;
     startDate: IsoDate | null;
     /**
@@ -594,6 +624,13 @@ export class WorkItemService {
     const stored = await this.opts.estimates.listByProject(projectId);
     const edges = await this.opts.dependencies.listByProject(projectId);
     const assigned = await this.opts.directory.assignmentsOf(rows.map((row) => row.id));
+    // The names for the ids just read, on this read rather than on a client's
+    // separate one. Filtered to who is actually on this plan: the directory is
+    // global and a chart has no use for people no slice names.
+    const assignedIds = new Set(assigned.map((each) => each.personId));
+    const assignedPeople = (await this.opts.directory.listPeople())
+      .filter((each) => assignedIds.has(each.id))
+      .map(({ id, name }) => ({ id, name }));
     const assigneesOf = new Map<string, Record<string, string>>();
     for (const each of assigned) {
       assigneesOf.set(each.workItemId, {
@@ -716,6 +753,12 @@ export class WorkItemService {
       scheduleError,
       waitingForPerson,
       slices: scheduledSlices,
+      // The very array `slicesOf` was handed the ids of, so a slice's `roleId`
+      // is a role this list has and its place in the list is the order the
+      // engine placed the bars in. Neither is true of a role list fetched
+      // separately.
+      roles,
+      assignedPeople,
       estimateMethod: project.estimateMethod,
       startDate: project.startDate,
       projectRevision: project.revision,

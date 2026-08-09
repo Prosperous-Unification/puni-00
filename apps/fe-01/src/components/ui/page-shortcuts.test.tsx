@@ -84,6 +84,8 @@ function silentApi(): SilentApi {
           seq: 1,
           scheduleError: null,
           slices: [],
+          roles: [],
+          assignedPeople: [],
           estimateMethod: 'pert' as const,
           startDate: null,
           projectRevision: 1,

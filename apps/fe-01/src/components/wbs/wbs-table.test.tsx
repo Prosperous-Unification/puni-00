@@ -224,6 +224,11 @@ function fakeApi(): ProjectApi & {
             boundBy: 'projectStart' as const,
             resourcePredecessorId: null,
           })),
+        // On the read that carried the slices, as be-01 sends them: the chart
+        // reads its roles and its names from here and not from the separate
+        // `roles`/`listPeople` calls the pickers make.
+        roles: roleList.map((role) => ({ ...role })),
+        assignedPeople: people.map(({ id, name }) => ({ id, name })),
         estimateMethod,
         startDate,
         // Never moved by anything the table does: the fake's mutations are all
@@ -4805,6 +4810,8 @@ describe('dependencies in the table — cross-review findings', () => {
                   ...schedule,
                 },
               ],
+        roles: [DEV],
+        assignedPeople: [],
         estimateMethod: 'pert' as const,
         workItems: [
           {

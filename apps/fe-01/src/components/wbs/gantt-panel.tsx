@@ -118,6 +118,46 @@ const ARROW_HEAD_PX = 7;
 const ARROW_HEAD_HALF_PX = 3.5;
 
 /**
+ * The heaviest stroke anything on this chart is drawn with, in CSS pixels.
+ *
+ * Every stroke here is `non-scaling-stroke`, so it is centred on its geometry
+ * and half of it lies outside: a mark standing exactly on the canvas edge is
+ * painted half. Named rather than folded into the number below, because it is
+ * why {@link CHART_PAD_PX} is not simply the excursion.
+ */
+const HEAVIEST_STROKE_PX = 2;
+
+/**
+ * How much canvas the chart keeps **outside** the schedule, at each end, in CSS
+ * pixels.
+ *
+ * The marks are not all inside the engine's numbers. A dependency arrow steps
+ * {@link ARROW_APPROACH_PX} clear of a bar before it turns and carries a head
+ * back to the bar's own edge, and a not-before caret reaches
+ * {@link NOT_BEFORE_LENGTH_PX} to the right of the day it holds — so a
+ * successor at workday 0 routes through **negative** x, and an arrow off the
+ * last bar routes past the horizon. The `viewBox` used to start at 0 and end at
+ * the horizon, and a browser's own `overflow: hidden` on an `<svg>` clipped
+ * both: at workday 0 the head painted **nothing at all**, measured in
+ * Chromium, while `getBoundingClientRect` went on reporting the box it would
+ * have had.
+ *
+ * So the drawn canvas is the schedule plus this band at either side, and the
+ * viewBox says so: `-pad 0 (horizon + 2·pad) rowCount`. The coordinate contract
+ * is untouched — a bar's `x` is still `earliestStart` and its `width` still
+ * `duration`, verbatim (design §1). What moves is where the **canvas** ends,
+ * which the contract says nothing about, and the axis and the on-bar labels are
+ * shifted by the same number so the workday a bar starts on is still the pixel
+ * its axis cell starts at.
+ *
+ * Symmetric, because both edges have the fault and one number is one thing to
+ * keep true. Wide enough for the widest excursion any mark makes plus the
+ * heaviest stroke it is drawn with, so a mark standing on the boundary is
+ * painted whole rather than halved.
+ */
+export const CHART_PAD_PX = Math.max(ARROW_APPROACH_PX, NOT_BEFORE_LENGTH_PX) + HEAVIEST_STROKE_PX;
+
+/**
  * The two paths one dependency arrow is drawn from: the elbow, and the filled
  * head at the end of it.
  *
@@ -460,7 +500,11 @@ export function GanttPanel({
   // height rather than one the browser divides by.
   const rowCount = Math.max(1, chart.labels.length);
   const axis = workdayAxis(startDate, chart.horizon);
-  const chartWidth = axis.length * DAY_PX;
+  // The band outside the schedule, in the user space's own unit: a workday is
+  // {@link DAY_PX} across, so this is what {@link CHART_PAD_PX} is worth in
+  // workdays. See there for why the canvas is wider than the horizon.
+  const pad = CHART_PAD_PX / DAY_PX;
+  const chartWidth = axis.length * DAY_PX + 2 * CHART_PAD_PX;
   const rowIdAt = (rowIndex: number): string | undefined => chart.labels[rowIndex]?.id;
 
   return (
@@ -519,7 +563,10 @@ export function GanttPanel({
           <div
             data-gantt-axis
             className="border-border bg-muted/40 flex border-b"
-            style={{ height: ROW_PX }}
+            // The same band the SVG keeps at its left, so workday 0's cell
+            // starts where the SVG's user x=0 does. Without it the whole
+            // calendar sits {@link CHART_PAD_PX} left of the bars it labels.
+            style={{ height: ROW_PX, paddingLeft: CHART_PAD_PX }}
           >
             {axis.map((day) => (
               <span
@@ -551,9 +598,9 @@ export function GanttPanel({
               data-gantt-chart
               // The contract, in three attributes: the user space is workdays by
               // rows, and the CSS size is the only place either becomes a pixel.
-              viewBox={`0 0 ${String(chart.horizon)} ${String(rowCount)}`}
+              viewBox={`${String(-pad)} 0 ${String(chart.horizon + 2 * pad)} ${String(rowCount)}`}
               preserveAspectRatio="none"
-              width={chart.horizon * DAY_PX}
+              width={chart.horizon * DAY_PX + 2 * CHART_PAD_PX}
               height={rowCount * ROW_PX}
               style={{ display: 'block' }}
             >
@@ -787,7 +834,10 @@ export function GanttPanel({
                     // white on the other seven, never one white for all ten.
                     // See {@link inkOn}.
                     color: inkOn(bar.personColor),
-                    left: bar.start * DAY_PX,
+                    // Over the SVG, which now begins one band left of the
+                    // schedule: the label's pixel is the bar's pixel only with
+                    // the same band added. See {@link CHART_PAD_PX}.
+                    left: bar.start * DAY_PX + CHART_PAD_PX,
                     top: (bar.rowIndex + BAR_INSET) * ROW_PX,
                     width: bar.duration * DAY_PX,
                     height: BAR_HEIGHT * ROW_PX,

@@ -13,7 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Modal, ModalContent, ModalHeader, ModalTitle, ModalTrigger } from '@/components/ui/modal';
 import type { ProjectStream } from '@/lib/project-stream';
-import type { PersonView, TeamView } from '@/lib/wbs-api';
+import type { AssignedPersonView, PersonView, TeamView } from '@/lib/wbs-api';
 import {
   type Days,
   type EstimateMethod,
@@ -49,6 +49,7 @@ import {
   trioProblem,
   type TypedTrio,
 } from './estimate-draft';
+import { GanttFaultBoundary } from './gantt-fault';
 import type { GanttPlan } from './gantt-geometry';
 import { GanttPanel } from './gantt-panel';
 import { type Command, commandChordIn, undoChord } from './keyboard-bindings';
@@ -630,6 +631,33 @@ function closesTheSheet(target: EventTarget | null, surface: Element): boolean {
   return control !== null && control.getAttribute('aria-haspopup') === null;
 }
 
+/**
+ * One read of the tree, as far as the chart is concerned: the slices, the roles
+ * they were placed under, and the names of everybody on them.
+ *
+ * All three arrive on the same request, and this type is what keeps them
+ * arriving together — see {@link GanttPlan} for what happens to a drawing whose
+ * parts came from different moments.
+ */
+interface ChartRead {
+  slices: SliceView[];
+  roles: RoleView[];
+  people: AssignedPersonView[];
+  /**
+   * Which read this is: `refresh`'s own generation, and 0 before any has
+   * landed.
+   *
+   * Carried here rather than kept in a ref because it is what
+   * {@link GanttFaultBoundary} resets on — a fault caught while drawing one
+   * read must clear when the next one arrives, and only a value that renders
+   * can say a new one has.
+   */
+  generation: number;
+}
+
+/** No read has landed yet: no slices, no roles, nobody, and no generation. */
+const NO_CHART_READ: ChartRead = { slices: [], roles: [], people: [], generation: 0 };
+
 const column = createColumnHelper<TreeRow>();
 
 /**
@@ -648,17 +676,26 @@ const column = createColumnHelper<TreeRow>();
 export function WbsTable({ projectId, projectName, api, subscribe }: WbsTableProps) {
   const [workItems, setWorkItems] = useState<TreeRow[]>([]);
   /**
-   * The slices of the tree on screen — be-01's placed schedule, held beside the
-   * rows it belongs to.
+   * Everything the chart is drawn from, as **one** read delivered it.
    *
-   * Replaced whole on every refetch, never patched, for the reason the rows are:
-   * one edit can move slices of work items this client never touched — a person
-   * freed here starts something over there — and guessing which would be a
-   * second implementation of the engine. They are held here rather than fetched
-   * where they are drawn because they arrive on the same read as the rows, and
-   * two reads would be two moments.
+   * Replaced whole on every refetch, never patched, for the reason the rows
+   * are: one edit can move slices of work items this component never touched —
+   * a person freed here starts something over there — and guessing which would
+   * be a second implementation of the engine.
+   *
+   * One state and not three, and that is the fix rather than a tidy-up.
+   * `layOutGantt` refuses a payload whose slices name a role or a person it has
+   * not got, which is exactly what this client held while the slices came from
+   * `tree()` and the roles and names came from `roles()` and `listPeople()`:
+   * four requests, four moments, and a peer deleting a phase in between left a
+   * chart that threw. Held together, they cannot disagree — there is no setter
+   * that can move one without the others.
+   *
+   * The separate reads stay for what they are actually about: {@link roles}
+   * heads the estimate columns and the phases dialog edits it, and
+   * {@link people} is who the assignee picker can offer.
    */
-  const [slices, setSlices] = useState<SliceView[]>([]);
+  const [chartRead, setChartRead] = useState<ChartRead>(NO_CHART_READ);
   const [roles, setRoles] = useState<RoleView[]>([]);
   /**
    * Which branches are open, as this browser last left them for this project.
@@ -1044,7 +1081,18 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     // read put them — and `replaces the slices on every refetch, as it replaces
     // the rows` failed on `expected '2' to be '1'`: a second row on screen with
     // the one-row plan's slices still behind it; watched 2026-08-09.
-    setSlices(tree.slices);
+    //
+    // One call, so the chart's three parts can only ever be one payload's. The
+    // roles and the names come from `tree` and **not** from `loadedRoles` or
+    // `loadedPeople` below: those are three more requests, and a peer's phase
+    // delete landing between them is what used to hand `layOutGantt` a slice
+    // under a role the plan no longer listed.
+    setChartRead({
+      slices: tree.slices,
+      roles: tree.roles,
+      people: tree.assignedPeople,
+      generation,
+    });
     setStack({ undoable: tree.undoable, redoable: tree.redoable });
     setScheduleError(tree.scheduleError);
     setEstimateMethod(tree.estimateMethod);
@@ -4227,15 +4275,19 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
       },
       notBeforeOffset: notBeforeOffsetOf(startDate, row.original.startNoEarlierThan),
     })),
-    slices,
+    slices: chartRead.slices,
     // The stored dependencies of the rows on screen. An edge whose other end is
     // collapsed away or narrowed off is dropped by `layOutGantt`, which is a
     // modeled absence there rather than a filter here.
     dependencies: shownRows.flatMap((row) =>
       row.original.dependsOn.map((predecessorId) => ({ predecessorId, successorId: row.id })),
     ),
-    roles,
-    personNames: new Map(people.map((person) => [person.id, person.name])),
+    // All three off {@link chartRead}, which is one payload. **Not** `roles`
+    // and `people`: those are the separate reads the pickers and the phases
+    // dialog are about, and a slice checked against a role list from another
+    // moment is the skew `layOutGantt` throws on.
+    roles: chartRead.roles,
+    personNames: new Map(chartRead.people.map((person) => [person.id, person.name])),
   };
 
   /**
@@ -4576,7 +4628,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
       // so this stays as the trace they leave with it closed, which is what
       // lets `wbs-table.test.tsx` watch "a refetch replaces the slices" break
       // without opening a chart.
-      data-slice-count={slices.length}
+      data-slice-count={chartRead.slices.length}
     >
       {/*
         Two places for one toolbar, and which one is a fact about the viewport.
@@ -4958,12 +5010,19 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         opens.
       */}
       {ganttOpen && (
-        <GanttPanel
-          plan={ganttPlan}
-          startDate={startDate}
-          scheduleError={scheduleError}
-          onPickRow={goToRow}
-        />
+        // The boundary wraps the panel and nothing else, which is the whole of
+        // the degradation this feature is allowed: a chart that cannot be drawn
+        // costs the reader the chart, never the editor above it. See
+        // {@link GanttFaultBoundary} for why it resets on the read rather than
+        // on a key.
+        <GanttFaultBoundary generation={chartRead.generation}>
+          <GanttPanel
+            plan={ganttPlan}
+            startDate={startDate}
+            scheduleError={scheduleError}
+            onPickRow={goToRow}
+          />
+        </GanttFaultBoundary>
       )}
 
       {/*
