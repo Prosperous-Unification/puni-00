@@ -70,6 +70,7 @@ import { type CardAssignee, PlanCards } from './plan-cards';
 import { describeGaps, findEstimateGaps } from './plan-completeness';
 import { type PlanExport, planFileName, planToCsv, planToMarkdown } from './plan-export';
 import { useRendererForViewport } from './plan-renderer';
+import { printedDay } from './short-date';
 import {
   CELL,
   flexibleCellStyle,
@@ -3164,10 +3165,19 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    * with the columns.
    */
   const spanOf = useCallback(
-    (row: TreeRow) => ({
-      start: row.dates?.startsOn ?? showSchedule(row.schedule.earliestStart),
-      finish: row.dates?.endsOn ?? showSchedule(row.schedule.earliestFinish),
-    }),
+    (row: TreeRow) => {
+      // One `today` for both ends of one row, so a render that straddles
+      // midnight cannot print a start off this year and a finish off the next.
+      const today = new Date();
+      return {
+        start: printedDay(row.dates?.startsOn ?? null, today, () =>
+          showSchedule(row.schedule.earliestStart),
+        ),
+        finish: printedDay(row.dates?.endsOn ?? null, today, () =>
+          showSchedule(row.schedule.earliestFinish),
+        ),
+      };
+    },
     [showSchedule],
   );
 
@@ -4268,17 +4278,34 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         // so the distinction moved into the `title`. The column is a figure
         // either way and the cell shows which kind it is.
         header: () => <span title={live.current.startDateHint('earliest start')}>Start</span>,
-        cell: ({ row }) => <span data-start>{live.current.spanOf(row.original).start}</span>,
+        cell: ({ row }) => {
+          const start = live.current.spanOf(row.original).start;
+          // The whole day in the `title`, so the shortening costs nothing: a
+          // cell reading `1 Jun` still answers "which 1 Jun" on hover.
+          return (
+            <span data-start title={start.iso ?? undefined}>
+              {start.text}
+            </span>
+          );
+        },
       }),
       column.display({
         id: 'finish',
         header: () => <span title={live.current.startDateHint('earliest finish')}>End</span>,
-        cell: ({ row }) => (
-          <span data-finish title={row.original.schedule.estimated ? undefined : 'No estimate yet'}>
-            {live.current.spanOf(row.original).finish}
-            {live.current.hasSchedule() && !row.original.schedule.estimated ? ' ?' : ''}
-          </span>
-        ),
+        cell: ({ row }) => {
+          const finish = live.current.spanOf(row.original).finish;
+          // Both facts in one `title`, because a cell has one: the day in full,
+          // and — where the figure is a guess — what the marker beside it means.
+          const said = [finish.iso, row.original.schedule.estimated ? null : 'No estimate yet']
+            .filter((part) => part !== null)
+            .join(' — ');
+          return (
+            <span data-finish title={said === '' ? undefined : said}>
+              {finish.text}
+              {live.current.hasSchedule() && !row.original.schedule.estimated ? ' ?' : ''}
+            </span>
+          );
+        },
       }),
       column.display({
         id: 'float',

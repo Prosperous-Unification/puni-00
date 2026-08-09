@@ -1559,15 +1559,50 @@ describe('the plan on a calendar', () => {
     expect(rowFor('010').querySelector('[data-start]')?.textContent).toBe('0');
   });
 
-  itDom('shows dates once the project starts on a day', async () => {
+  itDom('shows dates once the project starts on a day, as somebody reads one', async () => {
+    // `2026-08-06` in a 52px column, for a reader who already knows what year
+    // it is. The whole day stays in the cell's `title`, so the shortening
+    // costs nothing.
+    // Proof: `printedDay` made to hand back the raw `iso` as its `text`, this
+    // failed on `expected '2026-08-06' to be '6 Aug'`. Watched, 2026-08-09.
     const api = await oneRow();
 
     typeIntoDate('Project start date', '2026-08-06');
 
     await waitFor(() => {
-      expect(rowFor('010').querySelector('[data-start]')?.textContent).toBe('2026-08-06');
+      expect(rowFor('010').querySelector('[data-start]')?.textContent).toBe('6 Aug');
     });
+    expect(rowFor('010').querySelector('[data-start]')?.getAttribute('title')).toBe('2026-08-06');
+    expect(rowFor('010').querySelector('[data-finish]')?.textContent).toContain('6 Aug');
+    expect(rowFor('010').querySelector('[data-finish]')?.getAttribute('title')).toContain(
+      '2026-08-06',
+    );
     expect(api.rows.length).toBe(1);
+  });
+
+  itDom('carries the year on a day that is not in this one', async () => {
+    // The omission is only unambiguous while it is the reader's own year, so a
+    // plan that runs into another one says which.
+    const today = new Date();
+    await oneRow();
+
+    typeIntoDate('Project start date', `${String(today.getFullYear() + 1)}-06-01`);
+
+    await waitFor(() => {
+      expect(rowFor('010').querySelector('[data-start]')?.textContent).toBe(
+        `1 Jun ${String(today.getFullYear() + 1)}`,
+      );
+    });
+  });
+
+  itDom('leaves the workday offsets alone while the plan has no start date', async () => {
+    // The fallback this change did not touch: without a project start date
+    // there are no dates to shorten, and the columns print day numbers with
+    // nothing fuller to put in a `title`.
+    await oneRow();
+
+    expect(rowFor('010').querySelector('[data-start]')?.textContent).toBe('0');
+    expect(rowFor('010').querySelector('[data-start]')?.getAttribute('title')).toBe(null);
   });
 
   itDom('will not take an earliest start while the plan has no start date', async () => {
@@ -1637,7 +1672,7 @@ describe('the plan on a calendar', () => {
       expect(sent).toEqual(['2026-08-17']);
     });
     await waitFor(() => {
-      expect(rowFor('010').querySelector('[data-start]')?.textContent).toBe('2026-08-17');
+      expect(rowFor('010').querySelector('[data-start]')?.textContent).toBe('17 Aug');
     });
   });
 
@@ -4652,6 +4687,12 @@ describe('dependencies in the table', () => {
       .find((tr) => tr.querySelector('[data-number]')?.textContent === '010');
 
     expect(row?.querySelector('[data-finish]')?.textContent).toContain('?');
+    // And what the marker means, in the one attribute the cell has — beside
+    // the day in full once there is one, rather than instead of it.
+    // Proof: the `'No estimate yet'` half dropped from the cell's `title`,
+    // this failed on `expected null to contain 'No estimate yet'`. Watched,
+    // 2026-08-09.
+    expect(row?.querySelector('[data-finish]')?.getAttribute('title')).toContain('No estimate yet');
   });
 });
 
