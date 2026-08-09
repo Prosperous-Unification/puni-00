@@ -142,9 +142,24 @@ describe('work item routes', () => {
     const body = (await tree.json()) as {
       waitingForPerson: number;
       workItems: { name: string; schedule: { earliestStart: number } }[];
+      slices: {
+        id: string;
+        workItemId: string;
+        boundBy: string;
+        resourcePredecessorId: string | null;
+      }[];
     };
 
     expect(body.waitingForPerson).toBe(1);
+    // The slices leave the process, not merely the service: the route spreads
+    // the tree, so this is what says the array survives serialisation to JSON
+    // and the ids in it still refer to each other on the other side.
+    const held = body.slices.filter((one) => one.boundBy === 'person');
+    expect(held.map((one) => one.workItemId)).toEqual([second]);
+    expect(held[0]?.resourcePredecessorId).toBe(
+      body.slices.find((one) => one.workItemId === first && one.boundBy === 'projectStart')?.id ??
+        null,
+    );
     // In tree order, which is the reverse of the order they were added: each
     // was created with no `afterId` and therefore in front of the other.
     expect(body.workItems.map((w) => [w.name, w.schedule.earliestStart])).toEqual([

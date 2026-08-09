@@ -19,6 +19,7 @@ import {
   isEstimateMethod,
   type ProjectApi,
   type RoleView,
+  type SliceView,
 } from '@/lib/wbs-api';
 
 import { ActionsMenu } from './actions-menu';
@@ -625,6 +626,18 @@ const column = createColumnHelper<TreeRow>();
  */
 export function WbsTable({ projectId, projectName, api, subscribe }: WbsTableProps) {
   const [workItems, setWorkItems] = useState<TreeRow[]>([]);
+  /**
+   * The slices of the tree on screen — be-01's placed schedule, held beside the
+   * rows it belongs to.
+   *
+   * Replaced whole on every refetch, never patched, for the reason the rows are:
+   * one edit can move slices of work items this client never touched — a person
+   * freed here starts something over there — and guessing which would be a
+   * second implementation of the engine. They are held here rather than fetched
+   * where they are drawn because they arrive on the same read as the rows, and
+   * two reads would be two moments.
+   */
+  const [slices, setSlices] = useState<SliceView[]>([]);
   const [roles, setRoles] = useState<RoleView[]>([]);
   /**
    * Which branches are open, as this browser last left them for this project.
@@ -995,6 +1008,14 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     setTeams(loadedTeams);
     setPeople(loadedPeople);
     setWorkItems(toTree(tree.workItems));
+    // On the same read as the rows and behind the same generation check: a
+    // superseded read must not leave its slices under another read's rows.
+    // Proof: written as `setSlices((current) => current.length === 0 ?
+    // tree.slices : current)` — the refetch leaving the slices where the first
+    // read put them — and `replaces the slices on every refetch, as it replaces
+    // the rows` failed on `expected '2' to be '1'`: a second row on screen with
+    // the one-row plan's slices still behind it; watched 2026-08-09.
+    setSlices(tree.slices);
     setStack({ undoable: tree.undoable, redoable: tree.redoable });
     setScheduleError(tree.scheduleError);
     setEstimateMethod(tree.estimateMethod);
@@ -4427,7 +4448,15 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
       falls back to content height and the frame never scrolls. `ProjectPage`
       has the same pair on `<main>`, and `table-frame.ts` has the why.
     */
-    <section className="flex min-h-0 flex-1 flex-col">
+    <section
+      className="flex min-h-0 flex-1 flex-col"
+      // How many slices the plan on screen was drawn from. Nothing in the app
+      // reads it: the Gantt panel that draws them mounts in this section a
+      // slice from now, and until it does this is the only trace the payload's
+      // slices leave — which is what makes "the refetch replaces them" a claim
+      // a test can watch break rather than one to take on trust.
+      data-slice-count={slices.length}
+    >
       {/*
         Two places for one toolbar, and which one is a fact about the viewport.
 
