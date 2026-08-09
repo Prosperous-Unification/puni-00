@@ -4456,7 +4456,23 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
               side="bottom"
               // Taking a control on this sheet is taking it on the plan behind
               // it, and the plan is what wants looking at next.
-              onClickCapture={(event) => {
+              //
+              // **The bubble phase, and that is load-bearing.** As
+              // `onClickCapture` this closed the sheet *before* the control's
+              // own handler ran, and in a real browser that means the handler
+              // never ran at all: React registers one capture listener and one
+              // bubble listener per container, a discrete update flushes
+              // between them, and the button is unmounted by the time the
+              // bubble dispatch walks the fiber tree looking for handlers. So
+              // every toolbar control on the sheet did nothing — no request,
+              // no work item. jsdom passed all sixteen card tests through it,
+              // because `Add work item`'s own `onClick` had already been
+              // collected there.
+              //
+              // Found by a browser at 390×844, 2026-08-09: `POST
+              // /api/projects/…/work-items` simply absent from the network log
+              // after a click that closed the sheet.
+              onClick={(event) => {
                 if (!closesTheSheet(event.target, event.currentTarget)) return;
                 sheetActedOnThePlan.current = true;
                 setToolbarSheetOpen(false);
