@@ -319,6 +319,63 @@ test.describe('the command chords, in a browser', () => {
     expect(await numbersOnScreen(page)).toEqual(['010', '020', '030']);
   });
 
+  test('a modified Enter or Space on a menu item takes nothing', async ({ page }) => {
+    // The one leak jsdom cannot see. A `<button>` fires a click of its own from
+    // Enter and from Space unless the keydown was prevented, and the item's
+    // modifier guard used to return *before* `preventDefault` — so Chrome
+    // synthesized the click and the item ran. Observed live on 2026-08-09:
+    // menu open on a row, Cmd+Enter, and the row was duplicated.
+    //
+    // Three modified activations rather than one, because which of them a
+    // platform delivers is the platform's business: ⌘/Ctrl+Enter is the
+    // table's own next-or-create chord, and Shift+Enter and Shift+Space are
+    // the two the browser probe caught clicking as well.
+    await seedRows(page, `e2e-keys-${String(Date.now())}-${String(account)}`, 2);
+
+    await page.getByRole('button', { name: 'Actions for 010' }).click();
+    const duplicate = page.getByRole('menuitem', { name: 'Duplicate' });
+    await expect(duplicate).toBeFocused();
+
+    for (const chord of ['ControlOrMeta+Enter', 'Shift+Enter', 'Shift+Space']) {
+      await page.keyboard.press(chord);
+      await page.waitForTimeout(200);
+      // Nothing taken, and the menu is still open under the hand that is
+      // reading it: an item that ran would have closed it on the way out.
+      expect(await numbersOnScreen(page), `after ${chord}`).toEqual(['010', '020']);
+      await expect(duplicate, `after ${chord}`).toBeVisible();
+      await expect(duplicate, `after ${chord}`).toBeFocused();
+    }
+
+    // And the bare key still does what the menu is for.
+    await page.keyboard.press('Enter');
+    // The copy lands next to its original, so the row that proves it arrived
+    // is the third one — `Name of 020` was on screen before the duplicate too.
+    await expect(page.getByLabel('Name of 030')).toBeVisible();
+    expect(await numbersOnScreen(page)).toEqual(['010', '020', '030']);
+    await expect(page.getByRole('menu')).toHaveCount(0);
+  });
+
+  test('a modified Enter, Space or ↓ does not open the ⋯ menu', async ({ page }) => {
+    // The same fault one handler along, and a direct one rather than a default
+    // click: the opening button recognized Enter, Space and ↓ and opened on
+    // them with no modifier guard at all, so every chord aimed at the plan
+    // opened a menu over the row it was aimed at.
+    await seedRows(page, `e2e-keys-${String(Date.now())}-${String(account)}`, 1);
+
+    const opener = page.getByRole('button', { name: 'Actions for 010' });
+    await opener.focus();
+
+    for (const chord of ['ControlOrMeta+Enter', 'Shift+Enter', 'Shift+Space', 'Alt+ArrowDown']) {
+      await page.keyboard.press(chord);
+      await page.waitForTimeout(200);
+      expect(await page.getByRole('menu').count(), `after ${chord}`).toBe(0);
+      await expect(opener, `after ${chord}`).toHaveAttribute('aria-expanded', 'false');
+    }
+
+    await page.keyboard.press('Enter');
+    await expect(page.getByRole('menu')).toBeVisible();
+  });
+
   test('a held Ctrl+D arms once and never deletes', async ({ page }) => {
     await seedRows(page, `e2e-keys-${String(Date.now())}-${String(account)}`, 3);
 

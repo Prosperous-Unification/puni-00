@@ -63,7 +63,7 @@ import {
   tableMinWidth,
   widthFor,
 } from './table-frame';
-import { ToastStack, useToasts } from './toasts';
+import { type Toast, toastKey, ToastStack, useToasts } from './toasts';
 import { searchTree } from './tree-search';
 import { toTree, type TreeRow } from './wbs-rows';
 
@@ -111,14 +111,66 @@ const draftKey = (rowId: string, roleId: string, point: Point): string =>
 const combinedDraftKey = (rowId: string, roleId: string): string => `${rowId}::${roleId}::combined`;
 
 /**
- * What a rejected request says, or `fallback` when it threw something that is
- * not an `Error`.
+ * be-01's word for a rejected request, or `fallback` when it threw something
+ * that is not an `Error`.
  *
- * be-01's own word where there is one — `cycle`, `forbidden` — because a
- * translation layer here would be a second vocabulary for one set of refusals.
+ * The **code**, not a sentence: `send` throws the error word be-01 answered
+ * with (or `http_<status>`), and the two callers left here want the word
+ * itself. {@link refusalSentence} is what a toast says instead — see the note
+ * on each call for why these two are not it.
  */
 const failureText = (thrown: unknown, fallback: string): string =>
   thrown instanceof Error ? thrown.message : fallback;
+
+/**
+ * What a refused mutation says, by be-01's own word for the refusal.
+ *
+ * Every other refusal in this table is a full sentence — `That could not be
+ * undone: …`, `020 is frozen — unfreeze it first` — and these were the
+ * exception: `not_found` and `http_500` reached the corner of the screen
+ * verbatim, observed live on 2026-08-09. The translation lives here rather
+ * than in `wbs-api.ts` for the reason `auth-form.tsx` keeps its own map: the
+ * codes are be-01's contract and have to stay stable, and the sentence is a
+ * presentation decision that differs per surface.
+ *
+ * Not exhaustive on purpose. {@link refusalSentence} has a grammatical
+ * fallback that carries the code, so a word nobody has written a sentence for
+ * is still a sentence rather than a snake_case token.
+ */
+const REFUSAL_SENTENCES: Readonly<Record<string, string | undefined>> = {
+  not_found:
+    'That change could not be completed: its target is no longer here — someone may have deleted it.',
+  forbidden: 'That change could not be completed: this plan is not yours to change.',
+  // Reachable bare — the dependency **picker** takes one entry through `run`,
+  // where the typed list composes its own sentence and keeps the word instead.
+  cycle: 'That dependency could not be added: it would make a loop.',
+  ancestor: 'That dependency could not be added: the row it names is already above this one.',
+};
+
+/** What any 5xx says. Something answered, so never "the server did not answer". */
+const SERVER_REFUSAL = 'The server could not complete that change. Try again.';
+
+/**
+ * The sentence a refused mutation is reported in.
+ *
+ * @param thrown Whatever the request rejected with; anything that is not an
+ * `Error` reads as an unknown code rather than being guessed at.
+ */
+const refusalSentence = (thrown: unknown): string => {
+  const code = failureText(thrown, 'unknown');
+  const known = REFUSAL_SENTENCES[code];
+  if (known !== undefined) return known;
+  // The whole 5xx family, matched rather than listed: a proxy in front of
+  // be-01 can answer with any of them and none of them is the reader's doing.
+  if (/^http_5\d\d$/.test(code)) return SERVER_REFUSAL;
+  return `That change could not be completed (${code}).`;
+};
+
+/**
+ * be-01's word for "the row you named is not there", which is the one refusal
+ * that also says the tree on screen is out of date.
+ */
+const GONE = 'not_found';
 
 /**
  * What an export calls a project it was not told the name of.
@@ -480,6 +532,31 @@ function altMoveIn(event: React.KeyboardEvent): AltMove | null {
 
 /** The `data-cell` value for one editable cell, and the selector that finds it. */
 const cellKey = (rowId: string, columnId: string): string => `${rowId}::${columnId}`;
+
+/**
+ * The `data-cell` of whatever holds the focus, or null when that is not a cell
+ * of the grid at all — a ⋯ button, a toolbar button, or nothing.
+ *
+ * Null is a real answer here rather than a missing one: "the reader is not
+ * standing in a cell" is exactly the state a command taken from the actions
+ * menu leaves behind, and it is what tells a pending focus intent apart from a
+ * reader who has moved on.
+ */
+function focusedCellKey(): string | null {
+  const active = document.activeElement;
+  return active instanceof HTMLElement ? (active.dataset['cell'] ?? null) : null;
+}
+
+/**
+ * Whether a list is open somewhere in the table: the folded cell's `@`
+ * mentions, the dependency picker, or a {@link CreatablePicker}'s.
+ *
+ * Read from the committed DOM rather than from the three pieces of state that
+ * can open one, for {@link editableGrid}'s reason and one more: they are three,
+ * and a fourth list would have to remember to join them here.
+ */
+const aListIsOpenIn = (table: HTMLTableElement): boolean =>
+  table.querySelector('[role="listbox"]') !== null;
 
 /**
  * What the caret in an input is doing, for `nextCell` to decide on.
@@ -854,6 +931,16 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    */
   const focusNext = useRef<CellRef | null>(null);
   /**
+   * The cell the command now running was issued from, or null when it came
+   * from a button rather than from the grid.
+   *
+   * Written at the top of {@link run}, which is the synchronous moment the
+   * gesture happened — not where {@link focusNext} is written, because that
+   * happens once the request has been answered, which is the far side of the
+   * window this exists to measure. {@link focusIntentIsStale} reads it.
+   */
+  const commandFrom = useRef<string | null>(null);
+  /**
    * Where the readiness walk has got to: the leaf it last put the focus in,
    * and the cell it asked for.
    *
@@ -1010,6 +1097,11 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
       // last good tree to be stale, so this is an event to report rather than
       // a state to sit under. "This plan may be out of date" over an empty
       // table would be a sentence about a plan that never arrived.
+      //
+      // Not `refusalSentence`: nothing was refused. This is the first read of
+      // the plan failing — a network word, not a verdict on a change somebody
+      // asked for — and "That change could not be completed" would name a
+      // change nobody made.
       pushToast({ kind: 'error', text: failureText(thrown, 'load_failed') });
     });
   }, [refresh, pushToast]);
@@ -1096,6 +1188,36 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
   }, [workItems, pushToast]);
 
   /**
+   * Whether a pending {@link focusNext} has been overtaken by the person using
+   * the table, and so must not fire.
+   *
+   * A structural edit is a request and a refetch, and the reader is free to do
+   * something else in between. Two of those somethings make the focus move a
+   * theft rather than a service, and both were observed on 2026-08-09: the
+   * caret was pulled out of a folded cell with an open `@` list mid-burst, the
+   * list closed with it, and the keys still coming landed in an ordinary cell
+   * and made a row.
+   *
+   * - **A list is open.** Whatever it is attached to, it owns the keyboard
+   *   until Escape gives it back, and moving the focus closes it.
+   * - **The focus is in a different cell from the one the command came from.**
+   *   That is the fact that separates the wanted steals from this one: after
+   *   Ctrl+N, Alt+N, Cmd+Enter, Duplicate or Delete the reader is still in the
+   *   cell they pressed it in — or on the ⋯ button, which is no cell at all
+   *   and reads as "leave it alone", not as "somewhere else".
+   *
+   * Conservative on purpose: with nothing focused, or the focus already in the
+   * cell the intent names, the intent stands.
+   */
+  const focusIntentIsStale = useCallback((wanted: CellRef): boolean => {
+    const table = tableElement.current;
+    if (table !== null && aListIsOpenIn(table)) return true;
+    const standingIn = focusedCellKey();
+    if (standingIn === null || standingIn === commandFrom.current) return false;
+    return standingIn !== cellKey(wanted.rowId, wanted.columnId);
+  }, []);
+
+  /**
    * Lands the focus on the cell {@link focusNext} names, once the tree that
    * holds it is on screen.
    *
@@ -1114,6 +1236,15 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     const wanted = focusNext.current;
     const table = tableElement.current;
     if (wanted === null || table === null) return;
+    // Cancelled rather than left pending: the reader has moved on, so this
+    // intent is not waiting for a tree that has yet to arrive — it is over.
+    // Proof: this dropped here and in the Name cell's `onAttach`, `a late
+    // create does not take the focus back off a cell somebody moved to` failed
+    // on `expected <textarea …> to be <input …>`. Watched, 2026-08-09.
+    if (focusIntentIsStale(wanted)) {
+      focusNext.current = null;
+      return;
+    }
     const arrived = editableGrid(table).find(
       (candidate) =>
         candidate.cell.rowId === wanted.rowId && candidate.cell.columnId === wanted.columnId,
@@ -1126,7 +1257,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     // keeps it on a node React moves, so without that the check could not fail.
     // Watched, 2026-08-06.
     arrived.input.focus();
-  }, [workItems]);
+  }, [workItems, focusIntentIsStale]);
 
   /**
    * One edit: send it, then reread the tree.
@@ -1145,7 +1276,11 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    * 2026-08-06.
    *
    * A refused action skips the reread deliberately: be-01 changed nothing, so
-   * there is nothing new to read.
+   * there is nothing new to read. **One refusal is the exception.**
+   * {@link GONE} says the row this client acted on is not there any more, which
+   * is a fact about the tree on screen rather than about the request — without
+   * the reread the toast says a row is gone while the row stays on screen,
+   * which is the worst of both.
    *
    * The verdict is returned as well as toasted, because a toast is a sentence
    * and some callers need the fact. `CellInput` is the one: a refused edit
@@ -1156,12 +1291,24 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    */
   const run = useCallback(
     async (action: () => Promise<void>): Promise<CommitOutcome> => {
+      // Read here, synchronously, because this is the moment the gesture
+      // happened. {@link focusIntentIsStale} compares it against where the
+      // focus is when the refetch lands, and everything between the two is the
+      // window in which the reader may have gone somewhere else.
+      commandFrom.current = focusedCellKey();
       setBusy(true);
       try {
         try {
           await action();
         } catch (thrown: unknown) {
-          pushToast({ kind: 'error', text: failureText(thrown, 'request_failed') });
+          // Proof, two faults, both watched 2026-08-09. `refusalSentence`
+          // replaced by `failureText`, `says a row that has gone is gone, and
+          // rereads the tree that proves it` failed on `expected [ 'not_found' ]
+          // to include 'That change could not be completed: …'`. The reread
+          // below dropped, the same test failed on `expected [ '010', '020',
+          // '030' ] to deeply equal [ '010', '020' ]`.
+          pushToast({ kind: 'error', text: refusalSentence(thrown) });
+          if (failureText(thrown, '') === GONE) await refreshOrMarkStale();
           return 'refused';
         }
         await refreshOrMarkStale();
@@ -1194,7 +1341,10 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         try {
           outcome = direction === 'undo' ? await api.undo(projectId) : await api.redo(projectId);
         } catch (thrown: unknown) {
-          pushToast({ kind: 'error', text: failureText(thrown, 'request_failed') });
+          // The same register as `run`: be-01's two *modeled* refusals are read
+          // out of the 409 below and get their own sentences; anything else is
+          // a code, and a code is not a sentence.
+          pushToast({ kind: 'error', text: refusalSentence(thrown) });
           return;
         }
         if (outcome.ok) {
@@ -1265,12 +1415,32 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    * `focusout` rather than a blur handler on the cell: the focus can leave by
    * the pointer, and the cell that was armed may not be the one that had it.
    *
-   * Proof: this effect's listeners removed, `leaving the cell disarms it,
-   * however the focus went` failed with the row still tinted. Watched,
-   * 2026-08-08.
+   * **The toast belongs to this effect**, which is the whole of the second
+   * change here. It used to be pushed from `armOrDeleteRow` and never taken
+   * off, so "Ctrl+D again deletes 020" outlived every one of the ways above —
+   * and the delete itself — for the five seconds an info toast lasts. Pushing
+   * it where the arm begins and dismissing it in the cleanup ties the sentence
+   * to the state that makes it true, re-arms included: a fresh arm is a fresh
+   * object, so the cleanup takes the old sentence off before the new one goes
+   * up.
+   *
+   * Proof, two faults. This effect's listeners removed: `leaving the cell
+   * disarms it, however the focus went` failed with the row still tinted —
+   * watched 2026-08-08. The `dismissToast` below dropped: `the arm toast
+   * leaves with the arm, however the arm ends`, `the arm toast leaves when the
+   * delete it promised happens` and `a peer renumbering the armed row disarms
+   * it` all failed on `expected [ … ] to not include 'Ctrl+D again deletes 020
+   * — its children move up'` — watched 2026-08-09.
    */
   useEffect(() => {
     if (armedDelete === null) return undefined;
+    const promise: Toast = {
+      // `info`: it is context with a way out of it, not a failure waiting to be
+      // dismissed — and it takes itself off if the reader walks away.
+      kind: 'info',
+      text: `Ctrl+D again deletes ${armedDelete.number} — its children move up`,
+    };
+    pushToast(promise);
     const disarm = () => {
       setArmedDelete(null);
     };
@@ -1284,12 +1454,13 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     window.addEventListener('blur', disarm);
     document.addEventListener('visibilitychange', onHidden);
     return () => {
+      dismissToast(toastKey(promise));
       clearTimeout(expiry);
       window.removeEventListener('focusout', disarm);
       window.removeEventListener('blur', disarm);
       document.removeEventListener('visibilitychange', onHidden);
     };
-  }, [armedDelete]);
+  }, [armedDelete, pushToast, dismissToast]);
 
   /**
    * A `keyup` of D, which is what the confirming press waits for.
@@ -2170,11 +2341,10 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         return;
       }
       dReleased.current = false;
+      // The state only. The sentence that goes with it is pushed — and taken
+      // off again — by the effect that owns the arm, so it cannot outlive the
+      // arm it describes.
       setArmedDelete({ rowId: row.id, number: row.number });
-      pushToast({
-        kind: 'info',
-        text: `Ctrl+D again deletes ${row.number} — its children move up`,
-      });
     },
     [armedDelete, deleteRow, disarmDelete, pushToast],
   );
@@ -2340,6 +2510,12 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
               // Collected rather than rethrown, so one refusal does not abandon
               // the numbers after it. The reason is be-01's own word — `cycle`,
               // `ancestor` — beside the number it belongs to.
+              //
+              // The **word** here and a sentence everywhere else, deliberately:
+              // this list is already inside one (`These were refused: 010
+              // (cycle), 020 (ancestor).`), and five sentences spliced into a
+              // sixth is not a sentence. A single entry taken from the picker
+              // goes through `run` and does get {@link refusalSentence}.
               refused.push(`${predecessor.number} (${failureText(thrown, 'refused')})`);
             }
           }
@@ -2878,6 +3054,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     duplicateRow,
     deleteRow,
     commitNameCell,
+    focusIntentIsStale,
     onKeyDown,
     onTabKey,
     onArrowKey,
@@ -2932,6 +3109,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     duplicateRow,
     deleteRow,
     commitNameCell,
+    focusIntentIsStale,
     onKeyDown,
     onTabKey,
     onArrowKey,
@@ -3116,6 +3294,14 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                   // committed DOM by the effect that reads `focusNext` after a
                   // refresh.
                   if (wanted?.rowId !== row.original.id || wanted.columnId !== 'name') return;
+                  // The same qualification the effect makes, and it has to be
+                  // made here too: this callback fires during the commit that
+                  // brings the row in, so it wins the race against the effect
+                  // and would land the focus before the effect could refuse.
+                  if (live.current.focusIntentIsStale(wanted)) {
+                    focusNext.current = null;
+                    return;
+                  }
                   focusNext.current = null;
                   element.focus();
                 }}

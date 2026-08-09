@@ -195,6 +195,17 @@ export function ActionsMenu({
           // their own, and the click handler above would toggle the menu shut
           // again the instant this opened it.
           event.preventDefault();
+          // A **bare** key opens the menu, for the item handler's reason and
+          // one more: this button sits in every row, so ⌘/Ctrl+Enter — the
+          // table's next-or-create chord — used to open a menu over whichever
+          // row the caret was passing. The key is consumed either way; the
+          // guard decides only whether the menu opens.
+          // Proof: this line removed, `opens on a bare Enter, Space or ↓ and on
+          // no modified one` failed on `expected 'true' to be 'false'` for
+          // Ctrl+Enter, and the browser's own `a modified Enter, Space or ↓
+          // does not open the ⋯ menu` failed on `expected 0, received 1`.
+          // Watched, 2026-08-09.
+          if (event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return;
           if (open) return;
           openOnto(0);
         }}
@@ -251,16 +262,28 @@ export function ActionsMenu({
                   return;
                 }
                 if (event.key !== 'Enter' && event.key !== ' ') return;
+                // **Before** the modifier guard, and that order is the whole
+                // fix. A `<button>` fires a click of its own from Enter and
+                // from Space unless the keydown was prevented, so returning
+                // early left the browser to take the item the guard had just
+                // refused — a chord aimed at the plan duplicating a branch
+                // because a menu happened to be open. Observed live on
+                // 2026-08-09.
+                // Proof: this line moved back below the guard, `takes the key
+                // away from a modified Enter or Space, and takes nothing`
+                // failed on `expected true to be false`, and the browser's own
+                // `a modified Enter or Space on a menu item takes nothing`
+                // failed on Shift+Enter with a third row on screen. Watched,
+                // 2026-08-09.
+                event.preventDefault();
                 // A **bare** Enter takes the item. Cmd/Ctrl+Enter is the
                 // table's next-or-create chord, and the routing matrix says an
-                // open menu is inert to it: a chord aimed at the plan must not
-                // duplicate a branch because a menu happened to be open.
+                // open menu is inert to it.
                 // Proof: this guard removed, `every chord is inert while a
                 // row’s ⋯ menu is open` failed on `expected [ { id: 'w1', … } ]
                 // to have a length of 3 but got 4` — Duplicate taken by a
                 // keystroke nobody aimed at it. Watched, 2026-08-08.
                 if (event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return;
-                event.preventDefault();
                 takeAction(action);
               }}
             >

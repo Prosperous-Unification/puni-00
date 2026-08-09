@@ -1014,7 +1014,7 @@ describe('duplicating a branch', () => {
     takeRowAction('010', 'Duplicate');
 
     await waitFor(() => {
-      expect(toastTexts()).toContain('too_large');
+      expect(toastTexts()).toContain('That change could not be completed (too_large).');
     });
     expect(numbersOnScreen()).toEqual(['010']);
   });
@@ -1157,7 +1157,9 @@ describe('the row actions menu', () => {
     takeRowAction('020', 'Delete');
 
     await waitFor(() => {
-      expect(toastTexts()).toContain('forbidden');
+      expect(toastTexts()).toContain(
+        'That change could not be completed: this plan is not yours to change.',
+      );
     });
     expect(numbersOnScreen()).toEqual(['010', '020', '030']);
     // Proof: `focusNext` assigned before the `await` rather than after it, this
@@ -3137,7 +3139,9 @@ describe('someone else editing while you are typing', () => {
     fireEvent.change(cell, { target: { value: 'Strip the wiring\nmeasure twice, cut once' } });
     fireEvent.blur(cell);
     await waitFor(() => {
-      expect(toastTexts()).toContain('forbidden');
+      expect(toastTexts()).toContain(
+        'That change could not be completed: this plan is not yours to change.',
+      );
     });
 
     await theirEdit((row) => {
@@ -3370,7 +3374,9 @@ describe('a name and its notes in one box', () => {
 
     retype('Strip the wiring\nmeasure twice, cut once');
     await waitFor(() => {
-      expect(toastTexts()).toContain('forbidden');
+      expect(toastTexts()).toContain(
+        'That change could not be completed: this plan is not yours to change.',
+      );
     });
 
     api.patch = (id: string, patch: Record<string, string>) => {
@@ -3396,7 +3402,9 @@ describe('a name and its notes in one box', () => {
     retype('Strip the wiring\nmeasure twice, cut once');
 
     await waitFor(() => {
-      expect(toastTexts()).toContain('forbidden');
+      expect(toastTexts()).toContain(
+        'That change could not be completed: this plan is not yours to change.',
+      );
     });
     expect(api.rows[0]?.name).toBe('Strip');
     expect(api.rows[0]?.notes).toBe('measure twice');
@@ -5650,13 +5658,15 @@ describe('failures you can see', () => {
 
   itDom('says a refused rename in a toast, and puts nothing above the table', async () => {
     const api = await threeRoots();
-    api.patch = () => Promise.reject(new Error('rename failed: forbidden'));
+    api.patch = () => Promise.reject(new Error('forbidden'));
 
     typeName('010', 'Renamed');
     fireEvent.blur(screen.getByLabelText('Name of 010'));
 
     await waitFor(() => {
-      expect(toastTexts()).toEqual(['rename failed: forbidden']);
+      expect(toastTexts()).toEqual([
+        'That change could not be completed: this plan is not yours to change.',
+      ]);
     });
     // The single alert on screen is the toast itself. The top-of-page error
     // line is gone: two alerts here would be the old one still rendering.
@@ -5671,12 +5681,14 @@ describe('failures you can see', () => {
     // owns its own lifecycle: only its ✕ takes it off.
     const api = await threeRoots();
     const realPatch = api.patch.bind(api);
-    api.patch = () => Promise.reject(new Error('rename failed: forbidden'));
+    api.patch = () => Promise.reject(new Error('forbidden'));
 
     typeName('010', 'Renamed');
     fireEvent.blur(screen.getByLabelText('Name of 010'));
     await waitFor(() => {
-      expect(toastTexts()).toEqual(['rename failed: forbidden']);
+      expect(toastTexts()).toEqual([
+        'That change could not be completed: this plan is not yours to change.',
+      ]);
     });
 
     api.patch = realPatch;
@@ -5686,12 +5698,14 @@ describe('failures you can see', () => {
       expect(screen.getByLabelText('Name of 020')).toHaveProperty('value', 'Sanded');
     });
 
-    expect(toastTexts()).toEqual(['rename failed: forbidden']);
+    expect(toastTexts()).toEqual([
+      'That change could not be completed: this plan is not yours to change.',
+    ]);
   });
 
   itDom('takes a failure off when its ✕ is pressed', async () => {
     const api = await threeRoots();
-    api.patch = () => Promise.reject(new Error('rename failed: forbidden'));
+    api.patch = () => Promise.reject(new Error('forbidden'));
 
     typeName('010', 'Renamed');
     fireEvent.blur(screen.getByLabelText('Name of 010'));
@@ -5699,9 +5713,79 @@ describe('failures you can see', () => {
       expect(toastTexts()).toHaveLength(1);
     });
 
-    click('Dismiss: rename failed: forbidden');
+    click('Dismiss: That change could not be completed: this plan is not yours to change.');
 
     expect(toastTexts()).toEqual([]);
+  });
+
+  itDom('says a row that has gone is gone, and rereads the tree that proves it', async () => {
+    // The race a real user hits: somebody else deletes the row first, and this
+    // client's delete comes back `not_found`. The word itself reached the
+    // corner of the screen as `not_found` until 2026-08-09 — and the row it
+    // was about stayed on screen, because `run` skips the reread after a
+    // refusal. Both halves are the fix.
+    //
+    // Proof, two faults, both watched 2026-08-09. The mapping removed so the
+    // code is passed through, this failed on `expected [ 'not_found' ] to
+    // include 'That change could not be completed: its target is no longer
+    // here — someone may have deleted it.'`. The reread removed, it failed on
+    // `expected [ '010', '020', '030' ] to deeply equal [ '010', '020' ]` — a
+    // sentence saying a row is gone above the row, still there.
+    const api = await threeRoots();
+    const realRemove = api.remove.bind(api);
+    api.remove = async (id: string) => {
+      // The peer's delete, renumbering and all, and then be-01's answer to
+      // ours: there is no such row any more.
+      await realRemove(id);
+      throw new Error('not_found');
+    };
+
+    takeRowAction('020', 'Delete');
+
+    await waitFor(() => {
+      expect(toastTexts()).toContain(
+        'That change could not be completed: its target is no longer here — someone may have deleted it.',
+      );
+    });
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '020']);
+    });
+  });
+
+  itDom('says the server could not do it rather than showing a status', async () => {
+    // `http_500` is what `send` throws when be-01 answers with one and the body
+    // carries no word of its own. It was the toast, verbatim, until 2026-08-09.
+    // Not "the server did not answer": something answered, with a 500.
+    // Proof: the 5xx branch removed, this failed on `expected [ 'http_500' ] to
+    // include 'The server could not complete that change. Try again.'`.
+    // Watched, 2026-08-09.
+    const api = await threeRoots();
+    api.remove = () => Promise.reject(new Error('http_500'));
+
+    takeRowAction('020', 'Delete');
+
+    await waitFor(() => {
+      expect(toastTexts()).toContain('The server could not complete that change. Try again.');
+    });
+    // A 500 is not a "gone": nothing is reread and nothing leaves the screen.
+    expect(numbersOnScreen()).toEqual(['010', '020', '030']);
+  });
+
+  itDom('puts a code it has no sentence for inside one', async () => {
+    // The grammatical fallback `auth-form.tsx` established. A code nobody has
+    // written a sentence for is still a sentence, with the word in brackets for
+    // whoever is reading the console beside it.
+    // Proof: the fallback replaced by the bare code, this failed on `expected
+    // [ 'unknown_strategy' ] to include 'That change could not be completed
+    // (unknown_strategy).'`. Watched, 2026-08-09.
+    const api = await threeRoots();
+    api.remove = () => Promise.reject(new Error('unknown_strategy'));
+
+    takeRowAction('020', 'Delete');
+
+    await waitFor(() => {
+      expect(toastTexts()).toContain('That change could not be completed (unknown_strategy).');
+    });
   });
 
   itDom('raises the stale-tree banner when a socket refetch fails', async () => {
@@ -6232,6 +6316,9 @@ describe('the command chords', () => {
   /** The keyup of D the confirm waits for: a held key can never reach it. */
   const releaseD = (box: Element) => fireEvent.keyUp(box, { key: 'd', code: 'KeyD' });
 
+  /** The sentence an armed row puts on screen, which is only true while it is armed. */
+  const armSays = (number: string) => `Ctrl+D again deletes ${number} — its children move up`;
+
   /** Which row is tinted as armed for deletion, by number. */
   const armedRow = (): string | null => {
     const row = document.querySelector('tr[data-armed="true"]');
@@ -6414,7 +6501,9 @@ describe('the command chords', () => {
     nextOrCreate(cell);
 
     await waitFor(() => {
-      expect(toastTexts()).toContain('forbidden');
+      expect(toastTexts()).toContain(
+        'That change could not be completed: this plan is not yours to change.',
+      );
     });
     expect(numbersOnScreen()).toEqual(['010', '020', '030']);
     expect(document.activeElement).toBe(cell);
@@ -6516,7 +6605,9 @@ describe('the command chords', () => {
 
       refuseThePatch();
       await waitFor(() => {
-        expect(toastTexts()).toContain('forbidden');
+        expect(toastTexts()).toContain(
+          'That change could not be completed: this plan is not yours to change.',
+        );
       });
       await letTheLoopRun();
 
@@ -6740,6 +6831,68 @@ describe('the command chords', () => {
     expect(api.rows).toHaveLength(3);
   });
 
+  itDom('the arm toast leaves with the arm, however the arm ends', async () => {
+    // The sentence is a promise about one row — "Ctrl+D again deletes 020" —
+    // and it was pushed independently of the state that made it true, so it sat
+    // on screen for its whole five seconds after the arm had gone. Observed
+    // live on 2026-08-09, next to a row that was no longer armed.
+    //
+    // Proof: `dismissToast` dropped from the armed-state effect's cleanup, this
+    // failed on `expected [ 'Ctrl+D again deletes 020 — its children move up' ]
+    // not to include 'Ctrl+D again deletes 020 — its children move up'`.
+    // Watched, 2026-08-09.
+    await threeRoots();
+    const cell = nameOf('020');
+    cell.focus();
+
+    armDelete(cell);
+    await waitFor(() => {
+      expect(toastTexts()).toContain(armSays('020'));
+    });
+
+    fireEvent.keyDown(cell, { key: 'Escape', code: 'Escape' });
+    await waitFor(() => {
+      expect(armedRow()).toBeNull();
+    });
+    expect(toastTexts()).not.toContain(armSays('020'));
+
+    // And again for the other way out, because the arm is a fresh object per
+    // press: the toast has to come back and then leave a second time.
+    releaseD(cell);
+    armDelete(cell);
+    await waitFor(() => {
+      expect(toastTexts()).toContain(armSays('020'));
+    });
+
+    fireEvent.focusOut(cell);
+    await waitFor(() => {
+      expect(armedRow()).toBeNull();
+    });
+    expect(toastTexts()).not.toContain(armSays('020'));
+  });
+
+  itDom('the arm toast leaves when the delete it promised happens', async () => {
+    // The pair seen together live: `Deleted 050 — Cmd+Z restores` under
+    // `Ctrl+D again deletes 050 — its children move up`, one of them about a
+    // row that no longer existed.
+    const api = await threeRoots();
+    const cell = nameOf('020');
+    cell.focus();
+
+    armDelete(cell);
+    await waitFor(() => {
+      expect(toastTexts()).toContain(armSays('020'));
+    });
+    releaseD(cell);
+    armDelete(cell);
+
+    await waitFor(() => {
+      expect(toastTexts()).toContain('Deleted 020 — Cmd+Z restores');
+    });
+    expect(toastTexts()).not.toContain(armSays('020'));
+    expect(api.rows).toHaveLength(2);
+  });
+
   itDom('Escape disarms it', async () => {
     await threeRoots();
     const cell = nameOf('020');
@@ -6824,6 +6977,9 @@ describe('the command chords', () => {
       expect(numbersOnScreen()).toEqual(['010', '020', '030']);
     });
     expect(armedRow()).toBeNull();
+    // The sentence goes with the tint: it named 020, and there is no armed 020
+    // any more for it to be true about.
+    expect(toastTexts()).not.toContain(armSays('020'));
   });
 
   itDom('a frozen row refuses to arm and says how to unfreeze it', async () => {
@@ -6839,6 +6995,70 @@ describe('the command chords', () => {
       expect(toastTexts()).toContain('020 is frozen — unfreeze it first');
     });
     expect(armedRow()).toBeNull();
+  });
+
+  itDom('a late create does not take the focus back off a cell somebody moved to', async () => {
+    // codex's mechanism for the one-off chord leak seen live on 2026-08-09. A
+    // structural edit records the cell to focus when its refetch lands, and
+    // that intent used to fire whatever the reader had done in the meantime —
+    // so a create still in flight yanked the caret out of a folded cell with
+    // an open `@` list, closed the list, and the keys still being typed landed
+    // in an ordinary cell and made a row.
+    //
+    // The wanted steals are the ones where the reader never left: Ctrl+N,
+    // Alt+N, Cmd+Enter, Duplicate and Delete all still move the caret, and
+    // their own tests are what say so.
+    //
+    // Proof: the staleness check dropped from both consumers, this failed on
+    // `expected <textarea …>…</textarea> to be <input …>` — the caret pulled
+    // into the new row's name, out of the box that was being typed in.
+    // Watched, 2026-08-09.
+    const api = await threeRoots();
+    let letTheCreateLand: () => void = () => {
+      throw new Error('nothing was ever created');
+    };
+    const realCreate = api.create.bind(api);
+    api.create = async (
+      projectId: string,
+      input: { parentId: string | null; afterId: string | null },
+    ) => {
+      await new Promise<void>((resolve) => {
+        letTheCreateLand = resolve;
+      });
+      return realCreate(projectId, input);
+    };
+
+    // The command, from the last row so nothing above it is renumbered.
+    const from = nameOf('030');
+    from.focus();
+    newItem(from);
+    await waitFor(() => {
+      expect(typeof letTheCreateLand).toBe('function');
+    });
+
+    // And now the reader goes somewhere else entirely and starts typing a
+    // name into a folded role's cell, which opens the people list.
+    const folded = screen.getByLabelText<HTMLInputElement>('QA estimate for 010');
+    folded.focus();
+    fireEvent.focus(folded);
+    fireEvent.change(folded, { target: { value: '@Ada' } });
+    await screen.findByRole('listbox', { name: 'QA assignee for 010' });
+
+    await act(async () => {
+      letTheCreateLand();
+      await Promise.resolve();
+    });
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '020', '030', '040']);
+    });
+
+    // The row was made — the edit is not what is being refused here — and the
+    // caret is still where the person put it, with the list still open under
+    // the name they are halfway through.
+    expect(api.rows).toHaveLength(4);
+    expect(document.activeElement).toBe(folded);
+    expect(folded.value).toBe('@Ada');
+    expect(screen.getByRole('listbox', { name: 'QA assignee for 010' })).toBeDefined();
   });
 
   itDom('every chord is inert while the depends list is open', async () => {
@@ -7302,7 +7522,9 @@ describe('a phase changing, and what the table does about it', () => {
     fireEvent.change(name, { target: { value: 'Strip the wiring' } });
     fireEvent.blur(name);
     await waitFor(() => {
-      expect(toastTexts()).toContain('forbidden');
+      expect(toastTexts()).toContain(
+        'That change could not be completed: this plan is not yours to change.',
+      );
     });
 
     await addPhase('Design');

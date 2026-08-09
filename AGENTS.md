@@ -123,7 +123,7 @@ Checks that cannot fail have shipped here six times. This is the rule that stops
 
 ## Checks that cannot fail
 
-R5 exists because this failure keeps recurring — thirteen times so far. Fixed: `assertPragmas` with no runtime
+R5 exists because this failure keeps recurring — fourteen times so far. Fixed: `assertPragmas` with no runtime
 caller, the migration lint's unreachable `ALTER TABLE ... RENAME COLUMN` branch, `readRemoteState`
 reading an unreadable file as never-deployed, `shellcheck … || echo`, the secrets scanner's
 `.catch(() => '')` (an unreadable file scanned as clean — in a CI gate), and `dev:setup` skipping a
@@ -149,8 +149,18 @@ dev and 500'd every `/api/teams` request. Both targets now run `tsc --build --fo
 the source project, watched catching that exact bug. The test projects are not in the gate
 yet: 10 pre-existing errors, named in `teams-and-assignees/verify.md`, are their own change.
 
-Two more on 2026-08-09, in `P phases-ui`, and **neither shipped** — which is why the tally is
-still thirteen. `page-shortcuts.test.tsx` had six checks about an open modal and none about a
+The fourteenth, on 2026-08-09, found by driving real Chrome by hand and in the shape of the one
+above. `actions-menu.tsx`'s item guard refused a modified Enter by returning — **without**
+`preventDefault` — so the browser fired the button's own click and took the item anyway; a
+chord aimed at the plan duplicated a branch because a menu happened to be open. The proof
+that guarded it, `every chord is inert while a row's ⋯ menu is open`, dispatches synthetic
+keys into jsdom, which performs no default action at all: it could see the guard deleted and
+could never see the guard left half-done. The negative test for that fault has to be a
+browser, and it is now in `e2e/keyboard.spec.ts`, watched failing on Shift+Enter with a third
+row on screen.
+
+Two more the same day, in `P phases-ui`, and **neither shipped** — which is why neither is in
+the count above. `page-shortcuts.test.tsx` had six checks about an open modal and none about a
 closed one, so nothing could see `ModalContent` suspending the page's keyboard the moment a
 dialog was _declared_; `P` is `Modal`'s first production caller and 49 unrelated tests went
 red the hour it mounted one. And `P`'s own `unfoldedRoles` sanitizer, which the plan asked
