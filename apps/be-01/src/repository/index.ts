@@ -360,8 +360,19 @@ export interface Assignment {
  */
 export type DirectoryWriteRefusal = 'not_found' | 'taken';
 
+/**
+ * Every project a directory write touched, collected **inside the write's own
+ * transaction** — the projects holding a work item that carries the renamed
+ * team or an assignment naming the renamed person.
+ *
+ * It rides on the outcome rather than being read again afterwards because the
+ * rows it is read from are exactly the rows the write is about: a second read
+ * would be answering a question about a directory that had already moved on.
+ */
+export type TouchedProjects = readonly string[];
+
 export type ServiceTeamWritten =
-  | { ok: true; team: ServiceTeam }
+  | { ok: true; team: ServiceTeam; projectIds: TouchedProjects }
   | { ok: false; reason: DirectoryWriteRefusal };
 
 /**
@@ -377,7 +388,7 @@ export interface PersonPatch {
 }
 
 export type PersonWritten =
-  | { ok: true; person: PersonWithTeams }
+  | { ok: true; person: PersonWithTeams; projectIds: TouchedProjects }
   | { ok: false; reason: DirectoryWriteRefusal | 'unknown_team' };
 
 /**

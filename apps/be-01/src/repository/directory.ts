@@ -160,7 +160,10 @@ export class DirectoryRepository implements DirectoryStore {
           .all();
         const renamed = rows.at(0);
         if (renamed === undefined) return { ok: false, reason: 'not_found' };
-        return { ok: true, team: renamed };
+        // Read here rather than afterwards: these are the very rows the rename
+        // is about, and a second read would answer for a directory that had
+        // already moved on.
+        return { ok: true, team: renamed, projectIds: this.projectsLabelled(tx, teamId) };
       });
     } catch (err) {
       if (isDuplicateTeamName(err)) return { ok: false, reason: 'taken' };
@@ -283,6 +286,7 @@ export class DirectoryRepository implements DirectoryStore {
         return {
           ok: true,
           person: { ...patched, teamIds: teamIds.map((row) => row.serviceTeamId) },
+          projectIds: this.projectsAssigning(tx, personId),
         };
       });
     } catch (err) {

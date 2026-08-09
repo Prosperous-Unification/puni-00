@@ -92,7 +92,7 @@ Only `- [ ]` checkboxes are tracked by the apply phase.
 
 ## 4. Events
 
-- [ ] 4.1 `directory_changed` `ProjectEvent` variant; renames and cascade
+- [x] 4.1 `directory_changed` `ProjectEvent` variant; renames and cascade
       deletes collect affected project ids in-transaction, record + publish
       per project post-commit (`role-crud` timing); unreferenced writes
       emit nothing — test: broadcaster spy asserting the exact project set,

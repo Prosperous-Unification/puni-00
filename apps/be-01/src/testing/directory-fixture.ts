@@ -7,7 +7,9 @@ import type {
   PersonWithTeams,
   ServiceTeam,
 } from '../repository';
+import type { Broadcaster } from '../service/broadcast';
 import { DirectoryService } from '../service/directory.service';
+import { recordingBroadcaster } from './broadcast-fixture';
 
 /** The empty usage, both halves present — what this fixture can honestly say. */
 const NOTHING_POINTS_AT_IT: DirectoryUsageRows = {
@@ -51,7 +53,9 @@ export function inMemoryDirectory(): DirectoryStore {
       const held = [...teams.values()].some((each) => each.name === name && each.id !== teamId);
       if (held) return Promise.resolve({ ok: false, reason: 'taken' });
       teams.set(teamId, { ...found, name });
-      return Promise.resolve({ ok: true, team: { ...found, name } });
+      // No project here to touch: these Maps hold no work items, so the
+      // fixture can only ever honestly report the empty set.
+      return Promise.resolve({ ok: true, team: { ...found, name }, projectIds: [] });
     },
     listPeople: () =>
       Promise.resolve(
@@ -102,6 +106,7 @@ export function inMemoryDirectory(): DirectoryStore {
       return Promise.resolve({
         ok: true,
         person: { ...patched, teamIds: [...(memberships.get(personId) ?? [])] },
+        projectIds: [],
       });
     },
     // The four removal methods model only what an array can: a person or team
@@ -154,8 +159,11 @@ export function inMemoryDirectory(): DirectoryStore {
 }
 
 /** A DirectoryService over the in-memory store, for tests that only need `buildApp` to construct. */
-export function testDirectoryService(directory: DirectoryStore = inMemoryDirectory()) {
-  return new DirectoryService({ directory });
+export function testDirectoryService(
+  directory: DirectoryStore = inMemoryDirectory(),
+  broadcast: Broadcaster = recordingBroadcaster(),
+) {
+  return new DirectoryService({ directory, broadcast });
 }
 
 /**

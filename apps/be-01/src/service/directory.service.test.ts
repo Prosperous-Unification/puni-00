@@ -12,6 +12,7 @@ import { ProjectRepository } from '../repository/project';
 import { RoleRepository } from '../repository/role';
 import { UserRepository } from '../repository/user';
 import { WorkItemRepository } from '../repository/work-item';
+import { type RecordingBroadcaster, recordingBroadcaster } from '../testing/broadcast-fixture';
 import { DirectoryService } from './directory.service';
 import { ProjectService } from './project.service';
 
@@ -33,6 +34,7 @@ let store: DirectoryRepository;
 let projects: ProjectRepository;
 let workItems: WorkItemRepository;
 let roleStore: RoleRepository;
+let broadcast: RecordingBroadcaster;
 let projectId: string;
 let ownerId: string;
 let devId: string;
@@ -64,6 +66,14 @@ const added = async (name: string, teamIds: readonly string[]): Promise<Person> 
   return outcome.result;
 };
 
+/** A second project with one work item, so a team can be held in two at once. */
+async function roofProject(): Promise<{ projectOf: string; workItemOf: string }> {
+  const created = await new ProjectService({ projects }).create('Roof', ownerId);
+  const workItemOf = crypto.randomUUID();
+  await workItems.insert(newItem(workItemOf, 10, 'Shingle', created.project.id), []);
+  return { projectOf: created.project.id, workItemOf };
+}
+
 /** The person by that name, or a throw, for the same reason. */
 const personNamed = async (name: string): Promise<string> => {
   const found = (await store.listPeople()).find((each) => each.name === name);
@@ -81,7 +91,8 @@ beforeEach(async () => {
   store = new DirectoryRepository(db);
   workItems = new WorkItemRepository(db);
   roleStore = new RoleRepository(db);
-  directory = new DirectoryService({ directory: store });
+  broadcast = recordingBroadcaster();
+  directory = new DirectoryService({ directory: store, broadcast });
 
   ownerId = crypto.randomUUID();
   await new UserRepository(db).create({
@@ -278,6 +289,85 @@ describe('DirectoryService.patchPerson', () => {
   });
 });
 
+describe('directory events', () => {
+  it('tells every project an assignment reaches into that a person was renamed', async () => {
+    const roof = await roofProject();
+    const kat = await added('Kat', []);
+    const unreferenced = await added('Nobody', []);
+    await store.assign('design', devId, kat.id);
+    await store.assign(roof.workItemOf, (await roleNamed('Dev', roof.projectOf)).id, kat.id);
+    broadcast.published.length = 0;
+
+    await directory.patchPerson(kat.id, { name: 'Katrin' });
+
+    expect([...broadcast.published].sort((a, b) => a.projectId.localeCompare(b.projectId))).toEqual(
+      [
+        { projectId: projectId, event: { type: 'directory_changed' } },
+        { projectId: roof.projectOf, event: { type: 'directory_changed' } },
+      ].sort((a, b) => a.projectId.localeCompare(b.projectId)),
+    );
+
+    broadcast.published.length = 0;
+    await directory.patchPerson(unreferenced.id, { name: 'Still nobody' });
+
+    // No project references them, so there is nothing anywhere to reread.
+    expect(broadcast.published).toEqual([]);
+  });
+
+  it('tells the projects a removed team was labelled in, and nobody else', async () => {
+    const platform = await directory.addTeam('Platform');
+    const unused = await directory.addTeam('Unused');
+    if (platform === null || unused === null) throw new Error('a fixture team was refused');
+    await workItems.patch('design', { serviceTeamId: platform.id });
+    broadcast.published.length = 0;
+
+    await directory.renameTeam(platform.id, 'Payments');
+    expect(broadcast.published).toEqual([{ projectId, event: { type: 'directory_changed' } }]);
+
+    broadcast.published.length = 0;
+    await directory.removeTeam(platform.id, true);
+    expect(broadcast.published).toEqual([{ projectId, event: { type: 'directory_changed' } }]);
+
+    broadcast.published.length = 0;
+    await directory.renameTeam(unused.id, 'Still unused');
+    await directory.removeTeam(unused.id, false);
+    expect(broadcast.published).toEqual([]);
+  });
+
+  it('records the event after the write, never before it', async () => {
+    // The sequence-consistency rule, asserted where it is decided rather than
+    // reasoned about: a reader that acts on the event — a client rereading the
+    // project, the replay log recording it — must never see the directory as it
+    // was before the change. Reading the directory from inside `publish` is the
+    // only moment that can tell the two orders apart.
+    //
+    // It is not a nested-transaction test. `bun:sqlite` transactions are
+    // synchronous, so an `await` inside one cannot be written to fail; what
+    // post-commit timing actually buys is that nothing a listener reads is
+    // uncommitted, and `publish` is the boundary that can say so.
+    const namesAtPublish: string[][] = [];
+    const watching = new DirectoryService({
+      directory: store,
+      broadcast: {
+        async publish() {
+          namesAtPublish.push((await store.listPeople()).map((each) => each.name));
+        },
+        latestSeq: () => Promise.resolve(-1),
+      },
+    });
+    const kat = await added('Kat', []);
+    await store.assign('design', devId, kat.id);
+
+    await watching.patchPerson(kat.id, { name: 'Katrin' });
+    await watching.removePerson(kat.id, true);
+
+    expect(namesAtPublish[0]).toEqual(['Katrin']);
+    // Removed, not merely renamed: the second publish reads a directory the
+    // deletion has already committed to.
+    expect(namesAtPublish[1]).toEqual([]);
+  });
+});
+
 /**
  * The real store with some methods wrapped, so a test can put somebody else's
  * write in the gap between two of the service's calls.
@@ -305,14 +395,6 @@ function storeWith(overrides: Partial<DirectoryStore>): DirectoryStore {
 }
 
 describe('the directory usage a removal is refused with', () => {
-  /** A second project with one work item, so a team can be held in two at once. */
-  async function roofProject(): Promise<{ projectOf: string; workItemOf: string }> {
-    const created = await new ProjectService({ projects }).create('Roof', ownerId);
-    const workItemOf = crypto.randomUUID();
-    await workItems.insert(newItem(workItemOf, 10, 'Shingle', created.project.id), []);
-    return { projectOf: created.project.id, workItemOf };
-  }
-
   it('names the project, the number and the work item an assignment holds', async () => {
     const kat = await added('Kat', []);
     await store.assign('design', devId, kat.id);
@@ -460,6 +542,7 @@ describe('the directory usage a removal is refused with', () => {
     // take is an assignment nobody has been shown.
     const kat = await added('Kat', []);
     const service = new DirectoryService({
+      broadcast,
       directory: storeWith({
         async usageOfPerson(watched) {
           const counted = await store.usageOfPerson(watched);
@@ -488,6 +571,7 @@ describe('the directory usage a removal is refused with', () => {
     // assignment landing a moment later is exactly what that agreement covers.
     const kat = await added('Kat', []);
     const service = new DirectoryService({
+      broadcast,
       directory: storeWith({
         async removePerson(watched, cascade) {
           await store.assign('design', devId, kat.id);
@@ -537,6 +621,7 @@ describe('the directory usage a removal is refused with', () => {
     const kat = await added('Kat', []);
 
     const labelled = new DirectoryService({
+      broadcast,
       directory: storeWith({
         async usageOfTeam(watched) {
           const counted = await store.usageOfTeam(watched);
@@ -556,6 +641,7 @@ describe('the directory usage a removal is refused with', () => {
 
     await workItems.patch('design', { serviceTeamId: null });
     const joined = new DirectoryService({
+      broadcast,
       directory: storeWith({
         async usageOfTeam(watched) {
           const counted = await store.usageOfTeam(watched);

@@ -54,7 +54,7 @@ beforeEach(async () => {
   roleStore = new RoleRepository(db);
 
   app = buildApp({
-    directory: new DirectoryService({ directory: store }),
+    directory: new DirectoryService({ directory: store, broadcast: recordingBroadcaster() }),
     auth: new AuthService({ users: new UserRepository(db), jwtKey: TEST_JWT_KEY }),
     projects: new ProjectService({ projects }),
     roles: new RoleService({ projects, roles: roleStore, broadcast: recordingBroadcaster() }),

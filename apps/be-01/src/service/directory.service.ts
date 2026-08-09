@@ -4,7 +4,9 @@ import type {
   PersonPatch,
   PersonWithTeams,
   ServiceTeam,
+  TouchedProjects,
 } from '../repository';
+import type { Broadcaster } from './broadcast';
 import {
   type DirectoryUsage,
   directoryUsageOfPerson,
@@ -13,6 +15,13 @@ import {
 
 export interface DirectoryServiceOptions {
   directory: DirectoryStore;
+  /**
+   * Required, like the role service's. A directory service built without one
+   * would rename somebody assigned across three plans and tell none of them —
+   * every other client would keep drawing the old name until somebody
+   * reloaded.
+   */
+  broadcast: Broadcaster;
   newId?: () => string;
 }
 
@@ -104,6 +113,7 @@ export class DirectoryService {
       if (written.reason === 'taken') return { ok: false, reason: 'taken', name: clean };
       return { ok: false, reason: 'not_found' };
     }
+    await this.announce(written.projectIds);
     return { ok: true, result: written.team };
   }
 
@@ -164,6 +174,11 @@ export class DirectoryService {
         reason: written.reason === 'unknown_team' ? 'unknown_team' : 'not_found',
       };
     }
+    // Only a rename is announced. A membership edit changes no row any project
+    // renders — the assumed assignee is derived from assignments, not from who
+    // belongs to which team — so an event would send every open plan to reread
+    // a tree that is exactly as it was.
+    if (clean !== undefined) await this.announce(written.projectIds);
     return { ok: true, result: written.person };
   }
 
@@ -206,6 +221,7 @@ export class DirectoryService {
         usage: directoryUsageOfPerson(removed.usage, personId),
       };
     }
+    await this.announce(removed.removal.projectIds);
     return { ok: true };
   }
 
@@ -229,6 +245,33 @@ export class DirectoryService {
       if (removed.reason === 'not_found') return { ok: false, reason: 'not_found' };
       return { ok: false, reason: 'in_use', usage: directoryUsageOfTeam(removed.usage, teamId) };
     }
+    await this.announce(removed.removal.projectIds);
     return { ok: true };
+  }
+
+  /**
+   * Tells every project the write touched, **after** its transaction has
+   * committed.
+   *
+   * One event per project rather than one global one, because a project's
+   * sequence is what a reconnecting client resumes from: an event outside every
+   * sequence has nowhere to be replayed from and no client would ever see it
+   * twice. A write touching no project announces nothing — there is nothing
+   * anywhere to reread.
+   *
+   * After the commit, and that is the whole of it: an event published first
+   * would send every listener back to read the state it was told had changed
+   * and find the old one. It is `role-crud`'s timing, chosen for `role-crud`'s
+   * reason — `recordEvent` opens a transaction of its own, so it cannot be
+   * nested inside the write's.
+   *
+   * Proof: with either publish moved ahead of its write, `records the event
+   * after the write, never before it` fails — the directory read from inside
+   * `publish` still held `Kat`; watched 2026-08-09.
+   */
+  private async announce(projectIds: TouchedProjects): Promise<void> {
+    for (const projectId of projectIds) {
+      await this.opts.broadcast.publish(projectId, { type: 'directory_changed' });
+    }
   }
 }

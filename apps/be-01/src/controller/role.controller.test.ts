@@ -58,7 +58,7 @@ beforeEach(() => {
   workItems = new WorkItemRepository(db);
 
   app = buildApp({
-    directory: new DirectoryService({ directory }),
+    directory: new DirectoryService({ directory, broadcast: recordingBroadcaster() }),
     auth: new AuthService({ users: new UserRepository(db), jwtKey: TEST_JWT_KEY }),
     projects: new ProjectService({ projects }),
     roles: new RoleService({ projects, roles: roleStore, broadcast: recordingBroadcaster() }),
