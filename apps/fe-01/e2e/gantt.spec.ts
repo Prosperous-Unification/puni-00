@@ -621,18 +621,46 @@ test.describe('the chart, after the browser has scaled it', () => {
       'the caret does not stand at the day the bar starts on',
     ).toBeLessThanOrEqual(NEARLY);
 
-    // 3. The strokes, as the browser computed them rather than as a class
-    //    attribute spells them.
-    const strokes = await page.evaluate(() => {
-      const read = (where: string): number => {
-        const node = document.querySelector(where);
-        if (node === null) throw new Error(`nothing on the chart at ${where}`);
-        return Number.parseFloat(getComputedStyle(node).strokeWidth);
+    // 3. The paint, as the browser computed it rather than as a class
+    //    attribute spells it: the arrow's stroke is heavy enough to be seen,
+    //    and the parent's ghost bar is genuinely translucent — a parent drawn
+    //    in solid ink is indistinguishable from work of its own, and only a
+    //    computed style can say what `fill-foreground/15` came out as.
+    //
+    //    Proof: the ghost's class made `fill-foreground` whole. This test
+    //    failed on `the parent's ghost bar is painted as solid work: expected
+    //    1 to be less than 1` while the jsdom suite's class assertion failed
+    //    beside it. Watched in Chromium 2026-08-09.
+    const paint = await page.evaluate(() => {
+      const node = (where: string): Element => {
+        const found = document.querySelector(where);
+        if (found === null) throw new Error(`nothing on the chart at ${where}`);
+        return found;
       };
-      return { bracket: read('[data-gantt-bracket]'), arrow: read('[data-gantt-arrow]') };
+      const alphaOf = (color: string): number => {
+        // Resolved through a probe so `color-mix(...)` and `rgba(...)` both
+        // answer as numbers: what the paint is, not how the class spelt it.
+        const probe = document.createElement('div');
+        probe.style.color = color;
+        document.body.append(probe);
+        const resolved = getComputedStyle(probe).color;
+        probe.remove();
+        const channels = /^rgba?\(([^)]+)\)$/.exec(resolved)?.[1];
+        if (channels === undefined) throw new Error(`unreadable paint: ${resolved}`);
+        const alpha = channels.includes('/')
+          ? Number(channels.split('/')[1])
+          : Number(channels.split(',')[3] ?? '1');
+        if (Number.isNaN(alpha)) throw new Error(`unreadable alpha in ${resolved}`);
+        return alpha;
+      };
+      return {
+        bracketAlpha: alphaOf(getComputedStyle(node('[data-gantt-bracket]')).fill),
+        arrowStroke: Number.parseFloat(getComputedStyle(node('[data-gantt-arrow]')).strokeWidth),
+      };
     });
-    expect(strokes.bracket, 'the summary bracket is a hairline').toBeGreaterThanOrEqual(2);
-    expect(strokes.arrow, 'the dependency arrow is a hairline').toBeGreaterThanOrEqual(1.5);
+    expect(paint.bracketAlpha, "the parent's ghost bar is painted as solid work").toBeLessThan(1);
+    expect(paint.bracketAlpha, "the parent's ghost bar is not painted at all").toBeGreaterThan(0);
+    expect(paint.arrowStroke, 'the dependency arrow is a hairline').toBeGreaterThanOrEqual(1.5);
 
     // 4. And the successor's bar really is past the plan's first weekend, so
     //    every measurement above was taken where a calendar coordinate and a

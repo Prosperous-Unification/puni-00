@@ -2100,8 +2100,9 @@ describe('the caption follows the scroll', () => {
     // names a month, and it names it as a month.
     //
     // Proof: `monthWords` short-circuited to `date.slice(0, 7)` — the old
-    // caption. This test and the scroll test below failed together, on
-    // `Unable to find an element with the text: Aug 2026`. Watched 2026-08-09.
+    // caption. `3 failed | 49 passed`: this test and the scroll test on
+    // `Unable to find an element with the text: Aug 2026` / `Sep 2026`, and
+    // the fixed-table case with them. Watched 2026-08-09.
     expect(screen.getByText('Aug 2026')).toBeDefined();
   });
 
