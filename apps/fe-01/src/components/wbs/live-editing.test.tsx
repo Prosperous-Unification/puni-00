@@ -1,14 +1,25 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { CellInput } from './cell-input';
-import { type CommitOutcome, refusedDraftFor } from './live-editing';
+import {
+  type CommitOutcome,
+  forgetRefusedDrafts,
+  refusedDraftFor,
+  type SendEdit,
+} from './live-editing';
 
 // fe-01 tests require jsdom; only Vitest provides it. Skip under plain `bun test`.
 const hasDom = typeof document !== 'undefined';
 const itDom = hasDom ? it : it.skip;
 
 afterEach(cleanup);
+// The held refusals outlive every renderer on purpose, which means they also
+// outlive a test. Left behind, one test's draft is restored into the next
+// test's box the moment it mounts.
+afterEach(() => {
+  forgetRefusedDrafts(() => true);
+});
 
 /** The cell both faces below render, and the only one these tests use. */
 const CELL = 'w1::name';
@@ -68,6 +79,40 @@ function typeAndLeave(text: string): void {
 
 const refuses = (): Promise<CommitOutcome> => Promise.resolve('refused');
 const takes = (): Promise<CommitOutcome> => Promise.resolve('landed');
+
+/** A patch that is out and has not been answered yet. */
+interface PendingCommit {
+  typed: string;
+  baseline: string;
+  /** Answers this one request, whatever else is in the air. */
+  answer: (outcome: CommitOutcome) => void;
+}
+
+/**
+ * A `commit` that parks every request instead of settling it, so a test can
+ * answer two of them in the order be-01 would rather than the order they went
+ * out. `refuses` and `takes` above settle immediately and can therefore never
+ * have two in the air at once, which is the whole of what the tests below are
+ * about.
+ */
+function queuedCommits(): { pending: PendingCommit[]; commit: SendEdit } {
+  const pending: PendingCommit[] = [];
+  const commit: SendEdit = (typed, baseline) =>
+    new Promise<CommitOutcome>((answer) => {
+      pending.push({ typed, baseline, answer });
+    });
+  return { pending, commit };
+}
+
+/** Answers one parked patch, and lets the field act on it before the test looks. */
+async function answerPatch(patch: PendingCommit, outcome: CommitOutcome): Promise<void> {
+  await act(async () => {
+    patch.answer(outcome);
+    // The field's continuation is queued behind this resolution; the tick is
+    // what lets it, and the render it causes, run inside this `act`.
+    await Promise.resolve();
+  });
+}
 
 describe('a field outliving the thing that renders it', () => {
   /**
@@ -161,5 +206,88 @@ describe('a field outliving the thing that renders it', () => {
     await waitFor(() => {
       expect(refusedDraftFor(CELL)).toBeUndefined();
     });
+  });
+});
+
+describe('two patches for one cell in the air at once', () => {
+  /**
+   * The gesture both tests below start from, and the one rule 5 deliberately
+   * does not collapse: type, leave, click back in, type something *else*,
+   * leave again — all inside one round trip. Two different texts are two
+   * edits, so two patches go out, and be-01 answers them in whichever order it
+   * likes. It systematically likes the refusal first: a landing refetches the
+   * whole tree before it resolves and a refusal has nothing to refetch.
+   */
+  function typeTwiceBeforeEitherAnswers(pending: PendingCommit[]): void {
+    typeAndLeave('Beta');
+    typeAndLeave('Gamma');
+    expect(pending.map((patch) => patch.typed)).toEqual(['Beta', 'Gamma']);
+  }
+
+  /**
+   * Fault A. `Beta` is answered last and it landed; `Gamma` was already
+   * refused. The answer to `Beta` says nothing about `Gamma` — but before the
+   * generation guard it ran the whole landed branch, dropping the hold on the
+   * only copy of `Gamma` that exists anywhere and unfreezing the box for the
+   * next peer edit to overwrite. X's spec: the hold ends when the person
+   * resolves it and not before, and nobody resolved this one.
+   *
+   * Proof: `generation !== this.submissions` deleted from `submit`'s
+   * continuation, this failed on `expected undefined to be 'Gamma'`. Watched,
+   * 2026-08-09.
+   */
+  itDom('an older landing does not clear the refusal that overtook it', async () => {
+    const { pending, commit } = queuedCommits();
+    const view = render(<TableFace value="Alpha" commit={commit} />);
+    typeTwiceBeforeEitherAnswers(pending);
+
+    await answerPatch(pending[1], 'refused');
+    await answerPatch(pending[0], 'landed');
+
+    expect(refusedDraftFor(CELL)).toBe('Gamma');
+    expect(screen.getByLabelText<HTMLInputElement>('Name of 010').value).toBe('Gamma');
+
+    // And the hold is a hold: the next refetch, carrying a peer's name, does
+    // not get to write over text be-01 turned down.
+    view.rerender(<TableFace value="Delta" commit={commit} />);
+    expect(screen.getByLabelText<HTMLInputElement>('Name of 010').value).toBe('Gamma');
+  });
+
+  /**
+   * Fault B, and the one that loses a saved edit. `Gamma` landed; `Beta` comes
+   * back refused afterwards and is a round trip out of date. Before the
+   * generation guard it held `Beta` — over a name the server had already
+   * taken — and `takeNode` is an inline ref, so the *next render* rather than
+   * any remount put `Beta` back on screen, `sync` then refused every peer edit
+   * on the strength of it, and the blur after that sent it again. The reader
+   * watches their saved name revert with nothing on screen to explain it.
+   *
+   * Proof, one fault, two assertions: `generation !== this.submissions`
+   * deleted, this failed on `expected 'Beta' to be 'Gamma'`, and with that
+   * line held back it went on to fail the re-send on `expected [ 'Beta',
+   * 'Gamma', 'Beta' ] to deeply equal [ 'Beta', 'Gamma' ]`. Watched,
+   * 2026-08-09.
+   */
+  itDom('an older refusal does not hold its text over the edit that landed', async () => {
+    const { pending, commit } = queuedCommits();
+    const view = render(<TableFace value="Alpha" commit={commit} />);
+    typeTwiceBeforeEitherAnswers(pending);
+
+    await answerPatch(pending[1], 'landed');
+    await answerPatch(pending[0], 'refused');
+
+    // The refetch the landing triggered. A rerender and not a remount, which
+    // is the point: the ref callback is rebuilt every render, so a hold this
+    // field should not be carrying reaches the box without anything unmounting.
+    view.rerender(<TableFace value="Gamma" commit={commit} />);
+
+    const box = screen.getByLabelText<HTMLInputElement>('Name of 010');
+    expect(box.value).toBe('Gamma');
+    expect(refusedDraftFor(CELL)).toBeUndefined();
+
+    // Leaving the cell again sends nothing at all — there is nothing left to
+    // retry. A third patch here is `Beta` overwriting the name that landed.
+    fireEvent.blur(box);
+    expect(pending.map((patch) => patch.typed)).toEqual(['Beta', 'Gamma']);
   });
 });

@@ -44,6 +44,15 @@ export type SendEdit = (typed: string, baseline: string) => Promise<CommitOutcom
  * answer, not a settled `unsent`: `unsent` reads as "nothing is happening
  * here", and the chord would create a row or move the focus while a patch that
  * may yet be refused is in the air.
+ *
+ * Rule 5 dedupes; it does not serialize. Only *this* record is dropped when the
+ * request it names comes back without landing, and a second, different text
+ * typed into the same cell while the first is still out is a genuinely new
+ * edit that goes out beside it. Which of the two answers first is be-01's
+ * business — a refusal systematically overtakes a landing, because a landing
+ * refetches the tree before it resolves and a refusal does not. What keeps the
+ * loser from writing its answer over the winner's is
+ * {@link LiveField.submissions}.
  */
 interface Submission {
   typed: string;
@@ -166,7 +175,9 @@ export function flushCell(node: CellElement): Promise<CommitOutcome> {
  * 5. The same text is not sent twice against the same baseline. `shown` stays
  *    on the old value until the refetch lands, so a second focus-and-leave
  *    inside that window looks exactly like a fresh edit to rule 3 — and one
- *    gesture would become two journal entries and two Cmd+Zs.
+ *    gesture would become two journal entries and two Cmd+Zs. Two *different*
+ *    texts in that window are two edits and both go out; {@link submissions}
+ *    is what stops the slower answer writing over the faster one.
  *
  * **What a new face inherits, and what it does not.** The held refusal, and
  * only that. `shown`, `typed`, `sent` and `latest` are re-derived from the
@@ -200,6 +211,29 @@ export class LiveField {
    */
   private refused = false;
   private sent: Submission | null = null;
+  /**
+   * How many commits this field has sent, so a commit can tell whether it is
+   * still the newest one when its answer finally arrives.
+   *
+   * Two patches for one cell are in the air whenever somebody types, leaves,
+   * clicks back in, types something else and leaves again inside one round
+   * trip — {@link Submission} says why rule 5 lets that happen — and they come
+   * back out of order more often than not. Only the newest may write: an older
+   * answer that still wrote would either clear a newer refusal's hold (the
+   * box and {@link heldRefusals} both revert to the text be-01 turned down)
+   * or install its own stale text as a hold over an edit that landed, which
+   * the next render puts back on screen, {@link sync} then freezes against
+   * peers, and the next blur sends again.
+   *
+   * A superseded answer is still *returned* — `flushCell`'s caller asked what
+   * became of the edit it flushed and that is unchanged by a later one — it
+   * simply touches none of this field's state.
+   *
+   * The same shape as `refresh`'s generation guard in `wbs-table.tsx`, for the
+   * same reason: a read and a write both have a newest, and out-of-order
+   * completion is the normal case rather than the edge.
+   */
+  private submissions = 0;
 
   /**
    * Sends what this field holds. Reassigned by the face on **every render**,
@@ -370,7 +404,21 @@ export class LiveField {
     // request goes out: the node's value a round trip later is whatever has
     // been typed since, and what a refusal has to hold is what was refused.
     const baseline = this.shown;
+    const generation = ++this.submissions;
     const landing = this.send(text, baseline).then((outcome) => {
+      // Only the newest commit for this cell may write what it heard back.
+      // Read before anything below it, and before `outcome` is acted on at
+      // all: every line after this point is state a newer commit has already
+      // decided, and this one is a round trip out of date.
+      // Proof, two faults, both watched 2026-08-09 with this line deleted.
+      // `an older landing does not clear the refusal that overtook it` failed
+      // on `expected undefined to be 'Gamma'` — the hold on the text be-01
+      // had just turned down, dropped by the answer to the edit before it.
+      // `an older refusal does not hold its text over the edit that landed`
+      // failed on `expected 'Beta' to be 'Gamma'` — the landed name replaced
+      // on the very next render by the one be-01 had refused, and sent again
+      // by the blur after that.
+      if (generation !== this.submissions) return outcome;
       if (outcome !== 'landed') {
         // Nothing of this edit is on the server — `refused` was turned down,
         // `unsent` never went — so the record of a submission goes with it
