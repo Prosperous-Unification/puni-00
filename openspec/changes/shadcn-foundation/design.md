@@ -21,7 +21,7 @@ Every interactive thing in the app, and what happens to it.
 | toolbar `input[type=date]`, `select`                 | chrome   | **native, restyled**                           | shadcn replaces these with a Calendar popover and a Radix Select. Both change the accessibility tree from the native control's to a composed one, which rewrites the tests that name them. Out of `F`; they are still native and still work. |
 | ⋯ actions menu                                       | **grid** | **untouched**                                  | See below.                                                                                                                                                                                                                                   |
 | dependency / team / assignee / `@` pickers           | **grid** | **untouched**                                  | See below.                                                                                                                                                                                                                                   |
-| every cell                                           | **grid** | **untouched**                                  | Inline styles, declared widths, `table-layout: fixed`. The reset stops here.                                                                                                                                                                 |
+| every cell                                           | **grid** | **no class, no rule — but not "untouched"**    | Inline styles, declared widths, `table-layout: fixed`. The reset stops here; **inheritance does not**, so the cells' text colour and font family are the page's. Both are asserted in `e2e/tailwind.spec.ts` rather than assumed.            |
 | dialogs and sheets                                   | chrome   | **new** — `Modal`, on `@radix-ui/react-dialog` | None exist yet. `P` and `M` need them.                                                                                                                                                                                                       |
 
 ### Why the grid's menu and pickers keep their internals
@@ -90,3 +90,29 @@ Shipping shadcn's `ui-sans-serif, system-ui, …` stack turned the browser gate
 red at 1280×800: _the earliest-start field is 138px where this browser wants
 143px_. The token stays `sans-serif` until a change moves the face **and**
 re-measures that column. That is `H header-fits-a-row`'s to do.
+
+## The modal rule has two sides, and they ask different questions
+
+The first version of the hook asked `isPageShortcut` of every keystroke,
+wherever it was aimed. Both reviews found the same consequence: a command chord
+typed into a field **inside** the dialog was swallowed before the field's own
+handler ran, so no modal could ever give `Ctrl/⌘ + Enter`, or any chord, a
+meaning of its own. `P phases-ui`'s dialog wants exactly that.
+
+The fix is not "let everything on the surface through", and the difference is
+worth writing down because the wrong version reads more natural:
+
+|                         | on the surface                                                                                                                                    | outside it |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| `?`, Cmd+Z, Cmd+Shift+Z | **held back** — they are on `window` and fire wherever they are aimed, including at the dialog's own ✕                                            | held back  |
+| the command chords      | **let through** — they are React handlers on the cells, and no cell is an ancestor of a portal, so nothing of the page's could have acted on them | held back  |
+
+A blanket "the surface keeps its own keyboard" would hand a dialog's Cancel
+button the table's undo — the fault this hook exists for, arriving by a
+different door. Both halves are watched: widening the surface branch back to
+`isPageShortcut` fails the chord test, and forcing `isOnModalSurface` true for
+every target fails the Ctrl+N test.
+
+`opensCheatSheet` and `undoChord` already refuse a target somebody is typing
+into, so a text box on the surface keeps the browser's own undo and can still
+have a `?` typed into it. That needed nothing said here.

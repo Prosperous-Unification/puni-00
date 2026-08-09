@@ -48,6 +48,61 @@ and the date field carries both. `wbs-table.tsx:3106`'s chip has no `style` prop
 at all. Two probes were written and discarded before it, both watched being
 vacuous — see the table below.
 
+## What two reviews found, and what it cost the claims below
+
+Two external reviews (agy, codex) read the branch at `41d1cee` and converged on
+three things. All three are fixed on this branch; the rows are in the table
+below and the claims they falsified are corrected in place rather than left
+standing with a footnote.
+
+**1. The chords were swallowed on the surface too (both, HIGH).**
+`isPageShortcut` asks `commandChord` with no target guard — deliberately, since
+a cell is an input — and the capture listener ended the event before the modal's
+own React handler ran. Probed: `Ctrl+H` and `Ctrl+Enter` on an input inside an
+open modal were both claimed. `P phases-ui`'s dialog could never have had
+Cmd+Enter for its submit.
+
+The rule now asks a different question on each side of the surface:
+`isWindowShortcut` for a target on it, `isPageShortcut` for a target outside it.
+The reason that split is the right one rather than "let everything on the
+surface through" is structural: the chords are React handlers on the **cells**,
+so they can only fire for a keystroke whose target is a cell, and no cell is an
+ancestor of a portal — whereas `?` and the undo chord are on the **window** and
+fire wherever they are aimed, including at the dialog's own ✕. A blanket rule
+would have given a dialog's Cancel button the table's undo, which is the fault
+this hook exists for wearing a different hat.
+
+**2. The auth title stopped being a heading (both, HIGH).** The registry's
+`CardTitle` is a `div`; the markup it replaced was an `h2`. `CardTitle` now
+takes an `as`, defaulting to `h2`.
+
+This one falsified a claim made in this very file, and the correction matters
+more than the fix. The proposal said "every swap keeps its aria contract and its
+tests", and the spec's scenario said "every control is found by the same
+accessible name as before". **Both were true and neither was checked.** Every
+test and both browser specs find the _controls_ by label; nothing anywhere in
+the repository had ever asked what the panel's title was, so the suite stayed
+green about a page whose outline had lost a level. Two people found it by
+reading. The corrected wording, in the proposal and in the spec, is that a swap
+keeps role, name and labelling — and that **where nothing asserted one of them,
+the swap writes the assertion**, because an unasserted contract is not kept by a
+change, only left uncontradicted by it. `auth-form.test.tsx` is that assertion.
+
+**3. The grid's text colour is not the browser's (both, MEDIUM).** `text-foreground`
+on `<main>` is inherited straight through the guard: **scoping stops a reset, it
+does not stop inheritance.** A cell computes `oklch(0.129 0.042 264.695)` where
+it used to compute `rgb(0, 0, 0)`.
+
+Accepted rather than neutralised, and stated as a decision. It is one palette
+across the page, the two colours are both near-black, and a grid pinned to the
+user agent's `#000` while the chrome moved to a token is the version that would
+actually look wrong — and would silently drift on the first dark-mode change.
+What was wrong was the **claim**: this file said the table was untouched, and
+the reset is what stops at `[data-grid]`, not the cascade. The claim is now
+"geometry-identical", the colour is named as deliberate in the proposal and the
+spec, and there is a browser assertion pinning a cell's computed colour to the
+token so the next palette edit cannot move it unseen.
+
 ## Failure-proof table (R5)
 
 Every check has been watched failing with the thing it guards broken, one fault
@@ -142,23 +197,33 @@ $ bunx openspec validate --all --json
 40 items, 0 invalid   (shadcn-foundation: valid, no issues)
 ```
 
-`fe-01:test` is **623 tests across 27 files** — 617 before this change, plus 5
-in `page-shortcuts.test.tsx` and one net new in `styles.test.ts`.
+`fe-01:test` is **628 tests across 28 files** — 617 before this change, plus 6
+in `page-shortcuts.test.tsx`, 4 in `auth-form.test.tsx` and one net new in
+`styles.test.ts`.
 
-Browser gate — **35 passed**, twice, cleanly:
+Browser gate — **36 passed**, twice, cleanly:
 
 ```
-  35 passed (38.6s)
+  36 passed (39.3s)
+  36 passed (53.1s)
 ```
 
-22 `layout.spec.ts` (untouched), 8 `keyboard.spec.ts` (untouched), 5
+22 `layout.spec.ts` (untouched), 8 `keyboard.spec.ts` (untouched), 6
 `tailwind.spec.ts`.
 
-One flake was seen once and did not recur: `keyboard.spec.ts › Cmd+Enter saves
-the cell before it creates the row it lands in`, on `waiting for
-getByLabel('Name of 010')`. Re-run alone immediately after: 8 passed; the full
-suite green twice after that. This is the same pre-existing seed-helper flake
-the tailwind spike recorded on `main`.
+Two things were seen once each and are recorded rather than glossed:
+
+- `keyboard.spec.ts › Cmd+Enter saves the cell before it creates the row it
+lands in`, on `waiting for getByLabel('Name of 010')`. Re-run alone
+  immediately after: 8 passed. Same pre-existing seed-helper flake the tailwind
+  spike recorded on `main`.
+- Two runs came back `25 passed / 11 failed` and `11 passed / 25 failed`
+  **after a run that had aborted on `http://localhost:3101/health is already
+used`** — the aborted run's three servers outlived it and the next stack
+  attached to a be-01 holding a different throwaway database. Killing the
+  listeners on 3101/3201/4201 and re-running gave 36 green twice. It is an
+  artifact of driving the gate by hand on alternate ports, not of the app;
+  `nx run fe-01:e2e` on its own ports does not produce it.
 
 ## How the browser gate was run, and why it is not the plain command
 
@@ -188,7 +253,14 @@ works unmodified.
 - **Dark mode.** The variables are defined and nothing sets `dark`, so no
   rendering of the dark palette has been seen by anything. That is the stated
   non-goal, and it means the dark values are unreviewed for contrast.
-- **A modal in a real browser.** `modal.tsx` is exercised by jsdom only —
-  nothing in the app opens one yet, so there is no page for Playwright to open.
-  `P phases-ui` is the first change that mounts one, and it is where the focus
-  trap, the dismissal and the overlay get a browser.
+- **A modal in a real browser.** `modal.tsx` is exercised by jsdom only, in a
+  test harness — **nothing in the app mounts one**, so it has no production
+  caller and there is no page for Playwright to open. That is worth being exact
+  about, because the keyboard rule's tests are only half on a production path:
+  the page's half is real (a real `WbsTable`, its real `window` listeners, its
+  real cell handlers), and the modal's half is a harness standing in for the
+  dialog `P` will build. `P phases-ui` is where the focus trap, the dismissal,
+  the overlay and the chord-passing get a browser.
+- **A dark-mode render.** Unchanged from above and worth restating next to the
+  colour decision: the grid now follows `--foreground`, and `--foreground` has a
+  dark value nothing has ever rendered.

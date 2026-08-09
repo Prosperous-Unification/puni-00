@@ -12,6 +12,14 @@ Ctrl+N, Alt+N, Ctrl+D, Ctrl+H/J/K/L and Ctrl/⌘+Enter. It SHALL be decided by t
 same predicates those listeners use, so a chord added to the family is held back
 by a modal on the same commit.
 
+**The surface's own keyboard is not the page's.** A keystroke aimed at the modal
+surface, or at anything inside it, SHALL be held back only where a listener on
+`window` would still have acted on it — `?` and the undo chord, which fire
+wherever they are aimed. The command chords SHALL reach the surface untouched,
+because they are handled on the table's cells and no cell is an ancestor of a
+modal: a dialog SHALL be able to give Ctrl/⌘+Enter, or any other chord, a meaning
+of its own inside its own fields.
+
 The rule SHALL NOT touch Escape, Tab or the arrow keys: those are how a modal is
 left and moved through, and the modal owns them.
 
@@ -43,6 +51,11 @@ rule a command chord pressed there edited a plan nobody could see.
 
 - **WHEN** Cmd+Z is pressed at a control of the plan with the cheat sheet open
 - **THEN** no undo is asked for
+
+#### Scenario: a dialog's field gets the chords
+
+- **WHEN** Ctrl+Enter or Ctrl+H is pressed in a field on the open dialog
+- **THEN** the field's own handler receives the keystroke
 
 #### Scenario: a dialog's own text box keeps its undo
 

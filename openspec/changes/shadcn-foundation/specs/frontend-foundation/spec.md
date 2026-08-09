@@ -12,6 +12,11 @@ pickers SHALL compute the same `box-sizing`, margins and font the browser gives
 them with no stylesheet at all, because `table-frame.ts`'s declared column widths
 were measured against exactly that.
 
+Scoping stops the reset; it does not stop **inheritance**. The grid's text colour
+and its font family are what the page gives it, and both SHALL be asserted rather
+than assumed: the face because a different one moves the `not-before` column, the
+colour because it is a visible change that no geometry check can see.
+
 The reset SHALL NOT be Tailwind's own preflight, which is document-wide and
 cannot be scoped.
 
@@ -24,6 +29,12 @@ cannot be scoped.
 
 - **WHEN** a dependency chip inside the grid is measured
 - **THEN** its font family and size are neither its cell's nor the page's
+
+#### Scenario: the grid's text takes the page's foreground token
+
+- **WHEN** a cell inside the grid is measured
+- **THEN** its computed colour is the `--foreground` token, not the user agent's
+  own black
 
 #### Scenario: an unguarded rule is refused
 
@@ -58,9 +69,16 @@ dialogs and sheets — and SHALL NOT be used inside a table cell.
 
 A swap SHALL keep the accessible name, role and labelling of what it replaces.
 Where a test asserts one of those, the markup SHALL be adapted to keep the
-assertion rather than the assertion relaxed to fit the markup.
+assertion rather than the assertion relaxed to fit the markup. Where **nothing**
+asserted one of them, the swap SHALL write the assertion: an unasserted contract
+is not kept by a swap, only left uncontradicted by it.
 
 #### Scenario: the auth form after the swap
 
 - **WHEN** the sign-up screen is filled in by label and submitted
 - **THEN** every control is found by the same accessible name as before
+
+#### Scenario: the auth panel's title is still a heading
+
+- **WHEN** the signed-out screen is read for its headings
+- **THEN** "Log in" is one of them, at the level it was before the swap

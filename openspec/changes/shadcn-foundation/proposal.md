@@ -21,11 +21,14 @@ properties (`:root` and `.dark`), `--radius`, `--font-sans`, and vendored
 **A scoped reset.** It lands in the `base` layer `T` left, and every rule in it
 carries `:not([data-grid], [data-grid] *)`. `data-grid` goes on the `<table>`.
 The table, its inputs, the buttons in its cells, the date box and both pickers
-measure identically before and after.
+**measure** identically before and after. One thing about them does change, by
+inheritance rather than by the reset: their text colour follows the page's
+`--foreground` token. That is deliberate and pinned by a browser assertion.
 
 **Chrome adopts it.** Auth screen, toasts, the cheat sheet, the toolbar, the
-project picker, the presence panel. Every swap keeps its aria contract and its
-tests; the markup moved to fit the tests, never the other way round.
+project picker, the presence panel. Every swap keeps its role, accessible name
+and labelling; where no assertion held one of those, the change writes the
+assertion rather than claiming it.
 
 **An open modal holds the page's keyboard back.** `?`, Cmd+Z and the command
 chords are listened for on `window` and on the cells, and knew nothing about

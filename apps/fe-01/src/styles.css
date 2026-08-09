@@ -15,7 +15,18 @@
  * 13.3px Arial cannot be given the app's type scale. So the reset is here, and
  * every rule in it carries `:not([data-grid], [data-grid] *)`. `data-grid` is on
  * the `<table>` in `wbs-table.tsx`; the cells, their inputs, the ⋯ menu and both
- * pickers live inside it and are left exactly as the browser draws them.
+ * pickers live inside it and keep the box model, the margins and the platform
+ * font the browser gives them.
+ *
+ * **The guard stops the reset. It does not stop inheritance**, and that is not a
+ * hole — it is the other half of the arrangement, and both halves are asserted
+ * in `e2e/tailwind.spec.ts` rather than assumed. Two things cross the line by
+ * inheriting: the **font family**, which is why `--font-sans` below says what it
+ * says, and the **text colour**, which follows `--foreground` from `<main>`. The
+ * colour is deliberate — one palette across the page, and a grid pinned to the
+ * user agent's `#000` while the chrome moved to a token is the version that
+ * would look wrong and would drift unseen on the first dark-mode change. It is
+ * pinned by a browser assertion so a palette edit cannot move it quietly.
  *
  * **Why a guard and not the inline styles that are already there.** The tailwind
  * spike measured this rather than predicting it, and the answer was the

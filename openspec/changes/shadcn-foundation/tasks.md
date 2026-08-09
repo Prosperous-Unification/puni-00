@@ -35,8 +35,11 @@ layer` on `expected 0 to be greater than 0`.
       caller changes) and `isPageShortcut` written beside it.
 - [x] `usePageShortcutsSuspended` in `page-shortcuts.ts`, called by
       `ModalContent` and by `KeyboardCheatSheet`.
-- [x] **Test** — `page-shortcuts.test.tsx`, five tests on the production path: a
-      real `WbsTable` with a spying `ProjectApi`, a real modal over it, one test
+- [x] **Test** — `page-shortcuts.test.tsx`. The page's half is the real
+      production path — a real `WbsTable` with a spying `ProjectApi`, its real
+      `window` listeners and its real cell handlers. The modal's half is a
+      harness, and that is the honest word for it: nothing in the app mounts a
+      modal yet, so `ModalContent` has no production caller until `P`. One test
       per shortcut, plus one for what the rule must **not** swallow.
 - [x] **Negative** — the listener never registered: all four holding tests
       failed, each on the thing the shortcut did.
@@ -66,3 +69,42 @@ layer` on `expected 0 to be greater than 0`.
       finding reproduced.
 - [x] `layout.spec.ts` (22) and `keyboard.spec.ts` (8) untouched and green.
 - [x] The gate, and `openspec validate --all --json`.
+
+## 5. What two reviews found
+
+Both reviewers, independently, on the branch as it stood at `41d1cee`.
+
+- [x] **The chords were swallowed on the surface too.** `isPageShortcut` asks
+      `commandChord` with no target guard — deliberately, since a cell is an
+      input — and the capture listener ended the event before the modal's own
+      handler ran, so `P`'s dialog could never have had Cmd+Enter. The rule now
+      asks a different question on each side: `isWindowShortcut` on the surface,
+      `isPageShortcut` outside it. **Not** "let everything on the surface
+      through", which would give a dialog's Cancel button the table's undo.
+- [x] **Test** — `lets a command chord reach a field on the surface`.
+- [x] **Negative** — the surface branch widened back to `isPageShortcut`: that
+      test failed on `expected [] to deeply equal [ 'Enter', 'h' ]`.
+- [x] **Negative** — `isOnModalSurface` forced true for every target: `leaves a
+command chord alone, so no work item is created behind it` failed on
+      `expected "spy" to not be called at all, but actually been called 1 times`.
+      Both sides of the line are therefore watched.
+
+- [x] **The auth title stopped being a heading.** The registry's `CardTitle` is
+      a `div`; the markup it replaced was an `h2`. Nothing caught it because
+      nothing had ever queried the title by role — the suite was green about a
+      contract it did not assert. `CardTitle` takes an `as`, defaulting to `h2`.
+- [x] **Test** — `auth-form.test.tsx`, new: the heading by role in both modes,
+      both fields by label, the submit by name.
+- [x] **Negative** — `CardTitle` back to a `div`: 2 failed, `Unable to find an
+accessible element with the role "heading" and name "Log in"`.
+
+- [x] **The grid's text colour follows the page.** `text-foreground` on `<main>`
+      is inherited through the guard — scoping stops a reset, not inheritance —
+      so a cell computes the token rather than the user agent's black. Accepted
+      rather than neutralised: it is one visible palette, and a grid pinned to
+      `#000` while the chrome moved would be the thing that looks wrong. Now
+      asserted so the next palette edit is visible.
+- [x] **Test** — `tailwind.spec.ts` › `paints the grid with the page's own
+foreground token, deliberately`.
+- [x] **Negative** — `text-foreground` off `<main>`: failed on
+      `Expected: "oklch(0.129 0.042 264.695)"` / `Received: "rgb(0, 0, 0)"`.

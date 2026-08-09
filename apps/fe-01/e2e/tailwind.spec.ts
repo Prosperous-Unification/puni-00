@@ -173,6 +173,26 @@ test.describe('Tailwind, in the browser', () => {
     expect(sizes.chip).not.toBe(sizes.cell);
   });
 
+  test('paints the grid with the page’s own foreground token, deliberately', async ({ page }) => {
+    await seedChip(page, `grid-colour-${String(Date.now())}`);
+
+    const colours = await page.evaluate(() => {
+      const cell = document.querySelector('[data-grid] td');
+      if (cell === null) throw new Error('the seeded plan put no cell in the grid');
+      // The token resolved the way any rule reading it would, rather than the
+      // `oklch(…)` text `getPropertyValue` hands back: a probe whose colour is
+      // the custom property, read as the browser computed it.
+      const probe = document.createElement('span');
+      probe.style.color = 'var(--foreground)';
+      document.body.append(probe);
+      const token = getComputedStyle(probe).color;
+      probe.remove();
+      return { cell: getComputedStyle(cell).color, token };
+    });
+
+    expect(colours.cell).toBe(colours.token);
+  });
+
   test('leaves a control inside the grid the platform’s font', async ({ page }) => {
     await seedChip(page, `reset-font-${String(Date.now())}`);
 
