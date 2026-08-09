@@ -235,6 +235,16 @@ been parsed. The name carries `*not*` now, and the heading is asserted to contai
 the parser made; both failures were then watched. The test that catches a parser has to use
 punctuation a parser eats.
 
+One more on 2026-08-09 in `T1 column-widths-drag`, and it **did not ship**. The remembered
+column widths are read as a claim, and the plan asked for three per-entry rules with three
+negatives. The middle one — `if (!Number.isFinite(width)) continue;` — was written and its
+negative watched with the line deleted: it **passed**. `1e999` is the only non-finite width
+JSON can express, it parses to `Infinity`, and `Infinity` is above every ceiling exactly as
+`-Infinity` is below every floor; JSON has no `NaN` for the case the line would have been
+about. The range check beside it already refused both. The line is deleted and both storage
+cases watch the range check instead, watched failing on `expected '' to be '56px'`. Write the
+negative before you believe the line — `P phases-ui`, one change later.
+
 Prove your check fails when the thing is broken, and say so in the comment. A check whose
 failure mode has never been observed is a claim, not a gate.
 

@@ -27,7 +27,7 @@ import {
   type FrameLayoutState,
   POPOVER_ROW_LAYER,
 } from './table-frame';
-import { type SubscriptionHandlers, WbsTable } from './wbs-table';
+import { type SubscriptionHandlers, WbsTable, widthFromDrag } from './wbs-table';
 
 /** The two elements a table cell can be, since a wrapping cell is a textarea. */
 const isCell = (node: unknown): node is HTMLInputElement | HTMLTextAreaElement =>
@@ -6745,6 +6745,329 @@ describe('the widths the table is laid out by', () => {
       expect(wrapper?.tagName).toBe('SPAN');
       expect(wrapper?.style.position).toBe('relative');
     }
+  });
+});
+
+describe('the widths this browser has dragged', () => {
+  /** Where the key lives for the project every test in here opens. */
+  const KEY = 'wbs.columnWidths.p1';
+
+  /** What the `<colgroup>` declares, by the column each `<col>` belongs to. */
+  const laidOut = (): Record<string, string> => {
+    const ids = screen
+      .getAllByRole('columnheader')
+      .map((th) => th.getAttribute('data-column') ?? '');
+    const cols = [...document.querySelectorAll<HTMLElement>('colgroup col')];
+    return Object.fromEntries(ids.map((id, at) => [id, cols[at]?.style.width ?? '(no col)']));
+  };
+
+  /** A remembered set of widths, as a hand-edited store would hold it. */
+  const storedWidths = (widths: unknown): void => {
+    localStorage.setItem(KEY, typeof widths === 'string' ? widths : JSON.stringify(widths));
+  };
+
+  /** What is under the key now, which is what a reload would read. */
+  const stored = (): string | null => localStorage.getItem(KEY);
+
+  /**
+   * One row on p1, and a way to hand the table somebody else's edit.
+   *
+   * The peer's edit is how the `not-before` column's resolved default is made
+   * to move — 56px to 84px the moment any row in the project sets a day — which
+   * is the only way to ask whether an override outranks a default that changes.
+   */
+  async function planWithAPeer() {
+    const api = fakeApi();
+    let notify: () => void = () => {
+      throw new Error('the table never subscribed');
+    };
+    const subscribe = (_projectId: string, handlers: SubscriptionHandlers) => {
+      notify = handlers.onChange;
+      return { seen: () => undefined, unsubscribe: () => undefined };
+    };
+    render(<WbsTable projectId="p1" api={api} subscribe={subscribe} />);
+    click('Add work item');
+    await screen.findByLabelText('Name of 010');
+    return {
+      api,
+      dateTheRow: async () => {
+        const row = api.rows.at(0);
+        if (row === undefined) throw new Error('the plan has no row to date');
+        row.startNoEarlierThan = '2026-08-12';
+        await act(async () => {
+          notify();
+          await Promise.resolve();
+        });
+      },
+    };
+  }
+
+  itDom(
+    'offers a handle on every column that declares a width, and on none that does not',
+    async () => {
+      // The Name column is the remainder-absorber: asking for its declared width
+      // is already an error, so a handle on it would be a gesture with nothing to
+      // write. Asserted as set equality rather than as "Name has none", because
+      // the interesting half is that every other column does.
+      // Proof: the handle rendered for every leaf column instead of every sizable
+      // one, this failed on `expected [ 'drag', 'number', 'name', …(14) ] to
+      // deeply equal [ 'drag', 'number', 'depends', …(13) ]` — the Name column
+      // offering a resize handle. Watched, 2026-08-09.
+      await threeRoots();
+
+      const ids = screen
+        .getAllByRole('columnheader')
+        .map((th) => th.getAttribute('data-column') ?? '');
+      const sizable = frameLayout(ids, UNDATED)
+        .columns.filter((column) => column.width !== undefined)
+        .map((column) => column.id);
+      const handles = [...document.querySelectorAll('thead [data-resize-handle]')].map((handle) =>
+        handle.getAttribute('data-resize-handle'),
+      );
+
+      expect(handles).toEqual(sizable);
+      expect(ids).toContain('name');
+      expect(handles).not.toContain('name');
+    },
+  );
+
+  itDom('works a dragged width out from where the handle was grabbed', () => {
+    // The gesture itself is `e2e/layout.spec.ts`'s: jsdom performs no default
+    // action for a pointer event and cannot tell a working drag from a
+    // half-done one. What it can hold is the arithmetic the gesture writes
+    // through — the floor is the column's own where that is narrower, and the
+    // ceiling is the one the stored-width check reads.
+    expect(widthFromDrag('number', 169, 40, UNDATED)).toBe(209);
+    expect(widthFromDrag('number', 169, -1000, UNDATED)).toBe(36);
+    expect(widthFromDrag('drag', 24, -50, UNDATED)).toBe(24);
+    expect(widthFromDrag('number', 169, 10_000, UNDATED)).toBe(600);
+  });
+
+  itDom('lays a remembered width out over the one it would have resolved', async () => {
+    storedWidths({ number: 240 });
+    await threeRoots();
+
+    expect(laidOut().number).toBe('240px');
+    // And the pinned column behind it moved with it, which is the whole of why
+    // the override lives in the frame layout rather than in the `<colgroup>`.
+    expect([...rowFor('020').querySelectorAll('td')][2]?.style.left).toBe(`${String(24 + 240)}px`);
+    // Read, not written back: nothing about opening a project changes what is
+    // remembered about it.
+    expect(stored()).toBe(JSON.stringify({ number: 240 }));
+  });
+
+  itDom('applies a width dragged as far right as it goes, on the reload after it', async () => {
+    // The two ends of one constant. A drag clamps to `WIDEST_COLUMN` and the
+    // stored-width check accepts up to `WIDEST_COLUMN`, so the width a reader
+    // stops at is the width that comes back — this seeds exactly what the
+    // clamp can produce rather than a number typed here.
+    // Proof: the stored-width check given a ceiling of its own at 500, this
+    // failed on `expected '169px' to be '600px'` — the width the drag had just
+    // produced refused by the reload. Watched, 2026-08-09.
+    storedWidths({ number: widthFromDrag('number', 169, 10_000, UNDATED) });
+    await threeRoots();
+
+    expect(laidOut().number).toBe('600px');
+  });
+
+  itDom('drops storage that is not a set of column widths, key and all', async () => {
+    // localStorage is user-editable, so what comes back is a claim. A table
+    // that cannot be opened until somebody clears storage by hand is a worse
+    // answer than a table at its defaults, which is the posture the remembered
+    // expansion beside it takes.
+    // Proof: the `isWidthOverrides` guard deleted, this failed on `TypeError:
+    // Cannot convert undefined or null to object`, thrown out of the render
+    // that mounts the table — the text that is not JSON reaching
+    // `Object.entries` as `undefined`. Watched, 2026-08-09.
+    for (const junk of ['not json at all', '[169, 240]', '{"number":"wide"}', '"a string"']) {
+      cleanup();
+      localStorage.clear();
+      storedWidths(junk);
+      await threeRoots();
+
+      expect(laidOut().number).toBe('169px');
+      expect(stored()).toBe(null);
+    }
+  });
+
+  itDom(
+    'drops an entry naming a column nothing can size, and keeps the one beside it',
+    async () => {
+      // Proof: the `sizableColumn` check deleted, this failed on
+      // `UnknownColumnError: No declared width for column "serviec"` thrown out
+      // of the render — the width table asked for a floor for a column that does
+      // not exist. Watched, 2026-08-09.
+      storedWidths({ number: 240, serviec: 80 });
+      await threeRoots();
+
+      expect(laidOut().number).toBe('240px');
+      expect(Object.keys(laidOut())).not.toContain('serviec');
+    },
+  );
+
+  itDom('drops a width that is not a finite number, and keeps the one beside it', async () => {
+    // `1e999` is JSON a browser parses to `Infinity`, which is the only
+    // non-finite width storage can hold — JSON has no `NaN` — and it reaches
+    // the `<colgroup>` as a `<col>` with no usable width at all and the table's
+    // `min-width` as `NaN`.
+    //
+    // The **range** check is what refuses it, and this is the second test
+    // watching that one line rather than a `Number.isFinite` of its own. That
+    // line was written first and its negative watched *passing* with the line
+    // deleted — `Infinity` is above every ceiling, exactly as `-Infinity` is
+    // below every floor — so the line was removed rather than believed. R5;
+    // `wbs-table.tsx`'s `rememberedWidthOverrides` has the note.
+    //
+    // Proof: the range check deleted, this failed on `expected '' to be '56px'`
+    // — the `<col>` left with no width the browser would take, and the table's
+    // own `min-width` reading `NaNpx` beside it. Watched, 2026-08-09.
+    // Written as the text a hand-edited store holds, not as an object: an
+    // `Infinity` put through `JSON.stringify` comes out as `null`, and this has
+    // to be the case that survives the whole-key check and is refused per
+    // entry.
+    storedWidths('{"number":240,"not-before":1e999}');
+    await threeRoots();
+
+    expect(laidOut().number).toBe('240px');
+    expect(laidOut()['not-before']).toBe('56px');
+    expect(screen.getByRole('table').style.minWidth).not.toContain('NaN');
+  });
+
+  itDom(
+    'drops a width outside the range a drag can produce, and keeps the one beside it',
+    async () => {
+      // Both ends, because a range check is two comparisons and a test that only
+      // ever hands it a huge number cannot see the floor go.
+      // Proof: the range check deleted, this failed on `expected '1000000000px'
+      // to be '169px'` — a column a billion pixels wide laid out from a
+      // hand-edited store. Watched, 2026-08-09.
+      storedWidths({ number: 1e9, depends: 4, team: 240 });
+      await threeRoots();
+
+      expect(laidOut().number).toBe('169px');
+      expect(laidOut().depends).toBe('110px');
+      expect(laidOut().team).toBe('240px');
+    },
+  );
+
+  itDom('leaves a phase this project no longer holds alone', async () => {
+    // Never looked at rather than dropped: expansion's deleted row ids are
+    // harmless for the same reason, and a width for a column nothing renders
+    // costs nothing to keep. The role coming back would find its width waiting.
+    storedWidths({ 'role-gone-final': 140, number: 240 });
+    await threeRoots();
+
+    expect(laidOut().number).toBe('240px');
+    expect(stored()).toContain('role-gone-final');
+  });
+
+  itDom('freezes a width that would otherwise move with the plan', async () => {
+    // The `not-before` column is 56px until any row in the project sets a day
+    // and 84px afterwards. A reader who has said how wide they want it has said
+    // so about both states.
+    // Proof: the precedence reversed in `widthFor`, so a plan width outranks
+    // the override, this failed on `expected '56px' to be '110px'` — the
+    // remembered width never reaching the column at all, and the two-state
+    // default deciding it in both directions. Watched, 2026-08-09.
+    storedWidths({ 'not-before': 110 });
+    const { dateTheRow } = await planWithAPeer();
+    expect(laidOut()['not-before']).toBe('110px');
+
+    await dateTheRow();
+
+    expect(laidOut()['not-before']).toBe('110px');
+    // And the default really would have moved, which is what makes the
+    // assertion above a freeze rather than a coincidence.
+    expect(frameLayout(['not-before'], DATED).minWidth).not.toBe(
+      frameLayout(['not-before'], UNDATED).minWidth,
+    );
+  });
+
+  itDom(
+    'resets to the width resolved now, not to the one that held when it was dragged',
+    async () => {
+      // The whole of what a width reset is: the key is forgotten, not overwritten
+      // with a snapshot. The column's default has changed under the override
+      // while it was in force, and the reset has to land on the new one.
+      // Proof: the reset re-written to store the widths resolved at the moment it
+      // was pressed, this failed on `expected '110px' to be '84px'` — the
+      // override renamed a default rather than forgotten. Watched, 2026-08-09.
+      storedWidths({ 'not-before': 110 });
+      const { dateTheRow } = await planWithAPeer();
+      await dateTheRow();
+      expect(laidOut()['not-before']).toBe('110px');
+
+      click('Reset column widths');
+
+      expect(laidOut()['not-before']).toBe('84px');
+      expect(stored()).toBe(null);
+    },
+  );
+
+  itDom('offers the reset only while there is a width to reset', async () => {
+    // A control that provably does nothing reads as a broken one.
+    // Proof: the `size > 0` condition removed, this failed on `expected
+    // <button …(3)></button> to be null` on a project nobody had dragged a
+    // column in. Watched, 2026-08-09.
+    await threeRoots();
+    expect(screen.queryByRole('button', { name: 'Reset column widths' })).toBe(null);
+
+    cleanup();
+    localStorage.clear();
+    storedWidths({ number: 240 });
+    await threeRoots();
+    expect(screen.getByRole('button', { name: 'Reset column widths' })).toBeInTheDocument();
+
+    click('Reset column widths');
+    expect(screen.queryByRole('button', { name: 'Reset column widths' })).toBe(null);
+  });
+
+  itDom('changes a width without rebuilding a single cell of the table', async () => {
+    // Landmine #1 again, from the other side. `columns` may depend on `roles`
+    // and `unfoldedRoles` and nothing else, so the overrides live beside
+    // `expanded` and never enter a column definition: `flexRender` renders each
+    // `cell` as a component *type*, and a definition that changed with a width
+    // would unmount and remount every cell in the table, taking the focus and
+    // the half-typed value with it.
+    //
+    // Proof: the width overrides added to the `columns` dependency array, this
+    // failed on `expected <body><div>…(1)</div></body> to be <textarea
+    // …(5)></textarea>` — the caret dropped on the body by the remount, and the
+    // half-typed name gone with it. Watched, 2026-08-09.
+    storedWidths({ number: 240 });
+    const api = fakeApi();
+    render(<WbsTable projectId="p1" api={api} />);
+    click('Add work item');
+    const name = await screen.findByLabelText('Name of 010');
+    name.focus();
+    fireEvent.change(name, { target: { value: 'Strip the old wir' } });
+
+    click('Reset column widths');
+
+    expect(laidOut().number).toBe('169px');
+    expect(document.activeElement).toBe(screen.getByLabelText('Name of 010'));
+    expect(screen.getByLabelText('Name of 010')).toHaveProperty('value', 'Strip the old wir');
+  });
+
+  itDom('reads the next project’s widths rather than stamping this one’s on it', async () => {
+    // This component is not remounted between projects (`project-page.tsx`
+    // renders it without a `key`), so the state and the key it is written under
+    // have to be swapped together — exactly as the remembered expansion beside
+    // it is.
+    storedWidths({ number: 240 });
+    localStorage.setItem('wbs.columnWidths.p2', JSON.stringify({ number: 300 }));
+    const api = fakeApi();
+    const { rerender } = render(<WbsTable projectId="p1" api={api} />);
+    click('Add work item');
+    await screen.findByLabelText('Name of 010');
+    expect(laidOut().number).toBe('240px');
+
+    rerender(<WbsTable projectId="p2" api={api} />);
+
+    await waitFor(() => {
+      expect(laidOut().number).toBe('300px');
+    });
+    expect(localStorage.getItem(KEY)).toBe(JSON.stringify({ number: 240 }));
   });
 });
 

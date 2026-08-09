@@ -7,7 +7,15 @@ import {
   useReactTable,
 } from '@tanstack/react-table';
 import { workdaysBetween } from '@wbs/domain/workday';
-import { type CSSProperties, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  type CSSProperties,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -75,15 +83,19 @@ import { useRendererForViewport } from './plan-renderer';
 import { printedDay, shortIsoDate } from './short-date';
 import {
   CELL,
+  clampColumnWidth,
   DATE_EDITOR_WIDTH,
   flexibleCellStyle,
+  floorFor,
   frameLayout,
   type FrameLayoutState,
   indentFor,
   pinnedCellStyle,
   POPOVER_ROW_LAYER,
+  sizableColumn,
   STICKY_HEADER_CELL,
   TABLE_FRAME,
+  WIDEST_COLUMN,
 } from './table-frame';
 import { type Toast, toastKey, ToastStack, useToasts } from './toasts';
 import { searchTree } from './tree-search';
@@ -586,6 +598,245 @@ function rememberExpansion(projectId: string, expanded: ExpandedState): void {
   localStorage.setItem(expansionKey(projectId), JSON.stringify(expanded));
 }
 
+/**
+ * Where this browser remembers how wide one project's columns were dragged.
+ *
+ * Per project and per browser, exactly as {@link expansionKey} beside it: a
+ * width is one reader's answer to how much of their screen a column deserves,
+ * and be-01 is never told about it.
+ */
+const widthOverridesKey = (projectId: string): string => `wbs.columnWidths.${projectId}`;
+
+/**
+ * The plan as it stands when the key is read, which is before a single row has
+ * arrived.
+ *
+ * A stored width is checked against the range a drag clamps to, and that range
+ * is {@link floorFor} up to {@link WIDEST_COLUMN}. Neither end moves with the
+ * plan — the only width that depends on it, `not-before`, is 56px or 84px and
+ * so has the same 36px floor in both states — which is what lets this be read
+ * at mount rather than deferred to the first render that knows the plan.
+ * `table-frame.test.ts`'s `has a floor that does not move with the plan` is
+ * what holds that true.
+ */
+const STATE_AT_MOUNT: FrameLayoutState = { hasAnyNotBefore: false };
+
+/**
+ * Whether a value read back out of storage is a set of column widths at all.
+ *
+ * The whole-key question, asked before any single entry is: an array, a string
+ * and a record of names are none of them a set of widths, and a table that
+ * declared `widepx` for a column would be laid out by nothing at all.
+ */
+function isWidthOverrides(value: unknown): value is Record<string, number> {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  return Object.values(value).every((width) => typeof width === 'number');
+}
+
+/**
+ * The column widths this browser last saved for `projectId`, or none where it
+ * has never saved any.
+ *
+ * The stored value is a claim, not a fact — user-editable storage read at a
+ * boundary — and it is validated in two rounds, because the two failures are
+ * different. Storage that is not a set of widths takes the key with it, as a
+ * remembered expansion that is not one does. A single entry that cannot be
+ * used is dropped **on its own**, and the entries beside it still apply: one
+ * hand-edited number is no reason to forget the other four columns.
+ *
+ * Two things disqualify an entry, and each is a line with a negative test of
+ * its own (`wbs-table.test.tsx`, `the widths this browser has dragged`):
+ *
+ * - an id the frame layout cannot size, which would throw out of the render
+ *   that tried to lay it out;
+ * - a width outside the range a drag can produce, read from the same
+ *   {@link floorFor} and {@link WIDEST_COLUMN} the drag clamps to, so the two
+ *   cannot drift apart.
+ *
+ * **Two, not the three this was written with.** A `Number.isFinite(width)` line
+ * stood between these until its negative was watched — and passed with the line
+ * deleted. It could not fail: `1e999` is the only non-finite width JSON can
+ * express, it parses to `Infinity`, and `Infinity` is above every ceiling just
+ * as `-Infinity` is below every floor. JSON has no `NaN` for the case it would
+ * have been about. The range check below is what really refuses both, and it is
+ * the line the negative watches. R5, and `P phases-ui`'s sanitizer before it.
+ *
+ * An id naming a phase this project no longer holds survives all three and is
+ * then never looked at — the harmlessness a remembered expansion's deleted row
+ * ids have, and the reason the role coming back finds its width waiting.
+ *
+ * Deliberately not the "unknown is not OK" throw, for {@link
+ * rememberedExpansion}'s reason: the alternative is a plan nobody can open
+ * until they clear storage by hand, over a preference about a column.
+ */
+function rememberedWidthOverrides(projectId: string): Map<string, number> {
+  const stored = localStorage.getItem(widthOverridesKey(projectId));
+  if (stored === null) return new Map();
+  const claimed = parsedOrNothing(stored);
+  if (!isWidthOverrides(claimed)) {
+    localStorage.removeItem(widthOverridesKey(projectId));
+    return new Map();
+  }
+  const kept = new Map<string, number>();
+  for (const [columnId, width] of Object.entries(claimed)) {
+    if (!sizableColumn(columnId, STATE_AT_MOUNT)) continue;
+    // One comparison each way, and no separate finiteness test in front of
+    // them: see the note above about the line that could not fail.
+    if (width < floorFor(columnId, STATE_AT_MOUNT) || width > WIDEST_COLUMN) continue;
+    kept.set(columnId, width);
+  }
+  return kept;
+}
+
+/**
+ * Writes the widths in force for `projectId`.
+ *
+ * Called when a drag is let go of and at no other time. In particular the
+ * sanitized set is **not** written back on read: opening a project must not
+ * change what is remembered about it, and a write-back would quietly discard
+ * the entry for a phase that is only temporarily absent.
+ */
+function rememberWidthOverrides(projectId: string, overrides: ReadonlyMap<string, number>): void {
+  localStorage.setItem(widthOverridesKey(projectId), JSON.stringify(Object.fromEntries(overrides)));
+}
+
+/**
+ * Forgets every remembered width for `projectId` — the storage half of a
+ * {@link Width reset}.
+ *
+ * `removeItem`, never an empty object written over it. What the columns return
+ * to is whatever the frame layout resolves for them *now*, and a snapshot
+ * stored here is that promise broken: a column whose default has changed since
+ * the drag would come back to the old one.
+ */
+function forgetWidthOverrides(projectId: string): void {
+  localStorage.removeItem(widthOverridesKey(projectId));
+}
+
+/**
+ * How wide a column is while its resize handle is `travel` px from where it was
+ * grabbed.
+ *
+ * The whole of the arithmetic a drag writes, kept out of the handlers so that
+ * something can hold it: jsdom performs no default action for a pointer event,
+ * so the gesture is provable only in a browser (`e2e/layout.spec.ts`) and this
+ * is the part that is not.
+ *
+ * `fromWidth` is the width the column was laid out at when the handle was taken
+ * — not the width it is at now, which is this function's own answer one pointer
+ * move ago.
+ *
+ * @throws {UnknownColumnError} through {@link clampColumnWidth}, for a column
+ * with no declared width to drag. Nothing renders a handle on one.
+ */
+export function widthFromDrag(
+  columnId: string,
+  fromWidth: number,
+  travel: number,
+  state: FrameLayoutState,
+): number {
+  return clampColumnWidth(columnId, fromWidth + travel, state);
+}
+
+/** What a resize handle does with the width its gesture worked out. */
+interface ColumnResize {
+  /** Follows the pointer: how wide the column is drawn while the drag is in flight. */
+  drag: (columnId: string, width: number) => void;
+  /** The width the reader let go at, which is the one that is remembered. */
+  commit: (columnId: string, width: number) => void;
+  /** A `pointercancel` — the browser took the gesture away — which leaves the widths as they were. */
+  abandon: () => void;
+}
+
+/**
+ * The grab handle on one column header's trailing edge.
+ *
+ * Hand-rolled `pointerdown`/`pointermove`/`pointerup` with pointer capture,
+ * rather than TanStack's own column resizing: that writes the width into the
+ * column definition, which is the one place in this table a width must never
+ * live — `flexRender` renders each `cell` as a component *type*, so a
+ * definition that changed with a width would remount every cell in the table on
+ * every pointer move (LLM_README landmine #1).
+ *
+ * Capture is what makes the gesture survive the pointer leaving the 6px strip,
+ * which it does immediately: with it, every `pointermove` and the `pointerup`
+ * are delivered here however far away they happen.
+ *
+ * The width the drag counts from is taken **once**, at `pointerdown`. Counting
+ * from the width on screen would compound this function's own answer with every
+ * move — a drag that accelerates away from the pointer.
+ */
+function ColumnResizeHandle({
+  columnId,
+  heading,
+  width,
+  state,
+  resize,
+}: {
+  columnId: string;
+  /** What the column is called, so the control has a name to be found by. */
+  heading: string;
+  /** The width the column is laid out at now, which a new gesture starts from. */
+  width: number;
+  state: FrameLayoutState;
+  resize: ColumnResize;
+}) {
+  const grabbed = useRef<{ pointerId: number; fromX: number; fromWidth: number } | null>(null);
+  const widthAt = (clientX: number, from: { fromX: number; fromWidth: number }): number =>
+    widthFromDrag(columnId, from.fromWidth, clientX - from.fromX, state);
+
+  return (
+    <span
+      data-resize-handle={columnId}
+      role="separator"
+      aria-orientation="vertical"
+      aria-label={`Resize ${heading}`}
+      title={`Drag to resize ${heading}`}
+      onPointerDown={(event) => {
+        // The browser's own answer to a press and a drag across a heading is a
+        // text selection, and there is nothing in this strip to select.
+        event.preventDefault();
+        // Capture, so every move and the release are delivered here however far
+        // the pointer has travelled — a 6px strip is not something a hand stays
+        // inside.
+        event.currentTarget.setPointerCapture(event.pointerId);
+        grabbed.current = { pointerId: event.pointerId, fromX: event.clientX, fromWidth: width };
+      }}
+      onPointerMove={(event) => {
+        const from = grabbed.current;
+        // A move with no grab behind it is the pointer crossing the strip, and
+        // a second pointer's move is somebody else's gesture: neither is this
+        // drag.
+        if (from?.pointerId !== event.pointerId) return;
+        resize.drag(columnId, widthAt(event.clientX, from));
+      }}
+      onPointerUp={(event) => {
+        const from = grabbed.current;
+        if (from?.pointerId !== event.pointerId) return;
+        grabbed.current = null;
+        resize.commit(columnId, widthAt(event.clientX, from));
+      }}
+      onPointerCancel={() => {
+        if (grabbed.current === null) return;
+        grabbed.current = null;
+        resize.abandon();
+      }}
+      style={{
+        position: 'absolute',
+        top: 0,
+        right: 0,
+        bottom: 0,
+        width: 6,
+        cursor: 'col-resize',
+        // Or the frame under it takes a touch drag as a scroll and the column
+        // never moves.
+        touchAction: 'none',
+        userSelect: 'none',
+      }}
+    />
+  );
+}
+
 /** Whether two role lists say the same thing, so an equal one can be discarded. */
 function sameRoles(a: readonly RoleView[], b: readonly RoleView[]): boolean {
   return (
@@ -916,6 +1167,37 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     // 2026-08-06.
     rememberExpansion(projectId, expanded);
   }, [projectId, expanded]);
+  /**
+   * How wide this browser has dragged this project's columns, by column id.
+   *
+   * Beside the expansion and **not** in the `columns` memo, which is the whole
+   * of where this state is allowed to live: it reaches the layout through
+   * {@link frameState} below, and a column definition that changed with a width
+   * would remount every cell in the table (landmine #1).
+   *
+   * Read straight into the initial state for {@link rememberedExpansion}'s
+   * reason: an effect would lay the table out at its defaults and move every
+   * column one frame later.
+   */
+  const [widthOverrides, setWidthOverrides] = useState<Map<string, number>>(() =>
+    rememberedWidthOverrides(projectId),
+  );
+  /** Which project the widths above belong to, so a save cannot pair them with another. */
+  const widthProject = useRef(projectId);
+  /**
+   * Swaps the widths whole when the project does.
+   *
+   * Not the expansion's effect, and not paired with a save: nothing is written
+   * here at all. The widths are written when a drag is let go of and when the
+   * reset is pressed, so there is no first-save-after-a-switch to guard against
+   * — only the read, which would otherwise leave one project's widths laid out
+   * over another's columns.
+   */
+  useEffect(() => {
+    if (widthProject.current === projectId) return;
+    widthProject.current = projectId;
+    setWidthOverrides(rememberedWidthOverrides(projectId));
+  }, [projectId]);
   /**
    * What has been typed into the Find box.
    *
@@ -1801,7 +2083,48 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    */
   const frameState: FrameLayoutState = {
     hasAnyNotBefore: flat.some((row) => row.startNoEarlierThan !== null),
+    // The reader's own answer, which outranks whatever the fact above resolves
+    // to. Built here rather than passed to each consumer, so the `<colgroup>`,
+    // both minimums and the pinned offsets cannot be answers to two different
+    // questions.
+    columnWidthOverrides: widthOverrides,
   };
+
+  /** What the resize handles on the heading row do with the widths they work out. */
+  const resizeColumn: ColumnResize = {
+    drag: (columnId, width) => {
+      // Per move, so the column follows the pointer. Only the write below is
+      // held back to the end of the gesture.
+      setWidthOverrides((current) => new Map(current).set(columnId, width));
+    },
+    commit: (columnId, width) => {
+      const committed = new Map(widthOverrides).set(columnId, width);
+      setWidthOverrides(committed);
+      rememberWidthOverrides(projectId, committed);
+    },
+    abandon: () => {
+      // A `pointercancel` is the browser taking the gesture — a system gesture,
+      // a lost device — and what it leaves behind is the last width this
+      // render saw rather than a half-finished one. Re-read from storage
+      // rather than remembered in a ref: the storage is the last committed
+      // answer by construction.
+      setWidthOverrides(rememberedWidthOverrides(projectId));
+    },
+  };
+
+  /**
+   * Forgets every width for this project, so each column returns to what the
+   * frame layout resolves for it **now**.
+   *
+   * Forgotten, never frozen. Storing the widths as they stand would turn a
+   * reset into a rename of today's defaults, and a column whose default had
+   * moved since — `not-before` is 56px or 84px — would come back to the wrong
+   * one.
+   */
+  function resetColumnWidths(): void {
+    setWidthOverrides(new Map());
+    forgetWidthOverrides(projectId);
+  }
 
   /**
    * The whole plan as a document, taken at the moment it is asked for.
@@ -5098,6 +5421,29 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
   const layout = frameLayout(leafColumnIds, frameState);
 
   /**
+   * The resize handle for one heading, or nothing where that column has no
+   * declared width to drag.
+   *
+   * `declaredHeading` is what the column definition calls itself, which is a
+   * string for most of them and a node for the ones whose heading is a glyph or
+   * carries a control. Those fall back to the column id: a name a screen reader
+   * can say, rather than a node this cannot read text out of.
+   */
+  function resizeHandleFor(columnId: string, declaredHeading: unknown): ReactNode {
+    const resolved = layout.columns.find((column) => column.id === columnId);
+    if (resolved?.width === undefined) return null;
+    return (
+      <ColumnResizeHandle
+        columnId={columnId}
+        heading={typeof declaredHeading === 'string' ? declaredHeading : columnId}
+        width={resolved.width}
+        state={frameState}
+        resize={resizeColumn}
+      />
+    );
+  }
+
+  /**
    * Every control the toolbar holds, as one node.
    *
    * Built once and rendered in one of two places: the row above the table, or
@@ -5647,21 +5993,52 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
           showDay={showDay}
         />
       ) : (
-        /*
-          The table scrolls inside this, in both directions, so the page never
-          scrolls sideways and the toolbar and the alerts above stay where they
-          were put. The heading row and the three identity columns are sticky
-          against this box — see `table-frame.ts` for why it has to be the one
-          that scrolls.
-        */
-        <div data-table-frame style={TABLE_FRAME}>
+        <>
           {/*
+            The width reset, and the whole of why it is **here** rather than in
+            `toolbarControls`: that array is rendered both in the desktop
+            toolbar row and in the Plan actions sheet, so a control put there
+            reaches the phone by construction — and a phone is drawing cards,
+            which have no columns to widen. This branch is the table renderer's
+            own, and the cards branch above cannot reach it.
+
+            Offered only while there is something to forget. A control that
+            provably does nothing reads as a broken one, and on a table nobody
+            has dragged a column in this one would.
+
+            Proof of the placement: the reset moved into `toolbarControls`,
+            `plan-cards.test.tsx`'s `offers no width control at all, because a
+            card has no columns` failed on `expected <button …(2)></button> to
+            be null` — the control on the sheet at 390px. Watched, 2026-08-09.
+          */}
+          {widthOverrides.size > 0 && (
+            <div data-width-controls className="mb-1.5 flex shrink-0 items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                type="button"
+                title="Forget the widths dragged here, and lay every column out at its own again"
+                onClick={resetColumnWidths}
+              >
+                Reset column widths
+              </Button>
+            </div>
+          )}
+          {/*
+            The table scrolls inside this, in both directions, so the page never
+            scrolls sideways and the toolbar and the alerts above stay where they
+            were put. The heading row and the three identity columns are sticky
+            against this box — see `table-frame.ts` for why it has to be the one
+            that scrolls.
+          */}
+          <div data-table-frame style={TABLE_FRAME}>
+            {/*
             `separate` with no spacing rather than the browser's default gap:
             the pinned columns' offsets are the running total of their widths,
             and two pixels between every pair of cells is two pixels the offsets
             do not know about.
           */}
-          {/*
+            {/*
             `data-grid` marks the whole of the editable grid for the cascade, and
             it is the only thing this change writes into the table. Every rule in
             `styles.css`'s `@layer base` carries `:not([data-grid], [data-grid] *)`,
@@ -5676,36 +6053,36 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
             than `closest('table')`, so a renderer that is not a table still has
             a grid (agy #11).
           */}
-          <table
-            data-grid
-            // A callback rather than the ref object itself: `gridElement` holds
-            // an `HTMLElement` since `M mobile-cards` — a `<table>` here and a
-            // list of cards below the breakpoint — and React will not hand a
-            // widened ref object to a `<table>`.
-            ref={(node) => {
-              gridElement.current = node;
-            }}
-            style={{
-              borderCollapse: 'separate',
-              borderSpacing: 0,
-              // `fixed`, so the browser lays every column out at the width
-              // `table-frame.ts` says it has. Under the default `auto` the
-              // widths were a suggestion the content could outvote, and a column
-              // that came out wider than the offsets assumed is a pinned Name
-              // painted over "Depends on".
-              tableLayout: 'fixed',
-              // The frame's width, never a declared total: every fixed column
-              // takes its declared px and Name absorbs whatever is left, so the
-              // table fits the window instead of the window having to fit the
-              // table. The minimum is the floor under that — the fixed columns
-              // plus Name's own floor — and below it the frame scrolls sideways
-              // with the pinned columns holding the left edge, which is the one
-              // case `width: 100%` cannot cover.
-              width: '100%',
-              minWidth: layout.minWidth,
-            }}
-          >
-            {/*
+            <table
+              data-grid
+              // A callback rather than the ref object itself: `gridElement` holds
+              // an `HTMLElement` since `M mobile-cards` — a `<table>` here and a
+              // list of cards below the breakpoint — and React will not hand a
+              // widened ref object to a `<table>`.
+              ref={(node) => {
+                gridElement.current = node;
+              }}
+              style={{
+                borderCollapse: 'separate',
+                borderSpacing: 0,
+                // `fixed`, so the browser lays every column out at the width
+                // `table-frame.ts` says it has. Under the default `auto` the
+                // widths were a suggestion the content could outvote, and a column
+                // that came out wider than the offsets assumed is a pinned Name
+                // painted over "Depends on".
+                tableLayout: 'fixed',
+                // The frame's width, never a declared total: every fixed column
+                // takes its declared px and Name absorbs whatever is left, so the
+                // table fits the window instead of the window having to fit the
+                // table. The minimum is the floor under that — the fixed columns
+                // plus Name's own floor — and below it the frame scrolls sideways
+                // with the pinned columns holding the left edge, which is the one
+                // case `width: 100%` cannot cover.
+                width: '100%',
+                minWidth: layout.minWidth,
+              }}
+            >
+              {/*
               The one place the declared widths reach the browser. `col` sizes a
               column and nothing else about it, which is why the cells below
               carry no width of their own.
@@ -5714,130 +6091,151 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
               width of `auto`, which is the same thing said less clearly — and
               `table-layout: fixed` hands it whatever the declared ones leave.
             */}
-            <colgroup>
-              {layout.columns.map((column) => (
-                <col
-                  key={column.id}
-                  style={column.width === undefined ? undefined : { width: column.width }}
-                />
-              ))}
-            </colgroup>
-            <thead>
-              {table.getHeaderGroups().map((group) => (
-                <tr key={group.id}>
-                  {group.headers.map((header) => (
-                    <th
-                      key={header.id}
-                      scope="col"
-                      // Which column this cell is, on the cell itself. Nothing in
-                      // the app reads it: the browser layout gate does
-                      // (`e2e/layout.spec.ts`), and a measured rectangle with no
-                      // name attached is a failure that says two numbers
-                      // disagreed without saying which column moved.
-                      data-column={header.column.id}
-                      style={{
-                        ...CELL,
-                        ...STICKY_HEADER_CELL,
-                        ...flexibleCellStyle(header.column.id),
-                        ...pinnedCellStyle(layout, header.column.id, 'header'),
-                      }}
-                    >
-                      {flexRender(header.column.columnDef.header, header.getContext())}
-                    </th>
-                  ))}
-                </tr>
-              ))}
-            </thead>
-            <tbody>
-              {shownRows.map((row) => (
-                <tr
-                  key={row.id}
-                  data-frozen={row.original.frozenNumber !== null ? 'true' : 'false'}
-                  // The armed row, said on the row rather than only in the
-                  // toast: a sentence in the corner of the screen is not where
-                  // somebody looks to find out which row a second Ctrl+D will
-                  // take. The tint itself is on the cells below, because a
-                  // pinned cell carries its own opaque background and would
-                  // paint straight over a colour set here.
-                  data-armed={armedDelete?.rowId === row.original.id ? 'true' : undefined}
-                  data-drop={dropHint?.rowId === row.original.id ? dropHint.zone : undefined}
-                  // The handlers sit on the row rather than in a column definition:
-                  // `flexRender` renders each `cell` as a component *type*, so a
-                  // definition that changed with the drag would remount every cell
-                  // in the table on every pointer move.
-                  onDragOver={(event) => {
-                    if (dragging === null) return;
-                    // Without this the browser refuses the drop outright.
-                    event.preventDefault();
-                    const box = event.currentTarget.getBoundingClientRect();
-                    setDropHint({
-                      rowId: row.original.id,
-                      zone: zoneFor(event.clientY - box.top, box.height),
-                    });
-                  }}
-                  onDragLeave={() => {
-                    setDropHint((current) => (current?.rowId === row.original.id ? null : current));
-                  }}
-                  onDrop={(event) => {
-                    event.preventDefault();
-                    // The zone the last `dragover` worked out, not one recomputed
-                    // here. That one is the marker the person was looking at when
-                    // they let go, and a drop that lands somewhere other than where
-                    // the line was drawn is the one thing drag must never do.
-                    if (dropHint?.rowId !== row.original.id) return;
-                    dropOn(
-                      row.original.id,
-                      dropHint.zone,
-                      row.getIsExpanded() && row.subRows.length > 0,
-                    );
-                  }}
-                >
-                  {row.getVisibleCells().map((cell) => (
-                    <td
-                      key={cell.id}
-                      // See the `th` above: the layout gate measures these boxes
-                      // and has to be able to name the one that moved.
-                      data-column={cell.column.id}
-                      style={{
-                        ...CELL,
-                        // The exception to the cell clip. See
-                        // {@link opensAPopover}: a popover's containing block is
-                        // the wrapper span *inside* this `<td>`, so this `<td>`
-                        // clips it unless it is told not to.
-                        ...(opensAPopover(cell.column.id) ? { overflow: 'visible' as const } : {}),
-                        ...flexibleCellStyle(cell.column.id),
-                        ...pinnedCellStyle(layout, cell.column.id, 'body'),
-                        // Last, so it wins over the pinned layer it is raising.
-                        // A pinned cell is sticky *with a z-index*, which makes
-                        // it a stacking context — so the preview hanging off
-                        // this one is trapped inside it and the next row's
-                        // pinned Name cell paints over it, whatever the
-                        // preview's own z-index says. The Name column is the
-                        // only cell in the table that is both pinned and holds a
-                        // popover, and this is the row it is open on.
-                        // Proof: found in a browser rather than reasoned about —
-                        // `4px below the name cell is <textarea> in the name
-                        // column, not the preview`, on h2puni 2026-08-08, with
-                        // `opensAPopover` and every other rule already correct.
-                        ...(cell.column.id === 'name' &&
-                        openCard === cellKey(row.original.id, 'name')
-                          ? { zIndex: POPOVER_ROW_LAYER }
-                          : {}),
-                        // After the pinned background, so the warning is visible
-                        // on the three columns that hold the left edge too.
-                        ...(armedDelete?.rowId === row.original.id
-                          ? { background: ARMED_TINT }
-                          : {}),
-                      }}
-                    >
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              <colgroup>
+                {layout.columns.map((column) => (
+                  <col
+                    key={column.id}
+                    style={column.width === undefined ? undefined : { width: column.width }}
+                  />
+                ))}
+              </colgroup>
+              <thead>
+                {table.getHeaderGroups().map((group) => (
+                  <tr key={group.id}>
+                    {group.headers.map((header) => (
+                      <th
+                        key={header.id}
+                        scope="col"
+                        // Which column this cell is, on the cell itself. Nothing in
+                        // the app reads it: the browser layout gate does
+                        // (`e2e/layout.spec.ts`), and a measured rectangle with no
+                        // name attached is a failure that says two numbers
+                        // disagreed without saying which column moved.
+                        data-column={header.column.id}
+                        style={{
+                          ...CELL,
+                          ...STICKY_HEADER_CELL,
+                          ...flexibleCellStyle(header.column.id),
+                          ...pinnedCellStyle(layout, header.column.id, 'header'),
+                        }}
+                      >
+                        {flexRender(header.column.columnDef.header, header.getContext())}
+                        {/*
+                        The grab handle, on the trailing edge of every column
+                        the layout declared a width for and on no other. The one
+                        column that resolves without a width is the flexible
+                        one, and it has nothing to be dragged to: it is the
+                        remainder above its floor, and asking for its declared
+                        width is already an error.
+
+                        Rendered here rather than in the column definition,
+                        which is the rule the whole seam is built around: a
+                        definition that changed with a width remounts every cell
+                        in the table (landmine #1). The `<th>` is
+                        `position: sticky` through `STICKY_HEADER_CELL`, which
+                        is what the absolute strip is positioned against.
+                      */}
+                        {resizeHandleFor(header.column.id, header.column.columnDef.header)}
+                      </th>
+                    ))}
+                  </tr>
+                ))}
+              </thead>
+              <tbody>
+                {shownRows.map((row) => (
+                  <tr
+                    key={row.id}
+                    data-frozen={row.original.frozenNumber !== null ? 'true' : 'false'}
+                    // The armed row, said on the row rather than only in the
+                    // toast: a sentence in the corner of the screen is not where
+                    // somebody looks to find out which row a second Ctrl+D will
+                    // take. The tint itself is on the cells below, because a
+                    // pinned cell carries its own opaque background and would
+                    // paint straight over a colour set here.
+                    data-armed={armedDelete?.rowId === row.original.id ? 'true' : undefined}
+                    data-drop={dropHint?.rowId === row.original.id ? dropHint.zone : undefined}
+                    // The handlers sit on the row rather than in a column definition:
+                    // `flexRender` renders each `cell` as a component *type*, so a
+                    // definition that changed with the drag would remount every cell
+                    // in the table on every pointer move.
+                    onDragOver={(event) => {
+                      if (dragging === null) return;
+                      // Without this the browser refuses the drop outright.
+                      event.preventDefault();
+                      const box = event.currentTarget.getBoundingClientRect();
+                      setDropHint({
+                        rowId: row.original.id,
+                        zone: zoneFor(event.clientY - box.top, box.height),
+                      });
+                    }}
+                    onDragLeave={() => {
+                      setDropHint((current) =>
+                        current?.rowId === row.original.id ? null : current,
+                      );
+                    }}
+                    onDrop={(event) => {
+                      event.preventDefault();
+                      // The zone the last `dragover` worked out, not one recomputed
+                      // here. That one is the marker the person was looking at when
+                      // they let go, and a drop that lands somewhere other than where
+                      // the line was drawn is the one thing drag must never do.
+                      if (dropHint?.rowId !== row.original.id) return;
+                      dropOn(
+                        row.original.id,
+                        dropHint.zone,
+                        row.getIsExpanded() && row.subRows.length > 0,
+                      );
+                    }}
+                  >
+                    {row.getVisibleCells().map((cell) => (
+                      <td
+                        key={cell.id}
+                        // See the `th` above: the layout gate measures these boxes
+                        // and has to be able to name the one that moved.
+                        data-column={cell.column.id}
+                        style={{
+                          ...CELL,
+                          // The exception to the cell clip. See
+                          // {@link opensAPopover}: a popover's containing block is
+                          // the wrapper span *inside* this `<td>`, so this `<td>`
+                          // clips it unless it is told not to.
+                          ...(opensAPopover(cell.column.id)
+                            ? { overflow: 'visible' as const }
+                            : {}),
+                          ...flexibleCellStyle(cell.column.id),
+                          ...pinnedCellStyle(layout, cell.column.id, 'body'),
+                          // Last, so it wins over the pinned layer it is raising.
+                          // A pinned cell is sticky *with a z-index*, which makes
+                          // it a stacking context — so the preview hanging off
+                          // this one is trapped inside it and the next row's
+                          // pinned Name cell paints over it, whatever the
+                          // preview's own z-index says. The Name column is the
+                          // only cell in the table that is both pinned and holds a
+                          // popover, and this is the row it is open on.
+                          // Proof: found in a browser rather than reasoned about —
+                          // `4px below the name cell is <textarea> in the name
+                          // column, not the preview`, on h2puni 2026-08-08, with
+                          // `opensAPopover` and every other rule already correct.
+                          ...(cell.column.id === 'name' &&
+                          openCard === cellKey(row.original.id, 'name')
+                            ? { zIndex: POPOVER_ROW_LAYER }
+                            : {}),
+                          // After the pinned background, so the warning is visible
+                          // on the three columns that hold the left edge too.
+                          ...(armedDelete?.rowId === row.original.id
+                            ? { background: ARMED_TINT }
+                            : {}),
+                        }}
+                      >
+                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
 
       {/*

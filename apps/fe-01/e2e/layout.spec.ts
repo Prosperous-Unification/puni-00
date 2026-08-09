@@ -81,13 +81,82 @@ const PINNED_IDS = PINNED_COLUMN_IDS;
  * @throws When asked about a column that is not pinned, which would otherwise
  * compare a measured offset against nothing at all.
  */
-function declaredLeft(columnId: string): number {
+function declaredLeft(columnId: string, state: FrameLayoutState = SEEDED_PLAN): number {
   // Resolved from the pinned columns alone, which is all an offset is: each is
   // the sum of the declared widths in front of it, and every column in front
   // of a pinned one is itself pinned.
-  const geometry = frameLayout(PINNED_COLUMN_IDS, SEEDED_PLAN).pinned.get(columnId);
+  const geometry = frameLayout(PINNED_COLUMN_IDS, state).pinned.get(columnId);
   if (geometry === undefined) throw new Error(`${columnId} is not a pinned column`);
   return geometry.left;
+}
+
+/**
+ * The plan above with one column dragged to `width`.
+ *
+ * The state a reader who has resized that column is looking at, so every
+ * assertion about the dragged table is re-derived through `frameLayout` rather
+ * than written out as a second set of numbers.
+ */
+const dragged = (columnId: string, width: number): FrameLayoutState => ({
+  ...SEEDED_PLAN,
+  columnWidthOverrides: new Map([[columnId, width]]),
+});
+
+/**
+ * What the `<colgroup>` declares for one column and what the browser really
+ * lays it out at, together.
+ *
+ * Both, because they are the two halves of the only question worth asking: a
+ * declaration nothing honours and a rectangle nothing declared are different
+ * failures, and a test that read one of them could not say which it had.
+ *
+ * @throws When the table has no such column, or no `<col>` for it — a probe
+ * that silently measured nothing would pass for any width.
+ */
+function columnGeometry(
+  page: Page,
+  columnId: string,
+): Promise<{ declared: string; laidOut: number }> {
+  return page.evaluate((id) => {
+    const headers = [...document.querySelectorAll('thead th')];
+    const header = headers.find((each) => each.getAttribute('data-column') === id);
+    if (header === undefined) throw new Error(`the table has no ${id} column`);
+    // A `<col>` carries no name of its own: the `<colgroup>` is positional, and
+    // the position of this heading is the whole of how the two are paired.
+    const cols = [...document.querySelectorAll('colgroup col')];
+    const at = headers.indexOf(header);
+    if (at >= cols.length) throw new Error(`no <col> declares the ${id} column`);
+    const col = cols[at];
+    return {
+      declared: col instanceof HTMLElement ? col.style.width : '(not an element)',
+      laidOut: header.getBoundingClientRect().width,
+    };
+  }, columnId);
+}
+
+/**
+ * Drags one column's header edge `travel` px sideways, the way a pointer does.
+ *
+ * Several moves rather than one jump: a drag is a stream of `pointermove`s, and
+ * a handler that only ever saw its last one would pass a single-step gesture
+ * while doing nothing under a real hand. The button goes down on the handle and
+ * comes up wherever the travel ended — which is off the handle, and off the
+ * column, which is what the pointer capture is for.
+ *
+ * @throws When the column has no handle on screen. A drag against nothing would
+ * leave every width where it was and read as a column that refused to move.
+ */
+async function dragColumnEdge(page: Page, columnId: string, travel: number): Promise<void> {
+  const handle = page.locator(`thead th[data-column="${columnId}"] [data-resize-handle]`);
+  const box = await handle.boundingBox();
+  if (box === null) throw new Error(`the ${columnId} column has no resize handle on screen`);
+  const from = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+  await page.mouse.move(from.x, from.y);
+  await page.mouse.down();
+  for (const step of [0.25, 0.5, 0.75, 1]) {
+    await page.mouse.move(from.x + travel * step, from.y);
+  }
+  await page.mouse.up();
 }
 
 /**
@@ -658,6 +727,139 @@ test.describe('the table, measured by a browser', () => {
       number: declaredLeft('number'),
       name: declaredLeft('name'),
     });
+  });
+
+  test('widens a column by dragging its header edge, and moves every pin behind it', async ({
+    page,
+  }) => {
+    /*
+     * The gesture, in the only thing that can perform one. jsdom carries out no
+     * default action for a pointer event at all, so the whole of
+     * `wbs-table.test.tsx` can watch the handle arrive on the right headers and
+     * never watch a drag do anything — the fourteenth and fifteenth failures,
+     * both of which were a browser's to find.
+     *
+     * Made at NARROW with the frame scrolled, because that is the only state
+     * the pins are visible in: above the table's minimum there is nothing to
+     * scroll and an offset that is wrong costs nothing.
+     *
+     * Fault: the handle's `pointerdown`/`pointermove`/`pointerup` handlers
+     * removed, leaving it rendered and inert. This failed on `expected 169px to
+     * be 209px` while the whole 955-test jsdom suite stayed green — `offers a
+     * handle on every column that declares a width` can see that the strip is
+     * there and can never see it do nothing. Watched, 2026-08-09.
+     */
+    await page.setViewportSize(NARROW);
+    await scrollFrameTo(page, SCROLLED);
+    const before = await columnGeometry(page, 'number');
+    expect(before.declared).toBe(`${String(widthFor('number', SEEDED_PLAN))}px`);
+
+    await dragColumnEdge(page, 'number', 40);
+
+    const wider = dragged('number', widthFor('number', SEEDED_PLAN) + 40);
+    const after = await columnGeometry(page, 'number');
+    // The `<col>` says 209 and the browser lays 209 out: the declaration and
+    // the rectangle, which is the pair that drifted apart in the overlap bug.
+    expect(after.declared).toBe(`${String(widthFor('number', wider))}px`);
+    expect(Math.round(after.laidOut - before.laidOut)).toBe(40);
+    // And every pinned column behind it moved by exactly the same 40, because
+    // the offsets are summed from the widths this render resolved rather than
+    // from the defaults.
+    expect(await measuredLefts(page, PINNED_IDS)).toEqual({
+      drag: declaredLeft('drag', wider),
+      number: declaredLeft('number', wider),
+      name: declaredLeft('name', wider),
+    });
+    expect(declaredLeft('name', wider) - declaredLeft('name')).toBe(40);
+  });
+
+  test('still has the width it was dragged to after the browser is reloaded', async ({ page }) => {
+    /*
+     * The half a single page can never show: the width is written when the
+     * drag is let go of, and nothing but a reload reads it back.
+     *
+     * Fault: the `rememberWidthOverrides` call in the drag's commit removed.
+     * This failed on `expected '169px' to be '209px'` after the reload, with
+     * the drag itself still working perfectly on the page that made it —
+     * invisible to every test that does not come back. Watched, 2026-08-09.
+     */
+    await page.setViewportSize(NARROW);
+    await dragColumnEdge(page, 'number', 40);
+    const wider = dragged('number', widthFor('number', SEEDED_PLAN) + 40);
+    expect((await columnGeometry(page, 'number')).declared).toBe(
+      `${String(widthFor('number', wider))}px`,
+    );
+
+    await page.reload();
+    await expect(page.getByLabel('Name of 010')).toBeVisible();
+
+    expect((await columnGeometry(page, 'number')).declared).toBe(
+      `${String(widthFor('number', wider))}px`,
+    );
+    expect(await measuredLefts(page, PINNED_IDS)).toEqual({
+      drag: declaredLeft('drag', wider),
+      number: declaredLeft('number', wider),
+      name: declaredLeft('name', wider),
+    });
+  });
+
+  test('gives every column back to the width the layout resolves for it now', async ({ page }) => {
+    /*
+     * The reset, measured rather than read off the markup: what it has to
+     * restore is not one `<col>` but the whole frame, offsets included.
+     *
+     * Fault: the reset re-written to store the widths resolved at the moment it
+     * was pressed rather than to forget the key. This failed on `expected
+     * '209px' to be '169px'` — a reset that renamed the override instead of
+     * removing it. Watched, 2026-08-09, alongside the jsdom case that watches
+     * the same fault against a default that has moved since.
+     */
+    await page.setViewportSize(NARROW);
+    await scrollFrameTo(page, SCROLLED);
+    // Nothing to reset until something has been dragged, so the control is not
+    // there to be pressed: a button that provably does nothing reads as broken.
+    await expect(page.getByRole('button', { name: 'Reset column widths' })).toHaveCount(0);
+
+    await dragColumnEdge(page, 'number', 40);
+    await page.getByRole('button', { name: 'Reset column widths' }).click();
+
+    expect((await columnGeometry(page, 'number')).declared).toBe(
+      `${String(widthFor('number', SEEDED_PLAN))}px`,
+    );
+    expect(await measuredLefts(page, PINNED_IDS)).toEqual({
+      drag: declaredLeft('drag'),
+      number: declaredLeft('number'),
+      name: declaredLeft('name'),
+    });
+    await expect(page.getByRole('button', { name: 'Reset column widths' })).toHaveCount(0);
+  });
+
+  test('offers a handle on every column the browser lays out at a declared width', async ({
+    page,
+  }) => {
+    // The set, measured in the browser rather than in the markup: a handle is
+    // only a handle where there is a column edge under it. The Name column is
+    // the remainder-absorber and has none — dragging it is a gesture with
+    // nothing to write, because its width is whatever the others leave.
+    await scrollFrameTo(page, 0);
+    const handled = await page.evaluate(() =>
+      [...document.querySelectorAll('thead th')]
+        .filter((header) => header.querySelector('[data-resize-handle]') !== null)
+        .map((header) => header.getAttribute('data-column') ?? '(a cell with no data-column)'),
+    );
+    const shown = await page.evaluate(() =>
+      [...document.querySelectorAll('thead th')].map(
+        (header) => header.getAttribute('data-column') ?? '(a cell with no data-column)',
+      ),
+    );
+
+    expect(handled).toEqual(
+      frameLayout(shown, SEEDED_PLAN)
+        .columns.filter((column) => column.width !== undefined)
+        .map((column) => column.id),
+    );
+    expect(shown).toContain('name');
+    expect(handled).not.toContain('name');
   });
 
   test('paints the pinned block over the row that scrolls behind it, and stops there', async ({
