@@ -4890,7 +4890,9 @@ describe('dependencies in the table', () => {
     // And what the marker means, in the one attribute the cell has — beside
     // the day in full once there is one, rather than instead of it.
     // Proof: the `'No estimate yet'` half dropped from the cell's `title`,
-    // this failed on `expected null to contain 'No estimate yet'`. Watched,
+    // this failed on `the given combination of arguments (null and string) is
+    // invalid for this assertion` — no `title` on the cell at all, this plan
+    // having no start date and so no day to put in it either. Watched,
     // 2026-08-09.
     expect(row?.querySelector('[data-finish]')?.getAttribute('title')).toContain('No estimate yet');
   });

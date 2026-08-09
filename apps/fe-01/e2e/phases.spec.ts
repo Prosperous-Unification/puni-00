@@ -176,7 +176,7 @@ test.describe('the phases surface, in a browser', () => {
     const minWidthBefore = await page.evaluate(
       () => document.querySelector('table')?.style.minWidth ?? '',
     );
-    expect(minWidthBefore).toBe('1144px');
+    expect(minWidthBefore).toBe('1123px');
 
     await page.getByRole('button', { name: 'Phases', exact: true }).click();
     await page.getByLabel('New phase').fill('Design');
@@ -185,17 +185,17 @@ test.describe('the phases surface, in a browser', () => {
 
     // The arithmetic the surface prints, while it is still open to print it.
     await expect(
-      page.getByText('3 phases need ≥1240px of width to sit side by side'),
+      page.getByText('3 phases need ≥1219px of width to sit side by side'),
     ).toBeVisible();
     await page.keyboard.press('Escape');
 
     const threePhases = await columnsOnScreen(page);
     expect(threePhases.filter((id) => id.endsWith('-final'))).toHaveLength(3);
     await expect(page.getByRole('button', { name: 'Unfold Design estimates' })).toBeVisible();
-    // 1144 + one folded phase, and the browser laying it out rather than a
+    // 1123 + one folded phase, and the browser laying it out rather than a
     // number this repository asserted about itself.
     expect(await page.evaluate(() => document.querySelector('table')?.style.minWidth ?? '')).toBe(
-      '1240px',
+      '1219px',
     );
   });
 

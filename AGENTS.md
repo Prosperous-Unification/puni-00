@@ -194,6 +194,25 @@ for, was written, its negative watched **passing** with the line deleted, and th
 `columns` maps over `roles`, so a dead id in the accordion selects nothing. Write the negative
 before you believe the line.
 
+Two more on 2026-08-09 in `T2 compact-columns`, and **neither shipped**. The earliest-start cell
+opened its editor from `onMouseDown`, so React flushed the discrete update inside that dispatch
+and the at-rest input was gone before Chromium performed the event's **default action** — focusing
+the node it had hit-tested. Focusing a detached node moves the focus to `<body>`, that blurred the
+editor, a blur is an exit, and the editor closed: a click on the cell did nothing at all. All 314
+cases in `wbs-table.test.tsx` stayed green through it, because every one of them opens the editor
+with Enter and jsdom performs no default action. Found in Chromium by counting
+`input[type=date]` after a click and getting none; the open is on `click` now, and
+`e2e/keyboard.spec.ts` watched the fault. R5 #14/#15's fault class, third time.
+
+And the fix written for the _other_ half of that contract was a check that could not fail. Escape
+had to stop the blur it causes from committing the abandoned day, so `DateField` grew a flag the
+next commit attempt would spend. Removing that flag was watched — and the browser test passed
+anyway: the row's editor is unmounted on the way out, so there is no blur to suppress, and on the
+one field that does stay on screen (the toolbar's project start date) the flag sat behind the
+`node.value = agreed.current` beside it and was never reached. The flag is deleted; the value
+reset is the guarantee, and it was watched failing on `expected "2026-09-09" to be "2026-06-01"`
+with a real blur, in a browser.
+
 One more the same day, in `N name-title-body`, and it **did not ship** either. The hover
 preview must show a work item's name as text rather than as markdown source, and the negative
 written for it used the name `# not a heading <script>`. With the fault injected — the name

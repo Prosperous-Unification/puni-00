@@ -24,9 +24,8 @@ export interface DateFieldProps extends PassedThrough {
    *
    * `'commit'` for Enter and for leaving the field: the day in the box has been
    * sent, if it differed from the one already agreed. `'cancel'` for Escape:
-   * nothing was sent, and **nothing will be** — the blur Escape causes is
-   * suppressed, because an editor that is closed by Escape and then blurred on
-   * its way out would send the abandoned day on the way.
+   * nothing was sent, and nothing will be — Escape puts the box back to the day
+   * the server agreed, so the blur it causes has nothing left to send.
    *
    * Optional because the toolbar's project start date has no editor lifecycle
    * to report: it is always on screen, and leaving it is not closing it. The
@@ -95,23 +94,6 @@ export function DateField({ value, commit, onExit, onKeyDown, ...rest }: DateFie
    * day just sent is not a change to react to.
    */
   const agreed = useRef(value);
-  /**
-   * Whether Escape has abandoned this edit, waiting to be spent by the one blur
-   * it causes.
-   *
-   * Escape closes the editor, closing moves the focus back to the cell, and
-   * moving the focus **blurs this box** — so without this the abandoned day
-   * would be committed by the very gesture that abandoned it. One flag rather
-   * than a listener, spent on the next commit attempt and cleared with it, so a
-   * field that stays on screen (the toolbar's) is editable again straight
-   * after.
-   *
-   * jsdom can watch the flag being set and can never watch it being spent: it
-   * performs no default action and delivers no blur to an element the DOM has
-   * already dropped. `e2e/keyboard.spec.ts` is where the suppression itself is
-   * proved — R5 #14/#15, the same fault class.
-   */
-  const abandoned = useRef(false);
 
   useEffect(() => {
     agreed.current = value;
@@ -124,16 +106,6 @@ export function DateField({ value, commit, onExit, onKeyDown, ...rest }: DateFie
   }, [value]);
 
   const commitIfChanged = (): void => {
-    // Spent here rather than cleared on the way out, because this is the one
-    // place every way of sending a day passes through.
-    // Proof: this branch removed, `e2e/keyboard.spec.ts`'s `Escape leaves the
-    // stored day alone` failed in Chromium — see the `Proof:` there — while
-    // every case in `date-field.test.tsx` stayed green, which is exactly why
-    // the browser one exists.
-    if (abandoned.current) {
-      abandoned.current = false;
-      return;
-    }
     const node = box.current;
     // The ref is this component's own wiring, not a condition to model: a blur
     // can only have come from the node React attached here.
@@ -152,21 +124,6 @@ export function DateField({ value, commit, onExit, onKeyDown, ...rest }: DateFie
     commit(typed);
   };
 
-  /**
-   * Ends the edit: sends the day in the box if there is one to send, and says
-   * which of the two ways out this was.
-   *
-   * The answer is read **before** the commit attempt, because that attempt is
-   * what spends an Escape's suppression — a blur that sent nothing because
-   * Escape had already abandoned the edit is a cancel, and reporting it as a
-   * commit would be this component lying about what it did.
-   */
-  const leaveTheBox = (): 'commit' | 'cancel' => {
-    const suppressed = abandoned.current;
-    commitIfChanged();
-    return suppressed ? 'cancel' : 'commit';
-  };
-
   return (
     <input
       {...rest}
@@ -180,32 +137,42 @@ export function DateField({ value, commit, onExit, onKeyDown, ...rest }: DateFie
         // caret on: `Ctrl/⌘ + Enter` from a row's date cell lands in the next
         // row, and the date has to have been sent by then.
         if (event.key === 'Enter') {
-          // The call is made first and reported second, deliberately: `onExit?.(
-          // leaveTheBox())` never evaluates its argument when there is no
-          // `onExit`, so the toolbar's date field would stop saving anything at
-          // all. Watched — three cases in `date-field.test.tsx` failed on
-          // `expected [] to deeply equal [ '2026-08-17' ]`. 2026-08-09.
-          const how = leaveTheBox();
-          onExit?.(how);
+          // The commit is made first and reported second, deliberately: an
+          // `onExit?.(commitAndSay())` never evaluates its argument when there
+          // is no `onExit`, so the toolbar's date field would stop saving
+          // anything at all. Watched — three cases in `date-field.test.tsx`
+          // failed on `expected [] to deeply equal [ '2026-08-17' ]`.
+          // 2026-08-09.
+          commitIfChanged();
+          onExit?.('commit');
         }
         if (event.key === 'Escape') {
-          abandoned.current = true;
           const node = box.current;
           // The ref is this component's own wiring: a keystroke can only have
           // come from the node React attached here.
           if (node === null)
             throw new Error('A date field took a key without ever being attached.');
-          // Back to what the server last agreed. It costs nothing where the
-          // editor is unmounted on the way out, and it is the whole of what
-          // Escape means where the field stays on screen.
+          // **Back to the day the server agreed, and that is what makes the
+          // blur after an Escape harmless**: `commitIfChanged` sends nothing
+          // when the box already holds `agreed`, so there is no abandoned value
+          // left for a blur to commit. A flag suppressing that blur instead was
+          // written first and deleted: with the editor unmounted on the way out
+          // there is no blur to suppress at all, and on the field that *does*
+          // stay on screen — the toolbar's project start date — the flag was
+          // unreachable behind this line. A check that could not fail.
+          //
+          // Proof: this line removed, `e2e/keyboard.spec.ts`'s `Escape puts the
+          // project start date back, and leaving it does not send the abandoned
+          // day` failed on `expected "2026-09-09" to be "2026-06-01"`.
+          // Watched in Chromium, 2026-08-09.
           node.value = agreed.current;
           onExit?.('cancel');
         }
         onKeyDown?.(event);
       }}
       onBlur={() => {
-        const how = leaveTheBox();
-        onExit?.(how);
+        commitIfChanged();
+        onExit?.('commit');
       }}
     />
   );

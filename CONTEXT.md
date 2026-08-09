@@ -246,6 +246,35 @@ declared width plus each flexible column's floor. Above it nothing scrolls sidew
 it the frame scrolls and the pinned columns hold the left edge.
 _Avoid_: total width, table width, min size
 
+**Frame layout**:
+Every width one drawing of the table declares, resolved together from the columns on
+screen and the plan being drawn: each column's declared width, the table minimum, and the
+offset each pinned column is held at. One resolution, read by every consumer — a width
+that changes changes all of them, because there is only one of them. What a width may
+depend on is one object, so a new fact is a field rather than an argument somebody forgets
+to pass.
+_Avoid_: width table, column config, geometry, sizing
+
+**Display envelope**:
+The widest content a column undertakes to show whole, where there is no widest content to
+size it to. The Number column's is eleven characters at the deepest indent, beside the
+row's expander and its frozen-number lock; a number past it is clipped and kept whole in
+the cell's title. Measured by a browser, never chosen by reading the markup.
+_Avoid_: max width, longest value, cap
+
+**Short date**:
+A calendar day as somebody reads one — `1 Jun`, and `1 Jun 2027` when the year is not the
+current one — with the whole `YYYY-MM-DD` still in the cell's title. Read out of the
+day's own components, never parsed into a moment: a moment has a zone and a calendar day
+has none. An instant printed this way is a different question and a different formatter.
+_Avoid_: formatted date, pretty date, display date
+
+**Edit exit**:
+How an edit in a field ends, as one of two answers: committed, or abandoned. Leaving and
+Enter commit; Escape abandons and puts back what the server agreed, so nothing is left for
+the blur it causes to send. Closing returns the focus to the cell that was being edited.
+_Avoid_: cancel, dismiss, close, blur handling
+
 **Plan renderer**:
 Whichever of the two things is drawing the plan right now — the table or the outline cards.
 Chosen by how wide the viewport is and by nothing else, and never both at once; the plan,

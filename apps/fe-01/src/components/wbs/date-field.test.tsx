@@ -180,11 +180,15 @@ describe('how an edit ends', () => {
     expect(box.value).toBe('2026-06-01');
   });
 
-  itDom('sends nothing on the blur that follows an Escape, and calls it a cancel', () => {
-    // The suppression, as far as jsdom can reach it: the blur is delivered by
-    // hand here, which is precisely why this is not the proof — a browser
-    // delivers it, or does not, on its own. What this does pin is that the
-    // suppression is spent by one blur and not by every later one.
+  itDom('has nothing left for the blur after an Escape to send', () => {
+    // Escape does not suppress that blur; it makes it harmless, by putting the
+    // box back to the day the server agreed. So the blur is an ordinary way out
+    // — it reports a commit — and it sends nothing, because there is nothing
+    // that differs from what be-01 holds.
+    //
+    // The blur is delivered by hand here, which is why this is not the proof of
+    // anything a browser does: `e2e/keyboard.spec.ts` is where a real one
+    // arrives.
     const { box, sent, exits } = shownDay('2026-06-01');
     box.focus();
     fireEvent.change(box, { target: { value: '2026-07-01' } });
@@ -193,9 +197,10 @@ describe('how an edit ends', () => {
     fireEvent.blur(box);
 
     expect(sent).toEqual([]);
-    expect(exits).toEqual(['cancel', 'cancel']);
+    expect(exits).toEqual(['cancel', 'commit']);
 
-    // And the field works again afterwards: the flag is spent, not sticky.
+    // And the field is editable again straight after: abandoning one edit does
+    // not abandon the next.
     box.focus();
     fireEvent.change(box, { target: { value: '2026-07-02' } });
     fireEvent.blur(box);
