@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, type Page, test } from '@playwright/test';
 
 /**
  * The Tailwind integration, measured by the browser that has to run it.
@@ -16,6 +16,24 @@ import { expect, test } from '@playwright/test';
 
 /** The tracer's value in `theme.css`: `--tracking-tight: -0.025em`. */
 const TRACKING_TIGHT_EM = -0.025;
+
+/**
+ * Waits until React has mounted the signed-out page, which `page.goto` does not.
+ *
+ * `goto` resolves on the document's load event, and this app renders from
+ * `main.tsx` after it — so a `document.querySelector` straight afterwards races
+ * the first paint. Observed 2026-08-09: `leaves form controls the platform
+ * font` failed on its own guard, `the signed-out page has no input to measure`,
+ * on one run of many. That throw is the guard doing exactly its job — refusing
+ * rather than measuring an empty page — and the bug was here, not in it.
+ *
+ * The username field rather than the heading, though `app.tsx` renders both in
+ * the same pass: the field is what the second test measures, and the heading
+ * would still be the weaker wait if that ever stopped being true.
+ */
+async function openSignedOutPage(page: Page): Promise<void> {
+  await expect(page.getByLabel('Username')).toBeVisible();
+}
 
 test.describe('Tailwind, in the browser', () => {
   test('applies the tracer class the brand heading carries', async ({ page }) => {
@@ -52,6 +70,7 @@ test.describe('Tailwind, in the browser', () => {
   // is what R5 is about.
   test('leaves the heading the margin the user agent gives it', async ({ page }) => {
     await page.goto('/');
+    await openSignedOutPage(page);
 
     const margin = await page.evaluate(() => {
       const heading = document.querySelector('h1');
@@ -66,6 +85,7 @@ test.describe('Tailwind, in the browser', () => {
 
   test('leaves form controls the platform font, not the page’s', async ({ page }) => {
     await page.goto('/');
+    await openSignedOutPage(page);
 
     const sizes = await page.evaluate(() => {
       const field = document.querySelector('input');
@@ -103,12 +123,14 @@ test.describe('Tailwind, in the browser', () => {
  * gives it` on `Expected: > 0, Received: 0`, and `leaves form controls the
  * platform font, not the page's` on `Expected: not "16px"`.
  *
- * AND EVERY ASSERTION IN `layout.spec.ts` PASSED IN THAT SAME RUN, which is not
+ * AND ALL 22 OF `layout.spec.ts`'s TESTS PASSED IN THAT SAME RUN, which is not
  * what the change that added this file expected and is the reason these two
  * tests exist at all. The table is styled inline — the earliest-start field
  * already carries `{ boxSizing: 'border-box', font: 'inherit' }` — and an
- * inline style outranks every layer, so preflight cannot move a single cell
- * today. The geometry gate is blind to this fault. It will stop being blind the
- * moment a cell is styled by a class, and nothing will announce that; these two
- * are what hold the line until then.
+ * inline style outranks every layer, so preflight's *overlapping* declarations
+ * lose. Its inherited ones do not: `line-height: 1.5` on `html` still reaches
+ * every cell that does not set one, and no test in that suite measures a row
+ * height. So the honest reading is that the geometry gate did not move, not
+ * that the table did not. It will stop being even that once a cell is styled by
+ * a class, and nothing will announce that; these two hold the line until then.
  */
