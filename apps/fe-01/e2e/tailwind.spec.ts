@@ -75,6 +75,24 @@ async function seedChip(page: Page, account: string): Promise<void> {
   await expect(page.getByRole('button', { name: 'Stop 020 waiting for 010' })).toBeVisible();
 }
 
+/**
+ * Waits until React has mounted the signed-out page, which `page.goto` does not.
+ *
+ * `goto` resolves on the document's load event, and this app renders from
+ * `main.tsx` after it — so a `document.querySelector` straight afterwards races
+ * the first paint. Observed 2026-08-09: `leaves form controls the platform
+ * font` failed on its own guard, `the signed-out page has no input to measure`,
+ * on one run of many. That throw is the guard doing exactly its job — refusing
+ * rather than measuring an empty page — and the bug was here, not in it.
+ *
+ * The username field rather than the heading, though `app.tsx` renders both in
+ * the same pass: the field is what the second test measures, and the heading
+ * would still be the weaker wait if that ever stopped being true.
+ */
+async function openSignedOutPage(page: Page): Promise<void> {
+  await expect(page.getByLabel('Username')).toBeVisible();
+}
+
 test.describe('Tailwind, in the browser', () => {
   test('applies the tracer class the brand heading carries', async ({ page }) => {
     await page.goto('/');
@@ -110,6 +128,7 @@ test.describe('Tailwind, in the browser', () => {
   // is about.
   test('takes the user agent’s margin off a chrome heading', async ({ page }) => {
     await page.goto('/');
+    await openSignedOutPage(page);
 
     const margin = await page.evaluate(() => {
       const heading = document.querySelector('h1');
@@ -126,6 +145,7 @@ test.describe('Tailwind, in the browser', () => {
 
   test('gives a chrome control the page’s own font', async ({ page }) => {
     await page.goto('/');
+    await openSignedOutPage(page);
 
     const families = await page.evaluate(() => {
       const field = document.querySelector('form input');
