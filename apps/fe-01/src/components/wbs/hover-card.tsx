@@ -4,8 +4,23 @@ export interface HoverCardProps {
   /**
    * What the card is, for a screen reader — it names the row, because a table
    * of forty of these otherwise announces "tooltip" and nothing else.
+   *
+   * Left off by a card something points `aria-describedby` at, and that is not
+   * a style choice: a description is computed by the accessible-name algorithm
+   * over the element it names, where a label **wins over contents**. A labelled
+   * card used as a description would read out its label and nothing else —
+   * four words in place of the whole of what the cell folded away. Such a card
+   * names itself in its first line instead, where it is both read out and on
+   * screen. {@link HoverCardProps.id} is the other half of that pair.
    */
-  label: string;
+  label?: string;
+  /**
+   * The card's own id, so a control can point `aria-describedby` at it.
+   *
+   * Only where one does: a card nothing refers to needs no id, and minting one
+   * anyway would suggest something reads it.
+   */
+  id?: string;
   /**
    * Whether this card scrolls its own content, and so has to take the wheel.
    *
@@ -42,13 +57,14 @@ const SCROLLING_MAX_HEIGHT = 320;
  * is set on `mouseenter` and cleared on `mouseleave`, and the placement is
  * this and nothing else.
  */
-export function HoverCard({ label, scrolls = false, children }: HoverCardProps) {
+export function HoverCard({ label, id, scrolls = false, children }: HoverCardProps) {
   const scrolling: CSSProperties = scrolls
     ? { maxHeight: SCROLLING_MAX_HEIGHT, overflowY: 'auto', pointerEvents: 'auto' }
     : { pointerEvents: 'none' };
   return (
     <div
       role="tooltip"
+      id={id}
       aria-label={label}
       style={{
         position: 'absolute',

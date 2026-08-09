@@ -12,6 +12,14 @@ export interface FoldedRoleCardProps {
   roleName: string;
   /** The work item's number, so a card over a busy table says whose it is. */
   number: string;
+  /**
+   * The card's id, which the folded cell's box points `aria-describedby` at.
+   *
+   * The one card in this table that is a description as well as a hover, which
+   * is why it carries no label: see {@link HoverCard}'s `label` for what a
+   * label does to a description.
+   */
+  id: string;
   points: readonly FoldedRolePoint[];
   /** The figure the folded cell shows — `''` where there is nothing to show. */
   final: string;
@@ -30,12 +38,26 @@ export interface FoldedRoleCardProps {
  * Everything here is already on the row the client holds, which is the whole
  * of "hover asks the server for nothing": the three points, the final figure,
  * who is doing it and whether anybody said so.
+ *
+ * It is also the folded cell's `aria-describedby`, so that a reader with no
+ * pointer is not simply told less. That is why the role and the number are the
+ * first line of the card rather than an `aria-label` on it — a label would be
+ * read out *instead of* everything under it.
  */
-export function FoldedRoleCard({ roleName, number, points, final, doing }: FoldedRoleCardProps) {
+export function FoldedRoleCard({
+  roleName,
+  number,
+  id,
+  points,
+  final,
+  doing,
+}: FoldedRoleCardProps) {
   const estimated = points.some((each) => each.days.trim() !== '');
   return (
-    <HoverCard label={`${roleName} for ${number}`}>
-      <div style={{ fontWeight: 600 }}>{roleName}</div>
+    <HoverCard id={id}>
+      <div style={{ fontWeight: 600 }}>
+        {roleName} for {number}
+      </div>
       {/*
         Said in words, not as `2/3/8`: the shorthand is what an estimator types
         into the cell, and a card is read by whoever is looking at the plan.

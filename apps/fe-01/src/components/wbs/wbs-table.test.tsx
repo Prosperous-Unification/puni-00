@@ -19,6 +19,7 @@ import type {
   WorkItemView,
 } from '@/lib/wbs-api';
 
+import { cellKey } from './editable-grid';
 import { refusedDraftFor } from './live-editing';
 import { POPOVER_ROW_LAYER, tableMinWidth } from './table-frame';
 import { type SubscriptionHandlers, WbsTable } from './wbs-table';
@@ -2063,6 +2064,114 @@ describe('names wrap and notes carry markdown', () => {
     expect(preview.querySelectorAll('li')).toHaveLength(6);
     expect(preview.getAttribute('aria-label')).toBe('Notes for 010, rendered');
   });
+
+  itDom('closes the card when a peer moves the row it is anchored to', async () => {
+    // A card is an absolutely positioned child of one cell, and `hoveredCell`
+    // is a row id — so a refresh that moves that row moves the card with it,
+    // to wherever the row landed, which is not where the pointer is. Nothing
+    // reconciled the hover against the tree, so the card teleported and stayed
+    // open until the pointer happened to cross another cell. codex round 3,
+    // finding 3.
+    //
+    // A refresh that leaves the row where it was must **not** close it, or the
+    // reconciliation would be "close on every refresh" — and a peer typing a
+    // name anywhere on this plan refetches, so that would be a card nobody
+    // could keep open long enough to read.
+    //
+    // Proof: `setHoveredCell(hoveredCellAfterRefresh(…))` deleted from
+    // `refresh`, this failed on `expected <div role="tooltip" …/> to be null` —
+    // the card still open over a row that had moved to the top of the plan.
+    // Watched, 2026-08-09.
+    const api = fakeApi();
+    let notify: () => void = () => {
+      throw new Error('the table never subscribed');
+    };
+    render(
+      <WbsTable
+        projectId="p1"
+        api={api}
+        subscribe={(_projectId, handlers) => {
+          notify = handlers.onChange;
+          return { seen: () => undefined, unsubscribe: () => undefined };
+        }}
+      />,
+    );
+    for (const number of ['010', '020']) {
+      click('Add work item');
+      await screen.findByLabelText(`Name of ${number}`);
+    }
+    const second = screen.getByLabelText('Name of 020');
+    fireEvent.change(second, { target: { value: 'Sand\nsomething to read' } });
+    fireEvent.blur(second);
+    await waitFor(() => {
+      expect(api.rows[1]?.notes).toBe('something to read');
+    });
+
+    fireEvent.mouseEnter(notesMarkerOf('020'));
+    await screen.findByRole('tooltip');
+
+    // Somebody else renames the other row. Nothing moved, so the card stays.
+    await api.patch(api.rows[0]?.id ?? '', { name: 'Renamed by a peer' });
+    await act(async () => {
+      notify();
+      await Promise.resolve();
+    });
+    expect(screen.queryByRole('tooltip'), 'a plain refresh took the card away').not.toBeNull();
+
+    // And now they move the hovered row to the top of the plan.
+    await api.move(api.rows[1]?.id ?? '', null, null);
+    await act(async () => {
+      notify();
+      await Promise.resolve();
+    });
+
+    await waitFor(() => {
+      expect(screen.queryByRole('tooltip')).toBeNull();
+    });
+  });
+
+  itDom('keeps the preview open while the pointer crosses the cell to reach it', async () => {
+    // The preview is the one card that scrolls, and a note taller than 320px
+    // can only be read by putting the pointer on it and turning the wheel. The
+    // marker is a 7px glyph at the top right of the cell and the card hangs off
+    // the cell's bottom edge, so that trip crosses the name box between them —
+    // and while the marker owned the `mouseleave`, crossing it unmounted the
+    // card before the pointer could arrive. codex round 3, finding 1.
+    //
+    // The region that holds the card open is therefore the **cell**, which
+    // contains both the marker and the card; the marker stays the only thing
+    // that opens one.
+    //
+    // `mouseOut` with a `relatedTarget` rather than `mouseLeave`, and that is
+    // the difference between an oracle and a test that cannot fail. React
+    // synthesises leave from `mouseout`: given where the pointer went it walks
+    // up to the common ancestor of the two and fires leave on that stretch
+    // alone — exactly what a browser does. A bare `fireEvent.mouseLeave(marker)`
+    // carries no `relatedTarget`, which means "the pointer left the document",
+    // and React fires leave on the marker *and* on every ancestor — so it would
+    // report this fixed or broken identically. Measured here on 2026-08-09.
+    //
+    // Proof: the `onMouseLeave` put back on the marker, this failed on
+    // `expected null not to be null` at the first assertion — the card gone the
+    // moment the pointer left the glyph. Watched, 2026-08-09.
+    await oneRowWithNotes('## Risks\n\n- one\n- two\n- three');
+
+    fireEvent.mouseEnter(notesMarkerOf('010'));
+    await screen.findByRole('tooltip');
+
+    // Off the glyph, onto the name box under it — still inside the cell.
+    fireEvent.mouseOut(notesMarkerOf('010'), {
+      relatedTarget: screen.getByLabelText('Name of 010'),
+    });
+
+    expect(screen.queryByRole('tooltip')).not.toBeNull();
+
+    // And off the cell altogether, which is what closes it — or the assertion
+    // above would hold for a card nothing could ever close.
+    fireEvent.mouseOut(nameCellOf('010'), { relatedTarget: document.body });
+
+    expect(screen.queryByRole('tooltip')).toBeNull();
+  });
 });
 
 describe('role columns fold away', () => {
@@ -2441,7 +2550,11 @@ describe('assigning from a folded role’s cell with @', () => {
     fireEvent.mouseEnter(foldedWrapper());
 
     const card = screen.getByRole('tooltip');
-    expect(card.getAttribute('aria-label')).toBe('Dev for 010');
+    // Whose card this is, in the card — not in an `aria-label` on it. It is the
+    // box's description as well as its hover, and a label would be read out in
+    // place of everything under it; `opens the card on the focus too` is where
+    // that pair is watched.
+    expect(card.textContent).toContain('Dev for 010');
     expect(card.textContent).toContain('optimistic 2');
     expect(card.textContent).toContain('realistic 3');
     expect(card.textContent).toContain('pessimistic 8');
@@ -2450,6 +2563,120 @@ describe('assigning from a folded role’s cell with @', () => {
     expect(card.textContent).toContain('Final 3.7 days');
     expect(card.textContent).toContain('Kateryna');
     expect(asked, 'the hover asked be-01 for something').toEqual([]);
+  });
+
+  itDom('opens the card on the focus too, and points the box at it', async () => {
+    // A card that only a pointer can open is half the table's data withheld
+    // from anybody who does not use one — codex round 3, finding 2. This cell
+    // has a box in it, so the box is the answer: focusing it opens the same
+    // card and names it as the box's description, which is what a screen reader
+    // reads out after the label.
+    //
+    // The card carries **no** `aria-label` for exactly that reason. A
+    // description is computed by the accessible-name algorithm over the element
+    // it points at, and a label wins over contents there — so `aria-label="Dev
+    // for 010"` would have replaced the trio it exists to convey with four
+    // words. The card says whose it is in its first line instead, where it is
+    // both read out and on screen.
+    //
+    // Proof, two faults watched 2026-08-09. The `onFocus` line dropped: this
+    // failed on `Unable to find an accessible element with the role "tooltip"`.
+    // The `aria-label` put back on `FoldedRoleCard`: on `expected 'Dev for 010'
+    // to be null`.
+    const api = await oneRow();
+    fireEvent.blur(typeInto(foldedCell(), '2/3/8'));
+    await waitFor(() => {
+      expect(api.rows[0]?.estimates['role-dev']?.realistic).toBe(3);
+    });
+
+    // No pointer has been anywhere near this cell.
+    fireEvent.focus(foldedCell());
+
+    const card = screen.getByRole('tooltip');
+    expect(card.id, 'a description has to be pointed at, so it needs an id').not.toBe('');
+    expect(foldedCell().getAttribute('aria-describedby')).toBe(card.id);
+    expect(card.getAttribute('aria-label')).toBeNull();
+    expect(card.textContent).toContain('Dev for 010');
+    expect(card.textContent).toContain('optimistic 2');
+
+    fireEvent.blur(foldedCell());
+
+    expect(screen.queryByRole('tooltip')).toBeNull();
+    expect(foldedCell().getAttribute('aria-describedby')).toBeNull();
+  });
+
+  itDom('reads the trio off the row, not out of the boxes it was typed into', async () => {
+    // The case the first round left out. A half-filled trio is never sent, so
+    // what was typed stays a draft — and folding the role takes those boxes off
+    // screen while the draft outlives them. The card is what the fold leaves
+    // behind, and what the fold hid is the estimate this plan is *made of*: the
+    // one be-01 holds, the one the figure beside it is computed from, the one
+    // every other reader of the plan sees. A card showing 'realistic —' beside
+    // 'Final 3.7 days' is a card disagreeing with itself.
+    //
+    // The draft is not lost by this and is not meant to be: unfolding the role
+    // puts it back in the box it was typed into, with its complaint, which is
+    // the only place it can be corrected. codex round 3, finding 4.
+    //
+    // Proof: the card's points read back through `estimateValue`, this failed on
+    // `expected 'Devoptimistic 2 · realistic — · pessi…' to contain 'realistic
+    // 3'`. Watched, 2026-08-09.
+    const api = await oneRow();
+    const cell = typeInto(foldedCell(), '2/3/8');
+    fireEvent.blur(cell);
+    await waitFor(() => {
+      expect(api.rows[0]?.estimates['role-dev']).toEqual({
+        optimistic: 2,
+        realistic: 3,
+        pessimistic: 8,
+      });
+    });
+
+    // Unfold, empty one of the three, and leave it: two boxes filled and one
+    // not is a complaint rather than a request, so nothing is sent and what was
+    // typed is held.
+    click('Unfold Dev estimates');
+    const realistic = await screen.findByLabelText<HTMLInputElement>('Dev realistic for 010');
+    fireEvent.change(realistic, { target: { value: '' } });
+    fireEvent.blur(realistic);
+    expect(realistic.value, 'the emptied box did not keep what was typed').toBe('');
+    expect(api.rows[0]?.estimates['role-dev']?.realistic, 'the half trio was sent').toBe(3);
+
+    click('Fold Dev estimates');
+    fireEvent.mouseEnter(foldedWrapper());
+
+    const card = screen.getByRole('tooltip');
+    expect(card.textContent).toContain('optimistic 2');
+    expect(card.textContent).toContain('realistic 3');
+    expect(card.textContent).toContain('pessimistic 8');
+  });
+
+  itDom('says Final in days, whatever half-typed shorthand the cell is holding', async () => {
+    // The same rule one line down, and the reason it is a second test: a box's
+    // draft and the folded cell's own shorthand cannot both exist — writing
+    // either drops the other — so one test cannot reach both.
+    //
+    // `Final 8/3/2 days` is what the card said while it read the cell: the
+    // refused shorthand, printed where a number of days belongs.
+    //
+    // Proof: `final` read back through `combinedValue`, this failed on
+    // `expected 'Devoptimistic 2 · realistic 3 · pessi…' to contain 'Final 3.7
+    // days'`, the card reading `Final 8/3/2 days`. Watched, 2026-08-09.
+    const api = await oneRow();
+    fireEvent.blur(typeInto(foldedCell(), '2/3/8'));
+    await waitFor(() => {
+      expect(api.rows[0]?.estimates['role-dev']?.realistic).toBe(3);
+    });
+
+    // Out of order, so be-01 is never asked and the shorthand stays in the cell
+    // with its complaint on it.
+    fireEvent.blur(typeInto(foldedCell(), '8/3/2'));
+    expect(foldedCell().value).toBe('8/3/2');
+    expect(api.rows[0]?.estimates['role-dev']?.optimistic).toBe(2);
+
+    fireEvent.mouseEnter(foldedWrapper());
+
+    expect(screen.getByRole('tooltip').textContent).toContain('Final 3.7 days');
   });
 
   itDom('says on the card that an assignee is assumed', async () => {
@@ -2507,6 +2734,35 @@ describe('assigning from a folded role’s cell with @', () => {
       'Kateryna — free agent',
     );
     expect(screen.queryAllByRole('tooltip')).toHaveLength(0);
+  });
+
+  itDom('keeps the cell to a mention that has nobody to offer', async () => {
+    // The guard used to read the list rather than the mention, and a mention
+    // with an empty list is reachable: a deployment with nobody on it yet
+    // answers a bare `@` with no entries at all — no people to match, and no
+    // `Add "…"` until something is typed after it. The card then opened over the
+    // box being typed in, which is the one place it must never be. agy round 3,
+    // finding 7.
+    //
+    // The probe is a card open on the QA cell, so this watches the *write* as
+    // well as the render: without the guard the Dev cell takes the hover, its
+    // own card is suppressed by the empty list, and the reader is left with
+    // nothing at all.
+    //
+    // Proof: the guard put back to `options.length === 0`, this failed on
+    // `expected 'Dev for 010…' to contain 'QA'`. Watched, 2026-08-09.
+    await oneRow();
+
+    typeInto(foldedCell(), '@');
+    expect(offered(), 'somebody is on this deployment, so the list is not empty').toEqual([]);
+    fireEvent.mouseEnter(foldedWrapper('role-qa'));
+    expect(screen.getAllByRole('tooltip')).toHaveLength(1);
+
+    fireEvent.mouseEnter(foldedWrapper());
+
+    const open = screen.getAllByRole('tooltip');
+    expect(open).toHaveLength(1);
+    expect(open[0]?.textContent).toContain('QA');
   });
 });
 
@@ -4821,6 +5077,40 @@ describe('dependencies in the table', () => {
     expect(card.textContent).toContain('020 - Sand');
   });
 
+  itDom('describes the box with what the row waits for, pointer or no pointer', async () => {
+    // This cell's card cannot open on the focus the way the folded role cell's
+    // does: the focus here already belongs to the dependency picker, which
+    // opens on it and offers the rows this one could *start* waiting for — a
+    // different list, over the same 110px, and stacking the two is the thing the
+    // design ruled out. So the names reach a reader with no pointer as the
+    // box's description instead: same list, same wording, off the same
+    // `waitingFor` the card is built from, so the two cannot drift.
+    //
+    // Off-screen rather than absent, because it is the one route to this data
+    // for anybody not using a mouse — codex round 3, finding 2.
+    //
+    // Proof: the `aria-describedby` dropped from the input, this failed on
+    // `expected null to be 'depends-w3'`. Watched, 2026-08-09.
+    await threeRoots();
+    dependOn('030', '010');
+    await waitFor(() => {
+      expect(screen.getByLabelText('Stop 030 waiting for 010')).toBeDefined();
+    });
+    fireEvent.blur(screen.getByLabelText('Add a dependency to 030'));
+
+    const box = screen.getByLabelText('Add a dependency to 030');
+    const describes = box.getAttribute('aria-describedby');
+    expect(describes).not.toBeNull();
+    const said = document.getElementById(describes ?? '');
+    expect(said?.textContent).toContain('010 - Strip');
+
+    // And a row waiting for nothing describes itself with nothing, rather than
+    // with an empty sentence.
+    expect(
+      screen.getByLabelText('Add a dependency to 020').getAttribute('aria-describedby'),
+    ).toBeNull();
+  });
+
   itDom('opens no card over a row that waits for nothing', async () => {
     // The empty cell is a box and no chips; a card holding an empty list is a
     // box over the row below saying nothing.
@@ -4832,6 +5122,57 @@ describe('dependencies in the table', () => {
     fireEvent.mouseEnter(dependsCellOf('020'));
 
     expect(screen.queryByRole('tooltip')).toBeNull();
+  });
+
+  itDom('keys the hover by value, so a second enter on one cell renders nothing', () => {
+    // The other half of "a hover costs one render of the table" (codex round 3,
+    // finding 5), and it is the cheap half: React skips the render entirely when
+    // a `useState` is set to the value it already holds, judged by `Object.is`.
+    // A key that were an object — `{ rowId, columnId }` — would be a fresh
+    // identity on every `mouseenter`, and a pointer resting inside one cell
+    // sends those as it moves. This asserts exactly the predicate React uses.
+    //
+    // Not a rendering test, because jsdom counts no renders: it pins the
+    // property the bailout rests on, which is the thing a later change could
+    // take away. `verify.md` says so rather than claiming more.
+    //
+    // Proof: `cellKey` made to return `{ rowId, columnId }`, this failed on
+    // `expected { rowId: 'w1', columnId: 'name' } to be { rowId: 'w1',
+    // columnId: 'name' } // Object.is equality`. Watched, 2026-08-09.
+    expect(cellKey('w1', 'name')).toBe(cellKey('w1', 'name'));
+    expect(typeof cellKey('w1', 'name')).toBe('string');
+  });
+
+  itDom('writes no hovered cell from a cell that has no card to show', async () => {
+    // Every hover boundary in this table costs one render of the whole table —
+    // the state lives on the table, which is what keeps `columns` off it. A
+    // cell with nothing to open must therefore not pay it, and the assertion
+    // that it does not has to watch the *state*, not the card: "no card" is
+    // already true of an empty depends cell for a second reason.
+    //
+    // So the probe is a card open elsewhere. The enter is delivered on its own,
+    // without the leave a browser would send first, precisely so the write is
+    // the only thing that could close it. codex round 3, finding 5.
+    //
+    // Proof: the `cardable` guard dropped from the depends cell's
+    // `onMouseEnter`, this failed on `expected [] to have a length of 1` — the
+    // open card closed by a cell that had nothing to put in its place. Watched,
+    // 2026-08-09.
+    await threeRoots();
+    dependOn('030', '010');
+    await waitFor(() => {
+      expect(screen.getByLabelText('Stop 030 waiting for 010')).toBeDefined();
+    });
+    fireEvent.blur(screen.getByLabelText('Add a dependency to 030'));
+
+    fireEvent.mouseEnter(dependsCellOf('030'));
+    expect(screen.getAllByRole('tooltip')).toHaveLength(1);
+
+    fireEvent.mouseEnter(dependsCellOf('020'));
+
+    const open = screen.getAllByRole('tooltip');
+    expect(open).toHaveLength(1);
+    expect(open[0]?.textContent).toContain('010 - Strip');
   });
 
   itDom('keeps the cell to the dependency picker while it is open', async () => {

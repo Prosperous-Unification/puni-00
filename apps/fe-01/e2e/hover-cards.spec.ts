@@ -179,6 +179,101 @@ test.describe('a hover card answers at once, whole, and out past its cell', () =
   });
 });
 
+/** How far under the pinned block the card's own column is pushed, in px. */
+const PIN_OVERLAP = 60;
+
+test.describe('a card and the pinned columns it slides under', () => {
+  test('paints over the pinned cell of the row below it', async ({ page }) => {
+    // agy round 3, finding 6: the row lift (`POPOVER_ROW_LAYER`) is applied to
+    // the Name column alone, so does a depends or folded-role card paint *under*
+    // a pinned cell of the row below?
+    //
+    // The answer is no, and the reason is the one the lift's own comment gives:
+    // it exists because the Name cell is `position: sticky` **with a z-index**,
+    // which makes that `<td>` a stacking context and traps the preview inside it
+    // at the pinned layer. Neither `depends` nor `<roleId>-final` is pinned —
+    // `table-frame.test.ts` asserts `pinnedCellStyle` answers `undefined` for
+    // both — so nothing on the way from those cards to the frame establishes a
+    // stacking context, and the card's own `z-index: 20` competes directly with
+    // the pinned layer, which is 1.
+    //
+    // Reasoning is not evidence, hence this. The two never overlap sitting
+    // still — the pinned block is to the *left* of both columns and a card opens
+    // rightwards — so the frame is scrolled until the depends column is half
+    // under the pin, and the strip compared is inside the pinned Name cell of
+    // the row below.
+    //
+    // Proof: `zIndex: 20` removed from `HoverCard`, this failed on `the pinned
+    // cell below hides the card: expected false, received true`. Watched,
+    // 2026-08-09.
+    await page.setViewportSize({ width: 900, height: 700 });
+    await page.getByRole('button', { name: 'Add work item' }).click();
+    await expect(page.getByLabel('Name of 030')).toBeVisible();
+
+    const typed = page.getByLabel('Add a dependency to 010');
+    await typed.fill('030');
+    await typed.press('Enter');
+    await expect(page.getByLabel('Stop 010 waiting for 030')).toBeVisible();
+    // The picker owns the cell while the box has the focus, so the card only
+    // opens once the box has been left — which is how a reader reaches it too.
+    await page.getByLabel('Name of 020').click();
+
+    const dependsCell = page.getByLabel('Add a dependency to 010').locator('..');
+    // The pinned cell, not the box inside it: the `<td>` is what is sticky, what
+    // carries the opaque background, and what would hide the card.
+    const pinnedBelow = page.getByLabel('Name of 020').locator('xpath=ancestor::td');
+
+    // Measured, not guessed: how far the frame has to travel to put the left
+    // 60px of the depends column under the pinned block, leaving its right
+    // edge clear for a pointer. Asserted rather than assumed, because a frame
+    // that would not scroll leaves everything below overlapping nothing.
+    const atRest = await boxOf(dependsCell, 'the depends cell');
+    const pinRight = await boxOf(pinnedBelow, 'the pinned cell below').then(
+      (pin) => pin.x + pin.width,
+    );
+    const slide = Math.round(atRest.x - pinRight + PIN_OVERLAP);
+    expect(slide, 'the depends column already sits under the pin').toBeGreaterThan(0);
+    const reached = await page.evaluate((left) => {
+      const frame = document.querySelector('[data-table-frame]');
+      if (frame === null) throw new Error('the scrolling frame is not on the page');
+      frame.scrollLeft = left;
+      return frame.scrollLeft;
+    }, slide);
+    expect(reached, 'the frame would not scroll that far').toBe(slide);
+
+    // On the half of the cell that is still clear of the pinned block: a
+    // pointer aimed at the half under it lands on the pin instead.
+    await dependsCell.hover({ position: { x: PIN_OVERLAP + 16, y: 4 } });
+    expect(await cardsOpen(page), 'no card opened on the depends cell').toBe(1);
+
+    const card = await boxOf(page.locator('[role="tooltip"]').first(), 'the card');
+    const pinned = await boxOf(pinnedBelow, 'the pinned cell below');
+    // The overlap, and it is a precondition rather than a formality: an empty
+    // rectangle would make the comparison below a screenshot of two identical
+    // patches of nothing — R5 tally #16, which is exactly this mistake.
+    const strip = {
+      x: Math.round(Math.max(card.x, pinned.x)),
+      y: Math.round(Math.max(card.y, pinned.y)),
+      width: 0,
+      height: 0,
+    };
+    strip.width = Math.round(Math.min(card.x + card.width, pinned.x + pinned.width) - strip.x);
+    strip.height = Math.round(Math.min(card.y + card.height, pinned.y + pinned.height) - strip.y);
+    expect(strip.width, 'the card and the pinned box below it do not overlap').toBeGreaterThan(8);
+    expect(strip.height, 'the card and the pinned box below it do not overlap').toBeGreaterThan(4);
+
+    const painted = await page.screenshot({ clip: strip });
+    await page.mouse.move(0, 0);
+    await expect(page.locator('[role="tooltip"]')).toHaveCount(0);
+    const bare = await page.screenshot({ clip: strip });
+
+    expect(
+      painted.toString('base64') === bare.toString('base64'),
+      'the pinned cell below hides the card',
+    ).toBe(false);
+  });
+});
+
 test.describe('the Name cell answers from its marker alone', () => {
   test('opens nothing from the cell and the rendered notes from the marker', async ({ page }) => {
     const name = page.getByLabel('Name of 010');
@@ -196,6 +291,67 @@ test.describe('the Name cell answers from its marker alone', () => {
     const preview = page.getByRole('tooltip', { name: 'Notes for 010, rendered' });
     expect(await preview.locator('h2').textContent()).toBe('Risks');
     expect(await preview.locator('li em').textContent()).toBe('unsurveyed');
+  });
+
+  test('scrolls a note taller than the preview once the pointer is on it', async ({ page }) => {
+    // The one card that scrolls, and the only way to scroll it is to put the
+    // pointer on it — which means crossing the name box between the marker at
+    // the top right of the cell and the card hanging off its bottom edge. While
+    // the marker owned the `mouseleave`, that trip unmounted the card before the
+    // pointer arrived, and everything past 320px of a note was unreadable (codex
+    // round 3, finding 1). The leave belongs to the cell, which holds both.
+    //
+    // A browser and nothing else can say this: jsdom lays nothing out, so it has
+    // no 320px to overflow, no wheel, and no pointer that is anywhere. The
+    // companion unit test — `keeps the preview open while the pointer crosses
+    // the cell to reach it` — can see the state; only this can see the note.
+    //
+    // Proof: the `onMouseLeave` put back on the notes marker, this failed on
+    // `the card closed on the way to it: expected 1, received 0`. Watched,
+    // 2026-08-09.
+    const lines = Array.from({ length: 40 }, (_, at) => `- line ${String(at + 1)}`);
+    const name = page.getByLabel('Name of 010');
+    await name.fill(`Racking survey\n\n${lines.join('\n')}`);
+    await name.blur();
+
+    await page.getByLabel('Notes on 010').hover();
+    const card = page.locator('[role="tooltip"]');
+    expect(await cardsOpen(page), 'the marker opened no preview').toBe(1);
+
+    // The precondition, and R5 tally #16 is why it is stated: a note that fitted
+    // the card would scroll nowhere, and every assertion below would hold of a
+    // card nobody could break.
+    const overflow = await card.evaluate((scrolled) => ({
+      scrollHeight: scrolled.scrollHeight,
+      clientHeight: scrolled.clientHeight,
+    }));
+    expect(
+      overflow.scrollHeight,
+      'the note fits the card, so there is nothing to scroll to',
+    ).toBeGreaterThan(overflow.clientHeight + 40);
+
+    const box = await boxOf(card.first(), 'the preview');
+    await page.mouse.move(Math.round(box.x + box.width / 2), Math.round(box.y + box.height / 2));
+
+    expect(await cardsOpen(page), 'the card closed on the way to it').toBe(1);
+
+    await page.mouse.wheel(0, 4000);
+    // Polled rather than read once: a wheel is applied on the compositor's own
+    // schedule, and this is the one assertion in the file that is about a
+    // gesture rather than about the frame a card opened in.
+    await expect
+      .poll(async () =>
+        card.evaluate((scrolled) =>
+          Math.round(scrolled.scrollHeight - scrolled.clientHeight - scrolled.scrollTop),
+        ),
+      )
+      .toBeLessThanOrEqual(2);
+
+    // And the last line is on screen, which is what a reader wanted: the numbers
+    // above could be right about a box painted somewhere nobody can see.
+    const lastBox = await boxOf(card.getByText('line 40', { exact: true }), 'the note’s last line');
+    expect(lastBox.y).toBeGreaterThanOrEqual(box.y - 1);
+    expect(lastBox.y + lastBox.height).toBeLessThanOrEqual(box.y + box.height + 1);
   });
 
   test('marks only the rows that have notes', async ({ page }) => {

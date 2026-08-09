@@ -13,7 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Modal, ModalContent, ModalHeader, ModalTitle, ModalTrigger } from '@/components/ui/modal';
 import type { ProjectStream } from '@/lib/project-stream';
-import type { AssignedPersonView, PersonView, TeamView } from '@/lib/wbs-api';
+import type { AssignedPersonView, PersonView, TeamView, WorkItemView } from '@/lib/wbs-api';
 import {
   type Days,
   type EstimateMethod,
@@ -29,7 +29,7 @@ import { type Caret, type CellRef, commandMove, type Direction, nextCell } from 
 import { CreatablePicker, pickableLabel, PickerList, type PickerOption } from './creatable-picker';
 import { DateField } from './date-field';
 import { pickerEntries, type PickerEntry } from './dep-picker';
-import { DependsCard } from './depends-card';
+import { DependsCard, dependsLine } from './depends-card';
 import { parseDependencies, unknownMessage } from './depends-input';
 import { type DropRefusal, type DropZone, planMove, zoneFor } from './drag-drop';
 import {
@@ -371,6 +371,57 @@ function roleOfCellKey(cellKey: string): string | null {
   const suffix = columnId.slice(at + 1);
   if (suffix !== 'final' && !(POINTS as readonly string[]).includes(suffix)) return null;
   return columnId.slice(0, at);
+}
+
+/** The row a cell key belongs to — the half before the `::` {@link cellKey} joins on. */
+const rowOfCellKey = (key: string): string => key.slice(0, key.indexOf('::'));
+
+/**
+ * Where each row of a tree-ordered read sits: `parentId::index among its
+ * siblings`, by row id.
+ *
+ * The pair, not the index alone: an index says "third", and "third under
+ * nobody" and "third under 020" are two different places on screen. The root's
+ * parent is spelled `''`, which no id can collide with.
+ */
+function placementsOf(flat: readonly WorkItemView[]): ReadonlyMap<string, string> {
+  const filled = new Map<string, number>();
+  const placements = new Map<string, string>();
+  for (const item of flat) {
+    const parent = item.parentId ?? '';
+    const at = filled.get(parent) ?? 0;
+    filled.set(parent, at + 1);
+    placements.set(item.id, `${parent}::${String(at)}`);
+  }
+  return placements;
+}
+
+/**
+ * The hovered cell a freshly read tree still supports, or null.
+ *
+ * A hover card is an absolutely positioned child of one cell and the hover is
+ * remembered as a row id, so a refresh that moves that row takes the card with
+ * it — to a line the pointer is not on — and one that deletes the row leaves a
+ * key pointing at nothing. Neither is a card anybody asked for, and the pointer
+ * will not say so: it has not moved, so no `mouseleave` is coming (codex round
+ * 3, finding 3).
+ *
+ * Same parent and same position, rather than "still exists": a create above the
+ * hovered row moves it down a line without touching it, and the card would
+ * follow the row while the pointer stayed where it was.
+ *
+ * Unchanged is the common case and it is the one that must not close anything:
+ * every edit anybody makes to this plan refetches, so clearing on each read
+ * would be a card nobody could hold open long enough to read.
+ */
+function hoveredCellAfterRefresh(
+  open: string | null,
+  was: ReadonlyMap<string, string>,
+  now: ReadonlyMap<string, string>,
+): string | null {
+  if (open === null) return null;
+  const placed = now.get(rowOfCellKey(open));
+  return placed !== undefined && placed === was.get(rowOfCellKey(open)) ? open : null;
 }
 
 /** Every key one row-and-role's pending estimate can be held under. */
@@ -904,6 +955,13 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    * move would remount every cell in the table as the pointer crossed it.
    */
   const [hoveredCell, setHoveredCell] = useState<string | null>(null);
+  /**
+   * Where every row sat as of the last tree read, by {@link placementsOf}.
+   *
+   * A ref because nothing renders it: it exists so the next read can be asked
+   * whether the hovered row is still where the open card was drawn.
+   */
+  const rowPlacements = useRef<ReadonlyMap<string, string>>(new Map());
   /** Whether the key bindings are on screen. See {@link KeyboardCheatSheet}. */
   const [cheatSheetOpen, setCheatSheetOpen] = useState(false);
   /**
@@ -1204,6 +1262,18 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     setTeams(loadedTeams);
     setPeople(loadedPeople);
     setWorkItems(toTree(tree.workItems));
+    // The open hover card, settled against the rows that just arrived. The
+    // previous placements are read into a local **before** the ref is replaced:
+    // React may run the updater below after this call returns, and reading the
+    // ref from inside it would compare the new tree against itself and never
+    // close anything.
+    // Proof: this pair deleted, `closes the card when a peer moves the row it
+    // is anchored to` failed on `expected <div role="tooltip" …/> to be null`.
+    // Watched, 2026-08-09.
+    const placements = placementsOf(tree.workItems);
+    const wasPlaced = rowPlacements.current;
+    rowPlacements.current = placements;
+    setHoveredCell((open) => hoveredCellAfterRefresh(open, wasPlaced, placements));
     // On the same read as the rows and behind the same generation check: a
     // superseded read must not leave its slices under another read's rows.
     // Proof: written as `setSlices((current) => current.length === 0 ?
@@ -3449,6 +3519,31 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
               // against — which decides where the preview opens, not whether it
               // is clipped. The clipper is the `<td>`, and it is what
               // {@link POPOVER_COLUMNS} exempts.
+              //
+              // And it is what **closes** the preview, while the marker alone
+              // opens it. The two halves are deliberately different elements:
+              // the preview is the one card that scrolls, so reaching it means
+              // putting the pointer on it, and the trip from a 7px glyph at the
+              // top right of this cell down to a card hanging off its bottom
+              // edge crosses the name box in between. With the leave on the
+              // marker that trip unmounted the card before the pointer arrived
+              // and a note taller than 320px could never be scrolled (codex
+              // round 3, finding 1). This span contains the marker *and* the
+              // card, so `mouseleave` on it fires only once the pointer is
+              // outside both — no timer, no grace period, and the preview's
+              // placement is untouched.
+              // Proof: the handler put back on the marker, `keeps the preview
+              // open while the pointer crosses the cell to reach it` failed on
+              // `expected null not to be null`, and the browser's `scrolls a
+              // note taller than the preview once the pointer is on it` on the
+              // card being gone. Watched, 2026-08-09.
+              onMouseLeave={() => {
+                // The same-cell guard every surface clears with: a leave fires
+                // after the enter of whatever the pointer moved on to, so an
+                // unconditional clear would close the card the next cell had
+                // just opened.
+                live.current.setHoveredCell((current) => (current === nameCell ? null : current));
+              }}
               style={{ position: 'relative', display: 'block', maxWidth: '100%' }}
             >
               <CellInput
@@ -3543,21 +3638,15 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                 // cell would put a Tab between a name and the next column. Its
                 // hover area is its own 12px box and nothing wider, so a click
                 // aimed at the box under it lands there everywhere else.
+                //
+                // It opens the preview and does not close it: the leave belongs
+                // to the cell around it, for the reason that span gives.
                 <span
                   role="img"
                   aria-label={`Notes on ${row.original.number}`}
                   data-notes-marker={row.original.id}
                   onMouseEnter={() => {
                     live.current.setHoveredCell(nameCell);
-                  }}
-                  onMouseLeave={() => {
-                    // The same-cell guard every surface clears with: a leave
-                    // fires after the enter of whatever the pointer moved on
-                    // to, so an unconditional clear would close the card the
-                    // next cell had just opened.
-                    live.current.setHoveredCell((current) =>
-                      current === nameCell ? null : current,
-                    );
                   }}
                   style={{
                     position: 'absolute',
@@ -3619,11 +3708,35 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
           // one 110px cell, and the one somebody is typing into is the one they
           // are looking at. `picker`, not `open`: a picker with nothing to
           // offer is still a cell being typed in.
-          const carded =
-            waitingFor.length > 0 && picker === null && live.current.hoveredCell === dependsCell;
+          const cardable = waitingFor.length > 0 && picker === null;
+          const carded = cardable && live.current.hoveredCell === dependsCell;
+          // What the card says, for a reader with no pointer. This cell cannot
+          // answer a focus with the card the way the folded role cell does —
+          // the focus here already belongs to the picker, which opens on it and
+          // offers the rows this one could *start* waiting for, and stacking
+          // two boxes over one 110px cell is what the design ruled out. So the
+          // names are a description of the box instead, off the same
+          // `waitingFor` list the card is built from. codex round 3, finding 2.
+          // Proof: the `aria-describedby` dropped from the input, `describes the
+          // box with what the row waits for, pointer or no pointer` failed on
+          // `expected null to be 'depends-w3'`. Watched, 2026-08-09.
+          const waitsForId = `depends-${row.original.id}`;
           return (
             <span
               onMouseEnter={() => {
+                // Nothing to open, nothing written. `hoveredCell` lives on the
+                // table, so every boundary the pointer crosses costs one render
+                // of the whole of it — and a cell with no card to show has no
+                // reason to spend one, nor to close the card open somewhere else
+                // on the pointer's way past. codex round 3, finding 5.
+                //
+                // The key is a string, so a second enter on the same cell writes
+                // the value already there and React bails out without rendering.
+                // Proof: this guard dropped, `writes no hovered cell from a cell
+                // that has no card to show` failed on `Unable to find an
+                // accessible element with the role "tooltip"`. Watched,
+                // 2026-08-09.
+                if (!cardable) return;
                 live.current.setHoveredCell(dependsCell);
               }}
               onMouseLeave={() => {
@@ -3650,6 +3763,11 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                 maxWidth: '100%',
               }}
             >
+              {waitingFor.length > 0 && (
+                <span id={waitsForId} className="sr-only">
+                  {`Waiting for ${waitingFor.map(dependsLine).join(', ')}`}
+                </span>
+              )}
               {waitingFor.map(({ id, number }) => (
                 <button
                   key={id}
@@ -3674,6 +3792,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                   activeOption === undefined ? undefined : `dep-option-${activeOption.id}`
                 }
                 aria-autocomplete="list"
+                aria-describedby={waitingFor.length > 0 ? waitsForId : undefined}
                 placeholder="search, or 010, 020"
                 title="Type to search by number or name, or a list of numbers separated by commas or spaces"
                 style={{ width: '100%', boxSizing: 'border-box' }}
@@ -3974,18 +4093,40 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
               // is four lines over a 96px cell, so a mouse crossing the column
               // is told something rather than interrupted.
               //
-              // Not while the `@` list is open, because both open from the
-              // bottom edge of this same wrapper and the one somebody is typing
-              // into owns the cell. Nothing new is being guarded here — the
-              // list is only open while this cell has the focus — so it is a
-              // condition rather than a check, and `the @ list keeps the cell
-              // to itself` is what watches it.
-              const carded =
-                !unfolded && options.length === 0 && live.current.hoveredCell === finalCell;
+              // Not while a mention is being typed in this cell, because the
+              // list and the card open from the bottom edge of this same
+              // wrapper and the one somebody is typing into owns the cell.
+              //
+              // The **mention**, not its entries. Reading `options.length === 0`
+              // was the same rule for every case but one, and that one is
+              // reachable: a deployment with nobody on it yet answers a bare `@`
+              // with no entries at all — nobody to match, and no `Add "…"` until
+              // something follows the `@` — so the card opened over a box being
+              // typed into. agy round 3, finding 7.
+              // Proof: put back to `options.length === 0`, `keeps the cell to a
+              // mention that has nobody to offer` failed on `expected 'Dev…' to
+              // contain 'QA'`. Watched, 2026-08-09.
+              const openMention = live.current.mention;
+              const mentioning =
+                openMention?.rowId === row.original.id && openMention.roleId === role.id;
+              const cardable = !unfolded && !mentioning;
+              const carded = cardable && live.current.hoveredCell === finalCell;
+              // The card's own id, which the box below points
+              // `aria-describedby` at while it is open — this cell's answer to
+              // "a card only a pointer can open is data withheld from anybody
+              // who does not use one" (codex round 3, finding 2). The box is
+              // the cell's only focusable thing, so it is the one that can
+              // carry it; a parent's rolled-up figure has no box and no
+              // keyboard route, which is its own entry in `design.md`.
+              const cardId = `folded-${row.original.id}-${role.id}`;
               return (
                 <span
                   data-final={role.id}
                   onMouseEnter={() => {
+                    // No card to show, no state written: {@link hoveredCell}
+                    // lives on the table and a write of it renders all of it.
+                    // See the depends cell's own enter for the whole of it.
+                    if (!cardable) return;
                     live.current.setHoveredCell(finalCell);
                   }}
                   onMouseLeave={() => {
@@ -4010,6 +4151,12 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                   // it. Nothing else in here can hold the focus.
                   onBlur={() => {
                     live.current.leaveFoldedCell();
+                    // The focus-opened card goes with the focus. Guarded like
+                    // every other clear: a blur can land after the next cell has
+                    // already opened its own.
+                    live.current.setHoveredCell((current) =>
+                      current === finalCell ? null : current,
+                    );
                   }}
                   style={{
                     position: 'relative',
@@ -4095,8 +4242,18 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                       // sensible edit to make *inside* `4`, and a caret dropped
                       // into it turns `2/3/8` into `2/3/84`. What the selection
                       // replaces is remembered first — see `enterFoldedCell`.
+                      aria-describedby={carded ? cardId : undefined}
                       onFocus={(e) => {
                         live.current.enterFoldedCell(e.currentTarget);
+                        // The focus opens the card the pointer opens, through
+                        // the same one state — so a reader arriving by Tab is
+                        // shown the trio rather than told about it. Cleared by
+                        // the wrapper's `onBlur`, which this bubbles to.
+                        // Proof: this line dropped, `opens the card on the focus
+                        // too, and points the box at it` failed on `Unable to
+                        // find an accessible element with the role "tooltip"`.
+                        // Watched, 2026-08-09.
+                        live.current.setHoveredCell(finalCell);
                         e.currentTarget.select();
                       }}
                       style={{
@@ -4157,15 +4314,36 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                     <FoldedRoleCard
                       roleName={role.name}
                       number={row.original.number}
+                      id={cardId}
                       points={POINTS.map((point) => ({
                         point,
-                        // The row's own trio, which is what the fold hid. Read
-                        // through the same `estimateValue` the three boxes read
-                        // when they are on screen, so the card and the unfolded
-                        // columns cannot come to disagree about one estimate.
-                        days: live.current.estimateValue(row.original, role.id, point),
+                        // The row's own trio, off the row — **not** through
+                        // `estimateValue`, and not through `combinedValue`
+                        // below it. Those two answer with the draft where there
+                        // is one, which is right for a box somebody is typing
+                        // in and wrong for this: a card is what the fold left
+                        // behind, and what the fold hid is the estimate be-01
+                        // holds — the one the figure beside it is computed
+                        // from, and the one every other reader of the plan
+                        // sees. Reading the draft made a card say
+                        // `realistic —` beside `Final 3.7 days`, and
+                        // `Final 8/3/2 days` where a number of days belongs.
+                        // The draft is not lost: unfolding the role puts it
+                        // back in the box it was typed into, with its
+                        // complaint, which is the only place it can be
+                        // corrected. codex round 3, finding 4.
+                        // Proof, two faults watched 2026-08-09. Points read
+                        // through `estimateValue`: `reads the trio off the row,
+                        // not out of the boxes it was typed into` failed on
+                        // `expected 'Devoptimistic 2 · realistic — · pessi…' to
+                        // contain 'realistic 3'`. `final` read through
+                        // `combinedValue`: `says Final in days, whatever
+                        // half-typed shorthand the cell is holding` failed on
+                        // `expected 'Dev…Final 8/3/2 days' to contain 'Final
+                        // 3.7 days'`.
+                        days: showDays(row.original.estimates[role.id], point),
                       }))}
-                      final={live.current.combinedValue(row.original, role.id)}
+                      final={showFinal(row.original.finalDays[role.id])}
                       doing={doing}
                     />
                   )}

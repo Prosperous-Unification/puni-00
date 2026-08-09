@@ -7,6 +7,17 @@ export interface DependsEntry {
   name: string;
 }
 
+/**
+ * One dependency as it is written wherever this list appears: `010 - Strip the
+ * hull`, the same shape the dependency picker uses.
+ *
+ * A function rather than two spellings, because the card is not the only place
+ * this list is read: the cell's box points `aria-describedby` at an off-screen
+ * copy for readers with no pointer, and a card and a description that disagreed
+ * about one row's dependencies would be worse than either.
+ */
+export const dependsLine = (entry: DependsEntry): string => `${entry.number} - ${entry.name}`;
+
 export interface DependsCardProps {
   /** The waiting work item's number, so the card says whose list this is. */
   number: string;
@@ -30,9 +41,7 @@ export function DependsCard({ number, entries }: DependsCardProps) {
   return (
     <HoverCard label={`What ${number} waits for`}>
       {entries.map((entry) => (
-        <div key={entry.id}>
-          {entry.number} - {entry.name}
-        </div>
+        <div key={entry.id}>{dependsLine(entry)}</div>
       ))}
     </HoverCard>
   );
