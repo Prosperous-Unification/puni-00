@@ -16,7 +16,7 @@ const itDom = hasDom ? it : it.skip;
  * boundary around only the signed-in branch would not have covered. The rest of
  * the module stays real — `AuthForm` imports from it too.
  */
-const loadSession = vi.hoisted(() => vi.fn<() => Api.Session | null>(() => null));
+const loadSession = vi.hoisted(() => vi.fn<[], Api.Session | null>(() => null));
 
 vi.mock('@/lib/api', async (importOriginal) => ({
   ...(await importOriginal<typeof Api>()),
@@ -25,12 +25,15 @@ vi.mock('@/lib/api', async (importOriginal) => ({
 
 const { App } = await import('./app');
 
-let logged: ReturnType<typeof vi.spyOn>;
+const muteConsoleError = () =>
+  // React writes a caught error to `console.error` whatever a boundary does.
+  vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+let logged: ReturnType<typeof muteConsoleError>;
 
 beforeEach(() => {
   loadSession.mockReturnValue(null);
-  // React writes a caught error to `console.error` whatever a boundary does.
-  logged = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+  logged = muteConsoleError();
 });
 
 afterEach(() => {

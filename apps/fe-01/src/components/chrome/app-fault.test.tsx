@@ -27,10 +27,12 @@ const chartFaultWords = (): string | null =>
  * and so does {@link AppFaultBoundary.componentDidCatch} deliberately. Left
  * alone, five expected faults print five stack traces over a passing suite.
  */
-let logged: ReturnType<typeof vi.spyOn>;
+const muteConsoleError = () => vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+let logged: ReturnType<typeof muteConsoleError>;
 
 beforeEach(() => {
-  logged = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+  logged = muteConsoleError();
 });
 
 afterEach(() => {
