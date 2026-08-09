@@ -648,9 +648,11 @@ export function GanttPanel({
   const placed = startDate === null ? placeOnWorkdays(chart) : placeOnCalendar(chart, startDate);
   const axis =
     startDate === null ? workdayAxis(placed.horizon) : calendarAxis(startDate, placed.horizon);
-  // The schedule band of the canvas, in whole cells — which is what makes the
-  // axis and the canvas the same width by construction rather than by two
-  // roundings agreeing.
+  // How many cells the axis holds — every whole day of the schedule. Read off
+  // the axis rather than rounded again here, and deliberately **not** what the
+  // canvas below is sized from: the two are computed apart so that a test can
+  // ask whether they agree. An axis built from a horizon the canvas is not on
+  // is two cells short of the chart under it and every label drifts right.
   const days = axis.length;
   // The band outside the schedule, in the user space's own unit: a day is
   // {@link DAY_PX} across, so this is what {@link CHART_PAD_PX} is worth in
@@ -793,11 +795,12 @@ export function GanttPanel({
               data-gantt-chart
               // The contract, in three attributes: the user space is days by
               // rows, and the CSS size is the only place either becomes a pixel.
-              // The schedule band is whole cells, so it is the axis's own count
-              // rather than a second rounding of the horizon.
-              viewBox={`${String(-pad)} 0 ${String(days + 2 * pad)} ${String(rowCount)}`}
+              // The schedule band is the **horizon** the marks were placed
+              // against, so one user unit is exactly {@link DAY_PX} however
+              // fractional the last day is.
+              viewBox={`${String(-pad)} 0 ${String(placed.horizon + 2 * pad)} ${String(rowCount)}`}
               preserveAspectRatio="none"
-              width={chartWidth}
+              width={placed.horizon * DAY_PX + 2 * CHART_PAD_PX}
               height={rowCount * ROW_PX}
               style={{ display: 'block' }}
             >

@@ -83,19 +83,19 @@ step earlier.
 
 ## 3. Bar width is the drawn span
 
-- [ ] 3.1 Width is `endOf(start + drawnSpan) − startOf(start)`, engine `finish`
+- [x] 3.1 Width is `endOf(start + drawnSpan) − startOf(start)`, engine `finish`
       demoted to `data-finish` metadata, `data-start`/`data-finish` still the
       engine's workday numbers — test: `gantt-panel.test.tsx` — a 3.5→6 slice at
       `x` 3.5 of width 4.5 reading "3.5"/"6"; a 3→5 slice of width 2 with no
       weekend tail; an unestimated slice at workday 3 of width 2 reading "3"/"3"
-- [ ] 3.2 The unestimated bar cannot collapse — negative: the width taken as
+- [x] 3.2 The unestimated bar cannot collapse — negative: the width taken as
       `endOf(finish) − startOf(start)`, which for `finish === start` is zero,
       watched failing the unestimated case on a `width` of 0 while every
       estimated case stayed green; `Proof:` comment naming it as codex 14's fault
-- [ ] 3.3 A zero-**day estimate** keeps its zero width and its tick and is not
+- [x] 3.3 A zero-**day estimate** keeps its zero width and its tick and is not
       confused with an unestimated slice — test: the existing zero-day-estimate
       tick test, re-derived through the scale
-- [ ] 3.4 The **words** stay date arithmetic while the marks move: `spanWords`
+- [x] 3.4 The **words** stay date arithmetic while the marks move: `spanWords`
       and `notBeforeWords` keep reading `addWorkdays(startDate, ⌊start⌋)` and
       `addWorkdays(startDate, lastWorkdayOf(start, finish))`, and neither is
       handed a coordinate — test: `gantt-panel.test.tsx`, a 3→5 slice on the
@@ -109,27 +109,27 @@ step earlier.
 
 ## 4. The calendar axis
 
-- [ ] 4.1 `calendarAxis(startDate, calendarHorizon)` replaces `workdayAxis` — one
+- [x] 4.1 `calendarAxis(startDate, calendarHorizon)` replaces `workdayAxis` — one
       cell per calendar day from the origin, each carrying its calendar offset,
       its date and the workday number when it is one; weekend cells marked and
       greyed; the heavy gridline on Mondays, `WEEK_DAYS` left to the
       no-start-date axis alone — test: `gantt-panel.test.tsx`, cells 5 and 6
       carrying Saturday 2026-08-15 and Sunday 2026-08-16 marked weekend and cell
       7 carrying Monday 2026-08-17 with the heavy gridline
-- [ ] 4.2 Cell count matches the viewBox one to one — `ceil(calendarHorizon)`
+- [x] 4.2 Cell count matches the viewBox one to one — `ceil(calendarHorizon)`
       cells, cell `k` at user-space `x = k`, the SVG's CSS width and the axis
       row's width the same count of `DAY_PX` — test: the rewritten user-space
       test, asserting the cell count against the viewBox's schedule band rather
       than against a constant; negative: the axis built from `chart.horizon` in
       workdays while the viewBox uses the calendar horizon, watched failing with
       the axis two cells short of the canvas on a fixture crossing one weekend
-- [ ] 4.3 The month caption and the scroll arithmetic follow the calendar axis —
+- [x] 4.3 The month caption and the scroll arithmetic follow the calendar axis —
       test: the existing month-on-screen caption test, re-derived; its fixture now
       crosses a weekend, so the cell it scrolls to is a calendar cell
 
 ## 5. No start date is a state, not a fallthrough
 
-- [ ] 5.1 With `startDate === null` no scale is built and no mark asks for one:
+- [x] 5.1 With `startDate === null` no scale is built and no mark asks for one:
       coordinates, axis and the every-fifth gridline are exactly today's — test:
       `gantt-panel.test.tsx`, a slice at workday 5 drawn at `x` 5, eight axis
       cells for a horizon of 8, no cell marked weekend, heavy gridlines on 0 and
@@ -139,7 +139,7 @@ step earlier.
 
 ## 6. The existing tests, inventoried and rewritten
 
-- [ ] 6.1 Rewrite, not append — these `gantt-panel.test.tsx` assertions go
+- [x] 6.1 Rewrite, not append — these `gantt-panel.test.tsx` assertions go
       legitimately red and are re-derived through the scale, none of them
       hard-coding a number twice — test: the file green, and every number in it
       taken from the scale the panel uses:
