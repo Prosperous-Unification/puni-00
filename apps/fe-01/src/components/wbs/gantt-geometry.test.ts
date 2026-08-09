@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  ASSUMED_UNESTIMATED_WORKDAYS,
   type BarColor,
   type BindingFloor,
   GanttDataError,
@@ -21,6 +22,7 @@ const rowAt = (
   extras: Partial<GanttRow> = {},
 ): GanttRow => ({
   id,
+  number: id,
   name: id,
   depth: 0,
   leaf: true,
@@ -477,20 +479,37 @@ describe('dependency arrows', () => {
 });
 
 describe('the rest of the chart', () => {
-  it('labels every shown row in the plan order, with its depth', () => {
+  it('labels every shown row in the plan order, with its number and its depth', () => {
     const chart = layOutGantt(
       planOf({
         rows: [
-          rowAt('phase', 0, 6, { leaf: false, name: 'Prep' }),
-          rowAt('strip', 0, 3, { depth: 1, name: 'Strip' }),
+          rowAt('phase', 0, 6, { leaf: false, number: '010', name: 'Prep' }),
+          rowAt('strip', 0, 3, { depth: 1, number: '010.1', name: 'Strip' }),
         ],
         slices: [sliceAt('strip-dev', 'strip', 0, 3)],
       }),
     );
 
+    // Proof: `number: row.number` dropped from the label — this test alone
+    // failed, on `expected { id: 'phase', name: 'Prep', … } to deeply equal {
+    // id: 'phase', number: '010', … }`, and the panel drew a column of names
+    // with no numbers in it. Watched, 2026-08-09.
     expect(chart.labels).toEqual([
-      { id: 'phase', name: 'Prep', depth: 0, rowIndex: 0 },
-      { id: 'strip', name: 'Strip', depth: 1, rowIndex: 1 },
+      { id: 'phase', number: '010', name: 'Prep', depth: 0, rowIndex: 0 },
+      { id: 'strip', number: '010.1', name: 'Strip', depth: 1, rowIndex: 1 },
+    ]);
+  });
+
+  it('names the work item a bar is for by number as well as by name', () => {
+    const chart = layOutGantt(
+      planOf({
+        rows: [rowAt('strip', 0, 3, { number: '010', name: 'Strip the hull' })],
+        slices: [sliceAt('strip-dev', 'strip', 0, 3)],
+      }),
+    );
+
+    expect(chart.bars.map((bar) => [bar.workItemNumber, bar.workItemName])).toEqual([
+      ['010', 'Strip the hull'],
     ]);
   });
 
@@ -787,15 +806,41 @@ describe('the shapes a real schedule makes', () => {
   });
 
   /**
-   * A slice of no days: real, and drawn as a mark of no width.
+   * A slice **estimated** at no days: real, and drawn as a mark of no width.
    *
-   * The engine gives an unestimated pair zero days, and a zero-length slice
-   * takes no place in the queue. The geometry keeps the bar — the row has to be
-   * able to say the slice exists, and the panel draws a tick at its start
-   * because a `<rect width="0">` paints nothing — but it takes no room on the
-   * axis and moves the horizon nowhere.
+   * `expectedDays({0, 0, 0})` is 0 — `libs/domain/src/estimate.test.ts` says so
+   * — so a slice somebody has estimated can still be zero workdays long. The
+   * geometry keeps the bar, the panel draws a tick at its start because a
+   * `<rect width="0">` paints nothing, and it takes no room on the axis and
+   * moves the horizon nowhere. An unestimated slice is the test below, and it
+   * is a different answer.
    */
-  it('keeps a zero-day slice as a bar of no width that takes no room', () => {
+  it('keeps a zero-day estimate as a bar of no width that takes no room', () => {
+    const chart = layOutGantt(
+      planOf({
+        rows: [rowAt('strip', 0, 3), rowAt('sand', 3, 3)],
+        slices: [
+          sliceAt('strip-dev', 'strip', 0, 3),
+          sliceAt('sand-dev', 'sand', 3, 3, { duration: 0 }),
+        ],
+      }),
+    );
+
+    expect(chart.bars.map((bar) => [bar.sliceId, bar.start, bar.duration, bar.drawnSpan])).toEqual([
+      ['strip-dev', 0, 3, 3],
+      ['sand-dev', 3, 0, 0],
+    ]);
+    expect(chart.horizon).toBe(3);
+  });
+
+  /**
+   * An unestimated slice: zero days on the engine, two workdays on the paper.
+   *
+   * The engine's numbers are untouched — `duration`, `start` and `finish` are
+   * what be-01 sent — and `drawnSpan` alone carries the assumption. See
+   * {@link ASSUMED_UNESTIMATED_WORKDAYS}.
+   */
+  it('draws an unestimated slice across the assumed span, from its engine start', () => {
     const chart = layOutGantt(
       planOf({
         rows: [rowAt('strip', 0, 3), rowAt('sand', 3, 3)],
@@ -806,11 +851,37 @@ describe('the shapes a real schedule makes', () => {
       }),
     );
 
-    expect(chart.bars.map((bar) => [bar.sliceId, bar.start, bar.duration])).toEqual([
-      ['strip-dev', 0, 3],
-      ['sand-dev', 3, 0],
+    // Proof: `drawnSpan: slice.estimated ? slice.duration :
+    // ASSUMED_UNESTIMATED_WORKDAYS` reverted to `drawnSpan: slice.duration` —
+    // the zero-width tick this change exists to replace. **Both** tests here
+    // failed: this one on `expected [ …, [ 'sand-dev', 3, 3, 0 ] ] to deeply
+    // equal [ …, [ 'sand-dev', 3, 3, 2 ] ]`, and `stretches the horizon to hold
+    // the assumed span` on `expected 3 to be 5`. Watched, 2026-08-09.
+    expect(
+      chart.bars.map((bar) => [bar.sliceId, bar.start, bar.duration, bar.drawnSpan, bar.estimated]),
+    ).toEqual([
+      ['strip-dev', 0, 3, 3, true],
+      ['sand-dev', 3, 0, ASSUMED_UNESTIMATED_WORKDAYS, false],
     ]);
-    expect(chart.horizon).toBe(3);
+  });
+
+  it('stretches the horizon to hold the assumed span, so the ghost bar has canvas', () => {
+    const chart = layOutGantt(
+      planOf({
+        rows: [rowAt('strip', 0, 3), rowAt('sand', 3, 3)],
+        slices: [
+          sliceAt('strip-dev', 'strip', 0, 3),
+          sliceAt('sand-dev', 'sand', 3, 3, { estimated: false }),
+        ],
+      }),
+    );
+
+    // Proof, of the horizon's own half: `Math.max(horizon, bar.finish,
+    // bar.start + bar.drawnSpan)` cut back to `Math.max(horizon, bar.finish)`,
+    // with the drawn span left in place — this test alone failed, on `expected
+    // 3 to be 5`, and the two-day bar hung two workdays off the end of a canvas
+    // that stopped at 3. Watched, 2026-08-09.
+    expect(chart.horizon).toBe(3 + ASSUMED_UNESTIMATED_WORKDAYS);
   });
 
   it('draws nothing, and throws nothing, for a plan with no rows at all', () => {

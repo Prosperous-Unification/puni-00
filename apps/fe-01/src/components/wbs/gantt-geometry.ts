@@ -121,6 +121,12 @@ export function inkOn(barColor: BarColor): string {
  */
 export interface GanttRow {
   id: string;
+  /**
+   * The derived number the plan's Number column shows for this row — `010`,
+   * `010.2`. Carried rather than derived here: the table already computes it,
+   * and a second derivation is two numbering rules to keep in step.
+   */
+  number: string;
   name: string;
   /** How deep in the tree, 0 at the root. The label's indent. */
   depth: number;
@@ -188,17 +194,39 @@ export interface GanttPlan {
 /** A row's label: what the sticky-left column prints, and which row of the chart it belongs to. */
 export interface GanttRowLabel {
   id: string;
+  /** The row's derived number, printed before its name — see {@link GanttRow.number}. */
+  number: string;
   name: string;
   depth: number;
   rowIndex: number;
 }
 
 /**
+ * How many workdays an unestimated slice's bar is **drawn** across.
+ *
+ * A drawing assumption and not a schedule fact. Nobody has said how long this
+ * slice is, so the engine gives it zero days — and a bar of zero days is a mark
+ * with no area, which reads as "there is nothing here" when the truth is "we do
+ * not know yet". Two workdays is the smallest span that reads as a task at the
+ * panel's 28px workday and is short enough that nobody mistakes it for an
+ * estimate.
+ *
+ * **It changes nothing but the drawing.** The engine's numbers are untouched —
+ * the slice still starts and finishes where be-01 placed it, the table's Start
+ * and End columns are unmoved, `data-start`/`data-finish` still carry the
+ * engine's numbers verbatim, and dependency arrows and person links are still
+ * drawn between them. Only {@link GanttBar.drawnSpan} and the horizon that has
+ * to contain it know about this number, and the bar says it is a guess in its
+ * own outline, its translucency and its hover text (`gantt-panel.tsx`).
+ */
+export const ASSUMED_UNESTIMATED_WORKDAYS = 2;
+
+/**
  * One slice drawn: where it starts and how wide it is on the workday axis,
  * which row it is on, and why it starts there.
  *
- * `start`, `finish` and `duration` are workdays and `rowIndex` is a row —
- * never pixels. The panel's SVG user space is those two units, so these
+ * `start`, `finish`, `duration` and `drawnSpan` are workdays and `rowIndex` is
+ * a row — never pixels. The panel's SVG user space is those two units, so these
  * numbers reach `x`, `width` and `y` unconverted.
  */
 export interface GanttBar {
@@ -207,11 +235,25 @@ export interface GanttBar {
   start: number;
   finish: number;
   duration: number;
+  /**
+   * How wide the bar is **drawn**, in workdays: `duration` for an estimated
+   * slice, and {@link ASSUMED_UNESTIMATED_WORKDAYS} for one nobody has
+   * estimated.
+   *
+   * The one number on this bar that is not the engine's, and the only one the
+   * width is ever taken from. `duration` stays what be-01 computed, which is
+   * what `data-finish` and the hover text are written from — see
+   * {@link ASSUMED_UNESTIMATED_WORKDAYS} for why the two are allowed to differ
+   * and what says so on screen.
+   */
+  drawnSpan: number;
   /** How many workdays this bar can slip before the project's finish moves. */
   float: number;
   critical: boolean;
   /** False when nobody has estimated this slice, which is not the same fact as zero days. */
   estimated: boolean;
+  /** The work item this slice is work for — the number on the row the bar sits on. */
+  workItemNumber: string;
   /** The work item this slice is work for — the name on the row the bar sits on. */
   workItemName: string;
   /** The role this slice is work for, or null when it belongs to no role. */
@@ -410,6 +452,7 @@ export function layOutGantt(plan: GanttPlan): GanttGeometry {
 
   const labels: GanttRowLabel[] = plan.rows.map((row, rowIndex) => ({
     id: row.id,
+    number: row.number,
     name: row.name,
     depth: row.depth,
     rowIndex,
@@ -502,9 +545,14 @@ export function layOutGantt(plan: GanttPlan): GanttGeometry {
         start: slice.earliestStart,
         finish: slice.earliestFinish,
         duration: slice.duration,
+        // The only place the drawing parts from the engine, and it parts from
+        // it here rather than in the panel so the horizon below can contain
+        // what is actually drawn. See {@link ASSUMED_UNESTIMATED_WORKDAYS}.
+        drawnSpan: slice.estimated ? slice.duration : ASSUMED_UNESTIMATED_WORKDAYS,
         float: slice.float,
         critical: slice.critical,
         estimated: slice.estimated,
+        workItemNumber: row.number,
         workItemName: row.name,
         roleName,
         personName,
@@ -554,7 +602,13 @@ export function layOutGantt(plan: GanttPlan): GanttGeometry {
   }
 
   let horizon = 1;
-  for (const bar of bars) horizon = Math.max(horizon, bar.finish);
+  // Both ends of every bar: where the engine finishes it, and where the drawing
+  // does. An unestimated slice standing on the last workday is drawn
+  // {@link ASSUMED_UNESTIMATED_WORKDAYS} past its own finish, and a horizon
+  // taken from `finish` alone would end the canvas underneath it —
+  // `CHART_PAD_PX` in the panel is a band for pixel excursions and is not a
+  // workday span to hide a bar in.
+  for (const bar of bars) horizon = Math.max(horizon, bar.finish, bar.start + bar.drawnSpan);
   for (const bracket of brackets) horizon = Math.max(horizon, bracket.finish);
   for (const arrow of arrows) horizon = Math.max(horizon, arrow.fromFinish, arrow.toStart);
   for (const flag of notBeforeFlags) horizon = Math.max(horizon, flag.offset);

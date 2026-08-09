@@ -13,8 +13,20 @@ import type {
 } from '@/lib/wbs-api';
 
 import type { GanttPlan, GanttRow, GanttSlice } from './gantt-geometry';
-import { PERSON_BAR_COLORS, UNASSIGNED_BAR_COLOR } from './gantt-geometry';
-import { barLabelFor, CHART_PAD_PX, DAY_PX, GanttPanel, initialsOf, ROW_PX } from './gantt-panel';
+import {
+  ASSUMED_UNESTIMATED_WORKDAYS,
+  PERSON_BAR_COLORS,
+  UNASSIGNED_BAR_COLOR,
+} from './gantt-geometry';
+import {
+  assumedLabelFor,
+  barLabelFor,
+  CHART_PAD_PX,
+  DAY_PX,
+  GanttPanel,
+  initialsOf,
+  ROW_PX,
+} from './gantt-panel';
 import { type SubscriptionHandlers, WbsTable } from './wbs-table';
 
 // fe-01 tests require jsdom; only Vitest provides it. Skip under plain `bun test`.
@@ -29,6 +41,7 @@ const rowAt = (
   extras: Partial<GanttRow> = {},
 ): GanttRow => ({
   id,
+  number: id,
   name: id,
   depth: 0,
   leaf: true,
@@ -270,12 +283,24 @@ describe('the chart is drawn in workdays', () => {
     expect(barFor('trim-dev')?.getAttribute('fill')).toBe(UNASSIGNED_BAR_COLOR);
   });
 
-  itDom('draws an unestimated slice hollow rather than as a slice of no days', () => {
+  /**
+   * The ghost bar: an unestimated slice drawn across the assumed span, and
+   * drawn so nobody reads it as a schedule.
+   *
+   * Both marks together, because either alone is a bar that lies. Two workdays
+   * at full strength is an estimate nobody made; two workdays with no fill is
+   * an outline of an estimate nobody made.
+   */
+  itDom('draws an unestimated slice as a translucent, dashed bar of the assumed span', () => {
     render(
       <GanttPanel
         plan={planOf({
-          rows: [rowAt('strip', 0, 0)],
-          slices: [sliceAt('strip-dev', 'strip', 0, 0, { estimated: false })],
+          rows: [rowAt('strip', 0, 3), rowAt('sand', 3, 3)],
+          slices: [
+            sliceAt('strip-dev', 'strip', 0, 3, { personId: 'kat' }),
+            sliceAt('sand-dev', 'sand', 3, 3, { estimated: false, personId: 'kat' }),
+          ],
+          personNames: new Map([['kat', 'Kat']]),
         })}
         startDate={null}
         scheduleError={null}
@@ -283,22 +308,92 @@ describe('the chart is drawn in workdays', () => {
       />,
     );
 
-    expect(barFor('strip-dev')?.getAttribute('fill')).toBe('none');
-    expect(barFor('strip-dev')?.classList.contains('[stroke-dasharray:3_2]')).toBe(true);
+    const ghost = barFor('sand-dev');
+    // Proof: `ASSUMED_BAR_CLASSES` emptied to `''`, so an unestimated bar drew
+    // in Kat's solid colour at the assumed width — the worst of the two, a
+    // guess that reads as a schedule. This test alone failed, on `expected
+    // false to be true`, and `keeps the assumed span out of the engine's own
+    // numbers` beside it went on passing: it is the width that test watches and
+    // the paint this one does. Watched, 2026-08-09.
+    expect(ghost?.classList.contains('[fill-opacity:0.35]')).toBe(true);
+    expect(ghost?.classList.contains('[stroke-dasharray:3_2]')).toBe(true);
+    // Kat's colour either way: the bar says "guessed", never "nobody's".
+    expect(ghost?.getAttribute('fill')).toBe(PERSON_BAR_COLORS[0]);
+    expect(ghost?.getAttribute('width')).toBe(String(ASSUMED_UNESTIMATED_WORKDAYS));
+    expect(ghost?.getAttribute('data-assumed')).toBe('true');
+
+    // And an estimated bar carries none of it — without this the two assertions
+    // above would pass against a chart where every bar is a ghost.
+    const real = barFor('strip-dev');
+    expect(real?.classList.contains('[fill-opacity:0.35]')).toBe(false);
+    expect(real?.classList.contains('[stroke-dasharray:3_2]')).toBe(false);
+    expect(real?.getAttribute('data-assumed')).toBeNull();
   });
 
-  /**
-   * A slice of no days is drawn by a tick, because a `<rect width="0">` paints
-   * nothing at all and the row would read as empty.
-   */
-  itDom('marks a zero-day slice with a tick where it starts', () => {
+  itDom('keeps the assumed span out of the engine’s own numbers', () => {
     render(
       <GanttPanel
         plan={planOf({
-          rows: [rowAt('strip', 0, 3), rowAt('sand', 3, 3)],
+          rows: [rowAt('sand', 3, 3)],
+          slices: [sliceAt('sand-dev', 'sand', 3, 3, { estimated: false })],
+        })}
+        startDate={null}
+        scheduleError={null}
+        onPickRow={() => undefined}
+      />,
+    );
+
+    // The drawn width is the assumption; `data-start` and `data-finish` are
+    // what be-01 said, and the two are allowed to disagree only here.
+    expect(barFor('sand-dev')?.getAttribute('width')).toBe('2');
+    expect(barFor('sand-dev')?.getAttribute('data-start')).toBe('3');
+    expect(barFor('sand-dev')?.getAttribute('data-finish')).toBe('3');
+  });
+
+  itDom('writes the guess on the ghost bar, and the person with it', () => {
+    render(
+      <GanttPanel
+        plan={planOf({
+          rows: [rowAt('sand', 3, 3), rowAt('trim', 3, 3)],
+          slices: [
+            sliceAt('sand-dev', 'sand', 3, 3, { estimated: false, personId: 'kat' }),
+            sliceAt('trim-dev', 'trim', 3, 3, { estimated: false }),
+          ],
+          personNames: new Map([['kat', 'Kat']]),
+        })}
+        startDate={null}
+        scheduleError={null}
+        onPickRow={() => undefined}
+      />,
+    );
+
+    // Proof: the `assumedLabelFor` branch reverted to the old `bar.estimated ?
+    // barLabelFor(…) : null` — no ghost writes anything. This test alone
+    // failed, on `expected undefined to be 'Kat · ?'`, and the chart carried two
+    // bars of guessed width with nothing on them saying so. Watched,
+    // 2026-08-09.
+    expect(document.querySelector('[data-gantt-bar-label="sand-dev"]')?.textContent).toBe(
+      'Kat · ?',
+    );
+    // Nobody on it: the `?` is still the point and is still written.
+    expect(document.querySelector('[data-gantt-bar-label="trim-dev"]')?.textContent).toBe('?');
+  });
+
+  /**
+   * A slice **estimated** at no days is drawn by a tick, because a
+   * `<rect width="0">` paints nothing at all and the row would read as empty.
+   * `expectedDays({0, 0, 0})` is 0, so this is a real answer and not the
+   * unestimated one — which now has a bar of its own and no tick.
+   */
+  itDom('marks a zero-day estimate with a tick where it starts, and a ghost with none', () => {
+    render(
+      <GanttPanel
+        plan={planOf({
+          rows: [rowAt('strip', 0, 3), rowAt('sand', 3, 3), rowAt('trim', 3, 3)],
           slices: [
             sliceAt('strip-dev', 'strip', 0, 3),
-            sliceAt('sand-dev', 'sand', 3, 3, { estimated: false }),
+            sliceAt('sand-dev', 'sand', 3, 3, { duration: 0 }),
+            sliceAt('trim-dev', 'trim', 3, 3, { estimated: false }),
           ],
         })}
         startDate={null}
@@ -307,20 +402,23 @@ describe('the chart is drawn in workdays', () => {
       />,
     );
 
-    // Proof: the tick block's `filter((bar) => bar.duration === 0)` turned off
+    // Proof: the tick block's `filter((bar) => bar.drawnSpan === 0)` turned off
     // (`filter(() => false)`), so no tick is drawn at all. This test alone
     // failed, on `expected 'nothing on the chart at [data-gantt-t…' to be '3'`
     // — the zero-day bar still in the DOM as a rect of no width, painting
-    // nothing. Watched, 2026-08-09.
+    // nothing. Re-watched 2026-08-09 in this shape.
     expect(markAttribute('[data-gantt-tick="sand-dev"]', 'x1')).toBe('3');
     expect(document.querySelector('[data-gantt-tick="strip-dev"]')).toBeNull();
+    // The unestimated slice is two workdays wide now; a tick under it would be
+    // the old mark left behind on a bar that no longer needs one.
+    expect(document.querySelector('[data-gantt-tick="trim-dev"]')).toBeNull();
   });
 
   itDom('says everything it knows in a title nothing scales, floor last', () => {
     render(
       <GanttPanel
         plan={planOf({
-          rows: [rowAt('strip', 2, 5, { name: 'Strip the hull' })],
+          rows: [rowAt('strip', 2, 5, { number: '010', name: 'Strip the hull' })],
           slices: [
             sliceAt('strip-dev', 'strip', 2, 5, {
               boundBy: 'predecessor',
@@ -339,11 +437,41 @@ describe('the chart is drawn in workdays', () => {
     // One fact to a line, and the binding floor last — the sentence the panel
     // was built to show is where a reader's eye ends.
     expect(barFor('strip-dev')?.querySelector('title')?.textContent.split('\n')).toEqual([
-      'Strip the hull',
+      '010 - Strip the hull',
       'Dev · Kat',
       'Workdays 2 → 5 · 3 days',
       'Float 1.5 days',
       'Waits for a dependency to finish',
+    ]);
+  });
+
+  itDom('says on the ghost bar that its width is a drawing and not an estimate', () => {
+    render(
+      <GanttPanel
+        plan={planOf({
+          rows: [rowAt('sand', 3, 3, { number: '020', name: 'Sand the deck' })],
+          slices: [sliceAt('sand-dev', 'sand', 3, 3, { estimated: false })],
+        })}
+        startDate={null}
+        scheduleError={null}
+        onPickRow={() => undefined}
+      />,
+    );
+
+    // A line of its own, between the dates and the float, so it is read rather
+    // than found.
+    //
+    // Proof: the line dropped from `barWords` — this test alone failed, on
+    // `expected [ '020 - Sand the deck', …(4) ] to deeply equal [ '020 - Sand
+    // the deck', …(5) ]`, and the only thing left saying
+    // the two days were invented was the bar's own paint. Watched, 2026-08-09.
+    expect(barFor('sand-dev')?.querySelector('title')?.textContent.split('\n')).toEqual([
+      '020 - Sand the deck',
+      'Dev · Unassigned',
+      'Workdays 3 → 3 · not estimated',
+      'Not estimated — drawn as 2 days',
+      'Float 0 days',
+      'Starts with the project',
     ]);
   });
 
@@ -885,6 +1013,18 @@ describe('the words on the bars are HTML over the chart', () => {
     expect(barLabelFor(null, 4)).toBeNull();
   });
 
+  itDom('keeps the ? on a ghost bar however little room the name leaves', () => {
+    // The assumed span is 2 workdays — 56px, of which 50 are writable — and
+    // `Kat · ?` is 7 characters at ~5.5px, so the name rides along. A longer
+    // name gives up its letters first and then itself; the `?` never goes.
+    expect(assumedLabelFor('Kat', ASSUMED_UNESTIMATED_WORKDAYS)).toBe('Kat · ?');
+    expect(assumedLabelFor('Katherine Bloomfield', ASSUMED_UNESTIMATED_WORKDAYS)).toBe('KB · ?');
+    expect(assumedLabelFor('Katherine Bloomfield', 0.5)).toBe('?');
+    expect(assumedLabelFor(null, ASSUMED_UNESTIMATED_WORKDAYS)).toBe('?');
+    // Narrower than one `?` and there is nothing honest to write.
+    expect(assumedLabelFor('Kat', 0.2)).toBeNull();
+  });
+
   itDom('takes initials from the first and last names, and never doubles one', () => {
     expect(initialsOf('Kat Bloom')).toBe('KB');
     expect(initialsOf('Kat van der Bloom')).toBe('KB');
@@ -1240,7 +1380,12 @@ function columnText(columnId: string, at: number): string {
 describe('the chart mirrors the plan', () => {
   itDom('leaves a collapsed branch’s children off the chart', async () => {
     await showTheChart();
-    expect(labelsOnTheChart()).toEqual(['Hull', 'Sanding', 'Sealing', 'Rigging']);
+    expect(labelsOnTheChart()).toEqual([
+      '010 - Hull',
+      '011 - Sanding',
+      '012 - Sealing',
+      '020 - Rigging',
+    ]);
 
     fireEvent.click(screen.getByRole('button', { name: 'Collapse all' }));
 
@@ -1253,7 +1398,7 @@ describe('the chart mirrors the plan', () => {
     // `table.getRowModel().rows` is *not* the fault this one sees — that model
     // is already narrowed by the expansion, and this test passed under it while
     // the search test below failed. Both are here for that reason.
-    expect(labelsOnTheChart()).toEqual(['Hull', 'Rigging']);
+    expect(labelsOnTheChart()).toEqual(['010 - Hull', '020 - Rigging']);
   });
 
   itDom('draws exactly the rows a search narrowed the plan to', async () => {
@@ -1267,7 +1412,7 @@ describe('the chart mirrors the plan', () => {
     // — this failed on `expected [ 'Hull', 'Sanding', 'Sealing', …(1) ] to
     // deeply equal [ 'Hull', 'Sanding', 'Sealing' ]` while the collapse test
     // above went on passing. Watched, 2026-08-09.
-    expect(labelsOnTheChart()).toEqual(['Hull', 'Sanding', 'Sealing']);
+    expect(labelsOnTheChart()).toEqual(['010 - Hull', '011 - Sanding', '012 - Sealing']);
   });
 
   itDom('takes the plan to a row when its bar is clicked', async () => {
@@ -1294,7 +1439,7 @@ describe('the chart mirrors the plan', () => {
   itDom('takes the plan to a row when its label is clicked', async () => {
     await showTheChart();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Sanding' }));
+    fireEvent.click(screen.getByRole('button', { name: '011 - Sanding' }));
 
     expect(document.activeElement).toBe(screen.getByLabelText('Name of 011'));
   });
@@ -1474,7 +1619,12 @@ describe('the chart is drawn from one read', () => {
     // under role role-dev, which this plan does not list.` Watched 2026-08-09.
     expect(document.querySelector('[data-gantt-chart]')).not.toBeNull();
     expect(faultWords()).toBeNull();
-    expect(labelsOnTheChart()).toEqual(['Hull', 'Sanding', 'Sealing', 'Rigging']);
+    expect(labelsOnTheChart()).toEqual([
+      '010 - Hull',
+      '011 - Sanding',
+      '012 - Sealing',
+      '020 - Rigging',
+    ]);
     // The phase's name is read from the same list the bar was placed by, so a
     // chart drawn from the skewed read would either throw or say `Ops`.
     expect(barOn('sanding').querySelector('title')?.textContent).toContain('Dev');
