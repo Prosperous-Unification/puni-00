@@ -420,8 +420,9 @@ export function flexibleCellStyle(columnId: string): CSSProperties | undefined {
  * `flex: 1 1 0%` gives this element every pixel its parent has left over.
  *
  * That works only while the whole chain is a column flex whose top is fixed to
- * the viewport — `app.tsx`'s `h-screen` wrapper, `ProjectPage`'s `<main>`,
- * `WbsTable`'s `<section>`, each `flex-1` with `min-h-0`. Break any link and
+ * the viewport — `app.tsx`'s `h-full` wrapper against the `html`/`body`/`#root`
+ * height chain in `styles.css`, `ProjectPage`'s `<main>`, `WbsTable`'s
+ * `<section>`, each `flex-1` with `min-h-0`. Break any link and
  * this basis has nothing to be a fraction of: the item falls back to its
  * content height and the frame stops being the thing that scrolls. The
  * declaration is asserted in `table-frame.test.ts` and the effect — the frame
