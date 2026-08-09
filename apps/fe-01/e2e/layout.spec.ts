@@ -7,11 +7,20 @@ import { type Box, findOverlap, findOverrun } from '../src/components/wbs/box-ge
 import {
   FLEXIBLE_COLUMNS,
   FLEXIBLE_FLOOR,
-  PINNED_COLUMNS,
-  pinnedGeometry,
-  tableMinWidth,
+  frameLayout,
+  type FrameLayoutState,
+  PINNED_COLUMN_IDS,
   widthFor,
 } from '../src/components/wbs/table-frame';
+
+/**
+ * The plan {@link seedPlan} builds, as far as a column's width depends on it.
+ *
+ * No row in it sets an earliest start, so the `not-before` column is at its
+ * narrow 56px here. A test that dates a row says so with its own state — see
+ * `the earliest-start column is as narrow as the plan lets it be`.
+ */
+const SEEDED_PLAN: FrameLayoutState = { hasAnyNotBefore: false };
 
 /**
  * The layout gate.
@@ -55,7 +64,7 @@ const SCROLLED = 150;
 const NARROW = { width: 900, height: 900 } as const;
 
 /** The columns held at the left edge, and the offsets they are held at. */
-const PINNED_IDS = PINNED_COLUMNS.map((pinned) => pinned.id);
+const PINNED_IDS = PINNED_COLUMN_IDS;
 
 /**
  * Where the pinned column with this id is declared to sit, in px from the
@@ -72,7 +81,10 @@ const PINNED_IDS = PINNED_COLUMNS.map((pinned) => pinned.id);
  * compare a measured offset against nothing at all.
  */
 function declaredLeft(columnId: string): number {
-  const geometry = pinnedGeometry(columnId);
+  // Resolved from the pinned columns alone, which is all an offset is: each is
+  // the sum of the declared widths in front of it, and every column in front
+  // of a pinned one is itself pinned.
+  const geometry = frameLayout(PINNED_COLUMN_IDS, SEEDED_PLAN).pinned.get(columnId);
   if (geometry === undefined) throw new Error(`${columnId} is not a pinned column`);
   return geometry.left;
 }
@@ -222,7 +234,7 @@ function declaredColumnAt(
       if (width === undefined) throw new Error(`the flexible ${id} column was not measured`);
       right += width;
     } else {
-      right += widthFor(id);
+      right += widthFor(id, SEEDED_PLAN);
     }
     if (tableX < right) return id;
   }
@@ -316,7 +328,10 @@ function measure(page: Page): Promise<Measured> {
 
 /** What the width table says this state needs, from the columns really on screen. */
 const equationFor = (measured: Measured): number =>
-  tableMinWidth(measured.columns.map((column) => column.id));
+  frameLayout(
+    measured.columns.map((column) => column.id),
+    SEEDED_PLAN,
+  ).minWidth;
 
 /**
  * Every assertion that holds whenever the equation fits the frame.

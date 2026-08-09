@@ -72,15 +72,14 @@ import { type PlanExport, planFileName, planToCsv, planToMarkdown } from './plan
 import { useRendererForViewport } from './plan-renderer';
 import {
   CELL,
-  FLEXIBLE_COLUMNS,
   flexibleCellStyle,
+  frameLayout,
+  type FrameLayoutState,
   indentFor,
   pinnedCellStyle,
   POPOVER_ROW_LAYER,
   STICKY_HEADER_CELL,
   TABLE_FRAME,
-  tableMinWidth,
-  widthFor,
 } from './table-frame';
 import { type Toast, toastKey, ToastStack, useToasts } from './toasts';
 import { searchTree } from './tree-search';
@@ -1645,6 +1644,19 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    * one.
    */
   const gaps = useMemo(() => findEstimateGaps(flat, roles), [flat, roles]);
+
+  /**
+   * Every fact about this plan that a column's width is allowed to depend on.
+   *
+   * `flat` rather than the rows on screen, and that is the whole point of the
+   * question being asked this way: it is every row in the **project**, open or
+   * collapsed, matched by a search or narrowed out of it. A column that got
+   * narrower because the one row with a day on it was collapsed away would
+   * change width under a reader who was only scrolling.
+   */
+  const frameState: FrameLayoutState = {
+    hasAnyNotBefore: flat.some((row) => row.startNoEarlierThan !== null),
+  };
 
   /**
    * The whole plan as a document, taken at the moment it is asked for.
@@ -4466,6 +4478,19 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
   const leafColumnIds = table.getVisibleLeafColumns().map((column) => column.id);
 
   /**
+   * Every width this render declares, resolved once.
+   *
+   * The `<colgroup>`, the table's `min-width` and every pinned cell read this
+   * one object — see {@link frameLayout}, which is where the five separate
+   * arithmetics used to be. It is **not** read inside a column definition and
+   * must never be: `flexRender` renders each `cell` as a component type, so a
+   * definition that changed with a width would remount every cell in the table
+   * and take the focus and the half-typed value with it (LLM_README landmine
+   * #1).
+   */
+  const layout = frameLayout(leafColumnIds, frameState);
+
+  /**
    * Every control the toolbar holds, as one node.
    *
    * Built once and rendered in one of two places: the row above the table, or
@@ -4593,6 +4618,10 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
       */}
       <PhasesDialog
         roles={roles}
+        // The same object the `<colgroup>` above is resolved from, so the
+        // figure this dialog quotes and the width the table lays out cannot
+        // be answers to two different questions.
+        frameState={frameState}
         numberOf={(workItemId) => flat.find((row) => row.id === workItemId)?.number ?? null}
         nameOf={(personId) => people.find((person) => person.id === personId)?.name ?? null}
         addRole={(name) => api.addRole(projectId, name)}
@@ -5066,7 +5095,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
               // with the pinned columns holding the left edge, which is the one
               // case `width: 100%` cannot cover.
               width: '100%',
-              minWidth: tableMinWidth(leafColumnIds),
+              minWidth: layout.minWidth,
             }}
           >
             {/*
@@ -5079,10 +5108,10 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
               `table-layout: fixed` hands it whatever the declared ones leave.
             */}
             <colgroup>
-              {leafColumnIds.map((id) => (
+              {layout.columns.map((column) => (
                 <col
-                  key={id}
-                  style={FLEXIBLE_COLUMNS.has(id) ? undefined : { width: widthFor(id) }}
+                  key={column.id}
+                  style={column.width === undefined ? undefined : { width: column.width }}
                 />
               ))}
             </colgroup>
@@ -5103,7 +5132,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                         ...CELL,
                         ...STICKY_HEADER_CELL,
                         ...flexibleCellStyle(header.column.id),
-                        ...pinnedCellStyle(header.column.id, 'header'),
+                        ...pinnedCellStyle(layout, header.column.id, 'header'),
                       }}
                     >
                       {flexRender(header.column.columnDef.header, header.getContext())}
@@ -5170,7 +5199,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                         // clips it unless it is told not to.
                         ...(opensAPopover(cell.column.id) ? { overflow: 'visible' as const } : {}),
                         ...flexibleCellStyle(cell.column.id),
-                        ...pinnedCellStyle(cell.column.id, 'body'),
+                        ...pinnedCellStyle(layout, cell.column.id, 'body'),
                         // Last, so it wins over the pinned layer it is raising.
                         // A pinned cell is sticky *with a z-index*, which makes
                         // it a stacking context — so the preview hanging off

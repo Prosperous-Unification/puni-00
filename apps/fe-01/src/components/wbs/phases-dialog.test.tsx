@@ -4,6 +4,22 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { RoleUsage, RoleView } from '@/lib/wbs-api';
 
 import { flipSentence, PhasesDialog, usageSentence } from './phases-dialog';
+import type * as TableFrame from './table-frame';
+import { foldedTableMinWidth, type FrameLayoutState } from './table-frame';
+
+/**
+ * The width module with its folded-minimum function watched.
+ *
+ * Spied rather than replaced — the real arithmetic still runs, and every other
+ * assertion here still reads the real number. The one thing a spy adds is the
+ * only thing nothing else can see: **which ids** the dialog resolved against.
+ * `<roleId>-final` is 96px whatever the role is called, so a stand-in id and a
+ * real one produce the same figure and no rendered output can tell them apart.
+ */
+vi.mock('./table-frame', async (importOriginal) => {
+  const actual = await importOriginal<typeof TableFrame>();
+  return { ...actual, foldedTableMinWidth: vi.fn(actual.foldedTableMinWidth) };
+});
 
 // fe-01 tests require jsdom; only Vitest provides it. Skip under plain `bun test`.
 const hasDom = typeof document !== 'undefined';
@@ -13,6 +29,11 @@ afterEach(cleanup);
 
 const DEV: RoleView = { id: 'role-dev', name: 'Dev' };
 const QA: RoleView = { id: 'role-qa', name: 'QA' };
+
+/** A plan where no row sets an earliest start, which is what a fresh project is. */
+const UNDATED: FrameLayoutState = { hasAnyNotBefore: false };
+/** And one where somebody has, which is 28px wider. */
+const DATED: FrameLayoutState = { hasAnyNotBefore: true };
 
 const NUMBERS: Record<string, string> = { w1: '010', w2: '020' };
 const PEOPLE: Record<string, string> = { p1: 'Kat', p2: 'Ada' };
@@ -25,6 +46,7 @@ function stubbed(overrides: Partial<Parameters<typeof PhasesDialog>[0]> = {}) {
   const onChanged = vi.fn(() => Promise.resolve());
   const props = {
     roles: [DEV, QA],
+    frameState: UNDATED,
     numberOf: (id: string) => NUMBERS[id] ?? null,
     nameOf: (id: string) => PEOPLE[id] ?? null,
     addRole,
@@ -365,15 +387,59 @@ describe('how wide the phases make the table', () => {
   itDom('says the width, from the table’s own columns', () => {
     stubbed({ roles: [DEV, QA] });
 
-    // 752px of fixed columns, 200 for Name, 96 each for two folded phases.
-    // Renderer-neutral wording: this dialog opens from the phone's toolbar
-    // sheet too, and the sentence used to describe a table that reader has
-    // never seen.
+    // 662px of fixed columns on a plan nobody has dated, 200 for Name, 96 each
+    // for two folded phases. Renderer-neutral wording: this dialog opens from
+    // the phone's toolbar sheet too, and the sentence used to describe a table
+    // that reader has never seen.
     expect(document.body.textContent).toContain(
-      '2 phases need ≥1144px of width to sit side by side',
+      '2 phases need ≥1054px of width to sit side by side',
     );
     expect(document.body.textContent).toContain('under 768px the plan is drawn as cards instead');
     expect(document.body.textContent).not.toContain('before the table scrolls sideways');
+  });
+
+  itDom('quotes the table’s own arithmetic, not a sum of its own', () => {
+    // The number moves with every width the table declares, including the ones
+    // that depend on the plan: the same two phases are 28px wider once
+    // somebody sets an earliest start anywhere in the project.
+    //
+    // Proof: `minWidth` in `phases-dialog.tsx` replaced by the hand-written
+    // `952 + roles.length * 96` this sentence used to quote, this failed on
+    // `expected '…≥1144px…' to contain '≥1054px'` for the undated plan and on
+    // `≥1082px` for the dated one — one number where the table lays out two.
+    // Watched, 2026-08-09.
+    cleanup();
+    stubbed({ roles: [DEV, QA], frameState: UNDATED });
+    expect(document.body.textContent).toContain(
+      `≥${String(foldedTableMinWidth(['role-dev', 'role-qa'], UNDATED))}px`,
+    );
+
+    cleanup();
+    stubbed({ roles: [DEV, QA], frameState: DATED });
+    expect(document.body.textContent).toContain(
+      `≥${String(foldedTableMinWidth(['role-dev', 'role-qa'], DATED))}px`,
+    );
+    expect(
+      foldedTableMinWidth(['role-dev', 'role-qa'], DATED) -
+        foldedTableMinWidth(['role-dev', 'role-qa'], UNDATED),
+    ).toBe(28);
+  });
+
+  itDom('resolves the project’s own role ids, not stand-ins for the count', () => {
+    // A width can be resolved per column id now, which is what makes an id a
+    // fact rather than a placeholder: `T1 column-widths-drag` stores a
+    // reader's override under the exact column id, and a `phase0-final`
+    // invented here could never carry one. The two resolve to the same 96 px
+    // today, so nothing measurable tells them apart — the call is what says
+    // which was asked about.
+    //
+    // Proof: `roles.map((role) => role.id)` replaced by the
+    // `Array.from({ length: roles.length }, (_, at) => \`phase${at}\`)` this
+    // used to be, this failed on `expected [ 'phase0', 'phase1' ] to deeply
+    // equal [ 'role-dev', 'role-qa' ]`. Watched, 2026-08-09.
+    stubbed({ roles: [DEV, QA] });
+
+    expect(vi.mocked(foldedTableMinWidth).mock.calls.at(-1)?.[0]).toEqual(['role-dev', 'role-qa']);
   });
 
   itDom('counts one phase as one', () => {

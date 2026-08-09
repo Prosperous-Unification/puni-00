@@ -20,7 +20,7 @@ import type {
 } from '@/lib/wbs-api';
 
 import { refusedDraftFor } from './live-editing';
-import { POPOVER_ROW_LAYER, tableMinWidth } from './table-frame';
+import { frameLayout, type FrameLayoutState, POPOVER_ROW_LAYER } from './table-frame';
 import { type SubscriptionHandlers, WbsTable } from './wbs-table';
 
 /** The two elements a table cell can be, since a wrapping cell is a textarea. */
@@ -30,6 +30,14 @@ const isCell = (node: unknown): node is HTMLInputElement | HTMLTextAreaElement =
 // fe-01 tests require jsdom; only Vitest provides it. Skip under plain `bun test`.
 const hasDom = typeof document !== 'undefined';
 const itDom = hasDom ? it : it.skip;
+
+/**
+ * A plan where no row sets an earliest start, which is what every plan built
+ * by these helpers is unless it says otherwise.
+ */
+const UNDATED: FrameLayoutState = { hasAnyNotBefore: false };
+/** And one where somebody has, which is 28px wider. */
+const DATED: FrameLayoutState = { hasAnyNotBefore: true };
 
 const DEV: RoleView = { id: 'role-dev', name: 'Dev' };
 // A second role, because "one assignee is assumed to do every phase" is only
@@ -2040,8 +2048,8 @@ describe('role columns fold away', () => {
 
   itDom('unfolds one role at a time, so the table still fits the window', async () => {
     // The accordion, and it is arithmetic rather than taste: a folded role
-    // costs 96px and an unfolded one 372, so two roles folded need 1144px and
-    // fit a 1280 laptop while one of them open needs 1420 and does not.
+    // costs 96px and an unfolded one 372, so two roles folded need 1054px and
+    // fit a 1280 laptop while one of them open needs 1330 and does not.
     // `table-frame.test.ts` pins those three numbers; this is the behaviour
     // that keeps the table on the second of them.
     // Proof: `toggleRole` put back to `[...current, roleId]`, this failed on
@@ -2055,14 +2063,14 @@ describe('role columns fold away', () => {
     expect(screen.getByLabelText('QA optimistic for 010')).toBeDefined();
     expect(screen.queryByLabelText('Dev optimistic for 010')).toBeNull();
     // And the width the table declares follows, which is the whole reason.
-    expect(screen.getByRole('table').style.minWidth).toBe('1420px');
+    expect(screen.getByRole('table').style.minWidth).toBe('1330px');
 
     // Folding the open one leaves nothing open, rather than putting the other
     // one back.
     fireEvent.click(screen.getByRole('button', { name: 'Fold QA estimates' }));
     expect(screen.queryByLabelText('QA optimistic for 010')).toBeNull();
     expect(screen.queryByLabelText('Dev optimistic for 010')).toBeNull();
-    expect(screen.getByRole('table').style.minWidth).toBe('1144px');
+    expect(screen.getByRole('table').style.minWidth).toBe('1054px');
   });
 
   itDom('says what the fold button does, which is no longer hiding the assignee', async () => {
@@ -5356,15 +5364,89 @@ describe('the widths the table is laid out by', () => {
     // `width: tableMinWidth(leafColumnIds)` with no `minWidth` — this failed
     // on `expected '1420px' to be '100%'`. Watched, 2026-08-08.
     expect(table.style.width).toBe('100%');
-    expect(table.style.minWidth).toBe(`${String(tableMinWidth(columnIds))}px`);
+    expect(table.style.minWidth).toBe(`${String(frameLayout(columnIds, UNDATED).minWidth)}px`);
     // Not a constant, which is the point of computing it per render: this
-    // plan has Dev unfolded and QA folded, so the floor is the 752px of fixed
-    // columns plus 372 for the open role, 96 for the closed one and Name's
-    // 200. Folded it would be 1144 — the difference is why unfolding is an
+    // plan has Dev unfolded and QA folded, so the floor is the 662px of fixed
+    // columns — nobody has dated a row, so `not-before` is at its narrow 56 —
+    // plus 372 for the open role, 96 for the closed one and Name's 200.
+    // Folded it would be 1054; the difference is why unfolding is an
     // accordion.
-    expect(table.style.minWidth).toBe('1420px');
+    expect(table.style.minWidth).toBe('1330px');
     fireEvent.click(screen.getByRole('button', { name: 'Fold Dev estimates' }));
-    expect(screen.getByRole('table').style.minWidth).toBe('1144px');
+    expect(screen.getByRole('table').style.minWidth).toBe('1054px');
+  });
+
+  itDom('declares exactly the widths the resolved layout holds for this state', async () => {
+    // The `<colgroup>` and the table's minimum read one `frameLayout` call per
+    // render, so a column that resolves differently cannot reach one of them
+    // and miss the other. Asserted against the resolution rather than against
+    // literals, because the literals are `table-frame.test.ts`'s job and this
+    // one is about the wiring.
+    // Proof: the `<colgroup>` left mapping `leafColumnIds` through a
+    // `widthFor(id, { hasAnyNotBefore: true })` of its own while the table's
+    // `min-width` read the layout, this failed on `expected [ '24px', …(12) ]
+    // to deeply equal [ '24px', …(12) ]` with `not-before` at 84px against the
+    // layout's 56px. Watched, 2026-08-09.
+    await threeRoots();
+
+    const columnIds = screen
+      .getAllByRole('columnheader')
+      .map((th) => th.getAttribute('data-column') ?? '');
+    const layout = frameLayout(columnIds, UNDATED);
+
+    expect(
+      [...document.querySelectorAll<HTMLElement>('colgroup col')].map((col) => col.style.width),
+    ).toEqual(
+      layout.columns.map((column) =>
+        column.width === undefined ? '' : `${String(column.width)}px`,
+      ),
+    );
+    expect(screen.getByRole('table').style.minWidth).toBe(`${String(layout.minWidth)}px`);
+  });
+
+  itDom('changes a width without rebuilding a single cell of the table', async () => {
+    // The landmine this whole seam is built around (LLM_README #1): `columns`
+    // may depend on `roles` and `unfoldedRoles` and nothing else. `flexRender`
+    // renders every `cell` as a component *type*, so a width threaded through
+    // a column definition — and the `frameState` dependency that would have to
+    // come with it — gives every cell a new type and React unmounts and
+    // remounts the lot, taking the focus and the half-typed value with it.
+    //
+    // The width really does change here: setting one row's earliest start
+    // flips `hasAnyNotBefore` and the column goes 56 → 84.
+    //
+    // Proof: `frameState` added to the `columns` dependency array and the
+    // not-before cell given `style={{ width: layout … }}`, this failed on
+    // `expected <body /> to be <textarea …>` — the focus on the body and the
+    // half-typed name gone. Watched, 2026-08-09.
+    await threeRoots();
+    typeIntoDate('Project start date', '2026-08-06');
+    await waitFor(() => {
+      expect(screen.getByLabelText<HTMLInputElement>('Earliest start for 010').disabled).toBe(
+        false,
+      );
+    });
+    const before = screen.getByRole('table').style.minWidth;
+
+    const name = screen.getByLabelText<HTMLTextAreaElement>('Name of 020');
+    name.focus();
+    fireEvent.change(name, { target: { value: 'Sand the old wir' } });
+
+    typeIntoDate('Earliest start for 010', '2026-08-12');
+
+    await waitFor(() => {
+      expect(screen.getByRole('table').style.minWidth).not.toBe(before);
+    });
+    expect(screen.getByRole('table').style.minWidth).toBe(
+      `${String(
+        frameLayout(
+          screen.getAllByRole('columnheader').map((th) => th.getAttribute('data-column') ?? ''),
+          DATED,
+        ).minWidth,
+      )}px`,
+    );
+    expect(document.activeElement).toBe(screen.getByLabelText('Name of 020'));
+    expect(screen.getByLabelText('Name of 020')).toHaveProperty('value', 'Sand the old wir');
   });
 
   itDom('gives every cell the chrome its declared width is measured with', async () => {
@@ -7905,12 +7987,12 @@ describe('a phase changing, and what the table does about it', () => {
     // still in the table's header. Watched, 2026-08-09.
     await oneRow();
     unfoldRole('QA');
-    expect(screen.getByRole('table').style.minWidth).toBe('1420px');
+    expect(screen.getByRole('table').style.minWidth).toBe('1330px');
 
     await removePhase('QA');
 
-    // One phase left, folded: 752px of fixed columns, 200 for Name, 96 for it.
-    expect(screen.getByRole('table').style.minWidth).toBe('1048px');
+    // One phase left, folded: 662px of fixed columns, 200 for Name, 96 for it.
+    expect(screen.getByRole('table').style.minWidth).toBe('958px');
     expect(screen.queryByLabelText('QA optimistic for 010')).toBeNull();
   });
 

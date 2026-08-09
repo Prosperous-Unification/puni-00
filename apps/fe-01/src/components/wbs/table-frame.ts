@@ -3,23 +3,76 @@ import type { CSSProperties } from 'react';
 import { POINTS } from './estimate-draft';
 
 /**
- * Every column the table can show by a fixed id, with the width
- * `table-layout: fixed` holds it to, in px.
+ * Every fact about the plan a column's width is allowed to depend on, in one
+ * object.
  *
- * THE single source of truth for how wide anything in this table is: the
- * `<colgroup>` renders these numbers, {@link tableMinWidth} adds them up, and
- * the pinned offsets are prefix sums of the same numbers — so the geometry the
- * offsets assume is the geometry the browser lays out. The overlap this
- * replaces came from three width systems at once (declared px on the pinned
- * cells, auto table layout everywhere else, em-sized inputs inside the cells)
- * with no invariant tying any of them together, which is how a pinned Name
- * came to paint over "Depends on".
+ * One object rather than a widening argument list, and that is the whole of
+ * why it exists: {@link frameLayout} has five consumers, and a second
+ * parameter is a second thing each of them has to remember to pass. A later
+ * fact — `T1 column-widths-drag`'s `columnWidthOverrides: Map<string, number>`
+ * is the next one — is a field added here, and every consumer that already
+ * builds this object carries it without being edited.
+ *
+ * Today it holds one fact, and the question it asks is deliberately about the
+ * **project** rather than about the rows on screen: a column that narrowed
+ * because the one row with a day on it was collapsed away would change width
+ * under a reader who was only scrolling.
+ */
+export interface FrameLayoutState {
+  /** Whether any row in the project sets an earliest start. */
+  hasAnyNotBefore: boolean;
+}
+
+/**
+ * One column of a resolved frame, with the width it declares — or none, where
+ * the layout decides it.
+ */
+export interface ResolvedColumn {
+  id: string;
+  /** px, or `undefined` for a {@link FLEXIBLE_COLUMNS} member. */
+  width: number | undefined;
+}
+
+/**
+ * Where one pinned column sits, and how wide it is held — or `undefined` where
+ * the `<colgroup>` decides that.
+ */
+export interface PinnedGeometry {
+  left: number;
+  width: number | undefined;
+}
+
+/**
+ * Every width one render of the table declares, resolved together.
+ *
+ * The object that replaced five consumers each doing their own arithmetic: the
+ * `<colgroup>`, the table's own `min-width`, the folded minimum the Phases
+ * dialog quotes, the offsets the pinned columns are held at, and the browser
+ * gate's equation. A width that changes changes all five, because there is
+ * only one of them.
+ */
+export interface FrameLayout {
+  /** The leaf columns handed in, in that order, each with the width it declares. */
+  columns: readonly ResolvedColumn[];
+  /** The narrowest the whole table may be laid out, in px. */
+  minWidth: number;
+  /** The {@link PINNED_COLUMN_IDS} that are on screen in this state, and where they are held. */
+  pinned: ReadonlyMap<string, PinnedGeometry>;
+}
+
+/**
+ * Every column whose width is the same on every plan, by fixed id, in px.
+ *
+ * The constants half of the width table. The other half is
+ * {@link PLAN_WIDTHS}, and the two are read together by {@link widthFor}; the
+ * split is what this change is for — until 2026-08-09 there was no second half
+ * and a width could not depend on the plan at all.
  *
  * These numbers are the compaction Dany asked for on 2026-08-08 ("compact
  * every column as far as it will go"), and every one of them is a figure the
  * browser gate measures rather than a preference: the table has to fit a
- * 1280px laptop with two roles folded, and `752 + 2×96 + 200` is what makes
- * that true. `name` is deliberately absent — see {@link FLEXIBLE_COLUMNS}.
+ * 1280px laptop with two roles folded. `name` is deliberately absent — see
+ * {@link FLEXIBLE_COLUMNS}.
  *
  * A `Map` rather than a plain object because the id being looked up is a
  * column id from the table model, not a key known here: a `Record<string,
@@ -30,22 +83,14 @@ const COLUMN_WIDTHS = new Map<string, number>([
   // The handle and nothing else. 28 was room for a handle and a hover target;
   // the glyph is the hover target.
   ['drag', 24],
-  // 168 fitted the deepest number beside the deepest indent. 100 fits it
-  // beside {@link indentFor}'s shorter step, and a number deeper than that
-  // clips rather than setting the width of every row above it.
+  // {@link NUMBER_ENVELOPE} says what this number is sized to hold, and
+  // `e2e/layout.spec.ts`'s `the Number column fits its envelope` is the
+  // browser that picked it. It is not a guess at the longest number — there is
+  // no longest number.
   ['number', 100],
-  // No `name`: it is the column that absorbs whatever the others leave.
   ['depends', 110],
   ['team', 120],
   ['final-total', 52],
-  // The one column this repository does not get to choose. A native date
-  // input's own furniture — the separators, the spinner and the picker icon —
-  // sets a floor, and the browser gate measures it rather than arguing with
-  // it: an unconstrained `input[type=date]` in the table's font asks Chromium
-  // for **138px**, so the column is that plus {@link CELL}'s 8px of padding.
-  // The plan proposed 108; a browser said no, and the assertion is what the
-  // number moves with if a future one asks for more.
-  ['not-before', 146],
   ['start', 52],
   ['finish', 52],
   ['float', 56],
@@ -57,6 +102,63 @@ const COLUMN_WIDTHS = new Map<string, number>([
   // cell rather than living in it.
   ['actions', 40],
 ]);
+
+/**
+ * The earliest-start column's width where at least one row in the project sets
+ * a day, in px.
+ *
+ * A short date and nothing else — `1 Jun`, or `1 Jun 2027` off the current
+ * year. It was 146 until 2026-08-09 because it held a native date input at
+ * rest on every row, and an unconstrained `input[type=date]` asks Chromium for
+ * 138px. The editor is mounted for the cell being edited now, and it escapes
+ * the cell rather than sizing it — see {@link DATE_EDITOR_WIDTH}.
+ */
+const NOT_BEFORE_WITH_DAYS = 84;
+
+/**
+ * The earliest-start column's width where no row in the project sets a day, in
+ * px — an em-dash on every row, and a heading that abbreviates.
+ */
+const NOT_BEFORE_EMPTY = 56;
+
+/**
+ * How wide the date editor is laid out while it is open, in px.
+ *
+ * The one number in this file the repository does not get to choose: it is
+ * what Chromium lays an unconstrained `input[type=date]` out at in the table's
+ * font — the separators, the spinner and the picker icon — measured rather
+ * than argued with. `e2e/layout.spec.ts`'s `the editor is never narrower than
+ * this browser's own unconstrained field` is the assertion it moves with.
+ *
+ * Wider than the column it opens in, deliberately. A column that grew while
+ * somebody was typing would move every cell under them, so the editor leaves
+ * the cell instead — through the same clip exemption the dependency listbox and
+ * the notes preview use (`opensAPopover` in `wbs-table.tsx`).
+ */
+export const DATE_EDITOR_WIDTH = 138;
+
+/**
+ * Every column whose width is a fact about the plan, by fixed id.
+ *
+ * A function of {@link FrameLayoutState} rather than a number, so what a width
+ * may depend on is stated in one place and read in one place. The
+ * earliest-start column is the first of them, and `T1 column-widths-drag` adds
+ * the reader's own overrides beside it.
+ */
+const PLAN_WIDTHS = new Map<string, (state: FrameLayoutState) => number>([
+  ['not-before', (state) => (state.hasAnyNotBefore ? NOT_BEFORE_WITH_DAYS : NOT_BEFORE_EMPTY)],
+]);
+
+/**
+ * Every fixed column this table renders, whatever the plan — the two halves of
+ * the width table together.
+ *
+ * Enumerated from the maps rather than written out a second time: the folded
+ * minimum the Phases dialog quotes is "every fixed column, plus Name, plus one
+ * folded column per phase", and a column added to either map but missing here
+ * would be a number describing a narrower table than the one on screen.
+ */
+export const FIXED_COLUMNS: readonly string[] = [...COLUMN_WIDTHS.keys(), ...PLAN_WIDTHS.keys()];
 
 /**
  * The columns with no declared width, which take what the fixed ones leave.
@@ -78,8 +180,8 @@ export const FLEXIBLE_COLUMNS: ReadonlySet<string> = new Set(['name']);
 /**
  * The narrowest a flexible column is allowed to become, in px.
  *
- * It is what {@link tableMinWidth} budgets for the Name column, and it is on
- * the cell as well: below this the table stops shrinking and the frame scrolls
+ * It is what {@link frameLayout} budgets for the Name column, and it is on the
+ * cell as well: below this the table stops shrinking and the frame scrolls
  * instead, with the pinned columns holding the left edge. 200px is about
  * twenty-five characters of the page's font — a phrase rather than a word.
  */
@@ -104,29 +206,34 @@ export class UnknownColumnError extends Error {
   constructor(columnId: string) {
     super(
       `No declared width for column "${columnId}". Every rendered column ` +
-        `must be in COLUMN_WIDTHS or use a role suffix — an unlisted one would ` +
-        `silently get a wrong width, which is the overlap bug all over again.`,
+        `must be in COLUMN_WIDTHS or PLAN_WIDTHS or use a role suffix — an unlisted ` +
+        `one would silently get a wrong width, which is the overlap bug all over again.`,
     );
     this.name = 'UnknownColumnError';
   }
 }
 
 /**
- * How wide the column with this id is laid out, in px.
+ * How wide the column with this id is laid out for this plan, in px.
  *
  * Never ask it about a {@link FLEXIBLE_COLUMNS} member: those have no declared
  * width by design and this throws for them exactly as it does for a typo. That
  * is the point — a sentinel would let the pinned-offset arithmetic add a
  * number the browser never uses.
  *
+ * Prefer {@link frameLayout}: this answers about one column, and every consumer
+ * in the app needs the whole frame resolved together.
+ *
  * @throws {UnknownColumnError} when nothing declares a width for that id.
  * Unknown is not OK here: a column that fell through to a default would be laid
  * out at one width while the pinned offsets were summed from another, and the
  * two disagreeing is exactly the overlap this module exists to make impossible.
  */
-export function widthFor(columnId: string): number {
+export function widthFor(columnId: string, state: FrameLayoutState): number {
   const declared = COLUMN_WIDTHS.get(columnId);
   if (declared !== undefined) return declared;
+  const fromPlan = PLAN_WIDTHS.get(columnId);
+  if (fromPlan !== undefined) return fromPlan(state);
   if (columnId.includes('-')) {
     if (columnId.endsWith('-final')) return ROLE_FINAL_WIDTH;
     if (columnId.endsWith('-assignee')) return ROLE_ASSIGNEE_WIDTH;
@@ -137,65 +244,8 @@ export function widthFor(columnId: string): number {
 }
 
 /**
- * The narrowest the whole table may be laid out, in px: every fixed column at
- * its declared width plus {@link FLEXIBLE_FLOOR} for each flexible one.
- *
- * Set as `min-width` on a `<table>` that is otherwise `width: 100%`, which is
- * the whole of how this table fits a window. Above this number there is no
- * horizontal scroll at all and the pinning is invisible; below it the frame
- * scrolls and the pinned columns hold the left edge, which is the backstop
- * `sticky-table-frame` built and Dany kept.
- *
- * It is a per-state number rather than a constant, and that is what makes it
- * honest: two roles folded is `752 + 192 + 200 = 1144`, one of them unfolded is
- * `752 + 372 + 96 + 200 = 1420`. The first fits a 1280 laptop and the second
- * does not — which is why unfolding is an accordion, and why the number is
- * computed from the columns actually on screen rather than asserted once.
- *
- * @throws {UnknownColumnError} through {@link widthFor}, for a column nobody
- * sized. A minimum that quietly omitted a column would be a table declared
- * narrower than it lays out.
- */
-export function tableMinWidth(columnIds: readonly string[]): number {
-  return columnIds.reduce(
-    (total, id) => total + (FLEXIBLE_COLUMNS.has(id) ? FLEXIBLE_FLOOR : widthFor(id)),
-    0,
-  );
-}
-
-/**
- * The narrowest the table can be laid out with `phases` phases, all folded, in
- * px — the number the Phases dialog quotes before somebody adds another one.
- *
- * Every column in {@link COLUMN_WIDTHS} is on screen in every state of this
- * table: the fixed set is the drag handle, the number, Depends on, the team,
- * the total, the not-before date, Start, Finish, Slack and the ⋯ menu, and none
- * of them is conditional. So the folded floor is that set, plus Name's
- * {@link FLEXIBLE_FLOOR}, plus one folded column per phase.
- *
- * Derived through {@link tableMinWidth} rather than as arithmetic of its own,
- * and that is the whole point of it existing here rather than as a sentence in
- * the dialog: a column that changes width changes this number in the same
- * commit. `wbs-table.test.tsx` pins it against what a real render of the same
- * phases declares as its `min-width`, so the two can never drift.
- *
- * @throws {UnknownColumnError} through {@link tableMinWidth}, for the same
- * reason it does.
- */
-export function foldedTableMinWidth(phases: number): number {
-  return tableMinWidth([
-    ...COLUMN_WIDTHS.keys(),
-    ...FLEXIBLE_COLUMNS,
-    // The id only has to end in `-final` to be sized: `widthFor` matches role
-    // columns by suffix because the role half is whatever the project called it.
-    ...Array.from({ length: phases }, (_, at) => `phase${String(at)}-final`),
-  ]);
-}
-
-/**
  * The columns held at the left edge while the table is scrolled sideways, in
- * order from that edge, each with the width it is held to — or `undefined`
- * where the layout decides it.
+ * order from that edge.
  *
  * Contiguity from the edge is not a preference: `position: sticky; left` pins a
  * cell at a fixed offset, so a pinned column with an unpinned one in front of it
@@ -204,21 +254,135 @@ export function foldedTableMinWidth(phases: number): number {
  * `openspec/changes/sticky-table-frame/proposal.md` has the reversal written
  * down.
  *
- * The widths come from {@link COLUMN_WIDTHS} rather than being repeated here:
- * each offset is the sum of the widths in front of it, so Name lands beside
- * Number only while the number this offsets by is the number the browser lays
- * Number out at. Two lists of widths is one list too many.
+ * Ids and no widths since 2026-08-09: a width is a fact about the plan being
+ * drawn, so the offsets are resolved per render by {@link frameLayout} from the
+ * same numbers that render's `<colgroup>` declares. Two lists of widths is one
+ * list too many, and a list frozen at module load is worse — it cannot see the
+ * plan at all.
  *
- * Name being flexible does not disturb any of that, and the reason is worth
- * stating: it is the *last* pinned column, so no offset is ever a sum that
- * includes it. {@link PINNED_GEOMETRY} throws rather than assumes that.
+ * Name being last is load-bearing: it is flexible, so no offset is ever a sum
+ * that includes it. {@link frameLayout} throws rather than assumes that.
  */
-export const PINNED_COLUMNS: readonly { id: string; width: number | undefined }[] = (
-  ['drag', 'number', 'name'] as const
-).map((id) => ({
-  id,
-  width: FLEXIBLE_COLUMNS.has(id) ? undefined : widthFor(id),
-}));
+export const PINNED_COLUMN_IDS: readonly string[] = ['drag', 'number', 'name'];
+
+/**
+ * Every width one render declares, resolved from the columns on screen and the
+ * plan being drawn.
+ *
+ * One call per render, read by the `<colgroup>`, the table's `min-width`, the
+ * pinned cells and the Phases dialog alike. Before this existed the same
+ * arithmetic lived in five places and the pinned offsets were prefix sums
+ * computed **once when the module loaded** — which is why no width could depend
+ * on the plan, and why `not-before` could not be two widths.
+ *
+ * `leafIds` is the columns being laid out, in the order they are laid out.
+ * `state` is every fact a width may depend on; see {@link FrameLayoutState}.
+ *
+ * @throws {UnknownColumnError} for a leaf id nothing sizes. A column that fell
+ * through to a default would be laid out at one width while the offsets in
+ * front of it were summed from another.
+ * @throws {Error} when a pinned column sits behind a flexible one. A sticky
+ * offset is the sum of the widths in front of it and a flexible column has none
+ * to add, so the sum would be right at exactly one window size.
+ */
+export function frameLayout(leafIds: readonly string[], state: FrameLayoutState): FrameLayout {
+  const columns: ResolvedColumn[] = leafIds.map((id) => ({
+    id,
+    width: FLEXIBLE_COLUMNS.has(id) ? undefined : widthFor(id, state),
+  }));
+  return {
+    columns,
+    minWidth: columns.reduce((total, column) => total + (column.width ?? FLEXIBLE_FLOOR), 0),
+    pinned: pinnedGeometryFor(columns, PINNED_COLUMN_IDS),
+  };
+}
+
+/**
+ * Where each of `pinnedIds` is held, given the widths one resolution declared.
+ *
+ * Exported for one reason, stated so it is not mistaken for an API: the order
+ * of the pinned columns is a module constant, so the refusal below could
+ * otherwise never be watched failing — there is no way to declare a fourth
+ * pinned column from a test. {@link frameLayout} calls exactly this, with
+ * {@link PINNED_COLUMN_IDS}; nothing in the app calls it directly.
+ *
+ * @throws {Error} when a pinned column sits behind a flexible one.
+ */
+export function pinnedGeometryFor(
+  columns: readonly ResolvedColumn[],
+  pinnedIds: readonly string[],
+): ReadonlyMap<string, PinnedGeometry> {
+  const pinned = new Map<string, PinnedGeometry>();
+  let left = 0;
+  /** The flexible pinned column already passed, which is what lets the refusal name both of them. */
+  let flexibleBefore: string | null = null;
+  for (const id of pinnedIds) {
+    const resolved = columns.find((column) => column.id === id);
+    // A pinned column this call is not laying out is simply not pinned in it.
+    // Nothing in the app takes one away; `foldedTableMinWidth` resolves the
+    // fixed set in its own order and the tests resolve partial lists, and a
+    // throw here would make asking about either impossible.
+    if (resolved === undefined) continue;
+    if (flexibleBefore !== null) {
+      // Unknown is not OK, and this is the shape of the unknown: a flexible
+      // column's width is whatever the frame leaves over, so every column
+      // pinned after one would be held at an offset that is right at exactly
+      // one window size. Name is last today; this is what stops a fourth
+      // pinned column being added behind it in silence.
+      //
+      // Proof: this branch deleted, `refuses a column pinned behind a flexible
+      // one` failed on `expected [Function] to throw an error` — `depends`
+      // declared as a fourth pinned column resolved to `{ left: 124, width:
+      // 110 }`, a plausible offset with Name's missing width counted as
+      // nothing. Watched, 2026-08-09.
+      throw new Error(
+        `${flexibleBefore} has no declared width, so ${id} cannot be pinned after it — ` +
+          `a sticky offset is a sum of the widths in front of it and a flexible column has none.`,
+      );
+    }
+    pinned.set(id, { left, width: resolved.width });
+    if (resolved.width === undefined) flexibleBefore = id;
+    else left += resolved.width;
+  }
+  return pinned;
+}
+
+/**
+ * The narrowest the table can be laid out with these phases, all folded, in px
+ * — the number the Phases dialog quotes before somebody adds another one.
+ *
+ * The phases' **real** ids, not a count. Every width resolves per column id
+ * now, so a figure summed from stand-in ids would answer about columns that do
+ * not exist while the table lays out the ones that do: `T1
+ * column-widths-drag` stores a reader's override under the exact column id and
+ * a `phase0-final` could never carry one.
+ *
+ * Every column in {@link FIXED_COLUMNS} is on screen in every state of this
+ * table — the drag handle, the number, Depends on, the team, the total, the
+ * not-before date, Start, Finish, Slack and the ⋯ menu, none of them
+ * conditional — so the folded floor is that set, plus Name's
+ * {@link FLEXIBLE_FLOOR}, plus one folded column per phase.
+ *
+ * Derived through {@link frameLayout} rather than as arithmetic of its own,
+ * and that is the whole point of it living here rather than as a sentence in
+ * the dialog: a column that changes width changes this number in the same
+ * commit. `phases-dialog.test.tsx` pins the quoted figure against what a real
+ * `WbsTable` render of the same phases declares as its `min-width`.
+ *
+ * @throws {UnknownColumnError} through {@link frameLayout}, for the same
+ * reason it does.
+ */
+export function foldedTableMinWidth(roleIds: readonly string[], state: FrameLayoutState): number {
+  return frameLayout(
+    [
+      ...FIXED_COLUMNS,
+      ...FLEXIBLE_COLUMNS,
+      // The folded column of each phase, named exactly as the table names it.
+      ...roleIds.map((roleId) => `${roleId}-final`),
+    ],
+    state,
+  ).minWidth;
+}
 
 /** How many levels the Number column indents a row before it stops. */
 export const DEEPEST_INDENT = 4;
@@ -240,40 +404,29 @@ const INDENT_STEP = 12;
  */
 export const indentFor = (depth: number): number => Math.min(depth, DEEPEST_INDENT) * INDENT_STEP;
 
-const PINNED_GEOMETRY = new Map<string, { left: number; width: number | undefined }>(
-  PINNED_COLUMNS.map((column, at) => [
-    column.id,
-    {
-      left: PINNED_COLUMNS.slice(0, at).reduce((total, before) => {
-        if (before.width === undefined) {
-          // Unknown is not OK, and this is the shape of the unknown: a
-          // flexible column's width is whatever the frame leaves over, so
-          // every column pinned after one would be pinned at an offset that is
-          // right at exactly one window size. Name is last today; this is what
-          // stops a fourth pinned column being added behind it in silence.
-          throw new Error(
-            `${before.id} has no declared width, so ${column.id} cannot be pinned after it — ` +
-              `a sticky offset is a sum of the widths in front of it and a flexible column has none.`,
-          );
-        }
-        return total + before.width;
-      }, 0),
-      width: column.width,
-    },
-  ]),
-);
-
 /**
- * Where a pinned column sits, or nothing when that column is not pinned.
+ * The widest number the Number column undertakes to show whole, as the string a
+ * browser measures.
  *
- * `width` is `undefined` for a flexible column: the `<colgroup>` owns that
- * number and there isn't one to declare here.
+ * **There is no longest work item number**, which is why this is an envelope
+ * rather than a maximum. be-01's `deriveNumbers` widens a sibling label with
+ * the size of its group, adds a dotted segment for every level of depth, and
+ * appends a digit each time a work item is inserted against a frozen anchor
+ * that leaves no natural label free — and that last one has no bound at all. A
+ * column sized to the longest number on the plan would move every row in the
+ * table the moment one deep row was inserted.
+ *
+ * So the column undertakes eleven characters: a root label's agreed three, plus
+ * one dotted single-character segment for each level down to
+ * {@link DEEPEST_INDENT}. Drawn at that indent, beside the expander and the
+ * frozen-number lock, that is what `e2e/layout.spec.ts`'s `the Number column
+ * fits its envelope` measures — and `COLUMN_WIDTHS`'s figure is asserted
+ * against the measurement rather than read off the markup.
+ *
+ * Anything longer is clipped with the whole number in the cell's `title`: the
+ * same bargain the short dates make.
  */
-export function pinnedGeometry(
-  columnId: string,
-): { left: number; width: number | undefined } | undefined {
-  return PINNED_GEOMETRY.get(columnId);
-}
+export const NUMBER_ENVELOPE = `010${'.1'.repeat(DEEPEST_INDENT)}`;
 
 /**
  * The colour a sticky cell paints itself, as the slot rather than the shade.
@@ -339,12 +492,13 @@ const PINNED_HEADER_LAYER = 4;
  * its containing block — its nearest *positioned* ancestor — is **outside**
  * that clipper. It is not enough for the containing block itself not to clip.
  * Everything in this table that must escape its cell — the dependency listbox,
- * the notes preview, a picker's list — sits in a `position: relative` wrapper
- * span that is **inside** the `<td>`, so the `<td>`'s own clip cuts it to the
- * cell rectangle no matter how the wrapper is styled. The columns carrying
- * those popovers therefore spread this and then override `overflow` to
- * `visible`; the exception, which columns it covers, and what still contains
- * those cells are written out at `opensAPopover` in `wbs-table.tsx`.
+ * the notes preview, a picker's list, the date editor — sits in a
+ * `position: relative` wrapper span that is **inside** the `<td>`, so the
+ * `<td>`'s own clip cuts it to the cell rectangle no matter how the wrapper is
+ * styled. The columns carrying those popovers therefore spread this and then
+ * override `overflow` to `visible`; the exception, which columns it covers, and
+ * what still contains those cells are written out at `opensAPopover` in
+ * `wbs-table.tsx`.
  */
 export const CELL: CSSProperties = {
   boxSizing: 'border-box',
@@ -370,7 +524,13 @@ export const STICKY_HEADER_CELL: CSSProperties = {
 };
 
 /**
- * What one cell carries because its column is pinned, or nothing when it is not.
+ * What one cell carries because its column is pinned in this layout, or nothing
+ * when it is not.
+ *
+ * The layout is passed in rather than read from a module-level map, which is
+ * the change that made a width able to depend on the plan: the offset a cell is
+ * held at is a sum of the widths the *same* resolution declared for the columns
+ * in front of it.
  *
  * The background is not decoration. A sticky cell keeps its place while the rest
  * of its row scrolls behind it, and a transparent one shows that row straight
@@ -380,10 +540,11 @@ export const STICKY_HEADER_CELL: CSSProperties = {
  * pixels wider than the offset computed from it and the pinned edge drifts.
  */
 export function pinnedCellStyle(
+  layout: FrameLayout,
   columnId: string,
   part: 'header' | 'body',
 ): CSSProperties | undefined {
-  const pinned = pinnedGeometry(columnId);
+  const pinned = layout.pinned.get(columnId);
   if (pinned === undefined) return undefined;
   return {
     position: 'sticky',
@@ -402,7 +563,7 @@ export function pinnedCellStyle(
  * What one cell carries because its column is flexible, or nothing when it is
  * not.
  *
- * The floor, on the cell as well as in {@link tableMinWidth}. The table's own
+ * The floor, on the cell as well as in {@link frameLayout}. The table's own
  * `min-width` is what really holds it — under `table-layout: fixed` a cell does
  * not get a vote on its column's width — and this is the belt that says so
  * where a reader of the markup is looking, and that keeps the cell honest if
