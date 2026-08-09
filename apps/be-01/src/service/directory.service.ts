@@ -119,10 +119,14 @@ export class DirectoryService {
    * renamed, deleted, or given work of its own, and the default would then
    * mean whatever somebody last did to it.
    */
-  async addPerson(name: string, teamIds: readonly string[]): Promise<Person | null> {
+  async addPerson(name: string, teamIds: readonly string[]): Promise<DirectoryOutcome<Person>> {
     const clean = cleanName(name);
-    if (clean === null) return null;
-    return this.opts.directory.addPerson({ id: this.newId(), name: clean }, teamIds);
+    if (clean === null) return { ok: false, reason: 'name_required' };
+    const written = await this.opts.directory.addPerson({ id: this.newId(), name: clean }, teamIds);
+    // The whole create, or none of it: a person made without the membership
+    // that was asked for is a row somebody would have to notice was wrong.
+    if (!written.ok) return { ok: false, reason: written.reason };
+    return { ok: true, result: written.person };
   }
 
   /**

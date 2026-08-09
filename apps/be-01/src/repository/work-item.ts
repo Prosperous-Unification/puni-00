@@ -9,10 +9,11 @@ import type {
   SubtreeStore,
   WorkItem,
   WorkItemPatch,
+  WorkItemPatched,
   WorkItemStore,
 } from './index';
 import { bumpedWorkItem, bumpedWorkItemOnReparent, bumpWorkItems } from './revision';
-import { assignment, dependency, estimate, workItem } from './schema';
+import { assignment, dependency, estimate, serviceTeam, workItem } from './schema';
 
 /**
  * Every method that writes more than one row does so in one transaction.
@@ -53,21 +54,56 @@ export class WorkItemRepository implements WorkItemStore {
     });
   }
 
-  async patch(id: string, patch: WorkItemPatch): Promise<WorkItem | null> {
+  /**
+   * Applies the patch, and reads any `serviceTeamId` it names **in the same
+   * transaction as the `UPDATE`**.
+   *
+   * The check and the write cannot be pulled apart, and that is the whole point
+   * of it living here. `work_item.service_team_id` deliberately has no foreign
+   * key — a label is a label, not a constraint — so nothing below this stops a
+   * removed team's id being written. A service-level precheck followed by
+   * today's unchecked update is two statements with a delete-sized gap between
+   * them: the check passes for a team removed inside it, and the row then
+   * carries an id the directory does not hold, for ever, with nothing anywhere
+   * to report it.
+   *
+   * Proof: with the `unknown_team` read removed, `refuses a label naming a team
+   * that has been removed` fails — the work item came back carrying the dead
+   * id, which is the dangle this exists to prevent; watched 2026-08-09.
+   */
+  async patch(id: string, patch: WorkItemPatch): Promise<WorkItemPatched> {
     if (
       patch.name === undefined &&
       patch.notes === undefined &&
       patch.startNoEarlierThan === undefined &&
       patch.serviceTeamId === undefined
     ) {
-      return this.findById(id);
+      const found = await this.findById(id);
+      return found === null ? { ok: false, reason: 'not_found' } : { ok: true, workItem: found };
     }
-    const rows = await this.db
-      .update(workItem)
-      .set({ ...patch, revision: bumpedWorkItem })
-      .where(eq(workItem.id, id))
-      .returning();
-    return rows[0] ?? null;
+    await Promise.resolve();
+    return this.db.transaction((tx) => {
+      const wanted = patch.serviceTeamId;
+      // `null` takes the label off and names no team, so there is nothing to
+      // read; only a non-null id can be one the directory has lost.
+      if (wanted !== undefined && wanted !== null) {
+        const held = tx
+          .select({ id: serviceTeam.id })
+          .from(serviceTeam)
+          .where(eq(serviceTeam.id, wanted))
+          .all();
+        if (held.length === 0) return { ok: false, reason: 'unknown_team' };
+      }
+      const rows = tx
+        .update(workItem)
+        .set({ ...patch, revision: bumpedWorkItem })
+        .where(eq(workItem.id, id))
+        .returning()
+        .all();
+      const updated = rows.at(0);
+      if (updated === undefined) return { ok: false, reason: 'not_found' };
+      return { ok: true, workItem: updated };
+    });
   }
 
   async move(

@@ -148,12 +148,19 @@ export function directoryController(auth: AuthService, directory: DirectoryServi
         }
         // No teams is a free agent, which is the absence of memberships rather
         // than membership of a magic row.
-        const person = await directory.addPerson(body.name, body.teamIds ?? []);
-        if (person === null) {
-          set.status = 422;
-          return { error: 'name_required' };
+        const outcome = await directory.addPerson(body.name, body.teamIds ?? []);
+        if (!outcome.ok) {
+          // `taken` cannot arrive here — adding is idempotent by name — but the
+          // outcome type carries it, and answering the same 409 the patch does
+          // is the only honest thing to do with it.
+          if (outcome.reason === 'taken') {
+            set.status = 409;
+            return { error: outcome.reason, name: outcome.name };
+          }
+          set.status = statusFor(outcome.reason);
+          return { error: outcome.reason };
         }
-        return { person };
+        return { person: outcome.result };
       },
       { body: newPerson },
     )

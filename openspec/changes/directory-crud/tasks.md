@@ -65,7 +65,7 @@ Only `- [ ]` checkboxes are tracked by the apply phase.
 
 ## 3. Stale directory ids refuse on every write path
 
-- [ ] 3.1 Assign-person and team-label writes validate ids **inside the
+- [x] 3.1 Assign-person and team-label writes validate ids **inside the
       repository write transaction** — the id is read in the same transaction
       as the `UPDATE` (`WorkItemRepository.patch` is the one to change) and a
       typed `unknown_person` / `unknown_team` outcome is returned in place of
@@ -74,7 +74,7 @@ Only `- [ ]` checkboxes are tracked by the apply phase.
       negative per path: validation deleted → the FK 500 (person) and the
       silent dangle (team) are observed, watched, then restored; `Proof:`
       comments name both
-- [ ] 3.2 The three remaining stale-id paths, each with its own negative and
+- [x] 3.2 The three remaining stale-id paths, each with its own negative and
       its own `Proof:` comment, each asserting **both** the typed refusal and
       that storage is unchanged:
       (a) `POST /api/people` into teams — a `teamIds` entry naming a deleted

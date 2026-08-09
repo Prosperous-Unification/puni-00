@@ -4,6 +4,7 @@ import { join } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
+import { personAdded } from '../testing/directory-fixture';
 import { openDrizzle } from './db';
 import { DirectoryRepository } from './directory';
 import { EstimateRepository } from './estimate';
@@ -209,7 +210,9 @@ describe('RoleRepository', () => {
     await estimates.set({ workItemId: 'strip', roleId: qaId, ...DAYS });
     await estimates.set({ workItemId: 'sand', roleId: qaId, ...DAYS });
     await estimates.set({ workItemId: 'sand', roleId: devId, ...DAYS });
-    const ada = await directory.addPerson({ id: crypto.randomUUID(), name: 'Ada' }, []);
+    const ada = await personAdded(
+      directory.addPerson({ id: crypto.randomUUID(), name: 'Ada' }, []),
+    );
     await directory.assign('strip', devId, ada.id);
     await directory.assign('strip', qaId, ada.id);
 
@@ -230,7 +233,9 @@ describe('RoleRepository', () => {
     await estimates.set({ workItemId: 'strip', roleId: qaId, ...DAYS });
     await estimates.set({ workItemId: 'strip', roleId: devId, ...DAYS });
     await estimates.set({ workItemId: 'sand', roleId: qaId, ...DAYS });
-    const ada = await directory.addPerson({ id: crypto.randomUUID(), name: 'Ada' }, []);
+    const ada = await personAdded(
+      directory.addPerson({ id: crypto.randomUUID(), name: 'Ada' }, []),
+    );
     await directory.assign('strip', qaId, ada.id);
     await directory.assign('strip', devId, ada.id);
 
@@ -255,7 +260,9 @@ describe('RoleRepository', () => {
 
   it('moves the project and every work item that lost something, and nothing else', async () => {
     await estimates.set({ workItemId: 'strip', roleId: qaId, ...DAYS });
-    const ada = await directory.addPerson({ id: crypto.randomUUID(), name: 'Ada' }, []);
+    const ada = await personAdded(
+      directory.addPerson({ id: crypto.randomUUID(), name: 'Ada' }, []),
+    );
     await directory.assign('sand', qaId, ada.id);
     const projectBefore = await revisionOf(projectId);
     const stripBefore = await workItemRevisionOf('strip');
@@ -274,7 +281,9 @@ describe('RoleRepository', () => {
 
   it('refuses an unconfirmed removal and deletes nothing, reporting what it read', async () => {
     await estimates.set({ workItemId: 'strip', roleId: qaId, ...DAYS });
-    const ada = await directory.addPerson({ id: crypto.randomUUID(), name: 'Ada' }, []);
+    const ada = await personAdded(
+      directory.addPerson({ id: crypto.randomUUID(), name: 'Ada' }, []),
+    );
     await directory.assign('strip', qaId, ada.id);
     const before = await revisionOf(projectId);
 

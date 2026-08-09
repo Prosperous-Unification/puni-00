@@ -2,10 +2,12 @@ import { and, asc, eq, inArray } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
 import type {
+  AssignmentWritten,
   DirectoryRemoved,
   DirectoryStore,
   DirectoryUsageRows,
   Person,
+  PersonAdded,
   PersonPatch,
   PersonWithTeams,
   PersonWritten,
@@ -178,18 +180,46 @@ export class DirectoryRepository implements DirectoryStore {
     return people.map((each) => ({ ...each, teamIds: teamsOf.get(each.id) ?? [] }));
   }
 
-  async addPerson(toAdd: Person, teamIds: readonly string[]): Promise<Person> {
-    await this.db.insert(person).values(toAdd).onConflictDoNothing();
-    const rows = await this.db.select().from(person).where(eq(person.name, toAdd.name)).limit(1);
-    const found = rows.at(0);
-    if (found === undefined) throw new Error(`person vanished after insert: ${toAdd.name}`);
-    if (teamIds.length > 0) {
-      await this.db
-        .insert(personTeam)
-        .values(teamIds.map((serviceTeamId) => ({ personId: found.id, serviceTeamId })))
-        .onConflictDoNothing();
-    }
-    return found;
+  /**
+   * Adds a person and their memberships in **one** transaction, with the teams
+   * read inside it.
+   *
+   * Still idempotent by name — two people typing `Kat` at the same moment must
+   * not make two of her — but the memberships no longer ride behind the insert
+   * on their own: `person_team.service_team_id` is a foreign key, so a team
+   * removed while somebody had the picker open used to reach it and answer 500.
+   *
+   * Proof: with the `unknown_team` read removed, `refuses the whole create when
+   * a teamId names a team that has been removed` fails on a 500 whose body is
+   * not even JSON — the raw constraint failure this replaces; watched
+   * 2026-08-09.
+   */
+  async addPerson(toAdd: Person, teamIds: readonly string[]): Promise<PersonAdded> {
+    await Promise.resolve();
+    const wanted = [...new Set(teamIds)];
+    return this.db.transaction((tx) => {
+      if (wanted.length > 0) {
+        const held = tx
+          .select({ id: serviceTeam.id })
+          .from(serviceTeam)
+          .where(inArray(serviceTeam.id, wanted))
+          .all();
+        if (held.length !== wanted.length) return { ok: false, reason: 'unknown_team' };
+      }
+      tx.insert(person).values(toAdd).onConflictDoNothing().run();
+      // The row that is there now, which is the earlier one when two arrived at
+      // once. Returning `toAdd` would hand back an id nothing holds.
+      const rows = tx.select().from(person).where(eq(person.name, toAdd.name)).all();
+      const found = rows.at(0);
+      if (found === undefined) throw new Error(`person vanished after insert: ${toAdd.name}`);
+      if (wanted.length > 0) {
+        tx.insert(personTeam)
+          .values(wanted.map((serviceTeamId) => ({ personId: found.id, serviceTeamId })))
+          .onConflictDoNothing()
+          .run();
+      }
+      return { ok: true, person: found };
+    });
   }
 
   /**
@@ -430,10 +460,29 @@ export class DirectoryRepository implements DirectoryStore {
    * clearing one moves that work item's revision in the same transaction.
    * The person named has none of their own: they are a directory entry rather
    * than part of any plan.
+   *
+   * **The person is read in this same transaction as the write.** Otherwise a
+   * client holding a picker rendered before somebody was removed reaches
+   * `assignment.person_id`'s foreign key and is answered a 500 for a request
+   * whose only fault is being out of date. A precheck one statement earlier
+   * would not do: the removal fits in the gap between the two.
+   *
+   * Proof: with the `unknown_person` read removed, `refuses an assignment
+   * naming a person who has been removed` fails with
+   * `SQLiteError: FOREIGN KEY constraint failed` — the 500 this exists to
+   * prevent; watched 2026-08-09.
    */
-  async assign(workItemId: string, roleId: string, personId: string | null): Promise<void> {
+  async assign(
+    workItemId: string,
+    roleId: string,
+    personId: string | null,
+  ): Promise<AssignmentWritten> {
     await Promise.resolve();
-    this.db.transaction((tx) => {
+    return this.db.transaction((tx) => {
+      if (personId !== null) {
+        const held = tx.select({ id: person.id }).from(person).where(eq(person.id, personId)).all();
+        if (held.length === 0) return { ok: false, reason: 'unknown_person' };
+      }
       if (personId === null) {
         // `and(...)`, not `&&`: the JS operator would evaluate to the second
         // condition alone and delete every role's assignment on this work item.
@@ -452,6 +501,7 @@ export class DirectoryRepository implements DirectoryStore {
           .run();
       }
       bumpWorkItems(tx, [workItemId]);
+      return { ok: true };
     });
   }
 }

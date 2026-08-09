@@ -17,12 +17,16 @@ import { inMemoryWorkItems } from '../testing/work-item-fixture';
 
 function buildHarness() {
   const projectStore = inMemoryProjects();
-  const workItemStore = inMemoryWorkItems();
+  const directoryStore = inMemoryDirectory();
+  const workItemStore = inMemoryWorkItems(directoryStore);
   const estimateStore = inMemoryEstimates(workItemStore);
   const dependencyStore = inMemoryDependencies();
-  const directoryStore = inMemoryDirectory();
   const app = buildApp({
-    directory: testDirectoryService(),
+    // **One** directory, shared with the work item service below. Two would
+    // both look healthy while a person created through `/api/people` was
+    // invisible to the assignment that names them — which is exactly what this
+    // harness did until the write began reading the person it writes.
+    directory: testDirectoryService(directoryStore),
     auth: testAuthService(inMemoryUsers()),
     projects: new ProjectService({ projects: projectStore }),
     roles: testRoleService(projectStore),
@@ -124,6 +128,13 @@ describe('work item routes', () => {
     };
     const first = await idOf('Strip');
     const second = await idOf('Sand');
+    // Through the route, because the assignment write reads the person inside
+    // its own transaction and refuses an id the directory does not hold.
+    const added = await send('/api/people', token, {
+      method: 'POST',
+      body: JSON.stringify({ name: 'Ada' }),
+    });
+    const { person } = (await added.json()) as { person: { id: string } };
     for (const [id, days] of [
       [first, 3],
       [second, 2],
@@ -134,7 +145,7 @@ describe('work item routes', () => {
       });
       await send(`/api/work-items/${id}/assignees/${devId}`, token, {
         method: 'PUT',
-        body: JSON.stringify({ personId: 'ada' }),
+        body: JSON.stringify({ personId: person.id }),
       });
     }
 

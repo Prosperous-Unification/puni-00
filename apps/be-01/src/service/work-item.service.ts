@@ -344,7 +344,19 @@ export type WorkItemRefusal =
    * foreign keys, so without this the write reaches the database and answers
    * 500 for a request whose only fault is being out of date.
    */
-  | 'unknown_role';
+  | 'unknown_role'
+  /**
+   * A person the directory no longer holds, decided inside the write's own
+   * transaction — see {@link AssignmentWritten}. Without it the same
+   * out-of-date picker reaches `assignment.person_id` and answers 500.
+   */
+  | 'unknown_person'
+  /**
+   * A team the directory no longer holds, decided inside the write's own
+   * transaction — see {@link WorkItemPatched}. Without it the label is stored
+   * dangling: `work_item.service_team_id` has no foreign key to refuse it.
+   */
+  | 'unknown_team';
 
 export type WorkItemOutcome<T> = { ok: true; result: T } | { ok: false; reason: WorkItemRefusal };
 
@@ -870,8 +882,9 @@ export class WorkItemService {
     const context = await this.contextFor(id, actorId);
     if (!context.ok) return context;
     const before = context.result.workItem;
-    const updated = await this.opts.workItems.patch(id, patch);
-    if (updated === null) return { ok: false, reason: 'not_found' };
+    const written = await this.opts.workItems.patch(id, patch);
+    if (!written.ok) return { ok: false, reason: written.reason };
+    const updated = written.workItem;
     await this.announceWorkItem(updated.projectId, id);
     // A patch naming no field wrote nothing — the store returns the row it
     // found — so there is nothing to reverse. Journalling it would put an
@@ -918,10 +931,11 @@ export class WorkItemService {
     const before =
       (await this.opts.directory.assignmentsOf([id])).find((each) => each.roleId === roleId)
         ?.personId ?? null;
-    const written = await this.writeNamingRole(workItem.projectId, roleId, () =>
+    const assigned = await this.writeNamingRole(workItem.projectId, roleId, () =>
       this.opts.directory.assign(id, roleId, personId),
     );
-    if (!written) return { ok: false, reason: 'unknown_role' };
+    if (assigned === null) return { ok: false, reason: 'unknown_role' };
+    if (!assigned.ok) return { ok: false, reason: assigned.reason };
     await this.announceWorkItem(workItem.projectId, id);
     await this.record(
       workItem.projectId,
@@ -1407,7 +1421,7 @@ export class WorkItemService {
     const written = await this.writeNamingRole(workItem.projectId, roleId, () =>
       this.opts.estimates.set({ workItemId: id, roleId, ...days }),
     );
-    if (!written) return { ok: false, reason: 'unknown_role' };
+    if (written === null) return { ok: false, reason: 'unknown_role' };
     await this.announceWorkItem(workItem.projectId, id);
     await this.record(
       workItem.projectId,
@@ -1746,12 +1760,35 @@ export class WorkItemService {
    * that is supposed to still be free — and answers `ok: false` rather than
    * throwing. Those are conditions to report, not faults: the caller turns
    * them into the same refusal a moved revision produces.
+   *
+   * **A directory id the replay would put back is one of those rules.** Undo
+   * never resurrects a person, a team or a membership, and the guard that says
+   * so is the store's own — `patch` and `assign` each read the id inside the
+   * transaction that writes it, and this switch reports what they answered
+   * rather than replaying around them.
+   *
+   * Proof, both watched 2026-08-09: with `assign`'s refusal ignored here,
+   * `refuses a redo whose person has since been removed, and writes nothing`
+   * fails; with `patch`'s `unknown_team` treated as applied, `refuses an undo
+   * that would put back a label whose team has gone` fails and the work item
+   * carries the dead id.
    */
   private async apply(projectId: string, command: CompensatingCommand): Promise<ApplyOutcome> {
     switch (command.do) {
       case 'patch': {
-        const updated = await this.opts.workItems.patch(command.workItemId, command.patch);
-        if (updated === null) return { ok: false, detail: 'the work item is no longer there.' };
+        const written = await this.opts.workItems.patch(command.workItemId, command.patch);
+        if (!written.ok) {
+          // The label's team was removed after the command ran, or the row was.
+          // Either way the state this entry describes is gone, and putting the
+          // dead id back is exactly what the guarded path exists to refuse.
+          return {
+            ok: false,
+            detail:
+              written.reason === 'unknown_team'
+                ? 'that service team is no longer in the directory.'
+                : 'the work item is no longer there.',
+          };
+        }
         return { ok: true, detail: null };
       }
       case 'set_estimate': {
@@ -1773,7 +1810,8 @@ export class WorkItemService {
             ...command.days,
           }),
         );
-        if (!restored) return { ok: false, detail: 'that phase is no longer in this project.' };
+        if (restored === null)
+          return { ok: false, detail: 'that phase is no longer in this project.' };
         return { ok: true, detail: null };
       }
       case 'clear_estimate':
@@ -1787,7 +1825,15 @@ export class WorkItemService {
           const reassigned = await this.writeNamingRole(projectId, command.roleId, () =>
             this.opts.directory.assign(command.workItemId, command.roleId, command.personId),
           );
-          if (!reassigned) return { ok: false, detail: 'that phase is no longer in this project.' };
+          if (reassigned === null) {
+            return { ok: false, detail: 'that phase is no longer in this project.' };
+          }
+          // The person was removed after the command ran. Undo never
+          // resurrects one, so the entry is refused and discarded like any
+          // other the plan has moved past.
+          if (!reassigned.ok) {
+            return { ok: false, detail: 'that person is no longer in the directory.' };
+          }
         }
         return { ok: true, detail: null };
       case 'add_dependency': {
@@ -2009,8 +2055,9 @@ export class WorkItemService {
   }
 
   /**
-   * Runs a write that names a role, answering false when the role went between
-   * the check above it and the statement itself.
+   * Runs a write that names a role, answering `null` when the role went between
+   * the check above it and the statement itself, and otherwise whatever the
+   * write answered.
    *
    * {@link WorkItemService.holdsRole} narrows the window and does not close it:
    * a removal can commit between that read and this write, and `estimate` and
@@ -2030,18 +2077,17 @@ export class WorkItemService {
    * the role` fails, an absent person reported as an absent phase. Watched
    * 2026-08-09.
    */
-  private async writeNamingRole(
+  private async writeNamingRole<T>(
     projectId: string,
     roleId: string,
-    write: () => Promise<void>,
-  ): Promise<boolean> {
+    write: () => Promise<T>,
+  ): Promise<T | null> {
     try {
-      await write();
-      return true;
+      return await write();
     } catch (err) {
       if (!isForeignKeyViolation(err)) throw err;
       if (await this.holdsRole(projectId, roleId)) throw err;
-      return false;
+      return null;
     }
   }
 

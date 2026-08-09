@@ -198,6 +198,29 @@ export interface WorkItemPatch {
   serviceTeamId?: string | null;
 }
 
+/**
+ * What a patch answered: the written row, or the reason nothing was written.
+ *
+ * `unknown_team` is a `serviceTeamId` the directory no longer holds, decided
+ * **inside the transaction that performs the update**. It is not a service-level
+ * precheck's answer: `work_item.service_team_id` has no foreign key, so a check
+ * one statement earlier passes for a team removed in the gap and the update
+ * then stores an id nothing holds, for ever, with nothing to report it.
+ */
+export type WorkItemPatched =
+  | { ok: true; workItem: WorkItem }
+  | { ok: false; reason: 'not_found' | 'unknown_team' };
+
+/**
+ * What an assignment write answered.
+ *
+ * `unknown_person` is decided inside the write's own transaction, for the
+ * mirror-image reason: `assignment.person_id` *does* have a foreign key, so a
+ * person removed in the gap makes the insert answer a raw constraint failure —
+ * a 500 for a request whose only fault is being out of date.
+ */
+export type AssignmentWritten = { ok: true } | { ok: false; reason: 'unknown_person' };
+
 /** A position write the caller has already worked out, applied with whatever prompted it. */
 export interface Repositioned {
   id: string;
@@ -224,7 +247,12 @@ export interface WorkItemStore {
    * wrong for whoever read it.
    */
   insert(workItem: WorkItem, respaced: readonly Repositioned[]): Promise<void>;
-  patch(id: string, patch: WorkItemPatch): Promise<WorkItem | null>;
+  /**
+   * Applies the patch and validates any `serviceTeamId` it names **in one
+   * transaction** — see {@link WorkItemPatched}. A patch naming no field writes
+   * nothing and answers the row it found.
+   */
+  patch(id: string, patch: WorkItemPatch): Promise<WorkItemPatched>;
   move(
     id: string,
     parentId: string | null,
@@ -353,6 +381,16 @@ export type PersonWritten =
   | { ok: false; reason: DirectoryWriteRefusal | 'unknown_team' };
 
 /**
+ * What a create answered.
+ *
+ * `unknown_team` refuses the **whole** create rather than making the person and
+ * dropping the membership: `person_team.service_team_id` is a foreign key, so
+ * the alternative is not a partial success but a raw constraint failure — a 500
+ * for a client whose picker was rendered a moment too early.
+ */
+export type PersonAdded = { ok: true; person: Person } | { ok: false; reason: 'unknown_team' };
+
+/**
  * The rows a refused directory removal is described from, read in one place for
  * both the fast path and the transaction that decides.
  *
@@ -421,8 +459,12 @@ export interface DirectoryStore {
    */
   renameTeam(teamId: string, name: string): Promise<ServiceTeamWritten>;
   listPeople(): Promise<PersonWithTeams[]>;
-  /** Adds a person, or returns the one with that name, joining them to `teamIds`. */
-  addPerson(toAdd: Person, teamIds: readonly string[]): Promise<Person>;
+  /**
+   * Adds a person, or returns the one with that name, joining them to
+   * `teamIds` — the person and every membership in **one** transaction, with
+   * the teams read inside it. See {@link PersonAdded}.
+   */
+  addPerson(toAdd: Person, teamIds: readonly string[]): Promise<PersonAdded>;
   /**
    * Renames a person and replaces their memberships, in **one** transaction.
    *
@@ -461,8 +503,12 @@ export interface DirectoryStore {
    */
   removeTeam(teamId: string, cascade: boolean): Promise<DirectoryRemoved>;
   assignmentsOf(workItemIds: readonly string[]): Promise<Assignment[]>;
-  /** Sets, replaces or (with `null`) removes one work item's assignee for one role. */
-  assign(workItemId: string, roleId: string, personId: string | null): Promise<void>;
+  /**
+   * Sets, replaces or (with `null`) removes one work item's assignee for one
+   * role, validating the person **inside the write's own transaction** — see
+   * {@link AssignmentWritten}.
+   */
+  assign(workItemId: string, roleId: string, personId: string | null): Promise<AssignmentWritten>;
 }
 
 /**

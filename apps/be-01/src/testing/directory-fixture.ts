@@ -3,6 +3,7 @@ import type {
   DirectoryStore,
   DirectoryUsageRows,
   Person,
+  PersonAdded,
   PersonWithTeams,
   ServiceTeam,
 } from '../repository';
@@ -64,13 +65,20 @@ export function inMemoryDirectory(): DirectoryStore {
           ),
       ),
     addPerson(toAdd, teamIds) {
+      // The teams are checked before anything is written, as production checks
+      // them inside the create's own transaction: `person_team` has a foreign
+      // key, so a fixture that wrote a dead membership would be laxer than the
+      // schema it stands for.
+      if (teamIds.some((each) => !teams.has(each))) {
+        return Promise.resolve({ ok: false, reason: 'unknown_team' });
+      }
       const already = [...people.values()].find((each) => each.name === toAdd.name);
       const kept = already ?? toAdd;
       if (already === undefined) people.set(toAdd.id, toAdd);
       if (teamIds.length > 0) {
         memberships.set(kept.id, new Set([...(memberships.get(kept.id) ?? []), ...teamIds]));
       }
-      return Promise.resolve(kept);
+      return Promise.resolve({ ok: true, person: kept });
     },
     patchPerson(personId, patch) {
       const found = people.get(personId);
@@ -132,9 +140,15 @@ export function inMemoryDirectory(): DirectoryStore {
       return Promise.resolve([...assignments.values()].filter((a) => wanted.has(a.workItemId)));
     },
     assign(workItemId, roleId, personId) {
+      // The person is checked here because production checks it inside the
+      // write's own transaction: a fixture that wrote an assignment naming
+      // nobody would let a caller's `unknown_person` branch pass untested.
+      if (personId !== null && !people.has(personId)) {
+        return Promise.resolve({ ok: false, reason: 'unknown_person' });
+      }
       if (personId === null) assignments.delete(key(workItemId, roleId));
       else assignments.set(key(workItemId, roleId), { workItemId, roleId, personId });
-      return Promise.resolve();
+      return Promise.resolve({ ok: true });
     },
   };
 }
@@ -142,4 +156,17 @@ export function inMemoryDirectory(): DirectoryStore {
 /** A DirectoryService over the in-memory store, for tests that only need `buildApp` to construct. */
 export function testDirectoryService(directory: DirectoryStore = inMemoryDirectory()) {
   return new DirectoryService({ directory });
+}
+
+/**
+ * The person a create made, or a throw.
+ *
+ * For test setup only: a fixture whose own `addPerson` was refused has not
+ * produced a test result, and carrying on would assert against a directory
+ * that is missing the row the test is about.
+ */
+export async function personAdded(added: Promise<PersonAdded>): Promise<Person> {
+  const written = await added;
+  if (!written.ok) throw new Error(`the fixture person was refused: ${written.reason}`);
+  return written.person;
 }

@@ -181,6 +181,21 @@ describe('PATCH /api/teams/:id', () => {
   });
 });
 
+describe('POST /api/people into teams', () => {
+  it('refuses the whole create when a teamId names a team that has been removed', async () => {
+    const platform = await addTeam('Platform');
+    await call('DELETE', `/api/teams/${platform}`);
+
+    const created = await call('POST', '/api/people', { name: 'Kat', teamIds: [platform] });
+
+    expect(created).toEqual({ status: 404, body: { error: 'unknown_team' } });
+    // Atomic: no half-made person, and no membership row pointing at a team
+    // that is not there. `person_team.service_team_id` is a foreign key, so
+    // without the validation this request is a raw constraint failure — a 500.
+    expect(await store.listPeople()).toEqual([]);
+  });
+});
+
 describe('DELETE /api/people/:id and /api/teams/:id', () => {
   /** A work item to point at the directory with, in a project this account owns. */
   async function planWithOneRow(): Promise<{

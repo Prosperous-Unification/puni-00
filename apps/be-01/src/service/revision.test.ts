@@ -16,6 +16,7 @@ import { UserRepository } from '../repository/user';
 import { SubtreeRepository, WorkItemRepository } from '../repository/work-item';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { inMemoryCommandJournal } from '../testing/command-journal-fixture';
+import { personAdded } from '../testing/directory-fixture';
 import { ProjectService } from './project.service';
 import { RoleService } from './role.service';
 import { WorkItemService } from './work-item.service';
@@ -363,9 +364,11 @@ describe('what an assignment moves', () => {
   it('moves the work item assigned, and no other', async () => {
     const strip = await root('Strip');
     const cable = await root('Cable', strip);
-    const person = await new DirectoryRepository(openDrizzle(path)).addPerson(
-      { id: crypto.randomUUID(), name: 'Ada' },
-      [],
+    const person = await personAdded(
+      new DirectoryRepository(openDrizzle(path)).addPerson(
+        { id: crypto.randomUUID(), name: 'Ada' },
+        [],
+      ),
     );
 
     await workItems.assign(strip, ownerId, dev(), person.id);

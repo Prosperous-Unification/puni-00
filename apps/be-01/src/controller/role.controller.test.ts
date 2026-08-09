@@ -22,6 +22,7 @@ import { RoleService } from '../service/role.service';
 import { WorkItemService } from '../service/work-item.service';
 import { TEST_JWT_KEY } from '../testing/auth-fixture';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
+import { personAdded } from '../testing/directory-fixture';
 import { testReplay } from '../testing/replay-fixture';
 
 /**
@@ -244,7 +245,9 @@ describe('DELETE /api/projects/:id/roles/:roleId', () => {
     const project = await newProject(token);
     await workItems.insert(item(project.id, 'strip', 10), []);
     await estimates.set({ workItemId: 'strip', roleId: project.qaId, ...DAYS });
-    const ada = await directory.addPerson({ id: crypto.randomUUID(), name: 'Ada' }, []);
+    const ada = await personAdded(
+      directory.addPerson({ id: crypto.randomUUID(), name: 'Ada' }, []),
+    );
     await directory.assign('strip', project.qaId, ada.id);
 
     const refused = await send(`/api/projects/${project.id}/roles/${project.qaId}`, token, {
@@ -366,7 +369,9 @@ describe('DELETE /api/projects/:id/roles/:roleId', () => {
       body: JSON.stringify({ parentId: null, afterId: null, name: 'Strip' }),
     });
     const strip = (await created.json()) as { id: string };
-    const ada = await directory.addPerson({ id: crypto.randomUUID(), name: 'Ada' }, []);
+    const ada = await personAdded(
+      directory.addPerson({ id: crypto.randomUUID(), name: 'Ada' }, []),
+    );
     await send(`/api/projects/${project.id}/roles/${project.qaId}`, token, { method: 'DELETE' });
 
     // A tab that was open when somebody else removed the phase. Both of these

@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
-import type { DirectoryStore, Role, WorkItem } from '../repository';
+import type { DirectoryStore, Person, Role, WorkItem } from '../repository';
 import { openDrizzle } from '../repository/db';
 import { DirectoryRepository } from '../repository/directory';
 import { runMigrations } from '../repository/migrate';
@@ -55,6 +55,13 @@ const roleNamed = async (name: string, inProject = projectId): Promise<Role> => 
   const found = (await roleStore.listByProject(inProject)).find((each) => each.name === name);
   if (found === undefined) throw new Error(`no role called ${name}`);
   return found;
+};
+
+/** The person a create made, or a throw — a fixture whose setup was refused is not a result. */
+const added = async (name: string, teamIds: readonly string[]): Promise<Person> => {
+  const outcome = await directory.addPerson(name, teamIds);
+  if (!outcome.ok) throw new Error(`the fixture person was refused: ${outcome.reason}`);
+  return outcome.result;
 };
 
 /** The person by that name, or a throw, for the same reason. */
@@ -158,8 +165,7 @@ describe('DirectoryService.patchPerson', () => {
   async function katInPlatform(): Promise<{ katId: string; platformId: string }> {
     const platform = await directory.addTeam('Platform');
     if (platform === null) throw new Error('the fixture team was refused');
-    const kat = await directory.addPerson('Kat', [platform.id]);
-    if (kat === null) throw new Error('the fixture person was refused');
+    const kat = await added('Kat', [platform.id]);
     await store.assign('design', devId, kat.id);
     return { katId: kat.id, platformId: platform.id };
   }
@@ -180,8 +186,7 @@ describe('DirectoryService.patchPerson', () => {
 
   it('refuses a name another person holds, naming the survivor', async () => {
     const { katId } = await katInPlatform();
-    const strip = await directory.addPerson('Strip', []);
-    if (strip === null) throw new Error('the fixture person was refused');
+    const strip = await added('Strip', []);
 
     expect(await directory.patchPerson(strip.id, { name: 'Kat' })).toEqual({
       ok: false,
@@ -309,8 +314,7 @@ describe('the directory usage a removal is refused with', () => {
   }
 
   it('names the project, the number and the work item an assignment holds', async () => {
-    const kat = await directory.addPerson('Kat', []);
-    if (kat === null) throw new Error('the fixture person was refused');
+    const kat = await added('Kat', []);
     await store.assign('design', devId, kat.id);
 
     const outcome = await directory.removePerson(kat.id, false);
@@ -346,9 +350,8 @@ describe('the directory usage a removal is refused with', () => {
   });
 
   it('names the person who becomes assumed when one of two assignments goes', async () => {
-    const kat = await directory.addPerson('Kat', []);
-    const ada = await directory.addPerson('Ada', []);
-    if (kat === null || ada === null) throw new Error('a fixture person was refused');
+    const kat = await added('Kat', []);
+    const ada = await added('Ada', []);
     // Two assignments, so nobody is assumed to be doing every phase now; one
     // left, so `Ada` becomes assumed. That is a move, and it is named.
     await store.assign('design', devId, kat.id);
@@ -410,9 +413,8 @@ describe('the directory usage a removal is refused with', () => {
   it('refuses a team nothing but memberships points at, naming the people', async () => {
     const platform = await directory.addTeam('Platform');
     if (platform === null) throw new Error('the fixture team was refused');
-    const kat = await directory.addPerson('Kat', [platform.id]);
-    const ada = await directory.addPerson('Ada', [platform.id]);
-    if (kat === null || ada === null) throw new Error('a fixture person was refused');
+    const kat = await added('Kat', [platform.id]);
+    const ada = await added('Ada', [platform.id]);
 
     const outcome = await directory.removeTeam(platform.id, false);
 
@@ -434,8 +436,8 @@ describe('the directory usage a removal is refused with', () => {
 
   it('removes a person on the second, explicit call, and moves what lost a row', async () => {
     const platform = await directory.addTeam('Platform');
-    const kat = await directory.addPerson('Kat', []);
-    if (platform === null || kat === null) throw new Error('a fixture row was refused');
+    if (platform === null) throw new Error('the fixture team was refused');
+    const kat = await added('Kat', []);
     await directory.patchPerson(kat.id, { teamIds: [platform.id] });
     await store.assign('design', devId, kat.id);
     const before = (await workItems.findById('design'))?.revision;
@@ -456,8 +458,7 @@ describe('the directory usage a removal is refused with', () => {
     // moment between that count and the delete. An unconfirmed request must
     // still refuse: it was never consent to take anything, and what it would
     // take is an assignment nobody has been shown.
-    const kat = await directory.addPerson('Kat', []);
-    if (kat === null) throw new Error('the fixture person was refused');
+    const kat = await added('Kat', []);
     const service = new DirectoryService({
       directory: storeWith({
         async usageOfPerson(watched) {
@@ -485,8 +486,7 @@ describe('the directory usage a removal is refused with', () => {
     // The same interleave, with `cascade`. This is not the fault above: the
     // caller has already agreed to take what points at this person, and an
     // assignment landing a moment later is exactly what that agreement covers.
-    const kat = await directory.addPerson('Kat', []);
-    if (kat === null) throw new Error('the fixture person was refused');
+    const kat = await added('Kat', []);
     const service = new DirectoryService({
       directory: storeWith({
         async removePerson(watched, cascade) {
@@ -502,8 +502,7 @@ describe('the directory usage a removal is refused with', () => {
   });
 
   it('refuses the loser of two removals of one person', async () => {
-    const kat = await directory.addPerson('Kat', []);
-    if (kat === null) throw new Error('the fixture person was refused');
+    const kat = await added('Kat', []);
     await store.removePerson(kat.id, true);
 
     expect(await directory.removePerson(kat.id, true)).toEqual({ ok: false, reason: 'not_found' });
@@ -513,8 +512,8 @@ describe('the directory usage a removal is refused with', () => {
     const platform = await directory.addTeam('Platform');
     if (platform === null) throw new Error('the fixture team was refused');
     const roof = await roofProject();
-    const kat = await directory.addPerson('Kat', [platform.id]);
-    if (kat === null) throw new Error('the fixture person was refused');
+    // A member as well as two labels, so the cascade has both kinds to take.
+    await added('Kat', [platform.id]);
     await workItems.patch('design', { serviceTeamId: platform.id });
     await workItems.patch(roof.workItemOf, { serviceTeamId: platform.id });
     const before = (await workItems.findById('design'))?.revision ?? 0;
@@ -534,8 +533,8 @@ describe('the directory usage a removal is refused with', () => {
 
   it('refuses a team removal when a membership or a label lands after the count', async () => {
     const platform = await directory.addTeam('Platform');
-    const kat = await directory.addPerson('Kat', []);
-    if (platform === null || kat === null) throw new Error('a fixture row was refused');
+    if (platform === null) throw new Error('the fixture team was refused');
+    const kat = await added('Kat', []);
 
     const labelled = new DirectoryService({
       directory: storeWith({
@@ -588,8 +587,7 @@ describe('the directory usage a removal is refused with', () => {
   it("does not count a person's own memberships against them", async () => {
     const platform = await directory.addTeam('Platform');
     if (platform === null) throw new Error('the fixture team was refused');
-    const kat = await directory.addPerson('Kat', [platform.id]);
-    if (kat === null) throw new Error('the fixture person was refused');
+    const kat = await added('Kat', [platform.id]);
 
     // Her membership names nobody else and goes with her, so it forces no
     // confirmation — the person is removed on the first call.
