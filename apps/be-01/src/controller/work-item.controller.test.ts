@@ -109,6 +109,50 @@ describe('work item routes', () => {
     expect(body.workItems.map((w) => [w.number, w.name])).toEqual([['010', 'Strip']]);
   });
 
+  it('tells the reader how much of the plan is waiting for a person', async () => {
+    // The schedule header's "N tasks wait for a person" reads this. It rides on
+    // the tree because that is the read that happens after every change which
+    // could move it — and it has to leave be-01 to be of any use, which is what
+    // this asserts and the service tests cannot.
+    const { token, send, projectId, devId } = await setup();
+    const idOf = async (name: string): Promise<string> => {
+      const created = await send(`/api/projects/${projectId}/work-items`, token, {
+        method: 'POST',
+        body: JSON.stringify({ parentId: null, afterId: null, name }),
+      });
+      return ((await created.json()) as { id: string }).id;
+    };
+    const first = await idOf('Strip');
+    const second = await idOf('Sand');
+    for (const [id, days] of [
+      [first, 3],
+      [second, 2],
+    ] as const) {
+      await send(`/api/work-items/${id}/estimates/${devId}`, token, {
+        method: 'PUT',
+        body: JSON.stringify({ optimistic: days, realistic: days, pessimistic: days }),
+      });
+      await send(`/api/work-items/${id}/assignees/${devId}`, token, {
+        method: 'PUT',
+        body: JSON.stringify({ personId: 'ada' }),
+      });
+    }
+
+    const tree = await send(`/api/projects/${projectId}/work-items`, token);
+    const body = (await tree.json()) as {
+      waitingForPerson: number;
+      workItems: { name: string; schedule: { earliestStart: number } }[];
+    };
+
+    expect(body.waitingForPerson).toBe(1);
+    // In tree order, which is the reverse of the order they were added: each
+    // was created with no `afterId` and therefore in front of the other.
+    expect(body.workItems.map((w) => [w.name, w.schedule.earliestStart])).toEqual([
+      ['Sand', 3],
+      ['Strip', 0],
+    ]);
+  });
+
   it('reports the sequence the tree was read at', async () => {
     // The client subscribes after this read, so without a sequence it has no
     // baseline to resume from and an edit landing between the two is lost.

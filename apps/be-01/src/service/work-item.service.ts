@@ -122,6 +122,11 @@ function slicesOf(
     // that one assignment is read as covering the lot. {@link assumedAssignee}
     // is that reading, shared with the tree's `doesEveryPhase` and with the
     // role removal that has to say whose answer it would change.
+    //
+    // Proof: the fallback dropped, so that only named assignments queue, and
+    // `queues every phase of a work item its one assignee is assumed to be
+    // doing` failed — the work item finished on day 3 with its `QA` running
+    // while its own assignee was on somebody else's `Dev`; watched 2026-08-09.
     const personFor = (roleId: string | null): string | null =>
       (roleId === null ? undefined : byRole[roleId]) ?? assumedAssignee(byRole);
     if (order.length === 0) {

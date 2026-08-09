@@ -484,7 +484,19 @@ function placeSlices(
         fromRoleOrder = Math.max(fromRoleOrder, finish);
       } else fromPredecessor = Math.max(fromPredecessor, finish);
     }
-    const personId = personOf(key);
+    // A slice of no length is not work, so it neither waits for its assignee
+    // nor makes them busy: nobody is occupied for zero days. Without this an
+    // unestimated `QA` belonging to somebody would queue behind everything else
+    // they are doing and drag its work item's finish along with it — a row that
+    // ends on day 3 reported as ending on day 5 because a slice with nothing in
+    // it was placed there.
+    //
+    // Proof: the length dropped from this condition and `gives a slice nobody
+    // has estimated no place in the queue` failed — the empty `QA` came back at
+    // day 5 rather than day 3, `boundBy: 'person'`, taking its work item's
+    // finish with it; watched 2026-08-09.
+    const queues = personOf(key) !== null && offsets[place.at + 1] - offsets[place.at] > 0;
+    const personId = queues ? personOf(key) : null;
     const busy = personId === null ? undefined : busyUntil.get(personId);
     // Latest wins, and a tie keeps the reason listed first — which is why the
     // person is last of them; see {@link ScheduleFloor}.

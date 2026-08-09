@@ -386,6 +386,157 @@ describe('dependencies', () => {
   });
 });
 
+describe('the plan waits for the people in it', () => {
+  /** A whole-day estimate, so the numbers in these tests are the numbers. */
+  const flat = (days: number) => ({ optimistic: days, realistic: days, pessimistic: days });
+
+  /** A second project, holding `Dev` and `QA` in that order. */
+  async function twoRoleProject() {
+    const project: Project = {
+      id: crypto.randomUUID(),
+      name: 'Two phases',
+      ownerId: OWNER,
+      restricted: false,
+      estimateMethod: 'pert',
+      startDate: null,
+      revision: 0,
+      createdAt: 1,
+    };
+    const dev = crypto.randomUUID();
+    const qa = crypto.randomUUID();
+    await projects.create(project, [
+      { id: dev, projectId: project.id, name: 'Dev', position: 10 },
+      { id: qa, projectId: project.id, name: 'QA', position: 20 },
+    ]);
+    return { projectId: project.id, dev, qa };
+  }
+
+  it('runs two work items one person is doing one after the other', async () => {
+    const first = await add('Strip');
+    const second = await add('Sand');
+    await service.setEstimate(first, OWNER, roleId, flat(3));
+    await service.setEstimate(second, OWNER, roleId, flat(2));
+    await directory.assign(first, roleId, 'ada');
+    await directory.assign(second, roleId, 'ada');
+
+    const tree = await service.tree(projectId);
+
+    expect(tree?.workItems.find((w) => w.id === first)?.schedule).toMatchObject({
+      earliestStart: 0,
+      earliestFinish: 3,
+    });
+    expect(tree?.workItems.find((w) => w.id === second)?.schedule).toMatchObject({
+      earliestStart: 3,
+      earliestFinish: 5,
+    });
+    expect(tree?.waitingForPerson).toBe(1);
+  });
+
+  it('leaves them where they were when the two are different people', async () => {
+    const first = await add('Strip');
+    const second = await add('Sand');
+    await service.setEstimate(first, OWNER, roleId, flat(2));
+    await service.setEstimate(second, OWNER, roleId, flat(3));
+    await directory.assign(first, roleId, 'ada');
+    await directory.assign(second, roleId, 'grace');
+
+    const tree = await service.tree(projectId);
+
+    expect(tree?.workItems.find((w) => w.id === second)?.schedule.earliestStart).toBe(0);
+    expect(tree?.waitingForPerson).toBe(0);
+  });
+
+  it('queues every phase of a work item its one assignee is assumed to be doing', async () => {
+    // The assumed assignee, as time: one named person on a two-role work item
+    // is doing both of its slices, so nothing else of theirs can run alongside
+    // either. Only `Dev` is assigned here — the `QA` queue is the assumption.
+    const two = await twoRoleProject();
+    const covered = (await service.create(two.projectId, OWNER, {
+      parentId: null,
+      afterId: null,
+      name: 'Rewire',
+    })) as { ok: true; result: { id: string } };
+    const next = (await service.create(two.projectId, OWNER, {
+      parentId: null,
+      afterId: covered.result.id,
+      name: 'Test the rewire',
+    })) as { ok: true; result: { id: string } };
+    await service.setEstimate(covered.result.id, OWNER, two.dev, flat(2));
+    await service.setEstimate(covered.result.id, OWNER, two.qa, flat(1));
+    await service.setEstimate(next.result.id, OWNER, two.dev, flat(1));
+    await directory.assign(covered.result.id, two.dev, 'ada');
+    await directory.assign(next.result.id, two.dev, 'ada');
+
+    const tree = await service.tree(two.projectId);
+
+    // `ada` works through all three slices: the first work item's `Dev`, then
+    // the second's, then the QA nobody named her for. The first work item is
+    // therefore 0→4 with a gap in the middle of it, rather than 0→3.
+    expect(tree?.workItems.find((w) => w.id === next.result.id)?.schedule).toMatchObject({
+      earliestStart: 2,
+      earliestFinish: 3,
+    });
+    expect(tree?.workItems.find((w) => w.id === covered.result.id)?.schedule).toMatchObject({
+      earliestStart: 0,
+      earliestFinish: 4,
+    });
+    expect(tree?.waitingForPerson).toBe(2);
+  });
+
+  it('stops assuming at two, and lets the second person work alongside the first', async () => {
+    // The same plan with `QA` named as well: `grace` does the QA, so `ada` is
+    // free the moment her own `Dev` is done and the next work item follows it.
+    const two = await twoRoleProject();
+    const covered = (await service.create(two.projectId, OWNER, {
+      parentId: null,
+      afterId: null,
+      name: 'Rewire',
+    })) as { ok: true; result: { id: string } };
+    const next = (await service.create(two.projectId, OWNER, {
+      parentId: null,
+      afterId: covered.result.id,
+      name: 'Test the rewire',
+    })) as { ok: true; result: { id: string } };
+    await service.setEstimate(covered.result.id, OWNER, two.dev, flat(2));
+    await service.setEstimate(covered.result.id, OWNER, two.qa, flat(1));
+    await service.setEstimate(next.result.id, OWNER, two.dev, flat(1));
+    await directory.assign(covered.result.id, two.dev, 'ada');
+    await directory.assign(covered.result.id, two.qa, 'grace');
+    await directory.assign(next.result.id, two.dev, 'ada');
+
+    const tree = await service.tree(two.projectId);
+
+    expect(tree?.workItems.find((w) => w.id === next.result.id)?.schedule).toMatchObject({
+      earliestStart: 2,
+      earliestFinish: 3,
+    });
+  });
+
+  it('reports nobody waiting on a plan nobody is assigned to', async () => {
+    const first = await add('Strip');
+    await service.setEstimate(first, OWNER, roleId, flat(2));
+
+    expect((await service.tree(projectId))?.waitingForPerson).toBe(0);
+  });
+
+  it('reports nobody waiting on a plan that could not be scheduled at all', async () => {
+    // A cycle leaves the rows on screen and takes the dates away. There is no
+    // queue to report, and a number left over from a plan that does not exist
+    // would be one more confident lie beside the banner saying so.
+    const a = await add('Strip');
+    const b = await add('Sand');
+    await directory.assign(a, roleId, 'ada');
+    await directory.assign(b, roleId, 'ada');
+    await dependencies.add({ id: 'x', projectId, predecessorId: a, successorId: b });
+    await dependencies.add({ id: 'y', projectId, predecessorId: b, successorId: a });
+
+    const tree = await service.tree(projectId);
+
+    expect(tree?.scheduleError).toBe('cycle');
+    expect(tree?.waitingForPerson).toBe(0);
+  });
+});
+
 describe('who is doing the work', () => {
   it('reports nobody when nobody is assigned', async () => {
     const id = await add('Strip');

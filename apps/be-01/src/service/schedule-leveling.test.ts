@@ -176,6 +176,25 @@ describe('leveling — a person does one thing at a time', () => {
     expect(overlaps(found)).toEqual([]);
   });
 
+  it('gives a slice nobody has estimated no place in the queue', () => {
+    // `a`'s QA is a slice with nothing in it. Queued behind `kat`'s other work
+    // it would sit at day 5 and take `a`'s finish out to 5 with it, reporting a
+    // work item that ends on day 3 as ending on day 5 — for a role nobody has
+    // put a number against. Nobody is busy for zero days.
+    const rows = [item('a'), item('b')];
+    const slices = [
+      slice('a', DEV, 3, 'kat'),
+      slice('a', QA, null, 'kat'),
+      slice('b', DEV, 2, 'kat'),
+    ];
+
+    const found = schedule(rows, [], slices);
+
+    expect(planned(found, 'a', QA)).toMatchObject({ earliestStart: 3, earliestFinish: 3 });
+    expect(found.workItems.get('a')?.earliestFinish).toBe(3);
+    expect(planned(found, 'b', DEV)).toMatchObject({ earliestStart: 3, earliestFinish: 5 });
+  });
+
   it('says what is holding a slice, and which slice its person was busy with', () => {
     const rows = [item('a'), item('b')];
     const slices = [slice('a', DEV, 3, 'kat'), slice('b', DEV, 2, 'kat')];
