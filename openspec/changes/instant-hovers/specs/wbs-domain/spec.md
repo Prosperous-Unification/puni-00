@@ -3,14 +3,22 @@
 ### Requirement: A hover card closes when the row it belongs to moves
 
 An open hover card SHALL be closed when a refreshed plan puts the work item it
-belongs to under a different parent, or at a different position among its
-siblings, or removes it. A refresh that leaves that work item where it was SHALL
-leave the card open.
+belongs to under a different parent, or on a different line of the plan as it is
+drawn, or removes it. Moving anything the work item is inside SHALL close it too,
+because that moves the work item. A refresh that leaves the work item where it
+was SHALL leave the card open.
 
 #### Scenario: a peer moves the row out from under the card
 
 - **GIVEN** a hover card open on a work item
 - **WHEN** somebody else moves that work item to the top of the plan
+- **THEN** the card is gone
+
+#### Scenario: a peer moves the branch the row is inside
+
+- **GIVEN** a hover card open on a work item that is a child of another
+- **WHEN** somebody else moves that parent to the end of the plan, so the child
+  keeps its parent and its place among its siblings and is drawn somewhere else
 - **THEN** the card is gone
 
 #### Scenario: a peer's unrelated edit leaves the card alone
@@ -32,8 +40,12 @@ SHALL NOT take pointer events, so a click through its area lands on the row
 beneath. One hover card SHALL be open at a time across the table.
 
 Focusing the cell's own box SHALL open the same card, and that box SHALL be
-described by it, so the card is reachable without a pointer. No card SHALL be
-shown while an `@` mention is being typed in that cell.
+described by it, so the card is reachable without a pointer. A card opened by
+the focus SHALL survive the pointer visiting another cell and leaving it again.
+
+While an `@` mention is being typed in the cell, no card SHALL be shown and the
+cell's keyboard SHALL belong to the mention: no chord and no structural move
+SHALL act through it, whether or not the mention has anybody to offer.
 
 #### Scenario: the folded figure opens into its parts
 
@@ -68,6 +80,19 @@ shown while an `@` mention is being typed in that cell.
   to anything and nobody in the directory, so the picker offers nothing
 - **WHEN** the pointer rests on that cell
 - **THEN** no card is shown
+
+#### Scenario: a mention with nobody to offer still owns the keyboard
+
+- **GIVEN** that same `@`, with no list drawn because there is nobody to list
+- **WHEN** ⌥+ArrowDown and ⌘+Enter are pressed in that cell
+- **THEN** no row moves and no work item is created
+
+#### Scenario: a card opened by the focus outlasts a passing pointer
+
+- **GIVEN** a folded role cell whose box has the focus and whose card is shown
+- **WHEN** the pointer crosses another cell that has a card and leaves it
+- **THEN** the focused cell's card is shown again, and its box is described by
+  it
 
 #### Scenario: hover asks the server for nothing
 

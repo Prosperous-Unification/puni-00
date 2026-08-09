@@ -101,3 +101,19 @@ Ordered TDD slices. Only `- [ ]` checkboxes are tracked by the apply phase.
       card paints over the pinned cell of the row below, once the frame is
       scrolled far enough to put one under the other.
       Negative: the card's own `z-index` removed.
+
+## 7. Round 4: codex on the round 3 diff
+
+- [x] 7.1 Keyboard ownership of a folded cell follows the mention, not the
+      picker's entry count — the hole round 3 left when it corrected the card's
+      guard alone, and one that predates the change.
+      Negative: the branch put back to counting entries, watched moving a row
+      and creating one under a bare `@`.
+- [x] 7.2 The focus and the pointer keep separate state and the open card is
+      derived from both, so a mouse crossing the table cannot take a card and
+      its description away from a box that still has the focus.
+      Negative: the two states folded back into one.
+- [x] 7.3 A hover is settled against the line a row is drawn on rather than its
+      place among its siblings, so moving an ancestor closes a card inside the
+      branch.
+      Negative: the placement put back to counting siblings under a parent.

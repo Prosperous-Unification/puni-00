@@ -22,7 +22,7 @@ branch `change/instant-hovers`. The main checkout serves the live dev stack on
 
 fe-01 counted 859 unit tests before this change's code and **866** after; the
 browser suite 69 before and **74** after. Round 3 (below) took those to **875**
-and **76**.
+and **76**; round 4 to **878** with the browser suite unchanged.
 
 ## The gate
 
@@ -30,11 +30,12 @@ and **76**.
 | ------------------------------------------------------------ | ----------------------------- |
 | `bunx nx format:check --all`                                 | pass                          |
 | `bunx nx run-many -t test lint typecheck build --parallel=2` | pass, 21 projects             |
-| `bunx nx test fe-01`                                         | **875 passed**, 42 files      |
+| `bunx nx test fe-01`                                         | **878 passed**, 42 files      |
 | `openspec validate --all --json`                             | 50 items, 50 passed, 0 failed |
 | the browser suite (below)                                    | **76 passed**, 0 failed       |
 
-Re-run in full after round 3, on the same machine and the same ports.
+Re-run in full after round 3 and again after round 4, on the same machine and
+the same ports.
 
 Nx labelled `gw-01:test` flaky on one run; it passed, and nothing here touches
 gw-01.
@@ -55,8 +56,12 @@ empty and the `.env.e2e` is deleted.
 
 ```
 $ bunx playwright test --config apps/fe-01/playwright.config.ts
-  76 passed (1.6m)
+  76 passed (1.7m)
 ```
+
+Round 4 changed no browser check: what it fixed is keyboard routing, a second
+piece of React state and a comparison inside `refresh`, none of which a
+screenshot can see. The suite was re-run to prove it broke none of them.
 
 ## Round 3: two independent reviews
 
@@ -87,6 +92,33 @@ with the card's `z-index` removed.
 count is 1 and the old guard held. The mechanism is real anyway by a different
 route — a deployment with nobody in the directory answers a bare `@` with no
 entries at all — and that is what the negative test uses.
+
+## Round 4: codex on the round 3 diff
+
+Six of the round 3 fixes were approved unchanged. Three follow-ons landed.
+
+| finding                                             | verdict                      | what changed                                                                                   |
+| --------------------------------------------------- | ---------------------------- | ---------------------------------------------------------------------------------------------- |
+| #8 — the keyboard still counts the picker's entries | real, high, and pre-existing | the cell's `onKeyDown` reads the mention, the same boolean the card reads                      |
+| #9 — the focus and the pointer share one state      | real                         | two states, and the open card derived from them with the pointer winning                       |
+| #10 — the placement is a sibling index              | real                         | the placement is the line a row is drawn on, walked from the tree the table is about to render |
+
+**#8 predates this change.** The merge-base at `75d01a8` has the same
+`if (options.length > 0)` on that `onKeyDown`, so a bare `@` on a deployment with
+nobody in it handed the keyboard back there too. What round 3 did was correct the
+_card's_ guard and leave this one, which is how the two came to disagree — and
+which makes the fix this change's to make. Both guards now read `mentioning`.
+
+**#9's tie-break is the pointer.** `openCard` is `hoveredCell ?? focusedCell`:
+moving a mouse onto a cell is the deliberate act of the moment, and the focus is
+still where it was left when the mouse moves away again. Every surface reads the
+one derived value, which is what keeps "one card at a time" true now that two
+gestures can open one.
+
+**#10's rule is strictly stronger than the one it replaces**, not different: the
+parent is still half of the pair, for the outdent that changes no line, and the
+sibling index is replaced by the line itself, which no ancestor can move without
+changing.
 
 ## Failure proof
 
@@ -125,7 +157,19 @@ watched green again with the fault removed. All on 2026-08-09.
 | the folded cell's guard put back to `options.length === 0`    | `keeps the cell to a mention that has nobody to offer`                   | `expected 'Devoptimistic…' to contain 'QA'`                                     |
 | `zIndex: 20` removed from `HoverCard`                         | `paints over the pinned cell of the row below it` (e2e)                  | `the pinned cell below hides the card` — `Expected: false Received: true`       |
 
-Two of these deserve their reason written down.
+### Round 4, all watched on 2026-08-09
+
+| fault injected                                                 | test that observed it                                                      | observed                                                                                 |
+| -------------------------------------------------------------- | -------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| the folded cell's `onKeyDown` put back to `options.length > 0` | `every chord is inert on a mention that has nobody to offer`               | `expected [ 'Strip', 'Paint', 'Sand', '' ] to deeply equal [ 'Strip', 'Sand', 'Paint' ]` |
+| `focusedCell` folded back into `hoveredCell`                   | `keeps the focused cell's card when the pointer visits another and leaves` | `Unable to find an accessible element with the role "tooltip"`                           |
+| the placement put back to counting siblings under a parent     | `closes the card when a peer moves the branch the row sits inside`         | `expected <div role="tooltip" …/> to be null`                                            |
+
+The first of those shows both halves of the fault in one line: `Paint` and
+`Sand` swapped by the ⌥+arrow, and a fourth, nameless row created by the ⌘+Enter
+that followed it.
+
+Two of the round 3 checks deserve their reason written down.
 
 **The unit test for finding 1 fires `mouseOut` with a `relatedTarget`, not
 `mouseLeave`.** React synthesises leave from `mouseout`: given where the pointer
@@ -166,6 +210,11 @@ fail.
   figure is a sum rather than a box, so there is nothing in that cell to focus.
   Every row underneath it has one; nothing here measures whether that is enough
   in practice.
+- **A focus-opened card outliving its row is not settled.** `focusedCell` is
+  deliberately left out of the refresh reconciliation, so a row deleted while its
+  box had the focus leaves a key behind. Nothing can render a card for a row that
+  is not there, and the next focus replaces it — but no test says so, because
+  there is no behaviour to observe.
 - **The residual render cost is not measured.** One render of the table per
   hover boundary is stated in `design.md` and left as it was found; no profile
   was taken, and no test bounds it.

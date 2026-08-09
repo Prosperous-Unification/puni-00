@@ -156,6 +156,46 @@ folds data away answers with a native `title` — delayed and one line.
   `e2e/hover-cards.spec.ts` scrolls the frame until the depends column is half
   under the pinned block and compares that overlap with the card open and closed.
 
+## Decisions — round 4 (codex, on the round 3 diff)
+
+- **One guard for the mention, not two.** Round 3 taught the card to read the
+  mention and left the cell's `onKeyDown` counting the picker's entries, so on a
+  deployment with nobody in it a bare `@` still handed the keyboard back:
+  Alt+ArrowDown moved the row and Cmd+Enter made one, under a live mention. The
+  branch reads `mentioning` now, the same boolean the card does. The hole
+  predates this change — the merge-base has the same entry count — but the two
+  guards diverging is this change's doing, and so is the fix. Enter with nothing
+  on offer is consumed and takes nothing, rather than falling through to "new
+  work item".
+- **The focus and the pointer keep separate state, and the card is derived.**
+  They are not two writers of one thing: a pointer wandering across another
+  cardable cell and off it again ran the hover's guarded clear, and the
+  still-focused box was left with no card, no description, and no reason to fire
+  a focus event ever again (codex #9). `openCard` is `hoveredCell ?? focusedCell`
+  — **the pointer wins while it is on something**, because moving a mouse onto a
+  cell is the deliberate act of the moment, and the focus is still where it was
+  left when the mouse moves away. One card at a time stays true by construction,
+  now for two gestures instead of one, because every surface reads the one
+  derived value. `aria-describedby` follows the card's existence, so it is set
+  exactly when there is an id to point at.
+  `focusedCell` is **not** settled against a refreshed tree, unlike the hover: a
+  card that belongs to the focus should follow the focus, and the browser moves
+  that with its element whatever the tree did. A row deleted while its box was
+  focused leaves a key that no rendered cell can match, which shows nothing.
+- **A placement is the line a row is drawn on, not its place among its
+  siblings.** Round 3 settled the hover on `parentId` and the sibling index,
+  which answers for the row and for nothing above it: a peer moving an
+  **ancestor** takes the whole branch elsewhere while every row inside it reports
+  the same parent and the same position, so the card travelled with the branch
+  and stayed open on a line the pointer was never on (codex #10). The placement
+  is now a depth-first walk of the tree the table is about to draw. The parent
+  stays in the pair for the move that changes no line — outdenting shifts a row
+  left by an indent without moving it — so the new rule is strictly stronger than
+  the old one rather than a different one. The walk is over the tree rather than
+  the flat read because the flat read is in that order only by be-01's promise,
+  and a test fake that reorders less carefully cannot then make the check agree
+  with itself.
+
 ## Risks / Trade-offs
 
 - **jsdom can see most of this one** (unlike the clamp): a card's presence,
@@ -174,6 +214,10 @@ folds data away answers with a native `title` — delayed and one line.
   had since it was written; the two mitigations above take the pointless writes
   out of it, and row memoisation or a wider re-render refactor is a change of its
   own, not this one.
+- **A second state is a second thing to keep in step.** `hoveredCell` and
+  `focusedCell` are cleared by different events, and the derivation is the only
+  place they meet. The guard against them drifting is that no surface reads
+  either directly — every one reads `openCard`.
 - **The bailout on a repeated `mouseenter` is asserted as a property, not as a
   render count.** jsdom counts no renders, so what is pinned is the predicate
   React uses — that the key is a string and two calls compare `Object.is`-equal.
