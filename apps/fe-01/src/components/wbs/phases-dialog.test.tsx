@@ -442,6 +442,33 @@ describe('how wide the phases make the table', () => {
     expect(vi.mocked(foldedTableMinWidth).mock.calls.at(-1)?.[0]).toEqual(['role-dev', 'role-qa']);
   });
 
+  itDom('quotes a phase’s dragged width, because it resolved that phase’s own column', () => {
+    // The half of "real ids, not stand-ins" that has a number attached to it.
+    // A reader who drags the Dev column wider is looking at a wider table, and
+    // the figure that says how much width the phases need has to be that
+    // table's. It can only be, because the override is stored under
+    // `role-dev-final` — the id the table renders that column by — and this
+    // dialog resolves the project's own role ids.
+    //
+    // Proof: `roles.map((role) => role.id)` replaced by the stand-in
+    // `Array.from({ length: roles.length }, (_, at) => \`phase${at}\`)`, this
+    // failed on `expected 'PhasesPhasesThe phases every work ite…' to contain
+    // '≥1167px'` — the dialog
+    // quoting the default 96px column while the table lays out the dragged
+    // 140px one. Watched, 2026-08-09.
+    const dragged: FrameLayoutState = {
+      hasAnyNotBefore: false,
+      columnWidthOverrides: new Map([['role-dev-final', 140]]),
+    };
+    stubbed({ roles: [DEV, QA], frameState: dragged });
+
+    const quoted = foldedTableMinWidth(['role-dev', 'role-qa'], dragged);
+    expect(document.body.textContent).toContain(`≥${String(quoted)}px`);
+    // And it really moved: a figure that ignored the override would be the
+    // undated default, which is what a stand-in id resolves to.
+    expect(quoted).toBe(foldedTableMinWidth(['role-dev', 'role-qa'], UNDATED) + (140 - 96));
+  });
+
   itDom('counts one phase as one', () => {
     stubbed({ roles: [DEV] });
 

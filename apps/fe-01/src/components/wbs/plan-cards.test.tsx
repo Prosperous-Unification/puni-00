@@ -756,6 +756,42 @@ describe('the toolbar sheet', () => {
     });
   });
 
+  itDom('offers no width control at all, because a card has no columns', async () => {
+    /*
+     * The placement rule for the width reset, asserted from the side that can
+     * see it go wrong. `toolbarControls` is one array rendered in two places —
+     * the desktop toolbar row and this sheet — so a control added to it reaches
+     * the phone by construction, and the phone is drawing cards. The reset
+     * lives in the table renderer's own branch instead, which this renderer
+     * never takes.
+     *
+     * Seeded with a width already in force, or the control would be absent for
+     * the wrong reason: on a project nobody has dragged a column in there is
+     * nothing to render on either renderer, and the assertion would pass
+     * against a reset that was in `toolbarControls` all along.
+     *
+     * Proof: the reset moved into `toolbarControls`, this failed on `expected
+     * <button …(2)></button> to be null` — the control on the sheet at 390px.
+     * Watched, 2026-08-09.
+     */
+    localStorage.setItem('wbs.columnWidths.p1', JSON.stringify({ number: 240 }));
+    const api = fakeApi();
+    widthIs(PHONE);
+    render(<WbsTable projectId="p1" api={api} />);
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Plan actions' })).toBeInTheDocument();
+    });
+    openTheSheet();
+    // The sheet really is holding the toolbar, which is what makes the absence
+    // below a fact about this control rather than about an empty dialog.
+    expect(await screen.findByRole('button', { name: 'Add work item' })).toBeInTheDocument();
+
+    expect(screen.queryByRole('button', { name: 'Reset column widths' })).toBeNull();
+    // And no handle anywhere on the page: the cards have no column edges to
+    // grab, and the table that does is not rendered at all.
+    expect(document.querySelectorAll('[data-resize-handle]').length).toBe(0);
+  });
+
   itDom('holds the page’s own shortcuts back while it is open', async () => {
     const api = fakeApi();
     widthIs(PHONE);

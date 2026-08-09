@@ -2,12 +2,14 @@ import { describe, expect, it } from 'vitest';
 
 import {
   CELL,
+  clampColumnWidth,
   DATE_EDITOR_WIDTH,
   DEEPEST_INDENT,
   FIXED_COLUMNS,
   FLEXIBLE_COLUMNS,
   FLEXIBLE_FLOOR,
   flexibleCellStyle,
+  floorFor,
   foldedTableMinWidth,
   frameLayout,
   type FrameLayoutState,
@@ -17,9 +19,11 @@ import {
   pinnedCellStyle,
   pinnedGeometryFor,
   POPOVER_ROW_LAYER,
+  sizableColumn,
   STICKY_HEADER_CELL,
   TABLE_FRAME,
   UnknownColumnError,
+  WIDEST_COLUMN,
   widthFor,
 } from './table-frame';
 
@@ -460,5 +464,136 @@ describe('how wide the phases make the table', () => {
     // A project may hold none — `R1`'s spec says the seeded pair is data rather
     // than a limit — and the dialog still has a number to print.
     expect(foldedTableMinWidth([], DATED)).toBe(959);
+  });
+});
+
+describe('a column this browser has dragged to another width', () => {
+  /**
+   * The Number column 40px wider than its default, which is the one case every
+   * consumer below is asked about.
+   *
+   * One override and four questions, deliberately: a resized column laid out
+   * at one width while an offset is summed from another is the failure this
+   * module exists to make impossible, and it is invisible to any test that
+   * asks only one of them.
+   */
+  const NUMBER_DRAGGED: FrameLayoutState = {
+    hasAnyNotBefore: true,
+    columnWidthOverrides: new Map([['number', 169 + 40]]),
+  };
+
+  it('lays out, adds up, folds and pins from the one number it resolved', () => {
+    // Proof: `frameLayout`'s pinned arm re-pointed at `defaultWidthFor` instead
+    // of the widths it had just resolved, this failed on `expected { left: 24,
+    // width: 169 } to deeply equal { left: 24, width: 209 }` — the `<col>` 40px
+    // wider with Name still pinned where it was, which is a pinned Name painted
+    // over "Depends on" all over again. Watched, 2026-08-09.
+    const dragged = frameLayout(RENDERED, NUMBER_DRAGGED);
+    const resting = frameLayout(RENDERED, DATED);
+
+    expect(dragged.columns.find((column) => column.id === 'number')?.width).toBe(209);
+    expect(dragged.minWidth).toBe(resting.minWidth + 40);
+    expect(dragged.pinned.get('number')).toEqual({ left: 24, width: 209 });
+    expect(dragged.pinned.get('name')?.left).toBe((resting.pinned.get('name')?.left ?? 0) + 40);
+    // The fourth consumer, which is the figure the Phases dialog quotes.
+    expect(foldedTableMinWidth(['role-dev'], NUMBER_DRAGGED)).toBe(
+      foldedTableMinWidth(['role-dev'], DATED) + 40,
+    );
+  });
+
+  it('carries a folded phase’s own width under the id the table renders it by', () => {
+    // The reason `foldedTableMinWidth` takes real role ids rather than a count:
+    // an override is stored under `<roleId>-final`, and a `phase0-final`
+    // invented from a length could never carry one. Both answered 96px until
+    // this change, which is why nothing measurable told them apart.
+    const dragged: FrameLayoutState = {
+      hasAnyNotBefore: false,
+      columnWidthOverrides: new Map([['role-dev-final', 140]]),
+    };
+
+    expect(foldedTableMinWidth(['role-dev', 'role-qa'], dragged)).toBe(
+      foldedTableMinWidth(['role-dev', 'role-qa'], UNDATED) + (140 - 96),
+    );
+    expect(foldedTableMinWidth(['phase0', 'phase1'], dragged)).toBe(
+      foldedTableMinWidth(['role-dev', 'role-qa'], UNDATED),
+    );
+  });
+
+  it('outranks a default that depends on the plan, and freezes it there', () => {
+    // `not-before` is 56px or 84px depending on whether any row in the project
+    // sets a day. An override on it is the reader saying how wide they want it,
+    // and a column that jumped the first time somebody dated a row would be a
+    // preference that does not hold.
+    const overrides = new Map([['not-before', 110]]);
+
+    expect(
+      widthFor('not-before', { hasAnyNotBefore: false, columnWidthOverrides: overrides }),
+    ).toBe(110);
+    expect(widthFor('not-before', { hasAnyNotBefore: true, columnWidthOverrides: overrides })).toBe(
+      110,
+    );
+    // And nothing else moves with it: one column's override is one column's.
+    expect(declared(RENDERED, { ...DATED, columnWidthOverrides: overrides })).toEqual({
+      ...declared(RENDERED, DATED),
+      'not-before': 110,
+    });
+  });
+
+  it('refuses the flexible column a width and a floor alike, override or not', () => {
+    // A flexible column has no declared width to override, and a plausible
+    // number handed back is the pinned-offset bug again — so an override
+    // naming one is an error rather than a width.
+    // Proof: `floorFor` made to answer `FLEXIBLE_FLOOR` for a flexible column
+    // instead of resolving its default, this failed on `expected [Function] to
+    // throw an error`. Watched, 2026-08-09.
+    const named: FrameLayoutState = {
+      hasAnyNotBefore: true,
+      columnWidthOverrides: new Map([['name', 300]]),
+    };
+
+    expect(() => widthFor('name', named)).toThrow(UnknownColumnError);
+    expect(() => floorFor('name', DATED)).toThrow(UnknownColumnError);
+    expect(() => clampColumnWidth('name', 300, DATED)).toThrow(UnknownColumnError);
+    // And the layout still leaves it to the `<colgroup>`, which is what the
+    // throw is protecting: an override that reached it would be a declared
+    // width on the one column that must not have one.
+    const layout = frameLayout(RENDERED, named);
+    expect(layout.columns.find((column) => column.id === 'name')?.width).toBeUndefined();
+    expect(layout.pinned.get('name')?.width).toBeUndefined();
+  });
+
+  it('clamps a drag to this column’s own floor and to the one shared ceiling', () => {
+    // Proof: `floorFor` pinned to a flat 36 rather than the narrower of 36 and
+    // the column's own default, this failed on `expected 36 to be 24` — the
+    // 24px drag-handle column pushed out to 36 by a floor that had never
+    // looked at it. Watched, 2026-08-09.
+    expect(clampColumnWidth('number', 10, DATED)).toBe(36);
+    expect(clampColumnWidth('drag', 10, DATED)).toBe(24);
+    expect(clampColumnWidth('drag', 24, DATED)).toBe(24);
+    expect(clampColumnWidth('number', 10_000, DATED)).toBe(WIDEST_COLUMN);
+    expect(clampColumnWidth('number', 240, DATED)).toBe(240);
+    // Where 600 comes from, said as arithmetic rather than as a literal: three
+    // times the flexible column's own floor, and most of a 900px window.
+    expect(WIDEST_COLUMN).toBe(600);
+    expect(WIDEST_COLUMN).toBe(3 * FLEXIBLE_FLOOR);
+  });
+
+  it('has a floor that does not move with the plan, which is what lets it be read at mount', () => {
+    // `rememberedWidthOverrides` runs before a single row has arrived, so the
+    // range it checks a stored width against has to be the range the drag will
+    // clamp to later. It is, for every column: the only width that depends on
+    // the plan is far above the 36px floor in both of its states.
+    for (const id of FIXED_COLUMNS) expect(floorFor(id, DATED)).toBe(floorFor(id, UNDATED));
+    expect(floorFor('not-before', DATED)).toBe(36);
+    expect(floorFor('drag', DATED)).toBe(24);
+  });
+
+  it('says which ids can be sized at all, which is what a stored width is checked against', () => {
+    expect(sizableColumn('number', DATED)).toBe(true);
+    // A phase this project no longer holds is sizable and simply never asked
+    // about — the harmlessness a remembered expansion's deleted row ids have.
+    expect(sizableColumn('role-gone-final', DATED)).toBe(true);
+    expect(sizableColumn('name', DATED)).toBe(false);
+    expect(sizableColumn('serviec', DATED)).toBe(false);
   });
 });

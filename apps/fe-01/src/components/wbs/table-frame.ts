@@ -8,19 +8,36 @@ import { POINTS } from './estimate-draft';
  *
  * One object rather than a widening argument list, and that is the whole of
  * why it exists: {@link frameLayout} has five consumers, and a second
- * parameter is a second thing each of them has to remember to pass. A later
- * fact — `T1 column-widths-drag`'s `columnWidthOverrides: Map<string, number>`
- * is the next one — is a field added here, and every consumer that already
- * builds this object carries it without being edited.
+ * parameter is a second thing each of them has to remember to pass. The second
+ * fact arrived on 2026-08-09 as a field — `columnWidthOverrides` — and every
+ * consumer that already built this object carried it without being edited.
  *
- * Today it holds one fact, and the question it asks is deliberately about the
- * **project** rather than about the rows on screen: a column that narrowed
- * because the one row with a day on it was collapsed away would change width
- * under a reader who was only scrolling.
+ * The first question is deliberately about the **project** rather than about
+ * the rows on screen: a column that narrowed because the one row with a day on
+ * it was collapsed away would change width under a reader who was only
+ * scrolling.
  */
 export interface FrameLayoutState {
   /** Whether any row in the project sets an earliest start. */
   hasAnyNotBefore: boolean;
+  /**
+   * The widths this browser was told by a drag, by the column's **own** id —
+   * `<roleId>-final` for a folded phase — or absent where nothing has been
+   * dragged.
+   *
+   * A fact about the reader rather than about the plan, which is why it is
+   * here rather than a second parameter: every consumer of {@link frameLayout}
+   * already carries this object, so a resized column reaches the `<col>`, the
+   * table minimum, the folded minimum and the pinned offsets together or not
+   * at all.
+   *
+   * Read by {@link widthFor} and by nothing else. It is **not** clamped on the
+   * way through: a width outside the range a drag can produce is refused where
+   * it is read out of storage (`rememberedWidthOverrides` in `wbs-table.tsx`),
+   * and clamping here as well would make that refusal a check that cannot
+   * fail.
+   */
+  columnWidthOverrides?: Map<string, number>;
 }
 
 /**
@@ -148,8 +165,9 @@ export const DATE_EDITOR_WIDTH = 138;
  *
  * A function of {@link FrameLayoutState} rather than a number, so what a width
  * may depend on is stated in one place and read in one place. The
- * earliest-start column is the first of them, and `T1 column-widths-drag` adds
- * the reader's own overrides beside it.
+ * earliest-start column is the only one of them; the reader's own overrides are
+ * the other half of the same state, and they outrank whatever this resolves —
+ * see {@link widthFor}.
  */
 const PLAN_WIDTHS = new Map<string, (state: FrameLayoutState) => number>([
   ['not-before', (state) => (state.hasAnyNotBefore ? NOT_BEFORE_WITH_DAYS : NOT_BEFORE_EMPTY)],
@@ -220,22 +238,19 @@ export class UnknownColumnError extends Error {
 }
 
 /**
- * How wide the column with this id is laid out for this plan, in px.
+ * How wide the column with this id is laid out for this plan **before** the
+ * reader has said otherwise, in px.
  *
- * Never ask it about a {@link FLEXIBLE_COLUMNS} member: those have no declared
- * width by design and this throws for them exactly as it does for a typo. That
- * is the point — a sentinel would let the pinned-offset arithmetic add a
- * number the browser never uses.
+ * The width table's own answer, which is what a {@link Width reset} returns a
+ * column to and what {@link floorFor} takes the narrower of. Everything that
+ * lays the table out wants {@link widthFor} instead — this one cannot see an
+ * override, which is exactly why the reset can be "the width resolved now"
+ * rather than a snapshot.
  *
- * Prefer {@link frameLayout}: this answers about one column, and every consumer
- * in the app needs the whole frame resolved together.
- *
- * @throws {UnknownColumnError} when nothing declares a width for that id.
- * Unknown is not OK here: a column that fell through to a default would be laid
- * out at one width while the pinned offsets were summed from another, and the
- * two disagreeing is exactly the overlap this module exists to make impossible.
+ * @throws {UnknownColumnError} when nothing declares a width for that id, a
+ * {@link FLEXIBLE_COLUMNS} member included. See {@link widthFor}.
  */
-export function widthFor(columnId: string, state: FrameLayoutState): number {
+export function defaultWidthFor(columnId: string, state: FrameLayoutState): number {
   const declared = COLUMN_WIDTHS.get(columnId);
   if (declared !== undefined) return declared;
   const fromPlan = PLAN_WIDTHS.get(columnId);
@@ -247,6 +262,114 @@ export function widthFor(columnId: string, state: FrameLayoutState): number {
     if ((POINTS as readonly string[]).includes(point)) return ROLE_POINT_WIDTH;
   }
   throw new UnknownColumnError(columnId);
+}
+
+/**
+ * How wide the column with this id is laid out for this plan and this reader,
+ * in px — the override where there is one, and the width table's own answer
+ * where there is not.
+ *
+ * Never ask it about a {@link FLEXIBLE_COLUMNS} member: those have no declared
+ * width by design and this throws for them exactly as it does for a typo. That
+ * is the point — a sentinel would let the pinned-offset arithmetic add a
+ * number the browser never uses. The default is resolved **first**, so an
+ * override naming the flexible column throws rather than sizing it.
+ *
+ * The override is taken as it stands rather than clamped; see
+ * {@link FrameLayoutState.columnWidthOverrides} for why that matters.
+ *
+ * Prefer {@link frameLayout}: this answers about one column, and every consumer
+ * in the app needs the whole frame resolved together.
+ *
+ * @throws {UnknownColumnError} when nothing declares a width for that id.
+ * Unknown is not OK here: a column that fell through to a default would be laid
+ * out at one width while the pinned offsets were summed from another, and the
+ * two disagreeing is exactly the overlap this module exists to make impossible.
+ */
+export function widthFor(columnId: string, state: FrameLayoutState): number {
+  const resolved = defaultWidthFor(columnId, state);
+  return state.columnWidthOverrides?.get(columnId) ?? resolved;
+}
+
+/**
+ * The widest any column may be laid out, in px, whether it got there by a drag
+ * or out of storage.
+ *
+ * **One constant read by both**, and that is the whole of why it is exported:
+ * a drag that could produce a width the stored-width check would refuse is a
+ * column that silently returns to its default on the next reload, and the two
+ * numbers would have to be kept in step by hand forever.
+ *
+ * 600 is three times {@link FLEXIBLE_FLOOR} and most of a 900px window. It
+ * bounds a gesture that got away — a pointer that kept going after the reader
+ * stopped looking — without bounding a real preference: the widest column the
+ * table declares today is 169px, so a reader who wants three times that still
+ * has it.
+ */
+export const WIDEST_COLUMN = 600;
+
+/**
+ * The narrowest any column may be dragged, in px, before its own default is
+ * taken into account.
+ *
+ * A cell that can still be aimed at with a pointer. Columns whose default is
+ * already narrower than this — the drag handle's 24px — stop at their default
+ * instead; see {@link floorFor}.
+ */
+const NARROWEST_COLUMN = 36;
+
+/**
+ * The narrowest this column may be dragged, in px.
+ *
+ * The narrower of {@link NARROWEST_COLUMN} and the column's own resolved
+ * default, because a floor above a column's default would make the first touch
+ * of its handle widen it. Read from the **default** rather than from the width
+ * in force: a floor that moved with the override would let a column be walked
+ * down one drag at a time.
+ *
+ * @throws {UnknownColumnError} through {@link defaultWidthFor}, for a flexible
+ * column as much as for a typo — a flexible column has no width to have a
+ * floor under.
+ */
+export function floorFor(columnId: string, state: FrameLayoutState): number {
+  return Math.min(defaultWidthFor(columnId, state), NARROWEST_COLUMN);
+}
+
+/**
+ * `width` brought inside the range this column may be laid out at, in px.
+ *
+ * What a drag writes, and the shape the stored-width check accepts: the check
+ * reads {@link floorFor} and {@link WIDEST_COLUMN} rather than repeating the
+ * arithmetic, so no drag can produce a width a reload would reject.
+ *
+ * @throws {UnknownColumnError} through {@link floorFor}.
+ */
+export function clampColumnWidth(columnId: string, width: number, state: FrameLayoutState): number {
+  return Math.min(Math.max(width, floorFor(columnId, state)), WIDEST_COLUMN);
+}
+
+/**
+ * Whether this id names a column the frame layout can put a width on at all.
+ *
+ * The question a width read out of storage is asked first: an id nothing sizes
+ * would throw out of the render that laid it out, and a preference about a
+ * column that does not exist must not be able to take the table down.
+ *
+ * A role's column for a phase the project no longer holds answers `true` and
+ * is then never looked at — the harmlessness a remembered expansion's deleted
+ * row ids already have.
+ */
+export function sizableColumn(columnId: string, state: FrameLayoutState): boolean {
+  try {
+    defaultWidthFor(columnId, state);
+    return true;
+  } catch (error) {
+    // The one modeled condition this function exists to answer about, caught
+    // to answer it and nothing else: anything else thrown out of the width
+    // table is a fault and goes on up.
+    if (error instanceof UnknownColumnError) return false;
+    throw error;
+  }
 }
 
 /**
@@ -357,11 +480,10 @@ export function pinnedGeometryFor(
  * The narrowest the table can be laid out with these phases, all folded, in px
  * — the number the Phases dialog quotes before somebody adds another one.
  *
- * The phases' **real** ids, not a count. Every width resolves per column id
- * now, so a figure summed from stand-in ids would answer about columns that do
- * not exist while the table lays out the ones that do: `T1
- * column-widths-drag` stores a reader's override under the exact column id and
- * a `phase0-final` could never carry one.
+ * The phases' **real** ids, not a count. Every width resolves per column id, so
+ * a figure summed from stand-in ids would answer about columns that do not
+ * exist while the table lays out the ones that do: an override is stored under
+ * the exact column id and a `phase0-final` could never carry one.
  *
  * Every column in {@link FIXED_COLUMNS} is on screen in every state of this
  * table — the drag handle, the number, Depends on, the team, the total, the
