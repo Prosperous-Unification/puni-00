@@ -5,6 +5,7 @@ import { testAuthService } from '../testing/auth-fixture';
 import { testDirectoryService } from '../testing/directory-fixture';
 import { testProjectService } from '../testing/project-fixture';
 import { testReplay } from '../testing/replay-fixture';
+import { testRoleService } from '../testing/role-fixture';
 import { testWorkItemService } from '../testing/work-item-fixture';
 
 const TEST_SECRET = 'x'.repeat(32);
@@ -16,6 +17,7 @@ describe('POST /api/smoke/echo', () => {
       auth: testAuthService(),
       projects: testProjectService(),
       workItems: testWorkItemService(),
+      roles: testRoleService(),
       replay: testReplay().replay,
       probeDatabase: () => 'ok',
       internalAuthSecret: TEST_SECRET,
@@ -39,6 +41,7 @@ describe('POST /api/smoke/echo', () => {
       auth: testAuthService(),
       projects: testProjectService(),
       workItems: testWorkItemService(),
+      roles: testRoleService(),
       replay: testReplay().replay,
       probeDatabase: () => 'ok',
       internalAuthSecret: TEST_SECRET,

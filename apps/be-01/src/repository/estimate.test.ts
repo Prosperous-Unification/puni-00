@@ -59,8 +59,11 @@ beforeEach(async () => {
     createdAt: 1,
   });
   projectId = crypto.randomUUID();
-  devId = crypto.randomUUID();
-  qaId = crypto.randomUUID();
+  // Ids chosen so that sorting them disagrees with role order: `Dev` runs first
+  // and sorts last. Random UUIDs would agree by luck about half the time, and a
+  // read that fell back to the primary key's own order would pass on those runs.
+  devId = `z-dev-${crypto.randomUUID()}`;
+  qaId = `a-qa-${crypto.randomUUID()}`;
   const project: Project = {
     id: projectId,
     name: 'Rewire the shed',
@@ -72,8 +75,8 @@ beforeEach(async () => {
     createdAt: 1,
   };
   const roles: Role[] = [
-    { id: devId, projectId, name: 'Dev' },
-    { id: qaId, projectId, name: 'QA' },
+    { id: devId, projectId, name: 'Dev', position: 10 },
+    { id: qaId, projectId, name: 'QA', position: 20 },
   ];
   await new ProjectRepository(db).create(project, roles);
 
@@ -155,5 +158,32 @@ describe('EstimateRepository', () => {
     expect(await repo.listByProject(projectId)).toEqual([
       { workItemId: stripId, roleId: qaId, optimistic: 4, realistic: 5, pessimistic: 6 },
     ]);
+  });
+
+  it('reads a work item’s estimates in role order, not in the order the row ids happen to sort', async () => {
+    // The order is a contract because the schedule's adapter adds these up per
+    // work item, and floating-point addition is not associative: three roles
+    // summed in two orders can differ in the last bit, and a finish is read
+    // through `Math.ceil`, so that bit is a day on the screen. `Dev` runs first
+    // here and its id sorts last, so a read falling back to the primary key
+    // would hand back `QA` first.
+    await repo.set({
+      workItemId: stripId,
+      roleId: qaId,
+      optimistic: 4,
+      realistic: 5,
+      pessimistic: 6,
+    });
+    await repo.set({
+      workItemId: stripId,
+      roleId: devId,
+      optimistic: 1,
+      realistic: 2,
+      pessimistic: 3,
+    });
+
+    const held = await repo.listByProject(projectId);
+
+    expect(held.map((each) => each.roleId)).toEqual([devId, qaId]);
   });
 });

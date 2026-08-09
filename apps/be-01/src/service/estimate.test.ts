@@ -8,6 +8,7 @@ import { inMemoryDirectory } from '../testing/directory-fixture';
 import { inMemoryEstimates } from '../testing/estimate-fixture';
 import { inMemoryProjects } from '../testing/project-fixture';
 import { inMemoryWorkItems } from '../testing/work-item-fixture';
+import type { ProjectEvent } from './broadcast';
 import type { Days } from './roll-up';
 import { WorkItemService } from './work-item.service';
 
@@ -46,7 +47,12 @@ beforeEach(async () => {
     revision: 0,
     createdAt: 1,
   };
-  await projects.create(project, []);
+  // The two roles these cases estimate against. A project that held neither
+  // would refuse every write here, as production's foreign key does.
+  await projects.create(project, [
+    { id: DEV, projectId: project.id, name: 'Dev', position: 10 },
+    { id: QA, projectId: project.id, name: 'QA', position: 20 },
+  ]);
   projectId = project.id;
 });
 
@@ -71,6 +77,21 @@ async function shown(): Promise<Map<string, Record<string, Days>>> {
   const tree = await service.tree(projectId);
   if (tree === null) throw new Error('project vanished');
   return new Map(tree.workItems.map((w) => [w.name, w.estimates]));
+}
+
+/**
+ * The names an event carries, or a loud failure when it carries none.
+ *
+ * `ProjectEvent` also covers the role events, which carry a role rather than
+ * work items, so reading `workItems` off the union needs a narrowing — and a
+ * test that quietly read nothing would assert against an empty list.
+ */
+function namesIn(event: ProjectEvent | undefined): string[] {
+  if (event === undefined) throw new Error('nothing was published');
+  if (event.type !== 'work_items_changed' && event.type !== 'tree_replaced') {
+    throw new Error(`a ${event.type} event carries no work items`);
+  }
+  return event.workItems.map((each) => each.name);
 }
 
 describe('setting estimates', () => {
@@ -218,6 +239,6 @@ describe('clearing estimates', () => {
     const last = broadcast.published.at(-1);
     expect(last?.projectId).toBe(projectId);
     expect(last?.event.type).toBe('work_items_changed');
-    expect(last?.event.workItems.map((w) => w.name)).toEqual(['Sockets', 'Strip']);
+    expect(namesIn(last?.event)).toEqual(['Sockets', 'Strip']);
   });
 });

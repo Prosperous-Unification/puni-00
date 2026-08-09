@@ -11,11 +11,13 @@ import { DirectoryRepository } from '../repository/directory';
 import { EstimateRepository } from '../repository/estimate';
 import { runMigrations } from '../repository/migrate';
 import { ProjectRepository } from '../repository/project';
+import { RoleRepository } from '../repository/role';
 import { UserRepository } from '../repository/user';
 import { SubtreeRepository, WorkItemRepository } from '../repository/work-item';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { inMemoryCommandJournal } from '../testing/command-journal-fixture';
 import { ProjectService } from './project.service';
+import { RoleService } from './role.service';
 import { WorkItemService } from './work-item.service';
 
 /**
@@ -39,6 +41,7 @@ let dir: string;
 let path: string;
 let workItems: WorkItemService;
 let projects: ProjectService;
+let roleService: RoleService;
 let projectStore: ProjectRepository;
 let workItemStore: WorkItemRepository;
 let estimateStore: EstimateRepository;
@@ -76,6 +79,11 @@ beforeEach(async () => {
   });
 
   projects = new ProjectService({ projects: projectStore });
+  roleService = new RoleService({
+    projects: projectStore,
+    roles: new RoleRepository(db),
+    broadcast: recordingBroadcaster(),
+  });
   workItems = new WorkItemService({
     workItems: workItemStore,
     projects: projectStore,
@@ -476,6 +484,44 @@ describe('what a project write moves', () => {
     await projects.update(projectId, ownerId, { name: 'Renamed' });
 
     expect(await revisionOf(strip)).toBe(0);
+  });
+});
+
+describe('what a role write moves', () => {
+  it('moves the project on each role write, and no work item on an add or a rename', async () => {
+    const strip = await root('Strip');
+    await workItems.setEstimate(strip, ownerId, dev(), DAYS);
+    const estimated = await revisionOf(strip);
+
+    const added = await roleService.add(projectId, ownerId, 'Design');
+    if (!added.ok) throw new Error(`add refused: ${added.reason}`);
+    expect(await projectRevision()).toBe(1);
+
+    const renamed = await roleService.rename(projectId, added.result.id, ownerId, 'Drawing');
+    if (!renamed.ok) throw new Error(`rename refused: ${renamed.reason}`);
+    expect(await projectRevision()).toBe(2);
+
+    // A role arriving or being renamed writes nothing of any work item's: no
+    // stored field of theirs moved and no satellite of theirs was written, so a
+    // precondition on a row somebody is editing must survive it.
+    expect(await revisionOf(strip)).toBe(estimated);
+  });
+
+  it('moves the project and only the work items a removal emptied', async () => {
+    const strip = await root('Strip');
+    const sand = await root('Sand');
+    await workItems.setEstimate(strip, ownerId, dev(), DAYS);
+    const stripBefore = await revisionOf(strip);
+    const sandBefore = await revisionOf(sand);
+    const projectBefore = await projectRevision();
+
+    const removed = await roleService.remove(projectId, dev(), ownerId, true);
+    expect(removed).toEqual({ ok: true });
+
+    expect(await projectRevision()).toBe(projectBefore + 1);
+    expect(await revisionOf(strip)).toBe(stripBefore + 1);
+    // Held nothing of that role's, so nobody's reading of it changed.
+    expect(await revisionOf(sand)).toBe(sandBefore);
   });
 });
 

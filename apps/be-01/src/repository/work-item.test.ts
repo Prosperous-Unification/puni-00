@@ -57,7 +57,7 @@ beforeEach(async () => {
       revision: 0,
       createdAt: 1,
     },
-    [{ id: roleId, projectId, name: 'Dev' }],
+    [{ id: roleId, projectId, name: 'Dev', position: 10 }],
   );
   personId = (await directory.addPerson({ id: crypto.randomUUID(), name: 'Ada' }, [])).id;
 });

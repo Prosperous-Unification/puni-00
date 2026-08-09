@@ -6,6 +6,7 @@ import { authController } from './controller/auth.controller';
 import { directoryController } from './controller/directory.controller';
 import { internalController } from './controller/internal.controller';
 import { projectController } from './controller/project.controller';
+import { roleController } from './controller/role.controller';
 import { smokeController } from './controller/smoke.controller';
 import { workItemController } from './controller/work-item.controller';
 import type { DatabaseHealth } from './repository/health-probe';
@@ -13,6 +14,7 @@ import type { AuthService } from './service/auth.service';
 import type { DirectoryService } from './service/directory.service';
 import type { ProjectService } from './service/project.service';
 import type { ReplayOrchestrator } from './service/replay-orchestrator';
+import type { RoleService } from './service/role.service';
 import type { WorkItemService } from './service/work-item.service';
 
 export interface AppOptions {
@@ -31,6 +33,12 @@ export interface AppOptions {
   projects: ProjectService;
   /** Required for the same reason as `projects`. */
   workItems: WorkItemService;
+  /**
+   * Required for the same reason as `projects`, and for one more: a process
+   * built without it would answer 404 on every role route, which is exactly
+   * what a client asking a be-01 from before roles could be written sees.
+   */
+  roles: RoleService;
   directory: DirectoryService;
   /**
    * Shared secret gw-01 presents on /internal/*. Required — a default here
@@ -67,6 +75,7 @@ export function buildApp(opts: AppOptions) {
     .use(smokeController)
     .use(authController(opts.auth))
     .use(projectController(opts.auth, opts.projects))
+    .use(roleController(opts.auth, opts.roles))
     .use(workItemController(opts.auth, opts.workItems))
     .use(directoryController(opts.auth, opts.directory))
     .use(

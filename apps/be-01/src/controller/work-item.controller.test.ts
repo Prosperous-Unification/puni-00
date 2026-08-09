@@ -11,6 +11,7 @@ import { inMemoryDirectory, testDirectoryService } from '../testing/directory-fi
 import { inMemoryEstimates } from '../testing/estimate-fixture';
 import { inMemoryProjects } from '../testing/project-fixture';
 import { testReplay } from '../testing/replay-fixture';
+import { testRoleService } from '../testing/role-fixture';
 import { inMemorySubtrees } from '../testing/subtree-fixture';
 import { inMemoryWorkItems } from '../testing/work-item-fixture';
 
@@ -24,6 +25,7 @@ function buildHarness() {
     directory: testDirectoryService(),
     auth: testAuthService(inMemoryUsers()),
     projects: new ProjectService({ projects: projectStore }),
+    roles: testRoleService(projectStore),
     workItems: new WorkItemService({
       workItems: workItemStore,
       projects: projectStore,
@@ -79,8 +81,17 @@ async function setup() {
     method: 'POST',
     body: JSON.stringify({ name: 'Rewire the shed' }),
   });
-  const { project } = (await created.json()) as { project: { id: string } };
-  return { token, send, projectId: project.id };
+  const body = (await created.json()) as {
+    project: { id: string };
+    roles: { id: string; name: string }[];
+  };
+  // The seeded roles' real ids. Estimates and assignees are refused for a role
+  // the project does not hold, so a literal `role-dev` would be asserting
+  // against a write production answers 404 to.
+  const devId = body.roles.find((each) => each.name === 'Dev')?.id;
+  const qaId = body.roles.find((each) => each.name === 'QA')?.id;
+  if (devId === undefined || qaId === undefined) throw new Error('a project without its roles');
+  return { token, send, projectId: body.project.id, devId, qaId };
 }
 
 describe('work item routes', () => {
@@ -96,6 +107,50 @@ describe('work item routes', () => {
     const tree = await send(`/api/projects/${projectId}/work-items`, token);
     const body = (await tree.json()) as { workItems: { number: string; name: string }[] };
     expect(body.workItems.map((w) => [w.number, w.name])).toEqual([['010', 'Strip']]);
+  });
+
+  it('tells the reader how much of the plan is waiting for a person', async () => {
+    // The schedule header's "N tasks wait for a person" reads this. It rides on
+    // the tree because that is the read that happens after every change which
+    // could move it — and it has to leave be-01 to be of any use, which is what
+    // this asserts and the service tests cannot.
+    const { token, send, projectId, devId } = await setup();
+    const idOf = async (name: string): Promise<string> => {
+      const created = await send(`/api/projects/${projectId}/work-items`, token, {
+        method: 'POST',
+        body: JSON.stringify({ parentId: null, afterId: null, name }),
+      });
+      return ((await created.json()) as { id: string }).id;
+    };
+    const first = await idOf('Strip');
+    const second = await idOf('Sand');
+    for (const [id, days] of [
+      [first, 3],
+      [second, 2],
+    ] as const) {
+      await send(`/api/work-items/${id}/estimates/${devId}`, token, {
+        method: 'PUT',
+        body: JSON.stringify({ optimistic: days, realistic: days, pessimistic: days }),
+      });
+      await send(`/api/work-items/${id}/assignees/${devId}`, token, {
+        method: 'PUT',
+        body: JSON.stringify({ personId: 'ada' }),
+      });
+    }
+
+    const tree = await send(`/api/projects/${projectId}/work-items`, token);
+    const body = (await tree.json()) as {
+      waitingForPerson: number;
+      workItems: { name: string; schedule: { earliestStart: number } }[];
+    };
+
+    expect(body.waitingForPerson).toBe(1);
+    // In tree order, which is the reverse of the order they were added: each
+    // was created with no `afterId` and therefore in front of the other.
+    expect(body.workItems.map((w) => [w.name, w.schedule.earliestStart])).toEqual([
+      ['Sand', 3],
+      ['Strip', 0],
+    ]);
   });
 
   it('reports the sequence the tree was read at', async () => {
@@ -221,14 +276,14 @@ describe('work item routes', () => {
     // Called directly, so fe-01's copy of the schema is not in the path. This is
     // what proves the two tiers are independently guarded rather than be-01
     // trusting a client that shares its validation library.
-    const { token, send, projectId } = await setup();
+    const { token, send, projectId, devId } = await setup();
     const created = await send(`/api/projects/${projectId}/work-items`, token, {
       method: 'POST',
       body: JSON.stringify({ parentId: null, afterId: null, name: 'Strip' }),
     });
     const id = ((await created.json()) as { id: string }).id;
 
-    const res = await send(`/api/work-items/${id}/estimates/role-dev`, token, {
+    const res = await send(`/api/work-items/${id}/estimates/${devId}`, token, {
       method: 'PUT',
       body: JSON.stringify({ optimistic: 1, realistic: 5, pessimistic: 3 }),
     });
@@ -238,7 +293,7 @@ describe('work item routes', () => {
   });
 
   it('accepts an ordered estimate and rolls it into the parent', async () => {
-    const { token, send, projectId } = await setup();
+    const { token, send, projectId, devId } = await setup();
     const parent = await send(`/api/projects/${projectId}/work-items`, token, {
       method: 'POST',
       body: JSON.stringify({ parentId: null, afterId: null, name: 'Strip' }),
@@ -250,7 +305,7 @@ describe('work item routes', () => {
     });
     const childId = ((await child.json()) as { id: string }).id;
 
-    const res = await send(`/api/work-items/${childId}/estimates/role-dev`, token, {
+    const res = await send(`/api/work-items/${childId}/estimates/${devId}`, token, {
       method: 'PUT',
       body: JSON.stringify({ optimistic: 1, realistic: 2, pessimistic: 3 }),
     });
@@ -262,7 +317,7 @@ describe('work item routes', () => {
     };
     const strip = body.workItems.find((w) => w.name === 'Strip');
     expect(strip?.rolledUp).toBe(true);
-    expect(strip?.estimates['role-dev']).toEqual({
+    expect(strip?.estimates[devId]).toEqual({
       optimistic: 1,
       realistic: 2,
       pessimistic: 3,
@@ -279,7 +334,7 @@ describe('work item routes', () => {
 describe('clearing an estimate', () => {
   /** A leaf under a parent, with the parent's id, so a roll-up is observable. */
   async function parentAndTwoLeaves() {
-    const { token, send, projectId } = await setup();
+    const { token, send, projectId, devId, qaId } = await setup();
     const make = async (name: string, parentId: string | null): Promise<string> => {
       const res = await send(`/api/projects/${projectId}/work-items`, token, {
         method: 'POST',
@@ -290,7 +345,7 @@ describe('clearing an estimate', () => {
     const parentId = await make('Strip', null);
     const sockets = await make('Sockets', parentId);
     const boxes = await make('Back boxes', parentId);
-    return { token, send, projectId, parentId, sockets, boxes };
+    return { token, send, projectId, parentId, sockets, boxes, devId, qaId };
   }
 
   const estimatesOf = async (
@@ -310,35 +365,35 @@ describe('clearing an estimate', () => {
     // The same guard the PUT carries. Without the assertion on the tree
     // afterwards this would pass against a route that answered 401 *after*
     // having already cleared the row.
-    const { token, send, projectId, sockets } = await parentAndTwoLeaves();
-    await send(`/api/work-items/${sockets}/estimates/role-dev`, token, {
+    const { token, send, projectId, sockets, devId } = await parentAndTwoLeaves();
+    await send(`/api/work-items/${sockets}/estimates/${devId}`, token, {
       method: 'PUT',
       body: JSON.stringify({ optimistic: 1, realistic: 2, pessimistic: 3 }),
     });
 
-    const res = await send(`/api/work-items/${sockets}/estimates/role-dev`, 'not-a-token', {
+    const res = await send(`/api/work-items/${sockets}/estimates/${devId}`, 'not-a-token', {
       method: 'DELETE',
     });
 
     expect(res.status).toBe(401);
     expect(await estimatesOf(send, token, projectId, 'Sockets')).toEqual({
-      'role-dev': { optimistic: 1, realistic: 2, pessimistic: 3 },
+      [devId]: { optimistic: 1, realistic: 2, pessimistic: 3 },
     });
   });
 
   it('takes the trio out of the tree, and clearing it again is still a success', async () => {
-    const { token, send, projectId, sockets } = await parentAndTwoLeaves();
-    await send(`/api/work-items/${sockets}/estimates/role-dev`, token, {
+    const { token, send, projectId, sockets, devId } = await parentAndTwoLeaves();
+    await send(`/api/work-items/${sockets}/estimates/${devId}`, token, {
       method: 'PUT',
       body: JSON.stringify({ optimistic: 1, realistic: 2, pessimistic: 3 }),
     });
 
-    const first = await send(`/api/work-items/${sockets}/estimates/role-dev`, token, {
+    const first = await send(`/api/work-items/${sockets}/estimates/${devId}`, token, {
       method: 'DELETE',
     });
     // Idempotent on purpose: two browsers can empty the same three boxes, and
     // "it is already gone" is the state that was asked for, not a conflict.
-    const again = await send(`/api/work-items/${sockets}/estimates/role-dev`, token, {
+    const again = await send(`/api/work-items/${sockets}/estimates/${devId}`, token, {
       method: 'DELETE',
     });
 
@@ -347,18 +402,18 @@ describe('clearing an estimate', () => {
   });
 
   it('leaves the other role on the same work item alone', async () => {
-    const { token, send, projectId, sockets } = await parentAndTwoLeaves();
-    for (const roleId of ['role-dev', 'role-qa']) {
+    const { token, send, projectId, sockets, devId, qaId } = await parentAndTwoLeaves();
+    for (const roleId of [devId, qaId]) {
       await send(`/api/work-items/${sockets}/estimates/${roleId}`, token, {
         method: 'PUT',
         body: JSON.stringify({ optimistic: 1, realistic: 2, pessimistic: 3 }),
       });
     }
 
-    await send(`/api/work-items/${sockets}/estimates/role-dev`, token, { method: 'DELETE' });
+    await send(`/api/work-items/${sockets}/estimates/${devId}`, token, { method: 'DELETE' });
 
     expect(await estimatesOf(send, token, projectId, 'Sockets')).toEqual({
-      'role-qa': { optimistic: 1, realistic: 2, pessimistic: 3 },
+      [qaId]: { optimistic: 1, realistic: 2, pessimistic: 3 },
     });
   });
 
@@ -366,23 +421,23 @@ describe('clearing an estimate', () => {
     // Nothing is stored on the parent — it is summed on read — so this is the
     // test that says the sum actually re-read. Two leaves, not one: a parent
     // whose only estimate vanished would also satisfy "the figure changed".
-    const { token, send, projectId, sockets, boxes } = await parentAndTwoLeaves();
-    await send(`/api/work-items/${sockets}/estimates/role-dev`, token, {
+    const { token, send, projectId, sockets, boxes, devId } = await parentAndTwoLeaves();
+    await send(`/api/work-items/${sockets}/estimates/${devId}`, token, {
       method: 'PUT',
       body: JSON.stringify({ optimistic: 1, realistic: 2, pessimistic: 3 }),
     });
-    await send(`/api/work-items/${boxes}/estimates/role-dev`, token, {
+    await send(`/api/work-items/${boxes}/estimates/${devId}`, token, {
       method: 'PUT',
       body: JSON.stringify({ optimistic: 10, realistic: 20, pessimistic: 30 }),
     });
     expect(await estimatesOf(send, token, projectId, 'Strip')).toEqual({
-      'role-dev': { optimistic: 11, realistic: 22, pessimistic: 33 },
+      [devId]: { optimistic: 11, realistic: 22, pessimistic: 33 },
     });
 
-    await send(`/api/work-items/${sockets}/estimates/role-dev`, token, { method: 'DELETE' });
+    await send(`/api/work-items/${sockets}/estimates/${devId}`, token, { method: 'DELETE' });
 
     expect(await estimatesOf(send, token, projectId, 'Strip')).toEqual({
-      'role-dev': { optimistic: 10, realistic: 20, pessimistic: 30 },
+      [devId]: { optimistic: 10, realistic: 20, pessimistic: 30 },
     });
   });
 
@@ -391,8 +446,8 @@ describe('clearing an estimate', () => {
     // 404 of its own, so a status-only assertion here passed with the whole
     // DELETE route deleted — watched, and it is the reason this reads the body:
     // `{ error: 'not_found' }` can only have come from the handler.
-    const { token, send } = await parentAndTwoLeaves();
-    const res = await send(`/api/work-items/${crypto.randomUUID()}/estimates/role-dev`, token, {
+    const { token, send, devId } = await parentAndTwoLeaves();
+    const res = await send(`/api/work-items/${crypto.randomUUID()}/estimates/${devId}`, token, {
       method: 'DELETE',
     });
     expect(res.status).toBe(404);

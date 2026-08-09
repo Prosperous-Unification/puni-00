@@ -94,10 +94,9 @@ export const project = sqliteTable('project', {
    *
    * The project's own stored fields (name, restriction, estimate method, start
    * date) and its **satellites** move it. Its roles are a satellite: adding,
-   * renaming or removing one changes what every estimate in the project means.
-   * There is no write path for a role today beyond creating the project, so
-   * that half of the rule is stated rather than exercised — the first one added
-   * bumps this column, and `revision.test.ts` is where it will be asserted.
+   * renaming or removing one changes what every estimate in the project means,
+   * and each of the three moves this column inside the transaction that makes
+   * the change — see `RoleRepository`, asserted in `repository/role.test.ts`.
    *
    * A project's work items are **not** satellites of it. They are entities with
    * revisions of their own, and folding them in here would make this counter
@@ -228,7 +227,18 @@ export const workItem = sqliteTable(
 
 export type WorkItemRow = typeof workItem.$inferSelect;
 
-/** A kind of work a project estimates separately. Every project starts with `Dev` and `QA`. */
+/**
+ * A kind of work a project estimates separately. Every project starts with `Dev`
+ * and `QA`, which is a seed rather than the set it may hold: they can be
+ * renamed, removed, and joined by others through `RoleRepository`.
+ *
+ * `estimate.role_id` deliberately has **no** `onDelete` cascade while
+ * `assignment.role_id` does, and the difference is not an oversight. An
+ * estimate is somebody's typing and a removal must count it before taking it;
+ * the missing cascade is what makes a role delete that forgot to say so fail
+ * loudly instead of quietly emptying the plan. `RoleRepository.remove` deletes
+ * them explicitly, inside the transaction that removes the role.
+ */
 export const role = sqliteTable(
   'role',
   {
@@ -237,6 +247,27 @@ export const role = sqliteTable(
       .notNull()
       .references(() => project.id),
     name: text('name').notNull(),
+    /**
+     * Where this role sits in the project's role order, spaced in tens like
+     * {@link workItem}'s.
+     *
+     * The order is a contract now that the schedule runs a work item's slices
+     * in it, and it cannot be inferred: `WHERE project_id = ?` is answered from
+     * `role_project_name`, so a project's roles come back in **name** order
+     * unless a query says otherwise. `Dev, QA` only looks like the order they
+     * were seeded in.
+     *
+     * The default is what lets an outgoing release insert a role during a swap:
+     * its `INSERT` does not name this column, and blue and green share one
+     * file. Such a role lands first rather than last, which is a colour-swap
+     * window's worth of wrong order and not a lost row.
+     *
+     * Proof: with `DEFAULT 0` removed from the migration, `lets the outgoing
+     * release keep inserting roles against the migrated schema` fails on the
+     * old release's three-column `INSERT` with `NOT NULL constraint failed:
+     * role.position`; watched 2026-08-09.
+     */
+    position: integer('position').notNull().default(0),
   },
   (t) => [uniqueIndex('role_project_name').on(t.projectId, t.name)],
 );

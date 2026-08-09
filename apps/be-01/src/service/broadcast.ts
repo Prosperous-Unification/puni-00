@@ -1,19 +1,30 @@
+import type { Role } from '../repository';
 import type { NumberedWorkItem } from './work-item.service';
 
 /**
  * What subscribers to `project:<id>` receive.
  *
- * Two shapes rather than one because they cost differently. A cell edit touches
- * one work item and its ancestors' totals, and that is a small patch worth
- * computing. A structural change can renumber a large slice of the project —
- * every sibling after an insertion, every child of a repadded parent — and
- * working out the minimal set is fiddly code that would be wrong in rare cases.
- * A work breakdown is hundreds of rows and structural edits are rare, so sending
- * the tree is the cheaper mistake.
+ * Two shapes rather than one for the work items, because they cost differently.
+ * A cell edit touches one work item and its ancestors' totals, and that is a
+ * small patch worth computing. A structural change can renumber a large slice of
+ * the project — every sibling after an insertion, every child of a repadded
+ * parent — and working out the minimal set is fiddly code that would be wrong in
+ * rare cases. A work breakdown is hundreds of rows and structural edits are
+ * rare, so sending the tree is the cheaper mistake.
+ *
+ * The three role events carry the role and **not** the tree, even though
+ * removing one deletes estimates from it. A client reads the project's roles and
+ * its tree together — one refresh, both reads — so a role event says which fact
+ * moved and the client rereads both. Putting the tree in here would send a
+ * second copy of it that the reader would have to reconcile with the roles it
+ * has not read yet.
  */
 export type ProjectEvent =
   | { type: 'work_items_changed'; workItems: NumberedWorkItem[] }
-  | { type: 'tree_replaced'; workItems: NumberedWorkItem[] };
+  | { type: 'tree_replaced'; workItems: NumberedWorkItem[] }
+  | { type: 'role_added'; role: Role }
+  | { type: 'role_renamed'; role: Role }
+  | { type: 'role_removed'; roleId: string };
 
 /**
  * The subscription name carrying a project's edits.

@@ -21,6 +21,8 @@ const TEAMS = '20260806190000_add_teams_and_assignees';
 const REVISIONS = '20260807090000_add_revisions';
 // One table of its own, referencing `project` and `users`, so it reverses first.
 const JOURNAL = '20260807180000_add_command_journal';
+// A column on `role`, so like the revisions it appears in the order and nowhere else here.
+const ROLE_POSITION = '20260809090000_add_role_position';
 
 const WBS_TABLES = ['project', 'work_item', 'role', 'estimate'] as const;
 // Its own migration, reversed with the domain because it references `work_item`.
@@ -71,7 +73,17 @@ describe('the WBS domain migration', () => {
 
       const reversed = rollbackTo(db.path, FOLDER, USERS);
 
-      expect(reversed).toEqual([JOURNAL, REVISIONS, TEAMS, CAL, METHOD, ACCESS, DEPS, WBS]);
+      expect(reversed).toEqual([
+        ROLE_POSITION,
+        JOURNAL,
+        REVISIONS,
+        TEAMS,
+        CAL,
+        METHOD,
+        ACCESS,
+        DEPS,
+        WBS,
+      ]);
       for (const t of [...WBS_TABLES, ...DEPENDENCY_TABLES, ...ACCESS_TABLES, ...DIRECTORY_TABLES])
         expect(tables(db.path)).not.toContain(t);
       // Reversing the domain must not take the accounts with it: the two
@@ -79,6 +91,95 @@ describe('the WBS domain migration', () => {
       // leaves everyone still able to log in.
       expect(tables(db.path)).toContain('users');
       expect(tables(db.path)).toContain('examples');
+    } finally {
+      db.cleanup();
+    }
+  });
+});
+
+describe('the role position migration', () => {
+  it('gives roles already in the database the order they were written in', () => {
+    // The backfill, against rows that existed before the column did — which is
+    // every project on the live server and the only situation that `UPDATE` is
+    // for. Reached by rolling back to the migration before it, writing roles
+    // the way the previous release wrote them, and migrating forward again.
+    const db = tempDb();
+    try {
+      runMigrations(db.path, FOLDER);
+      rollbackTo(db.path, FOLDER, JOURNAL);
+      const before = openDatabase(db.path);
+      try {
+        before.run(
+          "INSERT INTO users (id, username, password_hash, created_at) VALUES ('u', 'owner', 'x', 1)",
+        );
+        before.run(
+          'INSERT INTO project (id, name, owner_id, restricted, estimate_method, start_date, revision, created_at)' +
+            " VALUES ('p', 'Rewire the shed', 'u', 0, 'pert', NULL, 0, 1)",
+        );
+        // Written in the order the seed writes them and deliberately not in the
+        // order their names sort: a backfill reading the index rather than the
+        // rowid would hand these back the other way round.
+        before.run("INSERT INTO role (id, project_id, name) VALUES ('r1', 'p', 'Zebra')");
+        before.run("INSERT INTO role (id, project_id, name) VALUES ('r2', 'p', 'Alpha')");
+      } finally {
+        before.close();
+      }
+
+      runMigrations(db.path, FOLDER);
+
+      const after = openDatabase(db.path);
+      try {
+        const rows = after
+          .query<
+            { id: string; position: number },
+            []
+          >('SELECT id, position FROM role ORDER BY position')
+          .all();
+        expect(rows.map((row) => row.id)).toEqual(['r1', 'r2']);
+        expect(rows[0]?.position).toBeLessThan(rows[1]?.position ?? 0);
+      } finally {
+        after.close();
+      }
+    } finally {
+      db.cleanup();
+    }
+  });
+
+  it('lets the outgoing release keep inserting roles against the migrated schema', () => {
+    // The half of a swap nothing else covers. be-01 blue and green share one
+    // SQLite file, green migrates while blue is still serving, and blue's
+    // `INSERT` names the three columns it was compiled against. Without the
+    // column's default that statement fails, and adding a role on the old
+    // colour answers 500 for the length of the swap.
+    //
+    // The statement is written out here rather than built through drizzle
+    // precisely because drizzle is the *new* release: the point is what the old
+    // one sends over the wire.
+    const db = tempDb();
+    try {
+      runMigrations(db.path, FOLDER);
+      const sqlite = openDatabase(db.path);
+      try {
+        sqlite.run(
+          "INSERT INTO users (id, username, password_hash, created_at) VALUES ('u', 'owner', 'x', 1)",
+        );
+        sqlite.run(
+          'INSERT INTO project (id, name, owner_id, restricted, estimate_method, start_date, revision, created_at)' +
+            " VALUES ('p', 'Rewire the shed', 'u', 0, 'pert', NULL, 0, 1)",
+        );
+
+        sqlite.run("INSERT INTO role (id, project_id, name) VALUES ('r1', 'p', 'Design')");
+
+        const written = sqlite
+          .query<{ position: number }, []>("SELECT position FROM role WHERE id = 'r1'")
+          .get();
+        // First rather than last, which is the one thing the default costs: a
+        // colour-swap window's worth of wrong order, against a row that would
+        // otherwise not exist at all.
+        expect(written?.position).toBe(0);
+      } finally {
+        sqlite.close();
+      }
     } finally {
       db.cleanup();
     }

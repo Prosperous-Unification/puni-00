@@ -7,6 +7,7 @@ import { DirectoryRepository } from './repository/directory';
 import { EstimateRepository } from './repository/estimate';
 import { DrizzleEventLogRepo } from './repository/event-log';
 import { ProjectRepository } from './repository/project';
+import { RoleRepository } from './repository/role';
 import { UserRepository } from './repository/user';
 import { SubtreeRepository, WorkItemRepository } from './repository/work-item';
 import { AuthService } from './service/auth.service';
@@ -18,6 +19,7 @@ import { PushClient } from './service/push-client';
 import { ReplayBuffer } from './service/replay-buffer';
 import { ReplayOrchestrator } from './service/replay-orchestrator';
 import { RetentionTimer } from './service/retention-timer';
+import { RoleService } from './service/role.service';
 import { WorkItemService } from './service/work-item.service';
 
 /**
@@ -43,6 +45,7 @@ export interface ServicesOptions {
 export interface BeServices {
   auth: AuthService;
   projects: ProjectService;
+  roles: RoleService;
   directory: DirectoryService;
   workItems: WorkItemService;
   replay: ReplayOrchestrator;
@@ -73,12 +76,34 @@ export function buildServices(opts: ServicesOptions): BeServices {
     maxAgeMs: REPLAY_BUFFER_MAX_AGE_MS,
   });
 
+  // One broadcaster for every service that changes a project, so a role event
+  // and a work item event share the project's sequence. Two would each count
+  // from their own zero, and a client resuming from a work item's sequence
+  // would be replayed role events it had already seen — or none at all.
+  const broadcast = new GatewayBroadcaster({
+    sequencer: new EventSequencer(eventLog),
+    buffer: replayBuffer,
+    push: new PushClient({ gwUrl: opts.gwUrl, secret: opts.internalAuthSecret }),
+    // The event is already in the durable log and the mutation already
+    // committed, so a client that reconnects still gets it on replay.
+    // Failing the request here would tell the caller their edit did not
+    // happen when it did.
+    onPushFailed: (err, subscription) => {
+      opts.logger.warn({ err, subscription }, 'project event recorded but not pushed');
+    },
+  });
+
   return {
     auth: new AuthService({
       users: new UserRepository(opts.db),
       jwtKey: opts.jwtKey,
     }),
     projects: new ProjectService({ projects: projectStore }),
+    roles: new RoleService({
+      projects: projectStore,
+      roles: new RoleRepository(opts.db),
+      broadcast,
+    }),
     directory: new DirectoryService({ directory: directoryStore }),
     workItems: new WorkItemService({
       workItems: new WorkItemRepository(opts.db),
@@ -92,18 +117,7 @@ export function buildServices(opts: ServicesOptions): BeServices {
       // The undo stack, on the server so it survives a reload — one per
       // account per project. See `command_journal` in `schema.ts`.
       journal: new CommandJournalRepository(opts.db),
-      broadcast: new GatewayBroadcaster({
-        sequencer: new EventSequencer(eventLog),
-        buffer: replayBuffer,
-        push: new PushClient({ gwUrl: opts.gwUrl, secret: opts.internalAuthSecret }),
-        // The event is already in the durable log and the mutation already
-        // committed, so a client that reconnects still gets it on replay.
-        // Failing the request here would tell the caller their edit did not
-        // happen when it did.
-        onPushFailed: (err, subscription) => {
-          opts.logger.warn({ err, subscription }, 'project event recorded but not pushed');
-        },
-      }),
+      broadcast,
     }),
     replay: new ReplayOrchestrator({ log: eventLog, buffer: replayBuffer }),
     retention: new RetentionTimer({

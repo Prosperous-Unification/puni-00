@@ -5,6 +5,7 @@ import { testAuthService } from './testing/auth-fixture';
 import { testDirectoryService } from './testing/directory-fixture';
 import { testProjectService } from './testing/project-fixture';
 import { testReplay } from './testing/replay-fixture';
+import { testRoleService } from './testing/role-fixture';
 import { testWorkItemService } from './testing/work-item-fixture';
 
 describe('migrate lifecycle', () => {
@@ -15,6 +16,7 @@ describe('migrate lifecycle', () => {
       auth: testAuthService(),
       projects: testProjectService(),
       workItems: testWorkItemService(),
+      roles: testRoleService(),
       replay: testReplay().replay,
       probeDatabase: () => 'ok',
       internalAuthSecret: 'x'.repeat(32),

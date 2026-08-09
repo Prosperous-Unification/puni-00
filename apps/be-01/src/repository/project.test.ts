@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { openDatabase, openDrizzle } from './db';
 import type { Project, Role } from './index';
+import { ROLE_POSITION_STEP } from './index';
 import { runMigrations } from './migrate';
 import { ProjectRepository } from './project';
 import { UserRepository } from './user';
@@ -49,7 +50,12 @@ function project(name: string, createdAt: number): Project {
 }
 
 function roles(projectId: string, ...names: string[]): Role[] {
-  return names.map((name) => ({ id: crypto.randomUUID(), projectId, name }));
+  return names.map((name, place) => ({
+    id: crypto.randomUUID(),
+    projectId,
+    name,
+    position: (place + 1) * ROLE_POSITION_STEP,
+  }));
 }
 
 /**

@@ -11,6 +11,7 @@ import { inMemoryDirectory, testDirectoryService } from '../testing/directory-fi
 import { inMemoryEstimates } from '../testing/estimate-fixture';
 import { inMemoryProjects } from '../testing/project-fixture';
 import { testReplay } from '../testing/replay-fixture';
+import { testRoleService } from '../testing/role-fixture';
 import { inMemoryWorkItems } from '../testing/work-item-fixture';
 
 function buildWorkItemService(projectStore: ReturnType<typeof inMemoryProjects>) {
@@ -46,6 +47,7 @@ function buildHarness() {
     auth,
     projects,
     workItems: buildWorkItemService(projectStore),
+    roles: testRoleService(projectStore),
     replay: testReplay().replay,
     probeDatabase: () => 'ok',
     internalAuthSecret: 'x'.repeat(32),

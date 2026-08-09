@@ -22,6 +22,7 @@ import type {
   WorkItemPatch,
   WorkItemStore,
 } from '../repository';
+import { assumedAssignee } from './assumed-assignee';
 import type { Broadcaster } from './broadcast';
 import { withAncestors } from './broadcast';
 import {
@@ -38,7 +39,7 @@ import { deriveNumbers } from './derive-numbers';
 import { placeAfter, POSITION_STEP, type Sibling } from './place-sibling';
 import { canEdit } from './project.service';
 import { type Days, rollUp } from './roll-up';
-import { schedule, ScheduleCycleError, type Scheduled } from './schedule';
+import { schedule, ScheduleCycleError, type Scheduled, type Slice, sliceKey } from './schedule';
 
 /**
  * What a work item shows before any schedule could be computed for it.
@@ -60,49 +61,103 @@ const UNSCHEDULED: Scheduled = {
 };
 
 /**
- * Planning days per leaf: every role's final figure, summed.
+ * The project's plan as slices: one per leaf and role, in role order.
  *
- * Summing assumes the roles run one after another — Dev finishes, then QA
- * starts. That is the common case and the conservative one; a team that runs
- * them together sees a schedule slightly longer than reality, which is the
- * harmless direction for a plan. Modelling it properly needs to know who does
- * what and when, which needs assignees, which this does not have.
+ * The order is the project's, and it is the order the work runs in — Dev
+ * finishes, then QA starts. That was an assumption written as a sum until this
+ * change; it is now an edge, and the schedule can say when each role's part of
+ * a work item happens rather than only when the whole of it does.
  *
- * A leaf with no estimate is **absent** from the map rather than zero, which is
- * what lets the schedule report it as unestimated instead of instant.
+ * A pair nobody has estimated carries `null` rather than zero, which is what
+ * lets the schedule report it as unestimated instead of instant. Every leaf
+ * gets a slice for every role even so, because an unestimated `Dev` in front of
+ * an estimated `QA` is what hands `QA` the work item's predecessors.
+ *
+ * Two shapes the project's own role list does not cover:
+ *
+ * - **No roles at all.** Reachable — a project's last role can be removed. Each
+ *   leaf gets one slice belonging to nobody, so the plan still schedules
+ *   instead of losing every row that a neighbour depends on.
+ * - **An estimate naming a role the project does not hold.** Not reachable
+ *   through the API — every write that names a role is refused with
+ *   `unknown_role`, and `estimate.role_id` is a foreign key — but the days are
+ *   somebody's typing and they already count towards today's duration. They are
+ *   kept, in a slice after the roles the project does hold, rather than dropped
+ *   silently or thrown over the whole project's read.
  */
-function durationsOf(
+function slicesOf(
   rows: readonly WorkItem[],
   estimates: readonly StoredEstimate[],
   hasChildren: ReadonlySet<string>,
+  roleIds: readonly string[],
   method: EstimateMethod,
-): Map<string, number> {
-  const durations = new Map<string, number>();
+  /**
+   * Each work item's assignees by role, from which every slice's person is
+   * read.
+   *
+   * The planner takes the person per slice and never derives one, so this is
+   * the only place the assumed assignee becomes a queue: a work item with one
+   * named person carries them on **every** slice, which is what "when just one
+   * is assigned it is assumed they do both" means once time is involved.
+   */
+  assigneesOf: ReadonlyMap<string, Record<string, string>>,
+): Slice[] {
+  const inProject = new Set(rows.map((row) => row.id));
+  const held = new Set(roleIds);
+  const days = new Map<string, number>();
+  const unlisted = new Set<string>();
   for (const estimate of estimates) {
     if (hasChildren.has(estimate.workItemId)) continue;
-    if (!rows.some((row) => row.id === estimate.workItemId)) continue;
-    durations.set(
-      estimate.workItemId,
-      (durations.get(estimate.workItemId) ?? 0) + finalDays(estimate, method),
-    );
+    if (!inProject.has(estimate.workItemId)) continue;
+    days.set(sliceKey(estimate.workItemId, estimate.roleId), finalDays(estimate, method));
+    if (!held.has(estimate.roleId)) unlisted.add(estimate.roleId);
   }
-  return durations;
+
+  const order = [...roleIds, ...[...unlisted].sort()];
+  const slices: Slice[] = [];
+  for (const row of rows) {
+    if (hasChildren.has(row.id)) continue;
+    const byRole = assigneesOf.get(row.id) ?? {};
+    // The role's own assignee, or — when exactly one role is named — the person
+    // that one assignment is read as covering the lot. {@link assumedAssignee}
+    // is that reading, shared with the tree's `doesEveryPhase` and with the
+    // role removal that has to say whose answer it would change.
+    //
+    // Proof: the fallback dropped, so that only named assignments queue, and
+    // `queues every phase of a work item its one assignee is assumed to be
+    // doing` failed — the work item finished on day 3 with its `QA` running
+    // while its own assignee was on somebody else's `Dev`; watched 2026-08-09.
+    const personFor = (roleId: string | null): string | null =>
+      (roleId === null ? undefined : byRole[roleId]) ?? assumedAssignee(byRole);
+    if (order.length === 0) {
+      slices.push({ workItemId: row.id, roleId: null, days: null, personId: personFor(null) });
+      continue;
+    }
+    for (const roleId of order) {
+      slices.push({
+        workItemId: row.id,
+        roleId,
+        days: days.get(sliceKey(row.id, roleId)) ?? null,
+        personId: personFor(roleId),
+      });
+    }
+  }
+  return slices;
 }
 
 /**
  * A row's assignees, and who — if anyone — is assumed to be doing every phase.
  *
- * Exactly one assignee means that person does the lot; two or more means each
- * is doing their own, and none means nobody has been named. Reading it from
- * the assignments rather than storing it keeps one fact in one place: assign
- * the second role and the assumption ends by itself.
+ * The reading itself is {@link assumedAssignee}, shared with the role removal
+ * that has to say whose answer it would change. Written out twice, the two
+ * would drift, and the drift would show up as a confirmation naming the wrong
+ * people.
  */
 function phasesOf(assignees: Record<string, string>): {
   assignees: Record<string, string>;
   doesEveryPhase: string | null;
 } {
-  const named = Object.values(assignees);
-  return { assignees, doesEveryPhase: named.length === 1 ? (named[0] ?? null) : null };
+  return { assignees, doesEveryPhase: assumedAssignee(assignees) };
 }
 
 /**
@@ -253,7 +308,14 @@ export type WorkItemRefusal =
   /** A dependency onto the work item's own ancestor, descendant, or itself. */
   | 'ancestor'
   /** A subtree past {@link MAX_DUPLICATED_ROWS}. */
-  | 'too_large';
+  | 'too_large'
+  /**
+   * A role the project does not hold — usually one somebody removed while this
+   * caller had it on screen. `estimate.role_id` and `assignment.role_id` are
+   * foreign keys, so without this the write reaches the database and answers
+   * 500 for a request whose only fault is being out of date.
+   */
+  | 'unknown_role';
 
 export type WorkItemOutcome<T> = { ok: true; result: T } | { ok: false; reason: WorkItemRefusal };
 
@@ -463,6 +525,16 @@ export class WorkItemService {
     workItems: NumberedWorkItem[];
     seq: number;
     scheduleError: ScheduleError;
+    /**
+     * How many work items hold a slice a person is the reason for — the
+     * schedule header's "N tasks wait for a person".
+     *
+     * A count rather than the slices themselves: what the reader is told here
+     * is that people are the constraint and how much of the plan they hold up.
+     * Which slice waits for whom is a Gantt bar, and it leaves through the
+     * planner's own output when that is drawn.
+     */
+    waitingForPerson: number;
     estimateMethod: EstimateMethod;
     startDate: IsoDate | null;
     /**
@@ -495,7 +567,17 @@ export class WorkItemService {
     // still work: the rows are there, and a plan nobody can open is worse than
     // one with no dates in it. The dates go, the rows stay, and the reason is
     // reported rather than left as a page of zeroes.
-    const durations = durationsOf(rows, stored, hasChildren, project.estimateMethod);
+    // Role order comes from the project, because the order the roles are read
+    // in is the order the work runs in — see `ProjectRepository.rolesOf`.
+    const roles = await this.opts.projects.rolesOf(projectId);
+    const slices = slicesOf(
+      rows,
+      stored,
+      hasChildren,
+      roles.map((each) => each.id),
+      project.estimateMethod,
+      assigneesOf,
+    );
     // A manual date becomes an offset before the pass, and offsets become dates
     // after it: the schedule itself never sees a calendar, so weekends are
     // counted in exactly one place. Without a project start date there is
@@ -510,12 +592,25 @@ export class WorkItemService {
     }
     let timing = new Map<string, Scheduled>();
     let scheduleError: ScheduleError = null;
+    /**
+     * How many work items are waiting for a person rather than for the plan.
+     *
+     * Zero when there is no schedule at all, which is honest rather than
+     * convenient: a plan that could not be computed has nobody queueing in it,
+     * and the banner about the cycle is what that reader needs.
+     */
+    let waitingForPerson = 0;
     try {
-      timing = schedule(rows, edges, durations, notBefore);
+      // The projection, not the slices: what a row shows is its own span. The
+      // count beside it is the one fact about the slices a reader is told —
+      // the Gantt is what will draw the rest of them.
+      const planned = schedule(rows, edges, slices, notBefore);
+      timing = planned.workItems;
+      waitingForPerson = planned.waitingForPerson;
     } catch (err) {
       // Only the modeled failure. An unqualified catch here turned every
       // exception in this block — a stack overflow on a pathological tree, a
-      // future mistake in `durationsOf` — into "your dependencies run in a
+      // future mistake in `slicesOf` — into "your dependencies run in a
       // circle", which is a lie told confidently. R5: unknown is not OK.
       if (!(err instanceof ScheduleCycleError)) throw err;
       scheduleError = 'cycle';
@@ -556,6 +651,7 @@ export class WorkItemService {
       workItems,
       seq,
       scheduleError,
+      waitingForPerson,
       estimateMethod: project.estimateMethod,
       startDate: project.startDate,
       projectRevision: project.revision,
@@ -700,6 +796,8 @@ export class WorkItemService {
     const context = await this.contextFor(id, actorId);
     if (!context.ok) return context;
     const { workItem } = context.result;
+    if (!(await this.holdsRole(workItem.projectId, roleId)))
+      return { ok: false, reason: 'unknown_role' };
     const before =
       (await this.opts.directory.assignmentsOf([id])).find((each) => each.roleId === roleId)
         ?.personId ?? null;
@@ -1183,6 +1281,8 @@ export class WorkItemService {
     if (!context.ok) return context;
     const { rows, workItem } = context.result;
     if (rows.some((row) => row.parentId === id)) return { ok: false, reason: 'rolled_up' };
+    if (!(await this.holdsRole(workItem.projectId, roleId)))
+      return { ok: false, reason: 'unknown_role' };
     const before = await this.storedTrio(workItem.projectId, id, roleId);
     await this.opts.estimates.set({ workItemId: id, roleId, ...days });
     await this.announceWorkItem(workItem.projectId, id);
@@ -1530,6 +1630,13 @@ export class WorkItemService {
         if (rows.some((row) => row.parentId === command.workItemId)) {
           return { ok: false, detail: 'that work item has children now, so its figures are sums' };
         }
+        // The phase the trio belonged to has been removed since. Putting the
+        // figures back would be a foreign key error on a key somebody pressed
+        // to be safe, so the entry is refused and discarded like any other
+        // command the plan has moved past.
+        if (!(await this.holdsRole(projectId, command.roleId))) {
+          return { ok: false, detail: 'that phase is no longer in this project' };
+        }
         await this.opts.estimates.set({
           workItemId: command.workItemId,
           roleId: command.roleId,
@@ -1541,6 +1648,9 @@ export class WorkItemService {
         await this.opts.estimates.remove(command.workItemId, command.roleId);
         return { ok: true, detail: null };
       case 'assign':
+        if (command.personId !== null && !(await this.holdsRole(projectId, command.roleId))) {
+          return { ok: false, detail: 'that phase is no longer in this project' };
+        }
         await this.opts.directory.assign(command.workItemId, command.roleId, command.personId);
         return { ok: true, detail: null };
       case 'add_dependency': {
@@ -1756,6 +1866,24 @@ export class WorkItemService {
       },
       createdAt: this.now(),
     });
+  }
+
+  /**
+   * Whether the project still holds this role.
+   *
+   * Asked on every write that names one, because a role can be removed while a
+   * client has it on screen — and both `estimate` and `assignment` reference it
+   * by foreign key. Reading the project's roles rather than taking a role store
+   * of its own: the answer is one column of a list this service already reads.
+   *
+   * Proof: with both calls removed, `refuses an estimate and an assignee for a
+   * role that has gone, rather than 500ing` fails with two 500s, and `leaves an
+   * undo whose role has gone refusing as stale, not writing` 500s too; watched
+   * 2026-08-08.
+   */
+  private async holdsRole(projectId: string, roleId: string): Promise<boolean> {
+    const roles = await this.opts.projects.rolesOf(projectId);
+    return roles.some((each) => each.id === roleId);
   }
 
   /** One work item's stored trio for one role, or null when it holds none. */

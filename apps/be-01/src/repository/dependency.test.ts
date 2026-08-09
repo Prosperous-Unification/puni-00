@@ -47,7 +47,7 @@ beforeEach(async () => {
       revision: 0,
       createdAt: 1,
     },
-    [{ id: crypto.randomUUID(), projectId, name: 'Dev' }],
+    [{ id: crypto.randomUUID(), projectId, name: 'Dev', position: 10 }],
   );
 });
 

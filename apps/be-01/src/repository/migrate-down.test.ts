@@ -28,6 +28,9 @@ const TEAMS = '20260806190000_add_teams_and_assignees';
 const REVISIONS = '20260807090000_add_revisions';
 // One table of its own, so it reverses ahead of the domain it references.
 const JOURNAL = '20260807180000_add_command_journal';
+// A column on `role`, so like the revisions it appears in the order and in
+// nothing else this file checks.
+const ROLE_POSITION = '20260809090000_add_role_position';
 
 function tempDb(): { path: string; cleanup: () => void } {
   const dir = mkdtempSync(join(tmpdir(), 'wbs-migrate-down-'));
@@ -108,6 +111,7 @@ describe('readMigrationFolders', () => {
       TEAMS,
       REVISIONS,
       JOURNAL,
+      ROLE_POSITION,
     ]);
     for (const f of folders) expect(f.downSql.trim()).not.toBe('');
   });
@@ -142,11 +146,23 @@ describe('rollbackTo, against a real database', () => {
         TEAMS,
         REVISIONS,
         JOURNAL,
+        ROLE_POSITION,
       ]);
 
       const reversed = rollbackTo(db.path, FOLDER, INIT);
 
-      expect(reversed).toEqual([JOURNAL, REVISIONS, TEAMS, CAL, METHOD, ACCESS, DEPS, WBS, USERS]);
+      expect(reversed).toEqual([
+        ROLE_POSITION,
+        JOURNAL,
+        REVISIONS,
+        TEAMS,
+        CAL,
+        METHOD,
+        ACCESS,
+        DEPS,
+        WBS,
+        USERS,
+      ]);
       expect(tables(db.path)).not.toContain('users');
       // The earlier migration's tables are untouched, which is the difference
       // between a rollback and a reset.
@@ -179,6 +195,7 @@ describe('rollbackTo, against a real database', () => {
         TEAMS,
         REVISIONS,
         JOURNAL,
+        ROLE_POSITION,
       ]);
     } finally {
       db.cleanup();
@@ -192,6 +209,7 @@ describe('rollbackTo, against a real database', () => {
       const reversed = rollbackTo(db.path, FOLDER, ROLLBACK_ALL);
 
       expect(reversed).toEqual([
+        ROLE_POSITION,
         JOURNAL,
         REVISIONS,
         TEAMS,
@@ -225,7 +243,7 @@ describe('rollbackTo, against a real database', () => {
     const db = tempDb();
     try {
       runMigrations(db.path, FOLDER);
-      expect(rollbackTo(db.path, FOLDER, JOURNAL)).toEqual([]);
+      expect(rollbackTo(db.path, FOLDER, ROLE_POSITION)).toEqual([]);
       expect(tables(db.path)).toContain('users');
     } finally {
       db.cleanup();
