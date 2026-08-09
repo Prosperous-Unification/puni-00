@@ -1,4 +1,5 @@
-import type { CellElement } from './editable-grid';
+import type { CellRef } from './cell-navigation';
+import { aListIsOpenIn, type CellElement, cellIn, cellKey, focusedCellKey } from './editable-grid';
 
 /**
  * What became of an edit a cell sent.
@@ -407,5 +408,139 @@ export class LiveField {
     // the `sent = null` a refusal performs is a microtask away at the earliest.
     this.sent = { typed: text, baseline, landing };
     return landing;
+  }
+}
+
+/**
+ * Where a structural edit has asked the focus to go once the refetched tree is
+ * on screen, and whether it is still entitled to go there.
+ *
+ * A cell **and a column**, because a row moved from an estimate box has to come
+ * back under the same box. Creating and deleting rows name the Name column,
+ * because that is where typing continues.
+ *
+ * Two consumers, one rule between them. The Name cell claims its own arrival as
+ * it attaches ({@link landOnAttached}), which is the only way to win the race a
+ * newly created row has; every other column is landed on from the committed DOM
+ * once the tree that holds it is rendered ({@link land}). Both ask the same
+ * question first, and it is the interesting one — see {@link isStale}.
+ *
+ * Here rather than in `WbsTable` because a card renderer has the same problem:
+ * a create is a request and a refetch, and something has to put the caret back
+ * in the row that arrived.
+ */
+export class FocusIntent {
+  private wanted: CellRef | null = null;
+  /**
+   * The cell the command now running was issued from, or null when it came
+   * from a button rather than from the grid.
+   *
+   * Written by {@link commandIssued} at the synchronous moment the gesture
+   * happened — not where {@link wants} is called, because that happens once the
+   * request has been answered, which is the far side of the window this exists
+   * to measure.
+   */
+  private issuedFrom: string | null = null;
+
+  /** Records where the command about to run was issued from. */
+  commandIssued(): void {
+    this.issuedFrom = focusedCellKey();
+  }
+
+  /** Asks for the focus to land in `cell`, or drops a pending intent with null. */
+  wants(cell: CellRef | null): void {
+    this.wanted = cell;
+  }
+
+  /**
+   * Whether the pending intent has been overtaken by the person using the
+   * grid, and so must not fire.
+   *
+   * A structural edit is a request and a refetch, and the reader is free to do
+   * something else in between. Two of those somethings make the focus move a
+   * theft rather than a service, and both were observed on 2026-08-09: the
+   * caret was pulled out of a folded cell with an open `@` list mid-burst, the
+   * list closed with it, and the keys still coming landed in an ordinary cell
+   * and made a row.
+   *
+   * - **A list is open.** Whatever it is attached to, it owns the keyboard
+   *   until Escape gives it back, and moving the focus closes it.
+   * - **The focus is in a different cell from the one the command came from.**
+   *   That is the fact that separates the wanted steals from this one: after
+   *   Ctrl+N, Alt+N, Cmd+Enter, Duplicate or Delete the reader is still in the
+   *   cell they pressed it in — or on the ⋯ button, which is no cell at all
+   *   and reads as "leave it alone", not as "somewhere else".
+   *
+   * Conservative on purpose: with nothing focused, or the focus already in the
+   * cell the intent names, the intent stands.
+   */
+  private isStale(wanted: CellRef, grid: HTMLElement | null): boolean {
+    if (grid !== null && aListIsOpenIn(grid)) return true;
+    const standingIn = focusedCellKey();
+    if (standingIn === null || standingIn === this.issuedFrom) return false;
+    return standingIn !== cellKey(wanted.rowId, wanted.columnId);
+  }
+
+  /**
+   * Lands the focus on the cell the intent names, once the tree that holds it
+   * is on screen.
+   *
+   * Read from the committed DOM rather than from the render that asked for it:
+   * a move is a request and a refetch, and the row it names does not exist in
+   * the renderer's DOM until the refetched tree renders. A browser drops the
+   * focus when React reorders the rows — the node is detached and reinserted —
+   * so this is what puts it back, in the column the person was working in.
+   *
+   * The intent is cleared only once the cell is actually found. A refresh from
+   * somebody else's edit can land between the request and its own refetch, and
+   * clearing on that render would drop the focus on the floor rather than
+   * carrying it to the tree that arrives next.
+   */
+  land(grid: HTMLElement | null): void {
+    const wanted = this.wanted;
+    if (wanted === null || grid === null) return;
+    // Cancelled rather than left pending: the reader has moved on, so this
+    // intent is not waiting for a tree that has yet to arrive — it is over.
+    // Proof: this dropped here and in {@link landOnAttached}, `a late create
+    // does not take the focus back off a cell somebody moved to` failed on
+    // `expected <textarea …> to be <input …>`. Watched, 2026-08-09.
+    if (this.isStale(wanted, grid)) {
+      this.wanted = null;
+      return;
+    }
+    const arrived = cellIn(grid, wanted);
+    if (arrived === undefined) return;
+    this.wanted = null;
+    // Proof: left as a lookup that focuses nothing, both `lands in the same
+    // column…` tests failed with the focus on the body. That is only visible
+    // because those tests drop the focus first, the way a browser does — jsdom
+    // keeps it on a node React moves, so without that the check could not fail.
+    // Watched, 2026-08-06.
+    arrived.focus();
+  }
+
+  /**
+   * Lands the focus on a box that is attaching right now, when the intent names
+   * exactly its cell.
+   *
+   * The Name cell's arrival, and the reason it cannot wait for {@link land}:
+   * this runs during the commit that brings the row in, so it wins the race
+   * against the effect — and a later render arriving before the row does would
+   * otherwise take the focus with it. Enter-Enter-Enter depends on not losing
+   * that race.
+   *
+   * The staleness question is asked here as well as there for the same reason:
+   * winning the race means this would land the focus before the effect could
+   * refuse it.
+   */
+  landOnAttached(node: CellElement, cell: CellRef, grid: HTMLElement | null): void {
+    const wanted = this.wanted;
+    if (wanted?.rowId !== cell.rowId || wanted.columnId !== cell.columnId) return;
+    if (this.isStale(wanted, grid)) {
+      this.wanted = null;
+      return;
+    }
+    this.wanted = null;
+    node.focus();
   }
 }

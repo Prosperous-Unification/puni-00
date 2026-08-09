@@ -28,14 +28,12 @@ import { pickerEntries, type PickerEntry } from './dep-picker';
 import { parseDependencies, unknownMessage } from './depends-input';
 import { type DropRefusal, type DropZone, planMove, zoneFor } from './drag-drop';
 import {
-  aListIsOpenIn,
   type CellElement,
   cellIn,
   cellKey,
   editableGrid,
   focusAdjacentCell,
   focusCellAt,
-  focusedCellKey,
   gridOf,
   isCellElement,
 } from './editable-grid';
@@ -50,7 +48,13 @@ import {
 } from './estimate-draft';
 import { type Command, commandChordIn, undoChord } from './keyboard-bindings';
 import { KeyboardCheatSheet, opensCheatSheet } from './keyboard-cheat-sheet';
-import { type CommitOutcome, flushCell, forgetRefusedDrafts, unsent } from './live-editing';
+import {
+  type CommitOutcome,
+  flushCell,
+  FocusIntent,
+  forgetRefusedDrafts,
+  unsent,
+} from './live-editing';
 import { splitMention } from './mention';
 import { composeNameCell, normalizeNewlines, splitNameCell } from './name-notes';
 import { NotesPreview } from './notes-preview';
@@ -816,28 +820,13 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    */
   const commandInFlight = useRef(false);
   /**
-   * The cell a structural edit asked the focus to land in once the refetched
-   * tree is on screen — a row **and a column**, because a row moved from an
-   * estimate box has to come back under the same box.
+   * Where a structural edit has asked the focus to go once its refetch lands.
    *
-   * Two consumers, one rule between them. The Name cell claims its own arrival
-   * in `onAttach`, which is the only way to win the race a newly created row
-   * has (see the comment there); every other column is focused by the effect
-   * below, from the committed DOM, once the tree it names is rendered. Creating
-   * and deleting rows still name the Name column, because that is where typing
-   * continues.
+   * A ref holding one object for the life of the component, so the two things
+   * that read it — the effect below and the Name cell's `onAttach` — are
+   * talking about the same intent whichever render they were built in.
    */
-  const focusNext = useRef<CellRef | null>(null);
-  /**
-   * The cell the command now running was issued from, or null when it came
-   * from a button rather than from the grid.
-   *
-   * Written at the top of {@link run}, which is the synchronous moment the
-   * gesture happened — not where {@link focusNext} is written, because that
-   * happens once the request has been answered, which is the far side of the
-   * window this exists to measure. {@link focusIntentIsStale} reads it.
-   */
-  const commandFrom = useRef<string | null>(null);
+  const focusIntent = useRef(new FocusIntent());
   /**
    * Where the readiness walk has got to: the leaf it last put the focus in,
    * and the cell it asked for.
@@ -1091,74 +1080,12 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     setDropHint(null);
   }, [workItems, pushToast]);
 
-  /**
-   * Whether a pending {@link focusNext} has been overtaken by the person using
-   * the table, and so must not fire.
-   *
-   * A structural edit is a request and a refetch, and the reader is free to do
-   * something else in between. Two of those somethings make the focus move a
-   * theft rather than a service, and both were observed on 2026-08-09: the
-   * caret was pulled out of a folded cell with an open `@` list mid-burst, the
-   * list closed with it, and the keys still coming landed in an ordinary cell
-   * and made a row.
-   *
-   * - **A list is open.** Whatever it is attached to, it owns the keyboard
-   *   until Escape gives it back, and moving the focus closes it.
-   * - **The focus is in a different cell from the one the command came from.**
-   *   That is the fact that separates the wanted steals from this one: after
-   *   Ctrl+N, Alt+N, Cmd+Enter, Duplicate or Delete the reader is still in the
-   *   cell they pressed it in — or on the ⋯ button, which is no cell at all
-   *   and reads as "leave it alone", not as "somewhere else".
-   *
-   * Conservative on purpose: with nothing focused, or the focus already in the
-   * cell the intent names, the intent stands.
-   */
-  const focusIntentIsStale = useCallback((wanted: CellRef): boolean => {
-    const grid = gridElement.current;
-    if (grid !== null && aListIsOpenIn(grid)) return true;
-    const standingIn = focusedCellKey();
-    if (standingIn === null || standingIn === commandFrom.current) return false;
-    return standingIn !== cellKey(wanted.rowId, wanted.columnId);
-  }, []);
-
-  /**
-   * Lands the focus on the cell {@link focusNext} names, once the tree that
-   * holds it is on screen.
-   *
-   * Read from the committed DOM rather than from the render that asked for it:
-   * a move is a request and a refetch, and the row it names does not exist in
-   * this component's DOM until the refetched tree renders. A browser drops the
-   * focus when React reorders the rows — the node is detached and reinserted —
-   * so this is what puts it back, in the column the person was working in.
-   *
-   * The intent is cleared only once the cell is actually found. A refresh from
-   * somebody else's edit can land between the request and its own refetch, and
-   * clearing on that render would drop the focus on the floor rather than
-   * carrying it to the tree that arrives next.
-   */
+  // The whole of what this does, and every reason it is shaped this way, is
+  // {@link FocusIntent.land}. It fires on the tree because that is the render
+  // that can have brought the row the intent names into the DOM.
   useEffect(() => {
-    const wanted = focusNext.current;
-    const grid = gridElement.current;
-    if (wanted === null || grid === null) return;
-    // Cancelled rather than left pending: the reader has moved on, so this
-    // intent is not waiting for a tree that has yet to arrive — it is over.
-    // Proof: this dropped here and in the Name cell's `onAttach`, `a late
-    // create does not take the focus back off a cell somebody moved to` failed
-    // on `expected <textarea …> to be <input …>`. Watched, 2026-08-09.
-    if (focusIntentIsStale(wanted)) {
-      focusNext.current = null;
-      return;
-    }
-    const arrived = cellIn(grid, wanted);
-    if (arrived === undefined) return;
-    focusNext.current = null;
-    // Proof: left as a lookup that focuses nothing, both `lands in the same
-    // column…` tests failed with the focus on the body. That is only visible
-    // because those tests drop the focus first, the way a browser does — jsdom
-    // keeps it on a node React moves, so without that the check could not fail.
-    // Watched, 2026-08-06.
-    arrived.focus();
-  }, [workItems, focusIntentIsStale]);
+    focusIntent.current.land(gridElement.current);
+  }, [workItems]);
 
   /**
    * One edit: send it, then reread the tree.
@@ -1193,10 +1120,10 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
   const run = useCallback(
     async (action: () => Promise<void>): Promise<CommitOutcome> => {
       // Read here, synchronously, because this is the moment the gesture
-      // happened. {@link focusIntentIsStale} compares it against where the
-      // focus is when the refetch lands, and everything between the two is the
-      // window in which the reader may have gone somewhere else.
-      commandFrom.current = focusedCellKey();
+      // happened. The intent compares it against where the focus is when the
+      // refetch lands, and everything between the two is the window in which
+      // the reader may have gone somewhere else.
+      focusIntent.current.commandIssued();
       setBusy(true);
       try {
         try {
@@ -1682,7 +1609,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
           afterId: after.id,
           name: '',
         });
-        focusNext.current = { rowId: created.id, columnId: 'name' };
+        focusIntent.current.wants({ rowId: created.id, columnId: 'name' });
       }),
     [api, projectId, run],
   );
@@ -1709,7 +1636,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         // After the move, not before: a refused request then leaves the focus
         // where the person left it rather than sending it after a row that
         // never went anywhere.
-        focusNext.current = { rowId: row.id, columnId: landOn };
+        focusIntent.current.wants({ rowId: row.id, columnId: landOn });
       }),
     [api, run, siblingsOf],
   );
@@ -1723,7 +1650,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         if (parent === undefined) return;
         await api.move(row.id, parent.parentId, parent.id);
         // After the move, for the reason `indent` gives.
-        focusNext.current = { rowId: row.id, columnId: landOn };
+        focusIntent.current.wants({ rowId: row.id, columnId: landOn });
       }),
     [api, flat, run],
   );
@@ -1771,7 +1698,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         // Proof: `landOn` hard-coded to `name` here and in `indent`/`outdent`,
         // and both `lands in the same column…` tests failed — the Name cell took
         // the focus. Watched, 2026-08-06.
-        focusNext.current = { rowId: row.id, columnId: landOn };
+        focusIntent.current.wants({ rowId: row.id, columnId: landOn });
       });
     },
     [api, run, siblingsOf],
@@ -1783,7 +1710,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    * One request: be-01 writes the whole branch at once and sends the tree
    * afterwards, so there is nothing to reconstruct here and nothing to undo if
    * it is refused. The focus is asked for only after the copy has been taken,
-   * for the reason every other `focusNext` write here is — a refusal must
+   * for the reason every other focus intent here is asked for — a refusal must
    * leave the caret where the person left it rather than chase a row that does
    * not exist.
    */
@@ -1791,7 +1718,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     (id: string) =>
       run(async () => {
         const copy = await api.duplicate(id);
-        focusNext.current = { rowId: copy.id, columnId: 'name' };
+        focusIntent.current.wants({ rowId: copy.id, columnId: 'name' });
       }),
     [api, run],
   );
@@ -1816,7 +1743,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    * {@link duplicateRow} gives: a refusal must leave the focus where the person
    * left it rather than move it into a row nobody deleted.
    *
-   * Proof, three faults, all watched on 2026-08-08. The `focusNext` write
+   * Proof, three faults, all watched on 2026-08-08. The focus intent
    * removed: `lands the caret in the next sibling’s name after a delete` and
    * `lands the caret in the row above when the last row is deleted` both failed
    * on `expected <body>…</body> to be <textarea …>` — the deleted row takes its
@@ -1839,7 +1766,9 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         await api.remove(row.id, {
           strategy: row.subRows.length > 0 ? 'promote' : undefined,
         });
-        focusNext.current = landsOn === undefined ? null : { rowId: landsOn.id, columnId: 'name' };
+        focusIntent.current.wants(
+          landsOn === undefined ? null : { rowId: landsOn.id, columnId: 'name' },
+        );
       }),
     [api, flat, run, siblingsOf],
   );
@@ -1905,7 +1834,9 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         // A ternary rather than `flat.at(at - 1)`: removing the first row has
         // no row above, and `.at(-1)` would send the focus to the last one.
         const above = at > 0 ? flat[at - 1] : undefined;
-        focusNext.current = above === undefined ? null : { rowId: above.id, columnId: 'name' };
+        focusIntent.current.wants(
+          above === undefined ? null : { rowId: above.id, columnId: 'name' },
+        );
         await api.remove(row.id);
       }),
     [api, flat, run],
@@ -2951,7 +2882,6 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     duplicateRow,
     deleteRow,
     commitNameCell,
-    focusIntentIsStale,
     onKeyDown,
     onTabKey,
     onArrowKey,
@@ -3006,7 +2936,6 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     duplicateRow,
     deleteRow,
     commitNameCell,
-    focusIntentIsStale,
     onKeyDown,
     onTabKey,
     onArrowKey,
@@ -3185,22 +3114,14 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                 // render rather than only the first, which the id check already
                 // tolerated.
                 onAttach={(element) => {
-                  const wanted = focusNext.current;
                   // The Name column only: any other column is a cell this one
                   // has no business focusing, and it is landed on from the
-                  // committed DOM by the effect that reads `focusNext` after a
-                  // refresh.
-                  if (wanted?.rowId !== row.original.id || wanted.columnId !== 'name') return;
-                  // The same qualification the effect makes, and it has to be
-                  // made here too: this callback fires during the commit that
-                  // brings the row in, so it wins the race against the effect
-                  // and would land the focus before the effect could refuse.
-                  if (live.current.focusIntentIsStale(wanted)) {
-                    focusNext.current = null;
-                    return;
-                  }
-                  focusNext.current = null;
-                  element.focus();
+                  // committed DOM by the effect after a refresh.
+                  focusIntent.current.landOnAttached(
+                    element,
+                    { rowId: row.original.id, columnId: 'name' },
+                    gridElement.current,
+                  );
                 }}
                 // Both fields, as one text: the name, and the notes under it.
                 // The reverse trip and the rule that a peer's edit is diffed
@@ -4152,7 +4073,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                 afterId: siblingsOf(null).at(-1)?.id ?? null,
                 name: '',
               });
-              focusNext.current = { rowId: created.id, columnId: 'name' };
+              focusIntent.current.wants({ rowId: created.id, columnId: 'name' });
             })
           }
           disabled={busy}
