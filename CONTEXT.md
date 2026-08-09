@@ -193,6 +193,17 @@ declared width plus each flexible column's floor. Above it nothing scrolls sidew
 it the frame scrolls and the pinned columns hold the left edge.
 _Avoid_: total width, table width, min size
 
+**Plan renderer**:
+Whichever of the two things is drawing the plan right now — the table or the outline cards.
+Chosen by how wide the viewport is and by nothing else, and never both at once; the plan,
+its cells and their unsaved state are the same under either.
+_Avoid_: view, mode, layout, breakpoint
+
+**Outline card**:
+One work item as a phone reads it: its number at its own depth, its name and notes in one
+box, its figures, its dates, and one line per phase. Read whole; edited one field at a time.
+_Avoid_: tile, row, list item, mobile row
+
 **Mention**:
 A person looked up from inside another box, written as `@` and part of their name — in the
 folded role cell, where `2/3/8@kat` is one gesture. Held apart from whatever the box is

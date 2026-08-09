@@ -123,7 +123,7 @@ Checks that cannot fail have shipped here six times. This is the rule that stops
 
 ## Checks that cannot fail
 
-R5 exists because this failure keeps recurring — fourteen times so far. Fixed: `assertPragmas` with no runtime
+R5 exists because this failure keeps recurring — fifteen times so far. Fixed: `assertPragmas` with no runtime
 caller, the migration lint's unreachable `ALTER TABLE ... RENAME COLUMN` branch, `readRemoteState`
 reading an unreadable file as never-deployed, `shellcheck … || echo`, the secrets scanner's
 `.catch(() => '')` (an unreadable file scanned as clean — in a CI gate), and `dev:setup` skipping a
@@ -158,6 +158,17 @@ keys into jsdom, which performs no default action at all: it could see the guard
 could never see the guard left half-done. The negative test for that fault has to be a
 browser, and it is now in `e2e/keyboard.spec.ts`, watched failing on Shift+Enter with a third
 row on screen.
+
+The fifteenth, on 2026-08-09 in `M mobile-cards`, and the same shape as the fourteenth: the
+oracle was jsdom and the fault was a browser's. The toolbar sheet closed itself from an
+`onClickCapture`, so React flushed the discrete update **between** its capture and bubble
+dispatches, the control was unmounted before the bubble pass walked the fiber tree for
+handlers, and every toolbar control on the sheet did nothing at all — no request, no work
+item. All sixteen of `plan-cards.test.tsx`'s tests passed through it, `closes when a control
+on it acts on the plan` included, because jsdom had already collected `Add work item`'s own
+`onClick` when the close ran. Found in Chrome at 390×844 by the `POST …/work-items` simply
+missing from the network log. The close is on the bubble phase now, and the browser is the
+only thing that can say so.
 
 Two more the same day, in `P phases-ui`, and **neither shipped** — which is why neither is in
 the count above. `page-shortcuts.test.tsx` had six checks about an open modal and none about a
