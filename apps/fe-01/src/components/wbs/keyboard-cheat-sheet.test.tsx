@@ -8,6 +8,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   altStyleOf,
+  bindingsFor,
   commandChord,
   KEY_BINDINGS,
   showKeys,
@@ -15,6 +16,7 @@ import {
   WHERE_ORDER,
 } from './keyboard-bindings';
 import { KeyboardCheatSheet, opensCheatSheet } from './keyboard-cheat-sheet';
+import type { PlanRenderer } from './plan-renderer';
 
 // fe-01 tests require jsdom; only Vitest provides it. Skip under plain `bun test`.
 const hasDom = typeof document !== 'undefined';
@@ -170,6 +172,37 @@ describe('the key binding registry', () => {
     }
   });
 
+  it('says, for every binding, which renderers answer it', () => {
+    // The field is what makes the sheet renderer-aware without a second list of
+    // chords living beside the sheet. An entry with an empty one would be a
+    // binding no renderer answers and nothing would ever show it.
+    for (const binding of KEY_BINDINGS) {
+      expect(binding.renderers.length).toBeGreaterThan(0);
+      for (const renderer of binding.renderers) {
+        expect(['cards', 'table']).toContain(renderer);
+      }
+    }
+  });
+
+  it('leaves the cards the keys they really answer, and takes away the ones they do not', () => {
+    // `PlanCards` wires none of `onTabKey`, `onArrowKey`, `onCommandKey` or
+    // `onAltMove`, so every chord and every grid motion is the table's. What a
+    // card does answer is the estimate shorthand and the `@` list inside a
+    // phase's box, and the window shortcuts — `?` and undo — which are on the
+    // window and know nothing about a renderer.
+    const cards = bindingsFor('cards').map((binding) => `${binding.where}: ${binding.keys}`);
+
+    expect(cards).not.toContain('Editing: Ctrl/⌘ + Enter');
+    expect(cards).not.toContain('Editing: Ctrl + N / Alt + N');
+    expect(cards).not.toContain('Moving rows: Alt + →');
+    expect(cards).toContain('Estimates: 2/3/8');
+    expect(cards).toContain('Pickers: @');
+    expect(cards).toContain('Anywhere: Ctrl/⌘ + Z');
+    // And the table keeps all of them, which is what says the narrowing is the
+    // cards' and not a binding quietly lost for everybody.
+    expect(bindingsFor('table')).toHaveLength(KEY_BINDINGS.length);
+  });
+
   it('has one entry per keys-and-where, which is what the mapping is by', () => {
     const keys = KEY_BINDINGS.map((binding) => bindingKey(binding.where, binding.keys));
     expect(keys).toEqual([...new Set(keys)]);
@@ -238,7 +271,7 @@ describe('Alt on a Mac and on a PC', () => {
 
 describe('the cheat sheet overlay', () => {
   /** The sheet behind a control, so opening and closing is a real focus move. */
-  function Host() {
+  function Host({ renderer }: { renderer: PlanRenderer }) {
     const [open, setOpen] = useState(false);
     return (
       <>
@@ -253,6 +286,7 @@ describe('the cheat sheet overlay', () => {
         {open && (
           <KeyboardCheatSheet
             altStyle="pc"
+            renderer={renderer}
             onClose={() => {
               setOpen(false);
             }}
@@ -263,8 +297,8 @@ describe('the cheat sheet overlay', () => {
   }
 
   /** Opens the sheet from a control that really has the focus first. */
-  const openFromControl = (): HTMLElement => {
-    render(<Host />);
+  const openFromControl = (renderer: PlanRenderer = 'table'): HTMLElement => {
+    render(<Host renderer={renderer} />);
     const opener = screen.getByRole('button', { name: 'Open' });
     // jsdom does not focus a clicked button; a real browser does, and the
     // element the focus goes back to is the whole point of these tests.
@@ -290,6 +324,34 @@ describe('the cheat sheet overlay', () => {
       expect(screen.getByText(binding.does)).toBeDefined();
       expect(screen.getAllByText(showKeys(binding.keys, 'pc')).length).toBeGreaterThan(0);
     }
+  });
+
+  itDom('promises the cards renderer nothing the cards do not answer', () => {
+    // The sheet is reachable from the phone's toolbar sheet, and it promised
+    // ⌘+Enter *"saves what is in this cell and moves to the next row's name"*
+    // on a renderer where the chord does nothing at all — observed on the card
+    // renderer on 2026-08-09, twice, with no request made.
+    //
+    // Proof: `bindingsFor` changed to return `KEY_BINDINGS` unfiltered, this
+    // failed on `expected [ <kbd …(1)></kbd> ] to have a length of +0 but got
+    // 1`. Watched, 2026-08-09.
+    openFromControl('cards');
+
+    expect(screen.queryAllByText(showKeys('Ctrl/⌘ + Enter', 'pc'))).toHaveLength(0);
+    expect(screen.queryAllByText(showKeys('Ctrl + N / Alt + N', 'pc'))).toHaveLength(0);
+    // A group with nothing left in it is not a heading with nothing under it.
+    expect(screen.queryByRole('heading', { name: 'Moving rows' })).toBeNull();
+    // What a card does answer is still there, or this would be a sheet that
+    // said nothing rather than one that says the truth.
+    expect(screen.getAllByText(showKeys('2/3/8', 'pc')).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(showKeys('Ctrl/⌘ + Z', 'pc')).length).toBeGreaterThan(0);
+  });
+
+  itDom('keeps every one of them on the table renderer', () => {
+    openFromControl('table');
+
+    expect(screen.getAllByText(showKeys('Ctrl/⌘ + Enter', 'pc')).length).toBeGreaterThan(0);
+    expect(screen.getByRole('heading', { name: 'Moving rows' })).toBeDefined();
   });
 
   itDom('takes the focus on open and gives it back on close', () => {

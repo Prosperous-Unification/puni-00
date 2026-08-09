@@ -3,6 +3,38 @@ import { expect, type Locator, type Page, test } from '@playwright/test';
 import { CHART_PAD_PX, DAY_PX, ROW_PX } from '../src/components/wbs/gantt-panel';
 
 /**
+ * Types a whole date into a date field and leaves it, which is what saves one.
+ *
+ * `fill` alone is not a saved date any more, and that is the product's rule
+ * rather than an automation quirk: `DateField` holds everything typed while the
+ * box has the focus, because a native date input fires a `change` per completed
+ * segment and committing each of them saved a plan starting in year 0002. Tab
+ * is how a person leaves the box, and the wait afterwards is the refetch that
+ * commit starts — a click that lands inside it hits a `disabled` control and
+ * goes nowhere (`aria-busy` on the toolbar is that window, said out loud).
+ */
+async function setDate(page: Page, label: string, day: string): Promise<void> {
+  const box = page.getByLabel(label);
+  await box.fill(day);
+  // `blur`, not `press('Tab')`: Chrome's date input owns Tab for stepping
+  // between its own day/month/year segments, so a Tab from the day segment
+  // never leaves the field at all — probed here, `document.activeElement` was
+  // still the box afterwards. Leaving is what saves, so leaving is what this
+  // does.
+  //
+  // The response is awaited, and the `aria-busy` after it, because the write
+  // and the refetch it starts are the window every toolbar control is disabled
+  // for — a click that lands inside it is dropped on the floor. Playwright's
+  // own "wait until enabled" cannot see that: the button is still enabled at
+  // the moment it is checked and goes dead a tick later, which is the same race
+  // a person loses by hand.
+  const saved = page.waitForResponse((response) => response.request().method() === 'PATCH');
+  await box.blur();
+  await saved;
+  await expect(page.locator('[data-toolbar]')).toHaveAttribute('aria-busy', 'false');
+}
+
+/**
  * The Gantt panel, measured by the engine that draws it.
  *
  * `gantt-geometry.test.ts` and `gantt-panel.test.tsx` are 73 tests about
@@ -102,7 +134,7 @@ async function seedPlan(
 
   // First, because the Not before field is disabled without a day zero to
   // count from — and a chart of workday offsets has no axis dates to check.
-  await page.getByLabel('Project start date').fill(PLAN_START);
+  await setDate(page, 'Project start date', PLAN_START);
 
   const addRow = page.getByRole('button', { name: 'Add work item' });
   for (const number of ['010', '020', '030']) {
@@ -142,7 +174,7 @@ async function seedPlan(
       `010.2's Start cell reads ${String(startsOn)}, which is not a date to hold it at`,
     );
   }
-  await page.getByLabel('Earliest start for 010.2').fill(startsOn);
+  await setDate(page, 'Earliest start for 010.2', startsOn);
 
   for (let added = 0; added < extraRows; added += 1) {
     const number = String((added + 2) * 10).padStart(3, '0');
@@ -173,7 +205,7 @@ async function seedEdgeRoutes(page: Page, account: string): Promise<void> {
 
   await page.getByRole('button', { name: 'New project' }).click();
   await expect(page.getByRole('button', { name: 'Add work item' })).toBeVisible();
-  await page.getByLabel('Project start date').fill(PLAN_START);
+  await setDate(page, 'Project start date', PLAN_START);
 
   const addRow = page.getByRole('button', { name: 'Add work item' });
   for (const number of ['010', '020', '030', '040']) {

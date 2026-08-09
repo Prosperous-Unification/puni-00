@@ -317,6 +317,7 @@ describe('a modal holds the page’s keyboard back', () => {
     render(
       <KeyboardCheatSheet
         altStyle="pc"
+        renderer="table"
         onClose={() => {
           // Nothing closes it in this test; what is being measured is what
           // happens while it is open.

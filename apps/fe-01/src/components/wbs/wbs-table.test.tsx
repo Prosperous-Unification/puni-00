@@ -1242,7 +1242,11 @@ describe('the row actions menu', () => {
     expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Actions for 020' }));
   });
 
-  itDom('offers no Delete on a frozen row', async () => {
+  itDom('keeps Delete on a frozen row, refused and saying why', async () => {
+    // It used to be absent, and absent explains nothing: a reader who saw
+    // Delete on this menu a minute ago had nothing on screen telling them the
+    // freeze is what took it away. Present, refused, and carrying the reason —
+    // the same answer the drag handle gives on a frozen row.
     const api = fakeApi();
     await threeRows(api);
     click('Freeze numbering');
@@ -1252,9 +1256,24 @@ describe('the row actions menu', () => {
 
     openRowMenu('020');
 
-    expect(screen.queryByRole('menuitem', { name: 'Delete' })).toBeNull();
+    const remove = screen.getByRole('menuitem', { name: 'Delete' });
+    expect(remove.getAttribute('aria-disabled')).toBe('true');
+    expect(remove.getAttribute('title')).toBe('Frozen — unfreeze this row before deleting it');
     expect(screen.getByRole('menuitem', { name: 'Unfreeze' })).toBeDefined();
     expect(screen.getByRole('menuitem', { name: 'Duplicate' })).toBeDefined();
+
+    // And it really is refused. The item carries the real `deleteRow`, so this
+    // is the whole guard: with `refusedBecause` unread in `takeAction` the row
+    // goes.
+    // Proof: the `refusedBecause` line removed from `takeAction`, this failed
+    // on `expected [ { id: 'w1', …(16) }, …(1) ] to have a length of 3 but got
+    // 2`. Watched, 2026-08-09.
+    fireEvent.click(remove);
+    await Promise.resolve();
+    expect(numbersOnScreen()).toEqual(['010', '020', '030']);
+    expect(api.rows).toHaveLength(3);
+    // The menu stays open, because the sentence saying why is on the item.
+    expect(screen.getByRole('menuitem', { name: 'Delete' })).toBeDefined();
   });
 });
 
@@ -1535,9 +1554,7 @@ describe('the plan on a calendar', () => {
   itDom('shows dates once the project starts on a day', async () => {
     const api = await oneRow();
 
-    fireEvent.change(screen.getByLabelText('Project start date'), {
-      target: { value: '2026-08-06' },
-    });
+    typeIntoDate('Project start date', '2026-08-06');
 
     await waitFor(() => {
       expect(rowFor('010').querySelector('[data-start]')?.textContent).toBe('2026-08-06');
@@ -1564,9 +1581,7 @@ describe('the plan on a calendar', () => {
   itDom('takes one once the plan is on a calendar, and drops the "(day)" wording', async () => {
     await oneRow();
 
-    fireEvent.change(screen.getByLabelText('Project start date'), {
-      target: { value: '2026-08-06' },
-    });
+    typeIntoDate('Project start date', '2026-08-06');
 
     await waitFor(() => {
       expect(screen.getByLabelText<HTMLInputElement>('Earliest start for 010').disabled).toBe(
@@ -1579,12 +1594,50 @@ describe('the plan on a calendar', () => {
     expect(headerTitled('Start')).not.toContain('days from the start of the plan');
   });
 
-  itDom('sends a work item’s earliest start, and clears it again', async () => {
+  itDom('holds a date typed one segment at a time, and saves the one that was typed', async () => {
+    // The fault, exactly as a browser produces it. A native date input fires a
+    // `change` for **every completed segment**, so typing the year `2026` fires
+    // four of them and the first three are dates in years 2, 20 and 202. Each
+    // was committed, each commit refetched the project, and the controlled box
+    // was re-rendered from be-01's answer mid-word — so the year segment reset
+    // under the caret and the rest of the digits went nowhere. A plan was saved
+    // starting in **year 0002**; observed in Chrome on 2026-08-09.
+    //
+    // Proof: `commit` moved back onto an `onChange` in `DateField`, this failed
+    // on `expected [ '0002-08-17', '0020-08-17', …(2) ] to deeply equal []`,
+    // and its `Not before` twin on `expected [ …(4) ] to deeply equal []`.
+    // Watched, 2026-08-09.
     const api = await oneRow();
-    // The field only takes a date once the plan is on a calendar.
-    fireEvent.change(screen.getByLabelText('Project start date'), {
-      target: { value: '2026-08-06' },
+    const sent: (string | null)[] = [];
+    const realSet = api.setStartDate.bind(api);
+    api.setStartDate = (projectId: string, day: string | null) => {
+      sent.push(day);
+      return realSet(projectId, day);
+    };
+
+    const box = screen.getByLabelText<HTMLInputElement>('Project start date');
+    box.focus();
+    for (const partial of ['0002-08-17', '0020-08-17', '0202-08-17', '2026-08-17']) {
+      fireEvent.change(box, { target: { value: partial } });
+    }
+
+    expect(sent).toEqual([]);
+
+    fireEvent.blur(box);
+
+    await waitFor(() => {
+      expect(sent).toEqual(['2026-08-17']);
     });
+    await waitFor(() => {
+      expect(rowFor('010').querySelector('[data-start]')?.textContent).toBe('2026-08-17');
+    });
+  });
+
+  itDom('holds a row’s earliest start the same way, and sends it once', async () => {
+    // The same fault in the other date field on the page: `26.08.0002` was
+    // typed into a row's `Not before` and saved, on the same pass.
+    const api = await oneRow();
+    typeIntoDate('Project start date', '2026-08-06');
     await waitFor(() => {
       expect(screen.getByLabelText<HTMLInputElement>('Earliest start for 010').disabled).toBe(
         false,
@@ -1597,15 +1650,72 @@ describe('the plan on a calendar', () => {
       return realPatch(id, patch);
     };
 
-    const cell = screen.getByLabelText('Earliest start for 010');
-    fireEvent.change(cell, { target: { value: '2026-08-12' } });
+    const box = screen.getByLabelText<HTMLInputElement>('Earliest start for 010');
+    box.focus();
+    for (const partial of ['0002-08-17', '0020-08-17', '0202-08-17', '2026-08-17']) {
+      fireEvent.change(box, { target: { value: partial } });
+    }
+
+    expect(patched).toEqual([]);
+
+    fireEvent.blur(box);
+
+    await waitFor(() => {
+      expect(patched).toEqual([{ startNoEarlierThan: '2026-08-17' }]);
+    });
+  });
+
+  itDom('takes Enter as "I have finished typing this date"', async () => {
+    // The one way to send a date without leaving the field, so a keyboard is
+    // not obliged to Tab out of a box to save what is in it.
+    // Proof: the `Enter` branch removed from `DateField`, this failed on
+    // `expected [] to deeply equal [ '2026-08-17' ]`. Watched, 2026-08-09.
+    const api = await oneRow();
+    const sent: (string | null)[] = [];
+    const realSet = api.setStartDate.bind(api);
+    api.setStartDate = (projectId: string, day: string | null) => {
+      sent.push(day);
+      return realSet(projectId, day);
+    };
+
+    const box = screen.getByLabelText<HTMLInputElement>('Project start date');
+    box.focus();
+    fireEvent.change(box, { target: { value: '2026-08-17' } });
+    fireEvent.keyDown(box, { key: 'Enter' });
+
+    await waitFor(() => {
+      expect(sent).toEqual(['2026-08-17']);
+    });
+    // And leaving afterwards sends nothing more: the box and the server agree.
+    fireEvent.blur(box);
+    await Promise.resolve();
+    expect(sent).toEqual(['2026-08-17']);
+  });
+
+  itDom('sends a work item’s earliest start, and clears it again', async () => {
+    const api = await oneRow();
+    // The field only takes a date once the plan is on a calendar.
+    typeIntoDate('Project start date', '2026-08-06');
+    await waitFor(() => {
+      expect(screen.getByLabelText<HTMLInputElement>('Earliest start for 010').disabled).toBe(
+        false,
+      );
+    });
+    const patched: unknown[] = [];
+    const realPatch = api.patch.bind(api);
+    api.patch = (id: string, patch: Record<string, unknown>) => {
+      patched.push(patch);
+      return realPatch(id, patch);
+    };
+
+    typeIntoDate('Earliest start for 010', '2026-08-12');
     await waitFor(() => {
       expect(patched).toEqual([{ startNoEarlierThan: '2026-08-12' }]);
     });
 
     // Cleared reads as '' from a date input, and means "no constraint" rather
     // than "an empty date".
-    fireEvent.change(screen.getByLabelText('Earliest start for 010'), { target: { value: '' } });
+    typeIntoDate('Earliest start for 010', '');
 
     await waitFor(() => {
       expect(patched).toEqual([{ startNoEarlierThan: '2026-08-12' }, { startNoEarlierThan: null }]);
@@ -1853,6 +1963,20 @@ describe('role columns fold away', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Fold Dev estimates' }));
 
     expect(screen.queryByLabelText('Dev optimistic for 010')).toBeNull();
+  });
+
+  itDom('says each sub-heading’s whole word, which its 52px cannot', async () => {
+    // Measured on 2026-08-09: `optimistic` wants 84px in a 52px column and
+    // reads `optimi`, `pessimistic` wants 95 and reads `pessin` — and there is
+    // no ellipsis to say the word was cut. The `title` is the only place the
+    // whole word is available to a reader who cannot widen the column.
+    await oneRow();
+
+    unfoldRole('Dev');
+
+    expect(headerTitled('optimistic')).toBe('optimistic');
+    expect(headerTitled('realistic')).toBe('realistic');
+    expect(headerTitled('pessimistic')).toBe('pessimistic');
   });
 
   itDom('unfolds one role at a time, so the table still fits the window', async () => {
@@ -2707,6 +2831,21 @@ const headerTitled = (text: string): string => {
   return titled.getAttribute('title') ?? '';
 };
 
+/**
+ * Types a whole date into a date field and leaves it, which is what saves one.
+ *
+ * The blur is the commit, and it is not decoration here: {@link DateField}
+ * holds everything typed while the box has the focus, because a native date
+ * input fires a `change` per completed segment and committing each of them
+ * saved a plan starting in year 0002. A test that fires the `change` alone is
+ * asserting the browser's fault, not the field's behaviour.
+ */
+const typeIntoDate = (label: string, day: string): void => {
+  const box = screen.getByLabelText(label);
+  fireEvent.change(box, { target: { value: day } });
+  fireEvent.blur(box);
+};
+
 /** The `<tr>` whose number cell reads `number`. */
 const rowFor = (number: string): HTMLElement => {
   const found = screen
@@ -2869,6 +3008,37 @@ describe('dragging a row', () => {
 
     expect(moved).toEqual([]);
     expect(screen.queryByRole('alert')).toBeNull();
+  });
+});
+
+describe('the drag handle as assistive technology meets it', () => {
+  itDom('is a control with a role and a name, not a decorated span', async () => {
+    // It was a bare `<span aria-label="Reorder">` with no `role` and no
+    // `tabindex` — a label on nothing, which is what a screen reader is handed.
+    // ⌥+arrows are the keyboard route to reordering, so the handle is
+    // deliberately out of the tab order; what it is not allowed to be is
+    // roleless.
+    await threeRoots();
+
+    const handle = screen.getByLabelText('Reorder 020');
+
+    expect(handle.getAttribute('role')).toBe('button');
+    expect(handle.getAttribute('tabindex')).toBe('-1');
+    expect(handle.getAttribute('title')).toBe('Drag to move this row');
+    expect(handle).toHaveProperty('draggable', true);
+  });
+
+  itDom('says on itself why a frozen row will not move', async () => {
+    await threeRoots();
+    click('Freeze numbering');
+    await waitFor(() => {
+      expect(screen.getAllByLabelText('Number is frozen')).toHaveLength(3);
+    });
+
+    const handle = screen.getByLabelText('Reorder 020');
+
+    expect(handle.getAttribute('aria-disabled')).toBe('true');
+    expect(handle.getAttribute('title')).toBe('Frozen — unfreeze this row before moving it');
   });
 });
 
@@ -3952,9 +4122,7 @@ describe('Tab moves between the fields, from every cell', () => {
     tab();
     expect(document.activeElement).toBe(screen.getByLabelText('Name of 020'));
 
-    fireEvent.change(screen.getByLabelText('Project start date'), {
-      target: { value: '2026-08-06' },
-    });
+    typeIntoDate('Project start date', '2026-08-06');
     await waitFor(() => {
       expect(screen.getByLabelText<HTMLInputElement>('Earliest start for 010').disabled).toBe(
         false,
@@ -3977,9 +4145,7 @@ describe('Tab moves between the fields, from every cell', () => {
     // `setSelectionRange` throws `InvalidStateError` on a date input, and the
     // arrows have one to land on: the folded QA estimate sits next to it.
     await threeRoots();
-    fireEvent.change(screen.getByLabelText('Project start date'), {
-      target: { value: '2026-08-06' },
-    });
+    typeIntoDate('Project start date', '2026-08-06');
     await waitFor(() => {
       expect(screen.getByLabelText<HTMLInputElement>('Earliest start for 010').disabled).toBe(
         false,
@@ -5852,6 +6018,42 @@ describe('failures you can see', () => {
     expect(numbersOnScreen()).toEqual(['010', '020', '030']);
   });
 
+  itDom('turns a validation refusal into a sentence, and rereads the plan', async () => {
+    // `http_422` is what `send` throws when be-01 refuses the *body* — an
+    // ArkType failure carries Elysia's own JSON, with no word for `send` to
+    // read. It reached the corner of the screen verbatim on 2026-08-09, to
+    // somebody who had done nothing more exotic than type a date.
+    // Proof: the `INVALID_REQUEST` branch removed from `refusalSentence`, this
+    // failed on `expected [ Array(1) ] to include 'That change was not valid,
+    // so nothing…'`; and the `INVALID_REQUEST` half of the reread condition
+    // removed, it failed on `expected +0 to be 1`. Both watched, 2026-08-09.
+    const api = await threeRoots();
+    let reads = 0;
+    const realTree = api.tree.bind(api);
+    api.tree = (projectId: string) => {
+      reads += 1;
+      return realTree(projectId);
+    };
+    api.patch = () => Promise.reject(new Error('http_422'));
+
+    fireEvent.change(screen.getByLabelText('Name of 020'), { target: { value: 'Sand it' } });
+    fireEvent.blur(screen.getByLabelText('Name of 020'));
+
+    await waitFor(() => {
+      expect(toastTexts()).toContain(
+        'That change was not valid, so nothing was saved — what is on screen was read again.',
+      );
+    });
+    // No status code anywhere in what the reader is shown.
+    expect(toastTexts().join(' ')).not.toContain('http_422');
+    // And the plan really was read again, which is what the sentence claims:
+    // `run` skips the reread after a refusal, so this only happens for the
+    // refusals that say the screen is behind.
+    await waitFor(() => {
+      expect(reads).toBe(1);
+    });
+  });
+
   itDom('puts a code it has no sentence for inside one', async () => {
     // The grammatical fallback `auth-form.tsx` established. A code nobody has
     // written a sentence for is still a sentence, with the word in brackets for
@@ -5976,6 +6178,65 @@ describe('failures you can see', () => {
       expect(staleBanner()).not.toBeNull();
     });
     expect(toastTexts()).toEqual([expect.stringContaining('010 (cycle), 020 (cycle)')]);
+  });
+});
+
+describe('a click made while a save is in flight', () => {
+  itDom('says the toolbar is busy, and marks the controls the wait holds back', async () => {
+    // The drop is real and stays real: `Add work item` is `disabled={busy}` for
+    // the whole of a write *and* the refetch after it, and a click that lands
+    // in that window goes nowhere. Reproduced on demand in Chrome on
+    // 2026-08-09 — a ⌘+Enter and an immediate click produced a PATCH, two GETs
+    // and **no POST at all**, with no cursor change and no message. Queuing the
+    // click is a design decision nobody has made; making the drop *visible* is
+    // this.
+    //
+    // Proof: `aria-busy={busy}` pinned to `false` on the toolbar, this failed
+    // on `expected 'false' to be 'true'`; and `busyAffordance(busy)` dropped
+    // from `Add work item`, it failed on `expected '' to be 'progress'`.
+    // Both watched, 2026-08-09.
+    const api = await threeRoots();
+    const finish: (() => void)[] = [];
+    api.patch = () => new Promise<void>((resolve) => finish.push(resolve));
+
+    const toolbar = document.querySelector('[data-toolbar]');
+    if (toolbar === null) throw new Error('the table rendered no toolbar');
+    expect(toolbar.getAttribute('aria-busy')).toBe('false');
+
+    fireEvent.change(screen.getByLabelText('Name of 010'), { target: { value: 'Strip it' } });
+    fireEvent.blur(screen.getByLabelText('Name of 010'));
+
+    const add = screen.getByRole('button', { name: 'Add work item' });
+    await waitFor(() => {
+      expect(toolbar.getAttribute('aria-busy')).toBe('true');
+    });
+    expect(add).toHaveProperty('disabled', true);
+    expect(add.style.cursor).toBe('progress');
+    expect(add.hasAttribute('data-busy')).toBe(true);
+
+    await act(async () => {
+      finish[0]?.();
+      await Promise.resolve();
+    });
+
+    await waitFor(() => {
+      expect(toolbar.getAttribute('aria-busy')).toBe('false');
+    });
+    expect(add.style.cursor).toBe('');
+    expect(add.hasAttribute('data-busy')).toBe(false);
+  });
+
+  itDom('leaves Undo-with-nothing-to-undo plain, because waiting will not help it', async () => {
+    // The distinction the affordance draws. `Undo` is `disabled={busy || !undoable}`
+    // and an empty stack is not a wait — a progress cursor over it would be a
+    // lie about something that is not going to change on its own.
+    await threeRoots();
+
+    const undo = screen.getByRole('button', { name: 'Undo' });
+
+    expect(undo).toHaveProperty('disabled', true);
+    expect(undo.style.cursor).toBe('');
+    expect(undo.hasAttribute('data-busy')).toBe(false);
   });
 });
 
@@ -6275,17 +6536,22 @@ describe('undo and redo', () => {
   });
 
   itDom('names the change that stood in the way when an undo is refused', async () => {
+    // be-01's own sentence, ended: it used to stop at `has changed since`, with
+    // no full stop and no answer to "since what?", while every toast beside it
+    // was a whole sentence. Read on screen on 2026-08-09.
     const api = await threeRoots();
     api.answerStackWith({
       ok: false,
       reason: 'stale_undo',
-      detail: '“Sand it twice” has changed since',
+      detail: '“Sand it twice” has changed since then.',
     });
 
     pressUndo(screen.getByRole('table'));
 
     await waitFor(() => {
-      expect(toastTexts()).toContain('That could not be undone: “Sand it twice” has changed since');
+      expect(toastTexts()).toContain(
+        'That could not be undone: “Sand it twice” has changed since then.',
+      );
     });
   });
 
@@ -7429,11 +7695,43 @@ describe('the command chords', () => {
     expect(api.rows).toHaveLength(3);
   });
 
+  itDom('⌘+Z is inert while a row’s ⋯ menu is open, and works again once it closes', async () => {
+    // `CONTEXT.md`: the ⋯ menu *"owns the keyboard while it is open"*. The
+    // modal path held the page's own chords back and the menu path did not, so
+    // ⌘+Z through an open menu ran an undo behind it — the menu stayed open,
+    // the toast read `Undid: rename “Roof it”` and a row two down came back
+    // off. Observed live twice on 2026-08-09, with `[role="menu"]` asserted in
+    // the DOM at the moment of the keypress.
+    //
+    // Proof: `usePageShortcutsSuspended(open)` pinned to `false` in
+    // `ActionsMenu`, this failed on `expected [ 'undo' ] to deeply equal []`.
+    // Watched, 2026-08-09.
+    const api = await threeRoots();
+    api.answerStackWith({ ok: true, done: 'rename “Strip”', detail: null });
+    openRowMenu('020');
+    const item = screen.getByRole('menuitem', { name: 'Duplicate' });
+
+    fireEvent.keyDown(item, { key: 'z', ctrlKey: true });
+
+    expect(api.stackCalls).toEqual([]);
+    expect(toastTexts()).toEqual([]);
+    // Still open: the chord was swallowed, not turned into a dismissal.
+    expect(screen.getByRole('menu', { name: 'Actions for 020' })).toBeDefined();
+
+    // And the other half, which is what makes the first half a rule rather than
+    // an undo that never worked: Escape closes the menu and the chord is the
+    // page's again.
+    fireEvent.keyDown(item, { key: 'Escape' });
+    fireEvent.keyDown(screen.getByRole('table'), { key: 'z', ctrlKey: true });
+
+    await waitFor(() => {
+      expect(api.stackCalls).toEqual(['undo']);
+    });
+  });
+
   itDom('the date cell answers the chords, and keeps its own arrows', async () => {
     const api = await threeRoots();
-    fireEvent.change(screen.getByLabelText('Project start date'), {
-      target: { value: '2026-08-10' },
-    });
+    typeIntoDate('Project start date', '2026-08-10');
     const box = await screen.findByLabelText('Earliest start for 020');
     await waitFor(() => {
       expect(box).toHaveProperty('disabled', false);

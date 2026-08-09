@@ -1,3 +1,5 @@
+import type { PlanRenderer } from './plan-renderer';
+
 /**
  * Where a binding applies, which is also how the cheat sheet is grouped.
  *
@@ -27,12 +29,44 @@ export const WHERE_ORDER: readonly Where[] = [
   'Anywhere',
 ];
 
+/**
+ * The renderers a binding is answered by, for the bindings both of them answer.
+ *
+ * Both, spelled out, rather than an absent field meaning "both": a binding
+ * added with the question unanswered is the cheat sheet promising a key nothing
+ * presses, which is the fault this field exists for.
+ */
+export const EITHER_RENDERER: readonly PlanRenderer[] = ['cards', 'table'];
+
+/**
+ * The table and not the cards.
+ *
+ * `PlanCards` wires none of `onTabKey`, `onArrowKey`, `onCommandKey` or
+ * `onAltMove` — a phone has no Tab key to walk a grid with and no pointer to
+ * drag a row with, and that is a decision (`mobile-cards/design.md`) rather
+ * than a gap. The `Depends on` list is not on a card either: dependencies are
+ * printed there, not typed into.
+ */
+export const TABLE_ONLY: readonly PlanRenderer[] = ['table'];
+
 /** One key or chord, what it does, and where it applies. */
 export interface KeyBinding {
   /** The chord as it is shown. `Alt` is a token — {@link showKeys} labels it per platform. */
   keys: string;
   does: string;
   where: Where;
+  /**
+   * Which renderers actually answer this key.
+   *
+   * **The reason it is data and not a filter at the call site.** The registry is
+   * the only prose description of this keyboard, and the sheet renders it so the
+   * two cannot disagree — a sheet that filtered by its own list of chord names
+   * would be a second description, and the second one is always the one that
+   * goes stale. Observed 2026-08-09: the sheet reached from the phone's toolbar
+   * promised ⌘+Enter *"saves what is in this cell and moves to the next row's
+   * name"* on the cards renderer, where the chord does nothing at all.
+   */
+  renderers: readonly PlanRenderer[];
 }
 
 /**
@@ -53,128 +87,163 @@ export const KEY_BINDINGS: readonly KeyBinding[] = [
     keys: 'Enter',
     does: 'A new line in the name — which is where a work item’s notes are written, under the first line. It used to make a new work item; that is Ctrl + N now.',
     where: 'Editing',
+    renderers: EITHER_RENDERER,
   },
   {
     keys: 'Ctrl/⌘ + Enter',
     does: 'Saves what is in this cell and moves to the next row’s name — or, on the last row of the plan, makes a new work item there and lands in it. A save the server refuses leaves the caret where it is and makes nothing.',
     where: 'Editing',
+    renderers: TABLE_ONLY,
   },
   {
     keys: 'Ctrl + N / Alt + N',
     does: 'A new work item below this one, at the same level, ready to be typed into — from any cell and any caret position, not only at the end of the plan. Two chords for one thing because Chrome keeps Ctrl + N for itself except on a Mac.',
     where: 'Editing',
+    renderers: TABLE_ONLY,
   },
   {
     keys: 'Ctrl + H / J / K / L',
     does: 'Left, down, up and right between cells — where the fingers are, and without the arrows’ rule that the text comes first. The way out of a long note in one press.',
     where: 'Editing',
+    renderers: TABLE_ONLY,
   },
   {
     keys: 'Ctrl + D, twice',
     does: 'Deletes this work item, and its children move up to take its place. The first press tints the row and says what the second one will do; anything else at all — another key, leaving the cell, three seconds — calls it off, and a row whose number is frozen refuses. Ctrl/⌘ + Z puts it back.',
     where: 'Editing',
+    renderers: TABLE_ONLY,
   },
   {
     keys: 'Tab',
     does: 'The next field, from any cell, and on into the next row at the end of one. Past the last field in the table it leaves the grid, onto that last row’s ⋯ menu. In the name, at the very start, it still indents the row under the one above it.',
     where: 'Editing',
+    renderers: TABLE_ONLY,
   },
   {
     keys: 'Shift + Tab',
     does: 'The previous field. In the name, at the very start, it outdents the row instead.',
     where: 'Editing',
+    renderers: TABLE_ONLY,
   },
   {
     keys: 'Backspace',
     does: 'At the very start of a name, outdents the row — and on a wholly empty top-level row, one with no note under the name either, removes it and leaves the focus on the row above.',
     where: 'Editing',
+    renderers: TABLE_ONLY,
   },
   {
     keys: '↑ ↓ ← →',
     does: 'Move between cells: up and down walk a column, left and right move on once the caret has run out of text. In the name — which holds the note under it — up and down move the caret first, and leave the row only from the very start and the very end.',
     where: 'Editing',
+    renderers: TABLE_ONLY,
   },
   {
     keys: 'Alt + ↑ / Alt + ↓',
     does: 'Moves the row up or down among its siblings. It never changes what the row sits under, and it stops at either end of the group.',
     where: 'Moving rows',
+    renderers: TABLE_ONLY,
   },
   {
     keys: 'Alt + →',
     does: 'Indents the row — from any cell and any caret position, where Tab needs the start of the name.',
     where: 'Moving rows',
+    renderers: TABLE_ONLY,
   },
   {
     keys: 'Alt + ←',
     does: 'Outdents the row, from any cell.',
     where: 'Moving rows',
+    renderers: TABLE_ONLY,
   },
   {
     keys: '2/3/8',
     does: 'In a folded role’s cell: optimistic, realistic and pessimistic in one go.',
     where: 'Estimates',
+    renderers: EITHER_RENDERER,
   },
   {
     keys: '5',
     does: 'One number means all three points are that number.',
     where: 'Estimates',
+    renderers: EITHER_RENDERER,
   },
   {
     keys: 'Empty it',
     does: 'Emptying a folded role’s cell clears the estimate it held.',
     where: 'Estimates',
+    renderers: EITHER_RENDERER,
   },
   {
     keys: 'Type',
     does: 'Searches the list. Depends on takes a number or a name; the assignee and team boxes take a name.',
     where: 'Pickers',
+    renderers: EITHER_RENDERER,
   },
   {
     keys: '@',
     does: 'In a folded role’s cell, looks somebody up to do the work: type @ and the name. Enter takes the first one offered, or adds a contributor nobody had. On its own, @ offers to take the current one off. What is typed in front of the @ stays the estimate — 2/3/8@kat is one gesture.',
     where: 'Pickers',
+    renderers: EITHER_RENDERER,
   },
   {
     keys: '↑ ↓',
     does: 'Move the highlight in the Depends on list, stepping over the rows it would refuse.',
     where: 'Pickers',
+    renderers: TABLE_ONLY,
   },
   {
     keys: 'Enter',
     does: 'Takes the highlighted entry. In an assignee or team box — which has no highlight — it takes the first match, or adds what you typed when nothing matches it.',
     where: 'Pickers',
+    renderers: EITHER_RENDERER,
   },
   {
     keys: 'Escape',
     does: 'Closes the list, leaving the box as it was.',
     where: 'Pickers',
+    renderers: EITHER_RENDERER,
   },
   {
     keys: '010, 020',
     does: 'Depends on takes several numbers at once, separated by commas or spaces.',
     where: 'Pickers',
+    renderers: TABLE_ONLY,
   },
   {
     keys: '?',
     does: 'Opens this sheet — from anywhere except a box you are typing in, where it stays a question mark.',
     where: 'Anywhere',
+    renderers: EITHER_RENDERER,
   },
   {
     keys: 'Escape',
     does: 'Closes this sheet. In the Find box, clears the search and puts your collapsed branches back.',
     where: 'Anywhere',
+    renderers: EITHER_RENDERER,
   },
   {
     keys: 'Ctrl/⌘ + Z',
     does: 'Undoes your last change to this plan — but only when nothing it touched has been changed since, and it says whose change stopped it when something has. Not inside a box you are typing in: there, undo is the browser’s.',
     where: 'Anywhere',
+    renderers: EITHER_RENDERER,
   },
   {
     keys: 'Ctrl/⌘ + Shift + Z',
     does: 'Puts back what you last undid, under exactly the same condition. Making any other change of your own clears what there was to put back.',
     where: 'Anywhere',
+    renderers: EITHER_RENDERER,
   },
 ];
+
+/**
+ * The bindings one renderer answers, in {@link KEY_BINDINGS}'s own order.
+ *
+ * @param renderer Which of the two is drawing the plan right now.
+ * @returns Every binding whose {@link KeyBinding.renderers} names it.
+ */
+export function bindingsFor(renderer: PlanRenderer): readonly KeyBinding[] {
+  return KEY_BINDINGS.filter((binding) => binding.renderers.includes(renderer));
+}
 
 /** The keystroke fields a binding predicate judges, so it needs no DOM event. */
 export interface KeyPress {

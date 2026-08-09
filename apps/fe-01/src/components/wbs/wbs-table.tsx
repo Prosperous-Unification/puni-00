@@ -7,7 +7,7 @@ import {
   useReactTable,
 } from '@tanstack/react-table';
 import { workdaysBetween } from '@wbs/domain/workday';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { type CSSProperties, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -27,6 +27,7 @@ import { ActionsMenu } from './actions-menu';
 import { CellInput } from './cell-input';
 import { type Caret, type CellRef, commandMove, type Direction, nextCell } from './cell-navigation';
 import { CreatablePicker, pickableLabel, PickerList, type PickerOption } from './creatable-picker';
+import { DateField } from './date-field';
 import { pickerEntries, type PickerEntry } from './dep-picker';
 import { parseDependencies, unknownMessage } from './depends-input';
 import { type DropRefusal, type DropZone, planMove, zoneFor } from './drag-drop';
@@ -169,6 +170,37 @@ const REFUSAL_SENTENCES: Readonly<Record<string, string | undefined>> = {
 const SERVER_REFUSAL = 'The server could not complete that change. Try again.';
 
 /**
+ * The statuses be-01 refuses a **malformed** request with, and the only ones
+ * that reach here without a word of be-01's own.
+ *
+ * Listed rather than matched as `http_4\d\d`, which was the first shape and is
+ * wrong: 401 and 403 are the same family and say nothing about the value that
+ * was sent, and a sentence claiming "that change was not valid" over an expired
+ * session would send the reader looking for a typo. be-01's own words —
+ * `forbidden`, `not_found` — already cover those; these two are what an ArkType
+ * schema refusal leaves, because Elysia answers it with its own JSON body and
+ * no `error` field for `send` to read.
+ */
+const INVALID_REQUEST = new Set(['http_400', 'http_422']);
+
+/**
+ * What a request be-01 could not read says.
+ *
+ * Reachable, and observed: a year segment typed one digit at a time made a date
+ * of `dd.12.82026`, be-01 answered 422, and the corner of the screen read
+ * `That change could not be completed (http_422).` — a status code, to somebody
+ * who typed a date. {@link DateField} is the fix for the *cause*; this is the
+ * sentence for whatever else sends be-01 something it cannot take.
+ *
+ * It says the plan was read again because {@link run} really does read it
+ * again for this family, the same way it does for {@link GONE}: what is on
+ * screen was refused, and the only honest thing to show next is what be-01
+ * actually holds.
+ */
+const INVALID_REFUSAL =
+  'That change was not valid, so nothing was saved — what is on screen was read again.';
+
+/**
  * The sentence a refused mutation is reported in.
  *
  * @param thrown Whatever the request rejected with; anything that is not an
@@ -181,6 +213,7 @@ const refusalSentence = (thrown: unknown): string => {
   // The whole 5xx family, matched rather than listed: a proxy in front of
   // be-01 can answer with any of them and none of them is the reader's doing.
   if (/^http_5\d\d$/.test(code)) return SERVER_REFUSAL;
+  if (INVALID_REQUEST.has(code)) return INVALID_REFUSAL;
   return `That change could not be completed (${code}).`;
 };
 
@@ -665,6 +698,34 @@ function closingControlIn(target: EventTarget | null, surface: Element): HTMLBut
  * next time one is added. See {@link closingControlIn} for who reads it.
  */
 const TAKES_THE_FOCUS = 'data-takes-the-focus';
+
+/**
+ * What a control that is unavailable **because a save is in flight** looks
+ * like, as opposed to one that is unavailable because there is nothing for it
+ * to do.
+ *
+ * **The fault it exists for.** Every toolbar control that writes is
+ * `disabled={busy}` for the whole of the write *and* the refetch after it, and
+ * a `disabled` button drops a click on the floor without a sound. Typing a
+ * character, pressing ⌘+Enter and clicking `Add work item` in the same breath
+ * produced a `PATCH` and two `GET`s and **no `POST` at all** — no new row, no
+ * cursor change, no message. Reproduced on demand in Chrome, 2026-08-09.
+ *
+ * The click is still dropped: queuing it would be a second, invisible order of
+ * operations over a plan two people are editing, and that is a design decision
+ * nobody has made. What this changes is that the drop is **visible** — the
+ * whole toolbar says `aria-busy`, and the controls the wait is holding back
+ * fade and take the progress cursor, so a click that goes nowhere lands on
+ * something that already said it would.
+ *
+ * `Undo` with nothing to undo gets none of this and that is the distinction
+ * being drawn: it is disabled because the stack is empty, waiting will not
+ * change it, and a progress cursor over it would be a lie. The affordance is
+ * spread only while `busy` is true, so a control disabled for both reasons
+ * wears it for exactly as long as the wait is the reason.
+ */
+const busyAffordance = (busy: boolean): { 'data-busy'?: ''; style?: CSSProperties } =>
+  busy ? { 'data-busy': '', style: { cursor: 'progress', opacity: 0.6 } } : {};
 
 /**
  * One read of the tree, as far as the chart is concerned: the slices, the roles
@@ -1329,7 +1390,13 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
           // below dropped, the same test failed on `expected [ '010', '020',
           // '030' ] to deeply equal [ '010', '020' ]`.
           pushToast({ kind: 'error', text: refusalSentence(thrown) });
-          if (failureText(thrown, '') === GONE) await refreshOrMarkStale();
+          // Two refusals say the screen is behind rather than that the request
+          // was wrong: {@link GONE}, and a body be-01 could not read. The
+          // second is the sentence's own claim — {@link INVALID_REFUSAL} says
+          // the plan was read again, and a sentence that says so without doing
+          // it is the worst of both.
+          const refusal = failureText(thrown, '');
+          if (refusal === GONE || INVALID_REQUEST.has(refusal)) await refreshOrMarkStale();
           return 'refused';
         }
         await refreshOrMarkStale();
@@ -1385,7 +1452,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
             kind: 'error',
             // be-01's own sentence about what moved, because a translation
             // here would be a second vocabulary for one set of refusals.
-            text: `${direction === 'undo' ? 'That could not be undone' : 'That could not be put back'}: ${outcome.detail ?? 'the plan has changed since.'}`,
+            text: `${direction === 'undo' ? 'That could not be undone' : 'That could not be put back'}: ${outcome.detail ?? 'the plan has changed since then.'}`,
           });
         }
         await refreshOrMarkStale();
@@ -3961,7 +4028,14 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                     id: `${role.id}-${point}`,
                     // The role's name is on the group column; repeating it three
                     // times over is how the headers came to set the table's width.
-                    header: point,
+                    //
+                    // The word itself in a `title`, because the column is 52px
+                    // and the word is not: measured on 2026-08-09, `optimistic`
+                    // wants 84px and reads `optimi`, `pessimistic` wants 95px
+                    // and reads `pessin`. There is no ellipsis to hint at it
+                    // either — the same answer the `Days` header takes, where
+                    // the sentence that would not fit moved into the `title`.
+                    header: () => <span title={point}>{point}</span>,
                     cell: ({ row }) => {
                       const problem = live.current.trioProblemFor(row.original, role.id);
                       const wrong = problem?.points.includes(point) ?? false;
@@ -4108,8 +4182,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         id: 'not-before',
         header: 'Not before',
         cell: ({ row }) => (
-          <input
-            type="date"
+          <DateField
             aria-label={`Earliest start for ${row.original.number}`}
             // Disabled without a project start date, because there is then no
             // day zero to count from and be-01 ignores the constraint
@@ -4138,10 +4211,9 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
             // so it is told to follow the column like every other control.
             style={{ width: '100%', boxSizing: 'border-box', font: 'inherit' }}
             value={row.original.startNoEarlierThan ?? ''}
-            onChange={(e) => {
+            commit={(typed) => {
               // A date input reports '' when cleared, which is the caller
               // saying "no constraint" rather than "an empty date".
-              const typed = e.target.value;
               live.current.setNotBefore(row.original.id, typed === '' ? null : typed);
             }}
           />
@@ -4215,21 +4287,32 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                   void live.current.duplicateRow(row.original.id);
                 },
               },
-              row.original.frozenNumber !== null
-                ? {
-                    id: 'unfreeze',
-                    label: 'Unfreeze',
-                    run: () => {
-                      void live.current.run(() => live.current.api.unfreeze(row.original.id));
+              ...(row.original.frozenNumber === null
+                ? []
+                : [
+                    {
+                      id: 'unfreeze',
+                      label: 'Unfreeze',
+                      run: () => {
+                        void live.current.run(() => live.current.api.unfreeze(row.original.id));
+                      },
                     },
-                  }
-                : {
-                    id: 'delete',
-                    label: 'Delete',
-                    run: () => {
-                      void live.current.deleteRow(row.original);
-                    },
-                  },
+                  ]),
+              {
+                id: 'delete',
+                label: 'Delete',
+                // Present and refused on a frozen row rather than absent, and
+                // it carries the real `run` deliberately: an item whose action
+                // was stubbed out could not tell a working guard from a
+                // missing one. {@link RowAction.refusedBecause} is what stops
+                // it, and the test that watches it stop is the proof.
+                ...(row.original.frozenNumber === null
+                  ? {}
+                  : { refusedBecause: 'Frozen — unfreeze this row before deleting it' }),
+                run: () => {
+                  void live.current.deleteRow(row.original);
+                },
+              },
             ]}
           />
         ),
@@ -4355,6 +4438,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         type="button"
         onClick={() => void run(() => api.freeze(projectId))}
         disabled={busy}
+        {...busyAffordance(busy)}
       >
         Freeze numbering
       </Button>
@@ -4364,6 +4448,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         type="button"
         onClick={() => void run(() => api.unfreezeProject(projectId))}
         disabled={busy}
+        {...busyAffordance(busy)}
       >
         Unfreeze all
       </Button>
@@ -4384,6 +4469,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
           })
         }
         disabled={busy}
+        {...busyAffordance(busy)}
       >
         Add work item
       </Button>
@@ -4553,6 +4639,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         size="sm"
         type="button"
         disabled={busy || !stack.undoable}
+        {...busyAffordance(busy)}
         title="Undo your last change to this plan (Ctrl/⌘ + Z)"
         onClick={() => {
           void stepStack('undo');
@@ -4565,6 +4652,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         size="sm"
         type="button"
         disabled={busy || !stack.redoable}
+        {...busyAffordance(busy)}
         title="Put back what you last undid (Ctrl/⌘ + Shift + Z)"
         onClick={() => {
           void stepStack('redo');
@@ -4626,14 +4714,13 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
           because every date is an offset from it — there is nothing stored
           per row to drag along.
         */}
-        <input
+        <DateField
           className="border-input bg-background h-8 rounded-md border px-2 text-sm"
-          type="date"
           aria-label="Project start date"
           disabled={busy}
+          {...busyAffordance(busy)}
           value={startDate ?? ''}
-          onChange={(e) => {
-            const typed = e.target.value;
+          commit={(typed) => {
             void run(() => api.setStartDate(projectId, typed === '' ? null : typed));
           }}
         />
@@ -4650,6 +4737,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
           aria-label="Final estimate"
           value={estimateMethod}
           disabled={busy}
+          {...busyAffordance(busy)}
           onChange={(e) => {
             const chosen = e.target.value;
             if (isEstimateMethod(chosen)) chooseEstimateMethod(chosen);
@@ -4764,12 +4852,21 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
               <ModalHeader>
                 <ModalTitle>Plan actions</ModalTitle>
               </ModalHeader>
-              <div className="flex flex-wrap items-center gap-2">{toolbarControls}</div>
+              <div aria-busy={busy} className="flex flex-wrap items-center gap-2">
+                {toolbarControls}
+              </div>
             </ModalContent>
           </Modal>
         </div>
       ) : (
-        <div data-toolbar className="mb-1.5 flex shrink-0 flex-wrap items-center gap-x-1.5 gap-y-1">
+        <div
+          data-toolbar
+          // Said out loud, because a control that is unavailable for a moment
+          // and one that is unavailable for good look the same otherwise —
+          // see {@link busyAffordance} for the click this makes visible.
+          aria-busy={busy}
+          className="mb-1.5 flex shrink-0 flex-wrap items-center gap-x-1.5 gap-y-1"
+        >
           {toolbarControls}
         </div>
       )}
@@ -5109,6 +5206,10 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
       */}
       {cheatSheetOpen && (
         <KeyboardCheatSheet
+          // The sheet says what *this* renderer answers, and nothing else. The
+          // cards wire no chords at all, and a sheet promising ⌘+Enter on a
+          // phone is the promise nothing keeps.
+          renderer={renderer}
           onClose={() => {
             setCheatSheetOpen(false);
           }}
