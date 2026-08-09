@@ -79,6 +79,42 @@ What a role's removal would take with it: the estimates and assignments that hol
 the work items whose assumed assignee it would change.
 _Avoid_: references, dependents, blast radius
 
+**Person**:
+Someone work is assigned to, named once for the whole deployment. A directory entry, not
+an account — a person never signs in and an account is never assignable.
+_Avoid_: user, member, resource
+
+**Service team**:
+A named label a work item carries to say whose plate the work is on, deliberately
+decoupled from who is assigned. Global, like people.
+_Avoid_: squad, group, department
+
+**Directory**:
+The deployment-wide set of people and service teams and who belongs to what. Shared by
+every project and every account; nothing in it is project-scoped.
+_Avoid_: roster, registry, org
+
+**Directory usage**:
+What a person's or team's removal would take with it, named per project, work item and
+member: the assignments, team labels and memberships that hold it, and the work items
+whose assumed assignee it would change.
+_Avoid_: references, dependents, blast radius
+
+**Membership chip**:
+One team a person belongs to, drawn on the directory page as a token that removes that
+one membership.
+_Avoid_: tag, pill, badge
+
+**Project owner**:
+The account that created a project and the only one that may edit it while it is
+restricted. An account, never a person from the directory.
+_Avoid_: author, creator, user
+
+**Entry meta**:
+The muted parenthetical on a project entry in the picker: who owns the project and the
+day it was created. Shown to tell same-named projects apart, never searched.
+_Avoid_: subtitle, caption, details
+
 **Estimate**:
 Three durations in days — optimistic, realistic, pessimistic — held for one work item and
 one role. A work item with children has no estimates of its own.
@@ -142,15 +178,27 @@ plan renderer and mirroring its rows. Read-only — edits happen where they alwa
 _Avoid_: chart, timeline, gantt view
 
 **Workday axis**:
-The Gantt panel's horizontal scale, one unit per workday. Weekends are not on it — the
-calendar labels come from the same mapping the date columns use, and a bar cannot span
-a weekend because the axis holds none.
+The Gantt panel's horizontal scale when the plan has no start date: one unit per
+workday, weekends not on it. A plan with a start date draws on the calendar axis
+instead.
 _Avoid_: time axis, date axis, calendar
 
+**Calendar axis**:
+The Gantt panel's horizontal scale once the plan has a start date: one cell per
+calendar day from the plan's first working day, weekends among them and greyed, so a
+bar spanning a weekend visibly crosses it.
+_Avoid_: date axis, timeline, time scale
+
+**Calendar scale**:
+The one conversion from a workday offset to a calendar-day offset, read two ways: a
+span's start takes the offset itself, a span's end takes its left limit, so a bar
+ending on a Friday stops before the weekend it never worked.
+_Avoid_: mapping, converter
+
 **Horizon**:
-How far the schedule reaches: the latest finish of any slice, in workdays, and far
-enough to hold every assumed span drawn past one. The width of the Gantt panel's drawing
-space.
+How far the schedule reaches: the latest finish of any slice, and far enough to hold
+every assumed span drawn past one. The width of the Gantt panel's drawing space — in
+units of whichever axis the plan draws on.
 _Avoid_: extent, range, span
 
 **Bar**:
@@ -257,6 +305,39 @@ The narrowest the table may be laid out for the columns it is currently showing:
 declared width plus each flexible column's floor. Above it nothing scrolls sideways; below
 it the frame scrolls and the pinned columns hold the left edge.
 _Avoid_: total width, table width, min size
+
+**Frame layout**:
+What every width in the table is read from — one resolution, per render, of the columns
+on screen and the plan being drawn, into declared widths, the table's minimum and the
+pinned columns' offsets. Not a constant: a column may be one width for one plan and
+another for the next.
+_Avoid_: column sizes, geometry, sizing config
+
+**Column width override**:
+One column's width as this browser was told it by a drag, replacing the width the frame
+layout would otherwise resolve. Held per project, per browser, and never seen by anyone
+else.
+_Avoid_: resize, custom width, preference
+
+**Width reset**:
+Forgetting every override for one project, so each column returns to the width the frame
+layout resolves for it now rather than to the width it had when the override was made.
+_Avoid_: restore defaults, revert, clear
+
+**Short date**:
+How a day is written for somebody to read — `1 Jun`, and `1 Jun 2027` when the year is
+not the current one, with the full calendar date still there to hover.
+_Avoid_: formatted date, display date, pretty date
+
+**Edit exit**:
+How an edit to one cell ends — committed or abandoned. Every way out of a box is one of
+the two, and Escape is the one that abandons.
+_Avoid_: blur, close, cancel handler
+
+**Hover preview**:
+The one positioned surface a mark shows on hover or focus, wherever the plan is drawn;
+the Name cell's and a Gantt bar's are the same surface with different bodies.
+_Avoid_: tooltip, popover, hovercard
 
 **Plan renderer**:
 Whichever of the two things is drawing the plan right now — the table or the outline cards.
