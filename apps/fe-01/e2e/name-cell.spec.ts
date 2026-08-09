@@ -73,6 +73,8 @@ async function writeInto(cell: Locator, text: string): Promise<void> {
 interface CellBox {
   /** What the box is laid out at, which is the height under test. */
   clientHeight: number;
+  /** The width the wrapping happens at — the Name column's, less its padding. */
+  clientWidth: number;
   /** What its text would need. Above `clientHeight` means something is hidden. */
   scrollHeight: number;
   /** How far the box itself has been scrolled — the notes' way back into view. */
@@ -88,6 +90,7 @@ function boxOf(cell: Locator): Promise<CellBox> {
     const style = getComputedStyle(node);
     return {
       clientHeight: node.clientHeight,
+      clientWidth: node.clientWidth,
       scrollHeight: node.scrollHeight,
       scrollTop: node.scrollTop,
       // Chromium answers `normal` for a `line-height` nothing set, and
@@ -146,6 +149,12 @@ async function idOf(cell: Locator): Promise<string> {
   expect(id, 'the name cell carries no work item id to rename by').not.toBeNull();
   return id ?? '';
 }
+
+/** Waits for the browser to have laid the page out again after a change. */
+const settled = (page: Page): Promise<unknown> =>
+  page.evaluate(
+    () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
+  );
 
 let account = 0;
 
@@ -390,5 +399,49 @@ test.describe('the Name cell at rest is the name alone', () => {
       start: 6,
       end: 9,
     });
+  });
+
+  /**
+   * The clamped height is measured at the box's width, and the width changes
+   * without anybody touching the cell: a window dragged narrower gives the Name
+   * column — the one column that takes whatever the fixed ones leave — fewer
+   * pixels, and a name that fitted two lines needs four.
+   *
+   * Under the old `max-height` in `em` that staleness was scrollable. Under the
+   * clamp it is `overflow: hidden`, so the lines the name grew are simply not
+   * there.
+   */
+  test('a name that wraps further in a narrower window is still shown whole', async ({ page }) => {
+    await seedRows(page, `e2e-name-${String(Date.now())}-${String(account)}`, 1);
+
+    const long = page.getByLabel('Name of 010');
+    await writeInto(long, LONG_NAME);
+    const wide = await boxOf(long);
+    expect(linesHidden(wide), 'the name is already cut at the width it was typed at').toBeLessThan(
+      0.5,
+    );
+
+    // Narrower, and still a table: below 768 the plan is cards, and above about
+    // 1106 the Name column is what absorbs the difference.
+    await page.setViewportSize({ width: 1150, height: 900 });
+    await settled(page);
+
+    const narrow = await boxOf(long);
+    // The precondition, and it is about the column rather than the box: a
+    // window change that left the Name column the same width would make this
+    // test pass with nothing re-measuring anything.
+    expect(
+      narrow.clientWidth,
+      'the Name column did not get narrower, so this test measures nothing',
+    ).toBeLessThan(wide.clientWidth);
+    expect(
+      linesHidden(narrow),
+      'a line of the name is hidden after the window was made narrower',
+    ).toBeLessThan(0.5);
+    // The same fact from the other side: the name needs more lines at this
+    // width, so the box the clamp allows it is taller than it was.
+    expect(narrow.clientHeight, 'the box was never re-measured at the new width').toBeGreaterThan(
+      wide.clientHeight,
+    );
   });
 });

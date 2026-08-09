@@ -14,13 +14,13 @@ Every command below was run on 2026-08-09 on Dany's Mac (darwin arm64, bun
 | `apps/fe-01/src/components/wbs/wbs-table.tsx`          | the Name column passes it, drops `maxRestRows`, passes the name       |
 | `apps/fe-01/src/components/wbs/wbs-table.test.tsx`     | 2 rewritten, 1 added, 2 assertions added                              |
 | `apps/fe-01/src/components/wbs/plan-cards.test.tsx`    | 1 added — the card face's cap, which nothing else covered             |
-| `apps/fe-01/e2e/name-cell.spec.ts`                     | new — 3, and more for the review round below                          |
+| `apps/fe-01/e2e/name-cell.spec.ts`                     | new — 3, then 3 more for the review round below                       |
 | `apps/fe-01/e2e/layout.spec.ts`, `keyboard.spec.ts`    | comments corrected; no assertion changed                              |
 | `apps/fe-01/src/components/wbs/live-editing.ts`        | review round 1: `leave()`'s quiet path re-measures the box            |
 
 fe-01 counted 851 unit tests before and **853** after; the browser suite 63
-before and **66** after. `plan-cards.tsx` is untouched. The review round below
-adds browser tests and no unit tests; its own count is at the end of it.
+before, 66 after the change itself and **69** after the review round.
+`plan-cards.tsx` is untouched.
 
 ## The gate
 
@@ -30,7 +30,10 @@ adds browser tests and no unit tests; its own count is at the end of it.
 | `bunx nx run-many -t test lint typecheck build --parallel=2` | pass, 21 projects             |
 | `bunx nx test fe-01`                                         | **853 passed**, 41 files      |
 | `openspec validate --all --json`                             | 49 items, 49 passed, 0 failed |
-| the browser suite (below)                                    | **66 passed**, 0 failed       |
+| the browser suite (below)                                    | **69 passed**, 0 failed       |
+
+Every one of them was run again after the review round below, on the same
+machine and the same ports; the results in this table are that second run.
 
 Nx labelled `gw-01:test` flaky on the run; it passed, and nothing in this
 change touches gw-01.
@@ -52,7 +55,7 @@ default ports, which is what CI's `pixels` job starts.
 
 ```
 $ bunx playwright test --config apps/fe-01/playwright.config.ts
-  66 passed (1.3m)
+  69 passed (1.3m)
 ```
 
 The review round used the same three ports for the same reason — the stack on
@@ -82,6 +85,7 @@ The review round's three, watched the same way on 2026-08-09:
 | `afterSync` dropped from `leave()`'s nothing-typed branch | `a peer's longer name arriving while the cell is focused …` | `a line of the peer's name is hidden after the blur — Expected: < 0.5, Received: 1.9791666666666667`                    |
 | the selection save and restore dropped from `resize`      | `a selection left in the name survives the measurement …`   | `the measurement moved the caret of a box nobody was in — Expected {start: 6, end: 9}, Received {start: 272, end: 272}` |
 | the restored direction pinned to `'none'`                 | `a selection left in the name survives the measurement …`   | `Expected: "forward", Received: "none"`                                                                                 |
+| the window `resize` listener removed from `CellInput`     | `a name that wraps further in a narrower window …`          | `a line of the name is hidden after the window was made narrower — Expected: < 0.5, Received: 3.854166666666667`        |
 
 Each was reverted and the test re-run green before the next one was injected.
 
@@ -125,6 +129,30 @@ back by the grid's own Shift+Tab replaces the range anyway, because
 `focusAdjacentCell` lands through `focusCellAt(input, 'all')`, which selects the
 whole value on purpose. The retained range is what a click into another cell and
 a later `focus()` come back to, so that is what the test does.
+
+### 3. Nothing re-measured when the width changed (Medium)
+
+`resize()` ran on attach, on a sync, on a keystroke, on focus and on blur — and
+on nothing else. The clamped height is the first line's height _at this box's
+width_, and Name is the column that absorbs whatever the fixed ones leave, so a
+window dragged narrower rewraps the name under a box that keeps its old height.
+Measured: a name laid out at 1400px hid **3.85 lines of itself** at 1150px.
+Under the old `em` cap that staleness was scrollable; under the clamp it is
+`overflow: hidden`.
+
+Fixed with a `window` `resize` listener in `CellInput`, active only when
+`autoSize && restShowsFirstLineOnly`. A `resize` listener and not a
+`ResizeObserver`: jsdom ships neither it nor `matchMedia`, an observer would
+throw in every test that mounts a table, and `useRendererForViewport` in
+`plan-renderer.ts` already made this exact choice for this exact reason.
+Undebounced, matching it.
+
+**Not covered by a unit test, deliberately.** A jsdom test could watch the
+listener being added and removed, and could not watch it do anything: the
+listener's whole effect is a `scrollHeight` read jsdom answers 0 for. A cleanup
+test would be weaker still — `resize(box.current)` after an unmount is a call
+with `null`, which returns immediately and is observable nowhere. The browser
+is the only oracle, as it was for the clamp itself.
 
 ## The negative that could not fail, and did not ship
 

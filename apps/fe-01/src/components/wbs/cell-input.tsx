@@ -148,6 +148,17 @@ export function CellInput({
   const field = held.current;
 
   /**
+   * The box this face is rendering right now, or null between mounts.
+   *
+   * A second reference to the node the field already holds, and it is here for
+   * the one caller that has no other way to reach it: the window-resize
+   * re-measure below fires from outside React and outside any event of this
+   * cell's. The field's own copy is private on purpose — everything else that
+   * touches the node does so through an event that carries it.
+   */
+  const box = useRef<CellElement | null>(null);
+
+  /**
    * Sets the height to the text's own height, and caps how tall that gets
    * while the cell is not being written in.
    *
@@ -239,7 +250,49 @@ export function CellInput({
     field.serverSaid(value);
   }, [field, value, resize]);
 
+  /**
+   * Re-measures the clamped height when the window changes size.
+   *
+   * The at-rest height is the first line's height **at this box's width**, and
+   * the width moves without anybody touching the cell: Name is the column that
+   * absorbs whatever the fixed ones leave (`table-frame.ts`), so a window
+   * dragged narrower gives it fewer pixels and a name that fitted two lines
+   * needs four. Nothing else re-measures — attach, a keystroke, a focus, a blur
+   * and a sync are the five, and a window resize is none of them. Under the old
+   * `em` cap the stale height was scrollable; under the clamp it is
+   * `overflow: hidden`, so the lines the name grew are simply not there.
+   *
+   * A `resize` listener rather than a `ResizeObserver`, which is the obvious
+   * tool and is not available: **jsdom ships neither**, and the repository
+   * already made this choice once for the same reason —
+   * `useRendererForViewport` in `plan-renderer.ts` reads `window.innerWidth` on
+   * this event because `matchMedia` is absent there too. An observer would
+   * throw in every test that mounts a table. Nothing is debounced, here or
+   * there: one `scrollHeight` read per cell per event is what the browser does
+   * on every keystroke in the cell anyway.
+   *
+   * Only for the clamped cell. The card face's height follows its content
+   * whatever the width, and a listener per cell for a measurement that cannot
+   * change is a cost with no answer.
+   *
+   * Proof: the listener removed, `a name that wraps further in a narrower
+   * window is still shown whole` failed on `a line of the name is hidden after
+   * the window was made narrower — Expected: < 0.5, Received: 3.854…` — very
+   * nearly four lines of a name, invisible. Watched in Chromium, 2026-08-09.
+   */
+  useEffect(() => {
+    if (!autoSize || !restShowsFirstLineOnly) return undefined;
+    const remeasure = (): void => {
+      resize(box.current);
+    };
+    window.addEventListener('resize', remeasure);
+    return () => {
+      window.removeEventListener('resize', remeasure);
+    };
+  }, [autoSize, restShowsFirstLineOnly, resize]);
+
   const takeNode = (node: CellElement | null): void => {
+    box.current = node;
     field.takeNode(node);
     if (node !== null) onAttach?.(node);
   };
