@@ -21,7 +21,8 @@ branch `change/instant-hovers`. The main checkout serves the live dev stack on
 | `CONTEXT.md`                                         | Hover preview reworded; Notes marker added                         |
 
 fe-01 counted 859 unit tests before this change's code and **866** after; the
-browser suite 69 before and **74** after.
+browser suite 69 before and **74** after. Round 3 (below) took those to **875**
+and **76**.
 
 ## The gate
 
@@ -29,9 +30,11 @@ browser suite 69 before and **74** after.
 | ------------------------------------------------------------ | ----------------------------- |
 | `bunx nx format:check --all`                                 | pass                          |
 | `bunx nx run-many -t test lint typecheck build --parallel=2` | pass, 21 projects             |
-| `bunx nx test fe-01`                                         | **866 passed**, 42 files      |
+| `bunx nx test fe-01`                                         | **875 passed**, 42 files      |
 | `openspec validate --all --json`                             | 50 items, 50 passed, 0 failed |
-| the browser suite (below)                                    | **74 passed**, 0 failed       |
+| the browser suite (below)                                    | **76 passed**, 0 failed       |
+
+Re-run in full after round 3, on the same machine and the same ports.
 
 Nx labelled `gw-01:test` flaky on one run; it passed, and nothing here touches
 gw-01.
@@ -52,8 +55,38 @@ empty and the `.env.e2e` is deleted.
 
 ```
 $ bunx playwright test --config apps/fe-01/playwright.config.ts
-  74 passed (1.4m)
+  76 passed (1.6m)
 ```
+
+## Round 3: two independent reviews
+
+`codex` raised five findings and `agy` two more, one of which (its own #1) is
+codex's #1 by another route. What landed:
+
+| finding                                          | verdict                        | what changed                                                                                                       |
+| ------------------------------------------------ | ------------------------------ | ------------------------------------------------------------------------------------------------------------------ |
+| codex #1 — the preview cannot be reached         | real, high                     | the leave moves from the notes marker to the Name cell, which contains the marker and the card both                |
+| codex #2 — no card reachable without a pointer   | real, high                     | the folded cell opens its card on focus and is described by it; the depends box gets an off-screen list; Name none |
+| codex #3 — the hover is never settled            | real                           | every tree read closes a card whose row moved, and leaves one whose row did not                                    |
+| codex #4 — draft versus server                   | real, and worse than described | the card read the draft trio **and** printed the raw shorthand where days belong; both now read the row            |
+| codex #5 — a render per boundary                 | partly real                    | pointless writes removed; the residual render is in `design.md` Risks, unfixed and named                           |
+| agy #6 — the row lift is only on the Name column | **refuted, with a browser**    | nothing changed; the measurement that says so is a new e2e check                                                   |
+| agy #7 — a mention that offers nobody            | real, by a route agy missed    | reachable through an empty directory rather than `@zzz`; the guard now reads the mention                           |
+
+`agy #6` is the one worth reading twice. The lift exists because a pinned cell
+is `position: sticky` **with a z-index**, so it is a stacking context that traps
+a popover inside it; `depends` and `<roleId>-final` are not pinned, so nothing on
+the way from those cards to the frame makes one. Extending the lift would have
+_created_ stacking contexts on those `<td>`s and capped their cards at layer 2.
+Rather than argue it, `paints over the pinned cell of the row below it` scrolls
+the frame until the depends column is half under the pinned block and compares
+the overlapping strip with the card open and closed — and it was watched failing
+with the card's `z-index` removed.
+
+`agy #7`'s example does not reproduce: `@zzz` offers `Add “zzz”`, so the entry
+count is 1 and the old guard held. The mechanism is real anyway by a different
+route — a deployment with nobody in the directory answers a bare `@` with no
+entries at all — and that is what the negative test uses.
 
 ## Failure proof
 
@@ -75,6 +108,42 @@ watched green again with the fault removed. All on 2026-08-09.
 | the depends card's `picker === null` condition dropped                      | `keeps the cell to the dependency picker while it is open`          | `expected [ <div role="tooltip" …/> ] to have a length of +0 but got 1`                                                                |
 | `opensAPopover`'s `-final` suffix branch removed                            | `paints the card past the bottom of a 96px cell` (e2e)              | `the strip below the cell looks the same with the card open` — `Expected: false Received: true`                                        |
 
+### Round 3, all watched on 2026-08-09
+
+| fault injected                                                | test that observed it                                                    | observed                                                                        |
+| ------------------------------------------------------------- | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------- |
+| the `onMouseLeave` put back on the notes marker               | `keeps the preview open while the pointer crosses the cell` (unit)       | `expected null not to be null`                                                  |
+| the same fault, in a browser                                  | `scrolls a note taller than the preview once the pointer is on it`       | `the card closed on the way to it: expected 1, received 0`                      |
+| the `onFocus` hover line dropped from the folded cell's box   | `opens the card on the focus too, and points the box at it`              | `Unable to find an accessible element with the role "tooltip"`                  |
+| an `aria-label` put back on the card that box is described by | the same test                                                            | `expected 'Dev for 010' to be null`                                             |
+| the `aria-describedby` dropped from the depends box           | `describes the box with what the row waits for, pointer or no pointer`   | `expected null not to be null`                                                  |
+| the settle deleted from `refresh`                             | `closes the card when a peer moves the row it is anchored to`            | `expected <div role="tooltip" …/> to be null`                                   |
+| the card's points read back through `estimateValue`           | `reads the trio off the row, not out of the boxes it was typed into`     | `expected 'Devoptimistic 2 · realistic — · pessi…' to contain 'realistic 3'`    |
+| the card's figure read back through `combinedValue`           | `says Final in days, whatever half-typed shorthand the cell is holding`  | `expected 'Devoptimistic 2 · realistic 3 · pessi…' to contain 'Final 3.7 days'` |
+| the `cardable` guard dropped from the depends cell's enter    | `writes no hovered cell from a cell that has no card to show`            | `Unable to find an accessible element with the role "tooltip"`                  |
+| `cellKey` made to return `{ rowId, columnId }`                | `keys the hover by value, so a second enter on one cell renders nothing` | `expected { rowId: 'w1', … } to be { rowId: 'w1', … } // Object.is equality`    |
+| the folded cell's guard put back to `options.length === 0`    | `keeps the cell to a mention that has nobody to offer`                   | `expected 'Devoptimistic…' to contain 'QA'`                                     |
+| `zIndex: 20` removed from `HoverCard`                         | `paints over the pinned cell of the row below it` (e2e)                  | `the pinned cell below hides the card` — `Expected: false Received: true`       |
+
+Two of these deserve their reason written down.
+
+**The unit test for finding 1 fires `mouseOut` with a `relatedTarget`, not
+`mouseLeave`.** React synthesises leave from `mouseout`: given where the pointer
+went, it walks up to the common ancestor of the two elements and fires leave on
+that stretch alone — which is what a browser does. A bare
+`fireEvent.mouseLeave(marker)` carries no `relatedTarget`, which means "the
+pointer left the document", and React then fires leave on the marker **and every
+ancestor of it** — so it reports this fixed and broken identically. Measured in a
+scratch component before the test was believed. The existing tests that use
+`fireEvent.mouseLeave` are unaffected: each fires on the element that owns the
+handler, and "left the document" is a true thing to say there.
+
+**The bailout check is a property, not a render count.** jsdom counts no
+renders, so `keys the hover by value` asserts the predicate React's bailout
+actually uses — `Object.is` over the key — rather than the render it produces. A
+change that made these cells re-render on a stationary pointer some other way
+would not be caught by it. Said here rather than implied.
+
 The last one is the reason that test compares two screenshots of the strip
 below the cell rather than hit-testing it: a card takes no pointer events, so
 `document.elementFromPoint` answers with whatever is under the card whether the
@@ -93,3 +162,10 @@ fail.
   it collides with the last character of a name that fills the first line.
 - **Touch.** A marker is a hover target and a phone has no hover; the card face
   (`plan-cards.tsx`) is untouched, and notes are read there at rest as before.
+- **A rolled-up parent's folded cell has no keyboard route to its card.** Its
+  figure is a sum rather than a box, so there is nothing in that cell to focus.
+  Every row underneath it has one; nothing here measures whether that is enough
+  in practice.
+- **The residual render cost is not measured.** One render of the table per
+  hover boundary is stated in `design.md` and left as it was found; no profile
+  was taken, and no test bounds it.

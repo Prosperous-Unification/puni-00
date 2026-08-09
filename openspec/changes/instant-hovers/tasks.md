@@ -69,3 +69,35 @@ Ordered TDD slices. Only `- [ ]` checkboxes are tracked by the apply phase.
 - [x] 5.3 Full gate + `bun run e2e` on ports 3113/3213/4213 + verify.md with
       the failure-proof table — test: format:check --all, run-many gate,
       openspec validate --all, playwright suite all green
+
+## 6. Round 3: what two reviews found
+
+- [x] 6.1 The preview's leave moves from the marker to the Name cell, so the
+      pointer can reach the one card that scrolls.
+      Test: unit — the preview survives the pointer crossing the cell, fired as
+      a `mouseOut` carrying a `relatedTarget`, which is what React derives a
+      leave from; browser — a note taller than the preview is wheeled to its
+      last line. Negative for both: the leave handler put back on the marker.
+- [x] 6.2 A keyboard route per surface: the folded cell's box opens the card on
+      focus and is described by it; the depends box is described by an
+      off-screen copy of the same list; the Name cell gets none, and design.md
+      says why.
+      Negatives: the focus line dropped, the description dropped, and a label
+      put back on the card a description points at.
+- [x] 6.3 The hovered cell is settled against every tree that lands — same
+      parent and position, or the card closes — and an unrelated refresh leaves
+      it alone. Negative: the settle deleted from the refresh.
+- [x] 6.4 The folded card reads the row's own trio and figure, never the
+      pending draft, in two tests because a box's draft and the cell's own
+      shorthand cannot coexist.
+      Negatives: the two reads put back through the drafting readers.
+- [x] 6.5 No hover state written by a cell with no card to show, and the repeat
+      case left to React's bailout on an unchanged string.
+      Negatives: the guard dropped; the cell key made to return an object.
+- [x] 6.6 The folded cell's guard reads the mention rather than its entries, so
+      a bare `@` on a deployment with nobody in it opens no card over the box.
+      Negative: the guard put back to counting the entries.
+- [x] 6.7 The row lift is measured rather than extended: a browser check that a
+      card paints over the pinned cell of the row below, once the frame is
+      scrolled far enough to put one under the other.
+      Negative: the card's own `z-index` removed.
