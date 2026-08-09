@@ -29,13 +29,13 @@ Ordered TDD slices. Only `- [ ]` checkboxes are tracked by the apply phase.
       renders with the prop, value still the composed text; the
       `wbs-table.test.tsx` suite stays green — value and commit semantics
       unchanged)
-- [ ] 2.2 Browser proof of the clamp — test: `e2e/name-cell.spec.ts` "at rest
+- [x] 2.2 Browser proof of the clamp — test: `e2e/name-cell.spec.ts` "at rest
       the cell is as tall as its wrapped name" (row with a ten-line note vs a
       note-less twin: equal cell heights; long name: full text visible, height
       above one line) and "the notes cannot be scrolled into view at rest";
       negative: clamp deliberately removed (prop not passed) — watched failing
       on the noted row being taller
-- [ ] 2.3 Focus reveals, blur re-hides, nothing is sent by a look — test:
+- [x] 2.3 Focus reveals, blur re-hides, nothing is sent by a look — test:
       `e2e/name-cell.spec.ts` "focus shows the notes and blur hides them
       again" (focused height grows, notes text visible in the box, blur
       returns to the name height; the network log shows no PATCH from a focus
@@ -44,11 +44,11 @@ Ordered TDD slices. Only `- [ ]` checkboxes are tracked by the apply phase.
 
 ## 3. Audit and gate
 
-- [ ] 3.1 Audit existing browser specs that assert Name-cell or row heights
+- [x] 3.1 Audit existing browser specs that assert Name-cell or row heights
       with notes at rest (`e2e/layout.spec.ts`, `e2e/keyboard.spec.ts`, the
       mobile specs) and update expectations that encoded the old four-line
       rest cap — test: the full `bun run e2e` green on dedicated ports
-- [ ] 3.2 Full gate plus verify.md with the R5 failure-proof table (every
+- [x] 3.2 Full gate plus verify.md with the R5 failure-proof table (every
       negative above watched failing, command output recorded) — test:
       `bunx nx format:check --all`, the run-many gate with test lint typecheck
       build, and `openspec validate --all --json` all green

@@ -194,6 +194,15 @@ for, was written, its negative watched **passing** with the line deleted, and th
 `columns` maps over `roles`, so a dead id in the accordion selects nothing. Write the negative
 before you believe the line.
 
+One more the same day, in `N name-title-body`, and it **did not ship** either. The hover
+preview must show a work item's name as text rather than as markdown source, and the negative
+written for it used the name `# not a heading <script>`. With the fault injected — the name
+concatenated into the source — it **passed**: `# # x` is an ATX heading whose content is the
+literal `# x`, so the parser handed back the exact string the test was asserting had never
+been parsed. The name carries `*not*` now, and the heading is asserted to contain no element
+the parser made; both failures were then watched. The test that catches a parser has to use
+punctuation a parser eats.
+
 Prove your check fails when the thing is broken, and say so in the comment. A check whose
 failure mode has never been observed is a claim, not a gate.
 

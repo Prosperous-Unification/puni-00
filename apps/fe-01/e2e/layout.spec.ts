@@ -582,8 +582,10 @@ test.describe('the table, measured by a browser', () => {
     const name = page.getByLabel('Name of 010');
     // A name and three paragraphs under it, so the rendered preview is taller
     // than the box it hangs off — the same reason the dependency list above is
-    // given three entries. The cap on the box is what makes that true: it
-    // shows four lines at rest and the preview holds the rest.
+    // given three entries. The clamp on the box is what makes that true: at
+    // rest it shows the name alone, and the preview holds everything under it
+    // (`e2e/name-cell.spec.ts`). It used to show four lines of the note and
+    // the overhang was smaller for it.
     await name.fill(
       'Racking survey\nAisle ends photographed\n\nMezzanine measured\n\nFire doors checked\n\nSprinkler heads counted',
     );
