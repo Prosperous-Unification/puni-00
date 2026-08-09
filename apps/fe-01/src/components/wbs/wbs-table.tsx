@@ -21,13 +21,7 @@ import {
 } from '@/lib/wbs-api';
 
 import { ActionsMenu } from './actions-menu';
-import {
-  CellInput,
-  type CommitOutcome,
-  flushCell,
-  forgetRefusedDrafts,
-  unsent,
-} from './cell-input';
+import { CellInput } from './cell-input';
 import { type Caret, type CellRef, commandMove, type Direction, nextCell } from './cell-navigation';
 import { CreatablePicker, pickableLabel, PickerList, type PickerOption } from './creatable-picker';
 import { pickerEntries, type PickerEntry } from './dep-picker';
@@ -56,6 +50,7 @@ import {
 } from './estimate-draft';
 import { type Command, commandChordIn, undoChord } from './keyboard-bindings';
 import { KeyboardCheatSheet, opensCheatSheet } from './keyboard-cheat-sheet';
+import { type CommitOutcome, flushCell, forgetRefusedDrafts, unsent } from './live-editing';
 import { splitMention } from './mention';
 import { composeNameCell, normalizeNewlines, splitNameCell } from './name-notes';
 import { NotesPreview } from './notes-preview';

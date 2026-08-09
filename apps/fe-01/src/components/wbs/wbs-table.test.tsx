@@ -19,7 +19,7 @@ import type {
   WorkItemView,
 } from '@/lib/wbs-api';
 
-import { refusedDraftFor } from './cell-input';
+import { refusedDraftFor } from './live-editing';
 import { POPOVER_ROW_LAYER, tableMinWidth } from './table-frame';
 import { type SubscriptionHandlers, WbsTable } from './wbs-table';
 
