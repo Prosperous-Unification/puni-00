@@ -95,8 +95,35 @@
       schema's and the repository's "role order is not a contract" comments are
       corrected in the same change as the behaviour.
 
-## 7. Gate
+## 7. Review round two (codex, 2026-08-09)
 
-- [x] 7.1 The format check, the run-many gate and the OpenSpec validation —
+- [x] 7.1 **HIGH — the identity claim was wider than its arithmetic.** The old
+      adapter summed estimates in whatever order `EstimateRepository` returned
+      (no `ORDER BY`), and the differential built both engines' inputs in one
+      loop, so the oracle was handed a sum in the one order it could not
+      disagree with. Three parts: `listByProject` orders by role position
+      through a join; the claim is re-scoped in the spec and `design.md` D5a to
+      plans a **released** database can hold — at most two roles, where addition
+      commutes — with three-role order **defined** from birth rather than
+      changed; and the differential derives its two inputs separately, feeding
+      the old engine a seeded **shuffle** for the two-role corpus.
+- [x] 7.2 **Negative tests, all watched failing:** the `orderBy` removed from
+      `listByProject`, and `reads a work item's estimates in role order` handed
+      back `QA` before `Dev`; the two-role corpus raised to three roles, and the
+      shuffled differential failed at seed 2 with a duration of
+      `9.333333333333334` becoming `9.333333333333332` — the class the review
+      constructed, now visible to the test.
+- [x] 7.3 **MEDIUM — the migration's `DEFAULT 0` had no proof.** A test runs the
+      **outgoing** release's three-column `INSERT` against the migrated schema.
+      Watched failing with `DEFAULT 0` removed: `NOT NULL constraint failed:
+role.position`, on that statement — a role add answering 500 for the
+      length of a swap.
+- [x] 7.4 **Unplanned, found by 7.1:** nine test files seeded roles with no
+      `position` at all (test projects are not typechecked), so they landed on
+      the column's default and every one of them sorted equal. Seeded properly.
+
+## 8. Gate
+
+- [x] 8.1 The format check, the run-many gate and the OpenSpec validation —
       recorded in `verify.md` with the failure-proof table. No e2e: this change
       is server-only.

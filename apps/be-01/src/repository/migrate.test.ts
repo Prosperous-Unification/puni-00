@@ -144,4 +144,44 @@ describe('the role position migration', () => {
       db.cleanup();
     }
   });
+
+  it('lets the outgoing release keep inserting roles against the migrated schema', () => {
+    // The half of a swap nothing else covers. be-01 blue and green share one
+    // SQLite file, green migrates while blue is still serving, and blue's
+    // `INSERT` names the three columns it was compiled against. Without the
+    // column's default that statement fails, and adding a role on the old
+    // colour answers 500 for the length of the swap.
+    //
+    // The statement is written out here rather than built through drizzle
+    // precisely because drizzle is the *new* release: the point is what the old
+    // one sends over the wire.
+    const db = tempDb();
+    try {
+      runMigrations(db.path, FOLDER);
+      const sqlite = openDatabase(db.path);
+      try {
+        sqlite.run(
+          "INSERT INTO users (id, username, password_hash, created_at) VALUES ('u', 'owner', 'x', 1)",
+        );
+        sqlite.run(
+          'INSERT INTO project (id, name, owner_id, restricted, estimate_method, start_date, revision, created_at)' +
+            " VALUES ('p', 'Rewire the shed', 'u', 0, 'pert', NULL, 0, 1)",
+        );
+
+        sqlite.run("INSERT INTO role (id, project_id, name) VALUES ('r1', 'p', 'Design')");
+
+        const written = sqlite
+          .query<{ position: number }, []>("SELECT position FROM role WHERE id = 'r1'")
+          .get();
+        // First rather than last, which is the one thing the default costs: a
+        // colour-swap window's worth of wrong order, against a row that would
+        // otherwise not exist at all.
+        expect(written?.position).toBe(0);
+      } finally {
+        sqlite.close();
+      }
+    } finally {
+      db.cleanup();
+    }
+  });
 });
