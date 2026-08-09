@@ -667,3 +667,71 @@ and `grep -ci gantt` over that output prints 0.
 `loadEnv` rather than the environment — `bunx vite --mode e2e --port 4211` with
 a throwaway `apps/fe-01/.env.e2e`. Both the config and that file were reverted
 and deleted before committing; `git status` is clean of them.
+
+## The named rows and the assumed span, 2026-08-09
+
+Three user-requested changes landed on top of `G`, two of them the panel's:
+the row labels and the bar titles now name a row the way the plan names it, and
+an unestimated slice is drawn across an **assumed span** instead of as a tick of
+no width. The third — the Depends on picker's options reading `010 - Strip` — is
+`pick-deps-and-keep-the-project`'s requirement, amended there.
+
+### What changed
+
+| file                | what                                                                                                                                                                                                                                 |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `gantt-geometry.ts` | `GanttRow.number`, `GanttRowLabel.number`, `GanttBar.workItemNumber`; `ASSUMED_UNESTIMATED_WORKDAYS = 2` and `GanttBar.drawnSpan`; the horizon takes `start + drawnSpan` as well as `finish`                                         |
+| `gantt-panel.tsx`   | `rowWords` on the label button and its `title` and on the bar `<title>`'s first line; `width={bar.drawnSpan}`; `ASSUMED_BAR_CLASSES`; `assumedLabelFor`; the `Not estimated — drawn as 2 days` line; the tick filters on `drawnSpan` |
+| `wbs-table.tsx`     | two lines: the picker option renders `{entry.number} - {entry.name}`, and `ganttPlan`'s rows carry `row.original.number`                                                                                                             |
+| `e2e/gantt.spec.ts` | the caret's row now finds its bar by `:not([data-assumed])` as well as by width — an unestimated bar has area now                                                                                                                    |
+| spec, `CONTEXT.md`  | the requirements below, and the **Assumed span** term                                                                                                                                                                                |
+
+**The tick did not go away entirely, and that is deliberate.** It filters on
+`drawnSpan === 0` rather than `duration === 0`, so an unestimated slice no
+longer draws one — it has a bar — while a slice somebody **estimated** at zero
+days still does. `expectedDays({0, 0, 0})` is 0 and
+`libs/domain/src/estimate.test.ts` asserts it, so that is a reachable state, and
+removing the tick outright would draw nothing at all for it.
+
+`data-start`/`data-finish` are untouched: an unestimated bar's drawn width and
+the engine's numbers disagree, and those attributes are what say so. The spec's
+coordinate-contract requirement was reworded to permit exactly that, and gained
+a scenario pinning it.
+
+### Failure proof — the named rows and the assumed span
+
+| #   | the fault injected                                                             | what failed, and on what                                                                                                                                                                                                                                                      |
+| --- | ------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | `labels`' `number: row.number` deleted                                         | `labels every shown row in the plan order, with its number and its depth` alone, on `expected { id: 'phase', name: 'Prep', … } to deeply equal { id: 'phase', number: '010', … }`                                                                                             |
+| 2   | the label button's text back to `label.name === '' ? '(unnamed)' : label.name` | **4 failed \| 39 passed** — three label lists on `expected [ 'Hull', 'Sanding', 'Sealing', …(1) ] to deeply equal [ '010 - Hull', '011 - Sanding', …(2) ]`, and `takes the plan to a row when its label is clicked`                                                           |
+| 3   | `drawnSpan` reverted to `slice.duration`                                       | **2 failed \| 44 passed** — `draws an unestimated slice across the assumed span…` on the tuple, and `stretches the horizon to hold the assumed span` on `expected 3 to be 5`                                                                                                  |
+| 4   | the horizon back to `Math.max(horizon, bar.finish)` alone                      | `stretches the horizon to hold the assumed span` alone, on `expected 3 to be 5` — a two-day bar hanging off a canvas that stops at 3                                                                                                                                          |
+| 5   | `ASSUMED_BAR_CLASSES` emptied to `''`                                          | `draws an unestimated slice as a translucent, dashed bar of the assumed span` alone, on `expected false to be true` — a guess painted like a schedule                                                                                                                         |
+| 6   | the overlay's `assumedLabelFor` branch back to `null`                          | `writes the guess on the ghost bar, and the person with it` alone, on `expected undefined to be 'Kat · ?'`                                                                                                                                                                    |
+| 7   | the `Not estimated — drawn as 2 days` line dropped from `barWords`             | `says on the ghost bar that its width is a drawing and not an estimate` alone, on `expected [ '020 - Sand the deck', …(4) ] to deeply equal [ '020 - Sand the deck', …(5) ]`                                                                                                  |
+| 8   | the option's `{entry.number} - {entry.name}` cut to `{entry.name}`             | **11 failed \| 290 passed**, including `expected [ 'Strip', 'Paint' ] to deeply equal [ '010 - Strip', '030 - Paint' ]` and three `Unable to find an accessible element with the role "option" and name "010 - Strip"`                                                        |
+| 9   | `row.number.toLowerCase().includes(wanted) \|\|` dropped from `pickerEntries`  | **6 failed \| 306 passed** — `narrows the list by the number too, which is what is on the chips` on `expected [] to deeply equal [ '010 - Strip' ]`, `pickerEntries > filters by number substring`, and three command-chord tests that reach the open list by typing a number |
+
+All nine watched on 2026-08-09.
+
+### The gate
+
+| command                                                  | result                                         |
+| -------------------------------------------------------- | ---------------------------------------------- |
+| `bunx nx format:check --all`                             | pass                                           |
+| `bunx nx run fe-01:test --skip-nx-cache`                 | **848 passed**, 37 files                       |
+| `bunx nx run fe-01:typecheck`                            | pass (app and e2e projects)                    |
+| `bunx nx run fe-01:lint`                                 | pass                                           |
+| `bunx nx run fe-01:build`                                | pass                                           |
+| `bunx tsc --build --force apps/fe-01/tsconfig.spec.json` | 15 errors, the same 15 files as on `git stash` |
+| `bunx openspec validate --all`                           | 48 items, 48 passed, 0 failed                  |
+
+### What this cannot see
+
+`bunx playwright test` was **not** run here — the orchestrator runs the browser
+gate after the merge. So nothing in this section has watched a real Chrome:
+that the 35% fill and the dashes read as provisional at 28px per workday, that
+`Kat · ?` fits the 56px the assumed span buys, and that the caret test's new
+`data-assumed` filter still finds exactly one bar on `010.2`'s row are all
+arithmetic and jsdom until that run. The `e2e/gantt.spec.ts` edit is the one
+change in this section whose only oracle is a browser.

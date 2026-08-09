@@ -105,6 +105,13 @@
   --border: oklch(0.929 0.013 255.508);
   --input: oklch(0.929 0.013 255.508);
   --ring: oklch(0.704 0.04 256.788);
+  /*
+   * The one hue shadcn's set does not name and this app needs: what a row
+   * matching the Find box is tinted. Every other colour in the grid is a mix of
+   * the tokens above, and this one cannot be — a highlight has to read as a
+   * highlight rather than as a shade of the page.
+   */
+  --highlight: oklch(0.905 0.147 96);
 }
 
 .dark {
@@ -127,6 +134,41 @@
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
   --ring: oklch(0.551 0.027 264.364);
+  --highlight: oklch(0.62 0.12 96);
+}
+
+/*
+ * The grid's own surfaces, derived from the tokens above rather than picked.
+ *
+ * One block and no `.dark` twin, deliberately: every value here is a
+ * `color-mix` of properties `.dark` re-points on the same element, and a custom
+ * property substitutes at computed-value time — so on a dark `<html>`
+ * `--grid-band` mixes the dark `--muted` into the dark `--background` without
+ * this block knowing a theme exists. A second copy under `.dark` would be a
+ * second thing to keep in step, and the one that drifts.
+ *
+ * They exist because a table needs shades the token set does not name: a banded
+ * row, a hovered one, the row a second Ctrl+D would delete. Naming them here
+ * rather than writing `color-mix` at each use is what makes "a touch stronger
+ * than the band" a number one file decides.
+ *
+ * The three greys mix `--foreground` into `--background` rather than `--muted`,
+ * and that is a measurement rather than a preference: `--muted` is
+ * `oklch(0.968 …)` against a `oklch(1 …)` page, three percent of lightness
+ * apart, so a band mixed from it is invisible on a screen with any glare on it
+ * — watched at 1400px in Chrome before these numbers were changed. Mixing the
+ * ink in instead gives a scale that can be dialled, and it inverts by itself:
+ * on a dark page `--foreground` is the near-white and the same percentages
+ * lift the band off the black.
+ */
+:root {
+  --grid-header: color-mix(in oklab, var(--foreground) 6%, var(--background));
+  --grid-band: color-mix(in oklab, var(--foreground) 2.5%, var(--background));
+  --grid-hover: color-mix(in oklab, var(--foreground) 7%, var(--background));
+  --grid-armed: color-mix(in oklab, var(--destructive) 14%, var(--background));
+  --grid-invalid: color-mix(in oklab, var(--destructive) 10%, var(--background));
+  --grid-drop: color-mix(in oklab, var(--ring) 22%, var(--background));
+  --grid-match: color-mix(in oklab, var(--highlight) 55%, var(--background));
 }
 
 /*
@@ -281,5 +323,345 @@
     font: inherit;
     color: inherit;
     letter-spacing: inherit;
+  }
+}
+
+/*
+ * The plan grid's look, and the whole of it that is not a geometry.
+ *
+ * **Why this is a stylesheet at all, when the table is styled inline.** Three
+ * of the things asked for here — a row that lights up under the pointer, a
+ * banded row, a drag handle that appears when the row does — are states of a
+ * *row* that every cell in it has to answer, and there is no render that knows
+ * about them: `wbs-table.tsx` would have to hold a hovered-row id in React
+ * state and re-render the table on every pointer move to say in an inline
+ * style what `tr:hover` says for nothing. The cascade is the right tool and
+ * this is where it lives.
+ *
+ * **`--cell-bg` is the join between the two systems.** A pinned cell carries an
+ * opaque background as an *inline* style — it must, or the row scrolling behind
+ * it shows straight through — and an inline style outranks every layer, so a
+ * `tr:hover` rule could never reach one. So the inline declaration is
+ * `background: var(--cell-bg, …)` (`table-frame.ts`) and this file sets
+ * `--cell-bg` on the row: banded, hovered and drop-target rows re-point one
+ * custom property and the pinned columns follow the rest of their row. The
+ * fallback in that inline value is not decoration — it is what keeps a pinned
+ * cell opaque if this block is ever deleted, because an undefined custom
+ * property makes `background` invalid at computed-value time, which is
+ * `transparent`, which is the overlap bug back with nothing to notice it.
+ *
+ * **Nothing in here may move a pixel.** `e2e/layout.spec.ts` measures this
+ * table's real rectangles against `table-frame.ts`'s numbers — column widths,
+ * pinned offsets, the intrinsic width of a date input — and a restyle that
+ * shifted one of them is a bug wearing a palette. So the properties used here
+ * are the ones that cannot: colour, `background`, `box-shadow` (which is what
+ * draws every separator in this table — an `inset` shadow occupies no space
+ * where a `border-width` would), `opacity`, `transition`, and `border-color`
+ * without ever touching `border-width` or `border-style`. Two exceptions are
+ * deliberate and both are outside anything measured: the heading row's type,
+ * which cannot change a column laid out `table-layout: fixed`, and the padding
+ * of the dependency chips, which only decides how many fit on a line of a cell
+ * whose height nothing asserts.
+ *
+ * `@layer components`, so a `className` on a cell still wins: the layer order
+ * at the top of this file puts utilities last. The base layer's `[data-grid]`
+ * guard is not in play here — that guard scopes the *reset* away from the grid,
+ * and this block is aimed at the grid on purpose.
+ */
+@layer components {
+  /*
+   * The row's colour, which every cell in it paints. Declared on the grid so
+   * that it is always defined: a `tr` that sets nothing inherits this.
+   */
+  [data-grid] {
+    --cell-bg: var(--background);
+  }
+
+  [data-grid] th,
+  [data-grid] td {
+    background: var(--cell-bg);
+    /* Long enough to read as a fade, short enough that the row is lit by the
+       time the pointer has stopped. */
+    transition: background-color 100ms ease;
+  }
+
+  /*
+   * The heading: a quiet micro-caption, the same one the Gantt panel's axis and
+   * its row rail already use. `text-align` and the type are all that is left to
+   * say — the padding, the sticky position and the background are the cell
+   * styles' in `table-frame.ts`, and an inline style outranks this.
+   */
+  [data-grid] thead tr {
+    --cell-bg: var(--grid-header);
+  }
+
+  [data-grid] thead th {
+    box-shadow: inset 0 -1px 0 var(--border);
+    color: var(--muted-foreground);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-align: left;
+    text-transform: uppercase;
+  }
+
+  /* The role accordion's toggle, which is a `<button>` in a heading cell: the
+     caption's own type, not a platform control's bevel. */
+  [data-grid] thead button {
+    border: 0;
+    background: none;
+    color: inherit;
+    padding: 0;
+    cursor: pointer;
+  }
+
+  [data-grid] thead button:hover {
+    color: var(--foreground);
+  }
+
+  /*
+   * The body: banded, and a touch stronger under the pointer. Subtler than the
+   * chart's banding on purpose — there is text in every cell here.
+   */
+  [data-grid] tbody tr:nth-child(even) {
+    --cell-bg: var(--grid-band);
+  }
+
+  [data-grid] tbody tr:hover {
+    --cell-bg: var(--grid-hover);
+  }
+
+  /*
+   * The separators. Horizontal everywhere, vertical only at the three
+   * boundaries that carry meaning — the end of the numbering, the end of the
+   * pinned block, and the end of what a row waits for.
+   */
+  [data-grid] tbody td {
+    box-shadow: inset 0 -1px 0 var(--border);
+  }
+
+  [data-grid] td[data-column='number'],
+  [data-grid] td[data-column='name'],
+  [data-grid] td[data-column='depends'],
+  [data-grid] th[data-column='number'],
+  [data-grid] th[data-column='name'],
+  [data-grid] th[data-column='depends'] {
+    box-shadow: inset -1px -1px 0 var(--border);
+  }
+
+  /*
+   * Every box a cell is typed into: nothing at rest but the row's own colour,
+   * and a ring when it has the focus. `border-color` alone — never the width or
+   * the style — because the browser's own metrics for these controls are what
+   * `table-frame.ts`'s columns were measured against, the `not-before` date
+   * field above all.
+   */
+  [data-grid] input,
+  [data-grid] textarea {
+    background: transparent;
+    border-color: transparent;
+    border-radius: var(--radius-sm);
+    color: inherit;
+  }
+
+  [data-grid] input:focus,
+  [data-grid] textarea:focus {
+    /* An outline rather than a shadow or a border: it takes no space, and at a
+       negative offset it is drawn inside a cell that clips its overflow. */
+    outline: 2px solid var(--ring);
+    outline-offset: -2px;
+    background: var(--background);
+  }
+
+  [data-grid] ::placeholder {
+    color: var(--muted-foreground);
+    opacity: 0.7;
+  }
+
+  /* The estimate shorthand's `o/r/p` is a reminder of a syntax, not a prompt to
+     fill anything in: quieter than the rest. */
+  [data-grid] td[data-column$='-final'] ::placeholder {
+    opacity: 0.45;
+  }
+
+  /*
+   * The Number column: a figure, read as one. Muted, because the name beside it
+   * is what a plan is read by — except on a frozen row, where the number is the
+   * thing that has been pinned and says so.
+   */
+  [data-grid] [data-number] {
+    color: var(--muted-foreground);
+    font-variant-numeric: tabular-nums;
+  }
+
+  [data-grid] tbody tr[data-frozen='true'] [data-number] {
+    color: var(--foreground);
+    font-weight: 600;
+  }
+
+  [data-grid] td[data-column='number'] button {
+    border: 0;
+    background: none;
+    color: var(--muted-foreground);
+    padding: 0 2px;
+    line-height: 1;
+    cursor: pointer;
+  }
+
+  [data-grid] td[data-column='number'] button:hover {
+    color: var(--foreground);
+  }
+
+  /*
+   * The drag handle: all but invisible until the pointer is on the row, which
+   * is the only time it can be used. A frozen row keeps a fainter one — the
+   * handle is where the refusal is explained, so it must not disappear.
+   */
+  [data-grid] td[data-column='drag'] [role='button'] {
+    display: inline-block;
+    color: var(--muted-foreground);
+    opacity: 0.3;
+    line-height: 1;
+    transition: opacity 120ms ease;
+  }
+
+  [data-grid] tbody tr:hover td[data-column='drag'] [role='button'] {
+    opacity: 1;
+  }
+
+  [data-grid] td[data-column='drag'] [aria-disabled='true'] {
+    opacity: 0.18;
+  }
+
+  [data-grid] tbody tr:hover td[data-column='drag'] [aria-disabled='true'] {
+    opacity: 0.5;
+  }
+
+  /*
+   * A dependency chip. Compact on purpose: seven of them share a 110px column
+   * and wrap, and the padding is the only thing deciding how many reach a line.
+   */
+  [data-grid] td[data-column='depends'] button {
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: color-mix(in oklab, var(--muted) 70%, var(--background));
+    color: var(--muted-foreground);
+    padding: 0 4px;
+    margin: 0 2px 2px 0;
+    line-height: 1.5;
+    cursor: pointer;
+  }
+
+  [data-grid] td[data-column='depends'] button:hover {
+    border-color: var(--destructive);
+    color: var(--destructive);
+  }
+
+  /* The derived figures. Tabular, so a column of them lines up on the decimal
+     point rather than on whatever the face felt like. */
+  [data-grid] [data-start],
+  [data-grid] [data-finish],
+  [data-grid] [data-float],
+  [data-grid] [data-final-total] {
+    font-variant-numeric: tabular-nums;
+  }
+
+  [data-grid] [data-start],
+  [data-grid] [data-finish],
+  [data-grid] [data-float] {
+    color: var(--muted-foreground);
+  }
+
+  /*
+   * A critical row's slack, which is not a number and should not be read as
+   * one: a quiet tag rather than a word in the column's own type. The cell is
+   * 56px, so it is sized to fit one — see `wbs-table.tsx` for why the text is a
+   * single word.
+   */
+  [data-grid] [data-float][data-critical] {
+    display: inline-block;
+    border-radius: var(--radius-sm);
+    background: color-mix(in oklab, var(--destructive) 12%, var(--background));
+    color: var(--destructive);
+    padding: 0 4px;
+    font-size: 10px;
+    font-weight: 600;
+  }
+
+  /*
+   * The ⋯ button, which is furniture until somebody wants it. Addressed through
+   * its wrapper so the menu's own items — buttons in the same cell — are left
+   * to `actions-menu.tsx`.
+   */
+  [data-grid] td[data-column='actions'] > span > button {
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: none;
+    color: var(--muted-foreground);
+    opacity: 0.45;
+    cursor: pointer;
+    transition:
+      opacity 120ms ease,
+      color 120ms ease;
+  }
+
+  [data-grid] tbody tr:hover td[data-column='actions'] > span > button,
+  [data-grid] td[data-column='actions'] > span > button:focus,
+  [data-grid] td[data-column='actions'] > span > button[aria-expanded='true'] {
+    opacity: 1;
+  }
+
+  [data-grid] td[data-column='actions'] > span > button:hover {
+    background: var(--accent);
+    color: var(--foreground);
+  }
+
+  /* An option under an open picker, hovered or already chosen. */
+  [data-grid] [role='option']:hover,
+  [data-grid] [role='option'][aria-selected='true'] {
+    background: var(--accent);
+  }
+
+  [data-grid] [role='menu'] button:hover {
+    background: var(--accent);
+  }
+
+  /* The ✕ that empties a picker: furniture beside the box it belongs to, not a
+     platform button in the middle of a row of figures. */
+  [data-grid] [aria-label^='Clear '] {
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: none;
+    color: var(--muted-foreground);
+    padding: 0 2px;
+    line-height: 1;
+    cursor: pointer;
+  }
+
+  [data-grid] [aria-label^='Clear ']:hover {
+    color: var(--foreground);
+    background: var(--accent);
+  }
+
+  /*
+   * Where a dropped row would land. Last, so these beat the separators above
+   * them — same specificity, and the cascade reads source order.
+   *
+   * `into` re-points the row's colour rather than drawing a line, because
+   * "inside this row" has no edge to draw: it is the whole row that would take
+   * the dragged one as a child.
+   */
+  [data-grid] tbody tr[data-drop='into'] {
+    --cell-bg: var(--grid-drop);
+  }
+
+  [data-grid] tbody tr[data-drop='above'] td {
+    box-shadow:
+      inset 0 2px 0 var(--ring),
+      inset 0 -1px 0 var(--border);
+  }
+
+  [data-grid] tbody tr[data-drop='below'] td {
+    box-shadow: inset 0 -2px 0 var(--ring);
   }
 }

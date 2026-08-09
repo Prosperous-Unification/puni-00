@@ -56,11 +56,12 @@ order — collapsed branches and rows narrowed away by a search SHALL be absent
 ### Requirement: The workday is the SVG unit
 
 The chart SHALL be one SVG whose user-space x unit is one workday: a bar's `x`
-SHALL equal its slice's earliest start and its `width` the slice's duration,
-and each bar SHALL carry `data-start` and `data-finish` holding the engine
-numbers verbatim. The viewBox SHALL cover the whole schedule, 0 through the
-horizon, and the band outside it the marks of "The canvas holds every mark" are
-drawn in.
+SHALL equal its slice's earliest start and its `width` the span it is drawn
+across, which is the slice's duration for every estimated slice. Each bar SHALL
+carry `data-start` and `data-finish` holding the engine numbers verbatim — an
+unestimated slice's drawn width differs from them, and the data attributes are
+what say so. The viewBox SHALL cover the whole schedule, 0 through the horizon,
+and the band outside it the marks of "The canvas holds every mark" are drawn in.
 
 #### Scenario: user space equals engine numbers
 
@@ -68,12 +69,26 @@ drawn in.
 - **THEN** its bar has `x` 3.5, `width` 2.5, `data-start` "3.5",
   `data-finish` "6", and the SVG viewBox holds 0 through the horizon
 
+#### Scenario: the data attributes outlive the drawn width
+
+- **WHEN** an unestimated slice sits at workday 3 with a duration of 0
+- **THEN** its bar has `width` 2 while `data-start` and `data-finish` both read
+  "3"
+
 ### Requirement: Leaves draw bars, parents draw summary brackets
 
-A leaf's row SHALL hold one bar per slice, in role order. A bar whose slice is
-unestimated SHALL be visibly distinct from an estimated one. A parent's row
-SHALL hold a summary bracket spanning its projection — a span, never a sum. A
-bar on the critical path SHALL be tinted so, and a bar off it SHALL not.
+A leaf's row SHALL hold one bar per slice, in role order. A parent's row SHALL
+hold a summary bracket spanning its projection — a span, never a sum. A bar on
+the critical path SHALL be tinted so, and a bar off it SHALL not.
+
+A bar whose slice is unestimated SHALL be drawn across an assumed span of two
+workdays from the slice's earliest start, rather than as a mark of no width, and
+SHALL be unmistakably provisional: it keeps its assignee's colour but is drawn
+translucent, with a dashed outline, and carries a `?` in its on-bar label. Its
+hover text SHALL say in a line of its own that it is not estimated and that the
+width is drawn rather than scheduled. The assumed span is a drawing only — the
+engine's numbers, the date columns and the arrows drawn between rows are
+unchanged by it — and the horizon SHALL reach far enough to contain it.
 
 #### Scenario: a two-role leaf
 
@@ -90,6 +105,19 @@ bar on the critical path SHALL be tinted so, and a bar off it SHALL not.
 - **WHEN** one leaf has float 0 and another float 2
 - **THEN** the first row's bar carries the critical tint and the second's does
   not
+
+#### Scenario: an unestimated slice
+
+- **WHEN** a leaf's slice is unestimated and the engine placed it at workday 3
+  with a duration of 0
+- **THEN** its bar is drawn from 3 across two workdays, translucent and dashed
+  and labelled with a `?`, its `data-start` and `data-finish` still read `3`,
+  and its hover text carries the line `Not estimated — drawn as 2 days`
+
+#### Scenario: the horizon holds the assumed span
+
+- **WHEN** the last thing on the chart is an unestimated slice at workday 3
+- **THEN** the horizon reaches 5, so the drawn bar is inside the canvas
 
 ### Requirement: Calendar labels agree with the date columns
 
@@ -169,7 +197,16 @@ carry a not-before flag at that date's workday offset.
 
 The panel's row labels SHALL stay visible at the left edge while the chart
 scrolls horizontally, at phone width too. The panel SHALL NOT widen the page:
-the chart scrolls inside the panel.
+the chart scrolls inside the panel. Each label SHALL read `<number> - <name>`,
+the same derived number the plan's Number column shows, so the two drawings of
+one plan name their rows alike; a row with no name reads `<number> - (unnamed)`.
+A bar's hover text SHALL open on the same words.
+
+#### Scenario: a row is named the way the plan names it
+
+- **WHEN** row `010.1` is called `Sanding` and the panel is open
+- **THEN** its label reads `010.1 - Sanding` and its bar's hover text opens on
+  the same line
 
 #### Scenario: scrolled to the horizon on a phone
 
@@ -199,9 +236,10 @@ caught while drawing one read SHALL NOT outlive that read.
 ### Requirement: The canvas holds every mark
 
 The drawn canvas SHALL contain every mark the panel draws, including the parts
-of a dependency arrow's route that fall outside the schedule. A bar's `x` and
-`width` SHALL remain the engine's numbers: the canvas's edges are not the
-schedule's.
+of a dependency arrow's route that fall outside the schedule and the assumed
+span an unestimated bar is drawn across. A bar's `x` SHALL remain the engine's
+number and its `data-start`/`data-finish` with it: the canvas's edges are not
+the schedule's.
 
 #### Scenario: an arrow into workday 0
 

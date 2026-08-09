@@ -2250,7 +2250,10 @@ describe('assigning from a folded role’s cell with @', () => {
     // written down.
     expect(qa?.textContent).toBe('· (Ada)');
     expect(qa?.getAttribute('data-assumed')).toBe('role-qa');
-    expect((qa as HTMLElement | null)?.style.color).toBe('rgb(102, 102, 102)');
+    // The palette's own muted ink rather than the `#666` it was: `styles.css`
+    // re-points every token under `.dark` and a literal is the one shade that
+    // would not follow. jsdom hands back the declaration, not a resolved colour.
+    expect((qa as HTMLElement | null)?.style.color).toBe('var(--muted-foreground)');
   });
 
   itDom('says nothing where nobody is assigned and nobody is assumed', async () => {
@@ -4601,10 +4604,23 @@ describe('picking dependencies from a list', () => {
       : [...list.querySelectorAll('[role="option"]')].map((option) => option.textContent);
   };
 
-  itDom('offers every other row, number and name together, while the cell is focused', async () => {
+  itDom('offers every other row as `number - name`, while the cell is focused', async () => {
     await threeRoots();
     fireEvent.focus(depInput('020'));
-    expect(optionTexts()).toEqual(['010 Strip', '030 Paint']);
+
+    // The separator is the assertion, not decoration around it: a bare space
+    // ran `010` into a name and the two halves read as one word.
+    //
+    // Proof: the option's `{entry.number} - {entry.name}` cut back to
+    // `{entry.name}` — the number gone from the label a person picks by.
+    // **Eleven** tests failed, `11 failed | 290 passed`: this one on `expected
+    // [ 'Strip', 'Paint' ] to deeply equal [ '010 - Strip', '030 - Paint' ]`,
+    // `narrows the list by the number too` on `expected [ 'Strip' ] to deeply
+    // equal [ '010 - Strip' ]`, and nine more — the rest of this describe and
+    // every greyed-row test, three of them on `Unable to find an accessible
+    // element with the role "option" and name "010 - Strip"`. Watched,
+    // 2026-08-09.
+    expect(optionTexts()).toEqual(['010 - Strip', '030 - Paint']);
   });
 
   itDom('narrows the list by name as letters are typed', async () => {
@@ -4612,19 +4628,39 @@ describe('picking dependencies from a list', () => {
     const input = depInput('020');
     fireEvent.focus(input);
     fireEvent.change(input, { target: { value: 'pai' } });
-    expect(optionTexts()).toEqual(['030 Paint']);
+    expect(optionTexts()).toEqual(['030 - Paint']);
+  });
+
+  itDom('narrows the list by the number too, which is what is on the chips', async () => {
+    // The other half of `pickerEntries`'s filter, and the half a person reaches
+    // for: the chips in this cell say `010 ✕` and the Number column says `010`,
+    // so `010` is what gets typed. Both halves need a test — a filter over the
+    // name alone passes the one above and fails here.
+    //
+    // Proof: `row.number.toLowerCase().includes(wanted) ||` dropped from
+    // `pickerEntries` — this test failed on `expected [] to deeply equal [ '010
+    // - Strip' ]`, typing a number having narrowed the list to nothing at all.
+    // **Six** failed in that run, `6 failed | 306 passed`: `pickerEntries >
+    // filters by number substring` and one more in `dep-picker.test.ts`, and
+    // three of the command chords, which reach the open list by typing a
+    // number into it. Watched, 2026-08-09.
+    await threeRoots();
+    const input = depInput('020');
+    fireEvent.focus(input);
+    fireEvent.change(input, { target: { value: '010' } });
+    expect(optionTexts()).toEqual(['010 - Strip']);
   });
 
   itDom('adds the clicked entry and keeps the list open for the next pick', async () => {
     await threeRoots();
     const input = depInput('020');
     fireEvent.focus(input);
-    fireEvent.click(screen.getByRole('option', { name: '010 Strip' }));
+    fireEvent.click(screen.getByRole('option', { name: '010 - Strip' }));
     await waitFor(() => {
       expect(screen.getByLabelText('Stop 020 waiting for 010')).toBeDefined();
     });
     // Still open, cleared, and no longer offering what was just taken.
-    expect(optionTexts()).toEqual(['030 Paint']);
+    expect(optionTexts()).toEqual(['030 - Paint']);
     expect(input).toHaveProperty('value', '');
   });
 
@@ -4688,7 +4724,7 @@ describe('picking dependencies from a list', () => {
     // its own, so the observable here is the prevention itself.
     await threeRoots();
     fireEvent.focus(depInput('020'));
-    const option = screen.getByRole('option', { name: '010 Strip' });
+    const option = screen.getByRole('option', { name: '010 - Strip' });
     const press = createEvent.mouseDown(option);
     fireEvent(option, press);
     expect(press.defaultPrevented).toBe(true);
@@ -4826,10 +4862,10 @@ describe('the picker marks what be-01 would refuse', () => {
   itDom('greys the row this one sits inside, and says so', async () => {
     await nested();
     openPicker('010.1');
-    expect(optionTexts()).toEqual(['010 Strip — contains this row', '020 Paint']);
-    const refused = screen.getByRole('option', { name: '010 Strip — contains this row' });
+    expect(optionTexts()).toEqual(['010 - Strip — contains this row', '020 - Paint']);
+    const refused = screen.getByRole('option', { name: '010 - Strip — contains this row' });
     expect(refused.getAttribute('aria-disabled')).toBe('true');
-    expect(screen.getByRole('option', { name: '020 Paint' }).getAttribute('aria-disabled')).toBe(
+    expect(screen.getByRole('option', { name: '020 - Paint' }).getAttribute('aria-disabled')).toBe(
       'false',
     );
   });
@@ -4837,7 +4873,7 @@ describe('the picker marks what be-01 would refuse', () => {
   itDom('greys the row that sits inside this one', async () => {
     await nested();
     openPicker('010');
-    expect(optionTexts()).toEqual(['010.1 Sand — inside this row', '020 Paint']);
+    expect(optionTexts()).toEqual(['010.1 - Sand — inside this row', '020 - Paint']);
   });
 
   itDom('greys the row that would loop, through the tree', async () => {
@@ -4847,11 +4883,11 @@ describe('the picker marks what be-01 would refuse', () => {
     await nested([['sand', 'paint']]);
 
     openPicker('010.1');
-    expect(optionTexts()).toEqual(['010 Strip — contains this row', '020 Paint — would loop']);
+    expect(optionTexts()).toEqual(['010 - Strip — contains this row', '020 - Paint — would loop']);
 
     fireEvent.blur(screen.getByLabelText('Add a dependency to 010.1'));
     openPicker('010');
-    expect(optionTexts()).toEqual(['010.1 Sand — inside this row', '020 Paint — would loop']);
+    expect(optionTexts()).toEqual(['010.1 - Sand — inside this row', '020 - Paint — would loop']);
   });
 
   itDom('clicking a greyed row adds nothing', async () => {
@@ -4859,7 +4895,7 @@ describe('the picker marks what be-01 would refuse', () => {
     const added = watchAdds(api);
     openPicker('010.1');
 
-    fireEvent.click(screen.getByRole('option', { name: '010 Strip — contains this row' }));
+    fireEvent.click(screen.getByRole('option', { name: '010 - Strip — contains this row' }));
 
     expect(added).toEqual([]);
     expect(screen.queryByLabelText('Stop 010.1 waiting for 010')).toBeNull();
@@ -4891,7 +4927,7 @@ describe('the picker marks what be-01 would refuse', () => {
     await api.addDependency(paint, sand);
     notify();
     await waitFor(() => {
-      expect(optionTexts()).toContain('020 Paint — would loop');
+      expect(optionTexts()).toContain('020 - Paint — would loop');
     });
     // Watched from here, so the peer's own edit above is not mistaken for one
     // this cell made.
@@ -4908,7 +4944,7 @@ describe('the picker marks what be-01 would refuse', () => {
     const input = openPicker('010.1');
 
     fireEvent.change(input, { target: { value: 'strip' } });
-    expect(optionTexts()).toEqual(['010 Strip — contains this row']);
+    expect(optionTexts()).toEqual(['010 - Strip — contains this row']);
     expect(input.getAttribute('aria-activedescendant')).toBeNull();
     fireEvent.keyDown(input, { key: 'Enter' });
 
@@ -5053,7 +5089,9 @@ describe('dependencies in the table — cross-review findings', () => {
   itDom('names a critical row rather than printing its zero', async () => {
     render(<WbsTable projectId="p1" api={apiReturning(null, { float: 0, critical: true })} />);
 
-    expect((await cells()).float).toBe('— critical');
+    // One word, which is what the 56px column can hold now that the word is a
+    // tag rather than a figure — and what `plan-export.ts` has always printed.
+    expect((await cells()).float).toBe('critical');
   });
 
   itDom('shows dashes rather than zeroes when there is no schedule', async () => {

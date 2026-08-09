@@ -60,9 +60,12 @@ const MENU: CSSProperties = {
   flexDirection: 'column',
   alignItems: 'stretch',
   minWidth: 140,
-  padding: 2,
-  background: '#fff',
-  border: '1px solid #ccc',
+  padding: 4,
+  background: 'var(--popover)',
+  color: 'var(--popover-foreground)',
+  border: '1px solid var(--border)',
+  borderRadius: 'var(--radius-md)',
+  boxShadow: '0 4px 12px oklch(0 0 0 / 12%)',
   zIndex: 15,
 };
 
@@ -71,7 +74,9 @@ const ITEM: CSSProperties = {
   textAlign: 'left',
   border: 'none',
   background: 'none',
-  padding: '2px 6px',
+  color: 'inherit',
+  borderRadius: 'var(--radius-sm)',
+  padding: '3px 6px',
   cursor: 'pointer',
   whiteSpace: 'nowrap',
 };
@@ -271,7 +276,7 @@ export function ActionsMenu({
               style={
                 action.refusedBecause === undefined
                   ? ITEM
-                  : { ...ITEM, cursor: 'not-allowed', color: '#767676' }
+                  : { ...ITEM, cursor: 'not-allowed', color: 'var(--muted-foreground)' }
               }
               onClick={() => {
                 takeAction(action);

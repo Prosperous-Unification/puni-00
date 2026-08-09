@@ -2,6 +2,7 @@ import { addWorkdays, type IsoDate } from '@wbs/domain/workday';
 import { useState } from 'react';
 
 import {
+  ASSUMED_UNESTIMATED_WORKDAYS,
   type GanttBar,
   type GanttDependencyArrow,
   type GanttPlan,
@@ -145,8 +146,11 @@ const HEAVIEST_STROKE_PX = 2;
  *
  * So the drawn canvas is the schedule plus this band at either side, and the
  * viewBox says so: `-pad 0 (horizon + 2·pad) rowCount`. The coordinate contract
- * is untouched — a bar's `x` is still `earliestStart` and its `width` still
- * `duration`, verbatim (design §1). What moves is where the **canvas** ends,
+ * is untouched — a bar's `x` is still `earliestStart` and its `width` still its
+ * drawn span, which for every estimated slice is `duration` verbatim (design
+ * §1; the one exception is {@link ASSUMED_UNESTIMATED_WORKDAYS}, which the
+ * horizon accounts for rather than this band). What moves is where the
+ * **canvas** ends,
  * which the contract says nothing about, and the axis and the on-bar labels are
  * shifted by the same number so the workday a bar starts on is still the pixel
  * its axis cell starts at.
@@ -231,6 +235,24 @@ function arrowRoute(arrow: GanttDependencyArrow): { elbow: string; head: string 
 }
 
 /**
+ * What an unestimated slice's bar is drawn with beyond its colour: a fill it can
+ * be seen through and an outline that is not solid.
+ *
+ * Both, and not either alone. The bar now has a **width nobody gave it**
+ * ({@link ASSUMED_UNESTIMATED_WORKDAYS}), so it has to be unmistakable at a
+ * glance against every estimated bar on the chart: translucent says the block is
+ * not solid ground, and the dashes say the edges are not where anybody put them.
+ * A solid bar at 35% could still read as a pale assignee colour; a dashed bar at
+ * full strength reads as a bar with a border.
+ *
+ * Arbitrary properties rather than a stylesheet for the same reason
+ * {@link BAR_RADIUS_PX} is divided by two scales: these land on an SVG element
+ * inside a non-uniformly scaled user space, and `stroke-dasharray` there is in
+ * user units unless the stroke is non-scaling — which every stroke here is.
+ */
+const ASSUMED_BAR_CLASSES = '[fill-opacity:0.35] [stroke-dasharray:3_2]';
+
+/**
  * The classes a bar carries beyond its two colours, and the two facts they say.
  *
  * The critical path is a ring rather than a fill, because the fill is the
@@ -246,9 +268,7 @@ function arrowRoute(arrow: GanttDependencyArrow): { elbow: string; head: string 
 function barClasses(critical: boolean, estimated: boolean): string {
   return [
     critical ? 'stroke-foreground [stroke-width:2]' : '',
-    // Dashed: nobody has estimated this slice, and a dashed outline is what
-    // says "length unknown" without claiming a length.
-    estimated ? '' : '[stroke-dasharray:3_2]',
+    estimated ? '' : ASSUMED_BAR_CLASSES,
   ]
     .filter((part) => part !== '')
     .join(' ');
@@ -287,20 +307,41 @@ export function initialsOf(personName: string): string {
  * What a bar writes on itself: the person's name, their initials, or nothing.
  *
  * The three answers are one measurement — how many pixels the bar is, which is
- * its duration through {@link DAY_PX} — so the threshold is not a second
+ * its **drawn** span through {@link DAY_PX} — so the threshold is not a second
  * constant to keep in step with the drawing. A bar with nobody on it writes
  * nothing: its colour already says so.
  *
  * Null rather than an empty string, so a caller cannot render a label that is
  * there and blank.
  */
-export function barLabelFor(personName: string | null, duration: number): string | null {
+export function barLabelFor(personName: string | null, drawnSpan: number): string | null {
   if (personName === null || personName.trim() === '') return null;
-  const room = duration * DAY_PX - 2 * LABEL_PAD_PX;
+  const room = drawnSpan * DAY_PX - 2 * LABEL_PAD_PX;
   if (room >= personName.length * LABEL_CHAR_PX) return personName;
   const initials = initialsOf(personName);
   if (initials !== '' && room >= initials.length * LABEL_CHAR_PX) return initials;
   return null;
+}
+
+/**
+ * What an unestimated bar writes on itself: the `?` always, and whoever is on it
+ * if there is room for them too.
+ *
+ * The `?` is the point and is never dropped for the name: this bar's width is
+ * {@link ASSUMED_UNESTIMATED_WORKDAYS} and not an estimate, and a bar that says
+ * `Kat` and nothing else is a bar claiming two days of Kat's time. So the
+ * candidates are tried longest-first and the bare `?` is the last of them —
+ * which at two workdays always fits, and is what a bar drawn narrower than that
+ * would fall back to.
+ *
+ * Null rather than an empty string, for {@link barLabelFor}'s reason: a caller
+ * cannot render a label that is there and blank.
+ */
+export function assumedLabelFor(personName: string | null, drawnSpan: number): string | null {
+  const room = drawnSpan * DAY_PX - 2 * LABEL_PAD_PX;
+  const who = personName === null ? '' : personName.trim();
+  const candidates = who === '' ? ['?'] : [`${who} · ?`, `${initialsOf(who)} · ?`, '?'];
+  return candidates.find((label) => room >= label.length * LABEL_CHAR_PX) ?? null;
 }
 
 /**
@@ -415,13 +456,31 @@ export function barWords(bar: GanttBar, startDate: IsoDate | null): string {
     (part): part is string => part !== null,
   );
   return [
-    bar.workItemName === '' ? '(unnamed)' : bar.workItemName,
+    rowWords(bar.workItemNumber, bar.workItemName),
     who.join(' · '),
     `${spanWords(startDate, bar.start, bar.finish)} · ${durationWords(bar)}`,
+    // A line of its own rather than a word tucked into the duration: the bar is
+    // drawn a width nobody gave it, and the sentence that says so has to be as
+    // findable as the dates above it. See {@link ASSUMED_UNESTIMATED_WORKDAYS}.
+    bar.estimated ? null : `Not estimated — drawn as ${dayWords(ASSUMED_UNESTIMATED_WORKDAYS)}`,
     bar.critical ? 'On the critical path — no float' : `Float ${dayWords(bar.float)}`,
     bar.floorWords,
-  ].join('\n');
+  ]
+    .filter((line): line is string => line !== null)
+    .join('\n');
 }
+
+/**
+ * A row named the way the plan names it: its number, then its name.
+ *
+ * The number is what a person says out loud about a row — it is what the
+ * Depends on chips carry, what the toasts name and what the keyboard's labels
+ * are written from — and a chart label of names alone made the two drawings of
+ * one plan read as two plans. An unnamed row still has a number, which is the
+ * whole of why the empty name has words of its own here.
+ */
+export const rowWords = (number: string, name: string): string =>
+  `${number} - ${name === '' ? '(unnamed)' : name}`;
 
 /**
  * What a not-before caret says on hover: the date the row cannot start before.
@@ -445,9 +504,13 @@ function notBeforeWords(startDate: IsoDate | null, offset: number): string {
  *
  * **One SVG whose user space is the schedule.** `viewBox="0 0 horizon
  * rowCount"` with `preserveAspectRatio="none"`, so x is one workday and y is
- * one row and a bar is `<rect x={bar.start} width={bar.duration}>` — the
+ * one row and a bar is `<rect x={bar.start} width={bar.drawnSpan}>` — the
  * engine's numbers, unconverted, and carried again verbatim in
  * `data-start`/`data-finish`. Nothing in here multiplies by {@link DAY_PX}.
+ * The one number that is not the engine's is an unestimated slice's drawn
+ * width; it is marked as a guess in the paint and in the words, and
+ * `data-start`/`data-finish` are unaffected. See
+ * {@link ASSUMED_UNESTIMATED_WORKDAYS}.
  *
  * The cost of that non-uniform scale is that glyphs and stroke widths would be
  * stretched with it, so **the SVG holds geometry and nothing else**: every word
@@ -567,7 +630,20 @@ export function GanttPanel({
               key={label.id}
               type="button"
               data-gantt-label={label.id}
-              title={label.name}
+              // The same words the button shows, so a label the column has
+              // truncated can still be read whole on hover.
+              //
+              // Proof: the button's text put back to `label.name === '' ?
+              // '(unnamed)' : label.name` — the chart labelled by name alone.
+              // **Four** tests failed, `4 failed | 39 passed`: `leaves a
+              // collapsed branch's children off the chart`, `draws exactly the
+              // rows a search narrowed the plan to` and `draws under the roles
+              // the payload carried…` on `expected [ 'Hull', 'Sanding',
+              // 'Sealing', …(1) ] to deeply equal [ '010 - Hull', '011 -
+              // Sanding', …(2) ]`, and `takes the plan to a row when its label
+              // is clicked` on the button no longer being findable by its
+              // number. Watched, 2026-08-09.
+              title={rowWords(label.number, label.name)}
               // The house indent, so the chart's outline is the plan's outline.
               style={{ height: ROW_PX, paddingLeft: indentFor(label.depth) + 8 }}
               className="hover:bg-accent block w-full truncate pr-2 text-left text-xs"
@@ -575,7 +651,7 @@ export function GanttPanel({
                 onPickRow(label.id);
               }}
             >
-              {label.name === '' ? '(unnamed)' : label.name}
+              {rowWords(label.number, label.name)}
             </button>
           ))}
         </div>
@@ -780,17 +856,28 @@ export function GanttPanel({
                   // the edge should line up with.
                   data-last-day={lastWorkdayOf(bar.start, bar.finish)}
                   {...(bar.critical ? { 'data-critical': 'true' } : {})}
+                  // The bar whose width is an assumption, findable as such. The
+                  // styling below is what a reader sees; this is what the
+                  // browser gate selects on, and it has to tell a drawn span
+                  // from a measured one before it measures anything.
+                  {...(bar.estimated ? {} : { 'data-assumed': 'true' })}
                   x={bar.start}
-                  width={bar.duration}
+                  // The drawn span, which is the duration for every estimated
+                  // slice and {@link ASSUMED_UNESTIMATED_WORKDAYS} for one
+                  // nobody has estimated. `data-start`/`data-finish` above are
+                  // still the engine's own numbers, and that difference is the
+                  // whole of the assumption.
+                  width={bar.drawnSpan}
                   y={bar.rowIndex + BAR_INSET}
                   height={BAR_HEIGHT}
                   rx={BAR_RADIUS_PX / DAY_PX}
                   ry={BAR_RADIUS_PX / ROW_PX}
-                  // Who is on it. An unestimated slice is hollow instead —
-                  // nobody has said how long it is, which is a different fact
-                  // from a slice of no days and must not draw like one — and
-                  // keeps the colour in its outline.
-                  fill={bar.estimated ? bar.personColor : 'none'}
+                  // Who is on it — an unestimated slice included, at 35% through
+                  // {@link ASSUMED_BAR_CLASSES}. It used to be hollow, which was
+                  // honest about the length and cost the reader the assignee;
+                  // now it keeps the person and says "guessed" in how it is
+                  // painted rather than by having no paint.
+                  fill={bar.personColor}
                   // The critical path is the **outline**, because the fill is
                   // already saying who. A ring in the foreground colour rather
                   // than the destructive one: `#d62728` is the fourth person's
@@ -811,12 +898,17 @@ export function GanttPanel({
               ))}
 
               {/*
-              A slice of no days is a real answer — an unestimated one, or a
-              parent's leftover — and a zero-width rect draws nothing at all.
-              The tick is where it starts, so the row does not read as empty.
+              A slice **estimated** at no days is a real answer, and a
+              zero-width rect draws nothing at all: the tick is where it starts,
+              so the row does not read as empty. `drawnSpan` and not `duration`,
+              which is the whole of what changed — an unestimated slice has a
+              drawn span of {@link ASSUMED_UNESTIMATED_WORKDAYS} now and gets a
+              bar of its own, so the tick is left to the zero the engine was
+              actually given (`expectedDays({0,0,0})` is 0, and
+              `libs/domain/src/estimate.test.ts` says so).
             */}
               {chart.bars
-                .filter((bar) => bar.duration === 0)
+                .filter((bar) => bar.drawnSpan === 0)
                 .map((bar) => (
                   <line
                     key={`${bar.sliceId}-tick`}
@@ -845,28 +937,37 @@ export function GanttPanel({
               and a span on top would swallow it in its middle.
             */}
             {chart.bars.map((bar) => {
-              // Only on a filled bar: the ink is chosen for the fill, and a
-              // hollow bar is the page showing through. An unestimated slice
-              // has no length to write a name across anyway.
-              const shown = bar.estimated ? barLabelFor(bar.personName, bar.duration) : null;
+              // An unestimated bar writes the `?` its width is a guess about —
+              // see {@link assumedLabelFor} — and an estimated one writes who is
+              // on it.
+              const shown = bar.estimated
+                ? barLabelFor(bar.personName, bar.drawnSpan)
+                : assumedLabelFor(bar.personName, bar.drawnSpan);
               if (shown === null) return null;
               return (
                 <span
                   key={`${bar.sliceId}-label`}
                   data-gantt-bar-label={bar.sliceId}
                   aria-hidden="true"
-                  className="pointer-events-none absolute overflow-hidden text-[10px] font-semibold text-ellipsis whitespace-nowrap"
+                  className={
+                    bar.estimated
+                      ? 'pointer-events-none absolute overflow-hidden text-[10px] font-semibold text-ellipsis whitespace-nowrap'
+                      : // The page's own ink on an assumed bar: `inkOn` picks a
+                        // colour to be read on a **solid** fill, and this one is
+                        // 35% of that colour over whatever the page is.
+                        'text-foreground pointer-events-none absolute overflow-hidden text-[10px] font-semibold text-ellipsis whitespace-nowrap'
+                  }
                   style={{
                     // Dark ink on the three light entries of the palette and
                     // white on the other seven, never one white for all ten.
                     // See {@link inkOn}.
-                    color: inkOn(bar.personColor),
+                    ...(bar.estimated ? { color: inkOn(bar.personColor) } : {}),
                     // Over the SVG, which now begins one band left of the
                     // schedule: the label's pixel is the bar's pixel only with
                     // the same band added. See {@link CHART_PAD_PX}.
                     left: bar.start * DAY_PX + CHART_PAD_PX,
                     top: (bar.rowIndex + BAR_INSET) * ROW_PX,
-                    width: bar.duration * DAY_PX,
+                    width: bar.drawnSpan * DAY_PX,
                     height: BAR_HEIGHT * ROW_PX,
                     lineHeight: `${String(BAR_HEIGHT * ROW_PX)}px`,
                     paddingLeft: LABEL_PAD_PX,

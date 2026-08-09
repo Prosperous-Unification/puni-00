@@ -423,8 +423,15 @@ function expandBranch(current: ExpandedState, rowId: string): ExpandedState {
   return { ...current, [rowId]: true };
 }
 
-/** What a row matching the Find box is tinted, so a hit reads apart from its context. */
-const MATCH_TINT = '#fff3bf';
+/**
+ * What a row matching the Find box is tinted, so a hit reads apart from its
+ * context.
+ *
+ * A token rather than the hex it was, for the reason every colour in this file
+ * is one now: `styles.css` re-points the whole palette under `.dark`, and a
+ * literal is the one shade that would not follow.
+ */
+const MATCH_TINT = 'var(--grid-match)';
 
 /**
  * Where this browser remembers which of one project's branches are open.
@@ -529,7 +536,7 @@ const MODIFIER_KEYS = new Set(['Control', 'Shift', 'Alt', 'Meta', 'CapsLock']);
 const ARM_WINDOW_MS = 3000;
 
 /** The armed row's tint: a warning, and the only thing on screen that says so. */
-const ARMED_TINT = '#fde8e8';
+const ARMED_TINT = 'var(--grid-armed)';
 
 /** What one Alt+arrow does to the focused row's place in the tree. */
 type AltMove = 'up' | 'down' | 'outdent' | 'indent';
@@ -3753,7 +3760,13 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                         live.current.pickDependency(row.original.id, entry.id);
                       }}
                     >
-                      {entry.number} {entry.name}
+                      {/*
+                        `010 - Strip the hull`, the way the plan is spoken
+                        about: a space alone let a number and a name that starts
+                        with a digit run together. The filter behind the list
+                        already matches either half (`pickerEntries`).
+                      */}
+                      {entry.number} - {entry.name}
                       {entry.refusal === undefined ? '' : ` — ${REFUSAL_SUFFIX[entry.refusal]}`}
                     </li>
                   ))}
@@ -3881,7 +3894,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                     maxWidth: '100%',
                     minWidth: 0,
                     fontWeight: 600,
-                    color: problem === null ? undefined : '#c00',
+                    color: problem === null ? undefined : 'var(--destructive)',
                   }}
                 >
                   {shorthand ? (
@@ -3969,7 +3982,12 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                         fontWeight: 600,
                         flex: 1,
                         minWidth: 0,
-                        ...(problem === null ? {} : { background: '#fde8e8', borderColor: '#c00' }),
+                        ...(problem === null
+                          ? {}
+                          : {
+                              background: 'var(--grid-invalid)',
+                              borderColor: 'var(--destructive)',
+                            }),
                       }}
                       value={live.current.combinedValue(row.original, role.id)}
                       commit={(typed, baseline) =>
@@ -4003,7 +4021,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                         textOverflow: 'ellipsis',
                         whiteSpace: 'nowrap',
                         fontWeight: 'normal',
-                        color: doing.assumed ? '#666' : undefined,
+                        color: doing.assumed ? 'var(--muted-foreground)' : undefined,
                       }}
                     >
                       · {doing.assumed ? `(${doing.name})` : doing.name}
@@ -4062,9 +4080,12 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                             width: '100%',
                             boxSizing: 'border-box',
                             ...(row.original.rolledUp
-                              ? { color: '#666', background: '#f4f4f4' }
+                              ? { color: 'var(--muted-foreground)', background: 'var(--muted)' }
                               : wrong
-                                ? { background: '#fde8e8', borderColor: '#c00' }
+                                ? {
+                                    background: 'var(--grid-invalid)',
+                                    borderColor: 'var(--destructive)',
+                                  }
                                 : {}),
                           }}
                           value={live.current.estimateValue(row.original, role.id, point)}
@@ -4146,7 +4167,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                             data-assumed={role.id}
                             title="Only one person is assigned, so they are assumed to do this phase too"
                             style={{
-                              color: '#666',
+                              color: 'var(--muted-foreground)',
                               marginLeft: 4,
                               minWidth: 0,
                               overflow: 'hidden',
@@ -4243,15 +4264,24 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         header: () => (
           <span title="Days this work item can slip before the plan's end moves">Slack</span>
         ),
-        cell: ({ row }) => (
-          <span data-float>
-            {!live.current.hasSchedule()
-              ? '—'
-              : row.original.schedule.critical
-                ? '— critical'
-                : showDay(row.original.schedule.float)}
-          </span>
-        ),
+        cell: ({ row }) => {
+          // A critical row has no slack to print, and the word that replaces
+          // the figure is not a figure: the attribute is what lets `styles.css`
+          // set it as a tag rather than as a number in the column's own type.
+          // One word, not the `— critical` it was: the column is 56px and the
+          // tag has to fit inside it, which the dash and the space did not.
+          // `plan-export.ts` has printed the bare word since it was written.
+          const critical = live.current.hasSchedule() && row.original.schedule.critical;
+          return (
+            <span data-float data-critical={critical ? 'true' : undefined}>
+              {!live.current.hasSchedule()
+                ? '—'
+                : critical
+                  ? 'critical'
+                  : showDay(row.original.schedule.float)}
+            </span>
+          );
+        },
       }),
       column.display({
         id: 'actions',
@@ -4388,6 +4418,10 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
   const ganttPlan: GanttPlan = {
     rows: shownRows.map((row) => ({
       id: row.id,
+      // The Number column's own number, not a second derivation of it: the
+      // chart's labels read `010 - Strip` because that is how the plan is
+      // spoken about.
+      number: row.original.number,
       name: row.original.name,
       depth: row.depth,
       // A leaf of the plan as drawn, which is a row with nothing under it —

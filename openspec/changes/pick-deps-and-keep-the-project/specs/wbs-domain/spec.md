@@ -3,9 +3,9 @@
 ### Requirement: Dependencies are picked from a searchable list
 
 The Depends on cell SHALL offer the project's work items as a list while the
-cell is focused, each entry showing the work item's number and its name. Typing
-in the cell SHALL narrow the list to items whose number or name contains what
-was typed, case-insensitively. Choosing an entry — by click or by Enter on the
+cell is focused, each entry reading `<number> - <name>` — the derived number the
+Number column shows, then the name. Typing in the cell SHALL narrow the list to
+items whose number or name contains what was typed, case-insensitively. Choosing an entry — by click or by Enter on the
 highlighted one — SHALL add that dependency at once and keep the cell focused
 with the list open, so several dependencies can be added in one visit. The row
 itself and its existing predecessors SHALL NOT be offered.
@@ -13,9 +13,15 @@ itself and its existing predecessors SHALL NOT be offered.
 #### Scenario: searching by name
 
 - **WHEN** `des` is typed into the Depends on cell of row `020` and a row
-  `010 Design API` exists
-- **THEN** the list shows an entry carrying both `010` and `Design API`, and
-  choosing it makes `020` depend on `010`
+  `010` named `Design API` exists
+- **THEN** the list shows the entry `010 - Design API`, and choosing it makes
+  `020` depend on `010`
+
+#### Scenario: searching by number
+
+- **WHEN** `010` is typed into the Depends on cell of row `020`
+- **THEN** the list narrows to the entries whose number contains `010`, still
+  reading `<number> - <name>`
 
 #### Scenario: picking several in one visit
 
