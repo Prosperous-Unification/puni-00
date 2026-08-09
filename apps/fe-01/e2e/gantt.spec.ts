@@ -1,5 +1,6 @@
 import { expect, type Locator, type Page, test } from '@playwright/test';
 
+import { calendarScale } from '../src/components/wbs/gantt-geometry';
 import { CHART_PAD_PX, DAY_PX, ROW_PX } from '../src/components/wbs/gantt-panel';
 
 /**
@@ -48,11 +49,12 @@ async function setDate(page: Page, label: string, day: string): Promise<void> {
  *
  * Six things live here and nowhere else:
  *
- * 1. **The scale.** That the workday the engine placed a bar on is the pixel
- *    the browser draws it at, and that the HTML axis cell above it — a
- *    different element, in a different box, positioned by the same `DAY_PX` —
- *    lands on the same edge. jsdom can watch both numbers be computed and can
- *    never watch them meet.
+ * 1. **The scale.** That the **calendar day** the engine's workday resolves to
+ *    is the pixel the browser draws the bar at, and that the HTML axis cell
+ *    above it — a different element, in a different box, positioned by the same
+ *    `DAY_PX` — lands on the same edge. jsdom can watch both numbers be
+ *    computed and can never watch them meet. The seeded plan reaches past its
+ *    own first weekend on purpose; see {@link PAST_THE_WEEKEND}.
  * 2. **The sticky label column.** `position: sticky` is layout, and a rule
  *    that arrives on an element proves only that it arrived.
  * 3. **The page not scrolling sideways**, at 1400 and at 390. The whole reason
@@ -77,6 +79,29 @@ async function setDate(page: Page, label: string, day: string): Promise<void> {
 
 /** The Monday the seeded plan begins on, so every workday offset is a weekday. */
 const PLAN_START = '2026-08-10';
+
+/**
+ * The seeded plan's own scale, imported rather than re-derived here.
+ *
+ * The pixel a bar is drawn at is `startOf(data-start) × DAY_PX`, and the number
+ * it is drawn at is the panel's own answer for the same workday — the two sides
+ * of the transform this file exists to measure. A copy of the formula written
+ * out here would be a second declaration that agrees until somebody changes one,
+ * which is `layout.spec.ts`'s rule about `table-frame`'s widths.
+ */
+const SCALE = calendarScale(PLAN_START);
+
+/**
+ * A three-point estimate wide enough that the plan reaches past its own first
+ * weekend.
+ *
+ * `2/4/6` is four days by PERT, and four workdays from a Monday is still the
+ * same week: every calendar offset would equal its workday number and the whole
+ * alignment check below would hold just as well on the axis this change
+ * replaced. Six days puts the second leaf on the Tuesday after the weekend,
+ * where the two numbers are two apart.
+ */
+const PAST_THE_WEEKEND = '6/6/6';
 
 /**
  * How far a measured edge may be from the edge the arithmetic says, in CSS px.
@@ -112,8 +137,9 @@ const rowOf = (page: Page, number: string): Locator =>
  * @param account The username to register, unique per test.
  * @param fixture What the two leaves are given beyond their shape.
  * @param fixture.estimate The three-point Dev estimate both leaves get. `2/4/6`
- * is four days by PERT, which is a small chart; the sticky-label tests want one
- * wider than the window and pass a bigger one.
+ * is four days by PERT, which is a small chart and stays inside the plan's
+ * first week; the scale tests pass {@link PAST_THE_WEEKEND} and the
+ * sticky-label tests one wider than the window.
  * @param fixture.extraRows Roots added after the three, for the tests that need
  * a plan taller than its own frame.
  */
@@ -393,18 +419,20 @@ test.beforeEach(() => {
 const nextAccount = (): string => `e2e-chart-${String(Date.now())}-${String(account)}`;
 
 test.describe('the chart, after the browser has scaled it', () => {
-  test('draws a bar at the pixel its workday says, under its own axis cell', async ({ page }) => {
-    await seedPlan(page, nextAccount());
+  test('draws a bar at the pixel its calendar day says, under its own axis cell', async ({
+    page,
+  }) => {
+    await seedPlan(page, nextAccount(), { estimate: PAST_THE_WEEKEND });
     await openTheChart(page);
 
     const chart = await rectOf(page, '[data-gantt-chart]');
-    const bars = await page.evaluate(() =>
+    const drawn = await page.evaluate(() =>
       [...document.querySelectorAll('[data-gantt-bar]')].map((bar) => {
         const box = bar.getBoundingClientRect();
         return {
           id: bar.getAttribute('data-gantt-bar') ?? '(a bar with no slice id)',
-          // The engine's own numbers, carried on the element beside the
-          // geometry the browser drew from them.
+          // The engine's own **workday** number, carried on the element beside
+          // the calendar geometry the browser drew from it.
           start: Number(bar.getAttribute('data-start')),
           userY: Number(bar.getAttribute('y')),
           left: box.left,
@@ -412,20 +440,30 @@ test.describe('the chart, after the browser has scaled it', () => {
         };
       }),
     );
-    expect(bars.length, 'the seeded plan drew no bars to measure').toBeGreaterThan(0);
+    expect(drawn.length, 'the seeded plan drew no bars to measure').toBeGreaterThan(0);
+    const bars = drawn.map((bar) => ({ ...bar, at: SCALE.startOf(bar.start) }));
 
-    // The transform itself, on both axes: one workday is `DAY_PX` across and
-    // one row is `ROW_PX` down, which is what `preserveAspectRatio="none"` over
-    // a viewBox of workdays by rows means and what no jsdom test can perform.
+    // The fixture really does reach past its own first weekend, where the
+    // calendar day and the workday are different numbers. Without this the
+    // whole check below holds exactly as well on the axis this change replaced
+    // — which is the shape of check R5 exists to stop, and it was watched
+    // holding on the narrower plan before the estimate was widened.
+    expect(
+      bars.some((bar) => bar.at !== bar.start),
+      'no bar in this plan is past a weekend, so the scale is not being measured',
+    ).toBe(true);
+
+    // The transform itself, on both axes: one calendar day is `DAY_PX` across
+    // and one row is `ROW_PX` down, which is what `preserveAspectRatio="none"`
+    // over a viewBox of days by rows means and what no jsdom test can perform.
     //
     // `CHART_PAD_PX` is in the arithmetic because the canvas begins one band
-    // left of workday 0 — the band the arrow routes and the caret live in, and
-    // without which a browser clips them. The bars are still the engine's
-    // numbers; it is the SVG's own left edge that is no longer workday 0.
+    // left of day 0 — the band the arrow routes and the caret live in, and
+    // without which a browser clips them.
     for (const bar of bars) {
       expect(
-        Math.abs(bar.left - chart.left - CHART_PAD_PX - bar.start * DAY_PX),
-        `${bar.id} is not ${String(bar.start)} workdays from workday 0`,
+        Math.abs(bar.left - chart.left - CHART_PAD_PX - bar.at * DAY_PX),
+        `${bar.id} is not ${String(bar.at)} calendar days from the plan's first day`,
       ).toBeLessThanOrEqual(NEARLY);
       expect(
         Math.abs(bar.top - chart.top - bar.userY * ROW_PX),
@@ -434,28 +472,45 @@ test.describe('the chart, after the browser has scaled it', () => {
     }
 
     // And the axis, which is HTML in a different box entirely: the cell for the
-    // workday a bar starts on has to begin at the same pixel the bar does. Two
-    // arrangements sized by the same constant, asserted against each other
-    // rather than against the constant.
+    // calendar day a bar starts on has to begin at the same pixel the bar does.
+    // Two arrangements sized by the same constant, asserted against each other
+    // rather than against the constant — and the cell is found by **calendar
+    // offset**, because that is what a cell now stands for.
     //
-    // Only the bars the axis has a cell for. The exclusion is a fact an earlier
-    // run found: a new project lists **two** roles and the fixture estimates Dev
-    // alone, so each leaf also carries an unestimated QA slice — and `010.2`'s
-    // sits at workday 8, which was then the horizon itself and so its right edge
-    // rather than a cell. An unestimated bar is drawn across the assumed span
-    // now, and the horizon reaches past it, so this fixture's bars may all be
-    // printed; the filter stays because whether the last bar starts on the last
-    // cell is a fact about the fixture and not about the scale being measured.
-    const axisDays = await page.locator('[data-axis-day]').count();
-    const printed = bars.filter((bar) => bar.start < axisDays);
-    expect(printed, 'no bar starts on a workday the axis prints').not.toHaveLength(0);
+    // Only the bars the axis has a cell for: whether the last bar starts on the
+    // last cell is a fact about the fixture and not about the scale.
+    const cells = await page.locator('[data-axis-day]').count();
+    const printed = bars.filter((bar) => bar.at < cells);
+    expect(printed, 'no bar starts on a day the axis prints').not.toHaveLength(0);
     for (const bar of printed) {
-      const cell = await rectOf(page, `[data-axis-day="${String(bar.start)}"]`);
+      const cell = await rectOf(page, `[data-axis-day="${String(bar.at)}"]`);
       expect(
         Math.abs(bar.left - cell.left),
-        `${bar.id} does not begin under the axis cell for workday ${String(bar.start)}`,
+        `${bar.id} does not begin under the axis cell for calendar day ${String(bar.at)}`,
       ).toBeLessThanOrEqual(NEARLY);
+      // And that cell carries the workday the bar says it is on, which is the
+      // join between the engine's number and the drawing's.
+      await expect(page.locator(`[data-axis-day="${String(bar.at)}"]`)).toHaveAttribute(
+        'data-axis-workday',
+        String(bar.start),
+      );
     }
+
+    // The weekend is on the axis and under it, which is what the change is for:
+    // cells 5 and 6 of a Monday-start plan are the Saturday and the Sunday, and
+    // each has a column of its own in the chart.
+    await expect(page.locator('[data-axis-day="5"]')).toHaveAttribute('data-axis-weekend', 'true');
+    await expect(page.locator('[data-axis-day="6"]')).toHaveAttribute('data-axis-weekend', 'true');
+    const saturday = await rectOf(page, '[data-gantt-weekend="5"]');
+    expect(
+      Math.abs(saturday.width - DAY_PX),
+      'the Saturday column is not one day wide',
+    ).toBeLessThanOrEqual(NEARLY);
+    const fifthCell = await rectOf(page, '[data-axis-day="5"]');
+    expect(
+      Math.abs(saturday.left - fifthCell.left),
+      'the Saturday column does not stand under its own axis cell',
+    ).toBeLessThanOrEqual(NEARLY);
   });
 
   /**
@@ -468,7 +523,7 @@ test.describe('the chart, after the browser has scaled it', () => {
   test('draws the arrow head, the caret and the bracket where they can be seen', async ({
     page,
   }) => {
-    await seedPlan(page, nextAccount());
+    await seedPlan(page, nextAccount(), { estimate: PAST_THE_WEEKEND });
     await openTheChart(page);
 
     // The bar the caret belongs to, found through the caret's own row and not
@@ -566,6 +621,27 @@ test.describe('the chart, after the browser has scaled it', () => {
     });
     expect(strokes.bracket, 'the summary bracket is a hairline').toBeGreaterThanOrEqual(2);
     expect(strokes.arrow, 'the dependency arrow is a hairline').toBeGreaterThanOrEqual(1.5);
+
+    // 4. And the successor's bar really is past the plan's first weekend, so
+    //    every measurement above was taken where a calendar coordinate and a
+    //    workday number are different. On the narrower fixture this plan used
+    //    to be seeded with they were the same and none of it was being tested.
+    const onCalendar = await page.evaluate(() => {
+      const caret = document.querySelector('[data-gantt-not-before]');
+      if (caret === null) throw new Error('no not-before caret was drawn');
+      const row = caret.getAttribute('data-gantt-not-before');
+      const bar = [...document.querySelectorAll('[data-gantt-bar]')].find(
+        (each) =>
+          Math.floor(Number(each.getAttribute('y'))) === Number(row) &&
+          !each.hasAttribute('data-assumed'),
+      );
+      if (bar === undefined) throw new Error(`row ${String(row)} holds no drawn bar`);
+      return { start: Number(bar.getAttribute('data-start')), x: Number(bar.getAttribute('x')) };
+    });
+    expect(
+      onCalendar.x,
+      'the successor is inside the first week, where a workday number is already a calendar day',
+    ).toBeGreaterThan(onCalendar.start);
   });
 
   /**
@@ -804,7 +880,8 @@ test.describe('the chart on a phone', () => {
  *
  * FAULT X — an axis cell one pixel wider than `DAY_PX`.
  * `draws a bar at the pixel…` on `… does not begin under the axis cell for
- * workday 4: expected 4 to be <= 1`.
+ * workday 4: expected 4 to be <= 1`. Recorded against the workday axis this
+ * change replaced; the assertion now names a calendar day.
  *
  * FAULT L — `sticky left-0` dropped from the label column.
  * Both label tests, on `the label column went with the chart instead of holding
