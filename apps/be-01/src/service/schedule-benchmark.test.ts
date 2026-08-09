@@ -88,7 +88,9 @@ describe('the leveled pass, at the size of a real plan', () => {
     expect(found.slices.size).toBe(600);
     // Leveling binds here: without that this measures the pass that already
     // existed rather than the one this change added.
-    expect(found.waitingForPerson).toBeGreaterThan(20);
+    // The exact figure, so a fixture that quietly stops queueing is visible:
+    // 159 of the 200 work items wait for the person on them.
+    expect(found.waitingForPerson).toBe(159);
   });
 
   it('schedules 600 slices in under 10ms', () => {

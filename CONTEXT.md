@@ -113,6 +113,28 @@ of their finishes, the least of their slack. What leaves be-01 and what the tabl
 slices themselves never do.
 _Avoid_: aggregate, summary, rollup (which is estimates, not time)
 
+**Resource leveling**:
+Placing every slice so that nobody is doing two at once. Always on, and invisible in a
+plan with nobody assigned — which is what every plan was until it arrived.
+_Avoid_: smoothing, balancing, allocation, capacity planning
+
+**Eligible slice**:
+One whose predecessors have all been placed — its dependencies and its work item's
+earlier roles. The set of them is what the schedule takes its next slice from, highest
+priority first.
+_Avoid_: ready, available, unblocked, frontier
+
+**Binding floor**:
+The one thing a slice's start is set by, out of the day the project starts, a dependency,
+its work item's earlier role, a manual date, and its assignee's last finish. A tie is
+never the person: somebody free exactly when the dependency clears is holding nothing up.
+_Avoid_: constraint, reason, blocker, driver
+
+**Resource predecessor**:
+The slice a person was busy with immediately before the one they were the binding floor
+of. What a person-link on the Gantt is drawn between; absent when nobody waited.
+_Avoid_: previous task, queue parent, resource link
+
 **Refused dependency**:
 A dependency be-01 will not write: onto the work item itself, onto an ancestor or a
 descendant of it, or one that closes a loop once every dependency is expanded to the
