@@ -2,11 +2,32 @@ import { useEffect, useState } from 'react';
 
 import { AuthForm } from '@/components/auth/auth-form';
 import { AccountMenu } from '@/components/chrome/account-menu';
+import { AppFaultBoundary } from '@/components/chrome/app-fault';
 import { PresencePanel } from '@/components/presence/presence-panel';
 import { ProjectPage } from '@/components/wbs/project-page';
 import { loadSession, me as fetchMe, saveSession, type Session } from '@/lib/api';
 
+/**
+ * The document's whole app, inside the boundary that catches what it throws.
+ *
+ * The split is what makes the boundary outermost: everything with state, an
+ * effect or a child is in {@link AppContent}, and this component has none of
+ * the three, so there is nothing above the boundary left to throw. Wrapping
+ * only the signed-in branch would have left the session check — the effect that
+ * runs before anything is on screen — outside it.
+ *
+ * See {@link AppFaultBoundary} for why the fallback offers a reload and not a
+ * retry.
+ */
 export function App() {
+  return (
+    <AppFaultBoundary>
+      <AppContent />
+    </AppFaultBoundary>
+  );
+}
+
+function AppContent() {
   const [session, setSession] = useState<Session | null>(null);
   const [checked, setChecked] = useState(false);
 
