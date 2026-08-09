@@ -13,7 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Modal, ModalContent, ModalHeader, ModalTitle, ModalTrigger } from '@/components/ui/modal';
 import type { ProjectStream } from '@/lib/project-stream';
-import type { AssignedPersonView, PersonView, TeamView, WorkItemView } from '@/lib/wbs-api';
+import type { AssignedPersonView, PersonView, TeamView } from '@/lib/wbs-api';
 import {
   type Days,
   type EstimateMethod,
@@ -377,22 +377,35 @@ function roleOfCellKey(cellKey: string): string | null {
 const rowOfCellKey = (key: string): string => key.slice(0, key.indexOf('::'));
 
 /**
- * Where each row of a tree-ordered read sits: `parentId::index among its
- * siblings`, by row id.
+ * Where each row of a freshly read plan sits: `parentId::line`, by row id, where
+ * the line is its position in the order the table draws.
  *
- * The pair, not the index alone: an index says "third", and "third under
- * nobody" and "third under 020" are two different places on screen. The root's
- * parent is spelled `''`, which no id can collide with.
+ * A walk of the tree rather than a count of siblings, and round 4's finding 10
+ * is the reason. "First child of 020" is unchanged by a peer moving 020 itself
+ * — the branch and everything in it goes somewhere else on screen while every
+ * row inside it reports the same parent and the same place among its siblings,
+ * so the card travelled with the branch and stayed open on a line the pointer
+ * was never on. The line is the thing that actually moved, and no ancestor can
+ * move without changing it.
+ *
+ * The parent stays in the pair as well, for the move that changes no line:
+ * outdenting a row leaves it where it was and shifts it left by an indent. The
+ * root's parent is spelled `''`, which no id can collide with.
+ *
+ * The tree, not the flat read, because the flat read is in this order only by
+ * be-01's promise. Walking what the table is about to draw asks nothing of the
+ * caller, and a fake that reorders less carefully than be-01 does cannot make
+ * this quietly agree with itself.
  */
-function placementsOf(flat: readonly WorkItemView[]): ReadonlyMap<string, string> {
-  const filled = new Map<string, number>();
+function placementsOf(rows: readonly TreeRow[]): ReadonlyMap<string, string> {
   const placements = new Map<string, string>();
-  for (const item of flat) {
-    const parent = item.parentId ?? '';
-    const at = filled.get(parent) ?? 0;
-    filled.set(parent, at + 1);
-    placements.set(item.id, `${parent}::${String(at)}`);
-  }
+  let line = 0;
+  const walk = (row: TreeRow): void => {
+    placements.set(row.id, `${row.parentId ?? ''}::${String(line)}`);
+    line += 1;
+    for (const child of row.subRows) walk(child);
+  };
+  for (const root of rows) walk(root);
   return placements;
 }
 
@@ -956,6 +969,35 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    */
   const [hoveredCell, setHoveredCell] = useState<string | null>(null);
   /**
+   * The one cell whose card is open because it has the **focus**, as a
+   * {@link cellKey}, or null.
+   *
+   * A second state rather than a second writer of {@link hoveredCell}, and round
+   * 4's finding 9 is why. The two are set and cleared by gestures that do not
+   * take turns: a pointer wandering across any other cardable cell and off it
+   * again ran the hover's guarded clear, and the still-focused cell was left
+   * with no card and no reason to fire a focus event ever again — a description
+   * that vanishes because a mouse went past.
+   *
+   * Not settled against a refreshed tree the way `hoveredCell` is, deliberately:
+   * a card that belongs to the focus should follow the focus, and the browser
+   * moves that with its element whatever the tree did. A row deleted while its
+   * box was focused leaves a key here that no rendered cell can ever match
+   * again, which shows nothing and is replaced by the next focus.
+   */
+  const [focusedCell, setFocusedCell] = useState<string | null>(null);
+  /**
+   * The one cell whose card is on screen: the pointer's while it is on
+   * something, and the focus's when it is not.
+   *
+   * Derived rather than stored, which is what keeps "one card at a time" true by
+   * construction now that two gestures can open one. The pointer wins because it
+   * is the deliberate act of the moment — a reader who moves the mouse onto a
+   * cell is asking about that cell — and the focus is still where they left it
+   * when they move away again.
+   */
+  const openCard = hoveredCell ?? focusedCell;
+  /**
    * Where every row sat as of the last tree read, by {@link placementsOf}.
    *
    * A ref because nothing renders it: it exists so the next read can be asked
@@ -1261,7 +1303,8 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     setTreeMayBeStale(false);
     setTeams(loadedTeams);
     setPeople(loadedPeople);
-    setWorkItems(toTree(tree.workItems));
+    const drawn = toTree(tree.workItems);
+    setWorkItems(drawn);
     // The open hover card, settled against the rows that just arrived. The
     // previous placements are read into a local **before** the ref is replaced:
     // React may run the updater below after this call returns, and reading the
@@ -1270,7 +1313,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     // Proof: this pair deleted, `closes the card when a peer moves the row it
     // is anchored to` failed on `expected <div role="tooltip" …/> to be null`.
     // Watched, 2026-08-09.
-    const placements = placementsOf(tree.workItems);
+    const placements = placementsOf(drawn);
     const wasPlaced = rowPlacements.current;
     rowPlacements.current = placements;
     setHoveredCell((open) => hoveredCellAfterRefresh(open, wasPlaced, placements));
@@ -3354,8 +3397,9 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     closeMention,
     leaveFoldedCell,
     mentionOptions,
-    hoveredCell,
+    openCard,
     setHoveredCell,
+    setFocusedCell,
     setNotBefore,
     startDate,
     teams,
@@ -3412,8 +3456,9 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     closeMention,
     leaveFoldedCell,
     mentionOptions,
-    hoveredCell,
+    openCard,
     setHoveredCell,
+    setFocusedCell,
     setNotBefore,
     startDate,
     teams,
@@ -3510,7 +3555,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
           // 2026-08-06.
           const matched = live.current.matchIds.has(row.original.id);
           const nameCell = cellKey(row.original.id, 'name');
-          const hovered = live.current.hoveredCell === nameCell;
+          const hovered = live.current.openCard === nameCell;
           return (
             <span
               // `block`, not `inline-block`: a shrink-to-fit wrapper and a
@@ -3709,7 +3754,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
           // are looking at. `picker`, not `open`: a picker with nothing to
           // offer is still a cell being typed in.
           const cardable = waitingFor.length > 0 && picker === null;
-          const carded = cardable && live.current.hoveredCell === dependsCell;
+          const carded = cardable && live.current.openCard === dependsCell;
           // What the card says, for a reader with no pointer. This cell cannot
           // answer a focus with the card the way the folded role cell does —
           // the focus here already belongs to the picker, which opens on it and
@@ -4110,7 +4155,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
               const mentioning =
                 openMention?.rowId === row.original.id && openMention.roleId === role.id;
               const cardable = !unfolded && !mentioning;
-              const carded = cardable && live.current.hoveredCell === finalCell;
+              const carded = cardable && live.current.openCard === finalCell;
               // The card's own id, which the box below points
               // `aria-describedby` at while it is open — this cell's answer to
               // "a card only a pointer can open is data withheld from anybody
@@ -4153,8 +4198,8 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                     live.current.leaveFoldedCell();
                     // The focus-opened card goes with the focus. Guarded like
                     // every other clear: a blur can land after the next cell has
-                    // already opened its own.
-                    live.current.setHoveredCell((current) =>
+                    // already taken the focus.
+                    live.current.setFocusedCell((current) =>
                       current === finalCell ? null : current,
                     );
                   }}
@@ -4190,7 +4235,22 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                         live.current.readFoldedCell(row.original.id, role.id, box);
                       }}
                       onKeyDown={(e) => {
-                        if (options.length > 0) {
+                        // `mentioning`, not `options.length > 0`, and the two
+                        // are not the same thing: a deployment with nobody in it
+                        // answers a bare `@` with no entries at all, and this
+                        // branch then handed the keyboard back to a cell a
+                        // mention owned — Alt+ArrowDown moved the row and
+                        // Cmd+Enter made one, under a half-typed mention. The
+                        // card's guard was corrected in round 3 and this one was
+                        // left counting entries; round 4 caught the divergence.
+                        // The hole itself predates the change: the same branch
+                        // counts entries on the merge-base at `75d01a8`.
+                        // Proof: put back to `options.length > 0`, `every chord
+                        // is inert on a mention that has nobody to offer` failed
+                        // on `expected [ 'Strip', 'Paint', 'Sand', '' ] to deeply
+                        // equal [ 'Strip', 'Sand', 'Paint' ]` — the row moved and
+                        // a row created. Watched, 2026-08-09.
+                        if (mentioning) {
                           // Inert means consumed, and this is the one open list
                           // that had two ways out of it. Cmd/⌘+Enter fell
                           // through to the bare Enter below and assigned the
@@ -4220,7 +4280,10 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                           }
                           if (e.key === 'Enter') {
                             // The first entry, which is `CreatablePicker`'s
-                            // rule: what is offered first is what is taken.
+                            // rule: what is offered first is what is taken —
+                            // and where there is nothing on offer, Enter is
+                            // consumed and takes nothing rather than falling
+                            // through to "new work item" under a live mention.
                             e.preventDefault();
                             options[0]?.take();
                             return;
@@ -4245,15 +4308,19 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                       aria-describedby={carded ? cardId : undefined}
                       onFocus={(e) => {
                         live.current.enterFoldedCell(e.currentTarget);
-                        // The focus opens the card the pointer opens, through
-                        // the same one state — so a reader arriving by Tab is
-                        // shown the trio rather than told about it. Cleared by
-                        // the wrapper's `onBlur`, which this bubbles to.
-                        // Proof: this line dropped, `opens the card on the focus
-                        // too, and points the box at it` failed on `Unable to
-                        // find an accessible element with the role "tooltip"`.
-                        // Watched, 2026-08-09.
-                        live.current.setHoveredCell(finalCell);
+                        // The focus opens the card the pointer opens — through
+                        // its own state, so a mouse crossing the table cannot
+                        // take it away from a box somebody is still typing in
+                        // (round 4, finding 9). Cleared by the wrapper's
+                        // `onBlur`, which this bubbles to.
+                        // Proof, both watched 2026-08-09. This line dropped:
+                        // `opens the card on the focus too, and points the box
+                        // at it` failed on `Unable to find an accessible element
+                        // with the role "tooltip"`. Written back to
+                        // `setHoveredCell`, with `openCard` folded back to the
+                        // hover: `keeps the focused cell's card when the pointer
+                        // visits another and leaves` failed the same way.
+                        live.current.setFocusedCell(finalCell);
                         e.currentTarget.select();
                       }}
                       style={{
@@ -5488,7 +5555,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                         // column, not the preview`, on h2puni 2026-08-08, with
                         // `opensAPopover` and every other rule already correct.
                         ...(cell.column.id === 'name' &&
-                        hoveredCell === cellKey(row.original.id, 'name')
+                        openCard === cellKey(row.original.id, 'name')
                           ? { zIndex: POPOVER_ROW_LAYER }
                           : {}),
                         // After the pinned background, so the warning is visible

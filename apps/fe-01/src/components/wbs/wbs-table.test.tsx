@@ -2130,6 +2130,73 @@ describe('names wrap and notes carry markdown', () => {
     });
   });
 
+  itDom('closes the card when a peer moves the branch the row sits inside', async () => {
+    // Round 4, finding 10. Settling on the immediate parent and the position
+    // among its siblings answers for the row itself and for nothing above it: a
+    // peer moving an **ancestor** takes the whole branch to another part of the
+    // plan while the hovered row's own pair reads exactly as it did, so the card
+    // travelled with it and stayed open on a line the pointer was never on.
+    //
+    // The placement is a walk of the tree the table is about to draw — the
+    // position in the rendered order — which is the thing that actually moved,
+    // and which no ancestor can change without changing.
+    //
+    // Proof: `placementsOf` put back to counting siblings under a parent, this
+    // failed on `expected <div role="tooltip" …/> to be null`. Watched,
+    // 2026-08-09.
+    const api = fakeApi();
+    let notify: () => void = () => {
+      throw new Error('the table never subscribed');
+    };
+    render(
+      <WbsTable
+        projectId="p1"
+        api={api}
+        subscribe={(_projectId, handlers) => {
+          notify = handlers.onChange;
+          return { seen: () => undefined, unsubscribe: () => undefined };
+        }}
+      />,
+    );
+    for (const number of ['010', '020', '030']) {
+      click('Add work item');
+      await screen.findByLabelText(`Name of ${number}`);
+    }
+    const second = screen.getByLabelText('Name of 020');
+    fireEvent.change(second, { target: { value: 'Sand\nsomething to read' } });
+    fireEvent.blur(second);
+    await waitFor(() => {
+      expect(api.rows[1]?.notes).toBe('something to read');
+    });
+    const branch = api.rows[0]?.id ?? '';
+    const inside = api.rows[1]?.id ?? '';
+    const last = api.rows[2]?.id ?? '';
+
+    // 020 goes under 010, so the hovered row has an ancestor to be moved.
+    await api.move(inside, branch, null);
+    await act(async () => {
+      notify();
+      await Promise.resolve();
+    });
+    const child = api.rows.find((row) => row.id === inside)?.number ?? '';
+    expect(child, 'the row did not end up inside a branch').toBe('010.1');
+
+    fireEvent.mouseEnter(notesMarkerOf(child));
+    await screen.findByRole('tooltip');
+
+    // The branch moves to the end of the plan. The hovered row is still the
+    // first child of the same parent — and it is drawn two lines further down.
+    await api.move(branch, null, last);
+    await act(async () => {
+      notify();
+      await Promise.resolve();
+    });
+
+    await waitFor(() => {
+      expect(screen.queryByRole('tooltip')).toBeNull();
+    });
+  });
+
   itDom('keeps the preview open while the pointer crosses the cell to reach it', async () => {
     // The preview is the one card that scrolls, and a note taller than 320px
     // can only be read by putting the pointer on it and turning the wheel. The
@@ -2603,6 +2670,46 @@ describe('assigning from a folded role’s cell with @', () => {
 
     expect(screen.queryByRole('tooltip')).toBeNull();
     expect(foldedCell().getAttribute('aria-describedby')).toBeNull();
+  });
+
+  itDom('keeps the focused cell’s card when the pointer visits another and leaves', async () => {
+    // Round 4, finding 9. The focus and the pointer wrote one state, so a
+    // pointer wandering across any other cardable cell and off it again ran the
+    // guarded clear and left that state null — while the Dev box still had the
+    // focus, still had nothing describing it, and had no reason to fire a focus
+    // event ever again. A description that disappears because a mouse went past
+    // is worse than one that was never there.
+    //
+    // Two states now, and one card derived from them: the pointer wins while it
+    // is on something, and the focus is what is left when it is not.
+    //
+    // Proof: `focusedCell` folded back into `hoveredCell`, this failed on
+    // `Unable to find an accessible element with the role "tooltip"` — no card
+    // at all after the pointer had been and gone. Watched, 2026-08-09.
+    const api = await oneRow();
+    fireEvent.blur(typeInto(foldedCell(), '2/3/8'));
+    await waitFor(() => {
+      expect(api.rows[0]?.estimates['role-dev']?.realistic).toBe(3);
+    });
+
+    fireEvent.focus(foldedCell());
+    const opened = screen.getByRole('tooltip');
+    expect(foldedCell().getAttribute('aria-describedby')).toBe(opened.id);
+
+    // The pointer crosses the QA cell — which has a card of its own, so it owns
+    // the screen while it is there — and leaves again.
+    fireEvent.mouseEnter(foldedWrapper('role-qa'));
+    expect(screen.getByRole('tooltip').textContent).toContain('QA for 010');
+    fireEvent.mouseLeave(foldedWrapper('role-qa'));
+
+    const back = screen.getByRole('tooltip');
+    expect(back.textContent).toContain('Dev for 010');
+    expect(foldedCell().getAttribute('aria-describedby')).toBe(back.id);
+
+    // And the blur is still what ends it, or the card above would be one
+    // nothing could close.
+    fireEvent.blur(foldedCell());
+    expect(screen.queryByRole('tooltip')).toBeNull();
   });
 
   itDom('reads the trio off the row, not out of the boxes it was typed into', async () => {
@@ -8372,6 +8479,44 @@ describe('the command chords', () => {
     expect(namesOnScreen()).toEqual(['Strip', 'Sand', 'Paint']);
     expect(numbersOnScreen()).toEqual(['010', '020', '030']);
     expect(box.value).toBe('@Ada');
+  });
+
+  itDom('every chord is inert on a mention that has nobody to offer', async () => {
+    // The keyboard's half of agy round 3, finding 7, which round 4 caught: the
+    // card learned to read the mention and this branch was still counting the
+    // entries. A deployment with nobody in it answers a bare `@` with no
+    // entries at all, so `options.length > 0` was false, the `else` handed the
+    // keyboard back, and Alt+ArrowDown moved the row while a mention owned the
+    // cell — the exact fault round 2 wrote this guard for, through the one hole
+    // it left open. The hole predates this change; it is on the merge-base at
+    // `75d01a8`, where the same branch counts entries. What is this change's is
+    // that the two guards diverged, and so is the fix.
+    //
+    // Proof: the branch put back to `options.length > 0`, this failed on
+    // `expected [ 'Strip', 'Paint', 'Sand' ] to deeply equal [ 'Strip', 'Sand',
+    // 'Paint' ]` — the row reordered under a half-typed mention. Watched,
+    // 2026-08-09.
+    const api = await threeRoots();
+    fireEvent.click(screen.getByRole('button', { name: 'Fold Dev estimates' }));
+    const box = await screen.findByLabelText<HTMLInputElement>('Dev estimate for 020');
+    fireEvent.focus(box);
+    fireEvent.change(box, { target: { value: '@' } });
+
+    // Nobody to offer, so no list is drawn — which is the state the old branch
+    // read as "no mention here". The mention is open all the same.
+    expect(screen.queryByRole('listbox', { name: 'Dev assignee for 020' })).toBeNull();
+
+    const down = chordInto(box, 'ArrowDown', { alt: true });
+    await letTheLoopRun();
+    const created = chordInto(box, 'Enter', { meta: true });
+    await letTheLoopRun();
+
+    expect(down.defaultPrevented).toBe(true);
+    expect(created.defaultPrevented).toBe(true);
+    expect(namesOnScreen()).toEqual(['Strip', 'Sand', 'Paint']);
+    expect(numbersOnScreen()).toEqual(['010', '020', '030']);
+    expect(api.rows).toHaveLength(3);
+    expect(box.value).toBe('@');
   });
 
   itDom('every chord is inert while a row’s ⋯ menu is open', async () => {
