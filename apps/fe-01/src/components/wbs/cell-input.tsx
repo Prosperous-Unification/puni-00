@@ -49,6 +49,51 @@ export const unsent = (): Promise<CommitOutcome> => Promise.resolve('unsent');
 const flushes = new WeakMap<CellElement, () => Promise<CommitOutcome>>();
 
 /**
+ * Every draft be-01 refused, by the cell it was typed into.
+ *
+ * Rule 4 held a refusal in a ref inside the component, which is exactly as long
+ * as the component lives — and a phase change unmounts every cell in the table
+ * (`columns` depends on `roles`, deliberately; see `wbs-table.tsx`). So a name
+ * be-01 had refused was replaced by the server's value the moment somebody else
+ * added a phase, and the only copy of what had been typed was gone.
+ *
+ * Outside the component, therefore, keyed by the cell rather than by the node:
+ * the node is what the remount replaces. A `Map` rather than a `WeakMap` for the
+ * same reason — a key that dies with the element it was keyed by would die at
+ * the remount too.
+ *
+ * It holds **only** refusals, and each of them only until the person resolves it
+ * — by leaving the cell again, which retries, or by putting the box back, which
+ * abandons it. That is what keeps it from growing: nothing lands in here that
+ * somebody is not still being asked about.
+ *
+ * `X live-editing-extraction` is where this becomes a module rather than a
+ * module-level map; it is written here, now, because the remount is real now.
+ */
+const refusedDrafts = new Map<string, string>();
+
+/**
+ * Forgets every held refusal whose cell `isGone` answers true for.
+ *
+ * Called when a phase is removed: its columns no longer exist, so a draft held
+ * for one is text nobody can ever resolve — it would sit in this map for the
+ * life of the page, and be restored into a cell of some later phase that
+ * happened to be given the same column id.
+ *
+ * @param isGone Asked about each held cell key (`rowId::columnId`).
+ */
+export function forgetRefusedDrafts(isGone: (cellKey: string) => boolean): void {
+  for (const cellKey of [...refusedDrafts.keys()]) {
+    if (isGone(cellKey)) refusedDrafts.delete(cellKey);
+  }
+}
+
+/** What is held for this cell, for a test to read without reaching into the map. */
+export function refusedDraftFor(cellKey: string): string | undefined {
+  return refusedDrafts.get(cellKey);
+}
+
+/**
  * Commits `node` exactly as leaving it would, and answers what be-01 did.
  *
  * `unsent` for a box that is not a {@link CellInput} — the date cell and the
@@ -64,6 +109,19 @@ export function flushCell(node: CellElement): Promise<CommitOutcome> {
 }
 
 export interface CellInputProps extends PassedThrough {
+  /**
+   * Which cell of the grid this is — `rowId::columnId`, the same string every
+   * other part of the keyboard finds a cell by.
+   *
+   * Rendered as this box's `data-cell` rather than passed beside one: two
+   * spellings of one identity is how the navigation and the held refusal come
+   * to disagree about which box they are talking about.
+   *
+   * Required, and that is the point: a cell with no identity has nowhere to
+   * leave a refused draft, and a component that silently held nothing would be
+   * the hold that cannot fail.
+   */
+  cellKey: string;
   /**
    * Renders a `<textarea>` instead of an `<input>`, so the text wraps.
    *
@@ -170,6 +228,7 @@ export interface CellInputProps extends PassedThrough {
  *    — and one gesture would become two journal entries and two Cmd+Zs.
  */
 export function CellInput({
+  cellKey,
   value,
   commit,
   onAttach,
@@ -322,6 +381,10 @@ export function CellInput({
       // is compared against here: it is what this box was showing when the
       // typing started, which a peer's edit held back by rule 2 has
       // deliberately not moved. A composite cell diffs its fields against it.
+      // Read before the request goes out: `node.value` a round trip later is
+      // whatever has been typed since, and what a refusal has to hold is what
+      // was actually refused.
+      const submitted = node.value;
       const landing = commit(node.value, shown.current).then((outcome) => {
         if (outcome !== 'landed') {
           // Nothing of this edit is on the server — `refused` was turned down,
@@ -332,6 +395,11 @@ export function CellInput({
           // [ [ 'w1', { …(2) } ] ]` — the retry dropped as a duplicate of a
           // request that never landed. Watched, 2026-08-08.
           sent.current = null;
+          // Held outside this component as well as in the ref, because the ref
+          // dies with the component and a phase change unmounts every cell in
+          // the table. `submitted` rather than `node.value`: this runs a round
+          // trip later, and what was refused is what was sent.
+          if (outcome === 'refused') refusedDrafts.set(cellKey, submitted);
           // Rule 4, and only for the refusal: an `unsent` commit is one where
           // the box and be-01 already agree, so there is no draft to hold.
           // Proof: this line removed, `keeps a refused draft on screen when
@@ -342,6 +410,7 @@ export function CellInput({
           return outcome;
         }
         refused.current = false;
+        refusedDrafts.delete(cellKey);
         // The refetch this commit triggered lands *before* it resolves, so a
         // draft that rule 4 held back was held back through the one render
         // that carried its answer. Nothing else would come.
@@ -360,6 +429,7 @@ export function CellInput({
     // unsaved draft left to hold, and anything rule 2 or rule 4 held back
     // while the focus was here is safe to apply now.
     refused.current = false;
+    refusedDrafts.delete(cellKey);
     sync();
     return unsent();
   };
@@ -378,11 +448,37 @@ export function CellInput({
   const leave = useRef(onLeave);
   leave.current = onLeave;
 
-  /** Attaches the node and joins it to {@link flushes}, on every attach. */
+  /**
+   * Attaches the node, joins it to {@link flushes}, and puts back whatever
+   * refusal this cell was left holding.
+   *
+   * The second half is rule 4 across a **remount**. A phase change rebuilds
+   * every column definition and React unmounts every cell — the one sanctioned
+   * remount this table has — and the fresh node arrives showing `defaultValue`,
+   * which is the server's value. The typed text be-01 refused exists nowhere
+   * else, so it is put back and `refused` is raised again, which is what stops
+   * the next {@link sync} writing over it.
+   *
+   * `shown` is deliberately left at the server's value: it is the baseline this
+   * cell was showing when the typing started, be-01 refused the edit so the
+   * server still holds it, and leaving this cell again is therefore a retry
+   * rather than a no-op.
+   *
+   * Proof: the restore deleted, `keeps a draft be-01 refused when a new phase
+   * rebuilds every column` failed on `expected '' to be 'Strip the wiring'` —
+   * the typed name replaced by the server's, by a phase somebody else added.
+   * Watched, 2026-08-09.
+   */
   const takeNode = (node: CellElement | null): void => {
     element.current = node;
     if (node === null) return;
     flushes.set(node, () => leave.current());
+    const held = refusedDrafts.get(cellKey);
+    if (held !== undefined && node.value !== held) {
+      node.value = held;
+      refused.current = true;
+      typed.current = false;
+    }
     onAttach?.(node);
   };
 
@@ -393,6 +489,7 @@ export function CellInput({
   };
 
   const shared = {
+    'data-cell': cellKey,
     defaultValue: value,
     onChange: (event: { currentTarget: CellElement }) => {
       tookAKeystroke(event.currentTarget);

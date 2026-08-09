@@ -21,7 +21,14 @@ import {
 } from '@/lib/wbs-api';
 
 import { ActionsMenu } from './actions-menu';
-import { type CellElement, CellInput, type CommitOutcome, flushCell, unsent } from './cell-input';
+import {
+  type CellElement,
+  CellInput,
+  type CommitOutcome,
+  flushCell,
+  forgetRefusedDrafts,
+  unsent,
+} from './cell-input';
 import { type Caret, type CellRef, commandMove, type Direction, nextCell } from './cell-navigation';
 import { CreatablePicker, pickableLabel, PickerList, type PickerOption } from './creatable-picker';
 import { pickerEntries, type PickerEntry } from './dep-picker';
@@ -224,6 +231,35 @@ const dropDrafts = (
   gone: ReadonlySet<string>,
 ): Record<string, string> =>
   Object.fromEntries(Object.entries(drafts).filter(([key]) => !gone.has(key)));
+
+/**
+ * The role a draft key belongs to — `rowId::roleId::point` — or null when the
+ * key is not one this table wrote.
+ *
+ * Null rather than an empty string for a malformed key: every draft in this
+ * record is written by {@link draftKey} or {@link combinedDraftKey}, so a key of
+ * any other shape is a fault rather than a draft for the empty role, and the
+ * sanitizer below keeps it rather than dropping it silently.
+ */
+const roleOfDraftKey = (key: string): string | null => key.split('::')[1] ?? null;
+
+/**
+ * The role whose column a cell key names — `rowId::<roleId>-final` or
+ * `rowId::<roleId>-<point>` — or null when the column is not a role's.
+ *
+ * The suffix rule is {@link widthFor}'s, and for the same reason: a role's half
+ * of the id is whatever the project called it, so the only thing that can be
+ * matched is the end. Name, Depends on and the date box answer null and are
+ * never purged by a phase going.
+ */
+function roleOfCellKey(cellKey: string): string | null {
+  const columnId = cellKey.slice(cellKey.indexOf('::') + 2);
+  const at = columnId.lastIndexOf('-');
+  if (at < 1) return null;
+  const suffix = columnId.slice(at + 1);
+  if (suffix !== 'final' && !(POINTS as readonly string[]).includes(suffix)) return null;
+  return columnId.slice(0, at);
+}
 
 /** Every key one row-and-role's pending estimate can be held under. */
 const estimateDraftKeys = (rowId: string, roleId: string): ReadonlySet<string> =>
@@ -845,6 +881,62 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    */
   const stream = useRef<ProjectStream | null>(null);
 
+  /**
+   * Settles this browser's own state against the phases be-01 just reported.
+   *
+   * A phase that goes takes two things with it that are nobody's but this
+   * client's, and be-01 can clean up neither:
+   *
+   * - the **estimate drafts**, keyed `rowId::roleId::point`. A half-typed trio
+   *   for a phase that has gone is a figure nobody can see, reach or finish,
+   *   and it goes on counting as content — an otherwise empty row it belongs to
+   *   can never be removed by Backspace again.
+   * - the **held refusals**, keyed by cell, whose columns no longer exist —
+   *   text nobody can ever resolve, held for the life of the page.
+   *
+   * `unfoldedRoles` is deliberately **not** settled here, and that is a finding
+   * rather than an omission. The plan asked for it (agy #7) on the reading that
+   * the accordion could hold a dead id; it can, and nothing can observe it,
+   * because `columns` is built by mapping over `roles` and a dead id selects no
+   * role to unfold. The sanitizer was written, its negative test watched
+   * **passing** with the line deleted, and the line removed —
+   * `openspec/changes/phases-ui/verify.md` has the run.
+   *
+   * The drafts sanitizer returns the object it was given when nothing changed.
+   * `drafts` is not one of `columns`' dependencies, so this is about not
+   * re-rendering every cell rather than about remounting them — but the rule is
+   * the same one `sameRoles` keeps one line above, and stating it twice is
+   * cheaper than the two of them drifting.
+   *
+   * A phase change **does** cost the focus, and that is the accepted trade: the
+   * columns really are different, the cells really are new elements, and the
+   * person sees the caret leave the box at the moment the table changes shape.
+   * What must not go with it is a draft be-01 refused, which is why the hold is
+   * outside `CellInput` — see {@link refusedDrafts}.
+   */
+  const settleAgainstRoles = useCallback((live: readonly RoleView[]) => {
+    const liveIds = new Set(live.map((role) => role.id));
+    // Proof: this whole block deleted, `drops a half-typed figure for a phase
+    // that has gone` failed on `expected [ '010' ] to deeply equal []` — an
+    // empty row nobody could remove, vetoed by a figure typed for a phase that
+    // was no longer there. Watched, 2026-08-09.
+    setDrafts((current) => {
+      const gone = new Set(
+        Object.keys(current).filter((key) => {
+          const roleId = roleOfDraftKey(key);
+          return roleId !== null && !liveIds.has(roleId);
+        }),
+      );
+      return gone.size === 0 ? current : dropDrafts(current, gone);
+    });
+    // Proof: this call deleted, `forgets a refusal held for a phase that has
+    // gone` failed on `expected '9' to be undefined`. Watched, 2026-08-09.
+    forgetRefusedDrafts((cellKey) => {
+      const roleId = roleOfCellKey(cellKey);
+      return roleId !== null && !liveIds.has(roleId);
+    });
+  }, []);
+
   const refresh = useCallback(async () => {
     // Every mutation and every socket event starts a refresh, and they can
     // finish out of order — an earlier one landing last would replace the table
@@ -880,10 +972,11 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     // array on every refresh rebuilt every column definition, which is how a
     // stranger's edit used to take the focus of whoever was mid-word.
     setRoles((current) => (sameRoles(current, loadedRoles) ? current : loadedRoles));
+    settleAgainstRoles(loadedRoles);
     // Reported after the generation check, so a superseded read cannot move the
     // resume point to a moment whose rows were thrown away.
     stream.current?.seen(tree.seq);
-  }, [api, projectId]);
+  }, [api, projectId, settleAgainstRoles]);
 
   /**
    * Rereads the tree, and raises the stale banner instead of throwing when
@@ -2989,7 +3082,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                 aria-label={`Name of ${row.original.number}`}
                 data-name-input={row.original.id}
                 data-match={matched ? 'true' : undefined}
-                data-cell={cellKey(row.original.id, 'name')}
+                cellKey={cellKey(row.original.id, 'name')}
                 // A work item's name is a sentence, not a word, and an input
                 // scrolls it out of sight one character at a time. A textarea
                 // wraps, and `autoSize` is what stops it wrapping into a line
@@ -3456,7 +3549,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                       // Down-type work down a role's column. Proof: dropped,
                       // `is a cell of the keyboard grid, so a column can be
                       // typed down` fails. Watched, 2026-08-06.
-                      data-cell={cellKey(row.original.id, `${role.id}-final`)}
+                      cellKey={cellKey(row.original.id, `${role.id}-final`)}
                       role="combobox"
                       aria-expanded={options.length > 0}
                       aria-controls={options.length > 0 ? listId : undefined}
@@ -3600,7 +3693,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                       return (
                         <CellInput
                           aria-label={`${role.name} ${point} for ${row.original.number}`}
-                          data-cell={cellKey(row.original.id, `${role.id}-${point}`)}
+                          cellKey={cellKey(row.original.id, `${role.id}-${point}`)}
                           // Narrow on purpose: these hold a number of days, and a box
                           // sized for a sentence reads as if it wants one. Which is
                           // the column's width to say now, not this box's.

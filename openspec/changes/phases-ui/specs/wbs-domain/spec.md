@@ -140,15 +140,23 @@ table is laid out from, so a column that changes width changes this sentence.
 
 ### Requirement: A phase change rebuilds the columns, and the table survives it
 
+The table SHALL draw a column for each phase the project reports and for no
+other, so a phase that has gone takes its columns with it however they were
+folded.
+
 Reading a project's work items SHALL also settle the client's own state against
 the phases that came back:
 
-- a phase that is unfolded and is no longer there SHALL be folded — the
-  accordion SHALL NOT hold a phase the project does not have;
 - every half-typed estimate held for a phase that is no longer there SHALL be
-  dropped, so a figure cannot be sent for a phase that has gone;
-- neither SHALL be replaced by an equal copy when nothing changed, because the
-  columns are rebuilt from these and rebuilding them takes the focus.
+  dropped. Such a figure can never be seen, reached or finished, and it goes on
+  counting as content — the otherwise-empty work item holding it could never be
+  removed again;
+- every draft be-01 refused, held for a cell of a phase that is no longer there,
+  SHALL be forgotten for the same reason;
+- neither SHALL be replaced by an equal copy when nothing changed.
+
+A read that changed no phase SHALL cost nobody their place: the cell being typed
+in keeps its focus and its text.
 
 A cell being typed in when the columns rebuild **does** lose the focus, and that
 is the accepted cost of a phase change: the person sees the caret leave the box
@@ -156,18 +164,19 @@ at the moment the columns change, and nothing else. A draft be-01 **refused**
 SHALL survive that rebuild — it is text that exists nowhere else, and the
 rebuild must not replace it with the value on the server.
 
-#### Scenario: the accordion lets go of a phase that has gone
+#### Scenario: the columns of a phase that has gone
 
 - **GIVEN** a reader who has unfolded `QA`
 - **WHEN** `QA` is removed
-- **THEN** no unfolded columns remain, and the reader's next read does not ask
-  for them
+- **THEN** none of `QA`'s columns is laid out, and the table declares the width
+  of the phases that are left
 
 #### Scenario: a half-typed figure for a phase that has gone
 
-- **GIVEN** `5` typed into `QA`'s optimistic box and not yet sent
+- **GIVEN** `5` typed into `QA`'s optimistic box on an otherwise empty work item
 - **WHEN** `QA` is removed
-- **THEN** that draft is dropped, and a draft typed for `Dev` is untouched
+- **THEN** that draft is dropped and the work item can be removed again, while a
+  draft typed for `Dev` still holds its own work item back
 
 #### Scenario: the columns are not rebuilt for nothing
 

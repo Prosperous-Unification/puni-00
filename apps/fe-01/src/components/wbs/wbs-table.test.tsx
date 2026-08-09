@@ -19,6 +19,7 @@ import type {
   WorkItemView,
 } from '@/lib/wbs-api';
 
+import { refusedDraftFor } from './cell-input';
 import { POPOVER_ROW_LAYER, tableMinWidth } from './table-frame';
 import { type SubscriptionHandlers, WbsTable } from './wbs-table';
 
@@ -7141,5 +7142,188 @@ describe('the command chords', () => {
       expect(numbersOnScreen()).toEqual(['010', '020', '030', '040']);
     });
     expect(api.rows).toHaveLength(4);
+  });
+});
+
+describe('a phase changing, and what the table does about it', () => {
+  /** The Phases surface, from the toolbar button somebody really clicks. */
+  const openPhases = (): void => {
+    fireEvent.click(screen.getByRole('button', { name: 'Phases' }));
+  };
+
+  const closePhases = (): void => {
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+  };
+
+  /*
+   * Both helpers wait for the **dialog's** own list to settle before closing,
+   * and only then look at the table. An open Radix dialog puts `aria-hidden`
+   * on everything else in the document, so a query for a column header while
+   * the surface is up answers "not there" whatever the table is really showing
+   * — a wait that could never fail, and it was written that way first.
+   */
+
+  /** Adds a phase through the dialog and waits for the column to arrive. */
+  async function addPhase(name: string): Promise<void> {
+    openPhases();
+    fireEvent.change(screen.getByLabelText('New phase'), { target: { value: name } });
+    fireEvent.click(screen.getByRole('button', { name: 'Add phase' }));
+    await screen.findByRole('button', { name: `Remove ${name}` });
+    closePhases();
+    await screen.findByRole('button', { name: `Unfold ${name} estimates` });
+  }
+
+  /** Removes a phase through the dialog and waits for the column to go. */
+  async function removePhase(name: string): Promise<void> {
+    openPhases();
+    fireEvent.click(screen.getByRole('button', { name: `Remove ${name}` }));
+    await waitFor(() => {
+      expect(screen.queryByRole('button', { name: `Remove ${name}` })).toBeNull();
+    });
+    closePhases();
+    await waitFor(() => {
+      expect(screen.queryByRole('button', { name: `Unfold ${name} estimates` })).toBeNull();
+    });
+  }
+
+  /** One empty root row, with both seeded phases still there. */
+  async function oneRow() {
+    const api = fakeApi();
+    render(<WbsTable projectId="p1" api={api} />);
+    click('Add work item');
+    await screen.findByLabelText('Name of 010');
+    return api;
+  }
+
+  itDom('takes the columns of a phase that has gone, unfolded and all', async () => {
+    // The accordion is left holding `role-qa` on purpose — see
+    // `settleAgainstRoles`. Nothing can observe that, because `columns` is
+    // built by mapping over `roles` and a dead id selects no role to unfold;
+    // what this measures is the columns following the phases.
+    // Proof: `setRoles` made to keep whatever it first loaded, so a later read
+    // could not take a phase away, this failed in `removePhase` on `expected
+    // <button …(2)></button> to be null` — the removed phase's fold button
+    // still in the table's header. Watched, 2026-08-09.
+    await oneRow();
+    unfoldRole('QA');
+    expect(screen.getByRole('table').style.minWidth).toBe('1420px');
+
+    await removePhase('QA');
+
+    // One phase left, folded: 752px of fixed columns, 200 for Name, 96 for it.
+    expect(screen.getByRole('table').style.minWidth).toBe('1048px');
+    expect(screen.queryByLabelText('QA optimistic for 010')).toBeNull();
+  });
+
+  itDom('drops a half-typed figure for a phase that has gone', async () => {
+    // Observable because a pending draft **vetoes** the backspace removal of an
+    // otherwise empty row: typing counts as content. A draft for a phase that
+    // no longer exists would go on vetoing forever, over a figure nobody can
+    // see, reach or finish.
+    await oneRow();
+    unfoldRole('QA');
+    const box = screen.getByLabelText<HTMLInputElement>('QA optimistic for 010');
+    fireEvent.change(box, { target: { value: '5' } });
+    fireEvent.blur(box);
+
+    const name = screen.getByLabelText<HTMLTextAreaElement>('Name of 010');
+    name.setSelectionRange(0, 0);
+    fireEvent.keyDown(name, { key: 'Backspace' });
+    // Still there: the draft is content, and this is the state the assertion
+    // below is measured against.
+    expect(numbersOnScreen()).toEqual(['010']);
+
+    await removePhase('QA');
+
+    const after = screen.getByLabelText<HTMLTextAreaElement>('Name of 010');
+    after.setSelectionRange(0, 0);
+    fireEvent.keyDown(after, { key: 'Backspace' });
+
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual([]);
+    });
+  });
+
+  itDom('keeps the drafts of the phases that stayed', async () => {
+    // The other half, and the reason the sanitizer is a filter rather than a
+    // clear: a phase going must not take the figures of the ones that remain.
+    await oneRow();
+    unfoldRole('Dev');
+    const dev = screen.getByLabelText<HTMLInputElement>('Dev optimistic for 010');
+    fireEvent.change(dev, { target: { value: '7' } });
+    fireEvent.blur(dev);
+
+    await removePhase('QA');
+
+    // Dev is still the unfolded one — it is still there, so the accordion keeps
+    // it — and its three boxes are new elements after the rebuild.
+    expect(screen.getByLabelText<HTMLInputElement>('Dev optimistic for 010').value).toBe('7');
+    const name = screen.getByLabelText<HTMLTextAreaElement>('Name of 010');
+    name.setSelectionRange(0, 0);
+    fireEvent.keyDown(name, { key: 'Backspace' });
+    expect(numbersOnScreen()).toEqual(['010']);
+  });
+
+  itDom('rebuilds nothing when the phases came back the same', async () => {
+    // A phase change is the **one** sanctioned remount, and this is the other
+    // side of that sentence: a read that changed no phase must cost nobody
+    // their place. `roles` is `columns`' dependency, so an array replaced on
+    // every read rebuilds every column definition and unmounts every cell.
+    // Proof: `sameRoles` made to answer false, this failed on `expected <body
+    // style><div>…(1)</div></body> to be <input …(5)></input>` — the focused
+    // box unmounted by a reread that changed nothing. Watched, 2026-08-09.
+    await oneRow();
+    unfoldRole('Dev');
+    const box = screen.getByLabelText<HTMLInputElement>('Dev optimistic for 010');
+    box.focus();
+
+    // A reread of the whole project, which is what any edit and any socket
+    // event makes this table do.
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Freeze numbering' }));
+      await new Promise((resume) => setTimeout(resume, 0));
+    });
+
+    expect(document.activeElement).toBe(box);
+  });
+
+  itDom('keeps a draft be-01 refused when a new phase rebuilds every column', async () => {
+    // The one sanctioned remount: a phase change really does rebuild the
+    // columns, and every cell in the table is a new element afterwards. The
+    // focus goes with it, by design — but a refused draft is text that exists
+    // nowhere else, and `CellInput`'s rule 4 held it in a ref that dies with
+    // the component.
+    const api = await oneRow();
+    api.patch = () => Promise.reject(new Error('forbidden'));
+    const name = screen.getByLabelText<HTMLTextAreaElement>('Name of 010');
+    fireEvent.change(name, { target: { value: 'Strip the wiring' } });
+    fireEvent.blur(name);
+    await waitFor(() => {
+      expect(toastTexts()).toContain('forbidden');
+    });
+
+    await addPhase('Design');
+
+    expect(screen.getByLabelText<HTMLTextAreaElement>('Name of 010').value).toBe(
+      'Strip the wiring',
+    );
+  });
+
+  itDom('forgets a refusal held for a phase that has gone', async () => {
+    // The held refusals are keyed by cell, and a cell of a phase that no longer
+    // exists is one nobody can ever resolve — it would sit in the map for the
+    // life of the page.
+    const api = await oneRow();
+    api.setEstimate = () => Promise.reject(new Error('forbidden'));
+    const folded = screen.getByLabelText<HTMLInputElement>('QA estimate for 010');
+    fireEvent.change(folded, { target: { value: '9' } });
+    fireEvent.blur(folded);
+    await waitFor(() => {
+      expect(refusedDraftFor('w1::role-qa-final')).toBe('9');
+    });
+
+    await removePhase('QA');
+
+    expect(refusedDraftFor('w1::role-qa-final')).toBeUndefined();
   });
 });
