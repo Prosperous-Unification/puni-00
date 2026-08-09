@@ -114,6 +114,39 @@ function boxOf(cell: Locator): Promise<CellBox> {
 const linesHidden = (box: CellBox): number =>
   (box.scrollHeight - box.clientHeight) / box.lineHeight;
 
+/**
+ * One edit by somebody else, made the way somebody else makes it: a request to
+ * be-01 from outside this page's own UI, which gw-01 then tells the page about.
+ *
+ * The same fixture `mobile.spec.ts` uses, and it borrows this session's token
+ * out of `localStorage` for the same reason: what is being measured is what
+ * arrives at *this* page, not who sent it.
+ */
+async function aPeerRenames(page: Page, workItemId: string, name: string): Promise<void> {
+  const status = await page.evaluate(
+    async ([id, newName]) => {
+      const raw = localStorage.getItem('wbs.session');
+      if (raw === null) throw new Error('no session to borrow a token from');
+      const session = JSON.parse(raw) as { token: string };
+      const res = await fetch(`/api/work-items/${id}`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json', 'x-wbs-token': session.token },
+        body: JSON.stringify({ name: newName }),
+      });
+      return res.status;
+    },
+    [workItemId, name] as const,
+  );
+  expect(status, 'the peer edit was refused by be-01').toBe(200);
+}
+
+/** The id be-01 knows this row by, which is what a peer edits it through. */
+async function idOf(cell: Locator): Promise<string> {
+  const id = await cell.getAttribute('data-name-input');
+  expect(id, 'the name cell carries no work item id to rename by').not.toBeNull();
+  return id ?? '';
+}
+
 let account = 0;
 
 test.beforeEach(() => {
@@ -231,5 +264,64 @@ test.describe('the Name cell at rest is the name alone', () => {
     expect(after.overflowY).toBe('hidden');
     expect(await noted.inputValue()).toBe(`${SHORT_NAME}\n${TEN_LINES}`);
     expect(writes, 'a look through the cell wrote to the plan').toEqual([]);
+  });
+
+  /**
+   * The one path that writes a value into the box **after** the box has been
+   * measured: `LiveField.leave()`'s "nothing was typed" branch.
+   *
+   * A peer's edit that arrives while somebody has the cell open is held back by
+   * rule 2 until they leave it, and the face measures the clamp on the blur —
+   * before that branch runs. So the box is sized for the name it was showing
+   * and then handed a longer one, which `overflow: hidden` then cuts. Nothing
+   * re-measures afterwards: no request goes out, so no refetch and no render.
+   *
+   * Typed and typed back, rather than never touched: rule 2 only holds a peer's
+   * edit back once somebody has typed in the cell, and a keystroke undone is
+   * the ordinary way to arrive there.
+   */
+  test("a peer's longer name arriving while the cell is focused is whole once it is left", async ({
+    page,
+  }) => {
+    await seedRows(page, `e2e-name-${String(Date.now())}-${String(account)}`, 2);
+
+    const mine = page.getByLabel('Name of 010');
+    const theirs = page.getByLabel('Name of 020');
+    await writeInto(mine, SHORT_NAME);
+    await writeInto(theirs, SHORT_NAME);
+    const atRest = await boxOf(mine);
+
+    await mine.click();
+    await expect(mine).toBeFocused();
+    await mine.press('X');
+    await mine.press('Backspace');
+    expect(await mine.inputValue(), 'the cell was left holding the keystroke').toBe(SHORT_NAME);
+
+    await aPeerRenames(page, await idOf(mine), LONG_NAME);
+    // The second row is the witness that the refetch landed: it is renamed
+    // after the first and nobody is holding it back, so its new name on screen
+    // means the tree carrying *both* names has been rendered.
+    await aPeerRenames(page, await idOf(theirs), 'Their new name');
+    await expect(theirs).toHaveValue('Their new name');
+
+    // The precondition, and the fault needs it: rule 2 kept the peer's name out
+    // of the box while the focus was here, so the blur is the first moment it
+    // can arrive.
+    expect(await mine.inputValue(), 'the peer edit was written into the box mid-visit').toBe(
+      SHORT_NAME,
+    );
+    await expect(mine).toBeFocused();
+
+    await mine.blur();
+    await expect(mine).not.toBeFocused();
+
+    expect(await mine.inputValue(), 'the peer name never reached the box').toBe(LONG_NAME);
+    const after = await boxOf(mine);
+    expect(linesHidden(after), "a line of the peer's name is hidden after the blur").toBeLessThan(
+      0.5,
+    );
+    expect(after.clientHeight, 'the box was never re-measured for the longer name').toBeGreaterThan(
+      atRest.clientHeight,
+    );
   });
 });

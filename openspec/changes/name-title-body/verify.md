@@ -14,11 +14,13 @@ Every command below was run on 2026-08-09 on Dany's Mac (darwin arm64, bun
 | `apps/fe-01/src/components/wbs/wbs-table.tsx`          | the Name column passes it, drops `maxRestRows`, passes the name       |
 | `apps/fe-01/src/components/wbs/wbs-table.test.tsx`     | 2 rewritten, 1 added, 2 assertions added                              |
 | `apps/fe-01/src/components/wbs/plan-cards.test.tsx`    | 1 added — the card face's cap, which nothing else covered             |
-| `apps/fe-01/e2e/name-cell.spec.ts`                     | new — 3, and the only oracle for the height                           |
+| `apps/fe-01/e2e/name-cell.spec.ts`                     | new — 3, and more for the review round below                          |
 | `apps/fe-01/e2e/layout.spec.ts`, `keyboard.spec.ts`    | comments corrected; no assertion changed                              |
+| `apps/fe-01/src/components/wbs/live-editing.ts`        | review round 1: `leave()`'s quiet path re-measures the box            |
 
 fe-01 counted 851 unit tests before and **853** after; the browser suite 63
-before and **66** after. `plan-cards.tsx` is untouched.
+before and **66** after. `plan-cards.tsx` is untouched. The review round below
+adds browser tests and no unit tests; its own count is at the end of it.
 
 ## The gate
 
@@ -53,6 +55,9 @@ $ bunx playwright test --config apps/fe-01/playwright.config.ts
   66 passed (1.3m)
 ```
 
+The review round used the same three ports for the same reason — the stack on
+3100/3200/4200 was still up — and reverted the same two files afterwards.
+
 ## The checks, and the faults that broke them
 
 Every row was watched: the fault applied to the production file, the test run,
@@ -69,6 +74,35 @@ the output copied here, the fault reverted, the test re-run green.
 | `restShowsFirstLineOnly` off the Name column (browser)    | all three of `e2e/name-cell.spec.ts`                      | `the cell with ten lines of notes is taller at rest — Expected: 20, Received: 88`, and both overflow assertions `"auto"` for `"hidden"` |
 | `overflow-y` left on `auto` at the clamped height         | `the notes cannot be scrolled into view at rest`          | `the wheel scrolled the notes into view — Expected: 0, Received: 182`                                                                   |
 | `resize` dropped from the blur handler                    | `focus shows the notes and blur hides them again`         | `the cell stayed open after the focus left it — Expected: 20, Received: 200`                                                            |
+
+The review round's three, watched the same way on 2026-08-09:
+
+| Fault injected                                            | Test                                                        | What the run reported                                                                                |
+| --------------------------------------------------------- | ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `afterSync` dropped from `leave()`'s nothing-typed branch | `a peer's longer name arriving while the cell is focused …` | `a line of the peer's name is hidden after the blur — Expected: < 0.5, Received: 1.9791666666666667` |
+
+Each was reverted and the test re-run green before the next one was injected.
+
+## The review round, 2026-08-09
+
+Three findings against the branch as it stood at `e316dbe`, all three confirmed
+against the code before anything was written. Each fix's negative was watched
+failing with the fix removed; the rows are in the table above, at the bottom.
+
+### 1. The one write that happened after the measurement (High)
+
+`LiveField.leave()`'s "nothing was typed" branch calls `sync()`, which is where
+a peer's edit held back by rule 2 finally reaches the box — and unlike
+`serverSaid` and the landing in `submit`, it did not then call `afterSync`. The
+face measures the clamp in its blur handler, which runs **before** `leave()`, so
+the box was sized for the name it had been showing and then handed the peer's.
+Longer, and `overflow: hidden` cut it; shorter, and it left dead height. Nothing
+re-measured afterwards: the branch sends no request, so there is no refetch and
+no render.
+
+Fixed by calling `this.afterSync(this.node)` after that `sync()`, the pattern
+the landing path already used. The `afterSync` JSDoc said in as many words that
+this path deliberately did not call it; it now says why it does.
 
 ## The negative that could not fail, and did not ship
 
