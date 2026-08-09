@@ -79,6 +79,34 @@ What a role's removal would take with it: the estimates and assignments that hol
 the work items whose assumed assignee it would change.
 _Avoid_: references, dependents, blast radius
 
+**Directory**:
+The people and service teams every project draws from — one list for the whole
+deployment, readable and writable by any signed-in account. Not a per-project list, and
+not an account on this tool.
+_Avoid_: roster, address book, org chart, users
+
+**Service team**:
+A team work can be labelled with. A label on the work, never a constraint on who may be
+assigned it, and unique by name across the directory.
+_Avoid_: department, squad, group, service
+
+**Person**:
+Somebody who does work, named in the directory and assigned to a work item's role. Not an
+account: most of the people a plan names never sign in.
+_Avoid_: user, resource, member, assignee (which is the assignment, not the person)
+
+**Free agent**:
+A person who belongs to no service team. The absence of memberships, never membership of
+a "Free agents" row — a real row could be renamed, deleted or given work of its own.
+_Avoid_: unassigned, independent, teamless
+
+**Directory usage**:
+What removing a person or a service team would take with it, named rather than counted:
+the affected projects with their work items by number and name, each work item's effects,
+and the people whose membership would be dropped. What a refusal carries so that the
+second, confirming request is agreeing to something it has seen.
+_Avoid_: references, impact, blast radius, dependents
+
 **Estimate**:
 Three durations in days — optimistic, realistic, pessimistic — held for one work item and
 one role. A work item with children has no estimates of its own.

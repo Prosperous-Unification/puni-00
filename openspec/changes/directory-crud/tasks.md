@@ -107,7 +107,7 @@ Only `- [ ]` checkboxes are tracked by the apply phase.
 
 ## 5. Gate
 
-- [ ] 5.1 `bunx nx format:check --all` and
+- [x] 5.1 `bunx nx format:check --all` and
       `bunx nx run-many -t test lint typecheck build --parallel=2` and
       `openspec validate --all --json` green; verify.md records commands,
       results, and the failure-proof table for every negative above
