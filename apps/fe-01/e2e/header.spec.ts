@@ -233,15 +233,22 @@ test.describe('the header bar, measured by a browser', () => {
     expect(zoomed.past, 'the header ran past its own width at 125% zoom').toBeLessThanOrEqual(0);
   });
 
-  test('holds the four things it is one row of', async ({ page }) => {
+  test('holds the five things it is one row of', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 800 });
     const bar = page.getByRole('banner');
 
     // Every one of these is found by role and name, and inside the bar: the
-    // brand, the project, who else is here, and the account. The account menu
-    // has never been opened by a browser before this line — `F` shipped
-    // `modal.tsx` with the same gap and said so.
+    // brand, the two pages, the project, who else is here, and the account. The
+    // account menu has never been opened by a browser before this line — `F`
+    // shipped `modal.tsx` with the same gap and said so.
+    //
+    // The navigation is the fifth, added by `D directory-page`: it is the first
+    // control this bar has gained since the fit matrix was written, which is
+    // why that matrix is re-run below with it on the bar and FAULT W was
+    // watched again.
     await expect(bar.getByRole('heading', { name: 'WBS tool v2' })).toBeVisible();
+    await expect(bar.getByRole('link', { name: 'Plan' })).toBeVisible();
+    await expect(bar.getByRole('link', { name: 'Directory' })).toBeVisible();
     await expect(bar.getByRole('combobox', { name: 'Project' })).toBeVisible();
     await expect(bar.getByRole('heading', { name: /^Online \(/ })).toBeVisible();
 
@@ -276,6 +283,9 @@ test.describe('the header bar, measured by a browser', () => {
  * narrowest — the picker and the roster give way first, by design — and one
  * more control is a thing it absorbs rather than a regression. `past: 50` at
  * 900 is the run that was watched.
+ * Re-run by `D directory-page`, which put the two-page navigation on this bar:
+ * with the nav in place the same three controls give `past: 38` at **1024**,
+ * so the matrix can still fail with one more real control on it.
  * `keeps the header to one row at every laptop width` is what fails, and it
  * fails on `past` rather than on `rowsDeep`: a `flex-nowrap` bar with too much
  * in it runs off its own right edge instead of wrapping. That is why the check

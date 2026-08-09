@@ -30,6 +30,8 @@ export interface ProjectPageProps {
   presence?: (projectId: string | null) => ReactNode;
   /** The account menu, for the same reason and the same end of the bar. */
   account?: ReactNode;
+  /** The two-page navigation, from router context — see `app-router.tsx`. */
+  nav?: ReactNode;
 }
 
 /**
@@ -62,7 +64,7 @@ function rememberProject(id: string | null): void {
  * scrolling instead and the heading row scrolls away with it, which is the
  * failure `table-frame.ts` describes.
  */
-export function ProjectPage({ token, api: apiOverride, presence, account }: ProjectPageProps) {
+export function ProjectPage({ token, api: apiOverride, presence, account, nav }: ProjectPageProps) {
   const api = useMemo(() => apiOverride ?? httpProjectApi(token), [apiOverride, token]);
   const subscribe = useMemo(
     () => (projectId: string, handlers: SubscriptionHandlers) =>
@@ -406,7 +408,12 @@ export function ProjectPage({ token, api: apiOverride, presence, account }: Proj
 
   return (
     <>
-      <AppHeader project={projectControls} presence={presence?.(selected)} account={account} />
+      <AppHeader
+        nav={nav}
+        project={projectControls}
+        presence={presence?.(selected)}
+        account={account}
+      />
       {/*
         The rest of the window, and a column flex so the frame below can have
         what the toolbar does not. `min-h-0` is the load-bearing half: a flex

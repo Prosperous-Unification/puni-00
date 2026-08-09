@@ -1,6 +1,13 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { httpProjectApi, roleRefusalSentence, type RoleUsage } from './wbs-api';
+import {
+  directoryRefusalSentence,
+  type DirectoryUsage,
+  httpDirectoryApi,
+  httpProjectApi,
+  roleRefusalSentence,
+  type RoleUsage,
+} from './wbs-api';
 
 /**
  * A Response as be-01 would really produce one.
@@ -139,5 +146,176 @@ describe('what a refused phase change says', () => {
     // something to report, and a message that hid it would leave nobody able to
     // say what be-01 answered.
     expect(roleRefusalSentence('http_502')).toContain('http_502');
+  });
+});
+
+/**
+ * A directory usage as be-01's `directory-usage.ts` really assembles one: both
+ * halves present, a work item named by its derived number, and the flip that
+ * ends with nobody.
+ */
+const USAGE: DirectoryUsage = {
+  projects: [
+    {
+      id: 'pr1',
+      name: 'Rollout',
+      workItems: [
+        {
+          id: 'w7',
+          number: '3.1',
+          name: 'Design',
+          effects: [
+            { kind: 'assignment_dropped', role: { id: 'r1', name: 'Dev' } },
+            { kind: 'assumed_assignee_changed', assumedNow: 'Kat', assumedAfter: null },
+          ],
+        },
+      ],
+    },
+  ],
+  members: [{ id: 'm1', name: 'Ada' }],
+};
+
+const stub = (answer: (path: string, init?: RequestInit) => Response) => {
+  const fetched = vi.fn((path: string, init?: RequestInit) => Promise.resolve(answer(path, init)));
+  vi.stubGlobal('fetch', fetched);
+  return fetched;
+};
+
+describe('the directory client', () => {
+  it('asks the four reads and writes at the paths be-01 mounts them on', async () => {
+    const fetched = stub((path) =>
+      response(
+        200,
+        JSON.stringify(
+          path.includes('/people') ? { people: [], person: { id: 'p1' } } : { teams: [] },
+        ),
+      ),
+    );
+    const api = httpDirectoryApi('t');
+    await api.listPeople();
+    await api.listTeams();
+    await api.addPerson('Kat', ['t1']);
+
+    expect(fetched.mock.calls.map((call) => call[0])).toEqual([
+      '/api/people',
+      '/api/teams',
+      '/api/people',
+    ]);
+    expect(fetched.mock.calls[2]?.[1]?.body).toBe(JSON.stringify({ name: 'Kat', teamIds: ['t1'] }));
+    expect(fetched.mock.calls[2]?.[1]?.method).toBe('POST');
+  });
+
+  it('sends exactly the memberships it is given, and nothing about the name', async () => {
+    const fetched = stub(() =>
+      response(200, JSON.stringify({ person: { id: 'p1', name: 'Kat', teamIds: ['t1', 't2'] } })),
+    );
+    await httpDirectoryApi('t').patchPerson('p1', { teamIds: ['t1', 't2'] });
+
+    expect(fetched.mock.calls[0]?.[0]).toBe('/api/people/p1');
+    expect(fetched.mock.calls[0]?.[1]?.method).toBe('PATCH');
+    // No `name` key at all: an absent name leaves it alone at be-01, and a
+    // `{ name: undefined }` would have to be told apart from the absence by
+    // every layer below.
+    expect(fetched.mock.calls[0]?.[1]?.body).toBe(JSON.stringify({ teamIds: ['t1', 't2'] }));
+  });
+
+  it('reads the usage out of the refusal rather than throwing the code', async () => {
+    stub(() => response(409, JSON.stringify({ error: 'in_use', usage: USAGE })));
+    await expect(httpDirectoryApi('t').removePerson('p1', false)).resolves.toEqual({
+      ok: false,
+      reason: 'in_use',
+      usage: USAGE,
+    });
+  });
+
+  it('throws an in_use with no usage rather than confirming against nothing', async () => {
+    stub(() => response(409, JSON.stringify({ error: 'in_use' })));
+    await expect(httpDirectoryApi('t').removePerson('p1', false)).rejects.toThrow('in_use');
+  });
+
+  it('throws a usage missing its members rather than drawing an empty impact list', async () => {
+    // The half that matters most: a team nothing but memberships points at is
+    // refused **because** of those memberships, and a confirmation drawn from a
+    // usage with no `members` key would show an empty list while people were
+    // about to lose one.
+    stub(() =>
+      response(409, JSON.stringify({ error: 'in_use', usage: { projects: USAGE.projects } })),
+    );
+    await expect(httpDirectoryApi('t').removeTeam('t1', false)).rejects.toThrow('in_use');
+  });
+
+  it('throws a work item with no number rather than confirming against a row nobody can find', async () => {
+    const noNumber = {
+      projects: [
+        { id: 'pr1', name: 'Rollout', workItems: [{ id: 'w7', name: 'Design', effects: [] }] },
+      ],
+      members: [],
+    };
+    stub(() => response(409, JSON.stringify({ error: 'in_use', usage: noNumber })));
+    await expect(httpDirectoryApi('t').removePerson('p1', false)).rejects.toThrow('in_use');
+  });
+
+  it('asks for the cascade only when it is given one', async () => {
+    const fetched = stub(() => response(204, ''));
+    const api = httpDirectoryApi('t');
+    await api.removePerson('p1', false);
+    await api.removeTeam('t1', true);
+    expect(fetched.mock.calls.map((call) => call[0])).toEqual([
+      '/api/people/p1',
+      '/api/teams/t1?cascade=true',
+    ]);
+  });
+
+  it('answers a removal be-01 performed outright', async () => {
+    stub(() => response(204, ''));
+    await expect(httpDirectoryApi('t').removeTeam('t1', false)).resolves.toEqual({ ok: true });
+  });
+
+  it('throws a 2xx that carries no entry rather than putting nothing on the panel', async () => {
+    stub(() => response(200, JSON.stringify({})));
+    await expect(httpDirectoryApi('t').renameTeam('t1', 'Platform')).rejects.toThrow(
+      'unexpected_response',
+    );
+  });
+});
+
+describe('what a refused directory change says', () => {
+  it('answers the taken refusal with the name that survived, not the one that was typed', async () => {
+    // be-01 trims, so ` Kat ` collides with `Kat` and answers `name: 'Kat'`.
+    // A sentence built from the local draft — which still holds the untrimmed
+    // spelling — would quote a name the directory does not hold, and this is
+    // what makes that impossible to pass vacuously.
+    stub(() => response(409, JSON.stringify({ error: 'taken', name: 'Kat' })));
+    const refusal = await httpDirectoryApi('t').patchPerson('p2', { name: ' Kat ' });
+
+    expect(refusal).toEqual({ ok: false, reason: 'taken', survivingName: 'Kat' });
+    if (refusal.ok) throw new Error('the refusal was read as a success');
+    const sentence = directoryRefusalSentence(refusal);
+    expect(sentence).toContain('“Kat”');
+    expect(sentence).not.toContain('“ Kat ”');
+  });
+
+  it('has a sentence for every code the directory routes answer with', () => {
+    // The list is `statusFor` and `DirectoryRefusal` in
+    // `apps/be-01/src/service/directory.service.ts`, plus the one this client
+    // raises itself. A code with no sentence would reach the page as itself.
+    for (const code of [
+      'name_required',
+      'not_found',
+      'nothing_to_change',
+      'unknown_team',
+      'unexpected_response',
+    ]) {
+      const sentence = directoryRefusalSentence({ reason: 'refused', code });
+      expect(sentence).not.toContain(code);
+      expect(sentence.endsWith('.')).toBe(true);
+    }
+  });
+
+  it('names the code it does not know rather than rendering nothing', () => {
+    // Proof: the `default` arm replaced by `return ''`, this failed on
+    // `expected '' to contain 'http_502'` — an unknown refusal reaching the
+    // page as an empty alert. Watched 2026-08-09.
+    expect(directoryRefusalSentence({ reason: 'refused', code: 'http_502' })).toContain('http_502');
   });
 });

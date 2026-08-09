@@ -235,6 +235,19 @@ been parsed. The name carries `*not*` now, and the heading is asserted to contai
 the parser made; both failures were then watched. The test that catches a parser has to use
 punctuation a parser eats.
 
+Two more on 2026-08-09 in `D directory-page`, and **neither shipped**. The directory page must
+show a membership only once be-01 has answered, and the negative written for that — refuse the
+patch, then assert the refused team is not chipped — was watched **passing** with the optimistic
+`setPeople` put back in front of the request. It had to: the page re-reads after every write, so
+an optimistic page and a patient one land on the same screen and the only difference is the
+window between the request and the answer. The fake holds the patch in flight now and the
+assertion is made **there**, where the fault was then watched failing on `expected <button …> to
+be null`. And `page-nav.tsx` carried an `activeOptions={{ exact: true }}` written on the
+reasoning that `/` is a prefix of `/directory`: removing it changed nothing at all, because the
+two are siblings under the root route and `Link` decides "active" by route match rather than by
+string. It is deleted, and why is written where it was going to be. **Assert in the window the
+fault lives in, and delete the guard whose removal you cannot see.**
+
 Prove your check fails when the thing is broken, and say so in the comment. A check whose
 failure mode has never been observed is a claim, not a gate.
 

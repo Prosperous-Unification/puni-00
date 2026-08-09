@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
 
+import { AppRouter } from '@/app-router';
 import { AuthForm } from '@/components/auth/auth-form';
 import { AccountMenu } from '@/components/chrome/account-menu';
 import { AppFaultBoundary } from '@/components/chrome/app-fault';
 import { PresencePanel } from '@/components/presence/presence-panel';
-import { ProjectPage } from '@/components/wbs/project-page';
 import { loadSession, me as fetchMe, saveSession, type Session } from '@/lib/api';
 
 /**
@@ -103,7 +103,15 @@ function AppContent() {
      * clipping it would put rows below the fold with no way to reach them.
      */
     <div className="bg-background text-foreground flex h-full flex-col font-sans">
-      <ProjectPage
+      {/*
+       * The router is mounted **here**, inside the branch the gate already
+       * chose, and never around it. That is what makes a signed-out
+       * `/directory` the sign-in form with the address left alone rather than a
+       * redirect to a `/sign-in` nobody asks for by name, and it is why signing
+       * in continues to the page that was asked for: nothing rewrote it.
+       * ADR 0004 has the alternatives.
+       */}
+      <AppRouter
         token={session.token}
         presence={
           // A roster is a project's, so the panel is built from the page's

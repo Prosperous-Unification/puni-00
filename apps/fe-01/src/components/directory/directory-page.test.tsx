@@ -1,0 +1,711 @@
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+
+import { subscribeToProject } from '@/lib/project-stream';
+import type {
+  DirectoryApi,
+  DirectoryUsage,
+  DirectoryWrite,
+  PersonView,
+  TeamView,
+} from '@/lib/wbs-api';
+
+import { DirectoryPage } from './directory-page';
+
+// fe-01 tests require jsdom; only Vitest provides it. Skip under plain `bun test`.
+const hasDom = typeof document !== 'undefined';
+const itDom = hasDom ? it : it.skip;
+
+/**
+ * The gateway, replaced by a spy for the whole file.
+ *
+ * The "no socket" scenario is vacuous against a page that never had one — it
+ * would pass by doing nothing — so the claim is made observable here, on the
+ * **production** dependency rather than on an injected stand-in: whatever the
+ * page opens a subscription with, it opens with this. Imported above so the
+ * mocked module really loads.
+ */
+vi.mock('@/lib/project-stream', () => ({
+  subscribeToProject: vi.fn(() => ({ seen: () => undefined, unsubscribe: () => undefined })),
+}));
+
+const subscribed = vi.mocked(subscribeToProject);
+
+const PLATFORM: TeamView = { id: 't1', name: 'Platform' };
+const PAYMENTS: TeamView = { id: 't2', name: 'Payments' };
+const DESIGN: TeamView = { id: 't3', name: 'Design' };
+
+/**
+ * A `DirectoryApi` over an in-memory directory, with every call recorded.
+ *
+ * The refusals are set per test rather than derived, because what is being
+ * asserted is what the page does with an answer — a fake that worked out for
+ * itself when a name is taken would be a second be-01 to keep in step.
+ */
+function fakeDirectory(
+  people: PersonView[],
+  teams: TeamView[],
+): DirectoryApi & {
+  reads: number;
+  patched: { id: string; patch: { name?: string; teamIds?: readonly string[] } }[];
+  removals: [string, boolean][];
+  added: string[];
+  refusePatchWith: (refusal: DirectoryWrite<PersonView> | Error | null) => void;
+  refuseRemovalWith: (usage: DirectoryUsage | null) => void;
+  put: (next: PersonView[]) => void;
+  holdWrites: () => void;
+  releaseWrites: () => void;
+} {
+  let held = [...people];
+  let heldTeams = [...teams];
+  let patchRefusal: DirectoryWrite<PersonView> | Error | null = null;
+  let removalUsage: DirectoryUsage | null = null;
+  /**
+   * A patch left in flight until the test says otherwise.
+   *
+   * The whole reason it exists: "shown once be-01 has answered, never before"
+   * is a claim about the moment **between** the request and the answer, and a
+   * page that redraws locally and then re-reads converges on the same screen —
+   * so a test that only looks at the end cannot see the optimism at all.
+   */
+  let inFlight: Promise<void> | null = null;
+  let letThrough: (() => void) | null = null;
+  const api = {
+    holdWrites() {
+      inFlight = new Promise<void>((resolve) => {
+        letThrough = resolve;
+      });
+    },
+    releaseWrites() {
+      const release = letThrough;
+      inFlight = null;
+      letThrough = null;
+      if (release !== null) release();
+    },
+    reads: 0,
+    patched: [] as { id: string; patch: { name?: string; teamIds?: readonly string[] } }[],
+    removals: [] as [string, boolean][],
+    added: [] as string[],
+    refusePatchWith(refusal: DirectoryWrite<PersonView> | Error | null) {
+      patchRefusal = refusal;
+    },
+    refuseRemovalWith(usage: DirectoryUsage | null) {
+      removalUsage = usage;
+    },
+    put(next: PersonView[]) {
+      held = [...next];
+    },
+    listPeople() {
+      api.reads += 1;
+      return Promise.resolve(held.map((person) => ({ ...person })));
+    },
+    listTeams: () => Promise.resolve(heldTeams.map((team) => ({ ...team }))),
+    addPerson(name: string, teamIds: readonly string[]) {
+      api.added.push(name);
+      const person = { id: `p${String(held.length + 1)}`, name, teamIds: [...teamIds] };
+      held = [...held, person];
+      return Promise.resolve(person);
+    },
+    addTeam(name: string) {
+      api.added.push(name);
+      const team = { id: `t${String(heldTeams.length + 1)}`, name };
+      heldTeams = [...heldTeams, team];
+      return Promise.resolve(team);
+    },
+    async patchPerson(id: string, patch: { name?: string; teamIds?: readonly string[] }) {
+      api.patched.push({ id, patch });
+      if (inFlight !== null) await inFlight;
+      if (patchRefusal instanceof Error) throw patchRefusal;
+      if (patchRefusal !== null) return patchRefusal;
+      held = held.map((person) =>
+        person.id === id
+          ? {
+              ...person,
+              ...(patch.name === undefined ? {} : { name: patch.name }),
+              ...(patch.teamIds === undefined ? {} : { teamIds: [...patch.teamIds] }),
+            }
+          : person,
+      );
+      const written = held.find((person) => person.id === id);
+      if (written === undefined) throw new Error('not_found');
+      return { ok: true as const, entry: written };
+    },
+    renameTeam(id: string, name: string) {
+      heldTeams = heldTeams.map((team) => (team.id === id ? { ...team, name } : team));
+      const written = heldTeams.find((team) => team.id === id);
+      if (written === undefined) return Promise.reject(new Error('not_found'));
+      return Promise.resolve({ ok: true as const, entry: written });
+    },
+    removePerson(id: string, cascade: boolean) {
+      api.removals.push([id, cascade]);
+      if (removalUsage !== null && !cascade) {
+        return Promise.resolve({
+          ok: false as const,
+          reason: 'in_use' as const,
+          usage: removalUsage,
+        });
+      }
+      held = held.filter((person) => person.id !== id);
+      return Promise.resolve({ ok: true as const });
+    },
+    removeTeam(id: string, cascade: boolean) {
+      api.removals.push([id, cascade]);
+      if (removalUsage !== null && !cascade) {
+        return Promise.resolve({
+          ok: false as const,
+          reason: 'in_use' as const,
+          usage: removalUsage,
+        });
+      }
+      heldTeams = heldTeams.filter((team) => team.id !== id);
+      return Promise.resolve({ ok: true as const });
+    },
+  };
+  return api;
+}
+
+const KAT: PersonView = { id: 'p1', name: 'Kat', teamIds: ['t1', 't2'] };
+const ADA: PersonView = { id: 'p2', name: 'Ada', teamIds: ['t1'] };
+
+/** The usage be-01 answers for a person somebody's plan is holding. */
+const PERSON_USAGE: DirectoryUsage = {
+  projects: [
+    {
+      id: 'pr1',
+      name: 'Rollout',
+      workItems: [
+        {
+          id: 'w7',
+          number: '3.1',
+          name: 'Design',
+          effects: [
+            { kind: 'assignment_dropped', role: { id: 'r1', name: 'Dev' } },
+            { kind: 'assumed_assignee_changed', assumedNow: 'Kat', assumedAfter: null },
+          ],
+        },
+      ],
+    },
+  ],
+  members: [],
+};
+
+/** The usage of a team nothing but memberships points at. */
+const TEAM_USAGE: DirectoryUsage = {
+  projects: [],
+  members: [
+    { id: 'p1', name: 'Kat' },
+    { id: 'p2', name: 'Ada' },
+  ],
+};
+
+const pageWith = (api: DirectoryApi) =>
+  render(
+    <DirectoryPage token="t" api={api} nav={<span>nav slot</span>} account={<span>me</span>} />,
+  );
+
+/** Waits for the arrival read to have redrawn both panels. */
+async function drawn(name: string): Promise<void> {
+  await waitFor(() => {
+    expect(screen.getByLabelText(`Name of ${name}`)).toBeDefined();
+  });
+}
+
+const peoplePanel = () =>
+  screen.getByRole('heading', { name: 'People' }).closest('div[class]')?.parentElement ?? null;
+
+afterEach(() => {
+  cleanup();
+  subscribed.mockClear();
+});
+
+describe('the directory page', () => {
+  itDom('shows every person with the teams they belong to', async () => {
+    pageWith(fakeDirectory([KAT], [PLATFORM, PAYMENTS, DESIGN]));
+    await drawn('Kat');
+
+    expect(screen.getByLabelText('Remove Platform from Kat')).toBeDefined();
+    expect(screen.getByLabelText('Remove Payments from Kat')).toBeDefined();
+    expect(screen.queryByLabelText('Remove Design from Kat')).toBeNull();
+  });
+
+  itDom('shows every service team with how many people belong to it', async () => {
+    pageWith(fakeDirectory([KAT, ADA], [PLATFORM, PAYMENTS]));
+    await drawn('Platform');
+
+    const platform = screen.getByLabelText('Name of Platform').closest('li');
+    const payments = screen.getByLabelText('Name of Payments').closest('li');
+    expect(platform?.textContent).toContain('2 members');
+    expect(payments?.textContent).toContain('1 member');
+  });
+
+  itDom('says a panel is empty and still offers to add to it', async () => {
+    pageWith(fakeDirectory([], []));
+
+    await waitFor(() => {
+      expect(screen.getByText(/Nobody is in the directory yet/)).toBeDefined();
+    });
+    expect(screen.getByText(/No service teams yet/)).toBeDefined();
+    // Empty is a state, not a blank: both creations are still on the page.
+    expect(screen.getByLabelText('New person')).toBeDefined();
+    expect(screen.getByLabelText('New service team')).toBeDefined();
+  });
+
+  /**
+   * The no-socket claim, made observable.
+   *
+   * Across a mount **and** a rerender, because a subscription opened from a
+   * dependency array rather than from a mount effect would survive a check that
+   * only looked at the first render.
+   *
+   * Proof: `void subscribeToProject({ token, projectId: 'x', sinceSeq: -1,
+   * onChange: () => undefined })` added to the page's arrival effect, this
+   * failed on `expected "subscribeToProject" to be called 0 times, but got 1
+   * times`. Watched 2026-08-09.
+   */
+  itDom('opens no subscription of its own, on mount or after', async () => {
+    const page = pageWith(fakeDirectory([KAT], [PLATFORM]));
+    await drawn('Kat');
+    page.rerender(
+      <DirectoryPage token="t" api={fakeDirectory([KAT], [PLATFORM])} nav={null} account={null} />,
+    );
+
+    expect(subscribed).toHaveBeenCalledTimes(0);
+  });
+
+  itDom('carries the navigation and the account, and no project controls', async () => {
+    pageWith(fakeDirectory([], []));
+    await waitFor(() => {
+      expect(screen.getByRole('banner')).toBeDefined();
+    });
+    const bar = screen.getByRole('banner');
+
+    expect(bar.textContent).toContain('nav slot');
+    expect(bar.textContent).toContain('me');
+    // Absent rather than drawn dead: a project picker on a page with no project
+    // is a control that can only disappoint.
+    expect(within(bar).queryByRole('combobox', { name: 'Project' })).toBeNull();
+    expect(within(bar).queryByRole('button', { name: 'Rename' })).toBeNull();
+    expect(within(bar).queryByRole('button', { name: 'New project' })).toBeNull();
+  });
+});
+
+describe('renaming on the directory page', () => {
+  itDom('renames a person in place', async () => {
+    const api = fakeDirectory([KAT], [PLATFORM]);
+    pageWith(api);
+    await drawn('Kat');
+
+    fireEvent.change(screen.getByLabelText('Name of Kat'), { target: { value: 'Katrin' } });
+    fireEvent.blur(screen.getByLabelText('Name of Kat'));
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Name of Katrin')).toBeDefined();
+    });
+    expect(api.patched).toEqual([{ id: 'p1', patch: { name: 'Katrin' } }]);
+  });
+
+  itDom('renames a service team in place', async () => {
+    const api = fakeDirectory([], [PLATFORM]);
+    pageWith(api);
+    await drawn('Platform');
+
+    fireEvent.change(screen.getByLabelText('Name of Platform'), { target: { value: 'Infra' } });
+    fireEvent.keyDown(screen.getByLabelText('Name of Platform'), { key: 'Enter' });
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Name of Infra')).toBeDefined();
+    });
+  });
+
+  itDom('reads a taken name as a sentence and leaves the entry as it was', async () => {
+    const api = fakeDirectory([KAT, { id: 'p2', name: 'Strip', teamIds: [] }], [PLATFORM]);
+    // be-01 trims, so the surviving name is the one it kept rather than the one
+    // that was typed.
+    api.refusePatchWith({ ok: false, reason: 'taken', survivingName: 'Kat' });
+    pageWith(api);
+    await drawn('Strip');
+
+    fireEvent.change(screen.getByLabelText('Name of Strip'), { target: { value: ' Kat ' } });
+    fireEvent.blur(screen.getByLabelText('Name of Strip'));
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert').textContent).toContain('“Kat”');
+    });
+    // The sentence is made of the surviving name, never the local draft.
+    expect(screen.getByRole('alert').textContent).not.toContain('“ Kat ”');
+    expect(screen.getByLabelText('Name of Strip')).toHaveValue('Strip');
+  });
+
+  /**
+   * Proof: the `clean === ''` guard removed from `commitRename`, this failed on
+   * `Unable to find role="alert"` — no sentence about the empty name, and
+   * `patchPerson` called with `{ name: '' }` behind it: the blank reaching the
+   * client and be-01 asked to store it. Watched 2026-08-09.
+   */
+  itDom('sends nothing when the name is whitespace alone, and says so', async () => {
+    const api = fakeDirectory([KAT], [PLATFORM]);
+    pageWith(api);
+    await drawn('Kat');
+
+    fireEvent.change(screen.getByLabelText('Name of Kat'), { target: { value: '   ' } });
+    fireEvent.blur(screen.getByLabelText('Name of Kat'));
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert').textContent).toContain('blank');
+    });
+    expect(api.patched).toEqual([]);
+  });
+});
+
+describe('the directory page re-reads', () => {
+  itDom('after each of its own writes', async () => {
+    const api = fakeDirectory([KAT], [PLATFORM]);
+    pageWith(api);
+    await drawn('Kat');
+    const onArrival = api.reads;
+
+    fireEvent.change(screen.getByLabelText('Name of Kat'), { target: { value: 'Katrin' } });
+    fireEvent.blur(screen.getByLabelText('Name of Kat'));
+
+    await waitFor(() => {
+      expect(api.reads).toBe(onArrival + 1);
+    });
+  });
+
+  /**
+   * Coming back to the page, by both of the ways a browser reports it.
+   *
+   * The **count** is asserted, not merely that the name arrived: a page that
+   * re-read on every render would put the new name on screen too, and pass a
+   * check that only looked at the panel.
+   *
+   * Proof: the `focus` and `visibilitychange` listeners removed from the
+   * page's second effect, this failed on `expected 1 to be 2` with `Bo` — added
+   * elsewhere while the window was away — nowhere on the panel. Watched
+   * 2026-08-09.
+   */
+  itDom('when the window is focused again, and when the tab becomes visible again', async () => {
+    const api = fakeDirectory([KAT], [PLATFORM]);
+    pageWith(api);
+    await drawn('Kat');
+    expect(api.reads).toBe(1);
+
+    // Somebody else adds a person while this window is elsewhere.
+    api.put([KAT, { id: 'p9', name: 'Bo', teamIds: [] }]);
+    fireEvent.focus(window);
+
+    await waitFor(() => {
+      expect(api.reads).toBe(2);
+    });
+    expect(screen.getByLabelText('Name of Bo')).toBeDefined();
+
+    fireEvent(document, new Event('visibilitychange'));
+    await waitFor(() => {
+      expect(api.reads).toBe(3);
+    });
+  });
+
+  itDom('and not on every render, which is what makes the count above mean something', async () => {
+    const api = fakeDirectory([KAT], [PLATFORM]);
+    const page = pageWith(api);
+    await drawn('Kat');
+
+    page.rerender(
+      <DirectoryPage token="t" api={api} nav={<span>nav slot</span>} account={<span>me</span>} />,
+    );
+    // Typing is a render per keystroke, and none of them is an arrival.
+    fireEvent.change(screen.getByLabelText('Name of Kat'), { target: { value: 'Ka' } });
+
+    expect(api.reads).toBe(1);
+  });
+});
+
+describe('a person’s memberships', () => {
+  itDom('are chips beside a picker offering only what they lack', async () => {
+    pageWith(fakeDirectory([KAT], [PLATFORM, PAYMENTS, DESIGN]));
+    await drawn('Kat');
+
+    fireEvent.focus(screen.getByLabelText('Add a team for Kat'));
+    await waitFor(() => {
+      expect(screen.getAllByRole('option').length).toBeGreaterThan(0);
+    });
+    expect(screen.getAllByRole('option').map((option) => option.textContent)).toEqual(['Design']);
+  });
+
+  /**
+   * Proof: the `.filter((team) => !person.teamIds.includes(team.id))` dropped
+   * from the picker's `entries`, this failed on `expected [ 'Platform',
+   * 'Payments', 'Design' ] to deeply equal [ 'Design' ]` — and its sibling
+   * below then sent `['t1','t2','t1']`, a duplicate membership. Watched
+   * 2026-08-09.
+   */
+  itDom('send exactly the set the chips show when one is added', async () => {
+    const api = fakeDirectory([KAT], [PLATFORM, PAYMENTS, DESIGN]);
+    pageWith(api);
+    await drawn('Kat');
+
+    fireEvent.focus(screen.getByLabelText('Add a team for Kat'));
+    await waitFor(() => {
+      expect(screen.getAllByRole('option').length).toBeGreaterThan(0);
+    });
+    fireEvent.click(screen.getAllByRole('option')[0]);
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Remove Design from Kat')).toBeDefined();
+    });
+    expect(api.patched).toEqual([{ id: 'p1', patch: { teamIds: ['t1', 't2', 't3'] } }]);
+  });
+
+  itDom('send exactly the set the chips show when one is removed', async () => {
+    const api = fakeDirectory([KAT], [PLATFORM, PAYMENTS]);
+    pageWith(api);
+    await drawn('Kat');
+
+    fireEvent.click(screen.getByLabelText('Remove Payments from Kat'));
+
+    await waitFor(() => {
+      expect(screen.queryByLabelText('Remove Payments from Kat')).toBeNull();
+    });
+    expect(api.patched).toEqual([{ id: 'p1', patch: { teamIds: ['t1'] } }]);
+  });
+
+  /**
+   * On-response, not optimistic — asserted **in flight**, which is the only
+   * place the difference is visible.
+   *
+   * A page that draws the chip locally and then re-reads converges on exactly
+   * the same screen as one that waits, so a check made after the answer cannot
+   * fail for optimism. It was written that way first and the fault was watched
+   * **passing**; this is the rewrite.
+   *
+   * Proof: `setMemberships` given a `setPeople` with the new memberships ahead
+   * of `patchPerson` — the optimistic redraw — and this failed on
+   * `expected HTMLButtonElement to be null` for `Remove Design from Kat`, the
+   * chip on screen while be-01 had answered nothing. Watched 2026-08-09.
+   */
+  itDom('are not drawn until be-01 has answered', async () => {
+    const api = fakeDirectory([KAT], [PLATFORM, PAYMENTS, DESIGN]);
+    api.holdWrites();
+    pageWith(api);
+    await drawn('Kat');
+
+    fireEvent.focus(screen.getByLabelText('Add a team for Kat'));
+    await waitFor(() => {
+      expect(screen.getAllByRole('option').length).toBeGreaterThan(0);
+    });
+    fireEvent.click(screen.getAllByRole('option')[0]);
+
+    await waitFor(() => {
+      expect(api.patched).toHaveLength(1);
+    });
+    expect(screen.queryByLabelText('Remove Design from Kat')).toBeNull();
+
+    api.releaseWrites();
+    await waitFor(() => {
+      expect(screen.getByLabelText('Remove Design from Kat')).toBeDefined();
+    });
+  });
+
+  itDom(
+    'are left exactly as they were by a refused change, with the refusal on screen',
+    async () => {
+      const api = fakeDirectory([KAT], [PLATFORM, PAYMENTS, DESIGN]);
+      api.refusePatchWith(new Error('unknown_team'));
+      api.holdWrites();
+      pageWith(api);
+      await drawn('Kat');
+
+      fireEvent.focus(screen.getByLabelText('Add a team for Kat'));
+      await waitFor(() => {
+        expect(screen.getAllByRole('option').length).toBeGreaterThan(0);
+      });
+      fireEvent.click(screen.getAllByRole('option')[0]);
+
+      await waitFor(() => {
+        expect(api.patched).toHaveLength(1);
+      });
+      // In flight, and already not chipped: a refusal cannot take back a chip
+      // that was never drawn.
+      expect(screen.queryByLabelText('Remove Design from Kat')).toBeNull();
+
+      api.releaseWrites();
+      await waitFor(() => {
+        expect(screen.getByRole('alert')).toBeDefined();
+      });
+      expect(screen.getByRole('alert').textContent).toContain('no longer in the directory');
+      expect(screen.getByLabelText('Remove Platform from Kat')).toBeDefined();
+      expect(screen.getByLabelText('Remove Payments from Kat')).toBeDefined();
+      expect(screen.queryByLabelText('Remove Design from Kat')).toBeNull();
+    },
+  );
+
+  itDom('are removable from the keyboard, and the focus lands on the neighbour', async () => {
+    const api = fakeDirectory(
+      [{ ...KAT, teamIds: ['t1', 't2', 't3'] }],
+      [PLATFORM, PAYMENTS, DESIGN],
+    );
+    pageWith(api);
+    await drawn('Kat');
+
+    const payments = screen.getByLabelText('Remove Payments from Kat');
+    payments.focus();
+    expect(document.activeElement).toBe(payments);
+    fireEvent.keyDown(payments, { key: 'Delete' });
+
+    await waitFor(() => {
+      expect(screen.queryByLabelText('Remove Payments from Kat')).toBeNull();
+    });
+    expect(api.patched).toEqual([{ id: 'p1', patch: { teamIds: ['t1', 't3'] } }]);
+    // The chip it left, not the top of the page: a removal that dropped the
+    // focus would leave a keyboard reader with nothing to carry on from.
+    expect(document.activeElement).toBe(screen.getByLabelText('Remove Design from Kat'));
+  });
+
+  itDom('keep the picker’s combobox contract', async () => {
+    pageWith(fakeDirectory([KAT], [PLATFORM, PAYMENTS, DESIGN]));
+    await drawn('Kat');
+
+    const picker = screen.getByLabelText('Add a team for Kat');
+    expect(picker.getAttribute('role')).toBe('combobox');
+    expect(picker.getAttribute('aria-expanded')).toBe('false');
+    fireEvent.focus(picker);
+    await waitFor(() => {
+      expect(picker.getAttribute('aria-expanded')).toBe('true');
+    });
+    expect(picker.getAttribute('aria-controls')).not.toBeNull();
+  });
+});
+
+describe('removing from the directory', () => {
+  /**
+   * Proof: `askToRemove`'s two `false`s pinned to `true`, this failed on
+   * `Unable to find role="dialog"` — the removal taken on the first request
+   * and nobody shown what it took — along with five of its siblings. The fault
+   * `phases-dialog` already knows. Watched 2026-08-09.
+   */
+  itDom('asks without a cascade first, and names the work on the refusal', async () => {
+    const api = fakeDirectory([KAT], [PLATFORM]);
+    api.refuseRemovalWith(PERSON_USAGE);
+    pageWith(api);
+    await drawn('Kat');
+
+    fireEvent.click(screen.getByLabelText('Remove Kat'));
+
+    const dialog = await screen.findByRole('dialog');
+    expect(api.removals).toEqual([['p1', false]]);
+    expect(dialog.textContent).toContain('Rollout');
+    expect(dialog.textContent).toContain('3.1 Design');
+    expect(dialog.textContent).toContain('The Dev assignment goes.');
+    // Still there: nothing was removed by the first request.
+    expect(screen.getByLabelText('Name of Kat')).toBeDefined();
+  });
+
+  itDom('draws a work item left with nobody as going to unassigned', async () => {
+    const api = fakeDirectory([KAT], [PLATFORM]);
+    api.refuseRemovalWith(PERSON_USAGE);
+    pageWith(api);
+    await drawn('Kat');
+
+    fireEvent.click(screen.getByLabelText('Remove Kat'));
+
+    const dialog = await screen.findByRole('dialog');
+    expect(dialog.textContent).toContain('Kat now, unassigned afterwards');
+  });
+
+  itDom('names the members a team’s removal would unseat, rather than an empty list', async () => {
+    const api = fakeDirectory([KAT, ADA], [PLATFORM]);
+    api.refuseRemovalWith(TEAM_USAGE);
+    pageWith(api);
+    await drawn('Platform');
+
+    fireEvent.click(screen.getByLabelText('Remove Platform'));
+
+    const dialog = await screen.findByRole('dialog');
+    expect(dialog.textContent).toContain('would lose a membership');
+    expect(within(dialog).getByText('Kat')).toBeDefined();
+    expect(within(dialog).getByText('Ada')).toBeDefined();
+  });
+
+  itDom('sends the cascade only from the confirmation', async () => {
+    const api = fakeDirectory([KAT], [PLATFORM]);
+    api.refuseRemovalWith(PERSON_USAGE);
+    pageWith(api);
+    await drawn('Kat');
+
+    fireEvent.click(screen.getByLabelText('Remove Kat'));
+    const dialog = await screen.findByRole('dialog');
+    // The fake stops refusing once the cascade is on, which is be-01's rule.
+    fireEvent.click(within(dialog).getByRole('button', { name: /^Remove Kat and all of that/ }));
+
+    await waitFor(() => {
+      expect(screen.queryByLabelText('Name of Kat')).toBeNull();
+    });
+    expect(api.removals).toEqual([
+      ['p1', false],
+      ['p1', true],
+    ]);
+  });
+
+  itDom('forgets a confirmation that was closed, and asks again without a cascade', async () => {
+    const api = fakeDirectory([KAT], [PLATFORM]);
+    api.refuseRemovalWith(PERSON_USAGE);
+    pageWith(api);
+    await drawn('Kat');
+
+    fireEvent.click(screen.getByLabelText('Remove Kat'));
+    const first = await screen.findByRole('dialog');
+    fireEvent.click(within(first).getByRole('button', { name: 'Keep Kat' }));
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog')).toBeNull();
+    });
+
+    fireEvent.click(screen.getByLabelText('Remove Kat'));
+    await screen.findByRole('dialog');
+    expect(api.removals).toEqual([
+      ['p1', false],
+      ['p1', false],
+    ]);
+  });
+
+  itDom(
+    'removes an entry nothing points at on the first request, with no confirmation',
+    async () => {
+      const api = fakeDirectory([KAT], [PLATFORM, PAYMENTS]);
+      pageWith(api);
+      await drawn('Payments');
+
+      fireEvent.click(screen.getByLabelText('Remove Payments'));
+
+      await waitFor(() => {
+        expect(screen.queryByLabelText('Name of Payments')).toBeNull();
+      });
+      expect(screen.queryByRole('dialog')).toBeNull();
+      expect(api.removals).toEqual([['t2', false]]);
+    },
+  );
+});
+
+describe('creating on the directory page', () => {
+  itDom('adds a person and a service team', async () => {
+    const api = fakeDirectory([], []);
+    pageWith(api);
+    await waitFor(() => {
+      expect(screen.getByLabelText('New person')).toBeDefined();
+    });
+
+    fireEvent.change(screen.getByLabelText('New person'), { target: { value: 'Kat' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Add person' }));
+    await waitFor(() => {
+      expect(screen.getByLabelText('Name of Kat')).toBeDefined();
+    });
+
+    fireEvent.change(screen.getByLabelText('New service team'), { target: { value: 'Platform' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Add team' }));
+    await waitFor(() => {
+      expect(screen.getByLabelText('Name of Platform')).toBeDefined();
+    });
+
+    expect(api.added).toEqual(['Kat', 'Platform']);
+    expect(peoplePanel()).not.toBeNull();
+  });
+});

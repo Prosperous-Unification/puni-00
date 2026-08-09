@@ -26,6 +26,7 @@ vite.config.*.timestamp*
 # What the browser layout gate leaves behind: the screenshot CI uploads, the
 # traces, and the HTML report. Diagnostics of one run, never of the repo.
 test-results/
+test-results-packaged/
 playwright-report/
 .claude/worktrees
 .nx/polygraph
