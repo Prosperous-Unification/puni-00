@@ -81,11 +81,35 @@ negative is watched failing under; the full table lands in `verify.md`.
 
 ## 7. What only a browser can see
 
-- [ ] `e2e/gantt.spec.ts`: after CSS scaling, a bar's on-screen rect aligns
+- [x] `e2e/gantt.spec.ts`: after CSS scaling, a bar's on-screen rect aligns
       with its axis dates' label positions (±1px); labels hold the left edge
       with the chart scrolled fully right at 1400 and at 390×844; the page
       never scrolls sideways; a click on a bar scrolls the plan and lands
       focus in the row's name box — the R5 #14/#15 fault class, so the
-      negative for the click is run here, not in jsdom.
-- [ ] **Negative** — the sticky left column's `position: sticky` dropped;
-      the click's `scrollIntoView` guard inverted.
+      negative for the click is run here, not in jsdom. Six tests, and with
+      them the three marks a live Chrome found invisible: the arrow's head,
+      the not-before caret's clearance from its bar, and the bracket's
+      computed stroke width.
+- [x] **Negative** — the sticky left column's `position: sticky` dropped
+      (both label tests, `expected 1048 to be <= 1`). **The click's
+      `scrollIntoView` guard inverted was watched and does not fail**:
+      Chromium scrolls a focused element into view of its own accord, so the
+      guard is load-bearing only in jsdom. The negative that holds the
+      behaviour is the scroll suppressed — `cell.focus({ preventScroll:
+true })` — and it fails both click tests while all 31 jsdom tests pass
+      through it. Five more in `verify.md`.
+
+## 8. The three marks the browser found (added 2026-08-09)
+
+- [x] Dependency arrows: a filled head at the successor's entry, 1.5px
+      non-scaling, and a jog when `toStart === fromFinish` so the line never
+      runs under the successor's own left edge.
+- [x] The not-before flag: a caret in the clear band **above** the bar rather
+      than on it, with a `<title>` naming the date.
+- [x] The summary bracket: legs that drop from the line rather than rise to
+      it, at 2px non-scaling foreground.
+- [x] **Test** — `the marks that had to be seen`, five tests in
+      `gantt-panel.test.tsx` asserting the relations between the paths'
+      points, plus three browser assertions in `e2e/gantt.spec.ts` about
+      rectangles and a computed stroke width.
+- [x] **Negative** — seven, one per claim, in `verify.md`.

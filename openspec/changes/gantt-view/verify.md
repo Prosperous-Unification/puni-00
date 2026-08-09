@@ -1,14 +1,14 @@
 # G `gantt-view` — verify
 
-Slices 1–6, plus a polish pass over 3–6 (bar colours, on-bar labels, hover
-density, axis rhythm). **Slice 7 (`e2e/gantt.spec.ts`) is not done**, so the
-claim this change most needs a browser for — that a bar's scaled rect lines up
-with its own axis label, and that the chart reads well at 1400 and 390 — is
-still unmade. Nothing below is evidence for it.
+All eight slices. Slices 1–6 and a polish pass over 3–6 are below in the order
+they were done; **slice 7 (`e2e/gantt.spec.ts`) and slice 8 (the three marks a
+live Chrome found invisible) are at the end**, and they are the sections that
+close every "nobody has looked at this in a browser" sentence this file used to
+end on.
 
 Every command was run on 2026-08-09 on Dany's Mac (darwin arm64, bun 1.3.14),
 from `/Users/danylofedorov/wd/puni/wbs-tool-v1` on branch `change/gantt-view`,
-head `97af9af`.
+head `97af9af` for slices 1–6, `73198ee` for slices 7–8.
 
 Slices 4–6 were finished by a second agent taking over a stopped run. It
 re-observed **every** negative in the change, slices 1–3's included, rather than
@@ -49,7 +49,7 @@ The spec projects are still outside the gate — the 15 are the pre-existing set
 named in `teams-and-assignees/verify.md`, none of them in a file this change
 touches. Checked by name, not by count: `tsc … | grep -i gantt` prints nothing.
 
-`bun run e2e` was **not** run: slice 7 has not been written, and this change's
+`bun run e2e` had not been run at this point: slice 7 was not yet written, and this change's
 browser claims are all in it.
 
 ## The import that is a module and not a barrel
@@ -164,7 +164,9 @@ assertion here is about attributes — `x="3.5"`, `viewBox="0 0 6 2"`,
 start date, that the sticky label column holds at 390px with the chart scrolled
 right, that the page never scrolls sideways: none of that is asserted anywhere
 yet. It is slice 7, and until slice 7 exists this change is proven in numbers
-and unproven in pixels — the exact shape of R5 faults #14 and #15.
+and unproven in pixels — the exact shape of R5 faults #14 and #15. **Slice 7
+exists now; see the last two sections of this file, and what the browser found
+when it finally looked.**
 
 ## The polish pass, 2026-08-09
 
@@ -308,3 +310,213 @@ without going oval — none of it is asserted. Every position assertion here is
 `style.left` against `start × DAY_PX`, which is the same arithmetic the
 component ran. **Nobody has looked at this chart in a browser.** That is slice 7,
 and until slice 7 exists the pretty half of this change is argued and not shown.
+
+**Somebody has now.** Three marks were invisible and are fixed; the two sections
+at the end of this file are what was found and what holds it.
+
+---
+
+## Slice 8, 2026-08-09 — the three marks a live Chrome found invisible
+
+Dany opened the panel in a real browser. Every mark on the chart was drawn, every
+one of them was gated by a test reading its `d` attribute, and three of them
+could not be seen:
+
+1. **A dependency arrow was a 1px elbow with no head**, and when the successor
+   started the workday its predecessor finished — `toStart === fromFinish`, the
+   commonest shape in any plan — the elbow collapsed into a bare vertical line
+   **on** the successor's own left edge, underneath its bar and, on a critical
+   row, underneath a 2px ring as well.
+2. **The not-before flag was drawn on the bar**, hanging off its top-left
+   corner and painted over by it. Its commonest case is a bar that starts
+   exactly on the constrained day, which is the case where it disappeared
+   completely.
+3. **The summary bracket was a hairline**, and upside down: the long line at the
+   row's middle with its ends rising, which reads as a scratch rather than as a
+   span.
+
+All three are faults of **where** and **how heavy** — which is to say faults of
+pixels, and the reason the jsdom layer's 26 green tests said nothing about any
+of them.
+
+### What changed
+
+| mark             | now                                                                                                                                                                                               |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| dependency arrow | a `<path data-gantt-arrow-head>` filled triangle at the successor's left edge; the elbow at `[stroke-width:1.5]` full-strength foreground; a jog when the two bars touch. `data-gantt-arrow` kept |
+| not-before flag  | a filled caret in the clear band **above** the bar, `fill-foreground`, with a `<title>` reading `No earlier than 2026-08-13`. `data-gantt-not-before` kept                                        |
+| summary bracket  | the same four points reordered so the legs **drop** from the line, at `[stroke-width:2]`. `data-gantt-bracket` kept                                                                               |
+
+**The head is a path, not a `<marker>`** — the decision design §1 leaves open,
+logged here as the plan asks. A marker's contents are laid out in its own
+viewport but the element is placed by the referencing geometry's user space,
+which here is `preserveAspectRatio="none"` over a viewBox of workdays by rows:
+`markerUnits="userSpaceOnUse"` buys a triangle still stretched by whatever ratio
+the panel happens to be sized at. A path in the chart's own units, with each
+axis divided by its own scale — the arithmetic `BAR_RADIUS_PX` already
+documents — is the only shape that stays a triangle, and it is an element a
+test can find and a browser can measure the box of.
+
+The arrow's approach (`ARROW_APPROACH_PX = 10`) and head (`7 × 3.5`) are
+declared in **CSS pixels** and divided by `DAY_PX`/`ROW_PX` where they are used,
+for the same reason the corner radius is: a mark's legibility is a decision made
+in pixels and a workday is not a size. The engine's numbers still reach `x`,
+`width` and `data-start` unconverted, which is the rule design §1 actually
+states.
+
+**One thing the browser changed after the fix.** The first jog crossed in the
+inset above the _successor's_ row — which is exactly where the not-before caret
+stands, and the screenshot showed a line running through an arrowhead-sized
+triangle, making a puzzle of both marks. The crossing band moved to the clear
+inset at the far side of the **predecessor's** row (`crossing` in `arrowRoute`).
+Same air, no collision. That is a change nothing but a picture would have asked
+for.
+
+### Failure proof — slice 8, in jsdom
+
+`the marks that had to be seen` in `gantt-panel.test.tsx`, five tests, asserting
+the **relations between the paths' points** rather than path text: a head that
+arrives left of the bar it points at, a caret whose whole box is above the bar's
+`y`, a bracket whose ends fall from its line. Each fault injected on the
+production path, run alone, reverted after.
+
+| check                                        | fault injected                                                                                    | what failed                                                                                                                                                                                                   |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| the arrow does not run down the shared edge  | `arrowRoute` given back its old three points (`M fromFinish,fromY L toStart,fromY L toStart,toY`) | 1 — `leaves the successor’s left edge alone when the two bars touch`, `1 failed \| 30 passed`, on `the arrow arrives from above the successor’s left edge, not from outside it: expected 3 to be less than 3` |
+| the arrow is drawn heavily enough to be seen | `[stroke-width:1.5]` struck from the elbow's class                                                | 1 — the same test, on `expected 'stroke-foreground fill-none' to contain '[stroke-width:1.5]'`                                                                                                                |
+| the arrow has a head                         | the `<path data-gantt-arrow-head>` deleted                                                        | 1 — `points a filled head at the successor’s start`, on `Error: nothing on the chart at [data-gantt-arrow-head="strip->sand"]`                                                                                |
+| the caret is clear of its bar                | the caret's old `d` restored — a triangle on the bar's top-left corner                            | 1 — `puts the not-before caret clear of the bar that starts on it`, on `the caret is not clear of the bar it belongs to: expected 2.18 to be less than 2.18`                                                  |
+| the caret says which date                    | the `<title>` child deleted                                                                       | 1 — `says which date the caret is holding the row at`, on `expected undefined to be 'No earlier than 2026-08-13'`                                                                                             |
+| the bracket's legs drop                      | the four points put back in their old order                                                       | 1 — `drops the summary bracket’s legs from its line, in a stroke that is seen`, on `the bracket’s legs do not drop from its line: expected 0.18 to be greater than 0.5`                                       |
+| the bracket is 2px                           | `[stroke-width:2]` struck from its class                                                          | 1 — the same test, on `expected 'stroke-foreground fill-none' to contain '[stroke-width:2]'`                                                                                                                  |
+
+`gantt-panel.test.tsx` 26 → **31**; fe-01 786 → **791**.
+
+One assertion was _weakened_ rather than strengthened, deliberately. `draws every
+other mark the geometry placed` asserted the bracket with
+`toContain('L 5 0.5')`; the new shape contains that string too — as the end of a
+leg rather than as a corner — so the segment is not what tells the two apart. It
+stays as the mark's **existence** check, which is the fault it was written for
+(the whole `map` block deleted), and the shape is asserted where the relations
+are. Recorded because a reader of that line would otherwise think it pins the
+drawing.
+
+---
+
+## Slice 7, 2026-08-09 — `e2e/gantt.spec.ts`, the browser layer
+
+Six tests. Ports 3111/3211/4211 for the run, then the config reverted — checked
+by `git diff apps/fe-01/playwright.config.ts` being empty, which it is. The
+committed config is untouched and CI keeps 3100/3200/4200.
+
+```
+Running 6 tests using 1 worker
+  ✓ draws a bar at the pixel its workday says, under its own axis cell (1.5s)
+  ✓ draws the arrow head, the caret and the bracket where they can be seen (1.1s)
+  ✓ holds the labels at the left edge with the chart scrolled fully right (1.0s)
+  ✓ scrolls the plan back to the row whose bar was clicked, and lands the caret (1.9s)
+  ✓ the chart on a phone › holds its labels and leaves the page still (1.0s)
+  ✓ the chart on a phone › takes the cards face to a row when its bar is clicked (1.9s)
+  6 passed (12.2s)
+```
+
+The whole browser gate, so the panel and its toggle are shown to have broken
+nothing else: **60 passed (1.3m)** — `gantt` 6, `header` 5, `keyboard` 10,
+`layout` 22, `mobile` 5, `phases` 6, `tailwind` 6. `layout.spec.ts`, the one
+that matters most because it is the table's own geometry, is 22/22 with the
+panel in the tree.
+
+### Failure proof — slice 7
+
+| check                                 | fault injected                                              | what failed                                                                                                               |
+| ------------------------------------- | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| a bar is on its own row after scaling | the SVG's CSS `height` 20px taller than `rowCount × ROW_PX` | 1 — `draws a bar at the pixel…`, on `… is not on its own row: expected 7.866677246093751 to be <= 1`                      |
+| a bar begins under its own axis cell  | an axis cell `style={{ width: DAY_PX + 1 }}`                | 1 — the same test, on `… does not begin under the axis cell for workday 4: expected 4 to be <= 1`                         |
+| the arrow has a head, on screen       | the `<path data-gantt-arrow-head>` deleted                  | 1 — `draws the arrow head…`, on `nothing on the page at [data-gantt-arrow-head]`                                          |
+| the caret's box is off the bar's box  | the caret's old `d` restored                                | 1 — the same test, on `the not-before caret is drawn over the bar it belongs to: expected true to be false`               |
+| the bracket is 2px **as computed**    | `[stroke-width:2]` struck from its class                    | 1 — the same test, on `the summary bracket is a hairline: expected 1 to be >= 2`                                          |
+| the label column holds the left edge  | `sticky left-0` dropped from `[data-gantt-labels]`          | **2** — both label tests, on `the label column went with the chart instead of holding the edge: expected 1048 to be <= 1` |
+| the click scrolls the plan to the row | `goToRow` reduced to `cell.focus({ preventScroll: true })`  | **2** — both click tests, on `the plan did not scroll to the row the bar belongs to` and `the cards did not scroll…`      |
+
+The stroke-width row is the one no test in this repository outside this file can
+make: `[stroke-width:2]` in a `class` attribute is a string until a browser
+computes it, and every jsdom assertion about it passes on a class that no rule
+ever applied.
+
+The last row's fault passed **all 31** of `gantt-panel.test.tsx` — jsdom takes
+`focus`'s options bag and does nothing with it, and lays nothing out to scroll.
+
+### The negative `tasks.md` asked for, and why it is not in the table
+
+Slice 7 named "the click's `scrollIntoView` guard inverted". It was injected —
+`if (typeof cell.scrollIntoView !== 'function')` — and **all six browser tests
+passed**. Chromium scrolls a focused element into view of its own accord, so the
+guarded call is belt-and-braces in a browser and load-bearing only in jsdom,
+which has no `scrollIntoView` at all. A negative that cannot fail is the thing
+R5 exists to stop, so it is recorded as refuted rather than quietly reworded,
+and `cell.focus({ preventScroll: true })` — the scroll actually suppressed — is
+the fault the row above watches. The guard stays: `scrollIntoView({ block:
+'nearest' })` scrolls to the nearest edge where `focus()` scrolls to its own
+default, and the jsdom tests would throw without it.
+
+### A check of my own that could not fail, found and fixed mid-run
+
+The first draft of `draws the arrow head, the caret and the bracket…` took the
+successor's bar as `bars.at(1)`, reasoning that `010` is a parent and draws no
+bar. A new project lists **two** roles and the fixture estimates Dev alone, so
+index 1 is `010.1`'s unestimated QA slice — a rect of **no width**, at the same
+workday as the bar that was wanted. Every assertion passed against it, the
+arrowhead's included, and so did the run with the caret put back on top of the
+real bar: a zero-height box cannot be overlapped. The bar is now found through
+the caret's own row, and its width and height are asserted before anything is
+measured against it. That is the sixteenth in this repository's tally and the
+first one caught inside a browser test being written, by injecting the fault the
+test was for and watching it pass.
+
+### What only the browser saw
+
+- **The three marks above**, all of which were green in jsdom.
+- **The arrow crossing the caret**, which no assertion asked about and a
+  screenshot did.
+- **A bar at workday 8 with no axis cell to compare against.** The axis prints
+  one cell per whole workday _inside_ the horizon, and a zero-day slice can sit
+  exactly on the horizon. Not a fault — the alignment loop now compares only the
+  bars the axis has a cell for, and says why.
+- **A gap in the ported run, not in the product.** `mobile.spec.ts`'s peer-edit
+  test failed once on this stack: be-01 was still publishing to `GW_URL=…:3200`,
+  the live dev gateway, while the page was on 3211. The event reached a gateway
+  nobody was listening to. Fixed by overriding `GW_URL` for the run; the
+  committed config is unaffected, because there the three ports agree with the
+  `.env` files. Recorded because a green suite on a ported stack is only as good
+  as the ports.
+
+### Two changes outside the spec file
+
+- `apps/fe-01/tsconfig.e2e.json` gained the `@wbs/domain/workday` path. The spec
+  imports `DAY_PX`/`ROW_PX` from the panel rather than repeating them — the way
+  `layout.spec.ts` imports `table-frame`'s widths — and the panel imports that
+  module. `nx typecheck fe-01` runs `tsc --build --force` over this project, and
+  it now compiles the spec: watched passing after the alias, and it is the same
+  target that caught the deliberate `const deliberatelyWrong` above.
+- Nothing else. `wbs-table.tsx` is byte-identical to `73198ee` (`git diff` on it
+  is empty after the injected faults were reverted).
+
+## The gate, after slices 7 and 8
+
+| command                                                      | result                                 |
+| ------------------------------------------------------------ | -------------------------------------- |
+| `bunx nx format:check --all`                                 | pass                                   |
+| `bunx nx run-many -t test lint typecheck build --parallel=2` | pass, 21 projects                      |
+| `bunx nx test fe-01`                                         | **791 passed**, 37 files               |
+| `bunx openspec validate --all --json`                        | 48 items, 48 passed, 0 failed          |
+| `bunx tsc --build --force apps/fe-01/tsconfig.spec.json`     | 15 errors, **0 in a gantt file**       |
+| `bunx playwright test` (the whole browser gate)              | **60 passed**, 1.3m                    |
+| `git diff apps/fe-01/playwright.config.ts`                   | empty — the ported ports were reverted |
+
+The 15 spec-project errors are the pre-existing set named in
+`teams-and-assignees/verify.md`; `grep -ci gantt` over that output prints 0.
+
+**This change is now proven in pixels as well as in numbers.** Every sentence
+above that used to end "and until slice 7 exists…" is answered by
+`e2e/gantt.spec.ts`, and the three things a person looking at the chart could
+not see are the three things it measures first.
