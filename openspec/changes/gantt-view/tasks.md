@@ -45,38 +45,38 @@ negative is watched failing under; the full table lands in `verify.md`.
 
 ## 4. The panel draws it
 
-- [ ] `components/wbs/gantt-panel.tsx`: the SVG from design §1 (geometry
+- [x] `components/wbs/gantt-panel.tsx`: the SVG from design §1 (geometry
       only, `preserveAspectRatio="none"`, workday user space), sticky-left
       HTML labels, HTML axis row, `<title>` floor words, critical tint,
       unestimated bars distinct, not-before flags, cycle → the unscheduled
       state, no bars.
-- [ ] **Test** — `gantt-panel.test.tsx` (jsdom): a 3.5→6 slice renders
+- [x] **Test** — `gantt-panel.test.tsx` (jsdom): a 3.5→6 slice renders
       `x="3.5" width="2.5" data-start="3.5" data-finish="6"` and viewBox
       width = horizon — strict equality against the fixture's engine numbers;
       critical tint present and absent; a cycle draws no rect.
-- [ ] **Negative** — `x` computed as `start * DAY_PX`, watched failing the
+- [x] **Negative** — `x` computed as `start * DAY_PX`, watched failing the
       strict-equality test.
 
 ## 5. The toggle, the mirror, and click-to-row
 
-- [ ] Toolbar control mounts the panel under either renderer; panel reads
+- [x] Toolbar control mounts the panel under either renderer; panel reads
       `shownRows`; bar/label click → `cellIn(grid, {rowId, 'name'})`, focus,
       guarded `scrollIntoView`.
-- [ ] **Test** — `gantt-panel.test.tsx`: collapsed branch's children absent;
+- [x] **Test** — `gantt-panel.test.tsx`: collapsed branch's children absent;
       search-narrowed panel draws exactly the shown three; click focuses the
       name cell on the table face and on the cards face.
-- [ ] **Negative** — the panel fed the full row list instead of `shownRows`;
+- [x] **Negative** — the panel fed the full row list instead of `shownRows`;
       the click handler's cell lookup pointed at a column the cards don't
       render.
 
 ## 6. The axis agrees with the columns
 
-- [ ] Calendar labels from the workday module (direct import, not the
+- [x] Calendar labels from the workday module (direct import, not the
       barrel), ceil−1 finish; offsets when no start date.
-- [ ] **Test** — Monday-2026-08-10 fixture: the axis dates under a 3→5 bar
+- [x] **Test** — Monday-2026-08-10 fixture: the axis dates under a 3→5 bar
       equal the row's Start/End cells, compared string-to-string; no-date
       project prints offsets.
-- [ ] **Negative** — the ceil−1 nudge removed, watched as the axis and the
+- [x] **Negative** — the ceil−1 nudge removed, watched as the axis and the
       End cell disagreeing by a day.
 
 ## 7. What only a browser can see
