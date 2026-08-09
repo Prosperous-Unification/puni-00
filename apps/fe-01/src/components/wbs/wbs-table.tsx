@@ -50,6 +50,7 @@ import {
   trioProblem,
   type TypedTrio,
 } from './estimate-draft';
+import { FoldedRoleCard } from './folded-role-card';
 import { GanttFaultBoundary } from './gantt-fault';
 import type { GanttPlan } from './gantt-geometry';
 import { GanttPanel } from './gantt-panel';
@@ -296,6 +297,13 @@ const POPOVER_COLUMNS: ReadonlySet<string> = new Set(['depends', 'name', 'team',
  *
  * `name` is also a pinned column, and the two rules do not fight: the pin
  * places the cell, the clip decides what may leave it, and the preview has to.
+ *
+ * Since 2026-08-09 two of these columns are exempt for a **second** reason, and
+ * it is written down here so a later change that moves a picker out of one of
+ * them cannot take the exemption with it: `depends` and `<roleId>-final` each
+ * open a hover card as well as a list, and a card is what a reader of a folded
+ * plan is left with when nothing is open. `e2e/hover-cards.spec.ts` injects the
+ * suffix branch's removal and watches the folded role's card get clipped.
  *
  * What still keeps these cells from painting into their neighbours, now that the
  * structural backstop is off for them: every control inside them is
@@ -3935,9 +3943,34 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
               // one person side by side is two things to keep in step.
               const options = unfolded ? [] : live.current.mentionOptions(row.original, role.id);
               const listId = `mention-${row.original.id}-${role.id}`;
+              const finalCell = cellKey(row.original.id, `${role.id}-final`);
+              // The card opens on the cell itself — not on a marker, the way
+              // the Name cell's preview does. The difference is size: this one
+              // is four lines over a 96px cell, so a mouse crossing the column
+              // is told something rather than interrupted.
+              //
+              // Not while the `@` list is open, because both open from the
+              // bottom edge of this same wrapper and the one somebody is typing
+              // into owns the cell. Nothing new is being guarded here — the
+              // list is only open while this cell has the focus — so it is a
+              // condition rather than a check, and `the @ list keeps the cell
+              // to itself` is what watches it.
+              const carded =
+                !unfolded && options.length === 0 && live.current.hoveredCell === finalCell;
               return (
                 <span
                   data-final={role.id}
+                  onMouseEnter={() => {
+                    live.current.setHoveredCell(finalCell);
+                  }}
+                  onMouseLeave={() => {
+                    // The same-cell guard the Name cell's marker gives its
+                    // reason for: a leave lands after the enter of whatever the
+                    // pointer moved on to.
+                    live.current.setHoveredCell((current) =>
+                      current === finalCell ? null : current,
+                    );
+                  }}
                   // On the wrapper as well as on the input below: the marker is
                   // its own hover target, and it is the half a reader of a
                   // folded plan sees first.
@@ -4073,11 +4106,6 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                     <span
                       data-folded-assignee={role.id}
                       {...(doing.assumed ? { 'data-assumed': role.id } : {})}
-                      title={
-                        doing.assumed
-                          ? `${doing.name} — only one person is assigned, so they are assumed to do this phase too`
-                          : doing.name
-                      }
                       style={{
                         marginLeft: 4,
                         flex: 'none',
@@ -4098,6 +4126,22 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                       id={listId}
                       label={`${role.name} assignee for ${row.original.number}`}
                       options={options}
+                    />
+                  )}
+                  {carded && (
+                    <FoldedRoleCard
+                      roleName={role.name}
+                      number={row.original.number}
+                      points={POINTS.map((point) => ({
+                        point,
+                        // The row's own trio, which is what the fold hid. Read
+                        // through the same `estimateValue` the three boxes read
+                        // when they are on screen, so the card and the unfolded
+                        // columns cannot come to disagree about one estimate.
+                        days: live.current.estimateValue(row.original, role.id, point),
+                      }))}
+                      final={live.current.combinedValue(row.original, role.id)}
+                      doing={doing}
                     />
                   )}
                 </span>

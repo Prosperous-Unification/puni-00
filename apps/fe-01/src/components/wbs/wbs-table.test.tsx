@@ -2398,6 +2398,116 @@ describe('assigning from a folded role’s cell with @', () => {
 
     expect(rowFor('010').querySelector('[data-folded-assignee="role-dev"]')).toBeNull();
   });
+
+  /** The wrapper the folded figure, its assignee and its card all live on. */
+  const foldedWrapper = (role = 'role-dev'): HTMLElement => {
+    const found = rowFor('010').querySelector(`[data-final="${role}"]`);
+    if (found === null) throw new Error(`no folded cell for ${role}`);
+    return found as HTMLElement;
+  };
+
+  itDom('opens the folded figure into its parts, without asking the server', async () => {
+    // The whole of what 96px hides: the role, the trio behind the computed
+    // figure, the figure, and who is doing it — read off the row the client
+    // already holds, which is what makes a hover free.
+    //
+    // Proof: the card's `points` fed the folded cell's own value instead of
+    // the row's trio (`live.current.combinedValue(...).split('/')`), this
+    // failed on `expected 'Devoptimistic 3.7 · realistic — · pes…' to contain
+    // 'optimistic 2'`. Watched, 2026-08-09.
+    const api = await oneRow();
+    await addPersonThrough('Dev', 'Kateryna');
+    const cell = typeInto(foldedCell(), '2/3/8');
+    fireEvent.blur(cell);
+    await waitFor(() => {
+      expect(api.rows[0]?.estimates['role-dev']).toEqual({
+        optimistic: 2,
+        realistic: 3,
+        pessimistic: 8,
+      });
+    });
+
+    // Every request from here on, so "no request on hover" is a fact about
+    // this hover rather than about a component that never talks to be-01.
+    const asked: string[] = [];
+    for (const method of ['tree', 'listPeople', 'setEstimate', 'assign'] as const) {
+      const real = api[method].bind(api) as (...args: never[]) => unknown;
+      (api as unknown as Record<string, unknown>)[method] = (...args: never[]) => {
+        asked.push(method);
+        return real(...args);
+      };
+    }
+
+    fireEvent.mouseEnter(foldedWrapper());
+
+    const card = screen.getByRole('tooltip');
+    expect(card.getAttribute('aria-label')).toBe('Dev for 010');
+    expect(card.textContent).toContain('optimistic 2');
+    expect(card.textContent).toContain('realistic 3');
+    expect(card.textContent).toContain('pessimistic 8');
+    // The final figure the cell shows — `(2 + 4×3 + 8) / 6` — and the assignee
+    // it can only show four letters of.
+    expect(card.textContent).toContain('Final 3.7 days');
+    expect(card.textContent).toContain('Kateryna');
+    expect(asked, 'the hover asked be-01 for something').toEqual([]);
+  });
+
+  itDom('says on the card that an assignee is assumed', async () => {
+    await oneRow();
+    fireEvent.keyDown(typeInto(foldedCell(), '@Ada'), { key: 'Enter' });
+    await waitFor(() => {
+      expect(assigneeShown('role-dev')).toBe('· Ada');
+    });
+    fireEvent.blur(foldedCell());
+
+    fireEvent.mouseEnter(foldedWrapper('role-qa'));
+
+    const card = screen.getByRole('tooltip');
+    expect(card.textContent).toContain('Ada');
+    expect(card.textContent).toContain('assumed');
+  });
+
+  itDom('leaves the assignee no title of its own to say it twice', async () => {
+    // The name used to be a `title` on the truncated span — one line, a second
+    // late, and now the card's job. What stays native is help about an action:
+    // the fold/unfold button says what it does.
+    //
+    // Proof: the `title` put back on the assignee span, this failed on
+    // `expected 'Ada' to be null`. Watched, 2026-08-09.
+    await oneRow();
+    fireEvent.keyDown(typeInto(foldedCell(), '@Ada'), { key: 'Enter' });
+    await waitFor(() => {
+      expect(assigneeShown('role-dev')).toBe('· Ada');
+    });
+
+    const shown = rowFor('010').querySelector('[data-folded-assignee="role-dev"]');
+    expect(shown?.getAttribute('title')).toBeNull();
+    expect(
+      screen.getByRole('button', { name: 'Unfold Dev estimates' }).getAttribute('title'),
+    ).toContain('show the three points');
+  });
+
+  itDom('keeps the cell to the @ list while that list is open', async () => {
+    // Two boxes opening from the bottom edge of one 96px cell, one of them
+    // being typed into. The list wins.
+    //
+    // Proof: the `options.length === 0` condition dropped from the card, this
+    // failed on `expected [ <div role="tooltip" …/> ] to have a length of +0
+    // but got 1` — the card stacked under the open list over one cell.
+    // Watched, 2026-08-09.
+    await oneRow();
+    await addPersonThrough('Dev', 'Kateryna');
+
+    fireEvent.mouseEnter(foldedWrapper());
+    expect(screen.getAllByRole('tooltip')).toHaveLength(1);
+
+    typeInto(foldedCell(), '@ka');
+
+    expect(offered(), 'the @ list is not open, so nothing is being kept out').toContain(
+      'Kateryna — free agent',
+    );
+    expect(screen.queryAllByRole('tooltip')).toHaveLength(0);
+  });
 });
 
 describe('one cell for the whole trio', () => {

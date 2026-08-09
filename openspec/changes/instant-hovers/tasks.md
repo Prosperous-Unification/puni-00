@@ -32,7 +32,7 @@ Ordered TDD slices. Only `- [ ]` checkboxes are tracked by the apply phase.
 
 ## 3. The folded role cell's card
 
-- [ ] 3.1 Folded role cell renders a `HoverCard` on hover: role name, three
+- [x] 3.1 Folded role cell renders a `HoverCard` on hover: role name, three
       points, final, assignee full name, assumed state; no request sent;
       `POPOVER_COLUMNS`' comment names the card as a second reason the role
       column may not clip — test: `wbs-table.test.tsx` "the folded figure
@@ -40,7 +40,7 @@ Ordered TDD slices. Only `- [ ]` checkboxes are tracked by the apply phase.
       asserts no request); "an assumed assignee says so"; negative: card fed
       the folded cell's draft state instead of the row — watched failing on
       empty points
-- [ ] 3.2 The truncated assignee's `title` and the fold-help `title` move:
+- [x] 3.2 The truncated assignee's `title` and the fold-help `title` move:
       data leaves the `title` (the card carries it), the action help stays —
       test: "the folded cell's assignee has no title of its own" and the
       fold button keeps its action title
