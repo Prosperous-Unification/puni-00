@@ -56,7 +56,7 @@ step earlier.
 
 ## 2. One resolved calendar geometry
 
-- [ ] 2.1 `placeOnCalendar(chart, startDate)` in `gantt-geometry.ts` — takes
+- [x] 2.1 `placeOnCalendar(chart, startDate)` in `gantt-geometry.ts` — takes
       `layOutGantt`'s engine-true geometry and resolves **every** x-bearing mark
       into calendar coordinates: bars, brackets, arrow routes and heads, person
       links, not-before carets, zero-day ticks, row bands, horizon and pad.
@@ -65,7 +65,7 @@ step earlier.
       resolves to 7; a bracket over children 0→3 and 2→6 spans 0→8; a predecessor
       finishing 5 and a successor starting 5 resolve to 5 and 7 with the weekend
       between them
-- [ ] 2.2 `GanttPanel` reads the resolved object and nothing else — no
+- [x] 2.2 `GanttPanel` reads the resolved object and nothing else — no
       `bar.start`, `flag.offset`, `bracket.finish` or `link.fromFinish` survives
       as a coordinate in the JSX — test: `gantt-panel.test.tsx`, one assertion
       putting the bar's `x`, the caret's `d`, the tick's `x1`, the axis cell and
@@ -74,7 +74,7 @@ step earlier.
       link, caret, tick and label overlay each reverted to its raw workday number
       in turn, each watched failing that assertion alone, each with its own
       `Proof:` comment naming the mark and the run
-- [ ] 2.3 Non-zero area before relations — the helper every geometry assertion
+- [x] 2.3 Non-zero area before relations — the helper every geometry assertion
       goes through refuses a mark of no width or no height before it compares one
       mark with another — test: the helper's own case; negative: it is fed the
       zero-width unestimated bar of the sixteenth check, watched throwing rather

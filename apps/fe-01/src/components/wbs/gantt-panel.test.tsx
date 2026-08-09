@@ -140,6 +140,157 @@ afterEach(() => {
 });
 
 /**
+ * The Monday every calendar fixture in this file begins on.
+ *
+ * Every coordinate asserted against it is taken at an offset **past the first
+ * weekend**, where the calendar number and the workday number differ. An
+ * assertion at workday 3 passes unchanged on the axis this change replaced and
+ * so proves nothing.
+ */
+const MONDAY_START = '2026-08-10';
+
+/**
+ * One mark's box on the chart, refused when it has no area.
+ *
+ * The sixteenth check's own lesson, made unskippable: an overlap comparison
+ * against a mark of no width cannot fail, and the mark that had no width was an
+ * unestimated bar. Every geometry assertion below goes through this, so a mark
+ * that stopped being drawn fails as a mark that is not there rather than as a
+ * comparison that quietly holds.
+ *
+ * @throws When the mark is not on the chart, or is drawn with no width or no
+ * height.
+ */
+function drawnBox(selector: string): { x: number; width: number; y: number; height: number } {
+  const mark = document.querySelector(selector);
+  if (mark === null) throw new Error(`nothing on the chart at ${selector}`);
+  const numberOf = (attribute: string): number => Number(mark.getAttribute(attribute));
+  const box = {
+    x: numberOf('x'),
+    width: numberOf('width'),
+    y: numberOf('y'),
+    height: numberOf('height'),
+  };
+  if (!(box.width > 0) || !(box.height > 0)) {
+    throw new Error(
+      `${selector} is drawn with no area: ${String(box.width)}×${String(box.height)}`,
+    );
+  }
+  return box;
+}
+
+/**
+ * Every mark that carries a horizontal coordinate, on one plan, at one day.
+ *
+ * `sand` starts at workday 5 — the Monday after the plan's first weekend, seven
+ * calendar days in — and is held there by a date of its own, waits on `strip`
+ * across the weekend, and shares Kat with it. `trim` is estimated at no days on
+ * the same workday, which is what draws a tick. `hull` spans the branch, so its
+ * bracket ends at the end of workday 7.
+ *
+ * One fixture and one test on purpose: the eight marks are eight `map`s in the
+ * SVG, and each of them can be reverted to its raw workday number on its own.
+ * See the `Proof:` below.
+ */
+const everyMarkOnOneDay = (): GanttPlan =>
+  planOf({
+    rows: [
+      rowAt('hull', 0, 7, { leaf: false }),
+      rowAt('strip', 0, 5, { depth: 1 }),
+      rowAt('sand', 5, 7, { depth: 1, notBeforeOffset: 5 }),
+      rowAt('trim', 5, 5),
+    ],
+    slices: [
+      sliceAt('strip-dev', 'strip', 0, 5, { personId: 'kat' }),
+      sliceAt('sand-dev', 'sand', 5, 7, {
+        personId: 'kat',
+        boundBy: 'person',
+        resourcePredecessorId: 'strip-dev',
+      }),
+      sliceAt('trim-dev', 'trim', 5, 5, { duration: 0 }),
+    ],
+    dependencies: [{ predecessorId: 'strip', successorId: 'sand' }],
+    personNames: new Map([['kat', 'Kat']]),
+  });
+
+describe('every mark on the chart lands on the calendar day its workday is', () => {
+  itDom('puts the bar, the caret, the tick, the axis cell and the label on day 7', () => {
+    render(
+      <GanttPanel
+        plan={everyMarkOnOneDay()}
+        startDate={MONDAY_START}
+        scheduleError={null}
+        onPickRow={() => undefined}
+      />,
+    );
+
+    // Workday 5 is Monday 2026-08-17, and the chart is a calendar: seven days
+    // in. Every mark below is on that one day, and each of them is drawn by a
+    // block of its own that could be left reading the workday number.
+    //
+    // Proof, **eight faults, eight runs**, each mark reverted to its raw
+    // workday number in turn and each watched failing this test alone —
+    // `1 failed | 44 passed` every time. Watched 2026-08-09:
+    //   bar          `x={bar.start}`              — `expected 5 to be 7`
+    //   caret        `flag.workday`               — `expected 'M 5 2.03 L 5.285714285714286 2.09 L 5…' to match /^M 7 /`
+    //   tick         `x1={bar.start}`             — `expected '5' to be '7'`
+    //   label        `left: bar.start * DAY_PX`   — `expected 'color: rgb(255, …); left: 152p…' to contain 'left: 208px'`
+    //   bracket      `chart.brackets`             — `expected 'M 0 0.5 L 0 0.18 L 7 0.18 L 7 0.5' to contain 'L 9 0.18'`
+    //   arrow route  `arrow.toStart`              — `expected 'M 5 1.5 L 5.357142857142857 1.5 L 5.3…' to contain 'L 7 2.5'`
+    //   arrow head   `arrow.toStart`              — `expected 'M 5 2.5 L 4.75 2.375 L 4.75 2.625 Z' to match /^M 7 /`
+    //   person link  `chart.personLinks`          — `expected 'M 5 1.5 L 5 2.5' to be 'M 5 1.5 L 7 2.5'`
+    const bar = drawnBox('[data-gantt-bar="sand-dev"]');
+    expect(bar.x).toBe(7);
+    // Two workdays with no weekend in them: the Monday and the Tuesday.
+    expect(bar.width).toBe(2);
+    expect(markAttribute('[data-gantt-not-before="2"]', 'd')).toMatch(/^M 7 /);
+    expect(markAttribute('[data-gantt-tick="trim-dev"]', 'x1')).toBe('7');
+    expect(
+      document.querySelector('[data-gantt-bar-label="sand-dev"]')?.getAttribute('style'),
+    ).toContain(`left: ${String(7 * DAY_PX + CHART_PAD_PX)}px`);
+
+    // The axis cell above them, which is the mark that makes a mark left on
+    // workdays visible: cell 7 is the Monday, and it is workday 5.
+    expect(markAttribute('[data-axis-day="7"]', 'data-axis-date')).toBe('2026-08-17');
+    expect(markAttribute('[data-axis-day="7"]', 'data-axis-workday')).toBe('5');
+
+    // The bracket ends at the end of workday 7, which is nine calendar days in.
+    expect(markAttribute('[data-gantt-bracket="hull"]', 'd')).toContain('L 9 0.18');
+
+    // And the three marks joining two rows: the arrow leaves the Friday's right
+    // edge at 5 and arrives at the Monday at 7, so the weekend is the gap.
+    expect(markAttribute('[data-gantt-arrow="strip->sand"]', 'd')).toContain('L 7 2.5');
+    expect(markAttribute('[data-gantt-arrow-head="strip->sand"]', 'd')).toMatch(/^M 7 /);
+    expect(markAttribute('[data-gantt-person-link="strip-dev->sand-dev"]', 'd')).toBe(
+      'M 5 1.5 L 7 2.5',
+    );
+  });
+
+  itDom('refuses to compare a mark that has no area', () => {
+    render(
+      <GanttPanel
+        plan={everyMarkOnOneDay()}
+        startDate={MONDAY_START}
+        scheduleError={null}
+        onPickRow={() => undefined}
+      />,
+    );
+
+    // `trim-dev` is estimated at no days, so its rect is the zero-width mark the
+    // sixteenth check compared an overlap against and could not fail. The helper
+    // every geometry assertion above goes through says so instead of measuring
+    // it.
+    //
+    // Proof: the area guard in {@link drawnBox} removed — this test alone
+    // failed, on `expected [Function] to throw an error`, and the box it handed
+    // back was `{ x: 7, width: 0, … }`, which every overlap comparison in this
+    // file would have held against. Watched 2026-08-09.
+    expect(() => drawnBox('[data-gantt-bar="trim-dev"]')).toThrow(/drawn with no area/);
+    expect(() => drawnBox('[data-gantt-bar="nobody-drew-this"]')).toThrow(/nothing on the chart/);
+  });
+});
+
+/**
  * The reviewed coordinate contract, asserted where it can be (codex #15).
  *
  * Strict string equality against numbers written by hand into the fixture, not

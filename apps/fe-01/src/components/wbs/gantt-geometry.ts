@@ -293,6 +293,16 @@ export interface GanttDependencyArrow {
   predecessorId: string;
   successorId: string;
   fromRowIndex: number;
+  /**
+   * Where the predecessor's projection begins.
+   *
+   * Not a coordinate the arrow is drawn at — the line leaves `fromFinish`. It
+   * is carried because a **span** is what a calendar reading needs: a
+   * projection of no days at all is on no workday, and its finish then has to
+   * be read as its own start rather than as the end of the workday before it.
+   * See {@link placeOnCalendar}.
+   */
+  fromStart: number;
   fromFinish: number;
   toRowIndex: number;
   toStart: number;
@@ -306,6 +316,8 @@ export interface GanttDependencyArrow {
 export interface GanttPersonLink {
   fromSliceId: string;
   fromRowIndex: number;
+  /** Where the busy slice begins — carried for {@link GanttDependencyArrow.fromStart}'s reason. */
+  fromStart: number;
   fromFinish: number;
   toSliceId: string;
   toRowIndex: number;
@@ -343,6 +355,12 @@ export interface GanttGeometry {
 }
 
 /**
+ * One reading of a workday offset: where a span that starts there stands, or
+ * where one that finishes there stops.
+ */
+type ReadOffset = (workday: number) => number;
+
+/**
  * One workday offset read as a calendar-day offset, two ways.
  *
  * The two readings differ only where a weekend sits between workday `w − 1` and
@@ -353,9 +371,9 @@ export interface GanttGeometry {
  */
 export interface CalendarScale {
   /** Where a span that **starts** at this workday offset stands. */
-  startOf(workday: number): number;
+  startOf: ReadOffset;
   /** Where a span that **finishes** at this workday offset stops. */
-  endOf(workday: number): number;
+  endOf: ReadOffset;
 }
 
 /**
@@ -409,6 +427,183 @@ export function calendarScale(startDate: IsoDate): CalendarScale {
     endOf: (workday: number): number =>
       workday <= 0 || !Number.isInteger(workday) ? startOf(workday) : startOf(workday - 1) + 1,
   };
+}
+
+/**
+ * One bar as it is drawn, and the bar the engine placed.
+ *
+ * The split is the contract: `x` and `width` are the only two numbers anything
+ * about the drawing may read, and `bar` is where `data-start`, `data-finish`
+ * and every sentence on hover come from. A bar's width is the span it is
+ * **drawn** across and never one taken from the engine's `finish` — an
+ * unestimated slice has `finish === start`, and a width from that is a mark of
+ * no area at all.
+ */
+export interface PlacedBar {
+  bar: GanttBar;
+  x: number;
+  width: number;
+}
+
+/** A parent's bracket as it is drawn: the two ends of its projection, on the calendar. */
+export interface PlacedBracket {
+  rowId: string;
+  rowIndex: number;
+  from: number;
+  to: number;
+}
+
+/** A dependency as it is drawn: the predecessor's right edge, and the successor's left one. */
+export interface PlacedArrow {
+  predecessorId: string;
+  successorId: string;
+  fromRowIndex: number;
+  fromX: number;
+  toRowIndex: number;
+  toX: number;
+}
+
+/** One person's hand-off as it is drawn, in the colour of whoever made it. */
+export interface PlacedPersonLink {
+  fromSliceId: string;
+  toSliceId: string;
+  fromRowIndex: number;
+  fromX: number;
+  toRowIndex: number;
+  toX: number;
+  personColor: BarColor;
+}
+
+/**
+ * A not-before flag as it is drawn, and the workday it holds at.
+ *
+ * Both, because the mark and its words answer different questions: `x` is where
+ * the caret stands and `workday` is what the date beside it is worked out from.
+ * A date read off `x` would name a Saturday.
+ */
+export interface PlacedFlag {
+  rowIndex: number;
+  x: number;
+  workday: number;
+}
+
+/**
+ * The whole chart resolved: every mark that has a horizontal coordinate,
+ * carrying it, and not one workday number left standing in for one.
+ *
+ * The panel draws from this and from nothing else. A mark still reading
+ * `bar.start` or `flag.offset` for its position is a mark that misaligns from
+ * the first weekend on — and the axis, which is placed the same way, is what
+ * makes it visible.
+ */
+export interface PlacedGantt {
+  labels: GanttRowLabel[];
+  bars: PlacedBar[];
+  brackets: PlacedBracket[];
+  arrows: PlacedArrow[];
+  personLinks: PlacedPersonLink[];
+  notBeforeFlags: PlacedFlag[];
+  /** How far the drawing reaches, in the unit the marks above are in. */
+  horizon: number;
+}
+
+/**
+ * Every mark placed through one pair of readings — a start's and a finish's.
+ *
+ * The whole of the conversion lives here rather than in the panel, so that
+ * adding a mark to the drawing means adding it to a list that is already
+ * resolved instead of remembering to convert it. `layOutGantt` is untouched and
+ * stays engine-true: this reads its answer, it does not replace it.
+ */
+function placeGantt(chart: GanttGeometry, startOf: ReadOffset, endOf: ReadOffset): PlacedGantt {
+  /**
+   * Where a span running `from → to` in workdays stops.
+   *
+   * `endOf(to)` for a span with days in it, and its own start for one with
+   * none: `endOf` answers for the last workday a span is **on**, and a span of
+   * no days is on none. Without this a zero-day mark standing on a Monday
+   * would stop at `endOf(w)` — the Friday's right edge, two days behind its own
+   * left one — and be drawn backwards.
+   */
+  const stopOf = (from: number, to: number): number => (to > from ? endOf(to) : startOf(from));
+  const bars = chart.bars.map((bar) => ({
+    bar,
+    x: startOf(bar.start),
+    // The **drawn** span, read as a finish. Never a span from the engine's
+    // `finish`: an unestimated slice finishes where it starts, and a width
+    // from that is a bar of no area at all — the sixteenth check's own shape.
+    width: stopOf(bar.start, bar.start + bar.drawnSpan) - startOf(bar.start),
+  }));
+  const brackets = chart.brackets.map((bracket) => ({
+    rowId: bracket.rowId,
+    rowIndex: bracket.rowIndex,
+    from: startOf(bracket.start),
+    to: stopOf(bracket.start, bracket.finish),
+  }));
+  const arrows = chart.arrows.map((arrow) => ({
+    predecessorId: arrow.predecessorId,
+    successorId: arrow.successorId,
+    fromRowIndex: arrow.fromRowIndex,
+    fromX: stopOf(arrow.fromStart, arrow.fromFinish),
+    toRowIndex: arrow.toRowIndex,
+    toX: startOf(arrow.toStart),
+  }));
+  const personLinks = chart.personLinks.map((link) => ({
+    fromSliceId: link.fromSliceId,
+    toSliceId: link.toSliceId,
+    fromRowIndex: link.fromRowIndex,
+    fromX: stopOf(link.fromStart, link.fromFinish),
+    toRowIndex: link.toRowIndex,
+    toX: startOf(link.toStart),
+    personColor: link.personColor,
+  }));
+  const notBeforeFlags = chart.notBeforeFlags.map((flag) => ({
+    rowIndex: flag.rowIndex,
+    x: startOf(flag.offset),
+    workday: flag.offset,
+  }));
+
+  // The reach of what is actually drawn, in the same unit the marks are in —
+  // read off them rather than converted from `chart.horizon`, which is a
+  // workday number and two calendar days short of an assumed span drawn over a
+  // weekend. At least 1, so an empty plan still has a canvas with a width.
+  let horizon = 1;
+  for (const placed of bars) horizon = Math.max(horizon, placed.x + placed.width);
+  for (const bracket of brackets) horizon = Math.max(horizon, bracket.to);
+  for (const arrow of arrows) horizon = Math.max(horizon, arrow.fromX, arrow.toX);
+  for (const flag of notBeforeFlags) horizon = Math.max(horizon, flag.x);
+
+  return { labels: chart.labels, bars, brackets, arrows, personLinks, notBeforeFlags, horizon };
+}
+
+/**
+ * The chart placed on the plan's calendar: every coordinate a calendar-day
+ * offset from its first working day.
+ *
+ * Starts read {@link CalendarScale.startOf} and finishes {@link
+ * CalendarScale.endOf}, which is what puts a weekend between a predecessor's
+ * right edge and its successor's left one.
+ *
+ * @throws Whatever {@link calendarScale} throws when `startDate` is not a
+ * calendar date.
+ */
+export function placeOnCalendar(chart: GanttGeometry, startDate: IsoDate): PlacedGantt {
+  const scale = calendarScale(startDate);
+  return placeGantt(chart, scale.startOf, scale.endOf);
+}
+
+/**
+ * The chart placed on the workday axis: every coordinate the engine's own
+ * number, verbatim.
+ *
+ * What a plan with no start date is drawn on. Not a fallback and not a scale of
+ * one — there is no calendar to be on, so no scale is built and nothing is
+ * asked for a date. See "Without a project start date the chart stays on the
+ * workday axis" in the spec.
+ */
+export function placeOnWorkdays(chart: GanttGeometry): PlacedGantt {
+  const asItIs: ReadOffset = (workday) => workday;
+  return placeGantt(chart, asItIs, asItIs);
 }
 
 const FLOOR_SENTENCE: Record<Exclude<BindingFloor, 'person'>, string> = {
@@ -646,6 +841,7 @@ export function layOutGantt(plan: GanttPlan): GanttGeometry {
     personLinks.push({
       fromSliceId: predecessor.id,
       fromRowIndex: busy.rowIndex,
+      fromStart: busy.start,
       fromFinish: busy.finish,
       toSliceId: slice.id,
       toRowIndex: waiting.rowIndex,
@@ -666,6 +862,7 @@ export function layOutGantt(plan: GanttPlan): GanttGeometry {
       predecessorId: edge.predecessorId,
       successorId: edge.successorId,
       fromRowIndex: from.rowIndex,
+      fromStart: from.row.schedule.earliestStart,
       fromFinish: from.row.schedule.earliestFinish,
       toRowIndex: to.rowIndex,
       toStart: to.row.schedule.earliestStart,

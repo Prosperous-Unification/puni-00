@@ -12,6 +12,8 @@ import {
   inkOn,
   layOutGantt,
   PERSON_BAR_COLORS,
+  placeOnCalendar,
+  placeOnWorkdays,
   UNASSIGNED_BAR_COLOR,
 } from './gantt-geometry';
 
@@ -223,6 +225,7 @@ describe('person links', () => {
       {
         fromSliceId: 'strip-dev',
         fromRowIndex: 0,
+        fromStart: 0,
         fromFinish: 3,
         toSliceId: 'sand-dev',
         toRowIndex: 1,
@@ -423,6 +426,7 @@ describe('dependency arrows', () => {
         predecessorId: 'strip',
         successorId: 'sand',
         fromRowIndex: 0,
+        fromStart: 0,
         fromFinish: 3,
         toRowIndex: 1,
         toStart: 3,
@@ -973,5 +977,184 @@ describe('the calendar scale', () => {
 
   it('refuses a start date that is not a calendar date', () => {
     expect(() => calendarScale('2026-02-31')).toThrow(/not a calendar date/);
+  });
+});
+
+/**
+ * Every mark placed through the scale at once, which is the point: a mark left
+ * on a workday number misaligns from the first weekend on, and only a fixture
+ * that reaches past one can see it.
+ */
+describe('placing the chart on a calendar', () => {
+  /** The Monday every fixture in here begins on. */
+  const MONDAY = '2026-08-10';
+
+  it('puts a bar at the calendar day its workday is', () => {
+    const chart = layOutGantt(
+      planOf({
+        rows: [rowAt('strip', 5, 8)],
+        slices: [sliceAt('strip-dev', 'strip', 5, 8)],
+      }),
+    );
+
+    const placed = placeOnCalendar(chart, MONDAY);
+
+    // Workday 5 is Monday 2026-08-17, seven calendar days in, and the three
+    // workdays after it are the Mon/Tue/Wed with no weekend among them.
+    expect(placed.bars[0].x).toBe(7);
+    expect(placed.bars[0].width).toBe(3);
+    // And the engine's own bar rides along untouched, which is what
+    // `data-start`/`data-finish` and every sentence are written from.
+    expect(placed.bars[0].bar.start).toBe(5);
+    expect(placed.bars[0].bar.finish).toBe(8);
+    expect(chart.bars[0].start).toBe(5);
+  });
+
+  it('draws a bar across the weekend it works through, and not one it stops before', () => {
+    const chart = layOutGantt(
+      planOf({
+        rows: [rowAt('strip', 3, 5), rowAt('sand', 3, 6)],
+        slices: [sliceAt('strip-dev', 'strip', 3, 5), sliceAt('sand-dev', 'sand', 3, 6)],
+      }),
+    );
+
+    const placed = placeOnCalendar(chart, MONDAY);
+
+    // 3 → 5 is the Thursday and the Friday: two days wide, with no weekend
+    // tail. 3 → 6 works on the Monday after, so its bar is drawn over the
+    // weekend inside it and is five days wide.
+    expect([placed.bars[0].x, placed.bars[0].width]).toEqual([3, 2]);
+    expect([placed.bars[1].x, placed.bars[1].width]).toEqual([3, 5]);
+  });
+
+  it('spans a bracket from its earliest start to its latest finish, on the calendar', () => {
+    const chart = layOutGantt(
+      planOf({
+        rows: [
+          rowAt('hull', 0, 6, { leaf: false }),
+          rowAt('strip', 0, 3, { depth: 1 }),
+          rowAt('sand', 2, 6, { depth: 1 }),
+        ],
+        slices: [sliceAt('strip-dev', 'strip', 0, 3), sliceAt('sand-dev', 'sand', 2, 6)],
+      }),
+    );
+
+    const placed = placeOnCalendar(chart, MONDAY);
+
+    expect(placed.brackets[0].from).toBe(0);
+    expect(placed.brackets[0].to).toBe(8);
+  });
+
+  it('leaves a weekend between a predecessor’s finish and its successor’s start', () => {
+    const chart = layOutGantt(
+      planOf({
+        rows: [rowAt('strip', 0, 5), rowAt('sand', 5, 7)],
+        slices: [
+          sliceAt('strip-dev', 'strip', 0, 5, { personId: 'kat' }),
+          sliceAt('sand-dev', 'sand', 5, 7, {
+            personId: 'kat',
+            boundBy: 'person',
+            resourcePredecessorId: 'strip-dev',
+          }),
+        ],
+        dependencies: [{ predecessorId: 'strip', successorId: 'sand' }],
+      }),
+    );
+
+    const placed = placeOnCalendar(chart, MONDAY);
+
+    // The hand-off across a weekend, on both marks that draw one: the arrow
+    // leaves the Friday's right edge at 5 and arrives at the Monday at 7, so
+    // the two bars do not touch.
+    expect([placed.arrows[0].fromX, placed.arrows[0].toX]).toEqual([5, 7]);
+    expect([placed.personLinks[0].fromX, placed.personLinks[0].toX]).toEqual([5, 7]);
+    expect(placed.bars[0].x + placed.bars[0].width).toBe(5);
+    expect(placed.bars[1].x).toBe(7);
+  });
+
+  it('stands a not-before flag on the calendar day its workday is', () => {
+    const chart = layOutGantt(
+      planOf({
+        rows: [rowAt('sand', 5, 7, { notBeforeOffset: 5 })],
+        slices: [sliceAt('sand-dev', 'sand', 5, 7)],
+      }),
+    );
+
+    const placed = placeOnCalendar(chart, MONDAY);
+
+    expect(placed.notBeforeFlags[0].x).toBe(7);
+    // And the workday it holds at rides along, because the words the caret
+    // shows are date arithmetic on that number and never on the coordinate.
+    expect(placed.notBeforeFlags[0].workday).toBe(5);
+  });
+
+  it('reaches a horizon that holds an assumed span in calendar days', () => {
+    const chart = layOutGantt(
+      planOf({
+        rows: [rowAt('sand', 3, 3)],
+        slices: [sliceAt('sand-dev', 'sand', 3, 3, { duration: 0, estimated: false })],
+      }),
+    );
+
+    const placed = placeOnCalendar(chart, MONDAY);
+
+    // Two workdays drawn from the Thursday is the Friday, and the horizon
+    // stops there rather than at the workday number 3 the engine gave.
+    expect(chart.horizon).toBe(3 + ASSUMED_UNESTIMATED_WORKDAYS);
+    expect(placed.horizon).toBe(5);
+    expect(placed.bars[0].width).toBe(2);
+  });
+
+  it('leaves a mark of no days standing where it starts, not behind it', () => {
+    const chart = layOutGantt(
+      planOf({
+        // Everything here is on the Monday past the first weekend, where a
+        // finish reading and a start reading are two calendar days apart: a
+        // zero-day estimate, a parent projecting nothing, and an arrow leaving
+        // that parent. Read as a finish alone, all three would be drawn at 5
+        // — the Friday's edge — while the day they belong to is 7.
+        rows: [
+          rowAt('hull', 5, 5, { leaf: false }),
+          rowAt('strip', 5, 5, { depth: 1 }),
+          rowAt('sand', 5, 7),
+        ],
+        slices: [
+          sliceAt('strip-dev', 'strip', 5, 5, { duration: 0 }),
+          sliceAt('sand-dev', 'sand', 5, 7),
+        ],
+        dependencies: [{ predecessorId: 'hull', successorId: 'sand' }],
+      }),
+    );
+
+    const placed = placeOnCalendar(chart, MONDAY);
+
+    // The zero-day estimate keeps its zero width and stands on the Monday.
+    expect([placed.bars[0].x, placed.bars[0].width]).toEqual([7, 0]);
+    expect(placed.brackets[0]).toMatchObject({ from: 7, to: 7 });
+    expect(placed.arrows[0].fromX).toBe(7);
+  });
+
+  it('places a plan with no start date on the workdays it came in on', () => {
+    const chart = layOutGantt(
+      planOf({
+        rows: [
+          rowAt('hull', 0, 7, { leaf: false }),
+          rowAt('strip', 0, 5, { depth: 1 }),
+          rowAt('sand', 5, 7, { depth: 1, notBeforeOffset: 5 }),
+        ],
+        slices: [sliceAt('strip-dev', 'strip', 0, 5), sliceAt('sand-dev', 'sand', 5, 7)],
+        dependencies: [{ predecessorId: 'strip', successorId: 'sand' }],
+      }),
+    );
+
+    const placed = placeOnWorkdays(chart);
+
+    // Not a calendar at all: every number is the engine's own, which is what
+    // the panel draws while a plan has no start date.
+    expect([placed.bars[1].x, placed.bars[1].width]).toEqual([5, 2]);
+    expect(placed.brackets[0].to).toBe(7);
+    expect([placed.arrows[0].fromX, placed.arrows[0].toX]).toEqual([5, 5]);
+    expect(placed.notBeforeFlags[0].x).toBe(5);
+    expect(placed.horizon).toBe(chart.horizon);
   });
 });
