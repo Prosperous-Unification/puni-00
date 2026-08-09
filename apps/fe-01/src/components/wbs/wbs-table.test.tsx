@@ -20,7 +20,12 @@ import type {
 } from '@/lib/wbs-api';
 
 import { refusedDraftFor } from './live-editing';
-import { frameLayout, type FrameLayoutState, POPOVER_ROW_LAYER } from './table-frame';
+import {
+  DATE_EDITOR_WIDTH,
+  frameLayout,
+  type FrameLayoutState,
+  POPOVER_ROW_LAYER,
+} from './table-frame';
 import { type SubscriptionHandlers, WbsTable } from './wbs-table';
 
 /** The two elements a table cell can be, since a wrapping cell is a textarea. */
@@ -1693,7 +1698,7 @@ describe('the plan on a calendar', () => {
       return realPatch(id, patch);
     };
 
-    const box = screen.getByLabelText<HTMLInputElement>('Earliest start for 010');
+    const box = openNotBefore('010');
     box.focus();
     for (const partial of ['0002-08-17', '0020-08-17', '0202-08-17', '2026-08-17']) {
       fireEvent.change(box, { target: { value: partial } });
@@ -1751,18 +1756,192 @@ describe('the plan on a calendar', () => {
       return realPatch(id, patch);
     };
 
-    typeIntoDate('Earliest start for 010', '2026-08-12');
+    typeIntoNotBefore('010', '2026-08-12');
     await waitFor(() => {
       expect(patched).toEqual([{ startNoEarlierThan: '2026-08-12' }]);
     });
 
     // Cleared reads as '' from a date input, and means "no constraint" rather
     // than "an empty date".
-    typeIntoDate('Earliest start for 010', '');
+    typeIntoNotBefore('010', '');
 
     await waitFor(() => {
       expect(patched).toEqual([{ startNoEarlierThan: '2026-08-12' }, { startNoEarlierThan: null }]);
     });
+  });
+});
+
+describe('the earliest-start cell', () => {
+  /** One empty root row on a plan that is on a calendar, so the cell will open. */
+  async function datedPlan() {
+    const api = fakeApi();
+    render(<WbsTable projectId="p1" api={api} />);
+    click('Add work item');
+    await screen.findByLabelText('Name of 010');
+    click('Add work item');
+    await screen.findByLabelText('Name of 020');
+    typeIntoDate('Project start date', '2026-08-06');
+    await waitFor(() => {
+      expect(screen.getByLabelText<HTMLInputElement>('Earliest start for 010').disabled).toBe(
+        false,
+      );
+    });
+    return api;
+  }
+
+  /** Every date editor on the page, which is what "one at a time" is counted from. */
+  const editorsOnScreen = () => [...document.querySelectorAll('input[type="date"][data-cell]')];
+
+  itDom('is the short date as text, with no editor in it', async () => {
+    // 146px of column was a native date input on every row. The cell is the
+    // day now, and the editor is mounted only for the cell being edited —
+    // which is the whole of how the column fits in 84px.
+    // Proof: the `editing` branch inverted so the editor is what is rendered at
+    // rest, this failed on `expected '2026-06-01' to be '1 Jun'` — the cell
+    // holding a native date input again. **Nineteen** tests failed in that run:
+    // `reads as an em-dash where the row sets no day` on `expected '' to be
+    // '—'`, `mounts one editor at a time` on `expected 2 to be 1`, and the Tab
+    // and arrow walks all over the table. Watched, 2026-08-09.
+    const api = await datedPlan();
+    const row = api.rows.at(0);
+    if (row === undefined) throw new Error('the plan has no row');
+    row.startNoEarlierThan = '2026-06-01';
+    click('Add work item');
+    await waitFor(() => {
+      expect(screen.getByLabelText<HTMLInputElement>('Earliest start for 010').value).toBe('1 Jun');
+    });
+
+    expect(editorsOnScreen()).toEqual([]);
+    // And the whole day is a hover away, the same bargain Start and End make.
+    expect(screen.getByLabelText('Earliest start for 010').title).toContain('2026-06-01');
+  });
+
+  itDom('reads as an em-dash where the row sets no day', async () => {
+    await datedPlan();
+
+    expect(screen.getByLabelText<HTMLInputElement>('Earliest start for 010').value).toBe('—');
+  });
+
+  itDom('mounts one editor at a time, on the cell that asked for it', async () => {
+    // Two rows, two cells, one editor: opening the second closes the first,
+    // because a column this narrow can hold exactly one 138px box and only
+    // by hanging it over its neighbours.
+    await datedPlan();
+
+    openNotBefore('010');
+    expect(editorsOnScreen().length).toBe(1);
+
+    openNotBefore('020');
+
+    expect(editorsOnScreen().length).toBe(1);
+    expect(editorsOnScreen()[0]?.getAttribute('data-not-before')).toBe(
+      screen.getByLabelText('Name of 020').getAttribute('data-cell')?.split('::')[0],
+    );
+  });
+
+  itDom('offers no editor at all while the plan has no start date', async () => {
+    // Without a project start date there is no day zero to count from and
+    // be-01 ignores the constraint entirely, so the cell is a rendered
+    // disabled state that says why — not an editor that opens onto nothing.
+    const api = fakeApi();
+    render(<WbsTable projectId="p1" api={api} />);
+    click('Add work item');
+    await screen.findByLabelText('Name of 010');
+
+    const cell = screen.getByLabelText<HTMLInputElement>('Earliest start for 010');
+    expect(cell.disabled).toBe(true);
+    expect(cell.title).toContain('project start date');
+
+    fireEvent.keyDown(cell, { key: 'Enter' });
+    fireEvent.mouseDown(cell);
+
+    expect(editorsOnScreen()).toEqual([]);
+  });
+
+  itDom('gives the focus back to the cell on every way out', async () => {
+    // A keyboard is where it was rather than at the top of the page. Asserted
+    // per exit route, because the three take three different paths out of the
+    // editor and only one of them sends anything.
+    // Proof: the focus-return effect's `focusCellAt` removed, this failed on
+    // `expected <body /> to be <input …>` for the Enter route, and the Escape
+    // and blur routes with it. Watched, 2026-08-09.
+    await datedPlan();
+
+    for (const leave of [
+      (box: HTMLInputElement) => fireEvent.keyDown(box, { key: 'Enter' }),
+      (box: HTMLInputElement) => fireEvent.keyDown(box, { key: 'Escape' }),
+      (box: HTMLInputElement) => fireEvent.blur(box),
+    ]) {
+      const editor = openNotBefore('010');
+      expect(document.activeElement).toBe(editor);
+
+      leave(editor);
+
+      expect(editorsOnScreen()).toEqual([]);
+      expect(document.activeElement).toBe(screen.getByLabelText('Earliest start for 010'));
+      // And the cell it came back to is still a cell of the keyboard grid, on
+      // the terms it always had: Tab is the table's from here.
+      expect(screen.getByLabelText('Earliest start for 010').dataset['cell']).toContain(
+        '::not-before',
+      );
+    }
+  });
+
+  itDom('leaves the Tab handling exactly where it was', async () => {
+    // The cell is text now and it is still a cell: Tab from the phase before
+    // it lands here, and Tab from here goes on to the next row.
+    await datedPlan();
+
+    const cell = screen.getByLabelText<HTMLInputElement>('Earliest start for 010');
+    cell.focus();
+
+    expect(fireEvent.keyDown(cell, { key: 'Tab' })).toBe(false);
+    expect(document.activeElement).toBe(screen.getByLabelText('Name of 020'));
+  });
+
+  itDom('never writes a peer’s day over one being typed', async () => {
+    // The grid's refused-draft rule, in the one cell that had no draft to hold
+    // until now: a refetch that lands while a day is half-typed leaves the box
+    // alone, exactly as it does for a half-typed name.
+    // A whole day rather than a truncated one, because a date input refuses to
+    // hold a value it cannot parse — `value` reads back `''` — and the box
+    // would then be empty for a reason that has nothing to do with the guard.
+    // Proof: `DateField`'s `document.activeElement` guard removed from its
+    // effect, this failed on `expected '2026-09-09' to be '2026-08-17'`.
+    // Watched, 2026-08-09.
+    const api = fakeApi();
+    let notify: () => void = () => {
+      throw new Error('the table never subscribed');
+    };
+    const subscribe = (_projectId: string, handlers: SubscriptionHandlers) => {
+      notify = handlers.onChange;
+      return { seen: () => undefined, unsubscribe: () => undefined };
+    };
+    render(<WbsTable projectId="p1" api={api} subscribe={subscribe} />);
+    click('Add work item');
+    await screen.findByLabelText('Name of 010');
+    typeIntoDate('Project start date', '2026-08-06');
+    await waitFor(() => {
+      expect(screen.getByLabelText<HTMLInputElement>('Earliest start for 010').disabled).toBe(
+        false,
+      );
+    });
+
+    const editor = openNotBefore('010');
+    editor.focus();
+    fireEvent.change(editor, { target: { value: '2026-08-17' } });
+
+    const peer = api.rows.at(0);
+    if (peer === undefined) throw new Error('the plan has no row');
+    peer.startNoEarlierThan = '2026-09-09';
+    await act(async () => {
+      notify();
+      await Promise.resolve();
+    });
+
+    expect(screen.getByLabelText<HTMLInputElement>('Earliest start for 010').value).toBe(
+      '2026-08-17',
+    );
   });
 });
 
@@ -2949,6 +3128,27 @@ const typeIntoDate = (label: string, day: string): void => {
   const box = screen.getByLabelText(label);
   fireEvent.change(box, { target: { value: day } });
   fireEvent.blur(box);
+};
+
+/**
+ * Opens one row's earliest-start editor, the way a reader does.
+ *
+ * The cell is text at rest since `T2 compact-columns` — the editor is mounted
+ * for the cell being edited and for no other — so every date typed into a row
+ * has to be typed into an editor that was opened first. Enter is the keyboard's
+ * way in; a click is the pointer's.
+ */
+const openNotBefore = (number: string): HTMLInputElement => {
+  const cell = screen.getByLabelText<HTMLInputElement>(`Earliest start for ${number}`);
+  fireEvent.keyDown(cell, { key: 'Enter' });
+  return screen.getByLabelText<HTMLInputElement>(`Earliest start for ${number}`);
+};
+
+/** Opens a row's earliest-start editor, types a day into it, and leaves. */
+const typeIntoNotBefore = (number: string, day: string): void => {
+  const editor = openNotBefore(number);
+  fireEvent.change(editor, { target: { value: day } });
+  fireEvent.blur(editor);
 };
 
 /** The `<tr>` whose number cell reads `number`. */
@@ -5241,7 +5441,10 @@ describe('the order of the columns', () => {
     // it used to be lives in the `title`.
     // No Notes column: a work item's notes are typed under its name, in the
     // Name cell, and the column they had is gone.
-    expect(headers.slice(-5)).toEqual(['Not before', 'Start', 'End', 'Slack', '']);
+    // `Not bef.`, not `Not before`: the column is 84px at its widest and 56 at
+    // its narrowest, and the sentence it used to be is in the heading's
+    // `title`.
+    expect(headers.slice(-5)).toEqual(['Not bef.', 'Start', 'End', 'Slack', '']);
     expect(headers).not.toContain('Notes');
   });
 });
@@ -5453,27 +5656,37 @@ describe('the widths the table is laid out by', () => {
     // come with it — gives every cell a new type and React unmounts and
     // remounts the lot, taking the focus and the half-typed value with it.
     //
-    // The width really does change here: setting one row's earliest start
-    // flips `hasAnyNotBefore` and the column goes 56 → 84.
+    // Delivered as somebody else's edit, which is the gesture that makes the
+    // claim: the width really does change — `not-before` goes 56 → 84 the
+    // moment any row in the project sets a day — and the reader whose focus
+    // must survive it is not the one who caused it.
     //
-    // Proof: `frameState` added to the `columns` dependency array and the
-    // not-before cell given `style={{ width: layout … }}`, this failed on
-    // `expected <body /> to be <textarea …>` — the focus on the body and the
+    // Proof: `frameState` added to the `columns` dependency array, this failed
+    // on `expected <body /> to be <textarea …>` — the focus on the body and the
     // half-typed name gone. Watched, 2026-08-09.
-    await threeRoots();
-    typeIntoDate('Project start date', '2026-08-06');
-    await waitFor(() => {
-      expect(screen.getByLabelText<HTMLInputElement>('Earliest start for 010').disabled).toBe(
-        false,
-      );
-    });
+    const api = fakeApi();
+    let notify: () => void = () => {
+      throw new Error('the table never subscribed');
+    };
+    const subscribe = (_projectId: string, handlers: SubscriptionHandlers) => {
+      notify = handlers.onChange;
+      return { seen: () => undefined, unsubscribe: () => undefined };
+    };
+    render(<WbsTable projectId="p1" api={api} subscribe={subscribe} />);
+    click('Add work item');
+    const name = await screen.findByLabelText('Name of 010');
     const before = screen.getByRole('table').style.minWidth;
 
-    const name = screen.getByLabelText<HTMLTextAreaElement>('Name of 020');
     name.focus();
-    fireEvent.change(name, { target: { value: 'Sand the old wir' } });
+    fireEvent.change(name, { target: { value: 'Strip the old wir' } });
 
-    typeIntoDate('Earliest start for 010', '2026-08-12');
+    const dated = api.rows.at(0);
+    if (dated === undefined) throw new Error('the plan has no row to date');
+    dated.startNoEarlierThan = '2026-08-12';
+    await act(async () => {
+      notify();
+      await Promise.resolve();
+    });
 
     await waitFor(() => {
       expect(screen.getByRole('table').style.minWidth).not.toBe(before);
@@ -5486,8 +5699,8 @@ describe('the widths the table is laid out by', () => {
         ).minWidth,
       )}px`,
     );
-    expect(document.activeElement).toBe(screen.getByLabelText('Name of 020'));
-    expect(screen.getByLabelText('Name of 020')).toHaveProperty('value', 'Sand the old wir');
+    expect(document.activeElement).toBe(screen.getByLabelText('Name of 010'));
+    expect(screen.getByLabelText('Name of 010')).toHaveProperty('value', 'Strip the old wir');
   });
 
   itDom('gives every cell the chrome its declared width is measured with', async () => {
@@ -5509,7 +5722,9 @@ describe('the widths the table is laid out by', () => {
       const column = cell.dataset['column'] ?? '';
       const exempt =
         cell.tagName === 'TD' &&
-        (['depends', 'name', 'team', 'actions'].includes(column) ||
+        // `not-before` since `T2 compact-columns`: its date editor is wider
+        // than the column and leaves the cell rather than sizing it.
+        (['depends', 'name', 'team', 'actions', 'not-before'].includes(column) ||
           column.endsWith('-assignee') ||
           // A folded role's cell opens the `@` people picker over a 96px
           // column, which is the narrowest clip in the table.
@@ -5520,6 +5735,15 @@ describe('the widths the table is laid out by', () => {
 
   itDom('lets no control in a cell assert a width of its own', async () => {
     await threeRoots();
+    // With an editor open, so the one deliberate exception below is a case this
+    // really walks rather than a branch nothing reaches.
+    typeIntoDate('Project start date', '2026-08-06');
+    await waitFor(() => {
+      expect(screen.getByLabelText<HTMLInputElement>('Earliest start for 010').disabled).toBe(
+        false,
+      );
+    });
+    openNotBefore('010');
 
     const controls = [
       ...document.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>(
@@ -5531,6 +5755,17 @@ describe('the widths the table is laid out by', () => {
     // estimate, the three points, the assignee picker, the date.
     expect(controls.length).toBeGreaterThan(6);
     for (const control of controls) {
+      // The one exception, and it is the point of this change rather than a
+      // hole in the rule: an open date editor is `DATE_EDITOR_WIDTH` wide in a
+      // column of 84px or 56, because that is what a browser lays an
+      // unconstrained `input[type=date]` out at and a column that grew to fit
+      // one would move every cell under the person typing. It leaves the cell
+      // through `opensAPopover`'s exemption instead. Nothing else in the table
+      // may ask for a width.
+      if (control.getAttribute('type') === 'date') {
+        expect(control.style.width).toBe(`${String(DATE_EDITOR_WIDTH)}px`);
+        continue;
+      }
       // A control that asks for `22em` is a second opinion about how wide its
       // column is, and the one the browser takes when it is the wider of the
       // two.

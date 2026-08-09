@@ -70,9 +70,10 @@ import { type CardAssignee, PlanCards } from './plan-cards';
 import { describeGaps, findEstimateGaps } from './plan-completeness';
 import { type PlanExport, planFileName, planToCsv, planToMarkdown } from './plan-export';
 import { useRendererForViewport } from './plan-renderer';
-import { printedDay } from './short-date';
+import { printedDay, shortIsoDate } from './short-date';
 import {
   CELL,
+  DATE_EDITOR_WIDTH,
   flexibleCellStyle,
   frameLayout,
   type FrameLayoutState,
@@ -269,7 +270,13 @@ const BOM = '\uFEFF';
  * The columns by fixed id whose `<td>` must not clip, because something in them
  * opens over the rows below. {@link opensAPopover} is what asks.
  */
-const POPOVER_COLUMNS: ReadonlySet<string> = new Set(['depends', 'name', 'team', 'actions']);
+const POPOVER_COLUMNS: ReadonlySet<string> = new Set([
+  'depends',
+  'name',
+  'team',
+  'actions',
+  'not-before',
+]);
 
 /**
  * Whether this column holds something that opens over the rows below, and so
@@ -284,13 +291,18 @@ const POPOVER_COLUMNS: ReadonlySet<string> = new Set(['depends', 'name', 'team',
  * `<td>`'s own clip cuts it to the cell rectangle however the wrapper is styled.
  * Lifting the clip on the `<td>` is the only thing that lets one open.
  *
- * Six kinds of column, not two: the dependency listbox (`depends`), the
+ * Seven kinds of column, not two: the dependency listbox (`depends`), the
  * rendered notes preview (`name` — the notes live in that box since the Notes
  * column was folded into it), a `CreatablePicker`'s list — which is the
  * service/team cell and each role's assignee cell — the row's own actions
- * menu (`actions`), which hangs a 140px box off a 40px cell one line high, and
+ * menu (`actions`), which hangs a 140px box off a 40px cell one line high,
  * a folded role's own cell (`<roleId>-final`), where an `@` opens the people
- * picker over a 96px column. That last one is the narrowest clip of the lot.
+ * picker over a 96px column, and the earliest-start cell (`not-before`), whose
+ * date editor is `DATE_EDITOR_WIDTH` wide in a column of 84px or 56. That last
+ * one is the widest escape of the lot, and the one number here this repository
+ * does not get to choose: it is what Chromium lays an unconstrained
+ * `input[type=date]` out at. A column that grew to fit one would move every
+ * cell under the person typing, so the editor leaves the cell instead.
  * Both kinds of role column are named for a role that only exists at runtime,
  * so they are matched by suffix, the same way `widthFor` sizes them.
  *
@@ -2942,6 +2954,76 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     [api, run],
   );
 
+  /**
+   * The row whose earliest-start cell is being edited, or none.
+   *
+   * One id rather than a set, which is the whole of "at most one editor on the
+   * page": every other row's cell is the short date as text, and a native date
+   * input is 138px of furniture the 84px column has no room for. It is also
+   * what took `not-before` from 146px to 84 — the column had to hold an editor
+   * on every row until 2026-08-09.
+   */
+  const [editingNotBefore, setEditingNotBefore] = useState<string | null>(null);
+
+  /**
+   * The row whose earliest-start cell is owed the focus back, once the editor
+   * closing on it has actually gone from the DOM.
+   *
+   * A ref and an effect rather than a call, because the cell to focus does not
+   * exist yet at the moment the editor asks to close: it is rendered by the
+   * same pass that unmounts the editor.
+   */
+  const notBeforeOwedFocus = useRef<string | null>(null);
+
+  /** Opens the editor on one row's earliest-start cell, closing any other. */
+  const openNotBefore = useCallback((rowId: string) => {
+    setEditingNotBefore(rowId);
+  }, []);
+
+  /**
+   * Closes the editor and gives the cell it was on the focus back.
+   *
+   * The way out — {@link DateField}'s `onExit` — is not branched on here, and
+   * that is deliberate: the day has been sent or it has not, by then, and the
+   * editor closes either way. What the two answers are for is the editor's own
+   * suppression of the blur an Escape causes, which is `date-field.tsx`'s.
+   */
+  const closeNotBefore = useCallback((rowId: string) => {
+    notBeforeOwedFocus.current = rowId;
+    setEditingNotBefore((editing) => (editing === rowId ? null : editing));
+  }, []);
+
+  /**
+   * Puts the focus where opening or closing an editor has just moved it.
+   *
+   * Both directions in one effect, because both need the same thing and cannot
+   * have it any sooner: the element to focus is rendered by the very pass that
+   * mounted or unmounted the editor. An `autoFocus` would cover the opening
+   * half and nothing at all of the closing half, which is the half the
+   * contract is about.
+   */
+  useEffect(() => {
+    const grid = gridElement.current;
+    if (grid === null) return;
+    if (editingNotBefore !== null) {
+      const editor = cellIn(grid, { rowId: editingNotBefore, columnId: 'not-before' });
+      // Gone before the focus reached it — a peer deleted the row, or a search
+      // narrowed it away. A modeled absence: there is nothing to focus.
+      if (editor !== undefined) focusCellAt(editor, 'all');
+      return;
+    }
+    const rowId = notBeforeOwedFocus.current;
+    if (rowId === null) return;
+    notBeforeOwedFocus.current = null;
+    // Only where nothing else has claimed it. `Ctrl/⌘ + Enter` from this cell
+    // commits, closes **and** moves to the next row — putting the focus back on
+    // the cell it left would undo the chord.
+    if (document.activeElement !== null && document.activeElement !== document.body) return;
+    const cell = cellIn(grid, { rowId, columnId: 'not-before' });
+    if (cell === undefined) return;
+    focusCellAt(cell, 'all');
+  }, [editingNotBefore]);
+
   /** Labels a work item with a team, or takes the label off. */
   const setTeamOf = useCallback(
     (id: string, serviceTeamId: string | null) => {
@@ -3283,6 +3365,9 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     hoveredNotes,
     setHoveredNotes,
     setNotBefore,
+    editingNotBefore,
+    openNotBefore,
+    closeNotBefore,
     startDate,
     teams,
     people,
@@ -3341,6 +3426,9 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     hoveredNotes,
     setHoveredNotes,
     setNotBefore,
+    editingNotBefore,
+    openNotBefore,
+    closeNotBefore,
     startDate,
     teams,
     people,
@@ -4232,44 +4320,123 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
       }),
       column.display({
         id: 'not-before',
-        header: 'Not before',
-        cell: ({ row }) => (
-          <DateField
-            aria-label={`Earliest start for ${row.original.number}`}
-            // Disabled without a project start date, because there is then no
-            // day zero to count from and be-01 ignores the constraint
-            // entirely. A date that saves and does nothing is worse than one
-            // the field will not take.
-            disabled={live.current.startDate === null}
-            title={
-              live.current.startDate === null
-                ? 'Set the project start date first — without one there are no dates to constrain.'
-                : 'This work item may not start before this day. Its dependencies can still push it later.'
-            }
-            data-not-before={row.original.id}
-            // A cell of the keyboard grid like any other — while it is enabled.
-            // Disabled it is left out by `editableGrid`, which is what keeps
-            // Tab from stopping on a field that will not take the focus.
-            data-cell={cellKey(row.original.id, 'not-before')}
-            onKeyDown={(e) => {
-              // The chords, and nothing else this cell does not already own: a
-              // native date input keeps its own arrows for the segment under
-              // the caret, which is why {@link onArrowKey} is absent here.
-              live.current.onCommandKey(e, row.original, 'not-before');
-              live.current.onTabKey(e, row.original.id, 'not-before');
-            }}
-            // A date input carries an intrinsic width — the spinner and the
-            // picker icon — that is wider than this column on some browsers,
-            // so it is told to follow the column like every other control.
-            style={{ width: '100%', boxSizing: 'border-box', font: 'inherit' }}
-            value={row.original.startNoEarlierThan ?? ''}
-            commit={(typed) => {
-              // A date input reports '' when cleared, which is the caller
-              // saying "no constraint" rather than "an empty date".
-              live.current.setNotBefore(row.original.id, typed === '' ? null : typed);
-            }}
-          />
+        // Abbreviated, because the column is 84px at its widest and 56 at its
+        // narrowest. The sentence it used to be is in the `title`, where the
+        // one reader who wants it can still get it — the same bargain Days,
+        // Start, End and Slack already make.
+        header: () => (
+          <span title="The earliest day this work item may start. Its dependencies can still push it later.">
+            Not bef.
+          </span>
         ),
+        cell: ({ row }) => {
+          const day = row.original.startNoEarlierThan;
+          // Without a project start date there is no day zero to count from and
+          // be-01 ignores the constraint entirely. A rendered disabled state
+          // rather than an editor that opens onto nothing: a date that saves
+          // and does nothing is worse than a field that will not take one.
+          const noCalendar = live.current.startDate === null;
+          const editing = live.current.editingNotBefore === row.original.id;
+          const open = (): void => {
+            if (noCalendar) return;
+            live.current.openNotBefore(row.original.id);
+          };
+          return (
+            /*
+              The wrapper the editor escapes through. It is `position: relative`
+              and **inside** the `<td>`, which is why `opensAPopover` has to
+              lift this column's clip for the editor to be visible at all — see
+              the note there. At rest it holds a short date and escapes nothing.
+            */
+            <span style={{ position: 'relative', display: 'block' }}>
+              {editing ? (
+                <DateField
+                  aria-label={`Earliest start for ${row.original.number}`}
+                  data-not-before={row.original.id}
+                  data-cell={cellKey(row.original.id, 'not-before')}
+                  title="This work item may not start before this day. Its dependencies can still push it later."
+                  onKeyDown={(e) => {
+                    // The chords, and nothing else this cell does not already
+                    // own: a native date input keeps its own arrows for the
+                    // segment under the caret, which is why {@link onArrowKey}
+                    // is absent here.
+                    live.current.onCommandKey(e, row.original, 'not-before');
+                    live.current.onTabKey(e, row.original.id, 'not-before');
+                  }}
+                  onExit={() => {
+                    live.current.closeNotBefore(row.original.id);
+                  }}
+                  // Wider than its column, on purpose: {@link DATE_EDITOR_WIDTH}
+                  // is what this browser lays an unconstrained date input out
+                  // at, and a column that grew to fit one would move every cell
+                  // under the person typing. It leaves the cell instead, over
+                  // the columns beside it, which is what the `z-index` is for.
+                  style={{
+                    position: 'relative',
+                    zIndex: 10,
+                    width: DATE_EDITOR_WIDTH,
+                    boxSizing: 'border-box',
+                    font: 'inherit',
+                  }}
+                  value={day ?? ''}
+                  commit={(typed) => {
+                    // A date input reports '' when cleared, which is the caller
+                    // saying "no constraint" rather than "an empty date".
+                    live.current.setNotBefore(row.original.id, typed === '' ? null : typed);
+                  }}
+                />
+              ) : (
+                /*
+                  The day at rest, and still a cell of the keyboard grid: Tab
+                  lands here, the arrows land here, and `editableGrid` finds it
+                  because it is an `<input>` carrying `data-cell` — which is
+                  also why it is not `readOnly`, an attribute that selector
+                  deliberately excludes. Nothing is ever typed into it: a
+                  keystroke opens the editor instead, which is what `onChange`
+                  is doing here.
+                */
+                <input
+                  aria-label={`Earliest start for ${row.original.number}`}
+                  disabled={noCalendar}
+                  data-not-before={row.original.id}
+                  data-cell={cellKey(row.original.id, 'not-before')}
+                  title={
+                    noCalendar
+                      ? 'Set the project start date first — without one there are no dates to constrain.'
+                      : day === null
+                        ? 'This work item may not start before this day. Its dependencies can still push it later.'
+                        : `${day}. This work item may not start before this day. Its dependencies can still push it later.`
+                  }
+                  style={{
+                    width: '100%',
+                    boxSizing: 'border-box',
+                    font: 'inherit',
+                    background: 'transparent',
+                    border: 'none',
+                    cursor: noCalendar ? 'not-allowed' : 'text',
+                  }}
+                  // An em-dash for a row that sets no day, which reads as "none"
+                  // rather than as a cell that failed to load.
+                  value={day === null ? '—' : shortIsoDate(day, new Date())}
+                  onChange={open}
+                  onMouseDown={open}
+                  onKeyDown={(e) => {
+                    // A bare Enter opens the editor; a chord is the table's and
+                    // is left to it, which is why the modifiers are asked about
+                    // before anything else happens.
+                    if (e.key === 'Enter' && !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey) {
+                      e.preventDefault();
+                      open();
+                      return;
+                    }
+                    live.current.onCommandKey(e, row.original, 'not-before');
+                    live.current.onTabKey(e, row.original.id, 'not-before');
+                  }}
+                />
+              )}
+            </span>
+          );
+        },
       }),
       column.display({
         id: 'start',

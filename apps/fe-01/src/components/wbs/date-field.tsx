@@ -19,6 +19,21 @@ export interface DateFieldProps extends PassedThrough {
    * arrived over whatever has happened since.
    */
   commit: (day: string) => void;
+  /**
+   * How this edit ended, called once, after {@link commit} has had its chance.
+   *
+   * `'commit'` for Enter and for leaving the field: the day in the box has been
+   * sent, if it differed from the one already agreed. `'cancel'` for Escape:
+   * nothing was sent, and **nothing will be** — the blur Escape causes is
+   * suppressed, because an editor that is closed by Escape and then blurred on
+   * its way out would send the abandoned day on the way.
+   *
+   * Optional because the toolbar's project start date has no editor lifecycle
+   * to report: it is always on screen, and leaving it is not closing it. The
+   * table's earliest-start cell is the caller this exists for — it mounts this
+   * component only while a cell is being edited, and this is what unmounts it.
+   */
+  onExit?: (how: 'commit' | 'cancel') => void;
 }
 
 /**
@@ -69,7 +84,7 @@ export interface DateFieldProps extends PassedThrough {
  * over a reader who is in the box` failed on `expected '2026-09-01' to be
  * '2026-08-17'`. All watched, 2026-08-09.
  */
-export function DateField({ value, commit, onKeyDown, ...rest }: DateFieldProps) {
+export function DateField({ value, commit, onExit, onKeyDown, ...rest }: DateFieldProps) {
   const box = useRef<HTMLInputElement | null>(null);
   /**
    * The day this box last agreed with the server about — what a commit is
@@ -80,6 +95,23 @@ export function DateField({ value, commit, onKeyDown, ...rest }: DateFieldProps)
    * day just sent is not a change to react to.
    */
   const agreed = useRef(value);
+  /**
+   * Whether Escape has abandoned this edit, waiting to be spent by the one blur
+   * it causes.
+   *
+   * Escape closes the editor, closing moves the focus back to the cell, and
+   * moving the focus **blurs this box** — so without this the abandoned day
+   * would be committed by the very gesture that abandoned it. One flag rather
+   * than a listener, spent on the next commit attempt and cleared with it, so a
+   * field that stays on screen (the toolbar's) is editable again straight
+   * after.
+   *
+   * jsdom can watch the flag being set and can never watch it being spent: it
+   * performs no default action and delivers no blur to an element the DOM has
+   * already dropped. `e2e/keyboard.spec.ts` is where the suppression itself is
+   * proved — R5 #14/#15, the same fault class.
+   */
+  const abandoned = useRef(false);
 
   useEffect(() => {
     agreed.current = value;
@@ -92,6 +124,16 @@ export function DateField({ value, commit, onKeyDown, ...rest }: DateFieldProps)
   }, [value]);
 
   const commitIfChanged = (): void => {
+    // Spent here rather than cleared on the way out, because this is the one
+    // place every way of sending a day passes through.
+    // Proof: this branch removed, `e2e/keyboard.spec.ts`'s `Escape leaves the
+    // stored day alone` failed in Chromium — see the `Proof:` there — while
+    // every case in `date-field.test.tsx` stayed green, which is exactly why
+    // the browser one exists.
+    if (abandoned.current) {
+      abandoned.current = false;
+      return;
+    }
     const node = box.current;
     // The ref is this component's own wiring, not a condition to model: a blur
     // can only have come from the node React attached here.
@@ -110,6 +152,21 @@ export function DateField({ value, commit, onKeyDown, ...rest }: DateFieldProps)
     commit(typed);
   };
 
+  /**
+   * Ends the edit: sends the day in the box if there is one to send, and says
+   * which of the two ways out this was.
+   *
+   * The answer is read **before** the commit attempt, because that attempt is
+   * what spends an Escape's suppression — a blur that sent nothing because
+   * Escape had already abandoned the edit is a cancel, and reporting it as a
+   * commit would be this component lying about what it did.
+   */
+  const leaveTheBox = (): 'commit' | 'cancel' => {
+    const suppressed = abandoned.current;
+    commitIfChanged();
+    return suppressed ? 'cancel' : 'commit';
+  };
+
   return (
     <input
       {...rest}
@@ -122,10 +179,34 @@ export function DateField({ value, commit, onKeyDown, ...rest }: DateFieldProps)
         // Before the caller's handler, because the caller's is what moves the
         // caret on: `Ctrl/⌘ + Enter` from a row's date cell lands in the next
         // row, and the date has to have been sent by then.
-        if (event.key === 'Enter') commitIfChanged();
+        if (event.key === 'Enter') {
+          // The call is made first and reported second, deliberately: `onExit?.(
+          // leaveTheBox())` never evaluates its argument when there is no
+          // `onExit`, so the toolbar's date field would stop saving anything at
+          // all. Watched — three cases in `date-field.test.tsx` failed on
+          // `expected [] to deeply equal [ '2026-08-17' ]`. 2026-08-09.
+          const how = leaveTheBox();
+          onExit?.(how);
+        }
+        if (event.key === 'Escape') {
+          abandoned.current = true;
+          const node = box.current;
+          // The ref is this component's own wiring: a keystroke can only have
+          // come from the node React attached here.
+          if (node === null)
+            throw new Error('A date field took a key without ever being attached.');
+          // Back to what the server last agreed. It costs nothing where the
+          // editor is unmounted on the way out, and it is the whole of what
+          // Escape means where the field stays on screen.
+          node.value = agreed.current;
+          onExit?.('cancel');
+        }
         onKeyDown?.(event);
       }}
-      onBlur={commitIfChanged}
+      onBlur={() => {
+        const how = leaveTheBox();
+        onExit?.(how);
+      }}
     />
   );
 }
