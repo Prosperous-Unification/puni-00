@@ -322,6 +322,36 @@ export interface Assignment {
   personId: string;
 }
 
+/**
+ * What a directory write answered.
+ *
+ * `taken` is the unique index on the name refusing a second row, translated
+ * rather than thrown — two people renaming towards the same name is an ordinary
+ * race, not a fault. `not_found` is an id the directory no longer holds, which
+ * is the loser of two removals and a client working from a stale picker.
+ */
+export type DirectoryWriteRefusal = 'not_found' | 'taken';
+
+export type ServiceTeamWritten =
+  | { ok: true; team: ServiceTeam }
+  | { ok: false; reason: DirectoryWriteRefusal };
+
+/**
+ * A change to one person: a new name, a new set of memberships, or both.
+ *
+ * `teamIds` is a **full replacement**, so an absent field and an empty array
+ * mean different things: absent leaves the memberships alone, empty makes the
+ * person a free agent.
+ */
+export interface PersonPatch {
+  name?: string;
+  teamIds?: readonly string[];
+}
+
+export type PersonWritten =
+  | { ok: true; person: PersonWithTeams }
+  | { ok: false; reason: DirectoryWriteRefusal | 'unknown_team' };
+
 export interface DirectoryStore {
   listTeams(): Promise<ServiceTeam[]>;
   /**
@@ -332,9 +362,27 @@ export interface DirectoryStore {
    * pass a check-then-insert.
    */
   addTeam(team: ServiceTeam): Promise<ServiceTeam>;
+  /**
+   * Renames one team, or says why it could not.
+   *
+   * Refused by the unique index rather than by asking first, exactly as
+   * {@link DirectoryStore.addTeam} is: two clients renaming towards `Platform`
+   * at the same moment both pass a check-then-update.
+   */
+  renameTeam(teamId: string, name: string): Promise<ServiceTeamWritten>;
   listPeople(): Promise<PersonWithTeams[]>;
   /** Adds a person, or returns the one with that name, joining them to `teamIds`. */
   addPerson(toAdd: Person, teamIds: readonly string[]): Promise<Person>;
+  /**
+   * Renames a person and replaces their memberships, in **one** transaction.
+   *
+   * The two are one write because a caller may send both and the spec forbids
+   * them being observable half-applied. A `teamIds` entry naming a team the
+   * directory no longer holds refuses the whole patch as `unknown_team` and
+   * writes nothing — the id is read in the same transaction as the writes, so
+   * a team removed after some earlier check cannot slip between them.
+   */
+  patchPerson(personId: string, patch: PersonPatch): Promise<PersonWritten>;
   assignmentsOf(workItemIds: readonly string[]): Promise<Assignment[]>;
   /** Sets, replaces or (with `null`) removes one work item's assignee for one role. */
   assign(workItemId: string, roleId: string, personId: string | null): Promise<void>;

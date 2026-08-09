@@ -1,9 +1,36 @@
-import { and, asc, eq } from 'drizzle-orm';
+import { and, asc, eq, inArray } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
-import type { DirectoryStore, Person, PersonWithTeams, ServiceTeam } from './index';
+import type {
+  DirectoryStore,
+  Person,
+  PersonPatch,
+  PersonWithTeams,
+  PersonWritten,
+  ServiceTeam,
+  ServiceTeamWritten,
+} from './index';
 import { bumpWorkItems } from './revision';
 import { assignment, person, personTeam, serviceTeam } from './schema';
+
+/**
+ * Whether a thrown error is SQLite refusing a second team of the same name.
+ *
+ * The message rather than a typed error, because `bun:sqlite` has no typed one
+ * — the same translation `RoleRepository` makes for a duplicate role name. It
+ * names the index's column so that a different constraint failing here is still
+ * an unknown, and still throws.
+ */
+function isDuplicateTeamName(err: unknown): boolean {
+  return (
+    err instanceof Error && err.message.includes('UNIQUE constraint failed: service_team.name')
+  );
+}
+
+/** The same translation as {@link isDuplicateTeamName}, for the person name index. */
+function isDuplicatePersonName(err: unknown): boolean {
+  return err instanceof Error && err.message.includes('UNIQUE constraint failed: person.name');
+}
 
 /**
  * The global directory: teams, people, who belongs to which, and who is doing
@@ -40,6 +67,41 @@ export class DirectoryRepository implements DirectoryStore {
     return found;
   }
 
+  /**
+   * Renames one team, or reports the name being held or the row being gone.
+   *
+   * A refused rename writes nothing. The team carries no revision of its own —
+   * it is global rather than a satellite of any project — so what tells an open
+   * project about the new name is the event the service publishes after this
+   * commits, not a counter moved here.
+   *
+   * Proof: with the `isDuplicateTeamName` branch removed, `refuses a name
+   * another team holds, naming the survivor` fails with the raw
+   * `SQLITE_CONSTRAINT_UNIQUE` instead of a refusal — the 500 this translation
+   * exists to prevent. With the empty-`returning` branch reporting success,
+   * `refuses a team that is not there` answers `ok` about a row nothing holds.
+   * Both watched 2026-08-09.
+   */
+  async renameTeam(teamId: string, name: string): Promise<ServiceTeamWritten> {
+    await Promise.resolve();
+    try {
+      return this.db.transaction((tx) => {
+        const rows = tx
+          .update(serviceTeam)
+          .set({ name })
+          .where(eq(serviceTeam.id, teamId))
+          .returning()
+          .all();
+        const renamed = rows.at(0);
+        if (renamed === undefined) return { ok: false, reason: 'not_found' };
+        return { ok: true, team: renamed };
+      });
+    } catch (err) {
+      if (isDuplicateTeamName(err)) return { ok: false, reason: 'taken' };
+      throw err;
+    }
+  }
+
   async listPeople(): Promise<PersonWithTeams[]> {
     const people = await this.db.select().from(person).orderBy(asc(person.name));
     const memberships = await this.db.select().from(personTeam);
@@ -64,6 +126,75 @@ export class DirectoryRepository implements DirectoryStore {
         .onConflictDoNothing();
     }
     return found;
+  }
+
+  /**
+   * Renames a person and replaces their memberships in one transaction.
+   *
+   * **The teams are validated before anything is written, inside the same
+   * transaction.** Returning from a drizzle transaction callback *commits* it,
+   * so a refusal decided after the name had been set would answer
+   * `unknown_team` and leave the rename in the database — the half-applied
+   * state the spec says is not observable. Validating first is what makes the
+   * refusal write nothing without needing a rollback.
+   *
+   * The ids are deduplicated here rather than trusted from the caller: the
+   * primary key would refuse the second copy, turning a client sending a team
+   * twice into a 500 for a patch that means exactly what it says.
+   *
+   * Proof: with the team validation moved below the name update, `refuses the
+   * whole patch for a team that is not there, rename included` fails — `Katrin`
+   * survived a patch that answered `unknown_team`. With the present-person
+   * guard removed, `refuses a name of whitespace alone, and a person that is
+   * not there` answers `ok` for an id nothing holds — a patch of no rows
+   * reporting a person. With the
+   * `isDuplicatePersonName` branch removed, `refuses a name another person
+   * holds, naming the survivor` fails with the raw `SQLITE_CONSTRAINT_UNIQUE`.
+   * All watched 2026-08-09.
+   */
+  async patchPerson(personId: string, patch: PersonPatch): Promise<PersonWritten> {
+    await Promise.resolve();
+    const wanted = patch.teamIds === undefined ? null : [...new Set(patch.teamIds)];
+    try {
+      return this.db.transaction((tx) => {
+        const held = tx.select({ id: person.id }).from(person).where(eq(person.id, personId)).all();
+        if (held.length === 0) return { ok: false, reason: 'not_found' };
+        if (wanted !== null && wanted.length > 0) {
+          const found = tx
+            .select({ id: serviceTeam.id })
+            .from(serviceTeam)
+            .where(inArray(serviceTeam.id, wanted))
+            .all();
+          if (found.length !== wanted.length) return { ok: false, reason: 'unknown_team' };
+        }
+        if (patch.name !== undefined) {
+          tx.update(person).set({ name: patch.name }).where(eq(person.id, personId)).run();
+        }
+        if (wanted !== null) {
+          tx.delete(personTeam).where(eq(personTeam.personId, personId)).run();
+          if (wanted.length > 0) {
+            tx.insert(personTeam)
+              .values(wanted.map((serviceTeamId) => ({ personId, serviceTeamId })))
+              .run();
+          }
+        }
+        const rows = tx.select().from(person).where(eq(person.id, personId)).all();
+        const patched = rows.at(0);
+        if (patched === undefined) throw new Error(`person vanished mid-patch: ${personId}`);
+        const teamIds = tx
+          .select({ serviceTeamId: personTeam.serviceTeamId })
+          .from(personTeam)
+          .where(eq(personTeam.personId, personId))
+          .all();
+        return {
+          ok: true,
+          person: { ...patched, teamIds: teamIds.map((row) => row.serviceTeamId) },
+        };
+      });
+    } catch (err) {
+      if (isDuplicatePersonName(err)) return { ok: false, reason: 'taken' };
+      throw err;
+    }
   }
 
   async assignmentsOf(

@@ -31,6 +31,16 @@ export function inMemoryDirectory(): DirectoryStore {
       teams.set(team.id, team);
       return Promise.resolve(team);
     },
+    renameTeam(teamId, name) {
+      const found = teams.get(teamId);
+      if (found === undefined) return Promise.resolve({ ok: false, reason: 'not_found' });
+      // The unique index, modelled: a fixture that let two `Platform`s exist
+      // would let a caller's `taken` branch pass untested.
+      const held = [...teams.values()].some((each) => each.name === name && each.id !== teamId);
+      if (held) return Promise.resolve({ ok: false, reason: 'taken' });
+      teams.set(teamId, { ...found, name });
+      return Promise.resolve({ ok: true, team: { ...found, name } });
+    },
     listPeople: () =>
       Promise.resolve(
         [...people.values()]
@@ -50,6 +60,30 @@ export function inMemoryDirectory(): DirectoryStore {
         memberships.set(kept.id, new Set([...(memberships.get(kept.id) ?? []), ...teamIds]));
       }
       return Promise.resolve(kept);
+    },
+    patchPerson(personId, patch) {
+      const found = people.get(personId);
+      if (found === undefined) return Promise.resolve({ ok: false, reason: 'not_found' });
+      const wanted = patch.teamIds === undefined ? null : [...new Set(patch.teamIds)];
+      // Validated before either write, as production is: a fixture that wrote
+      // the name first would let a half-applied patch pass here and fail there.
+      if (wanted?.some((each) => !teams.has(each)) === true) {
+        return Promise.resolve({ ok: false, reason: 'unknown_team' });
+      }
+      if (patch.name !== undefined) {
+        const held = [...people.values()].some(
+          (each) => each.name === patch.name && each.id !== personId,
+        );
+        if (held) return Promise.resolve({ ok: false, reason: 'taken' });
+        people.set(personId, { ...found, name: patch.name });
+      }
+      if (wanted !== null) memberships.set(personId, new Set(wanted));
+      const patched = people.get(personId);
+      if (patched === undefined) throw new Error(`person vanished mid-patch: ${personId}`);
+      return Promise.resolve({
+        ok: true,
+        person: { ...patched, teamIds: [...(memberships.get(personId) ?? [])] },
+      });
     },
     assignmentsOf(workItemIds) {
       const wanted = new Set(workItemIds);
