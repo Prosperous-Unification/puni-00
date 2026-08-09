@@ -8,9 +8,9 @@ $ bunx nx format:check --all
 
 $ bunx nx run-many -t test lint typecheck build --parallel=2
 NX   Successfully ran targets test, lint, typecheck, build for 21 projects
-     be-01 (bun:test)          482 pass  0 fail  (49 files; was 469 on
-                                                  change/schedule-on-item-role)
-     every bun:test project    917 pass  0 fail
+     be-01 (bun:test)          485 pass  0 fail  (49 files; was 455 on the
+                                                  merged change/schedule-on-item-role head 4f4665e)
+     every bun:test project    922 pass  0 fail
      fe-01 (vitest)            612 pass  0 fail  (25 files, not one of them edited)
 
 $ bunx nx run-many -t test --parallel=2 --skip-nx-cache
@@ -84,8 +84,11 @@ through the levelled engine with every slice carrying `personId: null`:
 
 1. **The existing suite.** `service/schedule.test.ts` — unchanged below its
    adapter, which gained the one field.
-2. **The differential** (`service/schedule-identity.test.ts`): a thousand seeded
-   plans through the 2026-08-08 engine and this one, every field `toBe`-equal.
+2. **The differential** (`service/schedule-identity.test.ts`), in the wider form
+   its own change gave it after review: a thousand seeded plans through the
+   2026-08-08 engine and this one for one, two and three roles, with the old
+   engine's per-leaf sums handed over in a **shuffled** order, every field
+   `toBe`-equal.
 3. **The live capture** (`service/live-plan-identity.test.ts`): a real project's
    `/work-items` response, replayed through `WorkItemService.tree`, asserted
    field by field including calendar dates.
