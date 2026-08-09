@@ -185,7 +185,7 @@ test.describe('the phases surface, in a browser', () => {
 
     // The arithmetic the surface prints, while it is still open to print it.
     await expect(
-      page.getByText('3 phases need ≥1240px before the table scrolls sideways.'),
+      page.getByText('3 phases need ≥1240px of width to sit side by side'),
     ).toBeVisible();
     await page.keyboard.press('Escape');
 

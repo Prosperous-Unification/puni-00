@@ -20,6 +20,7 @@ import {
 } from '@/lib/wbs-api';
 
 import { commandChordIn } from './keyboard-bindings';
+import { CARDS_BELOW } from './plan-renderer';
 import { foldedTableMinWidth } from './table-frame';
 
 /** What a work item's number is, or null once it is no longer in the tree on screen. */
@@ -189,8 +190,20 @@ export function PhasesDialog({
     });
   }
 
-  function submitRename(event: FormEvent, role: RoleView): void {
-    event.preventDefault();
+  /**
+   * Sends the name typed over this phase's, if it is a different one.
+   *
+   * Reached from Enter — the form's own submit — and from **leaving the box**,
+   * which is the half that was missing. Every other text field in this product
+   * commits on blur, so a rename typed and then abandoned by clicking the ✕ was
+   * silently dropped: no PATCH, no toast, no mark on the field. Observed on
+   * 2026-08-09, and `onOpenChange` clearing `renamed` is what made it silent.
+   *
+   * An empty name is a refusal rather than a no-op, on both paths: somebody who
+   * cleared the box meant something by it, and a phase with no name is what
+   * `name_required` is about.
+   */
+  function commitRename(role: RoleView): void {
     const clean = nameShown(role).trim();
     if (clean === '') {
       setProblem(roleRefusalSentence('name_required'));
@@ -203,6 +216,11 @@ export function PhasesDialog({
         Object.fromEntries(Object.entries(current).filter(([id]) => id !== role.id)),
       );
     });
+  }
+
+  function submitRename(event: FormEvent, role: RoleView): void {
+    event.preventDefault();
+    commitRename(role);
   }
 
   /**
@@ -317,6 +335,9 @@ export function PhasesDialog({
                         const typed = event.currentTarget.value;
                         setRenamed((current) => ({ ...current, [role.id]: typed }));
                       }}
+                      onBlur={() => {
+                        commitRename(role);
+                      }}
                     />
                     <button type="submit" className="sr-only">
                       Rename {role.name}
@@ -360,9 +381,17 @@ export function PhasesDialog({
               table starts scrolling sideways under them, and the number is
               `table-frame.ts`'s own rather than a figure typed in here.
             */}
+            {/*
+              Renderer-neutral, and it has to be: this dialog opens from the
+              phone's toolbar sheet too, where there is no table on screen to
+              scroll and a sentence about one describes something the reader
+              will never see. Both numbers are read from the modules that own
+              them rather than typed in here.
+            */}
             <p className="text-muted-foreground text-sm">
-              {count(roles.length, 'phase')} need ≥{String(minWidth)}px before the table scrolls
-              sideways.
+              {count(roles.length, 'phase')} need ≥{String(minWidth)}px of width to sit side by
+              side; a narrower window scrolls sideways, and under {String(CARDS_BELOW)}px the plan
+              is drawn as cards instead.
             </p>
           </>
         ) : (
