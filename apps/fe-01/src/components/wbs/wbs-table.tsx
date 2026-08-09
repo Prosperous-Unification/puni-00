@@ -4262,7 +4262,9 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
       column.display({
         id: 'float',
         header: () => (
-          <span title="Days this work item can slip before the plan's end moves">Slack</span>
+          <span title="Days this work item can slip before the plan's end moves. A row marked critical has none: it is what sets the plan's finish.">
+            Slack
+          </span>
         ),
         cell: ({ row }) => {
           // A critical row has no slack to print, and the word that replaces
@@ -4271,14 +4273,34 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
           // One word, not the `— critical` it was: the column is 56px and the
           // tag has to fit inside it, which the dash and the space did not.
           // `plan-export.ts` has printed the bare word since it was written.
-          const critical = live.current.hasSchedule() && row.original.schedule.critical;
+          if (!live.current.hasSchedule()) {
+            return (
+              <span
+                data-float
+                title="No schedule could be worked out, so there is no slack to show."
+              >
+                —
+              </span>
+            );
+          }
+          if (row.original.schedule.critical) {
+            return (
+              <span
+                data-float
+                data-critical="true"
+                title="On the critical path: any delay here moves the whole plan’s finish."
+              >
+                critical
+              </span>
+            );
+          }
+          const days = showDay(row.original.schedule.float);
           return (
-            <span data-float data-critical={critical ? 'true' : undefined}>
-              {!live.current.hasSchedule()
-                ? '—'
-                : critical
-                  ? 'critical'
-                  : showDay(row.original.schedule.float)}
+            <span
+              data-float
+              title={`This work item can slip ${days} workday${days === '1' ? '' : 's'} before the plan finishes later.`}
+            >
+              {days}
             </span>
           );
         },

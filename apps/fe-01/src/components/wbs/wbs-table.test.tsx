@@ -5094,6 +5094,30 @@ describe('dependencies in the table — cross-review findings', () => {
     expect((await cells()).float).toBe('critical');
   });
 
+  itDom('explains a slack figure in its hover title', async () => {
+    render(<WbsTable projectId="p1" api={apiReturning(null)} />);
+
+    await cells();
+    const row = screen
+      .getAllByRole('row')
+      .find((tr) => tr.querySelector('[data-number]')?.textContent === '010');
+    expect(row?.querySelector('[data-float]')?.getAttribute('title')).toBe(
+      'This work item can slip 2 workdays before the plan finishes later.',
+    );
+  });
+
+  itDom('explains what critical means in the hover title', async () => {
+    render(<WbsTable projectId="p1" api={apiReturning(null, { float: 0, critical: true })} />);
+
+    await cells();
+    const row = screen
+      .getAllByRole('row')
+      .find((tr) => tr.querySelector('[data-number]')?.textContent === '010');
+    expect(row?.querySelector('[data-float]')?.getAttribute('title')).toBe(
+      'On the critical path: any delay here moves the whole plan’s finish.',
+    );
+  });
+
   itDom('shows dashes rather than zeroes when there is no schedule', async () => {
     // agy, medium. A cycle sends every row the same zeroed schedule, and
     // printing those reads as "everything happens on day zero" — a confident
@@ -5102,6 +5126,12 @@ describe('dependencies in the table — cross-review findings', () => {
 
     expect(await cells()).toEqual({ start: '—', finish: '—', float: '—' });
     expect(screen.getByRole('alert').textContent).toContain('run in a circle');
+    const row = screen
+      .getAllByRole('row')
+      .find((tr) => tr.querySelector('[data-number]')?.textContent === '010');
+    expect(row?.querySelector('[data-float]')?.getAttribute('title')).toBe(
+      'No schedule could be worked out, so there is no slack to show.',
+    );
   });
 });
 
