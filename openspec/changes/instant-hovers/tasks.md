@@ -47,7 +47,7 @@ Ordered TDD slices. Only `- [ ]` checkboxes are tracked by the apply phase.
 
 ## 4. The depends cell's card
 
-- [ ] 4.1 Depends cell renders a `HoverCard` listing number + full name per
+- [x] 4.1 Depends cell renders a `HoverCard` listing number + full name per
       dependency; none when empty; none while the picker is open — test:
       `wbs-table.test.tsx` "numbers become names", "nothing to expand",
       "the picker owns the cell while open"; negative: the picker guard

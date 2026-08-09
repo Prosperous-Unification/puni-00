@@ -29,6 +29,7 @@ import { type Caret, type CellRef, commandMove, type Direction, nextCell } from 
 import { CreatablePicker, pickableLabel, PickerList, type PickerOption } from './creatable-picker';
 import { DateField } from './date-field';
 import { pickerEntries, type PickerEntry } from './dep-picker';
+import { DependsCard } from './depends-card';
 import { parseDependencies, unknownMessage } from './depends-input';
 import { type DropRefusal, type DropZone, planMove, zoneFor } from './drag-drop';
 import {
@@ -2561,18 +2562,23 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    * the tree that was on screen a moment ago.
    */
   /**
-   * The numbers of the work items an id list names, in the order given.
+   * The work items an id list names — number and name — in the order given.
    *
    * A dependency is stored by id and read by number, because an id is not
    * something anyone can look at. A row whose predecessor has since been deleted
    * simply drops out of the list rather than rendering a blank chip — the tree
    * refetches on every change, so this cannot be stale for long.
+   *
+   * The name rides along with the number because a chip reading `010` is a
+   * question, and the hover card over those chips is where it is answered. One
+   * pass over `flat` for both: two readers looking up the same rows by id is
+   * two loops and one more place for the list to come out in a different order.
    */
-  const numbersOf = useCallback(
+  const dependenciesOf = useCallback(
     (ids: readonly string[]) =>
       ids.flatMap((id) => {
         const found = flat.find((row) => row.id === id);
-        return found === undefined ? [] : [{ id, number: found.number }];
+        return found === undefined ? [] : [{ id, number: found.number, name: found.name }];
       }),
     [flat],
   );
@@ -3203,8 +3209,8 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
 
   /** The numbers of the work items one waits for, in the order it holds them. */
   const waitsFor = useCallback(
-    (row: TreeRow) => numbersOf(row.dependsOn).map((each) => each.number),
-    [numbersOf],
+    (row: TreeRow) => dependenciesOf(row.dependsOn).map((each) => each.number),
+    [dependenciesOf],
   );
 
   /** What a work item is labelled with, or null where nothing is. */
@@ -3254,7 +3260,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     armedDelete,
     setDragging,
     setDropHint,
-    numbersOf,
+    dependenciesOf,
     dependOn,
     hasSchedule,
     showSchedule,
@@ -3312,7 +3318,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     armedDelete,
     setDragging,
     setDropHint,
-    numbersOf,
+    dependenciesOf,
     dependOn,
     hasSchedule,
     showSchedule,
@@ -3588,7 +3594,8 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         id: 'depends',
         header: 'Depends on',
         cell: ({ row }) => {
-          const numbers = live.current.numbersOf(row.original.dependsOn);
+          const waitingFor = live.current.dependenciesOf(row.original.dependsOn);
+          const dependsCell = cellKey(row.original.id, 'depends');
           // This cell's picker, or null while it is closed or under another row.
           const picker =
             live.current.depPicker?.rowId === row.original.id ? live.current.depPicker : null;
@@ -3607,8 +3614,25 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
               ? undefined
               : pickable.find((entry) => entry.id === picker.highlightId);
           const open = picker !== null && entries.length > 0;
+          // Nothing to expand where nothing is waited for, and the picker owns
+          // the cell while it is open: both boxes hang off the bottom edge of
+          // one 110px cell, and the one somebody is typing into is the one they
+          // are looking at. `picker`, not `open`: a picker with nothing to
+          // offer is still a cell being typed in.
+          const carded =
+            waitingFor.length > 0 && picker === null && live.current.hoveredCell === dependsCell;
           return (
             <span
+              onMouseEnter={() => {
+                live.current.setHoveredCell(dependsCell);
+              }}
+              onMouseLeave={() => {
+                // The same-cell guard, for the reason the Name cell's marker
+                // gives: a leave lands after the next cell's enter.
+                live.current.setHoveredCell((current) =>
+                  current === dependsCell ? null : current,
+                );
+              }}
               // `normal` rather than `nowrap`: a row waiting on six others has
               // six chips, and a line of them that cannot wrap is a line that
               // runs into the next column — or, now, one the cell clips. An
@@ -3626,7 +3650,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                 maxWidth: '100%',
               }}
             >
-              {numbers.map(({ id, number }) => (
+              {waitingFor.map(({ id, number }) => (
                 <button
                   key={id}
                   type="button"
@@ -3846,6 +3870,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                   ))}
                 </ul>
               )}
+              {carded && <DependsCard number={row.original.number} entries={waitingFor} />}
             </span>
           );
         },

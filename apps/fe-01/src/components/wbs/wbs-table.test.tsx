@@ -4791,6 +4791,73 @@ describe('dependencies in the table', () => {
     });
   });
 
+  /** The depends cell of one row: the chips, the box, and the card. */
+  const dependsCellOf = (number: string): HTMLElement => {
+    const found = screen.getByLabelText(`Add a dependency to ${number}`).parentElement;
+    if (found === null) throw new Error(`no depends cell for ${number}`);
+    return found;
+  };
+
+  itDom('turns the numbers a row waits for into names, on hover', async () => {
+    await threeRoots();
+    dependOn('030', '010');
+    await waitFor(() => {
+      expect(screen.getByLabelText('Stop 030 waiting for 010')).toBeDefined();
+    });
+    dependOn('030', '020');
+    await waitFor(() => {
+      expect(screen.getByLabelText('Stop 030 waiting for 020')).toBeDefined();
+    });
+    // The box the numbers were typed into holds the focus, and a cell being
+    // typed in is the picker's — so the pointer has to arrive after it has been
+    // left, which is also how a reader gets there.
+    fireEvent.blur(screen.getByLabelText('Add a dependency to 030'));
+
+    fireEvent.mouseEnter(dependsCellOf('030'));
+
+    const card = screen.getByRole('tooltip');
+    expect(card.getAttribute('aria-label')).toBe('What 030 waits for');
+    expect(card.textContent).toContain('010 - Strip');
+    expect(card.textContent).toContain('020 - Sand');
+  });
+
+  itDom('opens no card over a row that waits for nothing', async () => {
+    // The empty cell is a box and no chips; a card holding an empty list is a
+    // box over the row below saying nothing.
+    //
+    // Proof: the `waitingFor.length > 0` condition dropped, this failed on
+    // `expected <div role="tooltip" …/> to be null`. Watched, 2026-08-09.
+    await threeRoots();
+
+    fireEvent.mouseEnter(dependsCellOf('020'));
+
+    expect(screen.queryByRole('tooltip')).toBeNull();
+  });
+
+  itDom('keeps the cell to the dependency picker while it is open', async () => {
+    // Two boxes off the bottom edge of one 110px cell. The list somebody is
+    // typing into wins, and it opens on the focus rather than on a keystroke —
+    // which is why the guard reads the picker rather than its entries.
+    //
+    // Proof: the `picker === null` condition dropped, this failed on `expected
+    // [ <div role="tooltip" …/> ] to have a length of +0 but got 1` — the card
+    // and the list stacked over one cell. Watched, 2026-08-09.
+    await threeRoots();
+    dependOn('030', '010');
+    await waitFor(() => {
+      expect(screen.getByLabelText('Stop 030 waiting for 010')).toBeDefined();
+    });
+    fireEvent.blur(screen.getByLabelText('Add a dependency to 030'));
+
+    fireEvent.mouseEnter(dependsCellOf('030'));
+    expect(screen.getAllByRole('tooltip')).toHaveLength(1);
+
+    fireEvent.focus(screen.getByLabelText('Add a dependency to 030'));
+
+    expect(screen.getAllByRole('listbox')).toHaveLength(1);
+    expect(screen.queryAllByRole('tooltip')).toHaveLength(0);
+  });
+
   itDom('moves the dependent row’s start to when its predecessor finishes', async () => {
     const api = await threeRoots();
     // All three, typed. The old table nudged the neighbours of whichever box
