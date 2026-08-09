@@ -55,6 +55,33 @@ describe('the hover preview reads as one document', () => {
     expect(preview.querySelector('em')?.textContent).toBe('rendered');
   });
 
+  itDom('the name out-sizes every heading a note makes', () => {
+    // Found on a live screen: the browser's default `h2` is 1.5em, so a note
+    // opening with `## Risks` stood taller than the 1.05em name above it and
+    // read as the preview's title. The name is the document's heading; every
+    // heading the notes make renders under it, in their own order.
+    //
+    // Inline sizes are the production mechanism, so jsdom can see this one: a
+    // heading this comparison reads as NaN is one the override no longer
+    // reaches, and the browser sizes it over the name. Proof: the `h2` entry
+    // deleted from `noteHeadings`, this failed on `expected 1.15 to be greater
+    // than NaN`; the note-`h1` entry deleted, on `expected 1.3 to be greater
+    // than NaN` for the `# shouted` heading. Watched, 2026-08-09.
+    const preview = previewOf('Strip the old wiring', '# shouted\n\n## Risks\n\n### deep');
+
+    const [nameHeading, noteH1] = [...preview.querySelectorAll('h1')];
+    const noteH2 = preview.querySelector('h2');
+    const noteH3 = preview.querySelector('h3');
+    const sizeOf = (heading: HTMLElement | null | undefined): number =>
+      parseFloat(heading?.style.fontSize ?? '');
+
+    expect(sizeOf(nameHeading)).toBeGreaterThan(sizeOf(noteH1));
+    expect(sizeOf(noteH1)).toBeGreaterThan(sizeOf(noteH2));
+    expect(sizeOf(noteH2)).toBeGreaterThan(sizeOf(noteH3));
+    // 1em text sits under the deepest sized heading, closing the order.
+    expect(sizeOf(noteH3)).toBeGreaterThan(1);
+  });
+
   itDom('renders raw HTML in a note as the text somebody typed', () => {
     const preview = previewOf(
       'Strip',

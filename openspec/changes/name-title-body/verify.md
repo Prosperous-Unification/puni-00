@@ -215,6 +215,26 @@ note written under the name, focus or no focus` lost its at-rest half, which
 
 ## What is not watched here
 
-Whether one line is the right amount at a glance across forty rows, and whether
-the preview's heading is the right size next to the notes under it. Neither is
-a measurement. Dany's screen, <https://dev.wbs.bulletpoints.club>.
+Whether one line is the right amount at a glance across forty rows. Not a
+measurement. Dany's screen, <https://dev.wbs.bulletpoints.club>.
+
+## The live round: the preview's heading was the wrong size
+
+The second question this section used to hold — whether the preview's heading
+is the right size next to the notes under it — was answered by looking, in
+Chrome against the live dev stack (this checkout, `bun --watch`): **it was
+not.** The name rendered at 1.05em while a note opening with `## Risks` kept
+the browser's 1.5em `h2`, so the note's heading read as the preview's title
+and the name as its footnote.
+
+Fixed in `hover-preview.tsx`: the name is 1.3em/700, and a note's `h1`–`h3`
+are sized under it (1.15/1.08/1.02em) through `react-markdown`'s `components`
+— inline sizes, which is what lets jsdom see this one. The elements keep their
+levels; the first test still asserts `## Risks` renders an `h2`.
+
+| Fault injected                  | Test                                            | Observed                               |
+| ------------------------------- | ----------------------------------------------- | -------------------------------------- |
+| `h2` entry deleted from the map | `the name out-sizes every heading a note makes` | `expected 1.15 to be greater than NaN` |
+| note-`h1` entry deleted         | same                                            | `expected 1.3 to be greater than NaN`  |
+
+Both restored, 4/4 green.
