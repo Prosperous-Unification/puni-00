@@ -1,7 +1,7 @@
-import { eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
-import type { Role, RoleRemoval, RoleStore, RoleUsageRows, RoleWritten } from './index';
+import type { Assignment, Role, RoleRemoved, RoleStore, RoleUsageRows, RoleWritten } from './index';
 import { bumpProject, bumpWorkItems } from './revision';
 import { assignment, estimate, role, workItem } from './schema';
 
@@ -19,6 +19,27 @@ function isDuplicateName(err: unknown): boolean {
     err instanceof Error &&
     err.message.includes('UNIQUE constraint failed: role.project_id, role.name')
   );
+}
+
+/**
+ * Every assignment in one project, read through the work items that hold them.
+ *
+ * The whole project's rather than one role's, because whether a work item's
+ * assumed assignee moves when a role goes depends on what it holds for the roles
+ * that stay — see {@link RoleUsageRows}. Takes the writer so the refusal can
+ * read it inside the transaction that refused.
+ */
+function assignmentsIn(reader: Pick<SQLiteBunDatabase, 'select'>, projectId: string): Assignment[] {
+  return reader
+    .select({
+      workItemId: assignment.workItemId,
+      roleId: assignment.roleId,
+      personId: assignment.personId,
+    })
+    .from(assignment)
+    .innerJoin(workItem, eq(assignment.workItemId, workItem.id))
+    .where(eq(workItem.projectId, projectId))
+    .all();
 }
 
 /**
@@ -140,55 +161,88 @@ export class RoleRepository implements RoleStore {
   }
 
   /**
-   * Removes the role and everything that hangs off it, in one transaction.
+   * Counts, decides and deletes in **one** transaction.
+   *
+   * The count is inside because it *is* the decision, not a report about it. A
+   * caller that asked without `cascade` consented to nothing, so an estimate
+   * written between that caller's own count and this statement has to refuse the
+   * removal rather than be deleted by it — the counts a person was shown never
+   * mentioned it. `cascade` is the only thing carried across the two requests;
+   * every number is read here, freshly.
    *
    * The estimates are deleted **explicitly**: `estimate.role_id` has no
-   * `onDelete` cascade, so deleting the role row on its own hits the foreign
-   * key and answers 500 — which is what a role delete does today. The
-   * assignments are deleted explicitly too, though their column does cascade,
-   * so that what this reports having removed is what this statement removed
-   * rather than what the database did behind it.
+   * `onDelete` cascade, so deleting the role row on its own hits the foreign key
+   * and answers 500. The assignments are deleted explicitly too, though their
+   * column does cascade, so that what this reports having removed is what this
+   * statement removed rather than what the database did behind it.
    *
-   * Which work items to bump is read **inside** the transaction, immediately
-   * before the deletes. An estimate written after the caller counted is
-   * therefore deleted with the rest and its work item's revision moves with it:
-   * the row can never be left pointing at a role that has gone, and a journal
-   * entry that touched it refuses instead of applying against a plan whose
-   * phases changed.
+   * Every read and every delete is scoped through `roleInProject`, a subquery
+   * that is empty for a role that has gone or never belonged to this project. So
+   * the loser of two removals counts nothing, deletes nothing, and is told
+   * `not_found` by its own `DELETE ... RETURNING` — no revision moves and its
+   * caller has no event to announce. The same scoping is what stops one
+   * project's route from deleting another project's role by id.
    *
-   * Proof, both watched 2026-08-08: with the estimate delete removed, all three
-   * removal cases fail on `FOREIGN KEY constraint failed` — the 500 a bare role
-   * delete answers today; with the bump set narrowed to the assignments alone,
+   * Proof, all watched: the estimate delete removed, and all three removal cases
+   * fail on `FOREIGN KEY constraint failed` — the 500 a bare role delete answers
+   * today (2026-08-08). The bump set narrowed to the assignments alone, and
    * `deletes an estimate written between the count and the confirmed removal`
-   * fails, the work item estimated after the count still reading its old
-   * revision.
+   * fails on the third work item's revision (2026-08-08). The counting left in
+   * the service alone, and `refuses an unconfirmed removal when an estimate
+   * lands after the count` deletes it instead; the `RETURNING` check dropped,
+   * and `refuses the loser of two removals, bumping and announcing nothing`
+   * moves the project's revision and answers `ok`; the role delete's
+   * `projectId` condition dropped, and `reports another project’s role as not
+   * there, and leaves it alone` deletes theirs (2026-08-09).
    *
    * What no test here can observe is a writer landing **inside** this
    * transaction: `bun:sqlite` transactions are synchronous, so the interleave
-   * the API actually faces — count, somebody else's write, confirm — is the one
-   * the test reproduces, and it is reproduced across the two calls rather than
-   * inside one.
+   * the API actually faces — count, somebody else's write, confirm — is
+   * reproduced across two calls rather than inside one.
    */
-  async remove(projectId: string, roleId: string): Promise<RoleRemoval> {
+  async remove(projectId: string, roleId: string, cascade: boolean): Promise<RoleRemoved> {
     await Promise.resolve();
     return this.db.transaction((tx) => {
+      const roleInProject = tx
+        .select({ id: role.id })
+        .from(role)
+        .where(and(eq(role.id, roleId), eq(role.projectId, projectId)));
       const estimated = tx
         .select({ workItemId: estimate.workItemId })
         .from(estimate)
-        .where(eq(estimate.roleId, roleId))
+        .where(inArray(estimate.roleId, roleInProject))
         .all();
       const assigned = tx
         .select({ workItemId: assignment.workItemId })
         .from(assignment)
-        .where(eq(assignment.roleId, roleId))
+        .where(inArray(assignment.roleId, roleInProject))
         .all();
-      tx.delete(estimate).where(eq(estimate.roleId, roleId)).run();
-      tx.delete(assignment).where(eq(assignment.roleId, roleId)).run();
-      tx.delete(role).where(eq(role.id, roleId)).run();
+      if (!cascade && (estimated.length > 0 || assigned.length > 0)) {
+        return {
+          ok: false,
+          reason: 'in_use',
+          usage: { estimates: estimated.length, assignments: assignmentsIn(tx, projectId) },
+        };
+      }
+      tx.delete(estimate).where(inArray(estimate.roleId, roleInProject)).run();
+      tx.delete(assignment).where(inArray(assignment.roleId, roleInProject)).run();
+      const removed = tx
+        .delete(role)
+        .where(and(eq(role.id, roleId), eq(role.projectId, projectId)))
+        .returning()
+        .all();
+      // Nothing was deleted, so there was nothing here to delete: somebody
+      // else's removal committed first, or this role belongs to another
+      // project. Either way this request changed nothing and must move no
+      // revision — the two deletes above touched nothing for the same reason.
+      if (removed.length === 0) return { ok: false, reason: 'not_found' };
       const workItemIds = [...new Set([...estimated, ...assigned].map((row) => row.workItemId))];
       bumpWorkItems(tx, workItemIds);
       bumpProject(tx, projectId);
-      return { estimates: estimated.length, assignments: assigned.length, workItemIds };
+      return {
+        ok: true,
+        removal: { estimates: estimated.length, assignments: assigned.length, workItemIds },
+      };
     });
   }
 }

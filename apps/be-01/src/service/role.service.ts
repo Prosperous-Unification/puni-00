@@ -1,4 +1,4 @@
-import type { ProjectStore, Role, RoleStore } from '../repository';
+import type { ProjectStore, Role, RoleStore, RoleUsageRows } from '../repository';
 import { type AssumedAssigneeFlip, assumedAssigneeFlips } from './assumed-assignee';
 import type { Broadcaster } from './broadcast';
 import { canEdit } from './project.service';
@@ -43,6 +43,22 @@ export type RemoveRoleOutcome =
 function cleanName(name: string): string | null {
   const trimmed = name.trim();
   return trimmed === '' ? null : trimmed;
+}
+
+/**
+ * One usage reading as the refusal reports it: the role's own rows counted, and
+ * the readings that would move under them.
+ *
+ * One function for both readings the removal takes — the fast path's and the
+ * transaction's — so the numbers a person is shown are built the same way
+ * whichever of the two refused.
+ */
+function inUseFrom(usage: RoleUsageRows, roleId: string): RoleInUse {
+  return {
+    estimates: usage.estimates,
+    assignments: usage.assignments.filter((each) => each.roleId === roleId).length,
+    assumedAssignees: assumedAssigneeFlips(usage.assignments, roleId),
+  };
 }
 
 /**
@@ -109,14 +125,24 @@ export class RoleService {
    * at is removed without a second call — there is nothing to warn about, and
    * asking anyway teaches people to confirm without reading.
    *
-   * `cascade` is the caller saying it has seen those counts. Nothing is carried
-   * over from the refusal: what the transaction deletes is what is there when it
-   * runs, which is why a write that arrived in between is deleted rather than
-   * left pointing at a role that has gone.
+   * `cascade` is the caller saying it has seen those counts, and it is the only
+   * thing carried across the two requests. **The count that decides is the one
+   * inside the delete's transaction** — the read below is a fast path that
+   * answers most refusals without opening one, and an estimate written after it
+   * is refused by the transaction rather than deleted by it.
    *
-   * Proof: with the refusal made unreachable, `refuses a role that is used,
-   * counting what would go` fails — the first, unconfirmed call took two
-   * estimates and an assignment with it; watched 2026-08-08.
+   * A removal that removed nothing announces nothing. Two people pressing the
+   * key at once both pass the gate, one transaction finds the role gone, and a
+   * second `role_removed` would send every client to reread a change that did
+   * not happen.
+   *
+   * Proof, all watched: with the refusal made unreachable, `refuses a role that
+   * is used, counting what would go` fails — the first, unconfirmed call took
+   * two estimates and an assignment with it (2026-08-08). With the transaction's
+   * own count removed, `refuses an unconfirmed removal when an estimate lands
+   * after the count` deletes that estimate and answers `ok`; with the
+   * `not_found` branch below made to publish anyway, `refuses the loser of two
+   * removals, bumping and announcing nothing` sees a phantom event (2026-08-09).
    */
   async remove(
     projectId: string,
@@ -129,21 +155,18 @@ export class RoleService {
       return { ok: false, reason: gate.reason === 'forbidden' ? 'forbidden' : 'not_found' };
 
     if (!cascade) {
-      const usage = await this.opts.roles.usageOf(projectId, roleId);
-      const held = usage.assignments.filter((each) => each.roleId === roleId).length;
-      if (usage.estimates > 0 || held > 0) {
-        return {
-          ok: false,
-          reason: 'in_use',
-          inUse: {
-            estimates: usage.estimates,
-            assignments: held,
-            assumedAssignees: assumedAssigneeFlips(usage.assignments, roleId),
-          },
-        };
+      const seen = inUseFrom(await this.opts.roles.usageOf(projectId, roleId), roleId);
+      if (seen.estimates > 0 || seen.assignments > 0) {
+        return { ok: false, reason: 'in_use', inUse: seen };
       }
     }
-    await this.opts.roles.remove(projectId, roleId);
+    const removed = await this.opts.roles.remove(projectId, roleId, cascade);
+    if (!removed.ok) {
+      if (removed.reason === 'not_found') return { ok: false, reason: 'not_found' };
+      // The transaction's own count, not the fast path's: it is the only one
+      // that was still true at the moment the deletes would have run.
+      return { ok: false, reason: 'in_use', inUse: inUseFrom(removed.usage, roleId) };
+    }
     await this.opts.broadcast.publish(projectId, { type: 'role_removed', roleId });
     return { ok: true };
   }

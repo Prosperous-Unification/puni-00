@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
-import type { Role, WorkItem } from '../repository';
+import type { Role, RoleStore, WorkItem } from '../repository';
 import { openDrizzle } from '../repository/db';
 import { DirectoryRepository } from '../repository/directory';
 import { EstimateRepository } from '../repository/estimate';
@@ -184,6 +184,26 @@ describe('RoleService.rename', () => {
   });
 });
 
+/**
+ * The real store with one method wrapped, so a test can put somebody else's
+ * write in the gap between two of the service's calls.
+ *
+ * Written out rather than spread from the repository: `RoleRepository`'s
+ * methods live on its prototype, and `{ ...roleStore }` copies its connection
+ * and none of them.
+ */
+function storeWith(overrides: Partial<RoleStore>): RoleStore {
+  return {
+    listByProject: (projectOf) => roleStore.listByProject(projectOf),
+    findById: (roleOf) => roleStore.findById(roleOf),
+    add: (toAdd) => roleStore.add(toAdd),
+    rename: (roleOf, name) => roleStore.rename(roleOf, name),
+    usageOf: (projectOf, roleOf) => roleStore.usageOf(projectOf, roleOf),
+    remove: (projectOf, roleOf, cascade) => roleStore.remove(projectOf, roleOf, cascade),
+    ...overrides,
+  };
+}
+
 describe('RoleService.remove', () => {
   it('removes a role nothing points at, without asking again', async () => {
     const outcome = await roles.remove(projectId, qaId, ownerId, false);
@@ -228,6 +248,61 @@ describe('RoleService.remove', () => {
     expect(broadcast.published).toEqual([
       { projectId, event: { type: 'role_removed', roleId: qaId } },
     ]);
+  });
+
+  it('refuses an unconfirmed removal when an estimate lands after the count', async () => {
+    // The gap the confirmation opens, from the other side. The service counts
+    // first as a fast path, and somebody estimates the doomed role in the
+    // moment between that count and the delete. An unconfirmed request must
+    // still refuse: it was never consent to take anything, and what it would
+    // take is a trio nobody has been shown.
+    const service = new RoleService({
+      projects: projectStore,
+      roles: storeWith({
+        async usageOf(watchedProject, watchedRole) {
+          const counted = await roleStore.usageOf(watchedProject, watchedRole);
+          await estimates.set({ workItemId: 'strip', roleId: qaId, ...DAYS });
+          return counted;
+        },
+      }),
+      broadcast,
+    });
+
+    const outcome = await service.remove(projectId, qaId, ownerId, false);
+
+    expect(outcome).toMatchObject({ ok: false, reason: 'in_use' });
+    expect(await estimates.listByProject(projectId)).toHaveLength(1);
+    expect(await roleStore.findById(qaId)).not.toBeNull();
+    expect(broadcast.published).toEqual([]);
+  });
+
+  it('refuses the loser of two removals, bumping and announcing nothing', async () => {
+    // Both requests pass the gate against a role that is still there, and one
+    // of them commits first. The loser has nothing to remove, so it has nothing
+    // to announce either: a second `role_removed` would make every client
+    // reread for a change that did not happen, and the project's revision would
+    // move for a write nobody made.
+    let winnerRevision: number | undefined;
+    const service = new RoleService({
+      projects: projectStore,
+      roles: storeWith({
+        async findById(watched) {
+          const found = await roleStore.findById(watched);
+          if (winnerRevision === undefined) {
+            await roleStore.remove(projectId, qaId, true);
+            winnerRevision = (await projectStore.findById(projectId))?.revision;
+          }
+          return found;
+        },
+      }),
+      broadcast,
+    });
+
+    const outcome = await service.remove(projectId, qaId, ownerId, true);
+
+    expect(outcome).toEqual({ ok: false, reason: 'not_found' });
+    expect((await projectStore.findById(projectId))?.revision).toBe(winnerRevision);
+    expect(broadcast.published).toEqual([]);
   });
 
   it('refuses a caller who may not write to the project, cascade or not', async () => {
