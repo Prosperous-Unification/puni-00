@@ -24,8 +24,6 @@ function stubbed(overrides: Partial<Parameters<typeof PhasesDialog>[0]> = {}) {
   const removeRole = vi.fn(() => Promise.resolve({ ok: true }));
   const onChanged = vi.fn(() => Promise.resolve());
   const props = {
-    open: true,
-    onOpenChange: vi.fn(),
     roles: [DEV, QA],
     numberOf: (id: string) => NUMBERS[id] ?? null,
     nameOf: (id: string) => PEOPLE[id] ?? null,
@@ -36,6 +34,9 @@ function stubbed(overrides: Partial<Parameters<typeof PhasesDialog>[0]> = {}) {
     ...overrides,
   };
   render(<PhasesDialog {...props} />);
+  // Opened through its own trigger, because the trigger is the component's now:
+  // Radix restores the focus to it on close and to nothing without one.
+  fireEvent.click(screen.getByRole('button', { name: 'Phases' }));
   return { addRole, renameRole, removeRole, onChanged, props };
 }
 
@@ -119,6 +120,48 @@ describe('the phases a project holds', () => {
     );
     expect(document.body.textContent).not.toContain('taken');
     expect(stub.onChanged).not.toHaveBeenCalled();
+  });
+});
+
+describe('leaving the surface', () => {
+  itDom('gives the focus back to the button that opened it', async () => {
+    stubbed();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+    await settle();
+
+    // Radix's `onCloseAutoFocus` calls `preventDefault()` and then focuses its
+    // **trigger** — so a dialog opened without a `ModalTrigger` cancels the
+    // default restore and puts the focus nowhere. Found in a browser, where
+    // `Escape closes it and gives the focus back to the button that opened it`
+    // failed on `expect(locator).toBeFocused()` with `<body>` holding it.
+    // Proof: `ModalTrigger` swapped for a plain `Button` with an `onClick`,
+    // this failed on `expected <body style><div>…(1)</div></body> to be
+    // <button …(3)></button>`. Watched, 2026-08-09.
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Phases' }));
+  });
+
+  itDom('leaves no half-answered confirmation behind', async () => {
+    // A confirmation somebody walked away from is not one they agreed to.
+    const removeRole = vi.fn((_roleId: string, cascade: boolean) =>
+      cascade
+        ? Promise.resolve({ ok: true })
+        : Promise.resolve({
+            ok: false,
+            reason: 'in_use' as const,
+            inUse: { estimates: 1, assignments: 0, assumedAssignees: [] },
+          }),
+    );
+    stubbed({ removeRole });
+    fireEvent.click(screen.getByRole('button', { name: 'Remove QA' }));
+    await settle();
+    expect(screen.getByLabelText('Delete them along with the phase')).toBeDefined();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+    await settle();
+    fireEvent.click(screen.getByRole('button', { name: 'Phases' }));
+
+    expect(screen.queryByLabelText('Delete them along with the phase')).toBeNull();
   });
 });
 

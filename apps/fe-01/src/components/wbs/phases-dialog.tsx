@@ -10,6 +10,7 @@ import {
   ModalFooter,
   ModalHeader,
   ModalTitle,
+  ModalTrigger,
 } from '@/components/ui/modal';
 import {
   type AssumedAssigneeFlipView,
@@ -77,8 +78,6 @@ export function flipSentence(
 }
 
 export interface PhasesDialogProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
   /** The phases the table is currently drawing columns for. */
   roles: readonly RoleView[];
   numberOf: NumberOf;
@@ -117,8 +116,6 @@ interface Confirming {
  * second answer to a question be-01 owns.
  */
 export function PhasesDialog({
-  open,
-  onOpenChange,
   roles,
   numberOf,
   nameOf,
@@ -127,6 +124,20 @@ export function PhasesDialog({
   removeRole,
   onChanged,
 }: PhasesDialogProps) {
+  /**
+   * Whether the surface is up.
+   *
+   * Held here rather than by the caller, because the **trigger** is held here
+   * too and the two belong together. Radix's `onCloseAutoFocus` calls
+   * `preventDefault()` and then focuses `triggerRef` — so a dialog opened
+   * without a {@link ModalTrigger} restores the focus to nothing at all: the
+   * default restore has been cancelled and there is no trigger to put it back
+   * on. The browser found it (`Escape closes it and gives the focus back to the
+   * button that opened it`, `expect(locator).toBeFocused() failed`, activeElement
+   * `<body>`), and the fix is to give Radix the button rather than to hand it a
+   * ref of our own.
+   */
+  const [open, setOpen] = useState(false);
   const [newName, setNewName] = useState('');
   /**
    * The names being typed over the phases' own, by role id.
@@ -247,8 +258,30 @@ export function PhasesDialog({
 
   const minWidth = foldedTableMinWidth(roles.length);
 
+  /** Opens and closes, and leaves nothing half-answered behind on the way out. */
+  function onOpenChange(next: boolean): void {
+    setOpen(next);
+    // A confirmation the reader walked away from is not one they agreed to, and
+    // a refusal about a box that is no longer on screen is a sentence about
+    // nothing. Both go when the surface does.
+    if (next) return;
+    setConfirming(null);
+    setProblem(null);
+    setRenamed({});
+  }
+
   return (
     <Modal open={open} onOpenChange={onOpenChange}>
+      <ModalTrigger asChild>
+        <Button
+          variant="outline"
+          size="sm"
+          type="button"
+          title="Add, rename and remove the phases every work item is estimated by"
+        >
+          Phases
+        </Button>
+      </ModalTrigger>
       <ModalContent onKeyDown={onChord}>
         <ModalHeader>
           <ModalTitle>Phases</ModalTitle>

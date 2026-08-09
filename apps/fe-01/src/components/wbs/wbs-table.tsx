@@ -701,8 +701,6 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
   const [hoveredNotes, setHoveredNotes] = useState<string | null>(null);
   /** Whether the key bindings are on screen. See {@link KeyboardCheatSheet}. */
   const [cheatSheetOpen, setCheatSheetOpen] = useState(false);
-  /** Whether the project's phases are on screen. See {@link PhasesDialog}. */
-  const [phasesOpen, setPhasesOpen] = useState(false);
   /**
    * Whether this reader has anything to undo or redo, as of the last tree read.
    *
@@ -4123,21 +4121,26 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         </Button>
         {/*
           The phases, which are the project's to choose since `R1 role-crud`.
-          Not disabled by `busy`: the surface has its own in-flight state, and a
-          button that went dead while somebody else's edit was refetching would
-          be unopenable on a plan two people are working on.
+          The button belongs to the dialog rather than sitting beside it: Radix
+          restores the focus to its **trigger** on close and to nothing at all
+          without one, so the two are one component. The surface itself lands in
+          a portal, not here.
+
+          Not disabled by `busy`: it has its own in-flight state, and a button
+          that went dead while somebody else's edit was refetching would be
+          unopenable on a plan two people are working on.
         */}
-        <Button
-          variant="outline"
-          size="sm"
-          type="button"
-          title="Add, rename and remove the phases every work item is estimated by"
-          onClick={() => {
-            setPhasesOpen(true);
-          }}
-        >
-          Phases
-        </Button>
+        <PhasesDialog
+          roles={roles}
+          numberOf={(workItemId) => flat.find((row) => row.id === workItemId)?.number ?? null}
+          nameOf={(personId) => people.find((person) => person.id === personId)?.name ?? null}
+          addRole={(name) => api.addRole(projectId, name)}
+          renameRole={(roleId, name) => api.renameRole(projectId, roleId, name)}
+          removeRole={(roleId, cascade) => api.removeRole(projectId, roleId, cascade)}
+          // The same reread every other change on this page makes, which is what
+          // puts the new columns on the table and the new list in the dialog.
+          onChanged={refreshOrMarkStale}
+        />
         {/*
           Find. Deliberately without `data-cell`: this is not a cell of the
           table's keyboard grid, and letting Tab and the arrows walk into it
@@ -4583,26 +4586,6 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
           }}
         />
       )}
-
-      {/*
-        Mounted whatever its state, unlike the cheat sheet above: Radix owns the
-        open/closed rendering, unmounts its own content on close and returns the
-        focus from there. A `phasesOpen && …` here would take the surface away
-        before that could happen.
-      */}
-      <PhasesDialog
-        open={phasesOpen}
-        onOpenChange={setPhasesOpen}
-        roles={roles}
-        numberOf={(workItemId) => flat.find((row) => row.id === workItemId)?.number ?? null}
-        nameOf={(personId) => people.find((person) => person.id === personId)?.name ?? null}
-        addRole={(name) => api.addRole(projectId, name)}
-        renameRole={(roleId, name) => api.renameRole(projectId, roleId, name)}
-        removeRole={(roleId, cascade) => api.removeRole(projectId, roleId, cascade)}
-        // The same reread every other change on this page makes, which is what
-        // puts the new columns on the table and the new list in the dialog.
-        onChanged={refreshOrMarkStale}
-      />
     </section>
   );
 }
