@@ -84,6 +84,8 @@ function silentApi(): SilentApi {
           seq: 1,
           scheduleError: null,
           slices: [],
+          roles: [],
+          assignedPeople: [],
           estimateMethod: 'pert' as const,
           startDate: null,
           projectRevision: 1,
@@ -315,6 +317,7 @@ describe('a modal holds the page’s keyboard back', () => {
     render(
       <KeyboardCheatSheet
         altStyle="pc"
+        renderer="table"
         onClose={() => {
           // Nothing closes it in this test; what is being measured is what
           // happens while it is open.

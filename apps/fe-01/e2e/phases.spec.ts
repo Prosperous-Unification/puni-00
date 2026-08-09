@@ -129,6 +129,41 @@ test.describe('the phases surface, in a browser', () => {
     await expect(page.getByRole('button', { name: 'Remove Design' })).toBeVisible();
   });
 
+  /**
+   * A bare Enter in the new-phase box adds the phase, through the browser's own
+   * implicit form submission and nothing this repository wrote.
+   *
+   * `phases-dialog.test.tsx`'s `leaves a bare Enter to the form it is in` is the
+   * jsdom half, and on its own it is satisfied by the environment rather than by
+   * the code: jsdom performs **no** implicit submission at all, so a keydown it
+   * dispatches never reaches a `submit` handler whatever `onChord` does with it.
+   * That assertion cannot distinguish "the chord handler left Enter alone" from
+   * "nothing here submits on Enter ever". Only a browser can.
+   *
+   * Proof: an unconditional `event.preventDefault()` at the top of `onChord` in
+   * `phases-dialog.tsx` — the fault the jsdom test is blind to — this failed on
+   * `expect(locator).toBeVisible() … waiting for getByRole('button', { name:
+   * 'Remove Design' })`, the phase never added, while `leaves a bare Enter to
+   * the form it is in` went on passing. Watched in Chromium, 2026-08-09.
+   */
+  test('a bare Enter in the new-phase box adds the phase', async ({ page }) => {
+    await signInWithAProject(page, throwaway());
+    await page.getByRole('button', { name: 'Phases', exact: true }).click();
+    await expect(page.getByRole('dialog')).toBeVisible();
+
+    await page.getByLabel('New phase').fill('Design');
+    await page.keyboard.press('Enter');
+
+    await expect(page.getByRole('button', { name: 'Remove Design' })).toBeVisible();
+
+    // The plan behind the dialog, not only the list inside it: the phase is a
+    // column the table lays out, and the refetch the submit asked for is what
+    // puts it there. A dialog that listed a phase the table never grew would be
+    // this test passing about half the behaviour.
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('button', { name: 'Unfold Design estimates' })).toBeVisible();
+  });
+
   test('a third phase gives the table a third set of columns', async ({ page }) => {
     // C3-4, closed. The fixture the layout gate could never build: a project
     // with three phases, made the way somebody really makes one.
@@ -150,7 +185,7 @@ test.describe('the phases surface, in a browser', () => {
 
     // The arithmetic the surface prints, while it is still open to print it.
     await expect(
-      page.getByText('3 phases need ≥1240px before the table scrolls sideways.'),
+      page.getByText('3 phases need ≥1240px of width to sit side by side'),
     ).toBeVisible();
     await page.keyboard.press('Escape');
 

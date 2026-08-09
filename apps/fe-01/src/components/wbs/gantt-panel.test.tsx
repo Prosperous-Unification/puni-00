@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import type { IsoDate } from '@wbs/domain/workday';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
@@ -14,8 +14,8 @@ import type {
 
 import type { GanttPlan, GanttRow, GanttSlice } from './gantt-geometry';
 import { PERSON_BAR_COLORS, UNASSIGNED_BAR_COLOR } from './gantt-geometry';
-import { barLabelFor, DAY_PX, GanttPanel, initialsOf, ROW_PX } from './gantt-panel';
-import { WbsTable } from './wbs-table';
+import { barLabelFor, CHART_PAD_PX, DAY_PX, GanttPanel, initialsOf, ROW_PX } from './gantt-panel';
+import { type SubscriptionHandlers, WbsTable } from './wbs-table';
 
 // fe-01 tests require jsdom; only Vitest provides it. Skip under plain `bun test`.
 const hasDom = typeof document !== 'undefined';
@@ -87,6 +87,26 @@ const markAttribute = (selector: string, attribute: string): string =>
   document.querySelector(selector)?.getAttribute(attribute) ??
   `nothing on the chart at ${selector}`;
 
+/**
+ * The four numbers of the chart's `viewBox`, as numbers.
+ *
+ * A throw rather than zeroes for a chart that is not there: every assertion
+ * about where a mark falls is relative to this box, and a box of zeroes would
+ * make all of them pass against a chart nobody drew.
+ */
+function viewBoxOf(svg: Element | null): {
+  minX: number;
+  minY: number;
+  width: number;
+  height: number;
+} {
+  const parts = svg?.getAttribute('viewBox')?.split(' ').map(Number);
+  if (parts?.length !== 4) {
+    throw new Error(`no viewBox on the chart: ${String(svg?.getAttribute('viewBox'))}`);
+  }
+  return { minX: parts[0], minY: parts[1], width: parts[2], height: parts[3] };
+}
+
 const LAPTOP = 1024;
 /** An iPhone 14's CSS width, the one `e2e/mobile.spec.ts` measures at. */
 const PHONE = 390;
@@ -154,10 +174,27 @@ describe('the chart is drawn in workdays', () => {
     );
 
     const svg = document.querySelector('[data-gantt-chart]');
-    // The horizon verbatim, and two rows of it. Same proof as above: with `x`
-    // in pixels the viewBox stays 6 and the bars leave it, which is why this
-    // assertion is not the one that catches the fault — the two together are.
-    expect(svg?.getAttribute('viewBox')).toBe('0 0 6 2');
+    // The horizon verbatim, and two rows of it — plus the band the canvas keeps
+    // at either side for the marks that step outside the schedule (see
+    // {@link CHART_PAD_PX}). The user space is still workdays: the schedule
+    // occupies 0 → 6 of it, which is what the next two assertions say without
+    // repeating the string.
+    //
+    // Same proof as above: with `x` in pixels the viewBox stays this width and
+    // the bars leave it, which is why this assertion is not the one that
+    // catches the fault — the two together are.
+    const pad = CHART_PAD_PX / DAY_PX;
+    expect(svg?.getAttribute('viewBox')).toBe(
+      `${String(-pad)} 0 ${String(6 + 2 * pad)} ${String(2)}`,
+    );
+    // The band said in pixels, which is the unit it is decided in: the canvas
+    // starts one band left of workday 0 and ends one band past the horizon.
+    // `toBeCloseTo` only because `-pad + 6 + 2·pad` is 5.999999999999999 in
+    // binary floating point — the assertion is exact arithmetic, not a
+    // tolerance for drift.
+    const box = viewBoxOf(svg);
+    expect(-box.minX * DAY_PX).toBeCloseTo(CHART_PAD_PX, 10);
+    expect((box.minX + box.width - 6) * DAY_PX).toBeCloseTo(CHART_PAD_PX, 10);
     expect(svg?.getAttribute('preserveAspectRatio')).toBe('none');
   });
 
@@ -623,6 +660,109 @@ describe('the marks that had to be seen', () => {
  * `DAY_PX`/`ROW_PX` the SVG is sized by — which is the arithmetic these tests
  * recompute rather than write pixel numbers for.
  */
+/**
+ * The canvas holds every mark the chart draws.
+ *
+ * The marks are not all inside the engine's numbers, and two of them are
+ * routinely outside: a dependency arrow steps clear of a bar before it turns,
+ * so a successor at workday 0 routes through negative x, and the same arrow off
+ * the last bar routes past the horizon. The viewBox used to be `0 0 horizon
+ * rows`, and a browser's own `overflow: hidden` on an `<svg>` clipped both —
+ * measured in Chromium at **0 painted pixels** for the head of a left-edge
+ * arrow, while `getBoundingClientRect` went on reporting the box it would have
+ * had. That is why the browser half of this lives in `e2e/gantt.spec.ts`: a
+ * clipped path still measures.
+ *
+ * What jsdom can hold is the arithmetic — that every x the chart draws at is
+ * inside the box it declares.
+ */
+describe('the canvas holds every mark it draws', () => {
+  /**
+   * A plan whose one arrow runs off **both** ends of the schedule.
+   *
+   * `sand` is unestimated, so it sits at workday 0 with no width, and the
+   * dependency from `strip` — which finishes at 3, the horizon — has to come
+   * back to it: the route leaves past 3 and arrives from left of 0. The
+   * commonest shape there is, since an unestimated row is where every plan
+   * starts.
+   */
+  const routeOffBothEnds = (): GanttPlan =>
+    planOf({
+      rows: [rowAt('strip', 0, 3), rowAt('sand', 0, 0, { notBeforeOffset: 3 })],
+      slices: [
+        sliceAt('strip-dev', 'strip', 0, 3),
+        sliceAt('sand-dev', 'sand', 0, 0, { duration: 0, estimated: false }),
+      ],
+      dependencies: [{ predecessorId: 'strip', successorId: 'sand' }],
+    });
+
+  /**
+   * Every x the chart draws at: the points of every path, and both edges of
+   * every bar.
+   *
+   * @throws When the chart drew nothing, which would make a claim about "every
+   * mark" a claim about none.
+   */
+  function everyDrawnX(): number[] {
+    const drawn = [...document.querySelectorAll('[data-gantt-chart] path')].flatMap((mark) =>
+      [...(mark.getAttribute('d') ?? '').matchAll(/[ML] (-?[\d.]+) (-?[\d.]+)/g)].map((point) =>
+        Number(point[1]),
+      ),
+    );
+    const bars = [...document.querySelectorAll('[data-gantt-bar]')].flatMap((bar) => {
+      const x = Number(bar.getAttribute('x'));
+      return [x, x + Number(bar.getAttribute('width'))];
+    });
+    const xs = [...drawn, ...bars];
+    if (xs.length === 0) throw new Error('the chart drew no marks to measure');
+    return xs;
+  }
+
+  itDom('declares a canvas wide enough for a route that leaves the schedule', () => {
+    render(
+      <GanttPanel
+        plan={routeOffBothEnds()}
+        startDate={null}
+        scheduleError={null}
+        onPickRow={() => undefined}
+      />,
+    );
+
+    const xs = everyDrawnX();
+    // The fixture really does route outside the schedule, at both ends. Without
+    // these two the assertions below would hold of a chart nothing ever left,
+    // which is the shape of check R5 exists to stop.
+    expect(Math.min(...xs)).toBeLessThan(0);
+    expect(Math.max(...xs)).toBeGreaterThan(3);
+
+    // Proof: the viewBox put back to `0 0 horizon rowCount` and the width to
+    // `horizon * DAY_PX`. This test alone failed, on `expected
+    // -0.35714285714285715 to be greater than or equal to 0` — the arrow's
+    // approach, a third of a workday left of a canvas that started at 0, which
+    // is where Chromium painted nothing at all. Watched 2026-08-09.
+    const box = viewBoxOf(document.querySelector('[data-gantt-chart]'));
+    expect(Math.min(...xs)).toBeGreaterThanOrEqual(box.minX);
+    expect(Math.max(...xs)).toBeLessThanOrEqual(box.minX + box.width);
+  });
+
+  itDom('leaves the bars on the engine’s numbers while the canvas grows', () => {
+    render(
+      <GanttPanel
+        plan={routeOffBothEnds()}
+        startDate={null}
+        scheduleError={null}
+        onPickRow={() => undefined}
+      />,
+    );
+
+    // The coordinate contract binds the bars, not the canvas edges: a wider
+    // box must not move a single one of the engine's numbers (design §1).
+    expect(barFor('strip-dev')?.getAttribute('x')).toBe('0');
+    expect(barFor('strip-dev')?.getAttribute('width')).toBe('3');
+    expect(barFor('strip-dev')?.getAttribute('data-finish')).toBe('3');
+  });
+});
+
 describe('the words on the bars are HTML over the chart', () => {
   /** The overlay label drawn on one slice's bar, or null where none is. */
   const labelOn = (sliceId: string): HTMLElement | null =>
@@ -661,9 +801,13 @@ describe('the words on the bars are HTML over the chart', () => {
     //
     // Proof: `left: bar.start * DAY_PX` replaced by `left: bar.rowIndex * DAY_PX`
     // — a label on the right row, one row's width from the left edge. This test
-    // alone failed, on `expected '28px' to be '84px'`. Watched, 2026-08-09.
+    // alone failed, on `expected '28px' to be '96px'`. Watched, 2026-08-09.
+    //
+    // The band is in the number because the SVG under this span begins one band
+    // left of workday 0 (see {@link CHART_PAD_PX}); dropping it here puts every
+    // name 12px left of the bar it belongs to.
     expect(label?.textContent).toBe('Kat');
-    expect(label?.style.left).toBe(`${String(3 * DAY_PX)}px`);
+    expect(label?.style.left).toBe(`${String(3 * DAY_PX + CHART_PAD_PX)}px`);
     expect(label?.style.width).toBe(`${String(4 * DAY_PX)}px`);
     // Second row, and the same inset the rect above it has: the words sit on
     // the bar rather than beside it.
@@ -975,6 +1119,25 @@ const notImplemented = (what: string): never => {
 };
 
 /**
+ * The four reads `refresh` makes, disagreeing — which is what a peer's edit
+ * landing between two of them leaves behind.
+ *
+ * `tree` carries the slices **and** the roles and names they were placed with;
+ * `roles` and `listPeople` are separate requests at separate moments. This is
+ * how a test says "these two moments do not agree" without inventing a
+ * `GanttPlan` by hand: a hand-built plan proves the geometry throws, and the
+ * question here is which of the four reads the panel is drawn from.
+ */
+interface ReadSkew {
+  /** The slices `tree` answers with, when the fixture's own will not do. */
+  slices?: SliceView[];
+  /** What the **separate** role read says, when it disagrees with the payload. */
+  roles?: RoleView[];
+  /** What the **separate** people read says, when it disagrees with the payload. */
+  people?: PersonView[];
+}
+
+/**
  * A read-only `ProjectApi` over {@link PLAN}.
  *
  * Read-only because nothing about the chart is an edit: these tests collapse a
@@ -982,7 +1145,7 @@ const notImplemented = (what: string): never => {
  * answered from the tree that arrived. `plan-cards.test.tsx`'s fake writes, and
  * borrowing it would mean importing a file whose own tests would run again.
  */
-function fakeApi(startDate: string | null): ProjectApi {
+function fakeApi(startDate: string | null, skew: ReadSkew = {}): ProjectApi {
   const people: PersonView[] = [{ id: 'kat', name: 'Kat', teamIds: [] }];
   const teams: TeamView[] = [];
   return {
@@ -991,16 +1154,22 @@ function fakeApi(startDate: string | null): ProjectApi {
         workItems: PLAN.map((row) => ({ ...row, dates: startDate === null ? null : row.dates })),
         seq: 0,
         scheduleError: null,
-        slices: SLICES,
+        slices: skew.slices ?? SLICES,
+        // The roles and the names the slices above were placed with — one
+        // payload, which is the whole of the invariant the chart is drawn on.
+        roles: [{ ...DEV }],
+        assignedPeople: [{ id: 'kat', name: 'Kat' }],
         estimateMethod: 'pert' as const,
         startDate,
         projectRevision: 0,
         undoable: false,
         redoable: false,
       }),
-    roles: () => Promise.resolve([{ ...DEV }]),
+    // The **separate** read, which the skewed fixture below makes disagree with
+    // the payload above on purpose.
+    roles: () => Promise.resolve(skew.roles ?? [{ ...DEV }]),
     listTeams: () => Promise.resolve(teams),
-    listPeople: () => Promise.resolve(people),
+    listPeople: () => Promise.resolve(skew.people ?? people),
     listProjects: () => notImplemented('listProjects'),
     createProject: () => notImplemented('createProject'),
     openProject: () => notImplemented('openProject'),
@@ -1031,8 +1200,8 @@ function fakeApi(startDate: string | null): ProjectApi {
 }
 
 /** Puts the plan on screen and opens the chart under it. */
-async function showTheChart(startDate: string | null = MONDAY): Promise<void> {
-  render(<WbsTable projectId="p1" api={fakeApi(startDate)} />);
+async function showTheChart(startDate: string | null = MONDAY, skew: ReadSkew = {}): Promise<void> {
+  render(<WbsTable projectId="p1" api={fakeApi(startDate, skew)} />);
   await screen.findByText('Hull');
   fireEvent.click(screen.getByRole('button', { name: 'Gantt' }));
   await screen.findByLabelText('Gantt chart');
@@ -1206,5 +1375,130 @@ describe('the workday axis agrees with the columns', () => {
     expect([...document.querySelectorAll('[data-axis-day]')].map((day) => day.textContent)).toEqual(
       ['0', '1', '2', '3', '4', '5'],
     );
+  });
+});
+
+/**
+ * {@link SLICES}, with the one fact `layOutGantt` refuses missing: `Sanding`'s
+ * slice names a resource predecessor no slice in the payload has.
+ *
+ * The commonest way to hold such a payload is not a bug in be-01 at all — it is
+ * a peer's edit landing between two of this client's four reads, which is the
+ * skew {@link ReadSkew} is about. It throws, by design (`gantt-geometry.ts`),
+ * and this fixture is what carries that throw onto the production render path.
+ */
+const SLICES_MISSING_A_PREDECESSOR: SliceView[] = SLICES.map((slice) =>
+  slice.workItemId === 'sanding'
+    ? { ...slice, boundBy: 'person' as const, resourcePredecessorId: 'a-slice-nobody-sent' }
+    : slice,
+);
+
+/** What the boundary put on screen instead of a chart, or null while it did not. */
+const faultWords = (): string | null =>
+  document.querySelector('[data-gantt-fault]')?.textContent ?? null;
+
+describe('a chart that cannot be drawn', () => {
+  itDom('says why, and leaves the plan alone', async () => {
+    await showTheChart(MONDAY, { slices: SLICES_MISSING_A_PREDECESSOR });
+
+    // 1. The chart is not there, and the reason on screen is the payload's own
+    //    words — the slice, and what it promised. "Something went wrong" would
+    //    throw away the only description anybody will ever have of a skew that
+    //    is over by the time it is read.
+    expect(document.querySelector('[data-gantt-chart]')).toBeNull();
+    expect(faultWords()).toContain('The chart cannot be drawn');
+    expect(faultWords()).toContain('a-slice-nobody-sent');
+    expect(faultWords()).toContain('which is not a slice in this payload');
+
+    // 2. And the editor is untouched, which is the whole reason the boundary
+    //    wraps the panel alone: the plan is what the reader came for, the chart
+    //    is the optional feature that may degrade (AGENTS.md, R5).
+    //
+    // Proof: `<GanttFaultBoundary>` struck from `wbs-table.tsx` and the panel
+    // rendered bare. This test failed with the render itself throwing —
+    // `GanttDataError: slice sanding::role-dev names resource predecessor
+    // a-slice-nobody-sent, which is not a slice in this payload`, out of
+    // `render` rather than as a failed expectation, taking the four rows and
+    // every toolbar control with it. Watched 2026-08-09.
+    expect(screen.getByLabelText('Name of 010')).toHaveValue('Hull');
+    expect(screen.getAllByLabelText(/^Name of /)).toHaveLength(4);
+  });
+
+  itDom('draws the chart again when the next read is whole', async () => {
+    // The skew is one object the fake reads on every call, so moving it here is
+    // a peer's next edit arriving — which is what a transient skew is.
+    const skew: ReadSkew = { slices: SLICES_MISSING_A_PREDECESSOR };
+    let notify: () => void = () => {
+      throw new Error('the table never subscribed');
+    };
+    const subscribe = (_projectId: string, handlers: SubscriptionHandlers) => {
+      notify = handlers.onChange;
+      return { seen: () => undefined, unsubscribe: () => undefined };
+    };
+    render(<WbsTable projectId="p1" api={fakeApi(MONDAY, skew)} subscribe={subscribe} />);
+    await screen.findByText('Hull');
+    fireEvent.click(screen.getByRole('button', { name: 'Gantt' }));
+    await screen.findByLabelText('Gantt chart');
+    expect(faultWords()).toContain('The chart cannot be drawn');
+
+    skew.slices = SLICES;
+    notify();
+
+    // React never retries a boundary on its own: without the reset this stays
+    // on the fallback for the life of the page, and the reader's only way back
+    // to a chart is to reload.
+    //
+    // Proof: `getDerivedStateFromProps` deleted from `GanttFaultBoundary`. This
+    // test alone failed — `1 failed | 34 skipped`, on `Error: no bar on the
+    // chart for sanding` — with the fallback still up over a plan that had been
+    // whole since the refetch. Watched 2026-08-09.
+    await waitFor(() => {
+      expect(barOn('sanding')).not.toBeNull();
+    });
+    expect(faultWords()).toBeNull();
+  });
+});
+
+describe('the chart is drawn from one read', () => {
+  itDom('draws under the roles the payload carried, not the pickers’ list', async () => {
+    // A peer removed `Dev` and added `Ops` between this client's `tree` read and
+    // its `roles` read: the separate read now lists a phase no slice is under,
+    // and lists none of the phase every slice **is** under. That is the
+    // four-request skew this fix exists for, and nothing about it is malformed —
+    // both answers were true when they were given.
+    await showTheChart(MONDAY, { roles: [{ id: 'role-ops', name: 'Ops' }] });
+
+    // Proof: `ganttPlan`'s `roles` put back to the `roles` state — the separate
+    // read. This test failed on `expected null not to be null`, with the
+    // boundary reading `The chart cannot be drawn: slice sanding::role-dev is
+    // under role role-dev, which this plan does not list.` Watched 2026-08-09.
+    expect(document.querySelector('[data-gantt-chart]')).not.toBeNull();
+    expect(faultWords()).toBeNull();
+    expect(labelsOnTheChart()).toEqual(['Hull', 'Sanding', 'Sealing', 'Rigging']);
+    // The phase's name is read from the same list the bar was placed by, so a
+    // chart drawn from the skewed read would either throw or say `Ops`.
+    expect(barOn('sanding').querySelector('title')?.textContent).toContain('Dev');
+  });
+
+  itDom('names the people the payload carried, not the directory read', async () => {
+    // The other half, and it has its own test because one edit cannot reach
+    // both: `Kat` is on `Sanding` in the payload, and the directory read is a
+    // moment before she was added to it.
+    await showTheChart(MONDAY, {
+      slices: SLICES.map((slice) =>
+        slice.workItemId === 'sanding' ? { ...slice, personId: 'kat' } : slice,
+      ),
+      people: [],
+    });
+
+    // Proof: `ganttPlan`'s `personNames` put back to the `people` state. This
+    // test alone failed, on `expected 'The chart cannot be drawn: slice sand…'
+    // to be null` — the boundary reading `slice sanding::role-dev is assigned
+    // to kat, whom this plan does not name`. Watched 2026-08-09.
+    expect(faultWords()).toBeNull();
+    expect(barOn('sanding').querySelector('title')?.textContent).toContain('Kat');
+    // And she is painted as somebody rather than as nobody, which is the other
+    // thing the name decides.
+    expect(barOn('sanding').getAttribute('fill')).toBe(PERSON_BAR_COLORS[0]);
   });
 });

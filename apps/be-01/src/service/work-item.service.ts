@@ -12,9 +12,11 @@ import type {
   DirectoryStore,
   EstimateStore,
   JournalEntry,
+  Person,
   Project,
   ProjectStore,
   Reparented,
+  Role,
   StoredEstimate,
   SubtreeStore,
   UndoState,
@@ -400,6 +402,16 @@ export interface UndoDone {
   detail: string | null;
 }
 
+/**
+ * What came of walking one step along the undo stack.
+ *
+ * **A refusal's `detail` is a finished sentence, full stop and all.** The client
+ * shows it verbatim at the tail of its own — `That could not be undone: …` —
+ * and every one of these used to stop mid-phrase: `“Roof it” has changed since`
+ * reached a reader's screen on 2026-08-09, with no full stop and no answer to
+ * "since *what*?". A clause is not a sentence just because something else
+ * supplies its opening.
+ */
 export type UndoOutcome =
   | { ok: true; result: UndoDone }
   | { ok: false; reason: UndoRefusal; detail: string | null };
@@ -578,6 +590,34 @@ export class WorkItemService {
      * computes would be the same confident lie in a different shape.
      */
     slices: IdentifiedSlice[];
+    /**
+     * The project's roles, in the order the engine ran the slices in.
+     *
+     * The same array `slicesOf` was given, carried on the read that produced
+     * the slices rather than left to `/api/projects/:id` — which is a second
+     * request at a second moment. A chart reads a slice's `roleId` to place its
+     * bar and to name its phase, and a peer removing a phase between the two
+     * reads left a client holding slices under a role its own role list no
+     * longer had. Within one payload that skew cannot exist.
+     *
+     * Read **after** the rows and before the schedule, so a phase added between
+     * them is at worst a role nothing points at, never a slice with no role.
+     */
+    roles: Role[];
+    /**
+     * Every person an assignment on these rows names, by id and name.
+     *
+     * The names, not the whole directory: a chart paints a bar in its
+     * assignee's colour and writes their name on it, and both are facts about
+     * the slices in this very payload. `/api/people` answers a different question — who
+     * could be assigned — and is still what the pickers read.
+     *
+     * Read after {@link DirectoryStore.assignmentsOf} on purpose. People are
+     * only ever added, so a person created between the two reads is one this
+     * list has and no assignment names; the other order would hand out an
+     * assignment to somebody unnamed.
+     */
+    assignedPeople: Person[];
     estimateMethod: EstimateMethod;
     startDate: IsoDate | null;
     /**
@@ -594,6 +634,13 @@ export class WorkItemService {
     const stored = await this.opts.estimates.listByProject(projectId);
     const edges = await this.opts.dependencies.listByProject(projectId);
     const assigned = await this.opts.directory.assignmentsOf(rows.map((row) => row.id));
+    // The names for the ids just read, on this read rather than on a client's
+    // separate one. Filtered to who is actually on this plan: the directory is
+    // global and a chart has no use for people no slice names.
+    const assignedIds = new Set(assigned.map((each) => each.personId));
+    const assignedPeople = (await this.opts.directory.listPeople())
+      .filter((each) => assignedIds.has(each.id))
+      .map(({ id, name }) => ({ id, name }));
     const assigneesOf = new Map<string, Record<string, string>>();
     for (const each of assigned) {
       assigneesOf.set(each.workItemId, {
@@ -716,6 +763,12 @@ export class WorkItemService {
       scheduleError,
       waitingForPerson,
       slices: scheduledSlices,
+      // The very array `slicesOf` was handed the ids of, so a slice's `roleId`
+      // is a role this list has and its place in the list is the order the
+      // engine placed the bars in. Neither is true of a role list fetched
+      // separately.
+      roles,
+      assignedPeople,
       estimateMethod: project.estimateMethod,
       startDate: project.startDate,
       projectRevision: project.revision,
@@ -1658,8 +1711,14 @@ export class WorkItemService {
     const byId = new Map(rows.map((row) => [row.id, row]));
     for (const [id, revision] of Object.entries(expected)) {
       const row = byId.get(id);
-      if (row === undefined) return 'a work item this change touched has been deleted since';
-      if (row.revision !== revision) return `${quoteName(row.name)} has changed since`;
+      // "since then" rather than a bare "since": these are read out at the end
+      // of the caller's own sentence — `That could not be undone: “Roof it” has
+      // changed since` reached a reader on 2026-08-09 and stopped mid-phrase,
+      // with no full stop and no answer to "since what?".
+      if (row === undefined) {
+        return 'a work item this change touched has been deleted since then.';
+      }
+      if (row.revision !== revision) return `${quoteName(row.name)} has changed since then.`;
     }
     return null;
   }
@@ -1692,20 +1751,20 @@ export class WorkItemService {
     switch (command.do) {
       case 'patch': {
         const updated = await this.opts.workItems.patch(command.workItemId, command.patch);
-        if (updated === null) return { ok: false, detail: 'the work item is no longer there' };
+        if (updated === null) return { ok: false, detail: 'the work item is no longer there.' };
         return { ok: true, detail: null };
       }
       case 'set_estimate': {
         const rows = await this.opts.workItems.listByProject(projectId);
         if (rows.some((row) => row.parentId === command.workItemId)) {
-          return { ok: false, detail: 'that work item has children now, so its figures are sums' };
+          return { ok: false, detail: 'that work item has children now, so its figures are sums.' };
         }
         // The phase the trio belonged to has been removed since. Putting the
         // figures back would be a foreign key error on a key somebody pressed
         // to be safe, so the entry is refused and discarded like any other
         // command the plan has moved past.
         if (!(await this.holdsRole(projectId, command.roleId))) {
-          return { ok: false, detail: 'that phase is no longer in this project' };
+          return { ok: false, detail: 'that phase is no longer in this project.' };
         }
         const restored = await this.writeNamingRole(projectId, command.roleId, () =>
           this.opts.estimates.set({
@@ -1714,7 +1773,7 @@ export class WorkItemService {
             ...command.days,
           }),
         );
-        if (!restored) return { ok: false, detail: 'that phase is no longer in this project' };
+        if (!restored) return { ok: false, detail: 'that phase is no longer in this project.' };
         return { ok: true, detail: null };
       }
       case 'clear_estimate':
@@ -1722,13 +1781,13 @@ export class WorkItemService {
         return { ok: true, detail: null };
       case 'assign':
         if (command.personId !== null && !(await this.holdsRole(projectId, command.roleId))) {
-          return { ok: false, detail: 'that phase is no longer in this project' };
+          return { ok: false, detail: 'that phase is no longer in this project.' };
         }
         {
           const reassigned = await this.writeNamingRole(projectId, command.roleId, () =>
             this.opts.directory.assign(command.workItemId, command.roleId, command.personId),
           );
-          if (!reassigned) return { ok: false, detail: 'that phase is no longer in this project' };
+          if (!reassigned) return { ok: false, detail: 'that phase is no longer in this project.' };
         }
         return { ok: true, detail: null };
       case 'add_dependency': {
@@ -1755,7 +1814,10 @@ export class WorkItemService {
         const rows = await this.opts.workItems.listByProject(projectId);
         const gone = command.updates.find((each) => !rows.some((row) => row.id === each.id));
         if (gone !== undefined) {
-          return { ok: false, detail: 'a work item this change froze has been deleted since' };
+          return {
+            ok: false,
+            detail: 'a work item this change froze has been deleted since then.',
+          };
         }
         await this.opts.workItems.setFrozenNumbers(command.updates);
         return { ok: true, detail: null };
@@ -1775,19 +1837,19 @@ export class WorkItemService {
   ): Promise<ApplyOutcome> {
     const rows = await this.opts.workItems.listByProject(projectId);
     const moving = rows.find((row) => row.id === id);
-    if (moving === undefined) return { ok: false, detail: 'the work item is no longer there' };
+    if (moving === undefined) return { ok: false, detail: 'the work item is no longer there.' };
     if (moving.frozenNumber !== null) {
-      return { ok: false, detail: 'that work item has been frozen since, so it cannot move' };
+      return { ok: false, detail: 'that work item has been frozen since, so it cannot move.' };
     }
     if (parentId !== null && !rows.some((row) => row.id === parentId)) {
-      return { ok: false, detail: 'the work item it sat under has been deleted since' };
+      return { ok: false, detail: 'the work item it sat under has been deleted since then.' };
     }
     const group = this.groupUnder(rows, parentId).filter((sibling) => sibling.id !== id);
     // `placeAfter` throws on a sibling that is not in the group, which is the
     // right answer for a caller that made the id up and the wrong one for a
     // row somebody deleted while this entry sat on the stack.
     if (afterId !== null && !group.some((sibling) => sibling.id === afterId)) {
-      return { ok: false, detail: 'the work item it sat after has been deleted since' };
+      return { ok: false, detail: 'the work item it sat after has been deleted since then.' };
     }
     const placed = placeAfter(group, afterId);
     await this.opts.workItems.move(id, parentId, placed.position, placed.renumbered);
@@ -1800,7 +1862,7 @@ export class WorkItemService {
   ): Promise<ApplyOutcome> {
     const rows = await this.opts.workItems.listByProject(projectId);
     if (!rows.some((row) => row.id === command.rootId)) {
-      return { ok: false, detail: 'the work item is no longer there' };
+      return { ok: false, detail: 'the work item is no longer there.' };
     }
     // The guard a revision cannot give. A child written under a work item is a
     // row of its own and moves nothing on its parent, so a created row that
@@ -1809,7 +1871,7 @@ export class WorkItemService {
     const now = new Set(subtreeOf(rows, command.rootId));
     const then = new Set(command.expectedSubtree);
     if (now.size !== then.size || [...then].some((id) => !now.has(id))) {
-      return { ok: false, detail: 'work has been added or removed under that row since' };
+      return { ok: false, detail: 'work has been added or removed under that row since then.' };
     }
     for (const gone of command.remove) await this.opts.dependencies.removeAllFor(gone);
     await this.opts.workItems.remove(command.remove, command.reparented);
@@ -1829,10 +1891,10 @@ export class WorkItemService {
       // Nothing recreates an id, so this means something else is using one
       // this branch owns. Remapping to fresh ids would leave every reference
       // to the branch — journalled and otherwise — aimed at rows that are gone.
-      return { ok: false, detail: 'something already exists where that work item was' };
+      return { ok: false, detail: 'something already exists where that work item was.' };
     }
     if (root.parentId !== null && !rows.some((each) => each.id === root.parentId)) {
-      return { ok: false, detail: 'the work item it sat under has been deleted since' };
+      return { ok: false, detail: 'the work item it sat under has been deleted since then.' };
     }
 
     // The sibling group as it will be once the reparenting has happened: the

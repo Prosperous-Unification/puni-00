@@ -6,10 +6,12 @@ import { usePageShortcutsSuspended } from '@/components/ui/page-shortcuts';
 import {
   type AltStyle,
   altStyleOf,
-  KEY_BINDINGS,
+  bindingsFor,
+  type KeyBinding,
   showKeys,
   WHERE_ORDER,
 } from './keyboard-bindings';
+import type { PlanRenderer } from './plan-renderer';
 
 export type { KeyPress } from './keyboard-bindings';
 // The predicate moved to `keyboard-bindings.ts`, where `isPageShortcut` can
@@ -33,6 +35,13 @@ function navigatorSaid(field: 'platform' | 'userAgent'): string | undefined {
 
 export interface KeyboardCheatSheetProps {
   onClose: () => void;
+  /**
+   * Which renderer is drawing the plan behind this sheet.
+   *
+   * Required rather than defaulted, because a default is a wrong answer half
+   * the time and the wrong half is the one nobody is looking at.
+   */
+  renderer: PlanRenderer;
   /**
    * Which keyboard the chords are labelled for. Detected from `navigator` when
    * absent; passed in by tests, which are not on the Mac they assert about.
@@ -63,14 +72,23 @@ const TITLE_ID = 'keyboard-cheat-sheet-title';
  * matrix. What this change gives it is the token palette and the shared rule;
  * its markup, its focus handling and every one of its tests are untouched.
  *
- * The list itself is {@link KEY_BINDINGS} and nothing else. A binding written
- * out here instead would be a second description of the keyboard, and the
- * second one is always the one that goes stale.
+ * The list itself is {@link bindingsFor}'s answer and nothing else. A binding
+ * written out here instead would be a second description of the keyboard, and
+ * the second one is always the one that goes stale — which is also why the
+ * cards renderer's sheet is a *narrower registry* rather than a filter written
+ * here: {@link KeyBinding.renderers} is where "the cards answer no chords" is
+ * said, once, next to the chords.
  */
-export function KeyboardCheatSheet({ onClose, altStyle }: KeyboardCheatSheetProps) {
+export function KeyboardCheatSheet({ onClose, renderer, altStyle }: KeyboardCheatSheetProps) {
   const dialog = useRef<HTMLDivElement | null>(null);
   const returnFocusTo = useRef<HTMLElement | null>(null);
   const style = altStyle ?? altStyleOf(navigatorSaid('platform'), navigatorSaid('userAgent'));
+  const shown = bindingsFor(renderer);
+  /** The groups this renderer has anything in — `Moving rows` is empty on cards. */
+  const groups: readonly [string, readonly KeyBinding[]][] = WHERE_ORDER.map((where) => [
+    where,
+    shown.filter((binding) => binding.where === where),
+  ]);
 
   // Mounting is opening, so the sheet is open for exactly as long as this
   // component exists.
@@ -146,25 +164,27 @@ export function KeyboardCheatSheet({ onClose, altStyle }: KeyboardCheatSheetProp
             <span aria-hidden="true">✕</span>
           </Button>
         </div>
-        {WHERE_ORDER.map((where) => (
-          <section key={where} className="mb-4 last:mb-0">
-            <h3 className="text-muted-foreground mb-1.5 text-xs font-semibold tracking-wide uppercase">
-              {where}
-            </h3>
-            <dl className="grid grid-cols-[max-content_1fr] gap-x-3 gap-y-1 text-sm">
-              {KEY_BINDINGS.filter((binding) => binding.where === where).map((binding) => (
-                <Fragment key={binding.keys}>
-                  <dt className="whitespace-nowrap">
-                    <kbd className="bg-muted text-foreground rounded-sm border px-1.5 py-0.5 text-xs">
-                      {showKeys(binding.keys, style)}
-                    </kbd>
-                  </dt>
-                  <dd>{binding.does}</dd>
-                </Fragment>
-              ))}
-            </dl>
-          </section>
-        ))}
+        {groups.map(([where, bindings]) =>
+          bindings.length === 0 ? null : (
+            <section key={where} className="mb-4 last:mb-0">
+              <h3 className="text-muted-foreground mb-1.5 text-xs font-semibold tracking-wide uppercase">
+                {where}
+              </h3>
+              <dl className="grid grid-cols-[max-content_1fr] gap-x-3 gap-y-1 text-sm">
+                {bindings.map((binding) => (
+                  <Fragment key={binding.keys}>
+                    <dt className="whitespace-nowrap">
+                      <kbd className="bg-muted text-foreground rounded-sm border px-1.5 py-0.5 text-xs">
+                        {showKeys(binding.keys, style)}
+                      </kbd>
+                    </dt>
+                    <dd>{binding.does}</dd>
+                  </Fragment>
+                ))}
+              </dl>
+            </section>
+          ),
+        )}
       </div>
     </div>
   );

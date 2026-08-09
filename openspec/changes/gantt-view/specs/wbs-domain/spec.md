@@ -10,12 +10,25 @@ slice's `resourcePredecessorId` SHALL reference a slice present in the same
 payload. The change SHALL be additive: every field the payload carried before
 is unchanged.
 
+The same payload SHALL carry the roles the slices were placed under, in the
+order the engine used, and the name of every person its slices are assigned to.
+A slice's `roleId` SHALL name a role in the same payload and its `personId`
+somebody named in it — the chart is drawn from one read, and a role list or a
+directory fetched separately describes another moment.
+
 #### Scenario: two work items, one person
 
 - **WHEN** `Strip` (3 days, Kat) and `Sand` (2 days, Kat) have no dependency
   and the tree is read
 - **THEN** the payload holds both slices, `Sand`'s starts at 3 with binding
   floor `person` and `resourcePredecessorId` equal to `Strip`'s slice id
+
+#### Scenario: a phase removed between two reads
+
+- **WHEN** a peer removes a phase after the tree is read and before the role
+  list is read
+- **THEN** the tree payload still lists the phase its slices are under, and the
+  panel drawn from it draws the chart
 
 #### Scenario: nothing else moved
 
@@ -42,16 +55,18 @@ order — collapsed branches and rows narrowed away by a search SHALL be absent
 
 ### Requirement: The workday is the SVG unit
 
-The chart SHALL be one SVG whose user-space x unit is one workday: viewBox
-width SHALL equal the horizon, a bar's `x` SHALL equal its slice's earliest
-start and its `width` the slice's duration, and each bar SHALL carry
-`data-start` and `data-finish` holding the engine numbers verbatim.
+The chart SHALL be one SVG whose user-space x unit is one workday: a bar's `x`
+SHALL equal its slice's earliest start and its `width` the slice's duration,
+and each bar SHALL carry `data-start` and `data-finish` holding the engine
+numbers verbatim. The viewBox SHALL cover the whole schedule, 0 through the
+horizon, and the band outside it the marks of "The canvas holds every mark" are
+drawn in.
 
 #### Scenario: user space equals engine numbers
 
 - **WHEN** a slice runs 3.5 → 6 and the panel renders
 - **THEN** its bar has `x` 3.5, `width` 2.5, `data-start` "3.5",
-  `data-finish` "6", and the SVG viewBox is as wide as the horizon
+  `data-finish` "6", and the SVG viewBox holds 0 through the horizon
 
 ### Requirement: Leaves draw bars, parents draw summary brackets
 
@@ -103,7 +118,9 @@ from a slice's resource predecessor to it, only where the binding floor is the
 person, visually distinct from a dependency arrow, and derived from
 `resourcePredecessorId` alone — never parsed from text. A
 `resourcePredecessorId` that names no slice in the payload SHALL throw, into
-the error boundary, not draw nothing.
+the error boundary, not draw nothing. A binding floor the panel has no words
+for SHALL throw the same way, rather than drawing a bar that says nothing about
+what holds it.
 
 #### Scenario: a hand-off is not a dependency
 
@@ -118,6 +135,12 @@ the error boundary, not draw nothing.
   slice in it
 - **THEN** the panel throws rather than drawing a chart with a silently
   missing link
+
+#### Scenario: a binding floor from a later be-01
+
+- **WHEN** a slice's `boundBy` is a value this build does not know
+- **THEN** the panel throws rather than drawing a bar whose hover text ends
+  where the reason should be
 
 ### Requirement: A bar explains itself and finds its row
 
@@ -153,6 +176,42 @@ the chart scrolls inside the panel.
 - **WHEN** the viewport is 390px wide and the chart is scrolled fully right
 - **THEN** every row label is still visible and the page itself has not
   scrolled sideways
+
+### Requirement: A chart that cannot be drawn costs only the chart
+
+When drawing the panel throws, the plan SHALL stay on screen and editable, and
+the panel's place SHALL hold a sentence naming what could not be drawn and why
+— the thrown error's own words. The next tree read SHALL clear it: a fault
+caught while drawing one read SHALL NOT outlive that read.
+
+#### Scenario: a payload the geometry refuses
+
+- **WHEN** the payload carries a slice whose `resourcePredecessorId` names no
+  slice in it
+- **THEN** the chart is replaced by a sentence naming that slice, and every row
+  of the plan is still on screen and editable
+
+#### Scenario: the skew is over
+
+- **WHEN** a later read carries a payload the geometry accepts
+- **THEN** the chart is drawn again without the page being reloaded
+
+### Requirement: The canvas holds every mark
+
+The drawn canvas SHALL contain every mark the panel draws, including the parts
+of a dependency arrow's route that fall outside the schedule. A bar's `x` and
+`width` SHALL remain the engine's numbers: the canvas's edges are not the
+schedule's.
+
+#### Scenario: an arrow into workday 0
+
+- **WHEN** a successor starts at workday 0 and an arrow arrives at it
+- **THEN** the arrow's head is painted, and its route is inside the canvas
+
+#### Scenario: an arrow off the last bar
+
+- **WHEN** a predecessor finishes at the horizon
+- **THEN** the route out past it is inside the canvas
 
 ### Requirement: A plan that cannot be scheduled draws no chart
 

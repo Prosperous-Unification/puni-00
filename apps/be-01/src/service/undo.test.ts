@@ -454,6 +454,9 @@ describe('an undo refuses when what it touched has moved', () => {
     const detail = expectStale(await undone());
 
     expect(detail).toContain('Theirs');
+    // A whole sentence, because the client puts it straight after a colon and
+    // shows it. `has changed since` on its own reached a reader's screen.
+    expect(detail).toContain('has changed since then.');
     expect((await found(strip))?.name).toBe('Theirs');
   });
 
@@ -535,7 +538,11 @@ describe('an undo refuses when what it touched has moved', () => {
 
     const detail = expectStale(await undone());
 
-    expect(detail).toContain('deleted since');
+    // Ended, not left dangling: this is read out at the tail of the client's
+    // own sentence — `That could not be undone: …` — and it stopped mid-phrase
+    // on a reader's screen on 2026-08-09.
+    expect(detail).toContain('deleted since then.');
+    expect(detail.endsWith('.')).toBe(true);
     expect((await found(test))?.parentId).toBe(strip);
   });
 

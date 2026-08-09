@@ -188,3 +188,32 @@ layout cannot disagree.
   A named handler would be a second path to the same reread. The blast-radius
   settling therefore happens on **every** read, not only on a role event, which
   is stricter than the plan asked for and one rule rather than two.
+
+## Review sweep, 2026-08-09 — bare Enter had no browser proof
+
+`phases-dialog.test.tsx`'s `leaves a bare Enter to the form it is in` asserts
+that `onChord` claims nothing on an unmodified Enter, so the browser's own
+implicit form submission does the work. In jsdom that assertion is satisfied by
+the **environment**, not by the code: jsdom performs no implicit submission at
+all, so a dispatched `keydown` reaches no `submit` handler whatever `onChord`
+does with the event. The test cannot tell "the chord handler left Enter alone"
+from "nothing here submits on Enter, ever", and no browser test pressed a plain
+Enter in the dialog.
+
+`a bare Enter in the new-phase box adds the phase` in `e2e/phases.spec.ts` now
+does, beside the `Ctrl+Enter` case. It asserts the phase twice: the
+`Remove Design` button inside the dialog, and — after Escape — the
+`Unfold Design estimates` control on the table behind it, so a dialog that
+listed a phase the refetch never put on the plan would still fail.
+
+### Watched, and the half that stayed green
+
+| check                                                           | fault injected on the production path                             | observed                                                                                                                            |
+| --------------------------------------------------------------- | ----------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `e2e/phases` › a bare Enter in the new-phase box adds the phase | an unconditional `event.preventDefault()` at the top of `onChord` | **1 of 7 failed** in Chromium — `expect(locator).toBeVisible() failed … waiting for getByRole('button', { name: 'Remove Design' })` |
+| `phases-dialog` › leaves a bare Enter to the form it is in      | the same fault, same run                                          | **21 of 21 passed** — the point: this is the check that could not fail                                                              |
+
+The second row is the finding. The jsdom test is kept — it still says what
+`onChord` must not claim, and it is the faster oracle for the chord's own
+routing — but it is now labelled as the half it is, with the browser named
+beside it.

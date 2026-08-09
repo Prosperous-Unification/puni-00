@@ -7,13 +7,13 @@ import {
   useReactTable,
 } from '@tanstack/react-table';
 import { workdaysBetween } from '@wbs/domain/workday';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { type CSSProperties, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Modal, ModalContent, ModalHeader, ModalTitle, ModalTrigger } from '@/components/ui/modal';
 import type { ProjectStream } from '@/lib/project-stream';
-import type { PersonView, TeamView } from '@/lib/wbs-api';
+import type { AssignedPersonView, PersonView, TeamView } from '@/lib/wbs-api';
 import {
   type Days,
   type EstimateMethod,
@@ -27,6 +27,7 @@ import { ActionsMenu } from './actions-menu';
 import { CellInput } from './cell-input';
 import { type Caret, type CellRef, commandMove, type Direction, nextCell } from './cell-navigation';
 import { CreatablePicker, pickableLabel, PickerList, type PickerOption } from './creatable-picker';
+import { DateField } from './date-field';
 import { pickerEntries, type PickerEntry } from './dep-picker';
 import { parseDependencies, unknownMessage } from './depends-input';
 import { type DropRefusal, type DropZone, planMove, zoneFor } from './drag-drop';
@@ -49,6 +50,7 @@ import {
   trioProblem,
   type TypedTrio,
 } from './estimate-draft';
+import { GanttFaultBoundary } from './gantt-fault';
 import type { GanttPlan } from './gantt-geometry';
 import { GanttPanel } from './gantt-panel';
 import { type Command, commandChordIn, undoChord } from './keyboard-bindings';
@@ -168,6 +170,37 @@ const REFUSAL_SENTENCES: Readonly<Record<string, string | undefined>> = {
 const SERVER_REFUSAL = 'The server could not complete that change. Try again.';
 
 /**
+ * The statuses be-01 refuses a **malformed** request with, and the only ones
+ * that reach here without a word of be-01's own.
+ *
+ * Listed rather than matched as `http_4\d\d`, which was the first shape and is
+ * wrong: 401 and 403 are the same family and say nothing about the value that
+ * was sent, and a sentence claiming "that change was not valid" over an expired
+ * session would send the reader looking for a typo. be-01's own words —
+ * `forbidden`, `not_found` — already cover those; these two are what an ArkType
+ * schema refusal leaves, because Elysia answers it with its own JSON body and
+ * no `error` field for `send` to read.
+ */
+const INVALID_REQUEST = new Set(['http_400', 'http_422']);
+
+/**
+ * What a request be-01 could not read says.
+ *
+ * Reachable, and observed: a year segment typed one digit at a time made a date
+ * of `dd.12.82026`, be-01 answered 422, and the corner of the screen read
+ * `That change could not be completed (http_422).` — a status code, to somebody
+ * who typed a date. {@link DateField} is the fix for the *cause*; this is the
+ * sentence for whatever else sends be-01 something it cannot take.
+ *
+ * It says the plan was read again because {@link run} really does read it
+ * again for this family, the same way it does for {@link GONE}: what is on
+ * screen was refused, and the only honest thing to show next is what be-01
+ * actually holds.
+ */
+const INVALID_REFUSAL =
+  'That change was not valid, so nothing was saved — what is on screen was read again.';
+
+/**
  * The sentence a refused mutation is reported in.
  *
  * @param thrown Whatever the request rejected with; anything that is not an
@@ -180,6 +213,7 @@ const refusalSentence = (thrown: unknown): string => {
   // The whole 5xx family, matched rather than listed: a proxy in front of
   // be-01 can answer with any of them and none of them is the reader's doing.
   if (/^http_5\d\d$/.test(code)) return SERVER_REFUSAL;
+  if (INVALID_REQUEST.has(code)) return INVALID_REFUSAL;
   return `That change could not be completed (${code}).`;
 };
 
@@ -603,11 +637,16 @@ const notBeforeOffsetOf = (startDate: string | null, notBefore: string | null): 
   startDate === null || notBefore === null ? null : workdaysBetween(startDate, notBefore);
 
 /**
- * Whether a click inside the toolbar sheet is one that should close it.
+ * The control on the toolbar sheet a click was on, if that click closes it.
  *
  * Taking a control on the sheet is taking it on the plan behind the sheet, and
  * the plan is what wants looking at next — a phone screen is 390px and the
  * sheet is most of it. So a click on one of the sheet's own controls closes it.
+ *
+ * The control itself rather than a yes/no, because the caller has a second
+ * question for it: {@link TAKES_THE_FOCUS} says whether that control moves the
+ * focus itself, and the answer decides whether Radix's own restore is allowed
+ * to happen.
  *
  * Two exemptions, and each is a fault this was written after meeting:
  *
@@ -623,12 +662,97 @@ const notBeforeOffsetOf = (startDate: string | null, notBefore: string | null): 
  * @param target What was clicked — `event.target`, not the handler's element.
  * @param surface The sheet's own surface, which is `event.currentTarget`.
  */
-function closesTheSheet(target: EventTarget | null, surface: Element): boolean {
-  if (!(target instanceof Element)) return false;
-  if (target.closest('[data-modal-surface]') !== surface) return false;
+function closingControlIn(target: EventTarget | null, surface: Element): HTMLButtonElement | null {
+  if (!(target instanceof Element)) return null;
+  if (target.closest('[data-modal-surface]') !== surface) return null;
   const control = target.closest('button');
-  return control !== null && control.getAttribute('aria-haspopup') === null;
+  if (control?.getAttribute('aria-haspopup') !== null) return null;
+  return control;
 }
+
+/**
+ * The mark a toolbar control wears when taking it puts the focus somewhere of
+ * its own choosing, so the sheet must not put it back on the trigger.
+ *
+ * Three controls wear it, and no others:
+ *
+ * - **`Add work item`**, which asks for the caret in the new row's name.
+ * - **The readiness badge**, which walks to the cell estimating the next gap.
+ * - **`⌨`**, which opens the cheat sheet — a dialog that focuses its own panel
+ *   on mount and restores on unmount. Radix's restore lands on a timer, so it
+ *   arrives *after* that and takes the focus off a dialog that is still open;
+ *   measured in jsdom, where the panel had the focus with the restore refused
+ *   and the `Plan actions` trigger had it without.
+ *
+ * Every other control on the sheet — `Collapse all`, `Gantt`, `Undo`, the
+ * exports — changes the plan without aiming the caret anywhere, and for those
+ * Radix restoring the focus to the `Plan actions` trigger is the right answer
+ * rather than a thing to suppress. Suppressing it left them on `<body>`.
+ *
+ * Not `data-lands-in-plan`, which is what the first two do and what the review
+ * asked for: `⌨` lands in a dialog instead, and a name that described two of
+ * the three would be a name the third is filed under wrongly.
+ *
+ * A DOM attribute rather than a list of labels here: the control that knows it
+ * moves the focus is the control that says so, and a list would go stale the
+ * next time one is added. See {@link closingControlIn} for who reads it.
+ */
+const TAKES_THE_FOCUS = 'data-takes-the-focus';
+
+/**
+ * What a control that is unavailable **because a save is in flight** looks
+ * like, as opposed to one that is unavailable because there is nothing for it
+ * to do.
+ *
+ * **The fault it exists for.** Every toolbar control that writes is
+ * `disabled={busy}` for the whole of the write *and* the refetch after it, and
+ * a `disabled` button drops a click on the floor without a sound. Typing a
+ * character, pressing ⌘+Enter and clicking `Add work item` in the same breath
+ * produced a `PATCH` and two `GET`s and **no `POST` at all** — no new row, no
+ * cursor change, no message. Reproduced on demand in Chrome, 2026-08-09.
+ *
+ * The click is still dropped: queuing it would be a second, invisible order of
+ * operations over a plan two people are editing, and that is a design decision
+ * nobody has made. What this changes is that the drop is **visible** — the
+ * whole toolbar says `aria-busy`, and the controls the wait is holding back
+ * fade and take the progress cursor, so a click that goes nowhere lands on
+ * something that already said it would.
+ *
+ * `Undo` with nothing to undo gets none of this and that is the distinction
+ * being drawn: it is disabled because the stack is empty, waiting will not
+ * change it, and a progress cursor over it would be a lie. The affordance is
+ * spread only while `busy` is true, so a control disabled for both reasons
+ * wears it for exactly as long as the wait is the reason.
+ */
+const busyAffordance = (busy: boolean): { 'data-busy'?: ''; style?: CSSProperties } =>
+  busy ? { 'data-busy': '', style: { cursor: 'progress', opacity: 0.6 } } : {};
+
+/**
+ * One read of the tree, as far as the chart is concerned: the slices, the roles
+ * they were placed under, and the names of everybody on them.
+ *
+ * All three arrive on the same request, and this type is what keeps them
+ * arriving together — see {@link GanttPlan} for what happens to a drawing whose
+ * parts came from different moments.
+ */
+interface ChartRead {
+  slices: SliceView[];
+  roles: RoleView[];
+  people: AssignedPersonView[];
+  /**
+   * Which read this is: `refresh`'s own generation, and 0 before any has
+   * landed.
+   *
+   * Carried here rather than kept in a ref because it is what
+   * {@link GanttFaultBoundary} resets on — a fault caught while drawing one
+   * read must clear when the next one arrives, and only a value that renders
+   * can say a new one has.
+   */
+  generation: number;
+}
+
+/** No read has landed yet: no slices, no roles, nobody, and no generation. */
+const NO_CHART_READ: ChartRead = { slices: [], roles: [], people: [], generation: 0 };
 
 const column = createColumnHelper<TreeRow>();
 
@@ -648,17 +772,26 @@ const column = createColumnHelper<TreeRow>();
 export function WbsTable({ projectId, projectName, api, subscribe }: WbsTableProps) {
   const [workItems, setWorkItems] = useState<TreeRow[]>([]);
   /**
-   * The slices of the tree on screen — be-01's placed schedule, held beside the
-   * rows it belongs to.
+   * Everything the chart is drawn from, as **one** read delivered it.
    *
-   * Replaced whole on every refetch, never patched, for the reason the rows are:
-   * one edit can move slices of work items this client never touched — a person
-   * freed here starts something over there — and guessing which would be a
-   * second implementation of the engine. They are held here rather than fetched
-   * where they are drawn because they arrive on the same read as the rows, and
-   * two reads would be two moments.
+   * Replaced whole on every refetch, never patched, for the reason the rows
+   * are: one edit can move slices of work items this component never touched —
+   * a person freed here starts something over there — and guessing which would
+   * be a second implementation of the engine.
+   *
+   * One state and not three, and that is the fix rather than a tidy-up.
+   * `layOutGantt` refuses a payload whose slices name a role or a person it has
+   * not got, which is exactly what this client held while the slices came from
+   * `tree()` and the roles and names came from `roles()` and `listPeople()`:
+   * four requests, four moments, and a peer deleting a phase in between left a
+   * chart that threw. Held together, they cannot disagree — there is no setter
+   * that can move one without the others.
+   *
+   * The separate reads stay for what they are actually about: {@link roles}
+   * heads the estimate columns and the phases dialog edits it, and
+   * {@link people} is who the assignee picker can offer.
    */
-  const [slices, setSlices] = useState<SliceView[]>([]);
+  const [chartRead, setChartRead] = useState<ChartRead>(NO_CHART_READ);
   const [roles, setRoles] = useState<RoleView[]>([]);
   /**
    * Which branches are open, as this browser last left them for this project.
@@ -927,13 +1060,19 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
   const renderer = useRendererForViewport();
   const [toolbarSheetOpen, setToolbarSheetOpen] = useState(false);
   /**
-   * Whether the sheet closing was a control on it being taken, rather than
-   * Escape, the ✕ or a tap outside.
+   * Whether the control that closed the sheet aims the caret itself — the
+   * {@link TAKES_THE_FOCUS} mark, read off the control that was clicked.
+   *
+   * False for every other way out, and that includes the rest of the toolbar:
+   * Escape, the ✕, a tap outside, and `Collapse all`, `Gantt`, `Undo` and the
+   * exports, none of which ask for the focus anywhere. Only the three that do
+   * may refuse Radix's restore, because refusing it for the others drops the
+   * focus on `<body>` — nothing to type into and nothing to Tab from.
    *
    * A ref because nothing renders it, and because it is read from Radix's own
    * close handler one turn of the event loop after the click that set it.
    */
-  const sheetActedOnThePlan = useRef(false);
+  const sheetControlTakesTheFocus = useRef(false);
   useEffect(() => {
     setToolbarSheetOpen(false);
   }, [renderer]);
@@ -1044,7 +1183,18 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     // read put them — and `replaces the slices on every refetch, as it replaces
     // the rows` failed on `expected '2' to be '1'`: a second row on screen with
     // the one-row plan's slices still behind it; watched 2026-08-09.
-    setSlices(tree.slices);
+    //
+    // One call, so the chart's three parts can only ever be one payload's. The
+    // roles and the names come from `tree` and **not** from `loadedRoles` or
+    // `loadedPeople` below: those are three more requests, and a peer's phase
+    // delete landing between them is what used to hand `layOutGantt` a slice
+    // under a role the plan no longer listed.
+    setChartRead({
+      slices: tree.slices,
+      roles: tree.roles,
+      people: tree.assignedPeople,
+      generation,
+    });
     setStack({ undoable: tree.undoable, redoable: tree.redoable });
     setScheduleError(tree.scheduleError);
     setEstimateMethod(tree.estimateMethod);
@@ -1240,7 +1390,13 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
           // below dropped, the same test failed on `expected [ '010', '020',
           // '030' ] to deeply equal [ '010', '020' ]`.
           pushToast({ kind: 'error', text: refusalSentence(thrown) });
-          if (failureText(thrown, '') === GONE) await refreshOrMarkStale();
+          // Two refusals say the screen is behind rather than that the request
+          // was wrong: {@link GONE}, and a body be-01 could not read. The
+          // second is the sentence's own claim — {@link INVALID_REFUSAL} says
+          // the plan was read again, and a sentence that says so without doing
+          // it is the worst of both.
+          const refusal = failureText(thrown, '');
+          if (refusal === GONE || INVALID_REQUEST.has(refusal)) await refreshOrMarkStale();
           return 'refused';
         }
         await refreshOrMarkStale();
@@ -1296,7 +1452,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
             kind: 'error',
             // be-01's own sentence about what moved, because a translation
             // here would be a second vocabulary for one set of refusals.
-            text: `${direction === 'undo' ? 'That could not be undone' : 'That could not be put back'}: ${outcome.detail ?? 'the plan has changed since.'}`,
+            text: `${direction === 'undo' ? 'That could not be undone' : 'That could not be put back'}: ${outcome.detail ?? 'the plan has changed since then.'}`,
           });
         }
         await refreshOrMarkStale();
@@ -3872,7 +4028,14 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                     id: `${role.id}-${point}`,
                     // The role's name is on the group column; repeating it three
                     // times over is how the headers came to set the table's width.
-                    header: point,
+                    //
+                    // The word itself in a `title`, because the column is 52px
+                    // and the word is not: measured on 2026-08-09, `optimistic`
+                    // wants 84px and reads `optimi`, `pessimistic` wants 95px
+                    // and reads `pessin`. There is no ellipsis to hint at it
+                    // either — the same answer the `Days` header takes, where
+                    // the sentence that would not fit moved into the `title`.
+                    header: () => <span title={point}>{point}</span>,
                     cell: ({ row }) => {
                       const problem = live.current.trioProblemFor(row.original, role.id);
                       const wrong = problem?.points.includes(point) ?? false;
@@ -4019,8 +4182,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         id: 'not-before',
         header: 'Not before',
         cell: ({ row }) => (
-          <input
-            type="date"
+          <DateField
             aria-label={`Earliest start for ${row.original.number}`}
             // Disabled without a project start date, because there is then no
             // day zero to count from and be-01 ignores the constraint
@@ -4049,10 +4211,9 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
             // so it is told to follow the column like every other control.
             style={{ width: '100%', boxSizing: 'border-box', font: 'inherit' }}
             value={row.original.startNoEarlierThan ?? ''}
-            onChange={(e) => {
+            commit={(typed) => {
               // A date input reports '' when cleared, which is the caller
               // saying "no constraint" rather than "an empty date".
-              const typed = e.target.value;
               live.current.setNotBefore(row.original.id, typed === '' ? null : typed);
             }}
           />
@@ -4126,21 +4287,32 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                   void live.current.duplicateRow(row.original.id);
                 },
               },
-              row.original.frozenNumber !== null
-                ? {
-                    id: 'unfreeze',
-                    label: 'Unfreeze',
-                    run: () => {
-                      void live.current.run(() => live.current.api.unfreeze(row.original.id));
+              ...(row.original.frozenNumber === null
+                ? []
+                : [
+                    {
+                      id: 'unfreeze',
+                      label: 'Unfreeze',
+                      run: () => {
+                        void live.current.run(() => live.current.api.unfreeze(row.original.id));
+                      },
                     },
-                  }
-                : {
-                    id: 'delete',
-                    label: 'Delete',
-                    run: () => {
-                      void live.current.deleteRow(row.original);
-                    },
-                  },
+                  ]),
+              {
+                id: 'delete',
+                label: 'Delete',
+                // Present and refused on a frozen row rather than absent, and
+                // it carries the real `run` deliberately: an item whose action
+                // was stubbed out could not tell a working guard from a
+                // missing one. {@link RowAction.refusedBecause} is what stops
+                // it, and the test that watches it stop is the proof.
+                ...(row.original.frozenNumber === null
+                  ? {}
+                  : { refusedBecause: 'Frozen — unfreeze this row before deleting it' }),
+                run: () => {
+                  void live.current.deleteRow(row.original);
+                },
+              },
             ]}
           />
         ),
@@ -4227,15 +4399,19 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
       },
       notBeforeOffset: notBeforeOffsetOf(startDate, row.original.startNoEarlierThan),
     })),
-    slices,
+    slices: chartRead.slices,
     // The stored dependencies of the rows on screen. An edge whose other end is
     // collapsed away or narrowed off is dropped by `layOutGantt`, which is a
     // modeled absence there rather than a filter here.
     dependencies: shownRows.flatMap((row) =>
       row.original.dependsOn.map((predecessorId) => ({ predecessorId, successorId: row.id })),
     ),
-    roles,
-    personNames: new Map(people.map((person) => [person.id, person.name])),
+    // All three off {@link chartRead}, which is one payload. **Not** `roles`
+    // and `people`: those are the separate reads the pickers and the phases
+    // dialog are about, and a slice checked against a role list from another
+    // moment is the skew `layOutGantt` throws on.
+    roles: chartRead.roles,
+    personNames: new Map(chartRead.people.map((person) => [person.id, person.name])),
   };
 
   /**
@@ -4262,6 +4438,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         type="button"
         onClick={() => void run(() => api.freeze(projectId))}
         disabled={busy}
+        {...busyAffordance(busy)}
       >
         Freeze numbering
       </Button>
@@ -4271,12 +4448,16 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         type="button"
         onClick={() => void run(() => api.unfreezeProject(projectId))}
         disabled={busy}
+        {...busyAffordance(busy)}
       >
         Unfreeze all
       </Button>
       <Button
         size="sm"
         type="button"
+        // One of the three controls that aims the caret itself — the new
+        // row's name, through `focusIntent` below. See {@link TAKES_THE_FOCUS}.
+        {...{ [TAKES_THE_FOCUS]: '' }}
         onClick={() =>
           void run(async () => {
             const created = await api.create(projectId, {
@@ -4288,6 +4469,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
           })
         }
         disabled={busy}
+        {...busyAffordance(busy)}
       >
         Add work item
       </Button>
@@ -4431,6 +4613,10 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
           variant="outline"
           size="sm"
           type="button"
+          // The second control that aims the caret itself: `walkToNextGap`
+          // puts it in the cell that estimates the next gap. See
+          // {@link TAKES_THE_FOCUS}.
+          {...{ [TAKES_THE_FOCUS]: '' }}
           title={describeGaps(gaps)}
           onClick={walkToNextGap}
         >
@@ -4453,6 +4639,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         size="sm"
         type="button"
         disabled={busy || !stack.undoable}
+        {...busyAffordance(busy)}
         title="Undo your last change to this plan (Ctrl/⌘ + Z)"
         onClick={() => {
           void stepStack('undo');
@@ -4465,6 +4652,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         size="sm"
         type="button"
         disabled={busy || !stack.redoable}
+        {...busyAffordance(busy)}
         title="Put back what you last undid (Ctrl/⌘ + Shift + Z)"
         onClick={() => {
           void stepStack('redo');
@@ -4483,6 +4671,10 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         type="button"
         aria-label="Keyboard shortcuts"
         title="Keyboard shortcuts (?)"
+        // The third control that aims the caret itself: the cheat sheet takes
+        // the focus onto its own panel as it mounts, and Radix's restore
+        // arrives after it. See {@link TAKES_THE_FOCUS}.
+        {...{ [TAKES_THE_FOCUS]: '' }}
         onClick={() => {
           setCheatSheetOpen(true);
         }}
@@ -4522,14 +4714,13 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
           because every date is an offset from it — there is nothing stored
           per row to drag along.
         */}
-        <input
+        <DateField
           className="border-input bg-background h-8 rounded-md border px-2 text-sm"
-          type="date"
           aria-label="Project start date"
           disabled={busy}
+          {...busyAffordance(busy)}
           value={startDate ?? ''}
-          onChange={(e) => {
-            const typed = e.target.value;
+          commit={(typed) => {
             void run(() => api.setStartDate(projectId, typed === '' ? null : typed));
           }}
         />
@@ -4546,6 +4737,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
           aria-label="Final estimate"
           value={estimateMethod}
           disabled={busy}
+          {...busyAffordance(busy)}
           onChange={(e) => {
             const chosen = e.target.value;
             if (isEstimateMethod(chosen)) chooseEstimateMethod(chosen);
@@ -4576,7 +4768,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
       // so this stays as the trace they leave with it closed, which is what
       // lets `wbs-table.test.tsx` watch "a refetch replaces the slices" break
       // without opening a chart.
-      data-slice-count={slices.length}
+      data-slice-count={chartRead.slices.length}
     >
       {/*
         Two places for one toolbar, and which one is a fact about the viewport.
@@ -4623,37 +4815,58 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
               // /api/projects/…/work-items` simply absent from the network log
               // after a click that closed the sheet.
               onClick={(event) => {
-                if (!closesTheSheet(event.target, event.currentTarget)) return;
-                sheetActedOnThePlan.current = true;
+                const control = closingControlIn(event.target, event.currentTarget);
+                if (control === null) return;
+                // Assigned, never set: the flag outlives the click that wrote
+                // it, so a `Collapse all` after an `Add work item` would read
+                // the create's `true` and suppress a restore nothing had asked
+                // for. Every close writes its own answer.
+                sheetControlTakesTheFocus.current = control.hasAttribute(TAKES_THE_FOCUS);
                 setToolbarSheetOpen(false);
               }}
               // Radix restores the focus to the trigger when a modal closes,
               // and it does it on a timer — so it lands *after* the refetch a
               // control on this sheet started, and takes the caret back off the
-              // work item that control created. Refused for that one case only:
-              // a sheet closed by Escape, by the ✕ or by a tap outside has
-              // taken nothing on the plan, and the trigger is exactly where the
-              // focus belongs.
+              // work item that control created. Refused for the three controls
+              // that aim the caret themselves, and for nothing else: a sheet
+              // closed by Escape, by the ✕, by a tap outside or by any of the
+              // other dozen controls has aimed the caret nowhere, and the
+              // trigger is exactly where the focus belongs.
               //
               // Proof: this handler removed, `lands the focus in the card of a
               // work item it just created` failed on `expected <button …> to be
               // <textarea …>` — Radix's restore arriving last. Watched,
               // 2026-08-09.
+              //
+              // Proof of the other half — the flag pinned back to an
+              // unconditional `true`, which is what shipped: `gives the focus
+              // back to the trigger when the control aimed the caret nowhere`
+              // failed on `expected <body> to be <button …>`. Watched in jsdom
+              // and in Chromium at 390×844 (`e2e/mobile.spec.ts`), 2026-08-09.
               onCloseAutoFocus={(event) => {
-                if (!sheetActedOnThePlan.current) return;
-                sheetActedOnThePlan.current = false;
+                if (!sheetControlTakesTheFocus.current) return;
+                sheetControlTakesTheFocus.current = false;
                 event.preventDefault();
               }}
             >
               <ModalHeader>
                 <ModalTitle>Plan actions</ModalTitle>
               </ModalHeader>
-              <div className="flex flex-wrap items-center gap-2">{toolbarControls}</div>
+              <div aria-busy={busy} className="flex flex-wrap items-center gap-2">
+                {toolbarControls}
+              </div>
             </ModalContent>
           </Modal>
         </div>
       ) : (
-        <div data-toolbar className="mb-1.5 flex shrink-0 flex-wrap items-center gap-x-1.5 gap-y-1">
+        <div
+          data-toolbar
+          // Said out loud, because a control that is unavailable for a moment
+          // and one that is unavailable for good look the same otherwise —
+          // see {@link busyAffordance} for the click this makes visible.
+          aria-busy={busy}
+          className="mb-1.5 flex shrink-0 flex-wrap items-center gap-x-1.5 gap-y-1"
+        >
           {toolbarControls}
         </div>
       )}
@@ -4958,12 +5171,19 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         opens.
       */}
       {ganttOpen && (
-        <GanttPanel
-          plan={ganttPlan}
-          startDate={startDate}
-          scheduleError={scheduleError}
-          onPickRow={goToRow}
-        />
+        // The boundary wraps the panel and nothing else, which is the whole of
+        // the degradation this feature is allowed: a chart that cannot be drawn
+        // costs the reader the chart, never the editor above it. See
+        // {@link GanttFaultBoundary} for why it resets on the read rather than
+        // on a key.
+        <GanttFaultBoundary generation={chartRead.generation}>
+          <GanttPanel
+            plan={ganttPlan}
+            startDate={startDate}
+            scheduleError={scheduleError}
+            onPickRow={goToRow}
+          />
+        </GanttFaultBoundary>
       )}
 
       {/*
@@ -4986,6 +5206,10 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
       */}
       {cheatSheetOpen && (
         <KeyboardCheatSheet
+          // The sheet says what *this* renderer answers, and nothing else. The
+          // cards wire no chords at all, and a sheet promising ⌘+Enter on a
+          // phone is the promise nothing keeps.
+          renderer={renderer}
           onClose={() => {
             setCheatSheetOpen(false);
           }}

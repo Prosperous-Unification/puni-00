@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   type BarColor,
+  type BindingFloor,
   GanttDataError,
   type GanttPlan,
   type GanttRow,
@@ -366,6 +367,39 @@ describe('person links', () => {
 
     expect(() => layOutGantt(stranger)).toThrow(GanttDataError);
     expect(() => layOutGantt(stranger)).toThrow('does not name');
+  });
+});
+
+/**
+ * A floor this module has no words for.
+ *
+ * `boundBy` is a wire value, and the union says five because that is what
+ * be-01 sends today. A sixth added there — a resource calendar, a fixed date —
+ * arrives here as a string, and the cast is how a test says "the payload
+ * carried a value this build has never heard of" without waiting for be-01 to
+ * grow one. That is the boundary that makes it safe: nothing else in this file
+ * casts, and this one exists to reach the branch a type cannot.
+ */
+describe('a binding floor this build does not know', () => {
+  const heldByTheUnknown = (): GanttPlan =>
+    planOf({
+      rows: [rowAt('strip', 0, 3)],
+      slices: [
+        sliceAt('strip-dev', 'strip', 0, 3, {
+          boundBy: 'resourceCalendar' as BindingFloor,
+        }),
+      ],
+    });
+
+  it('throws rather than saying nothing at all about what holds a bar', () => {
+    // Proof: the `default` branch replaced by the index it used to be —
+    // `FLOOR_SENTENCE[slice.boundBy as Exclude<BindingFloor, 'person'>]`. This
+    // test alone failed, on `expected function to throw an error, but it
+    // didn't`; the same run printed what shipped instead — `floorWords`
+    // `undefined`, and the bar's hover title ending `…Float 0 days\n` with
+    // nothing after the newline. Watched 2026-08-09.
+    expect(() => layOutGantt(heldByTheUnknown())).toThrow(GanttDataError);
+    expect(() => layOutGantt(heldByTheUnknown())).toThrow('resourceCalendar');
   });
 });
 

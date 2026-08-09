@@ -520,3 +520,150 @@ The 15 spec-project errors are the pre-existing set named in
 above that used to end "and until slice 7 exists…" is answered by
 `e2e/gantt.spec.ts`, and the three things a person looking at the chart could
 not see are the three things it measures first.
+
+---
+
+## The sweep, 2026-08-09 — four verified review findings
+
+Four findings from an adversarial review of this change, fixed on
+`fix/sweep-findings` off `main` at `e73999b`. Every command below was run on
+2026-08-09 on Dany's Mac (darwin arm64, bun 1.3.14) from the repository root.
+
+### What landed
+
+| file                                              | what                                                                         |
+| ------------------------------------------------- | ---------------------------------------------------------------------------- |
+| `apps/fe-01/src/components/wbs/gantt-fault.tsx`   | new — `GanttFaultBoundary`, the boundary this spec promised (#2)             |
+| `apps/be-01/src/service/work-item.service.ts`     | `tree()` carries `roles` and `assignedPeople` (#5)                           |
+| `apps/fe-01/src/lib/wbs-api.ts`                   | `AssignedPersonView`, `roles`/`assignedPeople` on the tree result (#5)       |
+| `apps/fe-01/src/components/wbs/wbs-table.tsx`     | `ChartRead` — one state for the whole payload; the boundary around the panel |
+| `apps/fe-01/src/components/wbs/gantt-panel.tsx`   | `CHART_PAD_PX`: the canvas holds the arrow route (#3)                        |
+| `apps/fe-01/src/components/wbs/gantt-geometry.ts` | `floorWordsOf` throws on a floor it has no words for (#7)                    |
+| `apps/fe-01/e2e/gantt.spec.ts`                    | the paint probe, and an arrow off either end of the schedule                 |
+
+fe-01 counted 791 before and **798** after: `gantt-panel.test.tsx` 31 → 37,
+`gantt-geometry.test.ts` 42 → 43. be-01 gained three in
+`work-item.service.test.ts` (497 → 500 across the app). `e2e/gantt.spec.ts`
+6 → 7.
+
+### #2 — the error boundary the spec promised
+
+`spec.md` said a bad payload "SHALL throw, into the error boundary", and there
+was **no** ErrorBoundary anywhere in fe-01: the throw took the whole page,
+editor included. `GanttFaultBoundary` wraps `<GanttPanel>` and nothing else —
+the Gantt is the explicitly optional feature AGENTS.md's degradation clause is
+about, so a chart that cannot be drawn costs the chart and not the plan. The
+fallback prints the caught error's own message, because `GanttDataError`'s
+sentences name the slice and are the only artefact of a skew that is over by
+the time it is read. It clears itself on the next landed read
+(`chartRead.generation`) through `getDerivedStateFromProps` rather than a
+`key`: a `key` would remount the panel on **every** refresh and take the
+chart's scroll position with it.
+
+### #5 — the cross-read invariant is now within-payload
+
+`refresh()` `Promise.all`s four endpoints and used to feed the panel slices from
+one read and roles and names from two others. A peer's phase delete between them
+handed `layOutGantt` a slice under a role the plan did not list — which threw,
+and (before #2) killed the app. `gantt-geometry.ts`'s "one pass from one graph"
+and "one read" were false; they are true now.
+
+be-01's `tree()` already had both facts in hand (`rolesOf` for the schedule,
+`assignmentsOf` for the assignees) and now sends them: `roles`, in the order
+`slicesOf` was handed, and `assignedPeople`, the id and name of everybody an
+assignment on those rows points at — read **after** `assignmentsOf`, because
+people are only ever added. fe-01 holds all three in one `ChartRead` state,
+written by one `setChartRead` call, so there is no setter that can move one
+without the others. The separate `roles()` and `listPeople()` reads stay for
+what they are actually about: the estimate columns, the phases dialog, the
+assignee picker.
+
+### #3 — the arrow route stays inside the paint
+
+`arrowRoute` steps `ARROW_APPROACH_PX` clear of a bar before it turns, so a
+successor at workday 0 is approached through **negative** x, and an arrow off
+the last bar leaves past the horizon. The viewBox was `0 0 horizon rowCount`,
+and an `<svg>`'s own UA `overflow: hidden` clipped both.
+
+**The choice, logged as design §1 asks.** The excursion is folded into the drawn
+**canvas**, not into `layOutGantt`'s horizon: `CHART_PAD_PX` (12px — the widest
+excursion any mark makes, plus the heaviest stroke it is drawn with) becomes a
+symmetric band, `viewBox="-pad 0 (horizon + 2·pad) rowCount"`, with the HTML
+axis and the on-bar labels shifted by the same number so a bar still begins
+under its own axis cell. The horizon was rejected because it is the schedule's
+own number — it decides how many axis cells are printed and is asserted against
+be-01's — and because padding only the right of it would leave workday 0
+clipped. Bar `x` and `width` are the engine's numbers, untouched: the contract
+binds the bars, not the canvas edges.
+
+### #7 — an unknown binding floor throws
+
+`floorWordsOf` indexed `FLOOR_SENTENCE` with the wire's `boundBy`. A sixth floor
+added to be-01 — a resource calendar, a fixed date — reached the panel as
+`undefined` words, and `Array.join` printed **nothing**: a hover title ending in
+a bare newline where the one sentence the panel exists to show should be. It is
+a `switch` over the whole union now, with a `default` that throws
+`GanttDataError` — within-payload, the same class and the same boundary as the
+dangling-predecessor throw. No runtime payload validation was added: arktype
+stays out of this bundle (`wbs-api.ts:1-9`).
+
+### Failure proof — the sweep
+
+Every fault injected on the production path, run, and reverted, by the agent
+writing this table, on 2026-08-09.
+
+| check                                   | fault injected                                                                               | what failed                                                                                                                                                                                                  |
+| --------------------------------------- | -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| the chart's fault costs only the chart  | `<GanttFaultBoundary>` struck from `wbs-table.tsx`, the panel rendered bare                  | 1 — `says why, and leaves the plan alone`, `1 failed \| 34 skipped`, on `GanttDataError: slice sanding::role-dev names resource predecessor a-slice-nobody-sent…` **out of `render`**                        |
+| the fault does not outlive the read     | `getDerivedStateFromProps` deleted from the boundary                                         | 1 — `draws the chart again when the next read is whole`, on `Error: no bar on the chart for sanding` — the fallback still up over a plan whole since the refetch                                             |
+| the roles are the payload's             | `ganttPlan`'s `roles` put back to the separate read's state                                  | 1 — `draws under the roles the payload carried, not the pickers’ list`, on `expected null not to be null`; the boundary read `slice sanding::role-dev is under role role-dev, which this plan does not list` |
+| the names are the payload's             | `ganttPlan`'s `personNames` put back to the `people` state                                   | 1 — `names the people the payload carried, not the directory read`, on `expected 'The chart cannot be drawn: slice sand…' to be null`                                                                        |
+| be-01 reads the phases once             | `roles:` in the payload replaced by a second `await this.opts.projects.rolesOf(projectId)`   | 1 — `answers from one read of the phases, whatever a later read would say`, on `expect(received).toEqual(expected)` with `- "QA"` — the payload one phase short of its own slices                            |
+| the phases are in the engine's order    | `roles: [...roles].reverse()`                                                                | 1 — `carries the phases its slices were placed under, in the engine’s order`, on the same matcher printing `- "Dev"` after `"QA"`                                                                            |
+| the names are of who is on the plan     | the filter inverted — `!assignedIds.has(each.id)`                                            | 1 — `names everybody its slices are assigned to, and nobody else`, on `- "Ada"`, `- "Kat"`, `+ "Unbooked"`                                                                                                   |
+| the canvas holds the route (numbers)    | the viewBox back to `0 0 horizon rowCount`, the width back to `horizon * DAY_PX`             | 1 — `declares a canvas wide enough for a route that leaves the schedule`, on `expected -0.35714285714285715 to be greater than or equal to 0`                                                                |
+| the canvas holds the route (**pixels**) | the same, plus the axis's and labels' `CHART_PAD_PX` offsets removed                         | **2** — `paints an arrow that routes off either end…` on `a mark is drawn outside the canvas, where nothing paints`, listing both elbows and the head; and `draws a bar at the pixel…` on `12`               |
+| the left-edge head is **painted**       | the same, with assertion 1 of that test replaced by a `void`                                 | 1 — the same test, on `the left-edge arrow head is not painted at its own centre: expected "itself", received "<BUTTON type data-gantt-label title class style>"`                                            |
+| an unknown floor throws                 | the `default` replaced by `FLOOR_SENTENCE[slice.boundBy as Exclude<BindingFloor, 'person'>]` | 1 — `throws rather than saying nothing at all about what holds a bar`, on `expected function to throw an error, but it didn't`                                                                               |
+
+The last row's run also printed what shipped instead, which is the fault itself:
+`floorWords` `undefined`, and a hover title of `"Strip\nDev ·
+Unassigned\nWorkdays 0 → 3 · 3 days\nFloat 0 days\n"` — the line the panel
+exists to show, gone, and a bare newline where it was.
+
+**The one negative that only a browser could hold** is the paint probe. The
+head of a left-edge arrow reports a 7px box from `getBoundingClientRect`
+whether or not a single pixel of it is painted, so every jsdom assertion about
+it — and every rectangle assertion in `e2e/gantt.spec.ts` — passed while the
+mark was invisible. `document.elementFromPoint` at the head's own centre is the
+browser saying which ink is on that pixel, and it named the row-label button
+behind the clipped triangle. The existing head check
+(`the arrow head is not in front of the bar it points at`) was the same shape
+and is now backed by that probe.
+
+### The gate, after the sweep
+
+| command                                                      | result                                       |
+| ------------------------------------------------------------ | -------------------------------------------- |
+| `bunx nx format:check --all`                                 | pass                                         |
+| `bunx nx run-many -t test lint typecheck build --parallel=2` | pass, 21 projects                            |
+| `bunx nx test fe-01`                                         | **798 passed**, 37 files                     |
+| `bun test` in `apps/be-01`                                   | **500 passed**, 49 files                     |
+| `bunx openspec validate --all --json`                        | 48 items, 48 passed, 0 failed                |
+| `bunx tsc --build --force apps/fe-01/tsconfig.spec.json`     | 15 errors, **0 in a gantt file** — as before |
+| `bunx playwright test` (the whole browser gate)              | **61 passed**, 1.1m                          |
+| `git diff apps/fe-01/playwright.config.ts`                   | empty — the ported ports were reverted       |
+
+Per spec: `gantt` **7**, `header` 5, `keyboard` 10, `layout` 22, `mobile` 5,
+`phases` 6, `tailwind` 6.
+
+The 15 spec-project errors are the same pre-existing set named in
+`teams-and-assignees/verify.md` — counted before and after this change, both 15,
+and `grep -ci gantt` over that output prints 0.
+
+**The ports.** 3100/3200/4200 were in use by a live stack, so the run used
+3111/3211/4211: `PORT`/`GW_URL`/`BE_URL` through `playwright.config.ts`'s `env`
+(which wins over a `.env`), and — because fe-01's proxy targets come from
+`loadEnv` rather than the environment — `bunx vite --mode e2e --port 4211` with
+a throwaway `apps/fe-01/.env.e2e`. Both the config and that file were reverted
+and deleted before committing; `git status` is clean of them.

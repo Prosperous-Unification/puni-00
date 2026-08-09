@@ -84,6 +84,54 @@ describe('the phases a project holds', () => {
     expect(stub.renameRole).toHaveBeenCalledWith('role-qa', 'Review');
   });
 
+  itDom('renames on the way out of the box, not only on Enter', async () => {
+    // Every other text field in this product commits on blur. This one took
+    // Enter and nothing else, so a rename typed and then abandoned — ✕, Tab,
+    // anything — was dropped without a PATCH, a toast or a mark on the field,
+    // and `onOpenChange` clearing `renamed` is what made it silent. Observed on
+    // 2026-08-09.
+    //
+    // Proof: the `onBlur` handler removed from the rename box, this failed on
+    // `expected "spy" to be called with arguments: [ 'role-qa', 'Review' ]` —
+    // never called at all, and so did `keeps a rename that was typed and then
+    // the dialog closed on it`. Both watched, 2026-08-09.
+    const stub = stubbed();
+
+    type('QA', 'Review');
+    fireEvent.blur(screen.getByLabelText('QA'));
+    await settle();
+
+    expect(stub.renameRole).toHaveBeenCalledWith('role-qa', 'Review');
+  });
+
+  itDom('keeps a rename that was typed and then the dialog closed on it', async () => {
+    // The gesture the finding was filed for: type over the name, then close the
+    // dialog by its own ✕. A browser blurs the field before the click lands —
+    // jsdom performs no focus change of its own, so the blur is delivered here
+    // in the order a browser delivers it.
+    const stub = stubbed();
+
+    const box = screen.getByLabelText('QA');
+    box.focus();
+    type('QA', 'Review');
+    fireEvent.blur(box);
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+    await settle();
+
+    expect(stub.renameRole).toHaveBeenCalledWith('role-qa', 'Review');
+  });
+
+  itDom('sends nothing on the way out of a box nobody typed in', async () => {
+    // The other half, and what keeps the blur commit from being a rename on
+    // every click through the list: leaving a box unchanged is not an edit.
+    const stub = stubbed();
+
+    fireEvent.blur(screen.getByLabelText('QA'));
+    await settle();
+
+    expect(stub.renameRole).not.toHaveBeenCalled();
+  });
+
   itDom('sends nothing for a name that is only spaces', async () => {
     const stub = stubbed();
 
@@ -318,9 +366,14 @@ describe('how wide the phases make the table', () => {
     stubbed({ roles: [DEV, QA] });
 
     // 752px of fixed columns, 200 for Name, 96 each for two folded phases.
+    // Renderer-neutral wording: this dialog opens from the phone's toolbar
+    // sheet too, and the sentence used to describe a table that reader has
+    // never seen.
     expect(document.body.textContent).toContain(
-      '2 phases need ≥1144px before the table scrolls sideways.',
+      '2 phases need ≥1144px of width to sit side by side',
     );
+    expect(document.body.textContent).toContain('under 768px the plan is drawn as cards instead');
+    expect(document.body.textContent).not.toContain('before the table scrolls sideways');
   });
 
   itDom('counts one phase as one', () => {

@@ -18,8 +18,9 @@ estimate directly once it has children. Never `item` alone — R2 forbids the ba
 _Avoid_: item, task, row, node
 
 **Subtree**:
-One work item and every work item beneath it, to any depth. The unit a deletion and a
-duplication both address, because a branch is what a planner thinks in.
+One work item and every work item beneath it, to any depth. The unit a duplication
+addresses, because a branch is what a planner thinks in. A deletion takes the one row
+and promotes its children a level, unless it is explicitly asked to take the subtree.
 _Avoid_: branch, descendants, group
 
 **Duplicate**:

@@ -71,7 +71,11 @@ describe('the presence panel', () => {
     globalThis.WebSocket = realWebSocket;
   });
 
-  const mount = () => render(<PresencePanel token="t" me="kat" />);
+  const mount = (projectId: string | null = 'p-hull') =>
+    render(<PresencePanel token="t" me="kat" projectId={projectId} />);
+
+  /** What this socket was told, as parsed frames. */
+  const framesSentBy = (s: StillSocket) => s.sent.map((f) => JSON.parse(f) as { type?: string });
 
   /** Opens the socket and delivers one roster frame, the way gw-01 does. */
   function arrive(users: string[]): void {
@@ -95,13 +99,60 @@ describe('the presence panel', () => {
     expect(screen.getByRole('heading', { name: 'Online (open)' })).toBeDefined();
   });
 
-  itDom('asks who is there as soon as the socket opens', () => {
-    mount();
+  itDom('names its project, then asks who is there, as soon as the socket opens', () => {
+    // F4: gw-01's roster used to be every username connected to the gateway,
+    // because nothing on this socket ever said which project it was for. The
+    // subscribe is that statement, and it goes first — `who` is answered with
+    // this connection's own project, so the other order is answered with
+    // nobody.
+    //
+    // Proof: the `subscribe` send deleted from `presence-panel.tsx`. This test
+    // failed on `expect(framesSentBy(socket())).toEqual([...])` with only the
+    // `who` frame sent — the same socket the gateway would have put in no
+    // project at all.
+    mount('p-hull');
     act(() => {
       socket().onopen?.();
     });
 
-    expect(socket().sent).toEqual([JSON.stringify({ type: 'who' })]);
+    expect(framesSentBy(socket())).toEqual([
+      { type: 'subscribe', subscription: 'project:p-hull' },
+      { type: 'who' },
+    ]);
+  });
+
+  itDom('names no project when none is open, and asks anyway', () => {
+    // A browser with nothing selected is in no roster — `who` is answered with
+    // an empty list, which is the honest answer rather than the gateway's.
+    mount(null);
+    act(() => {
+      socket().onopen?.();
+    });
+
+    expect(framesSentBy(socket())).toEqual([{ type: 'who' }]);
+  });
+
+  itDom('opens another socket for another project, and empties the roster first', () => {
+    // Proof: `projectId` removed from the effect's dependency list. This test
+    // failed on `expect(StillSocket.opened).toHaveLength(2)` receiving 1 — one
+    // socket, still subscribed to `project:p-hull`, showing the old project's
+    // people under the new project's name.
+    const view = render(<PresencePanel token="t" me="kat" projectId="p-hull" />);
+    arrive(['kat', 'sam']);
+    expect(screen.getAllByRole('listitem')).toHaveLength(2);
+
+    view.rerender(<PresencePanel token="t" me="kat" projectId="p-keel" />);
+
+    expect(StillSocket.opened).toHaveLength(2);
+    expect(StillSocket.opened[0]?.closed).toBe(true);
+    expect(screen.getByText('Nobody yet.')).toBeDefined();
+    act(() => {
+      socket().onopen?.();
+    });
+    expect(framesSentBy(socket())).toEqual([
+      { type: 'subscribe', subscription: 'project:p-keel' },
+      { type: 'who' },
+    ]);
   });
 
   itDom('says so while nobody has arrived', () => {
