@@ -210,6 +210,20 @@ function fakeApi(): ProjectApi & {
         })),
         seq,
         scheduleError: null,
+        // One per leaf and phase, as be-01 places them: a parent has no work of
+        // its own and gets none. The ids are this fake's, and opaque — the
+        // table looks them up and never takes them apart.
+        slices: rows
+          .filter((r) => !rows.some((child) => child.parentId === r.id))
+          .map((r) => ({
+            id: `${r.id}::${DEV.id}`,
+            workItemId: r.id,
+            roleId: DEV.id,
+            personId: assigned.get(`${r.id}::${DEV.id}`) ?? null,
+            ...scheduleOf(r),
+            boundBy: 'projectStart' as const,
+            resourcePredecessorId: null,
+          })),
         estimateMethod,
         startDate,
         // Never moved by anything the table does: the fake's mutations are all
@@ -600,6 +614,42 @@ describe('the WBS table', () => {
 
     await waitFor(() => {
       expect(numbersOnScreen()).toEqual(['010', '020']);
+    });
+  });
+
+  itDom('replaces the slices on every refetch, as it replaces the rows', async () => {
+    // The plan's slices arrive on the same read as its rows and are held beside
+    // them, so an edit that changes what be-01 placed changes what this holds —
+    // in both directions. Counted rather than listed because the ids are
+    // opaque; what is asserted is that they are this read's and not the last
+    // one's.
+    const api = fakeApi();
+    const { container } = render(<WbsTable projectId="p1" api={api} />);
+    const sliceCount = () =>
+      container.querySelector('[data-slice-count]')?.getAttribute('data-slice-count');
+
+    click('Add work item');
+    await screen.findByLabelText('Name of 010');
+    await waitFor(() => {
+      expect(sliceCount()).toBe('1');
+    });
+
+    pressNewItem('010');
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '020']);
+    });
+    await waitFor(() => {
+      expect(sliceCount()).toBe('2');
+    });
+
+    // Indenting takes one away: 010 has become a parent, and a parent has no
+    // work of its own for anybody to place a slice of.
+    pressTab('020');
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '010.1']);
+    });
+    await waitFor(() => {
+      expect(sliceCount()).toBe('1');
     });
   });
 
@@ -4731,6 +4781,30 @@ describe('dependencies in the table — cross-review findings', () => {
       Promise.resolve({
         seq: 0,
         scheduleError,
+        // A cycle takes the slices with the dates: there is no schedule to have
+        // placed any.
+        slices:
+          scheduleError !== null
+            ? []
+            : [
+                {
+                  id: `w1::${DEV.id}`,
+                  workItemId: 'w1',
+                  roleId: DEV.id,
+                  personId: null,
+                  duration: 7,
+                  estimated: true,
+                  earliestStart: 11,
+                  earliestFinish: 18,
+                  latestStart: 13,
+                  latestFinish: 20,
+                  float: 2,
+                  critical: false,
+                  boundBy: 'projectStart' as const,
+                  resourcePredecessorId: null,
+                  ...schedule,
+                },
+              ],
         estimateMethod: 'pert' as const,
         workItems: [
           {
