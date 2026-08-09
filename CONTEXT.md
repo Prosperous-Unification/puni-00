@@ -228,6 +228,12 @@ level-one heading, the notes as markdown under it. The only place notes render; 
 does raw HTML in either field become markup.
 _Avoid_: tooltip, popover, notes preview
 
+**Hover card**:
+The instant answer a cell gives to the mouse resting on it: the whole of what its at-rest
+face folds away — a folded role's three points and assignee, a depends chip's names. Opens
+on enter with no delay, one at a time; the Name cell's hover preview is one.
+_Avoid_: tooltip, title attribute, hint
+
 **Actions menu**:
 The list of things one work item can be asked to do — duplicate it, delete it, unfreeze
 its number — behind a single button on its row. One is open at a time, and it owns the
