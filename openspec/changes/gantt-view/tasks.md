@@ -5,39 +5,43 @@ negative is watched failing under; the full table lands in `verify.md`.
 
 ## 1. Slices on the wire
 
-- [ ] `work-item.service.ts`: `tree()` keeps `planned.slices` and serialises
+- [x] `work-item.service.ts`: `tree()` keeps `planned.slices` and serialises
       the array from design §3; empty on `scheduleError`. Payload type gains
       `slices`.
-- [ ] **Test** — be-01 service tests: the two-items-one-person fixture's
+- [x] **Test** — be-01 service tests: the two-items-one-person fixture's
       payload holds both slices, engine numbers verbatim (fractional starts
       included), `boundBy: 'person'` and `resourcePredecessorId` naming the
       first slice's id; a cycle yields `slices: []`; every pre-existing field
       untouched.
-- [ ] **Negative** — the serialisation mapped through `Math.round`; the
+- [x] **Negative** — the serialisation mapped through `Math.round`; the
       `resourcePredecessorId` field dropped.
 
 ## 2. The payload reaches the renderer
 
-- [ ] `wbs-api.ts`: `SliceView`, `slices` on the tree result, through
+- [x] `wbs-api.ts`: `SliceView`, `slices` on the tree result, through
       `httpProjectApi`; `WbsTable` holds them beside the rows it already
       holds.
-- [ ] **Test** — a tree refetch replaces the slices exactly as it replaces
+- [x] **Test** — a tree refetch replaces the slices exactly as it replaces
       rows; the in-memory fakes carry `slices` so every other test compiles
       unedited.
-- [ ] **Negative** — `slices` left off the refetch path, watched as stale
+- [x] **Negative** — `slices` left off the refetch path, watched as stale
       bars after an edit.
 
 ## 3. The geometry, with no DOM
 
-- [ ] `components/wbs/gantt-geometry.ts`: rows+slices+edges → labels, bars,
+- [x] `components/wbs/gantt-geometry.ts`: rows+slices+edges → labels, bars,
       brackets, arrows, person links, flags, horizon (design §2).
       `GanttDataError` on a dangling `resourcePredecessorId`.
-- [ ] **Test** — `gantt-geometry.test.ts`: two-role leaf bars in role order;
+- [x] **Test** — `gantt-geometry.test.ts`: two-role leaf bars in role order;
       staggered-children bracket 0→6 (span, not sum); hand-off makes a person
       link and no arrow; hidden end skips the mark; dangling id throws;
       horizon = latest finish.
-- [ ] **Negative** — the throw replaced by skipping the link; the bracket
-      summed instead of spanned.
+- [x] **Negative** — the throw replaced by skipping the link; the bracket
+      summed instead of spanned — plus three more the implementor added
+      (unknown person, missing resource predecessor, unlisted role), each
+      with its `Proof:` comment. The role-place check moved out of the sort
+      comparator because `sort` never calls it for a one-slice leaf — caught
+      red by its own negative on first run.
 
 ## 4. The panel draws it
 
