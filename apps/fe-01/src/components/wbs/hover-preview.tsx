@@ -1,6 +1,8 @@
 import type { CSSProperties } from 'react';
 import Markdown, { type Components } from 'react-markdown';
 
+import { HoverCard } from './hover-card';
+
 export interface HoverPreviewProps {
   /** The work item's name, shown as the heading — as text, never as markdown source. */
   name: string;
@@ -65,28 +67,12 @@ const noteHeadings: Components = {
 
 export function HoverPreview({ name, notes, number }: HoverPreviewProps) {
   return (
-    <div
-      role="tooltip"
-      aria-label={`Notes for ${number}, rendered`}
-      style={{
-        position: 'absolute',
-        top: '100%',
-        left: 0,
-        zIndex: 20,
-        minWidth: 260,
-        maxWidth: 420,
-        maxHeight: 320,
-        overflowY: 'auto',
-        background: 'var(--popover)',
-        color: 'var(--popover-foreground)',
-        border: '1px solid var(--border)',
-        borderRadius: 'var(--radius-md)',
-        padding: '6px 10px',
-        boxShadow: '0 4px 14px oklch(0 0 0 / 14%)',
-        textAlign: 'left',
-        fontWeight: 400,
-      }}
-    >
+    // The one card in the table that scrolls, and so the one that takes the
+    // pointer: ten lines of notes are taller than any box that may hang over
+    // the rows below, and content nobody can scroll to is content the clamp on
+    // the cell has hidden twice over. {@link HoverCard} carries the placement,
+    // and the reason every other card refuses the mouse.
+    <HoverCard label={`Notes for ${number}, rendered`} scrolls>
       {/*
         Sized here rather than left to the browser's default `h1`, which is
         `2em` and would put a name across three lines of a 420px popover.
@@ -95,6 +81,6 @@ export function HoverPreview({ name, notes, number }: HoverPreviewProps) {
         {name}
       </h1>
       <Markdown components={noteHeadings}>{notes}</Markdown>
-    </div>
+    </HoverCard>
   );
 }

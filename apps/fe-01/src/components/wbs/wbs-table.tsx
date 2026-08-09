@@ -879,10 +879,22 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    */
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   /**
-   * The row whose Name cell the pointer is over, so its rendered notes can
-   * show. The notes are written in that box, which is why the hover is on it.
+   * The one cell whose hover card is open, as a {@link cellKey}, or null.
+   *
+   * One state for every surface that opens a card — the Name cell's notes
+   * marker, a folded role's figure, the depends chips — rather than one state
+   * each, and that is what makes "one card at a time" true by construction
+   * rather than by three pieces of code remembering to close each other.
+   *
+   * Keyed by cell rather than by row because a row has several of them, and by
+   * the `rowId::columnId` the keyboard grid already names cells with, so this
+   * file holds one spelling of "which cell".
+   *
+   * Read through {@link live} inside `columns`, never closed over: `columns`
+   * depends on `roles` alone, and a dependency that changed on every mouse
+   * move would remount every cell in the table as the pointer crossed it.
    */
-  const [hoveredNotes, setHoveredNotes] = useState<string | null>(null);
+  const [hoveredCell, setHoveredCell] = useState<string | null>(null);
   /** Whether the key bindings are on screen. See {@link KeyboardCheatSheet}. */
   const [cheatSheetOpen, setCheatSheetOpen] = useState(false);
   /**
@@ -3258,8 +3270,8 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     closeMention,
     leaveFoldedCell,
     mentionOptions,
-    hoveredNotes,
-    setHoveredNotes,
+    hoveredCell,
+    setHoveredCell,
     setNotBefore,
     startDate,
     teams,
@@ -3316,8 +3328,8 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     closeMention,
     leaveFoldedCell,
     mentionOptions,
-    hoveredNotes,
-    setHoveredNotes,
+    hoveredCell,
+    setHoveredCell,
     setNotBefore,
     startDate,
     teams,
@@ -3413,7 +3425,8 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
           // says the parent is the hit and the subtree is not. Watched,
           // 2026-08-06.
           const matched = live.current.matchIds.has(row.original.id);
-          const hovered = live.current.hoveredNotes === row.original.id;
+          const nameCell = cellKey(row.original.id, 'name');
+          const hovered = live.current.hoveredCell === nameCell;
           return (
             <span
               // `block`, not `inline-block`: a shrink-to-fit wrapper and a
@@ -3423,14 +3436,6 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
               // is clipped. The clipper is the `<td>`, and it is what
               // {@link POPOVER_COLUMNS} exempts.
               style={{ position: 'relative', display: 'block', maxWidth: '100%' }}
-              onMouseEnter={() => {
-                live.current.setHoveredNotes(row.original.id);
-              }}
-              onMouseLeave={() => {
-                live.current.setHoveredNotes((current) =>
-                  current === row.original.id ? null : current,
-                );
-              }}
             >
               <CellInput
                 aria-label={`Name of ${row.original.number}`}
@@ -3499,14 +3504,66 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                   live.current.onArrowKey(e, row.original.id, 'name');
                 }}
               />
+              {row.original.notes.trim() !== '' && (
+                // The notes marker: the mark that says this row has notes, and
+                // the only thing that opens the preview.
+                //
+                // The cell itself opened it until 2026-08-09, and Dany's
+                // reading of the result is why it does not any more: the Name
+                // column is the widest thing on the way to anywhere in this
+                // table, and a rendered document over the rows below on every
+                // pass of the mouse is disruptive rather than helpful. The
+                // compact cards keep the whole cell — see the folded role
+                // cell — because a card three lines tall over a 96px cell
+                // costs a passing mouse nothing.
+                //
+                // It is also the "this row has notes" affordance
+                // `name-title-body` deliberately left out. That non-goal is
+                // superseded and not forgotten: with the notes clipped at rest
+                // *and* the trigger no longer the whole cell, an unmarked row
+                // would keep its notes from anybody who did not already know
+                // they were there.
+                //
+                // Not a control: no `tabIndex`, no `data-cell`, no click. The
+                // keyboard grid is a matrix of cells and a stop inside the Name
+                // cell would put a Tab between a name and the next column. Its
+                // hover area is its own 12px box and nothing wider, so a click
+                // aimed at the box under it lands there everywhere else.
+                <span
+                  role="img"
+                  aria-label={`Notes on ${row.original.number}`}
+                  data-notes-marker={row.original.id}
+                  onMouseEnter={() => {
+                    live.current.setHoveredCell(nameCell);
+                  }}
+                  onMouseLeave={() => {
+                    // The same-cell guard every surface clears with: a leave
+                    // fires after the enter of whatever the pointer moved on
+                    // to, so an unconditional clear would close the card the
+                    // next cell had just opened.
+                    live.current.setHoveredCell((current) =>
+                      current === nameCell ? null : current,
+                    );
+                  }}
+                  style={{
+                    position: 'absolute',
+                    top: 1,
+                    right: 2,
+                    fontSize: 11,
+                    lineHeight: 1,
+                    color: 'var(--muted-foreground)',
+                    cursor: 'default',
+                  }}
+                >
+                  ≡
+                </span>
+              )}
               {/*
-                The rendered reading of this work item, on hover, and only when
-                there is a note. A work item with no notes has nothing to
-                reveal — its name is shown whole in the cell already — and a
-                popover holding a name and nothing else is a box that hides the
-                row beneath it. It hangs off the Name cell because that is
-                where the note is written; the Notes column it used to hang off
-                does not exist.
+                The rendered reading of this work item, on hover over the marker
+                above. A work item with no notes has nothing to reveal — its
+                name is shown whole in the cell already, and it has no marker to
+                hover. It hangs off the Name cell because that is where the note
+                is written; the Notes column it used to hang off does not exist.
               */}
               {hovered && row.original.notes.trim() !== '' && (
                 <HoverPreview
@@ -5183,7 +5240,8 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                         // `4px below the name cell is <textarea> in the name
                         // column, not the preview`, on h2puni 2026-08-08, with
                         // `opensAPopover` and every other rule already correct.
-                        ...(cell.column.id === 'name' && hoveredNotes === row.original.id
+                        ...(cell.column.id === 'name' &&
+                        hoveredCell === cellKey(row.original.id, 'name')
                           ? { zIndex: POPOVER_ROW_LAYER }
                           : {}),
                         // After the pinned background, so the warning is visible

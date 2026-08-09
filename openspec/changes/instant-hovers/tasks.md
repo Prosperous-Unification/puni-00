@@ -4,23 +4,24 @@ Ordered TDD slices. Only `- [ ]` checkboxes are tracked by the apply phase.
 
 ## 1. The primitive, and one hovered cell per table
 
-- [ ] 1.1 Extract the Hover preview's placement into a `HoverCard` primitive
+- [x] 1.1 Extract the Hover preview's placement into a `HoverCard` primitive
       (absolutely positioned child, `role="tooltip"`, popover palette) taking
       children; `pointer-events: none` by default with the Name preview
       opting back in for its scroll; `HoverPreview` renders through it —
       test: existing `hover-preview.test.tsx` suite stays green, plus
       `hover-card.test.tsx` "a card does not take the pointer" (style
       asserted) and "the name preview still scrolls" (its opt-in asserted)
-- [ ] 1.2 Replace `hoveredNotes` with one `hoveredCell` keyed
+- [x] 1.2 Replace `hoveredNotes` with one `hoveredCell` keyed
       `rowId::columnId`, read through `live`; the Name cell's preview keys by
       its own cell — test: `wbs-table.test.tsx` notes-preview tests stay
-      green with the new key; "one card at a time" (hovering a second surface
-      removes the first card); negative: the same-id guard on clear dropped —
-      watched failing on a card surviving its own mouseleave
+      green with the new key. The one-card-at-a-time pair moved into 2.1 with
+      the trigger it needs: "leaves one card open when the pointer walks from
+      row to row"; negative: the same-cell guard on clear dropped — watched
+      failing on the second row's card closed by the first row's mouseleave
 
 ## 2. The notes marker opens the preview
 
-- [ ] 2.1 The Name cell draws a notes marker at its right edge where, and
+- [x] 2.1 The Name cell draws a notes marker at its right edge where, and
       only where, the row has notes; hovering the marker opens the preview and
       hovering the cell body opens nothing. The marker takes no focus, is no
       cell of the keyboard grid, and takes pointer events on its own box —

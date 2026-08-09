@@ -1724,12 +1724,16 @@ describe('the plan on a calendar', () => {
 });
 
 describe('names wrap and notes carry markdown', () => {
-  /** The wrapper the hover lives on — the Name cell's own parent. */
+  /** The wrapper the marker and the preview live on — the Name cell's own parent. */
   const nameCellOf = (number: string): HTMLElement => {
     const found = screen.getByLabelText(`Name of ${number}`).parentElement;
     if (found === null) throw new Error(`name cell for ${number} has no wrapper`);
     return found;
   };
+
+  /** The one thing on a Name cell that opens its preview. */
+  const notesMarkerOf = (number: string): HTMLElement =>
+    screen.getByLabelText(`Notes on ${number}`);
 
   /**
    * One row whose Name cell holds a name and, under it, these notes.
@@ -1892,10 +1896,10 @@ describe('names wrap and notes carry markdown', () => {
     expect(patched).toEqual([]);
   });
 
-  itDom('renders the markdown on hover, and nothing when there is no note', async () => {
+  itDom('renders the markdown on hover over the notes marker', async () => {
     await oneRowWithNotes('## Risks\n\n- the fuse box is *old*');
 
-    fireEvent.mouseEnter(nameCellOf('010'));
+    fireEvent.mouseEnter(notesMarkerOf('010'));
 
     const preview = await screen.findByRole('tooltip');
     // Rendered, not printed: a heading is an element and the emphasis is one
@@ -1931,11 +1935,11 @@ describe('names wrap and notes carry markdown', () => {
     // rule that was always on and could not be seen to do anything.
     expect(cell().style.zIndex).toBe('1');
 
-    fireEvent.mouseEnter(nameCellOf('010'));
+    fireEvent.mouseEnter(notesMarkerOf('010'));
     await screen.findByRole('tooltip');
 
     expect(Number(cell().style.zIndex)).toBe(POPOVER_ROW_LAYER);
-    fireEvent.mouseLeave(nameCellOf('010'));
+    fireEvent.mouseLeave(notesMarkerOf('010'));
     expect(cell().style.zIndex).toBe('1');
   });
 
@@ -1945,12 +1949,33 @@ describe('names wrap and notes carry markdown', () => {
     // cannot become markup — watched here rather than asserted in a comment.
     await oneRowWithNotes('<img src=x onerror="alert(1)"> and <script>alert(2)</script>');
 
-    fireEvent.mouseEnter(nameCellOf('010'));
+    fireEvent.mouseEnter(notesMarkerOf('010'));
 
     const preview = await screen.findByRole('tooltip');
     expect(preview.querySelector('img')).toBeNull();
     expect(preview.querySelector('script')).toBeNull();
     expect(preview.textContent).toContain('alert(1)');
+  });
+
+  itDom('marks a row that has notes, and only one that has', async () => {
+    // The marker is the whole trigger now, so a row wearing one it should not
+    // have is a row whose preview opens holding nothing, and a row missing one
+    // is a row whose notes cannot be read at all.
+    //
+    // Proof: the `notes.trim() !== ''` condition on the marker replaced by
+    // `true`, this failed on `expected
+    // <span aria-label="Notes on 020" …/> to be null`. Watched, 2026-08-09.
+    const api = await oneRowWithNotes('## Risks');
+    click('Add work item');
+    const bare = await screen.findByLabelText('Name of 020');
+    fireEvent.change(bare, { target: { value: 'Sand' } });
+    fireEvent.blur(bare);
+    await waitFor(() => {
+      expect(api.rows[1]?.name).toBe('Sand');
+    });
+
+    expect(screen.getByLabelText('Notes on 010')).toBeDefined();
+    expect(screen.queryByLabelText('Notes on 020')).toBeNull();
   });
 
   itDom('shows no popover over a row with no notes', async () => {
@@ -1972,6 +1997,59 @@ describe('names wrap and notes carry markdown', () => {
     expect(screen.queryByRole('tooltip')).toBeNull();
   });
 
+  itDom('opens nothing from the cell the notes are typed in', async () => {
+    // Dany, 2026-08-09: a rendered document over the rows below on every pass
+    // of the mouse is too disruptive. The Name column is the widest thing on
+    // the way to anywhere in this table, so the preview waits behind its
+    // marker — while the folded role cell and the depends cell, which are a
+    // few lines over a narrow cell, keep the whole cell as their trigger.
+    //
+    // Proof: the handlers put back on the cell wrapper, this failed on
+    // `expected <div role="tooltip" …/> to be null`. Watched, 2026-08-09.
+    await oneRowWithNotes('## Risks');
+
+    fireEvent.mouseEnter(nameCellOf('010'));
+
+    expect(screen.queryByRole('tooltip')).toBeNull();
+
+    // And the marker beside it does open one, or the assertion above would
+    // hold for a preview that had simply been deleted.
+    fireEvent.mouseEnter(notesMarkerOf('010'));
+    expect(await screen.findByRole('tooltip')).toBeDefined();
+  });
+
+  itDom('leaves one card open when the pointer walks from row to row', async () => {
+    // Two facts in one sequence, both about the single `hoveredCell` state:
+    // the second hover replaces the first card rather than adding to it, and
+    // the first cell's `mouseleave` — which a browser fires *after* the second
+    // cell's `mouseenter` — leaves the second card alone.
+    //
+    // Proof: the same-cell guard in the marker's `onMouseLeave` replaced by an
+    // unconditional `setHoveredCell(null)`, this failed on `Unable to find
+    // role="tooltip"` at the last assertion — a card closed by the leave of a
+    // cell the pointer had already left. Watched, 2026-08-09.
+    const api = await oneRowWithNotes('## Risks');
+    click('Add work item');
+    const second = await screen.findByLabelText('Name of 020');
+    fireEvent.change(second, { target: { value: 'Sand\n## Later' } });
+    fireEvent.blur(second);
+    await waitFor(() => {
+      expect(api.rows[1]?.notes).toBe('## Later');
+    });
+
+    fireEvent.mouseEnter(notesMarkerOf('010'));
+    await screen.findByRole('tooltip');
+    fireEvent.mouseEnter(notesMarkerOf('020'));
+
+    const open = screen.getAllByRole('tooltip');
+    expect(open).toHaveLength(1);
+    expect(open[0]?.getAttribute('aria-label')).toBe('Notes for 020, rendered');
+
+    fireEvent.mouseLeave(notesMarkerOf('010'));
+
+    expect(screen.getByRole('tooltip').getAttribute('aria-label')).toBe('Notes for 020, rendered');
+  });
+
   itDom('reads the whole note in the preview while the box shows the name', async () => {
     // The clamp and the preview are one answer between them: at rest the cell
     // is its name and nothing else, so forty rows fit on a screen, and the
@@ -1979,7 +2057,7 @@ describe('names wrap and notes carry markdown', () => {
     // a note nobody could find.
     await oneRowWithNotes('## Risks\n\n- one\n- two\n- three\n- four\n- five\n- six');
 
-    fireEvent.mouseEnter(nameCellOf('010'));
+    fireEvent.mouseEnter(notesMarkerOf('010'));
 
     const preview = await screen.findByRole('tooltip');
     expect(preview.querySelectorAll('li')).toHaveLength(6);
