@@ -14,8 +14,29 @@ import { describe, expect, it } from 'vitest';
 const appRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
 /**
- * `src/styles.css` compiled by the same plugin `vite.config.ts` ships, over the
- * same source tree, and never written to disk.
+ * Every CSS asset a finished Vite build emitted, joined.
+ *
+ * @throws When there is none, rather than letting an assertion about the
+ * absence of preflight pass against a bundle that holds nothing at all.
+ */
+function cssOf(built: Awaited<ReturnType<typeof build>>, what: string): string {
+  // `build` is overloaded: a watcher for `build.watch`, one bundle or an array
+  // of them otherwise. Neither call below sets a watcher, so this is a shape
+  // check on a union the compiler cannot collapse.
+  const outputs = (Array.isArray(built) ? built : [built]) as Rollup.RollupOutput[];
+  const css = outputs
+    .flatMap((bundle) => bundle.output)
+    .filter((chunk): chunk is Rollup.OutputAsset => chunk.type === 'asset')
+    .filter((asset) => asset.fileName.endsWith('.css'))
+    .map((asset) => (typeof asset.source === 'string' ? asset.source : ''))
+    .join('\n');
+  if (css.trim() === '') throw new Error(`${what} emitted no CSS; there is nothing to assert on`);
+  return css;
+}
+
+/**
+ * `src/styles.css` alone, compiled by the Tailwind plugin over the same source
+ * tree, and never written to disk.
  *
  * A real build rather than an assertion about the text of the stylesheet: what
  * is being checked is which rules come out the other end — that the tracer class
@@ -24,38 +45,59 @@ const appRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * the file against a paraphrase of itself and pass with the scanner switched
  * off.
  *
- * @throws When the build emits no CSS asset at all, rather than letting every
- * assertion below run against an empty string and report the absence of
- * preflight in a bundle that has nothing in it.
+ * This one wires the plugin itself, so it says nothing about whether the app's
+ * own config wires it — see {@link cssFromShippedConfig}, which is the check
+ * that does.
  */
-async function compileStylesheet(): Promise<string> {
-  const built = await build({
-    configFile: false,
-    root: appRoot,
-    logLevel: 'silent',
-    plugins: [tailwindcss()],
-    build: {
-      write: false,
-      rollupOptions: { input: resolve(appRoot, 'src/styles.css') },
-    },
-  });
-  // `build` is overloaded: a watcher for `build.watch`, one bundle or an array
-  // of them otherwise. This config sets no watcher and one input, so the
-  // narrowing below is a shape check on a union the compiler cannot collapse.
-  const outputs = (Array.isArray(built) ? built : [built]) as Rollup.RollupOutput[];
-  const css = outputs
-    .flatMap((bundle) => bundle.output)
-    .filter((chunk): chunk is Rollup.OutputAsset => chunk.type === 'asset')
-    .filter((asset) => asset.fileName.endsWith('.css'))
-    .map((asset) => (typeof asset.source === 'string' ? asset.source : ''))
-    .join('\n');
-  if (css.trim() === '') {
-    throw new Error('the Tailwind build emitted no CSS; there is nothing here to assert on');
-  }
-  return css;
+async function cssFromStylesheetAlone(): Promise<string> {
+  return cssOf(
+    await build({
+      configFile: false,
+      root: appRoot,
+      logLevel: 'silent',
+      plugins: [tailwindcss()],
+      build: {
+        write: false,
+        rollupOptions: { input: resolve(appRoot, 'src/styles.css') },
+      },
+    }),
+    'the stylesheet build',
+  );
 }
 
-const stylesheet = await compileStylesheet();
+/**
+ * The whole app, built through the real `vite.config.ts` — the plugin list this
+ * repository actually ships, not one this file assembled.
+ *
+ * The distinction is the entire point. {@link cssFromStylesheetAlone} passes
+ * `tailwindcss()` in itself, so with the plugin deleted from `vite.config.ts`
+ * all five of its assertions stay green while `nx run fe-01:build` ships a
+ * bundle with no utilities in it. Watched 2026-08-09: the plugin removed, `1
+ * failed | 6 passed`, and the one that failed was this pair.
+ *
+ * `e2e/tailwind.spec.ts` would catch the same fault — `vite dev` reads this
+ * same config — but it is not in the gate this repository runs before a commit.
+ * `nx run-many -t test lint typecheck build` is; the browser suite is CI's
+ * separate `pixels` job and needs a chromium. Inside the gate, this is the only
+ * check on the production wiring.
+ *
+ * `write: false` over the config's own `outDir`, so `dist/apps/fe-01` is never
+ * touched by a test run.
+ */
+async function cssFromShippedConfig(): Promise<string> {
+  return cssOf(
+    await build({
+      configFile: resolve(appRoot, 'vite.config.ts'),
+      root: appRoot,
+      logLevel: 'silent',
+      build: { write: false },
+    }),
+    'the app build through vite.config.ts',
+  );
+}
+
+const stylesheet = await cssFromStylesheetAlone();
+const shipped = await cssFromShippedConfig();
 
 /*
  * Proof, watched 2026-08-09 by injecting one fault at a time and reverting it.
@@ -74,6 +116,11 @@ const stylesheet = await compileStylesheet();
  *     /@layer[^;{]*\bbase\b[^;{]*;/`, the base layer no longer a statement but a
  *     block full of reset. What that fault does to a real browser is the layout
  *     gate's answer, not this file's.
+ *   - `tailwindcss()` out of `vite.config.ts`'s `plugins`: 1 failed, 6 passed —
+ *     `expected '@layer theme,base,components,utilitie…' to contain
+ *     '.tracking-tight'`, and only `the config this app is built with` saw it.
+ *     The five tests above passed throughout, which is why that describe block
+ *     exists.
  */
 describe('the Tailwind stylesheet this app ships', () => {
   it('compiles the tracer class written on the brand heading', () => {
@@ -113,5 +160,19 @@ describe('the Tailwind stylesheet this app ships', () => {
     // never opens a block here.
     expect(stylesheet).toMatch(/@layer[^;{]*\bbase\b[^;{]*;/);
     expect(stylesheet).not.toMatch(/@layer\s+base\s*\{/);
+  });
+});
+
+describe('the config this app is built with', () => {
+  it('wires the plugin, so a production build carries the tracer', () => {
+    expect(shipped).toContain('.tracking-tight');
+  });
+
+  it('brings no reset through that config either', () => {
+    // The same claim as above, made about the artifact that ships rather than
+    // about a stylesheet compiled beside it. A future `vite.config.ts` that
+    // added a reset of its own — a plugin, a second CSS entry — would be
+    // invisible to every other test in this file.
+    expect(shipped).not.toContain('border-box');
   });
 });
