@@ -12,7 +12,8 @@ import type {
 } from '@/lib/wbs-api';
 
 import type { GanttPlan, GanttRow, GanttSlice } from './gantt-geometry';
-import { GanttPanel } from './gantt-panel';
+import { PERSON_BAR_COLORS, UNASSIGNED_BAR_COLOR } from './gantt-geometry';
+import { barLabelFor, DAY_PX, GanttPanel, initialsOf, ROW_PX } from './gantt-panel';
 import { WbsTable } from './wbs-table';
 
 // fe-01 tests require jsdom; only Vitest provides it. Skip under plain `bun test`.
@@ -51,6 +52,7 @@ const sliceAt = (
   estimated: true,
   earliestStart,
   earliestFinish,
+  float: 0,
   critical: false,
   boundBy: 'projectStart',
   resourcePredecessorId: null,
@@ -158,15 +160,22 @@ describe('the chart is drawn in workdays', () => {
     expect(svg?.getAttribute('preserveAspectRatio')).toBe('none');
   });
 
-  itDom('tints the critical bar and leaves the other one alone', () => {
+  /**
+   * The critical path is an outline, not a fill, because the fill is the
+   * assignee — and this is the assertion that says the mark is present on the
+   * critical bar and absent off it, which is the whole of the spec's "tinted
+   * so".
+   */
+  itDom('rings the critical bar and leaves the other one alone', () => {
     render(
       <GanttPanel
         plan={planOf({
           rows: [rowAt('strip', 0, 3), rowAt('sand', 0, 2)],
           slices: [
-            sliceAt('strip-dev', 'strip', 0, 3, { critical: true }),
-            sliceAt('sand-dev', 'sand', 0, 2),
+            sliceAt('strip-dev', 'strip', 0, 3, { critical: true, personId: 'kat' }),
+            sliceAt('sand-dev', 'sand', 0, 2, { personId: 'kat' }),
           ],
+          personNames: new Map([['kat', 'Kat']]),
         })}
         startDate={null}
         scheduleError={null}
@@ -174,12 +183,53 @@ describe('the chart is drawn in workdays', () => {
       />,
     );
 
-    // The tint by name, not a `data-` attribute standing in for it: there is no
-    // text on a bar, so the colour *is* the statement, and an attribute could
-    // be right while the bar drew in the ordinary fill.
-    expect(barFor('strip-dev')?.classList.contains('fill-destructive')).toBe(true);
-    expect(barFor('sand-dev')?.classList.contains('fill-destructive')).toBe(false);
-    expect(barFor('sand-dev')?.classList.contains('fill-primary')).toBe(true);
+    // The mark by name, not a `data-` attribute standing in for it: an attribute
+    // could be right while the bar drew like every other one.
+    //
+    // Proof: `barClasses` returning '' for a critical bar — the `data-critical`
+    // attribute still on it and the ring gone. This test alone failed, on
+    // `expected false to be true`, and the browser gate's own selector went on
+    // finding the bar. Watched, 2026-08-09.
+    expect(barFor('strip-dev')?.classList.contains('stroke-foreground')).toBe(true);
+    expect(barFor('sand-dev')?.classList.contains('stroke-foreground')).toBe(false);
+    // And both keep Kat's colour: the critical path costs the reader nothing
+    // about who is on it.
+    expect(barFor('strip-dev')?.getAttribute('fill')).toBe(PERSON_BAR_COLORS[0]);
+    expect(barFor('sand-dev')?.getAttribute('fill')).toBe(PERSON_BAR_COLORS[0]);
+  });
+
+  itDom('paints a bar in its person’s colour, and an unassigned one grey', () => {
+    render(
+      <GanttPanel
+        plan={planOf({
+          rows: [rowAt('strip', 0, 3), rowAt('sand', 0, 2), rowAt('trim', 0, 2)],
+          slices: [
+            sliceAt('strip-dev', 'strip', 0, 3, { personId: 'kat' }),
+            sliceAt('sand-dev', 'sand', 0, 2, { personId: 'ravi' }),
+            sliceAt('trim-dev', 'trim', 0, 2),
+          ],
+          personNames: new Map([
+            ['kat', 'Kat'],
+            ['ravi', 'Ravi'],
+          ]),
+        })}
+        startDate={null}
+        scheduleError={null}
+        onPickRow={() => undefined}
+      />,
+    );
+
+    // Proof: `fill={bar.estimated ? bar.personColor : 'none'}` replaced by
+    // `fill="currentColor"` — every bar one colour, which is what the chart
+    // looked like before this change. **Three** tests failed and the run said
+    // `3 failed | 22 passed`: this one and `rings the critical bar…` on
+    // `expected 'currentColor' to be '#1f77b4'`, and `draws an unestimated
+    // slice hollow…` on `expected 'currentColor' to be 'none'` — the hollow
+    // bar filled in as well, which only that third test can see. Watched,
+    // 2026-08-09.
+    expect(barFor('strip-dev')?.getAttribute('fill')).toBe(PERSON_BAR_COLORS[0]);
+    expect(barFor('sand-dev')?.getAttribute('fill')).toBe(PERSON_BAR_COLORS[1]);
+    expect(barFor('trim-dev')?.getAttribute('fill')).toBe(UNASSIGNED_BAR_COLOR);
   });
 
   itDom('draws an unestimated slice hollow rather than as a slice of no days', () => {
@@ -195,16 +245,23 @@ describe('the chart is drawn in workdays', () => {
       />,
     );
 
-    expect(barFor('strip-dev')?.classList.contains('fill-none')).toBe(true);
-    expect(barFor('strip-dev')?.classList.contains('fill-primary')).toBe(false);
+    expect(barFor('strip-dev')?.getAttribute('fill')).toBe('none');
+    expect(barFor('strip-dev')?.classList.contains('[stroke-dasharray:3_2]')).toBe(true);
   });
 
-  itDom('names what holds a bar where it is, in a title nothing scales', () => {
+  /**
+   * A slice of no days is drawn by a tick, because a `<rect width="0">` paints
+   * nothing at all and the row would read as empty.
+   */
+  itDom('marks a zero-day slice with a tick where it starts', () => {
     render(
       <GanttPanel
         plan={planOf({
-          rows: [rowAt('strip', 2, 5)],
-          slices: [sliceAt('strip-dev', 'strip', 2, 5, { boundBy: 'predecessor' })],
+          rows: [rowAt('strip', 0, 3), rowAt('sand', 3, 3)],
+          slices: [
+            sliceAt('strip-dev', 'strip', 0, 3),
+            sliceAt('sand-dev', 'sand', 3, 3, { estimated: false }),
+          ],
         })}
         startDate={null}
         scheduleError={null}
@@ -212,9 +269,71 @@ describe('the chart is drawn in workdays', () => {
       />,
     );
 
-    expect(barFor('strip-dev')?.querySelector('title')?.textContent).toBe(
-      'Waits for a dependency to finish',
+    // Proof: the tick block's `filter((bar) => bar.duration === 0)` turned off
+    // (`filter(() => false)`), so no tick is drawn at all. This test alone
+    // failed, on `expected 'nothing on the chart at [data-gantt-t…' to be '3'`
+    // — the zero-day bar still in the DOM as a rect of no width, painting
+    // nothing. Watched, 2026-08-09.
+    expect(markAttribute('[data-gantt-tick="sand-dev"]', 'x1')).toBe('3');
+    expect(document.querySelector('[data-gantt-tick="strip-dev"]')).toBeNull();
+  });
+
+  itDom('says everything it knows in a title nothing scales, floor last', () => {
+    render(
+      <GanttPanel
+        plan={planOf({
+          rows: [rowAt('strip', 2, 5, { name: 'Strip the hull' })],
+          slices: [
+            sliceAt('strip-dev', 'strip', 2, 5, {
+              boundBy: 'predecessor',
+              personId: 'kat',
+              float: 1.5,
+            }),
+          ],
+          personNames: new Map([['kat', 'Kat']]),
+        })}
+        startDate={null}
+        scheduleError={null}
+        onPickRow={() => undefined}
+      />,
     );
+
+    // One fact to a line, and the binding floor last — the sentence the panel
+    // was built to show is where a reader's eye ends.
+    expect(barFor('strip-dev')?.querySelector('title')?.textContent.split('\n')).toEqual([
+      'Strip the hull',
+      'Dev · Kat',
+      'Workdays 2 → 5 · 3 days',
+      'Float 1.5 days',
+      'Waits for a dependency to finish',
+    ]);
+  });
+
+  itDom('says a fraction in prose to two places, and draws it whole', () => {
+    render(
+      <GanttPanel
+        plan={planOf({
+          rows: [rowAt('strip', 0, 3.6666666666666665)],
+          slices: [
+            sliceAt('strip-dev', 'strip', 0, 3.6666666666666665, {
+              duration: 3.6666666666666665,
+              critical: true,
+            }),
+          ],
+        })}
+        startDate={null}
+        scheduleError={null}
+        onPickRow={() => undefined}
+      />,
+    );
+
+    const bar = barFor('strip-dev');
+    // The prose rounds and the drawing does not — the one place in this panel
+    // where a schedule number is not carried verbatim, and the attribute beside
+    // it is what proves the rounding stayed in the sentence.
+    expect(bar?.querySelector('title')?.textContent).toContain('3.67 days');
+    expect(bar?.querySelector('title')?.textContent).toContain('On the critical path');
+    expect(bar?.getAttribute('width')).toBe('3.6666666666666665');
   });
 
   itDom('draws every other mark the geometry placed, in the same workdays', () => {
@@ -262,6 +381,15 @@ describe('the chart is drawn in workdays', () => {
     expect(markAttribute('[data-gantt-person-link="strip-dev->sand-dev"]', 'class')).toContain(
       '[stroke-dasharray:4_3]',
     );
+    // And in Kat's colour, the same one her two bars are painted: the line and
+    // its ends are one queue rather than a third kind of edge.
+    //
+    // Proof: the link's `stroke` left off, so it fell back to the SVG's
+    // `currentColor` like every other line. Failed on `expected 'nothing on the
+    // chart at [data-gantt-p…' to be '#1f77b4'`. Watched, 2026-08-09.
+    expect(markAttribute('[data-gantt-person-link="strip-dev->sand-dev"]', 'stroke')).toBe(
+      PERSON_BAR_COLORS[0],
+    );
     // The spec's own number: a flag at workday 4 begins at x = 4, in workdays
     // like everything else in here.
     //
@@ -290,6 +418,215 @@ describe('the chart is drawn in workdays', () => {
 
     expect(document.querySelectorAll('rect')).toHaveLength(0);
     expect(screen.getByRole('status').textContent).toContain('run in a circle');
+  });
+});
+
+/**
+ * The words on the chart, which are all of them HTML.
+ *
+ * Design §1: the SVG's user space is non-uniformly scaled, so a `<text>` in it
+ * would be a stretched glyph. Every label is a span positioned by the same
+ * `DAY_PX`/`ROW_PX` the SVG is sized by — which is the arithmetic these tests
+ * recompute rather than write pixel numbers for.
+ */
+describe('the words on the bars are HTML over the chart', () => {
+  /** The overlay label drawn on one slice's bar, or null where none is. */
+  const labelOn = (sliceId: string): HTMLElement | null =>
+    document.querySelector(`[data-gantt-bar-label="${sliceId}"]`);
+
+  const oneAssignedBar = (parts: { start: number; finish: number; duration: number }): GanttPlan =>
+    planOf({
+      rows: [rowAt('trim', 0, 1), rowAt('strip', parts.start, parts.finish)],
+      slices: [
+        sliceAt('trim-dev', 'trim', 0, 1, { personId: 'ravi' }),
+        sliceAt('strip-dev', 'strip', parts.start, parts.finish, {
+          personId: 'kat',
+          duration: parts.duration,
+        }),
+      ],
+      personNames: new Map([
+        ['ravi', 'Ravi'],
+        ['kat', 'Kat'],
+      ]),
+    });
+
+  itDom('puts the person’s name where the bar is, in pixels the chart’s own math gives', () => {
+    render(
+      <GanttPanel
+        plan={oneAssignedBar({ start: 3, finish: 7, duration: 4 })}
+        startDate={null}
+        scheduleError={null}
+        onPickRow={() => undefined}
+      />,
+    );
+
+    const label = labelOn('strip-dev');
+    // Expected from the same two constants the SVG is sized by, never a pixel
+    // number written out: a test holding `84px` would go on passing with the
+    // day narrowed to 24.
+    //
+    // Proof: `left: bar.start * DAY_PX` replaced by `left: bar.rowIndex * DAY_PX`
+    // — a label on the right row, one row's width from the left edge. This test
+    // alone failed, on `expected '28px' to be '84px'`. Watched, 2026-08-09.
+    expect(label?.textContent).toBe('Kat');
+    expect(label?.style.left).toBe(`${String(3 * DAY_PX)}px`);
+    expect(label?.style.width).toBe(`${String(4 * DAY_PX)}px`);
+    // Second row, and the same inset the rect above it has: the words sit on
+    // the bar rather than beside it.
+    expect(label?.style.top).toBe(`${String(1 * ROW_PX + 0.18 * ROW_PX)}px`);
+    // And those pixels are measured from the SVG's own box. `absolute` is
+    // resolved against the nearest positioned ancestor, so a label whose
+    // wrapper is not `relative` lands somewhere up the page — every number
+    // above still correct and the label nowhere near its bar. jsdom lays
+    // nothing out and cannot see that; it can see the arrangement that decides
+    // it.
+    //
+    // Proof: `relative` dropped from the wrapper's class. This test alone
+    // failed, on `expected false to be true`. Watched, 2026-08-09.
+    const box = label?.parentElement;
+    expect(box?.classList.contains('relative')).toBe(true);
+    expect(box?.querySelector('[data-gantt-chart]')).not.toBeNull();
+  });
+
+  itDom('writes nothing at all on a bar too narrow to hold a letter', () => {
+    render(
+      <GanttPanel
+        plan={oneAssignedBar({ start: 3, finish: 3.2, duration: 0.2 })}
+        startDate={null}
+        scheduleError={null}
+        onPickRow={() => undefined}
+      />,
+    );
+
+    // 0.2 of a workday is 5.6px, and the padding alone is 6 of them.
+    //
+    // Proof: the `if (shown === null) return null` guard in the overlay
+    // replaced by rendering the span regardless. This test failed on `expected
+    // <span …> to be null` — an empty label box sitting over a 5px bar, which
+    // is a click target and a stray outline in a browser. Watched, 2026-08-09.
+    expect(labelOn('strip-dev')).toBeNull();
+    // The wide bar on the row above still has its name, so this is a threshold
+    // and not a switch that turned every label off.
+    expect(labelOn('trim-dev')?.textContent).toBe('Ravi');
+  });
+
+  itDom('writes the label in ink the bar it sits on can be read through', () => {
+    // Nine people down the rows, so the ninth takes `#bcbd22` — the palette's
+    // highlighter, the one entry white disappears into.
+    const nine = Array.from({ length: 9 }, (_, at) => `person-${String(at)}`);
+    render(
+      <GanttPanel
+        plan={planOf({
+          rows: nine.map((_, at) => rowAt(`row-${String(at)}`, 0, 4)),
+          slices: nine.map((personId, at) =>
+            sliceAt(`slice-${String(at)}`, `row-${String(at)}`, 0, 4, { personId }),
+          ),
+          personNames: new Map(nine.map((personId) => [personId, `Person ${personId.slice(-1)}`])),
+        })}
+        startDate={null}
+        scheduleError={null}
+        onPickRow={() => undefined}
+      />,
+    );
+
+    // Proof: `color: inkOn(bar.personColor)` replaced by `color: '#ffffff'` —
+    // the one white this whole function exists to avoid. This test alone
+    // failed, on `expected 'rgb(255, 255, 255)' to be 'rgb(15, 23, 42)'`.
+    // Watched, 2026-08-09.
+    expect(labelOn('slice-8')?.style.color).toBe('rgb(15, 23, 42)');
+    expect(labelOn('slice-0')?.style.color).toBe('rgb(255, 255, 255)');
+  });
+
+  itDom('shortens a name to initials before it clips, and never mid-word', () => {
+    // The three answers of one measurement, taken directly: 4 workdays is
+    // 112px and holds `Kat Bloom`; 1 workday is 28 and holds `KB`; a fifth of
+    // one holds nothing.
+    expect(barLabelFor('Kat Bloom', 4)).toBe('Kat Bloom');
+    expect(barLabelFor('Kat Bloom', 1)).toBe('KB');
+    expect(barLabelFor('Kat Bloom', 0.2)).toBeNull();
+    expect(barLabelFor(null, 4)).toBeNull();
+  });
+
+  itDom('takes initials from the first and last names, and never doubles one', () => {
+    expect(initialsOf('Kat Bloom')).toBe('KB');
+    expect(initialsOf('Kat van der Bloom')).toBe('KB');
+    expect(initialsOf('Kat')).toBe('K');
+    expect(initialsOf('  ')).toBe('');
+  });
+
+  itDom('leaves the label out of the way of the click that takes the plan to a row', () => {
+    render(
+      <GanttPanel
+        plan={oneAssignedBar({ start: 3, finish: 7, duration: 4 })}
+        startDate={null}
+        scheduleError={null}
+        onPickRow={() => undefined}
+      />,
+    );
+
+    // A span over the middle of every bar would swallow the click the panel's
+    // one interaction is made of. jsdom does no hit testing, so this is the
+    // class that stops it rather than a dispatched click — the browser gate is
+    // what can see the click land.
+    expect(labelOn('strip-dev')?.classList.contains('pointer-events-none')).toBe(true);
+  });
+});
+
+describe('the axis has a week in it', () => {
+  itDom('draws every fifth gridline heavier, and the rest light', () => {
+    render(
+      <GanttPanel
+        plan={planOf({
+          rows: [rowAt('strip', 0, 7)],
+          slices: [sliceAt('strip-dev', 'strip', 0, 7)],
+        })}
+        startDate={null}
+        scheduleError={null}
+        onPickRow={() => undefined}
+      />,
+    );
+
+    // Five workdays is a working week and the axis holds no weekends, so the
+    // boundary is arithmetic rather than a calendar question.
+    //
+    // Proof: the condition changed to `day.workday % 7 === 0` — a calendar
+    // week's worth of days on an axis that holds no weekends. This test alone
+    // failed, on `expected 'stroke-border/40' to be 'stroke-border'` at day 5.
+    // Watched, 2026-08-09.
+    expect(markAttribute('[data-gantt-gridline="0"]', 'class')).toBe('stroke-border');
+    expect(markAttribute('[data-gantt-gridline="5"]', 'class')).toBe('stroke-border');
+    expect(markAttribute('[data-gantt-gridline="4"]', 'class')).toBe('stroke-border/40');
+    expect(markAttribute('[data-gantt-gridline="6"]', 'class')).toBe('stroke-border/40');
+  });
+
+  itDom('bands every other row so a wide chart can be read across', () => {
+    render(
+      <GanttPanel
+        plan={planOf({
+          rows: [rowAt('strip', 0, 3), rowAt('sand', 0, 3), rowAt('trim', 0, 3)],
+          slices: [
+            sliceAt('strip-dev', 'strip', 0, 3),
+            sliceAt('sand-dev', 'sand', 0, 3),
+            sliceAt('trim-dev', 'trim', 0, 3),
+          ],
+        })}
+        startDate={null}
+        scheduleError={null}
+        onPickRow={() => undefined}
+      />,
+    );
+
+    // Every other one, starting from the second: three rows make one band.
+    //
+    // Proof: the band block's `filter((label) => label.rowIndex % 2 === 1)`
+    // turned off (`filter(() => false)`). This test alone failed, on `expected
+    // [] to deeply equal [ '1' ]`. Watched, 2026-08-09.
+    expect(
+      [...document.querySelectorAll('[data-gantt-band]')].map((band) =>
+        band.getAttribute('data-gantt-band'),
+      ),
+    ).toEqual(['1']);
+    expect(markAttribute('[data-gantt-band="1"]', 'height')).toBe('1');
   });
 });
 

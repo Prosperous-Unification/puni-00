@@ -30,6 +30,87 @@ export class GanttDataError extends Error {
 export type BindingFloor = 'projectStart' | 'predecessor' | 'roleOrder' | 'notBefore' | 'person';
 
 /**
+ * The ten colours a person's bars are drawn in, handed out in this order.
+ *
+ * Matplotlib's `tab10`, taken whole rather than sampled from the app's own
+ * tokens: the app's palette is one hue in five lightnesses — built to keep
+ * chrome quiet — and ten people need ten hues a reader can tell apart at 28px
+ * wide. These are the qualitative set that has been squinted at longest.
+ *
+ * An eleventh person wraps onto the first colour. Two people sharing a colour
+ * is a legible chart with an ambiguity in it; a generated eleventh hue next to
+ * these ten is an illegible one.
+ */
+export const PERSON_BAR_COLORS = [
+  '#1f77b4',
+  '#ff7f0e',
+  '#2ca02c',
+  '#d62728',
+  '#9467bd',
+  '#8c564b',
+  '#e377c2',
+  '#7f7f7f',
+  '#bcbd22',
+  '#17becf',
+] as const;
+
+/**
+ * The colour of a slice nobody is on.
+ *
+ * Deliberately outside {@link PERSON_BAR_COLORS} and deliberately grey: an
+ * unassigned slice is the absence of a person, and it must not read as an
+ * eleventh one.
+ */
+export const UNASSIGNED_BAR_COLOR = '#94a3b8';
+
+/**
+ * A colour a bar can be painted: one of the ten, or the unassigned grey.
+ *
+ * A union rather than `string`, and that is what lets {@link inkOn} parse a
+ * hex without asking what happens when it is not one. Validate at the boundary,
+ * keep the internal type precise.
+ */
+export type BarColor = (typeof PERSON_BAR_COLORS)[number] | typeof UNASSIGNED_BAR_COLOR;
+
+/** The two colours a bar's own label is ever written in. */
+const BAR_LABEL_LIGHT = '#ffffff';
+const BAR_LABEL_DARK = '#0f172a';
+
+/**
+ * How light a bar has to be before its label is written in dark ink.
+ *
+ * 0.35 of WCAG relative luminance, chosen against the palette rather than out
+ * of the standard: it puts `#bcbd22`, `#17becf` and `#ff7f0e` — the three
+ * `tab10` entries white is nearly invisible on — over the line, and leaves the
+ * other seven under it.
+ */
+const BAR_LABEL_DARK_ABOVE = 0.35;
+
+/**
+ * The ink a bar's label is written in, so it can be read on that bar.
+ *
+ * WCAG relative luminance of the fill, and the darker of two inks above
+ * {@link BAR_LABEL_DARK_ABOVE}. One white for all ten colours is what a
+ * qualitative palette cannot have: `#bcbd22` is a highlighter, and white on it
+ * is a label nobody reads.
+ *
+ * No malformed-input branch, and that is the type's doing rather than an
+ * omission: {@link BarColor} is eleven six-digit hexes, so the parse below
+ * cannot come back `NaN`.
+ */
+export function inkOn(barColor: BarColor): string {
+  const linear = [1, 3, 5]
+    .map((at) => Number.parseInt(barColor.slice(at, at + 2), 16) / 255)
+    .map((channel) => (channel <= 0.03928 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4));
+  const luminance = 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2];
+  // Proof: the threshold raised to 99, which no luminance reaches — one white
+  // for every bar, which is what this function exists not to do. `writes the
+  // label in ink the bar can be read through` alone failed, on `expected
+  // '#ffffff' to be '#0f172a'`; watched 2026-08-09.
+  return luminance > BAR_LABEL_DARK_ABOVE ? BAR_LABEL_DARK : BAR_LABEL_LIGHT;
+}
+
+/**
  * A row of the plan as the panel draws it.
  *
  * The shown rows only — the panel passes the same list its renderer draws, so
@@ -68,6 +149,8 @@ export interface GanttSlice {
   estimated: boolean;
   earliestStart: number;
   earliestFinish: number;
+  /** How many workdays this slice can slip before the project's finish moves. */
+  float: number;
   critical: boolean;
   boundBy: BindingFloor;
   /** The slice this one's assignee was busy with, or null when nobody waited. */
@@ -124,9 +207,27 @@ export interface GanttBar {
   start: number;
   finish: number;
   duration: number;
+  /** How many workdays this bar can slip before the project's finish moves. */
+  float: number;
   critical: boolean;
   /** False when nobody has estimated this slice, which is not the same fact as zero days. */
   estimated: boolean;
+  /** The work item this slice is work for — the name on the row the bar sits on. */
+  workItemName: string;
+  /** The role this slice is work for, or null when it belongs to no role. */
+  roleName: string | null;
+  /** Whose slice this is, or null when nobody is on it. */
+  personName: string | null;
+  /**
+   * The colour the bar is painted, which is **who** is on it.
+   *
+   * One of {@link PERSON_BAR_COLORS}, or {@link UNASSIGNED_BAR_COLOR} when
+   * nobody is. Decided here rather than in the component because the mapping is
+   * a fact about the whole chart — the same person is the same colour on every
+   * row — and a component that decided it per bar could not be asked whether
+   * they are.
+   */
+  personColor: BarColor;
   /** The binding floor in words — the sentence the bar shows on hover. */
   floorWords: string;
 }
@@ -165,6 +266,12 @@ export interface GanttPersonLink {
   toSliceId: string;
   toRowIndex: number;
   toStart: number;
+  /**
+   * The colour of the person whose hand-off this is — the same colour as the
+   * two bars it joins, which is what makes the line read as theirs rather than
+   * as a second kind of dependency.
+   */
+  personColor: BarColor;
 }
 
 /** Where a row's manual start date holds, on the workday axis. */
@@ -208,31 +315,51 @@ const FLOOR_SENTENCE: Record<Exclude<BindingFloor, 'person'>, string> = {
  * modeled and says so in the words rather than being papered over with the
  * person's name alone.
  *
- * @throws GanttDataError when the person floor names nobody, or names
- * somebody the plan does not.
+ * `person` arrives resolved: {@link personNameOf} is what refuses a slice
+ * assigned to somebody the plan does not name, and it does so for every bar
+ * rather than for the person-floored ones alone. A second check here would be
+ * one nothing could ever reach.
  */
 function personFloorWords(
-  slice: GanttSlice,
+  person: string,
   predecessor: GanttSlice,
   rowNames: ReadonlyMap<string, string>,
-  roleNames: ReadonlyMap<string, string>,
-  personNames: ReadonlyMap<string, string>,
+  rolesById: ReadonlyMap<string, GanttRolePlace>,
 ): string {
-  const person = slice.personId === null ? undefined : personNames.get(slice.personId);
-  // Proof: this throw replaced by `?? 'somebody'`, `throws when a person floor
-  // names somebody the plan does not` failed; watched 2026-08-09.
-  if (person === undefined) {
-    throw new GanttDataError(
-      `slice ${slice.id} is floored by a person the plan does not name ` +
-        `(personId ${slice.personId ?? 'null'})`,
-    );
-  }
   const workItemName = rowNames.get(predecessor.workItemId);
   if (workItemName === undefined) return `${person} — after work that is not shown`;
-  const roleName = predecessor.roleId === null ? undefined : roleNames.get(predecessor.roleId);
+  const roleName =
+    predecessor.roleId === null ? undefined : rolesById.get(predecessor.roleId)?.name;
   return roleName === undefined
     ? `${person} — after ${workItemName}`
     : `${person} — after ${workItemName} (${roleName})`;
+}
+
+/**
+ * Whose slice this is, or null when nobody's.
+ *
+ * @throws GanttDataError when the slice names a person the plan does not. The
+ * payload carries the assignment and the roster in one read, so a personId
+ * with no name is the wire having lost one of them — and the bar's colour and
+ * its on-bar label are both that name, so a chart drawn anyway would be a
+ * chart with an anonymous colour on it.
+ */
+function personNameOf(slice: GanttSlice, personNames: ReadonlyMap<string, string>): string | null {
+  if (slice.personId === null) return null;
+  const name = personNames.get(slice.personId);
+  // Proof: this throw replaced by `return name ?? slice.personId`, so an
+  // unknown person drew under their own id. **Two** tests failed, `2 failed |
+  // 39 passed`, both on `expected function to throw an error, but it didn't`:
+  // `throws when a slice is assigned to somebody the plan does not name` and
+  // `throws when a person floor names somebody the plan does not` — the second
+  // is the check this one replaced in `personFloorWords`, and it is here that
+  // it now fires. Watched 2026-08-09.
+  if (name === undefined) {
+    throw new GanttDataError(
+      `slice ${slice.id} is assigned to ${slice.personId}, whom this plan does not name`,
+    );
+  }
+  return name;
 }
 
 /**
@@ -260,8 +387,9 @@ export function layOutGantt(plan: GanttPlan): GanttGeometry {
   const rowNames = new Map(plan.rows.map((row) => [row.id, row.name]));
   const placedRows = new Map(plan.rows.map((row, rowIndex) => [row.id, { row, rowIndex }]));
   const sliceById = new Map(plan.slices.map((slice) => [slice.id, slice]));
-  const rolePlaces = new Map(plan.roles.map((role, place) => [role.id, place]));
-  const roleNames = new Map(plan.roles.map((role) => [role.id, role.name]));
+  const rolesById: ReadonlyMap<string, GanttRolePlace> = new Map(
+    plan.roles.map((role, place) => [role.id, { place, name: role.name }]),
+  );
 
   const predecessorOf = new Map<string, GanttSlice>();
   for (const slice of plan.slices) {
@@ -299,6 +427,50 @@ export function layOutGantt(plan: GanttPlan): GanttGeometry {
   const brackets: GanttSummaryBracket[] = [];
   const notBeforeFlags: GanttNotBeforeFlag[] = [];
 
+  /**
+   * The palette, handed out as the rows are walked.
+   *
+   * First appearance top-down, which makes the colours a fact about **what is
+   * on screen**: collapse a branch whose only person was drawn first and the
+   * people below shift up the palette. That is deliberate — the alternative is
+   * an order taken from the payload's slice array, which is the engine's
+   * placement order and would put the top row's person in whatever colour the
+   * scheduler happened to reach them in. Within one drawing every row agrees,
+   * which is the property a reader uses.
+   *
+   * Proof that the **order** is the rows' and not somebody's idea of a stable
+   * one: the map pre-seeded from `[...new Set(plan.slices.map((s) =>
+   * s.personId))].sort()` before this walk — alphabetical by person id, which
+   * is stable and wrong. `hands the palette out in the order people first
+   * appear, top-down` failed on `expected [ '#ff7f0e', '#1f77b4' ] to deeply
+   * equal [ '#1f77b4', '#ff7f0e' ]`, `wraps the eleventh person…` with it, and
+   * `gives one person one colour on every row they are on` went on passing —
+   * that one cannot see this fault, which is why the order has a test of its
+   * own. Watched 2026-08-09.
+   */
+  const colorByPerson = new Map<string, BarColor>();
+  const colorFor = (personId: string | null): BarColor => {
+    // Proof: replaced by `return PERSON_BAR_COLORS[0]`, so an unassigned slice
+    // drew as the first person. `paints a slice nobody is on grey, and does not
+    // spend a colour on it` alone failed, on `expected '#1f77b4' to be
+    // '#94a3b8'`; watched 2026-08-09.
+    if (personId === null) return UNASSIGNED_BAR_COLOR;
+    const taken = colorByPerson.get(personId);
+    if (taken !== undefined) return taken;
+    // Wrapping rather than running out: `% length` is what an eleventh person
+    // gets, and it is the first colour again.
+    //
+    // Proof, twice. The `%` dropped: `wraps the eleventh person back onto the
+    // first colour` alone failed, on `expected undefined to be '#1f77b4'` — an
+    // eleventh person with no colour at all rather than a shared one. And the
+    // `set` below removed, so nothing was remembered: **3** failed, `3 failed |
+    // 38 passed`, on `expected '#1f77b4' not to be '#1f77b4'` and two lists of
+    // one repeated colour. Watched 2026-08-09.
+    const next = PERSON_BAR_COLORS[colorByPerson.size % PERSON_BAR_COLORS.length];
+    colorByPerson.set(personId, next);
+    return next;
+  };
+
   plan.rows.forEach((row, rowIndex) => {
     if (row.notBeforeOffset !== null) {
       notBeforeFlags.push({ rowIndex, offset: row.notBeforeOffset });
@@ -321,17 +493,23 @@ export function layOutGantt(plan: GanttPlan): GanttGeometry {
       return;
     }
     const own = slicesByWorkItem.get(row.id) ?? [];
-    for (const slice of inRoleOrder(own, rolePlaces)) {
+    for (const { slice, roleName } of inRoleOrder(own, rolesById)) {
       const predecessor = predecessorOf.get(slice.id);
+      const personName = personNameOf(slice, plan.personNames);
       const bar: GanttBar = {
         sliceId: slice.id,
         rowIndex,
         start: slice.earliestStart,
         finish: slice.earliestFinish,
         duration: slice.duration,
+        float: slice.float,
         critical: slice.critical,
         estimated: slice.estimated,
-        floorWords: floorWordsOf(slice, predecessor, rowNames, roleNames, plan.personNames),
+        workItemName: row.name,
+        roleName,
+        personName,
+        personColor: colorFor(slice.personId),
+        floorWords: floorWordsOf(slice, predecessor, personName, rowNames, rolesById),
       };
       bars.push(bar);
       barBySliceId.set(slice.id, bar);
@@ -353,6 +531,10 @@ export function layOutGantt(plan: GanttPlan): GanttGeometry {
       toSliceId: slice.id,
       toRowIndex: waiting.rowIndex,
       toStart: waiting.start,
+      // The waiting bar's own colour, read off the bar rather than looked up
+      // again: the line and the two ends it joins cannot be different colours
+      // for the same person if only one of them decides.
+      personColor: waiting.personColor,
     });
   }
 
@@ -380,6 +562,19 @@ export function layOutGantt(plan: GanttPlan): GanttGeometry {
   return { labels, bars, brackets, arrows, personLinks, notBeforeFlags, horizon };
 }
 
+/** One role as the drawing reads it: where it comes in the plan's order, and what it is called. */
+interface GanttRolePlace {
+  place: number;
+  name: string;
+}
+
+/** One of a leaf's slices with its role resolved: the bar's place in the row, and the role's name. */
+interface PlacedSlice {
+  slice: GanttSlice;
+  place: number;
+  roleName: string | null;
+}
+
 /**
  * One leaf's slices in the order its bars sit in: the order the plan lists
  * the roles in, with a slice belonging to no role last.
@@ -391,37 +586,43 @@ export function layOutGantt(plan: GanttPlan): GanttGeometry {
  */
 function inRoleOrder(
   slices: readonly GanttSlice[],
-  rolePlaces: ReadonlyMap<string, number>,
-): GanttSlice[] {
+  rolesById: ReadonlyMap<string, GanttRolePlace>,
+): PlacedSlice[] {
   // Every place is looked up before the sort rather than inside its comparator:
   // `sort` does not call a comparator for a list of one, so a leaf with a single
   // slice would never have its role resolved and the throw below could not fire
   // on the commonest row in any plan. Watched: with the lookup in the
   // comparator, `throws when a slice is under a role the plan does not list`
   // passed against a slice under role `ops` on a plan that lists Dev and QA.
-  const placed = slices.map((slice) => ({ slice, place: placeOf(slice, rolePlaces) }));
+  const placed = slices.map((slice) => placeOf(slice, rolesById));
   // `sort` is stable, so slices sharing a place — the ones belonging to no role
   // — keep the order the payload had them in.
-  return placed.sort((one, other) => one.place - other.place).map(({ slice }) => slice);
+  return placed.sort((one, other) => one.place - other.place);
 }
 
 /**
- * Where a slice's bar sits among its row's bars: its role's place in the plan's
- * list, and last when it belongs to no role.
+ * Where a slice's bar sits among its row's bars, and what its role is called:
+ * its role's place in the plan's list, and last and nameless when it belongs to
+ * no role.
  *
  * @throws GanttDataError when the slice names a role the plan does not list.
  */
-function placeOf(slice: GanttSlice, rolePlaces: ReadonlyMap<string, number>): number {
-  if (slice.roleId === null) return Number.MAX_SAFE_INTEGER;
-  const place = rolePlaces.get(slice.roleId);
-  // Proof: this throw replaced by `return Number.MAX_SAFE_INTEGER`, `throws when
-  // a slice is under a role the plan does not list` failed; watched 2026-08-09.
-  if (place === undefined) {
+function placeOf(slice: GanttSlice, rolesById: ReadonlyMap<string, GanttRolePlace>): PlacedSlice {
+  if (slice.roleId === null) {
+    return { slice, place: Number.MAX_SAFE_INTEGER, roleName: null };
+  }
+  const role = rolesById.get(slice.roleId);
+  // Proof: this throw replaced by
+  // `return { slice, place: Number.MAX_SAFE_INTEGER, roleName: null }` — the
+  // unlisted role treated as no role at all. `throws when a slice is under a
+  // role the plan does not list` alone failed, on `expected function to throw
+  // an error, but it didn't`; re-watched 2026-08-09 in this shape.
+  if (role === undefined) {
     throw new GanttDataError(
       `slice ${slice.id} is under role ${slice.roleId}, which this plan does not list`,
     );
   }
-  return place;
+  return { slice, place: role.place, roleName: role.name };
 }
 
 /**
@@ -436,9 +637,9 @@ function placeOf(slice: GanttSlice, rolePlaces: ReadonlyMap<string, number>): nu
 function floorWordsOf(
   slice: GanttSlice,
   predecessor: GanttSlice | undefined,
+  personName: string | null,
   rowNames: ReadonlyMap<string, string>,
-  roleNames: ReadonlyMap<string, string>,
-  personNames: ReadonlyMap<string, string>,
+  rolesById: ReadonlyMap<string, GanttRolePlace>,
 ): string {
   if (slice.boundBy !== 'person') return FLOOR_SENTENCE[slice.boundBy];
   // Proof: this throw replaced by `return 'Waits for a person'`, `throws when a
@@ -448,5 +649,11 @@ function floorWordsOf(
       `slice ${slice.id} is floored by a person but names no resource predecessor`,
     );
   }
-  return personFloorWords(slice, predecessor, rowNames, roleNames, personNames);
+  // Proof: this throw replaced by `personFloorWords(personName ?? 'somebody', …)`.
+  // `throws when a person floor names nobody at all` alone failed, on `expected
+  // function to throw an error, but it didn't`; watched 2026-08-09.
+  if (personName === null) {
+    throw new GanttDataError(`slice ${slice.id} is floored by a person but names no person at all`);
+  }
+  return personFloorWords(personName, predecessor, rowNames, rolesById);
 }
