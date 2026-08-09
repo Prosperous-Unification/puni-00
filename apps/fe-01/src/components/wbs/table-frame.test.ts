@@ -267,7 +267,10 @@ describe('the pinned columns', () => {
     // 2026-08-08.
     expect(name?.width).toBeUndefined();
     expect(name?.position).toBe('sticky');
-    expect(body?.background).toBe('#fff');
+    // The row's own colour, with an opaque fallback behind it: the shade is
+    // `styles.css`'s to decide per row — banded, hovered, armed — and the
+    // fallback is what keeps this cell opaque with that stylesheet deleted.
+    expect(body?.background).toBe('var(--cell-bg, var(--background))');
     expect(body?.boxSizing).toBe('border-box');
     expect(body?.zIndex).toBe(1);
 

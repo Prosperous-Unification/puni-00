@@ -32,11 +32,18 @@ const GAIN = 120;
  *
  * Without it the frame's height is its content's and the measurement says
  * nothing: a two-row plan is about 340px tall in a frame that could be 690.
- * At 38px a row — measured — fifteen rows plus the heading and the frame's own
- * 13rem of picker room is comfortably past it. The test asserts that rather
- * than trusting it.
+ * At 28px a row and 14px of heading — both measured — twenty-three rows plus
+ * the frame's own 13rem of picker room is comfortably past it. The test asserts
+ * that rather than trusting it.
+ *
+ * It was fifteen at 38px a row, and the restyle that made a row 28 is what
+ * moved it: with fifteen the plan came to **exactly** the frame's height —
+ * `scrollHeight 669, clientHeight 669` — and the precondition failed while the
+ * claim under it was still true, the frame having gained its 125px all the
+ * same. That is the guard doing its job rather than a regression, and it is why
+ * the number is a measurement with the measurement written next to it.
  */
-const ROWS_PAST_THE_FOLD = 15;
+const ROWS_PAST_THE_FOLD = 23;
 
 /** The widths the bar has to be one row at. `layout.spec.ts`'s matrix, plus 900. */
 const FIT_WIDTHS = [1280, 1024, 900] as const;

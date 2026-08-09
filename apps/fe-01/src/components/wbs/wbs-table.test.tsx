@@ -2250,7 +2250,10 @@ describe('assigning from a folded role’s cell with @', () => {
     // written down.
     expect(qa?.textContent).toBe('· (Ada)');
     expect(qa?.getAttribute('data-assumed')).toBe('role-qa');
-    expect((qa as HTMLElement | null)?.style.color).toBe('rgb(102, 102, 102)');
+    // The palette's own muted ink rather than the `#666` it was: `styles.css`
+    // re-points every token under `.dark` and a literal is the one shade that
+    // would not follow. jsdom hands back the declaration, not a resolved colour.
+    expect((qa as HTMLElement | null)?.style.color).toBe('var(--muted-foreground)');
   });
 
   itDom('says nothing where nobody is assigned and nobody is assumed', async () => {
@@ -5053,7 +5056,9 @@ describe('dependencies in the table — cross-review findings', () => {
   itDom('names a critical row rather than printing its zero', async () => {
     render(<WbsTable projectId="p1" api={apiReturning(null, { float: 0, critical: true })} />);
 
-    expect((await cells()).float).toBe('— critical');
+    // One word, which is what the 56px column can hold now that the word is a
+    // tag rather than a figure — and what `plan-export.ts` has always printed.
+    expect((await cells()).float).toBe('critical');
   });
 
   itDom('shows dashes rather than zeroes when there is no schedule', async () => {

@@ -24,7 +24,9 @@ export function pickableLabel(entry: PickableEntry): ReactNode {
   return (
     <>
       {entry.name}
-      {entry.detail !== undefined && <span style={{ color: '#666' }}> — {entry.detail}</span>}
+      {entry.detail !== undefined && (
+        <span style={{ color: 'var(--muted-foreground)' }}> — {entry.detail}</span>
+      )}
     </>
   );
 }
@@ -70,8 +72,11 @@ export function PickerList({
         margin: 0,
         padding: 0,
         listStyle: 'none',
-        background: '#fff',
-        border: '1px solid #ccc',
+        background: 'var(--popover)',
+        border: '1px solid var(--border)',
+        borderRadius: 'var(--radius-md)',
+        boxShadow: '0 4px 12px oklch(0 0 0 / 12%)',
+        overflow: 'hidden',
         maxHeight: 200,
         overflowY: 'auto',
         zIndex: 15,

@@ -275,8 +275,22 @@ export function pinnedGeometry(
   return PINNED_GEOMETRY.get(columnId);
 }
 
-const HEADER_BACKGROUND = '#f4f4f4';
-const ROW_BACKGROUND = '#fff';
+/**
+ * The colour a sticky cell paints itself, as the slot rather than the shade.
+ *
+ * `--cell-bg` is set per row by `styles.css` — banded, hovered, a drop target —
+ * and read here, which is the only way those states can reach a pinned cell at
+ * all: this declaration is an *inline* style and an inline style outranks every
+ * layer, so a `tr:hover` rule could never repaint one from the outside.
+ *
+ * The fallback is load-bearing rather than tidy. An undefined custom property
+ * makes `background` invalid at computed-value time, and an invalid background
+ * is `transparent` — which is the row scrolling straight through the pinned
+ * block again, silently. Naming the opaque default here means deleting the
+ * stylesheet's grid layer costs the banding and nothing else.
+ */
+const HEADER_BACKGROUND = 'var(--cell-bg, var(--muted))';
+const ROW_BACKGROUND = 'var(--cell-bg, var(--background))';
 
 /**
  * Which sticky cell paints over which. A pinned header cell is sticky on both
