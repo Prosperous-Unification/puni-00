@@ -86,10 +86,13 @@ finding to bring back, not a fight to win silently.
 not fight the stack. Three things F must read first: 2's premise is wrong —
 unscoped preflight leaves every one of `layout.spec.ts`'s 22 tests green,
 because the table is styled inline and an inline style outranks every layer, so
-the fault needed its own oracle (`e2e/tailwind.spec.ts`); `ui/button.tsx`'s
-long-inert Tailwind classes go live the moment utilities compile, which
-restyles two chrome buttons; and the alpine/amd64 container build with
-Tailwind's native modules has not been run anywhere yet.
+the fault needed its own oracle (`e2e/tailwind.spec.ts`), and preflight is
+unmeasured on the table rather than proven harmless — inherited declarations
+still reach cells, and no test measures a row height; `ui/button.tsx`'s
+long-inert Tailwind classes go live the moment utilities compile, so **T ships
+a restyle of two chrome buttons that F owns** — the "no restyling" line above
+did not survive contact; and the alpine/amd64 container build with Tailwind's
+native modules has not been run anywhere yet.
 
 ## F `shadcn-foundation` — chrome components (P2.3a)
 

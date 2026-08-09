@@ -2,8 +2,17 @@
 
 Step 0 of the presentation lane in `2026-08-08-phases-gantt-mobile-roadmap.md`:
 prove Tailwind v4 through the Vite/Vitest/Nx/Bun stack before any component
-lands. Tooling only — no components, no restyling, one utility class on one
-chrome element as the tracer.
+lands. No components were written and one utility class was added — the tracer
+on the brand heading.
+
+**It is not a no-op on the pixels, and calling it "tooling only" would be a
+lie.** `src/components/ui/button.tsx` has carried Tailwind classes since before
+this branch with no stylesheet behind them; compiling utilities makes them live
+and restyles two chrome buttons (finding 2). That restyle is unowned by this
+change — change **F `shadcn-foundation`** is the contract that adopts chrome
+components and owns how they look. If Dany does not want those two buttons
+changing ahead of F, the fix belongs in F's scope or in a revert of
+`button.tsx`'s classes, not in a `@source` exclusion here.
 
 Every command below was run on 2026-08-09 on Dany's Mac (darwin arm64, bun
 1.3.14, chromium 1234 from the Playwright cache), from the worktree at
@@ -11,16 +20,16 @@ Every command below was run on 2026-08-09 on Dany's Mac (darwin arm64, bun
 
 ## What landed
 
-| file                              | what                                                                         |
-| --------------------------------- | ---------------------------------------------------------------------------- |
-| `package.json` / `bun.lock`       | `tailwindcss@4.3.3`, `@tailwindcss/vite@4.3.3`, dev deps                     |
-| `apps/fe-01/src/styles.css`       | the entry: theme + utilities, **no preflight**, scan confined to `src`       |
-| `apps/fe-01/src/main.tsx`         | `import './styles.css'`                                                      |
-| `apps/fe-01/src/app.tsx`          | the tracer — `className="tracking-tight"` on the `WBS tool v2` brand heading |
-| `apps/fe-01/vite.config.ts`       | `tailwindcss()` in `plugins`                                                 |
-| `apps/fe-01/src/styles.test.ts`   | 5 unit tests: a real Vite build of the stylesheet, asserted                  |
-| `apps/fe-01/e2e/tailwind.spec.ts` | 3 browser tests: the tracer applied, the reset absent                        |
-| `nx.json`                         | `production` no longer excludes `vite.config.[jt]s` — see finding 3          |
+| file                              | what                                                                                                              |
+| --------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `package.json` / `bun.lock`       | `tailwindcss@4.3.3`, `@tailwindcss/vite@4.3.3`, dev deps                                                          |
+| `apps/fe-01/src/styles.css`       | the entry: theme + utilities, **no preflight**, scan confined to `src`                                            |
+| `apps/fe-01/src/main.tsx`         | `import './styles.css'`                                                                                           |
+| `apps/fe-01/src/app.tsx`          | the tracer — `className="tracking-tight"` on the `WBS tool v2` brand heading                                      |
+| `apps/fe-01/vite.config.ts`       | `tailwindcss()` in `plugins`                                                                                      |
+| `apps/fe-01/src/styles.test.ts`   | 7 unit tests: two real Vite builds — the stylesheet alone, and the whole app through the shipped `vite.config.ts` |
+| `apps/fe-01/e2e/tailwind.spec.ts` | 3 browser tests: the tracer applied, the reset absent                                                             |
+| `nx.json`                         | `production` no longer excludes `vite.config.[jt]s`; `bun.lock` added to `sharedGlobals` — see finding 3          |
 
 `layout.spec.ts` and `keyboard.spec.ts` are untouched.
 
@@ -43,14 +52,22 @@ all 8 of `keyboard.spec.ts`'s.
 The reason is in `wbs-table.tsx:3766` — the earliest-start field already
 carries `style={{ width: '100%', boxSizing: 'border-box', font: 'inherit' }}`,
 which is precisely the pair of declarations preflight would have imposed, and
-an inline style outranks every `@layer`. The whole table is styled that way, so
-the reset cannot reach a single cell today.
+an inline style outranks every `@layer`. The whole table is styled that way.
+
+That argument covers **overlapping** declarations only, and the claim is scoped
+to them. Preflight's **inherited** ones are not blocked by an inline style on a
+descendant: `html { line-height: 1.5 }` and the default font stack still reach
+any cell that does not set them, so the table's vertical rhythm very likely did
+move. Nothing in `layout.spec.ts` asserts a row height — it measures x, width,
+containment, sticky offsets and overflow — so nothing measured it. What was
+observed is **"no assertion the browser gate makes moved"**, not "the table did
+not move", and the two are not the same sentence.
 
 Consequences, and F should read them as prerequisites:
 
-- Preflight is **harmless to today's table and dangerous to tomorrow's**. The
-  first `<td>` styled by a class puts the reset back in the cascade with
-  nothing measuring it.
+- Preflight is **unmeasured on today's table, not proven harmless, and worse on
+  tomorrow's**. The first `<td>` styled by a class puts the overlapping
+  declarations back in the cascade too, with nothing measuring either kind.
 - The geometry oracle for this fault is **not** `layout.spec.ts`. It is
   `e2e/tailwind.spec.ts` (browser) and `src/styles.test.ts` (compiler), both
   watched failing below.
@@ -71,7 +88,7 @@ was kept rather than suppressed: the only way to stop it is to exclude
 `src/components/ui` from `@source`, which is an artificial rule that F would
 delete on its first day. Flagged for Dany rather than decided here.
 
-### 3. `nx run fe-01:build` answered from cache after `vite.config.ts` changed
+### 3. `nx run fe-01:build` answered from cache after inputs it never watched
 
 Pre-existing, found by this change and fixed by it. `nx.json`'s `production`
 named input excluded `{projectRoot}/vite.config.[jt]s`, and `build` uses
@@ -95,6 +112,29 @@ $ bunx nx run fe-01:build
 ```
 
 `vitest.config.ts` stays excluded: it genuinely does not affect a build.
+
+**And the same hole, one level up: `bun.lock` was not in `sharedGlobals`.** A
+lockfile-only dependency bump — exactly the shape of a Tailwind, `oxide` or
+`lightningcss` version change, where the compiler and its native code move but
+no source file does — reused a bundle built by the old one. Watched:
+
+```
+$ printf '\n' >> bun.lock
+$ bunx nx run fe-01:build
+> nx run fe-01:build  [local cache]
+Nx read the output from the cache instead of running the command for 1 out of 1 tasks.
+```
+
+With `{workspaceRoot}/bun.lock` in `sharedGlobals`, the same touch rebuilds:
+
+```
+$ printf '\n' >> bun.lock
+$ bunx nx run fe-01:build
+✓ built in 779ms
+```
+
+`package.json` was already there, which is why this went unnoticed: a version
+range change is caught, a resolution change inside the range is not.
 
 ## The tracer, end to end
 
@@ -135,17 +175,39 @@ are the price of a heuristic scanner and are recorded rather than fought.
 Every check here has been watched failing with the thing it guards broken, one
 fault at a time, each reverted before the next.
 
-| check                                                      | fault injected                                                   | observed                                                                                                             |
-| ---------------------------------------------------------- | ---------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| `styles.test.ts` › compiles the tracer class               | `className="tracking-tight"` off the `h1` in `app.tsx`           | 1 failed — `expected '@layer properties{@supports (((-webki…' to contain '.tracking-tight'`                          |
-| `styles.test.ts` › emits nothing for an unused utility     | `source(none)` and the three `@source` lines out of `styles.css` | 1 failed — `expected '…' not to contain '.tracking-widest'`                                                          |
-| `styles.test.ts` › brings no box-sizing reset              | the two imports replaced by `@import 'tailwindcss'`              | 3 failed — `not to contain 'border-box'`                                                                             |
-| `styles.test.ts` › leaves form controls the browser's font | same fault                                                       | same run — `not to match /font:\s*inherit/`                                                                          |
-| `styles.test.ts` › base layer declared and empty           | same fault                                                       | same run — `to match /@layer[^;{]*\bbase\b[^;{]*;/`                                                                  |
-| `tailwind.spec.ts` › applies the tracer class              | `import './styles.css'` dropped from `main.tsx`                  | 1 failed, 2 passed — `toBeCloseTo`, `Expected: -0.8, Received: NaN` (`normal`, the letter-spacing of an unstyled h1) |
-| `tailwind.spec.ts` › heading keeps its user-agent margin   | the two imports replaced by `@import 'tailwindcss'`              | 2 failed, 31 passed — `Expected: > 0, Received: 0`                                                                   |
-| `tailwind.spec.ts` › form controls keep the platform font  | same fault                                                       | same run — `Expected: not "16px"`                                                                                    |
-| `nx.json` `production` includes `vite.config.ts`           | the exclusion put back, `vite.config.ts` touched                 | `[existing outputs match the cache, left as is]` — a stale bundle reported as a build                                |
+| check                                                      | fault injected                                                   | observed                                                                                                                                                                                    |
+| ---------------------------------------------------------- | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `styles.test.ts` › compiles the tracer class               | `className="tracking-tight"` off the `h1` in `app.tsx`           | 1 failed — `expected '@layer properties{@supports (((-webki…' to contain '.tracking-tight'`                                                                                                 |
+| `styles.test.ts` › emits nothing for an unused utility     | `source(none)` and the three `@source` lines out of `styles.css` | 1 failed — `expected '…' not to contain '.tracking-widest'`                                                                                                                                 |
+| `styles.test.ts` › brings no box-sizing reset              | the two imports replaced by `@import 'tailwindcss'`              | 3 failed — `not to contain 'border-box'`                                                                                                                                                    |
+| `styles.test.ts` › leaves form controls the browser's font | same fault                                                       | same run — `not to match /font:\s*inherit/`                                                                                                                                                 |
+| `styles.test.ts` › base layer declared and empty           | same fault                                                       | same run — `to match /@layer[^;{]*\bbase\b[^;{]*;/`                                                                                                                                         |
+| `tailwind.spec.ts` › applies the tracer class              | `import './styles.css'` dropped from `main.tsx`                  | 1 failed, 2 passed — `toBeCloseTo`, `Expected: -0.8, Received: NaN` (`normal`, the letter-spacing of an unstyled h1)                                                                        |
+| `tailwind.spec.ts` › heading keeps its user-agent margin   | the two imports replaced by `@import 'tailwindcss'`              | 2 failed, 31 passed — `Expected: > 0, Received: 0`                                                                                                                                          |
+| `tailwind.spec.ts` › form controls keep the platform font  | same fault                                                       | same run — `Expected: not "16px"`                                                                                                                                                           |
+| `styles.test.ts` › the shipped config wires the plugin     | `tailwindcss()` out of `vite.config.ts`'s `plugins`              | 1 failed, 6 passed — `expected '@layer theme,base,components,utilitie…' to contain '.tracking-tight'`; the five stylesheet-alone tests passed throughout, which is the gap this pair closes |
+| `nx.json` `production` includes `vite.config.ts`           | the exclusion put back, `vite.config.ts` touched                 | `[existing outputs match the cache, left as is]` — a stale bundle reported as a build                                                                                                       |
+| `nx.json` `sharedGlobals` includes `bun.lock`              | the entry removed, `bun.lock` touched                            | `[local cache]` — a lockfile-only compiler bump reusing a bundle built by the old one                                                                                                       |
+
+### A flake in `tailwind.spec.ts`, found by re-running it and fixed
+
+`playwright.config.ts` sets `retries: 0` and says why: "a flake in this spec is
+a bug in this spec". One appeared in the re-run after the review fixes —
+
+```
+  1) tailwind.spec.ts:67:3 › leaves form controls the platform font, not the page’s
+    Error: page.evaluate: Error: the signed-out page has no input to measure
+  1 failed
+  32 passed (47.3s)
+```
+
+— and it is the test's own guard doing exactly its job. `page.goto` resolves on
+the document's load event; this app renders from `main.tsx` after it, so a bare
+`document.querySelector` races the first paint. The guard refused to measure an
+empty page rather than reporting a font size nobody had rendered. The bug was
+the missing wait, not the guard: both reset tests now wait on the username
+field (`openSignedOutPage`) before measuring. The tracer test already waited on
+its heading, which is why it never flaked.
 
 Two checks were split into one assertion each after watching them: `expect`
 throws on the first failure, so the second assertion of a two-assertion test is
@@ -163,7 +225,9 @@ $ bunx nx run-many -t test lint typecheck build --parallel=2
  NX   Successfully ran targets test, lint, typecheck, build for 21 projects
 ```
 
-`fe-01:test` is 617 tests across 26 files, 5 of them new in `styles.test.ts`.
+`fe-01:test` is 619 tests across 26 files, 7 of them new in `styles.test.ts`.
+Those 7 cost 1.8s of the file's runtime: two real Vite builds, one of the
+stylesheet and one of the whole app through the shipped config.
 
 Browser gate — 33 tests: 22 `layout.spec.ts`, 8 `keyboard.spec.ts`, 3 new
 `tailwind.spec.ts` — run from this worktree on alternate ports (see below):
@@ -175,6 +239,9 @@ saves the cell before it creates the row it lands in`, on
   8 passed. A pre-existing flake in the seed helper, present on `main` and
   unrelated to this change. It did not recur in any of the four later runs.
 - **after Tailwind:** 33 passed (30 + 3 new), twice, cleanly.
+- **after the review fixes:** 33 passed (49.1s) on 3103/3203/4203, plus
+  `tailwind.spec.ts` alone twice more — 3 passed (4.3s), 3 passed (3.4s) —
+  which is the repeated evidence the flake fix above is judged by.
 
 ## How the browser gate was run, and why it is not the plain command
 
@@ -184,11 +251,22 @@ three ports throughout, serving a **different working tree** — so `bun run e2e
 from this worktree would have measured the canonical tree and reported it as
 this branch's result.
 
-The runs above were made with `CI=1` (fresh servers, throwaway DB) against a
-locally patched copy of the config on 3101/3201/4201, with matching `.env`
-files. The patch was reverted with `git checkout --` before committing;
-`playwright.config.ts` is byte-identical to `main`. Anyone reproducing this on
-a machine with no dev stack running can use `bun run e2e` unmodified.
+The runs were made with `CI=1` (fresh servers, throwaway DB) against a locally
+patched copy of the config, with matching `.env` files. The patch was reverted
+with `git checkout --` before every commit; `playwright.config.ts` is
+byte-identical to `main`. Anyone reproducing this on a machine with no dev
+stack running can use `bun run e2e` unmodified.
+
+**One port set is not enough on a machine running several agents.** The first
+runs used 3101/3201/4201; the review-fix runs on those ports died mid-suite
+twice, at test 12 and test 23, with no summary and no failure — and once with
+`http://localhost:3101/health is already used` seconds after `lsof` reported it
+free. The cause was another worktree: `agent-a537eaf384af84880`, building
+`change/shadcn-foundation` on top of this branch, was running the same suite on
+the same ports. Its servers were left alone and this branch moved to
+3103/3203/4203, where the suite runs clean. Anyone parallelising this work
+needs a port set per worktree — a truncated run reads exactly like a crash and
+cost three re-runs to identify.
 
 ## Checks NOT run
 

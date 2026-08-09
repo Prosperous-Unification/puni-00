@@ -20,15 +20,20 @@
  * was not the expected one. Replacing the two imports below with
  * `@import 'tailwindcss'` and running the browser gate turns `e2e/tailwind.spec.ts`
  * red — heading margins zeroed, an input taking the page's 16px — and leaves
- * every one of `layout.spec.ts`'s geometry assertions green. It has to: this
- * table is styled inline, and the date input already carries
- * `{ boxSizing: 'border-box', font: 'inherit' }` of its own, which is the pair
- * of declarations preflight would have imposed on it. An inline style outranks
- * every layer, so the reset cannot reach the cells at all today.
+ * all 22 of `layout.spec.ts`'s tests green. The reason is narrow and worth
+ * stating narrowly: the declarations preflight would impose on the table are
+ * ones the table already sets inline — the date input carries
+ * `{ boxSizing: 'border-box', font: 'inherit' }` of its own — and an inline
+ * style outranks every layer. That covers the *overlapping* declarations only.
+ * Preflight's inherited ones, `line-height: 1.5` on `html` above all, still
+ * reach any cell that does not set them, so vertical rhythm almost certainly
+ * does move; nothing in that suite asserts a row height, so nothing measured it.
+ * The claim is "no assertion the browser gate makes moved", not "the reset
+ * cannot reach the table".
  *
- * That makes preflight harmless to the current table and dangerous to the next
- * one: the moment a cell is styled by a class instead of a `style` prop, the
- * reset is back in the cascade with nothing measuring it. `layout.spec.ts` is
+ * So preflight is unmeasured rather than proven harmless, and it gets worse
+ * from here: the moment a cell is styled by a class instead of a `style` prop,
+ * the overlapping declarations are back in the cascade too. `layout.spec.ts` is
  * not the oracle for this fault — `e2e/tailwind.spec.ts` and `styles.test.ts`
  * are, and both were watched failing. Runs in
  * `docs/plans/2026-08-08-tailwind-spike-verify.md`.
