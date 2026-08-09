@@ -1,17 +1,26 @@
 import Markdown from 'react-markdown';
 
-export interface NotesPreviewProps {
+export interface HoverPreviewProps {
+  /** The work item's name, shown as the heading — as text, never as markdown source. */
+  name: string;
   notes: string;
   /** Named in the popover so a hover on a busy table says which row it belongs to. */
   number: string;
 }
 
 /**
- * The rendered note, shown on hover over the Name cell it is written in.
+ * The rendered reading of one work item, shown on hover over its Name cell:
+ * the name as a level-one heading, the notes as markdown under it.
  *
- * The cell shows a note as the plain lines under the name, capped at four so a
- * plan still fits on a screen. This is where the rest of a long one is read,
- * and the only place its markdown is rendered.
+ * At rest the cell shows the name alone and the notes take no height, so this
+ * is where a note is read at all — and the name is repeated here because a
+ * preview of the notes on their own is a page of text with no title, hanging
+ * beside a row whose name it does not say.
+ *
+ * The name is put into the heading as **text**. Composing `# ${name}` into the
+ * markdown source would be a second parser over a field nobody writes markdown
+ * in: a name starting with `#`, or holding an underscore or a bracket, would
+ * read here as something other than what the cell shows.
  *
  * `react-markdown` renders to React elements and does **not** pass raw HTML
  * through — no `rehype-raw` here, deliberately. Notes are written by one
@@ -20,7 +29,7 @@ export interface NotesPreviewProps {
  * and nothing else. That is the whole reason this is a markdown renderer
  * rather than `dangerouslySetInnerHTML` over a converted string.
  */
-export function NotesPreview({ notes, number }: NotesPreviewProps) {
+export function HoverPreview({ name, notes, number }: HoverPreviewProps) {
   return (
     <div
       role="tooltip"
@@ -44,6 +53,11 @@ export function NotesPreview({ notes, number }: NotesPreviewProps) {
         fontWeight: 400,
       }}
     >
+      {/*
+        Sized here rather than left to the browser's default `h1`, which is
+        `2em` and would put a name across three lines of a 420px popover.
+      */}
+      <h1 style={{ fontSize: '1.05em', fontWeight: 600, margin: '0 0 4px' }}>{name}</h1>
       <Markdown>{notes}</Markdown>
     </div>
   );

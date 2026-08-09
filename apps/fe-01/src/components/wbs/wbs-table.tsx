@@ -53,6 +53,7 @@ import {
 import { GanttFaultBoundary } from './gantt-fault';
 import type { GanttPlan } from './gantt-geometry';
 import { GanttPanel } from './gantt-panel';
+import { HoverPreview } from './hover-preview';
 import { type Command, commandChordIn, undoChord } from './keyboard-bindings';
 import { KeyboardCheatSheet, opensCheatSheet } from './keyboard-cheat-sheet';
 import {
@@ -64,7 +65,6 @@ import {
 } from './live-editing';
 import { splitMention } from './mention';
 import { composeNameCell, normalizeNewlines, splitNameCell } from './name-notes';
-import { NotesPreview } from './notes-preview';
 import { PhasesDialog } from './phases-dialog';
 import { type CardAssignee, PlanCards } from './plan-cards';
 import { describeGaps, findEstimateGaps } from './plan-completeness';
@@ -3497,14 +3497,20 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                 }}
               />
               {/*
-                The rendered note, on hover, and only when there is one. A
-                popover over an empty note is a box of nothing that hides the
-                row beneath it. It hangs off the Name cell because that is where
-                the note is now written; the Notes column it used to hang off
+                The rendered reading of this work item, on hover, and only when
+                there is a note. A work item with no notes has nothing to
+                reveal — its name is shown whole in the cell already — and a
+                popover holding a name and nothing else is a box that hides the
+                row beneath it. It hangs off the Name cell because that is
+                where the note is written; the Notes column it used to hang off
                 does not exist.
               */}
               {hovered && row.original.notes.trim() !== '' && (
-                <NotesPreview notes={row.original.notes} number={row.original.number} />
+                <HoverPreview
+                  name={row.original.name}
+                  notes={row.original.notes}
+                  number={row.original.number}
+                />
               )}
             </span>
           );

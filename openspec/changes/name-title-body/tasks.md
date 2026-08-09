@@ -4,14 +4,14 @@ Ordered TDD slices. Only `- [ ]` checkboxes are tracked by the apply phase.
 
 ## 1. Hover preview reads as one document
 
-- [ ] 1.1 Rename `NotesPreview` / `notes-preview.tsx` to `HoverPreview` /
+- [x] 1.1 Rename `NotesPreview` / `notes-preview.tsx` to `HoverPreview` /
       `hover-preview.tsx` (glossary term), add a `name` prop, render the name
       as text inside a level-one heading element above the notes' markdown,
       and wire `wbs-table.tsx` to pass the name — test: `hover-preview.test.tsx`
       "renders the name as a level-one heading over the notes' markdown"
       (asserts an h1 whose textContent is the name and an h2 produced by
       `## Risks` in the notes)
-- [ ] 1.2 A name containing markdown or HTML stays text — test:
+- [x] 1.2 A name containing markdown or HTML stays text — test:
       `hover-preview.test.tsx` "a name containing markdown and HTML reads as
       typed" (a name reading hash-space-script-tag yields an h1 with that
       literal text, no script element, notes HTML still text); negative: the

@@ -1849,6 +1849,12 @@ describe('names wrap and notes carry markdown', () => {
     // too, which is the whole difference between this and the cell beneath it.
     expect(preview.querySelector('h2')?.textContent).toBe('Risks');
     expect(preview.querySelector('li em')?.textContent).toBe('old');
+    // The row's own name at the head of it, which is the wiring `hover-preview.test.tsx`
+    // cannot see: this column composes the cell's text and holds the two
+    // fields apart again for the preview.
+    // Proof: the column passing `name=""` — `expected '' to be 'Strip'`.
+    // Watched, 2026-08-09.
+    expect(preview.querySelector('h1')?.textContent).toBe('Strip');
   });
 
   itDom('lifts the hovered row above the pinned cells the preview opens over', async () => {
