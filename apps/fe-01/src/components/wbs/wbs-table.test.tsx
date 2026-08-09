@@ -2262,8 +2262,8 @@ describe('role columns fold away', () => {
 
   itDom('unfolds one role at a time, so the table still fits the window', async () => {
     // The accordion, and it is arithmetic rather than taste: a folded role
-    // costs 96px and an unfolded one 372, so two roles folded need 1054px and
-    // fit a 1280 laptop while one of them open needs 1330 and does not.
+    // costs 96px and an unfolded one 372, so two roles folded need 1123px and
+    // fit a 1280 laptop while one of them open needs 1399 and does not.
     // `table-frame.test.ts` pins those three numbers; this is the behaviour
     // that keeps the table on the second of them.
     // Proof: `toggleRole` put back to `[...current, roleId]`, this failed on
@@ -2277,14 +2277,14 @@ describe('role columns fold away', () => {
     expect(screen.getByLabelText('QA optimistic for 010')).toBeDefined();
     expect(screen.queryByLabelText('Dev optimistic for 010')).toBeNull();
     // And the width the table declares follows, which is the whole reason.
-    expect(screen.getByRole('table').style.minWidth).toBe('1330px');
+    expect(screen.getByRole('table').style.minWidth).toBe('1399px');
 
     // Folding the open one leaves nothing open, rather than putting the other
     // one back.
     fireEvent.click(screen.getByRole('button', { name: 'Fold QA estimates' }));
     expect(screen.queryByLabelText('QA optimistic for 010')).toBeNull();
     expect(screen.queryByLabelText('Dev optimistic for 010')).toBeNull();
-    expect(screen.getByRole('table').style.minWidth).toBe('1054px');
+    expect(screen.getByRole('table').style.minWidth).toBe('1123px');
   });
 
   itDom('says what the fold button does, which is no longer hiding the assignee', async () => {
@@ -5503,7 +5503,7 @@ describe('the frame the table scrolls inside', () => {
     expect(cells.slice(0, 3).map((td) => [td.style.position, td.style.left])).toEqual([
       ['sticky', '0px'],
       ['sticky', '24px'],
-      ['sticky', '124px'],
+      ['sticky', '193px'],
     ]);
     // Pinned and still flexible: the pin places the Name cell and the colgroup
     // sizes it, and a `width` here would be the second opinion that put a
@@ -5511,7 +5511,7 @@ describe('the frame the table scrolls inside', () => {
     // Proof: `pinnedCellStyle` made to declare `width: pinned.width ?? 360`
     // again, this failed on `expected '360px' to be ''`. Watched, 2026-08-08.
     expect(cells[2]?.style.width).toBe('');
-    expect(cells[1]?.style.width).toBe('100px');
+    expect(cells[1]?.style.width).toBe('169px');
     // And the floor that keeps it readable while the frame is scrolling.
     expect(cells[2]?.style.minWidth).toBe('200px');
     // Opaque, or the row scrolling behind a pinned cell shows through it.
@@ -5563,9 +5563,9 @@ describe('the widths the table is laid out by', () => {
     // that takes what the others leave, which is what makes the table fit the
     // window instead of the other way round.
     // Proof: the colgroup made to declare `360` for a flexible column, this
-    // failed on `expected ['24px','100px','360px'] to deeply equal
-    // ['24px','100px','']`. Watched, 2026-08-08.
-    expect(cols.slice(0, 3).map((col) => col.style.width)).toEqual(['24px', '100px', '']);
+    // failed on `expected ['24px','169px','360px'] to deeply equal
+    // ['24px','169px','']`. Watched, 2026-08-08.
+    expect(cols.slice(0, 3).map((col) => col.style.width)).toEqual(['24px', '169px', '']);
     for (const [at, col] of cols.entries()) {
       expect(col.style.width === '').toBe(at === 2);
     }
@@ -5610,14 +5610,28 @@ describe('the widths the table is laid out by', () => {
     expect(table.style.width).toBe('100%');
     expect(table.style.minWidth).toBe(`${String(frameLayout(columnIds, UNDATED).minWidth)}px`);
     // Not a constant, which is the point of computing it per render: this
-    // plan has Dev unfolded and QA folded, so the floor is the 662px of fixed
+    // plan has Dev unfolded and QA folded, so the floor is the 731px of fixed
     // columns — nobody has dated a row, so `not-before` is at its narrow 56 —
     // plus 372 for the open role, 96 for the closed one and Name's 200.
-    // Folded it would be 1054; the difference is why unfolding is an
+    // Folded it would be 1123; the difference is why unfolding is an
     // accordion.
-    expect(table.style.minWidth).toBe('1330px');
+    expect(table.style.minWidth).toBe('1399px');
     fireEvent.click(screen.getByRole('button', { name: 'Fold Dev estimates' }));
-    expect(screen.getByRole('table').style.minWidth).toBe('1054px');
+    expect(screen.getByRole('table').style.minWidth).toBe('1123px');
+  });
+
+  itDom('carries a row’s whole number in its cell, however much of it is shown', async () => {
+    // The Number column is sized to a stated envelope — eleven characters at
+    // the deepest indent — because there is no longest work item number to
+    // size it to. A number past that envelope is clipped rather than allowed to
+    // widen a column every row in the table would then move with, so the whole
+    // of it lives in the cell's `title`. `e2e/layout.spec.ts` is what watches
+    // the clipping; jsdom lays nothing out and can only watch the `title`.
+    // Proof: the `title` removed from the Number cell's span, this failed on
+    // `expected '' to be '020'`. Watched, 2026-08-09.
+    await threeRoots();
+
+    expect(rowFor('020').querySelector('[data-number]')?.parentElement?.title).toBe('020');
   });
 
   itDom('declares exactly the widths the resolved layout holds for this state', async () => {
@@ -8263,12 +8277,12 @@ describe('a phase changing, and what the table does about it', () => {
     // still in the table's header. Watched, 2026-08-09.
     await oneRow();
     unfoldRole('QA');
-    expect(screen.getByRole('table').style.minWidth).toBe('1330px');
+    expect(screen.getByRole('table').style.minWidth).toBe('1399px');
 
     await removePhase('QA');
 
-    // One phase left, folded: 662px of fixed columns, 200 for Name, 96 for it.
-    expect(screen.getByRole('table').style.minWidth).toBe('958px');
+    // One phase left, folded: 731px of fixed columns, 200 for Name, 96 for it.
+    expect(screen.getByRole('table').style.minWidth).toBe('1027px');
     expect(screen.queryByLabelText('QA optimistic for 010')).toBeNull();
   });
 

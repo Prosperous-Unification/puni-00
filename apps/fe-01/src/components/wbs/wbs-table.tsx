@@ -3485,7 +3485,15 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         id: 'number',
         header: 'Number',
         cell: ({ row }) => (
-          <span style={{ paddingLeft: indentFor(row.depth), whiteSpace: 'nowrap' }}>
+          <span
+            // The whole number, because the cell may not be showing all of it:
+            // the column is sized to `NUMBER_ENVELOPE` and there is no longest
+            // number to size it to instead, so a number past the envelope is
+            // clipped by {@link CELL}'s `overflow: hidden` and read here. The
+            // same bargain the short dates make.
+            title={row.original.number}
+            style={{ paddingLeft: indentFor(row.depth), whiteSpace: 'nowrap' }}
+          >
             {/*
               No triangles while a search is on. What is open during a search
               is the search's answer — every kept row, so no match can be
@@ -4419,7 +4427,20 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                   // rather than as a cell that failed to load.
                   value={day === null ? '—' : shortIsoDate(day, new Date())}
                   onChange={open}
-                  onMouseDown={open}
+                  // `click`, not `mousedown`, and a browser is the only thing
+                  // that can say why. React flushes a discrete update inside
+                  // the `mousedown` dispatch, so the editor mounted and the at
+                  // rest input was gone before Chromium performed that event's
+                  // **default action** — focusing the node it had hit-tested.
+                  // Focusing a detached node moves the focus to `<body>`, which
+                  // blurred the editor, which is an exit, which closed it: a
+                  // click on the cell did nothing at all. jsdom performs no
+                  // default action and could not see it; found in Chromium by
+                  // counting `input[type=date]` after a click and getting none.
+                  // R5 #14/#15, the same fault class. `click` fires after the
+                  // focus has already moved, so there is nothing left to undo
+                  // the mount.
+                  onClick={open}
                   onKeyDown={(e) => {
                     // A bare Enter opens the editor; a chord is the table's and
                     // is left to it, which is why the modifiers are asked about

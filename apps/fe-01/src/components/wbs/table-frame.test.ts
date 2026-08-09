@@ -64,10 +64,10 @@ describe('the resolved frame layout', () => {
     ]);
     // Name declares nothing: it is the column that takes what the others leave.
     expect(layout.columns.find((column) => column.id === 'name')?.width).toBeUndefined();
-    expect(layout.columns.find((column) => column.id === 'number')?.width).toBe(100);
-    // 690px of fixed columns with a dated `not-before`, plus Name's 200px
+    expect(layout.columns.find((column) => column.id === 'number')?.width).toBe(169);
+    // 759px of fixed columns with a dated `not-before`, plus Name's 200px
     // floor, plus a folded column for each of two phases.
-    expect(layout.minWidth).toBe(690 + FLEXIBLE_FLOOR + 2 * 96);
+    expect(layout.minWidth).toBe(759 + FLEXIBLE_FLOOR + 2 * 96);
   });
 
   it('holds every pinned column at the sum of the widths the same call declared', () => {
@@ -103,11 +103,11 @@ describe('the resolved frame layout', () => {
     const { pinned } = frameLayout(RENDERED, DATED);
 
     expect(pinned.get('drag')).toEqual({ left: 0, width: 24 });
-    expect(pinned.get('number')).toEqual({ left: 24, width: 100 });
+    expect(pinned.get('number')).toEqual({ left: 24, width: 169 });
     // Name is pinned at the sum of the two fixed columns in front of it and has
     // no width of its own — the `<colgroup>` decides that, and the browser gate
     // measures this offset at a viewport too narrow to hold the table.
-    expect(pinned.get('name')).toEqual({ left: 124, width: undefined });
+    expect(pinned.get('name')).toEqual({ left: 193, width: undefined });
     // And nothing else is pinned at all. "Depends on" is the one this matters
     // for: it used to sit between Number and Name.
     expect(pinned.get('depends')).toBeUndefined();
@@ -132,7 +132,7 @@ describe('the resolved frame layout', () => {
     // And the width that is missing is missing from the sum as well, which is
     // the second half of the same fault: the assertion above only sees the
     // throw, so the sum is stated here as the thing the throw is protecting.
-    expect(frameLayout(['drag', 'number'], DATED).minWidth).toBe(124);
+    expect(frameLayout(['drag', 'number'], DATED).minWidth).toBe(193);
   });
 
   it('refuses a column pinned behind a flexible one', () => {
@@ -148,7 +148,7 @@ describe('the resolved frame layout', () => {
     //
     // Proof: the `flexibleBefore !== null` branch deleted, this failed on
     // `expected [Function] to throw an error` — `depends` resolved to `{ left:
-    // 124, width: 110 }`, a plausible offset with Name's missing width counted
+    // 193, width: 110 }`, a plausible offset with Name's missing width counted
     // as nothing. Watched, 2026-08-09.
     const { columns } = frameLayout(RENDERED, DATED);
 
@@ -225,7 +225,7 @@ describe('the resolved frame layout', () => {
       ),
     ).toEqual({
       drag: 24,
-      number: 100,
+      number: 169,
       depends: 110,
       team: 120,
       'final-total': 52,
@@ -279,18 +279,18 @@ describe('the width equation the table is laid out by', () => {
     // replaced by `widthFor(id, state)`, this failed on `UnknownColumnError:
     // No declared width for column "name"`; replaced by `0`, on `expected +0
     // to be 200`. Watched, 2026-08-09.
-    expect(frameLayout(['drag', 'number'], DATED).minWidth).toBe(24 + 100);
+    expect(frameLayout(['drag', 'number'], DATED).minWidth).toBe(24 + 169);
     expect(frameLayout(['name'], DATED).minWidth).toBe(FLEXIBLE_FLOOR);
 
-    // 690px of fixed columns with a dated `not-before`, plus Name's 200px
+    // 759px of fixed columns with a dated `not-before`, plus Name's 200px
     // floor. The three states the browser gate measures, computed here so a
     // width change that breaks one of them fails in the repo gate rather than
     // only in a browser: two roles folded fits a 1280 laptop, three folded
     // still does, and one role unfolded does not — which is why unfolding is an
     // accordion.
-    expect(frameLayout([...RENDERED, 'r1-final', 'r2-final'], DATED).minWidth).toBe(1082);
+    expect(frameLayout([...RENDERED, 'r1-final', 'r2-final'], DATED).minWidth).toBe(1151);
     expect(frameLayout([...RENDERED, 'r1-final', 'r2-final', 'r3-final'], DATED).minWidth).toBe(
-      1178,
+      1247,
     );
     expect(
       frameLayout(
@@ -305,7 +305,7 @@ describe('the width equation the table is laid out by', () => {
         ],
         DATED,
       ).minWidth,
-    ).toBe(1358);
+    ).toBe(1427);
   });
 
   it('makes the declared width include the cell chrome, and clips what overruns', () => {
@@ -327,9 +327,9 @@ describe('a pinned cell', () => {
     expect(body?.position).toBe('sticky');
     // The offset the layout works out, on the cell that carries it.
     expect(body?.left).toBe(24);
-    expect(body?.width).toBe(100);
+    expect(body?.width).toBe(169);
     const name = pinnedCellStyle(layout, 'name', 'body');
-    expect(name?.left).toBe(124);
+    expect(name?.left).toBe(193);
     // Pinned, and with no width of its own: the `<colgroup>` is the only thing
     // that sizes a flexible column, and a `width` here would be the second
     // opinion that the whole width table exists to prevent.
@@ -385,7 +385,7 @@ describe('the indent in the Number column', () => {
     // 12px in the same change that took the column from 168 to 100, and a step
     // left at 16 would spend 64 of those 100 on white space.
     // Proof: `INDENT_STEP` put back to 16, this failed on `expected 64 to be
-    // less than 50`. Watched, 2026-08-08.
+    // less than 50` when the column was 100px wide. Watched, 2026-08-08.
     expect(indentFor(DEEPEST_INDENT)).toBeLessThan(widthFor('number', DATED) / 2);
   });
 
@@ -432,14 +432,14 @@ describe('how wide the phases make the table', () => {
     // The sentence the Phases dialog prints, and the phases' own ids rather
     // than a count: every width resolves per column id now, so a figure summed
     // from invented ids would answer about columns that do not exist.
-    expect(foldedTableMinWidth(['role-dev', 'role-qa'], DATED)).toBe(1082);
+    expect(foldedTableMinWidth(['role-dev', 'role-qa'], DATED)).toBe(1151);
     expect(
       foldedTableMinWidth(['role-dev', 'role-qa', 'role-ops'], DATED) -
         foldedTableMinWidth(['role-dev', 'role-qa'], DATED),
     ).toBe(widthFor('anything-final', DATED));
     // And it answers the narrow state too, which is the fact a count could
     // never carry into it.
-    expect(foldedTableMinWidth(['role-dev', 'role-qa'], UNDATED)).toBe(1082 - (84 - 56));
+    expect(foldedTableMinWidth(['role-dev', 'role-qa'], UNDATED)).toBe(1151 - (84 - 56));
   });
 
   it('is the fixed columns plus Name plus the phases, with nothing left out', () => {
@@ -447,7 +447,7 @@ describe('how wide the phases make the table', () => {
     // width table without being rendered — or rendered without being summed —
     // shows up here as a disagreement rather than as a number nobody checks.
     // Proof: the role columns dropped from the sum, `grows by one folded column
-    // per phase` failed on `expected 890 to be 1082`. Watched, 2026-08-09.
+    // per phase` failed on `expected 959 to be 1151`. Watched, 2026-08-09.
     expect(foldedTableMinWidth([], DATED)).toBe(
       frameLayout([...FIXED_COLUMNS, ...FLEXIBLE_COLUMNS], DATED).minWidth,
     );
@@ -459,6 +459,6 @@ describe('how wide the phases make the table', () => {
   it('has no phases to be wide for at all, and still declares a table', () => {
     // A project may hold none — `R1`'s spec says the seeded pair is data rather
     // than a limit — and the dialog still has a number to print.
-    expect(foldedTableMinWidth([], DATED)).toBe(890);
+    expect(foldedTableMinWidth([], DATED)).toBe(959);
   });
 });

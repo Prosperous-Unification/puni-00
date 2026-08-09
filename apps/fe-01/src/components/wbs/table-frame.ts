@@ -87,7 +87,13 @@ const COLUMN_WIDTHS = new Map<string, number>([
   // `e2e/layout.spec.ts`'s `the Number column fits its envelope` is the
   // browser that picked it. It is not a guess at the longest number — there is
   // no longest number.
-  ['number', 100],
+  //
+  // It went **up**, 100 → 169, which was the surprise of `T2
+  // compact-columns`: at the deepest indent Chromium measures 48px of indent,
+  // a 12.5px expander, a 20px lock and 80px of eleven-character number, plus
+  // the cell's 8px of padding. The column had been clipping its own envelope
+  // since the 168 → 100 compaction, and nothing measured it until now.
+  ['number', 169],
   ['depends', 110],
   ['team', 120],
   ['final-total', 52],
@@ -332,7 +338,7 @@ export function pinnedGeometryFor(
       //
       // Proof: this branch deleted, `refuses a column pinned behind a flexible
       // one` failed on `expected [Function] to throw an error` — `depends`
-      // declared as a fourth pinned column resolved to `{ left: 124, width:
+      // declared as a fourth pinned column resolved to `{ left: 193, width:
       // 110 }`, a plausible offset with Name's missing width counted as
       // nothing. Watched, 2026-08-09.
       throw new Error(
@@ -399,8 +405,10 @@ const INDENT_STEP = 12;
  * {@link DEEPEST_INDENT} levels a row stops moving right; the number printed in
  * the cell still says how deep it is.
  *
- * The step is 12px rather than 16 because the column is 100px rather than 168:
- * four levels take 48 of it and the number itself keeps the larger half.
+ * The step is 12px rather than 16: four levels take 48px of the column and the
+ * number itself keeps the larger half. A step of 16 would spend 64px of the
+ * column on white space and take {@link NUMBER_ENVELOPE} — and so the column —
+ * wider again.
  */
 export const indentFor = (depth: number): number => Math.min(depth, DEEPEST_INDENT) * INDENT_STEP;
 
