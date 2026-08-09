@@ -1,6 +1,15 @@
 import { describe, expect, it } from 'bun:test';
 
-import { addWorkdays, isIsoDate, isWeekend, nextWorkday, workdaysBetween } from './workday';
+import {
+  addCalendarDays,
+  addWorkdays,
+  calendarDaysBetween,
+  isIsoDate,
+  isMonday,
+  isWeekend,
+  nextWorkday,
+  workdaysBetween,
+} from './workday';
 
 // 2026-08-06 is a Thursday; 08 and 09 are the Saturday and Sunday after it.
 const THURSDAY = '2026-08-06';
@@ -61,6 +70,75 @@ describe('addWorkdays', () => {
     // 2026-12-31 is a Thursday, so +1 workday is the Friday, +2 is Monday 4 Jan.
     expect(addWorkdays('2026-12-31', 1)).toBe('2027-01-01');
     expect(addWorkdays('2026-12-31', 2)).toBe('2027-01-04');
+  });
+});
+
+describe('calendarDaysBetween', () => {
+  it('counts every day between two dates, weekends among them', () => {
+    // The one the Gantt's calendar scale is built on: Friday to Monday is three
+    // days on a calendar and one on a workday axis.
+    expect(calendarDaysBetween(FRIDAY, MONDAY)).toBe(3);
+    expect(calendarDaysBetween(THURSDAY, THURSDAY)).toBe(0);
+    // Backwards is a real answer here, unlike `workdaysBetween`: this counts
+    // days rather than expressing a constraint that may only push later.
+    expect(calendarDaysBetween(MONDAY, FRIDAY)).toBe(-3);
+  });
+
+  it('crosses a month and a year without drifting', () => {
+    expect(calendarDaysBetween('2026-08-30', '2026-09-02')).toBe(3);
+    expect(calendarDaysBetween('2026-12-30', '2027-01-02')).toBe(3);
+  });
+
+  it('crosses a daylight-saving boundary as whole days', () => {
+    // 2026-03-08 is the US spring-forward Sunday, so this pair is 47 hours
+    // apart in New York and 48 in UTC. `TZ` is pinned around the assertion
+    // because the fault this case exists for is only visible in a zone that has
+    // a DST boundary here — see the `Proof:` on `calendarDaysBetween`.
+    const zone = process.env.TZ;
+    process.env.TZ = 'America/New_York';
+    try {
+      expect(calendarDaysBetween('2026-03-07', '2026-03-09')).toBe(2);
+    } finally {
+      process.env.TZ = zone;
+    }
+  });
+
+  it('refuses a string that is not a calendar date', () => {
+    expect(() => calendarDaysBetween(THURSDAY, '2026-02-31')).toThrow(/not a calendar date/);
+    expect(() => calendarDaysBetween('tomorrow', THURSDAY)).toThrow(/not a calendar date/);
+  });
+});
+
+describe('addCalendarDays', () => {
+  it('walks over the weekend rather than round it', () => {
+    // The difference from `addWorkdays` in one line: this is the axis the Gantt
+    // draws weekend columns on, so Friday plus one is the Saturday.
+    expect(addCalendarDays(FRIDAY, 1)).toBe(SATURDAY);
+    expect(addCalendarDays(FRIDAY, 3)).toBe(MONDAY);
+    expect(addCalendarDays(THURSDAY, 0)).toBe(THURSDAY);
+  });
+
+  it('crosses a month and a year', () => {
+    expect(addCalendarDays('2026-08-31', 1)).toBe('2026-09-01');
+    expect(addCalendarDays('2026-12-31', 1)).toBe('2027-01-01');
+  });
+
+  it('inverts calendarDaysBetween', () => {
+    for (const days of [0, 1, 7, 33, 400]) {
+      expect(calendarDaysBetween(THURSDAY, addCalendarDays(THURSDAY, days))).toBe(days);
+    }
+  });
+});
+
+describe('isMonday', () => {
+  it('is true on Monday alone', () => {
+    expect([THURSDAY, FRIDAY, SATURDAY, SUNDAY].map(isMonday)).toEqual([
+      false,
+      false,
+      false,
+      false,
+    ]);
+    expect(isMonday(MONDAY)).toBe(true);
   });
 });
 

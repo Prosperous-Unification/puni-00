@@ -4,6 +4,7 @@ import {
   ASSUMED_UNESTIMATED_WORKDAYS,
   type BarColor,
   type BindingFloor,
+  calendarScale,
   GanttDataError,
   type GanttPlan,
   type GanttRow,
@@ -896,5 +897,81 @@ describe('the shapes a real schedule makes', () => {
       notBeforeFlags: [],
       horizon: 1,
     });
+  });
+});
+
+/**
+ * The scale on its own, before any mark is placed through it.
+ *
+ * Every case below is taken at an offset **past the first weekend**, where the
+ * calendar number and the workday number differ. A case at workday 3 passes
+ * unchanged on the axis this replaces and so proves nothing.
+ */
+describe('the calendar scale', () => {
+  /** The Monday every fixture in here begins on. */
+  const MONDAY = '2026-08-10';
+
+  it('keeps a fraction inside the workday it belongs to', () => {
+    const scale = calendarScale(MONDAY);
+
+    // Before any weekend has passed the two axes agree, fractions included: a
+    // slice 3.5 workdays into the schedule is still 3.5 workdays into it.
+    expect(scale.startOf(3.5)).toBe(3.5);
+    expect(scale.startOf(4.75)).toBe(4.75);
+  });
+
+  it('jumps the weekend', () => {
+    const scale = calendarScale(MONDAY);
+
+    // Monday 2026-08-17 and Monday 2026-08-24 — the whole point of the change,
+    // in three numbers.
+    expect(scale.startOf(5)).toBe(7);
+    expect(scale.startOf(5.25)).toBe(7.25);
+    expect(scale.startOf(10)).toBe(14);
+  });
+
+  it('ends a span that finished on the Friday at the Saturday', () => {
+    const scale = calendarScale(MONDAY);
+
+    // A span 3 → 5 stops where the Friday stops, and its successor starting at
+    // the same 5 stands at 7 — the Monday. The two readings differ by exactly
+    // the weekend between them, which is the gap a reader sees.
+    expect(scale.startOf(3)).toBe(3);
+    expect(scale.endOf(5)).toBe(5);
+    expect(scale.startOf(5)).toBe(7);
+  });
+
+  it('draws across a weekend a span runs through', () => {
+    const scale = calendarScale(MONDAY);
+
+    // 3 → 6 works on the Monday after, so the weekend is inside the span and
+    // the bar is drawn over it rather than skipping it.
+    expect(scale.endOf(6)).toBe(8);
+  });
+
+  it('begins a Saturday project on the Monday', () => {
+    // The normalisation `addWorkdays` already makes, inherited rather than
+    // re-implemented: a project starting Saturday 2026-08-08 answers exactly
+    // like one starting on the Monday after it.
+    const scale = calendarScale('2026-08-08');
+
+    expect(scale.startOf(0)).toBe(0);
+    expect(scale.startOf(5)).toBe(7);
+    expect(scale.endOf(5)).toBe(5);
+  });
+
+  it('answers below zero rather than throwing', () => {
+    const scale = calendarScale(MONDAY);
+
+    // The band outside the schedule is canvas and not schedule time, and
+    // `addWorkdays` refuses it. One calendar day per unit out there.
+    expect(scale.startOf(-0.25)).toBe(-0.25);
+    expect(scale.endOf(-0.25)).toBe(-0.25);
+    expect(scale.startOf(0)).toBe(0);
+    expect(scale.endOf(0)).toBe(0);
+  });
+
+  it('refuses a start date that is not a calendar date', () => {
+    expect(() => calendarScale('2026-02-31')).toThrow(/not a calendar date/);
   });
 });

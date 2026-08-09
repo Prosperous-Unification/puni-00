@@ -1,3 +1,5 @@
+import { addWorkdays, calendarDaysBetween, type IsoDate } from '@wbs/domain/workday';
+
 /**
  * The payload promised something the drawing needs and did not keep it.
  *
@@ -338,6 +340,75 @@ export interface GanttGeometry {
    * drawn. At least 1, so an empty plan still has a viewBox with a width.
    */
   horizon: number;
+}
+
+/**
+ * One workday offset read as a calendar-day offset, two ways.
+ *
+ * The two readings differ only where a weekend sits between workday `w − 1` and
+ * `w`, and that difference is the whole of what this chart gained: work that
+ * finished on the Friday **ends** at the Saturday, while its successor
+ * **starts** at the Monday, so the weekend between them is a gap a reader can
+ * see. One number could not say both.
+ */
+export interface CalendarScale {
+  /** Where a span that **starts** at this workday offset stands. */
+  startOf(workday: number): number;
+  /** Where a span that **finishes** at this workday offset stops. */
+  endOf(workday: number): number;
+}
+
+/**
+ * The scale binding the chart to the plan's first working day: workday offsets
+ * in, calendar-day offsets from that day out.
+ *
+ * The origin is `addWorkdays(startDate, 0)` and not `startDate`, so a project
+ * whose start date lands on a weekend begins on the Monday — the same
+ * normalisation the Start column already makes. Inherited rather than repeated:
+ * two copies of that rule are two answers about which day a plan begins on.
+ *
+ * `startOf(w)` walks working days for the whole part and carries the fraction
+ * through untouched, so a slice 3.5 workdays into the schedule is still 3.5
+ * workdays into it — the fraction rides **inside** the workday it belongs to
+ * rather than being stretched across the weekend after it. `endOf(w)` is the
+ * same scale's left limit: `startOf(w − 1) + 1` for a whole `w`, which is the
+ * `ceil − 1` nudge `lastWorkdayOf` and be-01's `datesOf` already make.
+ *
+ * Offsets at or below zero are answered as themselves rather than refused: they
+ * are the canvas band the marks route through (`CHART_PAD_PX`) and not schedule
+ * time, and {@link addWorkdays} throws on a negative.
+ *
+ * Proof, twice, `gantt-geometry.test.ts`, watched 2026-08-09:
+ *
+ * - `endOf` aliased to `startOf` — the end reading taken as the start one.
+ *   `2 failed | 51 passed`, both on `expected 7 to be 5`: `ends a span that
+ *   finished on the Friday at the Saturday` and the same reading inside
+ *   `begins a Saturday project on the Monday`. Every case before the first
+ *   weekend stayed green, which is exactly why those two are written at 5
+ *   rather than at 3.
+ * - the origin taken as `startDate` instead of `addWorkdays(startDate, 0)`.
+ *   `2 failed | 51 passed`: `begins a Saturday project on the Monday` on
+ *   `expected 9 to be 7` — an origin two days early and every mark on the
+ *   chart with it — and `refuses a start date that is not a calendar date` on
+ *   `expected [Function] to throw an error`, because with no `addWorkdays` at
+ *   construction the refusal is deferred to whichever mark asks first.
+ *
+ * @throws Whatever {@link addWorkdays} throws when `startDate` is not a
+ * calendar date, and it throws here rather than at the first mark placed: a
+ * scale that cannot say where day zero is has no answer to give any of them.
+ */
+export function calendarScale(startDate: IsoDate): CalendarScale {
+  const origin = addWorkdays(startDate, 0);
+  const startOf = (workday: number): number => {
+    if (workday <= 0) return workday;
+    const whole = Math.floor(workday);
+    return calendarDaysBetween(origin, addWorkdays(origin, whole)) + (workday - whole);
+  };
+  return {
+    startOf,
+    endOf: (workday: number): number =>
+      workday <= 0 || !Number.isInteger(workday) ? startOf(workday) : startOf(workday - 1) + 1,
+  };
 }
 
 const FLOOR_SENTENCE: Record<Exclude<BindingFloor, 'person'>, string> = {
