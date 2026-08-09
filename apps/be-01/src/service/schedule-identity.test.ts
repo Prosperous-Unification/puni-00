@@ -223,7 +223,10 @@ function generatePlan(seed: number): GeneratedPlan {
       const days = estimated
         ? PERT(pick([0, 1, 2, 3]), pick([1, 2, 3, 5, 8]), pick([2, 4, 7, 9, 13]))
         : null;
-      slices.push({ workItemId: row.id, roleId, days });
+      // Nobody is assigned, in every one of the thousand: this is the corpus
+      // that says leveling changes nothing until somebody is, and it goes
+      // through the levelled engine rather than around it.
+      slices.push({ workItemId: row.id, roleId, days, personId: null });
       if (days !== null) durations.set(row.id, (durations.get(row.id) ?? 0) + days);
     }
   }

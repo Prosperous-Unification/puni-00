@@ -161,7 +161,7 @@ describe('canDepend — cross-review findings', () => {
         const parents = new Set(rows.map((r) => r.parentId).filter((id) => id !== null));
         const slices = rows
           .filter((r) => !parents.has(r.id))
-          .map((r) => ({ workItemId: r.id, roleId: 'role-dev', days: 1 }));
+          .map((r) => ({ workItemId: r.id, roleId: 'role-dev', days: 1, personId: null }));
         expect(() =>
           schedule(rows, [...existing, { predecessorId: from.id, successorId: to.id }], slices),
         ).not.toThrow();

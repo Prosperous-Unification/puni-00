@@ -12,6 +12,10 @@ const ONLY_ROLE = 'role-dev';
  * the change that introduced them promised no plan would move. `durations`
  * becomes one slice per leaf and the projection is read back out — the
  * expectations are the ones the previous engine was written against.
+ *
+ * Nobody is assigned to any of it, which is the second promise: leveling is
+ * invisible until somebody is. `resource-leveling` added the field and changed
+ * nothing else in this file.
  */
 const schedule = (
   rows: readonly WorkItem[],
@@ -22,7 +26,12 @@ const schedule = (
   const childless = new Set(rows.map((row) => row.parentId).filter((id) => id !== null));
   const slices: Slice[] = rows
     .filter((row) => !childless.has(row.id))
-    .map((row) => ({ workItemId: row.id, roleId: ONLY_ROLE, days: durations.get(row.id) ?? null }));
+    .map((row) => ({
+      workItemId: row.id,
+      roleId: ONLY_ROLE,
+      days: durations.get(row.id) ?? null,
+      personId: null,
+    }));
   return planSlices(rows, edges, slices, notBefore).workItems;
 };
 
@@ -268,10 +277,12 @@ describe('schedule — on a graph the size of a real plan', () => {
 const DEV = 'role-dev';
 const QA = 'role-qa';
 
+/** A slice of work with nobody on it — this file's subject is the graph, not the queue. */
 const work = (workItemId: string, roleId: string | null, days: number | null): Slice => ({
   workItemId,
   roleId,
   days,
+  personId: null,
 });
 
 /** One slice's schedule, or a throw — a test asserting on `undefined` asserts nothing. */

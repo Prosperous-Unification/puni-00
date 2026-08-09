@@ -91,6 +91,16 @@ function slicesOf(
   hasChildren: ReadonlySet<string>,
   roleIds: readonly string[],
   method: EstimateMethod,
+  /**
+   * Each work item's assignees by role, from which every slice's person is
+   * read.
+   *
+   * The planner takes the person per slice and never derives one, so this is
+   * the only place the assumed assignee becomes a queue: a work item with one
+   * named person carries them on **every** slice, which is what "when just one
+   * is assigned it is assumed they do both" means once time is involved.
+   */
+  assigneesOf: ReadonlyMap<string, Record<string, string>>,
 ): Slice[] {
   const inProject = new Set(rows.map((row) => row.id));
   const held = new Set(roleIds);
@@ -107,8 +117,15 @@ function slicesOf(
   const slices: Slice[] = [];
   for (const row of rows) {
     if (hasChildren.has(row.id)) continue;
+    const byRole = assigneesOf.get(row.id) ?? {};
+    // The role's own assignee, or — when exactly one role is named — the person
+    // that one assignment is read as covering the lot. {@link assumedAssignee}
+    // is that reading, shared with the tree's `doesEveryPhase` and with the
+    // role removal that has to say whose answer it would change.
+    const personFor = (roleId: string | null): string | null =>
+      (roleId === null ? undefined : byRole[roleId]) ?? assumedAssignee(byRole);
     if (order.length === 0) {
-      slices.push({ workItemId: row.id, roleId: null, days: null });
+      slices.push({ workItemId: row.id, roleId: null, days: null, personId: personFor(null) });
       continue;
     }
     for (const roleId of order) {
@@ -116,6 +133,7 @@ function slicesOf(
         workItemId: row.id,
         roleId,
         days: days.get(sliceKey(row.id, roleId)) ?? null,
+        personId: personFor(roleId),
       });
     }
   }
@@ -502,6 +520,16 @@ export class WorkItemService {
     workItems: NumberedWorkItem[];
     seq: number;
     scheduleError: ScheduleError;
+    /**
+     * How many work items hold a slice a person is the reason for — the
+     * schedule header's "N tasks wait for a person".
+     *
+     * A count rather than the slices themselves: what the reader is told here
+     * is that people are the constraint and how much of the plan they hold up.
+     * Which slice waits for whom is a Gantt bar, and it leaves through the
+     * planner's own output when that is drawn.
+     */
+    waitingForPerson: number;
     estimateMethod: EstimateMethod;
     startDate: IsoDate | null;
     /**
@@ -543,6 +571,7 @@ export class WorkItemService {
       hasChildren,
       roles.map((each) => each.id),
       project.estimateMethod,
+      assigneesOf,
     );
     // A manual date becomes an offset before the pass, and offsets become dates
     // after it: the schedule itself never sees a calendar, so weekends are
@@ -558,10 +587,21 @@ export class WorkItemService {
     }
     let timing = new Map<string, Scheduled>();
     let scheduleError: ScheduleError = null;
+    /**
+     * How many work items are waiting for a person rather than for the plan.
+     *
+     * Zero when there is no schedule at all, which is honest rather than
+     * convenient: a plan that could not be computed has nobody queueing in it,
+     * and the banner about the cycle is what that reader needs.
+     */
+    let waitingForPerson = 0;
     try {
-      // The projection, not the slices: what a row shows is its own span, and
-      // nothing outside the planner is in the slice business yet.
-      timing = schedule(rows, edges, slices, notBefore).workItems;
+      // The projection, not the slices: what a row shows is its own span. The
+      // count beside it is the one fact about the slices a reader is told —
+      // the Gantt is what will draw the rest of them.
+      const planned = schedule(rows, edges, slices, notBefore);
+      timing = planned.workItems;
+      waitingForPerson = planned.waitingForPerson;
     } catch (err) {
       // Only the modeled failure. An unqualified catch here turned every
       // exception in this block — a stack overflow on a pathological tree, a
@@ -606,6 +646,7 @@ export class WorkItemService {
       workItems,
       seq,
       scheduleError,
+      waitingForPerson,
       estimateMethod: project.estimateMethod,
       startDate: project.startDate,
       projectRevision: project.revision,
