@@ -1,11 +1,28 @@
 import { type CSSProperties, type KeyboardEvent, useEffect, useRef, useState } from 'react';
 
+import { usePageShortcutsSuspended } from '@/components/ui/page-shortcuts';
+
 /** One thing a row's menu offers: what it is called, and what taking it does. */
 export interface RowAction {
   /** Stable within one menu — the React key, and what a caller names it by. */
   id: string;
   label: string;
   run: () => void;
+  /**
+   * Why this item cannot be taken on this row, or absent when it can.
+   *
+   * **Present-and-refused rather than absent**, which is the whole of what this
+   * field buys. A frozen row's menu used to read `Duplicate / Unfreeze` with
+   * `Delete` simply gone, and a reader who had seen `Delete` there a minute ago
+   * had nothing on screen to tell them why it had left — the same fault the
+   * drag handle's `aria-disabled` was written for, in a menu.
+   *
+   * Rendered as the item's `title` and read out as its `aria-disabled`, and
+   * {@link ActionsMenu} refuses `run` while it is set. A reason and a refusal
+   * from one field, because two fields is how an item comes to explain itself
+   * and act anyway.
+   */
+  refusedBecause?: string;
 }
 
 export interface ActionsMenuProps {
@@ -91,6 +108,12 @@ export function ActionsMenu({
   onClose,
   busy,
 }: ActionsMenuProps): React.JSX.Element {
+  // A menu owns the keyboard while it is open — `CONTEXT.md` says so, and this
+  // is where that sentence is true. Cmd+Z fired through an open menu and undid
+  // a rename behind it, observed live twice on 2026-08-09; the hook's own JSDoc
+  // has why the chords are still let through to the items below.
+  usePageShortcutsSuspended(open);
+
   const button = useRef<HTMLButtonElement | null>(null);
   /** The rendered items, in order, so the one that is active can be focused. */
   const itemElements = useRef<(HTMLButtonElement | null)[]>([]);
@@ -159,6 +182,15 @@ export function ActionsMenu({
     // closed the menu, so the second half of the test had no menu left to press.
     // Watched, 2026-08-08.
     if (busy) return;
+    // The same shape, for the reason this item is on screen at all: it is here
+    // to say why it cannot be taken, so taking it is the one thing it must not
+    // do. The menu stays open, because the sentence is in the item's `title`
+    // and closing the menu would take it away.
+    // Proof: this line removed, `keeps Delete on a frozen row, refused and
+    // saying why` failed on `expected [ { id: 'w1', …(16) }, …(1) ] to have a
+    // length of 3 but got 2` — the row deleted by the item that says it cannot
+    // delete it. Watched, 2026-08-09.
+    if (action.refusedBecause !== undefined) return;
     closeAndReturnFocus();
     action.run();
   };
@@ -231,9 +263,16 @@ export function ActionsMenu({
               // `aria-disabled`, never the attribute: a `disabled` button
               // cannot hold the DOM focus, so a menu that went busy while it
               // was open would drop the focus on the floor and one opened while
-              // busy would have nothing to focus at all.
-              aria-disabled={busy}
-              style={ITEM}
+              // busy would have nothing to focus at all. It is also what keeps
+              // a refused item on the roving tab stop, which is the only way
+              // its reason gets read out.
+              aria-disabled={busy || action.refusedBecause !== undefined}
+              title={action.refusedBecause}
+              style={
+                action.refusedBecause === undefined
+                  ? ITEM
+                  : { ...ITEM, cursor: 'not-allowed', color: '#767676' }
+              }
               onClick={() => {
                 takeAction(action);
               }}

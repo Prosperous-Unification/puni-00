@@ -3,27 +3,31 @@ import { useEffect } from 'react';
 import { isPageShortcut, isWindowShortcut } from '@/components/wbs/keyboard-bindings';
 
 /**
- * What counts as being on a modal surface.
+ * What counts as being on a surface that owns the keyboard.
  *
  * `data-modal-surface` is what `ModalContent` writes; `role="dialog"` catches
  * the hand-rolled cheat sheet, which is a modal by every other measure and does
- * not go through that component. Matched with `closest`, so a field nested
- * anywhere inside either one answers yes.
+ * not go through that component. `role="menu"` is a row's ⋯ menu, which is not
+ * a modal and is on this list for exactly the reason the other two are —
+ * `CONTEXT.md`: it *"owns the keyboard while it is open"*, and the rule below
+ * is the only place that sentence is enforced. Matched with `closest`, so a
+ * control nested anywhere inside any of them answers yes.
  */
-const MODAL_SURFACE = '[data-modal-surface], [role="dialog"]';
+const KEYBOARD_OWNING_SURFACE = '[data-modal-surface], [role="dialog"], [role="menu"]';
 
 /**
- * Whether this keystroke was aimed at something on an open modal surface.
+ * Whether this keystroke was aimed at something on an open surface.
  *
  * @param target What the keystroke was aimed at — `event.target`, not the focus.
  * @returns True when the target is a surface or sits inside one.
  */
-function isOnModalSurface(target: EventTarget | null): boolean {
-  return target instanceof Element && target.closest(MODAL_SURFACE) !== null;
+function isOnSurface(target: EventTarget | null): boolean {
+  return target instanceof Element && target.closest(KEYBOARD_OWNING_SURFACE) !== null;
 }
 
 /**
- * Holds the page's own keyboard back for as long as a modal surface is open.
+ * Holds the page's own keyboard back for as long as a surface that owns the
+ * keyboard is open — a modal, the cheat sheet, or a row's ⋯ menu.
  *
  * **The fault it exists for.** `?`, Cmd+Z and Cmd+Shift+Z are listened for on
  * `window` in `wbs-table.tsx` — deliberately, because the change being undone
@@ -59,6 +63,28 @@ function isOnModalSurface(target: EventTarget | null): boolean {
  *   impossible. Probed live: `Ctrl+H` and `Ctrl+Enter` on an input inside an
  *   open modal were both swallowed.
  *
+ * **A row's ⋯ menu is one of these surfaces too**, since 2026-08-09. Cmd+Z
+ * fired while a menu was open — observed live, twice, with `[role="menu"]`
+ * asserted in the DOM at the moment of the keypress — and undid a rename behind
+ * a menu the reader was reading, while the same chord over an open dialog was
+ * correctly inert. `ActionsMenu` calls this hook with its own `open`, so the
+ * menu falls under the rule already written here rather than under a second
+ * one: the window shortcuts are held back and the chords are let through to the
+ * items, which is what `every chord is inert while a row’s ⋯ menu is open`
+ * already proves the menu itself does with them.
+ *
+ * **What the chord half of that is *not* proof against, stated because it was
+ * the reason for choosing it and turned out not to be.** The guess was that
+ * swallowing the chord would take `ActionsMenu`'s own `preventDefault` away and
+ * hand Chrome back R5's fourteenth fault — a `<button>` clicking itself from a
+ * modified Enter. Probed on 2026-08-09 with this rule deliberately widened to
+ * `isPageShortcut` on both sides: `a modified Enter or Space on a menu item
+ * takes nothing` (`e2e/keyboard.spec.ts`, real Chromium) **still passed**,
+ * because the only modified Enter this predicate claims is Ctrl/⌘+Enter and
+ * Chrome synthesizes no click for that one — Shift+Enter, which does, is not a
+ * command chord and was never swallowed. So the on-surface half is the modal's
+ * rule applied consistently, not a guard with a failure anybody has watched.
+ *
  * **Not "let everything on the surface through", which was the obvious form and
  * is wrong.** `?` and Cmd+Z are on the window, so they fire for a keystroke
  * aimed at the dialog's own ✕ as readily as at a cell — and a dialog whose
@@ -86,13 +112,13 @@ function isOnModalSurface(target: EventTarget | null): boolean {
  * failed on `expected [] to deeply equal [ 'Enter', 'h' ]`. Watched 2026-08-09,
  * quoted in `openspec/changes/shadcn-foundation/verify.md`.
  *
- * @param isOpen Whether the modal surface asking is on screen right now.
+ * @param isOpen Whether the surface asking is on screen right now.
  */
 export function usePageShortcutsSuspended(isOpen: boolean): void {
   useEffect(() => {
     if (!isOpen) return undefined;
     const swallow = (event: KeyboardEvent) => {
-      const claimed = isOnModalSurface(event.target)
+      const claimed = isOnSurface(event.target)
         ? isWindowShortcut(event, event.target)
         : isPageShortcut(event, event.target);
       if (!claimed) return;
