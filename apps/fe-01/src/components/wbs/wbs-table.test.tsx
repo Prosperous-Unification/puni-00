@@ -2205,8 +2205,20 @@ describe('names wrap and notes carry markdown', () => {
       expect(api.rows[1]?.name).toBe('Sand');
     });
 
-    expect(screen.getByLabelText('Notes on 010')).toBeDefined();
+    const marker = screen.getByLabelText('Notes on 010');
+    expect(marker).toBeDefined();
+    // Ink, not furniture: 11px muted was invisible at arm's length. Inline
+    // sizes are the production mechanism, so jsdom can hold this one.
+    // Proof: the size put back to 11, this failed on `expected '11px' to be
+    // '15px'`. Watched, 2026-08-09.
+    expect(marker.style.fontSize).toBe('15px');
+    expect(marker.style.color).toBe('var(--foreground)');
     expect(screen.queryByLabelText('Notes on 020')).toBeNull();
+
+    // A glyph this visible reads as clickable; the click lands the caret in
+    // the name rather than dying on furniture.
+    fireEvent.mouseDown(marker);
+    expect(document.activeElement).toBe(screen.getByLabelText('Name of 010'));
   });
 
   itDom('shows no popover over a row with no notes', async () => {

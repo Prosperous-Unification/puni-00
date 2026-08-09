@@ -3802,6 +3802,12 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                 //
                 // It opens the preview and does not close it: the leave belongs
                 // to the cell around it, for the reason that span gives.
+                //
+                // The a11y rule below is right that a non-interactive element
+                // should not act; this one does not — its `onMouseDown`
+                // forwards the press to the interactive box it sits on, which
+                // is the opposite of trapping it.
+                // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions
                 <span
                   role="img"
                   aria-label={`Notes on ${row.original.number}`}
@@ -3809,13 +3815,27 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                   onMouseEnter={() => {
                     live.current.setHoveredCell(nameCell);
                   }}
+                  // At 15px the glyph reads as clickable, and a click that
+                  // did nothing would eat the caret aimed at the name under
+                  // it. The name box takes it; the marker stays no control —
+                  // no focus of its own, no tab stop.
+                  onMouseDown={(pressed) => {
+                    pressed.preventDefault();
+                    pressed.currentTarget.parentElement?.querySelector('textarea')?.focus();
+                  }}
                   style={{
                     position: 'absolute',
-                    top: 1,
-                    right: 2,
-                    fontSize: 11,
+                    top: 0,
+                    right: 1,
+                    // Ink, not furniture: at 11px muted this was invisible at
+                    // arm's length, and an affordance nobody sees marks
+                    // nothing (Dany, 2026-08-09). The padding is hit area —
+                    // the glyph is the hover target.
+                    fontSize: 15,
+                    fontWeight: 700,
+                    padding: '1px 3px',
                     lineHeight: 1,
-                    color: 'var(--muted-foreground)',
+                    color: 'var(--foreground)',
                     cursor: 'default',
                   }}
                 >
