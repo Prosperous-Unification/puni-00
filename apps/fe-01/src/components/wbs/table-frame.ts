@@ -380,13 +380,28 @@ export function flexibleCellStyle(columnId: string): CSSProperties | undefined {
  * never scrolls vertically — the whole frame would ride up the page with the
  * header inside it, which is the failure this exists to remove.
  *
- * `16rem` is the chrome above the table on the project page: the page padding,
- * the heading, the signed-in line, the project picker and this table's own
- * toolbar. Approximate on purpose and safe in both directions — too generous
- * only means the page scrolls a little as well, too mean only means blank space
- * under the frame. A short window falls back to `minHeight`, and then the page
- * scrolls; the exact remaining height would need a full-height flex layout from
- * `main` down, which is a bigger change than this one.
+ * **It takes the remainder of the window, and it is told so rather than sent
+ * to guess.** Until `H header-fits-a-row` the height was `calc(100vh - 16rem)`,
+ * and the `16rem` was a guess at the chrome above: the page padding, the
+ * heading, the signed-in line, the project picker and this toolbar. A guess is
+ * wrong in both directions and it was wrong in both — the page scrolled
+ * vertically at 1280×800 with the frame stopping 112px short of the window, and
+ * a wider toolbar would have gone the other way. The whole chrome is now one
+ * bar, and the layout says what it costs instead of this file estimating it:
+ * `flex: 1 1 0%` gives this element every pixel its parent has left over.
+ *
+ * That works only while the whole chain is a column flex whose top is fixed to
+ * the viewport — `app.tsx`'s `h-screen` wrapper, `ProjectPage`'s `<main>`,
+ * `WbsTable`'s `<section>`, each `flex-1` with `min-h-0`. Break any link and
+ * this basis has nothing to be a fraction of: the item falls back to its
+ * content height and the frame stops being the thing that scrolls. The
+ * declaration is asserted in `table-frame.test.ts` and the effect — the frame
+ * ending at the bottom of the window, and the height it wins — in
+ * `e2e/header.spec.ts`, because only a browser can tell those two apart.
+ *
+ * `minHeight` is still the floor, and a window too short for it still leaves the
+ * page scrolling; that is the honest fallback rather than rows below a fold
+ * nothing can reach.
  *
  * The bottom padding is room for the pickers to open into. They are absolutely
  * positioned inside their cells at `top: 100%` and up to 200px tall, and a
@@ -396,7 +411,7 @@ export function flexibleCellStyle(columnId: string): CSSProperties | undefined {
  */
 export const TABLE_FRAME: CSSProperties = {
   overflow: 'auto',
-  maxHeight: 'calc(100vh - 16rem)',
+  flex: '1 1 0%',
   minHeight: '20rem',
   paddingBottom: '13rem',
 };

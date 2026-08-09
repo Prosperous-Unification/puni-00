@@ -4774,7 +4774,17 @@ describe('the frame the table scrolls inside', () => {
     // regardless, and the bound on the height is what makes this box the
     // scrollport the heading below sticks to.
     expect(frame?.style.overflow).toBe('auto');
-    expect(frame?.style.maxHeight).not.toBe('');
+    // That bound was `max-height: calc(100vh - 16rem)` until `H
+    // header-fits-a-row`; it is now a zero flex basis inside a column that is
+    // one window tall, so the height is the remainder rather than an estimate
+    // of the chrome. Same claim — this box is bounded and therefore scrolls —
+    // read off the property that now carries it. What a browser makes of it is
+    // `e2e/header.spec.ts`'s; jsdom lays nothing out.
+    expect(frame?.style.flex).toBe('1 1 0%');
+    // And the flex basis is the only opinion about it: a `max-height` back
+    // beside it would be the estimate again, disagreeing with the layout the
+    // first time the header changed.
+    expect(frame?.style.maxHeight).toBe('');
   });
 
   itDom('keeps the column headings against the top of the frame', async () => {

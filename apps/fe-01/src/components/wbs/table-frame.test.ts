@@ -322,7 +322,17 @@ describe('the frame the table scrolls inside', () => {
     // its own content never scrolls, which would leave `top: 0` sticking to
     // nothing while the page carried the whole frame away.
     expect(TABLE_FRAME.overflow).toBe('auto');
-    expect(TABLE_FRAME.maxHeight).toBeDefined();
+    // What bounds it since `H header-fits-a-row`: a zero flex basis, which is
+    // the remainder of a parent whose own height is the window's. The number
+    // this replaces was `maxHeight: calc(100vh - 16rem)` — an estimate of the
+    // chrome above, wrong by 112px at 1280×800 in the direction that left the
+    // page scrolling. A basis of `auto` here would be the frame's own content,
+    // which is the unbounded case this assertion is about.
+    expect(TABLE_FRAME.flex).toBe('1 1 0%');
+    // Stated as well as implied: a `maxHeight` back beside the flex basis would
+    // be a second opinion about this element's height, and the two would
+    // disagree the moment the header changed — which is the whole fault.
+    expect(TABLE_FRAME.maxHeight).toBeUndefined();
   });
 
   it('leaves room under the last row for a picker to open into', () => {
