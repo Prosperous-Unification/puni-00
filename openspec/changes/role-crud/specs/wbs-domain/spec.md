@@ -100,11 +100,17 @@ explicitly rather than by the database.
 It SHALL leave every other role's estimates and assignments untouched, in that
 project and in every other.
 
-An estimate or assignment written for the role **after** the counts were
-reported and before the confirmed removal lands SHALL be deleted by that
-transaction, and its work item's revision SHALL move. A confirmed removal SHALL
-never leave an estimate pointing at a role that is gone, and SHALL never answer
-with a server error.
+The counting that decides SHALL happen inside that transaction. An estimate or
+assignment written for the role after a caller's counts were reported SHALL
+therefore refuse an **unconfirmed** removal rather than be deleted by it: that
+request consented to nothing, and what it would take was never shown to anybody.
+A **confirmed** removal SHALL delete it, and its work item's revision SHALL
+move. A removal SHALL never leave an estimate pointing at a role that is gone,
+and SHALL never answer with a server error.
+
+A removal that removed nothing — because another removal of the same role
+committed first, or because the role belongs to another project — SHALL be
+refused as not found, SHALL move no revision, and SHALL announce nothing.
 
 #### Scenario: what a cascade takes
 
@@ -128,12 +134,31 @@ with a server error.
 - **THEN** the removal succeeds, that estimate is gone, and that third work
   item's revision has moved
 
+#### Scenario: an estimate written under an unconfirmed removal
+
+- **GIVEN** a role nothing pointed at when the removal was asked for
+- **WHEN** an estimate for it is written before that unconfirmed removal deletes
+  anything
+- **THEN** the removal is refused as in use, reporting that estimate, and
+  nothing is deleted
+
+#### Scenario: the loser of two removals
+
+- **GIVEN** two removals of one role, one of which has committed
+- **WHEN** the second one runs
+- **THEN** it is refused as not found, the project's revision is where the first
+  one left it, and only one removal was announced
+
 ### Requirement: A write naming a role the project does not hold is refused
 
 Writing an estimate or an assignee for a role the project does not hold SHALL be
 refused as an unknown role, never answered with a server error. A role can be
 removed while somebody has it on screen, so this is an ordinary state of a
 client rather than a fault.
+
+This SHALL hold when the role is removed **after** the write was checked and
+before it lands. A refusal for a foreign key that is not about the role — a
+person or a work item that has gone — SHALL NOT be reported as an unknown role.
 
 Reversing a command that would write an estimate or an assignment for a role
 that has since been removed SHALL refuse the same way the stack refuses anything
@@ -144,6 +169,18 @@ the plan has moved past, and SHALL write nothing.
 - **GIVEN** a role that has been removed
 - **WHEN** an estimate or an assignee is written for it
 - **THEN** the request is refused as an unknown role and nothing is written
+
+#### Scenario: a phase that goes mid-write
+
+- **WHEN** the role is removed between the write being checked and the write
+  landing
+- **THEN** the request is still refused as an unknown role, not answered with a
+  server error
+
+#### Scenario: a different absence
+
+- **WHEN** an assignee is written naming somebody who is not in the directory
+- **THEN** the failure is not reported as an unknown role
 
 #### Scenario: undoing into a role that has gone
 
