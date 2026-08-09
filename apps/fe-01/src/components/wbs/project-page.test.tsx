@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import type { ProjectApi, ProjectSummary } from '@/lib/wbs-api';
+import type { CreatedProject, ProjectApi, ProjectListEntry } from '@/lib/wbs-api';
 
 import { ProjectPage } from './project-page';
 
@@ -15,7 +15,7 @@ const itDom = hasDom ? it : it.skip;
  * and these tests are about the page around it, not the table.
  */
 function fakeProjects(
-  initial: ProjectSummary[],
+  initial: ProjectListEntry[],
 ): ProjectApi & { renamed: [string, string][]; opened: string[]; drop: (id: string) => void } {
   let projects = [...initial];
   const renamed: [string, string][] = [];
@@ -34,14 +34,18 @@ function fakeProjects(
       return Promise.resolve();
     },
     createProject(name) {
-      const project = {
-        id: `p${String(projects.length + 1)}`,
-        name,
-        restricted: false,
-        lastOpenedAt: null,
-      };
-      projects = [...projects, project];
-      return Promise.resolve(project);
+      const id = `p${String(projects.length + 1)}`;
+      // Two shapes, as be-01 has them. The list gains a whole entry; the
+      // response carries the project that was written and **no**
+      // `lastOpenedAt` — an account's navigation history is not part of a row
+      // that has just come into being, and typing it as the list's shape is
+      // what let the page believe otherwise.
+      projects = [
+        ...projects,
+        { id, name, restricted: false, lastOpenedAt: null, ownerName: 'kat', createdAt: MADE_ON },
+      ];
+      const created: CreatedProject = { id, name, restricted: false };
+      return Promise.resolve(created);
     },
     renameProject(id, name) {
       renamed.push([id, name]);
@@ -90,16 +94,55 @@ function fakeProjects(
   };
 }
 
-const TWO = [
-  { id: 'p1', name: 'Rewire the shed', restricted: false, lastOpenedAt: null },
-  { id: 'p2', name: 'Paint the fence', restricted: false, lastOpenedAt: null },
+/**
+ * The first of June **this** year, as an epoch millisecond.
+ *
+ * Computed from the running year rather than pinned to a literal, because the
+ * meta drops the year exactly when it matches today's — a fixed `2026-06-01`
+ * would print `1 Jun` until the first of January and `1 Jun 2026` for ever
+ * after, and every expectation in this file would go red on a date rather than
+ * on a change. `shortInstant`'s own rule is proven in `short-date.test.ts`;
+ * this file only needs a day it can name.
+ */
+const MADE_ON = new Date(new Date().getFullYear(), 5, 1, 12).getTime();
+
+/** The same day next year, which is the side of the boundary that shows a year. */
+const MADE_NEXT_YEAR = new Date(new Date().getFullYear() + 1, 5, 1, 12).getTime();
+
+/** What the meta prints for {@link MADE_ON}: no year, because it is this one. */
+const THIS_JUNE = '1 Jun';
+
+const TWO: ProjectListEntry[] = [
+  {
+    id: 'p1',
+    name: 'Rewire the shed',
+    restricted: false,
+    lastOpenedAt: null,
+    ownerName: 'kat',
+    createdAt: MADE_ON,
+  },
+  {
+    id: 'p2',
+    name: 'Paint the fence',
+    restricted: false,
+    lastOpenedAt: null,
+    ownerName: 'strip',
+    createdAt: MADE_ON,
+  },
 ];
 
 const pageWith = (api: ProjectApi) => render(<ProjectPage token="t" api={api} />);
 
 const picker = () => screen.getByLabelText<HTMLInputElement>('Project');
 
-/** The names on offer, in the order the picker is showing them. */
+/**
+ * The entries on offer, in the order the picker is showing them.
+ *
+ * Whole entries rather than bare names: the meta is **inside** the option, so
+ * this is what somebody choosing reads and what a screen reader announces. An
+ * assertion against the name alone would go green with the meta rendered
+ * outside the option, which is the one place it must not be.
+ */
 const optionNames = () => screen.queryAllByRole('option').map((entry) => entry.textContent);
 
 /** Opens the list — the picker offers everything when it takes the focus. */
@@ -251,6 +294,64 @@ describe('the chosen project survives a refresh', () => {
   });
 });
 
+describe('an entry says who owns it and when it was made', () => {
+  itDom('tells two projects of one name apart by their owners', async () => {
+    // The whole reason the meta exists. Two entries reading `Rewire the shed`
+    // and nothing else are one project offered twice as far as anybody
+    // choosing can tell — by eye and, because the meta is inside the option, by
+    // screen reader.
+    pageWith(
+      fakeProjects([
+        { ...TWO[0], id: 'p1', name: 'Rewire the shed', ownerName: 'kat' },
+        { ...TWO[0], id: 'p2', name: 'Rewire the shed', ownerName: 'strip' },
+      ]),
+    );
+    await waitFor(() => {
+      expect(screen.getByLabelText('Project')).toBeDefined();
+    });
+    openPicker();
+
+    await waitFor(() => {
+      expect(optionNames().length).toBe(2);
+    });
+    // By accessible name, not by textContent: the claim is that the two are
+    // distinguishable to the accessibility tree, and a meta rendered as a
+    // `title` or an adjacent sibling would pass a text assertion and fail this.
+    expect(screen.getByRole('option', { name: `Rewire the shed (kat · ${THIS_JUNE})` }).id).toBe(
+      'project-option-p1',
+    );
+    expect(screen.getByRole('option', { name: `Rewire the shed (strip · ${THIS_JUNE})` }).id).toBe(
+      'project-option-p2',
+    );
+  });
+
+  itDom('carries the year only when it is not this one', async () => {
+    // Both sides of `shortInstant`'s boundary, because the entry must not
+    // reimplement the rule — a meta that always printed the year, or never
+    // did, passes a one-sided check. The rule itself is proven in
+    // `short-date.test.ts`; this asserts the picker asks the right formatter.
+    pageWith(
+      fakeProjects([
+        { ...TWO[0], id: 'p1', name: 'This year', createdAt: MADE_ON },
+        { ...TWO[0], id: 'p2', name: 'Next year', createdAt: MADE_NEXT_YEAR },
+      ]),
+    );
+    await waitFor(() => {
+      expect(screen.getByLabelText('Project')).toBeDefined();
+    });
+    openPicker();
+
+    await waitFor(() => {
+      expect(optionNames().length).toBe(2);
+    });
+    const nextYear = String(new Date().getFullYear() + 1);
+    expect(optionNames()).toEqual([
+      `This year (kat · ${THIS_JUNE})`,
+      `Next year (kat · ${THIS_JUNE} ${nextYear})`,
+    ]);
+  });
+});
+
 describe('the picker searches', () => {
   itDom('narrows the list to what was typed, ignoring case', async () => {
     pageWith(fakeProjects(TWO));
@@ -259,12 +360,34 @@ describe('the picker searches', () => {
     });
     openPicker();
     await waitFor(() => {
-      expect(optionNames()).toEqual(['Rewire the shed', 'Paint the fence']);
+      expect(optionNames()).toEqual([
+        `Rewire the shed (kat · ${THIS_JUNE})`,
+        `Paint the fence (strip · ${THIS_JUNE})`,
+      ]);
     });
 
     fireEvent.change(picker(), { target: { value: 'FENCE' } });
 
-    expect(optionNames()).toEqual(['Paint the fence']);
+    expect(optionNames()).toEqual([`Paint the fence (strip · ${THIS_JUNE})`]);
+  });
+
+  itDom('matches the name alone — an owner’s username offers nothing', async () => {
+    // The recorded non-goal, on the page rather than only on the pure
+    // function: the meta is on screen and in the accessible name, and typing
+    // what it says must still narrow by name. `strip` owns `Paint the fence`
+    // and names no project.
+    pageWith(fakeProjects(TWO));
+    await waitFor(() => {
+      expect(screen.getByLabelText('Project')).toBeDefined();
+    });
+    openPicker();
+    await waitFor(() => {
+      expect(optionNames().length).toBe(2);
+    });
+
+    fireEvent.change(picker(), { target: { value: 'strip' } });
+
+    expect(optionNames()).toEqual([]);
   });
 
   itDom('chooses with the keyboard alone, and shows that project’s table', async () => {
@@ -300,8 +423,22 @@ describe('the picker searches', () => {
     // would show these two the other way round.
     pageWith(
       fakeProjects([
-        { id: 'p2', name: 'Paint the fence', restricted: false, lastOpenedAt: 900 },
-        { id: 'p1', name: 'Rewire the shed', restricted: false, lastOpenedAt: null },
+        {
+          id: 'p2',
+          name: 'Paint the fence',
+          restricted: false,
+          lastOpenedAt: 900,
+          ownerName: 'strip',
+          createdAt: MADE_ON,
+        },
+        {
+          id: 'p1',
+          name: 'Rewire the shed',
+          restricted: false,
+          lastOpenedAt: null,
+          ownerName: 'kat',
+          createdAt: MADE_ON,
+        },
       ]),
     );
     await waitFor(() => {
@@ -310,7 +447,10 @@ describe('the picker searches', () => {
     openPicker();
 
     await waitFor(() => {
-      expect(optionNames()).toEqual(['Paint the fence', 'Rewire the shed']);
+      expect(optionNames()).toEqual([
+        `Paint the fence (strip · ${THIS_JUNE})`,
+        `Rewire the shed (kat · ${THIS_JUNE})`,
+      ]);
     });
   });
 
@@ -347,6 +487,31 @@ describe('the picker searches', () => {
 
     expect(optionNames()).toEqual([]);
     expect(api.opened).toEqual([]);
+  });
+});
+
+describe('creating a project', () => {
+  itDom('selects what was created, from a response carrying no last-opened time', async () => {
+    // The create route answers with the project it wrote and nothing about
+    // this account's history — `CreatedProject` is that shape, and the fixture
+    // above returns exactly it. The page must still select the new project by
+    // id and show its name, which is all it ever read of that response.
+    const api = fakeProjects(TWO);
+    pageWith(api);
+    await waitFor(() => {
+      expect(screen.getByLabelText('Project')).toBeDefined();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'New project' }));
+
+    await waitFor(() => {
+      expect(picker().value).toBe('New project');
+    });
+    // And it was opened, which is what sorts the picker next time — the
+    // recording is driven by the selection, so a create that failed to select
+    // would record nothing.
+    expect(api.opened).toContain('p3');
+    expect(localStorage.getItem('wbs.project')).toBe('p3');
   });
 });
 
@@ -466,7 +631,7 @@ describe('renaming a project', () => {
     expect(api.renamed).toEqual([]);
     openPicker();
     await waitFor(() => {
-      expect(optionNames()).toContain('New project');
+      expect(optionNames()).toContain(`New project (kat · ${THIS_JUNE})`);
     });
   });
 

@@ -5,9 +5,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { subscribeToProject } from '@/lib/project-stream';
 import { cn } from '@/lib/utils';
-import { httpProjectApi, type ProjectApi, type ProjectSummary } from '@/lib/wbs-api';
+import { httpProjectApi, type ProjectApi, type ProjectListEntry } from '@/lib/wbs-api';
 
-import { matchingProjects } from './project-picker';
+import { entryMeta, matchingProjects } from './project-picker';
 import { type SubscriptionHandlers, WbsTable } from './wbs-table';
 
 export interface ProjectPageProps {
@@ -78,7 +78,7 @@ export function ProjectPage({ token, api: apiOverride, presence, account }: Proj
     [token],
   );
 
-  const [projects, setProjects] = useState<ProjectSummary[]>([]);
+  const [projects, setProjects] = useState<ProjectListEntry[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   /**
@@ -203,6 +203,12 @@ export function ProjectPage({ token, api: apiOverride, presence, account }: Proj
 
   /** The entries the picker is offering right now, or none while it is closed. */
   const entries = search === null ? [] : matchingProjects(projects, search.typed);
+  /**
+   * The reader's own today, which is the year an entry meta's is measured
+   * against — one per render rather than one per entry, so a list opened across
+   * midnight on New Year's Eve at least prints one year throughout.
+   */
+  const now = new Date();
   // Resolved by id at render, so a highlight whose project has left the list is
   // simply nothing rather than somebody else's project.
   const highlighted =
@@ -309,7 +315,23 @@ export function ProjectPage({ token, api: apiOverride, presence, account }: Proj
                 onMouseDown={(e) => {
                   e.preventDefault();
                 }}
-                className="bg-popover text-popover-foreground absolute top-full left-0 z-10 m-0 max-h-60 min-w-full list-none overflow-y-auto rounded-md border p-1 text-sm shadow-md"
+                // `w-full`, not `min-w-full`. An absolutely positioned box with
+                // only a minimum is shrink-to-fit, so one long entry decides
+                // how wide the list is — and with `whitespace-nowrap` below,
+                // that is as wide as the entry wants, past the right edge of
+                // the window and giving the whole document a horizontal
+                // scrollbar. The width is the combobox's instead: the input is
+                // inside the bar, the bar is inside the viewport, so the list
+                // is too, whatever be-01 answers with. Entries clip.
+                //
+                // Proof: back to `min-w-full`, `the widest entry be-01 permits
+                // stays inside the window` in `e2e/header.spec.ts` failed at
+                // every one of 1280, 1024 and 900 on the precondition —
+                // `entryOverflow 0`, nothing clipped anywhere, the list simply
+                // as wide as the text — and, with that precondition relaxed to
+                // read the bound underneath, on `the listbox reaches 46px past
+                // the window at 900px`. Watched in Chromium, 2026-08-09.
+                className="bg-popover text-popover-foreground absolute top-full left-0 z-10 m-0 max-h-60 w-full max-w-[calc(100vw-1rem)] list-none overflow-y-auto rounded-md border p-1 text-sm shadow-md"
               >
                 {entries.map((entry) => (
                   // The ARIA combobox pattern is the boundary that makes this
@@ -320,6 +342,21 @@ export function ProjectPage({ token, api: apiOverride, presence, account }: Proj
                     key={entry.id}
                     id={`project-option-${entry.id}`}
                     role="option"
+                    // The whole entry, unclipped. The spans below are
+                    // `truncate`, so what is on screen can be less than what is
+                    // there — and a name cut short with no way to read it is
+                    // the picker offering choices nobody can tell apart, which
+                    // is the fault this change exists to fix. The meta belongs
+                    // in here too: it is the half that is cut first and the
+                    // half that says which `Rewire the shed` this one is.
+                    //
+                    // Proof: narrowed to `title={entry.name}`, `the entry is
+                    // clipped and its full text is still readable` in
+                    // `e2e/header.spec.ts` failed on `Expected substring:
+                    // "w1786301985729WWWWWWWWWWWWWWWWWW"` against a title
+                    // holding the project name alone. Watched in Chromium,
+                    // 2026-08-09.
+                    title={`${entry.name} ${entryMeta(entry, now)}`}
                     aria-selected={entry.id === highlighted?.id}
                     ref={(element) => {
                       // jsdom has no scrollIntoView; that boundary is the
@@ -333,14 +370,46 @@ export function ProjectPage({ token, api: apiOverride, presence, account }: Proj
                       }
                     }}
                     className={cn(
-                      'cursor-pointer rounded-sm px-2 py-1 whitespace-nowrap',
+                      'flex cursor-pointer items-baseline gap-1 rounded-sm px-2 py-1 whitespace-nowrap',
                       entry.id === highlighted?.id && 'bg-accent text-accent-foreground',
                     )}
                     onClick={() => {
                       choose(entry.id);
                     }}
                   >
-                    {entry.name}
+                    {/*
+                      Both halves clip rather than either one pushing the list
+                      wider: `min-w-0` is what lets a flex item shrink below its
+                      content at all, and `truncate` is what it does then.
+                      `whitespace-nowrap` above stays — the entry is one line
+                      whether it fits or not, and wrapping instead would make a
+                      long name a two-row option rather than a clipped one.
+                    */}
+                    <span className="min-w-0 truncate">{entry.name}</span>
+                    {/*
+                      A real space in the text, not only the `gap` beside it: an
+                      entry's accessible name is `Rewire the shed (kat · 1 Jun)`
+                      and the string somebody hears has to have the word break
+                      in it. A whitespace-only node between two flex items is
+                      not itself an item, so it costs no second gap on screen.
+                    */}{' '}
+                    {/*
+                      Inside the option, so it is part of the accessible name:
+                      two projects called `Rewire the shed` are told apart by a
+                      screen reader as well as by eye. A `title` or a sibling
+                      element outside the option would look identical and say
+                      nothing to anybody listening.
+
+                      Proof: with `aria-hidden="true"` on this span — the meta
+                      still on screen and still in the title, out of the
+                      accessibility tree — `tells two projects of one name
+                      apart by their owners` failed on `Unable to find an
+                      accessible element with the role "option" and name
+                      "Rewire the shed (kat · 1 Jun)"`. Watched, 2026-08-09.
+                    */}
+                    <span className="text-muted-foreground min-w-0 truncate">
+                      {entryMeta(entry, now)}
+                    </span>
                   </li>
                 ))}
               </ul>

@@ -117,6 +117,12 @@ The account that created a project and the only one that may edit it while it is
 restricted. An account, never a person from the directory.
 _Avoid_: author, creator, user
 
+**Project entry**:
+One project as the picker offers it: the name it is chosen by, followed by its entry
+meta. The unit the list is bounded and truncated by — one line, whole or clipped, never
+two.
+_Avoid_: option, row, list item, project summary
+
 **Entry meta**:
 The muted parenthetical on a project entry in the picker: who owns the project and the
 day it was created. Shown to tell same-named projects apart, never searched.

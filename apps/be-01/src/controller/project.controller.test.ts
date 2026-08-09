@@ -28,8 +28,13 @@ function buildWorkItemService(projectStore: ReturnType<typeof inMemoryProjects>)
 }
 
 function buildHarness() {
-  const auth = testAuthService(inMemoryUsers());
-  const projectStore = inMemoryProjects();
+  // One user store behind both: the list resolves each project's owner name
+  // through it, exactly as the query joins `users`. Two stores would leave
+  // every registered account unknown to the listing and throw on the first
+  // project, which is what production does for an owner that is not there.
+  const users = inMemoryUsers();
+  const auth = testAuthService(users);
+  const projectStore = inMemoryProjects(users);
   // A monotonic clock rather than `Date.now`: two projects created in one
   // millisecond tie on `createdAt`, and an order test built on a tie proves
   // nothing about the ordering — it reports whichever way the sort happened to
@@ -83,6 +88,31 @@ function buildHarness() {
 }
 
 const created = (name: string) => ({ method: 'POST', body: JSON.stringify({ name }) });
+
+/**
+ * Which of `wanted` the object does not carry — `[]` when it carries them all.
+ *
+ * Containment, deliberately, and never an exact key set: fe-01's types name
+ * what it **reads** of a wire that carries more, and a route asserted equal to
+ * a key list would be a claim about a wire this change does not build — one
+ * that also goes red the first time an unrelated field is added to a project.
+ * `Object.hasOwn` rather than a truthiness test, because `startDate: null` and
+ * `lastOpenedAt: null` are values these routes really send.
+ */
+const missingFrom = (carried: object, wanted: readonly string[]): string[] =>
+  wanted.filter((field) => !Object.hasOwn(carried, field));
+
+/** Every column a project row has, which is what create and read both answer with. */
+const PROJECT_FIELDS = [
+  'id',
+  'name',
+  'ownerId',
+  'restricted',
+  'estimateMethod',
+  'startDate',
+  'revision',
+  'createdAt',
+] as const;
 
 describe('projects', () => {
   it('creates a project owned by the caller, holding Dev and QA', async () => {
@@ -236,6 +266,59 @@ describe('projects', () => {
     });
 
     expect(res.status).toBe(200);
+  });
+
+  it('answers a create with the project it wrote and its starting roles', async () => {
+    const { register, send } = buildHarness();
+    const token = await register('owner');
+
+    const res = await send('/api/projects', token, created('Rewire the shed'));
+
+    const body = (await res.json()) as { project: object; roles: object[] };
+    expect(missingFrom(body.project, PROJECT_FIELDS)).toEqual([]);
+    expect(
+      body.roles.every((r) => missingFrom(r, ['id', 'projectId', 'name', 'position']).length === 0),
+    ).toBe(true);
+    // The two absences, which are claims of their own: create has never had an
+    // account's navigation history to report, and fe-01 typed its response as
+    // the list's shape and so believed it did.
+    expect(Object.hasOwn(body.project, 'lastOpenedAt')).toBe(false);
+    expect(Object.hasOwn(body.project, 'ownerName')).toBe(false);
+  });
+
+  it('answers a list entry with the owner’s name beside everything it already sent', async () => {
+    const { register, send } = buildHarness();
+    const token = await register('kat');
+    await send('/api/projects', token, created('Rewire the shed'));
+
+    const res = await send('/api/projects', token);
+
+    const body = (await res.json()) as { projects: { ownerName?: string }[] };
+    // `.at` rather than `[0]`, so the emptiness is a state this has to answer
+    // for: an assertion run against a list that came back with nothing in it
+    // would pass every containment check it was given.
+    const entry = body.projects.at(0);
+    if (entry === undefined) throw new Error('the list came back empty');
+    // The picker's six, and the four it has always carried that the picker
+    // never shows — this change removes nothing from the wire.
+    expect(missingFrom(entry, [...PROJECT_FIELDS, 'lastOpenedAt', 'ownerName'])).toEqual([]);
+    expect(entry.ownerName).toBe('kat');
+  });
+
+  it('answers a read with what it carried before, and no owner name', async () => {
+    const { register, send } = buildHarness();
+    const token = await register('owner');
+    const create = await send('/api/projects', token, created('Rewire the shed'));
+    const { project } = (await create.json()) as { project: { id: string } };
+
+    const res = await send(`/api/projects/${project.id}`, token);
+
+    const body = (await res.json()) as { project: object; roles: object[] };
+    expect(missingFrom(body.project, PROJECT_FIELDS)).toEqual([]);
+    expect(body.roles).toHaveLength(2);
+    // The recorded non-goal, made breakable: the header reads its project out
+    // of the list it already holds, so this route is not half-joined to match.
+    expect(Object.hasOwn(body.project, 'ownerName')).toBe(false);
   });
 
   it('refuses an unauthenticated caller', async () => {

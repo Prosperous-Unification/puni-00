@@ -44,9 +44,17 @@ export interface Project {
   createdAt: number;
 }
 
-/** A project as one account sees it: null when that account has never opened it. */
+/**
+ * A project as one account sees it: null when that account has never opened it.
+ *
+ * `ownerName` is the {@link User.username} behind {@link Project.ownerId},
+ * joined in the listing query rather than looked up per project. It is not
+ * nullable: a project whose owner names no account is malformed stored data,
+ * and {@link ProjectStore.listFor} throws rather than answering a blank owner.
+ */
 export interface ProjectWithAccess extends Project {
   lastOpenedAt: number | null;
+  ownerName: string;
 }
 
 export interface Role {
@@ -714,7 +722,12 @@ export interface ProjectStore {
    * newest created first.
    *
    * Not a filter — every account still sees every project, because reading is
-   * open. Only the order and the extra `lastOpenedAt` differ per caller.
+   * open. Only the order and the extra `lastOpenedAt` differ per caller; the
+   * owner's name on each entry is the same for everybody asking.
+   *
+   * @throws when a listed project's owner id names no account. Every
+   * implementation, the in-memory fixture included: a store that answered a
+   * blank owner here would let a test pass against a list production refuses.
    */
   listFor(userId: string): Promise<ProjectWithAccess[]>;
   /**

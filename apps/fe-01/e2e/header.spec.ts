@@ -48,6 +48,58 @@ const ROWS_PAST_THE_FOLD = 23;
 /** The widths the bar has to be one row at. `layout.spec.ts`'s matrix, plus 900. */
 const FIT_WIDTHS = [1280, 1024, 900] as const;
 
+/**
+ * The widest username `USERNAME` permits, in the widest glyphs it permits.
+ *
+ * be-01's rule is `/^[a-zA-Z0-9_-]{3,32}$/`, so 32 characters is the ceiling
+ * and ASCII is the alphabet — a CJK string would be wider per glyph and cannot
+ * be registered. `W` is the widest of those 62 characters in the UI font, which
+ * makes this the widest owner name the backend can ever produce. Prefixed
+ * because every account this file registers must be unique across runs, and
+ * trimmed back to 32 so the registration is not refused.
+ */
+const widestOwnerName = (): string => `w${String(Date.now())}${'W'.repeat(32)}`.slice(0, 32);
+
+/** A project name long enough that the entry cannot fit any bound this test allows. */
+const LONG_PROJECT_NAME = 'Rewire the shed and repaint the hall and paint the fence out back';
+
+/**
+ * How far the open listbox reaches, and whether the document scrolls sideways.
+ *
+ * `entryOverflow` is the **precondition** rather than the claim: an entry that
+ * fits needs no truncation, so the bound below would hold on a short string and
+ * prove nothing about a long one. `G gantt-calendar-axis`'s sixteenth fault is
+ * the shape this guards against — a measurement taken against something with no
+ * size at all.
+ */
+function measureOpenListbox(page: Page): Promise<{
+  pastRightEdge: number;
+  pageOverflowX: number;
+  entryOverflow: number;
+  entryTitle: string;
+}> {
+  return page.evaluate(() => {
+    const list = document.querySelector('[role="listbox"]');
+    if (list === null) throw new Error('the picker is not open');
+    const entry = list.querySelector('[role="option"]');
+    if (entry === null) throw new Error('the open picker is offering nothing');
+    const title = entry.getAttribute('title');
+    if (title === null) throw new Error('the entry carries no title');
+    // The clipped span, not the row: `truncate` is on the two inner spans, and
+    // the `<li>` itself is a flex container that fits whatever they shrink to.
+    const clipped = [...entry.querySelectorAll('span')];
+    const overflow = Math.max(...clipped.map((span) => span.scrollWidth - span.clientWidth));
+    return {
+      pastRightEdge: Math.round(
+        list.getBoundingClientRect().right - document.documentElement.clientWidth,
+      ),
+      pageOverflowX: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      entryOverflow: overflow,
+      entryTitle: title,
+    };
+  });
+}
+
 /** Registers a throwaway account and opens a project. Nothing in it yet. */
 async function signInWithAProject(page: Page, account: string): Promise<void> {
   await page.goto('/');
@@ -57,6 +109,48 @@ async function signInWithAProject(page: Page, account: string): Promise<void> {
   await page.getByRole('button', { name: 'Create account' }).click();
   await page.getByRole('button', { name: 'New project' }).click();
   await expect(page.getByRole('button', { name: 'Add work item' })).toBeVisible();
+}
+
+/**
+ * Signs the current account out and registers `account` in its place, with a
+ * project of its own.
+ *
+ * `beforeEach` has already signed one account in, and the picker tests need an
+ * account whose **username** is the thing under test. Signing out rather than
+ * clearing storage because that is the only supported way out of the app and
+ * it is already proven above.
+ */
+async function switchToAccountWithAProject(
+  page: Page,
+  leaving: string,
+  account: string,
+): Promise<void> {
+  await page.getByRole('button', { name: leaving }).click();
+  await page.getByRole('menuitem', { name: 'Log out' }).click();
+  await expect(page.getByRole('button', { name: 'Log in' })).toBeVisible();
+  await signInWithAProject(page, account);
+}
+
+/** Renames the selected project, through the ✎ the bar offers for it. */
+async function renameSelectedProject(page: Page, to: string): Promise<void> {
+  await page.getByRole('button', { name: 'Rename' }).click();
+  await page.getByLabel('Project name').fill(to);
+  await page.getByLabel('Project name').press('Enter');
+  await expect(page.getByRole('combobox', { name: 'Project' })).toHaveValue(to);
+}
+
+/**
+ * Opens the picker from closed, whatever had the focus before.
+ *
+ * The list opens on the input taking the focus, so a second open in one test
+ * has to give the focus up first — clicking a still-focused input fires no
+ * `focus` at all, and the measurement would be taken against a list that never
+ * reopened.
+ */
+async function openPicker(page: Page): Promise<void> {
+  await page.getByRole('heading', { name: 'WBS tool v2' }).click();
+  await page.getByRole('combobox', { name: 'Project' }).click();
+  await expect(page.getByRole('listbox', { name: 'Projects' })).toBeVisible();
 }
 
 /** Adds rows until the plan is taller than the window it is being read in. */
@@ -253,6 +347,86 @@ test.describe('the header bar, measured by a browser', () => {
     // bar that nothing else can do.
     await page.getByRole('menuitem', { name: 'Log out' }).click();
     await expect(page.getByRole('button', { name: 'Log in' })).toBeVisible();
+  });
+});
+
+/**
+ * The open picker, measured by a browser.
+ *
+ * jsdom lays nothing out: every one of `project-page.test.tsx`'s assertions
+ * about this list would pass with the entry a mile wide, because there is no
+ * mile and no width. The bound is a browser's to observe, which is why it is
+ * here rather than beside the tests that cover what the entry says.
+ */
+test.describe('the open project picker, measured by a browser', () => {
+  test('the widest entry be-01 permits stays inside the window', async ({ page }) => {
+    await switchToAccountWithAProject(page, signedInAs, widestOwnerName());
+    await renameSelectedProject(page, LONG_PROJECT_NAME);
+
+    const measured: {
+      width: number;
+      pastRightEdge: number;
+      pageOverflowX: number;
+      entryOverflow: number;
+    }[] = [];
+    for (const width of FIT_WIDTHS) {
+      await page.setViewportSize({ width, height: 800 });
+      await openPicker(page);
+      const { pastRightEdge, pageOverflowX, entryOverflow } = await measureOpenListbox(page);
+      measured.push({ width, pastRightEdge, pageOverflowX, entryOverflow });
+    }
+
+    for (const at of measured) {
+      // The precondition, at every width: the seeded entry really is wider
+      // than the room it is given, so the two assertions under it are about a
+      // list that had to be bounded rather than one that happened to fit.
+      expect(
+        at.entryOverflow,
+        `the entry fits at ${String(at.width)}px, so the bound below proves nothing`,
+      ).toBeGreaterThan(0);
+      expect(
+        at.pastRightEdge,
+        `the listbox reaches ${String(at.pastRightEdge)}px past the window at ${String(at.width)}px`,
+      ).toBeLessThanOrEqual(0);
+      expect(
+        at.pageOverflowX,
+        `the document scrolls sideways at ${String(at.width)}px with the picker open`,
+      ).toBe(0);
+    }
+  });
+
+  test('the entry is clipped and its full text is still readable', async ({ page }) => {
+    const owner = widestOwnerName();
+    await switchToAccountWithAProject(page, signedInAs, owner);
+    await renameSelectedProject(page, LONG_PROJECT_NAME);
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await openPicker(page);
+
+    const { entryOverflow, entryTitle } = await measureOpenListbox(page);
+
+    expect(
+      entryOverflow,
+      'the entry was not clipped, so its title is not standing in for anything',
+    ).toBeGreaterThan(0);
+    // The whole name and the whole meta, which is what makes the clipping
+    // survivable: the owner is how two projects of one name are told apart, so
+    // a title carrying the name alone would lose exactly the part that was cut.
+    expect(entryTitle).toContain(LONG_PROJECT_NAME);
+    expect(entryTitle).toContain(owner);
+  });
+
+  test('a short entry is shown whole', async ({ page }) => {
+    // The other side of the claim. Without it, "clipped" would be satisfied by
+    // a picker that clips everything — including the two-word names most
+    // projects have — and nobody would be told.
+    await switchToAccountWithAProject(page, signedInAs, `kat${String(Date.now()).slice(-8)}`);
+    await renameSelectedProject(page, 'Shed');
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await openPicker(page);
+
+    const { entryOverflow } = await measureOpenListbox(page);
+
+    expect(entryOverflow, 'a four-letter project owned by a short name was clipped').toBe(0);
   });
 });
 

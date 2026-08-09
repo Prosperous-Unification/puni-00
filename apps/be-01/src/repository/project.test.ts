@@ -151,6 +151,34 @@ describe('ProjectRepository', () => {
     expect((await repo.listFor(ownerId)).map((p) => p.name)).toEqual(['A', 'C', 'B']);
   });
 
+  it('names each entry’s own owner, whoever is asking', async () => {
+    // Two owners rather than one: an entry that took the *caller's* name would
+    // pass with one account in the database and be wrong for every list that
+    // holds somebody else's project — which is the whole reason for the field.
+    const strip = crypto.randomUUID();
+    await new UserRepository(openDrizzle(join(dir, 'test.db'))).create({
+      id: strip,
+      username: 'strip',
+      passwordHash: 'x',
+      createdAt: 1,
+    });
+    const shed = project('Rewire the shed', 100);
+    const fence: Project = { ...project('Paint the fence', 200), ownerId: strip };
+    for (const p of [shed, fence]) await repo.create(p, roles(p.id, 'Dev'));
+    await repo.recordOpen(ownerId, shed.id, 1000);
+
+    const listed = await repo.listFor(ownerId);
+
+    // Opened first, then never-opened: the join for the owner's name must not
+    // disturb the order, and the never-opened project must still be listed at
+    // all — a `project_access` inner join would drop it entirely.
+    expect(listed.map((p) => [p.name, p.ownerName, p.lastOpenedAt])).toEqual([
+      ['Rewire the shed', 'owner', 1000],
+      ['Paint the fence', 'strip', null],
+    ]);
+    expect(listed.map((p) => p.createdAt)).toEqual([100, 200]);
+  });
+
   it('keeps one record per pair, holding the later moment', async () => {
     const shed = project('Rewire the shed', 100);
     await repo.create(shed, roles(shed.id, 'Dev'));
@@ -186,6 +214,57 @@ describe('ProjectRepository', () => {
     }
 
     expect(await rejection(repo.findById(shed.id))).toMatch(/unknown estimate method/);
+  });
+
+  it('costs one statement however many projects there are', async () => {
+    // Fifty rather than two: the fault this rules out is a per-project lookup,
+    // and at two projects "one query" and "one per project" differ by one
+    // statement — a difference a reader could argue was setup. At fifty it is
+    // 1 against 51.
+    for (let made = 0; made < 50; made += 1) {
+      const p = project(`Project ${String(made)}`, 100 + made);
+      await repo.create(p, roles(p.id, 'Dev'));
+    }
+    const statements: string[] = [];
+    const counted = new ProjectRepository(
+      openDrizzle(join(dir, 'test.db'), {
+        logQuery(query) {
+          statements.push(query);
+        },
+      }),
+    );
+
+    const listed = await counted.listFor(ownerId);
+
+    // The precondition: a list that answered nothing would also issue one
+    // statement, and the count would prove nothing about the join.
+    expect(listed).toHaveLength(50);
+    expect(statements).toHaveLength(1);
+  });
+
+  it('fails the list rather than answering a project whose owner is nobody', async () => {
+    // Written past the repository, like the estimate-method test above and for
+    // the same reason: the *stored* row is wrong, which no request validation
+    // prevents. `foreign_keys=OFF` is the boundary — the pragma is per
+    // connection, this connection is opened, used and closed here, and the
+    // repository's own connection never has it off.
+    const kept = project('Rewire the shed', 100);
+    await repo.create(kept, roles(kept.id, 'Dev'));
+    const orphan = project('Orphan', 200);
+    const db = openDatabase(join(dir, 'test.db'));
+    try {
+      db.run('PRAGMA foreign_keys=OFF');
+      db.run(
+        `INSERT INTO project (id, name, owner_id, restricted, estimate_method, start_date, revision, created_at)
+         VALUES ('${orphan.id}', 'Orphan', '${crypto.randomUUID()}', 0, 'pert', NULL, 0, 200)`,
+      );
+    } finally {
+      db.close();
+    }
+
+    // Both halves are the claim. Not "the list is one project short", and not
+    // "the orphan is listed with a blank owner" — the read fails.
+    expect(await rejection(repo.listFor(ownerId))).toMatch(/owner/);
   });
 
   it('refuses a project whose owner does not exist', async () => {
