@@ -113,6 +113,28 @@ export function inkOn(barColor: BarColor): string {
 }
 
 /**
+ * The service team a work item is labelled with, as the chart can state it.
+ *
+ * Three states and not a `string | null`, because "nobody labelled this" and
+ * "the team read this client holds does not name that id" are different facts
+ * and a blank says neither. The second is a **modeled** condition rather than a
+ * broken payload: the teams come from the directory read and the label from the
+ * tree read, two moments, and a team created between them is a stale lookup and
+ * not a lost one.
+ */
+export type ServiceTeamLabel =
+  | { state: 'none' }
+  | { state: 'named'; name: string }
+  | { state: 'unresolved' };
+
+/** The three points a role was estimated with, as the plan holds them. */
+export interface EstimateTrio {
+  optimistic: number;
+  realistic: number;
+  pessimistic: number;
+}
+
+/**
  * A row of the plan as the panel draws it.
  *
  * The shown rows only — the panel passes the same list its renderer draws, so
@@ -137,6 +159,27 @@ export interface GanttRow {
   schedule: { earliestStart: number; earliestFinish: number };
   /** The workday its manual start date holds at, or null when it has none. */
   notBeforeOffset: number | null;
+  /** The service team this work is labelled with, resolved against the directory read. */
+  team: ServiceTeamLabel;
+  /**
+   * The three points each role was estimated with on this work item, by role id.
+   *
+   * A role absent from this map is a role nobody has estimated here, which is
+   * the fact the bar states in words. Per row and per role rather than per
+   * slice, because that is the shape be-01 sends it in and a bar's role is what
+   * picks one out.
+   */
+  trioByRole: ReadonlyMap<string, EstimateTrio>;
+  /**
+   * What this row waits for, each already named `<number> <name>`.
+   *
+   * Resolved by the caller from **every** work item in the tree, not from the
+   * rows the chart is drawing: a collapsed branch and a search each hide rows a
+   * dependency may point at, and a predecessor hidden that way is still named
+   * in full. That is why these are words rather than ids — the geometry sees
+   * only what is on screen.
+   */
+  waitsFor: readonly string[];
 }
 
 /**
@@ -274,6 +317,19 @@ export interface GanttBar {
   personColor: BarColor;
   /** The binding floor in words — the sentence the bar shows on hover. */
   floorWords: string;
+  /** The service team the work item is labelled with — see {@link GanttRow.team}. */
+  team: ServiceTeamLabel;
+  /**
+   * The three points **this bar's own role** was estimated with, or null when
+   * that role has no estimate on this work item.
+   *
+   * The bar's role and not the row's: a leaf estimated Dev `2/3/8` and QA
+   * `1/1/1` draws two bars, and a trio taken from the row would put the same
+   * three numbers on both.
+   */
+  trio: EstimateTrio | null;
+  /** What the bar's row waits for, in words — see {@link GanttRow.waitsFor}. */
+  waitsFor: readonly string[];
 }
 
 /**
@@ -824,6 +880,12 @@ export function layOutGantt(plan: GanttPlan): GanttGeometry {
         personName,
         personColor: colorFor(slice.personId),
         floorWords: floorWordsOf(slice, predecessor, personName, rowNames, rolesById),
+        team: row.team,
+        // The bar's own role's trio. A slice under no role has no estimate to
+        // look up rather than an empty one, which is the same absence said
+        // once.
+        trio: (slice.roleId === null ? undefined : row.trioByRole.get(slice.roleId)) ?? null,
+        waitsFor: row.waitsFor,
       };
       bars.push(bar);
       barBySliceId.set(slice.id, bar);

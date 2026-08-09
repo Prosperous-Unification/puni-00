@@ -911,6 +911,312 @@ test.describe('the chart on a phone', () => {
   });
 });
 
+/**
+ * The hover surface a bar opens, which is the only thing on this chart that is
+ * neither a mark nor a label.
+ *
+ * `role="tooltip"` and not a `data-` hook: it is the same the `HoverCard` the
+ * Name cell opens, and naming it by its role is what says the two are one
+ * surface rather than two that happen to look alike.
+ */
+const surface = (page: Page): Locator => page.getByRole('tooltip');
+
+/**
+ * The bar for one row **and one role**, found by the accessible name it carries.
+ *
+ * Never by its place in the list. A project is seeded with two phases, so every
+ * leaf draws two bars and `[data-gantt-bar].nth(1)` is the *first* row's QA
+ * slice rather than the second row's Dev one — the sixteenth check's own fault,
+ * met again while writing this file and caught only because the dates on the
+ * surface were a different row's. The label names both, which is what makes it
+ * the handle: a bar found this way cannot be a bar about something else.
+ */
+const barOf = (page: Page, number: string, role: string): Locator =>
+  page.locator(`[data-gantt-bar][aria-label^="${number} - "][aria-label*="${role} ·"]`);
+
+/**
+ * The rectangle of an element a locator names, or a throw.
+ *
+ * {@link rectOf} takes a selector and the surface is found by role, so this is
+ * the same refusal on the other kind of handle: a box with no area compares
+ * equal to every other box with no area, and two things that are both not
+ * drawn would agree about everything.
+ */
+async function rectOfLocator(where: Locator, what: string): Promise<Rect> {
+  const box = await where.boundingBox();
+  if (box === null) throw new Error(`${what} is not on the page at all`);
+  if (box.width <= 0 || box.height <= 0) {
+    throw new Error(`${what} is drawn with no area: ${String(box.width)}×${String(box.height)}`);
+  }
+  return {
+    left: box.x,
+    right: box.x + box.width,
+    top: box.y,
+    bottom: box.y + box.height,
+    width: box.width,
+    height: box.height,
+  };
+}
+
+/** How far the Gantt panel is scrolled, in both directions. */
+const panelScroll = (page: Page): Promise<{ left: number; top: number }> =>
+  page.evaluate(() => {
+    const panel = document.querySelector('[data-gantt-panel]');
+    if (panel === null) throw new Error('the Gantt panel is not on the page');
+    return { left: panel.scrollLeft, top: panel.scrollTop };
+  });
+
+/**
+ * The surface on a bar, and the three things only a browser can say about it.
+ *
+ * Every claim here is a **layout** claim, which is what puts them in this file
+ * and not in `gantt-panel.test.tsx`: the surface is placed from a rectangle the
+ * browser measured, flipped against a viewport height jsdom does not have, and
+ * clamped against a width it does not have either. `surfacePlacement`'s own
+ * arithmetic is unit-tested in `hover-card.test.tsx` on numbers handed to it;
+ * that the numbers are ever measured at all is only true in here.
+ */
+test.describe('the surface a bar opens, as a browser places it', () => {
+  test('reads the hovered bar’s own dates, with the chart scrolled partway', async ({ page }) => {
+    // Wide enough that the panel really scrolls: at `PAST_THE_WEEKEND` the
+    // whole chart fits in 1400px, `scrollLeft` stays 0 whatever it is set to,
+    // and this would be a claim about an unscrolled chart. Measured, 2026-08-09.
+    await seedPlan(page, nextAccount(), { estimate: '40/40/40' });
+    await openTheChart(page);
+
+    // Partway, and not at either end: a surface that only ever agreed with an
+    // unscrolled chart would pass a check made at scrollLeft 0.
+    await page.evaluate(() => {
+      const panel = document.querySelector('[data-gantt-panel]');
+      if (panel === null) throw new Error('the Gantt panel is not on the page');
+      panel.scrollLeft = Math.floor(panel.scrollWidth / 3);
+    });
+    const scrolled = await panelScroll(page);
+    expect(
+      scrolled.left,
+      'the chart did not scroll, so this is an unscrolled claim',
+    ).toBeGreaterThan(0);
+
+    // `010.2`'s **Dev** bar — the estimated one, and so the slice whose two
+    // days are the row's own Start and End. Its left edge rather than its
+    // middle: at forty days the bar is wider than the window, and a hover on
+    // its centre would have Playwright scroll the chart to find it.
+    const bar = barOf(page, '010.2', 'Dev');
+    await bar.hover({ position: { x: 4, y: 4 } });
+    await expect(surface(page)).toBeVisible();
+
+    // The row's own printed days, off the table rather than computed here: two
+    // derivations of one rule agree by construction and say nothing.
+    const row = rowOf(page, '010.2');
+    const from = await row.locator('[data-start]').textContent();
+    const to = await row.locator('[data-finish]').textContent();
+    expect(from, 'the Start cell prints nothing to compare against').not.toBe('');
+    await expect(surface(page)).toContainText(`${String(from)} → ${String(to)}`);
+    await expect(surface(page)).toContainText('010.2');
+  });
+
+  test('flips a surface above a bar that has no room below it', async ({ page }) => {
+    await seedPlan(page, nextAccount(), { extraRows: 16 });
+    await openTheChart(page);
+
+    // The panel at its bottom, so the last bar drawn stands on the panel's own
+    // lower edge — which is the bottom of the window, this panel being the last
+    // thing on the page.
+    await page.evaluate(() => {
+      const panel = document.querySelector('[data-gantt-panel]');
+      if (panel === null) throw new Error('the Gantt panel is not on the page');
+      panel.scrollTop = panel.scrollHeight;
+    });
+
+    const bar = page.locator('[data-gantt-bar]').last();
+    await bar.hover();
+    await expect(surface(page)).toBeVisible();
+
+    // The bar first, and with an area — a mark of no height is one every
+    // "above" comparison holds about (the sixteenth check).
+    const mark = await rectOfLocator(bar, 'the last bar on the chart');
+    const shown = await rectOfLocator(surface(page), 'the surface');
+    const window_ = await page.evaluate(() => ({
+      width: window.innerWidth,
+      height: window.innerHeight,
+    }));
+    // The precondition: placed below, this surface would hang off the bottom.
+    // Without it the flip has nothing to do and the assertion is about a
+    // surface that would have been in the viewport anyway.
+    expect(
+      mark.bottom + shown.height,
+      'this bar has room below it, so nothing had to flip',
+    ).toBeGreaterThan(window_.height);
+    expect(shown.bottom, 'the surface was not drawn above its bar').toBeLessThanOrEqual(
+      mark.top + NEARLY,
+    );
+    expect(shown.top, 'the surface was flipped off the top of the window').toBeGreaterThanOrEqual(
+      0,
+    );
+    expect(shown.bottom).toBeLessThanOrEqual(window_.height + NEARLY);
+  });
+
+  test('clamps the right-most bar’s surface inside the window', async ({ page }) => {
+    await seedPlan(page, nextAccount());
+    // A long first leaf and a short second one, so the right-most bar on the
+    // chart is narrow and stands at the far end: a wide bar scrolled fully
+    // right has its **left** edge in the middle of the window, where no clamp
+    // is needed and the check below could not fail.
+    const estimate = page.getByLabel('Dev estimate for 010.1');
+    await estimate.fill('40/40/40');
+    const saved = page.waitForResponse((response) => response.request().method() === 'PUT');
+    await estimate.blur();
+    await saved;
+    await openTheChart(page);
+    await scrollChartFullyRight(page);
+
+    const bar = page.locator('[data-gantt-bar]').last();
+    await bar.hover();
+    await expect(surface(page)).toBeVisible();
+
+    const mark = await rectOfLocator(bar, 'the right-most bar');
+    const shown = await rectOfLocator(surface(page), 'the surface');
+    const width = await page.evaluate(() => window.innerWidth);
+    // The precondition, and the whole reason this is not a check about a
+    // surface that was inside the window all along: placed from the bar's own
+    // left edge, this one would end past the right of the screen.
+    expect(
+      mark.left + shown.width,
+      'this bar is far enough from the right edge that no clamp was needed',
+    ).toBeGreaterThan(width);
+    // **Its own rectangle**, and not `document.scrollWidth`: the layer is
+    // `position: fixed`, so a surface hanging off the right edge widens
+    // neither the page nor the panel and no scroll width can witness it.
+    // Measured before this was believed — with the clamp deleted the page's
+    // scrollWidth was unchanged and a scrollWidth check passed.
+    expect(shown.left, 'the surface was clamped off the left edge').toBeGreaterThanOrEqual(0);
+    expect(shown.right, 'the surface hangs off the right edge of the window').toBeLessThanOrEqual(
+      width + NEARLY,
+    );
+  });
+
+  test('takes the surface away when the panel is scrolled under it', async ({ page }) => {
+    // Wide for the reason above: a panel with nothing to scroll fires no
+    // scroll event, and the dismiss would look like it worked.
+    await seedPlan(page, nextAccount(), { estimate: '40/40/40' });
+    await openTheChart(page);
+
+    await barOf(page, '010.1', 'Dev').hover({ position: { x: 4, y: 4 } });
+    await expect(surface(page)).toBeVisible();
+
+    await page.evaluate(() => {
+      const panel = document.querySelector('[data-gantt-panel]');
+      if (panel === null) throw new Error('the Gantt panel is not on the page');
+      panel.scrollLeft += 120;
+      if (panel.scrollLeft === 0) throw new Error('the panel did not scroll, so nothing dismissed');
+    });
+
+    // The surface is a fixed layer outside the panel's scroll box: the bar
+    // moves and it does not, so a surface left open is one pointing at the
+    // wrong bar.
+    await expect(surface(page)).toHaveCount(0);
+  });
+
+  test('picks the row on Space, and does not scroll the panel doing it', async ({ page }) => {
+    // Sixteen extra rows so the panel has somewhere to scroll **to**: Space's
+    // own default is to page the nearest scrollable box, and a panel with no
+    // overflow could not move whether or not the default was prevented.
+    await seedPlan(page, nextAccount(), { extraRows: 16 });
+    await openTheChart(page);
+
+    await page.evaluate(() => {
+      const panel = document.querySelector('[data-gantt-panel]');
+      if (panel === null) throw new Error('the Gantt panel is not on the page');
+      panel.scrollTop = 40;
+      panel.scrollLeft = 20;
+    });
+    const bar = page.locator('[data-gantt-bar]').first();
+    await expect(bar).toHaveAttribute('data-start', '0');
+    const named = await page.getByLabel('Name of 010.1').inputValue();
+    await bar.focus();
+    await expect(bar).toBeFocused();
+    const before = await panelScroll(page);
+    expect(
+      before.top,
+      'the panel is not scrollable here, so a Space that scrolled it could not be seen',
+    ).toBeGreaterThan(0);
+
+    await page.keyboard.press(' ');
+
+    await expect(page.getByLabel('Name of 010.1')).toBeFocused();
+    // jsdom performs no default action at all, so this is the half of the
+    // contract that only a browser can hold — R5 #14's shape exactly. Two
+    // assertions, because the panel's scroll on its own **could not fail**:
+    // the pick moves the focus into the row's name box before the browser
+    // performs the key's default, and a Space typed into a text field scrolls
+    // nothing at all. Watched, 2026-08-09: with `preventDefault` struck out,
+    // the scroll assertion alone passed and this test was green about a bug.
+    // What the unprevented Space actually does is put a space in the name.
+    expect(await panelScroll(page), 'Space scrolled the chart out from under the reader').toEqual(
+      before,
+    );
+    await expect(
+      page.getByLabel('Name of 010.1'),
+      'the Space reached the row’s name box and typed itself into it',
+    ).toHaveValue(named);
+  });
+});
+
+/**
+ * The tap, on a device that really has touch.
+ *
+ * `hasTouch` is what makes Chromium synthesize a whole mouse sequence from a
+ * tap — `pointerover`, `mouseover`, `mousemove`, `mousedown` — which is exactly
+ * the seam the `pointerType` guard has to survive. A jsdom test cannot stand in
+ * for this at any width: it dispatches whatever events it is told to and
+ * synthesizes none.
+ */
+test.describe('a bar on a touch screen', () => {
+  test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+
+  test('takes the plan to the row and opens no surface at all', async ({ page }) => {
+    await seedOnALaptop(page, nextAccount(), { extraRows: 12 });
+    await openTheChart(page, { throughTheSheet: true });
+
+    await page.locator('[data-gantt-bar]').first().tap();
+
+    await expect(page.getByLabel('Name of 010.1')).toBeFocused();
+    // Well past the open delay, so this is "no surface" rather than "not yet".
+    await page.waitForTimeout(600);
+    await expect(surface(page)).toHaveCount(0);
+  });
+
+  test('opens nothing under a finger that stays on the bar', async ({ page }) => {
+    // **The test the guard is actually held by.** A `tap()` lifts the finger
+    // at once, and the `pointerout` that comes with it cancels the opening
+    // whether or not anything looked at `pointerType` — so with the guard
+    // struck out the test above stayed green, watched 2026-08-09. A finger
+    // that stays down is the case where the timer runs to the end, and it is
+    // dispatched through CDP because Playwright's touchscreen has no hold.
+    await seedOnALaptop(page, nextAccount());
+    await openTheChart(page, { throughTheSheet: true });
+
+    const bar = page.locator('[data-gantt-bar]').first();
+    const box = await bar.boundingBox();
+    if (box === null) throw new Error('there is no bar on the chart to press');
+    const touch = await page.context().newCDPSession(page);
+    const at = [{ x: box.x + box.width / 2, y: box.y + box.height / 2 }];
+    await touch.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: at });
+    try {
+      // Longer than the open delay by a wide margin, with the finger still
+      // down: a mouse resting this long has had a surface for hundreds of ms.
+      await page.waitForTimeout(800);
+
+      // Proof: the `pointerType` guard removed — this failed on `expected 0,
+      // received 1`, a surface standing over the plan on a phone with no
+      // pointer to dismiss it. Watched, 2026-08-09.
+      await expect(surface(page)).toHaveCount(0);
+    } finally {
+      await touch.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    }
+  });
+});
+
 /*
  * PROVING THESE CAN FAIL — watched 2026-08-09 against a real chromium on
  * ports 3111/3211/4211, one fault at a time, each reverted. Every message is

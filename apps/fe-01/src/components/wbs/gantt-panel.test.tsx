@@ -1,6 +1,6 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import type { IsoDate } from '@wbs/domain/workday';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type {
   Days,
@@ -26,6 +26,7 @@ import {
   GanttPanel,
   initialsOf,
   ROW_PX,
+  rowWords,
 } from './gantt-panel';
 import { type SubscriptionHandlers, WbsTable } from './wbs-table';
 
@@ -47,6 +48,12 @@ const rowAt = (
   leaf: true,
   schedule: { earliestStart, earliestFinish },
   notBeforeOffset: null,
+  // The three facts a row is enriched with before the chart is drawn. Absent
+  // by default and named by the tests that are about them, so a fixture never
+  // has to state a team it is not asking about.
+  team: { state: 'none' },
+  trioByRole: new Map(),
+  waitsFor: [],
   ...extras,
 });
 
@@ -84,6 +91,51 @@ const planOf = (parts: Partial<GanttPlan>): GanttPlan => ({
 
 const barFor = (sliceId: string): Element | null =>
   document.querySelector(`[data-gantt-bar="${sliceId}"]`);
+
+/**
+ * One bar of the chart, or a throw naming the one that is not there.
+ *
+ * A throw rather than a null the assertion then optional-chains through: a
+ * hover opened on nothing would leave every `expect` below reading `undefined`
+ * and failing as an argument error rather than as anything about the chart.
+ */
+function markFor(sliceId: string): Element {
+  const bar = barFor(sliceId);
+  if (bar === null) throw new Error(`no bar on the chart for ${sliceId}`);
+  return bar;
+}
+
+/**
+ * Opens a bar's surface the way the keyboard does, and hands it back.
+ *
+ * The focus and not the pointer, in every test that is about the **words**: it
+ * carries no delay, so nothing here has to run a timer to read a sentence. The
+ * pointer's own path — the delay, its cancellation and the touch seam — has
+ * tests of its own further down.
+ */
+function surfaceOn(sliceId: string): HTMLElement {
+  fireEvent.focus(markFor(sliceId));
+  return screen.getByRole('tooltip');
+}
+
+/** Every line of an open surface, in the order it shows them. */
+const linesOf = (surface: HTMLElement): string[] =>
+  [...surface.querySelectorAll('p')].map((line) => line.textContent);
+
+/**
+ * A bar's accessible name, or a sentence saying it has none.
+ *
+ * A sentence rather than the `null` `getAttribute` answers, for
+ * {@link markAttribute}'s reason: `expect(null).toContain(…)` fails as an
+ * invalid **assertion** rather than as anything about the chart, and the
+ * message then names neither the bar nor the fact that went missing. Watched
+ * with the `aria-label` deleted, 2026-08-09.
+ */
+const labelOf = (bar: Element): string =>
+  bar.getAttribute('aria-label') ?? 'this bar carries no accessible name at all';
+
+/** Whether any surface is open anywhere on the page. */
+const noSurface = (): boolean => screen.queryByRole('tooltip') === null;
 
 /**
  * One attribute of one mark on the chart, or a sentence saying the mark is not
@@ -220,6 +272,7 @@ describe('every mark on the chart lands on the calendar day its workday is', () 
         plan={everyMarkOnOneDay()}
         startDate={MONDAY_START}
         scheduleError={null}
+        generation={0}
         onPickRow={() => undefined}
       />,
     );
@@ -272,6 +325,7 @@ describe('every mark on the chart lands on the calendar day its workday is', () 
         plan={everyMarkOnOneDay()}
         startDate={MONDAY_START}
         scheduleError={null}
+        generation={0}
         onPickRow={() => undefined}
       />,
     );
@@ -308,6 +362,7 @@ describe('the chart is drawn in calendar days', () => {
         })}
         startDate={MONDAY_START}
         scheduleError={null}
+        generation={0}
         onPickRow={() => undefined}
       />,
     );
@@ -339,6 +394,7 @@ describe('the chart is drawn in calendar days', () => {
         })}
         startDate={MONDAY_START}
         scheduleError={null}
+        generation={0}
         onPickRow={() => undefined}
       />,
     );
@@ -408,6 +464,7 @@ describe('the chart is drawn in calendar days', () => {
         })}
         startDate={null}
         scheduleError={null}
+        generation={0}
         onPickRow={() => undefined}
       />,
     );
@@ -444,6 +501,7 @@ describe('the chart is drawn in calendar days', () => {
         })}
         startDate={null}
         scheduleError={null}
+        generation={0}
         onPickRow={() => undefined}
       />,
     );
@@ -482,6 +540,7 @@ describe('the chart is drawn in calendar days', () => {
         })}
         startDate={MONDAY_START}
         scheduleError={null}
+        generation={0}
         onPickRow={() => undefined}
       />,
     );
@@ -525,6 +584,7 @@ describe('the chart is drawn in calendar days', () => {
         })}
         startDate={MONDAY_START}
         scheduleError={null}
+        generation={0}
         onPickRow={() => undefined}
       />,
     );
@@ -560,6 +620,7 @@ describe('the chart is drawn in calendar days', () => {
         })}
         startDate={null}
         scheduleError={null}
+        generation={0}
         onPickRow={() => undefined}
       />,
     );
@@ -595,6 +656,7 @@ describe('the chart is drawn in calendar days', () => {
         })}
         startDate={MONDAY_START}
         scheduleError={null}
+        generation={0}
         onPickRow={() => undefined}
       />,
     );
@@ -619,35 +681,188 @@ describe('the chart is drawn in calendar days', () => {
     expect(document.querySelector('[data-gantt-tick="trim-dev"]')).toBeNull();
   });
 
-  itDom('says everything it knows in a title nothing scales, floor last', () => {
+  itDom('says everything it knows in a surface, in the order the spec sets', () => {
     render(
       <GanttPanel
         plan={planOf({
-          rows: [rowAt('strip', 2, 5, { number: '010', name: 'Strip the hull' })],
+          rows: [
+            rowAt('strip', 2, 5, {
+              number: '3.2',
+              name: 'API',
+              team: { state: 'named', name: 'Platform' },
+              trioByRole: new Map([['dev', { optimistic: 2, realistic: 3, pessimistic: 8 }]]),
+              waitsFor: ['3.1 Design'],
+            }),
+          ],
           slices: [
             sliceAt('strip-dev', 'strip', 2, 5, {
               boundBy: 'predecessor',
               personId: 'kat',
-              float: 1.5,
+              float: 2,
             }),
           ],
           personNames: new Map([['kat', 'Kat']]),
         })}
         startDate={null}
         scheduleError={null}
+        generation={0}
         onPickRow={() => undefined}
       />,
     );
 
-    // One fact to a line, and the binding floor last — the sentence the panel
-    // was built to show is where a reader's eye ends.
-    expect(barFor('strip-dev')?.querySelector('title')?.textContent.split('\n')).toEqual([
-      '010 - Strip the hull',
+    const surface = surfaceOn('strip-dev');
+    // One fact to a line, the binding floor near the end — the sentence the
+    // panel was built to show — and what the row waits for after it.
+    expect(linesOf(surface)).toEqual([
+      '3.2 - API',
       'Dev · Kat',
+      'Team Platform',
       'Workdays 2 → 5 · 3 days',
-      'Float 1.5 days',
+      '2/3/8',
+      'Float 2 days',
       'Waits for a dependency to finish',
+      'after 3.1 Design',
     ]);
+    // The heading against `rowWords`' own output and not against the literal
+    // above it: the surface opens on the same line the chart's label column and
+    // the plan's Number column read, and a test written to a literal alone
+    // would let the two drift apart while staying green.
+    expect(linesOf(surface)[0]).toBe(rowWords('3.2', 'API'));
+  });
+
+  itDom('says no float figure at all on a bar of the critical path', () => {
+    render(
+      <GanttPanel
+        plan={planOf({
+          rows: [rowAt('strip', 0, 3, { number: '010', name: 'Strip' })],
+          slices: [sliceAt('strip-dev', 'strip', 0, 3, { critical: true, float: 0 })],
+        })}
+        startDate={null}
+        scheduleError={null}
+        generation={0}
+        onPickRow={() => undefined}
+      />,
+    );
+
+    const lines = linesOf(surfaceOn('strip-dev'));
+    expect(lines).toContain('On the critical path — no float');
+    expect(lines.filter((line) => line.startsWith('Float'))).toEqual([]);
+  });
+
+  itDom('leaves no line blank where a fact is missing', () => {
+    // Every absence at once, on one chart: a slice under no role, nobody
+    // assigned, no estimate for that role, and no team. Each says so in words —
+    // the whole of the "nothing is blank" scenario, on a project holding no
+    // roles at all.
+    render(
+      <GanttPanel
+        plan={planOf({
+          rows: [rowAt('strip', 0, 3, { number: '010', name: 'Strip' })],
+          slices: [sliceAt('strip-dev', 'strip', 0, 3, { roleId: null })],
+          roles: [],
+        })}
+        startDate={null}
+        scheduleError={null}
+        generation={0}
+        onPickRow={() => undefined}
+      />,
+    );
+
+    const lines = linesOf(surfaceOn('strip-dev'));
+    expect(lines).toContain('No role · Unassigned');
+    expect(lines).toContain('No team');
+    expect(lines).toContain('No estimate for this role');
+    // And nothing empty among them, which is the fact the three lines above
+    // cannot state between them: a line rendered and blank passes all three.
+    expect(lines.filter((line) => line.trim() === '')).toEqual([]);
+    // The row waits for nothing, and that is the one absence with no words —
+    // `after` with nothing after it is not a fact.
+    expect(lines.filter((line) => line.startsWith('after'))).toEqual([]);
+  });
+
+  itDom('names a team the directory read does not hold, and still draws', () => {
+    // The skew this state exists for: the label arrives with the tree and the
+    // team names with their own request, so a team created between the two is
+    // stale rather than lost.
+    //
+    // Proof: the `unresolved` arm of `teamWords` replaced by `return ''` — the
+    // blank label this branch exists not to render. This test alone failed, on
+    // `expected [ '010 - Strip', 'Dev · Unassigned', …(4) ] to include 'Team
+    // not in this directory read'`, with an empty paragraph on the surface in
+    // its place. Watched, 2026-08-09.
+    render(
+      <GanttPanel
+        plan={planOf({
+          rows: [
+            rowAt('strip', 0, 3, {
+              number: '010',
+              name: 'Strip',
+              team: { state: 'unresolved' },
+            }),
+          ],
+          slices: [sliceAt('strip-dev', 'strip', 0, 3)],
+        })}
+        startDate={null}
+        scheduleError={null}
+        generation={0}
+        onPickRow={() => undefined}
+      />,
+    );
+
+    expect(linesOf(surfaceOn('strip-dev'))).toContain('Team not in this directory read');
+    expect(document.querySelector('[data-gantt-chart]')).not.toBeNull();
+  });
+
+  itDom('gives each role’s bar its own dates and its own trio', () => {
+    // Two roles on one leaf, which is the whole of "a bar's facts are its own
+    // slice's": the row spans 0 → 5 and neither bar says so.
+    //
+    // Proof: the two dates derived from the row's own span — `spanWords` fed
+    // `row.schedule.earliestStart/earliestFinish` in place of the bar's start
+    // and finish. This test alone failed, on `expected [ '010 - Deck', 'Dev ·
+    // Unassigned', …(4) ] to include '10 Aug → 12 Aug · 3 days'` — both bars
+    // reading `10 Aug → 14 Aug`, the work item's whole span on the QA slice
+    // that never touched the Monday. Watched, 2026-08-09.
+    render(
+      <GanttPanel
+        plan={planOf({
+          rows: [
+            rowAt('deck', 0, 5, {
+              number: '010',
+              name: 'Deck',
+              trioByRole: new Map([
+                ['dev', { optimistic: 2, realistic: 3, pessimistic: 8 }],
+                ['qa', { optimistic: 1, realistic: 1, pessimistic: 1 }],
+              ]),
+            }),
+          ],
+          slices: [
+            sliceAt('deck-dev', 'deck', 0, 3),
+            sliceAt('deck-qa', 'deck', 3, 5, { roleId: 'qa' }),
+          ],
+          roles: [
+            { id: 'dev', name: 'Dev' },
+            { id: 'qa', name: 'QA' },
+          ],
+        })}
+        startDate={MONDAY_START}
+        scheduleError={null}
+        generation={0}
+        onPickRow={() => undefined}
+      />,
+    );
+
+    // The Dev slice runs 0 → 3 off a Monday origin and the QA slice 3 → 5, so
+    // the two bars name different days and the row's own 10 Aug → 14 Aug span
+    // is on neither of them.
+    expect(linesOf(surfaceOn('deck-dev'))).toContain('10 Aug → 12 Aug · 3 days');
+    expect(linesOf(surfaceOn('deck-dev'))).toContain('2/3/8');
+    fireEvent.blur(markFor('deck-dev'));
+    const qa = linesOf(surfaceOn('deck-qa'));
+    expect(qa).toContain('13 Aug → 14 Aug · 2 days');
+    // The bar's own role's trio, never the row's first one.
+    expect(qa).toContain('1/1/1');
+    expect(qa).not.toContain('2/3/8');
   });
 
   itDom('says on the ghost bar that its width is a drawing and not an estimate', () => {
@@ -659,22 +874,25 @@ describe('the chart is drawn in calendar days', () => {
         })}
         startDate={null}
         scheduleError={null}
+        generation={0}
         onPickRow={() => undefined}
       />,
     );
 
-    // A line of its own, between the dates and the float, so it is read rather
+    // A line of its own, between the dates and the trio, so it is read rather
     // than found.
     //
-    // Proof: the line dropped from `barWords` — this test alone failed, on
-    // `expected [ '020 - Sand the deck', …(4) ] to deeply equal [ '020 - Sand
-    // the deck', …(5) ]`, and the only thing left saying
+    // Proof: the line dropped from `barFacts` — this test alone failed, on
+    // `expected [ '020 - Sand the deck', …(5) ] to deeply equal [ '020 - Sand
+    // the deck', …(6) ]`, and the only thing left saying
     // the two days were invented was the bar's own paint. Watched, 2026-08-09.
-    expect(barFor('sand-dev')?.querySelector('title')?.textContent.split('\n')).toEqual([
+    expect(linesOf(surfaceOn('sand-dev'))).toEqual([
       '020 - Sand the deck',
       'Dev · Unassigned',
+      'No team',
       'Workdays 3 → 3 · not estimated',
       'Not estimated — drawn as 2 days',
+      'No estimate for this role',
       'Float 0 days',
       'Starts with the project',
     ]);
@@ -694,21 +912,24 @@ describe('the chart is drawn in calendar days', () => {
         })}
         startDate={MONDAY_START}
         scheduleError={null}
+        generation={0}
         onPickRow={() => undefined}
       />,
     );
 
-    const bar = barFor('strip-dev');
+    const bar = markFor('strip-dev');
     // The prose rounds and the drawing does not — the one place in this panel
-    // where a schedule number is not carried verbatim.
-    expect(bar?.querySelector('title')?.textContent).toContain('3.67 days');
-    expect(bar?.querySelector('title')?.textContent).toContain('On the critical path');
+    // where a schedule number is not carried verbatim. Read off the bar's own
+    // `aria-label`, which is the same derivation the surface renders and the
+    // one thing left naming the slice once the `<title>` has gone.
+    expect(labelOf(bar)).toContain('3.67 days');
+    expect(labelOf(bar)).toContain('On the critical path');
     // The fraction survives the scale: the bar starts at the Monday, seven
     // calendar days in, and is drawn the whole three-and-two-thirds of it
     // rather than the two places the sentence above prints.
-    expect(bar?.getAttribute('x')).toBe('7');
-    expect(bar?.getAttribute('width')).not.toBe('3.67');
-    expect(Number(bar?.getAttribute('width'))).toBeCloseTo(3.6666666666666665, 12);
+    expect(bar.getAttribute('x')).toBe('7');
+    expect(bar.getAttribute('width')).not.toBe('3.67');
+    expect(Number(bar.getAttribute('width'))).toBeCloseTo(3.6666666666666665, 12);
   });
 
   itDom('draws every other mark the geometry placed, in the same calendar days', () => {
@@ -717,6 +938,7 @@ describe('the chart is drawn in calendar days', () => {
         plan={everyMarkOnOneDay()}
         startDate={MONDAY_START}
         scheduleError={null}
+        generation={0}
         onPickRow={() => undefined}
       />,
     );
@@ -777,6 +999,7 @@ describe('the chart is drawn in calendar days', () => {
         })}
         startDate={null}
         scheduleError="cycle"
+        generation={0}
         onPickRow={() => undefined}
       />,
     );
@@ -864,6 +1087,7 @@ describe('the marks that had to be seen', () => {
         plan={touchingPlan()}
         startDate={startDate}
         scheduleError={null}
+        generation={0}
         onPickRow={() => undefined}
       />,
     );
@@ -1061,6 +1285,7 @@ describe('the canvas holds every mark it draws', () => {
         plan={routeOffBothEnds()}
         startDate={MONDAY_START}
         scheduleError={null}
+        generation={0}
         onPickRow={() => undefined}
       />,
     );
@@ -1090,6 +1315,7 @@ describe('the canvas holds every mark it draws', () => {
         plan={routeOffBothEnds()}
         startDate={MONDAY_START}
         scheduleError={null}
+        generation={0}
         onPickRow={() => undefined}
       />,
     );
@@ -1130,6 +1356,7 @@ describe('the words on the bars are HTML over the chart', () => {
         plan={oneAssignedBar({ start: 5, finish: 9, duration: 4 })}
         startDate={MONDAY_START}
         scheduleError={null}
+        generation={0}
         onPickRow={() => undefined}
       />,
     );
@@ -1173,6 +1400,7 @@ describe('the words on the bars are HTML over the chart', () => {
         plan={oneAssignedBar({ start: 3, finish: 3.2, duration: 0.2 })}
         startDate={null}
         scheduleError={null}
+        generation={0}
         onPickRow={() => undefined}
       />,
     );
@@ -1204,6 +1432,7 @@ describe('the words on the bars are HTML over the chart', () => {
         })}
         startDate={null}
         scheduleError={null}
+        generation={0}
         onPickRow={() => undefined}
       />,
     );
@@ -1251,6 +1480,7 @@ describe('the words on the bars are HTML over the chart', () => {
         plan={oneAssignedBar({ start: 3, finish: 7, duration: 4 })}
         startDate={null}
         scheduleError={null}
+        generation={0}
         onPickRow={() => undefined}
       />,
     );
@@ -1273,6 +1503,7 @@ describe('the axis is a calendar', () => {
         })}
         startDate={startDate}
         scheduleError={null}
+        generation={0}
         onPickRow={() => undefined}
       />,
     );
@@ -1357,6 +1588,7 @@ describe('the axis is a calendar', () => {
         })}
         startDate={MONDAY_START}
         scheduleError={null}
+        generation={0}
         onPickRow={() => undefined}
       />,
     );
@@ -1541,6 +1773,14 @@ const notImplemented = (what: string): never => {
 interface ReadSkew {
   /** The slices `tree` answers with, when the fixture's own will not do. */
   slices?: SliceView[];
+  /**
+   * Stored dependencies to hang on the fixture's rows, by dependent id.
+   *
+   * A skew option rather than a field of {@link PLAN} so the chart every other
+   * test in this file measures keeps drawing no arrows at all: an edge added to
+   * the fixture is a mark added to twenty drawings that are not about it.
+   */
+  waits?: Record<string, string[]>;
   /** What the **separate** role read says, when it disagrees with the payload. */
   roles?: RoleView[];
   /** What the **separate** people read says, when it disagrees with the payload. */
@@ -1561,7 +1801,11 @@ function fakeApi(startDate: string | null, skew: ReadSkew = {}): ProjectApi {
   return {
     tree: () =>
       Promise.resolve({
-        workItems: PLAN.map((row) => ({ ...row, dates: startDate === null ? null : row.dates })),
+        workItems: PLAN.map((row) => ({
+          ...row,
+          dates: startDate === null ? null : row.dates,
+          dependsOn: skew.waits?.[row.id] ?? row.dependsOn,
+        })),
         seq: 0,
         scheduleError: null,
         slices: skew.slices ?? SLICES,
@@ -1790,24 +2034,25 @@ describe('the calendar axis agrees with the columns', () => {
     expect(axisDateOn(bar.getAttribute('data-start') ?? '')).toBe(columnDay('start', 2));
     expect(axisDateOn(bar.getAttribute('data-last-day') ?? '')).toBe(columnDay('finish', 2));
     // The same two days in the sentence the bar shows on hover, which is where
-    // a reader meets the rule rather than in an attribute.
-    expect(bar.querySelector('title')?.textContent).toContain('2026-08-13 → 2026-08-14');
+    // a reader meets the rule rather than in an attribute — printed by
+    // `shortIsoDate`, which is the form the columns beside it print too.
+    expect(labelOf(bar)).toContain('13 Aug → 14 Aug');
     // And it names neither of the two days a coordinate would give it. This
     // bar runs 3 → 5 and its right edge stops at calendar day 5 — Saturday
     // 2026-08-15, which nobody worked — while `addWorkdays(start, 5)` is
     // Monday 2026-08-17, the day its successor begins.
     //
-    // Proof, **two faults, two runs**, each failing this test alone on
-    // `expected '012 - Sealing\nDev · Unassigned\n2026…' to contain
-    // '2026-08-13 → 2026-08-14'` — vitest abbreviates the title, and the two
-    // sentences it abbreviates are different. Watched 2026-08-09:
+    // Proof, **three faults, three runs**, each failing this test alone.
+    // Watched 2026-08-09:
     //   `spanWords`' finish fed `addWorkdays(start, endOf(5))`, which names
-    //     Monday 2026-08-17 — the day the successor begins;
+    //     Monday 17 Aug — the day the successor begins;
     //   `spanWords`' finish fed `addCalendarDays(start, endOf(5))`, which names
-    //     Saturday 2026-08-15 — the day the bar's right edge stands on and
-    //     nobody worked.
-    expect(bar.querySelector('title')?.textContent).not.toContain('2026-08-17');
-    expect(bar.querySelector('title')?.textContent).not.toContain('2026-08-15');
+    //     Saturday 15 Aug — the day the bar's right edge stands on and nobody
+    //     worked;
+    //   the dates derived from the row's own `dates` span instead of the bar's
+    //     offsets, which is the same wrong answer wearing a third hat.
+    expect(labelOf(bar)).not.toContain('17 Aug');
+    expect(labelOf(bar)).not.toContain('15 Aug');
     // And the fixture's own claim about what be-01 printed, so a panel and a
     // table that agreed on the wrong dates would still be caught.
     expect(columnDay('start', 2)).toBe('2026-08-13');
@@ -1955,7 +2200,7 @@ describe('the chart is drawn from one read', () => {
     ]);
     // The phase's name is read from the same list the bar was placed by, so a
     // chart drawn from the skewed read would either throw or say `Ops`.
-    expect(barOn('sanding').querySelector('title')?.textContent).toContain('Dev');
+    expect(labelOf(barOn('sanding'))).toContain('Dev');
   });
 
   itDom('names the people the payload carried, not the directory read', async () => {
@@ -1974,7 +2219,7 @@ describe('the chart is drawn from one read', () => {
     // to be null` — the boundary reading `slice sanding::role-dev is assigned
     // to kat, whom this plan does not name`. Watched 2026-08-09.
     expect(faultWords()).toBeNull();
-    expect(barOn('sanding').querySelector('title')?.textContent).toContain('Kat');
+    expect(labelOf(barOn('sanding'))).toContain('Kat');
     // And she is painted as somebody rather than as nobody, which is the other
     // thing the name decides.
     expect(barOn('sanding').getAttribute('fill')).toBe(PERSON_BAR_COLORS[0]);
@@ -1997,6 +2242,7 @@ describe('the caption follows the scroll', () => {
         })}
         startDate="2026-08-24"
         scheduleError={null}
+        generation={0}
         onPickRow={() => undefined}
       />,
     );
@@ -2022,5 +2268,333 @@ describe('the caption follows the scroll', () => {
     fireEvent.scroll(panel);
     expect(screen.getByText('2026-09')).toBeDefined();
     expect(screen.queryByText('2026-08')).toBeNull();
+  });
+});
+
+/**
+ * A plan whose predecessor is hidden and whose dependent is not — the two ways
+ * a row leaves the screen while a bar still has to name it.
+ *
+ * `Rigging` is a root and `Sanding` is inside `Hull`, so collapsing `Hull` and
+ * searching for `Rigging` each take the predecessor off the chart and leave the
+ * dependent on it.
+ */
+const RIGGING_WAITS_FOR_SANDING: ReadSkew = { waits: { rigging: ['sanding'] } };
+
+describe('a bar names what its row waits for, from the whole tree', () => {
+  itDom('names a predecessor inside a collapsed branch', async () => {
+    await showTheChart(MONDAY, RIGGING_WAITS_FOR_SANDING);
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse all' }));
+    expect(labelsOnTheChart()).toEqual(['010 - Hull', '020 - Rigging']);
+
+    // Proof: `namedInTheTree` built from `shownRows` instead of `flat` — this
+    // test failed on `expected [ '020 - Rigging', 'Dev · Unassigned', …(5) ] to
+    // include 'after 011 Sanding'`, the bar reading `after work that is not
+    // shown` about a row the plan holds and the reader has merely closed. The
+    // search test below failed on the same edit; both watched, 2026-08-09.
+    expect(linesOf(surfaceOn('rigging::role-dev'))).toContain('after 011 Sanding');
+  });
+
+  itDom('names a predecessor a search narrowed away', async () => {
+    await showTheChart(MONDAY, RIGGING_WAITS_FOR_SANDING);
+    fireEvent.change(screen.getByLabelText('Find'), { target: { value: 'Rigging' } });
+    expect(labelsOnTheChart()).toEqual(['020 - Rigging']);
+
+    // The second half of the same fault, and it has its own test because a
+    // collapse and a search narrow the plan by two different mechanisms.
+    expect(linesOf(surfaceOn('rigging::role-dev'))).toContain('after 011 Sanding');
+  });
+});
+
+describe('a bar is named and operable without a mouse', () => {
+  /** Two bars on two rows, drawn straight rather than through the table. */
+  const twoBars = (): GanttPlan =>
+    planOf({
+      rows: [
+        rowAt('strip', 0, 3, { number: '010', name: 'Strip' }),
+        rowAt('sand', 3, 5, { number: '020', name: 'Sand' }),
+      ],
+      slices: [sliceAt('strip-dev', 'strip', 0, 3), sliceAt('sand-dev', 'sand', 3, 5)],
+    });
+
+  const drawTwoBars = (picked: (rowId: string) => void = () => undefined): void => {
+    render(
+      <GanttPanel
+        plan={twoBars()}
+        startDate={MONDAY_START}
+        scheduleError={null}
+        generation={0}
+        onPickRow={picked}
+      />,
+    );
+  };
+
+  itDom('carries its facts as an accessible name, and no <title> at all', () => {
+    drawTwoBars();
+
+    const bars = [...document.querySelectorAll('[data-gantt-bar]')];
+    expect(bars).toHaveLength(2);
+    for (const bar of bars) {
+      // Proof, twice, watched 2026-08-09. The `aria-label` deleted from the
+      // rect: this failed on `expected null to be a string`, which is a bar
+      // with no name at all once the tooltip has gone — the fault the label had
+      // to arrive **before** the `<title>` left. And a `<title>` restored as a
+      // child of the rect: this failed on `expected <title /> to be null`, two
+      // tooltips on one mark.
+      expect(typeof bar.getAttribute('aria-label')).toBe('string');
+      expect(bar.querySelector('title')).toBeNull();
+    }
+    expect(labelOf(bars[0])).toContain('010 - Strip');
+    // The one `<title>` this change leaves alone lives on the caret, and this
+    // plan holds none — so no bar on this chart carries one at all.
+    expect(document.querySelector('[data-gantt-bar] title')).toBeNull();
+  });
+
+  itDom('shows a bar’s surface on focus and takes it away on blur', () => {
+    drawTwoBars();
+
+    fireEvent.focus(markFor('strip-dev'));
+    expect(linesOf(screen.getByRole('tooltip'))[0]).toBe('010 - Strip');
+
+    fireEvent.blur(markFor('strip-dev'));
+    expect(noSurface()).toBe(true);
+  });
+
+  itDom('takes the plan to the row on Enter and on Space, and eats the key', () => {
+    const picked: string[] = [];
+    drawTwoBars((rowId) => picked.push(rowId));
+
+    // `fireEvent` answers `false` for an event whose default was prevented,
+    // which is the only thing jsdom can say about `preventDefault` — it
+    // performs no default action of its own. That Space really does not scroll
+    // the panel is a browser fact and is asserted in `e2e/gantt.spec.ts`; this
+    // is the half that says the call is made at all.
+    expect(fireEvent.keyDown(markFor('sand-dev'), { key: 'Enter' })).toBe(false);
+    expect(fireEvent.keyDown(markFor('sand-dev'), { key: ' ' })).toBe(false);
+    expect(picked).toEqual(['sand', 'sand']);
+  });
+
+  itDom('leaves every other key to the page', () => {
+    const picked: string[] = [];
+    drawTwoBars((rowId) => picked.push(rowId));
+
+    // Proof: the `key` guard removed so every keydown picked the row — this
+    // failed on `expected [ 'sand' ] to deeply equal []` and on `expected false
+    // to be true`, a bar that swallowed Tab and took the reader off the chart
+    // with it. Watched, 2026-08-09.
+    expect(fireEvent.keyDown(markFor('sand-dev'), { key: 'Tab' })).toBe(true);
+    expect(picked).toEqual([]);
+  });
+});
+
+describe('one surface at a time, and it goes when its facts do', () => {
+  const twoBarPlan = (numbers: [string, string]): GanttPlan =>
+    planOf({
+      rows: [
+        rowAt('strip', 0, 3, { number: numbers[0], name: 'Strip' }),
+        rowAt('sand', 3, 5, { number: numbers[1], name: 'Sand' }),
+      ],
+      slices: [sliceAt('strip-dev', 'strip', 0, 3), sliceAt('sand-dev', 'sand', 3, 5)],
+    });
+
+  const oneBarPlan = (): GanttPlan =>
+    planOf({
+      rows: [rowAt('strip', 0, 3, { number: '010', name: 'Strip' })],
+      slices: [sliceAt('strip-dev', 'strip', 0, 3)],
+    });
+
+  const draw = (plan: GanttPlan, generation: number) => (
+    <GanttPanel
+      plan={plan}
+      startDate={MONDAY_START}
+      scheduleError={null}
+      generation={generation}
+      onPickRow={() => undefined}
+    />
+  );
+
+  /**
+   * A pointer event of one kind or the other, built by hand.
+   *
+   * jsdom has no `PointerEvent`, so `fireEvent.pointerOver(node, { pointerType
+   * })` constructs a plain `Event` and the init's `pointerType` is dropped on
+   * the floor — the guard then reads `undefined`, refuses, and every assertion
+   * about the pointer path passes because nothing ever opened. Watched:
+   * `opens one surface, and only the last mark's` could not find a tooltip at
+   * all. The property is defined on the event itself instead.
+   */
+  const pointerEvent = (kind: 'mouse' | 'touch', name: 'pointerover' | 'pointerout'): Event => {
+    const event = new Event(name, { bubbles: true, cancelable: true });
+    Object.defineProperty(event, 'pointerType', { value: kind });
+    return event;
+  };
+
+  /** A pointer resting on a mark, which is what the delay is measured from. */
+  const restOn = (sliceId: string): void => {
+    fireEvent(markFor(sliceId), pointerEvent('mouse', 'pointerover'));
+  };
+
+  itDom('opens nothing for a pointer that crosses the chart', () => {
+    vi.useFakeTimers();
+    try {
+      render(draw(twoBarPlan(['010', '020']), 0));
+
+      restOn('strip-dev');
+      fireEvent(markFor('strip-dev'), pointerEvent('mouse', 'pointerout'));
+      act(() => {
+        vi.advanceTimersByTime(1000);
+      });
+
+      // Proof: the `clearTimeout` in `cancelOpening` removed, so a departure
+      // cancelled nothing — this failed on `expected false to be true`, a
+      // surface opening a fifth of a second after the pointer had gone.
+      // Watched, 2026-08-09.
+      expect(noSurface()).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  itDom('opens one surface, and only the last mark’s', () => {
+    vi.useFakeTimers();
+    try {
+      render(draw(twoBarPlan(['010', '020']), 0));
+
+      restOn('strip-dev');
+      act(() => {
+        vi.advanceTimersByTime(1000);
+      });
+      expect(linesOf(screen.getByRole('tooltip'))[0]).toBe('010 - Strip');
+
+      restOn('sand-dev');
+      act(() => {
+        vi.advanceTimersByTime(1000);
+      });
+
+      // One tooltip on the page, and it is the second bar's: `getByRole`
+      // throws where two match, which is what makes this the one-at-a-time
+      // assertion rather than two about the second bar.
+      expect(linesOf(screen.getByRole('tooltip'))[0]).toBe('020 - Sand');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  itDom('opens nothing at all for a pointer that is not a mouse', () => {
+    // The guard, not its consequence: Chromium synthesizes a whole mouse
+    // sequence from a tap and jsdom synthesizes nothing, so what this can see
+    // is that a `touch` pointer opens no surface. That the **synthesized**
+    // events do not open one either is a browser fact, and it is asserted at
+    // 390×844 with `hasTouch` in `e2e/gantt.spec.ts`.
+    vi.useFakeTimers();
+    try {
+      render(draw(twoBarPlan(['010', '020']), 0));
+
+      fireEvent(markFor('strip-dev'), pointerEvent('touch', 'pointerover'));
+      act(() => {
+        vi.advanceTimersByTime(1000);
+      });
+
+      expect(noSurface()).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  itDom('closes when the bar it was opened on is no longer drawn', () => {
+    const { rerender } = render(draw(twoBarPlan(['010', '020']), 0));
+    fireEvent.focus(markFor('sand-dev'));
+    expect(noSurface()).toBe(false);
+
+    // The row narrowed off or collapsed away: its `<rect>` unmounts, and a
+    // surface pointing at a mark that is not on the chart is worse than none.
+    //
+    rerender(draw(oneBarPlan(), 0));
+    expect(noSurface()).toBe(true);
+
+    // **And it does not come back when the row does.** The assertion above is
+    // the one that cannot fail on its own: a surface whose bar is gone renders
+    // nothing whether or not the state behind it was cleared, so deleting the
+    // close left all 63 tests green — watched, 2026-08-09. What the close
+    // actually buys is this: expanding the branch again brings the `<rect>`
+    // back, and a surface nobody asked for reopens at the rectangle the bar
+    // used to be at.
+    //
+    // Proof: the anchor-gone effect deleted — this test alone failed, on
+    // `expected false to be true`, with the surface back over a bar the
+    // pointer had never returned to. Watched, 2026-08-09.
+    rerender(draw(twoBarPlan(['010', '020']), 0));
+
+    expect(noSurface()).toBe(true);
+  });
+
+  itDom('closes on a new chart read even where React reuses the very same node', () => {
+    const { rerender } = render(draw(twoBarPlan(['010', '020']), 0));
+    const anchor = markFor('strip-dev');
+    fireEvent.focus(anchor);
+    expect(noSurface()).toBe(false);
+
+    // The same slice ids and different numbers: React keeps every `<rect>`,
+    // nothing unmounts, and the identity assertion below is what says so — a
+    // test that did not make it would be asserting the unmount close over
+    // again and would prove nothing about this one.
+    rerender(draw(twoBarPlan(['3.1', '3.2']), 1));
+
+    // Proof: the reused node. `markFor('strip-dev')` is the same element
+    // before and after, so the anchor-gone effect cannot fire — with the
+    // generation effect deleted this failed on `expected false to be true`
+    // while `closes when the bar it was opened on is no longer drawn` stayed
+    // green, which is the whole reason both exist. Watched, 2026-08-09.
+    expect(markFor('strip-dev')).toBe(anchor);
+    expect(labelOf(markFor('strip-dev'))).toContain('3.1 - Strip');
+    expect(noSurface()).toBe(true);
+  });
+
+  itDom('closes when the panel is scrolled', () => {
+    render(draw(twoBarPlan(['010', '020']), 0));
+    fireEvent.focus(markFor('strip-dev'));
+    expect(noSurface()).toBe(false);
+
+    // Proof: the `dismiss()` dropped from the panel's `onScroll` — this failed
+    // on `expected false to be true`, a fixed surface left pointing at where a
+    // bar used to be. Watched, 2026-08-09.
+    fireEvent.scroll(screen.getByLabelText('Gantt chart'));
+
+    expect(noSurface()).toBe(true);
+  });
+});
+
+describe('the dates a bar says are printed by shortIsoDate and nothing else', () => {
+  itDom('prints a day in another year with that year on it', () => {
+    // `shortIsoDate` drops the year only when it matches the reader's own, so a
+    // plan running in 2027 prints `1 Jun 2027` — which `shortInstant` and a
+    // hand-rolled `toLocaleDateString` both spell differently.
+    //
+    // Proof, in two runs and both watched 2026-08-09:
+    //   `shortIsoDate` replaced by `(iso) => new Date(iso).toLocaleDateString()`
+    //     — this failed on `expected [ …(5) ] to include '1 Jun 2027 → 1 Jun
+    //     2027 · 1 day'`, the surface reading `6/1/2027 → 6/1/2027`;
+    //   the same replacement under `TZ=America/Los_Angeles`, where the parse of
+    //     a zone-free day is midnight **UTC** read back in a zone behind it:
+    //     `reads the same dates under a bar as the row’s Start and End cells`
+    //     failed with the surface naming 12 Aug for 2026-08-13. The zone has to
+    //     be behind UTC for the parse to move the day — Auckland and UTC both
+    //     answer 13 Aug — so a negative run in a zone ahead of it is one that
+    //     cannot fail.
+    render(
+      <GanttPanel
+        plan={planOf({
+          rows: [rowAt('strip', 0, 1, { number: '010', name: 'Strip' })],
+          slices: [sliceAt('strip-dev', 'strip', 0, 1)],
+        })}
+        // A Tuesday, so the origin is the day itself.
+        startDate="2027-06-01"
+        scheduleError={null}
+        generation={0}
+        onPickRow={() => undefined}
+      />,
+    );
+
+    expect(linesOf(surfaceOn('strip-dev'))).toContain('1 Jun 2027 → 1 Jun 2027 · 1 day');
   });
 });
