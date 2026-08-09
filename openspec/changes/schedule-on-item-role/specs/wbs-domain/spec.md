@@ -103,8 +103,34 @@ The projection SHALL be what leaves be-01. Slices SHALL NOT appear on the wire.
 
 #### Scenario: no plan that exists today changes
 
-- **GIVEN** any project with no resource constraint — which is every project
-  today
+- **GIVEN** any project a released database can hold — no resource constraint,
+  and at most the two roles a project could be given before this release
 - **THEN** every work item's start, finish, late start, late finish, slack,
   duration, estimated flag and critical flag are exactly what the previous
-  engine computed, to the last bit
+  engine computed, to the last bit, whatever order that engine's estimates were
+  read in
+
+### Requirement: A work item's estimates are read in role order
+
+A project's estimates SHALL be read in role order within each work item, and
+that order SHALL NOT depend on the ids of the rows or on how the database
+chooses to answer the query.
+
+The order is part of the contract because a work item's duration is those
+figures added together, and addition in binary floating point is not
+associative: three roles summed in one order and in another can differ in the
+last place, and a finish is turned into a calendar day by rounding up. A work
+item SHALL NOT be able to end on a different day because the database picked a
+different index.
+
+#### Scenario: the ids sort the other way
+
+- **GIVEN** a work item estimated for `Dev` and for `QA`, where `QA`'s role id
+  sorts before `Dev`'s
+- **THEN** the estimates are read `Dev` first, because `Dev` runs first
+
+#### Scenario: a third role is summed in one order only
+
+- **GIVEN** a work item estimated for three roles
+- **THEN** its duration is those three figures added in role order, and adding
+  them in that order is the only order the plan is ever computed from

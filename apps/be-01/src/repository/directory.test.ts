@@ -51,8 +51,8 @@ beforeEach(async () => {
     createdAt: 1,
   };
   const roles: Role[] = [
-    { id: roleId, projectId, name: 'Dev' },
-    { id: otherRoleId, projectId, name: 'QA' },
+    { id: roleId, projectId, name: 'Dev', position: 10 },
+    { id: otherRoleId, projectId, name: 'QA', position: 20 },
   ];
   await new ProjectRepository(db).create(project, roles);
   itemId = crypto.randomUUID();

@@ -52,7 +52,9 @@ beforeEach(async () => {
     createdAt: 1,
   };
   roleId = crypto.randomUUID();
-  await projects.create(project, [{ id: roleId, projectId: project.id, name: 'Dev' }]);
+  await projects.create(project, [
+    { id: roleId, projectId: project.id, name: 'Dev', position: 10 },
+  ]);
   projectId = project.id;
 });
 

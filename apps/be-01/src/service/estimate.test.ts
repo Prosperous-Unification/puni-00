@@ -50,8 +50,8 @@ beforeEach(async () => {
   // The two roles these cases estimate against. A project that held neither
   // would refuse every write here, as production's foreign key does.
   await projects.create(project, [
-    { id: DEV, projectId: project.id, name: 'Dev' },
-    { id: QA, projectId: project.id, name: 'QA' },
+    { id: DEV, projectId: project.id, name: 'Dev', position: 10 },
+    { id: QA, projectId: project.id, name: 'QA', position: 20 },
   ]);
   projectId = project.id;
 });
