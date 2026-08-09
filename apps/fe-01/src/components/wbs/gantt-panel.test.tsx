@@ -485,7 +485,7 @@ function fakeApi(startDate: string | null): ProjectApi {
     addPerson: () => notImplemented('addPerson'),
     create: () => notImplemented('create'),
     patch: () => notImplemented('patch'),
-    estimate: () => notImplemented('estimate'),
+    setEstimate: () => notImplemented('setEstimate'),
     assign: () => notImplemented('assign'),
     move: () => notImplemented('move'),
     duplicate: () => notImplemented('duplicate'),
