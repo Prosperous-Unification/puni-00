@@ -8,6 +8,16 @@ export interface FoldedRolePoint {
   days: string;
 }
 
+/**
+ * What the folded cell says about itself when there is nothing to complain
+ * about. Lives on the card, not in a native `title`: the hover preview is the
+ * one positioned surface a mark shows (CONTEXT.md), and a browser tooltip
+ * racing it over the same cell was two hints disagreeing about one figure.
+ */
+export const SHORTHAND_HELP =
+  'Days as optimistic/realistic/pessimistic — 2/3/8. One number means all three. Empty clears it. ' +
+  '@ looks somebody up to do it.';
+
 export interface FoldedRoleCardProps {
   roleName: string;
   /** The work item's number, so a card over a busy table says whose it is. */
@@ -24,6 +34,12 @@ export interface FoldedRoleCardProps {
   /** The figure the folded cell shows — `''` where there is nothing to show. */
   final: string;
   doing: CardAssignee | null;
+  /**
+   * The cell's complaint, where it holds one — a typed trio that saves
+   * nothing. On the card because the card is the cell's one hint: the native
+   * `title` that used to carry it fought the card on hover.
+   */
+  problem: string | null;
 }
 
 /**
@@ -51,6 +67,7 @@ export function FoldedRoleCard({
   points,
   final,
   doing,
+  problem,
 }: FoldedRoleCardProps) {
   const estimated = points.some((each) => each.days.trim() !== '');
   return (
@@ -75,6 +92,23 @@ export function FoldedRoleCard({
             ' — assumed: they are the only person assigned, so they are taken to be doing this phase too'}
         </div>
       )}
+      {/*
+        Proof: this line deleted, four tests failed — `a folded role cannot
+        hide a complaint`, `sends nothing for a trio that runs backwards, and
+        says why`, `lets a box replace what the folded cell was holding`,
+        `marks the folded cell when the boxes hold a trio that saves nothing`
+        — each on the complaint missing from the card. And the fault the
+        removal of the native `title` guards against: the `title` put back on
+        the folded wrapper, `a folded role cannot hide a complaint` failed on
+        `expected 'Fill all three…' to be null`. Both watched, 2026-08-09.
+      */}
+      {problem !== null && <div style={{ color: 'var(--destructive)' }}>{problem}</div>}
+      {/*
+        The typing help rides the same card so the cell has exactly one hint.
+        Last and muted: whoever hovers is reading the plan first and an
+        estimator second.
+      */}
+      <div style={{ color: 'var(--muted-foreground)' }}>{SHORTHAND_HELP}</div>
     </HoverCard>
   );
 }

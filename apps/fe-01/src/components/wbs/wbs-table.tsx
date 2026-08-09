@@ -338,10 +338,8 @@ const opensAPopover = (columnId: string): boolean =>
  */
 const DEP_LIST_WIDTH = 260;
 
-/** What the folded cell says about itself when there is nothing to complain about. */
-const SHORTHAND_HELP =
-  'Days as optimistic/realistic/pessimistic — 2/3/8. One number means all three. Empty clears it. ' +
-  '@ looks somebody up to do it.';
+// SHORTHAND_HELP moved onto {@link FoldedRoleCard}: the card is the folded
+// cell's one hint, and the native `title` that used to say this raced it.
 
 /**
  * The drafts record without the named keys.
@@ -4300,10 +4298,11 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                       current === finalCell ? null : current,
                     );
                   }}
-                  // On the wrapper as well as on the input below: the marker is
-                  // its own hover target, and it is the half a reader of a
-                  // folded plan sees first.
-                  title={problem ?? undefined}
+                  // No native `title` here or on the input below: the card is
+                  // this cell's one hint (CONTEXT.md, "Hover preview"), and a
+                  // browser tooltip raced it over the same pixels. The
+                  // complaint still marks the figure (the `!` and the colour)
+                  // and rides the card.
                   // A flex row, because this cell holds two things now: the
                   // figure (or the box it is typed into) and who is doing it.
                   // `relative` makes it the positioned ancestor the `@` list
@@ -4345,7 +4344,6 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                       aria-autocomplete="list"
                       placeholder="o/r/p"
                       aria-invalid={problem !== null}
-                      title={problem ?? SHORTHAND_HELP}
                       // Every keystroke, so an `@` opens the people picker as
                       // it is typed. The estimate half is not read here and no
                       // draft is written — that is still the blur's job.
@@ -4530,6 +4528,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                       }))}
                       final={showFinal(row.original.finalDays[role.id])}
                       doing={doing}
+                      problem={problem}
                     />
                   )}
                 </span>
