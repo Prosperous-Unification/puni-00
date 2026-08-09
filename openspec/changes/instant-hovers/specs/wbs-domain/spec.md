@@ -65,3 +65,56 @@ SHALL NOT render while that cell's picker is open.
 - **GIVEN** the depends picker open on a cell
 - **WHEN** the mouse rests on that cell
 - **THEN** no hover card is shown
+
+## MODIFIED Requirements
+
+### Requirement: Notes are markdown, rendered on hover
+
+A Name cell whose work item has notes SHALL show a notes marker at the cell's
+right edge; a work item with no notes SHALL show no marker. Hovering the
+marker SHALL show the hover preview: the work item's name as a level-one
+heading, and the notes rendered as markdown under it. Hovering the Name cell
+anywhere other than the marker SHALL show no preview. The name SHALL appear in
+the heading as the text typed — markdown syntax or raw HTML inside a name
+SHALL NOT become markup. Raw HTML in a note SHALL be rendered as text, never
+as markup.
+
+The marker SHALL NOT take the focus and SHALL NOT be a cell of the keyboard
+grid, and it SHALL take pointer events on its own area alone.
+
+This trigger is the Name cell's alone. A folded role cell and a depends cell
+SHALL keep the whole cell as the trigger for their own hover cards: those
+cards are a few lines over a narrow cell, where the preview is a document over
+the rows below.
+
+#### Scenario: the marker opens the preview
+
+- **GIVEN** a work item named `Strip the old wiring` with notes `## Risks`
+- **WHEN** its Name cell's notes marker is hovered
+- **THEN** the preview holds a level-one heading reading `Strip the old wiring`
+  and a lesser heading reading `Risks` under it
+
+#### Scenario: the cell itself opens nothing
+
+- **GIVEN** a work item with notes
+- **WHEN** its Name cell is hovered away from the marker
+- **THEN** no preview is shown
+
+#### Scenario: a name containing markdown shows as typed
+
+- **GIVEN** a work item named `# not a heading <script>`
+- **WHEN** its notes marker is hovered
+- **THEN** the heading reads `# not a heading <script>` as text, and the
+  preview contains no script element
+
+#### Scenario: a note containing HTML
+
+- **GIVEN** a note containing an `<img onerror=…>` and a `<script>`
+- **WHEN** the notes marker is hovered
+- **THEN** the preview contains neither element, and shows the text as typed
+
+#### Scenario: nothing to mark
+
+- **WHEN** a work item has no notes
+- **THEN** its Name cell shows no notes marker, and hovering the cell shows no
+  preview

@@ -35,11 +35,36 @@ folds data away answers with a native `title` — delayed and one line.
   preview, which scrolls (`maxHeight` + `overflowY`) and therefore must take
   the wheel. The fix round proved a card that takes the mouse eats clicks
   aimed at the row beneath; a read-only card has no business doing so.
-- **`POPOVER_COLUMNS` gains the role and depends columns** — deliberately, at
-  the definition, with the comment saying which cards earned them.
+- **The role and depends columns are named in `POPOVER_COLUMNS` for the cards
+  too** — `depends` is already in the set and a folded role's `<roleId>-final`
+  already matches by suffix, both for the pickers they open. What this change
+  owes them is the record: the comment at the definition says the cards are
+  now a second reason those two `<td>`s must not clip, so a later change that
+  moves a picker out of one of them cannot take the exemption with it. The
+  browser negative injects exactly that (the suffix branch removed) and
+  watches the card get clipped.
 - **The folded cell's card reads from `TreeRow`** (estimates by role, final,
   assignees, assumed) — no request on hover; hover shows what the client
   holds, per the intent's "no new data".
+- **The big preview moves behind a notes marker; the compact cards do not.**
+  Two rules, and the difference is size: a folded role's card and a depends
+  card are a few lines over a 96px or 110px cell, so the cell itself is the
+  trigger and a mouse crossing them loses nothing. The Name preview is a
+  rendered document up to 420px wide and 320px tall over the rows below, and
+  the Name column is the widest thing on the way to anywhere — Dany,
+  2026-08-09: a preview on every pass of the mouse is too disruptive. It
+  opens from a marker at the cell's right edge instead, drawn only where the
+  row has notes.
+- **The marker is the "this row has notes" affordance `name-title-body` ruled
+  out**, and that non-goal is superseded rather than forgotten: with the notes
+  clipped at rest and the trigger no longer the whole cell, a row with notes
+  has to say so or its notes are unreachable by anyone not already looking
+  for them.
+- **The marker is not a control.** No `tabIndex`, no `data-cell`, no click
+  handler: the keyboard grid is a matrix of cells, and a focus stop inside the
+  Name cell would put a Tab between a name and the next column. It takes
+  pointer events on its own small box only, so a click aimed at the textarea
+  lands there everywhere else in the cell.
 
 ## Risks / Trade-offs
 
