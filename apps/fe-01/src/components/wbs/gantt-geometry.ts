@@ -628,11 +628,22 @@ function placeOf(slice: GanttSlice, rolesById: ReadonlyMap<string, GanttRolePlac
 /**
  * A slice's binding floor in words.
  *
+ * A `switch` over the whole union rather than an index into
+ * {@link FLOOR_SENTENCE}, and the difference is the `default`. `boundBy`
+ * arrives on the wire: the type says five values because that is what be-01
+ * sends **today**, and a sixth floor added there — a resource calendar, a
+ * fixed date — reaches this module as a string the drawing has no words for.
+ * Indexed, it produced `undefined`, and the bar's hover text ended on a bare
+ * newline: the one thing the panel exists to say, silently missing. So an
+ * unrecognised floor is malformed trusted data like every other broken promise
+ * in this file, and it throws into the same error boundary.
+ *
  * @throws GanttDataError when a person-floored slice names no resource
  * predecessor. `boundBy: 'person'` means the assignee's last finish was
  * strictly the latest floor, so there is always a slice they were finishing;
  * a payload saying otherwise has lost the one fact the person link is drawn
  * from.
+ * @throws GanttDataError on a floor this module does not know.
  */
 function floorWordsOf(
   slice: GanttSlice,
@@ -641,19 +652,48 @@ function floorWordsOf(
   rowNames: ReadonlyMap<string, string>,
   rolesById: ReadonlyMap<string, GanttRolePlace>,
 ): string {
-  if (slice.boundBy !== 'person') return FLOOR_SENTENCE[slice.boundBy];
-  // Proof: this throw replaced by `return 'Waits for a person'`, `throws when a
-  // person floor names no resource predecessor` failed; watched 2026-08-09.
-  if (predecessor === undefined) {
-    throw new GanttDataError(
-      `slice ${slice.id} is floored by a person but names no resource predecessor`,
-    );
+  switch (slice.boundBy) {
+    case 'projectStart':
+    case 'predecessor':
+    case 'roleOrder':
+    case 'notBefore':
+      return FLOOR_SENTENCE[slice.boundBy];
+    case 'person': {
+      // Proof: this throw replaced by `return 'Waits for a person'`, `throws
+      // when a person floor names no resource predecessor` failed; watched
+      // 2026-08-09.
+      if (predecessor === undefined) {
+        throw new GanttDataError(
+          `slice ${slice.id} is floored by a person but names no resource predecessor`,
+        );
+      }
+      // Proof: this throw replaced by `personFloorWords(personName ?? 'somebody', …)`.
+      // `throws when a person floor names nobody at all` alone failed, on `expected
+      // function to throw an error, but it didn't`; watched 2026-08-09.
+      if (personName === null) {
+        throw new GanttDataError(
+          `slice ${slice.id} is floored by a person but names no person at all`,
+        );
+      }
+      return personFloorWords(personName, predecessor, rowNames, rolesById);
+    }
+    default: {
+      // `never` here is the type saying the five above are all of them; the
+      // throw is for the runtime, where a payload can carry a sixth.
+      //
+      // Proof: this `default` replaced by
+      // `return FLOOR_SENTENCE[slice.boundBy as Exclude<BindingFloor, 'person'>]`
+      // — what the code did before. `throws rather than saying nothing at all
+      // about what holds a bar` alone failed, on `expected function to throw an
+      // error, but it didn't`. What it drew instead, printed in the same run:
+      // `floorWords` `undefined`, and a hover title of `"Strip\nDev ·
+      // Unassigned\nWorkdays 0 → 3 · 3 days\nFloat 0 days\n"` — the line the
+      // panel exists to show, gone, and a bare newline where it was. Watched
+      // 2026-08-09.
+      const unknownFloor: never = slice.boundBy;
+      throw new GanttDataError(
+        `slice ${slice.id} is held by ${String(unknownFloor)}, which this chart has no words for`,
+      );
+    }
   }
-  // Proof: this throw replaced by `personFloorWords(personName ?? 'somebody', …)`.
-  // `throws when a person floor names nobody at all` alone failed, on `expected
-  // function to throw an error, but it didn't`; watched 2026-08-09.
-  if (personName === null) {
-    throw new GanttDataError(`slice ${slice.id} is floored by a person but names no person at all`);
-  }
-  return personFloorWords(personName, predecessor, rowNames, rolesById);
 }
