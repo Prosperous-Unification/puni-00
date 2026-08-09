@@ -217,9 +217,28 @@ _Avoid_: help, shortcuts dialog, legend
 
 **Name cell**:
 The one box a work item's name and its notes are written in: the first line is the name,
-everything under it is the notes. They stay two fields in storage — the cell is where they
-are composed for reading and split again on the way out.
+everything under it is the notes. At rest the cell shows the name alone, whole and wrapped;
+the notes appear while it is edited and in its hover preview. They stay two fields in
+storage — the cell is where they are composed for reading and split again on the way out.
 _Avoid_: title field, notes column, description
+
+**Hover preview**:
+The rendered reading of one work item, opened over its Name cell from the notes marker on
+that cell: the name as a level-one heading, the notes as markdown under it. The only place
+notes render; nowhere does raw HTML in either field become markup.
+_Avoid_: tooltip, popover, notes preview
+
+**Notes marker**:
+The small mark at the right edge of a Name cell whose work item has notes, and the only
+thing that opens that cell's hover preview. It says a row has notes; it is not a control —
+nothing to click, no focus, no place in the keyboard grid.
+_Avoid_: notes icon, badge, indicator, button
+
+**Hover card**:
+The instant answer a cell gives to the mouse resting on it: the whole of what its at-rest
+face folds away — a folded role's three points and assignee, a depends chip's names. Opens
+on enter with no delay, one at a time; the Name cell's hover preview is one.
+_Avoid_: tooltip, title attribute, hint
 
 **Actions menu**:
 The list of things one work item can be asked to do — duplicate it, delete it, unfreeze

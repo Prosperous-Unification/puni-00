@@ -1,0 +1,80 @@
+import type { Point } from './estimate-draft';
+import { HoverCard } from './hover-card';
+import type { CardAssignee } from './plan-cards';
+
+/** One of the three points, as the row holds it: `''` where nobody typed one. */
+export interface FoldedRolePoint {
+  point: Point;
+  days: string;
+}
+
+export interface FoldedRoleCardProps {
+  roleName: string;
+  /** The work item's number, so a card over a busy table says whose it is. */
+  number: string;
+  /**
+   * The card's id, which the folded cell's box points `aria-describedby` at.
+   *
+   * The one card in this table that is a description as well as a hover, which
+   * is why it carries no label: see {@link HoverCard}'s `label` for what a
+   * label does to a description.
+   */
+  id: string;
+  points: readonly FoldedRolePoint[];
+  /** The figure the folded cell shows — `''` where there is nothing to show. */
+  final: string;
+  doing: CardAssignee | null;
+}
+
+/**
+ * What one folded role column cell folds away, in full.
+ *
+ * The cell at rest is `4.8 · Ka…` in 96px: one computed figure, and a person's
+ * name cut to about four characters. The trio behind the figure is only on
+ * screen while the role is unfolded — and unfolding one folds another, so a
+ * plan cannot be read with every trio open. This is where the folded ones are
+ * read.
+ *
+ * Everything here is already on the row the client holds, which is the whole
+ * of "hover asks the server for nothing": the three points, the final figure,
+ * who is doing it and whether anybody said so.
+ *
+ * It is also the folded cell's `aria-describedby`, so that a reader with no
+ * pointer is not simply told less. That is why the role and the number are the
+ * first line of the card rather than an `aria-label` on it — a label would be
+ * read out *instead of* everything under it.
+ */
+export function FoldedRoleCard({
+  roleName,
+  number,
+  id,
+  points,
+  final,
+  doing,
+}: FoldedRoleCardProps) {
+  const estimated = points.some((each) => each.days.trim() !== '');
+  return (
+    <HoverCard id={id}>
+      <div style={{ fontWeight: 600 }}>
+        {roleName} for {number}
+      </div>
+      {/*
+        Said in words, not as `2/3/8`: the shorthand is what an estimator types
+        into the cell, and a card is read by whoever is looking at the plan.
+      */}
+      <div>
+        {estimated
+          ? points.map((each) => `${each.point} ${each.days === '' ? '—' : each.days}`).join(' · ')
+          : 'No estimate yet'}
+      </div>
+      {final !== '' && <div>Final {final} days</div>}
+      {doing !== null && (
+        <div>
+          {doing.name}
+          {doing.assumed &&
+            ' — assumed: they are the only person assigned, so they are taken to be doing this phase too'}
+        </div>
+      )}
+    </HoverCard>
+  );
+}

@@ -249,10 +249,13 @@ export class LiveField {
    * What the face does once this field has written the node: the Name cell
    * grows to fit the text it has just been given.
    *
-   * Called where the server's value reaches the box and nowhere else, which is
-   * why {@link leave}'s "nothing was typed" path does not call it — that path
-   * writes only what rules 2 and 4 had been holding back, and the box is
-   * already the height of it.
+   * Called wherever the server's value reaches the box, and that is **three**
+   * places rather than the two it looks like: {@link serverSaid}, the landing
+   * in {@link submit}, and {@link leave}'s "nothing was typed" path, which
+   * applies whatever rules 2 and 4 had been holding back while the focus was
+   * here. The box is not already the height of that text — a peer's edit that
+   * arrived mid-visit is written into the node by that path, after the face's
+   * blur handler has already measured the box against the older, shorter one.
    */
   afterSync: (node: CellElement | null) => void = () => undefined;
 
@@ -373,6 +376,17 @@ export class LiveField {
     this.refused = false;
     heldRefusals.delete(this.cellKey);
     this.sync();
+    // After the sync, exactly as {@link serverSaid} does it, and for a reason
+    // that is this path's alone: the face measures the box on the blur and the
+    // blur runs *before* this, so a peer's name that rule 2 held back all the
+    // while the focus was here would be written into a box sized for the name
+    // it replaced — clipped by the Name cell's `overflow: hidden` if it is
+    // longer, dead height under it if it is shorter.
+    // Proof: this line removed, `a peer's longer name arriving while the cell
+    // is focused is whole once it is left` failed on `a line of the peer's
+    // name is hidden after the blur — Expected: < 0.5, Received: 1.979…`.
+    // Watched in Chromium, 2026-08-09.
+    this.afterSync(this.node);
     return unsent();
   }
 

@@ -430,6 +430,31 @@ describe('the plan on a phone', () => {
     });
   });
 
+  itDom('keeps a card’s notes on show at rest, capped at eight lines', async () => {
+    // The card face is the one place a note is readable without editing it: a
+    // phone has no hover, so the preview the table sends people to does not
+    // exist here. That is why the table's Name cell clamps to its first line
+    // at rest (`restShowsFirstLineOnly`) and this one deliberately does not —
+    // it caps instead, and the cap has been the only thing standing between a
+    // long note and a card the length of the page since `maxRestRows` arrived.
+    //
+    // Proof: `restShowsFirstLineOnly` passed here too, as the table's Name
+    // column passes it — `expected 'none' to be '11.2em'` and `expected
+    // 'hidden' to be 'auto'`, the note clipped away on the one face that has
+    // nowhere else to show it. Watched, 2026-08-09.
+    const api = fakeApi();
+    widthIs(PHONE);
+    render(<WbsTable projectId="p1" api={api} />);
+    await addAWorkItem();
+
+    const box = screen.getByLabelText<HTMLTextAreaElement>('Name of 010');
+    fireEvent.change(box, { target: { value: 'Strip\nmeasure twice, the fuse box is old' } });
+    box.blur();
+
+    expect(box.style.maxHeight).toBe('11.2em');
+    expect(box.style.overflowY).toBe('auto');
+  });
+
   itDom('offers nothing to drag a card by', async () => {
     const api = fakeApi();
     widthIs(PHONE);

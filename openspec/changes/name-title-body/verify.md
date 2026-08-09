@@ -1,0 +1,240 @@
+# `name-title-body` — verify
+
+Every command below was run on 2026-08-09 on Dany's Mac (darwin arm64, bun
+1.3.14), from `/Users/danylofedorov/wd/puni/wbs-tool-v1` on branch
+`change/name-title-body`.
+
+## What landed
+
+| file                                                   | what                                                                  |
+| ------------------------------------------------------ | --------------------------------------------------------------------- |
+| `apps/fe-01/src/components/wbs/hover-preview.tsx`      | renamed from `notes-preview.tsx`; takes `name`, heads the preview     |
+| `apps/fe-01/src/components/wbs/hover-preview.test.tsx` | new — 3                                                               |
+| `apps/fe-01/src/components/wbs/cell-input.tsx`         | `restShowsFirstLineOnly`, and the measured at-rest height in `resize` |
+| `apps/fe-01/src/components/wbs/wbs-table.tsx`          | the Name column passes it, drops `maxRestRows`, passes the name       |
+| `apps/fe-01/src/components/wbs/wbs-table.test.tsx`     | 2 rewritten, 1 added, 2 assertions added                              |
+| `apps/fe-01/src/components/wbs/plan-cards.test.tsx`    | 1 added — the card face's cap, which nothing else covered             |
+| `apps/fe-01/e2e/name-cell.spec.ts`                     | new — 3, then 3 more for the review round below                       |
+| `apps/fe-01/e2e/layout.spec.ts`, `keyboard.spec.ts`    | comments corrected; no assertion changed                              |
+| `apps/fe-01/src/components/wbs/live-editing.ts`        | review round 1: `leave()`'s quiet path re-measures the box            |
+
+fe-01 counted 851 unit tests before and **853** after; the browser suite 63
+before, 66 after the change itself and **69** after the review round.
+`plan-cards.tsx` is untouched.
+
+## The gate
+
+| command                                                      | result                        |
+| ------------------------------------------------------------ | ----------------------------- |
+| `bunx nx format:check --all`                                 | pass                          |
+| `bunx nx run-many -t test lint typecheck build --parallel=2` | pass, 21 projects             |
+| `bunx nx test fe-01`                                         | **853 passed**, 41 files      |
+| `openspec validate --all --json`                             | 49 items, 49 passed, 0 failed |
+| the browser suite (below)                                    | **69 passed**, 0 failed       |
+
+Every one of them was run again after the review round below, on the same
+machine and the same ports; the results in this table are that second run.
+
+Nx labelled `gw-01:test` flaky on the run; it passed, and nothing in this
+change touches gw-01.
+
+## The browser suite, on ports nobody else was using
+
+A stack was already listening on 3100/3200/4200 (`lsof` showed bun on both and
+node on 4200), and a second one on those ports reads as a crash rather than as
+a collision. This run used **be 3112, gw 3212, fe 4212**:
+
+- `playwright.config.ts`, temporarily: `PORT`/`GW_URL` on be-01, `PORT`/`BE_URL`
+  on gw-01, `bunx vite --mode e2e --port 4212` for fe-01, and the `baseURL`.
+- `apps/fe-01/.env.e2e`, temporarily: the two `VITE_` proxy targets on the new
+  ports, which is what `vite --mode e2e` reads through `loadEnv`.
+
+Both were reverted before committing — `git diff` on `playwright.config.ts` is
+empty and the `.env.e2e` is deleted. The suite therefore ships pointing at the
+default ports, which is what CI's `pixels` job starts.
+
+```
+$ bunx playwright test --config apps/fe-01/playwright.config.ts
+  69 passed (1.3m)
+```
+
+The review round used the same three ports for the same reason — the stack on
+3100/3200/4200 was still up — and reverted the same two files afterwards.
+
+## The checks, and the faults that broke them
+
+Every row was watched: the fault applied to the production file, the test run,
+the output copied here, the fault reverted, the test re-run green.
+
+| Fault injected                                            | Test                                                      | What the run reported                                                                                                                   |
+| --------------------------------------------------------- | --------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| the heading rendered through concatenated markdown source | `a name containing markdown and HTML reads as typed`      | **passed first** — see below; then `expected '… and not emphasis' to be '… and *not* emphasis'` and `expected <em> to be null`          |
+| the Name column passing `name=""` to the preview          | `renders the markdown on hover, and nothing when …`       | `expected '' to be 'Strip'`                                                                                                             |
+| `restShowsFirstLineOnly` off the Name column (jsdom)      | `clips the notes at rest and opens the box to write in`   | `expected 'auto' to be 'hidden'`                                                                                                        |
+| the `maxRestRows` cap kept under the clamp                | `clips the notes at rest and opens the box to write in`   | `expected '5.6em' to be 'none'`                                                                                                         |
+| `restShowsFirstLineOnly` passed on the card face too      | `keeps a card's notes on show at rest, capped at eight …` | `expected 'none' to be '11.2em'`                                                                                                        |
+| the value restore dropped from `resize`                   | `still holds the whole text in the box it shows one …`    | `expected '' to be 'measure twice'` — and it failed at the **setup** blur: the truncated box was read and the note deleted              |
+| `restShowsFirstLineOnly` off the Name column (browser)    | all three of `e2e/name-cell.spec.ts`                      | `the cell with ten lines of notes is taller at rest — Expected: 20, Received: 88`, and both overflow assertions `"auto"` for `"hidden"` |
+| `overflow-y` left on `auto` at the clamped height         | `the notes cannot be scrolled into view at rest`          | `the wheel scrolled the notes into view — Expected: 0, Received: 182`                                                                   |
+| `resize` dropped from the blur handler                    | `focus shows the notes and blur hides them again`         | `the cell stayed open after the focus left it — Expected: 20, Received: 200`                                                            |
+
+The review round's three, watched the same way on 2026-08-09:
+
+| Fault injected                                            | Test                                                        | What the run reported                                                                                                   |
+| --------------------------------------------------------- | ----------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `afterSync` dropped from `leave()`'s nothing-typed branch | `a peer's longer name arriving while the cell is focused …` | `a line of the peer's name is hidden after the blur — Expected: < 0.5, Received: 1.9791666666666667`                    |
+| the selection save and restore dropped from `resize`      | `a selection left in the name survives the measurement …`   | `the measurement moved the caret of a box nobody was in — Expected {start: 6, end: 9}, Received {start: 272, end: 272}` |
+| the restored direction pinned to `'none'`                 | `a selection left in the name survives the measurement …`   | `Expected: "forward", Received: "none"`                                                                                 |
+| the window `resize` listener removed from `CellInput`     | `a name that wraps further in a narrower window …`          | `a line of the name is hidden after the window was made narrower — Expected: < 0.5, Received: 3.854166666666667`        |
+
+Each was reverted and the test re-run green before the next one was injected.
+
+## The review round, 2026-08-09
+
+Three findings against the branch as it stood at `e316dbe`, all three confirmed
+against the code before anything was written. Each fix's negative was watched
+failing with the fix removed; the rows are in the table above, at the bottom.
+
+### 1. The one write that happened after the measurement (High)
+
+`LiveField.leave()`'s "nothing was typed" branch calls `sync()`, which is where
+a peer's edit held back by rule 2 finally reaches the box — and unlike
+`serverSaid` and the landing in `submit`, it did not then call `afterSync`. The
+face measures the clamp in its blur handler, which runs **before** `leave()`, so
+the box was sized for the name it had been showing and then handed the peer's.
+Longer, and `overflow: hidden` cut it; shorter, and it left dead height. Nothing
+re-measured afterwards: the branch sends no request, so there is no refetch and
+no render.
+
+Fixed by calling `this.afterSync(this.node)` after that `sync()`, the pattern
+the landing path already used. The `afterSync` JSDoc said in as many words that
+this path deliberately did not call it; it now says why it does.
+
+### 2. The measurement moved a caret nobody had touched (Medium)
+
+The transient value swap resets the textarea's selection, and the design's own
+risk list called that "acceptable only because the swap happens exclusively
+while unfocused". **That premise is wrong in Chromium, and the test is the
+experiment**: `selectionStart`, `selectionEnd` and `selectionDirection` survive
+a blur on an unfocused `<textarea>` for as long as it is mounted, and the
+browser restores the visible selection when the focus comes back without
+placing a new caret (a `focus()` call, or the window being clicked back into).
+Both halves are asserted in `a selection left in the name survives the
+measurement the blur makes`, and both pass — so the finding's user-visible half
+is real rather than moot. Fixed by saving all three fields before the swap and
+restoring them after, inside the `clamped` branch.
+
+One thing the same experiment showed and the test does **not** assert: coming
+back by the grid's own Shift+Tab replaces the range anyway, because
+`focusAdjacentCell` lands through `focusCellAt(input, 'all')`, which selects the
+whole value on purpose. The retained range is what a click into another cell and
+a later `focus()` come back to, so that is what the test does.
+
+### 3. Nothing re-measured when the width changed (Medium)
+
+`resize()` ran on attach, on a sync, on a keystroke, on focus and on blur — and
+on nothing else. The clamped height is the first line's height _at this box's
+width_, and Name is the column that absorbs whatever the fixed ones leave, so a
+window dragged narrower rewraps the name under a box that keeps its old height.
+Measured: a name laid out at 1400px hid **3.85 lines of itself** at 1150px.
+Under the old `em` cap that staleness was scrollable; under the clamp it is
+`overflow: hidden`.
+
+Fixed with a `window` `resize` listener in `CellInput`, active only when
+`autoSize && restShowsFirstLineOnly`. A `resize` listener and not a
+`ResizeObserver`: jsdom ships neither it nor `matchMedia`, an observer would
+throw in every test that mounts a table, and `useRendererForViewport` in
+`plan-renderer.ts` already made this exact choice for this exact reason.
+Undebounced, matching it.
+
+**Not covered by a unit test, deliberately.** A jsdom test could watch the
+listener being added and removed, and could not watch it do anything: the
+listener's whole effect is a `scrollHeight` read jsdom answers 0 for. A cleanup
+test would be weaker still — `resize(box.current)` after an unmount is a call
+with `null`, which returns immediately and is observable nowhere. The browser
+is the only oracle, as it was for the clamp itself.
+
+## The negative that could not fail, and did not ship
+
+The heading test was written with the name `# not a heading <script>alert(1)</script>`,
+and with the faulted component — the name concatenated into the markdown
+source — it **passed**. `# # x` is an ATX heading whose content is the literal
+`# x`, so the parser handed back exactly the string the test was asserting was
+never parsed. Watched passing, which is the only reason it was found.
+
+What makes the fault visible is punctuation the parser eats rather than keeps:
+the name now carries `*not*`, and the heading is asserted to hold no element
+the parser made. Both failures are in the table above. The test is the
+eighteenth instance of R5's failure mode in this repository and the third not
+to ship; it is recorded in `AGENTS.md` beside the `phases-ui` pair.
+
+## What the browser had to be asked twice
+
+Two assertions were written as "nothing is hidden" in pixels and failed by one:
+`scrollHeight` 58 against `clientHeight` 57 for a wrapped name, and 202 against
+201 for a focused cell. The Name cell is `box-sizing: border-box` with a 1px
+border, so a box laid out at exactly its `scrollHeight` always reports a pixel
+or two of overflow — pre-existing, independent of this change, and true of the
+old capped box as well. The assertions ask what they mean instead: no _line_ of
+the text is hidden (`linesHidden`, in the spec).
+
+## Audit of the existing browser specs
+
+`layout.spec.ts`, `keyboard.spec.ts` and `mobile.spec.ts` were read for
+assertions that encoded the old four-line rest cap. **None did**, and all 63
+existing browser tests passed against the clamp unchanged:
+
+- `opens the notes preview out past the bottom of the name cell` measures the
+  preview's overhang, which the clamp makes larger. Its comment claimed the cap
+  was what made the preview taller than the cell; corrected, no assertion
+  touched.
+- `types a note under a name with Enter, and the box grows to hold it` measures
+  both boxes with the caret in the cell, where nothing changed. Comment
+  extended to say so.
+- `moves the caret through a wrapped name before it leaves the row` fills one
+  logical line with no notes, and its "the name has to wrap" precondition is
+  now also a witness that a wrapped name is shown whole at rest.
+- The mobile specs measure the card face, which keeps `maxRestRows={8}`.
+
+## Deviations from the artifacts
+
+1. **The tooltip keeps its `aria-label`**: `Notes for 010, rendered`. The
+   component is `HoverPreview` now and the glossary term is Hover preview, but
+   the label is what the notes are still read through, and no requirement asked
+   for a new one. Renaming it would have edited a passing browser assertion for
+   no behavioural reason.
+2. **The card face's cap gained a test it never had.** The only test covering
+   `maxRestRows` was the Name cell's, which this change replaces. The cap is now
+   asserted where it still applies, in `plan-cards.test.tsx`, with the negative
+   being the table's own prop passed there.
+3. **Two jsdom tests were rewritten rather than deleted.** `caps how tall a name
+box gets at rest…` became `clips the notes at rest…`, and `makes room for a
+note written under the name, focus or no focus` lost its at-rest half, which
+   jsdom could only ever answer with a stubbed `scrollHeight`. The at-rest
+   height is proven in the browser and nowhere else.
+
+## What is not watched here
+
+Whether one line is the right amount at a glance across forty rows. Not a
+measurement. Dany's screen, <https://dev.wbs.bulletpoints.club>.
+
+## The live round: the preview's heading was the wrong size
+
+The second question this section used to hold — whether the preview's heading
+is the right size next to the notes under it — was answered by looking, in
+Chrome against the live dev stack (this checkout, `bun --watch`): **it was
+not.** The name rendered at 1.05em while a note opening with `## Risks` kept
+the browser's 1.5em `h2`, so the note's heading read as the preview's title
+and the name as its footnote.
+
+Fixed in `hover-preview.tsx`: the name is 1.3em/700, and a note's `h1`–`h3`
+are sized under it (1.15/1.08/1.02em) through `react-markdown`'s `components`
+— inline sizes, which is what lets jsdom see this one. The elements keep their
+levels; the first test still asserts `## Risks` renders an `h2`.
+
+| Fault injected                  | Test                                            | Observed                               |
+| ------------------------------- | ----------------------------------------------- | -------------------------------------- |
+| `h2` entry deleted from the map | `the name out-sizes every heading a note makes` | `expected 1.15 to be greater than NaN` |
+| note-`h1` entry deleted         | same                                            | `expected 1.3 to be greater than NaN`  |
+
+Both restored, 4/4 green.

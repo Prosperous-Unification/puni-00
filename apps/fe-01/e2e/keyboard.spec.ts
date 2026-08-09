@@ -79,7 +79,9 @@ test.describe('the command chords, in a browser', () => {
     const grown = await name.boundingBox();
     expect(grown, 'the name cell has to still be on screen').not.toBeNull();
     // `autoSize` following the value, which is what stops a note being written
-    // into a one-line box nobody can read back.
+    // into a one-line box nobody can read back. Both boxes here are measured
+    // with the caret in the cell — at rest it clamps back to the name alone,
+    // which is `e2e/name-cell.spec.ts`'s subject and not this test's.
     expect(grown?.height ?? 0).toBeGreaterThan(oneLine?.height ?? 0);
 
     await name.blur();
