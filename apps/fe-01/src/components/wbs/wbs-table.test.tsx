@@ -280,7 +280,10 @@ function fakeApi(): ProjectApi & {
     removeRole(_projectId, roleId, cascade) {
       const role = roleList.find((each) => each.id === roleId);
       if (role === undefined) return Promise.reject(new Error('not_found'));
-      const estimates = rows.filter((row) => row.estimates[roleId] !== undefined).length;
+      // `Object.hasOwn` rather than an index and a comparison: `estimates` is a
+      // `Record<string, Days>`, so the index is typed as always finding one and
+      // the comparison is dead code the lint rightly refuses.
+      const estimates = rows.filter((row) => Object.hasOwn(row.estimates, roleId)).length;
       const holders = [...assigned.keys()].filter((key) => key.endsWith(`::${roleId}`));
       if (!cascade && estimates + holders.length > 0) {
         return Promise.resolve({
