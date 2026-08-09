@@ -17,12 +17,17 @@ export interface ProjectPageProps {
   /**
    * Who else is in the project, for the right-hand end of the header bar.
    *
-   * A node rather than the panel itself, because what it needs — the session's
-   * own username — is the app's and not this page's, and because a page that
-   * built its own presence panel would open a gateway socket in every test
-   * that renders one.
+   * A function of the selected project rather than the panel itself, because
+   * what the panel needs — the session's own username — is the app's and not
+   * this page's, and because a page that built its own presence panel would
+   * open a gateway socket in every test that renders one.
+   *
+   * It takes the selection because a roster is a project's: gw-01 scopes it by
+   * the project a socket subscribed to (F4), and the selection lives here. It
+   * is called with null while no project is open, which is a real state — a
+   * fresh account with nothing selected has no roster to be in.
    */
-  presence?: ReactNode;
+  presence?: (projectId: string | null) => ReactNode;
   /** The account menu, for the same reason and the same end of the bar. */
   account?: ReactNode;
 }
@@ -401,7 +406,7 @@ export function ProjectPage({ token, api: apiOverride, presence, account }: Proj
 
   return (
     <>
-      <AppHeader project={projectControls} presence={presence} account={account} />
+      <AppHeader project={projectControls} presence={presence?.(selected)} account={account} />
       {/*
         The rest of the window, and a column flex so the frame below can have
         what the toolbar does not. `min-h-0` is the load-bearing half: a flex

@@ -5,7 +5,7 @@ import { parseOrThrow } from '@wbs/validation';
 import { Elysia } from 'elysia';
 
 import { internalController, type SocketLike } from './controller/internal.controller';
-import { handleWsMessage } from './controller/ws.controller';
+import { handleWsMessage, projectIdOf } from './controller/ws.controller';
 import { ForwardClient } from './service/forward-client';
 import { GatewayMetrics } from './service/gateway-metrics';
 import { JwtVerifier } from './service/jwt-auth';
@@ -117,6 +117,11 @@ export function buildApp(opts: AppOptions) {
             const claims = await verifier.verify(token);
             const username =
               typeof claims['username'] === 'string' ? claims['username'] : claims.sub;
+            // A join puts the connection in no project — it has not said which
+            // one it is looking at yet, and until it subscribes it belongs to
+            // nothing (see {@link Presence}). The broadcast is what hands the
+            // newcomer its own empty roster; every other socket's is unchanged
+            // by a join, and only `onSubscribed` below moves anybody's.
             presence.join(d.connectionId, username, { send: (s) => ws.send(s) });
             presence.broadcast();
           } catch {
@@ -169,7 +174,22 @@ export function buildApp(opts: AppOptions) {
             onBackendUnavailable: () => {
               metrics.backendUnavailable();
             },
-            roster: () => presence.list(),
+            // A `project:` subscription is what puts this connection in a
+            // roster, and the broadcast is what tells the people already in it.
+            // `presence` names no project, so it moves nobody.
+            onSubscribed: (subscription) => {
+              const projectId = projectIdOf(subscription);
+              if (projectId === null) return;
+              presence.enterProject(d.connectionId, projectId);
+              presence.broadcast();
+            },
+            onUnsubscribed: (subscription) => {
+              const projectId = projectIdOf(subscription);
+              if (projectId === null) return;
+              presence.leaveProject(d.connectionId, projectId);
+              presence.broadcast();
+            },
+            roster: () => presence.rosterFor(d.connectionId),
           });
         },
         close(ws) {

@@ -134,6 +134,117 @@ describe('project events reach the sockets that asked for them', () => {
   });
 });
 
+/** The users named by the last `presence` frame a socket received. */
+function rosterSeenBy(client: { received: unknown[] }): string[] {
+  const frames = client.received.filter((m) => (m as { type?: string }).type === 'presence');
+  return (frames.at(-1) as { users?: string[] } | undefined)?.users ?? [];
+}
+
+/**
+ * Waits until every socket named has been told a roster of that size, then
+ * lets the assertions say what is in it.
+ *
+ * `settle`'s fixed 60ms is not a fact about the network: a roster arrives one
+ * broadcast after the `subscribe` that caused it, and under `bun test
+ * --coverage` that round trip overran 60ms in about three runs in ten —
+ * `expect(rosterSeenBy(linus)).toEqual(['ada', 'linus'])` receiving `['linus']`,
+ * the frame from its own subscribe and not yet the one from the broadcast.
+ * Bounded, then thrown rather than passed (AGENTS.md, R5): a roster that never
+ * arrives is a failure, and it says which socket was still waiting.
+ *
+ * @throws When a roster of that size has not arrived within the deadline.
+ */
+async function untilRostered(expected: Record<string, [{ received: unknown[] }, number]>) {
+  const deadline = Date.now() + 3_000;
+  for (;;) {
+    const waiting = Object.entries(expected).filter(
+      ([, [client, size]]) => rosterSeenBy(client).length !== size,
+    );
+    if (waiting.length === 0) return;
+    if (Date.now() > deadline) {
+      throw new Error(
+        `no roster arrived for ${waiting.map(([who]) => who).join(', ')}; ` +
+          waiting
+            .map(([who, [client]]) => `${who} has [${rosterSeenBy(client).join()}]`)
+            .join('; '),
+      );
+    }
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+}
+
+/**
+ * The roster, through `buildApp` and real sockets rather than `Presence` alone.
+ *
+ * F4, observed live 2026-08-09: a project one second old listed every account
+ * with a socket open on this gateway. `presence.test.ts` proves the filter; this
+ * proves the production wiring that reaches it — the `subscribe` frame arriving
+ * on the ws route, `onSubscribed` resolving the project id, and the broadcast
+ * that follows it.
+ */
+describe('the presence roster is a project’s, not the gateway’s', () => {
+  it('shows each socket only the names in the project it subscribed to', async () => {
+    // Proof, twice. `onSubscribed` struck from the `handleWsMessage` call in
+    // `app.ts`, so nothing ever entered a project: this test failed on
+    // `no roster arrived for ada, grace, linus; ada has []; grace has [];
+    // linus has []`, together with the other two here. Then the
+    // `projectId` filter struck from
+    // `Presence.list`, which is the live bug itself: it failed on
+    // `no roster arrived for ada, grace, linus; ada has
+    // [ada,grace,linus,mallory]` — every account on the gateway, in a project
+    // two of them had never opened. Watched 2026-08-09.
+    const hull = `project:${crypto.randomUUID()}`;
+    const keel = `project:${crypto.randomUUID()}`;
+    const ada = await connect('ada', hull);
+    const grace = await connect('grace', hull);
+    const linus = await connect('linus', keel);
+    // Named no project at all: `presence` is a known subscription and is not a
+    // project, so this socket is in nobody's roster and sees nobody.
+    const lurker = await connect('mallory', 'presence');
+    await untilRostered({ ada: [ada, 2], grace: [grace, 2], linus: [linus, 1] });
+
+    expect(rosterSeenBy(ada)).toEqual(['ada', 'grace']);
+    expect(rosterSeenBy(grace)).toEqual(['ada', 'grace']);
+    expect(rosterSeenBy(linus)).toEqual(['linus']);
+    expect(rosterSeenBy(lurker)).toEqual([]);
+
+    for (const s of [ada, grace, linus, lurker]) s.socket.close();
+  });
+
+  it('answers `who` with the asking socket’s own project', async () => {
+    const hull = `project:${crypto.randomUUID()}`;
+    const ada = await connect('ada', hull);
+    const linus = await connect('linus', `project:${crypto.randomUUID()}`);
+    await untilRostered({ ada: [ada, 1], linus: [linus, 1] });
+
+    ada.received.length = 0;
+    ada.socket.send(JSON.stringify({ type: 'who' }));
+    await untilRostered({ 'ada, asking who': [ada, 1] });
+
+    expect(rosterSeenBy(ada)).toEqual(['ada']);
+
+    for (const s of [ada, linus]) s.socket.close();
+  });
+
+  it('moves a socket that switches project, and tells both rosters', async () => {
+    const hull = `project:${crypto.randomUUID()}`;
+    const keel = `project:${crypto.randomUUID()}`;
+    const ada = await connect('ada', hull);
+    const linus = await connect('linus', keel);
+    await untilRostered({ ada: [ada, 1], linus: [linus, 1] });
+
+    linus.socket.send(JSON.stringify({ type: 'subscribe', subscription: hull }));
+    await untilRostered({ ada: [ada, 2], linus: [linus, 2] });
+
+    expect(rosterSeenBy(linus)).toEqual(['ada', 'linus']);
+    // And the people already in the project were told, rather than left showing
+    // a roster that is one person short until somebody else joins.
+    expect(rosterSeenBy(ada)).toEqual(['ada', 'linus']);
+
+    for (const s of [ada, linus]) s.socket.close();
+  });
+});
+
 describe('a closed socket leaves the subscription it joined', () => {
   it('is not counted in the fan-out after it disconnects', async () => {
     // codex, high. `close` removed the connection from presence and left it in

@@ -19,7 +19,21 @@ export interface HandleWsMessageArgs {
   onInbound?: () => void;
   onReconnect?: () => void;
   onBackendUnavailable?: () => void;
-  /** Current presence roster, for a client that asks instead of waiting. */
+  /**
+   * The socket joined `subscription`, after the map accepted it.
+   *
+   * A callback rather than a `Presence` this module imports: what a
+   * subscription means to presence is gw-01's composition to decide (`app.ts`
+   * scopes the roster by it), and a controller that knew about rosters would
+   * have to be handed one in every test that sends a `subscribe`.
+   */
+  onSubscribed?: (subscription: string) => void;
+  /** The socket left `subscription`. */
+  onUnsubscribed?: (subscription: string) => void;
+  /**
+   * The roster for **this** connection — its project's, not the gateway's — for
+   * a client that asks instead of waiting.
+   */
   roster?: () => string[];
 }
 
@@ -35,10 +49,20 @@ export interface HandleWsMessageArgs {
  * shape check rather than an authorisation one — the socket is already
  * authenticated when it gets here.
  */
-const PROJECT_SUBSCRIPTION = /^project:[0-9a-fA-F-]{36}$/;
+const PROJECT_SUBSCRIPTION = /^project:([0-9a-fA-F-]{36})$/;
+
+/**
+ * The project a subscription names, or null when it names none.
+ *
+ * The one place the `project:` prefix is taken apart, so presence scoping and
+ * the shape check below cannot disagree about what counts as a project.
+ */
+export function projectIdOf(subscription: string): string | null {
+  return PROJECT_SUBSCRIPTION.exec(subscription)?.[1] ?? null;
+}
 
 export function isKnownSubscription(subscription: string): boolean {
-  return subscription === 'presence' || PROJECT_SUBSCRIPTION.test(subscription);
+  return subscription === 'presence' || projectIdOf(subscription) !== null;
 }
 
 export async function handleWsMessage(args: HandleWsMessageArgs): Promise<void> {
@@ -120,11 +144,16 @@ export async function handleWsMessage(args: HandleWsMessageArgs): Promise<void> 
       return;
     }
     args.subs.subscribe(msg['subscription'], args.socket);
+    // After the map accepted it, and never for a refused name: presence is
+    // scoped by the subscription, so telling it about one the fan-out does not
+    // hold would put a socket in a roster for a project it receives nothing on.
+    args.onSubscribed?.(msg['subscription']);
     return;
   }
 
   if (msg['type'] === 'unsubscribe' && typeof msg['subscription'] === 'string') {
     args.subs.unsubscribe(msg['subscription'], args.socket);
+    args.onUnsubscribed?.(msg['subscription']);
     return;
   }
 

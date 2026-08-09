@@ -84,7 +84,15 @@ export function App() {
     <div className="bg-background text-foreground flex h-full flex-col font-sans">
       <ProjectPage
         token={session.token}
-        presence={<PresencePanel token={session.token} me={session.user.username} />}
+        presence={
+          // A roster is a project's, so the panel is built from the page's
+          // selection rather than handed down finished — gw-01 scopes the
+          // roster by the project the socket subscribes to (F4, and
+          // {@link PresencePanel}).
+          (projectId) => (
+            <PresencePanel token={session.token} me={session.user.username} projectId={projectId} />
+          )
+        }
         account={
           <AccountMenu
             username={session.user.username}

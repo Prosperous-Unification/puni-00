@@ -151,7 +151,7 @@ describe('the header bar', () => {
       <ProjectPage
         token="t"
         api={fakeProjects(TWO)}
-        presence={<p>who is here</p>}
+        presence={() => <p>who is here</p>}
         account={<button type="button">the account</button>}
       />,
     );
@@ -162,6 +162,43 @@ describe('the header bar', () => {
     const bar = screen.getByRole('banner');
     expect(bar.contains(screen.getByText('who is here'))).toBe(true);
     expect(bar.contains(screen.getByRole('button', { name: 'the account' }))).toBe(true);
+  });
+
+  itDom('tells the presence slot which project is open, and when none is', async () => {
+    // The roster is a project's (F4): gw-01 scopes it by the project the
+    // socket subscribed to, and the selection lives here, so the panel cannot
+    // be a finished node handed down from `App`.
+    //
+    // Proof: `presence?.(selected)` in `project-page.tsx` put back to passing
+    // `presence` straight through as a node. This test failed on
+    // `expect(asked[0]).toBeNull()` — `expected undefined to be null`, the slot
+    // never called at all — and `gives the header the slots the app fills` failed
+    // beside it on `Unable to find an element with the text: who is here`,
+    // because a function React is handed as a child renders nothing. Watched
+    // 2026-08-09.
+    const asked: (string | null)[] = [];
+    render(
+      <ProjectPage
+        token="t"
+        api={fakeProjects(TWO)}
+        presence={(projectId) => {
+          asked.push(projectId);
+          return <p>who is in {projectId ?? 'nothing'}</p>;
+        }}
+      />,
+    );
+    await waitFor(() => {
+      expect(screen.getByLabelText('Project')).toBeDefined();
+    });
+    // Two projects, so nothing is auto-selected and the first ask is honest
+    // about it.
+    expect(asked[0]).toBeNull();
+    expect(screen.getByText('who is in nothing')).toBeDefined();
+
+    await selectProject('p2');
+
+    expect(asked.at(-1)).toBe('p2');
+    expect(screen.getByText('who is in p2')).toBeDefined();
   });
 
   itDom('leaves the table out of the banner and in the page’s main', async () => {
