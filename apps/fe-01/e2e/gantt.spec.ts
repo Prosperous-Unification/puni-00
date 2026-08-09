@@ -642,18 +642,26 @@ test.describe('the chart, after the browser has scaled it', () => {
         return found;
       };
       const alphaOf = (color: string): number => {
-        // Resolved through a probe so `color-mix(...)` and `rgba(...)` both
-        // answer as numbers: what the paint is, not how the class spelt it.
+        // Resolved through a probe so `color-mix(...)` answers as a concrete
+        // color: what the paint is, not how the class spelt it. Chromium may
+        // serialize that as `rgba(r, g, b, a)`, `rgb(r, g, b)`, or a
+        // color-space form like `oklab(l a b / 0.15)` — the alpha is the
+        // trailing `/ a` in the slash forms, the fourth comma argument in
+        // rgba, and 1 where nothing says otherwise. A shape this parser does
+        // not recognise throws rather than reading as opaque: an unreadable
+        // paint asserted as alpha 1 would pass the solid-work check by
+        // accident.
         const probe = document.createElement('div');
         probe.style.color = color;
         document.body.append(probe);
         const resolved = getComputedStyle(probe).color;
         probe.remove();
-        const channels = /^rgba?\(([^)]+)\)$/.exec(resolved)?.[1];
-        if (channels === undefined) throw new Error(`unreadable paint: ${resolved}`);
-        const alpha = channels.includes('/')
-          ? Number(channels.split('/')[1])
-          : Number(channels.split(',')[3] ?? '1');
+        const body = /^[a-z-]+\(([^)]+)\)$/.exec(resolved)?.[1];
+        if (body === undefined) throw new Error(`unreadable paint: ${resolved}`);
+        const slashed = /\/\s*([\d.]+%?)\s*$/.exec(body)?.[1];
+        const commaParts = body.split(',');
+        const raw = slashed ?? (commaParts.length > 3 ? commaParts[3].trim() : '1');
+        const alpha = raw.endsWith('%') ? Number(raw.slice(0, -1)) / 100 : Number(raw);
         if (Number.isNaN(alpha)) throw new Error(`unreadable alpha in ${resolved}`);
         return alpha;
       };

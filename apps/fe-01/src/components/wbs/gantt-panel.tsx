@@ -969,19 +969,49 @@ export function GanttPanel({
                 bar` alone failed, on `expected 'fill-foreground' to contain
                 'fill-foreground/15'`. Watched 2026-08-09.
               */}
-              {placed.brackets.map((bracket) => (
-                <rect
-                  key={bracket.rowId}
-                  data-gantt-bracket={bracket.rowId}
-                  x={bracket.from}
-                  width={bracket.to - bracket.from}
-                  y={bracket.rowIndex + BAR_INSET}
-                  height={BAR_HEIGHT}
-                  rx={BAR_RADIUS_PX / DAY_PX}
-                  ry={BAR_RADIUS_PX / ROW_PX}
-                  className="fill-foreground/15"
-                />
-              ))}
+              {placed.brackets
+                .filter((bracket) => bracket.to > bracket.from)
+                .map((bracket) => (
+                  <rect
+                    key={bracket.rowId}
+                    data-gantt-bracket={bracket.rowId}
+                    x={bracket.from}
+                    width={bracket.to - bracket.from}
+                    y={bracket.rowIndex + BAR_INSET}
+                    height={BAR_HEIGHT}
+                    rx={BAR_RADIUS_PX / DAY_PX}
+                    ry={BAR_RADIUS_PX / ROW_PX}
+                    className="fill-foreground/15"
+                  />
+                ))}
+
+              {/*
+                A parent whose projection has no days — every child unestimated
+                — is a modeled state, not a missing row, and a zero-width rect
+                is no mark at all. The same answer the leaves give a zero-day
+                slice: a tick where the branch stands. The bracket path this
+                mark replaced stayed visible at zero span through its stroke,
+                so the tick is what keeps that true of the ghost.
+
+                Proof: this block deleted, so a zero-span parent drew the
+                zero-width rect above. `still marks a parent whose projection
+                has no days` alone failed, `1 failed | 52 passed`, on the mark
+                not being there. Watched 2026-08-09.
+              */}
+              {placed.brackets
+                .filter((bracket) => bracket.to <= bracket.from)
+                .map((bracket) => (
+                  <line
+                    key={bracket.rowId}
+                    data-gantt-bracket={bracket.rowId}
+                    x1={bracket.from}
+                    y1={bracket.rowIndex + BAR_INSET}
+                    x2={bracket.from}
+                    y2={bracket.rowIndex + BAR_INSET + BAR_HEIGHT}
+                    className="stroke-foreground/40"
+                    vectorEffect="non-scaling-stroke"
+                  />
+                ))}
 
               {/*
                 A stored dependency: an elbow that always arrives horizontally at

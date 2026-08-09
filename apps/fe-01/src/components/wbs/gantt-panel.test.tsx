@@ -972,6 +972,32 @@ describe('the marks that had to be seen', () => {
     );
   });
 
+  itDom('still marks a parent whose projection has no days', () => {
+    // Every child unestimated, so the branch's projection starts and finishes
+    // on one workday — a modeled state the seeded ustsu plan is full of. The
+    // ghost rect would have zero width there, which is no mark at all; the
+    // parent gets the leaves' own answer, a tick where the branch stands.
+    render(
+      <GanttPanel
+        plan={planOf({
+          rows: [rowAt('hull', 5, 5, { leaf: false }), rowAt('strip', 5, 5, { depth: 1 })],
+          slices: [sliceAt('strip-dev', 'strip', 5, 5, { duration: 0, estimated: false })],
+        })}
+        startDate={MONDAY_START}
+        scheduleError={null}
+        onPickRow={() => undefined}
+      />,
+    );
+    const mark = document.querySelector('[data-gantt-bracket="hull"]');
+    if (mark === null) throw new Error('the zero-span parent left no mark at all');
+    expect(mark.tagName).toBe('line');
+    // On the calendar: workday 5 of a Monday start is seven days in, and the
+    // tick spans the bar band rather than being a point.
+    expect(mark.getAttribute('x1')).toBe('7');
+    expect(mark.getAttribute('x2')).toBe('7');
+    expect(Number(mark.getAttribute('y2')) - Number(mark.getAttribute('y1'))).toBeCloseTo(0.64, 12);
+  });
+
   itDom('draws a parent as the ghost of a bar: a leaf’s shape, translucent, unstroked', () => {
     drawTouchingPlan();
 
