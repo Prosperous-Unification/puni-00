@@ -900,3 +900,120 @@ describe('the project’s estimate method', () => {
     expect(row?.finalTotal).toBe(0);
   });
 });
+
+describe('the slices the schedule placed, on the wire', () => {
+  /** A whole-day estimate, so the numbers in these tests are the numbers. */
+  const flat = (days: number) => ({ optimistic: days, realistic: days, pessimistic: days });
+
+  /**
+   * One work item's slice in the payload, or a throw — a missing one is a
+   * broken fixture, not a null.
+   */
+  function slicedFor(
+    tree: Awaited<ReturnType<WorkItemService['tree']>>,
+    workItemId: string,
+  ): NonNullable<typeof tree>['slices'][number] {
+    const found = tree?.slices.find((one) => one.workItemId === workItemId);
+    if (found === undefined) throw new Error(`no slice for ${workItemId}`);
+    return found;
+  }
+
+  it('names the slice the person was finishing, under the engine’s own id', async () => {
+    const strip = await add('Strip');
+    const sand = await add('Sand');
+    await service.setEstimate(strip, OWNER, roleId, flat(3));
+    await service.setEstimate(sand, OWNER, roleId, flat(2));
+    await directory.assign(strip, roleId, 'kat');
+    await directory.assign(sand, roleId, 'kat');
+
+    const tree = await service.tree(projectId);
+
+    expect(tree?.slices).toHaveLength(2);
+    expect(slicedFor(tree, strip)).toMatchObject({
+      workItemId: strip,
+      roleId,
+      personId: 'kat',
+      duration: 3,
+      estimated: true,
+      earliestStart: 0,
+      earliestFinish: 3,
+      critical: true,
+      boundBy: 'projectStart',
+      resourcePredecessorId: null,
+    });
+    expect(slicedFor(tree, sand)).toMatchObject({
+      earliestStart: 3,
+      earliestFinish: 5,
+      boundBy: 'person',
+      // The engine's key, looked up rather than taken apart — the whole point
+      // of carrying the ids is that the Gantt's person link is this lookup.
+      resourcePredecessorId: slicedFor(tree, strip).id,
+    });
+  });
+
+  it('reports the engine’s fractional numbers verbatim', async () => {
+    // A PERT trio that does not land on a whole day: 22/6, which is
+    // 3.6666666666666665 and not 3.67, not 4. The next slice of the same
+    // person starts exactly there, and a payload that rounded either would put
+    // the bar a whole day from where the Start column says it is.
+    const strip = await add('Strip');
+    const sand = await add('Sand');
+    await service.setEstimate(strip, OWNER, roleId, {
+      optimistic: 3,
+      realistic: 3.5,
+      pessimistic: 5,
+    });
+    await service.setEstimate(sand, OWNER, roleId, flat(2));
+    await directory.assign(strip, roleId, 'kat');
+    await directory.assign(sand, roleId, 'kat');
+
+    const tree = await service.tree(projectId);
+
+    const expected = (3 + 4 * 3.5 + 5) / 6;
+    expect(slicedFor(tree, strip).duration).toBe(expected);
+    expect(slicedFor(tree, strip).earliestFinish).toBe(expected);
+    expect(slicedFor(tree, sand).earliestStart).toBe(expected);
+    expect(slicedFor(tree, sand).earliestFinish).toBe(expected + 2);
+  });
+
+  it('carries no slices at all when the plan could not be scheduled', async () => {
+    const strip = await add('Strip');
+    const sand = await add('Sand');
+    await dependencies.add({ id: 'x', projectId, predecessorId: strip, successorId: sand });
+    await dependencies.add({ id: 'y', projectId, predecessorId: sand, successorId: strip });
+
+    const tree = await service.tree(projectId);
+
+    expect(tree?.scheduleError).toBe('cycle');
+    expect(tree?.slices).toEqual([]);
+  });
+
+  it('adds slices and moves nothing else in the payload', async () => {
+    const strip = await add('Strip');
+    await service.setEstimate(strip, OWNER, roleId, flat(3));
+
+    const tree = await service.tree(projectId);
+
+    // Additive, asserted rather than asserted about: every name the payload
+    // carried before is still there, and `slices` is the only new one.
+    expect(Object.keys(tree ?? {}).sort()).toEqual([
+      'estimateMethod',
+      'projectRevision',
+      'scheduleError',
+      'seq',
+      'slices',
+      'startDate',
+      'waitingForPerson',
+      'workItems',
+    ]);
+    expect(tree?.workItems).toHaveLength(1);
+    expect(tree?.workItems[0]).toMatchObject({
+      number: '010',
+      name: 'Strip',
+      finalTotal: 3,
+      schedule: { duration: 3, earliestStart: 0, earliestFinish: 3, estimated: true },
+    });
+    expect(tree?.waitingForPerson).toBe(0);
+    expect(tree?.scheduleError).toBeNull();
+  });
+});

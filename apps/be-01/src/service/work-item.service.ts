@@ -40,7 +40,14 @@ import { deriveNumbers } from './derive-numbers';
 import { placeAfter, POSITION_STEP, type Sibling } from './place-sibling';
 import { canEdit } from './project.service';
 import { type Days, rollUp } from './roll-up';
-import { schedule, ScheduleCycleError, type Scheduled, type Slice, sliceKey } from './schedule';
+import {
+  schedule,
+  ScheduleCycleError,
+  type Scheduled,
+  type ScheduledSlice,
+  type Slice,
+  sliceKey,
+} from './schedule';
 
 /**
  * What a work item shows before any schedule could be computed for it.
@@ -294,6 +301,25 @@ export interface NumberedWorkItem extends WorkItem {
   doesEveryPhase: string | null;
 }
 
+/**
+ * One placed slice as a reader sees it: the engine's own output, under the key
+ * the engine holds it by.
+ *
+ * `id` is that key — {@link sliceKey}'s string, and opaque on both sides of the
+ * wire. It is what a slice's `resourcePredecessorId` names, so the person a
+ * reader draws a link from is **looked up** among these ids rather than derived
+ * from a work item and a role: reconstructing the key on the client would be a
+ * second implementation of {@link sliceKey}, and the two would disagree the day
+ * either changes.
+ *
+ * Everything else is {@link ScheduledSlice} unchanged. The numbers are the
+ * engine's verbatim — a slice starting at 3.6666666666666665 leaves as that, so
+ * a bar drawn from it and the Start column beside it cannot say different days.
+ */
+export interface IdentifiedSlice extends ScheduledSlice {
+  id: string;
+}
+
 /** Why a project has no dates, when it has none. `null` is the ordinary case. */
 export type ScheduleError = 'cycle' | null;
 
@@ -532,10 +558,26 @@ export class WorkItemService {
      *
      * A count rather than the slices themselves: what the reader is told here
      * is that people are the constraint and how much of the plan they hold up.
-     * Which slice waits for whom is a Gantt bar, and it leaves through the
-     * planner's own output when that is drawn.
+     * Which slice waits for whom is in {@link IdentifiedSlice.boundBy} beside
+     * it, and is a Gantt bar rather than a sentence.
      */
     waitingForPerson: number;
+    /**
+     * Every slice the schedule placed, in the order the engine placed them.
+     *
+     * The projection in each row's `schedule` is what a table column shows; this
+     * is what it is a projection **of**, and it is what a chart draws — one bar
+     * per entry, and the person links from `resourcePredecessorId`. Both are
+     * carried because they answer different questions, and neither is derivable
+     * from the other: a row's span does not say which role ran when, and a
+     * slice does not know its parent's bracket.
+     *
+     * Empty when there is no schedule at all, exactly as the row schedules
+     * degrade to {@link UNSCHEDULED} — a cycle leaves the rows on screen and
+     * takes the dates away, and bars left over from a plan that no longer
+     * computes would be the same confident lie in a different shape.
+     */
+    slices: IdentifiedSlice[];
     estimateMethod: EstimateMethod;
     startDate: IsoDate | null;
     /**
@@ -601,13 +643,33 @@ export class WorkItemService {
      * and the banner about the cycle is what that reader needs.
      */
     let waitingForPerson = 0;
+    /**
+     * The engine's own output, kept: a plan that could not be scheduled leaves
+     * this empty and the rows keep their {@link UNSCHEDULED} spans.
+     */
+    let scheduledSlices: IdentifiedSlice[] = [];
     try {
-      // The projection, not the slices: what a row shows is its own span. The
-      // count beside it is the one fact about the slices a reader is told —
-      // the Gantt is what will draw the rest of them.
+      // The projection **and** the slices: a row's column shows its own span,
+      // and a chart draws the slices the span is a projection of.
       const planned = schedule(rows, edges, slices, notBefore);
       timing = planned.workItems;
       waitingForPerson = planned.waitingForPerson;
+      // Spread rather than rebuilt field by field, and never put through any
+      // arithmetic: the engine's numbers are the answer, and this is the layer
+      // that would otherwise quietly round them.
+      //
+      // Proof: `({ id, ...placed })` mapped through `Math.round` on every
+      // number and `reports the engine's fractional numbers verbatim` failed —
+      // a slice of 3.6666666666666665 days came back as 4, a whole day of bar
+      // against the same plan's Start column; watched 2026-08-09.
+      //
+      // Proof: `resourcePredecessorId` left out of the entry — the spread
+      // replaced by the other twelve fields written out — and `names the slice
+      // the person was finishing, under the engine's own id` failed on
+      // `undefined`; the hand-off a person link is drawn from would have been
+      // absent from the payload with nothing to say it ever existed; watched
+      // 2026-08-09.
+      scheduledSlices = [...planned.slices].map(([id, placed]) => ({ id, ...placed }));
     } catch (err) {
       // Only the modeled failure. An unqualified catch here turned every
       // exception in this block — a stack overflow on a pathological tree, a
@@ -653,6 +715,7 @@ export class WorkItemService {
       seq,
       scheduleError,
       waitingForPerson,
+      slices: scheduledSlices,
       estimateMethod: project.estimateMethod,
       startDate: project.startDate,
       projectRevision: project.revision,
