@@ -21,10 +21,12 @@ import {
 import {
   assumedLabelFor,
   barLabelFor,
+  barText,
   CHART_PAD_PX,
   DAY_PX,
   GanttPanel,
   initialsOf,
+  monthWords,
   ROW_PX,
   rowWords,
 } from './gantt-panel';
@@ -307,8 +309,11 @@ describe('every mark on the chart lands on the calendar day its workday is', () 
     expect(markAttribute('[data-axis-day="7"]', 'data-axis-date')).toBe('2026-08-17');
     expect(markAttribute('[data-axis-day="7"]', 'data-axis-workday')).toBe('5');
 
-    // The bracket ends at the end of workday 7, which is nine calendar days in.
-    expect(markAttribute('[data-gantt-bracket="hull"]', 'd')).toContain('L 9 0.18');
+    // The parent's ghost bar ends at the end of workday 7, which is nine
+    // calendar days in — its right edge is `x + width`, the rect's own reading
+    // of the span the bracket path used to carry.
+    const ghost = drawnBox('[data-gantt-bracket="hull"]');
+    expect(ghost.x + ghost.width).toBe(9);
 
     // And the three marks joining two rows: the arrow leaves the Friday's right
     // edge at 5 and arrives at the Monday at 7, so the weekend is the gap.
@@ -631,10 +636,13 @@ describe('the chart is drawn in calendar days', () => {
     // bars of guessed width with nothing on them saying so. Watched,
     // 2026-08-09.
     expect(document.querySelector('[data-gantt-bar-label="sand-dev"]')?.textContent).toBe(
-      'Kat · ?',
+      'Kat · ? · sand - sand',
     );
-    // Nobody on it: the `?` is still the point and is still written.
-    expect(document.querySelector('[data-gantt-bar-label="trim-dev"]')?.textContent).toBe('?');
+    // Nobody on it: the `?` is still the point and is still written, the row
+    // words after it.
+    expect(document.querySelector('[data-gantt-bar-label="trim-dev"]')?.textContent).toBe(
+      '? · trim - trim',
+    );
   });
 
   /**
@@ -952,17 +960,17 @@ describe('the chart is drawn in calendar days', () => {
     // failed this test and only this test, and the sentence stood in for the
     // missing mark every time (vitest abbreviates the selector in its summary
     // line):
-    //   bracket — `expected 'nothing on the chart at [data-gantt-b…' to contain 'L 7 0.5'`
+    //   bracket — `expected 'nothing on the chart at [data-gantt-b…' to be '9'`
+    //   (re-watched 2026-08-09 as a rect: the block deleted, this test alone)
     //   arrow   — `expected 'nothing on the chart at [data-gantt-a…' to contain 'M 5 1.5'`
     //   link    — `expected 'nothing on the chart at [data-gantt-p…' to contain '[stroke-dasharray:4_3]'`
     //   flag    — `expected 'nothing on the chart at [data-gantt-n…' to match /^M 7 /`
     // Watched, 2026-08-09.
-    // An existence check and nothing more, deliberately: the bracket's four
-    // points were reordered so its legs drop rather than rise, and **both**
-    // shapes contain the same corner — one as the corner, the other as the end
-    // of a leg. Which way up it is asserted in `the marks that had to be seen`,
-    // where the relation between the points is the assertion.
-    expect(markAttribute('[data-gantt-bracket="hull"]', 'd')).toContain('L 9 0.5');
+    // An existence check and nothing more, deliberately: the ghost bar's whole
+    // shape — inset, height, radii, translucent fill — is asserted in `the
+    // marks that had to be seen`, where the relation to a leaf's bar is the
+    // assertion. Here it is drawn at all, spanning its nine calendar days.
+    expect(markAttribute('[data-gantt-bracket="hull"]', 'width')).toBe('9');
     expect(markAttribute('[data-gantt-arrow="strip->sand"]', 'd')).toContain('M 5 1.5');
     // Dashed and its own colour: a hand-off is not a dependency, and the two
     // are told apart by nothing but how they are drawn.
@@ -1188,25 +1196,67 @@ describe('the marks that had to be seen', () => {
     );
   });
 
-  itDom('drops the summary bracket’s legs from its line, in a stroke that is seen', () => {
+  itDom('still marks a parent whose projection has no days', () => {
+    // Every child unestimated, so the branch's projection starts and finishes
+    // on one workday — a modeled state the seeded ustsu plan is full of. The
+    // ghost rect would have zero width there, which is no mark at all; the
+    // parent gets the leaves' own answer, a tick where the branch stands.
+    render(
+      <GanttPanel
+        plan={planOf({
+          rows: [rowAt('hull', 5, 5, { leaf: false }), rowAt('strip', 5, 5, { depth: 1 })],
+          slices: [sliceAt('strip-dev', 'strip', 5, 5, { duration: 0, estimated: false })],
+        })}
+        startDate={MONDAY_START}
+        scheduleError={null}
+        onPickRow={() => undefined}
+      />,
+    );
+    const mark = document.querySelector('[data-gantt-bracket="hull"]');
+    if (mark === null) throw new Error('the zero-span parent left no mark at all');
+    expect(mark.tagName).toBe('line');
+    // On the calendar: workday 5 of a Monday start is seven days in, and the
+    // tick spans the bar band rather than being a point.
+    expect(mark.getAttribute('x1')).toBe('7');
+    expect(mark.getAttribute('x2')).toBe('7');
+    expect(Number(mark.getAttribute('y2')) - Number(mark.getAttribute('y1'))).toBeCloseTo(0.64, 12);
+  });
+
+  itDom('draws a parent as the ghost of a bar: a leaf’s shape, translucent, unstroked', () => {
     drawTouchingPlan();
 
-    const bracket = pointsOf('[data-gantt-bracket="hull"]');
-    // Proof: the four points put back in their old order — the flat line at the
-    // row's middle and the ends rising to the bar inset, at the default 1px.
-    // This test alone failed, `1 failed | 30 passed`, on `the bracket's legs do
-    // not drop from its line: expected 0.18 to be greater than 0.5`. The
-    // stroke-width half was watched separately, with `[stroke-width:2]` struck
-    // from the class: `expected 'stroke-foreground fill-none' to contain
-    // '[stroke-width:2]'`. Watched 2026-08-09.
-    expect(bracket).toHaveLength(4);
-    const [legStart, lineStart, lineEnd, legEnd] = bracket;
-    expect(legStart.y, 'the bracket’s legs do not drop from its line').toBeGreaterThan(lineStart.y);
-    expect(lineStart.y).toBe(lineEnd.y);
-    expect(legEnd.y).toBe(legStart.y);
-    expect(document.querySelector('[data-gantt-bracket="hull"]')?.getAttribute('class')).toContain(
-      '[stroke-width:2]',
+    // The same shape the leaf bar beside it has — inset, height, both corner
+    // radii — read off the two rects rather than written out, so the "same
+    // bar as other bars" claim is the assertion and not a comment.
+    const ghost = drawnBox('[data-gantt-bracket="hull"]');
+    const leaf = drawnBox('[data-gantt-bar="strip-dev"]');
+    expect(ghost.y - Math.floor(ghost.y)).toBeCloseTo(leaf.y - Math.floor(leaf.y), 12);
+    expect(ghost.height).toBe(leaf.height);
+    const attributeOf = (selector: string, attribute: string): string | null =>
+      document.querySelector(selector)?.getAttribute(attribute) ?? null;
+    // Not-null before equal: two rects that both lost their radii would agree
+    // on null, and `expect(null).toBe(null)` is a check that cannot fail.
+    expect(attributeOf('[data-gantt-bracket="hull"]', 'rx')).not.toBeNull();
+    expect(attributeOf('[data-gantt-bracket="hull"]', 'rx')).toBe(
+      attributeOf('[data-gantt-bar="strip-dev"]', 'rx'),
     );
+    expect(attributeOf('[data-gantt-bracket="hull"]', 'ry')).toBe(
+      attributeOf('[data-gantt-bar="strip-dev"]', 'ry'),
+    );
+    // The span is the projection on the calendar: hull runs workdays 5 → 10,
+    // which is calendar days 7 → 12 across the middle weekend.
+    expect(ghost.x).toBe(7);
+    expect(ghost.width).toBe(5);
+    // Translucent foreground and no stroke: visibly a projection of the rows
+    // beneath it, not an eleventh person's work.
+    //
+    // Proof: the class replaced by `fill-foreground` whole — a parent drawn as
+    // solid ink, indistinguishable from work. This test alone failed, on
+    // `expected 'fill-foreground' to contain 'fill-foreground/15'`. Watched
+    // 2026-08-09.
+    const paint = attributeOf('[data-gantt-bracket="hull"]', 'class') ?? '';
+    expect(paint).toContain('fill-foreground/15');
+    expect(paint).not.toContain('stroke');
   });
 });
 
@@ -1374,7 +1424,7 @@ describe('the words on the bars are HTML over the chart', () => {
     // The band is in the number because the SVG under this span begins one band
     // left of day 0 (see {@link CHART_PAD_PX}); dropping it here puts every
     // name 12px left of the bar it belongs to.
-    expect(label?.textContent).toBe('Kat');
+    expect(label?.textContent).toBe('Kat · strip - strip');
     expect(label?.style.left).toBe(`${String(7 * DAY_PX + CHART_PAD_PX)}px`);
     expect(label?.style.width).toBe(`${String(4 * DAY_PX)}px`);
     // Second row, and the same inset the rect above it has: the words sit on
@@ -1412,9 +1462,81 @@ describe('the words on the bars are HTML over the chart', () => {
     // <span …> to be null` — an empty label box sitting over a 5px bar, which
     // is a click target and a stray outline in a browser. Watched, 2026-08-09.
     expect(labelOn('strip-dev')).toBeNull();
-    // The wide bar on the row above still has its name, so this is a threshold
+    // The wide bar on the row above still has its words, so this is a threshold
     // and not a switch that turned every label off.
-    expect(labelOn('trim-dev')?.textContent).toBe('Ravi');
+    expect(labelOn('trim-dev')?.textContent).toBe('Ravi · trim - trim');
+  });
+
+  itDom('writes the row’s own words after the assignee, and alone when nobody fits', () => {
+    // The composition, taken directly: the assignee part the width already
+    // decided, then ` · `, then the row words — which are never dropped for
+    // room, because the label box crops them with an ellipsis instead.
+    expect(barText('Kat', '010 - Strip', 4)).toBe('Kat · 010 - Strip');
+    expect(barText(null, '010 - Strip', 4)).toBe('010 - Strip');
+    // The one refusal: a bar without room for a single character.
+    expect(barText(null, '010 - Strip', 0.2)).toBeNull();
+    expect(barText('Kat', '010 - Strip', 0.2)).toBeNull();
+  });
+
+  itDom('carries the row words whole even where the box must crop them', () => {
+    // One workday is 28px — room for four characters, nowhere near the words.
+    // The DOM still holds the full string and the box crops it: a label
+    // shortened by dropping the words would read as the assignee-only chart
+    // this change removes.
+    //
+    // Proof: `barText` given the old appending rule — the words only when they
+    // fully fit — `4 failed | 48 passed`: this test on `expected 'Kat' to be
+    // 'Kat · strip - strip'`, and the three narrow-bar cases beside it, while
+    // every wide bar stayed green. Watched 2026-08-09.
+    render(
+      <GanttPanel
+        plan={oneAssignedBar({ start: 5, finish: 6, duration: 1 })}
+        startDate={null}
+        scheduleError={null}
+        onPickRow={() => undefined}
+      />,
+    );
+    const label = labelOn('strip-dev');
+    expect(label?.textContent).toBe('Kat · strip - strip');
+    // Cropped by the box, in a size that sits inside the bar: the ellipsis
+    // classes and the smaller font are what make the full string honest.
+    expect(label?.classList.contains('text-ellipsis')).toBe(true);
+    expect(label?.classList.contains('overflow-hidden')).toBe(true);
+    expect(label?.classList.contains('text-[9px]')).toBe(true);
+  });
+
+  itDom('writes the row words on a bar nobody is on', () => {
+    render(
+      <GanttPanel
+        plan={planOf({
+          rows: [rowAt('strip', 0, 4)],
+          slices: [sliceAt('strip-dev', 'strip', 0, 4)],
+        })}
+        startDate={null}
+        scheduleError={null}
+        onPickRow={() => undefined}
+      />,
+    );
+    // An unassigned bar used to write nothing at all — sixty grey bars with no
+    // words was the fault. Now the row words stand alone.
+    expect(labelOn('strip-dev')?.textContent).toBe('strip - strip');
+  });
+
+  itDom('keeps the ? first on an unestimated bar, the row words after it', () => {
+    render(
+      <GanttPanel
+        plan={planOf({
+          rows: [rowAt('seal', 0, 0)],
+          slices: [sliceAt('seal-dev', 'seal', 0, 0, { duration: 0, estimated: false })],
+        })}
+        startDate={null}
+        scheduleError={null}
+        onPickRow={() => undefined}
+      />,
+    );
+    // The `?` is the width's own disclaimer and is never dropped; the row
+    // words follow it rather than replace it.
+    expect(labelOn('seal-dev')?.textContent).toBe('? · seal - seal');
   });
 
   itDom('writes the label in ink the bar it sits on can be read through', () => {
@@ -2247,9 +2369,16 @@ describe('the caption follows the scroll', () => {
       />,
     );
 
-  itDom('opens naming the month it starts in', () => {
+  itDom('opens naming the month it starts in, the way a person says it', () => {
     augustIntoSeptember();
-    expect(screen.getByText('2026-08')).toBeDefined();
+    // `Aug 2026` and never `2026-08`: the corner is the one place the chart
+    // names a month, and it names it as a month.
+    //
+    // Proof: `monthWords` short-circuited to `date.slice(0, 7)` — the old
+    // caption. `3 failed | 49 passed`: this test and the scroll test on
+    // `Unable to find an element with the text: Aug 2026` / `Sep 2026`, and
+    // the fixed-table case with them. Watched 2026-08-09.
+    expect(screen.getByText('Aug 2026')).toBeDefined();
   });
 
   itDom('names the month that is on screen, not the one it started in', () => {
@@ -2266,8 +2395,74 @@ describe('the caption follows the scroll', () => {
     // test above stayed green. Watched, 2026-08-09.
     panel.scrollLeft = 8 * DAY_PX + CHART_PAD_PX;
     fireEvent.scroll(panel);
-    expect(screen.getByText('2026-09')).toBeDefined();
-    expect(screen.queryByText('2026-08')).toBeNull();
+    expect(screen.getByText('Sep 2026')).toBeDefined();
+    expect(screen.queryByText('Aug 2026')).toBeNull();
+  });
+
+  itDom('says a month the way a person does, from a fixed table', () => {
+    expect(monthWords('2026-08-17')).toBe('Aug 2026');
+    expect(monthWords('2026-12-01')).toBe('Dec 2026');
+    expect(monthWords('2027-01-31')).toBe('Jan 2027');
+  });
+
+  itDom('refuses a month no calendar has, out loud', () => {
+    // The production caller only ever hands this validated dates, so the unit
+    // boundary is where the guard can be seen at all. Without it the table
+    // indexes past its end and the caption reads `undefined 2026` — a corner
+    // quietly printing nonsense instead of a fault reaching the boundary.
+    //
+    // Proof: the range guard deleted, so the lookup ran unchecked. This test
+    // alone failed, on `expected [Function] to throw an error` — the fault
+    // came back as the string 'undefined 2026'. Watched 2026-08-09.
+    expect(() => monthWords('2026-13-01')).toThrow('names a month no calendar has');
+    expect(() => monthWords('not a date')).toThrow('names a month no calendar has');
+  });
+});
+
+describe('the arrows switch', () => {
+  const drawEveryMark = () =>
+    render(
+      <GanttPanel
+        plan={everyMarkOnOneDay()}
+        startDate={MONDAY_START}
+        scheduleError={null}
+        onPickRow={() => undefined}
+      />,
+    );
+
+  const countOf = (selector: string): number => document.querySelectorAll(selector).length;
+
+  itDom('hides every arrow and its head, and touches nothing else', () => {
+    drawEveryMark();
+    const toggle = document.querySelector('[data-gantt-arrows-toggle]');
+    if (!(toggle instanceof HTMLElement)) throw new Error('the arrows switch is not on the panel');
+
+    // Shown by default, and the switch says so.
+    expect(toggle.getAttribute('aria-pressed')).toBe('true');
+    expect(countOf('[data-gantt-arrow]')).toBe(1);
+    expect(countOf('[data-gantt-arrow-head]')).toBe(1);
+
+    fireEvent.click(toggle);
+
+    // Both marks of the stored dependency are gone — the elbow and the head
+    // are two paths, and a filter keyed on one of them leaves the other as a
+    // floating triangle pointing at nothing.
+    //
+    // Proof: the `arrowsShown &&` moved onto the elbow alone, heads left
+    // drawn. This test alone failed, on `expected 1 to be +0` for the head
+    // count. Watched 2026-08-09.
+    expect(toggle.getAttribute('aria-pressed')).toBe('false');
+    expect(countOf('[data-gantt-arrow]')).toBe(0);
+    expect(countOf('[data-gantt-arrow-head]')).toBe(0);
+    // The person link, the caret and every bar are untouched: the switch
+    // removes the stored-dependency marks alone.
+    expect(countOf('[data-gantt-person-link]')).toBe(1);
+    expect(countOf('[data-gantt-not-before]')).toBe(1);
+    expect(countOf('[data-gantt-bar]')).toBe(3);
+
+    fireEvent.click(toggle);
+    expect(countOf('[data-gantt-arrow]')).toBe(1);
+    expect(countOf('[data-gantt-arrow-head]')).toBe(1);
   });
 });
 

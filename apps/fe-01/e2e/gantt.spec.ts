@@ -621,18 +621,75 @@ test.describe('the chart, after the browser has scaled it', () => {
       'the caret does not stand at the day the bar starts on',
     ).toBeLessThanOrEqual(NEARLY);
 
-    // 3. The strokes, as the browser computed them rather than as a class
-    //    attribute spells them.
-    const strokes = await page.evaluate(() => {
-      const read = (where: string): number => {
-        const node = document.querySelector(where);
-        if (node === null) throw new Error(`nothing on the chart at ${where}`);
-        return Number.parseFloat(getComputedStyle(node).strokeWidth);
+    // 3. The paint, as the browser computed it rather than as a class
+    //    attribute spells it: the arrow's stroke is heavy enough to be seen,
+    //    and the parent's ghost bar is genuinely translucent — a parent drawn
+    //    in solid ink is indistinguishable from work of its own, and only a
+    //    computed style can say what `fill-foreground/15` came out as.
+    //
+    //    Negative: the ghost's class made `fill-foreground` whole fails the
+    //    jsdom class assertion (watched 2026-08-09, `gantt-panel.test.tsx`),
+    //    and must fail here on `expected 1 to be less than 1`. NOT yet watched
+    //    in Chromium: the 2026-08-09 run was blocked by another checkout's dev
+    //    servers on 3100/4200 (the reuseExistingServer landmine), and Dany
+    //    chose to let CI's pixels job be the first browser run. Until someone
+    //    watches it fail, the alpha half of this check is a claim, not a gate
+    //    — verify.md of `gantt-polish` says so too.
+    // The ghost's geometry before its paint: a translucent rect of no area
+    // has the right computed fill and no pixels, which is the sixteenth
+    // check's shape wearing the new mark. Non-zero both ways, and no taller
+    // than the row band a bar is allowed.
+    const ghost = await rectOf(page, '[data-gantt-bracket]');
+    expect(ghost.right - ghost.left, "the parent's ghost bar has no width").toBeGreaterThan(0);
+    expect(ghost.bottom - ghost.top, "the parent's ghost bar has no height").toBeGreaterThan(0);
+    expect(ghost.bottom - ghost.top, 'the ghost spills out of its row').toBeLessThanOrEqual(28);
+
+    const paint = await page.evaluate(() => {
+      const node = (where: string): Element => {
+        const found = document.querySelector(where);
+        if (found === null) throw new Error(`nothing on the chart at ${where}`);
+        return found;
       };
-      return { bracket: read('[data-gantt-bracket]'), arrow: read('[data-gantt-arrow]') };
+      const alphaOf = (color: string): number => {
+        // Resolved through a probe so `color-mix(...)` answers as a concrete
+        // color: what the paint is, not how the class spelt it. Chromium may
+        // serialize that as `rgba(r, g, b, a)`, `rgb(r, g, b)`, or a
+        // color-space form like `oklab(l a b / 0.15)` — the alpha is the
+        // trailing `/ a` in the slash forms, the fourth comma argument in
+        // rgba, and 1 where nothing says otherwise. A shape this parser does
+        // not recognise throws rather than reading as opaque: an unreadable
+        // paint asserted as alpha 1 would pass the solid-work check by
+        // accident.
+        const probe = document.createElement('div');
+        // A sentinel first: an invalid assignment leaves the property alone,
+        // and the probe would then answer with the body's inherited colour —
+        // alpha 1, a wrong paint read as a solid one. Seeing the sentinel
+        // survive is how `none` or a paint-server fill is told apart.
+        probe.style.color = 'rgb(1, 2, 3)';
+        probe.style.color = color;
+        document.body.append(probe);
+        const resolved = getComputedStyle(probe).color;
+        probe.remove();
+        if (resolved === 'rgb(1, 2, 3)' && color !== 'rgb(1, 2, 3)') {
+          throw new Error(`not a colour at all: ${color}`);
+        }
+        const body = /^[a-z-]+\(([^)]+)\)$/.exec(resolved)?.[1];
+        if (body === undefined) throw new Error(`unreadable paint: ${resolved}`);
+        const slashed = /\/\s*([\d.]+%?)\s*$/.exec(body)?.[1];
+        const commaParts = body.split(',');
+        const raw = slashed ?? (commaParts.length > 3 ? commaParts[3].trim() : '1');
+        const alpha = raw.endsWith('%') ? Number(raw.slice(0, -1)) / 100 : Number(raw);
+        if (Number.isNaN(alpha)) throw new Error(`unreadable alpha in ${resolved}`);
+        return alpha;
+      };
+      return {
+        bracketAlpha: alphaOf(getComputedStyle(node('[data-gantt-bracket]')).fill),
+        arrowStroke: Number.parseFloat(getComputedStyle(node('[data-gantt-arrow]')).strokeWidth),
+      };
     });
-    expect(strokes.bracket, 'the summary bracket is a hairline').toBeGreaterThanOrEqual(2);
-    expect(strokes.arrow, 'the dependency arrow is a hairline').toBeGreaterThanOrEqual(1.5);
+    expect(paint.bracketAlpha, "the parent's ghost bar is painted as solid work").toBeLessThan(1);
+    expect(paint.bracketAlpha, "the parent's ghost bar is not painted at all").toBeGreaterThan(0);
+    expect(paint.arrowStroke, 'the dependency arrow is a hairline').toBeGreaterThanOrEqual(1.5);
 
     // 4. And the successor's bar really is past the plan's first weekend, so
     //    every measurement above was taken where a calendar coordinate and a
@@ -719,6 +776,18 @@ test.describe('the chart, after the browser has scaled it', () => {
       await paintedAt(page, `[data-gantt-arrow-head="${String(id)}"]`),
       'the left-edge arrow head is not painted at its own centre',
     ).toBe('itself');
+
+    // 3. The switch, asked in the one place jsdom cannot answer: a real click
+    //    on a button inside a sticky, z-indexed subtree of an overflow-auto
+    //    scroller — the exact arrangement that has eaten clicks here twice
+    //    (R5 #14, #15). Both marks go and both come back.
+    const toggle = page.locator('[data-gantt-arrows-toggle]');
+    await toggle.click();
+    await expect(page.locator('[data-gantt-arrow]')).toHaveCount(0);
+    await expect(page.locator('[data-gantt-arrow-head]')).toHaveCount(0);
+    await toggle.click();
+    await expect(page.locator('[data-gantt-arrow]')).toHaveCount(2);
+    await expect(page.locator('[data-gantt-arrow-head]')).toHaveCount(2);
   });
 
   test('holds the labels at the left edge with the chart scrolled fully right', async ({
