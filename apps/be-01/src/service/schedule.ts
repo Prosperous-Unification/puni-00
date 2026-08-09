@@ -371,9 +371,6 @@ function eligibleSet(goesFirst: (left: string, right: string) => boolean) {
     heap[b] = held;
   };
   return {
-    get size(): number {
-      return heap.length;
-    },
     push(key: string): void {
       heap.push(key);
       for (let at = heap.length - 1; at > 0; ) {
@@ -495,8 +492,7 @@ function placeSlices(
     // has estimated no place in the queue` failed — the empty `QA` came back at
     // day 5 rather than day 3, `boundBy: 'person'`, taking its work item's
     // finish with it; watched 2026-08-09.
-    const queues = personOf(key) !== null && offsets[place.at + 1] - offsets[place.at] > 0;
-    const personId = queues ? personOf(key) : null;
+    const personId = offsets[place.at + 1] - offsets[place.at] > 0 ? personOf(key) : null;
     const busy = personId === null ? undefined : busyUntil.get(personId);
     // Latest wins, and a tie keeps the reason listed first — which is why the
     // person is last of them; see {@link ScheduleFloor}.
