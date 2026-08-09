@@ -3441,14 +3441,17 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                 // scrolls it out of sight one character at a time. A textarea
                 // wraps, and `autoSize` is what stops it wrapping into a line
                 // nobody can see: the box is as tall as its name, focused or
-                // not. It holds the notes under the name as well, which is what
-                // `maxRestRows` caps — past four lines the box scrolls and the
-                // hover preview is where a long note is read.
+                // not. It holds the notes under the name as well, and at rest
+                // they take no height at all — `restShowsFirstLineOnly` — so a
+                // plan reads as its names. The notes are read by writing in
+                // the cell or in the hover preview below; `maxRestRows` does
+                // not bind this cell, because a name is shown whole however
+                // many lines it wraps onto.
                 // Enter is still "new work item" — the table preventDefaults it.
                 multiline
                 autoSize
+                restShowsFirstLineOnly
                 rows={1}
-                maxRestRows={4}
                 style={{
                   // The cell's width, not a width of its own: `22em` was one of
                   // the three opinions that produced the overlap, and it is the

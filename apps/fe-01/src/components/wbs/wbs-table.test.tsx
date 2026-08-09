@@ -1784,21 +1784,37 @@ describe('names wrap and notes carry markdown', () => {
     expect(document.activeElement).not.toBe(name);
   });
 
-  itDom('caps how tall a name box gets at rest, and lifts the cap to write in', async () => {
+  itDom('clips the notes at rest and opens the box to write in', async () => {
+    // The two halves of the at-rest clamp jsdom can see. The height itself it
+    // cannot — `scrollHeight` is 0 here and this test stubs it — so what the
+    // box is *as tall as* is proven in `e2e/name-cell.spec.ts` and nowhere
+    // else. What is proven here is that the notes are clipped rather than
+    // scrollable, which is the difference between hiding them and putting
+    // them one wheel-turn away, and that no `maxRestRows` cap binds this cell
+    // any more: a name is shown whole however long it is.
+    //
+    // Proof: `restShowsFirstLineOnly` taken off the Name column — `expected
+    // 'auto' to be 'hidden'`; and the cap left on with it — `expected '5.6em'
+    // to be 'none'`. Watched, 2026-08-09.
     const api = fakeApi();
     render(<WbsTable projectId="p1" api={api} />);
     click('Add work item');
     const name = await screen.findByLabelText<HTMLTextAreaElement>('Name of 010');
 
     withScrollHeight(name, 400);
+    fireEvent.change(name, { target: { value: 'Strip\nmeasure twice\nthe fuse box is old' } });
+    // `name.blur()`, not `fireEvent.blur`: the latter leaves
+    // `document.activeElement` where it was, so the component would still read
+    // the cell as focused.
     name.blur();
-    const restCap = name.style.maxHeight;
+
+    expect(name.style.overflowY).toBe('hidden');
+    expect(name.style.maxHeight).toBe('none');
+
     name.focus();
 
-    // At rest the table stays readable; in the cell, an essay is writable.
-    expect(restCap).toBe('5.6em');
-    expect(name.style.maxHeight).toBe('none');
     expect(name.style.overflowY).toBe('auto');
+    expect(name.style.maxHeight).toBe('none');
   });
 
   itDom('gives the name a box that wraps rather than one that scrolls', async () => {
@@ -1814,29 +1830,66 @@ describe('names wrap and notes carry markdown', () => {
     expect(name.tagName).toBe('TEXTAREA');
   });
 
-  itDom('makes room for a note written under the name, focus or no focus', async () => {
+  itDom('makes room for a note while it is being written in', async () => {
     // What the deleted Notes column's own `grows while it is being written in,
     // and shrinks after` used to say, asked of the box the note is written in
-    // now. That cell expanded its `rows` on focus because it was cropped on
-    // purpose; this one auto-sizes, so the note has room at rest as well —
-    // which is the behaviour a plan is read with rather than written with.
+    // now. In the cell the box follows the text; the clamp is the other half
+    // of this and only a browser can measure it.
     const api = fakeApi();
     render(<WbsTable projectId="p1" api={api} />);
     click('Add work item');
     const name = await screen.findByLabelText<HTMLTextAreaElement>('Name of 010');
 
+    name.focus();
     withScrollHeight(name, 20);
     fireEvent.change(name, { target: { value: 'Strip' } });
     expect(name.style.height).toBe('20px');
 
     withScrollHeight(name, 80);
     fireEvent.change(name, { target: { value: 'Strip\n\n## Risks\n\n- the fuse box is old' } });
-    // `name.blur()`, not `fireEvent.blur`: the latter leaves
-    // `document.activeElement` where it was, so the component would still read
-    // the cell as focused.
-    name.blur();
 
     expect(name.style.height).toBe('80px');
+  });
+
+  itDom('still holds the whole text in the box it shows one line of', async () => {
+    // The clamp changes the box's height and nothing else. It measures the
+    // first line by holding only the first line for the length of one
+    // `scrollHeight` read, and what everything after that read sees — the
+    // blur that follows it, `LiveField`'s diff against its baseline, the next
+    // person to click into the cell — has to be the whole composed text
+    // again. A clamp that forgot to put it back would send the name over the
+    // notes and delete them, from a focus and a blur with nothing typed.
+    //
+    // Proof: the restore dropped from `resize` — the swapped-in first line
+    // left in the box. It failed one line sooner than it was written for, on
+    // `expected '' to be 'measure twice'` at the wait below: the blur that
+    // sets this test up read the truncated box and deleted the note on the
+    // way past. Watched, 2026-08-09.
+    const api = fakeApi();
+    render(<WbsTable projectId="p1" api={api} />);
+    click('Add work item');
+    const name = await screen.findByLabelText<HTMLTextAreaElement>('Name of 010');
+
+    withScrollHeight(name, 60);
+    fireEvent.change(name, { target: { value: 'Strip\nmeasure twice' } });
+    name.blur();
+    await waitFor(() => {
+      expect(api.rows[0]?.notes).toBe('measure twice');
+    });
+
+    const patched: unknown[] = [];
+    const realPatch = api.patch.bind(api);
+    api.patch = (id: string, patch: Record<string, unknown>) => {
+      patched.push([id, patch]);
+      return realPatch(id, patch);
+    };
+
+    // A look, not an edit: in and straight out again.
+    name.focus();
+    name.blur();
+
+    expect(name.value).toBe('Strip\nmeasure twice');
+    expect(patched).toEqual([]);
   });
 
   itDom('renders the markdown on hover, and nothing when there is no note', async () => {
@@ -1919,11 +1972,11 @@ describe('names wrap and notes carry markdown', () => {
     expect(screen.queryByRole('tooltip')).toBeNull();
   });
 
-  itDom('reads the whole note in the preview while the box shows the first lines', async () => {
-    // The cap and the preview are one answer between them: the cell stops at
-    // four lines so forty rows still fit on a screen, and the hover is where
-    // the rest of a long note is read. Without the preview the cap would be a
-    // crop.
+  itDom('reads the whole note in the preview while the box shows the name', async () => {
+    // The clamp and the preview are one answer between them: at rest the cell
+    // is its name and nothing else, so forty rows fit on a screen, and the
+    // hover is where the note is read. Without the preview the clamp would be
+    // a note nobody could find.
     await oneRowWithNotes('## Risks\n\n- one\n- two\n- three\n- four\n- five\n- six');
 
     fireEvent.mouseEnter(nameCellOf('010'));

@@ -20,7 +20,7 @@ Ordered TDD slices. Only `- [ ]` checkboxes are tracked by the apply phase.
 
 ## 2. The Name cell at rest is the name alone
 
-- [ ] 2.1 `CellInput` gains the opt-in at-rest first-line clamp (prop name per
+- [x] 2.1 `CellInput` gains the opt-in at-rest first-line clamp (prop name per
       R2, e.g. `restShowsFirstLineOnly`): at rest the height is the measured
       wrapped height of the first line with overflow hidden; focused it is the
       full content height with overflow auto; `maxRestRows` untouched for the
