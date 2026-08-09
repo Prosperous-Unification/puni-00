@@ -1502,3 +1502,44 @@ describe('the chart is drawn from one read', () => {
     expect(barOn('sanding').getAttribute('fill')).toBe(PERSON_BAR_COLORS[0]);
   });
 });
+
+/**
+ * The caption over the row labels names the month the reader is looking at,
+ * which is only the starting month until the chart is scrolled. jsdom does no
+ * layout, but a scroll event's `scrollLeft` is plain state — the arithmetic
+ * from it to a workday index is what these hold.
+ */
+describe('the caption follows the scroll', () => {
+  const augustIntoSeptember = () =>
+    render(
+      <GanttPanel
+        plan={planOf({
+          rows: [rowAt('strip', 0, 10)],
+          slices: [sliceAt('strip-dev', 'strip', 0, 10)],
+        })}
+        startDate="2026-08-24"
+        scheduleError={null}
+        onPickRow={() => undefined}
+      />,
+    );
+
+  itDom('opens naming the month it starts in', () => {
+    augustIntoSeptember();
+    expect(screen.getByText('2026-08')).toBeDefined();
+  });
+
+  itDom('names the month that is on screen, not the one it started in', () => {
+    augustIntoSeptember();
+    const panel = document.querySelector('[data-gantt-panel]');
+    if (!(panel instanceof HTMLElement)) throw new Error('the panel is not on the page');
+    // Workday 6 of a 2026-08-24 start is 2026-09-01; its cell begins at
+    // 6 × DAY_PX past the pad, so anything past that names September.
+    // Proof: the caption pinned back to `axis[0]` — this test failed on
+    // `expected '2026-08' to be... (getByText('2026-09') found nothing)` while
+    // the opening test above stayed green. Watched, 2026-08-09.
+    panel.scrollLeft = 6 * DAY_PX + CHART_PAD_PX;
+    fireEvent.scroll(panel);
+    expect(screen.getByText('2026-09')).toBeDefined();
+    expect(screen.queryByText('2026-08')).toBeNull();
+  });
+});

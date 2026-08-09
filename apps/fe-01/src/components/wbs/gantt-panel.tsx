@@ -1,4 +1,5 @@
 import { addWorkdays, type IsoDate } from '@wbs/domain/workday';
+import { useState } from 'react';
 
 import {
   type GanttBar,
@@ -484,6 +485,11 @@ export function GanttPanel({
   /** Takes the plan to a row — the caller decides what "takes" means. */
   onPickRow: (rowId: string) => void;
 }) {
+  // How far the chart is scrolled, in CSS pixels. Held only so the caption can
+  // name the month actually on screen — before the hooks' unconditional spot,
+  // because the cycle return below is a conditional one.
+  const [scrolledPx, setScrolledPx] = useState(0);
+
   if (scheduleError === 'cycle') {
     return (
       <section data-gantt-panel aria-label="Gantt chart" className="border-border border-t p-3">
@@ -506,6 +512,22 @@ export function GanttPanel({
   const pad = CHART_PAD_PX / DAY_PX;
   const chartWidth = axis.length * DAY_PX + 2 * CHART_PAD_PX;
   const rowIdAt = (rowIndex: number): string | undefined => chart.labels[rowIndex]?.id;
+  /**
+   * The first workday whose cell is at least partly visible right of the
+   * sticky labels. The labels overlay the scroll content's left edge, so the
+   * first chart pixel on screen sits `scrolledPx` past the pad in the chart's
+   * own coordinates. Clamped so an overscroll or an empty axis still names a
+   * real day.
+   *
+   * Proof: the caption pinned back to `axis[0]` — `names the month that is on
+   * screen, not the one it started in` failed on `Unable to find an element
+   * with the text: 2026-09` while the opening-month test beside it stayed
+   * green. Watched, 2026-08-09.
+   */
+  const firstVisibleWorkday = Math.min(
+    Math.max(0, Math.floor((scrolledPx - CHART_PAD_PX) / DAY_PX)),
+    Math.max(0, axis.length - 1),
+  );
 
   return (
     <section
@@ -517,6 +539,9 @@ export function GanttPanel({
       // height rather than a flex basis — the table stays the editor and the
       // chart takes what it needs up to the cap.
       className="border-border max-h-[40vh] shrink-0 overflow-auto border-t"
+      onScroll={(scrollEvent) => {
+        setScrolledPx(scrollEvent.currentTarget.scrollLeft);
+      }}
     >
       <div className="flex w-max">
         {/*
@@ -533,7 +558,9 @@ export function GanttPanel({
             className="text-muted-foreground border-border bg-muted/40 flex items-center border-b px-2 text-[10px] font-semibold tracking-wide uppercase"
             style={{ height: ROW_PX }}
           >
-            {startDate === null ? 'Workday' : (axis[0]?.date?.slice(0, 7) ?? 'Workday')}
+            {startDate === null
+              ? 'Workday'
+              : (axis[firstVisibleWorkday]?.date?.slice(0, 7) ?? 'Workday')}
           </div>
           {chart.labels.map((label: GanttRowLabel) => (
             <button
