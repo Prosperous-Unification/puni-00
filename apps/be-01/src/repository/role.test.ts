@@ -234,11 +234,12 @@ describe('RoleRepository', () => {
     await directory.assign('strip', qaId, ada.id);
     await directory.assign('strip', devId, ada.id);
 
-    const removed = await roles.remove(projectId, qaId);
+    const removed = await roles.remove(projectId, qaId, true);
 
-    expect(removed.estimates).toBe(2);
-    expect(removed.assignments).toBe(1);
-    expect([...removed.workItemIds].sort()).toEqual(['sand', 'strip']);
+    if (!removed.ok) throw new Error(`removal refused: ${removed.reason}`);
+    expect(removed.removal.estimates).toBe(2);
+    expect(removed.removal.assignments).toBe(1);
+    expect([...removed.removal.workItemIds].sort()).toEqual(['sand', 'strip']);
     expect(await roles.findById(qaId)).toBeNull();
     // The other role's rows are the survivors that make the delete's WHERE
     // clause provable: narrowed to the work item alone it would take these too.
@@ -261,7 +262,7 @@ describe('RoleRepository', () => {
     const sandBefore = await workItemRevisionOf('sand');
     const paintBefore = await workItemRevisionOf('paint');
 
-    await roles.remove(projectId, qaId);
+    await roles.remove(projectId, qaId, true);
 
     expect(await revisionOf(projectId)).toBe(projectBefore + 1);
     expect(await workItemRevisionOf('strip')).toBe(stripBefore + 1);
@@ -269,6 +270,54 @@ describe('RoleRepository', () => {
     // Held nothing of that role's, so nobody's read of it differs and a
     // precondition on it must survive.
     expect(await workItemRevisionOf('paint')).toBe(paintBefore);
+  });
+
+  it('refuses an unconfirmed removal and deletes nothing, reporting what it read', async () => {
+    await estimates.set({ workItemId: 'strip', roleId: qaId, ...DAYS });
+    const ada = await directory.addPerson({ id: crypto.randomUUID(), name: 'Ada' }, []);
+    await directory.assign('strip', qaId, ada.id);
+    const before = await revisionOf(projectId);
+
+    const refused = await roles.remove(projectId, qaId, false);
+
+    expect(refused).toEqual({
+      ok: false,
+      reason: 'in_use',
+      // The whole project's assignments, so the caller can work out whose
+      // assumed assignee moves — the `Dev` row is not there because nobody
+      // holds it, and this is what the reading is made from.
+      usage: {
+        estimates: 1,
+        assignments: [{ workItemId: 'strip', roleId: qaId, personId: ada.id }],
+      },
+    });
+    expect(await roles.findById(qaId)).not.toBeNull();
+    expect(await estimates.listByProject(projectId)).toHaveLength(1);
+    expect(await revisionOf(projectId)).toBe(before);
+  });
+
+  it('reports a role that is already gone, moving nothing', async () => {
+    await roles.remove(projectId, qaId, true);
+    const after = await revisionOf(projectId);
+
+    const second = await roles.remove(projectId, qaId, true);
+
+    expect(second).toEqual({ ok: false, reason: 'not_found' });
+    // The loser of two removals writes nothing at all, the project's revision
+    // included: it removed nothing, so nobody's read of the project differs.
+    expect(await revisionOf(projectId)).toBe(after);
+  });
+
+  it('reports another project’s role as not there, and leaves it alone', async () => {
+    const theirs = (await roles.listByProject(otherProjectId)).at(0);
+    if (theirs === undefined) throw new Error('the other project was created without roles');
+    const before = await revisionOf(projectId);
+
+    const refused = await roles.remove(projectId, theirs.id, true);
+
+    expect(refused).toEqual({ ok: false, reason: 'not_found' });
+    expect(await roles.findById(theirs.id)).toEqual(theirs);
+    expect(await revisionOf(projectId)).toBe(before);
   });
 
   it('deletes an estimate written between the count and the confirmed removal', async () => {
@@ -285,9 +334,10 @@ describe('RoleRepository', () => {
     await estimates.set({ workItemId: 'paint', roleId: qaId, ...DAYS });
     const paintBefore = await workItemRevisionOf('paint');
 
-    const removed = await roles.remove(projectId, qaId);
+    const removed = await roles.remove(projectId, qaId, true);
 
-    expect(removed.estimates).toBe(2);
+    if (!removed.ok) throw new Error(`removal refused: ${removed.reason}`);
+    expect(removed.removal.estimates).toBe(2);
     expect(await estimates.listByProject(projectId)).toEqual([]);
     expect(await workItemRevisionOf('paint')).toBe(paintBefore + 1);
     expect(await roles.findById(qaId)).toBeNull();

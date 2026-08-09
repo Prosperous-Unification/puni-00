@@ -8,11 +8,11 @@ $ bunx nx format:check --all
 
 $ bunx nx run-many -t test lint typecheck build --parallel=2
 NX   Successfully ran targets test, lint, typecheck, build for 21 projects
-     be-01 + libs (bun:test)   432 pass  0 fail   (was 424 before this change)
+     be-01 + libs (bun:test)   440 pass  0 fail   (was 424 before this change)
      fe-01 (vitest)            612 pass  0 fail   (25 files, untouched here)
 
-$ bunx nx run-many -t test --parallel=2 --skip-nx-cache
-NX   Successfully ran target test for 21 projects
+$ bunx nx run-many -t test lint typecheck build --parallel=2 --skip-nx-cache
+NX   Successfully ran targets test, lint, typecheck, build for 21 projects
 
 $ bunx @fission-ai/openspec@1.3.0 validate --all --json
 40 items, 40 passed, 0 failed — role-crud valid
@@ -34,41 +34,70 @@ every commit). Nothing was skipped by it that the gate above does not run.
 
 ## The checks, and the faults that broke them
 
-| Check                                                                 | Fault injected                                           | What the run reported                                                                                              |
-| --------------------------------------------------------------------- | -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| A duplicate role name is a refusal, not a 500 (`repository/role.ts`)  | the `isDuplicateName` branch in `add` removed            | `refuses a name the project already holds…` threw `SQLITE_CONSTRAINT_UNIQUE`; restored, 7 pass                     |
-| A role write moves the project's revision (`repository/role.ts`)      | `bumpProject` removed from `add`                         | `adds a role and moves the project’s revision` failed, expected 1 and read 0; restored, 7 pass                     |
-| A rename of nothing is `not_found` (`repository/role.ts`)             | the empty-`returning` branch made to report `ok`         | `reports a role that is gone rather than pretending to rename it` failed, `ok: true` for a role that never existed |
-| The estimates are deleted explicitly (`repository/role.ts`)           | `tx.delete(estimate)` removed from `remove`              | all three removal cases failed on `FOREIGN KEY constraint failed` — the 500 a bare role delete answers today       |
-| The bump covers what was deleted (`repository/role.ts`)               | bump set narrowed to the assignments alone               | `deletes an estimate written between the count and the confirmed removal` failed, the late work item still at 0    |
-| A flip is a change, not a mention (`service/assumed-assignee.ts`)     | every work item holding the role reported as flipping    | `leaves alone a work item that keeps its answer` failed — assumed by nobody before and after, reported as moved    |
-| The removal refuses before it takes anything (`service/role.service`) | the `in_use` refusal made unreachable                    | `refuses a role that is used, counting what would go` failed — the first, unconfirmed call took the estimates      |
-| A role is scoped to its project (`service/role.service`)              | the `projectId` comparison dropped from `gate`           | `refuses a role that belongs to another project` failed — one project's route renamed another's role               |
-| The event is recorded after the write (`service/role.service`)        | `publish` moved ahead of the write in `add` and `remove` | `records the event after the write, never before it` failed — roles read inside the publish were still `Dev, QA`   |
-| A write naming a gone role is refused (`service/work-item.service`)   | the three `holdsRole` calls removed                      | the estimate PUT and the assignee PUT answered **500**, and the undo answered **500**; restored, 14 pass           |
+| Check                                                                 | Fault injected                                            | What the run reported                                                                                              |
+| --------------------------------------------------------------------- | --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| A duplicate role name is a refusal, not a 500 (`repository/role.ts`)  | the `isDuplicateName` branch in `add` removed             | `refuses a name the project already holds…` threw `SQLITE_CONSTRAINT_UNIQUE`; restored, 7 pass                     |
+| A role write moves the project's revision (`repository/role.ts`)      | `bumpProject` removed from `add`                          | `adds a role and moves the project’s revision` failed, expected 1 and read 0; restored, 7 pass                     |
+| A rename of nothing is `not_found` (`repository/role.ts`)             | the empty-`returning` branch made to report `ok`          | `reports a role that is gone rather than pretending to rename it` failed, `ok: true` for a role that never existed |
+| The estimates are deleted explicitly (`repository/role.ts`)           | `tx.delete(estimate)` removed from `remove`               | all three removal cases failed on `FOREIGN KEY constraint failed` — the 500 a bare role delete answers today       |
+| The bump covers what was deleted (`repository/role.ts`)               | bump set narrowed to the assignments alone                | `deletes an estimate written between the count and the confirmed removal` failed, the late work item still at 0    |
+| A flip is a change, not a mention (`service/assumed-assignee.ts`)     | every work item holding the role reported as flipping     | `leaves alone a work item that keeps its answer` failed — assumed by nobody before and after, reported as moved    |
+| The removal refuses before it takes anything (`service/role.service`) | the `in_use` refusal made unreachable                     | `refuses a role that is used, counting what would go` failed — the first, unconfirmed call took the estimates      |
+| A role is scoped to its project (`service/role.service`)              | the `projectId` comparison dropped from `gate`            | `refuses a role that belongs to another project` failed — one project's route renamed another's role               |
+| The event is recorded after the write (`service/role.service`)        | `publish` moved ahead of the write in `add` and `remove`  | `records the event after the write, never before it` failed — roles read inside the publish were still `Dev, QA`   |
+| A write naming a gone role is refused (`service/work-item.service`)   | the three `holdsRole` calls removed                       | the estimate PUT and the assignee PUT answered **500**, and the undo answered **500**; restored, 14 pass           |
+| The transaction counts before it deletes (`repository/role.ts`)       | the `in_use` branch removed from `remove`'s transaction   | an unconfirmed removal racing an estimate answered `{ ok: true }` and deleted it — see the review section below    |
+| The delete says what it affected (`repository/role.ts`)               | the `removed.length === 0` branch deleted                 | the loser of two removals answered `{ ok: true }` and moved the project's revision                                 |
+| The delete is scoped to the project (`repository/role.ts`)            | the `projectId` condition dropped from the role delete    | `reports another project’s role as not there, and leaves it alone` deleted theirs                                  |
+| Removing nothing announces nothing (`service/role.service`)           | the `not_found` branch made to publish anyway             | `refuses the loser of two removals, bumping and announcing nothing` saw a phantom `role_removed`                   |
+| The foreign key is translated, narrowly (`service/work-item.service`) | the `catch` removed, then the `holdsRole` re-read dropped | the mid-write cases threw `FOREIGN KEY constraint failed`; then an absent person was reported as an absent phase   |
 
-Every row was watched failing and then watched passing again on the same file,
-2026-08-08.
+Rows 1–10 were watched failing and then watched passing again on 2026-08-08;
+rows 11–15 on 2026-08-09, after the review below.
 
-## The concurrency claim, and its limit
+## What the review found, and what now proves it
 
-The plan asks that an estimate written between the count and the confirmed
-removal is "deleted by the transaction or refused by a revision check — never
-silently orphaned, never a 500". It is the first branch: `RoleRepository.remove`
-chooses what it deletes and what it bumps **inside** the transaction, so nothing
-is carried over from the earlier count.
+Three findings, all of the same shape: **a decision taken in one moment and
+acted on in another**. Each is now decided where it is acted on, and each has a
+test that puts somebody else's write in the gap that used to exist.
 
-`deletes an estimate written between the count and the confirmed removal`
-reproduces the interleave the API actually faces — `usageOf` (request one),
-somebody else's estimate, `remove` (request two) — and fails under two real
-faults, above.
+| Check                                                                  | Fault injected                                            | What the run reported                                                                                                                 |
+| ---------------------------------------------------------------------- | --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| The transaction counts before it deletes (`repository/role.ts`)        | the `in_use` branch removed from `remove`'s transaction   | `refuses an unconfirmed removal when an estimate lands after the count` answered `{ ok: true }` and deleted the trio                  |
+| The role delete's `RETURNING` says it was there (`repository/role.ts`) | the `removed.length === 0` branch deleted                 | `refuses the loser of two removals…` answered `{ ok: true }`; `reports a role that is already gone, moving nothing` bumped it         |
+| The delete is scoped to the project (`repository/role.ts`)             | the `projectId` condition dropped from the role delete    | `reports another project’s role as not there, and leaves it alone` deleted theirs                                                     |
+| A removal that removed nothing announces nothing (`role.service`)      | the `not_found` branch made to publish anyway             | `refuses the loser of two removals, bumping and announcing nothing` saw a second `role_removed`                                       |
+| The foreign key is translated, narrowly (`work-item.service`)          | the `catch` removed; then the `holdsRole` re-read dropped | the two mid-write cases threw `SQLiteError: FOREIGN KEY constraint failed`; then an absent **person** was reported as an absent phase |
 
-**What it cannot observe** is a writer landing _inside_ the transaction:
-`bun:sqlite` transactions are synchronous, so there is no in-process moment
-between the reads and the deletes for a second writer to occupy. A second
-connection would block on the write lock rather than interleave. This is
-recorded rather than claimed away: the guarantee tested is "the transaction, not
-the caller's earlier count, decides", and that is what the two faults break.
+**Finding 1 — the count and the delete were two moments.** `RoleService.remove`
+counted, then called a repository that opened its transaction afterwards. An
+estimate landing in that gap was deleted by a request that had never been
+confirmed. The count now happens inside the delete's own transaction and is the
+decision; the service's read stays as a fast path that opens no transaction, and
+is no longer trusted. `refuses an unconfirmed removal when an estimate lands
+after the count` writes the estimate from inside the fast path's own call, which
+is the interleave the two HTTP requests make.
+
+**Finding 2 — `holdsRole` narrowed the window and did not close it.** A removal
+committing between the check and the write still reached the foreign key.
+`writeNamingRole` now translates that refusal into the same `unknown_role`, and
+translates **only** it: SQLite's message names no column, so the role is re-read
+before the refusal is believed, and a foreign key about a person or a work item
+is still thrown. `still throws a foreign key that is not about the role` is what
+keeps that half honest.
+
+**Finding 3 — the loser of two removals reported success.** The transaction did
+not look at what its `DELETE` affected, so a second removal bumped the project
+and published a `role_removed` for a change it had not made. It answers
+`not_found` now, writes nothing and announces nothing.
+
+### What is still not observable
+
+A writer landing _inside_ the transaction. `bun:sqlite` transactions are
+synchronous, so the interleave is reproduced across two calls rather than inside
+one, and a second connection would block on the write lock rather than
+interleave. What the tests prove is that **the transaction, not any earlier
+read, decides** — and all five faults above break that claim when injected.
 
 ## A 500 this change had to fix to keep its own spec
 
@@ -83,8 +112,9 @@ one check: neither `setEstimate`, nor `assign`, nor the compensating writes
 behind undo ever asked whether the project holds the role. That hole predates
 this change — `PUT /work-items/:id/estimates/anything` has always 500'd — but
 removing a role is what makes it reachable by ordinary use. All three ask
-`holdsRole` now: `unknown_role`, a 404 at the API, and a refused undo that
-writes nothing.
+`holdsRole` now and all three run their write through `writeNamingRole`, so both
+the stale id and the role that goes mid-write answer `unknown_role`, a 404 at the
+API, with a refused undo that writes nothing.
 
 ## Three tests that were passing against behaviour production does not have
 

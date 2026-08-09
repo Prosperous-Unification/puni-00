@@ -1,4 +1,4 @@
-import type { ProjectStore, Role, RoleRemoval, RoleStore, RoleUsageRows } from '../repository';
+import type { ProjectStore, Role, RoleRemoved, RoleStore, RoleUsageRows } from '../repository';
 import { ROLE_POSITION_STEP } from '../repository';
 import { RoleService } from '../service/role.service';
 import { recordingBroadcaster } from './broadcast-fixture';
@@ -68,10 +68,18 @@ export function inMemoryRoles(seed: readonly Role[] = []): RoleStore & {
       // assignments to point with.
       return Promise.resolve({ estimates: 0, assignments: [] });
     },
-    remove(_projectId, roleId): Promise<RoleRemoval> {
-      const found = rows.findIndex((each) => each.id === roleId);
-      if (found >= 0) rows.splice(found, 1);
-      return Promise.resolve({ estimates: 0, assignments: 0, workItemIds: [] });
+    remove(projectId, roleId): Promise<RoleRemoved> {
+      const found = rows.findIndex((each) => each.id === roleId && each.projectId === projectId);
+      // The one thing this can model of the real removal: a role that is not
+      // this project's, or is already gone, is `not_found` and writes nothing.
+      // The refusal-when-used branch is unreachable here because nothing can
+      // point at a role in an array with no estimates in it.
+      if (found < 0) return Promise.resolve({ ok: false, reason: 'not_found' });
+      rows.splice(found, 1);
+      return Promise.resolve({
+        ok: true,
+        removal: { estimates: 0, assignments: 0, workItemIds: [] },
+      });
     },
   };
 }

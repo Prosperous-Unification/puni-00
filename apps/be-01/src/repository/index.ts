@@ -102,6 +102,23 @@ export interface RoleRemoval {
   workItemIds: readonly string[];
 }
 
+/**
+ * What the removal's own transaction decided, which is the only answer that
+ * counts.
+ *
+ * `in_use` carries the usage the **transaction** read, not the usage anybody
+ * counted earlier: an estimate written between a caller's count and its
+ * confirmation is what this refusal is for.
+ *
+ * `not_found` is the loser of two removals of one role — and a role id that
+ * belongs to another project, which is the same absence from this project's
+ * point of view.
+ */
+export type RoleRemoved =
+  | { ok: true; removal: RoleRemoval }
+  | { ok: false; reason: 'not_found' }
+  | { ok: false; reason: 'in_use'; usage: RoleUsageRows };
+
 export interface RoleStore {
   /** In role order, which is the order every reader of a project's roles gets. */
   listByProject(projectId: string): Promise<Role[]>;
@@ -121,18 +138,27 @@ export interface RoleStore {
   add(role: NewRole): Promise<RoleWritten>;
   /** The same rules as {@link RoleStore.add}, and `not_found` for a role that has gone. */
   rename(roleId: string, name: string): Promise<RoleWritten>;
+  /**
+   * What points at the role right now — a **fast path** for the refusal, never
+   * the authority for it. Between this answer and any delete, anybody may write.
+   * {@link RoleStore.remove} is what decides.
+   */
   usageOf(projectId: string, roleId: string): Promise<RoleUsageRows>;
   /**
-   * Deletes the role's estimates, its assignments and the role row in one
-   * transaction, bumping the project and every work item that lost one of them.
+   * Counts what points at the role, refuses an unconfirmed removal that would
+   * take any of it, and otherwise deletes the role's estimates, its assignments
+   * and the role row — all in **one** transaction, bumping the project and every
+   * work item that lost one of them.
+   *
+   * The count lives inside the transaction because it is the decision: a caller
+   * that asked without `cascade` never consented to take anything, so an
+   * estimate written after that caller's own count must refuse it rather than be
+   * deleted by it.
    *
    * The estimates are deleted explicitly because `estimate.role_id` has no
    * cascade: a bare delete of the row hits the foreign key and answers 500.
-   * Everything it deletes is chosen **inside** the transaction, so an estimate
-   * written after the caller counted is deleted too rather than left pointing
-   * at a role that is gone.
    */
-  remove(projectId: string, roleId: string): Promise<RoleRemoval>;
+  remove(projectId: string, roleId: string, cascade: boolean): Promise<RoleRemoved>;
 }
 
 export interface ProjectPatch {

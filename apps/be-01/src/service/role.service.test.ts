@@ -4,8 +4,10 @@ import { join } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
-import type { Role, WorkItem } from '../repository';
+import type { DirectoryStore, EstimateStore, Role, RoleStore, WorkItem } from '../repository';
+import { CommandJournalRepository } from '../repository/command-journal';
 import { openDrizzle } from '../repository/db';
+import { DependencyRepository } from '../repository/dependency';
 import { DirectoryRepository } from '../repository/directory';
 import { EstimateRepository } from '../repository/estimate';
 import { DrizzleEventLogRepo } from '../repository/event-log';
@@ -13,7 +15,7 @@ import { runMigrations } from '../repository/migrate';
 import { ProjectRepository } from '../repository/project';
 import { RoleRepository } from '../repository/role';
 import { UserRepository } from '../repository/user';
-import { WorkItemRepository } from '../repository/work-item';
+import { SubtreeRepository, WorkItemRepository } from '../repository/work-item';
 import { type RecordingBroadcaster, recordingBroadcaster } from '../testing/broadcast-fixture';
 import type { Broadcaster } from './broadcast';
 import { EventSequencer } from './event-sequencer';
@@ -23,6 +25,7 @@ import { PushClient } from './push-client';
 import { ReplayBuffer } from './replay-buffer';
 import { ReplayOrchestrator } from './replay-orchestrator';
 import { RoleService } from './role.service';
+import { WorkItemService } from './work-item.service';
 
 /**
  * The role service, against real SQLite.
@@ -190,6 +193,26 @@ describe('RoleService.rename', () => {
   });
 });
 
+/**
+ * The real store with one method wrapped, so a test can put somebody else's
+ * write in the gap between two of the service's calls.
+ *
+ * Written out rather than spread from the repository: `RoleRepository`'s
+ * methods live on its prototype, and `{ ...roleStore }` copies its connection
+ * and none of them.
+ */
+function storeWith(overrides: Partial<RoleStore>): RoleStore {
+  return {
+    listByProject: (projectOf) => roleStore.listByProject(projectOf),
+    findById: (roleOf) => roleStore.findById(roleOf),
+    add: (toAdd) => roleStore.add(toAdd),
+    rename: (roleOf, name) => roleStore.rename(roleOf, name),
+    usageOf: (projectOf, roleOf) => roleStore.usageOf(projectOf, roleOf),
+    remove: (projectOf, roleOf, cascade) => roleStore.remove(projectOf, roleOf, cascade),
+    ...overrides,
+  };
+}
+
 describe('RoleService.remove', () => {
   it('removes a role nothing points at, without asking again', async () => {
     const outcome = await roles.remove(projectId, qaId, ownerId, false);
@@ -236,6 +259,61 @@ describe('RoleService.remove', () => {
     ]);
   });
 
+  it('refuses an unconfirmed removal when an estimate lands after the count', async () => {
+    // The gap the confirmation opens, from the other side. The service counts
+    // first as a fast path, and somebody estimates the doomed role in the
+    // moment between that count and the delete. An unconfirmed request must
+    // still refuse: it was never consent to take anything, and what it would
+    // take is a trio nobody has been shown.
+    const service = new RoleService({
+      projects: projectStore,
+      roles: storeWith({
+        async usageOf(watchedProject, watchedRole) {
+          const counted = await roleStore.usageOf(watchedProject, watchedRole);
+          await estimates.set({ workItemId: 'strip', roleId: qaId, ...DAYS });
+          return counted;
+        },
+      }),
+      broadcast,
+    });
+
+    const outcome = await service.remove(projectId, qaId, ownerId, false);
+
+    expect(outcome).toMatchObject({ ok: false, reason: 'in_use' });
+    expect(await estimates.listByProject(projectId)).toHaveLength(1);
+    expect(await roleStore.findById(qaId)).not.toBeNull();
+    expect(broadcast.published).toEqual([]);
+  });
+
+  it('refuses the loser of two removals, bumping and announcing nothing', async () => {
+    // Both requests pass the gate against a role that is still there, and one
+    // of them commits first. The loser has nothing to remove, so it has nothing
+    // to announce either: a second `role_removed` would make every client
+    // reread for a change that did not happen, and the project's revision would
+    // move for a write nobody made.
+    let winnerRevision: number | undefined;
+    const service = new RoleService({
+      projects: projectStore,
+      roles: storeWith({
+        async findById(watched) {
+          const found = await roleStore.findById(watched);
+          if (winnerRevision === undefined) {
+            await roleStore.remove(projectId, qaId, true);
+            winnerRevision = (await projectStore.findById(projectId))?.revision;
+          }
+          return found;
+        },
+      }),
+      broadcast,
+    });
+
+    const outcome = await service.remove(projectId, qaId, ownerId, true);
+
+    expect(outcome).toEqual({ ok: false, reason: 'not_found' });
+    expect((await projectStore.findById(projectId))?.revision).toBe(winnerRevision);
+    expect(broadcast.published).toEqual([]);
+  });
+
   it('refuses a caller who may not write to the project, cascade or not', async () => {
     await projectStore.update(projectId, { restricted: true });
 
@@ -251,6 +329,90 @@ describe('RoleService.remove', () => {
       ok: false,
       reason: 'not_found',
     });
+  });
+});
+
+describe('a role removed between the check and the write', () => {
+  /**
+   * A work item service whose estimate and assignment writes are preceded by
+   * somebody else's removal of `qaId` — the commit that lands in the gap
+   * between `holdsRole` saying yes and the write reaching the foreign key.
+   */
+  function serviceWritingIntoTheGap(): WorkItemService {
+    const vanishing: EstimateStore = {
+      listByProject: (of) => estimates.listByProject(of),
+      remove: (workItemId, roleId) => estimates.remove(workItemId, roleId),
+      moveAll: (from, to) => estimates.moveAll(from, to),
+      async set(toSet) {
+        await roleStore.remove(projectId, qaId, true);
+        await estimates.set(toSet);
+      },
+    };
+    const vanishingToo: DirectoryStore = {
+      listTeams: () => directory.listTeams(),
+      addTeam: (team) => directory.addTeam(team),
+      listPeople: () => directory.listPeople(),
+      addPerson: (toAdd, teamIds) => directory.addPerson(toAdd, teamIds),
+      assignmentsOf: (ids) => directory.assignmentsOf(ids),
+      async assign(workItemId, roleId, personId) {
+        await roleStore.remove(projectId, qaId, true);
+        await directory.assign(workItemId, roleId, personId);
+      },
+    };
+    return new WorkItemService({
+      workItems: new WorkItemRepository(db),
+      projects: projectStore,
+      estimates: vanishing,
+      directory: vanishingToo,
+      dependencies: new DependencyRepository(db),
+      subtrees: new SubtreeRepository(db),
+      journal: new CommandJournalRepository(db),
+      broadcast: recordingBroadcaster(),
+    });
+  }
+
+  it('refuses the estimate rather than answering with the foreign key', async () => {
+    const outcome = await serviceWritingIntoTheGap().setEstimate('strip', ownerId, qaId, DAYS);
+
+    expect(outcome).toEqual({ ok: false, reason: 'unknown_role' });
+    expect(await estimates.listByProject(projectId)).toEqual([]);
+  });
+
+  it('refuses the assignee the same way', async () => {
+    const ada = await directory.addPerson({ id: crypto.randomUUID(), name: 'Ada' }, []);
+
+    const outcome = await serviceWritingIntoTheGap().assign('strip', ownerId, qaId, ada.id);
+
+    expect(outcome).toEqual({ ok: false, reason: 'unknown_role' });
+    expect(await directory.assignmentsOf(['strip'])).toEqual([]);
+  });
+
+  it('still throws a foreign key that is not about the role', async () => {
+    // The person is the one that has gone, and the role is exactly where it
+    // was. Reporting `unknown_role` for that would be a confident lie about
+    // which of the request's ids is wrong — and R5's line: only the modeled
+    // condition is converted, everything else is still unknown.
+    const workItems = new WorkItemService({
+      workItems: new WorkItemRepository(db),
+      projects: projectStore,
+      estimates,
+      directory,
+      dependencies: new DependencyRepository(db),
+      subtrees: new SubtreeRepository(db),
+      journal: new CommandJournalRepository(db),
+      broadcast: recordingBroadcaster(),
+    });
+
+    let thrown: unknown = null;
+    try {
+      await workItems.assign('strip', ownerId, qaId, 'nobody-by-that-id');
+    } catch (err) {
+      thrown = err;
+    }
+
+    expect(thrown).toBeInstanceOf(Error);
+    expect(String(thrown)).toContain('FOREIGN KEY constraint failed');
+    expect(await roleStore.findById(qaId)).not.toBeNull();
   });
 });
 

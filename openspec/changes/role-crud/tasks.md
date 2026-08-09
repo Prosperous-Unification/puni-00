@@ -32,9 +32,9 @@
       bare role delete answers today; and the bump set narrowed to the
       assignments alone, and the estimate-written-during-the-confirmation case
       fails on the third work item's revision. The planned third fault — the ids
-      read before the transaction — is **not reproducible**: `remove` is one
-      call, so a read at its top still sees the late write, and `verify.md`
-      records what that leaves unproven.
+      read before the transaction — was not reproducible against this shape, and
+      **7.1 is why**: the count that mattered was still outside the transaction,
+      which is the finding the review raised and the fault it made injectable.
 
 ## 4. The service and the routes
 
@@ -76,8 +76,28 @@
       Three fixture-backed tests were estimating against role ids their
       projects never held; they seed them now.
 
-## 7. Gate
+## 7. Review round two (codex, 2026-08-09)
 
-- [x] 7.1 The format check, the run-many gate and the OpenSpec validation —
+- [x] 7.1 **The count moves inside the delete's transaction.** An estimate
+      landing between the service's count and the delete refused an
+      **unconfirmed** removal instead of being deleted by it. The service's read
+      stays as a fast path and is no longer the authority. Test: the role store
+      wrapped so the estimate is written from inside `usageOf`.
+- [x] 7.2 **The foreign key is translated at the write boundary.** `holdsRole`
+      narrowed the window and did not close it: a removal committing between the
+      check and the write still reached the constraint. `writeNamingRole`
+      converts it to `unknown_role` and re-reads the role first, so a foreign key
+      about a person or a work item is still thrown. Tests: both writes with the
+      removal injected into the store, and a bogus person id that must still
+      throw.
+- [x] 7.3 **The delete reports what it affected.** The loser of two removals
+      bumped the project and published a phantom `role_removed`; it answers
+      `not_found` now, and the same scoping refuses another project's role id.
+- [x] 7.4 `verify.md`'s concurrency and 500 sections rewritten to describe what
+      is now proven, with the five new faults in the table.
+
+## 8. Gate
+
+- [x] 8.1 The format check, the run-many gate and the OpenSpec validation —
       recorded in `verify.md` with the failure-proof table. No e2e: this change
       is server-only and the worktree has no dev stack.

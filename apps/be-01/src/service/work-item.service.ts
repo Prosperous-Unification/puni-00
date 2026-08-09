@@ -22,6 +22,7 @@ import type {
   WorkItemPatch,
   WorkItemStore,
 } from '../repository';
+import { isForeignKeyViolation } from '../repository/constraint';
 import { assumedAssignee } from './assumed-assignee';
 import type { Broadcaster } from './broadcast';
 import { withAncestors } from './broadcast';
@@ -801,7 +802,10 @@ export class WorkItemService {
     const before =
       (await this.opts.directory.assignmentsOf([id])).find((each) => each.roleId === roleId)
         ?.personId ?? null;
-    await this.opts.directory.assign(id, roleId, personId);
+    const written = await this.writeNamingRole(workItem.projectId, roleId, () =>
+      this.opts.directory.assign(id, roleId, personId),
+    );
+    if (!written) return { ok: false, reason: 'unknown_role' };
     await this.announceWorkItem(workItem.projectId, id);
     await this.record(
       workItem.projectId,
@@ -1284,7 +1288,10 @@ export class WorkItemService {
     if (!(await this.holdsRole(workItem.projectId, roleId)))
       return { ok: false, reason: 'unknown_role' };
     const before = await this.storedTrio(workItem.projectId, id, roleId);
-    await this.opts.estimates.set({ workItemId: id, roleId, ...days });
+    const written = await this.writeNamingRole(workItem.projectId, roleId, () =>
+      this.opts.estimates.set({ workItemId: id, roleId, ...days }),
+    );
+    if (!written) return { ok: false, reason: 'unknown_role' };
     await this.announceWorkItem(workItem.projectId, id);
     await this.record(
       workItem.projectId,
@@ -1637,11 +1644,14 @@ export class WorkItemService {
         if (!(await this.holdsRole(projectId, command.roleId))) {
           return { ok: false, detail: 'that phase is no longer in this project' };
         }
-        await this.opts.estimates.set({
-          workItemId: command.workItemId,
-          roleId: command.roleId,
-          ...command.days,
-        });
+        const restored = await this.writeNamingRole(projectId, command.roleId, () =>
+          this.opts.estimates.set({
+            workItemId: command.workItemId,
+            roleId: command.roleId,
+            ...command.days,
+          }),
+        );
+        if (!restored) return { ok: false, detail: 'that phase is no longer in this project' };
         return { ok: true, detail: null };
       }
       case 'clear_estimate':
@@ -1651,7 +1661,12 @@ export class WorkItemService {
         if (command.personId !== null && !(await this.holdsRole(projectId, command.roleId))) {
           return { ok: false, detail: 'that phase is no longer in this project' };
         }
-        await this.opts.directory.assign(command.workItemId, command.roleId, command.personId);
+        {
+          const reassigned = await this.writeNamingRole(projectId, command.roleId, () =>
+            this.opts.directory.assign(command.workItemId, command.roleId, command.personId),
+          );
+          if (!reassigned) return { ok: false, detail: 'that phase is no longer in this project' };
+        }
         return { ok: true, detail: null };
       case 'add_dependency': {
         const rows = await this.opts.workItems.listByProject(projectId);
@@ -1866,6 +1881,43 @@ export class WorkItemService {
       },
       createdAt: this.now(),
     });
+  }
+
+  /**
+   * Runs a write that names a role, answering false when the role went between
+   * the check above it and the statement itself.
+   *
+   * {@link WorkItemService.holdsRole} narrows the window and does not close it:
+   * a removal can commit between that read and this write, and `estimate` and
+   * `assignment` both reference `role.id` by foreign key. Left alone that is a
+   * 500 for a caller whose only fault is being a moment out of date, which R5
+   * calls a modeled condition wearing an invariant's clothes.
+   *
+   * The translation is deliberately narrow. SQLite's message names no column,
+   * so the role is re-read before the refusal is believed: a foreign key that
+   * failed over a work item or a person that has gone is still unknown, and
+   * still thrown.
+   *
+   * Proof: with the `catch` removed, `refuses the estimate rather than
+   * answering with the foreign key` and `refuses the assignee the same way`
+   * both fail with `SQLiteError: FOREIGN KEY constraint failed`; with the
+   * `holdsRole` re-read dropped, `still throws a foreign key that is not about
+   * the role` fails, an absent person reported as an absent phase. Watched
+   * 2026-08-09.
+   */
+  private async writeNamingRole(
+    projectId: string,
+    roleId: string,
+    write: () => Promise<void>,
+  ): Promise<boolean> {
+    try {
+      await write();
+      return true;
+    } catch (err) {
+      if (!isForeignKeyViolation(err)) throw err;
+      if (await this.holdsRole(projectId, roleId)) throw err;
+      return false;
+    }
   }
 
   /**
