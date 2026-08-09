@@ -8,7 +8,10 @@
     "serve": {
       "executor": "nx:run-commands",
       "continuous": true,
-      "options": { "command": "bun --watch src/main.ts", "cwd": "apps/gw-01" },
+      "options": {
+        "command": "bun --watch src/main.ts",
+        "cwd": "apps/gw-01"
+      },
       "cache": false
     },
     "build": {
@@ -20,16 +23,23 @@
     },
     "lint": {
       "executor": "nx:run-commands",
-      "options": { "command": "bunx eslint apps/gw-01/src" }
+      "options": {
+        "command": "bunx eslint apps/gw-01/src"
+      }
     },
     "test": {
       "executor": "nx:run-commands",
-      "options": { "command": "bun test --coverage --coverage-reporter=lcov", "cwd": "apps/gw-01" },
+      "options": {
+        "command": "bun test --coverage --coverage-reporter=lcov",
+        "cwd": "apps/gw-01"
+      },
       "outputs": ["{projectRoot}/coverage"]
     },
     "typecheck": {
       "executor": "nx:run-commands",
-      "options": { "command": "bunx tsc --noEmit -p apps/gw-01/tsconfig.json" }
+      "options": {
+        "command": "bunx tsc --build --force apps/gw-01/tsconfig.lib.json"
+      }
     }
   }
 }

@@ -123,7 +123,7 @@ Checks that cannot fail have shipped here six times. This is the rule that stops
 
 ## Checks that cannot fail
 
-R5 exists because this failure keeps recurring — sixteen times so far. Fixed: `assertPragmas` with no runtime
+R5 exists because this failure keeps recurring — seventeen times so far. Fixed: `assertPragmas` with no runtime
 caller, the migration lint's unreachable `ALTER TABLE ... RENAME COLUMN` branch, `readRemoteState`
 reading an unreadable file as never-deployed, `shellcheck … || echo`, the secrets scanner's
 `.catch(() => '')` (an unreadable file scanned as clean — in a CI gate), and `dev:setup` skipping a
@@ -148,6 +148,12 @@ One more on 2026-08-06, and the first one found in the gate itself: `nx typechec
 dev and 500'd every `/api/teams` request. Both targets now run `tsc --build --force` against
 the source project, watched catching that exact bug. The test projects are not in the gate
 yet: 10 pre-existing errors, named in `teams-and-assignees/verify.md`, are their own change.
+The seventeenth is gw-01's copy of the same fault sat unnoticed until the 2026-08-09 review sweep: its
+typecheck ran the solution config and compiled nothing, hiding a dead scaffold `index.ts`
+re-exporting a module that does not exist. Its target now runs `tsc --build --force` on the
+lib project too, watched failing on a deliberate `const deliberatelyWrong: number = 'not a
+number'` and green with it removed; the dead file is deleted. Its spec project holds two
+pre-existing errors (`forward-client.test.ts`), out of the gate like the others'.
 
 The fourteenth, on 2026-08-09, found by driving real Chrome by hand and in the shape of the one
 above. `actions-menu.tsx`'s item guard refused a modified Enter by returning — **without**
