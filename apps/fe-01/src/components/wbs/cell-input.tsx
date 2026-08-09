@@ -180,12 +180,37 @@ export function CellInput({
       // measurement below is of the text, not of the box it is currently in.
       node.style.height = 'auto';
       const whole = node.value;
+      // A `<textarea>`'s `value` setter parks the caret at the end of the text
+      // and drops any selection with it — on a box the focus has left as much
+      // as on one it has not, and Chromium keeps a selection on an unfocused
+      // box for as long as it is mounted. Somebody who selected a phrase and
+      // clicked away would come back to a caret at the end of their notes
+      // instead; the swap has to leave no trace of itself. Direction is read
+      // here too: the setter resets that to `none`, and a range restored the
+      // other way round is a Shift+Arrow that grows from the wrong end.
+      // Proof, two faults, both watched in Chromium on 2026-08-09, with `a
+      // selection left in the name survives the measurement the blur makes`.
+      // The save and restore removed: `the measurement moved the caret of a box
+      // nobody was in — Expected {start: 6, end: 9}, Received {start: 272, end:
+      // 272}`, the end of the whole text. The direction pinned to `'none'`:
+      // `Expected: "forward", Received: "none"`.
+      // All three read straight off the node: a `<textarea>` always has a
+      // selection to report, which is why none of them needs a fallback and
+      // why the narrowing above is what makes that true.
+      const selection = {
+        start: node.selectionStart,
+        end: node.selectionEnd,
+        direction: node.selectionDirection,
+      };
       // The same rule that decides which part of this box is the name, called
       // rather than copied — a second `indexOf('\n')` here is how the box and
       // the field come to disagree about where the first line ends.
       if (clamped) node.value = splitNameCell(whole).name;
       node.style.height = `${String(node.scrollHeight)}px`;
-      if (clamped) node.value = whole;
+      if (clamped) {
+        node.value = whole;
+        node.setSelectionRange(selection.start, selection.end, selection.direction);
+      }
       // Uncapped while it is being written in: the cap keeps the table
       // readable, it is not there to stop anyone writing. Uncapped at rest too
       // when the first line is all that shows — the height above is already

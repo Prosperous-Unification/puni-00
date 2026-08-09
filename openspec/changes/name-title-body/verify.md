@@ -77,9 +77,11 @@ the output copied here, the fault reverted, the test re-run green.
 
 The review round's three, watched the same way on 2026-08-09:
 
-| Fault injected                                            | Test                                                        | What the run reported                                                                                |
-| --------------------------------------------------------- | ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| `afterSync` dropped from `leave()`'s nothing-typed branch | `a peer's longer name arriving while the cell is focused …` | `a line of the peer's name is hidden after the blur — Expected: < 0.5, Received: 1.9791666666666667` |
+| Fault injected                                            | Test                                                        | What the run reported                                                                                                   |
+| --------------------------------------------------------- | ----------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `afterSync` dropped from `leave()`'s nothing-typed branch | `a peer's longer name arriving while the cell is focused …` | `a line of the peer's name is hidden after the blur — Expected: < 0.5, Received: 1.9791666666666667`                    |
+| the selection save and restore dropped from `resize`      | `a selection left in the name survives the measurement …`   | `the measurement moved the caret of a box nobody was in — Expected {start: 6, end: 9}, Received {start: 272, end: 272}` |
+| the restored direction pinned to `'none'`                 | `a selection left in the name survives the measurement …`   | `Expected: "forward", Received: "none"`                                                                                 |
 
 Each was reverted and the test re-run green before the next one was injected.
 
@@ -103,6 +105,26 @@ no render.
 Fixed by calling `this.afterSync(this.node)` after that `sync()`, the pattern
 the landing path already used. The `afterSync` JSDoc said in as many words that
 this path deliberately did not call it; it now says why it does.
+
+### 2. The measurement moved a caret nobody had touched (Medium)
+
+The transient value swap resets the textarea's selection, and the design's own
+risk list called that "acceptable only because the swap happens exclusively
+while unfocused". **That premise is wrong in Chromium, and the test is the
+experiment**: `selectionStart`, `selectionEnd` and `selectionDirection` survive
+a blur on an unfocused `<textarea>` for as long as it is mounted, and the
+browser restores the visible selection when the focus comes back without
+placing a new caret (a `focus()` call, or the window being clicked back into).
+Both halves are asserted in `a selection left in the name survives the
+measurement the blur makes`, and both pass — so the finding's user-visible half
+is real rather than moot. Fixed by saving all three fields before the swap and
+restoring them after, inside the `clamped` branch.
+
+One thing the same experiment showed and the test does **not** assert: coming
+back by the grid's own Shift+Tab replaces the range anyway, because
+`focusAdjacentCell` lands through `focusCellAt(input, 'all')`, which selects the
+whole value on purpose. The retained range is what a click into another cell and
+a later `focus()` come back to, so that is what the test does.
 
 ## The negative that could not fail, and did not ship
 

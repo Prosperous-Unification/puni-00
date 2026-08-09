@@ -324,4 +324,71 @@ test.describe('the Name cell at rest is the name alone', () => {
       atRest.clientHeight,
     );
   });
+
+  /**
+   * The clamp measures by putting the first line in the box alone for one
+   * `scrollHeight` read, and a `textarea`'s `value` setter drops the selection
+   * — on an unfocused box as much as a focused one.
+   *
+   * Chromium keeps `selectionStart`/`selectionEnd` on a box the focus has left
+   * (this test is the experiment; a run of it against the unsaved swap reports
+   * the caret at the end of the whole text instead), and restores that range
+   * when the focus comes back without placing a new caret. So a range somebody
+   * selected and stepped away from is theirs to come back to, and the
+   * measurement must leave no trace of itself.
+   *
+   * The focus is put back through `focus()` rather than through the grid's own
+   * Shift+Tab, and that is a fact about this table rather than a convenience:
+   * Tab and Shift+Tab arrive in a cell by `focusCellAt(input, 'all')`, which
+   * selects the whole value on purpose. The retained range is what a click back
+   * into the window, or a `focus()` that places no caret, comes back to.
+   */
+  test('a selection left in the name survives the measurement the blur makes', async ({ page }) => {
+    await seedRows(page, `e2e-name-${String(Date.now())}-${String(account)}`, 1);
+
+    const noted = page.getByLabel('Name of 010');
+    await writeInto(noted, `${SHORT_NAME}\n${TEN_LINES}`);
+
+    await noted.click();
+    await expect(noted).toBeFocused();
+    // The range a drag over the word leaves, set through the API a drag ends in.
+    await noted.evaluate((node: HTMLTextAreaElement) => {
+      node.setSelectionRange(6, 9, 'forward');
+    });
+
+    // Away with the key that leaves a cell. It moves the focus to the next
+    // cell of the row and selects *that* box's text; this box's selection is
+    // nobody's business but the browser's from here.
+    await noted.press('Tab');
+    await expect(noted).not.toBeFocused();
+
+    const left = await noted.evaluate((node: HTMLTextAreaElement) => ({
+      start: node.selectionStart,
+      end: node.selectionEnd,
+      direction: node.selectionDirection,
+      length: node.value.length,
+    }));
+    expect(
+      { start: left.start, end: left.end },
+      'the measurement moved the caret of a box nobody was in',
+    ).toEqual({ start: 6, end: 9 });
+    expect(left.direction).toBe('forward');
+    // A witness that the assertion above is not the caret's default: the whole
+    // text is much longer than the range, and `value =` would have parked the
+    // caret at the end of it.
+    expect(left.length).toBeGreaterThan(9);
+
+    await noted.evaluate((node: HTMLTextAreaElement) => {
+      node.focus();
+    });
+    await expect(noted).toBeFocused();
+    const back = await noted.evaluate((node: HTMLTextAreaElement) => ({
+      start: node.selectionStart,
+      end: node.selectionEnd,
+    }));
+    expect(back, 'the selection was gone when the focus came back to it').toEqual({
+      start: 6,
+      end: 9,
+    });
+  });
 });
