@@ -183,11 +183,11 @@ step earlier.
 
 ## 7. Gate and proof
 
-- [ ] 7.1 `bunx nx format:check --all`,
+- [x] 7.1 `bunx nx format:check --all`,
       `bunx nx run-many -t test lint typecheck build --parallel=2` and
       `openspec validate --all --json` green — test: the recorded output in
       `verify.md`
-- [ ] 7.2 `verify.md` carries the failure-proof table — every negative above by
+- [x] 7.2 `verify.md` carries the failure-proof table — every negative above by
       name, the fault injected, the test that observed it failing, the result;
       the eight one-at-a-time mark reversions of 2.2 and the widened-fixture note
       of 6.2 included. A check with no observed failure is not done
