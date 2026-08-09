@@ -1,19 +1,11 @@
 import { type ComponentProps, useCallback, useEffect, useRef } from 'react';
 
+import type { CellElement } from './editable-grid';
+
 type PassedThrough = Omit<
   ComponentProps<'input'>,
   'value' | 'defaultValue' | 'onChange' | 'onBlur' | 'ref'
 >;
-
-/**
- * The two element types a cell can be.
- *
- * A `<textarea>` is what makes a long name wrap instead of scrolling out of
- * sight, and it carries the same `selectionStart`/`selectionEnd`/`value` the
- * keyboard code reads — so Tab, Backspace and the arrows keep working without
- * knowing which one they are standing in.
- */
-export type CellElement = HTMLInputElement | HTMLTextAreaElement;
 
 /**
  * What became of an edit this cell sent.

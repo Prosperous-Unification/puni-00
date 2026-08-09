@@ -22,7 +22,6 @@ import {
 
 import { ActionsMenu } from './actions-menu';
 import {
-  type CellElement,
   CellInput,
   type CommitOutcome,
   flushCell,
@@ -34,6 +33,18 @@ import { CreatablePicker, pickableLabel, PickerList, type PickerOption } from '.
 import { pickerEntries, type PickerEntry } from './dep-picker';
 import { parseDependencies, unknownMessage } from './depends-input';
 import { type DropRefusal, type DropZone, planMove, zoneFor } from './drag-drop';
+import {
+  aListIsOpenIn,
+  type CellElement,
+  cellIn,
+  cellKey,
+  editableGrid,
+  focusAdjacentCell,
+  focusCellAt,
+  focusedCellKey,
+  gridOf,
+  isCellElement,
+} from './editable-grid';
 import {
   isTrioEmpty,
   parseTrioShorthand,
@@ -480,11 +491,6 @@ const ARM_WINDOW_MS = 3000;
 /** The armed row's tint: a warning, and the only thing on screen that says so. */
 const ARMED_TINT = '#fde8e8';
 
-/** Whether an event target is one of the two elements a cell can be. */
-function isCellElement(node: unknown): node is CellElement {
-  return node instanceof HTMLInputElement || node instanceof HTMLTextAreaElement;
-}
-
 /** What one Alt+arrow does to the focused row's place in the tree. */
 type AltMove = 'up' | 'down' | 'outdent' | 'indent';
 
@@ -530,34 +536,6 @@ function altMoveIn(event: React.KeyboardEvent): AltMove | null {
   return altMoveFor(event.key);
 }
 
-/** The `data-cell` value for one editable cell, and the selector that finds it. */
-const cellKey = (rowId: string, columnId: string): string => `${rowId}::${columnId}`;
-
-/**
- * The `data-cell` of whatever holds the focus, or null when that is not a cell
- * of the grid at all — a ⋯ button, a toolbar button, or nothing.
- *
- * Null is a real answer here rather than a missing one: "the reader is not
- * standing in a cell" is exactly the state a command taken from the actions
- * menu leaves behind, and it is what tells a pending focus intent apart from a
- * reader who has moved on.
- */
-function focusedCellKey(): string | null {
-  const active = document.activeElement;
-  return active instanceof HTMLElement ? (active.dataset['cell'] ?? null) : null;
-}
-
-/**
- * Whether a list is open somewhere in the table: the folded cell's `@`
- * mentions, the dependency picker, or a {@link CreatablePicker}'s.
- *
- * Read from the committed DOM rather than from the three pieces of state that
- * can open one, for {@link editableGrid}'s reason and one more: they are three,
- * and a fourth list would have to remember to join them here.
- */
-const aListIsOpenIn = (table: HTMLTableElement): boolean =>
-  table.querySelector('[role="listbox"]') !== null;
-
 /**
  * What the caret in an input is doing, for `nextCell` to decide on.
  *
@@ -599,81 +577,6 @@ function caretOf(input: CellElement): Caret {
  * into days that never existed.
  */
 const showDay = (days: number): string => String(Math.round(days * 10) / 10);
-
-/** Where a keyboard arrival puts the caret: over the whole value, or at one offset. */
-type Landing = 'all' | number;
-
-/**
- * Focuses a cell and places its caret, where the element has a caret to place.
- *
- * A date input has none. `setSelectionRange` throws `InvalidStateError` on one,
- * and `select()` has nothing to select there either, so the caret half is asked
- * for only of a textarea or a text input and everything else is simply focused
- * — which is all a date cell needs to be arrived in.
- *
- * Proof: the element check removed, `the arrows land in a date cell without
- * asking it for a caret it has none of` failed with `InvalidStateError` thrown
- * out of the arrow handler. Watched, 2026-08-07.
- */
-function focusCellAt(input: CellElement, landing: Landing): void {
-  input.focus();
-  if (!(input instanceof HTMLTextAreaElement) && input.type !== 'text') return;
-  if (landing === 'all') input.select();
-  else input.setSelectionRange(landing, landing);
-}
-
-/**
- * Every editable cell in the committed table, paired with the input that is it.
- *
- * Kept as pairs, so the cell a move names and the input it focuses cannot
- * drift apart — an index into two separately filtered lists is one dropped
- * entry away from focusing the wrong box. Read from the DOM at the moment a
- * key arrives, never from a ref written during render: the committed DOM is
- * the only thing that cannot be ahead of itself.
- *
- * `readonly` keeps the focus off a parent's rolled-up figures, and `disabled`
- * off the earliest-start cell of a plan with no start date — a cell that
- * refuses the focus is a keystroke that takes the key and lands nothing.
- * Proof: `:not([disabled])` dropped, `steps over the date cell until the plan
- * is on a calendar` failed with the focus left where it started. Watched,
- * 2026-08-07.
- */
-function editableGrid(table: HTMLTableElement): { input: CellElement; cell: CellRef }[] {
-  return [...table.querySelectorAll<CellElement>('[data-cell]:not([readonly]):not([disabled])')]
-    .map((input) => ({ input, parts: (input.dataset['cell'] ?? '').split('::') }))
-    .flatMap(({ input, parts }) => {
-      // A `data-cell` that is not `row::column` is markup this component did
-      // not write. Skipped rather than guessed at, and not thrown on: a
-      // keystroke is not the moment to take the table down.
-      const [row, column] = parts;
-      if (parts.length !== 2 || row === '' || column === '') return [];
-      return [{ input, cell: { rowId: row, columnId: column } satisfies CellRef }];
-    });
-}
-
-/**
- * Focuses the grid cell `delta` places from `from`, selecting its text the
- * way the browser's own Tab leaves a field. False at the grid's edge — the
- * caller then leaves the key to the browser rather than eating it.
- */
-function focusAdjacentCell(input: CellElement, from: CellRef, delta: 1 | -1): boolean {
-  const table = input.closest('table');
-  if (table === null) return false;
-  const grid = editableGrid(table);
-  const at = grid.findIndex(
-    (g) => g.cell.rowId === from.rowId && g.cell.columnId === from.columnId,
-  );
-  if (at === -1) return false;
-  // `.at(-1)` wraps to the far end, which would turn Shift+Tab in the first
-  // cell into a jump to the last one instead of leaving the key alone.
-  // Proof: the guard removed so the index reached `.at(-1)`, `at the edges of
-  // the grid the key is left to the browser` failed — the key was taken and
-  // the focus jumped to the last cell of the table. Watched, 2026-08-07.
-  const next = at + delta < 0 ? undefined : grid.at(at + delta);
-  if (next === undefined) return false;
-  focusCellAt(next.input, 'all');
-  return true;
-}
 
 const column = createColumnHelper<TreeRow>();
 
@@ -954,8 +857,14 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    * than the button doing nothing.
    */
   const [gapVisit, setGapVisit] = useState<{ rowId: string; cell: CellRef } | null>(null);
-  /** The rendered table, so the focus can be found in the DOM that is committed. */
-  const tableElement = useRef<HTMLTableElement | null>(null);
+  /**
+   * The rendered grid, so the focus can be found in the DOM that is committed.
+   *
+   * This renderer's grid is a `<table>`; {@link editableGrid} and the rest of
+   * `editable-grid.ts` only ever ask it for `[data-cell]` descendants, which is
+   * what lets `M mobile-cards` hand them a list of cards instead.
+   */
+  const gridElement = useRef<HTMLTableElement | null>(null);
 
   const latestRefresh = useRef(0);
   /**
@@ -1210,8 +1119,8 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    * cell the intent names, the intent stands.
    */
   const focusIntentIsStale = useCallback((wanted: CellRef): boolean => {
-    const table = tableElement.current;
-    if (table !== null && aListIsOpenIn(table)) return true;
+    const grid = gridElement.current;
+    if (grid !== null && aListIsOpenIn(grid)) return true;
     const standingIn = focusedCellKey();
     if (standingIn === null || standingIn === commandFrom.current) return false;
     return standingIn !== cellKey(wanted.rowId, wanted.columnId);
@@ -1234,8 +1143,8 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    */
   useEffect(() => {
     const wanted = focusNext.current;
-    const table = tableElement.current;
-    if (wanted === null || table === null) return;
+    const grid = gridElement.current;
+    if (wanted === null || grid === null) return;
     // Cancelled rather than left pending: the reader has moved on, so this
     // intent is not waiting for a tree that has yet to arrive — it is over.
     // Proof: this dropped here and in the Name cell's `onAttach`, `a late
@@ -1245,10 +1154,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
       focusNext.current = null;
       return;
     }
-    const arrived = editableGrid(table).find(
-      (candidate) =>
-        candidate.cell.rowId === wanted.rowId && candidate.cell.columnId === wanted.columnId,
-    );
+    const arrived = cellIn(grid, wanted);
     if (arrived === undefined) return;
     focusNext.current = null;
     // Proof: left as a lookup that focuses nothing, both `lands in the same
@@ -1256,7 +1162,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     // because those tests drop the focus first, the way a browser does — jsdom
     // keeps it on a node React moves, so without that the check could not fail.
     // Watched, 2026-08-06.
-    arrived.input.focus();
+    arrived.focus();
   }, [workItems, focusIntentIsStale]);
 
   /**
@@ -1728,13 +1634,9 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    * click starts the walk from the top anyway.
    */
   useEffect(() => {
-    const table = tableElement.current;
-    if (gapVisit === null || table === null) return;
-    const arrived = editableGrid(table).find(
-      (candidate) =>
-        candidate.cell.rowId === gapVisit.cell.rowId &&
-        candidate.cell.columnId === gapVisit.cell.columnId,
-    );
+    const grid = gridElement.current;
+    if (gapVisit === null || grid === null) return;
+    const arrived = cellIn(grid, gapVisit.cell);
     if (arrived === undefined) return;
     // Proof: removed, five of this block's tests failed with the focus left
     // wherever the last created row had put it. Watched, 2026-08-06.
@@ -1742,7 +1644,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     // Selected, the way every arrival at an estimate cell is: the value at
     // rest is a computed figure, and a caret dropped inside `4` turns the next
     // `2/3/8` into `2/3/84`.
-    focusCellAt(arrived.input, 'all');
+    focusCellAt(arrived, 'all');
   }, [gapVisit]);
 
   /**
@@ -2155,9 +2057,9 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    */
   const onArrowKey = useCallback(
     (event: React.KeyboardEvent<CellElement>, rowId: string, columnId: string) => {
-      const table = event.currentTarget.closest('table');
-      if (table === null) return;
-      const grid = editableGrid(table);
+      const container = gridOf(event.currentTarget);
+      if (container === null) return;
+      const grid = editableGrid(container);
 
       const move = nextCell(
         grid.map((g) => g.cell),
@@ -2254,9 +2156,9 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    */
   const moveByCommand = useCallback(
     (input: CellElement, from: CellRef, direction: Direction): boolean => {
-      const table = input.closest('table');
-      if (table === null) return false;
-      const grid = editableGrid(table);
+      const container = gridOf(input);
+      if (container === null) return false;
+      const grid = editableGrid(container);
       const move = commandMove(
         grid.map((g) => g.cell),
         from,
@@ -2281,9 +2183,9 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    * cells, and Cmd+Enter must not land in one of them.
    */
   const nextRowName = useCallback((input: CellElement, rowId: string): CellElement | undefined => {
-    const table = input.closest('table');
-    if (table === null) return undefined;
-    const grid = editableGrid(table);
+    const container = gridOf(input);
+    if (container === null) return undefined;
+    const grid = editableGrid(container);
     const rowIds = [...new Set(grid.map((g) => g.cell.rowId))];
     const at = rowIds.indexOf(rowId);
     // `< 0` before the lookup, for `focusAdjacentCell`'s reason: `.at(-1)`
@@ -4589,13 +4491,14 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
           is what `table-frame.ts`'s width table was measured against.
 
           An attribute rather than a class, because it is a marker and not a
-          style — and because `X live-editing-extraction` re-anchors
-          `editableGrid` on this same container, where it reads `closest('table')`
-          today.
+          style — and because `editable-grid.ts` finds the grid by it: since
+          `X live-editing-extraction` that module reads this attribute rather
+          than `closest('table')`, so a renderer that is not a table still has
+          a grid (agy #11).
         */}
         <table
           data-grid
-          ref={tableElement}
+          ref={gridElement}
           style={{
             borderCollapse: 'separate',
             borderSpacing: 0,
