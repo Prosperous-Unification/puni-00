@@ -132,8 +132,45 @@ _Avoid_: constraint, reason, blocker, driver
 
 **Resource predecessor**:
 The slice a person was busy with immediately before the one they were the binding floor
-of. What a person-link on the Gantt is drawn between; absent when nobody waited.
+of. What a person link on the Gantt is drawn between; absent when nobody waited.
 _Avoid_: previous task, queue parent, resource link
+
+**Gantt panel**:
+The second drawing of the plan: every shown row as marks on a workday axis, under the
+plan renderer and mirroring its rows. Read-only — edits happen where they always did.
+_Avoid_: chart, timeline, gantt view
+
+**Workday axis**:
+The Gantt panel's horizontal scale, one unit per workday. Weekends are not on it — the
+calendar labels come from the same mapping the date columns use, and a bar cannot span
+a weekend because the axis holds none.
+_Avoid_: time axis, date axis, calendar
+
+**Horizon**:
+How far the schedule reaches: the latest finish of any slice, in workdays. The width of
+the Gantt panel's drawing space.
+_Avoid_: extent, range, span
+
+**Bar**:
+The drawing of one slice on the Gantt panel — a rectangle from its start to its finish
+on the workday axis. A picture of a slice, never the slice itself.
+_Avoid_: segment, block, task bar
+
+**Summary bracket**:
+The drawing of a parent on the Gantt panel: a bracket over its projection. A span,
+never a sum, exactly as the projection is.
+_Avoid_: parent bar, group bar, rollup bar
+
+**Person link**:
+The line from a resource predecessor to the slice that waited for it — one person's
+hand-off, drawn unlike a dependency arrow. Exists only where the binding floor is the
+person.
+_Avoid_: resource arrow, queue line, assignment link
+
+**Not-before flag**:
+The mark on the workday axis where a row's manual start date holds, on rows that have
+one.
+_Avoid_: constraint marker, lock, milestone
 
 **Refused dependency**:
 A dependency be-01 will not write: onto the work item itself, onto an ancestor or a

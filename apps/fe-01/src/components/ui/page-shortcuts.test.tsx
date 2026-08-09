@@ -83,6 +83,7 @@ function silentApi(): SilentApi {
           workItems: [ROW],
           seq: 1,
           scheduleError: null,
+          slices: [],
           estimateMethod: 'pert' as const,
           startDate: null,
           projectRevision: 1,

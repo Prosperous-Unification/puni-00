@@ -39,6 +39,59 @@ export interface ScheduleView {
   critical: boolean;
 }
 
+/**
+ * What decided a slice's start: the latest of its floors, named.
+ *
+ * `projectStart` means nothing did. `predecessor` is a dependency onto another
+ * work item, `roleOrder` the work item's own earlier phase, `notBefore` a
+ * manual date, and `person` the assignee finishing something else. A tie is
+ * never `person`: an assignee who came free exactly as the dependency cleared
+ * was not holding anything up. be-01's `ScheduleFloor` is the rule; this is a
+ * description of what comes back.
+ */
+export type ScheduleFloorView =
+  | 'projectStart'
+  | 'predecessor'
+  | 'roleOrder'
+  | 'notBefore'
+  | 'person';
+
+/**
+ * One placed slice — one work item's work for one phase — as be-01 sends it.
+ *
+ * A row's {@link ScheduleView} is the span this is a projection of, and both
+ * are carried because neither answers the other's question: a row does not say
+ * which phase ran when, and a slice does not know its parent's bracket.
+ *
+ * `id` is be-01's own key for the slice and is **opaque** — a string to look up,
+ * never to take apart. `resourcePredecessorId` names another entry of the same
+ * array by that id: the slice this one's assignee was busy with, and only where
+ * `boundBy` is `person`, so a link drawn from it is a wait that really happened.
+ * Reconstructing the id from `workItemId` and `roleId` would be a second copy of
+ * be-01's `sliceKey`, and the two would disagree the day either changes.
+ *
+ * The numbers are be-01's verbatim, fractions and all — a chart drawn from them
+ * and the Start/End columns beside it are then reading the same plan.
+ */
+export interface SliceView {
+  id: string;
+  workItemId: string;
+  /** Null only in a project holding no phases at all, which is reachable. */
+  roleId: string | null;
+  personId: string | null;
+  duration: number;
+  /** False when nobody has estimated this pair, which is not the same as zero days. */
+  estimated: boolean;
+  earliestStart: number;
+  earliestFinish: number;
+  latestStart: number;
+  latestFinish: number;
+  float: number;
+  critical: boolean;
+  boundBy: ScheduleFloorView;
+  resourcePredecessorId: string | null;
+}
+
 export interface WorkItemView {
   id: string;
   parentId: string | null;
@@ -231,6 +284,15 @@ export interface ProjectApi {
     workItems: WorkItemView[];
     seq: number;
     scheduleError: 'cycle' | null;
+    /**
+     * Every slice the schedule placed, in be-01's own order — what the chart
+     * draws, where the rows carry the spans the columns show.
+     *
+     * Empty when `scheduleError` says the plan could not be scheduled at all,
+     * exactly as the rows' dates go: bars from a plan that no longer computes
+     * would be the same stale lie in a different shape.
+     */
+    slices: SliceView[];
     estimateMethod: EstimateMethod;
     startDate: string | null;
     /**
@@ -479,6 +541,7 @@ export function httpProjectApi(token: string): ProjectApi {
         workItems: WorkItemView[];
         seq: number;
         scheduleError: 'cycle' | null;
+        slices: SliceView[];
         estimateMethod: EstimateMethod;
         startDate: string | null;
         projectRevision: number;

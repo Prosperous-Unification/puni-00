@@ -6,6 +6,7 @@ import {
   getExpandedRowModel,
   useReactTable,
 } from '@tanstack/react-table';
+import { workdaysBetween } from '@wbs/domain/workday';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
@@ -19,6 +20,7 @@ import {
   isEstimateMethod,
   type ProjectApi,
   type RoleView,
+  type SliceView,
 } from '@/lib/wbs-api';
 
 import { ActionsMenu } from './actions-menu';
@@ -47,6 +49,8 @@ import {
   trioProblem,
   type TypedTrio,
 } from './estimate-draft';
+import type { GanttPlan } from './gantt-geometry';
+import { GanttPanel } from './gantt-panel';
 import { type Command, commandChordIn, undoChord } from './keyboard-bindings';
 import { KeyboardCheatSheet, opensCheatSheet } from './keyboard-cheat-sheet';
 import {
@@ -581,6 +585,24 @@ function caretOf(input: CellElement): Caret {
 const showDay = (days: number): string => String(Math.round(days * 10) / 10);
 
 /**
+ * Which workday of the plan a stored "start no earlier than" date holds a row
+ * at, or null when there is no such workday to name.
+ *
+ * Null in two cases and both are modeled absences rather than missing answers:
+ * nobody has set a date on the row, or the project is not on a calendar at all
+ * — and a plan with no start date has an axis of offsets that a date could not
+ * be placed on. The chart draws no not-before flag in either case, which is
+ * what the row's own Start column says too.
+ *
+ * `workdaysBetween` is `libs/domain`'s, imported from the module rather than
+ * the lib's index barrel: it is the inverse of the `addWorkdays` be-01 placed
+ * the date with, and counting the days here would be a second implementation
+ * of the calendar sitting under the columns that print it.
+ */
+const notBeforeOffsetOf = (startDate: string | null, notBefore: string | null): number | null =>
+  startDate === null || notBefore === null ? null : workdaysBetween(startDate, notBefore);
+
+/**
  * Whether a click inside the toolbar sheet is one that should close it.
  *
  * Taking a control on the sheet is taking it on the plan behind the sheet, and
@@ -625,6 +647,18 @@ const column = createColumnHelper<TreeRow>();
  */
 export function WbsTable({ projectId, projectName, api, subscribe }: WbsTableProps) {
   const [workItems, setWorkItems] = useState<TreeRow[]>([]);
+  /**
+   * The slices of the tree on screen — be-01's placed schedule, held beside the
+   * rows it belongs to.
+   *
+   * Replaced whole on every refetch, never patched, for the reason the rows are:
+   * one edit can move slices of work items this client never touched — a person
+   * freed here starts something over there — and guessing which would be a
+   * second implementation of the engine. They are held here rather than fetched
+   * where they are drawn because they arrive on the same read as the rows, and
+   * two reads would be two moments.
+   */
+  const [slices, setSlices] = useState<SliceView[]>([]);
   const [roles, setRoles] = useState<RoleView[]>([]);
   /**
    * Which branches are open, as this browser last left them for this project.
@@ -903,6 +937,14 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
   useEffect(() => {
     setToolbarSheetOpen(false);
   }, [renderer]);
+  /**
+   * Whether the Gantt panel is under the plan.
+   *
+   * Off to begin with, and not remembered anywhere: the plan is the editor and
+   * the chart is a second thing to look at, so a reader who opened it once on
+   * one project has not asked for it on every project they open afterwards.
+   */
+  const [ganttOpen, setGanttOpen] = useState(false);
 
   const latestRefresh = useRef(0);
   /**
@@ -995,6 +1037,14 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     setTeams(loadedTeams);
     setPeople(loadedPeople);
     setWorkItems(toTree(tree.workItems));
+    // On the same read as the rows and behind the same generation check: a
+    // superseded read must not leave its slices under another read's rows.
+    // Proof: written as `setSlices((current) => current.length === 0 ?
+    // tree.slices : current)` — the refetch leaving the slices where the first
+    // read put them — and `replaces the slices on every refetch, as it replaces
+    // the rows` failed on `expected '2' to be '1'`: a second row on screen with
+    // the one-row plan's slices still behind it; watched 2026-08-09.
+    setSlices(tree.slices);
     setStack({ undoable: tree.undoable, redoable: tree.redoable });
     setScheduleError(tree.scheduleError);
     setEstimateMethod(tree.estimateMethod);
@@ -2980,6 +3030,31 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     [teams],
   );
 
+  /**
+   * Takes the plan to one row: its name cell gets the caret and is scrolled to.
+   *
+   * The Gantt panel's way back into the editor, and it works on both faces
+   * because it names a **cell** rather than a piece of markup — `cellIn` reads
+   * the committed `[data-grid]`, which is the `<table>` at laptop width and the
+   * card list below the breakpoint (`M mobile-cards`' contract). A column the
+   * cards do not render would work on one face and quietly do nothing on the
+   * other, which is why the negative for this is pointed at exactly that.
+   *
+   * Both absences are modeled rather than thrown on: a chart can outlive the
+   * row it was drawn from by one refetch, and there is nothing to take anybody
+   * to then.
+   */
+  const goToRow = useCallback((rowId: string) => {
+    const grid = gridElement.current;
+    if (grid === null) return;
+    const cell = cellIn(grid, { rowId, columnId: 'name' });
+    if (cell === undefined) return;
+    cell.focus();
+    // jsdom has no `scrollIntoView`; that boundary is the test environment, not
+    // a browser this will meet. The same guard the pickers use.
+    if (typeof cell.scrollIntoView === 'function') cell.scrollIntoView({ block: 'nearest' });
+  }, []);
+
   const live = useRef({
     api,
     projectId,
@@ -4118,6 +4193,52 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
   const shownRows = table.getRowModel().rows.filter((row) => search.visibleIds.has(row.id));
 
   /**
+   * What the Gantt panel draws, from the rows the renderer is drawing.
+   *
+   * **`shownRows`, not the row model**, and that is the whole of the mirroring:
+   * the chart is the same list in the same order with the same branches open,
+   * because it is the same list. The expansion is already the model's answer —
+   * a collapsed branch's children are not in it — and the filter above is the
+   * search's, which nothing else applies.
+   *
+   * Proof, twice, because one edit could not reach both halves. Fed
+   * `table.getRowModel().rows`, the search's narrowing is lost and the
+   * expansion's is not: `draws exactly the rows a search narrowed the plan to`
+   * failed on four labels where the plan shows three, and `leaves a collapsed
+   * branch's children off the chart` went on passing. Fed `flat` — every row of
+   * the tree — that second test failed too, on four labels where the plan shows
+   * two. Both watched, 2026-08-09.
+   *
+   * Built outside the `columns` memo and read by nothing inside it: that memo
+   * depends on `roles` alone, and anything added to it remounts every cell in
+   * the table and eats the focus (LLM_README landmine #1).
+   */
+  const ganttPlan: GanttPlan = {
+    rows: shownRows.map((row) => ({
+      id: row.id,
+      name: row.original.name,
+      depth: row.depth,
+      // A leaf of the plan as drawn, which is a row with nothing under it —
+      // the same question `getSubRows` answers for the table model.
+      leaf: row.subRows.length === 0,
+      schedule: {
+        earliestStart: row.original.schedule.earliestStart,
+        earliestFinish: row.original.schedule.earliestFinish,
+      },
+      notBeforeOffset: notBeforeOffsetOf(startDate, row.original.startNoEarlierThan),
+    })),
+    slices,
+    // The stored dependencies of the rows on screen. An edge whose other end is
+    // collapsed away or narrowed off is dropped by `layOutGantt`, which is a
+    // modeled absence there rather than a filter here.
+    dependencies: shownRows.flatMap((row) =>
+      row.original.dependsOn.map((predecessorId) => ({ predecessorId, successorId: row.id })),
+    ),
+    roles,
+    personNames: new Map(people.map((person) => [person.id, person.name])),
+  };
+
+  /**
    * The columns this render puts on screen, in order — which is exactly what a
    * `<colgroup>` declares and what the table's own width adds up. Read from the
    * table model rather than listed here, so unfolding a role cannot leave the
@@ -4212,6 +4333,27 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         }}
       >
         Expand all
+      </Button>
+      {/*
+        The schedule as something to look at, under the plan. `aria-pressed`
+        rather than two labels: it is one thing that is on or off, and a button
+        whose word changes is a button that reads as "Gantt" when the chart is
+        already there.
+
+        Not disabled by `busy` and not by a cycle: it asks be-01 for nothing,
+        and the panel is where the unscheduled state is said out loud.
+      */}
+      <Button
+        variant="outline"
+        size="sm"
+        type="button"
+        aria-pressed={ganttOpen}
+        title="Draw the schedule under the plan"
+        onClick={() => {
+          setGanttOpen((open) => !open);
+        }}
+      >
+        Gantt
       </Button>
       {/*
         The phases, which are the project's to choose since `R1 role-crud`.
@@ -4427,7 +4569,15 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
       falls back to content height and the frame never scrolls. `ProjectPage`
       has the same pair on `<main>`, and `table-frame.ts` has the why.
     */
-    <section className="flex min-h-0 flex-1 flex-col">
+    <section
+      className="flex min-h-0 flex-1 flex-col"
+      // How many slices the plan on screen was drawn from. The Gantt panel at
+      // the bottom of this section draws them now, but only while it is open —
+      // so this stays as the trace they leave with it closed, which is what
+      // lets `wbs-table.test.tsx` watch "a refetch replaces the slices" break
+      // without opening a chart.
+      data-slice-count={slices.length}
+    >
       {/*
         Two places for one toolbar, and which one is a fact about the viewport.
 
@@ -4795,6 +4945,25 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
             </tbody>
           </table>
         </div>
+      )}
+
+      {/*
+        Under the plan and inside the section, so the frame splits vertically:
+        the panel scrolls itself and the table keeps its own frame. Neither is
+        allowed to make the page scroll sideways, which is what the panel's own
+        `overflow-auto` is for.
+
+        Mounted under either renderer — the chart is the same chart on a phone,
+        and the toggle that mounts it is in the same one toolbar the sheet
+        opens.
+      */}
+      {ganttOpen && (
+        <GanttPanel
+          plan={ganttPlan}
+          startDate={startDate}
+          scheduleError={scheduleError}
+          onPickRow={goToRow}
+        />
       )}
 
       {/*

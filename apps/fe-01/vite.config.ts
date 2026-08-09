@@ -83,7 +83,35 @@ export default defineConfig(({ command, mode }) => ({
   // `docs/plans/2026-08-08-tailwind-spike-verify.md`.
   plugins: [react(), tailwindcss()],
   resolve: {
-    alias: { '@': resolve(__dirname, 'src') },
+    alias: {
+      '@': resolve(__dirname, 'src'),
+      // **The module, not the barrel.** `libs/domain`'s index re-exports
+      // `estimate.ts` as well, and the validators around it pull arktype into
+      // whatever imports it — which is why every wire type in `src/lib/wbs-api.ts`
+      // is declared by hand rather than imported. `workday.ts` is pure and
+      // dependency-free, and the Gantt panel needs exactly the calendar rule
+      // be-01 prints the Start and End columns with; a second copy of that rule
+      // is a chart that disagrees with the columns it sits under.
+      //
+      // The path mapping that makes the same import typecheck is in
+      // `tsconfig.base.json` and this app's three tsconfigs, which replace the
+      // base's `paths` rather than adding to them. `tsconfig.app.json` traded
+      // its `rootDir: "src"` for `noEmit: true` at the same time, and all
+      // three of the following were watched on 2026-08-09:
+      //
+      // - `rootDir: "src"` back: `nx typecheck fe-01` fails on
+      //   `wbs-table.tsx(9,33): error TS6059: File '…/libs/domain/src/
+      //   workday.ts' is not under 'rootDir' '…/apps/fe-01/src'`.
+      // - neither `rootDir` nor `noEmit`: typecheck passes and writes
+      //   `workday.js` and `workday.js.map` into `libs/domain/src` — a build
+      //   artefact in a source tree, from a target that only reads.
+      // - as it stands: a deliberate `const x: number = 'not a number'`
+      //   appended to `gantt-panel.tsx` still fails the target, on
+      //   `gantt-panel.tsx(406,7): error TS2322`. `noEmit` did not make the
+      //   gate vacuous, which is the property that matters (AGENTS.md R5, and
+      //   the one vacuous check ever found in the gate itself).
+      '@wbs/domain/workday': resolve(__dirname, '../../libs/domain/src/workday.ts'),
+    },
   },
   server: {
     port: 4200,

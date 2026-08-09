@@ -6,7 +6,8 @@
     "types": ["vite/client"],
     "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"]
+      "@/*": ["src/*"],
+      "@wbs/domain/workday": ["../../libs/domain/src/workday.ts"]
     }
   },
   "files": [],

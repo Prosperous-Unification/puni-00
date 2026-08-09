@@ -2,11 +2,12 @@
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "outDir": "../../dist/out-tsc",
-    "rootDir": "src",
+    "noEmit": true,
     "types": ["vite/client"],
     "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"]
+      "@/*": ["src/*"],
+      "@wbs/domain/workday": ["../../libs/domain/src/workday.ts"]
     }
   },
   "include": ["src/**/*.ts", "src/**/*.tsx"],

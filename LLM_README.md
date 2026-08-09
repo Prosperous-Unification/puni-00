@@ -130,7 +130,7 @@ Both open findings are **prod-phase** (Dany, 2026-08-06): recorded, not pending.
 Lower priority: fe/smoke health accepts any non-empty body; the WS ping passes on any first
 message _containing_ `"pong"`; drain reads a malformed metrics body as zero live sockets;
 `tool-secrets` only prints what it would run. Checks that cannot fail have appeared
-**fifteen** times here; the tally is in `AGENTS.md` under R5.
+**sixteen** times here; the tally is in `AGENTS.md` under R5.
 
 ## More
 
