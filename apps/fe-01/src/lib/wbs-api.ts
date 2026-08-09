@@ -113,6 +113,44 @@ export interface RoleView {
   name: string;
 }
 
+/**
+ * One work item whose {@link WorkItemView.doesEveryPhase} a removal would move.
+ *
+ * Nobody wrote these rows: the assumption is derived from a work item holding
+ * exactly one assignment, so removing a role can promote somebody to covering
+ * every phase or end that reading. be-01 computes them (`assumed-assignee.ts`)
+ * and the confirmation prints them, which is the only reason they cross the
+ * wire — the client never derives one.
+ */
+export interface AssumedAssigneeFlipView {
+  workItemId: string;
+  /** Who is assumed to be doing all of it now, or null for nobody. */
+  assumedNow: string | null;
+  /** Who would be, once the phase and its assignments have gone. */
+  assumedAfter: string | null;
+}
+
+/** What removing a phase would take with it, as be-01's refusal reports it. */
+export interface RoleUsage {
+  estimates: number;
+  /** Explicit assignments on this phase. The assumed ones are in `assumedAssignees`. */
+  assignments: number;
+  assumedAssignees: AssumedAssigneeFlipView[];
+}
+
+/**
+ * What came of asking for a phase to be removed.
+ *
+ * `in_use` is a **modeled answer** rather than a thrown code, for the reason
+ * {@link UndoResult}'s refusals are: it is an ordinary state of a plan somebody
+ * has been estimating, and the counts riding along with it are the whole point
+ * of the refusal — the next request is the same one with the cascade, and
+ * nobody can agree to that without being told what it takes. Every other
+ * refusal throws its code, which {@link roleRefusalSentence} turns into a
+ * sentence.
+ */
+export type RoleRemoval = { ok: true } | { ok: false; reason: 'in_use'; inUse: RoleUsage };
+
 /** A service or team, global to this deployment. */
 export interface TeamView {
   id: string;
@@ -228,6 +266,17 @@ export interface ProjectApi {
   /** Puts the plan on a calendar, or `null` to take it off again. */
   setStartDate(projectId: string, startDate: string | null): Promise<void>;
   roles(projectId: string): Promise<RoleView[]>;
+  /** Adds a phase to the project. Throws `taken` when the name is already one. */
+  addRole(projectId: string, name: string): Promise<RoleView>;
+  renameRole(projectId: string, roleId: string, name: string): Promise<RoleView>;
+  /**
+   * Removes a phase, or answers what it would take.
+   *
+   * Called first without a cascade, always: be-01 removes a phase nothing points
+   * at outright and refuses one that is used, with its counts. `cascade` is the
+   * caller saying it has shown those counts to somebody and been told to go on.
+   */
+  removeRole(projectId: string, roleId: string, cascade: boolean): Promise<RoleRemoval>;
   create(
     projectId: string,
     input: { parentId: string | null; afterId: string | null; name?: string },
@@ -328,6 +377,81 @@ async function stepStack(path: string, token: string): Promise<UndoResult> {
   return { ok: true, done: body.done, detail: body.detail };
 }
 
+/**
+ * Removes a phase, reading be-01's `in_use` counts out of the 409 instead of
+ * throwing the code alone.
+ *
+ * The same shape as {@link stepStack} and for the same reason: `send` throws the
+ * `error` field and loses everything beside it, and here everything beside it is
+ * what the confirmation is made of. Any other 409 — there is none today — still
+ * throws through the ordinary path rather than being read as a refusal this
+ * client understands.
+ */
+async function removeRoleAt(path: string, token: string): Promise<RoleRemoval> {
+  const res = await fetch(path, { method: 'DELETE', headers: auth(token) });
+  const text = await res.text();
+  if (res.status === 409) {
+    const body = JSON.parse(text) as { error?: string; inUse?: RoleUsage };
+    // Both halves are asked for. A refusal claiming to be `in_use` with no
+    // counts in it is a be-01 that has changed shape, and confirming a cascade
+    // from an empty confirmation is exactly the unknown this repository refuses
+    // to default through.
+    //
+    // Proof, both watched 2026-08-09. This branch deleted so the 409 falls to
+    // the throw below: `reads the counts out of the refusal rather than throwing
+    // the code` failed on `promise rejected "Error: in_use" instead of
+    // resolving`. The `inUse !== undefined` half dropped: `throws an in_use with
+    // no counts rather than confirming against nothing` failed on `promise
+    // resolved "{ ok: false, reason: 'in_use', …(1) }" instead of rejecting`.
+    if (body.error === 'in_use' && body.inUse !== undefined) {
+      return { ok: false, reason: 'in_use', inUse: body.inUse };
+    }
+  }
+  if (!res.ok) {
+    let code = `http_${String(res.status)}`;
+    try {
+      code = (JSON.parse(text) as { error?: string }).error ?? code;
+    } catch {
+      // A proxy error page rather than our JSON — the status is all there is.
+    }
+    throw new Error(code);
+  }
+  return { ok: true };
+}
+
+/**
+ * What a refused phase change says out loud.
+ *
+ * be-01's codes are the vocabulary everywhere else in this client — `cycle` and
+ * `forbidden` reach a toast as themselves — and phases are the exception on
+ * purpose: these are refusals aimed at somebody typing a name into a box, not at
+ * somebody reading a plan, and `taken` in the corner of the screen is a word
+ * about HTTP rather than about their project.
+ *
+ * `Partial` would make every read a `string | undefined` with a fallback
+ * invented at each call site, which is how two spellings of one refusal happen;
+ * this takes the code as a string and answers for anything, so there is one
+ * fallback and it is here.
+ */
+export function roleRefusalSentence(code: string): string {
+  switch (code) {
+    case 'taken':
+      return 'That name is already a phase on this plan.';
+    case 'name_required':
+      return 'A phase needs a name.';
+    case 'in_use':
+      return 'That phase still holds estimates or assignments on this plan.';
+    case 'unknown_role':
+      return 'That phase is no longer on this plan — somebody else removed it.';
+    case 'not_found':
+      return 'That phase is no longer on this plan.';
+    case 'forbidden':
+      return 'This plan is not yours to change.';
+    default:
+      return `The phase could not be changed (${code}).`;
+  }
+}
+
 export function httpProjectApi(token: string): ProjectApi {
   return {
     async listProjects() {
@@ -411,6 +535,35 @@ export function httpProjectApi(token: string): ProjectApi {
     async roles(projectId) {
       const body = await send<{ roles: RoleView[] }>(`/api/projects/${projectId}`, token);
       return body.roles;
+    },
+    async addRole(projectId, name) {
+      const body = await send<{ role: RoleView }>(`/api/projects/${projectId}/roles`, token, {
+        method: 'POST',
+        body: JSON.stringify({ name }),
+      });
+      return body.role;
+    },
+    async renameRole(projectId, roleId, name) {
+      const body = await send<{ role: RoleView }>(
+        `/api/projects/${projectId}/roles/${roleId}`,
+        token,
+        { method: 'PATCH', body: JSON.stringify({ name }) },
+      );
+      return body.role;
+    },
+    removeRole(projectId, roleId, cascade) {
+      // `?cascade=true` and nothing else, which is `roleController`'s own rule:
+      // the flag is the second, explicit call rather than a body on a DELETE.
+      // Absent rather than `?cascade=false` for the same reason — the
+      // controller reads `=== 'true'`, and a flag that is always on the URL is
+      // one nobody reading a request log can tell from a confirmed one.
+      // Proof: pinned to `?cascade=true`, `asks for the cascade only when it is
+      // given one` failed on `expected [ …(2) ] to deeply equal [ …(2) ]`.
+      // Watched, 2026-08-09.
+      return removeRoleAt(
+        `/api/projects/${projectId}/roles/${roleId}${cascade ? '?cascade=true' : ''}`,
+        token,
+      );
     },
     create(projectId, input) {
       return send<{ id: string }>(`/api/projects/${projectId}/work-items`, token, {

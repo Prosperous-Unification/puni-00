@@ -10,6 +10,7 @@ import {
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import type {
+  AssumedAssigneeFlipView,
   Days,
   EstimateMethod,
   ProjectApi,
@@ -57,6 +58,14 @@ function fakeApi(): ProjectApi & {
   const teams: { id: string; name: string }[] = [];
   const people: { id: string; name: string; teamIds: string[] }[] = [];
   const assigned = new Map<string, string>();
+  /**
+   * The project's phases, which this fake can now be asked to change.
+   *
+   * A list of its own rather than the two constants, because `P phases-ui` adds
+   * and removes them: a fake answering a fixed pair would let a dialog that
+   * wrote nothing pass.
+   */
+  let roleList: RoleView[] = [{ ...DEV }, { ...QA }];
   /**
    * The undo stack as far as this table can see it, which is only what be-01
    * reports and what it answers.
@@ -111,6 +120,33 @@ function fakeApi(): ProjectApi & {
       float: 0,
       critical: true,
     };
+  }
+
+  /**
+   * The work items whose assumed assignee removing `roleId` would move, the way
+   * `apps/be-01/src/service/assumed-assignee.ts` computes them: exactly one
+   * assignment means that person is taken to be doing every phase.
+   */
+  function flipsFor(roleId: string): AssumedAssigneeFlipView[] {
+    const byWorkItem = new Map<string, Record<string, string>>();
+    for (const [key, personId] of assigned) {
+      const [workItemId = '', held = ''] = key.split('::');
+      byWorkItem.set(workItemId, { ...(byWorkItem.get(workItemId) ?? {}), [held]: personId });
+    }
+    const only = (byRole: Record<string, string>): string | null => {
+      const named = Object.values(byRole);
+      return named.length === 1 ? (named[0] ?? null) : null;
+    };
+    return [...byWorkItem.entries()]
+      .map(([workItemId, byRole]) => ({
+        workItemId,
+        assumedNow: only(byRole),
+        assumedAfter: only(
+          Object.fromEntries(Object.entries(byRole).filter(([each]) => each !== roleId)),
+        ),
+      }))
+      .filter((flip) => flip.assumedNow !== flip.assumedAfter)
+      .sort((a, b) => (a.workItemId < b.workItemId ? -1 : 1));
   }
 
   function renumber(): void {
@@ -216,7 +252,53 @@ function fakeApi(): ProjectApi & {
       renumber();
       return Promise.resolve();
     },
-    roles: () => Promise.resolve([DEV, QA]),
+    roles: () => Promise.resolve(roleList.map((role) => ({ ...role }))),
+    addRole(_projectId, name) {
+      const clean = name.trim();
+      if (clean === '') return Promise.reject(new Error('name_required'));
+      if (roleList.some((role) => role.name === clean)) {
+        return Promise.reject(new Error('taken'));
+      }
+      const role = { id: `role-${clean.toLowerCase()}`, name: clean };
+      roleList.push(role);
+      renumber();
+      return Promise.resolve(role);
+    },
+    renameRole(_projectId, roleId, name) {
+      const clean = name.trim();
+      if (clean === '') return Promise.reject(new Error('name_required'));
+      const role = roleList.find((each) => each.id === roleId);
+      if (role === undefined) return Promise.reject(new Error('not_found'));
+      if (roleList.some((each) => each.id !== roleId && each.name === clean)) {
+        return Promise.reject(new Error('taken'));
+      }
+      role.name = clean;
+      renumber();
+      return Promise.resolve({ ...role });
+    },
+    removeRole(_projectId, roleId, cascade) {
+      const role = roleList.find((each) => each.id === roleId);
+      if (role === undefined) return Promise.reject(new Error('not_found'));
+      const estimates = rows.filter((row) => row.estimates[roleId] !== undefined).length;
+      const holders = [...assigned.keys()].filter((key) => key.endsWith(`::${roleId}`));
+      if (!cascade && estimates + holders.length > 0) {
+        return Promise.resolve({
+          ok: false as const,
+          reason: 'in_use' as const,
+          inUse: { estimates, assignments: holders.length, assumedAssignees: flipsFor(roleId) },
+        });
+      }
+      for (const row of rows) {
+        // Rebuilt rather than `delete`d on a computed key, which this repo bans.
+        row.estimates = Object.fromEntries(
+          Object.entries(row.estimates).filter(([each]) => each !== roleId),
+        );
+      }
+      for (const key of holders) assigned.delete(key);
+      roleList = roleList.filter((each) => each.id !== roleId);
+      renumber();
+      return Promise.resolve({ ok: true as const });
+    },
     create(_projectId, input) {
       next += 1;
       const id = `w${String(next)}`;
@@ -4630,6 +4712,9 @@ describe('dependencies in the table — cross-review findings', () => {
     renameProject: () => Promise.resolve(),
     duplicate: () => Promise.reject(new Error('not_in_these_tests')),
     roles: () => Promise.resolve([DEV]),
+    addRole: () => Promise.reject(new Error('not_in_these_tests')),
+    renameRole: () => Promise.reject(new Error('not_in_these_tests')),
+    removeRole: () => Promise.reject(new Error('not_in_these_tests')),
     tree: () =>
       Promise.resolve({
         seq: 0,
