@@ -55,17 +55,17 @@ Ordered TDD slices. Only `- [ ]` checkboxes are tracked by the apply phase.
 
 ## 5. Browser proof and gate
 
-- [ ] 5.1 `e2e/hover-cards.spec.ts`: instant (card present in the same frame
+- [x] 5.1 `e2e/hover-cards.spec.ts`: instant (card present in the same frame
       as mouse move — no waiting assertions), whole (folded Dev cell card
       shows the trio typed into that row), unclipped (card's box extends past
       the `<td>`), click-through (click a control under the open card and it
       acts), and the Name cell's two rules (the cell body opens nothing, the
       marker opens the rendered preview); negative: `opensAPopover` without
       the role column — watched failing on the clipped card
-- [ ] 5.2 Re-aim the layout gate's notes-preview overhang test at the marker
+- [x] 5.2 Re-aim the layout gate's notes-preview overhang test at the marker
       trigger, deliberately; audit the specs in `name-cell.spec.ts` that type
       notes for assertions this change shifts — test: the layout suite green
       with the hover moved to the marker
-- [ ] 5.3 Full gate + `bun run e2e` on ports 3113/3213/4213 + verify.md with
+- [x] 5.3 Full gate + `bun run e2e` on ports 3113/3213/4213 + verify.md with
       the failure-proof table — test: format:check --all, run-many gate,
       openspec validate --all, playwright suite all green

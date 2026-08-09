@@ -590,7 +590,11 @@ test.describe('the table, measured by a browser', () => {
       'Racking survey\nAisle ends photographed\n\nMezzanine measured\n\nFire doors checked\n\nSprinkler heads counted',
     );
     await name.blur();
-    await name.hover();
+    // The marker at the cell's right edge, not the cell: since 2026-08-09 the
+    // preview opens from there and from nowhere else, and this test is about
+    // where the box it opens is allowed to reach. `e2e/hover-cards.spec.ts`
+    // owns the trigger itself.
+    await page.getByLabel('Notes on 010').hover();
     await expect(page.getByRole('tooltip', { name: 'Notes for 010, rendered' })).toBeVisible();
 
     const escape = await popoverEscape(page, 'name', '[role="tooltip"]');
