@@ -207,6 +207,32 @@ describe('the header bar', () => {
     expect(bar.contains(screen.getByRole('button', { name: 'the account' }))).toBe(true);
   });
 
+  /**
+   * The navigation reaches this page as a slot too, and lands in the bar.
+   *
+   * The mark on the page that is showing is `app-router.test.tsx`'s, because
+   * `aria-current` is the router's answer and there is no router here. What
+   * this asserts is the other half of the contract task 6.1 pins: the project
+   * route renders its **own** header, and the shared navigation is on it beside
+   * the project controls rather than hoisted into a root route above them.
+   */
+  itDom('carries the navigation beside the project controls', async () => {
+    render(
+      <ProjectPage
+        token="t"
+        api={fakeProjects(TWO)}
+        nav={<nav aria-label="Pages">the two pages</nav>}
+      />,
+    );
+    await waitFor(() => {
+      expect(screen.getByLabelText('Project')).toBeDefined();
+    });
+
+    const bar = screen.getByRole('banner');
+    expect(bar.contains(screen.getByRole('navigation', { name: 'Pages' }))).toBe(true);
+    expect(bar.contains(picker())).toBe(true);
+  });
+
   itDom('tells the presence slot which project is open, and when none is', async () => {
     // The roster is a project's (F4): gw-01 scopes it by the project the
     // socket subscribed to, and the selection lives here, so the panel cannot

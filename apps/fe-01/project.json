@@ -31,10 +31,21 @@
       },
       "cache": false
     },
+    "e2e-packaged": {
+      "executor": "nx:run-commands",
+      "options": {
+        "commands": [
+          "bunx nx run fe-01:build",
+          "bunx playwright test --config apps/fe-01/playwright.packaged.config.ts"
+        ],
+        "parallel": false
+      },
+      "cache": false
+    },
     "lint": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "bunx eslint apps/fe-01/src apps/fe-01/e2e apps/fe-01/playwright.config.ts apps/fe-01/vite.config.ts apps/fe-01/vitest.config.ts apps/fe-01/vite-config.test.ts"
+        "command": "bunx eslint apps/fe-01/src apps/fe-01/e2e apps/fe-01/e2e-packaged apps/fe-01/playwright.config.ts apps/fe-01/playwright.packaged.config.ts apps/fe-01/vite.config.ts apps/fe-01/vitest.config.ts apps/fe-01/vite-config.test.ts"
       }
     },
     "typecheck": {

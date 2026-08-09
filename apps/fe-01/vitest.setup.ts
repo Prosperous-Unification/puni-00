@@ -24,3 +24,14 @@ if (typeof window !== 'undefined' && typeof window.localStorage === 'undefined')
   };
   Object.defineProperty(window, 'localStorage', { value: storage, configurable: true });
 }
+
+// jsdom *has* a `window.scrollTo`, and all it does is print "Not implemented:
+// window.scrollTo" to its virtual console — so unlike the storage above this is
+// replaced rather than filled in, and unconditionally: a `typeof` guard here
+// would be a branch that never runs. The router scrolls to the top on every
+// navigation, which is 66 lines of stderr per suite about a scroll position no
+// jsdom test asserts on. The scrolling that matters is measured in `e2e/`, by a
+// browser that really does it.
+if (typeof window !== 'undefined') {
+  Object.defineProperty(window, 'scrollTo', { value: () => undefined, configurable: true });
+}

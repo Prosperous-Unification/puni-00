@@ -15,7 +15,7 @@ Only `- [ ]` checkboxes are tracked by the apply phase.
 
 ## 1. The router, and the gate that stays above it
 
-- [ ] 1.1 `@tanstack/react-router` added; `app-router.tsx` builds the tree in
+- [x] 1.1 `@tanstack/react-router` added; `app-router.tsx` builds the tree in
       code — a root route drawing an outlet alone, `/` → `ProjectPage`,
       `/directory` → the new page — and `app.tsx`'s signed-in branch mounts
       it, handing `token`, `presence` and `account` down as router context
@@ -27,7 +27,7 @@ Only `- [ ]` checkboxes are tracked by the apply phase.
       `app-router.test.tsx` on a memory history: `/` draws the project,
       `/directory` draws the directory, and a re-entry at `/directory` draws
       the directory rather than the project
-- [ ] 1.2 The auth gate stays where it is: no session draws `AuthForm` at
+- [x] 1.2 The auth gate stays where it is: no session draws `AuthForm` at
       every address, and the address asked for is the one drawn once
       `onSignedIn` fires — test: `app.test.tsx` entered at `/directory` with
       no stored session, asserting the form first and the directory after;
@@ -37,7 +37,7 @@ Only `- [ ]` checkboxes are tracked by the apply phase.
 
 ## 2. The directory client, and the sentences its refusals get
 
-- [ ] 2.1 `DirectoryApi` in `lib/wbs-api.ts` — `listPeople`, `listTeams`,
+- [x] 2.1 `DirectoryApi` in `lib/wbs-api.ts` — `listPeople`, `listTeams`,
       `addPerson`, `addTeam` behind it plus `patchPerson`, `renameTeam`,
       `removePerson`, `removeTeam`; `httpProjectApi`'s four directory methods
       delegate to it, so each call has one spelling. Removal models the
@@ -54,7 +54,7 @@ Only `- [ ]` checkboxes are tracked by the apply phase.
       resolving into a confirmation of nothing — watched failing with the
       shape check dropped, then restored, the way `removeRoleAt`'s
       `inUse !== undefined` half already is
-- [ ] 2.2 The PATCH answer is structured, not a thrown code: `patchPerson`
+- [x] 2.2 The PATCH answer is structured, not a thrown code: `patchPerson`
       and `renameTeam` return `{ ok: true, … }` or
       `{ ok: false, reason: 'taken', survivingName }` — `send` would throw
       `taken` and lose the surviving name the sentence is made of. Then
@@ -72,7 +72,7 @@ Only `- [ ]` checkboxes are tracked by the apply phase.
 
 ## 3. The page, its panels, and renaming on them
 
-- [ ] 3.1 `components/directory/directory-page.tsx` — People and Teams
+- [x] 3.1 `components/directory/directory-page.tsx` — People and Teams
       panels on `Card`: a person with the teams they belong to, a team with
       its member count, the creation both panels already had, and an
       empty-panel sentence that still offers to add — test:
@@ -84,12 +84,12 @@ Only `- [ ]` checkboxes are tracked by the apply phase.
       socket passes "holds no subscription" by doing nothing; negative: a
       `subscribeToProject` call added to the page's mount effect, watched
       failing that count, then restored
-- [ ] 3.2 Rename in place on both panels, whitespace refused on the page
+- [x] 3.2 Rename in place on both panels, whitespace refused on the page
       before anything is sent, `taken` rendered as its sentence with the old
       name still on screen — test: `directory-page.test.tsx` rename cases;
       negative: the whitespace guard removed — the blank name reaches the
       fake client, watched failing, then restored
-- [ ] 3.3 The page re-reads on arrival, after each of its own writes, **and
+- [x] 3.3 The page re-reads on arrival, after each of its own writes, **and
       when the window is focused or the tab becomes visible again** — plan v2
       asked for navigation and focus, and arrival alone leaves a page that
       sat open all afternoon showing the morning's directory — test:
@@ -102,7 +102,7 @@ Only `- [ ]` checkboxes are tracked by the apply phase.
 
 ## 4. Memberships as chips and a picker of what is missing
 
-- [ ] 4.1 One removable chip per team beside `CreatablePicker` used as what
+- [x] 4.1 One removable chip per team beside `CreatablePicker` used as what
       it is — single-select, `value` held at `null`, each choose adding one
       membership — and its `entries` are the teams **minus** those the person
       holds; a choose or a chip removal sends exactly the set the chips show,
@@ -110,18 +110,18 @@ Only `- [ ]` checkboxes are tracked by the apply phase.
       and the exact `teamIds` sent; negative: the minus-those-held filter
       deleted — a team already chipped is offered and a duplicate is sent,
       watched failing, then restored
-- [ ] 4.2 On-response, not optimistic (the `run()` rule): the chips redraw
+- [x] 4.2 On-response, not optimistic (the `run()` rule): the chips redraw
       from what be-01 answered, and a refused patch leaves them as they were
       with the sentence on screen — test: `directory-page.test.tsx` with the
       fake refusing `unknown_team`; negative: the redraw moved ahead of the
       answer — the refused team stays chipped, watched failing, then restored
-- [ ] 4.3 The keyboard: chips are reachable, Delete and Backspace remove the
+- [x] 4.3 The keyboard: chips are reachable, Delete and Backspace remove the
       focused one, focus lands on the neighbour it left, and the picker keeps
       its combobox contract — test: `directory-page.test.tsx` keyboard cases
 
 ## 5. Removal, with the directory usage in front of it
 
-- [ ] 5.1 The first removal carries no cascade; the usage answer opens a
+- [x] 5.1 The first removal carries no cascade; the usage answer opens a
       `Modal` built from the payload's own named properties — each project by
       `name`, each work item by `number` and `name`, each effect by its
       `kind`, `members` listed as the people who lose a membership, and an
@@ -134,18 +134,18 @@ Only `- [ ]` checkboxes are tracked by the apply phase.
       opened with cascade pinned on — the first request removes without
       asking, watched failing, then restored (the fault `phases-dialog`
       already knows)
-- [ ] 5.2 An entry nothing points at is removed by the first request, with
+- [x] 5.2 An entry nothing points at is removed by the first request, with
       no confirmation drawn — test: `directory-page.test.tsx` against a fake
       answering removed
 
 ## 6. The header, and the row it has to stay inside
 
-- [ ] 6.1 `AppHeader` gains a nav slot carrying the two pages; the current
+- [x] 6.1 `AppHeader` gains a nav slot carrying the two pages; the current
       one is marked `aria-current="page"`; the project picker and rename are
       absent on `/directory` rather than drawn dead — test:
       `project-page.test.tsx` (project route) and `directory-page.test.tsx`
       (directory route) asserting the mark and the absence
-- [ ] 6.2 `e2e/header.spec.ts` re-runs with the new control: the one-row
+- [x] 6.2 `e2e/header.spec.ts` re-runs with the new control: the one-row
       matrix at 1280, 1024 and 900 stays `rowsDeep: 1, past: 0`, and the
       four-things test becomes a five-things one — test: the header suite,
       whole; negative: the file's own FAULT W — three ~200px
@@ -154,7 +154,7 @@ Only `- [ ]` checkboxes are tracked by the apply phase.
 
 ## 7. The phone
 
-- [ ] 7.1 Panels stack in one column below 768px and share the row at and
+- [x] 7.1 Panels stack in one column below 768px and share the row at and
       above it; every control the page offers measures at least 44px in both
       dimensions **as rendered** — test: `e2e/directory.spec.ts` at 390×844
       reading bounding boxes, because jsdom measures nothing and the
@@ -165,12 +165,12 @@ Only `- [ ]` checkboxes are tracked by the apply phase.
 
 ## 8. The browser, and the artifact that actually ships
 
-- [ ] 8.1 `e2e/directory.spec.ts` against the real stack: the header link
+- [x] 8.1 `e2e/directory.spec.ts` against the real stack: the header link
       followed, the address read, the page reloaded on `/directory`, and a
       removal taken all the way through the real confirmation to the cascade
       round-trip — test: the spec, plus the whole browser suite green
       (47 today, plus these)
-- [ ] 8.2 **The packaged deep link.** `bunx nx run fe-01:build`, then
+- [x] 8.2 **The packaged deep link.** `bunx nx run fe-01:build`, then
       `dist/apps/fe-01` served by `caddy:2-alpine` with `apps/fe-01/Caddyfile`
       — the exact file the Dockerfile copies, not a transcription — on a free
       port; `/directory` requested against it answers 200 with the app, and a
@@ -184,7 +184,7 @@ Only `- [ ]` checkboxes are tracked by the apply phase.
 
 ## 9. Gate
 
-- [ ] 9.1 `bunx nx format:check --all` and
+- [x] 9.1 `bunx nx format:check --all` and
       `bunx nx run-many -t test lint typecheck build --parallel=2` and
       `openspec validate --all --json` green; `verify.md` records commands,
       results, and the failure-proof table for every negative above

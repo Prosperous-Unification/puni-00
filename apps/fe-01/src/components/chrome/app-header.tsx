@@ -2,15 +2,26 @@ import type { ReactNode } from 'react';
 
 export interface AppHeaderProps {
   /**
+   * The way between the two pages, and the mark on the one that is showing.
+   *
+   * On both pages and identical on both, which is why it comes from router
+   * context rather than from either page.
+   */
+  nav?: ReactNode;
+  /**
    * The project controls: the picker, with rename and new folded in beside it.
    *
    * A slot rather than a component of its own, because the picker is three
    * pieces of state deep in `ProjectPage` — the list, the selection, the
    * rename in progress — and hoisting them here to lay a row out would move
    * them further from the page that acts on them.
+   *
+   * Optional because the directory page has none: a control that belongs to a
+   * project is **absent** off the project rather than drawn dead.
    */
-  project: ReactNode;
-  presence: ReactNode;
+  project?: ReactNode;
+  /** Who else is in the project. Absent off the project, for the same reason. */
+  presence?: ReactNode;
   account: ReactNode;
 }
 
@@ -47,10 +58,11 @@ export interface AppHeaderProps {
  * what a browser test can find the bar by, and what a screen reader gets to
  * skip. Inside `<main>` the same element is no landmark at all.
  */
-export function AppHeader({ project, presence, account }: AppHeaderProps): React.JSX.Element {
+export function AppHeader({ nav, project, presence, account }: AppHeaderProps): React.JSX.Element {
   return (
     <header className="border-border bg-background flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1 border-b px-4 py-1 md:flex-nowrap">
       <h1 className="shrink-0 text-sm font-semibold tracking-tight">WBS tool v2</h1>
+      {nav}
       {project}
       <div className="ml-auto flex min-w-0 items-center gap-3">
         {presence}

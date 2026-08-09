@@ -9,5 +9,10 @@
       "@wbs/domain/workday": ["../../libs/domain/src/workday.ts"]
     }
   },
-  "include": ["e2e/**/*.ts", "playwright.config.ts"]
+  "include": [
+    "e2e/**/*.ts",
+    "e2e-packaged/**/*.ts",
+    "playwright.config.ts",
+    "playwright.packaged.config.ts"
+  ]
 }

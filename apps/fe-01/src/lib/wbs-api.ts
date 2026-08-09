@@ -229,6 +229,125 @@ export interface PersonView {
   teamIds: string[];
 }
 
+/**
+ * What removing a directory entry would do to one work item, as be-01 names it.
+ *
+ * Each arm names its kind **and what that kind does**, rather than a count
+ * somebody would have to interpret. Mirrors `DirectoryEffect` in
+ * `apps/be-01/src/service/directory-usage.ts`, which owns the rule; this is a
+ * description of what arrives.
+ */
+export type DirectoryEffect =
+  | { kind: 'assignment_dropped'; role: { id: string; name: string } }
+  | { kind: 'label_nulled' }
+  | {
+      kind: 'assumed_assignee_changed';
+      /**
+       * The **assumed assignee**'s name, or `null` — and `null` means
+       * `unassigned`. A removal that takes a work item's sole assignee names
+       * the flip rather than leaving it to be inferred from an absence, which
+       * is why the confirmation can print it without deriving anything.
+       */
+      assumedNow: string | null;
+      assumedAfter: string | null;
+    };
+
+/** One work item a removal would touch, named as the plan shows it. */
+export interface UsedWorkItem {
+  id: string;
+  /** The derived number the plan shows — `3.1`, never a row index. */
+  number: string;
+  name: string;
+  effects: DirectoryEffect[];
+}
+
+export interface UsedProject {
+  id: string;
+  name: string;
+  workItems: UsedWorkItem[];
+}
+
+/**
+ * **Directory usage**: what removing a person or a service team would take with
+ * it, named rather than counted.
+ *
+ * Both halves are always present and never optional. A confirmation reading
+ * `usage.members` has to be able to tell "nobody" from "this payload does not
+ * say", and an absent key says the second while meaning the first — which is
+ * why {@link isDirectoryUsage} refuses a body missing either.
+ */
+export interface DirectoryUsage {
+  projects: UsedProject[];
+  members: { id: string; name: string }[];
+}
+
+/**
+ * What came of asking for a person or a service team to be removed.
+ *
+ * `in_use` is a **modeled answer** rather than a thrown code, for the reason
+ * {@link RoleRemoval}'s is: the usage riding along with it is the whole value of
+ * the refusal, and {@link send} throws the `error` field and drops every field
+ * beside it. The next request is the same one with the cascade, and nobody can
+ * agree to that without being shown what it takes.
+ */
+export type DirectoryRemoval =
+  | { ok: true }
+  | { ok: false; reason: 'in_use'; usage: DirectoryUsage };
+
+/**
+ * What came of renaming a person or a service team, or editing memberships.
+ *
+ * `taken` is modeled for the same reason and a second one: it carries the
+ * **surviving** name — the one the row that already holds it keeps — and a
+ * sentence built from what was typed would read `“ Kat ”` where be-01 kept
+ * `Kat`. Every other refusal throws its code, which
+ * {@link directoryRefusalSentence} turns into a sentence.
+ */
+export type DirectoryWrite<T> =
+  | { ok: true; entry: T }
+  | { ok: false; reason: 'taken'; survivingName: string };
+
+/**
+ * The parts of a person a patch may change.
+ *
+ * An absent `teamIds` leaves the memberships alone and an empty one makes a
+ * **free agent** — be-01 tells the two apart, so this type must not collapse
+ * them into one optional array with a default.
+ */
+export interface PersonPatch {
+  name?: string;
+  teamIds?: readonly string[];
+}
+
+/**
+ * The deployment's directory, and everything the directory page does to it.
+ *
+ * Separate from {@link ProjectApi} because it belongs to no project: these four
+ * reads are the same on every page, and `httpProjectApi`'s own directory
+ * methods delegate here so each call has exactly one spelling.
+ */
+export interface DirectoryApi {
+  listPeople(): Promise<PersonView[]>;
+  listTeams(): Promise<TeamView[]>;
+  /** Adds a person; no teams means a **free agent**. Idempotent by name at be-01. */
+  addPerson(name: string, teamIds: readonly string[]): Promise<PersonView>;
+  addTeam(name: string): Promise<TeamView>;
+  /** Renames a person, or sets exactly the teams they belong to, or both. */
+  patchPerson(id: string, patch: PersonPatch): Promise<DirectoryWrite<PersonView>>;
+  renameTeam(id: string, name: string): Promise<DirectoryWrite<TeamView>>;
+  /**
+   * Removes a person, or answers the **directory usage** that would go with
+   * them.
+   *
+   * Called first without a cascade, always: be-01 removes an entry nothing
+   * points at outright and refuses one that is used, with its usage. `cascade`
+   * is the caller saying it has shown that usage to somebody and been told to
+   * go on.
+   */
+  removePerson(id: string, cascade: boolean): Promise<DirectoryRemoval>;
+  removeTeam(id: string, cascade: boolean): Promise<DirectoryRemoval>;
+}
+
 export interface DeleteOptions {
   strategy?: 'cascade' | 'promote';
 }
@@ -583,7 +702,271 @@ export function roleRefusalSentence(code: string): string {
   }
 }
 
+/** A JSON object, as far as anything read off the wire can be said to be one. */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+/** A name or the absence of one — `null` is a value here, `undefined` is a missing field. */
+function isNameOrNobody(value: unknown): value is string | null {
+  return value === null || typeof value === 'string';
+}
+
+function isNamed(value: unknown): value is { id: string; name: string } {
+  return isRecord(value) && typeof value['id'] === 'string' && typeof value['name'] === 'string';
+}
+
+function isDirectoryEffect(value: unknown): value is DirectoryEffect {
+  if (!isRecord(value)) return false;
+  if (value['kind'] === 'label_nulled') return true;
+  if (value['kind'] === 'assignment_dropped') return isNamed(value['role']);
+  if (value['kind'] === 'assumed_assignee_changed') {
+    // Both, and present: `undefined` fails this, so a payload that dropped the
+    // flip's "after" cannot be drawn as a flip to nobody.
+    return isNameOrNobody(value['assumedNow']) && isNameOrNobody(value['assumedAfter']);
+  }
+  return false;
+}
+
+function isUsedWorkItem(value: unknown): value is UsedWorkItem {
+  if (!isRecord(value)) return false;
+  const effects = value['effects'];
+  if (!Array.isArray(effects)) return false;
+  // `id` and `name` are checked here rather than through `isNamed`, which would
+  // narrow `value` to exactly those two and put `number` and `effects` beyond
+  // reach of the compiler.
+  const each: unknown[] = effects;
+  return (
+    typeof value['id'] === 'string' &&
+    typeof value['number'] === 'string' &&
+    typeof value['name'] === 'string' &&
+    each.every(isDirectoryEffect)
+  );
+}
+
+function isUsedProject(value: unknown): value is UsedProject {
+  if (!isRecord(value)) return false;
+  const workItems = value['workItems'];
+  if (!Array.isArray(workItems)) return false;
+  const each: unknown[] = workItems;
+  return (
+    typeof value['id'] === 'string' &&
+    typeof value['name'] === 'string' &&
+    each.every(isUsedWorkItem)
+  );
+}
+
+/**
+ * Whether a 409's `usage` is the whole **directory usage** this client draws a
+ * confirmation from.
+ *
+ * The whole shape, not a probe: `projects` and `members` both present, every
+ * work item carrying the `number` and `name` the confirmation prints and the
+ * `effects` it explains them by. A confirmation drawn from a payload this page
+ * could only half read asks somebody to approve a cascade they were never
+ * shown, which is the unknown this repository refuses to default through.
+ */
+export function isDirectoryUsage(value: unknown): value is DirectoryUsage {
+  if (!isRecord(value)) return false;
+  const projects = value['projects'];
+  const members = value['members'];
+  if (!Array.isArray(projects) || !Array.isArray(members)) return false;
+  const eachProject: unknown[] = projects;
+  const eachMember: unknown[] = members;
+  return eachProject.every(isUsedProject) && eachMember.every(isNamed);
+}
+
+/** be-01's `error` field, or the status when the body was somebody else's error page. */
+function refusalCodeIn(text: string, status: number): string {
+  try {
+    const body: unknown = JSON.parse(text);
+    if (isRecord(body) && typeof body['error'] === 'string') return body['error'];
+  } catch {
+    // A proxy error page rather than our JSON — the status is all there is.
+  }
+  return `http_${String(status)}`;
+}
+
+/**
+ * Removes a person or a team, reading the **directory usage** out of the 409
+ * rather than throwing the code alone.
+ *
+ * The same shape as {@link removeRoleAt} and for the same reason: `send` throws
+ * the `error` field and loses everything beside it, and here everything beside
+ * it is what the confirmation is made of.
+ *
+ * A 409 claiming `in_use` whose usage this client cannot read whole falls
+ * through to the throw below **on purpose**. Proof, both watched 2026-08-09:
+ * with the `isDirectoryUsage` half dropped, `throws an in_use with no usage
+ * rather than confirming against nothing` failed on `promise resolved
+ * "{ ok: false, reason: 'in_use', …(1) }" instead of rejecting`; with the whole
+ * branch deleted, `reads the usage out of the refusal rather than throwing the
+ * code` failed on `promise rejected "Error: in_use" instead of resolving`.
+ */
+async function removeDirectoryAt(path: string, token: string): Promise<DirectoryRemoval> {
+  const res = await fetch(path, { method: 'DELETE', headers: auth(token) });
+  const text = await res.text();
+  if (res.status === 409) {
+    const body: unknown = JSON.parse(text);
+    if (isRecord(body) && body['error'] === 'in_use' && isDirectoryUsage(body['usage'])) {
+      return { ok: false, reason: 'in_use', usage: body['usage'] };
+    }
+  }
+  if (!res.ok) throw new Error(refusalCodeIn(text, res.status));
+  return { ok: true };
+}
+
+/**
+ * Renames a directory entry — or edits a person's memberships — reading
+ * `taken`'s **surviving name** out of the 409 instead of throwing the code.
+ *
+ * `send` would throw `taken` and lose the name beside it, and that name is what
+ * the sentence is made of: somebody who typed `‹space›Kat‹space›` against a
+ * held `Kat` has to be told which spelling survived, and the local draft cannot
+ * say. Every other refusal throws its code for
+ * {@link directoryRefusalSentence} to phrase.
+ *
+ * @throws `unexpected_response` when a 2xx carries no entry — a panel drawn
+ * from `undefined` is a row with no name, and that is not a state to default
+ * into.
+ */
+async function writeDirectoryAt<T>(
+  path: string,
+  token: string,
+  init: RequestInit,
+  key: 'person' | 'team',
+): Promise<DirectoryWrite<T>> {
+  const res = await fetch(path, { ...init, headers: auth(token) });
+  const text = await res.text();
+  if (res.status === 409) {
+    const body: unknown = JSON.parse(text);
+    if (isRecord(body) && body['error'] === 'taken' && typeof body['name'] === 'string') {
+      return { ok: false, reason: 'taken', survivingName: body['name'] };
+    }
+  }
+  if (!res.ok) throw new Error(refusalCodeIn(text, res.status));
+  const body = JSON.parse(text) as Partial<Record<'person' | 'team', T>>;
+  const entry = body[key];
+  if (entry === undefined) throw new Error('unexpected_response');
+  return { ok: true, entry };
+}
+
+/**
+ * Why a directory write was refused, as this client has to phrase it.
+ *
+ * Two arms rather than a bare code, because `taken` is the one refusal that
+ * carries a value: the name the directory kept. {@link directoryRefusedWith}
+ * makes the other arm out of whatever was thrown.
+ */
+export type DirectoryRefusal =
+  | { reason: 'taken'; survivingName: string }
+  | { reason: 'refused'; code: string };
+
+/** The refusal a thrown directory call amounts to, code and all. */
+export function directoryRefusedWith(thrown: unknown): DirectoryRefusal {
+  return { reason: 'refused', code: thrown instanceof Error ? thrown.message : 'request_failed' };
+}
+
+/**
+ * What a refused directory change says out loud.
+ *
+ * {@link roleRefusalSentence}'s sibling, and here for the same reason: these
+ * refusals are aimed at somebody typing a name into a box, and `taken` in the
+ * corner of the screen is a word about HTTP rather than about their directory.
+ *
+ * The `taken` sentence is built from the **surviving** name the refusal carried
+ * — never from what was typed. be-01 trims, so a `‹space›Kat‹space›` typed
+ * against a held `Kat` collides with `Kat`, and a sentence made of the local
+ * draft would quote a name nobody's directory holds.
+ *
+ * One fallback, and it names the code rather than swallowing it: an
+ * unrecognised refusal is something to report, and a message that hid it would
+ * leave nobody able to say what be-01 answered.
+ */
+export function directoryRefusalSentence(refusal: DirectoryRefusal): string {
+  if (refusal.reason === 'taken') {
+    return `“${refusal.survivingName}” is already in the directory, so nothing was renamed.`;
+  }
+  switch (refusal.code) {
+    case 'name_required':
+      return 'A name cannot be blank.';
+    case 'unknown_team':
+      return 'One of those teams is no longer in the directory — somebody else removed it.';
+    case 'not_found':
+      return 'That entry is no longer in the directory — somebody else removed it.';
+    case 'nothing_to_change':
+      return 'That change asked for nothing, so nothing was sent.';
+    case 'unexpected_response':
+      return 'The server replied with something this page could not read.';
+    default:
+      return `The directory could not be changed (${refusal.code}).`;
+  }
+}
+
+/**
+ * The deployment's directory over HTTP.
+ *
+ * The one spelling of these eight calls. `httpProjectApi`'s four directory
+ * methods delegate here rather than repeating the paths, because two copies of
+ * `/api/people` is how a page and a picker come to disagree about what a person
+ * is.
+ */
+export function httpDirectoryApi(token: string): DirectoryApi {
+  return {
+    async listPeople() {
+      const body = await send<{ people: PersonView[] }>('/api/people', token);
+      return body.people;
+    },
+    async listTeams() {
+      const body = await send<{ teams: TeamView[] }>('/api/teams', token);
+      return body.teams;
+    },
+    async addPerson(name, teamIds) {
+      const body = await send<{ person: PersonView }>('/api/people', token, {
+        method: 'POST',
+        body: JSON.stringify({ name, teamIds }),
+      });
+      return body.person;
+    },
+    async addTeam(name) {
+      const body = await send<{ team: TeamView }>('/api/teams', token, {
+        method: 'POST',
+        body: JSON.stringify({ name }),
+      });
+      return body.team;
+    },
+    patchPerson(id, patch) {
+      return writeDirectoryAt<PersonView>(
+        `/api/people/${id}`,
+        token,
+        { method: 'PATCH', body: JSON.stringify(patch) },
+        'person',
+      );
+    },
+    renameTeam(id, name) {
+      return writeDirectoryAt<TeamView>(
+        `/api/teams/${id}`,
+        token,
+        { method: 'PATCH', body: JSON.stringify({ name }) },
+        'team',
+      );
+    },
+    // `?cascade=true` and nothing else — `directoryController`'s own rule, and
+    // `roleController`'s before it: the flag is the second, explicit call
+    // rather than a body on a DELETE, and it is **absent** rather than
+    // `?cascade=false` so that nobody reading a request log can mistake a first
+    // ask for a confirmed one.
+    removePerson(id, cascade) {
+      return removeDirectoryAt(`/api/people/${id}${cascade ? '?cascade=true' : ''}`, token);
+    },
+    removeTeam(id, cascade) {
+      return removeDirectoryAt(`/api/teams/${id}${cascade ? '?cascade=true' : ''}`, token);
+    },
+  };
+}
+
 export function httpProjectApi(token: string): ProjectApi {
+  const directory = httpDirectoryApi(token);
   return {
     async listProjects() {
       const body = await send<{ projects: ProjectListEntry[] }>('/api/projects', token);
@@ -626,28 +1009,14 @@ export function httpProjectApi(token: string): ProjectApi {
     redo(projectId) {
       return stepStack(`/api/projects/${projectId}/redo`, token);
     },
-    async listTeams() {
-      const body = await send<{ teams: TeamView[] }>('/api/teams', token);
-      return body.teams;
-    },
-    async addTeam(name) {
-      const body = await send<{ team: TeamView }>('/api/teams', token, {
-        method: 'POST',
-        body: JSON.stringify({ name }),
-      });
-      return body.team;
-    },
-    async listPeople() {
-      const body = await send<{ people: PersonView[] }>('/api/people', token);
-      return body.people;
-    },
-    async addPerson(name, teamIds) {
-      const body = await send<{ person: PersonView }>('/api/people', token, {
-        method: 'POST',
-        body: JSON.stringify({ name, teamIds }),
-      });
-      return body.person;
-    },
+    // The directory belongs to no project, so these four are the directory
+    // client's verbatim. Delegated rather than repeated: two spellings of
+    // `/api/people` is how the pickers and the directory page come to disagree
+    // about what a person is.
+    listTeams: () => directory.listTeams(),
+    addTeam: (name) => directory.addTeam(name),
+    listPeople: () => directory.listPeople(),
+    addPerson: (name, teamIds) => directory.addPerson(name, teamIds),
     async assign(workItemId, roleId, personId) {
       await send(`/api/work-items/${workItemId}/assignees/${roleId}`, token, {
         method: 'PUT',
