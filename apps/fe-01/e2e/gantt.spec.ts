@@ -627,10 +627,14 @@ test.describe('the chart, after the browser has scaled it', () => {
     //    in solid ink is indistinguishable from work of its own, and only a
     //    computed style can say what `fill-foreground/15` came out as.
     //
-    //    Proof: the ghost's class made `fill-foreground` whole. This test
-    //    failed on `the parent's ghost bar is painted as solid work: expected
-    //    1 to be less than 1` while the jsdom suite's class assertion failed
-    //    beside it. Watched in Chromium 2026-08-09.
+    //    Negative: the ghost's class made `fill-foreground` whole fails the
+    //    jsdom class assertion (watched 2026-08-09, `gantt-panel.test.tsx`),
+    //    and must fail here on `expected 1 to be less than 1`. NOT yet watched
+    //    in Chromium: the 2026-08-09 run was blocked by another checkout's dev
+    //    servers on 3100/4200 (the reuseExistingServer landmine), and Dany
+    //    chose to let CI's pixels job be the first browser run. Until someone
+    //    watches it fail, the alpha half of this check is a claim, not a gate
+    //    — verify.md of `gantt-polish` says so too.
     const paint = await page.evaluate(() => {
       const node = (where: string): Element => {
         const found = document.querySelector(where);

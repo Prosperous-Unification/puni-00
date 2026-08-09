@@ -10,7 +10,7 @@ turns on.
 
 ## 1. The words on the bars
 
-- [ ] 1.1 The on-bar label carries the row words: estimated bars read
+- [x] 1.1 The on-bar label carries the row words: estimated bars read
       `<assignee> · <number> - <name>` (assignee part decided by width exactly
       as today, dropped entirely when nobody fits or nobody is assigned — the
       row words then stand alone), unestimated bars keep the `?` first and
@@ -24,7 +24,7 @@ turns on.
 
 ## 2. The parent's mark
 
-- [ ] 2.1 The bracket path becomes a rect: same `data-gantt-bracket={rowId}`
+- [x] 2.1 The bracket path becomes a rect: same `data-gantt-bracket={rowId}`
       hook, `x = from`, `width = to − from`, the leaf bar's inset, height and
       corner radii, `fill-foreground` at low opacity (`/15`), no stroke — test:
       `gantt-panel.test.tsx`'s two bracket cases rewritten to assert the rect's
@@ -32,14 +32,14 @@ turns on.
       (`L 9 0.18` becomes `width = 9 − from`); negative: the rect drawn from
       the engine's workday numbers instead of the placed readings, watched
       failing the staggered-calendar case at `width 7` where the calendar says 9
-- [ ] 2.2 `e2e/gantt.spec.ts`'s bracket measurement updated: the mark is a rect
+- [x] 2.2 `e2e/gantt.spec.ts`'s bracket measurement updated: the mark is a rect
       now, its box asserted non-zero and level with its row, its paint asserted
       semitransparent (computed `fill-opacity` < 1 or rgba alpha < 1) — watched
       failing with the opacity class removed
 
 ## 3. The arrows switch
 
-- [ ] 3.1 A labelled toggle (`Arrows`, `aria-pressed`) in the panel's sticky
+- [x] 3.1 A labelled toggle (`Arrows`, `aria-pressed`) in the panel's sticky
       corner hides every `data-gantt-arrow` and `data-gantt-arrow-head` and
       shows them again; default shown; person links and carets untouched —
       test: `gantt-panel.test.tsx`, toggling off removes both arrow marks and
@@ -49,7 +49,7 @@ turns on.
 
 ## 4. The month caption
 
-- [ ] 4.1 The corner prints `Aug 2026`: a `monthWords(date)` beside the panel
+- [x] 4.1 The corner prints `Aug 2026`: a `monthWords(date)` beside the panel
       mapping `2026-08-17` → `Aug 2026` from a fixed English table, the corner
       using it, `Workday` untouched without a start date — test: the two
       caption cases (`the caption follows the scroll`) updated to the new
@@ -57,7 +57,7 @@ turns on.
 
 ## 5. The gate
 
-- [ ] 5.1 `bunx nx format:check --all`, `bunx nx run-many -t test lint
+- [x] 5.1 `bunx nx format:check --all`, `bunx nx run-many -t test lint
 typecheck build --parallel=2`, `openspec validate --all --json`, and
       `bun run e2e` with no other checkout's dev server holding 3100/4200 —
       results into `verify.md` with the negatives named
