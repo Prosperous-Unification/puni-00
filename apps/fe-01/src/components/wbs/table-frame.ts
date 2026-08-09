@@ -164,6 +164,35 @@ export function tableMinWidth(columnIds: readonly string[]): number {
 }
 
 /**
+ * The narrowest the table can be laid out with `phases` phases, all folded, in
+ * px — the number the Phases dialog quotes before somebody adds another one.
+ *
+ * Every column in {@link COLUMN_WIDTHS} is on screen in every state of this
+ * table: the fixed set is the drag handle, the number, Depends on, the team,
+ * the total, the not-before date, Start, Finish, Slack and the ⋯ menu, and none
+ * of them is conditional. So the folded floor is that set, plus Name's
+ * {@link FLEXIBLE_FLOOR}, plus one folded column per phase.
+ *
+ * Derived through {@link tableMinWidth} rather than as arithmetic of its own,
+ * and that is the whole point of it existing here rather than as a sentence in
+ * the dialog: a column that changes width changes this number in the same
+ * commit. `wbs-table.test.tsx` pins it against what a real render of the same
+ * phases declares as its `min-width`, so the two can never drift.
+ *
+ * @throws {UnknownColumnError} through {@link tableMinWidth}, for the same
+ * reason it does.
+ */
+export function foldedTableMinWidth(phases: number): number {
+  return tableMinWidth([
+    ...COLUMN_WIDTHS.keys(),
+    ...FLEXIBLE_COLUMNS,
+    // The id only has to end in `-final` to be sized: `widthFor` matches role
+    // columns by suffix because the role half is whatever the project called it.
+    ...Array.from({ length: phases }, (_, at) => `phase${String(at)}-final`),
+  ]);
+}
+
+/**
  * The columns held at the left edge while the table is scrolled sideways, in
  * order from that edge, each with the width it is held to — or `undefined`
  * where the layout decides it.

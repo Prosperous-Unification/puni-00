@@ -280,6 +280,34 @@ describe('a modal holds the page’s keyboard back', () => {
     expect(reached).toEqual(['z', '?']);
   });
 
+  // The half none of the six above could see, because every one of them opens
+  // the modal first. A dialog that is only *declared* must hold nothing back,
+  // and until `P phases-ui` mounted one in the toolbar nothing in the app ever
+  // declared a closed modal — so the rule shipped registering its capture
+  // listener the moment `ModalContent` was rendered, open or shut.
+  //
+  // Proof: with `usePageShortcutsSuspended(true)` back in `ModalContent`'s own
+  // body, this failed on `expected "spy" to be called at least once` — and 49
+  // tests in `wbs-table.test.tsx` failed with it, `outdents with shift-tab` on
+  // `expected [ '010' ] to deeply equal [ '010', '020' ]`. Watched 2026-08-09.
+  itDom('holds nothing back while the modal is closed', async () => {
+    const stub = silentApi();
+    await renderTable(stub.api);
+    render(
+      <Modal open={false}>
+        <ModalContent aria-describedby={undefined}>
+          <ModalTitle>Declared, and shut</ModalTitle>
+        </ModalContent>
+      </Modal>,
+    );
+    const behind = screen.getByRole('button', { name: 'Freeze numbering' });
+
+    press(behind, { key: 'z', metaKey: true });
+    await settle();
+
+    expect(stub.undo).toHaveBeenCalled();
+  });
+
   itDom('holds them back for the cheat sheet too, which is a modal without a trap', async () => {
     const stub = silentApi();
     await renderTable(stub.api);

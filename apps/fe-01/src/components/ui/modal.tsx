@@ -70,6 +70,34 @@ export interface ModalContentProps extends ComponentPropsWithoutRef<
 }
 
 /**
+ * Holds the page's keyboard back for as long as **this** is mounted, which is
+ * for as long as the surface around it is on screen.
+ *
+ * It exists because "mounted" and "open" turned out not to be the same fact.
+ * {@link ModalContent} is an ordinary child of {@link Modal}, so React runs its
+ * body on every render of whatever holds it, open or shut — Radix's `Presence`
+ * decides what the *portal* renders, not whether this component function was
+ * called. So a hook called in `ModalContent`'s own body registered its capture
+ * listener the moment the dialog was declared and never took it off, and every
+ * page shortcut on the page went dead while the dialog was closed.
+ *
+ * Rendering it as a child of `DialogPrimitive.Content` puts it inside what the
+ * portal mounts and unmounts, which is the thing that really tracks "open".
+ *
+ * Proof: found by the first production caller rather than by reasoning. With
+ * `usePageShortcutsSuspended(true)` in `ModalContent`'s body and a closed
+ * `PhasesDialog` mounted in `WbsTable`, **49 tests** in `wbs-table.test.tsx`
+ * failed — `outdents with shift-tab` on `expected [ '010' ] to deeply equal
+ * [ '010', '020' ]`, because Ctrl+N was being swallowed by a dialog nobody had
+ * opened. Watched 2026-08-09, and pinned since by `holds nothing back while the
+ * modal is closed` in `page-shortcuts.test.tsx`.
+ */
+function PageShortcutsHeld(): null {
+  usePageShortcutsSuspended(true);
+  return null;
+}
+
+/**
  * A modal surface, and the one place the page's keyboard is held back.
  *
  * Radix owns everything that is about this dialog: the focus trap, the return
@@ -78,9 +106,11 @@ export interface ModalContentProps extends ComponentPropsWithoutRef<
  * this app's **page-level** keyboard — `?` and Cmd+Z are listened for on
  * `window`, and the command chords on the cells — so an open dialog left every
  * one of them live over a table nobody could see. {@link usePageShortcutsSuspended}
- * is that rule, and it is called here because this component is mounted exactly
- * while a modal surface is on screen: Radix unmounts the content on close, so
- * "mounted" and "open" are the same fact and there is no flag to keep in step.
+ * is that rule, and it is hung on {@link PageShortcutsHeld} **inside** the
+ * portal rather than called from this body. That is not tidiness: this body runs
+ * whenever its caller renders, open or shut, and only what the portal mounts
+ * tracks "open". There is still no flag to keep in step — the mount is the flag,
+ * it is just a different mount than the first version of this file assumed.
  *
  * The dialog needs a {@link ModalTitle} — Radix warns without one, and a modal
  * with no accessible name is one a screen reader announces as "dialog".
@@ -92,7 +122,6 @@ export const ModalContent = forwardRef<
   { className, side = 'centre', closeButton = true, children, ...props },
   ref,
 ) {
-  usePageShortcutsSuspended(true);
   return (
     <DialogPrimitive.Portal>
       <ModalOverlay />
@@ -106,6 +135,7 @@ export const ModalContent = forwardRef<
         )}
         {...props}
       >
+        <PageShortcutsHeld />
         {children}
         {closeButton && (
           <DialogPrimitive.Close

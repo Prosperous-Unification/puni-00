@@ -6,6 +6,7 @@ import {
   FLEXIBLE_COLUMNS,
   FLEXIBLE_FLOOR,
   flexibleCellStyle,
+  foldedTableMinWidth,
   indentFor,
   PINNED_COLUMNS,
   pinnedCellStyle,
@@ -339,5 +340,45 @@ describe('the frame the table scrolls inside', () => {
     // The dep and assignee lists are absolutely positioned at `top: 100%` and
     // 200px tall, and a scroll container clips to its padding box.
     expect(TABLE_FRAME.paddingBottom).toBe('13rem');
+  });
+});
+
+describe('how wide the phases make the table', () => {
+  it('grows by one folded column per phase, from the same widths the table sums', () => {
+    // The sentence the Phases dialog prints. Two phases folded is the 1144 the
+    // table has been measured at since `table-fits-the-screen`, and each one
+    // after that costs a folded role column and nothing else.
+    expect(foldedTableMinWidth(2)).toBe(1144);
+    expect(foldedTableMinWidth(3) - foldedTableMinWidth(2)).toBe(widthFor('anything-final'));
+    // The number the plan quoted for five phases, now derived rather than
+    // written down: 752px of fixed columns, 200 for Name, and 5 × 96.
+    expect(foldedTableMinWidth(5)).toBe(1432);
+  });
+
+  it('is the fixed columns plus Name plus the phases, with nothing left out', () => {
+    // Said as the equation rather than as a total, so a column added to
+    // `COLUMN_WIDTHS` without being rendered — or rendered without being summed
+    // — shows up here as a disagreement rather than as a number nobody checks.
+    // Proof: the role columns dropped from the sum, `grows by one folded column
+    // per phase` failed on `expected 952 to be 1144`. Watched, 2026-08-09.
+    const fixed = [
+      'drag',
+      'number',
+      'depends',
+      'team',
+      'final-total',
+      'not-before',
+      'start',
+      'finish',
+      'float',
+      'actions',
+    ];
+    expect(foldedTableMinWidth(0)).toBe(tableMinWidth([...fixed, ...FLEXIBLE_COLUMNS]));
+  });
+
+  it('has no phases to be wide for at all, and still declares a table', () => {
+    // A project may hold none — `R1`'s spec says the seeded pair is data rather
+    // than a limit — and the dialog still has a number to print.
+    expect(foldedTableMinWidth(0)).toBe(952);
   });
 });
