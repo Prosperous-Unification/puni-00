@@ -5,10 +5,11 @@ import {
   type IsoDate,
   isWeekend,
 } from '@wbs/domain/workday';
-import { useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import {
   ASSUMED_UNESTIMATED_WORKDAYS,
+  type EstimateTrio,
   type GanttBar,
   type GanttPlan,
   type GanttRowLabel,
@@ -17,7 +18,10 @@ import {
   type PlacedArrow,
   placeOnCalendar,
   placeOnWorkdays,
+  type ServiceTeamLabel,
 } from './gantt-geometry';
+import { type AnchorRect, HoverCard } from './hover-card';
+import { shortIsoDate } from './short-date';
 import { indentFor } from './table-frame';
 
 /**
@@ -470,12 +474,26 @@ export const lastWorkdayOf = (start: number, finish: number): number =>
  * engine's numbers, and a test comparing the two is what says they agree.
  * Without a project start date there are no days to name, so the workday
  * offsets stand in — the same fallback the axis above makes.
+ *
+ * **Workday arithmetic on the engine's own offsets, never the calendar scale's
+ * coordinates.** `placeOnCalendar` answers where a mark is *drawn*, and a
+ * coordinate is not an index into working days: a slice running 3 → 5 has its
+ * right edge at calendar day 5, which off a Monday origin is the Saturday
+ * nobody worked, while `addWorkdays(origin, 5)` is the Monday after it. The
+ * floor is explicit for the same reason it is written in the spec — a
+ * fractional start is half-way through a working day, and half a day is not
+ * half a date.
+ *
+ * Printed by {@link shortIsoDate} and by nothing else: `shortInstant` formats an
+ * epoch in the browser's zone, and a `new Date(iso)` of its own parses midnight
+ * UTC and reads the day back in the reader's, one day early for everybody west
+ * of Greenwich.
  */
-function spanWords(startDate: IsoDate | null, start: number, finish: number): string {
+function spanWords(startDate: IsoDate | null, start: number, finish: number, today: Date): string {
   if (startDate === null) return `Workdays ${daysNumber(start)} → ${daysNumber(finish)}`;
-  const from = addWorkdays(startDate, start);
+  const from = addWorkdays(startDate, Math.floor(start));
   const to = addWorkdays(startDate, lastWorkdayOf(start, finish));
-  return `${from} → ${to}`;
+  return `${shortIsoDate(from, today)} → ${shortIsoDate(to, today)}`;
 }
 
 /**
@@ -500,33 +518,71 @@ function dayWords(days: number): string {
 const durationWords = (bar: GanttBar): string =>
   bar.estimated ? dayWords(bar.duration) : 'not estimated';
 
+/** The service team a bar is labelled with, in words, absences included. */
+function teamWords(team: ServiceTeamLabel): string {
+  switch (team.state) {
+    case 'named':
+      return `Team ${team.name}`;
+    case 'none':
+      return 'No team';
+    // Not a blank and not a throw: the label and the team list are two reads at
+    // two moments, so a team added between them is stale rather than lost. See
+    // {@link ServiceTeamLabel}.
+    case 'unresolved':
+      return 'Team not in this directory read';
+  }
+}
+
+/** A bar's own role's three points, or the absence of them, in words. */
+function trioWords(trio: EstimateTrio | null): string {
+  if (trio === null) return 'No estimate for this role';
+  return [trio.optimistic, trio.realistic, trio.pessimistic].map(daysNumber).join('/');
+}
+
 /**
- * Everything a bar can say about itself, one fact to a line, with the binding
- * floor last.
+ * Everything a bar can say about itself, one fact to a line, in the order a
+ * reader meets them: which row, who and what, the team, the dates, the trio,
+ * the float, what holds it where it is, and what it waits for.
  *
- * An SVG `<title>`, which is the one piece of text allowed inside a user space
- * this non-uniformly scaled: no scale touches it, and it is the only place the
- * chart has room for a work item's name, its role, its assignee, its dates, its
- * duration and its float at once. The floor keeps the last line because it is
- * the sentence the panel was built to show and a reader's eye ends there.
+ * Lines rather than one string, because the same facts are rendered twice — as
+ * paragraphs in the hover surface and joined onto the bar's `aria-label`, which
+ * is what carries them once the native `<title>` is off the bars. One
+ * derivation, so the two cannot drift.
+ *
+ * Every absence is a named state: no role, nobody assigned, no team, a team the
+ * directory read does not hold, no estimate for this role — each says so in
+ * words rather than leaving a blank or dropping its line, because a reader
+ * cannot tell a missing fact from a fact nobody wrote down. The one line that
+ * _is_ dropped is what the row waits for, and only when it waits for nothing:
+ * `after` with nothing after it is not a fact.
+ *
+ * The floor keeps its place near the end because it is the sentence the panel
+ * was built to show.
+ *
+ * @param bar the slice this states the facts of.
+ * @param startDate the day the plan begins, or null while it is not on a
+ * calendar and the words are workday offsets.
+ * @param today the reader's own today, which is the year {@link shortIsoDate}
+ * measures its omission against.
  */
-export function barWords(bar: GanttBar, startDate: IsoDate | null): string {
-  const who = [bar.roleName, bar.personName ?? 'Unassigned'].filter(
-    (part): part is string => part !== null,
-  );
+export function barFacts(bar: GanttBar, startDate: IsoDate | null, today: Date): string[] {
   return [
+    // The row's own label, word for word — {@link rowWords} and not a second
+    // spelling of it, so the surface opens on the same line the chart's label
+    // column and the plan's Number column read.
     rowWords(bar.workItemNumber, bar.workItemName),
-    who.join(' · '),
-    `${spanWords(startDate, bar.start, bar.finish)} · ${durationWords(bar)}`,
+    `${bar.roleName ?? 'No role'} · ${bar.personName ?? 'Unassigned'}`,
+    teamWords(bar.team),
+    `${spanWords(startDate, bar.start, bar.finish, today)} · ${durationWords(bar)}`,
     // A line of its own rather than a word tucked into the duration: the bar is
     // drawn a width nobody gave it, and the sentence that says so has to be as
     // findable as the dates above it. See {@link ASSUMED_UNESTIMATED_WORKDAYS}.
     bar.estimated ? null : `Not estimated — drawn as ${dayWords(ASSUMED_UNESTIMATED_WORKDAYS)}`,
+    trioWords(bar.trio),
     bar.critical ? 'On the critical path — no float' : `Float ${dayWords(bar.float)}`,
     bar.floorWords,
-  ]
-    .filter((line): line is string => line !== null)
-    .join('\n');
+    bar.waitsFor.length === 0 ? null : `after ${bar.waitsFor.join(', ')}`,
+  ].filter((line): line is string => line !== null);
 }
 
 /**
@@ -586,9 +642,17 @@ function notBeforeWords(startDate: IsoDate | null, offset: number): string {
  * is HTML around it — the row labels in the sticky-left column, the calendar in
  * the axis row, and the assignee written **over** each bar by the same
  * {@link DAY_PX} arithmetic — and every stroke carries
- * `vector-effect="non-scaling-stroke"`. The one exception is a `<title>` child
- * on each bar, which no scale touches: it is every fact about that slice, one
- * to a line, ending with what holds it where it is.
+ * `vector-effect="non-scaling-stroke"`.
+ *
+ * **A bar says what it is in a surface, not in a tooltip.** The `<title>`
+ * children the bars used to carry are gone: they were browser-placed and
+ * browser-timed, and a second tooltip beside the one this application draws is
+ * a bug. What a bar knows is now {@link barFacts}, rendered into the same
+ * {@link HoverCard} the Name cell opens — portalled, because the SVG can hold
+ * no HTML — and joined onto the bar's `aria-label`, which is the accessible
+ * name that had to arrive **before** the `<title>` left. The not-before caret
+ * keeps its own `<title>`: it is the one mark here with no surface, and its
+ * words are a single stored date rather than a slice's facts.
  *
  * **A bar's colour is who is on it** — `PERSON_BAR_COLORS` in
  * `gantt-geometry.ts`, handed out there so the whole chart agrees — which is
@@ -603,25 +667,11 @@ function notBeforeWords(startDate: IsoDate | null, offset: number): string {
  * @throws GanttDataError out of {@link layOutGantt} when the payload's slices
  * name something the payload has not got. See there.
  */
-export function GanttPanel({
-  plan,
-  startDate,
-  scheduleError,
-  onPickRow,
-}: {
-  plan: GanttPlan;
-  /** The day the plan begins, or null while it is not on a calendar. */
-  startDate: IsoDate | null;
-  /** be-01's answer when no dates could be worked out at all. */
-  scheduleError: 'cycle' | null;
-  /** Takes the plan to a row — the caller decides what "takes" means. */
-  onPickRow: (rowId: string) => void;
-}) {
-  // How far the chart is scrolled, in CSS pixels. Held only so the caption can
-  // name the month actually on screen — before the hooks' unconditional spot,
-  // because the cycle return below is a conditional one.
-  const [scrolledPx, setScrolledPx] = useState(0);
-
+export function GanttPanel({ plan, startDate, scheduleError, generation, onPickRow }: GanttProps) {
+  // The cycle answer is a different panel rather than a branch inside one, and
+  // that is what lets {@link GanttChart} hold its hooks unconditionally: this
+  // component has none, so the early return below cannot be a hook order that
+  // changes with the payload.
   if (scheduleError === 'cycle') {
     return (
       <section data-gantt-panel aria-label="Gantt chart" className="border-border border-t p-3">
@@ -632,11 +682,105 @@ export function GanttPanel({
       </section>
     );
   }
+  return (
+    <GanttChart plan={plan} startDate={startDate} generation={generation} onPickRow={onPickRow} />
+  );
+}
+
+/** What the panel is given: one chart read, and what to do with a click on it. */
+interface GanttProps {
+  plan: GanttPlan;
+  /** The day the plan begins, or null while it is not on a calendar. */
+  startDate: IsoDate | null;
+  /** be-01's answer when no dates could be worked out at all. */
+  scheduleError: 'cycle' | null;
+  /**
+   * Which chart read this is drawn from — a number that moves whenever a new
+   * one lands.
+   *
+   * An open hover surface is closed when this moves, and that is the whole of
+   * why it is a prop rather than something the panel could work out. A slice
+   * that keeps its id across a refetch keeps its `<rect>`: React reuses the
+   * node, nothing unmounts, and a surface left open would go on stating the
+   * numbers of a read that has been replaced.
+   */
+  generation: number;
+  /** Takes the plan to a row — the caller decides what "takes" means. */
+  onPickRow: (rowId: string) => void;
+}
+
+/**
+ * How long the pointer has to rest on a bar before its surface opens, in ms.
+ *
+ * The one delay in this application's hover cards — the table's open with none
+ * (`instant-hovers`) — and it is here because the marks are 28px apart on a
+ * chart a reader crosses to get anywhere. A pointer travelling over eight bars
+ * would otherwise open eight surfaces on its way to the ninth.
+ *
+ * The keyboard has no delay: focus is deliberate and there is no crossing.
+ */
+const HOVER_OPEN_MS = 220;
+
+/** The surface that is open: whose bar it belongs to, and the rectangle it was placed against. */
+interface OpenSurface {
+  sliceId: string;
+  anchor: AnchorRect;
+}
+
+/**
+ * The chart itself — every hook this panel has, and the drawing.
+ *
+ * Separate from {@link GanttPanel} for the cycle answer's sake alone; see
+ * there.
+ */
+function GanttChart({ plan, startDate, generation, onPickRow }: Omit<GanttProps, 'scheduleError'>) {
+  // How far the chart is scrolled, in CSS pixels. Held only so the caption can
+  // name the month actually on screen.
+  const [scrolledPx, setScrolledPx] = useState(0);
+  const [open, setOpen] = useState<OpenSurface | null>(null);
+  /** The opening that has been asked for and not yet happened. */
+  const opening = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const cancelOpening = useCallback(() => {
+    if (opening.current !== null) clearTimeout(opening.current);
+    opening.current = null;
+  }, []);
+  const dismiss = useCallback(() => {
+    cancelOpening();
+    setOpen(null);
+  }, [cancelOpening]);
+
+  // Every timer this panel started, stopped when it goes: a surface opening
+  // 220ms after the chart was closed is a state update on a component nobody
+  // is looking at.
+  useEffect(() => cancelOpening, [cancelOpening]);
 
   const chart = layOutGantt(plan);
+  /** The bar the open surface belongs to, or null when there is no surface or no such bar. */
+  const openBar =
+    open === null ? null : (chart.bars.find((bar) => bar.sliceId === open.sliceId) ?? null);
+
+  // The anchor has gone: its row was collapsed away, narrowed off by a search,
+  // or is simply no longer drawn. A surface pointing at a mark that is not on
+  // the chart is worse than none.
+  useEffect(() => {
+    if (open !== null && openBar === null) setOpen(null);
+  }, [open, openBar]);
+
+  // The chart read has been replaced, **whether or not the anchor survived**.
+  // A slice keeping its id across a refetch keeps its `<rect>` — React reuses
+  // the node and nothing unmounts — so the check above cannot see this at all
+  // while every number under the surface has changed. See
+  // {@link GanttProps.generation}.
+  useEffect(() => {
+    setOpen(null);
+  }, [generation]);
+
   // At least one row of user space, so an empty plan still has a viewBox with a
   // height rather than one the browser divides by.
   const rowCount = Math.max(1, chart.labels.length);
+  /** The reader's own today, which is the year {@link shortIsoDate} omits. */
+  const today = new Date();
   /**
    * The chart resolved into the unit it is drawn in, and the axis over it.
    *
@@ -676,6 +820,20 @@ export function GanttPanel({
     Math.max(0, days - 1),
   );
 
+  /**
+   * Opens a surface on one bar, against the rectangle the browser has that
+   * mark at.
+   *
+   * The rectangle is read here and kept, rather than the element: the surface
+   * is a fixed layer outside this scroll box, so a live measurement would
+   * follow the bar while the card stayed where it was put. Scrolling dismisses
+   * instead — see the panel's `onScroll`.
+   */
+  const showSurface = (sliceId: string, mark: SVGRectElement): void => {
+    const box = mark.getBoundingClientRect();
+    setOpen({ sliceId, anchor: { left: box.left, top: box.top, bottom: box.bottom } });
+  };
+
   return (
     <section
       data-gantt-panel
@@ -688,6 +846,10 @@ export function GanttPanel({
       className="border-border max-h-[40vh] shrink-0 overflow-auto border-t"
       onScroll={(scrollEvent) => {
         setScrolledPx(scrollEvent.currentTarget.scrollLeft);
+        // The surface is a fixed layer and is not in this scroll box, so the
+        // bar moves out from under it and the card stays where it was put. A
+        // surface pointing at the wrong bar is worse than none.
+        dismiss();
       }}
     >
       <div className="flex w-max">
@@ -1012,6 +1174,18 @@ export function GanttPanel({
                   stroke={bar.critical ? undefined : bar.personColor}
                   className={barClasses(bar.critical, bar.estimated)}
                   vectorEffect="non-scaling-stroke"
+                  // A control, because it is one: it takes the keyboard, it has
+                  // a name, and Enter and Space act on it. The role is what
+                  // makes the `aria-label` below a name a screen reader reads —
+                  // a bare `<rect>` is presentational whatever it is labelled.
+                  role="button"
+                  tabIndex={0}
+                  // **The bar's only accessible name**, and the reason it is
+                  // here rather than in the `<title>` this change took off the
+                  // bars: two tooltips on one mark is a bug, and the browser's
+                  // is the one nothing can place or style. The same facts the
+                  // surface shows, from the same derivation.
+                  aria-label={barFacts(bar, startDate, today).join('. ')}
                   onClick={() => {
                     const rowId = rowIdAt(bar.rowIndex);
                     // A bar with no row is not a state this can be in — the bar
@@ -1019,9 +1193,39 @@ export function GanttPanel({
                     // nothing to do about it but leave the click alone.
                     if (rowId !== undefined) onPickRow(rowId);
                   }}
-                >
-                  <title>{barWords(bar, startDate)}</title>
-                </rect>
+                  onKeyDown={(key) => {
+                    if (key.key !== 'Enter' && key.key !== ' ') return;
+                    // Before anything else: Space's own default is to scroll
+                    // the panel, and a reader who asked to go to a row and got
+                    // the chart scrolled out from under them is R5 #14's fault
+                    // wearing another hat. jsdom performs no default action, so
+                    // this line is guarded in a browser (`e2e/gantt.spec.ts`).
+                    key.preventDefault();
+                    const rowId = rowIdAt(bar.rowIndex);
+                    if (rowId !== undefined) onPickRow(rowId);
+                  }}
+                  onPointerOver={(pointer) => {
+                    // **The touch seam.** Chromium synthesizes a whole mouse
+                    // sequence from a tap — `mouseover` included — so a surface
+                    // opened on a mouse event opens on every tap as well, over
+                    // the row the tap was taking the reader to. The pointer
+                    // events are the only ones that say which they came from.
+                    if (pointer.pointerType !== 'mouse') return;
+                    const mark = pointer.currentTarget;
+                    cancelOpening();
+                    opening.current = setTimeout(() => {
+                      showSurface(bar.sliceId, mark);
+                    }, HOVER_OPEN_MS);
+                  }}
+                  onPointerOut={dismiss}
+                  // No delay on the keyboard: focus is deliberate, and there is
+                  // no crossing of the chart to protect a reader from.
+                  onFocus={(focus) => {
+                    cancelOpening();
+                    showSurface(bar.sliceId, focus.currentTarget);
+                  }}
+                  onBlur={dismiss}
+                />
               ))}
 
               {/*
@@ -1109,6 +1313,23 @@ export function GanttPanel({
           </div>
         </div>
       </div>
+
+      {/*
+        The one surface, and one at a time by construction: there is a single
+        piece of state for it, so a second bar's opening replaces the first's
+        rather than adding to it. Notes are deliberately absent — they belong
+        to the Name cell's preview, which is the same {@link HoverCard} with a
+        different body.
+      */}
+      {openBar !== null && open !== null && (
+        <HoverCard label={`Facts for ${openBar.workItemNumber}`} anchor={open.anchor}>
+          {barFacts(openBar, startDate, today).map((line) => (
+            <p key={line} className="text-xs">
+              {line}
+            </p>
+          ))}
+        </HoverCard>
+      )}
     </section>
   );
 }

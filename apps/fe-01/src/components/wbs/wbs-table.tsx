@@ -53,7 +53,7 @@ import {
 } from './estimate-draft';
 import { FoldedRoleCard } from './folded-role-card';
 import { GanttFaultBoundary } from './gantt-fault';
-import type { GanttPlan } from './gantt-geometry';
+import type { GanttPlan, ServiceTeamLabel } from './gantt-geometry';
 import { GanttPanel } from './gantt-panel';
 import { HoverPreview } from './hover-preview';
 import { type Command, commandChordIn, undoChord } from './keyboard-bindings';
@@ -5024,6 +5024,37 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
   const shownRows = table.getRowModel().rows.filter((row) => search.visibleIds.has(row.id));
 
   /**
+   * Every work item in the plan, named the way a dependency names one.
+   *
+   * **`flat` and not `shownRows`**, and that is the whole of this lookup: a
+   * collapsed branch and a search each hide rows a dependency may point at, and
+   * a bar saying it waits for something it cannot name is a bar saying nothing.
+   * The chart draws what is on screen; what it *says* is drawn from the tree.
+   *
+   * `<number> <name>` is how the plan names a predecessor out loud — the same
+   * words the Depends on chips carry. An unnamed row keeps the number it does
+   * have, which is why the empty name has words rather than a trailing space.
+   */
+  const namedInTheTree = new Map(
+    flat.map((row) => [row.id, `${row.number} ${row.name === '' ? '(unnamed)' : row.name}`]),
+  );
+
+  /**
+   * The service team a work item is labelled with, resolved against the
+   * directory read this client holds.
+   *
+   * The two are different moments — the label comes with the tree and the teams
+   * from their own request — so a team created between them is a **stale**
+   * lookup and says so, rather than rendering a blank label or throwing the
+   * chart away. See {@link ServiceTeamLabel}.
+   */
+  const teamLabelOf = (serviceTeamId: string | null): ServiceTeamLabel => {
+    if (serviceTeamId === null) return { state: 'none' };
+    const named = teams.find((team) => team.id === serviceTeamId);
+    return named === undefined ? { state: 'unresolved' } : { state: 'named', name: named.name };
+  };
+
+  /**
    * What the Gantt panel draws, from the rows the renderer is drawing.
    *
    * **`shownRows`, not the row model**, and that is the whole of the mirroring:
@@ -5061,6 +5092,17 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         earliestFinish: row.original.schedule.earliestFinish,
       },
       notBeforeOffset: notBeforeOffsetOf(startDate, row.original.startNoEarlierThan),
+      team: teamLabelOf(row.original.serviceTeamId),
+      // The trio the plan holds for each role on this row, straight off the
+      // tree read — the drafts a reader is half-way through typing are not
+      // facts about the schedule the chart was drawn from.
+      trioByRole: new Map(Object.entries(row.original.estimates)),
+      waitsFor: row.original.dependsOn.map(
+        // A predecessor the tree does not hold at all is the same modeled
+        // absence `personFloorWords` already has words for, and it is said the
+        // same way rather than left as a bare id.
+        (predecessorId) => namedInTheTree.get(predecessorId) ?? 'work that is not shown',
+      ),
     })),
     slices: chartRead.slices,
     // The stored dependencies of the rows on screen. An edge whose other end is
@@ -5862,6 +5904,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
             plan={ganttPlan}
             startDate={startDate}
             scheduleError={scheduleError}
+            generation={chartRead.generation}
             onPickRow={goToRow}
           />
         </GanttFaultBoundary>
