@@ -258,20 +258,59 @@ export type UndoResult =
     };
 
 /**
+ * One project as the picker offers it — what fe-01 **reads** of a list entry.
+ *
+ * A subset, deliberately: `GET /api/projects` sends the whole project row plus
+ * the owner's name, and the owner id, estimate method, start date and revision
+ * are all on the wire and none of them are on this screen. Naming only what is
+ * read is the honest version, and it is not a description of the wire —
+ * nobody should later read this as be-01's contract and delete a field from
+ * the query to make the two match.
+ *
+ * Separate from {@link CreatedProject} because the two routes answer different
+ * things: one type standing for both is how `createProject` came to declare a
+ * `lastOpenedAt` the create route has never sent.
+ */
+export interface ProjectListEntry {
+  id: string;
+  name: string;
+  restricted: boolean;
+  /** When this account last opened it, or null if it never has. */
+  lastOpenedAt: number | null;
+  /** The username of the account that owns it — the first half of the entry meta. */
+  ownerName: string;
+  /**
+   * When the project was made, as an **epoch millisecond**.
+   *
+   * An instant rather than a calendar day, which is what decides the formatter:
+   * `shortInstant` prints it in the reader's own zone, and `shortIsoDate` — the
+   * table's Start, End and Not before cells — is for the zone-free days a plan
+   * is made of. See `components/wbs/short-date.ts`.
+   */
+  createdAt: number;
+}
+
+/**
+ * A project as the create route answers with it — again, what fe-01 reads.
+ *
+ * No `lastOpenedAt`: create writes the project and answers with it, and an
+ * account's navigation history is not part of a row that has just come into
+ * being. The page selects the id and reloads the list, which is where the
+ * fuller entry comes from.
+ */
+export interface CreatedProject {
+  id: string;
+  name: string;
+  restricted: boolean;
+}
+
+/**
  * Everything the table does to a project.
  *
  * An interface rather than bare functions so the table can be driven by a fake
  * in tests: the keyboard behaviour is the part worth proving, and asserting it
  * through a real fetch would test the network instead.
  */
-export interface ProjectSummary {
-  id: string;
-  name: string;
-  restricted: boolean;
-  /** When this account last opened it, or null if it never has. */
-  lastOpenedAt: number | null;
-}
-
 export interface ProjectApi {
   /**
    * Every project, in this account's own order: opened first by recency, then
@@ -279,8 +318,8 @@ export interface ProjectApi {
    * sorting again on the client would be a second implementation of the rule,
    * and the two would eventually disagree.
    */
-  listProjects(): Promise<ProjectSummary[]>;
-  createProject(name: string): Promise<ProjectSummary>;
+  listProjects(): Promise<ProjectListEntry[]>;
+  createProject(name: string): Promise<CreatedProject>;
   /** Records this account as having opened the project, which is what sorts the picker. */
   openProject(id: string): Promise<void>;
   /** Renames the project. be-01 answers `forbidden` on a restricted one. */
@@ -547,11 +586,11 @@ export function roleRefusalSentence(code: string): string {
 export function httpProjectApi(token: string): ProjectApi {
   return {
     async listProjects() {
-      const body = await send<{ projects: ProjectSummary[] }>('/api/projects', token);
+      const body = await send<{ projects: ProjectListEntry[] }>('/api/projects', token);
       return body.projects;
     },
     async createProject(name) {
-      const body = await send<{ project: ProjectSummary }>('/api/projects', token, {
+      const body = await send<{ project: CreatedProject }>('/api/projects', token, {
         method: 'POST',
         body: JSON.stringify({ name }),
       });

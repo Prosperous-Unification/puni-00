@@ -1,4 +1,5 @@
 import { Database } from 'bun:sqlite';
+import type { Logger } from 'drizzle-orm';
 import { drizzle, type SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
 const BUSY_TIMEOUT_MS = 5000;
@@ -38,9 +39,16 @@ export function openDatabase(dbPath: string): Database {
  * `openDatabase`, because the ESLint rule that keeps `bun:sqlite` and the
  * drizzle bun adapter in this one file is what guarantees every connection
  * went through the pragma assertions above.
+ *
+ * `logger` is drizzle's own hook and is how a caller can count the statements a
+ * repository method issues — `costs one statement however many projects there
+ * are` in `project.test.ts` is the reason it is here, because "the owner's name
+ * costs no extra query" is a claim about the number of round trips and nothing
+ * about the returned rows can observe it. The process itself passes none, so
+ * every production connection is silent as before.
  */
-export function openDrizzle(dbPath: string): Drizzle {
-  return drizzle({ client: openDatabase(dbPath) });
+export function openDrizzle(dbPath: string, logger?: Logger): Drizzle {
+  return drizzle({ client: openDatabase(dbPath), logger });
 }
 
 /**

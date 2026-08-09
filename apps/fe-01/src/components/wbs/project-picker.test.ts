@@ -1,11 +1,18 @@
 import { describe, expect, it } from 'vitest';
 
-import { matchingProjects } from './project-picker';
+import { entryMeta, matchingProjects } from './project-picker';
 
+/**
+ * The entries as the page really hands them over — meta and all.
+ *
+ * Not `{ id, name }` pairs: the claim below is that the owner's name is
+ * **there** and is still not searched, and a fixture that left it out would
+ * make that test pass by having nothing to match against.
+ */
 const projects = [
-  { id: 'p1', name: 'Rewire the shed' },
-  { id: 'p2', name: 'Repaint the hall' },
-  { id: 'p3', name: 'HALLWAY lighting' },
+  { id: 'p1', name: 'Rewire the shed', ownerName: 'kat', createdAt: 1_780_000_000_000 },
+  { id: 'p2', name: 'Repaint the hall', ownerName: 'strip', createdAt: 1_780_000_000_000 },
+  { id: 'p3', name: 'HALLWAY lighting', ownerName: 'kat', createdAt: 1_780_000_000_000 },
 ];
 
 describe('matchingProjects', () => {
@@ -30,5 +37,40 @@ describe('matchingProjects', () => {
 
   it('offers nothing when nothing matches', () => {
     expect(matchingProjects(projects, 'garage')).toEqual([]);
+  });
+
+  it('never matches an owner, however plainly the entry shows one', () => {
+    // The recorded non-goal, made breakable. `strip` owns `Repaint the hall`
+    // and the entry says so on screen; typing it must still offer nothing,
+    // because the box narrows by name and nothing tells anybody otherwise.
+    // `kat` is the second half of the same claim — she owns two, so a filter
+    // reading the owner would answer with a pair rather than with an empty
+    // list, and an assertion about emptiness alone could not tell the two
+    // faults apart.
+    expect(matchingProjects(projects, 'strip')).toEqual([]);
+    expect(matchingProjects(projects, 'kat')).toEqual([]);
+    // And the name still matches, which is what stops the check above being
+    // satisfied by a filter that has stopped matching anything at all.
+    expect(matchingProjects(projects, 'shed').map((p) => p.id)).toEqual(['p1']);
+  });
+});
+
+describe('entryMeta', () => {
+  it('reads the creation instant in the reader’s own zone, not as a calendar day', () => {
+    // The formatter is chosen by the **type** of the value: `createdAt` is an
+    // epoch millisecond, so this is `shortInstant`. Building the moment here
+    // rather than pinning an epoch keeps the assertion true in every zone the
+    // suite runs in — the day is whatever the reader's machine says it is,
+    // which is `short-date.test.ts`'s stated cost and not this file's to
+    // re-decide.
+    const madeOn = new Date(2027, 5, 1, 12);
+    const reading = new Date(2026, 0, 15);
+
+    expect(entryMeta({ ownerName: 'kat', createdAt: madeOn.getTime() }, reading)).toBe(
+      '(kat · 1 Jun 2027)',
+    );
+    expect(entryMeta({ ownerName: 'kat', createdAt: madeOn.getTime() }, madeOn)).toBe(
+      '(kat · 1 Jun)',
+    );
   });
 });

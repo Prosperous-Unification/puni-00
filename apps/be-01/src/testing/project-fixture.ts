@@ -1,5 +1,6 @@
-import type { Project, ProjectStore, ProjectWithAccess, Role } from '../repository';
+import type { Project, ProjectStore, ProjectWithAccess, Role, UserStore } from '../repository';
 import { ProjectService } from '../service/project.service';
+import { inMemoryUsers } from './auth-fixture';
 
 /**
  * A ProjectStore backed by Maps, for controller and service tests that do not
@@ -9,8 +10,15 @@ import { ProjectService } from '../service/project.service';
  * laxer than production lets a test pass against behaviour that does not exist:
  * role names are unique within a project, `list` returns newest first, and
  * `update` refuses an id it does not hold rather than inventing a row.
+ *
+ * `owners` is the store the listing resolves each project's owner name through,
+ * and it has to be **the same one the test registers its accounts in** — pass
+ * `inMemoryUsers()`'s value to both this and `testAuthService`. Left to its own
+ * empty default, `listFor` throws on the first project it lists, which is
+ * production's behaviour for an owner id naming no account and not an accident
+ * to work around.
  */
-export function inMemoryProjects(): ProjectStore {
+export function inMemoryProjects(owners: UserStore = inMemoryUsers()): ProjectStore {
   const projects = new Map<string, Project>();
   const roles = new Map<string, Role[]>();
   /** One moment per `userId::projectId`, exactly as the primary key holds it. */
@@ -32,24 +40,33 @@ export function inMemoryProjects(): ProjectStore {
     list() {
       return Promise.resolve([...projects.values()].sort((a, b) => b.createdAt - a.createdAt));
     },
-    listFor(userId) {
+    async listFor(userId) {
       // Sorted the way SQLite's `ORDER BY last_opened_at DESC, created_at DESC`
       // sorts, NULLs last. A fixture ordering it any other way would let a
       // component pass against an order production does not produce.
-      const withAccess: ProjectWithAccess[] = [...projects.values()].map((project) => ({
-        ...project,
-        lastOpenedAt: opened.get(`${userId}::${project.id}`) ?? null,
-      }));
-      return Promise.resolve(
-        withAccess.sort((a, b) => {
-          if (a.lastOpenedAt !== b.lastOpenedAt) {
-            if (a.lastOpenedAt === null) return 1;
-            if (b.lastOpenedAt === null) return -1;
-            return b.lastOpenedAt - a.lastOpenedAt;
-          }
-          return b.createdAt - a.createdAt;
-        }),
-      );
+      const withAccess: ProjectWithAccess[] = [];
+      for (const project of projects.values()) {
+        const owner = await owners.findById(project.ownerId);
+        // The same refusal the query's LEFT JOIN produces, for the same reason:
+        // a fixture that answered a blank owner here would let the controller's
+        // shape test pass against a list production throws on.
+        if (owner === null) {
+          throw new Error(`project "${project.name}" has an owner id naming no account`);
+        }
+        withAccess.push({
+          ...project,
+          lastOpenedAt: opened.get(`${userId}::${project.id}`) ?? null,
+          ownerName: owner.username,
+        });
+      }
+      return withAccess.sort((a, b) => {
+        if (a.lastOpenedAt !== b.lastOpenedAt) {
+          if (a.lastOpenedAt === null) return 1;
+          if (b.lastOpenedAt === null) return -1;
+          return b.lastOpenedAt - a.lastOpenedAt;
+        }
+        return b.createdAt - a.createdAt;
+      });
     },
     recordOpen(userId, projectId, at) {
       opened.set(`${userId}::${projectId}`, at);

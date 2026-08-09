@@ -4,7 +4,7 @@ import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
 import type { Project, ProjectPatch, ProjectStore, ProjectWithAccess, Role } from './index';
 import { bumpedProject } from './revision';
-import { project, projectAccess, role } from './schema';
+import { project, projectAccess, role, users } from './schema';
 
 /**
  * A stored row as a {@link Project}, checking the one column SQLite cannot
@@ -23,6 +23,32 @@ function toProject<T extends { estimateMethod: string }>(
   }
   // Narrowed by the check above, which is the boundary this function exists to be.
   return { ...row, estimateMethod: row.estimateMethod };
+}
+
+/**
+ * A listed row as one whose owner is known, checking the one column a LEFT JOIN
+ * can leave empty.
+ *
+ * The join answers null in exactly one case: a `project.owner_id` naming no
+ * `users` row. The foreign key says that cannot happen, so meeting it is
+ * malformed trusted data — and the two ways to carry on are both wrong
+ * answers delivered confidently. Dropping the project hides it from its own
+ * owner's picker; blanking the name puts `( · 1 Jun)` on screen and calls the
+ * list complete.
+ *
+ * Proof: with the throw replaced by `?? ''`, `fails the list rather than
+ * answering a project whose owner is nobody` in `project.test.ts` failed —
+ * `listFor` resolved with `["Orphan", ""]` beside `["Rewire the shed",
+ * "owner"]`. Watched, 2026-08-09.
+ */
+function withOwnerName<T extends { name: string; ownerName: string | null }>(
+  row: T,
+): Omit<T, 'ownerName'> & { ownerName: string } {
+  if (row.ownerName === null) {
+    throw new Error(`project "${row.name}" has an owner id naming no account`);
+  }
+  // Narrowed by the check above, which is the boundary this function exists to be.
+  return { ...row, ownerName: row.ownerName };
 }
 
 /**
@@ -76,6 +102,20 @@ export class ProjectRepository implements ProjectStore {
    * joining on the project alone would attach somebody else's history to this
    * caller's list — every project would then look opened, in the order the
    * busiest account visited them.
+   *
+   * The owner's name rides in the same statement, so listing fifty projects
+   * still costs one query rather than fifty-one. Both joins are LEFT joins and
+   * for opposite reasons: a never-opened project has no access row and must
+   * still be listed, while a missing **user** row is not a project without an
+   * owner — it is a foreign key the database says cannot happen — so the LEFT
+   * join is what makes that impossible row visible instead of dropping the
+   * project silently. Seeing it, this throws.
+   *
+   * Proof: with the owner join replaced by a `select` per row, `costs one
+   * statement however many projects there are` in `project.test.ts` failed on
+   * `Expected length: 1 / Received length: 51`. Watched, 2026-08-09.
+   *
+   * @throws when a listed project's owner id names no account.
    */
   async listFor(userId: string): Promise<ProjectWithAccess[]> {
     const rows = await this.db
@@ -89,14 +129,16 @@ export class ProjectRepository implements ProjectStore {
         revision: project.revision,
         createdAt: project.createdAt,
         lastOpenedAt: projectAccess.lastOpenedAt,
+        ownerName: users.username,
       })
       .from(project)
       .leftJoin(
         projectAccess,
         and(eq(projectAccess.projectId, project.id), eq(projectAccess.userId, userId)),
       )
+      .leftJoin(users, eq(users.id, project.ownerId))
       .orderBy(desc(projectAccess.lastOpenedAt), desc(project.createdAt));
-    return rows.map(toProject);
+    return rows.map((row) => toProject(withOwnerName(row)));
   }
 
   /**

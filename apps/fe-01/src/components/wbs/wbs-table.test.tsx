@@ -191,10 +191,18 @@ function fakeApi(): ProjectApi & {
     },
     listProjects: () =>
       Promise.resolve([
-        { id: 'p1', name: 'Rewire the shed', restricted: false, lastOpenedAt: null },
+        {
+          id: 'p1',
+          name: 'Rewire the shed',
+          restricted: false,
+          lastOpenedAt: null,
+          ownerName: 'kat',
+          createdAt: 1_780_000_000_000,
+        },
       ]),
-    createProject: (name: string) =>
-      Promise.resolve({ id: 'p1', name, restricted: false, lastOpenedAt: null }),
+    // No `lastOpenedAt`: the create route answers with the project it wrote,
+    // and never with this account's navigation history.
+    createProject: (name: string) => Promise.resolve({ id: 'p1', name, restricted: false }),
     openProject: () => Promise.resolve(),
     renameProject: () => Promise.resolve(),
     tree: () =>
@@ -5990,9 +5998,17 @@ describe('dependencies in the table — cross-review findings', () => {
     schedule: Partial<WorkItemView['schedule']> = {},
   ): ProjectApi => ({
     listProjects: () =>
-      Promise.resolve([{ id: 'p1', name: 'P', restricted: false, lastOpenedAt: null }]),
-    createProject: (name: string) =>
-      Promise.resolve({ id: 'p1', name, restricted: false, lastOpenedAt: null }),
+      Promise.resolve([
+        {
+          id: 'p1',
+          name: 'P',
+          restricted: false,
+          lastOpenedAt: null,
+          ownerName: 'kat',
+          createdAt: 1_780_000_000_000,
+        },
+      ]),
+    createProject: (name: string) => Promise.resolve({ id: 'p1', name, restricted: false }),
     openProject: () => Promise.resolve(),
     setEstimateMethod: () => Promise.resolve(),
     setStartDate: () => Promise.resolve(),
