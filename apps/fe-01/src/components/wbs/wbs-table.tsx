@@ -3753,7 +3753,13 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                         live.current.pickDependency(row.original.id, entry.id);
                       }}
                     >
-                      {entry.number} {entry.name}
+                      {/*
+                        `010 - Strip the hull`, the way the plan is spoken
+                        about: a space alone let a number and a name that starts
+                        with a digit run together. The filter behind the list
+                        already matches either half (`pickerEntries`).
+                      */}
+                      {entry.number} - {entry.name}
                       {entry.refusal === undefined ? '' : ` — ${REFUSAL_SUFFIX[entry.refusal]}`}
                     </li>
                   ))}
