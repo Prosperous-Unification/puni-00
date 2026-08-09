@@ -180,37 +180,42 @@ of. What a person link on the Gantt is drawn between; absent when nobody waited.
 _Avoid_: previous task, queue parent, resource link
 
 **Gantt panel**:
-The second drawing of the plan: every shown row as marks on a workday axis, under the
+The second drawing of the plan: every shown row as marks on a calendar axis, under the
 plan renderer and mirroring its rows. Read-only — edits happen where they always did.
 _Avoid_: chart, timeline, gantt view
 
-**Workday axis**:
-The Gantt panel's horizontal scale when the plan has no start date: one unit per
-workday, weekends not on it. A plan with a start date draws on the calendar axis
-instead.
-_Avoid_: time axis, date axis, calendar
-
 **Calendar axis**:
-The Gantt panel's horizontal scale once the plan has a start date: one cell per
-calendar day from the plan's first working day, weekends among them and greyed, so a
-bar spanning a weekend visibly crosses it.
-_Avoid_: date axis, timeline, time scale
+The Gantt panel's horizontal scale on a plan that has a start date: one unit and one
+cell per calendar day from the plan's first working day, weekends among them and greyed,
+the heavy line on Mondays. Every mark the panel draws takes its horizontal coordinate
+from it.
+_Avoid_: date axis, timeline, time axis
 
 **Calendar scale**:
-The one conversion from a workday offset to a calendar-day offset, read two ways: a
-span's start takes the offset itself, a span's end takes its left limit, so a bar
-ending on a Friday stops before the weekend it never worked.
-_Avoid_: mapping, converter
+What turns a workday offset into a place on the calendar axis, read two ways: where a
+span that starts there stands, and where a span that finishes there stops. The two differ
+by exactly the weekend between two workdays, which is what puts a gap between work that
+ended on the Friday and work that begins on the Monday.
+_Avoid_: converter, mapping, projection
+
+**Workday axis**:
+The Gantt panel's horizontal scale on a plan with **no** start date: one unit per workday,
+printing the offset itself. Weekends are not on it — there is no calendar to have one on
+— so a week is five cells rather than seven. A rendered state, not a fallback.
+_Avoid_: time axis, date axis, offset axis
 
 **Horizon**:
-How far the schedule reaches: the latest finish of any slice, and far enough to hold
-every assumed span drawn past one. The width of the Gantt panel's drawing space — in
-units of whichever axis the plan draws on.
+How far the drawing reaches: the furthest right edge of anything drawn, in the unit the
+chart is in — calendar days on a calendar axis, workdays without one — and far enough to
+hold every assumed span drawn past a slice's own finish. The width of the Gantt panel's
+drawing space.
 _Avoid_: extent, range, span
 
 **Bar**:
-The drawing of one slice on the Gantt panel — a rectangle from its start to its finish
-on the workday axis. A picture of a slice, never the slice itself.
+The drawing of one slice on the Gantt panel — a rectangle from where its start stands to
+where the span it is **drawn** across stops. A picture of a slice, never the slice itself:
+its width is the days it is drawn over, weekends inside it included, while the workday
+numbers it carries stay the engine's.
 _Avoid_: segment, block, task bar
 
 **Assumed span**:
@@ -232,8 +237,8 @@ person.
 _Avoid_: resource arrow, queue line, assignment link
 
 **Not-before flag**:
-The mark on the workday axis where a row's manual start date holds, on rows that have
-one.
+The mark standing on the day a row's manual start date holds it at, on rows that have one.
+Where it stands is that date's place on the axis; what it says on hover is the date itself.
 _Avoid_: constraint marker, lock, milestone
 
 **Refused dependency**:

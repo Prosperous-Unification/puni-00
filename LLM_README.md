@@ -3,10 +3,10 @@
 Agent orientation. Read this, then only the one doc your task needs.
 
 **wbs-tool-v1** — collaborative real-time WBS tool. `be-01` (API, Elysia+Drizzle+bun:sqlite, :3100),
-`gw-01` (WS gateway, :3200), `fe-01` (Vite+React static, :80 in the image, :4200 under `vite dev`).
+`gw-01` (WS gateway, :3200), `fe-01` (Vite+React, :80 in the image, :4200 under `vite dev`).
 Nx monorepo, Bun everywhere — never npm.
 
-Two facts explain most decisions:
+Three facts explain most decisions:
 
 - **The infra is the deliverable**, beyond what one host needs. Two reviews called it
   over-engineered; considered and rejected. Don't re-argue it.
@@ -16,8 +16,7 @@ Two facts explain most decisions:
   duplicate whole, live edits, a Cmd+Z that **refuses out loud** when a row has moved, and a
   socket that reconnects and replays. Tables: `user`, `project`, `role`, `work_item`,
   `estimate`, `command_journal`, `event_log`, `event_sequencer`.
-
-Tool choices bias novel over mainstream (Bun, Elysia, ArkType, Dagger) on purpose.
+- Tool choices bias novel over mainstream (Bun, Elysia, ArkType, Dagger) on purpose.
 
 ## Commands
 
@@ -44,12 +43,11 @@ measuring the WBS table against the real stack. lefthook runs a subset pre-commi
 
 Live: **https://wbs.bulletpoints.club** (prod = `ssh h2puni`). **Build box = h2puni.**
 
-**Never build on h1claw.** Dany's standing rule, 2026-08-04. It supersedes the earlier
-"prefer h1claw, it is amd64" guidance in this file's history — h1claw is a 3.7 GB VPS that
-runs the OpenClaw gateway and holds the prod SSH key, registry credentials and the `ghp_`
-PAT. A `PreToolUse` guard on h1claw (`~/.openclaw/workspace/bin/block-local-builds.sh`)
-denies `dagger`, `tool-dagger:*`, `tool-deploy:deploy` and `docker build` outright; commands
-delegated over `ssh … h2puni` pass through.
+**Never build on h1claw.** Dany's standing rule, 2026-08-04, superseding the earlier "prefer
+h1claw, it is amd64" — h1claw is a 3.7 GB VPS that runs the OpenClaw gateway and holds the
+prod SSH key, registry credentials and the `ghp_` PAT. A `PreToolUse` guard there
+(`~/.openclaw/workspace/bin/block-local-builds.sh`) denies `dagger`, `tool-dagger:*`,
+`tool-deploy:deploy` and `docker build` outright; commands delegated over `ssh … h2puni` pass.
 
 ### dev — source-run, no build
 
@@ -60,28 +58,27 @@ git push && ./bin/dev-deploy.sh     # from h1claw, seconds
 ```
 
 One container, `wbs-dev-src`, runs all three tiers from a bind-mounted checkout via
-`bun run dev`. **For application code the watchers are the deploy** — nothing is built,
-pushed or restarted. The lockfile, migrations, and config read once at startup trigger a
-restart; a changed `compose.yml` or `Dockerfile` fails the deploy with the command that
-applies it. Dev has **no edge password** since 2026-08-06 — be-01 and gw-01 guard themselves,
-and account registration is open to the internet.
+`bun run dev`. **For application code the watchers are the deploy** — nothing is built, pushed
+or restarted. The lockfile, migrations, and config read once at startup trigger a restart; a
+changed `compose.yml` or `Dockerfile` fails the deploy with the command that applies it. Dev
+has **no edge password** since 2026-08-06 — be-01 and gw-01 guard themselves, and account
+registration is open to the internet.
 
 **Which changes reach a running process, and which do not: `docs/runbook-dev-deploy.md`.**
 
-**What dev no longer proves.** The blue/green swap, health gate, Caddy repoint and smoke
-test used to run on dev before prod. They no longer do. Run a prod dry-run deliberately
-before any prod deploy; dev will not catch a regression in that path.
+**What dev no longer proves.** The blue/green swap, health gate, Caddy repoint and smoke test
+used to run on dev before prod; they no longer do. Run a prod dry-run before any prod deploy.
 
 ### prod — image-based, blue/green
 
-**h2puni can build and publish** since 2026-08-05: pinned `dagger` v0.21.8, a build
-checkout at `/home/puni1/wbs-build` (**not** dev's), and the `h2puni` alias resolving
-to itself. Proven: images published, dry run planned the swap. Runbook has the why.
+**h2puni can build and publish** since 2026-08-05: pinned `dagger` v0.21.8, a build checkout at
+`/home/puni1/wbs-build` (**not** dev's), and the `h2puni` alias resolving to itself. Proven:
+images published, dry run planned the swap. Runbook has the why.
 
-Dagger builds `linux/amd64` → self-hosted registry (the only build/deploy contract) → the
-swap starts the idle colour, health-gates it, repoints Caddy, drains WS, stops the old
-colour, runs smoke. `--dry-run` is the default, and it refuses on a dirty tree, a stale
-`release.json` or an unbuilt executor bundle — those are the safety gates, not bugs.
+Dagger builds `linux/amd64` → self-hosted registry (the only build/deploy contract) → the swap
+starts the idle colour, health-gates it, repoints Caddy, drains WS, stops the old colour, runs
+smoke. `--dry-run` is the default, refusing on a dirty tree, a stale `release.json` or an
+unbuilt executor bundle — safety gates, not bugs.
 
 A migration is applied by be-01's swap and by nothing else. It must be additive, must ship
 a `down.sql`, and an aborted deploy reverses it (`AGENTS.md`, "Migrations").
@@ -95,18 +92,21 @@ contract: `docs/runbook-prod-deploy.md`.**
   content differs. Anything else remounts every cell and eats the focus; see the `live` ref. Widths resolve through `table-frame.ts`'s `frameLayout` and never enter a column definition.
 - `caddy reload` **exits 0 when it did nothing**. Verify against the admin API, never the exit
   code. The check parses the route for this environment's host and reads the upstream on the
-  tier's port (`routedColorFromAdminConfig`); it was a substring test until 2026-08-04, which
-  matched `be-01-blue` inside dev's `dev-be-01-blue` and read prod's colour wrong.
-- `be-01.internal` resolves to **both colours** mid-swap (Docker round-robin). Two releases, one SQLite file.
+  tier's port (`routedColorFromAdminConfig`); a substring test until 2026-08-04, which matched
+  `be-01-blue` inside dev's `dev-be-01-blue` and read prod's colour wrong.
+- `be-01.internal` resolves to **both colours** mid-swap (round-robin). Two releases, one DB file.
 - `bun:sqlite` defaults to no WAL, `busy_timeout=0`. Set **and asserted at open** in
   `be-01/src/repository/db.ts`; an ESLint rule bans importing `bun:sqlite` anywhere else under
   `apps/be-01/src`, because `busy_timeout`/`foreign_keys` are per-connection and a direct
-  `new Database()` silently loses them. The process connection is opened by `boot.ts` through
-  `openConnection`, in that same file, for the same reason — and closed through the handle it
-  returns, because reaching into drizzle's `$client` is the same bypass one layer along.
+  `new Database()` silently loses them. `boot.ts` opens through `openConnection` in that same
+  file for the same reason, and closes through the handle it returns — reaching into drizzle's
+  `$client` is the same bypass one layer along.
 - **Migrations must be backward-compatible** — blue and green share one DB. `--stop-the-world` refuses.
   The pre-commit lint catches the obvious destructive statements; the actual compatibility judgement
   is yours, asserted by passing `--with-migrations`.
+- **`bun run e2e` reuses whatever holds 3100/3200/4200** (`reuseExistingServer: !isCi`), another
+  checkout's `bun run dev` included — 66 tests green against code this tree never built,
+  2026-08-09. Check what owns :4200 before believing a local green.
 - `.dockerignore` is **not recursive**: `**/*.db`, not `*.db`.
 - Server umask is `0002` — create sensitive files with their mode from birth, never chmod after
   (`configure.sh` does not yet honour this; see findings).
@@ -124,13 +124,13 @@ Both open findings are **prod-phase** (Dany, 2026-08-06): recorded, not pending.
    node's value instead of replacing the node, and holds it back while that cell is typed in.
 4. ~~Smoke calls `/internal/forward` on `be-01` directly.~~ **Closed 2026-08-06:** a backend-hop
    probe. A gw-01 with a wrong `INTERNAL_AUTH_SECRET` passes every other check; observed.
-5. ~~Health endpoints are status flags.~~ **Closed 2026-08-06:** be-01 queries for a table its
-   migrations create and gw-01 probes be-01. Still uncaught: deleting the file underneath.
+5. ~~Health endpoints are status flags.~~ **Closed 2026-08-06:** be-01 queries a table its
+   migrations create and gw-01 probes be-01. Uncaught still: deleting the file underneath.
 
 Lower priority: fe/smoke health accepts any non-empty body; the WS ping passes on any first
 message _containing_ `"pong"`; drain reads a malformed metrics body as zero live sockets;
-`tool-secrets` only prints what it would run. Checks that cannot fail have appeared
-**seventeen** times here; the tally is in `AGENTS.md` under R5.
+`tool-secrets` only prints what it would run. Checks that cannot fail: **seventeen**, tallied
+in `AGENTS.md` under R5.
 
 ## More
 
@@ -146,5 +146,5 @@ message _containing_ `"pong"`; drain reads a malformed metrics body as zero live
 | `openspec/changes/scaffold-tech-setup/`                                 | original scaffold — **stale**, spec above wins |
 
 Conventions: pure planners + thin IO shell; `strictTypeChecked`; comments say **why** and state
-what was/wasn't verified; never print a secret value. Explicit return types are house style but
+what was/wasn't verified; never print a secret value. Explicit return types are house style,
 **not** lint-enforced — plenty of existing code infers them.

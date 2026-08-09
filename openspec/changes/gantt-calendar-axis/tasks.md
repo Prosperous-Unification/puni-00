@@ -22,7 +22,7 @@ step earlier.
 
 ## 1. The scale
 
-- [ ] 1.1 `calendarDaysBetween(from, to)` in `libs/domain/src/workday.ts` —
+- [x] 1.1 `calendarDaysBetween(from, to)` in `libs/domain/src/workday.ts` —
       whole calendar days, midnight-UTC arithmetic like its neighbours, throwing
       on a non-`IsoDate` as `toUtc` already does — test:
       `libs/domain/src/workday.test.ts`, a weekend crossing (Fri→Mon is 3), a
@@ -38,25 +38,25 @@ step earlier.
       R5 exists to stop. Measured 2026-08-09: the local-midnight fault gives
       1.958 under `TZ=America/New_York` and 2 under `TZ=UTC`, and rounding it
       gives 2 either way; `Proof:` comment naming the zone and the pair
-- [ ] 1.2 `calendarScale(startDate)` in `gantt-geometry.ts` — `startOf(w)` and
+- [x] 1.2 `calendarScale(startDate)` in `gantt-geometry.ts` — `startOf(w)` and
       `endOf(w)`, origin `addWorkdays(startDate, 0)`, fractions preserved,
       offsets below zero returned as themselves — test: `gantt-geometry.test.ts`,
       the six scenarios of the scale requirement: 3.5 and 4.75 flat; 5, 5.25 and
       10 jumping to 7, 7.25 and 14; `endOf(5)` = 5 against `startOf(5)` = 7;
       `endOf(6)` = 8; a Saturday start date landing on the Monday origin; −0.25
       answered rather than thrown
-- [ ] 1.3 The end reading is the scale's left limit, not `startOf` — negative:
+- [x] 1.3 The end reading is the scale's left limit, not `startOf` — negative:
       `endOf` aliased to `startOf`, watched failing the "span that finished on
       the Friday" case (7 for 5) while every pre-weekend case stayed green, which
       is the whole reason that case exists; `Proof:` comment naming it
-- [ ] 1.4 The origin is the scale's own, not a caller's — negative: the origin
+- [x] 1.4 The origin is the scale's own, not a caller's — negative: the origin
       taken as `startDate` instead of `addWorkdays(startDate, 0)`, watched
       failing the Saturday-start case with an origin two days early; `Proof:`
       comment
 
 ## 2. One resolved calendar geometry
 
-- [ ] 2.1 `placeOnCalendar(chart, startDate)` in `gantt-geometry.ts` — takes
+- [x] 2.1 `placeOnCalendar(chart, startDate)` in `gantt-geometry.ts` — takes
       `layOutGantt`'s engine-true geometry and resolves **every** x-bearing mark
       into calendar coordinates: bars, brackets, arrow routes and heads, person
       links, not-before carets, zero-day ticks, row bands, horizon and pad.
@@ -65,7 +65,7 @@ step earlier.
       resolves to 7; a bracket over children 0→3 and 2→6 spans 0→8; a predecessor
       finishing 5 and a successor starting 5 resolve to 5 and 7 with the weekend
       between them
-- [ ] 2.2 `GanttPanel` reads the resolved object and nothing else — no
+- [x] 2.2 `GanttPanel` reads the resolved object and nothing else — no
       `bar.start`, `flag.offset`, `bracket.finish` or `link.fromFinish` survives
       as a coordinate in the JSX — test: `gantt-panel.test.tsx`, one assertion
       putting the bar's `x`, the caret's `d`, the tick's `x1`, the axis cell and
@@ -74,7 +74,7 @@ step earlier.
       link, caret, tick and label overlay each reverted to its raw workday number
       in turn, each watched failing that assertion alone, each with its own
       `Proof:` comment naming the mark and the run
-- [ ] 2.3 Non-zero area before relations — the helper every geometry assertion
+- [x] 2.3 Non-zero area before relations — the helper every geometry assertion
       goes through refuses a mark of no width or no height before it compares one
       mark with another — test: the helper's own case; negative: it is fed the
       zero-width unestimated bar of the sixteenth check, watched throwing rather
@@ -83,19 +83,19 @@ step earlier.
 
 ## 3. Bar width is the drawn span
 
-- [ ] 3.1 Width is `endOf(start + drawnSpan) − startOf(start)`, engine `finish`
+- [x] 3.1 Width is `endOf(start + drawnSpan) − startOf(start)`, engine `finish`
       demoted to `data-finish` metadata, `data-start`/`data-finish` still the
       engine's workday numbers — test: `gantt-panel.test.tsx` — a 3.5→6 slice at
       `x` 3.5 of width 4.5 reading "3.5"/"6"; a 3→5 slice of width 2 with no
       weekend tail; an unestimated slice at workday 3 of width 2 reading "3"/"3"
-- [ ] 3.2 The unestimated bar cannot collapse — negative: the width taken as
+- [x] 3.2 The unestimated bar cannot collapse — negative: the width taken as
       `endOf(finish) − startOf(start)`, which for `finish === start` is zero,
       watched failing the unestimated case on a `width` of 0 while every
       estimated case stayed green; `Proof:` comment naming it as codex 14's fault
-- [ ] 3.3 A zero-**day estimate** keeps its zero width and its tick and is not
+- [x] 3.3 A zero-**day estimate** keeps its zero width and its tick and is not
       confused with an unestimated slice — test: the existing zero-day-estimate
       tick test, re-derived through the scale
-- [ ] 3.4 The **words** stay date arithmetic while the marks move: `spanWords`
+- [x] 3.4 The **words** stay date arithmetic while the marks move: `spanWords`
       and `notBeforeWords` keep reading `addWorkdays(startDate, ⌊start⌋)` and
       `addWorkdays(startDate, lastWorkdayOf(start, finish))`, and neither is
       handed a coordinate — test: `gantt-panel.test.tsx`, a 3→5 slice on the
@@ -109,27 +109,27 @@ step earlier.
 
 ## 4. The calendar axis
 
-- [ ] 4.1 `calendarAxis(startDate, calendarHorizon)` replaces `workdayAxis` — one
+- [x] 4.1 `calendarAxis(startDate, calendarHorizon)` replaces `workdayAxis` — one
       cell per calendar day from the origin, each carrying its calendar offset,
       its date and the workday number when it is one; weekend cells marked and
       greyed; the heavy gridline on Mondays, `WEEK_DAYS` left to the
       no-start-date axis alone — test: `gantt-panel.test.tsx`, cells 5 and 6
       carrying Saturday 2026-08-15 and Sunday 2026-08-16 marked weekend and cell
       7 carrying Monday 2026-08-17 with the heavy gridline
-- [ ] 4.2 Cell count matches the viewBox one to one — `ceil(calendarHorizon)`
+- [x] 4.2 Cell count matches the viewBox one to one — `ceil(calendarHorizon)`
       cells, cell `k` at user-space `x = k`, the SVG's CSS width and the axis
       row's width the same count of `DAY_PX` — test: the rewritten user-space
       test, asserting the cell count against the viewBox's schedule band rather
       than against a constant; negative: the axis built from `chart.horizon` in
       workdays while the viewBox uses the calendar horizon, watched failing with
       the axis two cells short of the canvas on a fixture crossing one weekend
-- [ ] 4.3 The month caption and the scroll arithmetic follow the calendar axis —
+- [x] 4.3 The month caption and the scroll arithmetic follow the calendar axis —
       test: the existing month-on-screen caption test, re-derived; its fixture now
       crosses a weekend, so the cell it scrolls to is a calendar cell
 
 ## 5. No start date is a state, not a fallthrough
 
-- [ ] 5.1 With `startDate === null` no scale is built and no mark asks for one:
+- [x] 5.1 With `startDate === null` no scale is built and no mark asks for one:
       coordinates, axis and the every-fifth gridline are exactly today's — test:
       `gantt-panel.test.tsx`, a slice at workday 5 drawn at `x` 5, eight axis
       cells for a horizon of 8, no cell marked weekend, heavy gridlines on 0 and
@@ -139,7 +139,7 @@ step earlier.
 
 ## 6. The existing tests, inventoried and rewritten
 
-- [ ] 6.1 Rewrite, not append — these `gantt-panel.test.tsx` assertions go
+- [x] 6.1 Rewrite, not append — these `gantt-panel.test.tsx` assertions go
       legitimately red and are re-derived through the scale, none of them
       hard-coding a number twice — test: the file green, and every number in it
       taken from the scale the panel uses:
@@ -163,7 +163,8 @@ step earlier.
   - "bands every other row so a wide chart can be read across"
   - "holds a not-before flag at the workday its date is, not its calendar day" —
     its title is now the opposite of the contract; re-derived and renamed
-- [ ] 6.2 `apps/fe-01/e2e/gantt.spec.ts`, the alignment check "draws a bar at the
+- [x] 6.2 (run on a **local** chromium, not h2puni — see `verify.md`)
+      `apps/fe-01/e2e/gantt.spec.ts`, the alignment check "draws a bar at the
       pixel its workday says, under its own axis cell" — re-derived: the pixel is
       the scale's answer for `data-start` times `DAY_PX`, not `data-start` times
       `DAY_PX`, and the axis cell is looked up by calendar offset. The seeded plan
@@ -172,7 +173,7 @@ step earlier.
       workday, watched failing on the first bar past the weekend, and watched
       **passing** on a horizon inside week one, which is why the fixture is
       widened before the check is believed
-- [ ] 6.3 The rest of the browser checks re-derived and green on h2puni, with the
+- [x] 6.3 (same: local chromium, not h2puni) The rest of the browser checks re-derived and green, with the
       weekend columns in the screenshot — test: "draws the arrow head, the caret
       and the bracket where they can be seen" (the sixteenth check's own test —
       the bar is still found through the caret's row and its area still asserted
@@ -183,11 +184,11 @@ step earlier.
 
 ## 7. Gate and proof
 
-- [ ] 7.1 `bunx nx format:check --all`,
+- [x] 7.1 `bunx nx format:check --all`,
       `bunx nx run-many -t test lint typecheck build --parallel=2` and
       `openspec validate --all --json` green — test: the recorded output in
       `verify.md`
-- [ ] 7.2 `verify.md` carries the failure-proof table — every negative above by
+- [x] 7.2 `verify.md` carries the failure-proof table — every negative above by
       name, the fault injected, the test that observed it failing, the result;
       the eight one-at-a-time mark reversions of 2.2 and the widened-fixture note
       of 6.2 included. A check with no observed failure is not done

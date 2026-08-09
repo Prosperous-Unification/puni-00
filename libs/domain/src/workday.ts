@@ -40,6 +40,61 @@ export function isWeekend(date: IsoDate): boolean {
   return day === 0 || day === 6;
 }
 
+/**
+ * Whether a date is a Monday.
+ *
+ * The day a calendar week begins on, which is where the Gantt's calendar axis
+ * puts its heavy gridline: on an axis of seven cells a week, every fifth line
+ * falls on a Saturday and says nothing.
+ */
+export function isMonday(date: IsoDate): boolean {
+  return toUtc(date).getUTCDay() === 1;
+}
+
+/**
+ * How many calendar days `to` is after `from` — weekends counted, and negative
+ * when `to` is the earlier of the two.
+ *
+ * The calendar counterpart of {@link workdaysBetween}, and what the Gantt's
+ * calendar scale is built out of: a chart whose x unit is one calendar day has
+ * to know that Friday to Monday is three days and not one. Negative is a real
+ * answer here where it is not there — this counts days, while
+ * {@link workdaysBetween} expresses a constraint that may only ever push later.
+ *
+ * The answer is a whole number for every pair this can be asked for, and that is
+ * {@link toUtc}'s doing rather than a rounding: both ends are midnight UTC, so
+ * their difference is a multiple of a day whatever either date's local zone did
+ * that night.
+ *
+ * Proof: the two ends parsed as **local** midnight instead — `new Date(y, m-1,
+ * d)` — which is the obvious way to write this and is wrong across a
+ * daylight-saving boundary. `crosses a daylight-saving boundary as whole days`
+ * alone failed, on `expected 1.9583333333333333 to be 2` for `2026-03-07` →
+ * `2026-03-09` with `TZ=America/New_York`: 47 hours over the US spring-forward
+ * Sunday. Watched 2026-08-09. Rounding that fault away is **not** the negative
+ * — `Math.round` gives 2 either way, and a month-boundary case cannot see it
+ * at all, which is the shape R5 exists to stop.
+ *
+ * @throws Whatever {@link toUtc} throws when either end is not a calendar date.
+ */
+export function calendarDaysBetween(from: IsoDate, to: IsoDate): number {
+  return (toUtc(to).getTime() - toUtc(from).getTime()) / DAY_MS;
+}
+
+/**
+ * The date `days` calendar days after `from` — over a weekend rather than
+ * round it, which is the whole of the difference from {@link addWorkdays}.
+ *
+ * The inverse of {@link calendarDaysBetween}, and what names the date on each
+ * cell of a calendar axis — weekend cells included, which is the one thing
+ * `addWorkdays` can never answer.
+ *
+ * @throws Whatever {@link toUtc} throws when `from` is not a calendar date.
+ */
+export function addCalendarDays(from: IsoDate, days: number): IsoDate {
+  return asIso(new Date(toUtc(from).getTime() + days * DAY_MS));
+}
+
 /** The first workday on or after `date` — `date` itself unless it is a weekend. */
 export function nextWorkday(date: IsoDate): IsoDate {
   let at = toUtc(date);

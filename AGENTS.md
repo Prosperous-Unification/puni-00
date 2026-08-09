@@ -213,6 +213,19 @@ one field that does stay on screen (the toolbar's project start date) the flag s
 reset is the guarantee, and it was watched failing on `expected "2026-09-09" to be "2026-06-01"`
 with a real blur, in a browser.
 
+Two more on 2026-08-09 in `G gantt-calendar-axis`, and **neither shipped**. The calendar
+axis's cell count was asserted against the canvas it stands over — a real relation, and a
+vacuous check as written, because the canvas was **sized from the axis's own length**. The
+named fault (the axis built from the workday horizon while the canvas kept the calendar one)
+moved both and was watched **passing**; the canvas is now sized from the placed horizon, the
+two are computed apart, and the same fault was then watched failing on `expected …(6) to have
+a length of 8 but got 6`. And `bun run e2e` **reused another checkout's dev server**: the
+committed Playwright config sets `reuseExistingServer: !isCi`, a `bun run dev` from
+`~/wd/puni/wbs-tool-v1` held 3100/3200/4200, and 66 browser tests passed against code this
+worktree had never built — the two new gantt assertions failed only because they described a
+chart that checkout did not draw. A browser gate that silently measures a different checkout
+is the same fault wearing a third hat; see `LLM_README.md`'s landmine.
+
 One more the same day, in `N name-title-body`, and it **did not ship** either. The hover
 preview must show a work item's name as text rather than as markdown source, and the negative
 written for it used the name `# not a heading <script>`. With the fault injected — the name

@@ -140,6 +140,157 @@ afterEach(() => {
 });
 
 /**
+ * The Monday every calendar fixture in this file begins on.
+ *
+ * Every coordinate asserted against it is taken at an offset **past the first
+ * weekend**, where the calendar number and the workday number differ. An
+ * assertion at workday 3 passes unchanged on the axis this change replaced and
+ * so proves nothing.
+ */
+const MONDAY_START = '2026-08-10';
+
+/**
+ * One mark's box on the chart, refused when it has no area.
+ *
+ * The sixteenth check's own lesson, made unskippable: an overlap comparison
+ * against a mark of no width cannot fail, and the mark that had no width was an
+ * unestimated bar. Every geometry assertion below goes through this, so a mark
+ * that stopped being drawn fails as a mark that is not there rather than as a
+ * comparison that quietly holds.
+ *
+ * @throws When the mark is not on the chart, or is drawn with no width or no
+ * height.
+ */
+function drawnBox(selector: string): { x: number; width: number; y: number; height: number } {
+  const mark = document.querySelector(selector);
+  if (mark === null) throw new Error(`nothing on the chart at ${selector}`);
+  const numberOf = (attribute: string): number => Number(mark.getAttribute(attribute));
+  const box = {
+    x: numberOf('x'),
+    width: numberOf('width'),
+    y: numberOf('y'),
+    height: numberOf('height'),
+  };
+  if (!(box.width > 0) || !(box.height > 0)) {
+    throw new Error(
+      `${selector} is drawn with no area: ${String(box.width)}×${String(box.height)}`,
+    );
+  }
+  return box;
+}
+
+/**
+ * Every mark that carries a horizontal coordinate, on one plan, at one day.
+ *
+ * `sand` starts at workday 5 — the Monday after the plan's first weekend, seven
+ * calendar days in — and is held there by a date of its own, waits on `strip`
+ * across the weekend, and shares Kat with it. `trim` is estimated at no days on
+ * the same workday, which is what draws a tick. `hull` spans the branch, so its
+ * bracket ends at the end of workday 7.
+ *
+ * One fixture and one test on purpose: the eight marks are eight `map`s in the
+ * SVG, and each of them can be reverted to its raw workday number on its own.
+ * See the `Proof:` below.
+ */
+const everyMarkOnOneDay = (): GanttPlan =>
+  planOf({
+    rows: [
+      rowAt('hull', 0, 7, { leaf: false }),
+      rowAt('strip', 0, 5, { depth: 1 }),
+      rowAt('sand', 5, 7, { depth: 1, notBeforeOffset: 5 }),
+      rowAt('trim', 5, 5),
+    ],
+    slices: [
+      sliceAt('strip-dev', 'strip', 0, 5, { personId: 'kat' }),
+      sliceAt('sand-dev', 'sand', 5, 7, {
+        personId: 'kat',
+        boundBy: 'person',
+        resourcePredecessorId: 'strip-dev',
+      }),
+      sliceAt('trim-dev', 'trim', 5, 5, { duration: 0 }),
+    ],
+    dependencies: [{ predecessorId: 'strip', successorId: 'sand' }],
+    personNames: new Map([['kat', 'Kat']]),
+  });
+
+describe('every mark on the chart lands on the calendar day its workday is', () => {
+  itDom('puts the bar, the caret, the tick, the axis cell and the label on day 7', () => {
+    render(
+      <GanttPanel
+        plan={everyMarkOnOneDay()}
+        startDate={MONDAY_START}
+        scheduleError={null}
+        onPickRow={() => undefined}
+      />,
+    );
+
+    // Workday 5 is Monday 2026-08-17, and the chart is a calendar: seven days
+    // in. Every mark below is on that one day, and each of them is drawn by a
+    // block of its own that could be left reading the workday number.
+    //
+    // Proof, **eight faults, eight runs**, each mark reverted to its raw
+    // workday number in turn and each watched failing this test alone —
+    // `1 failed | 44 passed` every time. Watched 2026-08-09:
+    //   bar          `x={bar.start}`              — `expected 5 to be 7`
+    //   caret        `flag.workday`               — `expected 'M 5 2.03 L 5.285714285714286 2.09 L 5…' to match /^M 7 /`
+    //   tick         `x1={bar.start}`             — `expected '5' to be '7'`
+    //   label        `left: bar.start * DAY_PX`   — `expected 'color: rgb(255, …); left: 152p…' to contain 'left: 208px'`
+    //   bracket      `chart.brackets`             — `expected 'M 0 0.5 L 0 0.18 L 7 0.18 L 7 0.5' to contain 'L 9 0.18'`
+    //   arrow route  `arrow.toStart`              — `expected 'M 5 1.5 L 5.357142857142857 1.5 L 5.3…' to contain 'L 7 2.5'`
+    //   arrow head   `arrow.toStart`              — `expected 'M 5 2.5 L 4.75 2.375 L 4.75 2.625 Z' to match /^M 7 /`
+    //   person link  `chart.personLinks`          — `expected 'M 5 1.5 L 5 2.5' to be 'M 5 1.5 L 7 2.5'`
+    const bar = drawnBox('[data-gantt-bar="sand-dev"]');
+    expect(bar.x).toBe(7);
+    // Two workdays with no weekend in them: the Monday and the Tuesday.
+    expect(bar.width).toBe(2);
+    expect(markAttribute('[data-gantt-not-before="2"]', 'd')).toMatch(/^M 7 /);
+    expect(markAttribute('[data-gantt-tick="trim-dev"]', 'x1')).toBe('7');
+    expect(
+      document.querySelector('[data-gantt-bar-label="sand-dev"]')?.getAttribute('style'),
+    ).toContain(`left: ${String(7 * DAY_PX + CHART_PAD_PX)}px`);
+
+    // The axis cell above them, which is the mark that makes a mark left on
+    // workdays visible: cell 7 is the Monday, and it is workday 5.
+    expect(markAttribute('[data-axis-day="7"]', 'data-axis-date')).toBe('2026-08-17');
+    expect(markAttribute('[data-axis-day="7"]', 'data-axis-workday')).toBe('5');
+
+    // The bracket ends at the end of workday 7, which is nine calendar days in.
+    expect(markAttribute('[data-gantt-bracket="hull"]', 'd')).toContain('L 9 0.18');
+
+    // And the three marks joining two rows: the arrow leaves the Friday's right
+    // edge at 5 and arrives at the Monday at 7, so the weekend is the gap.
+    expect(markAttribute('[data-gantt-arrow="strip->sand"]', 'd')).toContain('L 7 2.5');
+    expect(markAttribute('[data-gantt-arrow-head="strip->sand"]', 'd')).toMatch(/^M 7 /);
+    expect(markAttribute('[data-gantt-person-link="strip-dev->sand-dev"]', 'd')).toBe(
+      'M 5 1.5 L 7 2.5',
+    );
+  });
+
+  itDom('refuses to compare a mark that has no area', () => {
+    render(
+      <GanttPanel
+        plan={everyMarkOnOneDay()}
+        startDate={MONDAY_START}
+        scheduleError={null}
+        onPickRow={() => undefined}
+      />,
+    );
+
+    // `trim-dev` is estimated at no days, so its rect is the zero-width mark the
+    // sixteenth check compared an overlap against and could not fail. The helper
+    // every geometry assertion above goes through says so instead of measuring
+    // it.
+    //
+    // Proof: the area guard in {@link drawnBox} removed — this test alone
+    // failed, on `expected [Function] to throw an error`, and the box it handed
+    // back was `{ x: 7, width: 0, … }`, which every overlap comparison in this
+    // file would have held against. Watched 2026-08-09.
+    expect(() => drawnBox('[data-gantt-bar="trim-dev"]')).toThrow(/drawn with no area/);
+    expect(() => drawnBox('[data-gantt-bar="nobody-drew-this"]')).toThrow(/nothing on the chart/);
+  });
+});
+
+/**
  * The reviewed coordinate contract, asserted where it can be (codex #15).
  *
  * Strict string equality against numbers written by hand into the fixture, not
@@ -147,68 +298,95 @@ afterEach(() => {
  * whole point of a user space measured in workdays is that the engine's number
  * reaches the attribute untouched. A pixel would have to round.
  */
-describe('the chart is drawn in workdays', () => {
-  itDom('puts a 3.5→6 slice at x=3.5 with a width of 2.5, and says so twice', () => {
+describe('the chart is drawn in calendar days', () => {
+  itDom('puts a 3.5→6 slice at x=3.5 with a width of 4.5, and says so twice', () => {
     render(
       <GanttPanel
         plan={planOf({
           rows: [rowAt('strip', 3.5, 6)],
           slices: [sliceAt('strip-dev', 'strip', 3.5, 6, { duration: 2.5 })],
         })}
-        startDate={null}
+        startDate={MONDAY_START}
         scheduleError={null}
         onPickRow={() => undefined}
       />,
     );
 
     const bar = barFor('strip-dev');
+    // The fraction rides inside the workday it belongs to, so a slice 3.5
+    // workdays in is still 3.5 calendar days in — the Thursday, half gone. It
+    // works through the Friday and the Monday after, so its **drawn** width is
+    // 4.5: the weekend it is on both sides of is drawn across.
+    //
     // Proof: `x` computed as `bar.start * DAY_PX` and `width` as
     // `bar.duration * DAY_PX` — the pixel arithmetic design §1 rejects. This
     // test alone failed, on `expected '98' to be '3.5'`, and `data-start` went
     // on saying 3.5 beside it — exactly the drift the two-place contract exists
     // to catch. Watched, 2026-08-09.
     expect(bar?.getAttribute('x')).toBe('3.5');
-    expect(bar?.getAttribute('width')).toBe('2.5');
+    expect(bar?.getAttribute('width')).toBe('4.5');
+    // And the engine's own numbers, untouched by the conversion above them.
     expect(bar?.getAttribute('data-start')).toBe('3.5');
     expect(bar?.getAttribute('data-finish')).toBe('6');
   });
 
-  itDom('gives the SVG a user space of the horizon by the rows', () => {
+  itDom('gives the SVG a user space of the calendar horizon by the rows', () => {
     render(
       <GanttPanel
         plan={planOf({
           rows: [rowAt('strip', 0, 3), rowAt('sand', 3, 6)],
           slices: [sliceAt('strip-dev', 'strip', 0, 3), sliceAt('sand-dev', 'sand', 3, 6)],
         })}
-        startDate={null}
+        startDate={MONDAY_START}
         scheduleError={null}
         onPickRow={() => undefined}
       />,
     );
 
     const svg = document.querySelector('[data-gantt-chart]');
-    // The horizon verbatim, and two rows of it — plus the band the canvas keeps
-    // at either side for the marks that step outside the schedule (see
-    // {@link CHART_PAD_PX}). The user space is still workdays: the schedule
-    // occupies 0 → 6 of it, which is what the next two assertions say without
-    // repeating the string.
-    //
-    // Same proof as above: with `x` in pixels the viewBox stays this width and
-    // the bars leave it, which is why this assertion is not the one that
-    // catches the fault — the two together are.
+    // Six workdays is eight calendar days once the weekend inside them is
+    // drawn — plus the band the canvas keeps at either side for the marks that
+    // step outside the schedule (see {@link CHART_PAD_PX}).
     const pad = CHART_PAD_PX / DAY_PX;
     expect(svg?.getAttribute('viewBox')).toBe(
-      `${String(-pad)} 0 ${String(6 + 2 * pad)} ${String(2)}`,
+      `${String(-pad)} 0 ${String(8 + 2 * pad)} ${String(2)}`,
     );
     // The band said in pixels, which is the unit it is decided in: the canvas
-    // starts one band left of workday 0 and ends one band past the horizon.
-    // `toBeCloseTo` only because `-pad + 6 + 2·pad` is 5.999999999999999 in
-    // binary floating point — the assertion is exact arithmetic, not a
-    // tolerance for drift.
+    // starts one band left of day 0 and ends one band past the horizon.
+    // `toBeCloseTo` only because `-pad + 8 + 2·pad` is not exact in binary
+    // floating point — the assertion is exact arithmetic, not a tolerance for
+    // drift.
     const box = viewBoxOf(svg);
     expect(-box.minX * DAY_PX).toBeCloseTo(CHART_PAD_PX, 10);
-    expect((box.minX + box.width - 6) * DAY_PX).toBeCloseTo(CHART_PAD_PX, 10);
+    expect((box.minX + box.width - 8) * DAY_PX).toBeCloseTo(CHART_PAD_PX, 10);
     expect(svg?.getAttribute('preserveAspectRatio')).toBe('none');
+
+    // The axis holds one cell per calendar day of that band, counted against
+    // the **canvas** rather than against a constant — and the two are computed
+    // apart in the panel, from the axis's own length and from the horizon the
+    // marks were placed against, which is what lets this assertion fail at all.
+    //
+    // Proof: the axis built from `chart.horizon` — the engine's six workdays —
+    // while the canvas kept the calendar horizon. This test alone failed, on
+    // `expected …(6) to have a length of 8 but got 6`: the axis two cells short
+    // of the chart under it, and every date label two days right of the bar it
+    // belongs to. Watched 2026-08-09. Watched **passing** first, with the
+    // canvas sized from the axis's own count — a fault that moves both cannot
+    // be seen by comparing them, which is why the canvas is not sized from the
+    // axis.
+    const cells = document.querySelectorAll('[data-axis-day]');
+    expect(cells).toHaveLength(Math.ceil(box.width - 2 * pad));
+    // Cell `k` stands at user-space `x = k`, which is what the gridline beside
+    // it says: the two arrangements are one scale or they are two.
+    expect([...cells].map((cell) => cell.getAttribute('data-axis-day'))).toEqual(
+      [...document.querySelectorAll('[data-gantt-gridline]')].map((line) =>
+        line.getAttribute('x1'),
+      ),
+    );
+    // And the CSS width is the band through {@link DAY_PX}, so one user unit is
+    // exactly one day of screen and the axis row above cannot be a different
+    // width from the chart it labels.
+    expect(svg?.getAttribute('width')).toBe(String(8 * DAY_PX + 2 * CHART_PAD_PX));
   });
 
   /**
@@ -295,14 +473,14 @@ describe('the chart is drawn in workdays', () => {
     render(
       <GanttPanel
         plan={planOf({
-          rows: [rowAt('strip', 0, 3), rowAt('sand', 3, 3)],
+          rows: [rowAt('strip', 0, 3), rowAt('sand', 4, 4)],
           slices: [
             sliceAt('strip-dev', 'strip', 0, 3, { personId: 'kat' }),
-            sliceAt('sand-dev', 'sand', 3, 3, { estimated: false, personId: 'kat' }),
+            sliceAt('sand-dev', 'sand', 4, 4, { estimated: false, personId: 'kat' }),
           ],
           personNames: new Map([['kat', 'Kat']]),
         })}
-        startDate={null}
+        startDate={MONDAY_START}
         scheduleError={null}
         onPickRow={() => undefined}
       />,
@@ -319,7 +497,12 @@ describe('the chart is drawn in workdays', () => {
     expect(ghost?.classList.contains('[stroke-dasharray:3_2]')).toBe(true);
     // Kat's colour either way: the bar says "guessed", never "nobody's".
     expect(ghost?.getAttribute('fill')).toBe(PERSON_BAR_COLORS[0]);
-    expect(ghost?.getAttribute('width')).toBe(String(ASSUMED_UNESTIMATED_WORKDAYS));
+    // The assumed span is two **workdays**, and this one stands on the Friday:
+    // four calendar days wide, because the weekend it is drawn over is drawn.
+    // The two numbers are deliberately different here — a fixture where they
+    // agreed would pass on the axis this change replaced.
+    expect(ghost?.getAttribute('width')).toBe('4');
+    expect(ASSUMED_UNESTIMATED_WORKDAYS).toBe(2);
     expect(ghost?.getAttribute('data-assumed')).toBe('true');
 
     // And an estimated bar carries none of it — without this the two assertions
@@ -330,24 +513,38 @@ describe('the chart is drawn in workdays', () => {
     expect(real?.getAttribute('data-assumed')).toBeNull();
   });
 
-  itDom('keeps the assumed span out of the engine’s own numbers', () => {
+  itDom('draws the width it is given and says the numbers it was sent', () => {
     render(
       <GanttPanel
         plan={planOf({
-          rows: [rowAt('sand', 3, 3)],
-          slices: [sliceAt('sand-dev', 'sand', 3, 3, { estimated: false })],
+          rows: [rowAt('sand', 3, 3), rowAt('trim', 3, 5)],
+          slices: [
+            sliceAt('sand-dev', 'sand', 3, 3, { estimated: false }),
+            sliceAt('trim-dev', 'trim', 3, 5),
+          ],
         })}
-        startDate={null}
+        startDate={MONDAY_START}
         scheduleError={null}
         onPickRow={() => undefined}
       />,
     );
 
-    // The drawn width is the assumption; `data-start` and `data-finish` are
-    // what be-01 said, and the two are allowed to disagree only here.
+    // The drawn width is the assumption — two workdays from the Thursday, which
+    // is the Thursday and the Friday and so two calendar days — while
+    // `data-start` and `data-finish` are what be-01 said, and they are equal.
+    //
+    // Proof: the width taken as `endOf(bar.finish) − startOf(bar.start)`,
+    // which is codex 14's fault: an unestimated slice finishes where it starts.
+    // This test alone failed, on `expected '0' to be '2'` — a bar of no area at
+    // all, and every estimated case beside it stayed green. Watched 2026-08-09.
     expect(barFor('sand-dev')?.getAttribute('width')).toBe('2');
     expect(barFor('sand-dev')?.getAttribute('data-start')).toBe('3');
     expect(barFor('sand-dev')?.getAttribute('data-finish')).toBe('3');
+
+    // And an estimated 3 → 5 stops at the Friday rather than running on to the
+    // Monday its successor would start at: two days, no weekend tail.
+    expect(barFor('trim-dev')?.getAttribute('x')).toBe('3');
+    expect(barFor('trim-dev')?.getAttribute('width')).toBe('2');
   });
 
   itDom('writes the guess on the ghost bar, and the person with it', () => {
@@ -389,28 +586,36 @@ describe('the chart is drawn in workdays', () => {
     render(
       <GanttPanel
         plan={planOf({
-          rows: [rowAt('strip', 0, 3), rowAt('sand', 3, 3), rowAt('trim', 3, 3)],
+          rows: [rowAt('strip', 0, 3), rowAt('sand', 5, 5), rowAt('trim', 5, 5)],
           slices: [
             sliceAt('strip-dev', 'strip', 0, 3),
-            sliceAt('sand-dev', 'sand', 3, 3, { duration: 0 }),
-            sliceAt('trim-dev', 'trim', 3, 3, { estimated: false }),
+            sliceAt('sand-dev', 'sand', 5, 5, { duration: 0 }),
+            sliceAt('trim-dev', 'trim', 5, 5, { estimated: false }),
           ],
         })}
-        startDate={null}
+        startDate={MONDAY_START}
         scheduleError={null}
         onPickRow={() => undefined}
       />,
     );
 
+    // Workday 5 is the Monday past the weekend, seven calendar days in — and
+    // the zero-day estimate keeps its zero width there rather than being drawn
+    // backwards to the Friday's edge, which is what a finish reading of a span
+    // of no days would give.
+    //
     // Proof: the tick block's `filter((bar) => bar.drawnSpan === 0)` turned off
     // (`filter(() => false)`), so no tick is drawn at all. This test alone
-    // failed, on `expected 'nothing on the chart at [data-gantt-t…' to be '3'`
+    // failed, on `expected 'nothing on the chart at [data-gantt-t…' to be '7'`
     // — the zero-day bar still in the DOM as a rect of no width, painting
     // nothing. Re-watched 2026-08-09 in this shape.
-    expect(markAttribute('[data-gantt-tick="sand-dev"]', 'x1')).toBe('3');
+    expect(markAttribute('[data-gantt-tick="sand-dev"]', 'x1')).toBe('7');
+    expect(barFor('sand-dev')?.getAttribute('width')).toBe('0');
     expect(document.querySelector('[data-gantt-tick="strip-dev"]')).toBeNull();
-    // The unestimated slice is two workdays wide now; a tick under it would be
-    // the old mark left behind on a bar that no longer needs one.
+    // The unestimated slice on the same workday is two workdays wide; a tick
+    // under it would be the old mark left behind on a bar that no longer needs
+    // one, and its width says the two are not the same fact.
+    expect(barFor('trim-dev')?.getAttribute('width')).toBe('2');
     expect(document.querySelector('[data-gantt-tick="trim-dev"]')).toBeNull();
   });
 
@@ -479,15 +684,15 @@ describe('the chart is drawn in workdays', () => {
     render(
       <GanttPanel
         plan={planOf({
-          rows: [rowAt('strip', 0, 3.6666666666666665)],
+          rows: [rowAt('strip', 5, 8.666666666666666)],
           slices: [
-            sliceAt('strip-dev', 'strip', 0, 3.6666666666666665, {
+            sliceAt('strip-dev', 'strip', 5, 8.666666666666666, {
               duration: 3.6666666666666665,
               critical: true,
             }),
           ],
         })}
-        startDate={null}
+        startDate={MONDAY_START}
         scheduleError={null}
         onPickRow={() => undefined}
       />,
@@ -495,58 +700,48 @@ describe('the chart is drawn in workdays', () => {
 
     const bar = barFor('strip-dev');
     // The prose rounds and the drawing does not — the one place in this panel
-    // where a schedule number is not carried verbatim, and the attribute beside
-    // it is what proves the rounding stayed in the sentence.
+    // where a schedule number is not carried verbatim.
     expect(bar?.querySelector('title')?.textContent).toContain('3.67 days');
     expect(bar?.querySelector('title')?.textContent).toContain('On the critical path');
-    expect(bar?.getAttribute('width')).toBe('3.6666666666666665');
+    // The fraction survives the scale: the bar starts at the Monday, seven
+    // calendar days in, and is drawn the whole three-and-two-thirds of it
+    // rather than the two places the sentence above prints.
+    expect(bar?.getAttribute('x')).toBe('7');
+    expect(bar?.getAttribute('width')).not.toBe('3.67');
+    expect(Number(bar?.getAttribute('width'))).toBeCloseTo(3.6666666666666665, 12);
   });
 
-  itDom('draws every other mark the geometry placed, in the same workdays', () => {
+  itDom('draws every other mark the geometry placed, in the same calendar days', () => {
     render(
       <GanttPanel
-        plan={planOf({
-          rows: [
-            rowAt('hull', 0, 5, { leaf: false }),
-            rowAt('strip', 0, 3, { depth: 1 }),
-            rowAt('sand', 3, 5, { depth: 1, notBeforeOffset: 4 }),
-          ],
-          slices: [
-            sliceAt('strip-dev', 'strip', 0, 3, { personId: 'kat' }),
-            sliceAt('sand-dev', 'sand', 3, 5, {
-              personId: 'kat',
-              boundBy: 'person',
-              resourcePredecessorId: 'strip-dev',
-            }),
-          ],
-          dependencies: [{ predecessorId: 'strip', successorId: 'sand' }],
-          personNames: new Map([['kat', 'Kat']]),
-        })}
-        startDate={null}
+        plan={everyMarkOnOneDay()}
+        startDate={MONDAY_START}
         scheduleError={null}
         onPickRow={() => undefined}
       />,
     );
 
     // Four marks no assertion about a bar can see, each of them a `map` in the
-    // SVG that could be deleted whole without a bar moving.
+    // SVG that could be deleted whole without a bar moving. Where each of them
+    // stands is `every mark on the chart lands on the calendar day its workday
+    // is`; that they are drawn at all is here.
     //
     // Proof: the four blocks deleted one at a time, a run apiece. Each deletion
-    // failed this test and only this test, on `1 failed | 13 passed`, and the
-    // sentence stood in for the missing mark every time (vitest abbreviates the
-    // selector in its summary line):
-    //   bracket — `expected 'nothing on the chart at [data-gantt-b…' to contain 'L 5 0.5'`
-    //   arrow   — `expected 'nothing on the chart at [data-gantt-a…' to contain 'M 3 1.5'`
+    // failed this test and only this test, and the sentence stood in for the
+    // missing mark every time (vitest abbreviates the selector in its summary
+    // line):
+    //   bracket — `expected 'nothing on the chart at [data-gantt-b…' to contain 'L 7 0.5'`
+    //   arrow   — `expected 'nothing on the chart at [data-gantt-a…' to contain 'M 5 1.5'`
     //   link    — `expected 'nothing on the chart at [data-gantt-p…' to contain '[stroke-dasharray:4_3]'`
-    //   flag    — `expected 'nothing on the chart at [data-gantt-n…' to match /^M 4 /`
+    //   flag    — `expected 'nothing on the chart at [data-gantt-n…' to match /^M 7 /`
     // Watched, 2026-08-09.
     // An existence check and nothing more, deliberately: the bracket's four
     // points were reordered so its legs drop rather than rise, and **both**
-    // shapes contain `L 5 0.5` — one as the corner, the other as the end of a
-    // leg. Which way up it is asserted in `the marks that had to be seen`,
+    // shapes contain the same corner — one as the corner, the other as the end
+    // of a leg. Which way up it is asserted in `the marks that had to be seen`,
     // where the relation between the points is the assertion.
-    expect(markAttribute('[data-gantt-bracket="hull"]', 'd')).toContain('L 5 0.5');
-    expect(markAttribute('[data-gantt-arrow="strip->sand"]', 'd')).toContain('M 3 1.5');
+    expect(markAttribute('[data-gantt-bracket="hull"]', 'd')).toContain('L 9 0.5');
+    expect(markAttribute('[data-gantt-arrow="strip->sand"]', 'd')).toContain('M 5 1.5');
     // Dashed and its own colour: a hand-off is not a dependency, and the two
     // are told apart by nothing but how they are drawn.
     expect(markAttribute('[data-gantt-person-link="strip-dev->sand-dev"]', 'class')).toContain(
@@ -561,14 +756,13 @@ describe('the chart is drawn in workdays', () => {
     expect(markAttribute('[data-gantt-person-link="strip-dev->sand-dev"]', 'stroke')).toBe(
       PERSON_BAR_COLORS[0],
     );
-    // The spec's own number: a flag at workday 4 begins at x = 4, in workdays
-    // like everything else in here.
+    // The flag is drawn, on its own row, at the day the calendar puts it.
     //
-    // Proof: the flag's `d` built from `flag.rowIndex` instead of
-    // `flag.offset` — the mark still drawn, on the right row, at the wrong day.
-    // Failed on `expected 'M 2 2.18 L 2.35 2.18 L 2 2.5 Z' to match /^M 4 /`.
+    // Proof: the flag's `d` built from `flag.rowIndex` instead of its `x` —
+    // the mark still drawn, on the right row, at the wrong day. Failed on
+    // `expected 'M 2 2.03 L 7.285714285714286 2.09 L 7…' to match /^M 7 /`.
     // Watched, 2026-08-09.
-    expect(markAttribute('[data-gantt-not-before="2"]', 'd')).toMatch(/^M 4 /);
+    expect(markAttribute('[data-gantt-not-before="2"]', 'd')).toMatch(/^M 7 /);
   });
 
   itDom('draws nothing at all while the dependencies run in a circle', () => {
@@ -640,23 +834,31 @@ describe('the marks that had to be seen', () => {
    * A parent over two leaves, the second of which starts the workday the first
    * finishes and is held there by a date of its own.
    *
-   * The tight case on purpose: `sand` starts at 3 and `strip` finishes at 3, so
-   * the arrow has no room, and `sand`'s not-before offset is 3 as well, so the
+   * The tight case on purpose: `sand` starts at 8 and `strip` finishes at 8, so
+   * the arrow has no room, and `sand`'s not-before offset is 8 as well, so the
    * caret and the bar's left edge are the same x. Both are the commonest shape
    * in a real plan and both are the shape the old drawing lost.
+   *
+   * Every offset is past the plan's first weekend and none of them has one
+   * inside it, which is what keeps the two bars **touching** on a calendar
+   * while every coordinate below differs from its workday number: workday 8 is
+   * Thursday 2026-08-20, ten calendar days in.
    */
   const touchingPlan = (): GanttPlan =>
     planOf({
       rows: [
-        rowAt('hull', 0, 5, { leaf: false }),
-        rowAt('strip', 0, 3, { depth: 1 }),
-        rowAt('sand', 3, 5, { depth: 1, notBeforeOffset: 3 }),
+        rowAt('hull', 5, 10, { leaf: false }),
+        rowAt('strip', 5, 8, { depth: 1 }),
+        rowAt('sand', 8, 10, { depth: 1, notBeforeOffset: 8 }),
       ],
-      slices: [sliceAt('strip-dev', 'strip', 0, 3), sliceAt('sand-dev', 'sand', 3, 5)],
+      slices: [sliceAt('strip-dev', 'strip', 5, 8), sliceAt('sand-dev', 'sand', 8, 10)],
       dependencies: [{ predecessorId: 'strip', successorId: 'sand' }],
     });
 
-  const drawTouchingPlan = (startDate: IsoDate | null = null): void => {
+  /** Where the two bars of {@link touchingPlan} meet, on the calendar. */
+  const TOUCH_AT = 10;
+
+  const drawTouchingPlan = (startDate: IsoDate = MONDAY_START): void => {
     render(
       <GanttPanel
         plan={touchingPlan()}
@@ -673,22 +875,22 @@ describe('the marks that had to be seen', () => {
     const route = pointsOf('[data-gantt-arrow="strip->sand"]');
     const last = route.at(-1);
     const beforeLast = route.at(-2);
-    // Proof: `arrowRoute` given back its old three points — `M fromFinish,
-    // fromY L toStart, fromY L toStart, toY`. With `toStart === fromFinish ===
-    // 3` those collapse to a bare vertical **on** the successor's left edge, at
-    // 1px, under the bar and under a critical ring: the arrow this repository
-    // shipped and nobody could see. This test alone failed, `1 failed | 30
-    // passed`, on `the arrow arrives from above the successor’s left edge, not
-    // from outside it: expected 3 to be less than 3`. Watched 2026-08-09.
-    expect(last).toEqual({ x: 3, y: 2.5 });
+    // Proof: `arrowRoute` given back its old three points — `M fromX, fromY L
+    // toX, fromY L toX, toY`. With `toX === fromX` those collapse to a bare
+    // vertical **on** the successor's left edge, at 1px, under the bar and
+    // under a critical ring: the arrow this repository shipped and nobody could
+    // see. This test alone failed, on `the arrow arrives from above the
+    // successor’s left edge, not from outside it: expected 10 to be less than
+    // 10`. Re-watched 2026-08-09 on the calendar.
+    expect(last).toEqual({ x: TOUCH_AT, y: 2.5 });
     expect(
       beforeLast?.x ?? Number.NaN,
       'the arrow arrives from above the successor’s left edge, not from outside it',
-    ).toBeLessThan(3);
+    ).toBeLessThan(TOUCH_AT);
     // And it got there by stepping past the predecessor's right edge rather
     // than by running down the shared edge: something in the route is to the
     // right of the touching point.
-    expect(Math.max(...route.map((point) => point.x))).toBeGreaterThan(3);
+    expect(Math.max(...route.map((point) => point.x))).toBeGreaterThan(TOUCH_AT);
     // And it is drawn heavily enough to be one of the marks rather than an
     // artefact of the gridlines it crosses. What 1.5 actually measures is
     // `e2e/gantt.spec.ts`'s to say; jsdom computes no style at all.
@@ -712,10 +914,10 @@ describe('the marks that had to be seen', () => {
     // [data-gantt-arrow-head="strip->sand"]`, thrown by `pointsOf` rather than
     // asserted as `undefined`, so the message names the mark. Watched
     // 2026-08-09.
-    expect(head.at(0)).toEqual({ x: 3, y: 2.5 });
+    expect(head.at(0)).toEqual({ x: TOUCH_AT, y: 2.5 });
     // A triangle whose base is behind its point: both other corners are left of
     // the successor's edge, so the head sits in the approach and not on the bar.
-    expect(head.slice(1).every((corner) => corner.x < 3)).toBe(true);
+    expect(head.slice(1).every((corner) => corner.x < TOUCH_AT)).toBe(true);
     expect(document.querySelector('[data-gantt-arrow-head]')?.getAttribute('class')).toContain(
       'fill-foreground',
     );
@@ -740,21 +942,25 @@ describe('the marks that had to be seen', () => {
       expect(corner.y, 'the caret is not clear of the bar it belongs to').toBeLessThan(barTop);
       expect(corner.y).toBeGreaterThan(2);
     }
-    // And it stands at the day, not somewhere near it.
-    expect(Math.min(...caret.map((corner) => corner.x))).toBe(3);
+    // And it stands at the calendar day the bar starts on, not somewhere near
+    // it and not at the workday number 8 the date was stored as.
+    expect(Math.min(...caret.map((corner) => corner.x))).toBe(TOUCH_AT);
+    expect(attributeNumber('[data-gantt-bar="sand-dev"]', 'data-start')).toBe(8);
   });
 
   itDom('says which date the caret is holding the row at', () => {
-    // Monday 2026-08-10, the fixture the axis tests use: workday 3 is the
-    // Thursday, which is what the row's own Start column would print.
-    drawTouchingPlan('2026-08-10');
+    drawTouchingPlan();
 
-    // Proof: the `<title>` child deleted from the caret. This test alone failed,
-    // `1 failed | 30 passed`, on `expected undefined to be 'No earlier
-    // than 2026-08-13'` — a mark
-    // that says where and never what. Watched 2026-08-09.
+    // The **date**, worked out from the workday the row was held at and never
+    // from where the caret stands: the caret is at calendar day 10 and the day
+    // it names is Thursday 2026-08-20, which is workday 8. A sentence read off
+    // the coordinate would name 2026-08-24.
+    //
+    // Proof: the `<title>` child emptied on the caret. This test alone failed,
+    // on `expected '' to be 'No earlier than 2026-08-20'` — a mark that says
+    // where and never what. Watched 2026-08-09.
     expect(document.querySelector('[data-gantt-not-before="2"] title')?.textContent).toBe(
-      'No earlier than 2026-08-13',
+      'No earlier than 2026-08-20',
     );
   });
 
@@ -808,17 +1014,20 @@ describe('the canvas holds every mark it draws', () => {
   /**
    * A plan whose one arrow runs off **both** ends of the schedule.
    *
-   * `sand` is unestimated, so it sits at workday 0 with no width, and the
-   * dependency from `strip` — which finishes at 3, the horizon — has to come
-   * back to it: the route leaves past 3 and arrives from left of 0. The
-   * commonest shape there is, since an unestimated row is where every plan
-   * starts.
+   * `sand` is unestimated, so it sits at workday 0 and the dependency from
+   * `strip` — which finishes at the horizon — has to come back to it: the route
+   * leaves past the last day and arrives from left of the first. The commonest
+   * shape there is, since an unestimated row is where every plan starts.
+   *
+   * `strip` runs 0 → 6, so the schedule crosses a weekend and the canvas is
+   * eight calendar days rather than six workdays: a fixture inside one week
+   * would hold whether the canvas were the calendar's or the engine's.
    */
   const routeOffBothEnds = (): GanttPlan =>
     planOf({
-      rows: [rowAt('strip', 0, 3), rowAt('sand', 0, 0, { notBeforeOffset: 3 })],
+      rows: [rowAt('strip', 0, 6), rowAt('sand', 0, 0, { notBeforeOffset: 6 })],
       slices: [
-        sliceAt('strip-dev', 'strip', 0, 3),
+        sliceAt('strip-dev', 'strip', 0, 6),
         sliceAt('sand-dev', 'sand', 0, 0, { duration: 0, estimated: false }),
       ],
       dependencies: [{ predecessorId: 'strip', successorId: 'sand' }],
@@ -850,7 +1059,7 @@ describe('the canvas holds every mark it draws', () => {
     render(
       <GanttPanel
         plan={routeOffBothEnds()}
-        startDate={null}
+        startDate={MONDAY_START}
         scheduleError={null}
         onPickRow={() => undefined}
       />,
@@ -859,35 +1068,38 @@ describe('the canvas holds every mark it draws', () => {
     const xs = everyDrawnX();
     // The fixture really does route outside the schedule, at both ends. Without
     // these two the assertions below would hold of a chart nothing ever left,
-    // which is the shape of check R5 exists to stop.
+    // which is the shape of check R5 exists to stop. Eight, because six
+    // workdays over a weekend is eight calendar days — the number the canvas
+    // has to reach past.
     expect(Math.min(...xs)).toBeLessThan(0);
-    expect(Math.max(...xs)).toBeGreaterThan(3);
+    expect(Math.max(...xs)).toBeGreaterThan(8);
 
     // Proof: the viewBox put back to `0 0 horizon rowCount` and the width to
     // `horizon * DAY_PX`. This test alone failed, on `expected
     // -0.35714285714285715 to be greater than or equal to 0` — the arrow's
-    // approach, a third of a workday left of a canvas that started at 0, which
-    // is where Chromium painted nothing at all. Watched 2026-08-09.
+    // approach, a third of a day left of a canvas that started at 0, which is
+    // where Chromium painted nothing at all. Watched 2026-08-09.
     const box = viewBoxOf(document.querySelector('[data-gantt-chart]'));
     expect(Math.min(...xs)).toBeGreaterThanOrEqual(box.minX);
     expect(Math.max(...xs)).toBeLessThanOrEqual(box.minX + box.width);
   });
 
-  itDom('leaves the bars on the engine’s numbers while the canvas grows', () => {
+  itDom('keeps the bars on the engine’s numbers while the canvas grows', () => {
     render(
       <GanttPanel
         plan={routeOffBothEnds()}
-        startDate={null}
+        startDate={MONDAY_START}
         scheduleError={null}
         onPickRow={() => undefined}
       />,
     );
 
-    // The coordinate contract binds the bars, not the canvas edges: a wider
-    // box must not move a single one of the engine's numbers (design §1).
+    // The canvas's edges are not the schedule's, and neither is the calendar:
+    // `data-finish` is the engine's sixth **workday** while the bar is drawn
+    // across eight calendar days, and a wider box moves neither.
     expect(barFor('strip-dev')?.getAttribute('x')).toBe('0');
-    expect(barFor('strip-dev')?.getAttribute('width')).toBe('3');
-    expect(barFor('strip-dev')?.getAttribute('data-finish')).toBe('3');
+    expect(barFor('strip-dev')?.getAttribute('width')).toBe('8');
+    expect(barFor('strip-dev')?.getAttribute('data-finish')).toBe('6');
   });
 });
 
@@ -915,8 +1127,8 @@ describe('the words on the bars are HTML over the chart', () => {
   itDom('puts the person’s name where the bar is, in pixels the chart’s own math gives', () => {
     render(
       <GanttPanel
-        plan={oneAssignedBar({ start: 3, finish: 7, duration: 4 })}
-        startDate={null}
+        plan={oneAssignedBar({ start: 5, finish: 9, duration: 4 })}
+        startDate={MONDAY_START}
         scheduleError={null}
         onPickRow={() => undefined}
       />,
@@ -924,18 +1136,19 @@ describe('the words on the bars are HTML over the chart', () => {
 
     const label = labelOn('strip-dev');
     // Expected from the same two constants the SVG is sized by, never a pixel
-    // number written out: a test holding `84px` would go on passing with the
-    // day narrowed to 24.
+    // number written out: a test holding `196px` would go on passing with the
+    // day narrowed to 24. Seven and not five, because the span the label sits
+    // over is the calendar's — the same conversion the rect under it made.
     //
-    // Proof: `left: bar.start * DAY_PX` replaced by `left: bar.rowIndex * DAY_PX`
-    // — a label on the right row, one row's width from the left edge. This test
-    // alone failed, on `expected '28px' to be '96px'`. Watched, 2026-08-09.
+    // Proof: `left: x * DAY_PX` replaced by `left: bar.rowIndex * DAY_PX` — a
+    // label on the right row, one row's width from the left edge. This test
+    // alone failed, on `expected '40px' to be '208px'`. Re-watched 2026-08-09.
     //
     // The band is in the number because the SVG under this span begins one band
-    // left of workday 0 (see {@link CHART_PAD_PX}); dropping it here puts every
+    // left of day 0 (see {@link CHART_PAD_PX}); dropping it here puts every
     // name 12px left of the bar it belongs to.
     expect(label?.textContent).toBe('Kat');
-    expect(label?.style.left).toBe(`${String(3 * DAY_PX + CHART_PAD_PX)}px`);
+    expect(label?.style.left).toBe(`${String(7 * DAY_PX + CHART_PAD_PX)}px`);
     expect(label?.style.width).toBe(`${String(4 * DAY_PX)}px`);
     // Second row, and the same inset the rect above it has: the words sit on
     // the bar rather than beside it.
@@ -1050,27 +1263,81 @@ describe('the words on the bars are HTML over the chart', () => {
   });
 });
 
-describe('the axis has a week in it', () => {
-  itDom('draws every fifth gridline heavier, and the rest light', () => {
+describe('the axis is a calendar', () => {
+  const eightWorkdays = (startDate: IsoDate | null) =>
     render(
       <GanttPanel
         plan={planOf({
-          rows: [rowAt('strip', 0, 7)],
-          slices: [sliceAt('strip-dev', 'strip', 0, 7)],
+          rows: [rowAt('strip', 0, 8)],
+          slices: [sliceAt('strip-dev', 'strip', 0, 8)],
         })}
-        startDate={null}
+        startDate={startDate}
         scheduleError={null}
         onPickRow={() => undefined}
       />,
     );
 
-    // Five workdays is a working week and the axis holds no weekends, so the
+  itDom('puts the weekend on the axis, greyed, with the heavy line on the Monday', () => {
+    eightWorkdays(MONDAY_START);
+
+    // Cells 5 and 6 are the Saturday and the Sunday of the plan's first week,
+    // and cell 7 is the Monday after them — which is where the week boundary
+    // is, seven cells along rather than five.
+    //
+    // Proof: the heavy line put back on `offset % WEEK_DAYS === 0` — five
+    // cells, which on a calendar is a Saturday. This test alone failed, on
+    // `expected 'stroke-border/40' to be 'stroke-border'` at cell 7, the Monday
+    // that then had no line on it. Watched 2026-08-09.
+    expect(markAttribute('[data-axis-day="5"]', 'data-axis-date')).toBe('2026-08-15');
+    expect(markAttribute('[data-axis-day="6"]', 'data-axis-date')).toBe('2026-08-16');
+    expect(markAttribute('[data-axis-day="5"]', 'data-axis-weekend')).toBe('true');
+    expect(markAttribute('[data-axis-day="6"]', 'data-axis-weekend')).toBe('true');
+    expect(markAttribute('[data-axis-day="7"]', 'data-axis-date')).toBe('2026-08-17');
+    expect(document.querySelector('[data-axis-day="7"][data-axis-weekend]')).toBeNull();
+
+    expect(markAttribute('[data-gantt-gridline="7"]', 'class')).toBe('stroke-border');
+    expect(markAttribute('[data-gantt-gridline="5"]', 'class')).toBe('stroke-border/40');
+    expect(markAttribute('[data-gantt-gridline="6"]', 'class')).toBe('stroke-border/40');
+
+    // And the weekend is a column of the chart rather than a label on the axis
+    // — the whole point of the change, drawn where a reader sees it.
+    //
+    // Proof: the weekend `<rect>` block deleted from the SVG. This test alone
+    // failed, on `expected 'nothing on the chart at [data-gantt-w…' to be
+    // '1'` — an axis that says Saturday over a chart with no Saturday on it.
+    // Watched 2026-08-09.
+    expect(markAttribute('[data-gantt-weekend="5"]', 'width')).toBe('1');
+    expect(markAttribute('[data-gantt-weekend="6"]', 'width')).toBe('1');
+    expect(document.querySelector('[data-gantt-weekend="7"]')).toBeNull();
+  });
+
+  itDom('prints the workday offsets and no weekend at all without a start date', () => {
+    eightWorkdays(null);
+
+    // The axis this change did not touch: eight workdays, eight cells, no
+    // calendar anywhere, and the heavy line every fifth one.
+    //
+    // Proof: the scale built unconditionally — `placeOnCalendar(chart,
+    // startDate)` with a null start date, so `addWorkdays` was handed one.
+    // This test alone failed, with the render itself throwing `Error: not a
+    // calendar date: null` out of `render` rather than quietly drawing an
+    // offset chart. Watched 2026-08-09.
+    expect(document.querySelectorAll('[data-axis-day]')).toHaveLength(8);
+    expect(document.querySelectorAll('[data-axis-date]')).toHaveLength(0);
+    expect(document.querySelectorAll('[data-axis-weekend]')).toHaveLength(0);
+    expect(document.querySelectorAll('[data-gantt-weekend]')).toHaveLength(0);
+    // And a slice at workday 5 is drawn at 5, not at the 7 a calendar would
+    // give it.
+    expect(barFor('strip-dev')?.getAttribute('x')).toBe('0');
+    expect(barFor('strip-dev')?.getAttribute('width')).toBe('8');
+
+    // Five workdays is a working week and this axis holds no weekends, so the
     // boundary is arithmetic rather than a calendar question.
     //
-    // Proof: the condition changed to `day.workday % 7 === 0` — a calendar
-    // week's worth of days on an axis that holds no weekends. This test alone
-    // failed, on `expected 'stroke-border/40' to be 'stroke-border'` at day 5.
-    // Watched, 2026-08-09.
+    // Proof: the condition changed to `offset % 7 === 0` — a calendar week's
+    // worth of days on an axis that holds none. This test alone failed, on
+    // `expected 'stroke-border/40' to be 'stroke-border'` at day 5. Watched,
+    // 2026-08-09.
     expect(markAttribute('[data-gantt-gridline="0"]', 'class')).toBe('stroke-border');
     expect(markAttribute('[data-gantt-gridline="5"]', 'class')).toBe('stroke-border');
     expect(markAttribute('[data-gantt-gridline="4"]', 'class')).toBe('stroke-border/40');
@@ -1081,14 +1348,14 @@ describe('the axis has a week in it', () => {
     render(
       <GanttPanel
         plan={planOf({
-          rows: [rowAt('strip', 0, 3), rowAt('sand', 0, 3), rowAt('trim', 0, 3)],
+          rows: [rowAt('strip', 0, 6), rowAt('sand', 0, 6), rowAt('trim', 0, 6)],
           slices: [
-            sliceAt('strip-dev', 'strip', 0, 3),
-            sliceAt('sand-dev', 'sand', 0, 3),
-            sliceAt('trim-dev', 'trim', 0, 3),
+            sliceAt('strip-dev', 'strip', 0, 6),
+            sliceAt('sand-dev', 'sand', 0, 6),
+            sliceAt('trim-dev', 'trim', 0, 6),
           ],
         })}
-        startDate={null}
+        startDate={MONDAY_START}
         scheduleError={null}
         onPickRow={() => undefined}
       />,
@@ -1105,6 +1372,9 @@ describe('the axis has a week in it', () => {
       ),
     ).toEqual(['1']);
     expect(markAttribute('[data-gantt-band="1"]', 'height')).toBe('1');
+    // And a band reaches the whole calendar width rather than the six workdays
+    // the engine counted, so the row it marks is readable to the last cell.
+    expect(markAttribute('[data-gantt-band="1"]', 'width')).toBe('8');
   });
 });
 
@@ -1351,9 +1621,18 @@ async function showTheChart(startDate: string | null = MONDAY, skew: ReadSkew = 
 const labelsOnTheChart = (): string[] =>
   [...document.querySelectorAll('[data-gantt-label]')].map((label) => label.textContent);
 
-/** The calendar date the axis puts on one workday, or null where it prints none. */
+/**
+ * The calendar date the axis puts on one **workday**, or null where it prints
+ * none.
+ *
+ * By `data-axis-workday` and not `data-axis-day`: a cell's own attribute is
+ * where it stands on the calendar, and the workday it is, is the second thing
+ * it carries. A bar's `data-start` is a workday, so this is the lookup that
+ * joins the two — and a weekend cell answers for nobody, which is the point.
+ */
 const axisDateOn = (workday: string): string | null =>
-  document.querySelector(`[data-axis-day="${workday}"]`)?.getAttribute('data-axis-date') ?? null;
+  document.querySelector(`[data-axis-workday="${workday}"]`)?.getAttribute('data-axis-date') ??
+  null;
 
 /** The bar drawn for one work item's only slice. */
 function barOn(workItemId: string): Element {
@@ -1494,7 +1773,7 @@ describe('the chart mirrors the plan', () => {
  * is the test that says they cannot disagree — string for string, be-01's
  * printed dates against the panel's own.
  */
-describe('the workday axis agrees with the columns', () => {
+describe('the calendar axis agrees with the columns', () => {
   itDom('reads the same dates under a bar as the row’s Start and End cells', async () => {
     await showTheChart();
 
@@ -1513,6 +1792,22 @@ describe('the workday axis agrees with the columns', () => {
     // The same two days in the sentence the bar shows on hover, which is where
     // a reader meets the rule rather than in an attribute.
     expect(bar.querySelector('title')?.textContent).toContain('2026-08-13 → 2026-08-14');
+    // And it names neither of the two days a coordinate would give it. This
+    // bar runs 3 → 5 and its right edge stops at calendar day 5 — Saturday
+    // 2026-08-15, which nobody worked — while `addWorkdays(start, 5)` is
+    // Monday 2026-08-17, the day its successor begins.
+    //
+    // Proof, **two faults, two runs**, each failing this test alone on
+    // `expected '012 - Sealing\nDev · Unassigned\n2026…' to contain
+    // '2026-08-13 → 2026-08-14'` — vitest abbreviates the title, and the two
+    // sentences it abbreviates are different. Watched 2026-08-09:
+    //   `spanWords`' finish fed `addWorkdays(start, endOf(5))`, which names
+    //     Monday 2026-08-17 — the day the successor begins;
+    //   `spanWords`' finish fed `addCalendarDays(start, endOf(5))`, which names
+    //     Saturday 2026-08-15 — the day the bar's right edge stands on and
+    //     nobody worked.
+    expect(bar.querySelector('title')?.textContent).not.toContain('2026-08-17');
+    expect(bar.querySelector('title')?.textContent).not.toContain('2026-08-15');
     // And the fixture's own claim about what be-01 printed, so a panel and a
     // table that agreed on the wrong dates would still be caught.
     expect(columnDay('start', 2)).toBe('2026-08-13');
@@ -1522,21 +1817,28 @@ describe('the workday axis agrees with the columns', () => {
     expect(columnText('start', 2)).toBe('13 Aug');
   });
 
-  itDom('holds a not-before flag at the workday its date is, not its calendar day', async () => {
+  itDom('holds a not-before flag at the calendar day its workday is', async () => {
     await showTheChart();
 
     // `Rigging` is the fourth row of the chart, and its stored date is
     // 2026-08-17: five workdays after the Monday the plan starts, and seven
-    // calendar days. The flag is what the chart says about that date, and the
-    // two numbers are far enough apart that only one of them can be right.
+    // calendar days. The chart is a calendar, so the flag stands at 7 — and it
+    // stands **under the axis cell for that very date**, which is the assertion
+    // that says the two agree rather than two numbers written out twice.
     //
-    // Proof: `notBeforeOffsetOf` counting calendar days —
-    // `(Date.parse(notBefore) - Date.parse(startDate)) / 86_400_000` — instead
-    // of calling `workdaysBetween`. Failed on `expected 'M 7 3.18 L 7.35 3.18
-    // L 7 3.5 Z' to match /^M 5 /`: a flag two days past the Friday the row
-    // actually cannot start before, on an axis stretched to hold it. Watched,
-    // 2026-08-09.
-    expect(markAttribute('[data-gantt-not-before="3"]', 'd')).toMatch(/^M 5 /);
+    // The title of this test was once the opposite of the contract. On the
+    // workday axis the flag stood at 5 and `notBeforeOffsetOf` counting
+    // calendar days was the fault it guarded against; that guard is now the
+    // second assertion below, which reads the date back off the workday the
+    // offset is.
+    expect(markAttribute('[data-gantt-not-before="3"]', 'd')).toMatch(/^M 7 /);
+    expect(markAttribute('[data-axis-day="7"]', 'data-axis-date')).toBe('2026-08-17');
+    // And the caret says the day that was typed, which is the offset's date and
+    // never its coordinate's: calendar day 7 is 2026-08-17 here only because
+    // the offset is 5, and `addWorkdays(start, 7)` would be 2026-08-19.
+    expect(document.querySelector('[data-gantt-not-before="3"] title')?.textContent).toBe(
+      'No earlier than 2026-08-17',
+    );
   });
 
   itDom('prints workday offsets, and no dates at all, on a plan with no start date', async () => {
@@ -1708,12 +2010,15 @@ describe('the caption follows the scroll', () => {
     augustIntoSeptember();
     const panel = document.querySelector('[data-gantt-panel]');
     if (!(panel instanceof HTMLElement)) throw new Error('the panel is not on the page');
-    // Workday 6 of a 2026-08-24 start is 2026-09-01; its cell begins at
-    // 6 × DAY_PX past the pad, so anything past that names September.
+    // The axis is a calendar now, so the cell that names September is the
+    // eighth: 2026-08-24 plus eight calendar days is 2026-09-01, where plus
+    // eight **workdays** would be 2026-09-03. Its cell begins at 8 × DAY_PX
+    // past the pad, so anything past that names September.
+    //
     // Proof: the caption pinned back to `axis[0]` — this test failed on
-    // `expected '2026-08' to be... (getByText('2026-09') found nothing)` while
-    // the opening test above stayed green. Watched, 2026-08-09.
-    panel.scrollLeft = 6 * DAY_PX + CHART_PAD_PX;
+    // `Unable to find an element with the text: 2026-09` while the opening
+    // test above stayed green. Watched, 2026-08-09.
+    panel.scrollLeft = 8 * DAY_PX + CHART_PAD_PX;
     fireEvent.scroll(panel);
     expect(screen.getByText('2026-09')).toBeDefined();
     expect(screen.queryByText('2026-08')).toBeNull();

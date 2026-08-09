@@ -1,14 +1,22 @@
-import { addWorkdays, type IsoDate } from '@wbs/domain/workday';
+import {
+  addCalendarDays,
+  addWorkdays,
+  isMonday,
+  type IsoDate,
+  isWeekend,
+} from '@wbs/domain/workday';
 import { useState } from 'react';
 
 import {
   ASSUMED_UNESTIMATED_WORKDAYS,
   type GanttBar,
-  type GanttDependencyArrow,
   type GanttPlan,
   type GanttRowLabel,
   inkOn,
   layOutGantt,
+  type PlacedArrow,
+  placeOnCalendar,
+  placeOnWorkdays,
 } from './gantt-geometry';
 import { indentFor } from './table-frame';
 
@@ -52,12 +60,16 @@ const BAR_HEIGHT = 1 - 2 * BAR_INSET;
 const ROW_MIDDLE = 0.5;
 
 /**
- * How many workdays a working week is on this axis.
+ * How many workdays a working week is on the **workday** axis.
  *
- * Five, and the axis holds no weekends, so every fifth line **is** a week
+ * Five, and that axis holds no weekends, so every fifth line **is** a week
  * boundary — the rhythm a reader counts by without anything being written down.
- * It is not a `Date` question: on a weekend-free axis, workday 5 is the Monday
- * whatever the project started on.
+ * It is not a `Date` question there: on a weekend-free axis, workday 5 is the
+ * Monday whatever the project started on.
+ *
+ * It belongs to the no-start-date axis alone. On a calendar a week is **seven**
+ * cells, every fifth one is a Saturday, and the week boundary is a Monday —
+ * see {@link calendarAxis}.
  */
 const WEEK_DAYS = 5;
 
@@ -189,14 +201,14 @@ export const CHART_PAD_PX = Math.max(ARROW_APPROACH_PX, NOT_BEFORE_LENGTH_PX) + 
  * Either way the last run is horizontal and arrives at the successor's start,
  * so the head always points right and never has to be rotated.
  */
-function arrowRoute(arrow: GanttDependencyArrow): { elbow: string; head: string } {
+function arrowRoute(arrow: PlacedArrow): { elbow: string; head: string } {
   const at = (x: number, y: number): string => `${String(x)} ${String(y)}`;
   const approach = ARROW_APPROACH_PX / DAY_PX;
   const fromY = arrow.fromRowIndex + ROW_MIDDLE;
   const toY = arrow.toRowIndex + ROW_MIDDLE;
   // Where the line turns down onto the successor's row: one approach clear of
   // its left edge, so the head has a straight run to sit on.
-  const turn = arrow.toStart - approach;
+  const turn = arrow.toX - approach;
   // Which band a jogging arrow crosses in: the clear inset at the far side of
   // the **predecessor's** row, on the side the successor is on. Not the inset
   // above the successor's own bar, which is where a not-before caret stands —
@@ -208,29 +220,29 @@ function arrowRoute(arrow: GanttDependencyArrow): { elbow: string; head: string 
       ? arrow.fromRowIndex + 1 - BAR_INSET / 2
       : arrow.fromRowIndex + BAR_INSET / 2;
   const elbow =
-    arrow.toStart - arrow.fromFinish >= 2 * approach
+    arrow.toX - arrow.fromX >= 2 * approach
       ? [
-          `M ${at(arrow.fromFinish, fromY)}`,
+          `M ${at(arrow.fromX, fromY)}`,
           `L ${at(turn, fromY)}`,
           `L ${at(turn, toY)}`,
-          `L ${at(arrow.toStart, toY)}`,
+          `L ${at(arrow.toX, toY)}`,
         ]
       : [
-          `M ${at(arrow.fromFinish, fromY)}`,
-          `L ${at(arrow.fromFinish + approach, fromY)}`,
-          `L ${at(arrow.fromFinish + approach, crossing)}`,
+          `M ${at(arrow.fromX, fromY)}`,
+          `L ${at(arrow.fromX + approach, fromY)}`,
+          `L ${at(arrow.fromX + approach, crossing)}`,
           `L ${at(turn, crossing)}`,
           `L ${at(turn, toY)}`,
-          `L ${at(arrow.toStart, toY)}`,
+          `L ${at(arrow.toX, toY)}`,
         ];
   const headX = ARROW_HEAD_PX / DAY_PX;
   const headY = ARROW_HEAD_HALF_PX / ROW_PX;
   return {
     elbow: elbow.join(' '),
     head:
-      `M ${at(arrow.toStart, toY)} ` +
-      `L ${at(arrow.toStart - headX, toY - headY)} ` +
-      `L ${at(arrow.toStart - headX, toY + headY)} Z`,
+      `M ${at(arrow.toX, toY)} ` +
+      `L ${at(arrow.toX - headX, toY - headY)} ` +
+      `L ${at(arrow.toX - headX, toY + headY)} Z`,
   };
 }
 
@@ -345,44 +357,91 @@ export function assumedLabelFor(personName: string | null, drawnSpan: number): s
 }
 
 /**
- * What one workday of the axis prints, and the date it stands for.
+ * One cell of the axis: where it stands, what it prints, and what it is.
  *
- * Two answers rather than one, because the plan may not be on a calendar at
- * all: `date` is null then, and the axis prints the workday offset — the same
- * fallback the Start and End columns make (`spanOf` in `wbs-table.tsx`), so the
- * two cannot say different things about the same plan.
+ * `offset` is the cell's own place in the chart's user space — one unit per
+ * cell, so cell `k` stands at `x = k` and the axis and the canvas under it
+ * cannot drift. `date` and `workday` are the two things a cell may or may not
+ * have: a plan with no start date has no dates at all, and a weekend cell of a
+ * calendar has no workday number.
  */
 interface AxisDay {
-  workday: number;
+  offset: number;
+  /** The workday this cell is, or null on a weekend and on a plan with no calendar. */
+  workday: number | null;
   date: IsoDate | null;
   shown: string;
+  weekend: boolean;
+  /** Whether the heavy gridline falls here — a Monday, or every fifth workday off a calendar. */
+  heavy: boolean;
 }
 
 /**
- * The workday axis: one entry per whole workday the horizon reaches.
+ * The workday axis: one cell per whole workday the horizon reaches, printing
+ * the offset itself.
  *
- * The axis holds **no weekends** — it is workdays end to end — which is what
- * makes a weekend's compression exact rather than drawn out and then hidden.
+ * What a plan with **no start date** is drawn on, and nothing else. It holds no
+ * weekend anywhere — there is no calendar to have one on — so the week boundary
+ * is {@link WEEK_DAYS} arithmetic rather than a date.
+ */
+function workdayAxis(horizon: number): AxisDay[] {
+  return Array.from({ length: Math.ceil(horizon) }, (_, workday) => ({
+    offset: workday,
+    workday,
+    date: null,
+    shown: String(workday),
+    weekend: false,
+    heavy: workday % WEEK_DAYS === 0,
+  }));
+}
+
+/**
+ * The calendar axis: one cell per calendar day from the plan's first working
+ * day, weekends among them.
  *
- * The label for workday `d` is `addWorkdays(startDate, d)`, which is the
- * function be-01 prints the Start column with. Not a copy of that rule: the
- * same module, imported directly rather than through `libs/domain`'s index,
+ * Cell `k` is `origin + k` calendar days and stands at user-space `x = k`,
+ * which is the same reading {@link placeOnCalendar} gives every mark under it —
+ * the two cannot drift because they are one scale. The weekend cells are the
+ * point of the whole change: a bar that used to cross a Saturday of no width
+ * now stops at one two cells wide.
+ *
+ * The origin is `addWorkdays(startDate, 0)`, the same normalisation the Start
+ * column and {@link calendarScale} make, so a project beginning on a weekend
+ * begins on the Monday. The dates come from the module be-01 prints the Start
+ * column with, imported directly rather than through `libs/domain`'s index,
  * which re-exports arktype-touching validators this bundle excludes
  * (`wbs-api.ts:1-9`).
+ *
+ * The heavy line falls on a **Monday** and not on every fifth cell: a calendar
+ * week is seven cells wide and its fifth is a Saturday.
  *
  * @throws Whatever `addWorkdays` throws when `startDate` is not a calendar
  * date. be-01 validated it at its boundary; a string that reaches here and is
  * not one is malformed trusted data, and the panel lets it reach the error
  * boundary rather than drawing an axis of `Invalid Date`.
  */
-function workdayAxis(startDate: IsoDate | null, horizon: number): AxisDay[] {
-  return Array.from({ length: Math.ceil(horizon) }, (_, workday) => {
-    if (startDate === null) return { workday, date: null, shown: String(workday) };
-    const date = addWorkdays(startDate, workday);
-    // The day of the month alone: 28px is not a date. The whole date is on the
-    // cell — in `data-axis-date` and in the `title` — and the corner above the
-    // labels says which month these numbers are days of.
-    return { workday, date, shown: date.slice(8) };
+function calendarAxis(startDate: IsoDate, horizon: number): AxisDay[] {
+  const origin = addWorkdays(startDate, 0);
+  // Counted as the days are walked rather than asked for per cell: the workday
+  // a calendar day is, is how many working days have gone before it, and the
+  // walk already knows. The origin is a workday by construction, so the first
+  // cell takes 0.
+  let workday = -1;
+  return Array.from({ length: Math.ceil(horizon) }, (_, offset) => {
+    const date = addCalendarDays(origin, offset);
+    const weekend = isWeekend(date);
+    if (!weekend) workday += 1;
+    return {
+      offset,
+      workday: weekend ? null : workday,
+      date,
+      weekend,
+      heavy: isMonday(date),
+      // The day of the month alone: 28px is not a date. The whole date is on
+      // the cell — in `data-axis-date` and in the `title` — and the corner
+      // above the labels says which month these numbers are days of.
+      shown: date.slice(8),
+    };
   });
 }
 
@@ -502,15 +561,25 @@ function notBeforeWords(startDate: IsoDate | null, offset: number): string {
 /**
  * The Gantt panel: the placed schedule drawn, in the units it was placed in.
  *
- * **One SVG whose user space is the schedule.** `viewBox="0 0 horizon
- * rowCount"` with `preserveAspectRatio="none"`, so x is one workday and y is
- * one row and a bar is `<rect x={bar.start} width={bar.drawnSpan}>` — the
- * engine's numbers, unconverted, and carried again verbatim in
- * `data-start`/`data-finish`. Nothing in here multiplies by {@link DAY_PX}.
- * The one number that is not the engine's is an unestimated slice's drawn
- * width; it is marked as a guess in the paint and in the words, and
- * `data-start`/`data-finish` are unaffected. See
+ * **One SVG whose user space is the schedule, one day per unit.** With a start
+ * date that unit is a **calendar** day and every horizontal coordinate on the
+ * chart — the axis included — comes from {@link placeOnCalendar}; without one
+ * it is a workday and the engine's numbers stand as they are
+ * ({@link placeOnWorkdays}). Nothing in here reads a workday number as a
+ * position, and nothing multiplies by {@link DAY_PX} except the two arrangements
+ * of HTML around the SVG. A bar's `data-start`/`data-finish` stay the engine's
+ * workday numbers whatever the unit is: the test hook is engine-true, the
+ * drawing is the scale's, and the difference between them is what says the
+ * conversion happened.
+ *
+ * The one width that is not the engine's is an unestimated slice's; it is
+ * marked as a guess in the paint and in the words. See
  * {@link ASSUMED_UNESTIMATED_WORKDAYS}.
+ *
+ * **The words are not marks.** The dates a bar and a caret say are
+ * `addWorkdays`/{@link lastWorkdayOf} on the engine's workday numbers and are
+ * never read off a coordinate — a bar that stops at calendar day 5 stops at a
+ * Saturday nobody worked, while the fifth working day is the Monday after it.
  *
  * The cost of that non-uniform scale is that glyphs and stroke widths would be
  * stretched with it, so **the SVG holds geometry and nothing else**: every word
@@ -568,28 +637,43 @@ export function GanttPanel({
   // At least one row of user space, so an empty plan still has a viewBox with a
   // height rather than one the browser divides by.
   const rowCount = Math.max(1, chart.labels.length);
-  const axis = workdayAxis(startDate, chart.horizon);
-  // The band outside the schedule, in the user space's own unit: a workday is
+  /**
+   * The chart resolved into the unit it is drawn in, and the axis over it.
+   *
+   * The two are one decision made once: with a start date every mark is a
+   * calendar-day offset and the axis is a calendar; without one the engine's
+   * workday numbers stand as they are, no scale is built and nothing is asked
+   * for a date. That is a state this panel is in, not a path it falls through.
+   */
+  const placed = startDate === null ? placeOnWorkdays(chart) : placeOnCalendar(chart, startDate);
+  const axis =
+    startDate === null ? workdayAxis(placed.horizon) : calendarAxis(startDate, placed.horizon);
+  // How many cells the axis holds — every whole day of the schedule. Read off
+  // the axis rather than rounded again here, and deliberately **not** what the
+  // canvas below is sized from: the two are computed apart so that a test can
+  // ask whether they agree. An axis built from a horizon the canvas is not on
+  // is two cells short of the chart under it and every label drifts right.
+  const days = axis.length;
+  // The band outside the schedule, in the user space's own unit: a day is
   // {@link DAY_PX} across, so this is what {@link CHART_PAD_PX} is worth in
-  // workdays. See there for why the canvas is wider than the horizon.
+  // them. See there for why the canvas is wider than the horizon.
   const pad = CHART_PAD_PX / DAY_PX;
-  const chartWidth = axis.length * DAY_PX + 2 * CHART_PAD_PX;
+  const chartWidth = days * DAY_PX + 2 * CHART_PAD_PX;
   const rowIdAt = (rowIndex: number): string | undefined => chart.labels[rowIndex]?.id;
   /**
-   * The first workday whose cell is at least partly visible right of the
-   * sticky labels. The labels overlay the scroll content's left edge, so the
-   * first chart pixel on screen sits `scrolledPx` past the pad in the chart's
-   * own coordinates. Clamped so an overscroll or an empty axis still names a
-   * real day.
+   * The first cell at least partly visible right of the sticky labels. The
+   * labels overlay the scroll content's left edge, so the first chart pixel on
+   * screen sits `scrolledPx` past the pad in the chart's own coordinates.
+   * Clamped so an overscroll or an empty axis still names a real day.
    *
    * Proof: the caption pinned back to `axis[0]` — `names the month that is on
    * screen, not the one it started in` failed on `Unable to find an element
    * with the text: 2026-09` while the opening-month test beside it stayed
    * green. Watched, 2026-08-09.
    */
-  const firstVisibleWorkday = Math.min(
+  const firstVisibleCell = Math.min(
     Math.max(0, Math.floor((scrolledPx - CHART_PAD_PX) / DAY_PX)),
-    Math.max(0, axis.length - 1),
+    Math.max(0, days - 1),
   );
 
   return (
@@ -623,7 +707,7 @@ export function GanttPanel({
           >
             {startDate === null
               ? 'Workday'
-              : (axis[firstVisibleWorkday]?.date?.slice(0, 7) ?? 'Workday')}
+              : (axis[firstVisibleCell]?.date?.slice(0, 7) ?? 'Workday')}
           </div>
           {chart.labels.map((label: GanttRowLabel) => (
             <button
@@ -673,17 +757,27 @@ export function GanttPanel({
           >
             {axis.map((day) => (
               <span
-                key={day.workday}
-                data-axis-day={day.workday}
+                key={day.offset}
+                // Where the cell stands, which is the same number every mark
+                // under it is placed at. The workday it **is** rides beside it
+                // — a weekend cell is nobody's workday, and a bar's
+                // `data-start` is a workday, so the two attributes are how a
+                // test says the conversion happened.
+                data-axis-day={day.offset}
                 {...(day.date === null ? {} : { 'data-axis-date': day.date })}
-                title={day.date ?? `Workday ${String(day.workday)}`}
-                // The first day of each working week reads as the heading it is,
-                // over the heavier gridline under it.
-                className={
-                  day.workday % WEEK_DAYS === 0
-                    ? 'text-foreground shrink-0 text-center text-[10px] leading-7 font-semibold'
-                    : 'text-muted-foreground shrink-0 text-center text-[10px] leading-7'
-                }
+                {...(day.workday === null ? {} : { 'data-axis-workday': day.workday })}
+                {...(day.weekend ? { 'data-axis-weekend': 'true' } : {})}
+                title={day.date ?? `Workday ${String(day.workday ?? day.offset)}`}
+                // The first day of each week reads as the heading it is, over
+                // the heavier gridline under it; a weekend cell is greyed back,
+                // like the column beneath it.
+                className={[
+                  'shrink-0 text-center text-[10px] leading-7',
+                  day.heavy ? 'text-foreground font-semibold' : 'text-muted-foreground',
+                  day.weekend ? 'bg-muted-foreground/10' : '',
+                ]
+                  .filter((part) => part !== '')
+                  .join(' ')}
                 style={{ width: DAY_PX }}
               >
                 {day.shown}
@@ -699,19 +793,43 @@ export function GanttPanel({
           <div className="relative">
             <svg
               data-gantt-chart
-              // The contract, in three attributes: the user space is workdays by
+              // The contract, in three attributes: the user space is days by
               // rows, and the CSS size is the only place either becomes a pixel.
-              viewBox={`${String(-pad)} 0 ${String(chart.horizon + 2 * pad)} ${String(rowCount)}`}
+              // The schedule band is the **horizon** the marks were placed
+              // against, so one user unit is exactly {@link DAY_PX} however
+              // fractional the last day is.
+              viewBox={`${String(-pad)} 0 ${String(placed.horizon + 2 * pad)} ${String(rowCount)}`}
               preserveAspectRatio="none"
-              width={chart.horizon * DAY_PX + 2 * CHART_PAD_PX}
+              width={placed.horizon * DAY_PX + 2 * CHART_PAD_PX}
               height={rowCount * ROW_PX}
               style={{ display: 'block' }}
             >
               {/*
+                The weekends, as columns. Drawn first and so **under** the row
+                bands and every mark: this is the change's whole point on
+                screen, and it is a column of the chart rather than a seam
+                between two days. A plan with no start date has none — there is
+                no calendar to have a Saturday on.
+              */}
+              {axis
+                .filter((day) => day.weekend)
+                .map((day) => (
+                  <rect
+                    key={`${String(day.offset)}-weekend`}
+                    data-gantt-weekend={day.offset}
+                    x={day.offset}
+                    y={0}
+                    width={1}
+                    height={rowCount}
+                    className="fill-muted-foreground/10"
+                  />
+                ))}
+
+              {/*
                 A band behind every other row, so an eye tracking one row across
-                a chart wider than the window does not land a row out. Drawn
-                first and under everything, in the user space's own units — a
-                row is 1.
+                a chart wider than the window does not land a row out. Over the
+                weekend columns and under everything else, in the user space's
+                own units — a row is 1.
               */}
               {chart.labels
                 .filter((label) => label.rowIndex % 2 === 1)
@@ -721,7 +839,7 @@ export function GanttPanel({
                     data-gantt-band={label.rowIndex}
                     x={0}
                     y={label.rowIndex}
-                    width={chart.horizon}
+                    width={days}
                     height={1}
                     className="fill-muted/40"
                   />
@@ -729,16 +847,16 @@ export function GanttPanel({
 
               {axis.map((day) => (
                 <line
-                  key={day.workday}
-                  x1={day.workday}
+                  key={day.offset}
+                  x1={day.offset}
                   y1={0}
-                  x2={day.workday}
+                  x2={day.offset}
                   y2={rowCount}
-                  data-gantt-gridline={day.workday}
-                  // Every fifth line heavier: five workdays is a working week,
-                  // and the axis holds nothing else — there are no weekends here
-                  // to count from. See {@link WEEK_DAYS}.
-                  className={day.workday % WEEK_DAYS === 0 ? 'stroke-border' : 'stroke-border/40'}
+                  data-gantt-gridline={day.offset}
+                  // The week boundary heavier: a Monday on a calendar, and every
+                  // fifth workday on an axis that holds no weekends to count
+                  // from. See {@link WEEK_DAYS} and {@link calendarAxis}.
+                  className={day.heavy ? 'stroke-border' : 'stroke-border/40'}
                   vectorEffect="non-scaling-stroke"
                 />
               ))}
@@ -753,15 +871,15 @@ export function GanttPanel({
                 is one of the two marks on the chart that says something no bar
                 says.
               */}
-              {chart.brackets.map((bracket) => (
+              {placed.brackets.map((bracket) => (
                 <path
                   key={bracket.rowId}
                   data-gantt-bracket={bracket.rowId}
                   d={
-                    `M ${String(bracket.start)} ${String(bracket.rowIndex + ROW_MIDDLE)} ` +
-                    `L ${String(bracket.start)} ${String(bracket.rowIndex + BAR_INSET)} ` +
-                    `L ${String(bracket.finish)} ${String(bracket.rowIndex + BAR_INSET)} ` +
-                    `L ${String(bracket.finish)} ${String(bracket.rowIndex + ROW_MIDDLE)}`
+                    `M ${String(bracket.from)} ${String(bracket.rowIndex + ROW_MIDDLE)} ` +
+                    `L ${String(bracket.from)} ${String(bracket.rowIndex + BAR_INSET)} ` +
+                    `L ${String(bracket.to)} ${String(bracket.rowIndex + BAR_INSET)} ` +
+                    `L ${String(bracket.to)} ${String(bracket.rowIndex + ROW_MIDDLE)}`
                   }
                   className="stroke-foreground fill-none [stroke-width:2]"
                   vectorEffect="non-scaling-stroke"
@@ -774,7 +892,7 @@ export function GanttPanel({
                 See {@link arrowRoute} — the head is a path rather than a
                 `<marker>`, and the route jogs when the two bars touch.
               */}
-              {chart.arrows.map((arrow) => {
+              {placed.arrows.map((arrow) => {
                 const route = arrowRoute(arrow);
                 const id = `${arrow.predecessorId}->${arrow.successorId}`;
                 return (
@@ -798,13 +916,13 @@ export function GanttPanel({
               Drawn unlike a dependency, because it is not one: nobody wrote this
               down. It is where one person's queue put a slice behind another.
             */}
-              {chart.personLinks.map((link) => (
+              {placed.personLinks.map((link) => (
                 <path
                   key={`${link.fromSliceId}->${link.toSliceId}`}
                   data-gantt-person-link={`${link.fromSliceId}->${link.toSliceId}`}
                   d={
-                    `M ${String(link.fromFinish)} ${String(link.fromRowIndex + ROW_MIDDLE)} ` +
-                    `L ${String(link.toStart)} ${String(link.toRowIndex + ROW_MIDDLE)}`
+                    `M ${String(link.fromX)} ${String(link.fromRowIndex + ROW_MIDDLE)} ` +
+                    `L ${String(link.toX)} ${String(link.toRowIndex + ROW_MIDDLE)}`
                   }
                   // The person's own colour, so the line and the two bars it
                   // joins read as one queue rather than as a third kind of edge.
@@ -821,31 +939,39 @@ export function GanttPanel({
                 {@link NOT_BEFORE_LENGTH_PX}. The `<title>` names the date,
                 which is the one thing the mark's position cannot say.
               */}
-              {chart.notBeforeFlags.map((flag) => (
+              {placed.notBeforeFlags.map((flag) => (
                 <path
-                  key={`${String(flag.rowIndex)}@${String(flag.offset)}`}
+                  key={`${String(flag.rowIndex)}@${String(flag.workday)}`}
                   data-gantt-not-before={flag.rowIndex}
                   d={
-                    `M ${String(flag.offset)} ${String(flag.rowIndex + NOT_BEFORE_CLEARANCE)} ` +
-                    `L ${String(flag.offset + NOT_BEFORE_LENGTH_PX / DAY_PX)} ` +
+                    `M ${String(flag.x)} ${String(flag.rowIndex + NOT_BEFORE_CLEARANCE)} ` +
+                    `L ${String(flag.x + NOT_BEFORE_LENGTH_PX / DAY_PX)} ` +
                     `${String(flag.rowIndex + BAR_INSET / 2)} ` +
-                    `L ${String(flag.offset)} ` +
+                    `L ${String(flag.x)} ` +
                     `${String(flag.rowIndex + BAR_INSET - NOT_BEFORE_CLEARANCE)} Z`
                   }
                   className="fill-foreground"
                 >
-                  <title>{notBeforeWords(startDate, flag.offset)}</title>
+                  {/*
+                    The **workday**, not the coordinate: the caret stands where
+                    the calendar puts it and says the date the row was held at,
+                    and `x` is a position on a canvas rather than an index into
+                    the working days.
+                  */}
+                  <title>{notBeforeWords(startDate, flag.workday)}</title>
                 </path>
               ))}
 
-              {chart.bars.map((bar) => (
+              {placed.bars.map(({ bar, x, width }) => (
                 <rect
                   key={bar.sliceId}
                   data-gantt-bar={bar.sliceId}
-                  // The engine's own numbers, said twice: once as geometry the
-                  // browser draws and once as an attribute a test reads, so a
-                  // conversion creeping in between them has somewhere to be
-                  // caught (codex #15).
+                  // The engine's own **workday** numbers, and the geometry
+                  // beside them is the calendar's: the two are allowed to
+                  // disagree, and the difference between them is exactly what a
+                  // test reads to say the conversion happened. A bar at workday
+                  // 5 on a Monday-start plan carries `data-start="5"` and stands
+                  // at `x="7"`.
                   data-start={bar.start}
                   data-finish={bar.finish}
                   // The last workday this bar is still on, which is the axis cell
@@ -861,13 +987,14 @@ export function GanttPanel({
                   // browser gate selects on, and it has to tell a drawn span
                   // from a measured one before it measures anything.
                   {...(bar.estimated ? {} : { 'data-assumed': 'true' })}
-                  x={bar.start}
-                  // The drawn span, which is the duration for every estimated
-                  // slice and {@link ASSUMED_UNESTIMATED_WORKDAYS} for one
-                  // nobody has estimated. `data-start`/`data-finish` above are
-                  // still the engine's own numbers, and that difference is the
-                  // whole of the assumption.
-                  width={bar.drawnSpan}
+                  x={x}
+                  // The **drawn** span in calendar days — the end reading of
+                  // the drawn finish less the start reading of the start, so a
+                  // bar working through a weekend is drawn across it and one
+                  // stopping on the Friday stops at the Saturday. Never a span
+                  // from the engine's `finish`: an unestimated slice finishes
+                  // where it starts, and that width is no bar at all.
+                  width={width}
                   y={bar.rowIndex + BAR_INSET}
                   height={BAR_HEIGHT}
                   rx={BAR_RADIUS_PX / DAY_PX}
@@ -907,14 +1034,14 @@ export function GanttPanel({
               actually given (`expectedDays({0,0,0})` is 0, and
               `libs/domain/src/estimate.test.ts` says so).
             */}
-              {chart.bars
-                .filter((bar) => bar.drawnSpan === 0)
-                .map((bar) => (
+              {placed.bars
+                .filter(({ bar }) => bar.drawnSpan === 0)
+                .map(({ bar, x }) => (
                   <line
                     key={`${bar.sliceId}-tick`}
-                    x1={bar.start}
+                    x1={x}
                     y1={bar.rowIndex + BAR_INSET}
-                    x2={bar.start}
+                    x2={x}
                     y2={bar.rowIndex + BAR_INSET + BAR_HEIGHT}
                     data-gantt-tick={bar.sliceId}
                     stroke={bar.critical ? undefined : bar.personColor}
@@ -936,13 +1063,14 @@ export function GanttPanel({
               click that takes the plan to a row belongs to the rect underneath,
               and a span on top would swallow it in its middle.
             */}
-            {chart.bars.map((bar) => {
+            {placed.bars.map(({ bar, x, width }) => {
               // An unestimated bar writes the `?` its width is a guess about —
               // see {@link assumedLabelFor} — and an estimated one writes who is
-              // on it.
+              // on it. The room is the **drawn** width, weekend cells included:
+              // a bar stretched over a Saturday has those pixels to write in.
               const shown = bar.estimated
-                ? barLabelFor(bar.personName, bar.drawnSpan)
-                : assumedLabelFor(bar.personName, bar.drawnSpan);
+                ? barLabelFor(bar.personName, width)
+                : assumedLabelFor(bar.personName, width);
               if (shown === null) return null;
               return (
                 <span
@@ -965,9 +1093,9 @@ export function GanttPanel({
                     // Over the SVG, which now begins one band left of the
                     // schedule: the label's pixel is the bar's pixel only with
                     // the same band added. See {@link CHART_PAD_PX}.
-                    left: bar.start * DAY_PX + CHART_PAD_PX,
+                    left: x * DAY_PX + CHART_PAD_PX,
                     top: (bar.rowIndex + BAR_INSET) * ROW_PX,
-                    width: bar.drawnSpan * DAY_PX,
+                    width: width * DAY_PX,
                     height: BAR_HEIGHT * ROW_PX,
                     lineHeight: `${String(BAR_HEIGHT * ROW_PX)}px`,
                     paddingLeft: LABEL_PAD_PX,
