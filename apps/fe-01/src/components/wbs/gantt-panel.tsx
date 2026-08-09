@@ -299,6 +299,39 @@ const LABEL_PAD_PX = 3;
 const LABEL_CHAR_PX = 5.5;
 
 /**
+ * A calendar day's month as a person says it: `Aug 2026`, never `2026-08`.
+ *
+ * A fixed English table rather than `toLocaleDateString`: the corner caption is
+ * asserted by text in tests that run under whatever locale the machine has, and
+ * a caption that moves with the machine is a test that passes here and fails on
+ * CI. The app has no i18n anywhere else; the chart does not start one.
+ *
+ * @throws on a month no calendar has. `IsoDate` is validated where it enters,
+ * so a slice outside 01–12 here is malformed trusted data, not a state.
+ */
+export function monthWords(date: IsoDate): string {
+  const shortMonths = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ] as const;
+  const monthIndex = Number(date.slice(5, 7)) - 1;
+  if (!Number.isInteger(monthIndex) || monthIndex < 0 || monthIndex > 11) {
+    throw new Error(`${date} names a month no calendar has`);
+  }
+  return `${shortMonths[monthIndex]} ${date.slice(0, 4)}`;
+}
+
+/**
  * Somebody's initials: the first letter of their first and last names.
  *
  * What a bar too narrow for a name gets. Two letters at most, because a third
@@ -333,6 +366,31 @@ export function barLabelFor(personName: string | null, drawnSpan: number): strin
   const initials = initialsOf(personName);
   if (initials !== '' && room >= initials.length * LABEL_CHAR_PX) return initials;
   return null;
+}
+
+/**
+ * The whole of what a bar writes on itself: who, then the row's own words.
+ *
+ * `who` is the assignee reading the width already decided — a name, initials,
+ * the assumed bar's `?`-carrying candidate, or null when nobody fits or nobody
+ * is on it — and the row words follow it always, because sixty anonymous
+ * colours was the fault this label exists to remove. The string is **not**
+ * measured against the bar: the label box is the bar's width and crops with an
+ * ellipsis, so a narrow bar shows as much of the words as it has pixels for
+ * rather than none of them.
+ *
+ * The one refusal left is a bar without room for a single character, which
+ * keeps `writes nothing at all on a bar too narrow to hold a letter` true: a
+ * label box over a 5px bar is a stray outline and a swallowed click, not words.
+ *
+ * Proof: given the old appending rule — the words only when they fully fit —
+ * `4 failed | 48 passed`: `carries the row words whole even where the box must
+ * crop them` on `expected 'Kat' to be 'Kat · strip - strip'` and the three
+ * narrow-bar cases with it, every wide bar green. Watched 2026-08-09.
+ */
+export function barText(who: string | null, words: string, drawnSpan: number): string | null {
+  if (drawnSpan * DAY_PX - 2 * LABEL_PAD_PX < LABEL_CHAR_PX) return null;
+  return who === null ? words : `${who} · ${words}`;
 }
 
 /**
@@ -621,6 +679,11 @@ export function GanttPanel({
   // name the month actually on screen — before the hooks' unconditional spot,
   // because the cycle return below is a conditional one.
   const [scrolledPx, setScrolledPx] = useState(0);
+  // Whether the stored-dependency arrows are drawn. View state of this mount
+  // and nothing more — not persisted, not shared, never touching the plan. It
+  // exists because sixty elbows bury the bars they join, and the honest fix to
+  // their shape is not designed yet; hiding them is the whole feature.
+  const [arrowsShown, setArrowsShown] = useState(true);
 
   if (scheduleError === 'cycle') {
     return (
@@ -702,12 +765,40 @@ export function GanttPanel({
           style={{ width: LABEL_COLUMN_PX }}
         >
           <div
-            className="text-muted-foreground border-border bg-muted/40 flex items-center border-b px-2 text-[10px] font-semibold tracking-wide uppercase"
+            className="text-muted-foreground border-border bg-muted/40 flex items-center justify-between border-b px-2 text-[10px] font-semibold tracking-wide uppercase"
             style={{ height: ROW_PX }}
           >
-            {startDate === null
-              ? 'Workday'
-              : (axis[firstVisibleCell]?.date?.slice(0, 7) ?? 'Workday')}
+            <span>
+              {(() => {
+                if (startDate === null) return 'Workday';
+                // The nullish arm is the workday axis's cells, which a dated
+                // plan never builds — but the index above is clamped, not
+                // proven, and 'Workday' is the honest fallback either way.
+                const visibleDate = axis[firstVisibleCell]?.date ?? null;
+                return visibleDate === null ? 'Workday' : monthWords(visibleDate);
+              })()}
+            </span>
+            {/*
+              The arrows switch, in the one corner that is sticky both ways: it
+              has to stay reachable however far a 60-row chart has scrolled.
+              `aria-pressed` is the state — a toggle, not two buttons.
+            */}
+            <button
+              type="button"
+              data-gantt-arrows-toggle
+              aria-pressed={arrowsShown}
+              title={arrowsShown ? 'Hide dependency arrows' : 'Show dependency arrows'}
+              className={
+                arrowsShown
+                  ? 'border-border hover:bg-accent rounded border px-1 normal-case'
+                  : 'border-border hover:bg-accent text-muted-foreground/60 rounded border border-dashed px-1 normal-case line-through'
+              }
+              onClick={() => {
+                setArrowsShown((shown) => !shown);
+              }}
+            >
+              Arrows
+            </button>
           </div>
           {chart.labels.map((label: GanttRowLabel) => (
             <button
@@ -862,27 +953,33 @@ export function GanttPanel({
               ))}
 
               {/*
-                A summary row's span, drawn as a bracket whose legs **drop**:
-                the top line sits where a bar's top would be and the two ends
-                fall to the row's middle, which is the shape a reader already
-                reads as "everything under here". It used to be the same four
-                points the other way up — a 1px trough that read as a scratch.
-                2px non-scaling, at the foreground's full strength, because it
-                is one of the two marks on the chart that says something no bar
-                says.
+                A summary row's span, drawn as the **ghost of a bar**: the same
+                rounded shape a leaf gets, in the page's own ink at low opacity
+                and unstroked, so it reads as the projection of the rows
+                beneath it rather than as work of its own. It used to be a 2px
+                bracket with dropped legs, which read as a scratch (Dany,
+                2026-08-09). The span is still the projection be-01 computed —
+                `from`/`to` are the bracket readings `placeGantt` already
+                makes, never a sum of children — and the hook keeps the
+                bracket's name so the browser gate goes on measuring the same
+                fact.
+
+                Proof of the paint: the class made `fill-foreground` whole — a
+                parent drawn as solid ink. `draws a parent as the ghost of a
+                bar` alone failed, on `expected 'fill-foreground' to contain
+                'fill-foreground/15'`. Watched 2026-08-09.
               */}
               {placed.brackets.map((bracket) => (
-                <path
+                <rect
                   key={bracket.rowId}
                   data-gantt-bracket={bracket.rowId}
-                  d={
-                    `M ${String(bracket.from)} ${String(bracket.rowIndex + ROW_MIDDLE)} ` +
-                    `L ${String(bracket.from)} ${String(bracket.rowIndex + BAR_INSET)} ` +
-                    `L ${String(bracket.to)} ${String(bracket.rowIndex + BAR_INSET)} ` +
-                    `L ${String(bracket.to)} ${String(bracket.rowIndex + ROW_MIDDLE)}`
-                  }
-                  className="stroke-foreground fill-none [stroke-width:2]"
-                  vectorEffect="non-scaling-stroke"
+                  x={bracket.from}
+                  width={bracket.to - bracket.from}
+                  y={bracket.rowIndex + BAR_INSET}
+                  height={BAR_HEIGHT}
+                  rx={BAR_RADIUS_PX / DAY_PX}
+                  ry={BAR_RADIUS_PX / ROW_PX}
+                  className="fill-foreground/15"
                 />
               ))}
 
@@ -892,25 +989,36 @@ export function GanttPanel({
                 See {@link arrowRoute} — the head is a path rather than a
                 `<marker>`, and the route jogs when the two bars touch.
               */}
-              {placed.arrows.map((arrow) => {
-                const route = arrowRoute(arrow);
-                const id = `${arrow.predecessorId}->${arrow.successorId}`;
-                return (
-                  <g key={id}>
-                    <path
-                      data-gantt-arrow={id}
-                      d={route.elbow}
-                      className="stroke-foreground fill-none [stroke-width:1.5]"
-                      vectorEffect="non-scaling-stroke"
-                    />
-                    {/*
+              {/*
+                Behind the switch as a whole: the elbow and the head are two
+                paths of one mark, and hiding one alone leaves a floating
+                triangle pointing at nothing.
+
+                Proof: the `arrowsShown &&` moved onto the elbow alone. `hides
+                every arrow and its head, and touches nothing else` alone
+                failed, on `expected 1 to be +0` for the head count. Watched
+                2026-08-09.
+              */}
+              {arrowsShown &&
+                placed.arrows.map((arrow) => {
+                  const route = arrowRoute(arrow);
+                  const id = `${arrow.predecessorId}->${arrow.successorId}`;
+                  return (
+                    <g key={id}>
+                      <path
+                        data-gantt-arrow={id}
+                        d={route.elbow}
+                        className="stroke-foreground fill-none [stroke-width:1.5]"
+                        vectorEffect="non-scaling-stroke"
+                      />
+                      {/*
                       No `vector-effect` and no stroke: the head is filled, so
                       nothing about it is a stroke width to hold steady.
                     */}
-                    <path data-gantt-arrow-head={id} d={route.head} className="fill-foreground" />
-                  </g>
-                );
-              })}
+                      <path data-gantt-arrow-head={id} d={route.head} className="fill-foreground" />
+                    </g>
+                  );
+                })}
 
               {/*
               Drawn unlike a dependency, because it is not one: nobody wrote this
@@ -1068,9 +1176,12 @@ export function GanttPanel({
               // see {@link assumedLabelFor} — and an estimated one writes who is
               // on it. The room is the **drawn** width, weekend cells included:
               // a bar stretched over a Saturday has those pixels to write in.
-              const shown = bar.estimated
+              // The row's own words follow either answer and are cropped by
+              // the box, not the string — see {@link barText}.
+              const who = bar.estimated
                 ? barLabelFor(bar.personName, width)
                 : assumedLabelFor(bar.personName, width);
+              const shown = barText(who, rowWords(bar.workItemNumber, bar.workItemName), width);
               if (shown === null) return null;
               return (
                 <span
@@ -1079,11 +1190,11 @@ export function GanttPanel({
                   aria-hidden="true"
                   className={
                     bar.estimated
-                      ? 'pointer-events-none absolute overflow-hidden text-[10px] font-semibold text-ellipsis whitespace-nowrap'
+                      ? 'pointer-events-none absolute overflow-hidden text-[9px] font-semibold text-ellipsis whitespace-nowrap'
                       : // The page's own ink on an assumed bar: `inkOn` picks a
                         // colour to be read on a **solid** fill, and this one is
                         // 35% of that colour over whatever the page is.
-                        'text-foreground pointer-events-none absolute overflow-hidden text-[10px] font-semibold text-ellipsis whitespace-nowrap'
+                        'text-foreground pointer-events-none absolute overflow-hidden text-[9px] font-semibold text-ellipsis whitespace-nowrap'
                   }
                   style={{
                     // Dark ink on the three light entries of the palette and
