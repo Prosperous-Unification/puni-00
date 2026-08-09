@@ -189,8 +189,8 @@ async function seedPlan(
  * Four roots and two dependencies, and no indenting: `020` waits for `010` and
  * neither is estimated, so both sit at workday 0 — the successor's start is the
  * canvas's own left edge, which is where an arrow's approach goes negative.
- * `040` waits for the estimated `030`, so it starts on the horizon and its
- * arrow's outward leg is the only thing past it.
+ * `040` waits for the estimated `030`, so it starts at the far end of the
+ * schedule and its arrow's outward leg reaches past it.
  *
  * Unestimated on purpose rather than by omission: it is the state every row of
  * every plan is in for its first few minutes, so the left-edge arrow is not an
@@ -252,9 +252,9 @@ async function openTheChart(
   await page.getByRole('button', { name: 'Gantt', exact: true }).click();
   await expect(page.locator('[data-gantt-chart]')).toBeVisible();
   // A chart with nothing on it would make every measurement below vacuous. The
-  // mark is a parameter because a plan of unestimated rows draws bars of no
-  // width, and a box with no area is never `toBeVisible` — those fixtures wait
-  // for the arrow instead, which is what they are about.
+  // mark is a parameter because a fixture may be about a mark other than a bar
+  // — an arrow's route off either end of the schedule, say — and waiting on the
+  // bars would say nothing about whether that mark was drawn.
   await expect(page.locator(drawn).first()).toBeVisible();
 }
 
@@ -438,13 +438,14 @@ test.describe('the chart, after the browser has scaled it', () => {
     // arrangements sized by the same constant, asserted against each other
     // rather than against the constant.
     //
-    // Only the bars the axis has a cell for, and the exclusion is a fact this
-    // run found: a new project lists **two** roles and the fixture estimates
-    // Dev alone, so each leaf also carries a QA slice of no days — and `010.2`'s
-    // sits at workday 8, which is the horizon itself. The axis prints one cell
-    // per whole workday *inside* the horizon, so day 8 is its right edge rather
-    // than a cell, and comparing against a cell that does not exist would fail
-    // about the fixture instead of about the scale.
+    // Only the bars the axis has a cell for. The exclusion is a fact an earlier
+    // run found: a new project lists **two** roles and the fixture estimates Dev
+    // alone, so each leaf also carries an unestimated QA slice — and `010.2`'s
+    // sits at workday 8, which was then the horizon itself and so its right edge
+    // rather than a cell. An unestimated bar is drawn across the assumed span
+    // now, and the horizon reaches past it, so this fixture's bars may all be
+    // printed; the filter stays because whether the last bar starts on the last
+    // cell is a fact about the fixture and not about the scale being measured.
     const axisDays = await page.locator('[data-axis-day]').count();
     const printed = bars.filter((bar) => bar.start < axisDays);
     expect(printed, 'no bar starts on a workday the axis prints').not.toHaveLength(0);
@@ -473,11 +474,16 @@ test.describe('the chart, after the browser has scaled it', () => {
     // The bar the caret belongs to, found through the caret's own row and not
     // by counting: the first attempt at this took `bars.at(1)` on the reasoning
     // that `010` is a parent and draws no bar, and a new project lists **two**
-    // roles — so index 1 is `010.1`'s unestimated QA slice, a rect of no width
-    // sitting at the same workday as the bar that was wanted. Every assertion
-    // below passed against it, including with the caret put back on top of the
-    // real bar: a zero-height box cannot be overlapped. Watched, which is why
-    // the width is asserted here.
+    // roles — so index 1 is `010.1`'s unestimated QA slice, sitting at the same
+    // workday as the bar that was wanted. Every assertion below passed against
+    // it, including with the caret put back on top of the real bar: a
+    // zero-height box cannot be overlapped. Watched, which is why the width is
+    // asserted here.
+    //
+    // `data-assumed` and not the width alone, and that is this change's doing:
+    // an unestimated slice is drawn across the assumed span now, so the QA bar
+    // has area and the width filter that used to exclude it no longer does. The
+    // bar this test wants is the one whose width somebody actually estimated.
     const successor = await page.evaluate(() => {
       const caret = document.querySelector('[data-gantt-not-before]');
       if (caret === null) throw new Error('no not-before caret was drawn to find a row by');
@@ -485,6 +491,7 @@ test.describe('the chart, after the browser has scaled it', () => {
       const drawn = [...document.querySelectorAll('[data-gantt-bar]')].filter(
         (bar) =>
           Math.floor(Number(bar.getAttribute('y'))) === Number(row) &&
+          !bar.hasAttribute('data-assumed') &&
           bar.getBoundingClientRect().width > 0,
       );
       if (drawn.length !== 1) {
@@ -580,9 +587,9 @@ test.describe('the chart, after the browser has scaled it', () => {
 
     // Two arrows: `020` waits for `010` and both are unestimated, so the
     // successor starts at workday 0 and the route reaches left of the
-    // schedule; `040` waits for the estimated `030`, so it starts on the
-    // horizon and the route reaches right of it. Asserted, because one arrow
-    // would make half of this test vacuous.
+    // schedule; `040` waits for the estimated `030`, so it starts at the far
+    // end of it and the route reaches right of that. Asserted, because one
+    // arrow would make half of this test vacuous.
     await expect(page.locator('[data-gantt-arrow-head]')).toHaveCount(2);
 
     // 1. Every mark's box is inside the canvas it is drawn on. This is the

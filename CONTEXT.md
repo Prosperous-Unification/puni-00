@@ -148,14 +148,22 @@ a weekend because the axis holds none.
 _Avoid_: time axis, date axis, calendar
 
 **Horizon**:
-How far the schedule reaches: the latest finish of any slice, in workdays. The width of
-the Gantt panel's drawing space.
+How far the schedule reaches: the latest finish of any slice, in workdays, and far
+enough to hold every assumed span drawn past one. The width of the Gantt panel's drawing
+space.
 _Avoid_: extent, range, span
 
 **Bar**:
 The drawing of one slice on the Gantt panel — a rectangle from its start to its finish
 on the workday axis. A picture of a slice, never the slice itself.
 _Avoid_: segment, block, task bar
+
+**Assumed span**:
+The two workdays an unestimated slice's bar is drawn across, so that a slice nobody has
+sized reads as work of unknown length rather than as nothing at all. A property of the
+drawing and never of the schedule: the engine's numbers, the date columns and the arrows
+between rows do not know about it, and the bar says it is a guess by how it is painted.
+_Avoid_: default duration, placeholder estimate, assumed estimate
 
 **Summary bracket**:
 The drawing of a parent on the Gantt panel: a bracket over its projection. A span,
