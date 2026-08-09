@@ -346,7 +346,7 @@ describe('the plan on a phone', () => {
    *
    * What this test does **not** see is the trap itself: jsdom performs none of
    * the `focusin` bookkeeping a real focus scope is made of, so with
-   * `closesTheSheet` pinned to false the caret still reached the box here while
+   * `closingControlIn` pinned to null the caret still reached the box here while
    * five other tests failed on a sheet left over the plan. The browser is where
    * that half is asserted — `e2e/mobile.spec.ts`.
    */
@@ -519,7 +519,7 @@ describe('the toolbar sheet', () => {
    * Taking a control on the sheet is taking it on the plan behind the sheet,
    * and 390px of screen cannot show both.
    *
-   * Proof: `closesTheSheet` pinned to false, this failed on `expected <button
+   * Proof: `closingControlIn` pinned to null, this failed on `expected <button
    * …(2)></button> to be null` — the sheet still over the plan it had just
    * changed. Four other tests in this file failed with it, all on queries that
    * could not reach a plan Radix had marked `aria-hidden`. Watched, 2026-08-09.
@@ -568,7 +568,7 @@ describe('the toolbar sheet', () => {
    * only asked "is this a button" would close the sheet under the dialog,
    * mid-click, on the way to adding a phase.
    *
-   * Proof: the `[data-modal-surface]` check removed from `closesTheSheet`, this
+   * Proof: the `[data-modal-surface]` check removed from `closingControlIn`, this
    * failed on `Unable to find an accessible element with the role "dialog" and
    * name "Phases"` — the sheet closed under the dialog on the way to sending
    * the phase, taking the surface somebody was working on with it. Watched,
@@ -606,6 +606,76 @@ describe('the toolbar sheet', () => {
    * the sheet, exactly as it was over `P phases-ui`'s dialog before `Modal`
    * existed. Watched, 2026-08-09.
    */
+  /**
+   * The other half of the close, and the one that shipped broken: a control
+   * that aims the caret nowhere must leave Radix's own restore alone.
+   *
+   * `onCloseAutoFocus` refused that restore for **every** control, because the
+   * flag behind it was set to `true` by any of them. So `Collapse all`, `Gantt`,
+   * `Undo` and the exports all closed the sheet and dropped the focus on
+   * `<body>` — nothing to type into, nothing to Tab from, on the one renderer
+   * where the sheet is the only route to any of them.
+   *
+   * jsdom is a valid oracle here and only here: Radix's `FocusScope` restore is
+   * a `focus()` call on the stored trigger, which jsdom does perform. What it
+   * cannot see is the trap around it — `e2e/mobile.spec.ts` presses this same
+   * button in Chromium for that.
+   *
+   * Proof: the assignment put back to the unconditional
+   * `sheetControlTakesTheFocus.current = true` that shipped, this failed — alone
+   * of the eighteen — on `expected <body style><div>…(1)</div></body> to be
+   * <button …(5)></button>`. Watched, 2026-08-09.
+   */
+  itDom(
+    'gives the focus back to the trigger when the control aimed the caret nowhere',
+    async () => {
+      const api = fakeApi();
+      widthIs(PHONE);
+      render(<WbsTable projectId="p1" api={api} />);
+      await addAWorkItem();
+
+      const trigger = screen.getByRole('button', { name: 'Plan actions' });
+      openTheSheet();
+      fireEvent.click(await screen.findByRole('button', { name: 'Collapse all' }));
+
+      await waitFor(() => {
+        expect(screen.queryByRole('button', { name: 'Collapse all' })).toBeNull();
+      });
+      await waitFor(() => {
+        expect(document.activeElement).toBe(trigger);
+      });
+    },
+  );
+
+  /**
+   * And the third control that does aim it, which is why the mark is not called
+   * `data-lands-in-plan`: the cheat sheet focuses its own panel as it mounts,
+   * and Radix's restore arrives on a timer after that.
+   *
+   * Proof: the `data-takes-the-focus` attribute struck off the `⌨` button, this
+   * failed on `expected <button …(5)></button> to be <div role="dialog" …(4)>
+   * …(6)</div>` — the focus pulled off a dialog that was still open, leaving
+   * its Escape (listened for on the backdrop) with nothing to hear it. Watched,
+   * 2026-08-09.
+   */
+  itDom('leaves the focus on the cheat sheet the sheet opened', async () => {
+    const api = fakeApi();
+    widthIs(PHONE);
+    render(<WbsTable projectId="p1" api={api} />);
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Plan actions' })).toBeInTheDocument();
+    });
+    openTheSheet();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Keyboard shortcuts' }));
+    await screen.findByRole('heading', { name: 'Keyboard shortcuts' });
+
+    const panel = screen.getByRole('dialog', { name: 'Keyboard shortcuts' });
+    await waitFor(() => {
+      expect(document.activeElement).toBe(panel);
+    });
+  });
+
   itDom('holds the page’s own shortcuts back while it is open', async () => {
     const api = fakeApi();
     widthIs(PHONE);

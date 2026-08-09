@@ -604,11 +604,16 @@ const notBeforeOffsetOf = (startDate: string | null, notBefore: string | null): 
   startDate === null || notBefore === null ? null : workdaysBetween(startDate, notBefore);
 
 /**
- * Whether a click inside the toolbar sheet is one that should close it.
+ * The control on the toolbar sheet a click was on, if that click closes it.
  *
  * Taking a control on the sheet is taking it on the plan behind the sheet, and
  * the plan is what wants looking at next — a phone screen is 390px and the
  * sheet is most of it. So a click on one of the sheet's own controls closes it.
+ *
+ * The control itself rather than a yes/no, because the caller has a second
+ * question for it: {@link TAKES_THE_FOCUS} says whether that control moves the
+ * focus itself, and the answer decides whether Radix's own restore is allowed
+ * to happen.
  *
  * Two exemptions, and each is a fault this was written after meeting:
  *
@@ -624,12 +629,42 @@ const notBeforeOffsetOf = (startDate: string | null, notBefore: string | null): 
  * @param target What was clicked — `event.target`, not the handler's element.
  * @param surface The sheet's own surface, which is `event.currentTarget`.
  */
-function closesTheSheet(target: EventTarget | null, surface: Element): boolean {
-  if (!(target instanceof Element)) return false;
-  if (target.closest('[data-modal-surface]') !== surface) return false;
+function closingControlIn(target: EventTarget | null, surface: Element): HTMLButtonElement | null {
+  if (!(target instanceof Element)) return null;
+  if (target.closest('[data-modal-surface]') !== surface) return null;
   const control = target.closest('button');
-  return control !== null && control.getAttribute('aria-haspopup') === null;
+  if (control?.getAttribute('aria-haspopup') !== null) return null;
+  return control;
 }
+
+/**
+ * The mark a toolbar control wears when taking it puts the focus somewhere of
+ * its own choosing, so the sheet must not put it back on the trigger.
+ *
+ * Three controls wear it, and no others:
+ *
+ * - **`Add work item`**, which asks for the caret in the new row's name.
+ * - **The readiness badge**, which walks to the cell estimating the next gap.
+ * - **`⌨`**, which opens the cheat sheet — a dialog that focuses its own panel
+ *   on mount and restores on unmount. Radix's restore lands on a timer, so it
+ *   arrives *after* that and takes the focus off a dialog that is still open;
+ *   measured in jsdom, where the panel had the focus with the restore refused
+ *   and the `Plan actions` trigger had it without.
+ *
+ * Every other control on the sheet — `Collapse all`, `Gantt`, `Undo`, the
+ * exports — changes the plan without aiming the caret anywhere, and for those
+ * Radix restoring the focus to the `Plan actions` trigger is the right answer
+ * rather than a thing to suppress. Suppressing it left them on `<body>`.
+ *
+ * Not `data-lands-in-plan`, which is what the first two do and what the review
+ * asked for: `⌨` lands in a dialog instead, and a name that described two of
+ * the three would be a name the third is filed under wrongly.
+ *
+ * A DOM attribute rather than a list of labels here: the control that knows it
+ * moves the focus is the control that says so, and a list would go stale the
+ * next time one is added. See {@link closingControlIn} for who reads it.
+ */
+const TAKES_THE_FOCUS = 'data-takes-the-focus';
 
 /**
  * One read of the tree, as far as the chart is concerned: the slices, the roles
@@ -964,13 +999,19 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
   const renderer = useRendererForViewport();
   const [toolbarSheetOpen, setToolbarSheetOpen] = useState(false);
   /**
-   * Whether the sheet closing was a control on it being taken, rather than
-   * Escape, the ✕ or a tap outside.
+   * Whether the control that closed the sheet aims the caret itself — the
+   * {@link TAKES_THE_FOCUS} mark, read off the control that was clicked.
+   *
+   * False for every other way out, and that includes the rest of the toolbar:
+   * Escape, the ✕, a tap outside, and `Collapse all`, `Gantt`, `Undo` and the
+   * exports, none of which ask for the focus anywhere. Only the three that do
+   * may refuse Radix's restore, because refusing it for the others drops the
+   * focus on `<body>` — nothing to type into and nothing to Tab from.
    *
    * A ref because nothing renders it, and because it is read from Radix's own
    * close handler one turn of the event loop after the click that set it.
    */
-  const sheetActedOnThePlan = useRef(false);
+  const sheetControlTakesTheFocus = useRef(false);
   useEffect(() => {
     setToolbarSheetOpen(false);
   }, [renderer]);
@@ -4329,6 +4370,9 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
       <Button
         size="sm"
         type="button"
+        // One of the three controls that aims the caret itself — the new
+        // row's name, through `focusIntent` below. See {@link TAKES_THE_FOCUS}.
+        {...{ [TAKES_THE_FOCUS]: '' }}
         onClick={() =>
           void run(async () => {
             const created = await api.create(projectId, {
@@ -4483,6 +4527,10 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
           variant="outline"
           size="sm"
           type="button"
+          // The second control that aims the caret itself: `walkToNextGap`
+          // puts it in the cell that estimates the next gap. See
+          // {@link TAKES_THE_FOCUS}.
+          {...{ [TAKES_THE_FOCUS]: '' }}
           title={describeGaps(gaps)}
           onClick={walkToNextGap}
         >
@@ -4535,6 +4583,10 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         type="button"
         aria-label="Keyboard shortcuts"
         title="Keyboard shortcuts (?)"
+        // The third control that aims the caret itself: the cheat sheet takes
+        // the focus onto its own panel as it mounts, and Radix's restore
+        // arrives after it. See {@link TAKES_THE_FOCUS}.
+        {...{ [TAKES_THE_FOCUS]: '' }}
         onClick={() => {
           setCheatSheetOpen(true);
         }}
@@ -4675,25 +4727,37 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
               // /api/projects/…/work-items` simply absent from the network log
               // after a click that closed the sheet.
               onClick={(event) => {
-                if (!closesTheSheet(event.target, event.currentTarget)) return;
-                sheetActedOnThePlan.current = true;
+                const control = closingControlIn(event.target, event.currentTarget);
+                if (control === null) return;
+                // Assigned, never set: the flag outlives the click that wrote
+                // it, so a `Collapse all` after an `Add work item` would read
+                // the create's `true` and suppress a restore nothing had asked
+                // for. Every close writes its own answer.
+                sheetControlTakesTheFocus.current = control.hasAttribute(TAKES_THE_FOCUS);
                 setToolbarSheetOpen(false);
               }}
               // Radix restores the focus to the trigger when a modal closes,
               // and it does it on a timer — so it lands *after* the refetch a
               // control on this sheet started, and takes the caret back off the
-              // work item that control created. Refused for that one case only:
-              // a sheet closed by Escape, by the ✕ or by a tap outside has
-              // taken nothing on the plan, and the trigger is exactly where the
-              // focus belongs.
+              // work item that control created. Refused for the three controls
+              // that aim the caret themselves, and for nothing else: a sheet
+              // closed by Escape, by the ✕, by a tap outside or by any of the
+              // other dozen controls has aimed the caret nowhere, and the
+              // trigger is exactly where the focus belongs.
               //
               // Proof: this handler removed, `lands the focus in the card of a
               // work item it just created` failed on `expected <button …> to be
               // <textarea …>` — Radix's restore arriving last. Watched,
               // 2026-08-09.
+              //
+              // Proof of the other half — the flag pinned back to an
+              // unconditional `true`, which is what shipped: `gives the focus
+              // back to the trigger when the control aimed the caret nowhere`
+              // failed on `expected <body> to be <button …>`. Watched in jsdom
+              // and in Chromium at 390×844 (`e2e/mobile.spec.ts`), 2026-08-09.
               onCloseAutoFocus={(event) => {
-                if (!sheetActedOnThePlan.current) return;
-                sheetActedOnThePlan.current = false;
+                if (!sheetControlTakesTheFocus.current) return;
+                sheetControlTakesTheFocus.current = false;
                 event.preventDefault();
               }}
             >

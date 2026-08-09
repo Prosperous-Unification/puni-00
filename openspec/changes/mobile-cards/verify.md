@@ -134,3 +134,60 @@ no ⋯ menu. Structural editing is the sheet's `Add work item` and nothing else.
 That is `M`'s scope from the roadmap, not an omission — and `offers nothing to
 drag a card by` is the test that says the handle is really absent rather than
 merely untested.
+
+## Review sweep, 2026-08-09 — the sheet suppressed the restore for every control
+
+`M` shipped `onCloseAutoFocus` refusing Radix's focus restore whenever a control
+on the sheet closed it, and the flag behind that refusal was assigned an
+unconditional `true` by **any** control. Only three controls aim the caret
+themselves. Every other one — `Collapse all`, `Gantt`, `Undo`, `Redo`,
+`Freeze numbering`, `Copy as Markdown`, `Download CSV` — closed the sheet and
+dropped the focus on `<body>`, on the one renderer where the sheet is the only
+route to any of them. Measured by hand in Chrome before it was written down:
+`Collapse all` and `Gantt` from the sheet both left `document.activeElement` on
+`<body>`, while an Escape-close correctly restored the `Plan actions` trigger.
+
+The control that moves the focus now says so, and the handler **assigns** rather
+than sets: `sheetControlTakesTheFocus.current = control.hasAttribute(TAKES_THE_FOCUS)`.
+The assignment is the fix — a `= true` left standing would have kept the flag
+from an earlier `Add work item` and suppressed a restore nothing had asked for.
+
+`closesTheSheet` is now `closingControlIn` and returns the control rather than a
+boolean, because the caller has a second question for it. The three proof
+comments in `plan-cards.test.tsx` that named the old predicate were updated with
+it; the faults they describe are unchanged.
+
+### The third control, which the review did not have
+
+The mark is `data-takes-the-focus`, not the `data-lands-in-plan` the review
+asked for, and the difference is a measurement. `⌨` opens the hand-rolled
+`KeyboardCheatSheet`, which focuses its own panel on mount; Radix's restore
+lands on a timer **after** that. With the bare assign and no mark on `⌨`, the
+focus after opening the cheat sheet from the sheet was the `Plan actions`
+trigger and not the dialog — a modal open with the focus outside it, and its
+Escape listened for on the backdrop with nothing to hear it. Probed in jsdom
+before either test was written. `⌨` wears the mark, and a name describing two of
+the three would have filed the third under a lie.
+
+### Residual, unchanged and not fixed here
+
+Closing the cheat sheet **that was opened from the sheet** leaves the focus on
+`<body>`: the sheet unmounts in the same commit, so `KeyboardCheatSheet`'s
+mount-time `document.activeElement` is already `<body>` and that is what it
+restores. Pre-existing, identical before and after this fix, and out of this
+sweep's scope — changing it means changing the cheat sheet's own focus contract,
+which has three proofs of its own.
+
+### The two negatives, both watched
+
+| check                                                                                       | fault injected on the production path                                    | observed                                                                                                                         |
+| ------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------- |
+| `plan-cards` › gives the focus back to the trigger when the control aimed the caret nowhere | the assignment pinned back to `sheetControlTakesTheFocus.current = true` | **1 of 18 failed** — `expected <body style><div>…(1)</div></body> to be <button …(5)></button>`                                  |
+| `plan-cards` › leaves the focus on the cheat sheet the sheet opened                         | `data-takes-the-focus` struck off the `⌨` button                         | **1 of 18 failed** — `expected <button …(5)></button> to be <div role="dialog" …(4)>…(6)</div>`                                  |
+| `e2e/mobile` › gives the focus back to the trigger on a control that aims the caret nowhere | the same unconditional `true`                                            | **1 of 6 failed** in Chromium at 390×844 — `expect(locator).toBeFocused()`, `Expected: focused / Received: inactive`, 24 retries |
+
+jsdom is a valid oracle for the first two and says so in the tests: Radix's
+`FocusScope` restore is a `focus()` call on a stored trigger, which jsdom does
+perform. What it cannot see is the trap around it, which is why the browser
+makes the same claim in `e2e/mobile.spec.ts` — and that spec is the one that
+counts, in the shape `M`'s own sheet fault was found in.

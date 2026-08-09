@@ -174,6 +174,39 @@ test.describe('the plan on a phone, measured by a browser', () => {
   });
 
   /**
+   * The other half of that close, and the one that shipped broken: a control
+   * that aims the caret nowhere must hand the focus back to the trigger.
+   *
+   * `onCloseAutoFocus` refused Radix's restore for **every** control on the
+   * sheet, so `Collapse all`, `Gantt`, `Undo` and the exports each closed it and
+   * left the focus on `<body>`. On a phone the sheet is the only route to any of
+   * them, so that is a reader with nothing focused and nothing to Tab from,
+   * every time they fold the plan.
+   *
+   * The browser is the honest oracle for this even though jsdom can see the
+   * restore itself: what is being claimed is where a real `FocusScope` leaves
+   * the focus as it unmounts, and jsdom performs none of the `focusin`
+   * bookkeeping that scope is made of. `plan-cards.test.tsx` makes the same
+   * assertion one layer down; this is the one that counts.
+   *
+   * Proof: `sheetControlTakesTheFocus.current` pinned back to the unconditional
+   * `true` that shipped, this failed on `expect(locator).toBeFocused() …
+   * Expected: focused / Received: inactive` for the `Plan actions` trigger, with
+   * `document.activeElement` on `<body>`. Watched in Chromium at 390×844,
+   * 2026-08-09.
+   */
+  test('gives the focus back to the trigger on a control that aims the caret nowhere', async ({
+    page,
+  }) => {
+    const trigger = page.getByRole('button', { name: 'Plan actions' });
+    await openTheSheet(page);
+    await page.getByRole('button', { name: 'Collapse all' }).click();
+
+    await expect(page.getByRole('dialog', { name: 'Plan actions' })).toBeHidden();
+    await expect(trigger).toBeFocused();
+  });
+
+  /**
    * A peer's edit arriving mid-word, over a real socket: it must take neither
    * the focus nor the half-typed value.
    *
