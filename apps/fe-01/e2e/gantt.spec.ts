@@ -798,6 +798,51 @@ test.describe('the chart, after the browser has scaled it', () => {
 });
 
 /**
+ * The chart while the plan under it is being edited.
+ *
+ * One claim: the open panel draws the read that followed the last edit, never
+ * the one it was opened over. The pipeline is `run` → `refresh` →
+ * `setChartRead` → a new `ganttPlan` every render, and every link in it is
+ * invisible to jsdom the moment it is half-broken rather than deleted — the
+ * exact shape of R5 faults #14 and #15 — so the claim is held here, in the
+ * browser, against real requests.
+ *
+ * Proof: `refresh` in `wbs-table.tsx` given the fault its own comment names —
+ * `setChartRead` keeping the slices it has whenever it has any — and this
+ * failed inside `openTheChart` on `locator('[data-gantt-bar]').first()` never
+ * becoming visible: the frozen slices named rows the plan had since
+ * renumbered, `layOutGantt` refused the skew, and the boundary withheld the
+ * whole chart. Restored, watched green. 2026-08-09.
+ */
+test.describe('the chart under a plan being edited', () => {
+  test('redraws the open chart as each schedule input changes', async ({ page }) => {
+    await seedPlan(page, nextAccount());
+    await openTheChart(page);
+
+    // The seeded plan in engine numbers: `010.1`'s Dev runs 0→4, and `010.2`,
+    // held by the dependency and its own date at once, 4→8.
+    const firstBar = page.locator('[data-gantt-bar]').first();
+    await expect(firstBar).toHaveAttribute('data-finish', '4');
+
+    // An estimate edit stretches the open bar: 2/4/6 → 8/10/12 is ten days by
+    // PERT. The dependent `010.2` follows to day 10 — its own not-before still
+    // names day 4, and the dependency out-floors it.
+    const estimate = page.getByLabel('Dev estimate for 010.1');
+    await estimate.fill('8/10/12');
+    const savedEstimate = page.waitForResponse((response) => response.request().method() === 'PUT');
+    await estimate.blur();
+    await savedEstimate;
+    await expect(firstBar).toHaveAttribute('data-finish', '10');
+    await expect(page.locator('[data-gantt-bar][data-start="10"][data-finish="14"]')).toBeVisible();
+
+    // A not-before edit past everything else moves the row's bar to the day it
+    // names: 2026-09-07 is workday 20 of a plan starting Monday 2026-08-10.
+    await setDate(page, 'Earliest start for 010.2', '2026-09-07');
+    await expect(page.locator('[data-gantt-bar][data-start="20"][data-finish="24"]')).toBeVisible();
+  });
+});
+
+/**
  * The same chart on a phone, where the toolbar is a sheet and the plan is
  * cards.
  *
