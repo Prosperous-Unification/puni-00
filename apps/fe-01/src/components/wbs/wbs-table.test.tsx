@@ -2593,10 +2593,14 @@ describe('role columns fold away', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Fold Dev estimates' }));
 
     // One point of a trio saves nothing; folded, that fact must still show on
-    // the figure the fold leaves behind.
+    // the figure the fold leaves behind — the mark on the figure, and the
+    // complaint on the cell's one hint, the card. No native `title`: two
+    // hints over one cell is the bug this line used to be.
     const final = rowFor('010').querySelector('[data-final="role-dev"]');
     expect(final?.textContent).toContain('!');
-    expect(final?.getAttribute('title')).toContain('not saved');
+    expect(final?.getAttribute('title')).toBeNull();
+    fireEvent.mouseEnter(final as HTMLElement);
+    expect(screen.getByRole('tooltip').textContent).toContain('not saved');
   });
 });
 
@@ -3203,7 +3207,11 @@ describe('one cell for the whole trio', () => {
     expect(written).toEqual([]);
     expect(api.rows[0]?.estimates['role-dev']).toBeUndefined();
     expect(cell).toHaveAttribute('aria-invalid', 'true');
-    expect(cell.title).toContain('optimistic');
+    // The complaint reads off the card, the cell's one hint. 'Must read' and
+    // not 'optimistic': the card's help line says 'optimistic' about every
+    // cell, so that word can never fail here.
+    fireEvent.focus(cell);
+    expect(screen.getByRole('tooltip').textContent).toContain('Must read optimistic');
     // What was typed stays typed. Clearing it would take the correction away
     // from the only person who can make it.
     expect(cell.value).toBe('8/3/2');
@@ -3381,7 +3389,8 @@ describe('one cell for the whole trio', () => {
 
     expect(combinedCell('010').value).toBe('');
     expect(combinedCell('010')).toHaveAttribute('aria-invalid', 'true');
-    expect(combinedCell('010').title).toContain('not saved');
+    fireEvent.focus(combinedCell('010'));
+    expect(screen.getByRole('tooltip').textContent).toContain('not saved');
     expect(written).toEqual([]);
   });
 
@@ -3426,7 +3435,8 @@ describe('one cell for the whole trio', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Fold Dev estimates' }));
 
     expect(combinedCell('010')).toHaveAttribute('aria-invalid', 'true');
-    expect(combinedCell('010').title).toContain('not saved');
+    fireEvent.focus(combinedCell('010'));
+    expect(screen.getByRole('tooltip').textContent).toContain('not saved');
     expect(rowFor('010').querySelector('[data-final="role-dev"]')?.textContent).toContain('!');
   });
 });
