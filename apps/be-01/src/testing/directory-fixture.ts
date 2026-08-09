@@ -1,11 +1,22 @@
 import type {
   Assignment,
   DirectoryStore,
+  DirectoryUsageRows,
   Person,
   PersonWithTeams,
   ServiceTeam,
 } from '../repository';
 import { DirectoryService } from '../service/directory.service';
+
+/** The empty usage, both halves present — what this fixture can honestly say. */
+const NOTHING_POINTS_AT_IT: DirectoryUsageRows = {
+  workItems: [],
+  projects: [],
+  assignments: [],
+  roles: [],
+  people: [],
+  members: [],
+};
 
 /**
  * A DirectoryStore backed by Maps, for tests that do not need SQLite.
@@ -84,6 +95,37 @@ export function inMemoryDirectory(): DirectoryStore {
         ok: true,
         person: { ...patched, teamIds: [...(memberships.get(personId) ?? [])] },
       });
+    },
+    // The four removal methods model only what an array can: a person or team
+    // this fixture holds, and the rows it holds about them. **Nothing here
+    // models the usage a refusal names** — that needs a project, its tree and
+    // the numbers derived from it, none of which exist in these Maps. A fixture
+    // answering them would be a second implementation of the rule under test,
+    // so every behavioural claim about a removal is asserted against real
+    // SQLite in `service/directory.service.test.ts`, the same call
+    // `role-fixture.ts` makes for the same reason.
+    usageOfPerson: () => Promise.resolve(NOTHING_POINTS_AT_IT),
+    usageOfTeam: (teamId) =>
+      Promise.resolve({
+        ...NOTHING_POINTS_AT_IT,
+        members: [...people.values()].filter((each) => memberships.get(each.id)?.has(teamId)),
+      }),
+    removePerson(personId) {
+      if (!people.has(personId)) return Promise.resolve({ ok: false, reason: 'not_found' });
+      const held = [...assignments.values()].filter((each) => each.personId === personId);
+      for (const each of held) assignments.delete(key(each.workItemId, each.roleId));
+      memberships.delete(personId);
+      people.delete(personId);
+      return Promise.resolve({
+        ok: true,
+        removal: { workItemIds: held.map((each) => each.workItemId), projectIds: [] },
+      });
+    },
+    removeTeam(teamId) {
+      if (!teams.has(teamId)) return Promise.resolve({ ok: false, reason: 'not_found' });
+      for (const held of memberships.values()) held.delete(teamId);
+      teams.delete(teamId);
+      return Promise.resolve({ ok: true, removal: { workItemIds: [], projectIds: [] } });
     },
     assignmentsOf(workItemIds) {
       const wanted = new Set(workItemIds);

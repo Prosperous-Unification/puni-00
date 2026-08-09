@@ -352,6 +352,56 @@ export type PersonWritten =
   | { ok: true; person: PersonWithTeams }
   | { ok: false; reason: DirectoryWriteRefusal | 'unknown_team' };
 
+/**
+ * The rows a refused directory removal is described from, read in one place for
+ * both the fast path and the transaction that decides.
+ *
+ * **Whole projects, not only the touched rows.** A work item's number is
+ * derived from the tree it sits in, so naming `3.1` needs every sibling and
+ * ancestor around it; reading only the rows that point at the entity would name
+ * them by a number nobody's screen shows.
+ *
+ * `assignments` are every assignment in those projects rather than the ones
+ * naming the entity, for the reason {@link RoleUsageRows} gives: whether a work
+ * item's **assumed assignee** moves depends on what it holds for the *other*
+ * roles.
+ */
+export interface DirectoryUsageRows {
+  workItems: readonly WorkItem[];
+  projects: readonly { id: string; name: string }[];
+  assignments: readonly Assignment[];
+  roles: readonly { id: string; name: string }[];
+  /** Every person an assignment above names, so an effect can say who rather than which id. */
+  people: readonly Person[];
+  /**
+   * People whose membership the removal would drop, **other than the entity
+   * being removed**. Empty for a person: their own memberships name nobody
+   * else and go with them, so they force no confirmation.
+   */
+  members: readonly Person[];
+}
+
+/** What one confirmed directory removal took with it. */
+export interface DirectoryRemoval {
+  /** Every work item that lost an assignment or a label, and whose revision therefore moved. */
+  workItemIds: readonly string[];
+  /** Every project one of those work items sits in — who has to be told. */
+  projectIds: readonly string[];
+}
+
+/**
+ * What a removal's own transaction decided, which is the only answer that
+ * counts.
+ *
+ * `in_use` carries the usage the **transaction** read, not the usage anybody
+ * counted earlier: an assignment written between a caller's count and its
+ * confirmation is what this refusal is for.
+ */
+export type DirectoryRemoved =
+  | { ok: true; removal: DirectoryRemoval }
+  | { ok: false; reason: 'not_found' }
+  | { ok: false; reason: 'in_use'; usage: DirectoryUsageRows };
+
 export interface DirectoryStore {
   listTeams(): Promise<ServiceTeam[]>;
   /**
@@ -383,6 +433,33 @@ export interface DirectoryStore {
    * a team removed after some earlier check cannot slip between them.
    */
   patchPerson(personId: string, patch: PersonPatch): Promise<PersonWritten>;
+  /**
+   * What points at this person right now — a **fast path** for the refusal,
+   * never the authority for it. Between this answer and any delete, anybody may
+   * assign them. {@link DirectoryStore.removePerson} is what decides.
+   */
+  usageOfPerson(personId: string): Promise<DirectoryUsageRows>;
+  /** The same, for a team: the work items labelled with it and the people in it. */
+  usageOfTeam(teamId: string): Promise<DirectoryUsageRows>;
+  /**
+   * Counts what points at the person, refuses an unconfirmed removal that would
+   * take any of it, and otherwise drops their assignments, their memberships
+   * and the person — all in **one** transaction, moving the revision of every
+   * work item that lost an assignment.
+   *
+   * The count lives inside the transaction because it *is* the decision: a
+   * caller that asked without `cascade` consented to nothing, so an assignment
+   * written after that caller's own count must refuse the removal rather than
+   * be deleted by it.
+   */
+  removePerson(personId: string, cascade: boolean): Promise<DirectoryRemoved>;
+  /**
+   * The same for a team, and it **nulls the labels itself**:
+   * `work_item.service_team_id` has no foreign key, so deleting the team row on
+   * its own would leave every labelled work item pointing at an id the
+   * directory no longer holds — a dangle nothing would ever report.
+   */
+  removeTeam(teamId: string, cascade: boolean): Promise<DirectoryRemoved>;
   assignmentsOf(workItemIds: readonly string[]): Promise<Assignment[]>;
   /** Sets, replaces or (with `null`) removes one work item's assignee for one role. */
   assign(workItemId: string, roleId: string, personId: string | null): Promise<void>;

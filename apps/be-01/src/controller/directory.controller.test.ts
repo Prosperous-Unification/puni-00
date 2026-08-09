@@ -181,6 +181,97 @@ describe('PATCH /api/teams/:id', () => {
   });
 });
 
+describe('DELETE /api/people/:id and /api/teams/:id', () => {
+  /** A work item to point at the directory with, in a project this account owns. */
+  async function planWithOneRow(): Promise<{
+    projectOf: string;
+    workItemOf: string;
+    roleOf: string;
+  }> {
+    const { body } = await call('POST', '/api/projects', { name: 'Rollout' });
+    const { project } = body as { project: { id: string } };
+    const created = await call('POST', `/api/projects/${project.id}/work-items`, {
+      parentId: null,
+      afterId: null,
+      name: 'Design',
+    });
+    const workItem = created.body as { id: string };
+    const roles = await roleStore.listByProject(project.id);
+    const dev = roles.find((each) => each.name === 'Dev');
+    if (dev === undefined) throw new Error('the seeded project had no Dev role');
+    return { projectOf: project.id, workItemOf: workItem.id, roleOf: dev.id };
+  }
+
+  it('answers 409 in_use carrying the usage, then 204 on the cascade', async () => {
+    const kat = await addPerson('Kat', []);
+    const { projectOf, workItemOf, roleOf } = await planWithOneRow();
+    await call('PUT', `/api/work-items/${workItemOf}/assignees/${roleOf}`, { personId: kat });
+
+    const refused = await call('DELETE', `/api/people/${kat}`);
+
+    expect(refused.status).toBe(409);
+    expect(refused.body).toEqual({
+      error: 'in_use',
+      usage: {
+        projects: [
+          {
+            id: projectOf,
+            name: 'Rollout',
+            workItems: [
+              {
+                id: workItemOf,
+                number: '010',
+                name: 'Design',
+                effects: [
+                  { kind: 'assignment_dropped', role: { id: roleOf, name: 'Dev' } },
+                  { kind: 'assumed_assignee_changed', assumedNow: 'Kat', assumedAfter: null },
+                ],
+              },
+            ],
+          },
+        ],
+        members: [],
+      },
+    });
+
+    expect(await call('DELETE', `/api/people/${kat}?cascade=true`)).toEqual({
+      status: 204,
+      body: null,
+    });
+    expect(await store.listPeople()).toEqual([]);
+  });
+
+  it('removes an unused team on the first call, and 404s the second', async () => {
+    const platform = await addTeam('Platform');
+
+    expect(await call('DELETE', `/api/teams/${platform}`)).toEqual({ status: 204, body: null });
+    expect(await call('DELETE', `/api/teams/${platform}`)).toEqual({
+      status: 404,
+      body: { error: 'not_found' },
+    });
+  });
+
+  it('answers 409 in_use for a team held by memberships alone', async () => {
+    const platform = await addTeam('Platform');
+    const kat = await addPerson('Kat', [platform]);
+
+    expect(await call('DELETE', `/api/teams/${platform}`)).toEqual({
+      status: 409,
+      body: { error: 'in_use', usage: { projects: [], members: [{ id: kat, name: 'Kat' }] } },
+    });
+  });
+
+  it('answers 401 to a delete carrying no token', async () => {
+    const platform = await addTeam('Platform');
+    const res = await app.handle(
+      new Request(`http://localhost/api/teams/${platform}`, { method: 'DELETE' }),
+    );
+
+    expect(res.status).toBe(401);
+    expect(await store.listTeams()).toEqual([{ id: platform, name: 'Platform' }]);
+  });
+});
+
 describe('PATCH /api/people/:id', () => {
   it('renames and re-teams a person in one request', async () => {
     const platform = await addTeam('Platform');

@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
-import type { Role, WorkItem } from '../repository';
+import type { DirectoryStore, Role, WorkItem } from '../repository';
 import { openDrizzle } from '../repository/db';
 import { DirectoryRepository } from '../repository/directory';
 import { runMigrations } from '../repository/migrate';
@@ -36,6 +36,7 @@ let roleStore: RoleRepository;
 let projectId: string;
 let ownerId: string;
 let devId: string;
+let qaId: string;
 
 const newItem = (id: string, position: number, name: string, inProject = projectId): WorkItem => ({
   id,
@@ -86,6 +87,7 @@ beforeEach(async () => {
   const created = await new ProjectService({ projects }).create('Rollout', ownerId);
   projectId = created.project.id;
   devId = (await roleNamed('Dev')).id;
+  qaId = (await roleNamed('QA')).id;
 
   await workItems.insert(newItem('design', 10, 'Design'), []);
   await workItems.insert(newItem('build', 20, 'Build'), []);
@@ -268,5 +270,330 @@ describe('DirectoryService.patchPerson', () => {
       reason: 'not_found',
     });
     expect(await store.listPeople()).toEqual([{ id: katId, name: 'Kat', teamIds: [platformId] }]);
+  });
+});
+
+/**
+ * The real store with some methods wrapped, so a test can put somebody else's
+ * write in the gap between two of the service's calls.
+ *
+ * Written out rather than spread from the repository: `DirectoryRepository`'s
+ * methods live on its prototype, and `{ ...store }` copies its connection and
+ * none of them.
+ */
+function storeWith(overrides: Partial<DirectoryStore>): DirectoryStore {
+  return {
+    listTeams: () => store.listTeams(),
+    addTeam: (team) => store.addTeam(team),
+    renameTeam: (teamId, name) => store.renameTeam(teamId, name),
+    listPeople: () => store.listPeople(),
+    addPerson: (toAdd, teamIds) => store.addPerson(toAdd, teamIds),
+    patchPerson: (personId, patch) => store.patchPerson(personId, patch),
+    usageOfPerson: (personId) => store.usageOfPerson(personId),
+    usageOfTeam: (teamId) => store.usageOfTeam(teamId),
+    removePerson: (personId, cascade) => store.removePerson(personId, cascade),
+    removeTeam: (teamId, cascade) => store.removeTeam(teamId, cascade),
+    assignmentsOf: (ids) => store.assignmentsOf(ids),
+    assign: (workItemId, roleId, personId) => store.assign(workItemId, roleId, personId),
+    ...overrides,
+  };
+}
+
+describe('the directory usage a removal is refused with', () => {
+  /** A second project with one work item, so a team can be held in two at once. */
+  async function roofProject(): Promise<{ projectOf: string; workItemOf: string }> {
+    const created = await new ProjectService({ projects }).create('Roof', ownerId);
+    const workItemOf = crypto.randomUUID();
+    await workItems.insert(newItem(workItemOf, 10, 'Shingle', created.project.id), []);
+    return { projectOf: created.project.id, workItemOf };
+  }
+
+  it('names the project, the number and the work item an assignment holds', async () => {
+    const kat = await directory.addPerson('Kat', []);
+    if (kat === null) throw new Error('the fixture person was refused');
+    await store.assign('design', devId, kat.id);
+
+    const outcome = await directory.removePerson(kat.id, false);
+
+    expect(outcome).toEqual({
+      ok: false,
+      reason: 'in_use',
+      usage: {
+        projects: [
+          {
+            id: projectId,
+            name: 'Rollout',
+            workItems: [
+              {
+                id: 'design',
+                number: '010',
+                name: 'Design',
+                effects: [
+                  { kind: 'assignment_dropped', role: { id: devId, name: 'Dev' } },
+                  // The sole assignment going takes the assumption with it, and
+                  // `null` is `unassigned` said in the payload rather than left
+                  // to be inferred from an absence.
+                  { kind: 'assumed_assignee_changed', assumedNow: 'Kat', assumedAfter: null },
+                ],
+              },
+            ],
+          },
+        ],
+        members: [],
+      },
+    });
+    expect(await personNamed('Kat')).toBe(kat.id);
+  });
+
+  it('names the person who becomes assumed when one of two assignments goes', async () => {
+    const kat = await directory.addPerson('Kat', []);
+    const ada = await directory.addPerson('Ada', []);
+    if (kat === null || ada === null) throw new Error('a fixture person was refused');
+    // Two assignments, so nobody is assumed to be doing every phase now; one
+    // left, so `Ada` becomes assumed. That is a move, and it is named.
+    await store.assign('design', devId, kat.id);
+    await store.assign('design', qaId, ada.id);
+
+    const outcome = await directory.removePerson(kat.id, false);
+
+    if (outcome.ok || outcome.reason !== 'in_use') throw new Error('the removal was not refused');
+    expect(outcome.usage.projects[0]?.workItems[0]?.effects).toEqual([
+      { kind: 'assignment_dropped', role: { id: devId, name: 'Dev' } },
+      { kind: 'assumed_assignee_changed', assumedNow: null, assumedAfter: 'Ada' },
+    ]);
+  });
+
+  it('names both projects a team is labelled in', async () => {
+    const platform = await directory.addTeam('Platform');
+    if (platform === null) throw new Error('the fixture team was refused');
+    const roof = await roofProject();
+    await workItems.patch('design', { serviceTeamId: platform.id });
+    await workItems.patch(roof.workItemOf, { serviceTeamId: platform.id });
+
+    const outcome = await directory.removeTeam(platform.id, false);
+
+    expect(outcome).toEqual({
+      ok: false,
+      reason: 'in_use',
+      usage: {
+        // By name, and `Rollout` sorts before `Roof` — the third letter
+        // decides. Sorted at all so that the same impact reads the same way
+        // twice; a confirmation that reorders itself reads as a different
+        // answer.
+        projects: [
+          {
+            id: projectId,
+            name: 'Rollout',
+            workItems: [
+              { id: 'design', number: '010', name: 'Design', effects: [{ kind: 'label_nulled' }] },
+            ],
+          },
+          {
+            id: roof.projectOf,
+            name: 'Roof',
+            workItems: [
+              {
+                id: roof.workItemOf,
+                // `010`, not `020`: each project is numbered as its own tree.
+                number: '010',
+                name: 'Shingle',
+                effects: [{ kind: 'label_nulled' }],
+              },
+            ],
+          },
+        ],
+        members: [],
+      },
+    });
+  });
+
+  it('refuses a team nothing but memberships points at, naming the people', async () => {
+    const platform = await directory.addTeam('Platform');
+    if (platform === null) throw new Error('the fixture team was refused');
+    const kat = await directory.addPerson('Kat', [platform.id]);
+    const ada = await directory.addPerson('Ada', [platform.id]);
+    if (kat === null || ada === null) throw new Error('a fixture person was refused');
+
+    const outcome = await directory.removeTeam(platform.id, false);
+
+    // A confirmation showing an empty impact list while two memberships were
+    // about to be dropped is a confirmation of nothing.
+    expect(outcome).toEqual({
+      ok: false,
+      reason: 'in_use',
+      usage: {
+        projects: [],
+        members: [
+          { id: ada.id, name: 'Ada' },
+          { id: kat.id, name: 'Kat' },
+        ],
+      },
+    });
+    expect((await store.listTeams()).map((each) => each.name)).toEqual(['Platform']);
+  });
+
+  it('removes a person on the second, explicit call, and moves what lost a row', async () => {
+    const platform = await directory.addTeam('Platform');
+    const kat = await directory.addPerson('Kat', []);
+    if (platform === null || kat === null) throw new Error('a fixture row was refused');
+    await directory.patchPerson(kat.id, { teamIds: [platform.id] });
+    await store.assign('design', devId, kat.id);
+    const before = (await workItems.findById('design'))?.revision;
+
+    expect(await directory.removePerson(kat.id, false)).toMatchObject({ reason: 'in_use' });
+    expect(await directory.removePerson(kat.id, true)).toEqual({ ok: true });
+
+    expect(await store.listPeople()).toEqual([]);
+    expect(await store.assignmentsOf(['design'])).toEqual([]);
+    // The revision moved so that a journal entry holding the old one refuses as
+    // stale rather than undoing against a directory that has changed.
+    expect((await workItems.findById('design'))?.revision).toBe((before ?? 0) + 1);
+  });
+
+  it('refuses a removal when an assignment lands after the count', async () => {
+    // The gap the confirmation opens, from the other side. The service counts
+    // first as a fast path, and somebody assigns the doomed person in the
+    // moment between that count and the delete. An unconfirmed request must
+    // still refuse: it was never consent to take anything, and what it would
+    // take is an assignment nobody has been shown.
+    const kat = await directory.addPerson('Kat', []);
+    if (kat === null) throw new Error('the fixture person was refused');
+    const service = new DirectoryService({
+      directory: storeWith({
+        async usageOfPerson(watched) {
+          const counted = await store.usageOfPerson(watched);
+          await store.assign('design', devId, kat.id);
+          return counted;
+        },
+      }),
+    });
+
+    const outcome = await service.removePerson(kat.id, false);
+
+    if (outcome.ok || outcome.reason !== 'in_use') throw new Error('the removal was not refused');
+    // Named, not merely refused: the whole point of the second call is that the
+    // person confirming has seen what it takes.
+    expect(outcome.usage.projects[0]?.workItems[0]?.effects).toContainEqual({
+      kind: 'assignment_dropped',
+      role: { id: devId, name: 'Dev' },
+    });
+    expect(await personNamed('Kat')).toBe(kat.id);
+    expect(await store.assignmentsOf(['design'])).toHaveLength(1);
+  });
+
+  it('takes a late assignment with it when the call is confirmed', async () => {
+    // The same interleave, with `cascade`. This is not the fault above: the
+    // caller has already agreed to take what points at this person, and an
+    // assignment landing a moment later is exactly what that agreement covers.
+    const kat = await directory.addPerson('Kat', []);
+    if (kat === null) throw new Error('the fixture person was refused');
+    const service = new DirectoryService({
+      directory: storeWith({
+        async removePerson(watched, cascade) {
+          await store.assign('design', devId, kat.id);
+          return store.removePerson(watched, cascade);
+        },
+      }),
+    });
+
+    expect(await service.removePerson(kat.id, true)).toEqual({ ok: true });
+    expect(await store.assignmentsOf(['design'])).toEqual([]);
+    expect(await store.listPeople()).toEqual([]);
+  });
+
+  it('refuses the loser of two removals of one person', async () => {
+    const kat = await directory.addPerson('Kat', []);
+    if (kat === null) throw new Error('the fixture person was refused');
+    await store.removePerson(kat.id, true);
+
+    expect(await directory.removePerson(kat.id, true)).toEqual({ ok: false, reason: 'not_found' });
+  });
+
+  it("a cascade nulls every label and moves those work items' revisions", async () => {
+    const platform = await directory.addTeam('Platform');
+    if (platform === null) throw new Error('the fixture team was refused');
+    const roof = await roofProject();
+    const kat = await directory.addPerson('Kat', [platform.id]);
+    if (kat === null) throw new Error('the fixture person was refused');
+    await workItems.patch('design', { serviceTeamId: platform.id });
+    await workItems.patch(roof.workItemOf, { serviceTeamId: platform.id });
+    const before = (await workItems.findById('design'))?.revision ?? 0;
+
+    expect(await directory.removeTeam(platform.id, false)).toMatchObject({ reason: 'in_use' });
+    expect(await directory.removeTeam(platform.id, true)).toEqual({ ok: true });
+
+    expect(await store.listTeams()).toEqual([]);
+    // `work_item.service_team_id` has no foreign key, so nothing but this
+    // transaction would ever have cleaned these up: a dangling id is what the
+    // database would happily have left behind.
+    expect((await workItems.findById('design'))?.serviceTeamId).toBeNull();
+    expect((await workItems.findById(roof.workItemOf))?.serviceTeamId).toBeNull();
+    expect((await workItems.findById('design'))?.revision).toBe(before + 1);
+    expect((await store.listPeople()).at(0)?.teamIds).toEqual([]);
+  });
+
+  it('refuses a team removal when a membership or a label lands after the count', async () => {
+    const platform = await directory.addTeam('Platform');
+    const kat = await directory.addPerson('Kat', []);
+    if (platform === null || kat === null) throw new Error('a fixture row was refused');
+
+    const labelled = new DirectoryService({
+      directory: storeWith({
+        async usageOfTeam(watched) {
+          const counted = await store.usageOfTeam(watched);
+          await workItems.patch('design', { serviceTeamId: platform.id });
+          return counted;
+        },
+      }),
+    });
+    const label = await labelled.removeTeam(platform.id, false);
+
+    if (label.ok || label.reason !== 'in_use') throw new Error('the label removal was not refused');
+    expect(label.usage.projects[0]?.workItems[0]).toMatchObject({
+      id: 'design',
+      effects: [{ kind: 'label_nulled' }],
+    });
+    expect((await workItems.findById('design'))?.serviceTeamId).toBe(platform.id);
+
+    await workItems.patch('design', { serviceTeamId: null });
+    const joined = new DirectoryService({
+      directory: storeWith({
+        async usageOfTeam(watched) {
+          const counted = await store.usageOfTeam(watched);
+          await store.patchPerson(kat.id, { teamIds: [platform.id] });
+          return counted;
+        },
+      }),
+    });
+    const member = await joined.removeTeam(platform.id, false);
+
+    if (member.ok || member.reason !== 'in_use') {
+      throw new Error('the membership removal was not refused');
+    }
+    expect(member.usage.members).toEqual([{ id: kat.id, name: 'Kat' }]);
+    expect((await store.listTeams()).map((each) => each.name)).toEqual(['Platform']);
+  });
+
+  it('removes a team nothing points at, and refuses the loser of two removals', async () => {
+    const platform = await directory.addTeam('Platform');
+    if (platform === null) throw new Error('the fixture team was refused');
+
+    expect(await directory.removeTeam(platform.id, false)).toEqual({ ok: true });
+    expect(await directory.removeTeam(platform.id, true)).toEqual({
+      ok: false,
+      reason: 'not_found',
+    });
+  });
+
+  it("does not count a person's own memberships against them", async () => {
+    const platform = await directory.addTeam('Platform');
+    if (platform === null) throw new Error('the fixture team was refused');
+    const kat = await directory.addPerson('Kat', [platform.id]);
+    if (kat === null) throw new Error('the fixture person was refused');
+
+    // Her membership names nobody else and goes with her, so it forces no
+    // confirmation — the person is removed on the first call.
+    expect(await directory.removePerson(kat.id, false)).toEqual({ ok: true });
+    expect(await store.listPeople()).toEqual([]);
   });
 });

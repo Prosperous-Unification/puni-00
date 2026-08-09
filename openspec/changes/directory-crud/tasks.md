@@ -30,7 +30,7 @@ Only `- [ ]` checkboxes are tracked by the apply phase.
 
 ## 2. Directory usage and informed delete
 
-- [ ] 2.1 `directoryUsageOfPerson` / `directoryUsageOfTeam` queries, built in
+- [x] 2.1 `directoryUsageOfPerson` / `directoryUsageOfTeam` queries, built in
       the spec's wire shape — `projects[]` of `{ id, name, workItems }` whose
       work items are `{ id, number, name, effects }`, beside `members[]` of
       `{ id, name }`, both halves always present — with
@@ -41,7 +41,7 @@ Only `- [ ]` checkboxes are tracked by the apply phase.
       labeled in two projects with both named, a work item whose sole
       assignee's removal flips it to `null`, and a team held by memberships
       alone whose `members` names both people
-- [ ] 2.2 `DELETE /api/people/:id` — refuse-by-default carrying the usage;
+- [x] 2.2 `DELETE /api/people/:id` — refuse-by-default carrying the usage;
       `cascade=true` drops assignments, memberships, the person, and moves
       the revision of every work item that lost an assignment, one
       transaction; unused person removed without confirmation — test:
@@ -53,7 +53,7 @@ Only `- [ ]` checkboxes are tracked by the apply phase.
       nothing and deletes a person the caller was never shown). A confirmed
       cascade deleting a late assignment is correct and is asserted as such,
       not as the fault
-- [ ] 2.3 `DELETE /api/teams/:id` — same split; cascade nulls
+- [x] 2.3 `DELETE /api/teams/:id` — same split; cascade nulls
       `work_item.service_team_id` on every carrier across projects (no FK
       exists — negative: with the nulling deleted, the dangling id is
       observed by the test, watched, then restored), moves those work items'

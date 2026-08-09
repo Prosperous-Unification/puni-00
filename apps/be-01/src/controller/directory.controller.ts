@@ -2,7 +2,11 @@ import { Elysia, t } from 'elysia';
 
 import { userFromHeaders } from '../middleware/authenticated';
 import type { AuthService } from '../service/auth.service';
-import type { DirectoryRefusal, DirectoryService } from '../service/directory.service';
+import type {
+  DirectoryRefusal,
+  DirectoryService,
+  RemoveDirectoryOutcome,
+} from '../service/directory.service';
 
 const named = t.Object({ name: t.String() });
 const newPerson = t.Object({ name: t.String(), teamIds: t.Optional(t.Array(t.String())) });
@@ -31,6 +35,36 @@ const personPatch = t.Object({
  */
 const statusFor = (reason: DirectoryRefusal): number =>
   reason === 'not_found' || reason === 'unknown_team' ? 404 : 422;
+
+/**
+ * `?cascade=true` and nothing else — the same flag `roleController`'s delete
+ * takes, and the second, explicit call rather than a body on a DELETE.
+ */
+const isCascade = (query: Record<string, string | undefined>): boolean =>
+  query['cascade'] === 'true';
+
+/**
+ * How a removal answers, in one place because the two delete routes must answer
+ * identically — a client that had to branch on which of a person and a team it
+ * had asked about would drift.
+ *
+ * 409, not 400: the request is well formed and would have worked against a
+ * directory nothing pointed into. The **directory usage** rides along because
+ * the next request is the same one with the flag, and the person confirming has
+ * to know what they are agreeing to.
+ */
+function answerRemoval(outcome: RemoveDirectoryOutcome, set: { status?: number | string }) {
+  if (!outcome.ok) {
+    if (outcome.reason === 'in_use') {
+      set.status = 409;
+      return { error: outcome.reason, usage: outcome.usage };
+    }
+    set.status = 404;
+    return { error: outcome.reason };
+  }
+  set.status = 204;
+  return null;
+}
 
 /**
  * Teams and people: global, readable and writable by any authenticated
@@ -150,5 +184,21 @@ export function directoryController(auth: AuthService, directory: DirectoryServi
         return { person: outcome.result };
       },
       { body: personPatch },
-    );
+    )
+    .delete('/people/:id', async ({ params, query, headers, set }) => {
+      const user = await userFromHeaders(auth, headers);
+      if (user === null) {
+        set.status = 401;
+        return { error: 'unauthenticated' };
+      }
+      return answerRemoval(await directory.removePerson(params.id, isCascade(query)), set);
+    })
+    .delete('/teams/:id', async ({ params, query, headers, set }) => {
+      const user = await userFromHeaders(auth, headers);
+      if (user === null) {
+        set.status = 401;
+        return { error: 'unauthenticated' };
+      }
+      return answerRemoval(await directory.removeTeam(params.id, isCascade(query)), set);
+    });
 }

@@ -5,6 +5,11 @@ import type {
   PersonWithTeams,
   ServiceTeam,
 } from '../repository';
+import {
+  type DirectoryUsage,
+  directoryUsageOfPerson,
+  directoryUsageOfTeam,
+} from './directory-usage';
 
 export interface DirectoryServiceOptions {
   directory: DirectoryStore;
@@ -32,6 +37,18 @@ export type DirectoryOutcome<T> =
   | { ok: true; result: T }
   | { ok: false; reason: DirectoryRefusal }
   | { ok: false; reason: 'taken'; name: string };
+
+/**
+ * How a removal answered.
+ *
+ * `in_use` carries the **directory usage** rather than a count, because the
+ * next request is the same one with `cascade`, and the person confirming has to
+ * know what they are agreeing to.
+ */
+export type RemoveDirectoryOutcome =
+  | { ok: true }
+  | { ok: false; reason: 'not_found' }
+  | { ok: false; reason: 'in_use'; usage: DirectoryUsage };
 
 /** The trimmed name, or null when there is nothing there to name. */
 function cleanName(name: string): string | null {
@@ -144,5 +161,70 @@ export class DirectoryService {
       };
     }
     return { ok: true, result: written.person };
+  }
+
+  /**
+   * Removes a person, refusing the first time when an assignment holds them.
+   *
+   * The refusal carries the **directory usage** rather than a bare conflict:
+   * the assignments are rows somebody typed, and the assumed assignees are
+   * readings that would move under them. A person nobody has been assigned is
+   * removed without a second call — there is nothing to warn about, and asking
+   * anyway teaches people to confirm without reading. Their own memberships go
+   * with them and force nothing: they name nobody else.
+   *
+   * `cascade` is the caller saying it has seen that usage, and it is the only
+   * thing carried across the two requests. **The count that decides is the one
+   * inside the delete's transaction** — the read below is a fast path that
+   * answers most refusals without opening one, and an assignment written after
+   * it is refused by the transaction rather than deleted by it.
+   *
+   * Proof, watched 2026-08-09: with the transaction's own count replaced by
+   * this fast path's, `refuses a removal when an assignment lands after the
+   * count` deletes the person and the assignment the caller was never shown.
+   */
+  async removePerson(personId: string, cascade: boolean): Promise<RemoveDirectoryOutcome> {
+    if (!cascade) {
+      const seen = directoryUsageOfPerson(
+        await this.opts.directory.usageOfPerson(personId),
+        personId,
+      );
+      if (seen.projects.length > 0) return { ok: false, reason: 'in_use', usage: seen };
+    }
+    const removed = await this.opts.directory.removePerson(personId, cascade);
+    if (!removed.ok) {
+      if (removed.reason === 'not_found') return { ok: false, reason: 'not_found' };
+      // The transaction's own usage, not the fast path's: it is the only one
+      // that was still true at the moment the deletes would have run.
+      return {
+        ok: false,
+        reason: 'in_use',
+        usage: directoryUsageOfPerson(removed.usage, personId),
+      };
+    }
+    return { ok: true };
+  }
+
+  /**
+   * Removes a team, refusing the first time when a work item carries it **or a
+   * person belongs to it**.
+   *
+   * The memberships count here where a person's own do not, because they name
+   * somebody else: a confirmation showing an empty impact list while two
+   * people were about to be taken out of a team is a confirmation of nothing.
+   */
+  async removeTeam(teamId: string, cascade: boolean): Promise<RemoveDirectoryOutcome> {
+    if (!cascade) {
+      const seen = directoryUsageOfTeam(await this.opts.directory.usageOfTeam(teamId), teamId);
+      if (seen.projects.length > 0 || seen.members.length > 0) {
+        return { ok: false, reason: 'in_use', usage: seen };
+      }
+    }
+    const removed = await this.opts.directory.removeTeam(teamId, cascade);
+    if (!removed.ok) {
+      if (removed.reason === 'not_found') return { ok: false, reason: 'not_found' };
+      return { ok: false, reason: 'in_use', usage: directoryUsageOfTeam(removed.usage, teamId) };
+    }
+    return { ok: true };
   }
 }
