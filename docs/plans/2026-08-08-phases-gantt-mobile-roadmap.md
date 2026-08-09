@@ -128,6 +128,18 @@ frame takes the real remainder. Pixels: table height gains ≥120px at
 
 **~0.5–1 day.**
 
+**Done 2026-08-09 — `openspec/changes/header-fits-a-row/verify.md`.** 544px of
+frame became 669 at 1280×800, and the page stopped scrolling vertically at all.
+Three things `P` should read first. The bar has about **460px of slack at 900**
+— the picker and the presence roster give way before anything else — so one more
+control fits and three do not; `e2e/header.spec.ts` measures both the wrap and
+the overflow, because a `flex-nowrap` bar cannot fail the wrap check. `100vh` is
+**not** a fraction of anything CSS `zoom` scales, so the page is one window tall
+by percentage and `styles.css` now owns `html`/`body`/`#root` heights. And the
+font handoff `F` left is **still open**: `--font-sans` is `sans-serif`, because
+moving the face means re-measuring `not-before` and that is a grid geometry
+change, not a header one.
+
 ## P `phases-ui` (P1 frontend)
 
 1. shadcn dialog from the toolbar: list/add/rename/delete, delete shows
