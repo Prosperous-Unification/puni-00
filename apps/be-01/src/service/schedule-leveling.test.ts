@@ -339,6 +339,48 @@ describe('leveling — slack and critical through people', () => {
   });
 });
 
+describe('leveling — slack against a person, in thirds of a day', () => {
+  /** A PERT third: the durations real plans are full of, and integers are not. */
+  const THIRD = 4 / 3;
+
+  it('reports a queue that ends the project as critical, exactly', () => {
+    // `kat` does `a` and then `b`, and that queue is the longest path there is.
+    // Both slices are therefore critical and have no slack — and `critical` is
+    // an exact comparison with zero, so a late start reconstructed by
+    // subtracting a duration from a finish it was added to reports
+    // -2.220446049250313e-16 and paints neither row red.
+    const rows = [item('a'), item('b')];
+    const slices = [slice('a', DEV, THIRD, 'kat'), slice('b', DEV, 1, 'kat')];
+
+    const found = schedule(rows, [], slices);
+
+    expect(planned(found, 'b', DEV).earliestStart).toBe(THIRD);
+    expect(planned(found, 'a', DEV).float).toBe(0);
+    expect(planned(found, 'a', DEV).critical).toBe(true);
+    expect(planned(found, 'b', DEV).float).toBe(0);
+    expect(planned(found, 'b', DEV).critical).toBe(true);
+    expect(found.workItems.get('b')?.critical).toBe(true);
+  });
+
+  it('leaves a slice beside that queue with the slack it has, and no red', () => {
+    // What the tight-path rule promises is that a slice which **cannot move**
+    // reports exactly zero. `c` can move, and its slack is a subtraction from a
+    // project finish that is itself a third of a day — so it is asserted to the
+    // day rather than to the bit, which is all anybody reads off a slack column.
+    const rows = [item('a'), item('b'), item('c')];
+    const slices = [
+      slice('a', DEV, THIRD, 'kat'),
+      slice('b', DEV, 1, 'kat'),
+      slice('c', DEV, 1, null),
+    ];
+
+    const found = schedule(rows, [], slices);
+
+    expect(planned(found, 'c', DEV).critical).toBe(false);
+    expect(planned(found, 'c', DEV).float).toBeCloseTo(THIRD, 12);
+  });
+});
+
 describe('leveling — how much of the plan is queueing', () => {
   it('counts nothing when nobody is assigned', () => {
     const rows = [item('a'), item('b')];

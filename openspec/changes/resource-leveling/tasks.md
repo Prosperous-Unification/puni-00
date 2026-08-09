@@ -81,11 +81,33 @@
       the size read 18.6ms, and the eligible set scanned linearly instead of
       held in a heap read 32.3ms. It measures 2.9ms.
 
-## 8. Vocabulary and the gate
+## 8. What the review found
 
-- [x] 8.1 `CONTEXT.md` gains the terms as they resolve; `design.md` carries the
+- [x] 8.1 **HIGH, codex:** a late start reconstructed by subtracting a duration
+      from a finish it was added to put `-2.2e-16` of slack on both slices of a
+      person's queue that ends the project, and took the red off both rows.
+      Fixed by the tight-path rule — a slice that cannot move takes its late
+      start from the early pass — scoped to plans that hold a queue so the
+      unassigned ones still answer bit for bit what the previous engine did.
+      Assigned-PERT test watched failing first; the scoping watched failing
+      too, at seed 2 of the differential.
+- [x] 8.2 **MEDIUM, codex:** the fence of `written(...)` guards on maps the
+      pass had just filled could not be made to fire. The passes now run over
+      node indices, so those reads are array offsets the type carries and the
+      guards are gone rather than tested. The two that remain — `slicesOf` and
+      `endsOf` — are both watched failing; `endsOf`'s fault made the plan
+      answer "dependency cycle" for a graph with one edge in it.
+- [x] 8.3 **LOW, codex:** adjacency was built by rewriting an array per edge,
+      which is `O(E²)` with shared endpoints — and a plan's endpoints are
+      shared by design. Pushed onto the nodes instead. The benchmark went from
+      2.9ms to 1.5ms, and the negative run had to grow from four times the
+      fixture to eight to still fail.
+
+## 9. Vocabulary and the gate
+
+- [x] 9.1 `CONTEXT.md` gains the terms as they resolve; `design.md` carries the
       algorithm's name, its termination argument, its complexity and its
       refusal to claim optimality.
-- [x] 8.2 The format check, the run-many gate and the OpenSpec validation,
+- [x] 9.2 The format check, the run-many gate and the OpenSpec validation,
       recorded in `verify.md` with the failure-proof table. No e2e: this
       change is server-only.

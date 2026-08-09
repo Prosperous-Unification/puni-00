@@ -300,34 +300,59 @@ function groupByWorkItem(
   return sliced;
 }
 
-/** One slice's place inside its work item: which work item, and how many roles into it. */
-interface SlicePlace {
-  workItemId: string;
+/**
+ * One slice as the passes see it: what it is, where it sits, and what the
+ * **plan** says it waits for.
+ *
+ * The node is the unit of the graph and its index in {@link SliceGraph.nodes}
+ * is its name there — every edge, order and result below is an index into the
+ * same array. That is not a micro-optimisation: keyed by string, each of those
+ * reads is a lookup that can miss, and a schedule made of maps grows a fence of
+ * "this cannot happen" throws whose failure nobody has ever seen. An index into
+ * an array the pass built cannot miss, and the type says so.
+ *
+ * The resource edges are not here, because they do not exist until the
+ * placement chooses them.
+ */
+interface SliceNode {
+  key: string;
+  slice: Slice;
+  /** Which work item's span it belongs to, as an index into the pass's own arrays. */
+  item: number;
+  /** How many roles into that work item it is. */
   at: number;
+  /** Its work item's running offsets — one shared array per work item. */
+  offsets: readonly number[];
+  /** The earliest day its work item may start; only its first slice carries one. */
+  notBefore: number;
+  predecessors: number[];
+  successors: number[];
+}
+
+/** The plan as the passes run over it. */
+interface SliceGraph {
+  nodes: readonly SliceNode[];
+  /** How many work items the nodes belong to — the width of the anchor arrays. */
+  items: number;
 }
 
 /**
- * The slice graph the passes run over: the nodes, where each one belongs, and
- * the edges the **plan** declares — dependencies and the intra-item role chain.
+ * No node — what a slice with nobody in front of it carries where a resource
+ * predecessor would go.
  *
- * The resource edges are not in here, because they do not exist until the pass
- * chooses them.
+ * A sentinel rather than `null` because the field is read on every slice of
+ * every plan and the union would be one narrowing per read for a case the
+ * placement already knows the answer to. -1 is not an index any array has.
  */
-interface SliceGraph {
-  keys: readonly string[];
-  placeOf: (key: string) => SlicePlace;
-  offsetsOf: (workItemId: string) => readonly number[];
-  predecessorsOf: ReadonlyMap<string, string[]>;
-  successorsOf: ReadonlyMap<string, string[]>;
-  notBefore: ReadonlyMap<string, number>;
-}
+const NOBODY = -1;
 
 /** Where one slice was put, and what put it there. */
 interface Placed {
   start: number;
   finish: number;
   boundBy: ScheduleFloor;
-  resourcePredecessorId: string | null;
+  /** The node its assignee was busy with, or -1 when nobody held it up. */
+  resourcePredecessor: number;
 }
 
 /**
@@ -357,22 +382,22 @@ interface SlicePriority {
 }
 
 /**
- * A binary heap of slice keys — the eligible set, kept in priority order.
+ * A binary heap of slice nodes — the eligible set, kept in priority order.
  *
  * A sorted array rescanned for the first eligible slice is quadratic in the
  * slices, and the plans this has to hold are thousands of them. `O(log n)` per
  * placement is what keeps the whole pass at `O(V log V + E)`.
  */
-function eligibleSet(goesFirst: (left: string, right: string) => boolean) {
-  const heap: string[] = [];
+function eligibleSet(goesFirst: (left: number, right: number) => boolean) {
+  const heap: number[] = [];
   const swap = (a: number, b: number): void => {
     const held = heap[a];
     heap[a] = heap[b];
     heap[b] = held;
   };
   return {
-    push(key: string): void {
-      heap.push(key);
+    push(node: number): void {
+      heap.push(node);
       for (let at = heap.length - 1; at > 0; ) {
         const parent = (at - 1) >> 1;
         if (!goesFirst(heap[at], heap[parent])) break;
@@ -380,7 +405,7 @@ function eligibleSet(goesFirst: (left: string, right: string) => boolean) {
         at = parent;
       }
     },
-    take(): string | undefined {
+    take(): number | undefined {
       const top = heap[0];
       const last = heap.pop();
       if (last !== undefined && heap.length > 0) {
@@ -399,25 +424,6 @@ function eligibleSet(goesFirst: (left: string, right: string) => boolean) {
       return top;
     },
   };
-}
-
-/**
- * A map entry the pass itself wrote, or a throw.
- *
- * Every one of these is read after the pass has written it — a predecessor is
- * placed before its successor is looked at. A `?? 0` here would turn a mistake
- * in the ordering into a slice quietly scheduled on day zero, which is the
- * shape of wrongness nobody reading a plan could detect.
- *
- * Proof: it is reached. With the cycle throw below deleted, `throws on a cyclic
- * graph rather than returning a schedule` failed here — `no placement for slice
- * a\0role-dev` — rather than coming back with a plan missing the rows in the
- * loop; watched 2026-08-09.
- */
-function written<T>(from: ReadonlyMap<string, T>, key: string, what: string): T {
-  const found = from.get(key);
-  if (found === undefined) throw new Error(`no ${what} for slice ${key}`);
-  return found;
 }
 
 /**
@@ -453,33 +459,31 @@ function written<T>(from: ReadonlyMap<string, T>, key: string, what: string): T 
  */
 function placeSlices(
   graph: SliceGraph,
-  goesFirst: (left: string, right: string) => boolean,
-  personOf: (key: string) => string | null,
-): { order: string[]; placed: Map<string, Placed>; resourceSuccessors: Map<string, string[]> } {
-  const waitingOn = new Map(
-    graph.keys.map((key) => [key, (graph.predecessorsOf.get(key) ?? []).length]),
-  );
+  goesFirst: (left: number, right: number) => boolean,
+  withPeople: boolean,
+): { order: number[]; placed: Placed[]; resourceSuccessors: number[][] } {
+  const { nodes } = graph;
+  const waitingOn = nodes.map((node) => node.predecessors.length);
   const eligible = eligibleSet(goesFirst);
-  for (const key of graph.keys) if (waitingOn.get(key) === 0) eligible.push(key);
+  for (let node = 0; node < nodes.length; node += 1) if (waitingOn[node] === 0) eligible.push(node);
 
-  const placed = new Map<string, Placed>();
-  const order: string[] = [];
-  const anchorOf = new Map<string, SpanAnchor>();
+  const placed: Placed[] = [];
+  const order: number[] = [];
+  const anchorOf = new Array<SpanAnchor | undefined>(graph.items);
   /** Each person's last placement — their finishes only ever go up, so it is also their latest. */
-  const busyUntil = new Map<string, { key: string; finish: number }>();
-  const resourceSuccessors = new Map<string, string[]>();
+  const busyUntil = new Map<string, { node: number; finish: number }>();
+  const resourceSuccessors = nodes.map((): number[] => []);
 
-  for (let key = eligible.take(); key !== undefined; key = eligible.take()) {
-    const place = graph.placeOf(key);
-    const offsets = graph.offsetsOf(place.workItemId);
+  for (let taken = eligible.take(); taken !== undefined; taken = eligible.take()) {
+    const node = nodes[taken];
+    const { offsets, at } = node;
 
     let fromPredecessor = 0;
     let fromRoleOrder = 0;
-    for (const earlier of graph.predecessorsOf.get(key) ?? []) {
-      const { finish } = written(placed, earlier, 'placement');
-      if (graph.placeOf(earlier).workItemId === place.workItemId) {
-        fromRoleOrder = Math.max(fromRoleOrder, finish);
-      } else fromPredecessor = Math.max(fromPredecessor, finish);
+    for (const earlier of node.predecessors) {
+      const { finish } = placed[earlier];
+      if (nodes[earlier].item === node.item) fromRoleOrder = Math.max(fromRoleOrder, finish);
+      else fromPredecessor = Math.max(fromPredecessor, finish);
     }
     // A slice of no length is not work, so it neither waits for its assignee
     // nor makes them busy: nobody is occupied for zero days. Without this an
@@ -492,7 +496,7 @@ function placeSlices(
     // has estimated no place in the queue` failed — the empty `QA` came back at
     // day 5 rather than day 3, `boundBy: 'person'`, taking its work item's
     // finish with it; watched 2026-08-09.
-    const personId = offsets[place.at + 1] - offsets[place.at] > 0 ? personOf(key) : null;
+    const personId = withPeople && offsets[at + 1] - offsets[at] > 0 ? node.slice.personId : null;
     const busy = personId === null ? undefined : busyUntil.get(personId);
     // Latest wins, and a tie keeps the reason listed first — which is why the
     // person is last of them; see {@link ScheduleFloor}.
@@ -504,7 +508,7 @@ function placeSlices(
     const floors: { at: number; kind: ScheduleFloor }[] = [
       { at: fromPredecessor, kind: 'predecessor' },
       { at: fromRoleOrder, kind: 'roleOrder' },
-      { at: place.at === 0 ? (graph.notBefore.get(place.workItemId) ?? 0) : 0, kind: 'notBefore' },
+      { at: node.notBefore, kind: 'notBefore' },
       ...(busy === undefined ? [] : [{ at: busy.finish, kind: 'person' as const }]),
     ];
     let start = 0;
@@ -525,56 +529,54 @@ function placeSlices(
     // then reads `base + offsets[i]`, which is what the engine before slices
     // computed and what the identity claim rests on. A slice a person held
     // back does not tile, and becomes the anchor the rest are measured from.
-    const anchor = anchorOf.get(place.workItemId);
+    const anchor = anchorOf[node.item];
     const held =
-      anchor !== undefined && start === anchor.start + (offsets[place.at] - offsets[anchor.at])
+      anchor !== undefined && start === anchor.start + (offsets[at] - offsets[anchor.at])
         ? anchor
-        : { start, at: place.at };
-    anchorOf.set(place.workItemId, held);
+        : { start, at };
+    anchorOf[node.item] = held;
     // Proof: written as `start + (offsets[at + 1] - offsets[at])` — the
     // textbook `start + days`, accumulated from slice to slice — and `answers
     // what the previous engine answered` failed at seed 260: a work item's late
     // start of 10.666666666666666 became 10.666666666666668; watched
     // 2026-08-09.
-    const finish = held.start + (offsets[place.at + 1] - offsets[held.at]);
-    placed.set(key, {
+    const finish = held.start + (offsets[at + 1] - offsets[held.at]);
+    placed[taken] = {
       start,
       finish,
       boundBy,
-      resourcePredecessorId: boundBy === 'person' && busy !== undefined ? busy.key : null,
-    });
-    order.push(key);
+      resourcePredecessor: boundBy === 'person' && busy !== undefined ? busy.node : NOBODY,
+    };
+    order.push(taken);
 
     if (personId !== null) {
       // The edge the pass chose: this person's work, in the order it will be
       // done. It is a real precedence constraint of the plan that comes out,
       // so the backward pass runs over it too.
-      if (busy !== undefined) {
-        resourceSuccessors.set(busy.key, [...(resourceSuccessors.get(busy.key) ?? []), key]);
-      }
+      if (busy !== undefined) resourceSuccessors[busy.node].push(taken);
       // Where the slice actually landed, which is the whole difference between
       // this algorithm and the one it replaced. Proof: recorded as that slice's
       // **critical-path** finish instead — one forward re-run over stale
       // numbers, which is what v1 did — and `does not re-overlap a person
-      // downstream of a dependency push` failed, alone: `r` came back at 5→7
-      // on top of `q` at 4→6, `boundBy: 'predecessor'`; watched 2026-08-09.
-      busyUntil.set(personId, { key, finish });
+      // downstream of a dependency push` failed, alone: `r` came back at 5→7 on
+      // top of `q` at 4→6, `boundBy: 'predecessor'`; watched 2026-08-09.
+      busyUntil.set(personId, { node: taken, finish });
     }
-    for (const next of graph.successorsOf.get(key) ?? []) {
-      const left = written(waitingOn, next, 'predecessor count') - 1;
-      waitingOn.set(next, left);
-      if (left === 0) eligible.push(next);
+    for (const next of node.successors) {
+      waitingOn[next] -= 1;
+      if (waitingOn[next] === 0) eligible.push(next);
     }
   }
 
   // The eligible set emptied with slices left over: the only way that happens
   // is a loop in the plan's own edges, since a resource edge always points from
   // something already placed. Proof: this throw deleted and `throws on a cyclic
-  // graph rather than returning a schedule` failed with `no placement for slice
-  // a\0role-dev` instead — an untyped error, which `tree` rethrows, so a plan
-  // with a loop in it would 500 the whole project instead of coming back with
-  // its rows and the banner saying why it has no dates; watched 2026-08-09.
-  if (order.length !== graph.keys.length) throw new ScheduleCycleError();
+  // graph rather than returning a schedule` failed with `undefined is not an
+  // object (evaluating 'unleveled.placed[at].start')` — an untyped error a
+  // reader would meet as a 500 on the whole project, where this one is what
+  // `tree` turns into the banner saying why the plan has no dates; watched
+  // 2026-08-09.
+  if (order.length !== nodes.length) throw new ScheduleCycleError();
   return { order, placed, resourceSuccessors };
 }
 
@@ -598,38 +600,73 @@ interface Late {
  * `datesOf` can turn into a whole day. The anchor moves when a slice's late
  * finish is not the one the tiling implies, which is what a person's queue
  * pulling one slice earlier than its own chain does.
+ *
+ * `hasQueues` turns on the **tight-path rule**: a slice that cannot move at all
+ * takes its late start from the early pass rather than reconstructing it by
+ * subtraction. Both are the same number in arithmetic — `latestFinish ===
+ * earliestFinish` means `latestFinish - days === earliestStart` — and not in
+ * doubles: `(4/3 + 1) - 1` is not `4/3`, so a queue that is the longest path
+ * there is reports a float of `-2.2e-16` and paints neither of its rows red.
+ *
+ * It is on only when the placement made a queue, and that scoping is the whole
+ * identity claim rather than caution: a plan with nobody assigned has to answer
+ * what the engine before this one answered, **including** where that engine
+ * drifted the same way on an ordinary critical path. Fixing that is a change
+ * that moves numbers in every plan that exists, and it is not this one.
+ *
+ * Proof that the scoping is load-bearing: with `hasQueues` dropped, so the rule
+ * applies to every plan, the differential failed at seed 2 —
+ * `r1c0g0.latestStart` `4.666666666666666` became `4.666666666666667`, on a
+ * plan nobody is assigned to; watched 2026-08-09.
  */
 function lateTimes(
   graph: SliceGraph,
-  order: readonly string[],
-  successorsOf: ReadonlyMap<string, readonly string[]>,
+  order: readonly number[],
+  successorsOf: readonly (readonly number[])[],
   projectFinish: number,
-): Map<string, Late> {
-  const late = new Map<string, Late>();
-  const anchorOf = new Map<string, { finish: number; at: number }>();
-  for (const key of [...order].reverse()) {
-    const place = graph.placeOf(key);
-    const offsets = graph.offsetsOf(place.workItemId);
-    const successors = successorsOf.get(key) ?? [];
-    const finish =
-      successors.length === 0
-        ? projectFinish
-        : Math.min(...successors.map((next) => written(late, next, 'late time').latestStart));
-    const anchor = anchorOf.get(place.workItemId);
+  placed: readonly Placed[],
+  hasQueues: boolean,
+): Late[] {
+  const { nodes } = graph;
+  const late: Late[] = [];
+  const anchorOf = new Array<{ finish: number; at: number } | undefined>(graph.items);
+  for (let step = order.length - 1; step >= 0; step -= 1) {
+    const taken = order[step];
+    const node = nodes[taken];
+    const { offsets, at } = node;
+    const successors = successorsOf[taken];
+    let finish = projectFinish;
+    for (const next of successors) {
+      const settled = late[next].latestStart;
+      if (settled < finish) finish = settled;
+    }
+
+    // The tight-path rule. Proof: with this branch removed, `reports a queue
+    // that ends the project as critical, exactly` failed — both slices of a
+    // person's queue that is the longest path in the plan came back with a
+    // float of -2.220446049250313e-16 and `critical: false`; watched
+    // 2026-08-09.
+    const early = placed[taken];
+    if (hasQueues && finish === early.finish) {
+      anchorOf[node.item] = { finish, at };
+      late[taken] = { latestFinish: finish, latestStart: early.start };
+      continue;
+    }
+
+    const anchor = anchorOf[node.item];
     const held =
-      anchor !== undefined &&
-      finish === anchor.finish - (offsets[anchor.at + 1] - offsets[place.at + 1])
+      anchor !== undefined && finish === anchor.finish - (offsets[anchor.at + 1] - offsets[at + 1])
         ? anchor
-        : { finish, at: place.at };
-    anchorOf.set(place.workItemId, held);
-    late.set(key, {
+        : { finish, at };
+    anchorOf[node.item] = held;
+    late[taken] = {
       latestFinish: finish,
       // Proof: written as `finish - (offsets[at + 1] - offsets[at])` — the
       // textbook `finish - days` — and the differential failed at seed 255 with
       // a late start of 0 becoming 6.661338147750939e-16, which is a row that
       // had no slack acquiring some and losing its red; watched 2026-08-09.
-      latestStart: held.finish - (offsets[held.at + 1] - offsets[place.at]),
-    });
+      latestStart: held.finish - (offsets[held.at + 1] - offsets[at]),
+    };
   }
   return late;
 }
@@ -731,96 +768,106 @@ export function schedule(
   const leafEdges = expandToLeaves(index, edges);
 
   /**
-   * The keys of one leaf's slices, in the order they run.
+   * The nodes, in the order they run: every leaf's slices in role order, and
+   * the intra-item chain between them.
    *
-   * Never empty, and that is structural rather than checked: a group only
-   * exists because a slice created it, and a leaf with no group at all is what
-   * `slicesOf` throws over. It matters because an edge end that is not a slice
-   * key would be a node the sort has never heard of — and an unreachable node
-   * is exactly how the sort reports a **cycle**, so the reader would be told
-   * their dependencies run in a circle about a graph with one edge in it.
+   * A group is never empty — {@link groupByWorkItem} only creates one because a
+   * slice went into it — so a leaf's first and last node are its first and last
+   * slice. A leaf with no group at all is what `slicesOf` refuses, which is why
+   * this loop asks it for every leaf before any edge is drawn.
    */
-  const keysOf = (leafId: string): string[] =>
-    slicesOf(leafId).slices.map((slice) => sliceKey(slice.workItemId, slice.roleId));
-
-  const keys: string[] = [];
-  const sliceEdges: { predecessorId: string; successorId: string }[] = [];
+  const nodes: SliceNode[] = [];
+  const ends = new Map<string, { first: number; last: number }>();
+  let items = 0;
   for (const leafId of leafIds) {
-    const own = keysOf(leafId);
-    keys.push(...own);
-    for (let i = 1; i < own.length; i += 1) {
-      sliceEdges.push({ predecessorId: own[i - 1], successorId: own[i] });
+    const { slices: own, offsets } = slicesOf(leafId);
+    const item = items;
+    items += 1;
+    const first = nodes.length;
+    own.forEach((slice, at) => {
+      nodes.push({
+        key: sliceKey(slice.workItemId, slice.roleId),
+        slice,
+        item,
+        at,
+        offsets,
+        notBefore: at === 0 ? (notBefore.get(leafId) ?? 0) : 0,
+        predecessors: [],
+        successors: [],
+      });
+    });
+    for (let node = first + 1; node < nodes.length; node += 1) {
+      nodes[node - 1].successors.push(node);
+      nodes[node].predecessors.push(node - 1);
     }
-  }
-  // The predecessor's **last** slice to the successor's **first**: the whole of
-  // one work item before the whole of the other, and the successor's own order
-  // carries the wait to the roles behind its first.
-  for (const { predecessorId, successorId } of leafEdges) {
-    const before = keysOf(predecessorId);
-    sliceEdges.push({
-      predecessorId: before[before.length - 1],
-      successorId: keysOf(successorId)[0],
-    });
+    // Recorded only if the group put a node in. It always does — a group exists
+    // because a slice created it — and the one thing that could make it not is
+    // the fault `endsOf` below names, which is why the range is not written for
+    // a leaf with nothing in it rather than written as an empty one.
+    if (nodes.length > first) ends.set(leafId, { first, last: nodes.length - 1 });
   }
 
-  const predecessorsOf = new Map<string, string[]>();
-  const successorsOf = new Map<string, string[]>();
-  for (const { predecessorId, successorId } of sliceEdges) {
-    predecessorsOf.set(successorId, [...(predecessorsOf.get(successorId) ?? []), predecessorId]);
-    successorsOf.set(predecessorId, [...(successorsOf.get(predecessorId) ?? []), successorId]);
-  }
-
-  const placeOf = new Map<string, SlicePlace>();
-  const personOf = new Map<string, string | null>();
-  for (const leafId of leafIds) {
-    slicesOf(leafId).slices.forEach((slice, at) => {
-      const key = sliceKey(slice.workItemId, slice.roleId);
-      placeOf.set(key, { workItemId: leafId, at });
-      personOf.set(key, slice.personId);
-    });
-  }
-  const graph: SliceGraph = {
-    keys,
-    placeOf: (key) => written(placeOf, key, 'place'),
-    offsetsOf: (workItemId) => slicesOf(workItemId).offsets,
-    predecessorsOf,
-    successorsOf,
-    notBefore,
+  /**
+   * Where a leaf's slices begin and end among the nodes.
+   *
+   * Every leaf has an entry: the loop above made one for each of them, and
+   * refused the leaf it was handed no slice for. It throws rather than skipping
+   * because a dependency quietly dropped is a plan whose rows are all real and
+   * whose dates are for a different plan.
+   *
+   * Proof: with `slicesOf` returning an empty group instead of throwing — the
+   * fault `schedule-on-item-role` documents — `refuses a dependency onto a leaf
+   * it has no slice for` failed here, `no slice for work item leaf-2`, instead
+   * of coming back with the row missing and the edge ignored; watched
+   * 2026-08-09.
+   */
+  const endsOf = (leafId: string): { first: number; last: number } => {
+    const found = ends.get(leafId);
+    if (found === undefined) throw new Error(`no slice for work item ${leafId}`);
+    return found;
   };
 
+  // The predecessor's **last** slice to the successor's **first**: the whole of
+  // one work item before the whole of the other, and the successor's own order
+  // carries the wait to the roles behind its first. Pushed onto the two nodes
+  // rather than rebuilt into a map — the adjacency is written once per edge.
+  for (const { predecessorId, successorId } of leafEdges) {
+    const before = endsOf(predecessorId).last;
+    const after = endsOf(successorId).first;
+    nodes[before].successors.push(after);
+    nodes[after].predecessors.push(before);
+  }
+  const graph: SliceGraph = { nodes, items };
+
   // The same plan with nobody's calendar in it — the critical path, computed by
-  // the pass below with the people taken out rather than by a second copy of
+  // the pass above with the people taken out rather than by a second copy of
   // it. Its start and float are what the leveller ranks by, and its numbers are
-  // exactly what this engine answers when nobody is assigned.
-  const takenIn = new Map(keys.map((key, at) => [key, at]));
-  const unleveled = placeSlices(
-    graph,
-    (left, right) => written(takenIn, left, 'position') < written(takenIn, right, 'position'),
-    () => null,
-  );
+  // exactly what this engine answers when nobody is assigned. The order it is
+  // computed in is the order the nodes were built in, which is all a plan with
+  // no queues in it needs.
+  const unleveled = placeSlices(graph, (left, right) => left < right, false);
   const criticalPath = lateTimes(
     graph,
     unleveled.order,
-    successorsOf,
-    Math.max(0, ...keys.map((key) => written(unleveled.placed, key, 'placement').finish)),
+    nodes.map((node) => node.successors),
+    Math.max(0, ...unleveled.placed.map((each) => each.finish)),
+    unleveled.placed,
+    // The critical path is a ranking, not an answer, and it is the plan with
+    // nobody in it by construction — there are no queues here to be tight about.
+    false,
   );
 
   const numbers = deriveNumbers(rows);
-  const priorityOf = new Map<string, SlicePriority>(
-    keys.map((key) => {
-      const start = written(unleveled.placed, key, 'placement').start;
-      const place = written(placeOf, key, 'place');
-      return [
-        key,
-        {
-          start,
-          float: written(criticalPath, key, 'late time').latestStart - start,
-          number: numbers.get(place.workItemId) ?? '',
-          at: place.at,
-        },
-      ];
-    }),
-  );
+  const priorityOf: SlicePriority[] = nodes.map((node, at) => ({
+    start: unleveled.placed[at].start,
+    float: criticalPath[at].latestStart - unleveled.placed[at].start,
+    // `deriveNumbers` covers every row or throws, so the fallback is
+    // unreachable; it is a default rather than a throw because this is the
+    // third of four tie-breaks and an empty string only ever reorders slices
+    // that are already equal on time.
+    number: numbers.get(node.slice.workItemId) ?? '',
+    at: node.at,
+  }));
   /**
    * The priority rule, in full: what the critical path needs first, then what
    * has least room to move, then the plan's own order.
@@ -837,64 +884,67 @@ export function schedule(
    * could not begin for three days and pushed the other out to 5→7, finishing
    * the project two days later than it needs to; watched 2026-08-09.
    */
-  const goesFirst = (left: string, right: string): boolean => {
-    const first = written(priorityOf, left, 'priority');
-    const second = written(priorityOf, right, 'priority');
+  const goesFirst = (left: number, right: number): boolean => {
+    const first = priorityOf[left];
+    const second = priorityOf[right];
     if (first.start !== second.start) return first.start < second.start;
     if (first.float !== second.float) return first.float < second.float;
     if (first.number !== second.number) return first.number < second.number;
     return first.at < second.at;
   };
 
-  const leveled = placeSlices(graph, goesFirst, (key) => written(personOf, key, 'person'));
-  const projectFinish = Math.max(
-    0,
-    ...keys.map((key) => written(leveled.placed, key, 'placement').finish),
-  );
+  const leveled = placeSlices(graph, goesFirst, true);
+  const projectFinish = Math.max(0, ...leveled.placed.map((each) => each.finish));
   // The augmented graph: the plan's edges and the ones the placement chose. A
   // slice held off by a person cannot slip without moving what that person does
   // next, so `float` and `critical` are only true of the plan that comes out if
   // they are computed over both.
   //
-  // Proof: the backward pass run over `successorsOf` alone and `counts the
-  // person behind a slice as a reason it cannot slip` failed — a slice whose
-  // assignee goes straight from it onto the critical path came back with three
-  // days of slack it does not have, and no red; watched 2026-08-09.
-  const augmented = new Map<string, string[]>(successorsOf);
-  for (const [key, next] of leveled.resourceSuccessors) {
-    augmented.set(key, [...(augmented.get(key) ?? []), ...next]);
-  }
-  const late = lateTimes(graph, leveled.order, augmented, projectFinish);
+  // Proof: the backward pass run over the plan's successors alone and `counts
+  // the person behind a slice as a reason it cannot slip` failed — a slice
+  // whose assignee goes straight from it onto the critical path came back with
+  // three days of slack it does not have, and no red; watched 2026-08-09.
+  const queues = leveled.resourceSuccessors;
+  const augmented = nodes.map((node, at) =>
+    queues[at].length === 0 ? node.successors : [...node.successors, ...queues[at]],
+  );
+  const late = lateTimes(
+    graph,
+    leveled.order,
+    augmented,
+    projectFinish,
+    leveled.placed,
+    queues.some((next) => next.length > 0),
+  );
 
   const scheduledSlices = new Map<string, ScheduledSlice>();
   const waiting = new Set<string>();
-  for (const leafId of leafIds) {
-    for (const slice of slicesOf(leafId).slices) {
-      const key = sliceKey(slice.workItemId, slice.roleId);
-      const placed = written(leveled.placed, key, 'placement');
-      const { latestStart, latestFinish } = written(late, key, 'late time');
-      if (placed.boundBy === 'person') waiting.add(slice.workItemId);
-      scheduledSlices.set(key, {
-        workItemId: slice.workItemId,
-        roleId: slice.roleId,
-        duration: slice.days ?? 0,
-        // Proof: hard-coded to `true` and the captured live plan came back with
-        // three of its rows claiming somebody had estimated them, along with
-        // `reports an unestimated leaf as unestimated, not merely as zero` and
-        // the parent above it; watched 2026-08-09.
-        estimated: slice.days !== null,
-        earliestStart: placed.start,
-        earliestFinish: placed.finish,
-        latestStart,
-        latestFinish,
-        float: latestStart - placed.start,
-        critical: latestStart - placed.start === 0,
-        personId: slice.personId,
-        boundBy: placed.boundBy,
-        resourcePredecessorId: placed.resourcePredecessorId,
-      });
-    }
-  }
+  nodes.forEach((node, at) => {
+    const { slice } = node;
+    const placed = leveled.placed[at];
+    const { latestStart, latestFinish } = late[at];
+    if (placed.boundBy === 'person') waiting.add(slice.workItemId);
+    scheduledSlices.set(node.key, {
+      workItemId: slice.workItemId,
+      roleId: slice.roleId,
+      duration: slice.days ?? 0,
+      // Proof: hard-coded to `true` and the captured live plan came back with
+      // three of its rows claiming somebody had estimated them, along with
+      // `reports an unestimated leaf as unestimated, not merely as zero` and
+      // the parent above it; watched 2026-08-09.
+      estimated: slice.days !== null,
+      earliestStart: placed.start,
+      earliestFinish: placed.finish,
+      latestStart,
+      latestFinish,
+      float: latestStart - placed.start,
+      critical: latestStart - placed.start === 0,
+      personId: slice.personId,
+      boundBy: placed.boundBy,
+      resourcePredecessorId:
+        placed.resourcePredecessor === NOBODY ? null : nodes[placed.resourcePredecessor].key,
+    });
+  });
 
   const scheduleOf = (key: string): ScheduledSlice => {
     const found = scheduledSlices.get(key);

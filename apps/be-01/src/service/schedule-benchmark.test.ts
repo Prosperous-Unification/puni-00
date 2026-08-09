@@ -100,10 +100,11 @@ describe('the leveled pass, at the size of a real plan', () => {
     // algorithm, and a flaky gate is a gate people learn to ignore.
     //
     // Proof that this is a measurement rather than a number nobody checks: with
-    // the fixture at four times the size — 880 rows, 2,400 slices — the same
-    // assertion read 18.6ms and failed, and with the eligible set scanned
-    // linearly instead of held in a heap it read 32.3ms; watched 2026-08-09. It
-    // measures 2.9ms here.
+    // the fixture at eight times the size — 1,760 rows, 4,800 slices — the same
+    // assertion read 13.6ms and failed, and with the eligible set scanned
+    // linearly instead of held in a heap it read 26.7ms; watched 2026-08-09. It
+    // measures 1.5ms here, and did 2.9ms before the passes were moved off maps
+    // and onto node indices.
     schedule(plan.rows, plan.edges, plan.slices);
     const runs = Array.from({ length: 5 }, () =>
       millisecondsFor(() => {
@@ -111,6 +112,7 @@ describe('the leveled pass, at the size of a real plan', () => {
       }),
     );
 
+    console.log(JSON.stringify(runs));
     expect(Math.min(...runs)).toBeLessThan(10);
   });
 });

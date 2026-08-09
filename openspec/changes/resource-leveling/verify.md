@@ -8,7 +8,7 @@ $ bunx nx format:check --all
 
 $ bunx nx run-many -t test lint typecheck build --parallel=2
 NX   Successfully ran targets test, lint, typecheck, build for 21 projects
-     be-01 (bun:test)          480 pass  0 fail  (49 files; was 469 on
+     be-01 (bun:test)          482 pass  0 fail  (49 files; was 469 on
                                                   change/schedule-on-item-role)
      every bun:test project    917 pass  0 fail
      fe-01 (vitest)            612 pass  0 fail  (25 files, not one of them edited)
@@ -39,12 +39,19 @@ the fixture, which a second test asserts so the benchmark cannot be timing the
 pass that already existed.
 
 ```
-best of five runs, after a warm one:  2.9 ms   (budget: 10 ms)
+best of five runs, after a warm one:  1.5 ms   (budget: 10 ms)
 ```
 
-Falsifiable, and watched failing twice: with the fixture at four times the size
-(880 rows, 2,400 slices) the same assertion read **18.6 ms**, and with the
-eligible set scanned linearly instead of held in a heap, **32.3 ms**.
+It read 2.9 ms before the passes were moved off string-keyed maps and onto node
+indices with push-built adjacency — the review's third finding, and the reason
+the `O(V log V + E′)` in `design.md` is now true of the adjacency as well as of
+the placement.
+
+Falsifiable, and watched failing twice at the new speed: with the fixture at
+**eight** times the size (1,760 rows, 4,800 slices) the same assertion read
+**13.6 ms**, and with the eligible set scanned linearly instead of held in a
+heap, **26.7 ms**. (At four times the size it now passes at 6.2 ms, which is
+why the negative run is eight.)
 
 ## The checks, and the faults that broke them
 
@@ -98,11 +105,31 @@ spec says so in the requirement itself so nobody reads the dates as a bound.
 phases serialises them. True, and `waitingForPerson` plus the per-slice
 `boundBy` are what make it legible rather than mysterious.
 
-**Structural, therefore unfalsifiable, and recorded as such.** `written`'s
-throws on the maps the pass has just filled cannot be made to fire by any input
-while the cycle refusal stands — one of them was reached only by deleting that
-refusal, which is the row in the table above. The rest are guards against a
-future mistake in this file, not against data.
+**No guard is left whose failure has not been observed.** The review's second
+finding was that the earlier version kept a fence of `written(...)` throws on
+maps the pass had just filled, none of which any input could fire. They are
+gone rather than tested: the passes run over **node indices**, so a predecessor,
+a priority, a placement and a late time are each an offset into an array of the
+same length as the nodes, which the type carries and no lookup can miss. Two
+guards remain in the planner, and both are in the table above with the fault
+that fired them — `slicesOf` and `endsOf`, the pair that between them refuse a
+leaf with no slices and an edge onto one.
+
+The one fallback that is left is `numbers.get(workItemId) ?? ''` in the priority
+build. `deriveNumbers` covers every row or throws, so it cannot fire; it is a
+default rather than a throw because it is the third of four tie-breaks and an
+empty string only ever reorders slices that already tie on time. Said here
+rather than left for a reader to find.
+
+**Pre-existing, and deliberately not fixed here.** The engine before this one
+reconstructs a late start by subtracting a duration from a finish it was added
+to, so an ordinary critical path whose work item starts on a third of a day
+reports a float of about `2e-16` and loses its red — no queue required. This
+change fixes it **where a plan holds a queue** and preserves it everywhere else,
+because the identity claim is that a plan with nobody assigned answers exactly
+what the previous engine answered. Fixing it for every plan moves numbers in
+every plan that exists and is its own change; the differential (seed 2) is the
+proof it would.
 
 **Carried forward from `schedule-on-item-role`:** a leaf estimated in three or
 more roles is summed in role order where the previous engine summed in

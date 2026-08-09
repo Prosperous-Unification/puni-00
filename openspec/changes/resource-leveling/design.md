@@ -58,8 +58,7 @@ needs from it.
 `(critical-path earliest start, least float, work item number, role order)`.
 
 The first two come from **the same pass with the people taken out** — one call
-to `placeSlices` with `personOf` returning null, which is the ordinary critical
-path. Running it through the same code rather than a second implementation is
+to `placeSlices` with `withPeople` false, which is the ordinary critical path. Running it through the same code rather than a second implementation is
 what makes "a plan with nobody assigned does not move" true by construction
 rather than by inspection.
 
@@ -135,7 +134,30 @@ the arithmetic is the same expression with the same operands as before —
 identity is structural rather than argued. The late times are anchored from the
 other end by the same rule.
 
-### D8 — The projection reports the least slack, and reads it off the ends where it can
+### D8 — A tight path is exact, in a plan that holds a queue
+
+`latestStart` is reconstructed by subtracting a duration from a late finish that
+the duration was added to, and `(4/3 + 1) - 1` is not `4/3`. So a person's queue
+that is the longest path in the plan came back with a float of `-2.2e-16` on
+every slice of it and `critical: false` on both rows — the queue that ends the
+project, reported as not ending it. Integer fixtures cannot see it and the
+differential cannot either, because every slice in it belongs to nobody.
+
+The rule: when a slice's late finish is its early finish, it cannot move, and
+its late start is its early start — the number the forward pass already
+computed on the work item's own anchor. The two are the same in arithmetic;
+only one of them is exact.
+
+It is on **only when the placement made a queue**, and that scoping is the
+identity claim rather than caution. The engine before this one drifted the same
+way on an ordinary critical path, and a plan with nobody assigned has to answer
+what that engine answered — including there. Watched: with the scoping removed,
+the differential fails at seed 2 on a plan nobody is assigned to. Fixing the
+drift for every plan is a change that moves numbers in all of them, and it is
+recorded in `verify.md` as the pre-existing defect it is rather than smuggled in
+here.
+
+### D9 — The projection reports the least slack, and reads it off the ends where it can
 
 A work item's slack is the least any of its slices has, and it is critical when
 any of them is — the rule `schedule-on-item-role`'s spec already stated.
@@ -151,21 +173,37 @@ slack `Dev` — and the minimum is the only honest answer.
 Tiling is read off the numbers (`start_i === finish_{i-1}`, early and late),
 which is exactly the condition under which the anchor above was kept.
 
-### D9 — Complexity
+### D10 — Complexity, and the graph the bound needs
 
 `O(V log V + E′)` for the placement, with `V` slices and `E′` the plan's slice
 edges plus the resource edges (at most one per slice). The `log V` is the binary
 heap the eligible set is kept in; a sorted array rescanned for the first
 eligible slice is `O(V²)`, which is why there is a heap rather than a sort. Both
-passes and both backward passes are that same shape, so the whole engine is.
+placements and both backward passes are that same shape, so the whole engine is.
+
+**The bound is a claim about the adjacency too.** The first version built the
+predecessor and successor lists by rewriting an array per edge —
+`map.set(id, [...(map.get(id) ?? []), next])` — which is `O(E²)` once endpoints
+are shared, and a plan's endpoints are shared by design: every slice of a work
+item's chain, and every leaf beneath a phase an edge was declared on. The lists
+are now pushed onto the nodes themselves, once per edge.
+
+The nodes are the other half of it. Each slice is an **index** into one array,
+and every edge, order, priority and result is an index into an array of the same
+length — so a read is an offset rather than a hash of a key that might not be
+there. That was a correctness decision before it was a speed one: keyed by
+string, each of those reads needed a guard whose failure nobody could stage, and
+`AGENTS.md` R5 is explicit that a check whose failure has never been observed is
+a claim rather than a gate. The two guards that remain are both reachable and
+both watched failing (`verify.md`).
 
 Ahead of it, unchanged from before, `expandToLeaves` is `O(E × L²)` in the worst
 case — an edge declared between two branches expands to every pair of leaves
 beneath them. That is the pre-existing cost, and it is what the benchmark
 fixture deliberately contains.
 
-Measured: 600 slices, 220 rows, 60-odd edges, eight people, **2.9ms**; the
-budget asserted in CI is 10ms.
+Measured: 600 slices, 220 rows, 60-odd edges, eight people, **1.5ms** — 2.9ms
+before the passes came off the maps. The budget asserted in CI is 10ms.
 
 ## Risks / Trade-offs
 
