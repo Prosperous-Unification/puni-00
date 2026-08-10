@@ -4,6 +4,7 @@ import {
   CELL,
   clampColumnWidth,
   DATE_EDITOR_WIDTH,
+  DAY_ENVELOPE,
   DEEPEST_INDENT,
   FIXED_COLUMNS,
   FLEXIBLE_COLUMNS,
@@ -68,10 +69,10 @@ describe('the resolved frame layout', () => {
     ]);
     // Name declares nothing: it is the column that takes what the others leave.
     expect(layout.columns.find((column) => column.id === 'name')?.width).toBeUndefined();
-    expect(layout.columns.find((column) => column.id === 'number')?.width).toBe(169);
-    // 759px of fixed columns with a dated `not-before`, plus Name's 200px
+    expect(layout.columns.find((column) => column.id === 'number')?.width).toBe(93);
+    // 807px of fixed columns with a dated `not-before`, plus Name's 200px
     // floor, plus a folded column for each of two phases.
-    expect(layout.minWidth).toBe(759 + FLEXIBLE_FLOOR + 2 * 96);
+    expect(layout.minWidth).toBe(807 + FLEXIBLE_FLOOR + 2 * 96);
   });
 
   it('holds every pinned column at the sum of the widths the same call declared', () => {
@@ -107,11 +108,11 @@ describe('the resolved frame layout', () => {
     const { pinned } = frameLayout(RENDERED, DATED);
 
     expect(pinned.get('drag')).toEqual({ left: 0, width: 24 });
-    expect(pinned.get('number')).toEqual({ left: 24, width: 169 });
+    expect(pinned.get('number')).toEqual({ left: 24, width: 93 });
     // Name is pinned at the sum of the two fixed columns in front of it and has
     // no width of its own — the `<colgroup>` decides that, and the browser gate
     // measures this offset at a viewport too narrow to hold the table.
-    expect(pinned.get('name')).toEqual({ left: 193, width: undefined });
+    expect(pinned.get('name')).toEqual({ left: 117, width: undefined });
     // And nothing else is pinned at all. "Depends on" is the one this matters
     // for: it used to sit between Number and Name.
     expect(pinned.get('depends')).toBeUndefined();
@@ -136,7 +137,7 @@ describe('the resolved frame layout', () => {
     // And the width that is missing is missing from the sum as well, which is
     // the second half of the same fault: the assertion above only sees the
     // throw, so the sum is stated here as the thing the throw is protecting.
-    expect(frameLayout(['drag', 'number'], DATED).minWidth).toBe(193);
+    expect(frameLayout(['drag', 'number'], DATED).minWidth).toBe(117);
   });
 
   it('refuses a column pinned behind a flexible one', () => {
@@ -229,13 +230,13 @@ describe('the resolved frame layout', () => {
       ),
     ).toEqual({
       drag: 24,
-      number: 169,
+      number: 93,
       depends: 110,
       team: 120,
       'final-total': 52,
       'not-before': 84,
-      start: 52,
-      finish: 52,
+      start: 114,
+      finish: 114,
       float: 56,
       actions: 40,
     });
@@ -283,18 +284,24 @@ describe('the width equation the table is laid out by', () => {
     // replaced by `widthFor(id, state)`, this failed on `UnknownColumnError:
     // No declared width for column "name"`; replaced by `0`, on `expected +0
     // to be 200`. Watched, 2026-08-09.
-    expect(frameLayout(['drag', 'number'], DATED).minWidth).toBe(24 + 169);
+    expect(frameLayout(['drag', 'number'], DATED).minWidth).toBe(24 + 93);
     expect(frameLayout(['name'], DATED).minWidth).toBe(FLEXIBLE_FLOOR);
 
-    // 759px of fixed columns with a dated `not-before`, plus Name's 200px
+    // 807px of fixed columns with a dated `not-before`, plus Name's 200px
     // floor. The three states the browser gate measures, computed here so a
     // width change that breaks one of them fails in the repo gate rather than
-    // only in a browser: two roles folded fits a 1280 laptop, three folded
-    // still does, and one role unfolded does not — which is why unfolding is an
-    // accordion.
-    expect(frameLayout([...RENDERED, 'r1-final', 'r2-final'], DATED).minWidth).toBe(1151);
+    // only in a browser: two roles folded fits a 1280 laptop, whose frame
+    // measures 1248px.
+    //
+    // Three folded no longer does, and that is `column-rebalance`'s stated
+    // cost: it was 1247 against that 1248 — one pixel inside — and the two
+    // date columns took 124px to stop wrapping their days. A three-phase plan
+    // scrolls its frame at 1280 now, which is the backstop the pinned columns
+    // exist for. One role unfolded has never fitted, which is why unfolding is
+    // an accordion.
+    expect(frameLayout([...RENDERED, 'r1-final', 'r2-final'], DATED).minWidth).toBe(1199);
     expect(frameLayout([...RENDERED, 'r1-final', 'r2-final', 'r3-final'], DATED).minWidth).toBe(
-      1247,
+      1295,
     );
     expect(
       frameLayout(
@@ -309,7 +316,7 @@ describe('the width equation the table is laid out by', () => {
         ],
         DATED,
       ).minWidth,
-    ).toBe(1427);
+    ).toBe(1475);
   });
 
   it('makes the declared width include the cell chrome, and clips what overruns', () => {
@@ -331,9 +338,9 @@ describe('a pinned cell', () => {
     expect(body?.position).toBe('sticky');
     // The offset the layout works out, on the cell that carries it.
     expect(body?.left).toBe(24);
-    expect(body?.width).toBe(169);
+    expect(body?.width).toBe(93);
     const name = pinnedCellStyle(layout, 'name', 'body');
-    expect(name?.left).toBe(193);
+    expect(name?.left).toBe(117);
     // Pinned, and with no width of its own: the `<colgroup>` is the only thing
     // that sizes a flexible column, and a `width` here would be the second
     // opinion that the whole width table exists to prevent.
@@ -385,22 +392,44 @@ describe('the indent in the Number column', () => {
     // it, from being painted over the number it is meant to sit beside.
     expect(indentFor(DEEPEST_INDENT)).toBe(indentFor(DEEPEST_INDENT + 1));
     expect(indentFor(40)).toBe(indentFor(DEEPEST_INDENT));
-    // And the number keeps the larger half of its own column: the step went to
-    // 12px in the same change that took the column from 168 to 100, and a step
-    // left at 16 would spend 64 of those 100 on white space.
-    // Proof: `INDENT_STEP` put back to 16, this failed on `expected 64 to be
-    // less than 50` when the column was 100px wide. Watched, 2026-08-08.
-    expect(indentFor(DEEPEST_INDENT)).toBeLessThan(widthFor('number', DATED) / 2);
+    // And at the depth the column is sized for, the number keeps the larger
+    // half of its own column — which is the depth this assertion has to be
+    // made at since `column-rebalance`: the envelope is two levels now, so a
+    // row at the deepest indent spends 48px of 93 on white space by design and
+    // has its number clipped into its `title`.
+    // Proof: `INDENT_STEP` put back to 16, this failed on `expected 16 to be
+    // less than 46.5`. Watched, 2026-08-10 — and on `expected 64 to be less
+    // than 50` on 2026-08-08, when the assertion was made at the deepest
+    // indent and the column was 100px wide.
+    expect(indentFor(NUMBER_ENVELOPE.split('.').length - 1)).toBeLessThan(
+      widthFor('number', DATED) / 2,
+    );
   });
 
   it('states the envelope the column is sized to, rather than a longest number', () => {
-    // Eleven characters: a root label's three, plus a dotted single-character
-    // segment for each level down to the deepest indent. There is no longest
-    // work item number to measure instead — an insertion against a frozen
-    // anchor appends a digit, unboundedly — and `e2e/layout.spec.ts` is what
-    // measures this string in a browser.
-    expect(NUMBER_ENVELOPE).toBe('010.1.1.1.1');
-    expect(NUMBER_ENVELOPE.length).toBe(11);
+    // Two levels: a root label's three characters, plus one dotted
+    // single-character segment. There is no longest work item number to
+    // measure instead — an insertion against a frozen anchor appends a digit,
+    // unboundedly — and `e2e/layout.spec.ts` is what measures this string in a
+    // browser, at the indent a row of this depth is drawn at.
+    expect(NUMBER_ENVELOPE).toBe('010.1');
+    expect(NUMBER_ENVELOPE.split('.')).toHaveLength(2);
+  });
+
+  it('states the widest day the two date columns undertake to hold', () => {
+    // The other envelope, and the only one that really is a maximum: the
+    // formatter's month names are a fixed table of twelve and its year is four
+    // digits, so the set of days this table can print is finite.
+    // `e2e/layout.spec.ts`'s `is as wide as the widest day the formatter can
+    // print` measures every one of them in a real cell and asserts this is the
+    // widest — this file cannot, because jsdom lays out no text at all.
+    expect(DAY_ENVELOPE).toBe('20 May 2027 ?');
+    // The marker End draws on an unestimated row is inside it, because a
+    // marker that wraps is the same failure as a date that wraps.
+    expect(DAY_ENVELOPE.endsWith(' ?')).toBe(true);
+    // And both columns are laid out at one width, which is what makes the two
+    // ends of a span readable against each other.
+    expect(widthFor('start', DATED)).toBe(widthFor('finish', DATED));
   });
 });
 
@@ -436,14 +465,14 @@ describe('how wide the phases make the table', () => {
     // The sentence the Phases dialog prints, and the phases' own ids rather
     // than a count: every width resolves per column id now, so a figure summed
     // from invented ids would answer about columns that do not exist.
-    expect(foldedTableMinWidth(['role-dev', 'role-qa'], DATED)).toBe(1151);
+    expect(foldedTableMinWidth(['role-dev', 'role-qa'], DATED)).toBe(1199);
     expect(
       foldedTableMinWidth(['role-dev', 'role-qa', 'role-ops'], DATED) -
         foldedTableMinWidth(['role-dev', 'role-qa'], DATED),
     ).toBe(widthFor('anything-final', DATED));
     // And it answers the narrow state too, which is the fact a count could
     // never carry into it.
-    expect(foldedTableMinWidth(['role-dev', 'role-qa'], UNDATED)).toBe(1151 - (84 - 56));
+    expect(foldedTableMinWidth(['role-dev', 'role-qa'], UNDATED)).toBe(1199 - (84 - 56));
   });
 
   it('is the fixed columns plus Name plus the phases, with nothing left out', () => {
@@ -463,7 +492,7 @@ describe('how wide the phases make the table', () => {
   it('has no phases to be wide for at all, and still declares a table', () => {
     // A project may hold none — `R1`'s spec says the seeded pair is data rather
     // than a limit — and the dialog still has a number to print.
-    expect(foldedTableMinWidth([], DATED)).toBe(959);
+    expect(foldedTableMinWidth([], DATED)).toBe(1007);
   });
 });
 
@@ -479,7 +508,7 @@ describe('a column this browser has dragged to another width', () => {
    */
   const NUMBER_DRAGGED: FrameLayoutState = {
     hasAnyNotBefore: true,
-    columnWidthOverrides: new Map([['number', 169 + 40]]),
+    columnWidthOverrides: new Map([['number', 93 + 40]]),
   };
 
   it('lays out, adds up, folds and pins from the one number it resolved', () => {
@@ -491,9 +520,9 @@ describe('a column this browser has dragged to another width', () => {
     const dragged = frameLayout(RENDERED, NUMBER_DRAGGED);
     const resting = frameLayout(RENDERED, DATED);
 
-    expect(dragged.columns.find((column) => column.id === 'number')?.width).toBe(209);
+    expect(dragged.columns.find((column) => column.id === 'number')?.width).toBe(133);
     expect(dragged.minWidth).toBe(resting.minWidth + 40);
-    expect(dragged.pinned.get('number')).toEqual({ left: 24, width: 209 });
+    expect(dragged.pinned.get('number')).toEqual({ left: 24, width: 133 });
     expect(dragged.pinned.get('name')?.left).toBe((resting.pinned.get('name')?.left ?? 0) + 40);
     // The fourth consumer, which is the figure the Phases dialog quotes.
     expect(foldedTableMinWidth(['role-dev'], NUMBER_DRAGGED)).toBe(

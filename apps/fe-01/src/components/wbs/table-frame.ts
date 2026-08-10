@@ -78,6 +78,48 @@ export interface FrameLayout {
 }
 
 /**
+ * The widest day the Start and End columns undertake to show whole, as the
+ * string a browser measures.
+ *
+ * Unlike {@link NUMBER_ENVELOPE} this one really is a maximum rather than an
+ * undertaking, and it is written out so it can be **checked** against the
+ * formatter rather than trusted: `shortIsoDate` prints a day, an abbreviated
+ * month from a fixed twelve-name table, and the year whenever that year is not
+ * the reader's own, so the set of strings these columns can hold is finite and
+ * `e2e/layout.spec.ts`'s `is as wide as the widest day the formatter can
+ * print` measures every one of them and asserts this is the widest.
+ *
+ * The trailing marker is End's, not a decoration: an unestimated row's End
+ * carries it after the day, and a marker that wraps makes its row two lines
+ * tall exactly as a wrapped date does. Start is laid out at the same width —
+ * the two ends of one span are read against each other, and the wider of the
+ * two decides the pair.
+ *
+ * `20 May` rather than any other day because the browser said so: the twelve
+ * month names and every real day of a year were measured in a Start cell, and
+ * this came back joint widest. **Joint**, and the test says so rather than
+ * pinning this exact string: several days measure identically in this font —
+ * `10 May 2027 ?` is the same width to the pixel — so what is asserted is that
+ * no day the formatter prints is wider than this one.
+ */
+export const DAY_ENVELOPE = '20 May 2027 ?';
+
+/**
+ * How wide the Start and End columns are laid out, in px.
+ *
+ * What Chromium measures {@link DAY_ENVELOPE} to need in a Start cell, 105.86,
+ * plus the 8px of padding the declared width includes — rounded up, because a
+ * column half a pixel short of its own envelope wraps.
+ *
+ * It was 52 until `column-rebalance`, and 52 was measured against a workday
+ * offset rather than against a date: Dany's screenshot of 2026-08-09 has
+ * `29 Sep` on two lines and `29 Sep 2027` on three. The `title` still carries
+ * the full `YYYY-MM-DD`, so the shortening costs nothing and the widening buys
+ * a row that is one line tall.
+ */
+const DATE_COLUMN_WIDTH = 114;
+
+/**
  * Every column whose width is the same on every plan, by fixed id, in px.
  *
  * The constants half of the width table. The other half is
@@ -105,17 +147,19 @@ const COLUMN_WIDTHS = new Map<string, number>([
   // browser that picked it. It is not a guess at the longest number — there is
   // no longest number.
   //
-  // It went **up**, 100 → 169, which was the surprise of `T2
-  // compact-columns`: at the deepest indent Chromium measures 48px of indent,
-  // a 12.5px expander, a 20px lock and 80px of eleven-character number, plus
-  // the cell's 8px of padding. The column had been clipping its own envelope
-  // since the 168 → 100 compaction, and nothing measured it until now.
-  ['number', 169],
+  // 169 → 93 in `column-rebalance`, because the envelope itself shrank: it was
+  // eleven characters at the deepest indent, which is a row almost no plan
+  // has, and it is two levels of number at a two-level row's indent now.
+  // Chromium measures 92.5625px of that — 12px of indent, a 12.5px expander, a
+  // 20px lock, five characters of number and the cell's 8px of padding.
+  ['number', 93],
   ['depends', 110],
   ['team', 120],
   ['final-total', 52],
-  ['start', 52],
-  ['finish', 52],
+  // Both date columns at one width; see {@link DAY_ENVELOPE} for what that
+  // width holds and which browser picked it.
+  ['start', DATE_COLUMN_WIDTH],
+  ['finish', DATE_COLUMN_WIDTH],
   ['float', 56],
   // No `notes`: a work item's notes are typed under its name, in the Name
   // cell, and the column they had of their own is gone. 260px of a table that
@@ -303,8 +347,8 @@ export function widthFor(columnId: string, state: FrameLayoutState): number {
  * 600 is three times {@link FLEXIBLE_FLOOR} and most of a 900px window. It
  * bounds a gesture that got away — a pointer that kept going after the reader
  * stopped looking — without bounding a real preference: the widest column the
- * table declares today is 169px, so a reader who wants three times that still
- * has it.
+ * table declares today is Team's 120px, so a reader who wants five times that
+ * still has it.
  */
 export const WIDEST_COLUMN = 600;
 
@@ -527,10 +571,12 @@ const INDENT_STEP = 12;
  * {@link DEEPEST_INDENT} levels a row stops moving right; the number printed in
  * the cell still says how deep it is.
  *
- * The step is 12px rather than 16: four levels take 48px of the column and the
- * number itself keeps the larger half. A step of 16 would spend 64px of the
- * column on white space and take {@link NUMBER_ENVELOPE} — and so the column —
- * wider again.
+ * The step is 12px rather than 16, and since `column-rebalance` that matters
+ * more rather than less: the column is sized to {@link NUMBER_ENVELOPE}'s two
+ * levels, so at the envelope's own depth the number keeps the larger half of
+ * the column and every level after that is spent on white space. A step of 16
+ * would take 64px of a 93px column at the deepest indent and leave nothing of
+ * the number at all.
  */
 export const indentFor = (depth: number): number => Math.min(depth, DEEPEST_INDENT) * INDENT_STEP;
 
@@ -546,17 +592,26 @@ export const indentFor = (depth: number): number => Math.min(depth, DEEPEST_INDE
  * column sized to the longest number on the plan would move every row in the
  * table the moment one deep row was inserted.
  *
- * So the column undertakes eleven characters: a root label's agreed three, plus
- * one dotted single-character segment for each level down to
- * {@link DEEPEST_INDENT}. Drawn at that indent, beside the expander and the
- * frozen-number lock, that is what `e2e/layout.spec.ts`'s `the Number column
- * fits its envelope` measures — and `COLUMN_WIDTHS`'s figure is asserted
- * against the measurement rather than read off the markup.
+ * So the column undertakes {@link NUMBER_ENVELOPE_LEVELS} levels: a root
+ * label's agreed three characters, plus one dotted single-character segment
+ * for each level after the first. Drawn at the indent a row of that depth is
+ * drawn at, beside the expander and the frozen-number lock, that is what
+ * `e2e/layout.spec.ts`'s `the Number column fits its envelope` measures — and
+ * `COLUMN_WIDTHS`'s figure is asserted against the measurement rather than read
+ * off the markup.
  *
  * Anything longer is clipped with the whole number in the cell's `title`: the
- * same bargain the short dates make.
+ * same bargain the short dates make. **That is most of a deep tree**, and it is
+ * the price of the envelope Dany chose on 2026-08-10: a row at
+ * {@link DEEPEST_INDENT} spends 48px of a 93px column on its indent and another
+ * 32 on its expander and lock, so what is left is a few pixels of number and a
+ * `title`. The envelope was eleven characters at that indent until this change,
+ * and it sized the column for a row almost no plan has.
  */
-export const NUMBER_ENVELOPE = `010${'.1'.repeat(DEEPEST_INDENT)}`;
+/** How many dotted levels of number the column shows whole; see {@link NUMBER_ENVELOPE}. */
+const NUMBER_ENVELOPE_LEVELS = 2;
+
+export const NUMBER_ENVELOPE = `010${'.1'.repeat(NUMBER_ENVELOPE_LEVELS - 1)}`;
 
 /**
  * The colour a sticky cell paints itself, as the slot rather than the shade.

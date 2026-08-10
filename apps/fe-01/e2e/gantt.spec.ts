@@ -269,6 +269,15 @@ async function seedEdgeRoutes(page: Page, account: string): Promise<void> {
     await expect(
       page.getByRole('button', { name: `Stop ${waiting} waiting for ${on}` }),
     ).toBeVisible();
+    // Enter commits the chip and leaves the list open on what is still
+    // pickable, and that list hangs over the rows underneath — so the next
+    // row's own box is behind it and the click below landed on an option
+    // instead. Only since `column-rebalance`: the rows were two lines tall
+    // while the 52px date columns wrapped their days, and the list stopped
+    // short of the row this loop goes to next. Escape is the picker's own way
+    // out, and it is asserted rather than assumed.
+    await depends.press('Escape');
+    await expect(page.getByRole('listbox')).toHaveCount(0);
   }
 }
 
