@@ -1128,8 +1128,13 @@ test.describe('the table, measured by a browser', () => {
      * Watched red first, honestly: on a probe branch the width assertion was
      * pointed at the pre-drag width — the drag's effect denied — and failed
      * on `Expected: 397 / Received: 200` in CI's `pixels` (run 31434774350,
-     * 2026-08-10), the wrap and typing assertions standing behind it. Then
-     * this version, green on the same gesture.
+     * 2026-08-10), the wrap and typing assertions standing behind it.
+     *
+     * Then this version threw before it could assert, on its own fixture: the
+     * yardstick named `040`, a row {@link seedDeepBranch} indents away — `Name
+     * of 040 is not on screen`, CI `pixels` run 31435567028, 2026-08-11. The
+     * drag half stood; only the lookup was wrong. Yardstick repointed at `030`
+     * below, with the reason it cannot be any other row written beside it.
      */
     await seedDeepBranch(page);
     const deep = page.getByLabel('Name of 030.1.1.1.1.1.1', { exact: true });
@@ -1147,6 +1152,13 @@ test.describe('the table, measured by a browser', () => {
     // Visible, wrapped vertically, and inside its own cell: the auto-sizing
     // textarea answers a 168px writing width with more lines, never with an
     // overflow — a shallow row's one-line box is the yardstick.
+    //
+    // `030` is that row, and the choice is forced: {@link seedDeepBranch}
+    // spends one spare root per chain, so of the seven rows it adds only the
+    // branch's own parent is left un-indented by the time it returns — and
+    // the two rows the fixture seeds before it, `010` and `020`, carry names
+    // long enough to wrap at this width themselves, which is no yardstick at
+    // all. `030` is empty and at depth 0: one line, by construction.
     await expect(deep).toBeVisible();
     const boxes = await page.evaluate(() => {
       const boxFor = (label: string) => {
@@ -1164,7 +1176,7 @@ test.describe('the table, measured by a browser', () => {
         deepHeight: deepBox.height,
         deepRight: deepBox.right,
         cellRight: deepCell.right,
-        shallowHeight: boxFor('Name of 040').height,
+        shallowHeight: boxFor('Name of 030').height,
       };
     });
     expect(boxes.deepHeight).toBeGreaterThan(boxes.shallowHeight);
