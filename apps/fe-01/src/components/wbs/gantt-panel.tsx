@@ -612,6 +612,12 @@ function calendarAxis(startDate: IsoDate, horizon: number): AxisDay[] {
  * applied *before* `addWorkdays` defeated the snap inside it, and a drifted
  * 2.9999999999999996 named the day before the one the Start column prints.
  *
+ * Proof: the inline floor put back — `addWorkdays(startDate,
+ * Math.floor(start))` — and `reads a drifted schedule as the same days be-01
+ * prints` failed alone, on the sentence no longer containing `13 Aug →
+ * 14 Aug`: the drifted 2.9999999999999996 floored to 2 before the snap inside
+ * `addWorkdays` could see it, naming 12 Aug. Watched 2026-08-10.
+ *
  * Printed by {@link shortIsoDate} and by nothing else: `shortInstant` formats an
  * epoch in the browser's zone, and a `new Date(iso)` of its own parses midnight
  * UTC and reads the day back in the reader's, one day early for everybody west

@@ -323,6 +323,11 @@ describe('shapes — arithmetic over a long chain', () => {
     // rather than a silent side effect. The bound mirrors the chain test
     // above: the drift is real, nonzero, and orders of magnitude inside the
     // 1e-9 snap window that keeps it off the calendar.
+    //
+    // Proof this pin can fail: the tight-path scoping dropped (`hasQueues &&`
+    // removed from the condition in `lateTimes`), so the rule covers every
+    // plan, and this test failed on `Expected: < 0, Received: 0`; watched
+    // 2026-08-10.
     const rows = [item('done-early'), item('floored')];
     const found = plan(rows, [], { 'done-early': 3, floored: 23 / 6 }, new Map([['floored', 13]]));
 
