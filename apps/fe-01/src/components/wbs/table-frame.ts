@@ -48,13 +48,18 @@ export interface FrameLayoutState {
  *
  * They differ for exactly one column in one state: a {@link FLEXIBLE_COLUMNS}
  * member carrying an override. Its `width` is the override — what the table
- * minimum counts and what the Name cells declare — while its `colWidth` stays
- * `undefined`, because a sized `<col name>` under `table-layout: fixed` would
- * have the browser distribute the viewport's excess across **every** sized
- * column, moving Number off its measured 93px envelope. The dragged width
- * rides on the cells instead ({@link pinnedCellStyle},
- * {@link flexibleCellStyle}) and the flexible column keeps absorbing the
- * excess alone. `e2e/layout.spec.ts` measures that consequence in a browser.
+ * minimum counts — while its `colWidth` stays `undefined`, and the dragged
+ * width reaches the browser as the table's **own** width instead
+ * ({@link tableWidthStyle}): with every other column sized and the table
+ * exactly as wide as their sum plus the override, fixed layout hands the
+ * flexible column exactly the override and the viewport keeps the slack.
+ * Expressing the override on the Name cells against a `width: 100%` table was
+ * the design tried first, and Chromium refused it: it took the cell's width
+ * and then distributed the viewport's excess across **every** sized column,
+ * moving Number off its measured 93px envelope (`Expected: 93 / Received:
+ * 103.484375`, CI `pixels` run 31430669282, 2026-08-10) — so that branch is
+ * deleted, not kept as config. `e2e/layout.spec.ts` measures the consequence
+ * in a browser either way.
  */
 export interface ResolvedColumn {
   id: string;
@@ -594,15 +599,14 @@ export function pinnedGeometryFor(
           `a sticky offset is a sum of the widths in front of it and a flexible column absorbs the frame's excess.`,
       );
     }
-    // The resolved width, override included: for a dragged flexible column
-    // this is how the dragged width reaches the cells at all — the pinned
-    // cell declares it, the `<col>` stays silent.
-    // Proof: re-pointed at `resolved.colWidth`, `lays out, adds up, folds and
-    // pins a dragged Name from the one number it resolved` failed on
-    // `expected { left: 117, width: undefined } to deeply equal { left: 117,
-    // width: 300 }` — the one declaration the browser was going to learn the
-    // dragged width from, gone. Watched, 2026-08-10.
-    pinned.set(id, { left, width: resolved.width });
+    // The `<col>`'s width, not the resolved one: what a pinned cell declares
+    // must be exactly what the `<colgroup>` declares, and a dragged flexible
+    // column deliberately declares nothing on either — its override reaches
+    // the browser as the table's own width ({@link tableWidthStyle}). A cell
+    // `width` for it was the first design, and Chromium answered it by
+    // distributing the viewport's excess across every sized column; see
+    // {@link ResolvedColumn.colWidth}.
+    pinned.set(id, { left, width: resolved.colWidth });
     // Keyed on flexibility rather than on the width being missing: a dragged
     // flexible column has a width, and it is still not a number an offset may
     // be summed from.
@@ -880,14 +884,12 @@ export function pinnedCellStyle(
   return {
     position: 'sticky',
     left: pinned.left,
-    // Only where there is one to declare. An undragged flexible column's width
-    // is the `<colgroup>`'s to decide and a fixed `width` here would be a
-    // second opinion about it — the two-width-systems bug, one column along.
-    // A **dragged** one resolves its override into `pinned.width`, and this
-    // declaration is then the only place the browser learns it: the `<col>`
-    // stays unsized so the viewport's excess keeps landing on Name alone, and
-    // `table-layout: fixed` takes the column's width from the first row's cell
-    // — this one (see {@link ResolvedColumn.colWidth}).
+    // Only where there is one to declare. A flexible column's width is the
+    // table-width arithmetic's to decide — dragged or not — and a fixed
+    // `width` here would be a second opinion about it: the two-width-systems
+    // bug, one column along, and for a dragged Name the exact declaration
+    // Chromium answered by re-distributing the viewport's excess (see
+    // {@link ResolvedColumn.colWidth}).
     ...(pinned.width === undefined ? {} : { width: pinned.width }),
     boxSizing: 'border-box',
     background: part === 'header' ? HEADER_BACKGROUND : ROW_BACKGROUND,
@@ -900,13 +902,13 @@ export function pinnedCellStyle(
  * not.
  *
  * The floor, on the cell as well as in {@link frameLayout} — and with an
- * override in force, the override **is** the floor: the dragged width rides on
- * the Name cells as `min-width` here and as `width` through
- * {@link pinnedCellStyle}, because the `<col>` stays deliberately unsized (see
- * {@link ResolvedColumn.colWidth}). The table's own `min-width` is what really
- * holds the floor — under `table-layout: fixed` a cell does not get a vote on
- * its column's width below the table's minimum — and this is the belt that
- * says so where a reader of the markup is looking.
+ * override in force, the override **is** the floor. A `min-width` and never a
+ * `width`: the dragged width itself reaches the browser as the table's own
+ * width ({@link tableWidthStyle}), and a cell `width` was the design Chromium
+ * refused (see {@link ResolvedColumn.colWidth}). The table's own widths are
+ * what really hold this — under `table-layout: fixed` a cell does not get a
+ * vote on its column's width — and this is the belt that says so where a
+ * reader of the markup is looking.
  */
 export function flexibleCellStyle(
   columnId: string,
@@ -918,6 +920,46 @@ export function flexibleCellStyle(
   // `expected { minWidth: 200 } to deeply equal { minWidth: 300 }`. Watched,
   // 2026-08-10.
   return { minWidth: state.columnWidthOverrides?.get(columnId) ?? FLEXIBLE_FLOOR };
+}
+
+/**
+ * The width the `<table>` itself declares for this layout — the one line the
+ * excess-width measurement decided.
+ *
+ * At rest the table is `width: 100%` with the resolved minimum as its floor:
+ * every fixed column takes its declared px and the flexible column absorbs
+ * whatever the viewport leaves, which is what makes the table fit the window
+ * instead of the window having to fit the table.
+ *
+ * With a **flexible override** in force the table declares its own width as
+ * the resolved sum instead, so every column stands at exactly its resolved
+ * width — Name at the override — and the viewport, not the table, keeps the
+ * slack. That is the branch the browser picked, and the losing one is deleted
+ * rather than kept as config: expressing the override as a `width` on the Name
+ * cells against a `width: 100%` table had Chromium distribute the viewport's
+ * excess across **every** sized column instead, moving Number off the 93px
+ * envelope its own browser test picked.
+ *
+ * Proof: exactly that — this arm absent (the table left at `width: 100%` with
+ * a Name override in force), `keeps every other column on its envelope while
+ * Name holds a dragged width` (`e2e/layout.spec.ts`) failed on `Expected: 93 /
+ * Received: 103.484375` for the Number column, with every jsdom test green
+ * beside it. Watched in CI's `pixels` job, run 31430669282, 2026-08-10. The
+ * jsdom half — the string this declares — is `wbs-table.test.tsx`'s `lays a
+ * remembered Name width on the table itself, and leaves its <col> silent`.
+ */
+export function tableWidthStyle(layout: FrameLayout): CSSProperties {
+  const flexibleOverridden = layout.columns.some(
+    (column) => column.colWidth === undefined && column.width !== undefined,
+  );
+  return {
+    // Proof of the jsdom half: this arm stubbed to a flat '100%', `lays a
+    // remembered Name width on the table itself, and leaves its <col> silent`
+    // (wbs-table.test.tsx) failed on `expected '100%' to be '1547px'`.
+    // Watched, 2026-08-10. The browser half is the JSDoc above.
+    width: flexibleOverridden ? `${String(layout.minWidth)}px` : '100%',
+    minWidth: layout.minWidth,
+  };
 }
 
 /**

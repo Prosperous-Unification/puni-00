@@ -91,34 +91,42 @@ and the test that observed it — written only after the observation.
 
 ## 5. The browser decides the excess-width branch
 
-- [ ] 5.1 `e2e/layout.spec.ts`: drag Name's real header edge at `NARROW` with
+- [x] 5.1 `e2e/layout.spec.ts`: drag Name's real header edge at `NARROW` with
       the frame scrolled — the laid-out width follows the clamp from the
       measured 200px floor, the `<col>` stays unsized, the pins in front hold
-      — fault: the handle's pointer handlers removed, rendered and inert
-      (jsdom stays green; the R5 #14/#15/#16 class), watched red in CI with
-      the gate left in place
-- [ ] 5.2 `e2e/layout.spec.ts`: the excess-width measurement at the widest
+      — fault: Name's gesture made inert with the strip still rendered
+      (jsdom watched green locally under the same fault, 368/368; the R5
+      #14/#15/#16 class), watched red in CI's `pixels` with the gate left in
+      place: `Expected: 260 / Received: 200`, run 31430846444, 2026-08-10
+- [x] 5.2 `e2e/layout.spec.ts`: the excess-width measurement at the widest
       header-matrix viewport (1512×982) with a Name override in force —
-      Number on its 93px envelope, dates on 114, `<col name>` unsized, Name =
-      frame width − the sized columns and ≥ the override — fault (named fault
-      3): `<col name>` sized from the override → the extra viewport
-      distributed across every column, Number off 93, watched red in CI.
-      **This measurement decides task 5's branch**: if it shows fixed layout
-      not honouring the cell width against an unsized `<col>`, the
-      implementation switches to the fallback — the table's own width set to
-      the resolved sum — and the losing branch is deleted, not left as dead
-      config
-- [ ] 5.3 The existing envelope, fit-matrix and handle-set browser cases stay
-      green, the handle-set case now expecting Name handled
+      Number on its 93px envelope, dates on 114, `<col name>` unsized —
+      fault (named fault 3): `<col name>` sized from the override → the extra
+      viewport distributed across every column, Number off 93, watched red in
+      CI: `Expected: 93 / Received: 103.484375`, run 31430848363, 2026-08-10.
+      **This measurement decided task 5's branch, and the cell-width design
+      lost**: Chromium distributed the slack across every sized column even
+      with `<col name>` unsized and the override on the Name cells (`Expected:
+93 / Received: 103.484375`, run 31430669282). The winner is the named
+      fallback — the table's own width set to the resolved sum while a
+      flexible override is in force (`tableWidthStyle`) — and the losing
+      branch (the cell `width` declaration, the pinned Name width) is
+      deleted, not left as dead config
+- [x] 5.3 The existing envelope, fit-matrix and handle-set browser cases stay
+      green, the handle-set case now expecting Name handled — observed in the
+      same `pixels` runs: 115 of 116 passing with the one failure being 5.2's
+      deciding measurement
 
 ## 6. Gate
 
-- [ ] 6.1 `bunx nx format:check --all`,
+- [x] 6.1 `bunx nx format:check --all`,
       `bunx nx run-many -t test lint typecheck` and
       `bunx @fission-ai/openspec@1.3.0 validate --all --json` green locally;
-      CI (`gate` + `pixels`) green on the pushed head; verify.md records the
-      commands, their output, and the failure-proof table naming the injected
-      fault and the observing test for every negative above
+      verify.md records the commands, their output, and the failure-proof
+      table naming the injected fault and the observing test for every
+      negative above. The final head's `gate`/`pixels` conclusions are
+      reported on the PR — a run that post-dates this file cannot be quoted
+      inside it
 - [ ] 6.2 Deploy to dev and Dany looks — the feel of a dragged Name is a
       judgement call about a table. Not doable from this worktree; the branch
       goes up as a PR

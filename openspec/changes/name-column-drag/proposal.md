@@ -32,13 +32,13 @@ and the "flexible column SHALL NOT be draggable" clause of its requirement
   row 4) — that negative is retired by name and the test flips to proving the
   resolved floor.
 
-**Excess viewport width stays Name's alone.** `<col name>` stays unsized even
-with an override; the dragged width rides as `width` + `min-width` on the Name
-cells, so `table-layout: fixed` keeps Number on its 93px envelope and the dates
-on 114 at every viewport. If Chromium shows fixed layout not honouring the cell
-width against an unsized `<col>`, the fallback is the table's own width set to
-the resolved sum; the e2e measurement decides, and the losing branch is
-deleted, not left as dead config.
+**With an override in force, the viewport keeps the slack.** `<col name>`
+stays unsized and the table declares its own width as the resolved sum, so
+every column stands at exactly its resolved width — Name at the override — and
+Number keeps its 93px envelope at every viewport. The e2e measurement decided
+this, as planned: the cell-width design tried first had Chromium distribute
+the viewport's excess across every sized column (Number at 103.48, CI `pixels`
+run 31430669282), so that branch lost and is deleted, not left as dead config.
 
 **Reset is unchanged**: `forgetWidthOverrides` — one reset returns the whole
 layout, Name included.

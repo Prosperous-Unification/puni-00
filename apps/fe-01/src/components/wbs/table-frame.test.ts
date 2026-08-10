@@ -26,6 +26,7 @@ import {
   sizableColumn,
   STICKY_HEADER_CELL,
   TABLE_FRAME,
+  tableWidthStyle,
   UnknownColumnError,
   WIDEST_COLUMN,
   widthFor,
@@ -96,7 +97,7 @@ describe('the resolved frame layout', () => {
       let running = 0;
       for (const id of PINNED_COLUMN_IDS) {
         const resolved = layout.columns.find((column) => column.id === id);
-        expect(layout.pinned.get(id)).toEqual({ left: running, width: resolved?.width });
+        expect(layout.pinned.get(id)).toEqual({ left: running, width: resolved?.colWidth });
         if (resolved?.colWidth === undefined) {
           // Only the last pinned column may be flexible; see the refusal below.
           expect(id).toBe(PINNED_COLUMN_IDS.at(-1));
@@ -643,13 +644,16 @@ describe('a column this browser has dragged to another width', () => {
   });
 
   it('lays out, adds up, folds and pins a dragged Name from the one number it resolved', () => {
-    // The four-consumer case, extended to the flexible column: the minimum,
-    // the folded minimum and the pinned cell all carry the override, while the
-    // `<col>` deliberately does not — the dragged width rides on the Name
-    // cells so `table-layout: fixed` keeps handing the viewport's excess to
-    // Name alone instead of distributing it across every sized `<col>`, which
-    // would move Number off its measured 93px envelope. `e2e/layout.spec.ts`
-    // measures that consequence; this asserts the markup contract.
+    // The four-consumer case, extended to the flexible column: the minimum
+    // and the folded minimum carry the override, while the `<col>` and the
+    // pinned cell deliberately do not — the dragged width reaches the browser
+    // as the table's **own** width, so every column stands at exactly its
+    // resolved width and the viewport keeps the slack. A cell `width` was the
+    // design tried first, and Chromium answered it by distributing the
+    // viewport's excess across every sized column — Number measured at 103.48
+    // against its 93px envelope (CI `pixels` run 31430669282, 2026-08-10) —
+    // so it is deleted, not kept. `e2e/layout.spec.ts` measures the
+    // consequence; this asserts the markup contract.
     const draggedName = frameLayout(RENDERED, NAME_DRAGGED);
     const resting = frameLayout(RENDERED, DATED);
     const name = draggedName.columns.find((column) => column.id === 'name');
@@ -661,17 +665,25 @@ describe('a column this browser has dragged to another width', () => {
     const number = draggedName.columns.find((column) => column.id === 'number');
     expect(number?.colWidth).toBe(number?.width);
     expect(draggedName.minWidth).toBe(resting.minWidth - FLEXIBLE_FLOOR + 300);
-    // The pinned Name cell is where the dragged width reaches the browser:
-    // `pinnedCellStyle` declares it on the cell, the first row's cell width
-    // being the one fixed layout honours against an unsized `<col>`.
-    expect(draggedName.pinned.get('name')).toEqual({ left: 117, width: 300 });
+    // The pinned Name cell declares no width, dragged or not: what a cell
+    // declares must be exactly what the `<colgroup>` declares, and for Name
+    // that is nothing — the table-width arithmetic is what hands it the
+    // override.
+    expect(draggedName.pinned.get('name')).toEqual({ left: 117, width: undefined });
     // Name is the last pinned column, so no offset in front of it moves.
     expect(draggedName.pinned.get('number')).toEqual(resting.pinned.get('number'));
     expect(foldedTableMinWidth(['role-dev'], NAME_DRAGGED)).toBe(
       foldedTableMinWidth(['role-dev'], DATED) + (300 - FLEXIBLE_FLOOR),
     );
-    // The cell carries the override as its floor too — `width` and `minWidth`
-    // together, the pair the excess-width design puts on the Name cells.
+    // The table's own width is where the override reaches the browser: the
+    // resolved sum with the override in force, the frame's 100% without.
+    expect(tableWidthStyle(draggedName)).toEqual({
+      width: `${String(draggedName.minWidth)}px`,
+      minWidth: draggedName.minWidth,
+    });
+    expect(tableWidthStyle(resting)).toEqual({ width: '100%', minWidth: resting.minWidth });
+    // The cell still carries the override as its floor — the belt, not the
+    // declaration.
     expect(flexibleCellStyle('name', NAME_DRAGGED)).toEqual({ minWidth: 300 });
   });
 

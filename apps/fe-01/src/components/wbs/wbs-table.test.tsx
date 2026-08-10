@@ -6928,29 +6928,38 @@ describe('the widths this browser has dragged', () => {
     expect(widthFromDrag('name', 300, 10_000, UNDATED)).toBe(600);
   });
 
-  itDom('lays a remembered Name width on the Name cells, and leaves its <col> silent', async () => {
-    // The excess-width design, asserted where jsdom can see it: the dragged
-    // width reaches the browser as `width` + `min-width` on the Name cells —
-    // `table-layout: fixed` takes a column's width from the first row's cell —
-    // while the `<col>` stays unsized, so the viewport's excess keeps landing
-    // on Name alone instead of being distributed across every sized column.
-    // The distribution itself is a browser's to prove: `e2e/layout.spec.ts`
-    // measures Number still on its 93px envelope with a Name override in
-    // force.
-    storedWidths({ name: 300 });
-    await threeRoots();
+  itDom(
+    'lays a remembered Name width on the table itself, and leaves its <col> silent',
+    async () => {
+      // The excess-width design, asserted where jsdom can see it: with a Name
+      // override in force the table declares its own width as the resolved sum
+      // — every column at exactly its resolved width, Name at the override,
+      // the viewport keeping the slack — while the `<col>` stays unsized and
+      // the Name cells carry the override only as their `min-width` floor. A
+      // cell `width` against a `width: 100%` table was the design tried first,
+      // and Chromium answered it by distributing the viewport's excess across
+      // every sized column: Number measured 103.48 against its 93px envelope
+      // (CI `pixels` run 31430669282, 2026-08-10). The distribution is a
+      // browser's to prove either way: `e2e/layout.spec.ts` measures Number
+      // still on its envelope with a Name override in force.
+      storedWidths({ name: 300 });
+      await threeRoots();
 
-    const header = document.querySelector<HTMLElement>('thead th[data-column="name"]');
-    const body = document.querySelector<HTMLElement>('tbody td[data-column="name"]');
-    expect(header?.style.width).toBe('300px');
-    expect(header?.style.minWidth).toBe('300px');
-    expect(body?.style.width).toBe('300px');
-    expect(body?.style.minWidth).toBe('300px');
-    expect(laidOut().name).toBe('');
-    // And the table's own minimum counts the override in place of the 200px
-    // floor, so the frame starts scrolling at the width the reader asked for.
-    expect(screen.getByRole('table').style.minWidth).toBe('1547px');
-  });
+      const header = document.querySelector<HTMLElement>('thead th[data-column="name"]');
+      const body = document.querySelector<HTMLElement>('tbody td[data-column="name"]');
+      expect(header?.style.width).toBe('');
+      expect(header?.style.minWidth).toBe('300px');
+      expect(body?.style.width).toBe('');
+      expect(body?.style.minWidth).toBe('300px');
+      expect(laidOut().name).toBe('');
+      // The table's own width is the declaration: the resolved sum — the 1447
+      // this plan resolves at rest, less the 200 floor, plus the 300 override
+      // — as its width and its minimum alike, so the frame keeps the slack
+      // above it and scrolls below it.
+      expect(screen.getByRole('table').style.width).toBe('1547px');
+      expect(screen.getByRole('table').style.minWidth).toBe('1547px');
+    },
+  );
 
   itDom('drops a stored Name width outside Name’s own bounds, each end on its own', async () => {
     // The same claim rules as every other column, read against Name's own
@@ -6978,12 +6987,14 @@ describe('the widths this browser has dragged', () => {
 
   itDom('one reset gives Name back to the remainder with the rest', async () => {
     // Reset stays `forgetWidthOverrides`: one key forgotten, never a snapshot
-    // written, and Name goes back to being the column with no width at all.
+    // written, and Name goes back to being the column with no width at all —
+    // the table back to the frame's own 100%.
     storedWidths({ name: 300, number: 140 });
     await threeRoots();
-    expect(document.querySelector<HTMLElement>('thead th[data-column="name"]')?.style.width).toBe(
-      '300px',
-    );
+    expect(
+      document.querySelector<HTMLElement>('thead th[data-column="name"]')?.style.minWidth,
+    ).toBe('300px');
+    expect(screen.getByRole('table').style.width).not.toBe('100%');
 
     click('Reset layout');
 
@@ -6991,6 +7002,7 @@ describe('the widths this browser has dragged', () => {
     expect(header?.style.width).toBe('');
     expect(header?.style.minWidth).toBe('200px');
     expect(laidOut().number).toBe('93px');
+    expect(screen.getByRole('table').style.width).toBe('100%');
     expect(stored()).toBe(null);
   });
 

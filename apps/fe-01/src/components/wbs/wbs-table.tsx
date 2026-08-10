@@ -97,6 +97,7 @@ import {
   sizableColumn,
   STICKY_HEADER_CELL,
   TABLE_FRAME,
+  tableWidthStyle,
   WIDEST_COLUMN,
 } from './table-frame';
 import { type Toast, toastKey, ToastStack, useToasts } from './toasts';
@@ -6408,15 +6409,13 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                 // that came out wider than the offsets assumed is a pinned Name
                 // painted over "Depends on".
                 tableLayout: 'fixed',
-                // The frame's width, never a declared total: every fixed column
-                // takes its declared px and Name absorbs whatever is left, so the
-                // table fits the window instead of the window having to fit the
-                // table. The minimum is the floor under that — the fixed columns
-                // plus Name's own floor — and below it the frame scrolls sideways
-                // with the pinned columns holding the left edge, which is the one
-                // case `width: 100%` cannot cover.
-                width: '100%',
-                minWidth: layout.minWidth,
+                // The frame's width at rest, and the resolved sum while a
+                // dragged Name holds an override — `tableWidthStyle` is the
+                // one line the excess-width measurement decided, and its JSDoc
+                // holds the observation. The minimum stays the floor either
+                // way: below it the frame scrolls sideways with the pinned
+                // columns holding the left edge.
+                ...tableWidthStyle(layout),
               }}
             >
               {/*

@@ -40,11 +40,19 @@ column keeps absorbing viewport excess, so its laid-out width is not a number
 an offset may be summed from.
 
 While the override is in force the `<col>` for the flexible column SHALL stay
-unsized; the dragged width SHALL be declared as `width` and `min-width` on the
-Name cells themselves. Viewport excess above the table minimum SHALL keep
-landing on Name alone: the other columns' envelopes — Number's 93px, the
-dates' 114 — MUST NOT move with the viewport. Below the table minimum the
-frame scrolls and Name is laid out at the override itself.
+unsized and the table SHALL declare its **own** width as the resolved sum, so
+every column stands at exactly its resolved width — Name at the override, its
+cells carrying the override as their `min-width` floor — and the viewport, not
+the table, keeps the slack. The other columns' envelopes — Number's 93px, the
+dates' 114 — MUST NOT move with the viewport, and nothing SHALL scroll
+sideways while the sum is inside it. Below the resolved sum the frame scrolls
+and Name is laid out at the override itself.
+
+This is the branch the excess-width measurement picked, and the losing branch
+is deleted rather than kept as config: expressing the override as a `width` on
+the Name cells against a `width: 100%` table had Chromium distribute the
+viewport's excess across every sized column — Number measured 103.48 against
+its 93px envelope (CI `pixels` run 31430669282, 2026-08-10).
 
 A drag SHALL NOT rebuild the table's column definitions, exactly as for every
 other column.
@@ -58,14 +66,15 @@ other column.
   60, and the pinned offsets in front of it are unchanged — Name is the last
   pinned column, so no offset ever sums it
 
-#### Scenario: the slack still lands on Name and nothing else
+#### Scenario: the viewport keeps the slack
 
 - **GIVEN** Name overridden to a width, at a viewport wider than the table's
-  minimum
+  resolved sum
 - **WHEN** the columns are measured
 - **THEN** Number is on its 93px envelope, both date columns are at 114, the
-  `<col>` for Name declares no width, and Name is laid out at the frame's
-  width minus the sized columns — at least the override, never less
+  `<col>` for Name declares no width, Name is laid out at exactly the
+  override, and the frame does not scroll sideways — the slack is the frame's
+  own blank space, not anybody's column
 
 #### Scenario: Name's floor and ceiling
 

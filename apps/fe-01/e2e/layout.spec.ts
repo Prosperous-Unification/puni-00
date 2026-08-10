@@ -1063,19 +1063,20 @@ test.describe('the table, measured by a browser', () => {
     page,
   }) => {
     /*
-     * The excess-width design, measured at the widest viewport the header
-     * matrix covers. With a Name override in force every other column is
-     * sized, and a sized `<col name>` would have `table-layout: fixed`
-     * distribute the viewport's slack across all of them — moving Number off
-     * the 93px envelope its own browser test picked, and the dates off 114.
-     * So the `<col>` stays silent, the dragged width rides on the Name cells,
-     * and this is the measurement that proves the browser reads that design
-     * the way the plan says: the slack still lands on Name alone.
-     *
-     * This measurement is also what decided between the two designs the plan
-     * named — cell width against an unsized `<col>`, or the table's own width
-     * set to the resolved sum. The branch that lost was to be deleted, not
-     * kept as dead config.
+     * The excess-width measurement, at the widest viewport the header matrix
+     * covers — and the measurement that decided task 5's branch. The design
+     * tried first expressed the override as `width` + `min-width` on the Name
+     * cells against a `width: 100%` table, and this test watched Chromium
+     * refuse it: with every column effectively sized, fixed layout
+     * distributed the viewport's slack across all of them — `Expected: 93 /
+     * Received: 103.484375` for the Number column (CI `pixels` run
+     * 31430669282, 2026-08-10). So the winner is the fallback the plan named:
+     * with a Name override in force the table declares its own width as the
+     * resolved sum, every column stands at exactly its resolved width, and
+     * the viewport — not the table — keeps the slack. The losing branch is
+     * deleted, not kept as dead config; the same failure is this test's
+     * negative, watched red with the gate in place before the winning line
+     * existed.
      */
     await page.setViewportSize({ width: 1512, height: 982 });
     await dragColumnEdge(page, 'name', -150);
@@ -1093,24 +1094,22 @@ test.describe('the table, measured by a browser', () => {
 
     const measured = await measure(page);
     // The precondition that makes this a slack measurement at all: the table's
-    // minimum with the override is inside the viewport, so there is excess to
-    // distribute wrongly.
+    // resolved sum with the override is inside the viewport, so there is
+    // excess for a wrong design to distribute.
     const ids = measured.columns.map((column) => column.id);
-    expect(frameLayout(ids, dragged('name', override)).minWidth).toBeLessThan(
-      measured.frame.clientWidth,
-    );
+    const resolvedSum = frameLayout(ids, dragged('name', override)).minWidth;
+    expect(resolvedSum).toBeLessThan(measured.frame.clientWidth);
     // The envelopes hold: the slack went nowhere near the sized columns.
     for (const id of ['number', 'start', 'finish']) {
       const column = measured.columns.find((each) => each.id === id);
       expect(column?.width, id).toBeCloseTo(widthFor(id, SEEDED_PLAN), 0);
     }
-    // And Name took all of it, standing at least as wide as its override.
+    // Name stands at exactly the override — the table is exactly as wide as
+    // its columns, and the slack is the frame's own blank space rather than
+    // anybody's column.
     const name = measured.columns.find((column) => column.id === 'name');
-    const others = measured.columns
-      .filter((column) => column.id !== 'name')
-      .reduce((total, column) => total + column.width, 0);
-    expect(name?.width).toBeCloseTo(measured.frame.clientWidth - others, 0);
-    expect(name?.width).toBeGreaterThanOrEqual(override);
+    expect(name?.width).toBeCloseTo(override, 0);
+    expect(measured.frame.scrollWidth).toBeLessThanOrEqual(measured.frame.clientWidth);
     expect((await columnGeometry(page, 'name')).declared).toBe('');
   });
 
