@@ -576,6 +576,25 @@ directory work is wanted sooner.
 4. **U6**: initials chip vs first-name-only vs dot+hover — the dev
    deploy shows all three; pick on sight.
 
+### Answers — Dany, 2026-08-10 (WhatsApp)
+
+1. **U1**: delegated to Claire → keep the planned shape. Name owns its
+   width; Number is never squashed to absorb Name's travel.
+2. **U5**: leaf cells only. Parent distribute-down is explicitly out.
+3. **S2′**: **no primary team in the product at all — just teams.** The
+   `service_team_id` column stays (forward-additive rule) but carries no
+   user-facing semantic; the first-`t.`-token-sets-primary behaviour and
+   the unfolded-column primary affordance are both dropped from S2′.
+   **Consequence: C4's pool attribution loses the user-set primary
+   pointer it planned to read. C4 needs an allocation decision in the
+   resource-planning plan before it starts** — candidates: split the
+   item's demand across its teams, or attribute by each assignee's own
+   team. Not decided here.
+4. **U6**: first forename initial + surname ("D Fedorov"), surname
+   cropped from the right when the cell is narrow ("D Fedo…"), full name
+   on hover. If initial+surname collides within a project, fall back to
+   a longer forename prefix for the colliders only.
+
 ## Assumptions — best guess recorded, Dany can override any
 
 1. The `s.`/`t.` prefixes narrow the autocomplete kind; bare fragments
