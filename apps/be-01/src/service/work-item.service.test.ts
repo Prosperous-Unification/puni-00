@@ -965,17 +965,16 @@ describe('the calendar — weekend edges and fractions of a day', () => {
     expect(braced?.dates).toEqual({ startsOn: '2026-08-06', endsOn: '2026-08-19' });
   });
 
-  // DEFECT: a `startNoEarlierThan` set on a parent is accepted by `patch`,
-  // stored, echoed back in the tree — and silently ignored by the schedule.
-  // `tree` puts every dated row into the `notBefore` map, but the engine reads
-  // the map for leaves alone, so the floor never reaches the plan: the leaf
-  // below came back starting `2026-08-06` where the parent's floor says
-  // `2026-08-12` (watched failing 2026-08-10). The mirror feature — a
-  // dependency declared on a parent — expands to every leaf beneath it; a
-  // floor declared on a parent reaches nothing, and nothing tells the writer.
-  // Either the floor should expand to the leaves as dependencies do, or the
-  // write should be refused on a parent; silently dropping it is neither.
-  it.skip('floors every leaf beneath a parent told not to start before a day', async () => {
+  // A `startNoEarlierThan` set on a parent reaches every leaf beneath it,
+  // exactly as a dependency declared on a parent does: the engine expands the
+  // floors down the tree (`schedule.ts`, `leafFloors`). Until 2026-08-10 it
+  // read the map for leaves alone, so a parent's floor was accepted, stored,
+  // echoed back — and constrained nothing: this test was watched failing on
+  // the leaf starting `2026-08-06` where the parent's floor says `2026-08-12`.
+  // The composition cases — a grandparent's floor, a child's stricter own
+  // floor surviving, a later dependency still named — are engine-level, in
+  // `schedule-shapes.test.ts` ('a manual floor beside a dependency').
+  it('floors every leaf beneath a parent told not to start before a day', async () => {
     const parent = await add('Phase');
     const kid = await add('Wire', parent);
     await flatDaysOf(kid, 2);
@@ -985,18 +984,17 @@ describe('the calendar — weekend edges and fractions of a day', () => {
     expect((await datesFor(kid))?.startsOn).toBe('2026-08-12');
   });
 
-  // DEFECT: the chain below is exactly 15 working days of PERT estimates —
+  // The chain below is exactly 15 working days of PERT estimates —
   // 45/6 + 25/6 + 20/6 — so it ends on the fifteenth working day, the third
-  // Friday, 2026-08-28. It came back ending `2026-08-31` (watched failing
-  // 2026-08-10): the finishes accumulate as doubles across work items, the sum
-  // arrives as 15.000000000000002, and `datesOf` reads it through `Math.ceil`
-  // into a sixteenth day — which is a Monday, so the printed end is three
-  // calendar days late. The engine's span anchoring stops exactly this fault
-  // *within* one work item (see `schedule.ts`); across a dependency chain the
-  // bit survives, and `schedule-shapes.test.ts` ('accumulates PERT sixths…')
-  // pins the drifted double this day grows from. Three rows suffice — no long
-  // chain needed.
-  it.skip('ends a chain of PERT estimates on the day the estimates add up to', async () => {
+  // Friday, 2026-08-28. The finishes accumulate as doubles across work items
+  // and the sum arrives as 15.000000000000002; until 2026-08-10 `datesOf` read
+  // that through a bare `Math.ceil` into a sixteenth day — a Monday, three
+  // calendar days late — and this test was watched failing on `2026-08-31`.
+  // `snapWorkdays` at the calendar boundary is what absorbs the bit; the
+  // engine's span anchoring stops the same fault *within* one work item (see
+  // `schedule.ts`), and `schedule-shapes.test.ts` ('accumulates PERT sixths…')
+  // bounds the drift the snap window has to cover.
+  it('ends a chain of PERT estimates on the day the estimates add up to', async () => {
     const trios: [number, number, number][] = [
       [0, 8, 13],
       [3, 4, 6],
@@ -1014,6 +1012,91 @@ describe('the calendar — weekend edges and fractions of a day', () => {
     await projects.update(projectId, { startDate: '2026-08-10' });
 
     expect((await datesFor(last))?.endsOn).toBe('2026-08-28');
+  });
+
+  it('holds the calendar steady when a chained finish drifts above the whole day', async () => {
+    // The same 15-working-day chain, with a one-day successor. The chain's
+    // last row finishes at 15.000000000000002, and a bare ceil read that
+    // drifted bit as a sixteenth day — `endsOn` three calendar days late over
+    // the weekend. The successor's own `startsOn` goes through `addWorkdays`'
+    // floor, which upward drift cannot fool (floor of 15+ε is 15); it is
+    // asserted so the boundary cannot regress. Its `endsOn` is clean by
+    // arithmetic — 15.000000000000002 + 1 rounds to exactly 16 in doubles —
+    // which is why the drifted `endsOn` is asserted on the chain end, where
+    // the drift actually survives.
+    const trios: [number, number, number][] = [
+      [0, 8, 13],
+      [3, 4, 6],
+      [0, 3, 8],
+    ];
+    let previous: string | null = null;
+    let last = '';
+    for (const [at, [optimistic, realistic, pessimistic]] of trios.entries()) {
+      const id = await add(`Link ${String(at)}`);
+      await service.setEstimate(id, OWNER, roleId, { optimistic, realistic, pessimistic });
+      if (previous !== null) await service.addDependency(id, OWNER, previous);
+      previous = id;
+      last = id;
+    }
+    const after = await add('Snag');
+    await flatDaysOf(after, 1);
+    await service.addDependency(after, OWNER, last);
+    await projects.update(projectId, { startDate: '2026-08-10' });
+
+    // The chain end starts within working day 11 and finishes on day 15 —
+    // Tuesday the 25th to Friday the 28th, not Monday the 31st.
+    expect(await datesFor(last)).toEqual({ startsOn: '2026-08-25', endsOn: '2026-08-28' });
+    // Working day 15 from Monday 2026-08-10 is Monday 2026-08-31 — one day.
+    expect(await datesFor(after)).toEqual({ startsOn: '2026-08-31', endsOn: '2026-08-31' });
+  });
+
+  it('holds the calendar steady when a chained finish drifts below the whole day', async () => {
+    // 1/6 + 49/6 + 4/6 is exactly 9 working days; the doubles accumulate to
+    // 8.999999999999998. A bare floor in `addWorkdays` read that as day 8 and
+    // started the successor a whole day early, on top of its predecessor. The
+    // `endsOn` fields cannot be bitten by this sign — `ceil - 1` lands on day
+    // 8 whether the finish reads 8.999999999999998 or exactly 9 — and are
+    // asserted to pin that down.
+    const trios: [number, number, number][] = [
+      [0, 0, 1],
+      [0, 9, 13],
+      [0, 0, 4],
+    ];
+    let previous: string | null = null;
+    let last = '';
+    for (const [at, [optimistic, realistic, pessimistic]] of trios.entries()) {
+      const id = await add(`Step ${String(at)}`);
+      await service.setEstimate(id, OWNER, roleId, { optimistic, realistic, pessimistic });
+      if (previous !== null) await service.addDependency(id, OWNER, previous);
+      previous = id;
+      last = id;
+    }
+    const after = await add('Snag');
+    await flatDaysOf(after, 1);
+    await service.addDependency(after, OWNER, last);
+    await projects.update(projectId, { startDate: '2026-08-10' });
+
+    // The chain end runs inside working day 8 — Thursday the 20th, both ends.
+    expect(await datesFor(last)).toEqual({ startsOn: '2026-08-20', endsOn: '2026-08-20' });
+    // Working day 9 from Monday 2026-08-10 is Friday 2026-08-21 — the tenth
+    // working day, not a second bite of Thursday the 20th.
+    expect(await datesFor(after)).toEqual({ startsOn: '2026-08-21', endsOn: '2026-08-21' });
+  });
+
+  it('keeps a genuine fraction just shy of a boundary as real work', async () => {
+    // 14.9 is a tenth of a day short of 15 — an estimate, nine orders of
+    // magnitude outside the snap window. The row still finishes within its
+    // fifteenth day and its successor starts on that same shared day, which is
+    // exactly what a snap window wide enough to swallow real work would break.
+    const first = await add('Grind');
+    const second = await add('Snag');
+    await flatDaysOf(first, 14.9);
+    await flatDaysOf(second, 1);
+    await service.addDependency(second, OWNER, first);
+    await projects.update(projectId, { startDate: '2026-08-10' });
+
+    expect(await datesFor(first)).toEqual({ startsOn: '2026-08-10', endsOn: '2026-08-28' });
+    expect(await datesFor(second)).toEqual({ startsOn: '2026-08-28', endsOn: '2026-08-31' });
   });
 });
 

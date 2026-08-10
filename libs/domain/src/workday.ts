@@ -95,6 +95,42 @@ export function addCalendarDays(from: IsoDate, days: number): IsoDate {
   return asIso(new Date(toUtc(from).getTime() + days * DAY_MS));
 }
 
+/**
+ * How close to a whole day an offset must be before the difference is read as
+ * floating-point drift rather than work.
+ *
+ * A schedule chains `finish = start + days` across work items, and doubles
+ * accumulate: three PERT sixths that sum to exactly 15 arrive as
+ * 15.000000000000002. At 1e-9 the window is about nine orders of magnitude
+ * above any error a plan-sized chain of additions can accumulate, and about
+ * eight below the smallest real fraction an estimate can carry (a sixth of a
+ * day) — so it can never swallow work someone estimated.
+ */
+const DRIFT = 1e-9;
+
+/**
+ * `workdays` with accumulated floating-point drift removed: within {@link DRIFT}
+ * of a whole day it **is** that whole day, and anything further is real work,
+ * returned untouched.
+ *
+ * Applied at the discrete calendar boundaries — {@link addWorkdays}' floor and
+ * `datesOf`'s ceil in `work-item.service` — and nowhere else: the engine's own
+ * numbers stay verbatim on the wire, and only the step from a fractional
+ * offset to a whole calendar day may not let one drifted bit mint or eat a
+ * day.
+ *
+ * Proof: with the window widened to 0.5, `keeps a genuine fraction just shy of
+ * a boundary as real work` (the production path, `work-item.service.test.ts`)
+ * failed — a 14.9-day row's successor started `"2026-08-31"` where
+ * `"2026-08-28"` was owed, a shared day rounded away as if it were drift —
+ * and `still floors a genuine fraction near a boundary — 14.9 is real work`
+ * (`workday.test.ts`) failed on the same pair of dates; watched 2026-08-10.
+ */
+export function snapWorkdays(workdays: number): number {
+  const whole = Math.round(workdays);
+  return Math.abs(workdays - whole) < DRIFT ? whole : workdays;
+}
+
 /** The first workday on or after `date` — `date` itself unless it is a weekend. */
 export function nextWorkday(date: IsoDate): IsoDate {
   let at = toUtc(date);
@@ -111,7 +147,17 @@ export function nextWorkday(date: IsoDate): IsoDate {
  *
  * Fractional offsets are floored: a task finishing 3.4 workdays in finishes on
  * the fourth working day, and half a day is not half a date. The fraction is
- * kept in the schedule, which is where it means something.
+ * kept in the schedule, which is where it means something. The offset is put
+ * through {@link snapWorkdays} first: an accumulated 8.999999999999998 is the
+ * ninth day arriving with a drifted bit, and flooring it to 8 started a row a
+ * whole day early on screen.
+ *
+ * Proof: the snap removed from this floor and `holds the calendar steady when
+ * a chained finish drifts below the whole day` (`work-item.service.test.ts`)
+ * failed — the successor started `"2026-08-20"`, its predecessor's own last
+ * day, where `"2026-08-21"` was owed — with `reads a whole day arriving with
+ * a drifted bit as that whole day` (`workday.test.ts`) failing beside it;
+ * watched 2026-08-10.
  *
  * Negative offsets are refused rather than counted backwards. Nothing in this
  * plan happens before its own start, and silently walking into last week is
@@ -122,7 +168,7 @@ export function addWorkdays(from: IsoDate, workdays: number): IsoDate {
     throw new Error(`workdays must be zero or more, got ${String(workdays)}`);
   }
   let at = toUtc(nextWorkday(from));
-  for (let moved = 0; moved < Math.floor(workdays); moved += 1) {
+  for (let moved = 0; moved < Math.floor(snapWorkdays(workdays)); moved += 1) {
     do {
       at = new Date(at.getTime() + DAY_MS);
     } while (at.getUTCDay() === 0 || at.getUTCDay() === 6);

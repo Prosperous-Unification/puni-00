@@ -154,15 +154,22 @@ describe('shapes — degenerate edges the engine must refuse', () => {
     expect(() => plan([item('a')], [edge('a', 'a')], { a: 1 })).toThrow(/cycle/i);
   });
 
-  it('throws on an edge from a parent onto its own nested leaf', () => {
-    // Expansion turns `P → L` into `L → L` among the pairs: a leaf in front of
-    // itself, which is a cycle of one.
+  it('backstops a stored parent→own-nested-leaf edge the write path would have refused', () => {
+    // Honestly: this edge can only reach the engine from outside the API — a
+    // restored or hand-edited database — because `canDepend` refuses it as
+    // `ancestor` at the write path (`dependency.test.ts`, 'refuses an ancestor
+    // more than one level up, in both directions'). What the engine sees is
+    // not "an ancestor": `expandToLeaves` turns `P → L` into, among the pairs,
+    // `L → L` — a self-loop — and the topological sort throws on that
+    // artifact. A backstop, not the guard.
     const rows = [item('P'), item('C', 'P'), item('L', 'C'), item('other', 'P')];
 
     expect(() => plan(rows, [edge('P', 'L')], { L: 1, other: 1 })).toThrow(/cycle/i);
   });
 
-  it('throws on the same edge drawn upward, leaf onto ancestor', () => {
+  it('backstops the same stored edge drawn upward, leaf onto ancestor', () => {
+    // As above: the write path's `ancestor` refusal is the guard; the engine
+    // only ever sees the expansion's `L → L` self-loop and throws on that.
     const rows = [item('P'), item('C', 'P'), item('L', 'C'), item('other', 'P')];
 
     expect(() => plan(rows, [edge('L', 'P')], { L: 1, other: 1 })).toThrow(/cycle/i);
@@ -214,6 +221,46 @@ describe('shapes — a manual floor beside a dependency', () => {
     expect(found.workItems.get('b')).toMatchObject({ earliestStart: 6 });
     expect(found.slices.get(sliceKey('b', DEV))).toMatchObject({ boundBy: 'notBefore' });
   });
+
+  it('carries a grandparent’s floor two levels down to the leaf', () => {
+    // Three tiers, a floor on every one, the grandparent's the latest: the
+    // leaf takes day 6, not its own day 3 and not the parent's day 1. One
+    // level of expansion is not the fix — the floor walks the whole tree.
+    const rows = [item('G'), item('P', 'G'), item('L', 'P')];
+    const floors = new Map([
+      ['G', 6],
+      ['P', 1],
+      ['L', 3],
+    ]);
+    const found = plan(rows, [], { L: 2 }, floors);
+
+    expect(found.workItems.get('L')).toMatchObject({ earliestStart: 6, earliestFinish: 8 });
+    expect(found.slices.get(sliceKey('L', DEV))).toMatchObject({ boundBy: 'notBefore' });
+  });
+
+  it('composes ancestor floors with a dependency, each leaf keeping its own maximum', () => {
+    // Grandparent → parent → two leaves, a different floor at every level,
+    // and a five-day predecessor onto the parent — later than every floor on
+    // `L1`, earlier than `L2`'s own. `L1` starts when the dependency lets go
+    // and names it; `L2`'s own day-9 floor survives every ancestor's earlier
+    // one — the case a naive copy-down (parent overwrites child) gets wrong —
+    // and names `notBefore`. `L2`'s floor is listed **first**: a copy-down
+    // only shows when an ancestor iterates after the child, and nothing about
+    // the map promises parents come first.
+    const rows = [item('pre'), item('G'), item('P', 'G'), item('L1', 'P'), item('L2', 'P')];
+    const floors = new Map([
+      ['L2', 9],
+      ['G', 2],
+      ['P', 3],
+      ['L1', 4],
+    ]);
+    const found = plan(rows, [edge('pre', 'P')], { pre: 5, L1: 1, L2: 1 }, floors);
+
+    expect(found.workItems.get('L1')).toMatchObject({ earliestStart: 5, earliestFinish: 6 });
+    expect(found.slices.get(sliceKey('L1', DEV))).toMatchObject({ boundBy: 'predecessor' });
+    expect(found.workItems.get('L2')).toMatchObject({ earliestStart: 9, earliestFinish: 10 });
+    expect(found.slices.get(sliceKey('L2', DEV))).toMatchObject({ boundBy: 'notBefore' });
+  });
 });
 
 describe('shapes — arithmetic over a long chain', () => {
@@ -239,12 +286,15 @@ describe('shapes — arithmetic over a long chain', () => {
 
   it('accumulates PERT sixths across a chain to within a bit, not to the bit', () => {
     // Three PERT finals of 45/6, 25/6 and 20/6 days — the trios 0/8/13, 3/4/6
-    // and 0/3/8. The exact sum is 15; the doubles say 15.000000000000002,
+    // and 0/3/8. The exact sum is 15 and the doubles land a few ULPs off it,
     // because a chain accumulates `finish = start + days` across work items
     // and the engine's anchoring — deliberately — reaches only within one work
-    // item. This test records that behaviour as it stands; where the extra bit
-    // becomes a whole printed day is `work-item.service.test.ts`'s DEFECT
-    // case, and this assertion is the bit it grows from.
+    // item. The engine reports its arithmetic verbatim; the calendar boundary
+    // (`snapWorkdays`, in `datesOf` and `addWorkdays`) absorbs the drift with
+    // a 1e-9 window, so what matters — and what is asserted — is the bound
+    // that window rests on: the drift is real but stays orders of magnitude
+    // inside it. Pinning the exact drifted double (15.000000000000002, as this
+    // test first did) would assert one platform's rounding, not the contract.
     const rows = [item('a'), item('b'), item('c')];
     const found = plan(rows, [edge('a', 'b'), edge('b', 'c')], {
       a: 45 / 6,
@@ -252,7 +302,8 @@ describe('shapes — arithmetic over a long chain', () => {
       c: 20 / 6,
     }).workItems;
 
-    expect(found.get('c')?.earliestFinish).toBeCloseTo(15, 12);
-    expect(found.get('c')?.earliestFinish).toBe(15.000000000000002);
+    const finish = found.get('c')?.earliestFinish ?? NaN;
+    expect(finish).not.toBe(15);
+    expect(Math.abs(finish - 15)).toBeLessThan(1e-9);
   });
 });
