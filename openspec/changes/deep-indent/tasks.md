@@ -68,8 +68,9 @@ Only `- [ ]` checkboxes are tracked by the apply phase.
 - [x] 5.2 The `NUMBER_ENVELOPE` proof (the envelope-fitting e2e test) is
       untouched beyond the `indentFor` → `numberIndentFor` rename; its
       assertions are unchanged and CI keeps it green
-- [ ] 5.3 The `pixels` CI job green on the PR — the depth-6 sum, the rail
-      edge, and the envelope, all measured in Chromium
+- [x] 5.3 The `pixels` CI job green on the PR — the depth-6 sum, the rail
+      edge, and the envelope, all measured in Chromium. Observed on PR #33:
+      `pixels pass 5m38s`, 2026-08-10
 
 ## 6. Gate
 

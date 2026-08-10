@@ -71,9 +71,10 @@ the first level past the cap.
   - the Gantt rail's uncapped edge at every depth of the same fixture;
   - `the Number column fits its envelope` staying green (its assertions are
     untouched beyond the `indentFor` → `numberIndentFor` rename).
-    The PR's `pixels` CI job is the proof for all three.
-- **Task 5.3 and 6.2** — the `pixels` job runs on the PR; the dev deploy and
-  Dany's look come after it.
+    The PR's `pixels` CI job is the proof for all three — **observed green on
+    PR #33** (`pixels pass 5m38s`, 2026-08-10), which is a CI result, still
+    not a local run.
+- **Task 6.2** — the dev deploy and Dany's look come after the merge.
 - **Anything outside Chromium.** The layout gate is one engine by design.
 - **That 72px reads well on a 390px card.** `CARD_DEEPEST_INDENT = 6` is a
   stated budget, not a measured judgement; the dev deploy is where it gets
