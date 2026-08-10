@@ -2536,8 +2536,8 @@ describe('role columns fold away', () => {
 
   itDom('unfolds one role at a time, so the table still fits the window', async () => {
     // The accordion, and it is arithmetic rather than taste: a folded role
-    // costs 96px and an unfolded one 372, so two roles folded need 1123px and
-    // fit a 1280 laptop while one of them open needs 1399 and does not.
+    // costs 96px and an unfolded one 372, so two roles folded need 1171px and
+    // fit a 1280 laptop while one of them open needs 1447 and does not.
     // `table-frame.test.ts` pins those three numbers; this is the behaviour
     // that keeps the table on the second of them.
     // Proof: `toggleRole` put back to `[...current, roleId]`, this failed on
@@ -2551,14 +2551,14 @@ describe('role columns fold away', () => {
     expect(screen.getByLabelText('QA optimistic for 010')).toBeDefined();
     expect(screen.queryByLabelText('Dev optimistic for 010')).toBeNull();
     // And the width the table declares follows, which is the whole reason.
-    expect(screen.getByRole('table').style.minWidth).toBe('1399px');
+    expect(screen.getByRole('table').style.minWidth).toBe('1447px');
 
     // Folding the open one leaves nothing open, rather than putting the other
     // one back.
     fireEvent.click(screen.getByRole('button', { name: 'Fold QA estimates' }));
     expect(screen.queryByLabelText('QA optimistic for 010')).toBeNull();
     expect(screen.queryByLabelText('Dev optimistic for 010')).toBeNull();
-    expect(screen.getByRole('table').style.minWidth).toBe('1123px');
+    expect(screen.getByRole('table').style.minWidth).toBe('1171px');
   });
 
   itDom('says what the fold button does, which is no longer hiding the assignee', async () => {
@@ -6396,11 +6396,11 @@ describe('the frame the table scrolls inside', () => {
 
     const cells = [...rowFor('020').querySelectorAll('td')];
 
-    // Each offset is the sum of the widths in front of it — 24, then 24+100.
+    // Each offset is the sum of the widths in front of it — 24, then 24+93.
     expect(cells.slice(0, 3).map((td) => [td.style.position, td.style.left])).toEqual([
       ['sticky', '0px'],
       ['sticky', '24px'],
-      ['sticky', '193px'],
+      ['sticky', '117px'],
     ]);
     // Pinned and still flexible: the pin places the Name cell and the colgroup
     // sizes it, and a `width` here would be the second opinion that put a
@@ -6408,7 +6408,7 @@ describe('the frame the table scrolls inside', () => {
     // Proof: `pinnedCellStyle` made to declare `width: pinned.width ?? 360`
     // again, this failed on `expected '360px' to be ''`. Watched, 2026-08-08.
     expect(cells[2]?.style.width).toBe('');
-    expect(cells[1]?.style.width).toBe('169px');
+    expect(cells[1]?.style.width).toBe('93px');
     // And the floor that keeps it readable while the frame is scrolling.
     expect(cells[2]?.style.minWidth).toBe('200px');
     // Opaque, or the row scrolling behind a pinned cell shows through it.
@@ -6460,9 +6460,9 @@ describe('the widths the table is laid out by', () => {
     // that takes what the others leave, which is what makes the table fit the
     // window instead of the other way round.
     // Proof: the colgroup made to declare `360` for a flexible column, this
-    // failed on `expected ['24px','169px','360px'] to deeply equal
-    // ['24px','169px','']`. Watched, 2026-08-08.
-    expect(cols.slice(0, 3).map((col) => col.style.width)).toEqual(['24px', '169px', '']);
+    // failed on `expected ['24px','93px','360px'] to deeply equal
+    // ['24px','93px','']`. Watched, 2026-08-08, when this column was 169px.
+    expect(cols.slice(0, 3).map((col) => col.style.width)).toEqual(['24px', '93px', '']);
     for (const [at, col] of cols.entries()) {
       expect(col.style.width === '').toBe(at === 2);
     }
@@ -6507,14 +6507,14 @@ describe('the widths the table is laid out by', () => {
     expect(table.style.width).toBe('100%');
     expect(table.style.minWidth).toBe(`${String(frameLayout(columnIds, UNDATED).minWidth)}px`);
     // Not a constant, which is the point of computing it per render: this
-    // plan has Dev unfolded and QA folded, so the floor is the 731px of fixed
+    // plan has Dev unfolded and QA folded, so the floor is the 779px of fixed
     // columns — nobody has dated a row, so `not-before` is at its narrow 56 —
     // plus 372 for the open role, 96 for the closed one and Name's 200.
-    // Folded it would be 1123; the difference is why unfolding is an
+    // Folded it would be 1171; the difference is why unfolding is an
     // accordion.
-    expect(table.style.minWidth).toBe('1399px');
+    expect(table.style.minWidth).toBe('1447px');
     fireEvent.click(screen.getByRole('button', { name: 'Fold Dev estimates' }));
-    expect(screen.getByRole('table').style.minWidth).toBe('1123px');
+    expect(screen.getByRole('table').style.minWidth).toBe('1171px');
   });
 
   itDom('carries a row’s whole number in its cell, however much of it is shown', async () => {
@@ -6865,10 +6865,10 @@ describe('the widths this browser has dragged', () => {
     // half-done one. What it can hold is the arithmetic the gesture writes
     // through — the floor is the column's own where that is narrower, and the
     // ceiling is the one the stored-width check reads.
-    expect(widthFromDrag('number', 169, 40, UNDATED)).toBe(209);
-    expect(widthFromDrag('number', 169, -1000, UNDATED)).toBe(36);
+    expect(widthFromDrag('number', 93, 40, UNDATED)).toBe(133);
+    expect(widthFromDrag('number', 93, -1000, UNDATED)).toBe(36);
     expect(widthFromDrag('drag', 24, -50, UNDATED)).toBe(24);
-    expect(widthFromDrag('number', 169, 10_000, UNDATED)).toBe(600);
+    expect(widthFromDrag('number', 93, 10_000, UNDATED)).toBe(600);
   });
 
   itDom('lays a remembered width out over the one it would have resolved', async () => {
@@ -6890,9 +6890,9 @@ describe('the widths this browser has dragged', () => {
     // stops at is the width that comes back — this seeds exactly what the
     // clamp can produce rather than a number typed here.
     // Proof: the stored-width check given a ceiling of its own at 500, this
-    // failed on `expected '169px' to be '600px'` — the width the drag had just
+    // failed on `expected '93px' to be '600px'` — the width the drag had just
     // produced refused by the reload. Watched, 2026-08-09.
-    storedWidths({ number: widthFromDrag('number', 169, 10_000, UNDATED) });
+    storedWidths({ number: widthFromDrag('number', 93, 10_000, UNDATED) });
     await threeRoots();
 
     expect(laidOut().number).toBe('600px');
@@ -6907,13 +6907,13 @@ describe('the widths this browser has dragged', () => {
     // Cannot convert undefined or null to object`, thrown out of the render
     // that mounts the table — the text that is not JSON reaching
     // `Object.entries` as `undefined`. Watched, 2026-08-09.
-    for (const junk of ['not json at all', '[169, 240]', '{"number":"wide"}', '"a string"']) {
+    for (const junk of ['not json at all', '[93, 240]', '{"number":"wide"}', '"a string"']) {
       cleanup();
       localStorage.clear();
       storedWidths(junk);
       await threeRoots();
 
-      expect(laidOut().number).toBe('169px');
+      expect(laidOut().number).toBe('93px');
       expect(stored()).toBe(null);
     }
   });
@@ -6967,12 +6967,12 @@ describe('the widths this browser has dragged', () => {
       // Both ends, because a range check is two comparisons and a test that only
       // ever hands it a huge number cannot see the floor go.
       // Proof: the range check deleted, this failed on `expected '1000000000px'
-      // to be '169px'` — a column a billion pixels wide laid out from a
+      // to be '93px'` — a column a billion pixels wide laid out from a
       // hand-edited store. Watched, 2026-08-09.
       storedWidths({ number: 1e9, depends: 4, team: 240 });
       await threeRoots();
 
-      expect(laidOut().number).toBe('169px');
+      expect(laidOut().number).toBe('93px');
       expect(laidOut().depends).toBe('110px');
       expect(laidOut().team).toBe('240px');
     },
@@ -7072,7 +7072,7 @@ describe('the widths this browser has dragged', () => {
 
     click('Reset column widths');
 
-    expect(laidOut().number).toBe('169px');
+    expect(laidOut().number).toBe('93px');
     expect(document.activeElement).toBe(screen.getByLabelText('Name of 010'));
     expect(screen.getByLabelText('Name of 010')).toHaveProperty('value', 'Strip the old wir');
   });
@@ -9535,12 +9535,12 @@ describe('a phase changing, and what the table does about it', () => {
     // still in the table's header. Watched, 2026-08-09.
     await oneRow();
     unfoldRole('QA');
-    expect(screen.getByRole('table').style.minWidth).toBe('1399px');
+    expect(screen.getByRole('table').style.minWidth).toBe('1447px');
 
     await removePhase('QA');
 
-    // One phase left, folded: 731px of fixed columns, 200 for Name, 96 for it.
-    expect(screen.getByRole('table').style.minWidth).toBe('1027px');
+    // One phase left, folded: 779px of fixed columns, 200 for Name, 96 for it.
+    expect(screen.getByRole('table').style.minWidth).toBe('1075px');
     expect(screen.queryByLabelText('QA optimistic for 010')).toBeNull();
   });
 

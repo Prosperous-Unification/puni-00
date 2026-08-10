@@ -4,11 +4,14 @@ import { join } from 'node:path';
 import { expect, type Page, test } from '@playwright/test';
 
 import { type Box, findOverlap, findOverrun } from '../src/components/wbs/box-geometry';
+import { shortIsoDate } from '../src/components/wbs/short-date';
 import {
+  DAY_ENVELOPE,
   FLEXIBLE_COLUMNS,
   FLEXIBLE_FLOOR,
   frameLayout,
   type FrameLayoutState,
+  indentFor,
   NUMBER_ENVELOPE,
   PINNED_COLUMN_IDS,
   widthFor,
@@ -48,7 +51,7 @@ const SEEDED_PLAN: FrameLayoutState = { hasAnyNotBefore: false };
  * How far the frame is scrolled sideways for the sticky half of the checks.
  *
  * Small, because the table fits now. Since 2026-08-08 it is `width: 100%` with
- * a minimum of about 1123px for a two-role plan, so at any ordinary viewport
+ * a minimum of about 1171px for a two-role plan, so at any ordinary viewport
  * there is nothing to scroll at all — {@link NARROW} is the width these tests
  * run at, and this is inside what it leaves over.
  */
@@ -225,27 +228,25 @@ async function openEarliestStart(page: Page): Promise<void> {
 }
 
 /**
- * The number of the row that fills the Number column's display envelope: eleven
- * characters at the deepest indent, with a child under it so it carries an
- * expander too.
+ * The number of the row that fills the Number column's display envelope: two
+ * levels, drawn at the indent a two-level row is drawn at, with a child under
+ * it so it carries an expander too.
  *
- * A root's own three characters plus a dotted single-character segment for each
- * level down to `DEEPEST_INDENT`, which is exactly {@link NUMBER_ENVELOPE}'s
- * shape — `030` here rather than `010` because {@link seedDeepBranch} builds
- * the branch under the third root.
+ * A root's own three characters plus one dotted single-character segment, which
+ * is exactly {@link NUMBER_ENVELOPE}'s shape — `030` here rather than `010`
+ * because {@link seedDeepBranch} builds the branch under the third root.
  */
-const ENVELOPE_NUMBER = '030.1.1.1.1';
+const ENVELOPE_NUMBER = '030.1';
 
 /**
- * And one past it: a level deeper again, which the indent stops following but
- * the number does not.
+ * And the nearest number past it: one level deeper, which is the tightest case
+ * the clip has to hold for — anything deeper only overruns further.
  *
- * Depth is only one of the three ways be-01 grows a number past eleven
- * characters — a group past nine siblings and an insertion against a frozen
- * anchor are the others — and it is the one a browser can build in five
- * keystrokes.
+ * Depth is only one of the three ways be-01 grows a number past the envelope —
+ * a group past nine siblings and an insertion against a frozen anchor are the
+ * others — and it is the one a browser can build in five keystrokes.
  */
-const PAST_ENVELOPE_NUMBER = '030.1.1.1.1.1.1';
+const PAST_ENVELOPE_NUMBER = '030.1.1';
 
 /**
  * Builds a branch five levels deep under the third root.
@@ -290,6 +291,8 @@ async function seedDeepBranch(page: Page): Promise<void> {
 interface NumberCell {
   /** How wide the drawn content is, including the indent in front of it. */
   contentWidth: number;
+  /** The indent itself, so the fixture cannot drift to a row at another depth. */
+  indent: string;
   /** Its right edge, and the cell's, so "fits" is a fact rather than an arithmetic claim. */
   contentRight: number;
   cellRight: number;
@@ -318,6 +321,7 @@ function numberCellNeeds(page: Page, number: string): Promise<NumberCell> {
       // The padding the declared width includes: `CELL` is `border-box`, so a
       // content width compared against the column has to carry it.
       contentWidth: drawnBox.width + (cellBox.width - cell.clientWidth) + 8,
+      indent: getComputedStyle(drawn).paddingLeft,
       contentRight: drawnBox.right,
       cellRight: cellBox.right,
       cellWidth: Math.round(cellBox.width),
@@ -328,6 +332,148 @@ function numberCellNeeds(page: Page, number: string): Promise<NumberCell> {
       hasLock: cell.querySelector('[aria-label="Number is frozen"]') !== null,
     };
   }, number);
+}
+
+/**
+ * Every day the table can print, as `shortIsoDate` prints it, for a year that
+ * is not the reader's own.
+ *
+ * The formatter's own output rather than a hand-picked string, which is the
+ * whole point: {@link DAY_ENVELOPE} is a claim about the widest day this table
+ * can ever show, and a claim measured against a string somebody chose is a
+ * claim about that person's guess. Days that do not exist are left out — a
+ * `31 Feb` would widen the envelope for a day no plan can hold.
+ */
+function everyPrintedDay(year: number, today: Date): string[] {
+  const days: string[] = [];
+  for (let month = 1; month <= 12; month += 1) {
+    for (let day = 1; day <= 31; day += 1) {
+      const at = new Date(Date.UTC(year, month - 1, day));
+      if (at.getUTCMonth() !== month - 1) continue;
+      days.push(
+        shortIsoDate(
+          `${String(year)}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`,
+          today,
+        ),
+      );
+    }
+  }
+  return days;
+}
+
+/** How a date column draws one row's day, and whether it took one line to do it. */
+interface DateCell {
+  text: string;
+  /** How many lines the day was drawn on: its own height over one line's. */
+  lines: number;
+  cellWidth: number;
+}
+
+/**
+ * The Start and End cells of every row on screen.
+ *
+ * The line count is a height against the same string drawn `nowrap` in the
+ * same cell, and it is that rather than `getClientRects().length` for a reason
+ * worth writing down: **that count is fragments, not lines**. React renders
+ * End's day and its no-estimate marker as two adjacent text nodes, and
+ * Chromium hands back a rect for each of them on one unwrapped line — so a
+ * check written on the count reported two lines for a cell that had not
+ * wrapped at all, and would have failed at every width. Measured 2026-08-10,
+ * before it was believed.
+ *
+ * @throws When a row draws no day at all, which would read as a date that fits
+ * rather than as a cell nothing rendered.
+ */
+function dateCells(page: Page, columnId: string): Promise<DateCell[]> {
+  return page.evaluate((column) => {
+    const cells = [...document.querySelectorAll(`tbody td[data-column="${column}"]`)];
+    if (cells.length === 0) throw new Error(`no row has a ${column} cell`);
+    return cells.map((cell) => {
+      const drawn = cell.firstElementChild;
+      if (drawn === null) throw new Error(`a ${column} cell draws nothing`);
+      const text = drawn.textContent;
+      // The same day, in the same cell, on one line by construction.
+      const probe = document.createElement('span');
+      probe.style.position = 'absolute';
+      probe.style.whiteSpace = 'nowrap';
+      probe.style.visibility = 'hidden';
+      probe.textContent = text;
+      cell.append(probe);
+      const oneLine = probe.getBoundingClientRect().height;
+      probe.remove();
+      if (oneLine === 0) throw new Error(`the ${column} column draws no line at all`);
+      return {
+        text,
+        lines: Math.round(drawn.getBoundingClientRect().height / oneLine),
+        cellWidth: Math.round(cell.getBoundingClientRect().width),
+      };
+    });
+  }, columnId);
+}
+
+/**
+ * The widest of `days` as a Start cell would draw it, in px, and the day that
+ * was widest.
+ *
+ * Measured **inside** the cell, so the probe inherits every font rule the
+ * cell's own text has. A probe on `document.body` answered 85px where the cell
+ * answers 92.5 for the same string — measured 2026-08-10, and the reason this
+ * takes a cell rather than a font.
+ */
+function measureDaysIn(
+  page: Page,
+  columnId: string,
+  days: readonly string[],
+): Promise<{ widest: { text: string; width: number }; envelope: number; chrome: number }> {
+  return page.evaluate(
+    ({ column, candidates, envelopeText }) => {
+      const cell = document.querySelector(`tbody tr:first-child td[data-column="${column}"]`);
+      if (cell === null) throw new Error(`the first row has no ${column} cell`);
+      const probe = document.createElement('span');
+      probe.style.position = 'absolute';
+      probe.style.whiteSpace = 'nowrap';
+      probe.style.visibility = 'hidden';
+      cell.append(probe);
+      const width = (text: string) => {
+        probe.textContent = text;
+        return probe.getBoundingClientRect().width;
+      };
+      let widest = { text: '', width: 0 };
+      for (const day of candidates) {
+        const drawn = width(day);
+        if (drawn > widest.width) widest = { text: day, width: drawn };
+      }
+      const envelope = width(envelopeText);
+      probe.remove();
+      const style = getComputedStyle(cell);
+      return {
+        widest,
+        envelope,
+        // What the declared width holds besides the text: `CELL` is
+        // `border-box`, so the padding and any border are inside the number
+        // the column declares.
+        chrome:
+          Number.parseFloat(style.paddingLeft) +
+          Number.parseFloat(style.paddingRight) +
+          (cell.getBoundingClientRect().width - cell.clientWidth),
+      };
+    },
+    { column: columnId, candidates: [...days], envelopeText: DAY_ENVELOPE },
+  );
+}
+
+/**
+ * Moves the whole plan into a year that is not the reader's, which is the state
+ * a date column is widest in: the short date carries its year only when that
+ * year is not the current one.
+ */
+async function dateThePlanOffThisYear(page: Page): Promise<number> {
+  const year = new Date().getFullYear() + 1;
+  const start = page.getByLabel('Project start date');
+  await start.fill(`${String(year)}-05-20`);
+  await start.blur();
+  await expect(page.locator('tbody tr:first-child [data-start]')).toContainText(String(year));
+  return year;
 }
 
 /** Puts the frame at `scrollLeft`, deterministically — never a wheel gesture. */
@@ -745,7 +891,9 @@ test.describe('the table, measured by a browser', () => {
      *
      * Fault: the handle's `pointerdown`/`pointermove`/`pointerup` handlers
      * removed, leaving it rendered and inert. This failed on `expected 169px to
-     * be 209px` while the whole 955-test jsdom suite stayed green — `offers a
+     * be 209px` — the Number column's width and its width plus the drag, which
+     * are 93 and 133 since `column-rebalance` — while the whole 955-test jsdom
+     * suite stayed green — `offers a
      * handle on every column that declares a width` can see that the strip is
      * there and can never see it do nothing. Watched, 2026-08-09.
      */
@@ -779,7 +927,7 @@ test.describe('the table, measured by a browser', () => {
      * drag is let go of, and nothing but a reload reads it back.
      *
      * Fault: the `rememberWidthOverrides` call in the drag's commit removed.
-     * This failed on `expected '169px' to be '209px'` after the reload, with
+     * This failed on `expected '169px' to be '209px'` (93 and 133 now) after the reload, with
      * the drag itself still working perfectly on the page that made it —
      * invisible to every test that does not come back. Watched, 2026-08-09.
      */
@@ -810,7 +958,7 @@ test.describe('the table, measured by a browser', () => {
      *
      * Fault: the reset re-written to store the widths resolved at the moment it
      * was pressed rather than to forget the key. This failed on `expected
-     * '209px' to be '169px'` — a reset that renamed the override instead of
+     * '209px' to be '169px'` (133 and 93 now) — a reset that renamed the override instead of
      * removing it. Watched, 2026-08-09, alongside the jsdom case that watches
      * the same fault against a default that has moved since.
      */
@@ -1114,8 +1262,8 @@ test.describe('the table, measured by a browser', () => {
 
   test('fits every laptop width with the roles folded', async ({ page }) => {
     // The state a plan is read in, and the one R6 is actually about: two roles
-    // folded is 714px of fixed columns plus two 96px roles plus Name's 200
-    // floor — 1123px — so both of these have room to spare.
+    // folded is 779px of fixed columns plus two 96px roles plus Name's 200
+    // floor — 1171px — so both of these have room to spare.
     for (const viewport of VIEWPORTS) {
       await page.setViewportSize({ width: viewport.width, height: viewport.height });
       const measured = await measure(page);
@@ -1249,9 +1397,9 @@ test.describe('the table, measured by a browser', () => {
   test('scrolls the frame below the table’s minimum, with the name still pinned', async ({
     page,
   }) => {
-    // The backstop, at a width no laptop has: the table cannot be 1123px wide
+    // The backstop, at a width no laptop has: the table cannot be 1171px wide
     // in a 900px window, so the frame scrolls and the three identity columns
-    // hold the left edge — Name at 124, the sum of the two fixed columns in
+    // hold the left edge — Name at 117, the sum of the two fixed columns in
     // front of it, while it is scrolling.
     await page.setViewportSize(NARROW);
     const measured = await measure(page);
@@ -1269,10 +1417,10 @@ test.describe('the table, measured by a browser', () => {
       number: declaredLeft('number'),
       name: declaredLeft('name'),
     });
-    // Written out as well as derived, because 124 is the number the change is
+    // Written out as well as derived, because 117 is the number the change is
     // judged by and a geometry that agreed with itself about 0 would satisfy
     // the comparison above.
-    expect(declaredLeft('name')).toBe(193);
+    expect(declaredLeft('name')).toBe(117);
   });
 
   test('keeps the page from scrolling sideways at 125% zoom', async ({ page }) => {
@@ -1432,22 +1580,97 @@ test.describe('the table, measured by a browser', () => {
     expect(measured.earliestStart.editor).toBeGreaterThan(measured.earliestStart.cell);
   });
 
+  test('draws a dated Start and End on one line', async ({ page }) => {
+    // The screenshot this change came from: at 52px `29 Sep` wrapped onto two
+    // lines and `29 Sep 2027` onto three, and a wrapped date makes its row
+    // taller than every other row on the plan.
+    //
+    // Proof: `start` and `finish` put back to 52, this failed on `010's Start
+    // reads "20 May 2027" on 3 lines`. Watched, 2026-08-10.
+    const year = await dateThePlanOffThisYear(page);
+
+    const starts = await dateCells(page, 'start');
+    const finishes = await dateCells(page, 'finish');
+
+    // Non-vacuity first, and it is not decoration: without a project start
+    // date these cells read `0` and `2.5`, which fit any width ever declared —
+    // the check would pass at 52px while saying nothing. The year is what
+    // makes the day the widest thing this column prints, and the marker is
+    // what End prints besides it.
+    expect(starts.map((cell) => cell.text)).toContain(`20 May ${String(year)}`);
+    expect(
+      finishes.filter((cell) => cell.text.endsWith(' ?')).length,
+      'no row is unestimated, so nothing carries the marker End is sized for',
+    ).toBeGreaterThan(0);
+
+    for (const [column, cells] of [
+      ['Start', starts],
+      ['End', finishes],
+    ] as const) {
+      expect(
+        cells
+          .filter((cell) => cell.lines !== 1)
+          .map((cell) => `${column} reads "${cell.text}" on ${String(cell.lines)} lines`),
+        `${column} wraps its day`,
+      ).toEqual([]);
+    }
+  });
+
+  test('is as wide as the widest day the formatter can print', async ({ page }) => {
+    // The width both date columns are picked by, measured rather than argued
+    // with — and measured against every day the table can print rather than
+    // against one somebody chose, so the envelope cannot quietly stop being the
+    // widest one.
+    //
+    // Proof: `DATE_COLUMN_WIDTH` set to 84 — the width `not-before` uses, and
+    // the number this change was planned with — this failed on `Start declares
+    // 84px where the widest day it can print, "20 May 2027 ?", needs 114`.
+    // Watched, 2026-08-10.
+    const year = await dateThePlanOffThisYear(page);
+    const printable = everyPrintedDay(year, new Date());
+    // End draws the marker after the day on an unestimated row, and a marker
+    // that wraps is the same failure as a date that wraps — so it is inside
+    // the envelope both columns are sized by.
+    const candidates = [...printable, ...printable.map((day) => `${day} ?`)];
+
+    const measured = await measureDaysIn(page, 'start', candidates);
+
+    // Or the fixture measured nothing at all and every comparison below is
+    // between two zeroes.
+    expect(candidates.length).toBeGreaterThan(700);
+    expect(measured.envelope).toBeGreaterThan(0);
+    // Nothing the formatter prints is wider than the envelope. Stated as
+    // widths rather than as `widest.text === DAY_ENVELOPE`: several days are
+    // exactly as wide as each other in this font — `10 May 2027 ?` and
+    // `20 May 2027 ?` measure the same — so a string comparison would pin
+    // which of a set of ties the loop happened to see first, and would have
+    // failed for that reason rather than for a day that did not fit.
+    expect(
+      measured.widest.width,
+      `"${measured.widest.text}" is wider than the envelope "${DAY_ENVELOPE}" this column is sized by`,
+    ).toBeLessThanOrEqual(measured.envelope);
+    for (const column of ['start', 'finish'] as const) {
+      expect(
+        widthFor(column, SEEDED_PLAN),
+        `${column} declares ${String(widthFor(column, SEEDED_PLAN))}px where the widest day it can print, "${DAY_ENVELOPE}", needs ${String(Math.ceil(measured.envelope + measured.chrome))}`,
+      ).toBeGreaterThanOrEqual(measured.envelope + measured.chrome);
+    }
+  });
+
   test('the Number column fits its envelope', async ({ page }) => {
     // There is no longest work item number, so the column is sized to a stated
-    // envelope instead: eleven characters at the deepest indent the column
-    // allows, beside the row's expander and its frozen-number lock. This is
-    // the browser that picks that width — `COLUMN_WIDTHS`'s figure is asserted
-    // against a measurement, never read off the markup.
+    // envelope instead: two levels of number, drawn at the indent a two-level
+    // row is drawn at, beside the row's expander and its frozen-number lock.
+    // This is the browser that picks that width — `COLUMN_WIDTHS`'s figure is
+    // asserted against a measurement, never read off the markup.
     //
-    // Proof: `['number', 169]` set to 56, this failed on `Expected: >=
-    // 168.59375 / Received: 56` — the envelope wanting three times what the
-    // column declared. Watched, 2026-08-09.
+    // Proof: `['number', 93]` set to 56, this failed on `Expected: >=
+    // 92.5625 / Received: 56`. Watched, 2026-08-10. The same assertion was
+    // watched failing at 169 → 56 on 2026-08-09, when the envelope was eleven
+    // characters at the deepest indent.
     //
-    // 169 is what that measurement picked, and it is **larger** than the 100
-    // this column had: 48px of indent, a 12.5px expander, a 20px lock, 80px of
-    // eleven-character number and the cell's 8px of padding. The column had
-    // been clipping its own envelope since the 168 → 100 compaction and
-    // nothing had measured it.
+    // 93 is what that measurement picked: 12px of indent, a 12.5px expander, a
+    // 20px lock, five characters of number and the cell's 8px of padding.
     await seedDeepBranch(page);
     const envelope = page.getByLabel(`Name of ${ENVELOPE_NUMBER}`, { exact: true });
     await expect(envelope).toBeVisible();
@@ -1460,8 +1683,11 @@ test.describe('the table, measured by a browser', () => {
     const needed = await numberCellNeeds(page, ENVELOPE_NUMBER);
 
     expect(needed.contentWidth).toBeGreaterThan(0);
+    // Drawn at the indent the envelope names, or this measurement is about a
+    // row at some other depth and the width it picks is that row's.
+    expect(needed.indent).toBe(`${String(indentFor(NUMBER_ENVELOPE.split('.').length - 1))}px`);
     // The declared width holds everything the cell has to draw: the indent, the
-    // expander, the lock and eleven characters of number.
+    // expander, the lock and two levels of number.
     expect(widthFor('number', SEEDED_PLAN)).toBeGreaterThanOrEqual(needed.contentWidth);
     // And all of it is really inside the column rather than merely declared to
     // be: `overflow: hidden` would hide the difference otherwise.
