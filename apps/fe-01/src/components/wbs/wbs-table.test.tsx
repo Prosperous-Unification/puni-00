@@ -6355,6 +6355,179 @@ describe('dependencies in the table — cross-review findings', () => {
   });
 });
 
+describe('hovering a dependency lights the rows it names', () => {
+  const dependOn = (rowNumber: string, predecessorNumber: string) => {
+    const input = screen.getByLabelText(`Add a dependency to ${rowNumber}`);
+    fireEvent.change(input, { target: { value: predecessorNumber } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+  };
+
+  /** The depends cell's wrapper, through the `<td>` — `dependsCellOf`'s reason. */
+  const hoverTargetOf = (number: string): HTMLElement => {
+    const cell = screen.getByLabelText(`Add a dependency to ${number}`).closest('td');
+    const found = cell?.firstElementChild;
+    if (!(found instanceof HTMLElement)) throw new Error(`no depends cell for ${number}`);
+    return found;
+  };
+
+  /** The numbers of every row the table has lit, in document order. */
+  const litNumbers = (): string[] =>
+    [...document.querySelectorAll('tr[data-dep-lit]')].map((tr) => {
+      const number = tr.querySelector('[data-number]')?.textContent;
+      if (number == null) throw new Error('a lit row has no number cell');
+      return number;
+    });
+
+  /** Three roots where 030 waits for 010 and 020, at rest. */
+  async function planWhere030Waits() {
+    const api = await threeRoots();
+    dependOn('030', '010');
+    await waitFor(() => {
+      expect(screen.getByLabelText('Stop 030 waiting for 010')).toBeDefined();
+    });
+    dependOn('030', '020');
+    await waitFor(() => {
+      expect(screen.getByLabelText('Stop 030 waiting for 020')).toBeDefined();
+    });
+    fireEvent.blur(screen.getByLabelText('Add a dependency to 030'));
+    return api;
+  }
+
+  itDom('lights every dependency’s row from the cell, and no other row', async () => {
+    await planWhere030Waits();
+    expect(litNumbers()).toEqual([]);
+
+    fireEvent.mouseEnter(hoverTargetOf('030'));
+
+    // 010 and 020 — the rows 030 waits for — and pointedly not 030 itself:
+    // deriving the lit set from the hovered row's own id is the wrong-id
+    // fault this assertion exists to catch.
+    expect(litNumbers()).toEqual(['010', '020']);
+
+    fireEvent.mouseLeave(hoverTargetOf('030'));
+    expect(litNumbers()).toEqual([]);
+  });
+
+  itDom('narrows to the pill’s row, and widens again when the pill is left', async () => {
+    await planWhere030Waits();
+    fireEvent.mouseEnter(hoverTargetOf('030'));
+    expect(litNumbers()).toEqual(['010', '020']);
+
+    fireEvent.mouseEnter(screen.getByLabelText('Stop 030 waiting for 010'));
+    expect(litNumbers()).toEqual(['010']);
+
+    // Off the pill but still in the cell: back to the whole waited-for set,
+    // not stuck on the one pill and not cleared. `relatedTarget` names where
+    // the pointer went — jsdom's default of null reads as leaving the whole
+    // cell, which fires the wrapper's leave too and would make this pass for
+    // the wrong reason.
+    fireEvent.mouseLeave(screen.getByLabelText('Stop 030 waiting for 010'), {
+      relatedTarget: screen.getByLabelText('Add a dependency to 030'),
+    });
+    expect(litNumbers()).toEqual(['010', '020']);
+
+    fireEvent.mouseLeave(hoverTargetOf('030'));
+    expect(litNumbers()).toEqual([]);
+  });
+
+  itDom('emphasises the pill’s entry in the card as a background, not bold', async () => {
+    await planWhere030Waits();
+    fireEvent.mouseEnter(hoverTargetOf('030'));
+    const card = screen.getByRole('tooltip');
+    const entryOf = (text: string): HTMLElement => {
+      const found = [...card.querySelectorAll('div')].find((line) => line.textContent === text);
+      if (!(found instanceof HTMLElement)) throw new Error(`no card entry reading ${text}`);
+      return found;
+    };
+    // From the cell's input area no entry is emphasised — the whole list is.
+    expect(entryOf('010 - Strip').style.background).toBe('');
+    expect(entryOf('020 - Sand').style.background).toBe('');
+
+    fireEvent.mouseEnter(screen.getByLabelText('Stop 030 waiting for 010'));
+
+    // The same tint the lit rows use, as a background swatch — emphasis by
+    // weight would make one line read as a heading over the others.
+    expect(entryOf('010 - Strip').style.background).toBe('var(--grid-dep-lit)');
+    expect(entryOf('010 - Strip').style.fontWeight).toBe('');
+    expect(entryOf('020 - Sand').style.background).toBe('');
+
+    // To the input area, not out of the cell (`relatedTarget`, as above): the
+    // card stays open and no entry is singled out any more.
+    fireEvent.mouseLeave(screen.getByLabelText('Stop 030 waiting for 010'), {
+      relatedTarget: screen.getByLabelText('Add a dependency to 030'),
+    });
+    expect(entryOf('010 - Strip').style.background).toBe('');
+  });
+
+  itDom('a collapsed dependency has no row to light, and the card still names it', async () => {
+    const api = fakeApi();
+    render(<WbsTable projectId="p1" api={api} />);
+    click('Add work item');
+    await screen.findByLabelText('Name of 010');
+    pressNewItem('010');
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '020']);
+    });
+    pressTab('020');
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '010.1']);
+    });
+    typeName('010.1', 'Sand the keel');
+    fireEvent.blur(screen.getByLabelText('Name of 010.1'));
+    // The rename is in flight and `Add work item` is disabled while it is;
+    // settled first, or the click lands on a busy button and does nothing.
+    await waitFor(() => {
+      expect(screen.getByLabelText('Name of 010.1')).toHaveProperty('value', 'Sand the keel');
+    });
+    click('Add work item');
+    await screen.findByLabelText('Name of 020');
+    dependOn('020', '010.1');
+    await waitFor(() => {
+      expect(screen.getByLabelText('Stop 020 waiting for 010.1')).toBeDefined();
+    });
+    fireEvent.blur(screen.getByLabelText('Add a dependency to 020'));
+
+    // The probe proven live before the branch closes (R5 #16, `D
+    // directory-page`): the same hover lights 010.1 while its row is shown.
+    fireEvent.mouseEnter(hoverTargetOf('020'));
+    expect(litNumbers()).toEqual(['010.1']);
+    fireEvent.mouseLeave(hoverTargetOf('020'));
+
+    click('Collapse 010');
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '020']);
+    });
+
+    fireEvent.mouseEnter(hoverTargetOf('020'));
+
+    // No shown row is 010.1, so nothing is lit — the parent 010 must not be
+    // lit in its place — and the card still names the hidden dependency.
+    expect(litNumbers()).toEqual([]);
+    expect(screen.getByRole('tooltip').textContent).toContain('010.1 - Sand the keel');
+  });
+
+  itDom('lights rows without remounting the cells under a half-typed name', async () => {
+    // The landmine: `columns` may depend on `roles` and `unfoldedRoles` and
+    // nothing else. A `columns` that rebuilt on `depHover` would hand every
+    // cell a new component type on the first hover, and React would remount
+    // the lot — dropping the focus to the body and the half-typed name with
+    // it. The lit rows are asserted first so this cannot pass vacuously on a
+    // hover that wrote nothing.
+    await planWhere030Waits();
+    const input = screen.getByLabelText('Name of 010');
+    input.focus();
+    fireEvent.change(input, { target: { value: 'Strip the old wir' } });
+    expect(document.activeElement).toBe(input);
+
+    fireEvent.mouseEnter(hoverTargetOf('030'));
+
+    expect(litNumbers()).toEqual(['010', '020']);
+    expect(screen.getByLabelText('Name of 010')).toBe(input);
+    expect(document.activeElement).toBe(input);
+    expect(input).toHaveProperty('value', 'Strip the old wir');
+  });
+});
+
 describe('the chart under a plan being edited', () => {
   /**
    * An api whose schedule moves when a not-before lands, the way be-01's does.

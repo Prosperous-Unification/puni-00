@@ -1602,6 +1602,25 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     highlightId: string | null;
   } | null>(null);
   /**
+   * The dependency hover: whose Depends on cell the pointer is in, and which
+   * of its pills it is on — `pillId: null` while it is on the cell's input
+   * area rather than on a pill.
+   *
+   * Two fields rather than a list of ids to light (codex 10 on the U4 plan):
+   * a single list cannot distinguish "the cell" from "the cell's only pill",
+   * and the card's emphasis needs exactly that distinction. The lit set is
+   * derived per render — see {@link WbsTable}'s `depLit` — all of the row's
+   * dependencies while `pillId` is null, the one pill's row otherwise.
+   *
+   * Read through {@link live} inside `columns`, for the reason `hoveredCell`
+   * is: a hover **re-renders** the table, which is how React works and is
+   * cheap here, but a `columns` that depended on it would **remount** every
+   * cell on the first hover and take the focus with it. The writers below
+   * bail out (return the current object) when the value is already there, so
+   * a pointer resting on one pill costs one render, not one per mousemove.
+   */
+  const [depHover, setDepHover] = useState<{ rowId: string; pillId: string | null } | null>(null);
+  /**
    * The `@` mention open in a folded role's cell: whose cell, and what has been
    * typed after the `@`.
    *
@@ -4065,6 +4084,8 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     startDateHint,
     depPicker,
     setDepPicker,
+    depHover,
+    setDepHover,
     openMenuRowId,
     setOpenMenuRowId,
     depEntriesFor,
@@ -4127,6 +4148,8 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     startDateHint,
     depPicker,
     setDepPicker,
+    depHover,
+    setDepHover,
     openMenuRowId,
     setOpenMenuRowId,
     depEntriesFor,
@@ -4509,6 +4532,22 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
           return (
             <span
               onMouseEnter={() => {
+                // The cell-level dependency hover: every row this one waits
+                // for is lit, `pillId: null` saying the pointer is on the
+                // cell rather than on one pill. Guarded by the same "nothing
+                // to say, nothing written" rule as the card below — a cell
+                // that waits for nothing has no row to light and no reason to
+                // spend a render (codex round 3, finding 5). The functional
+                // writer returns the current object when the value is already
+                // there, which is the string-key bail-out below, spelt for an
+                // object.
+                if (waitingFor.length > 0) {
+                  live.current.setDepHover((current) =>
+                    current?.rowId === row.original.id && current.pillId === null
+                      ? current
+                      : { rowId: row.original.id, pillId: null },
+                  );
+                }
                 // Nothing to open, nothing written. `hoveredCell` lives on the
                 // table, so every boundary the pointer crosses costs one render
                 // of the whole of it — and a cell with no card to show has no
@@ -4525,6 +4564,12 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                 live.current.setHoveredCell(dependsCell);
               }}
               onMouseLeave={() => {
+                // Leaving the cell clears the dependency hover outright — with
+                // the same-cell guard `hoveredCell`'s clear uses, because a
+                // leave lands after the next cell's enter.
+                live.current.setDepHover((current) =>
+                  current?.rowId === row.original.id ? null : current,
+                );
                 // The same-cell guard, for the reason the Name cell's marker
                 // gives: a leave lands after the next cell's enter.
                 live.current.setHoveredCell((current) =>
@@ -4619,6 +4664,36 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                     // `keeps clipped chips out of the tab order at rest`
                     // failed on `expected +0 to be -1`. Watched, 2026-08-10.
                     tabIndex={picker === null ? -1 : undefined}
+                    // The pill-level hover: this one dependency's row alone,
+                    // and the card's emphasis with it. A chip the strip has
+                    // clipped simply has no hover target — the cell-level
+                    // enter above still lights every dependency's row, which
+                    // is the U3→U4 case named in the plan rather than
+                    // discovered.
+                    onMouseEnter={() => {
+                      live.current.setDepHover((current) =>
+                        current?.rowId === row.original.id && current.pillId === id
+                          ? current
+                          : { rowId: row.original.id, pillId: id },
+                      );
+                    }}
+                    onMouseLeave={() => {
+                      // Off the pill but still in the cell: back to the whole
+                      // waited-for set, not cleared — the wrapper's own leave
+                      // is what clears. Guarded on this pill's id so a leave
+                      // that lands after the next pill's enter cannot widen
+                      // the hover that enter just narrowed.
+                      // Proof: the restore dropped (leave returning
+                      // `current`), `narrows to the pill's row, and widens
+                      // again when the pill is left` failed on `expected
+                      // ['010'] to deeply equal ['010', '020']`. Watched,
+                      // 2026-08-10.
+                      live.current.setDepHover((current) =>
+                        current?.rowId === row.original.id && current.pillId === id
+                          ? { rowId: row.original.id, pillId: null }
+                          : current,
+                      );
+                    }}
                     onClick={() =>
                       void live.current.run(() =>
                         live.current.api.removeDependency(row.original.id, id),
@@ -4841,7 +4916,20 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                   ))}
                 </ul>
               )}
-              {carded && <DependsCard number={row.original.number} entries={waitingFor} />}
+              {carded && (
+                <DependsCard
+                  number={row.original.number}
+                  entries={waitingFor}
+                  // This cell's pill hover and no other's: a card is only on
+                  // screen for the hovered cell, but the guard keeps a stale
+                  // `depHover` from another row emphasising an entry here.
+                  emphasisedId={
+                    live.current.depHover?.rowId === row.original.id
+                      ? live.current.depHover.pillId
+                      : null
+                  }
+                />
+              )}
             </span>
           );
         },
@@ -5712,6 +5800,32 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    * typed the kept set is every row and this filters nothing out.
    */
   const shownRows = table.getRowModel().rows.filter((row) => search.visibleIds.has(row.id));
+
+  /**
+   * The rows the dependency hover lights, by id — the {@link depHover} row's
+   * whole waited-for set while the pointer is on the cell, the one pill's row
+   * while it is on a pill.
+   *
+   * Derived from the hovered row's `dependsOn` and never from its own id: the
+   * hovered row is the *successor*, and lighting it would answer "what does
+   * this wait for" by pointing at the question. A dependency whose row is
+   * collapsed or filtered out is in this set and on no shown `<tr>`, so
+   * nothing lights — the hover card still names it, which is the guarantee. A
+   * hovered row the tree no longer holds lights nothing, modeled rather than
+   * thrown: a hover can outlive its row by one refetch, exactly as
+   * {@link goToRow}'s absences can.
+   *
+   * Proof: derived from `depHover.rowId` instead, `lights every dependency's
+   * row from the cell, and no other row` failed on `expected ['030'] to
+   * deeply equal ['010', '020']` — the successor lit, its dependencies dark.
+   * Watched, 2026-08-10.
+   */
+  const depLit: ReadonlySet<string> = (() => {
+    if (depHover === null) return new Set();
+    if (depHover.pillId !== null) return new Set([depHover.pillId]);
+    const hovered = flat.find((row) => row.id === depHover.rowId);
+    return new Set(hovered === undefined ? [] : hovered.dependsOn);
+  })();
 
   /**
    * Every work item in the plan, named the way a dependency names one.
@@ -6585,7 +6699,17 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                 {shownRows.map((row) => (
                   <tr
                     key={row.id}
+                    // The row's identity, on the row — the handle the browser
+                    // proofs find a dependency's `<tr>` by (precedent:
+                    // `data-armed`, `data-drop`). Nothing in the app reads it.
+                    data-row-id={row.original.id}
                     data-frozen={row.original.frozenNumber !== null ? 'true' : 'false'}
+                    // Lit because some hovered Depends on cell names this row.
+                    // The tint itself lands on the cells through the
+                    // `--cell-bg` join (`styles.css`), never on the `<tr>`,
+                    // for `data-armed`'s reason: a pinned cell paints its own
+                    // opaque background and would cover a colour set here.
+                    data-dep-lit={depLit.has(row.original.id) ? 'true' : undefined}
                     // The armed row, said on the row rather than only in the
                     // toast: a sentence in the corner of the screen is not where
                     // somebody looks to find out which row a second Ctrl+D will

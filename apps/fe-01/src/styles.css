@@ -169,6 +169,10 @@
   --grid-invalid: color-mix(in oklab, var(--destructive) 10%, var(--background));
   --grid-drop: color-mix(in oklab, var(--ring) 22%, var(--background));
   --grid-match: color-mix(in oklab, var(--highlight) 55%, var(--background));
+  /* The rows a hovered Depends on cell names. The drop tint's ink at a lower
+     dose: related-but-different meanings ("where this lands" / "what this
+     waits for") in the same hue, apart from the greys either could sit on. */
+  --grid-dep-lit: color-mix(in oklab, var(--ring) 12%, var(--background));
 }
 
 /*
@@ -429,6 +433,24 @@
 
   [data-grid] tbody tr:hover {
     --cell-bg: var(--grid-hover);
+  }
+
+  /*
+   * A row some hovered Depends on cell is waiting for (`data-dep-lit`,
+   * written by `wbs-table.tsx`'s dependency hover). Re-points `--cell-bg` for
+   * the reason `tr:hover` does: the pinned cells' inline backgrounds follow
+   * the row only through that join. After `tr:hover` at equal specificity on
+   * purpose — the two never name the same row (a row does not wait for
+   * itself), but if that ever changes, "lit" should win over "under the
+   * pointer".
+   *
+   * Proof: this rule withheld from the first PR head and the change's three
+   * hover assertions in `e2e/hover-cards.spec.ts` watched red in the `pixels`
+   * job — the attribute set, the paint unchanged (see
+   * `openspec/changes/dep-hover-highlights/verify.md`).
+   */
+  [data-grid] tbody tr[data-dep-lit] {
+    --cell-bg: var(--grid-dep-lit);
   }
 
   /*
