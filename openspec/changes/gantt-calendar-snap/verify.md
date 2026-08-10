@@ -114,11 +114,19 @@ whose ceil moves, and no test can be written that observes one; if such a case
 is ever found, it is a fault in `placeGantt`'s arithmetic, to be fixed there
 with its own negative — not absorbed by a snap on the axis that would hide it.
 
+## CI on the review-fixes head
+
+Run `31438407579` on `836ff18`, both jobs green: `gate` (the full
+`test lint typecheck build` plus the secrets scan, migration lint and
+`openspec validate`) and `pixels` (`bun run e2e`, one Chromium against the
+real stack, 5m49s). That run is the proof for `build` and the only browser
+evidence on this branch.
+
 ## Not verified
 
-- **`build`** — forbidden on this host; CI's `checks` job is the proof.
-- **CI itself and the `pixels` browser job** — recorded on the PR after push,
-  not here.
+- **`build`** — forbidden on this host; CI's `gate` job above is the proof.
+- **Anything run locally in a browser** — none was; the `pixels` job above is
+  the whole of this branch's Chromium evidence.
 - **The exact drifted float value** in the pinned engine test — deliberately:
   the bound is asserted (negative, `> -1e-9`), the platform's exact double is
   not the contract.
