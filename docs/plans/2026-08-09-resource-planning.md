@@ -308,6 +308,15 @@ notBefore, pools)` — both required (opus 10). Existing fixtures updated
 
 ## C4 `team-headcount` (~3d) — after S1 for naming only
 
+> **Decision, Dany 2026-08-10 (WhatsApp; see the 2026-08-10 UX-batch
+> plan's Answers):** S1/S2 became S1′/S2′ and the user-facing primary
+> team is gone. C4's pool attribution rule is now: demand with an
+> assignee goes to the **assignee's team**; otherwise to the work item's
+> **first-listed team** (teams are ordered, first = implicit primary,
+> no UI affordance). Deferred to C4 design: multi-team assignees,
+> free-agent assignees (candidate fallback: item's first-listed team),
+> and per-role assignees on different teams.
+
 1. Migrations: `team_headcount(project_id, team_id, headcount)` PK
    `(project, team)`, and `team_role_headcount(project_id, team_id, role_id,
 headcount)` PK `(project, team, role)` — two tables because a nullable

@@ -586,10 +586,15 @@ directory work is wanted sooner.
    user-facing semantic; the first-`t.`-token-sets-primary behaviour and
    the unfolded-column primary affordance are both dropped from S2′.
    **Consequence: C4's pool attribution loses the user-set primary
-   pointer it planned to read. C4 needs an allocation decision in the
-   resource-planning plan before it starts** — candidates: split the
-   item's demand across its teams, or attribute by each assignee's own
-   team. Not decided here.
+   pointer it planned to read.** → **Resolved by Dany, same evening:**
+   if the work item's demand has an assignee, attribute it to the
+   assignee's team; otherwise to the item's **first-listed** team (the
+   teams list is ordered, first = implicit primary; still no user-facing
+   primary affordance). Edge cases deferred to C4 design: an assignee on
+   multiple teams, a free-agent assignee with no team (candidate
+   fallback: the item's first-listed team), and per-role assignees
+   pointing at different teams. Recorded in
+   `2026-08-09-resource-planning.md` under C4 as well.
 4. **U6**: first forename initial + surname ("D Fedorov"), surname
    cropped from the right when the cell is narrow ("D Fedo…"), full name
    on hover. If initial+surname collides within a project, fall back to
