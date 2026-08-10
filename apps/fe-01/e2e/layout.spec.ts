@@ -1134,7 +1134,8 @@ test.describe('the table, measured by a browser', () => {
      * yardstick named `040`, a row {@link seedDeepBranch} indents away — `Name
      * of 040 is not on screen`, CI `pixels` run 31435567028, 2026-08-11. The
      * drag half stood; only the lookup was wrong. Yardstick repointed at `030`
-     * below, with the reason it cannot be any other row written beside it.
+     * below, with the reason it cannot be any other row written beside it —
+     * green on that gesture in CI `pixels` run 31441016178, 6.9s, 117 passed.
      */
     await seedDeepBranch(page);
     const deep = page.getByLabel('Name of 030.1.1.1.1.1.1', { exact: true });

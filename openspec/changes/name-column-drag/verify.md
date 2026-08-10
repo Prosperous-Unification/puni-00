@@ -37,6 +37,7 @@ job — no local browser claim is made anywhere in this file.
 | `bunx vitest run` in `apps/fe-01`                       | 45 files, 1076 tests, all passing                                                                         |
 | CI `pixels`, run 31430669282 (pre-decision head)        | 115 passed, 1 failed — the deciding measurement, quoted below                                             |
 | CI `gate`, run 31430669282 (pre-decision head)          | failed at `Format` alone: this file was written after the local format pass; fixed in the decision commit |
+| CI run 31441016178, head `5252a73`                      | `gate` green, `pixels` 117 passed — the yardstick fix's own run, quoted in row 15                         |
 | CI on the final head                                    | conclusions reported on PR #37 — a run that post-dates this file cannot be quoted inside it               |
 
 ## The task-5 branch decision
@@ -87,7 +88,16 @@ The plan named three injected-fault classes for this change; they are rows 1,
 | 13  | the excess-width design (named fault 3, browser)               | `<col name>` sized from the override                                                               | `e2e/layout.spec.ts` — `keeps every other column on its envelope while Name holds a dragged width` (and the drag case's `declared` assertion beside it)                                         | `Expected: 93 / Received: 103.484375` (Number off its envelope) and `Expected: "" / Received: "260px"`, CI `pixels` run 31430848363                              |
 | 14  | `tableWidthStyle`'s flexible-override arm, browser half        | the arm absent — the table left at `width: 100%` with an override in force (the pre-decision head) | `e2e/layout.spec.ts` — `keeps every other column on its envelope while Name holds a dragged width`                                                                                              | `Expected: 93 / Received: 103.484375`, CI `pixels` run 31430669282 — watched red with the gate in place **before the winning line existed**                      |
 
-| 15 | the combined depth-6 × floor-Name case (review finding 1) | the drag's effect denied — the width assertion pointed at the pre-drag width, an honest liveness red rather than a production fault | `e2e/layout.spec.ts` — `keeps a depth-6 name readable and editable with Name dragged to its floor` | `Expected: 397 / Received: 200`, CI `pixels` run 31434774350 (probe branch, deleted; the run remains), gate green and 114 browser tests passing beside it |
+| 15 | the combined depth-6 × floor-Name case (review finding 1) | the drag's effect denied — the width assertion pointed at the pre-drag width, an honest liveness red rather than a production fault | `e2e/layout.spec.ts` — `keeps a depth-6 name readable and editable with Name dragged to its floor` | `Expected: 397 / Received: 200`, CI `pixels` run 31434774350 (probe branch, deleted; the run remains), gate green and 114 browser tests passing beside it. **Green: CI run 31441016178, head `5252a73` — `pixels` 117 passed, this case `✓ 70 … keeps a depth-6 name readable and editable with Name dragged to its floor (6.9s)`, `gate` green beside it** |
+
+Row 15's green is a second head, and the first one earns its own line: on
+`1637b30` this case did not fail its assertions, it threw before reaching
+them — `Name of 040 is not on screen`, CI `pixels` run 31435567028,
+2026-08-11. The yardstick named a row `seedDeepBranch` indents away (six
+chains spend the six spare roots; `010`/`020`/`030` are what survive), so
+the fault was in the test's fixture, not in the Name column. Repointed at
+`030` — empty, depth 0, one line by construction — in `5252a73`; the drag,
+wrap and typing assertions are unchanged and are what run green above.
 
 Row 12's probe run also shows the companion excess case failing (`the drag
 stored no widths`): an inert gesture starves that test's setup, which is
