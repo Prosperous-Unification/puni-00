@@ -346,10 +346,17 @@ layout would otherwise resolve. Held per project, per browser, and never seen by
 else.
 _Avoid_: resize, custom width, preference
 
-**Width reset**:
-Forgetting every override for one project, so each column returns to the width the frame
-layout resolves for it now rather than to the width it had when the override was made.
-_Avoid_: restore defaults, revert, clear
+**Panel height override**:
+The Gantt panel's height as this browser was told it by a drag on the panel's top edge,
+replacing the bounded share the panel would otherwise take. Held per project, per browser,
+and never seen by anyone else.
+_Avoid_: chart height, panel size, splitter position
+
+**Layout reset**:
+Forgetting every column width override and the panel height override for one project, so
+each returns to what is resolved for it now rather than to what it was when the override
+was made.
+_Avoid_: width reset, restore defaults, revert, clear
 
 **Short date**:
 A calendar day as somebody reads one — `1 Jun`, and `1 Jun 2027` when the year is not the
