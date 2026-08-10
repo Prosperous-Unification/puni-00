@@ -562,7 +562,8 @@ export const DEEPEST_INDENT = 4;
 const INDENT_STEP = 12;
 
 /**
- * The Number cell's indent for a row `depth` levels down, in px.
+ * The Number cell's indent for a row `depth` levels down, in px — capped, and
+ * only the Number cell's.
  *
  * The cap is what keeps the pinned columns from overlapping. Number is held to a
  * declared width, and an indent that kept growing would push the number itself
@@ -577,8 +578,56 @@ const INDENT_STEP = 12;
  * the column and every level after that is spent on white space. A step of 16
  * would take 64px of a 93px column at the deepest indent and leave nothing of
  * the number at all.
+ *
+ * A row deeper than the cap is not stuck at it on every surface: the Name cell
+ * carries `hierarchyIndentFor(depth) − numberIndentFor(depth)` on top of this,
+ * so the outline keeps stepping right where the Number column has stopped.
+ * {@link hierarchyIndentFor} is the uncapped half of that pair.
  */
-export const indentFor = (depth: number): number => Math.min(depth, DEEPEST_INDENT) * INDENT_STEP;
+export const numberIndentFor = (depth: number): number =>
+  Math.min(depth, DEEPEST_INDENT) * INDENT_STEP;
+
+/**
+ * The full indent a row `depth` levels down stands at, in px — uncapped.
+ *
+ * The other half of the split this module's cap forced: {@link numberIndentFor}
+ * guards the Number column's declared width and draws every level past
+ * {@link DEEPEST_INDENT} identically, which left a depth-5 row invisible under
+ * its depth-4 parent. Surfaces with no 93px column to protect take this one
+ * whole — the Gantt panel's label rail — and the Name cell carries the
+ * **difference** between the two (zero until the cap, one step per level past
+ * it; Name is the flexible column, with no envelope to blow). The quantity a
+ * reader's eye adds up across Number and Name is therefore this function, at
+ * every depth. The mobile cards take neither raw: a 390px card caps at its own
+ * {@link CARD_DEEPEST_INDENT}, through {@link cardIndentFor}.
+ *
+ * Proof: `numberIndentFor`'s `Math.min(depth, DEEPEST_INDENT)` cap put on this
+ * function — `keeps the hierarchy indent growing past the Number cap, one step
+ * per level to depth 6` failed on `expected +0 to be 12` (the depth-5 step),
+ * with `hands the Name cell exactly the share the Number cell's cap withheld`
+ * on the same figure and the card-cap case on `expected 60 to be 48`. Watched,
+ * 2026-08-10.
+ */
+export const hierarchyIndentFor = (depth: number): number => depth * INDENT_STEP;
+
+/**
+ * Where the mobile cards stop indenting: two levels past the Number column's
+ * {@link DEEPEST_INDENT}, because a 390px card cannot spend 72px-and-growing of
+ * its width on margin. Stated here rather than discovered at a viewport.
+ */
+export const CARD_DEEPEST_INDENT = 6;
+
+/**
+ * The mobile card's indent for a row `depth` levels down, in px.
+ *
+ * The cards' own cap over {@link hierarchyIndentFor}'s step: deeper than the
+ * Number column's, because a card has no pinned neighbour to overlap — but not
+ * uncapped, because the margin comes out of a phone's 390px. Past
+ * {@link CARD_DEEPEST_INDENT} a card stops moving right; its number still says
+ * how deep it is.
+ */
+export const cardIndentFor = (depth: number): number =>
+  Math.min(depth, CARD_DEEPEST_INDENT) * INDENT_STEP;
 
 /**
  * The widest number the Number column undertakes to show whole, as the string a

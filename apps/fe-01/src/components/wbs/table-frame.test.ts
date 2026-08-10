@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  CARD_DEEPEST_INDENT,
+  cardIndentFor,
   CELL,
   clampColumnWidth,
   DATE_EDITOR_WIDTH,
@@ -14,8 +16,9 @@ import {
   foldedTableMinWidth,
   frameLayout,
   type FrameLayoutState,
-  indentFor,
+  hierarchyIndentFor,
   NUMBER_ENVELOPE,
+  numberIndentFor,
   PINNED_COLUMN_IDS,
   pinnedCellStyle,
   pinnedGeometryFor,
@@ -380,18 +383,21 @@ describe('a pinned cell', () => {
   });
 });
 
-describe('the indent in the Number column', () => {
-  it('steps one level at a time while the tree is shallow', () => {
-    expect(indentFor(0)).toBe(0);
-    expect(indentFor(1)).toBe(12);
-    expect(indentFor(3)).toBe(36);
+describe('the two indents a depth resolves to', () => {
+  it('steps one level at a time while the tree is shallow, and the two agree there', () => {
+    expect(numberIndentFor(0)).toBe(0);
+    expect(numberIndentFor(1)).toBe(12);
+    expect(numberIndentFor(3)).toBe(36);
+    for (const depth of [0, 1, 3, DEEPEST_INDENT]) {
+      expect(hierarchyIndentFor(depth)).toBe(numberIndentFor(depth));
+    }
   });
 
-  it('stops growing, so the Number column cannot outgrow its declared width', () => {
+  it('caps the Number indent, so the Number column cannot outgrow its declared width', () => {
     // The cap is what keeps Name, pinned at the sum of the widths in front of
     // it, from being painted over the number it is meant to sit beside.
-    expect(indentFor(DEEPEST_INDENT)).toBe(indentFor(DEEPEST_INDENT + 1));
-    expect(indentFor(40)).toBe(indentFor(DEEPEST_INDENT));
+    expect(numberIndentFor(DEEPEST_INDENT)).toBe(numberIndentFor(DEEPEST_INDENT + 1));
+    expect(numberIndentFor(40)).toBe(numberIndentFor(DEEPEST_INDENT));
     // And at the depth the column is sized for, the number keeps the larger
     // half of its own column — which is the depth this assertion has to be
     // made at since `column-rebalance`: the envelope is two levels now, so a
@@ -401,8 +407,46 @@ describe('the indent in the Number column', () => {
     // less than 46.5`. Watched, 2026-08-10 — and on `expected 64 to be less
     // than 50` on 2026-08-08, when the assertion was made at the deepest
     // indent and the column was 100px wide.
-    expect(indentFor(NUMBER_ENVELOPE.split('.').length - 1)).toBeLessThan(
+    expect(numberIndentFor(NUMBER_ENVELOPE.split('.').length - 1)).toBeLessThan(
       widthFor('number', DATED) / 2,
+    );
+  });
+
+  it('keeps the hierarchy indent growing past the Number cap, one step per level to depth 6', () => {
+    // The point of `deep-indent`: every level renders deeper than its parent,
+    // where the capped indent drew depth 5 and 6 identically under depth 4.
+    // Proof: `numberIndentFor`'s `Math.min(depth, DEEPEST_INDENT)` cap put on
+    // `hierarchyIndentFor` — this failed on `expected +0 to be 12` at the
+    // depth-5 step, `3 failed | 32 passed`. Watched, 2026-08-10.
+    for (let depth = 1; depth <= 6; depth += 1) {
+      expect(hierarchyIndentFor(depth) - hierarchyIndentFor(depth - 1)).toBe(12);
+    }
+    expect(hierarchyIndentFor(6)).toBe(72);
+  });
+
+  it("hands the Name cell exactly the share the Number cell's cap withheld", () => {
+    // The difference is what the Name cell carries: zero while the Number
+    // indent is still moving, one step per level once it has stopped — so the
+    // sum the reader's eye adds up (Number's indent plus Name's shift) grows
+    // at every level. `e2e/layout.spec.ts` measures that sum in a browser;
+    // this is its arithmetic.
+    for (const depth of [0, 1, DEEPEST_INDENT]) {
+      expect(hierarchyIndentFor(depth) - numberIndentFor(depth)).toBe(0);
+    }
+    expect(hierarchyIndentFor(5) - numberIndentFor(5)).toBe(12);
+    expect(hierarchyIndentFor(6) - numberIndentFor(6)).toBe(24);
+  });
+
+  it('caps the card indent at its own stated depth, deeper than the Number cap', () => {
+    // A 390px card cannot spend an unbounded margin the way the flexible Name
+    // column can spend padding: the cards stop at {@link CARD_DEEPEST_INDENT},
+    // stated here rather than discovered at a viewport.
+    expect(CARD_DEEPEST_INDENT).toBe(6);
+    expect(cardIndentFor(5)).toBe(hierarchyIndentFor(5));
+    expect(cardIndentFor(CARD_DEEPEST_INDENT)).toBe(cardIndentFor(CARD_DEEPEST_INDENT + 1));
+    expect(cardIndentFor(40)).toBe(cardIndentFor(CARD_DEEPEST_INDENT));
+    expect(cardIndentFor(CARD_DEEPEST_INDENT)).toBeGreaterThan(
+      numberIndentFor(CARD_DEEPEST_INDENT),
     );
   });
 

@@ -6776,6 +6776,64 @@ describe('the widths the table is laid out by', () => {
   });
 });
 
+describe('the outline past the Number cap', () => {
+  /**
+   * The next number a new sibling of `number` gets: its last segment stepped
+   * by one. What {@link pressNewItem} makes on a nested row, spelled once.
+   */
+  const siblingOf = (number: string): string =>
+    number.replace(/(\d+)$/, (last) => String(Number(last) + 1));
+
+  /**
+   * jsdom lays nothing out, so what is watched here is the arithmetic arriving
+   * on the two elements that share it: the Number cell keeps
+   * `numberIndentFor`'s capped padding, and the Name cell's wrapper carries
+   * exactly the share the cap withheld — zero until the cap, one step per
+   * level past it. The browser measurement that the two **add up** to a strictly
+   * deeper outline at every level is `e2e/layout.spec.ts`'s deep-plan fixture.
+   */
+  itDom('hands the Name cell the share of the indent the Number cap withheld', async () => {
+    const api = fakeApi();
+    render(<WbsTable projectId="p1" api={api} />);
+    click('Add work item');
+    await screen.findByLabelText('Name of 010');
+    pressNewItem('010');
+    await screen.findByLabelText('Name of 020');
+    pressTab('020');
+    await screen.findByLabelText('Name of 010.1');
+
+    // One level per round: a sibling of the deepest row, Tab'd under it. Six
+    // levels, two past `DEEPEST_INDENT` — the two the cap used to flatten.
+    let deepest = '010.1';
+    while (deepest.split('.').length < 7) {
+      pressNewItem(deepest);
+      const sibling = siblingOf(deepest);
+      await screen.findByLabelText(`Name of ${sibling}`);
+      pressTab(sibling);
+      deepest = `${deepest}.1`;
+      await screen.findByLabelText(`Name of ${deepest}`);
+    }
+
+    const indents = (number: string): { number: string; name: string } => {
+      const numberSpan = document.querySelector<HTMLElement>(`span[title="${number}"]`);
+      const nameWrapper = screen.getByLabelText(`Name of ${number}`).closest('span');
+      if (numberSpan === null || nameWrapper === null) {
+        throw new Error(`no indent-carrying cells on screen for ${number}`);
+      }
+      return { number: numberSpan.style.paddingLeft, name: nameWrapper.style.paddingLeft };
+    };
+
+    // Below the cap the Number cell does all the indenting and the Name cell
+    // none of it — the rendered table is unchanged there.
+    expect(indents('010.1')).toEqual({ number: '12px', name: '0px' });
+    expect(indents('010.1.1.1.1')).toEqual({ number: '48px', name: '0px' });
+    // Past the cap the Number cell stays put and the Name cell steps: the sum
+    // grows by one step at every level, which is the whole of `deep-indent`.
+    expect(indents('010.1.1.1.1.1')).toEqual({ number: '48px', name: '12px' });
+    expect(indents('010.1.1.1.1.1.1')).toEqual({ number: '48px', name: '24px' });
+  });
+});
+
 describe('the widths this browser has dragged', () => {
   /** Where the key lives for the project every test in here opens. */
   const KEY = 'wbs.columnWidths.p1';

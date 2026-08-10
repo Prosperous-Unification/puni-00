@@ -243,6 +243,41 @@ afterEach(() => {
 });
 
 describe('the plan on a phone', () => {
+  itDom('indents a card one step per level, and stops at the cards’ own cap', async () => {
+    // `cardIndentFor`: deeper than the Number column's cap — a card has no
+    // pinned neighbour to overlap, so depth 5 and 6 step right where the table
+    // cell's number stops — but not uncapped, because the margin comes out of
+    // a 390px phone. The chain is built through the fake before the render:
+    // eight rows, each the child of the one before, so the deepest is depth 7
+    // — one past the cards' stated cap.
+    const api = fakeApi();
+    await api.create('p1', { parentId: null });
+    for (let parent = 1; parent <= 7; parent += 1) {
+      await api.create('p1', { parentId: `w${String(parent)}` });
+    }
+    widthIs(PHONE);
+    render(<WbsTable projectId="p1" api={api} />);
+    await screen.findByRole('article', { name: 'Work item 080' });
+
+    const cardMargin = (id: string): string => {
+      const card = document.querySelector<HTMLElement>(`[data-card="${id}"]`);
+      if (card === null) throw new Error(`no card on screen for ${id}`);
+      return card.style.marginLeft;
+    };
+
+    // Proof: the cards pointed at the uncapped `hierarchyIndentFor` — this
+    // failed on `expected '84px' to be '72px'` at depth 7. Watched,
+    // 2026-08-10.
+    expect(cardMargin('w1')).toBe('0px');
+    expect(cardMargin('w5')).toBe('48px');
+    // Past the Number column's `DEEPEST_INDENT`, where the capped indent held
+    // every deeper card at 48px.
+    expect(cardMargin('w6')).toBe('60px');
+    expect(cardMargin('w7')).toBe('72px');
+    // And the cards' own cap: depth 7 draws at depth 6's margin.
+    expect(cardMargin('w8')).toBe('72px');
+  });
+
   itDom('is cards below the breakpoint and the table above it', async () => {
     const api = fakeApi();
     widthIs(PHONE);
