@@ -891,6 +891,132 @@ describe('the calendar', () => {
   });
 });
 
+describe('the calendar — weekend edges and fractions of a day', () => {
+  const THURSDAY = '2026-08-06';
+  const SATURDAY = '2026-08-08';
+
+  /** A flat trio, so the duration in these tests is the number written. */
+  const flatDaysOf = async (id: string, days: number) => {
+    await service.setEstimate(id, OWNER, roleId, {
+      optimistic: days,
+      realistic: days,
+      pessimistic: days,
+    });
+  };
+
+  const datesFor = async (id: string) =>
+    (await service.tree(projectId))?.workItems.find((w) => w.id === id)?.dates;
+
+  it('starts a plan whose start date is a Saturday on the Monday', async () => {
+    const id = await add('Pour');
+    await flatDaysOf(id, 1);
+    await projects.update(projectId, { startDate: SATURDAY });
+
+    expect(await datesFor(id)).toEqual({ startsOn: '2026-08-10', endsOn: '2026-08-10' });
+  });
+
+  it('carries a span across two weekends without counting them', async () => {
+    const id = await add('Rewire');
+    await flatDaysOf(id, 12);
+    await projects.update(projectId, { startDate: THURSDAY });
+
+    // Twelve working days from the Thursday: two of week one, five each of the
+    // next two weeks — landing on that third Friday, fifteen calendar days on.
+    expect(await datesFor(id)).toEqual({ startsOn: '2026-08-06', endsOn: '2026-08-21' });
+  });
+
+  it('keeps a half-day task inside its single day', async () => {
+    const id = await add('Chase');
+    await flatDaysOf(id, 0.5);
+    await projects.update(projectId, { startDate: THURSDAY });
+
+    expect(await datesFor(id)).toEqual({ startsOn: '2026-08-06', endsOn: '2026-08-06' });
+  });
+
+  it('hands a fractional finish and its successor the same calendar day', async () => {
+    // 2.5 days each. The first is still on the Monday when it finishes at
+    // midday, and the second starts on that same Monday — a day two rows
+    // share, which whole days never do.
+    const first = await add('Strip');
+    const second = await add('Sand');
+    await flatDaysOf(first, 2.5);
+    await flatDaysOf(second, 2.5);
+    await service.addDependency(second, OWNER, first);
+    await projects.update(projectId, { startDate: THURSDAY });
+
+    expect(await datesFor(first)).toEqual({ startsOn: '2026-08-06', endsOn: '2026-08-10' });
+    // The pair finish at exactly 5.0, so the fraction never reaches the dates.
+    expect(await datesFor(second)).toEqual({ startsOn: '2026-08-10', endsOn: '2026-08-12' });
+  });
+
+  it('moves the dates and the printed figure together when the method changes', async () => {
+    const id = await add('Strip');
+    await service.setEstimate(id, OWNER, roleId, { optimistic: 2, realistic: 3, pessimistic: 10 });
+    await projects.update(projectId, { startDate: THURSDAY });
+
+    await projects.update(projectId, { estimateMethod: 'optimistic' });
+    const hopeful = (await service.tree(projectId))?.workItems.find((w) => w.id === id);
+    expect(hopeful?.finalTotal).toBe(2);
+    expect(hopeful?.dates).toEqual({ startsOn: '2026-08-06', endsOn: '2026-08-07' });
+
+    await projects.update(projectId, { estimateMethod: 'pessimistic' });
+    const braced = (await service.tree(projectId))?.workItems.find((w) => w.id === id);
+    expect(braced?.finalTotal).toBe(10);
+    expect(braced?.dates).toEqual({ startsOn: '2026-08-06', endsOn: '2026-08-19' });
+  });
+
+  // DEFECT: a `startNoEarlierThan` set on a parent is accepted by `patch`,
+  // stored, echoed back in the tree — and silently ignored by the schedule.
+  // `tree` puts every dated row into the `notBefore` map, but the engine reads
+  // the map for leaves alone, so the floor never reaches the plan: the leaf
+  // below came back starting `2026-08-06` where the parent's floor says
+  // `2026-08-12` (watched failing 2026-08-10). The mirror feature — a
+  // dependency declared on a parent — expands to every leaf beneath it; a
+  // floor declared on a parent reaches nothing, and nothing tells the writer.
+  // Either the floor should expand to the leaves as dependencies do, or the
+  // write should be refused on a parent; silently dropping it is neither.
+  it.skip('floors every leaf beneath a parent told not to start before a day', async () => {
+    const parent = await add('Phase');
+    const kid = await add('Wire', parent);
+    await flatDaysOf(kid, 2);
+    await projects.update(projectId, { startDate: THURSDAY });
+    await service.patch(parent, OWNER, { startNoEarlierThan: '2026-08-12' });
+
+    expect((await datesFor(kid))?.startsOn).toBe('2026-08-12');
+  });
+
+  // DEFECT: the chain below is exactly 15 working days of PERT estimates —
+  // 45/6 + 25/6 + 20/6 — so it ends on the fifteenth working day, the third
+  // Friday, 2026-08-28. It came back ending `2026-08-31` (watched failing
+  // 2026-08-10): the finishes accumulate as doubles across work items, the sum
+  // arrives as 15.000000000000002, and `datesOf` reads it through `Math.ceil`
+  // into a sixteenth day — which is a Monday, so the printed end is three
+  // calendar days late. The engine's span anchoring stops exactly this fault
+  // *within* one work item (see `schedule.ts`); across a dependency chain the
+  // bit survives, and `schedule-shapes.test.ts` ('accumulates PERT sixths…')
+  // pins the drifted double this day grows from. Three rows suffice — no long
+  // chain needed.
+  it.skip('ends a chain of PERT estimates on the day the estimates add up to', async () => {
+    const trios: [number, number, number][] = [
+      [0, 8, 13],
+      [3, 4, 6],
+      [0, 3, 8],
+    ];
+    let previous: string | null = null;
+    let last = '';
+    for (const [at, [optimistic, realistic, pessimistic]] of trios.entries()) {
+      const id = await add(`Link ${String(at)}`);
+      await service.setEstimate(id, OWNER, roleId, { optimistic, realistic, pessimistic });
+      if (previous !== null) await service.addDependency(id, OWNER, previous);
+      previous = id;
+      last = id;
+    }
+    await projects.update(projectId, { startDate: '2026-08-10' });
+
+    expect((await datesFor(last))?.endsOn).toBe('2026-08-28');
+  });
+});
+
 describe('the project’s estimate method', () => {
   /** A leaf with one three-point estimate, and the tree read back. */
   async function estimated(method: 'pert' | 'optimistic' | 'realistic' | 'pessimistic') {

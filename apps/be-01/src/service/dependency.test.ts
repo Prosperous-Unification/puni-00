@@ -72,6 +72,16 @@ describe('canDepend', () => {
     expect(check('early', 'phase')).toBe('ancestor');
   });
 
+  it('refuses an ancestor more than one level up, in both directions', () => {
+    // The walk follows `parentId` all the way, not one hop: a grandchild
+    // waiting for its grandparent is still waiting for a span it is inside of.
+    const rows = [item('top'), item('mid', 'top'), item('leaf', 'mid'), item('outside')];
+
+    expect(canDepend(rows, [], 'leaf', 'top')).toBe('ancestor');
+    expect(canDepend(rows, [], 'top', 'leaf')).toBe('ancestor');
+    expect(canDepend(rows, [], 'leaf', 'outside')).toBeNull();
+  });
+
   it('allows two siblings to depend on each other', () => {
     expect(check('early', 'late')).toBeNull();
   });
