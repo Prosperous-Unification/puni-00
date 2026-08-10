@@ -106,12 +106,11 @@ unclipped one is not`: the unclipped first chip answering a hit test at
     centre answering something else;
   - the existing layout, hover-card and keyboard suites staying green over
     the restructured cell.
-    The PR's `pixels` CI job is the proof for all of these. Observed green
-    twice on PR #35 before the review fixes (`pixels pass 5m29s`, 114 e2e
-    tests, both `deps-cell.spec.ts` tests by name in the job log,
-    2026-08-10); the review-fixes head's own run is **not yet observed at
-    the time of this writing** — this file is updated with its conclusion
-    once the PR has run it, and until then no result is claimed for it.
+    The PR's `pixels` CI job is the proof for all of these — **observed
+    green on PR #35 on the review-fixes head `a9848e6`** (`pixels pass
+5m31s`, 114 e2e tests, both `deps-cell.spec.ts` tests green by name in
+    the job log; `gate pass 3m4s` beside it, 2026-08-10), and green twice
+    before the review fixes as well. A CI result, still not a local run.
 - **The fade's look.** The known cosmetic cost — a short row's placeholder
   tail under the rest fade — and whether the fade reads well at all are
   judgements for eyes on dev (task 5.2), not for a DOM assertion; what is
