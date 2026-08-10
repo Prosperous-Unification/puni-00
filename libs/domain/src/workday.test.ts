@@ -4,11 +4,14 @@ import {
   addCalendarDays,
   addWorkdays,
   calendarDaysBetween,
+  firstWorkdayOf,
   isIsoDate,
   isMonday,
   isWeekend,
+  lastWorkdayOf,
   nextWorkday,
   snapWorkdays,
+  wholeDaysCovering,
   workdaysBetween,
 } from './workday';
 
@@ -101,6 +104,64 @@ describe('snapWorkdays', () => {
     expect(snapWorkdays(14.9)).toBe(14.9);
     expect(snapWorkdays(0.5)).toBe(0.5);
     expect(snapWorkdays(3.6666666666666665)).toBe(3.6666666666666665);
+  });
+});
+
+describe('firstWorkdayOf', () => {
+  it('reads drift on either side of a whole day as that whole day', () => {
+    // 1/6 + 49/6 + 4/6 arrives as 8.999999999999998: the ninth day with a
+    // drifted bit, and a bare floor read it as the eighth.
+    expect(firstWorkdayOf(8.999999999999998)).toBe(9);
+    expect(firstWorkdayOf(15.000000000000002)).toBe(15);
+    expect(firstWorkdayOf(9)).toBe(9);
+    expect(firstWorkdayOf(0)).toBe(0);
+  });
+
+  it('still floors a genuine fraction — half a day is not half a date', () => {
+    expect(firstWorkdayOf(3.5)).toBe(3);
+    expect(firstWorkdayOf(14.9)).toBe(14);
+  });
+});
+
+describe('lastWorkdayOf', () => {
+  it('is the day containing the finish, not the day it would spill into', () => {
+    // A two-day span 3 → 5 is still on workday 4 and never on workday 5.
+    expect(lastWorkdayOf(3, 5)).toBe(4);
+    expect(lastWorkdayOf(0, 1)).toBe(0);
+  });
+
+  it('keeps a zero-length span on its own start day', () => {
+    expect(lastWorkdayOf(5, 5)).toBe(5);
+    // A fractional zero-length span sits inside its start's day.
+    expect(lastWorkdayOf(3.5, 3.5)).toBe(3);
+  });
+
+  it('reads drift on either side of a whole day as that whole day', () => {
+    // The drifted fifteenth day: a bare ceil made it the fifteenth *offset* —
+    // one whole workday late, which over a weekend is three calendar days.
+    expect(lastWorkdayOf(0, 15.000000000000002)).toBe(14);
+    expect(lastWorkdayOf(0, 8.999999999999998)).toBe(8);
+    // And the drifted start of a zero-length span keeps the same day be-01's
+    // `startsOn` names for it.
+    expect(lastWorkdayOf(8.999999999999998, 8.999999999999998)).toBe(9);
+  });
+
+  it('still rounds a genuine fraction as real work — 14.9 is inside day 14', () => {
+    expect(lastWorkdayOf(0, 14.9)).toBe(14);
+    expect(lastWorkdayOf(0, 14.5)).toBe(14);
+  });
+});
+
+describe('wholeDaysCovering', () => {
+  it('counts the cells a span needs, drift snapped and fractions covered', () => {
+    expect(wholeDaysCovering(6)).toBe(6);
+    // One drifted bit is not a seventh cell.
+    expect(wholeDaysCovering(6.000000000000001)).toBe(6);
+    expect(wholeDaysCovering(8.999999999999998)).toBe(9);
+    // A real fraction still needs the cell it reaches into.
+    expect(wholeDaysCovering(14.9)).toBe(15);
+    expect(wholeDaysCovering(5.5)).toBe(6);
+    expect(wholeDaysCovering(0)).toBe(0);
   });
 });
 

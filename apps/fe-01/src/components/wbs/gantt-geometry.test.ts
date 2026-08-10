@@ -970,6 +970,22 @@ describe('the calendar scale', () => {
     expect(scale.endOf(5)).toBe(5);
   });
 
+  it('reads a drifted whole offset exactly as the whole day it is', () => {
+    const scale = calendarScale(MONDAY);
+
+    // The engine's chained doubles drift to either side of a whole day —
+    // 1/6 + 49/6 + 4/6 arrives as 8.999999999999998 — and the scale must
+    // answer what it answers for the whole day, or the chart stands a bar
+    // almost a full calendar day away from the dates printed beside it.
+    expect(scale.startOf(8.999999999999998)).toBe(scale.startOf(9));
+    expect(scale.startOf(5.000000000000001)).toBe(scale.startOf(5));
+    // The end reading has more to lose: a drifted 15.000000000000002 read as
+    // fractional takes the *start* reading — the far side of the weekend —
+    // instead of the end of day 14.
+    expect(scale.endOf(15.000000000000002)).toBe(scale.endOf(15));
+    expect(scale.endOf(8.999999999999998)).toBe(scale.endOf(9));
+  });
+
   it('answers below zero rather than throwing', () => {
     const scale = calendarScale(MONDAY);
 

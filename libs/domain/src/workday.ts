@@ -131,6 +131,54 @@ export function snapWorkdays(workdays: number): number {
   return Math.abs(workdays - whole) < DRIFT ? whole : workdays;
 }
 
+/**
+ * The whole workday a span standing at `offset` begins on: {@link snapWorkdays},
+ * then floor.
+ *
+ * One of the three discrete calendar readings, shared so that be-01's printed
+ * dates and fe-01's Gantt are one arithmetic rather than two copies of a rule
+ * — a copy with the snap left out reads a drifted 8.999999999999998 as day 8
+ * and starts a row a whole day early on screen. A genuine fraction still
+ * floors: half a day is not half a date, and the fraction stays in the
+ * schedule, where it means something.
+ */
+export function firstWorkdayOf(offset: number): number {
+  return Math.floor(snapWorkdays(offset));
+}
+
+/**
+ * The last workday a span is still on: {@link snapWorkdays}, then `ceil − 1`,
+ * and never before the span's own first workday.
+ *
+ * A task of any length occupies the day it finishes on, so a two-day task
+ * starting on workday 3 is still on workday 4 and not on workday 5 — `ceil −
+ * 1` rather than `finish - Number.EPSILON`, which silently does nothing at a
+ * whole finish (see `datesOf` in be-01's `work-item.service.ts`, where this
+ * arithmetic lived first). The clamp keeps a zero-length span — a parent with
+ * nothing under it, an unestimated leaf — on the same day
+ * {@link firstWorkdayOf} starts it.
+ *
+ * The snap is why this is here and not written inline where it is needed: a
+ * chain of PERT sixths that sums to exactly 15 arrives as 15.000000000000002,
+ * and a bare ceil reads the drifted bit as a sixteenth day — a Monday, three
+ * calendar days late on screen.
+ */
+export function lastWorkdayOf(start: number, finish: number): number {
+  return Math.max(firstWorkdayOf(start), Math.ceil(snapWorkdays(finish)) - 1);
+}
+
+/**
+ * How many whole days cover a span `span` days long: {@link snapWorkdays},
+ * then ceil.
+ *
+ * What sizes a chart axis: a horizon of 5.5 workdays needs six cells, and a
+ * horizon of 6.000000000000001 is six days arriving with a drifted bit, not a
+ * reason to mint a seventh cell that no mark can ever stand in.
+ */
+export function wholeDaysCovering(span: number): number {
+  return Math.ceil(snapWorkdays(span));
+}
+
 /** The first workday on or after `date` — `date` itself unless it is a weekend. */
 export function nextWorkday(date: IsoDate): IsoDate {
   let at = toUtc(date);

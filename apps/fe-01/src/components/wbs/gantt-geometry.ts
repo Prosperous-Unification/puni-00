@@ -1,4 +1,10 @@
-import { addWorkdays, calendarDaysBetween, type IsoDate } from '@wbs/domain/workday';
+import {
+  addWorkdays,
+  calendarDaysBetween,
+  firstWorkdayOf,
+  type IsoDate,
+  snapWorkdays,
+} from '@wbs/domain/workday';
 
 /**
  * The payload promised something the drawing needs and did not keep it.
@@ -473,15 +479,26 @@ export interface CalendarScale {
  */
 export function calendarScale(startDate: IsoDate): CalendarScale {
   const origin = addWorkdays(startDate, 0);
+  // Both readings snap before they decide anything discrete: the engine's
+  // chained doubles hand this scale 8.999999999999998 for the ninth day, and a
+  // bare floor put the whole part a workday early while `Number.isInteger`
+  // read a drifted whole finish as a fraction — each standing a mark almost a
+  // calendar day away from the dates be-01 prints beside it. The fraction that
+  // survives the snap is real work and rides inside its workday untouched.
   const startOf = (workday: number): number => {
     if (workday <= 0) return workday;
-    const whole = Math.floor(workday);
-    return calendarDaysBetween(origin, addWorkdays(origin, whole)) + (workday - whole);
+    const snapped = snapWorkdays(workday);
+    const whole = firstWorkdayOf(snapped);
+    return calendarDaysBetween(origin, addWorkdays(origin, whole)) + (snapped - whole);
   };
   return {
     startOf,
-    endOf: (workday: number): number =>
-      workday <= 0 || !Number.isInteger(workday) ? startOf(workday) : startOf(workday - 1) + 1,
+    endOf: (workday: number): number => {
+      const snapped = snapWorkdays(workday);
+      return snapped <= 0 || !Number.isInteger(snapped)
+        ? startOf(snapped)
+        : startOf(snapped - 1) + 1;
+    },
   };
 }
 
