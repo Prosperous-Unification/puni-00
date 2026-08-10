@@ -1,9 +1,12 @@
 import {
   addCalendarDays,
   addWorkdays,
+  firstWorkdayOf,
   isMonday,
   type IsoDate,
   isWeekend,
+  lastWorkdayOf,
+  wholeDaysCovering,
 } from '@wbs/domain/workday';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
@@ -518,9 +521,13 @@ interface AxisDay {
  * What a plan with **no start date** is drawn on, and nothing else. It holds no
  * weekend anywhere — there is no calendar to have one on — so the week boundary
  * is {@link WEEK_DAYS} arithmetic rather than a date.
+ *
+ * The cell count is `wholeDaysCovering` and never a bare ceil: this axis's
+ * horizon is the engine's own workday numbers, drift included, and one drifted
+ * bit on the last finish is not a cell no work can ever stand in.
  */
 function workdayAxis(horizon: number): AxisDay[] {
-  return Array.from({ length: Math.ceil(horizon) }, (_, workday) => ({
+  return Array.from({ length: wholeDaysCovering(horizon) }, (_, workday) => ({
     offset: workday,
     workday,
     date: null,
@@ -562,6 +569,14 @@ function calendarAxis(startDate: IsoDate, horizon: number): AxisDay[] {
   // walk already knows. The origin is a workday by construction, so the first
   // cell takes 0.
   let workday = -1;
+  // A bare ceil, and **not** `wholeDaysCovering` — which the workday axis does
+  // count with, because there the horizon is the engine's own drifted numbers.
+  // The invariant here: this horizon is read off marks already placed by
+  // `calendarScale`, whose `startOf`/`endOf` snap before every discrete step,
+  // so nothing drifted survives to reach this ceil. A snap-aware helper on that
+  // input is protection whose absence no test can observe — R5 does not ship
+  // one. `gantt-calendar-snap`'s `verify.md` records the injection that stayed
+  // green and why.
   return Array.from({ length: Math.ceil(horizon) }, (_, offset) => {
     const date = addCalendarDays(origin, offset);
     const weekend = isWeekend(date);
@@ -581,23 +596,6 @@ function calendarAxis(startDate: IsoDate, horizon: number): AxisDay[] {
 }
 
 /**
- * The last workday a span is still on: the same `ceil − 1` nudge be-01's
- * `datesOf` makes, for the same reason.
- *
- * A task of any length occupies the day it finishes on, so a two-day task
- * starting on workday 3 is still on workday 4 and not on workday 5.
- *
- * Proof: the `- 1` dropped, so a bar's last day is `ceil(finish)`. `reads the
- * same dates under a bar as the row's Start and End cells` in
- * `gantt-panel.test.tsx` failed on `expected '2026-08-17' to be '2026-08-14'`
- * and nothing else in the file did — one workday late is three calendar days
- * late over a weekend, the chart naming the Monday for work the End column
- * says finished on the Friday. Watched, 2026-08-09.
- */
-export const lastWorkdayOf = (start: number, finish: number): number =>
-  Math.max(start, Math.ceil(finish) - 1);
-
-/**
  * The days a bar runs over, for the sentence it shows on hover.
  *
  * The same two dates the row's Start and End columns print, computed the same
@@ -610,10 +608,18 @@ export const lastWorkdayOf = (start: number, finish: number): number =>
  * coordinates.** `placeOnCalendar` answers where a mark is *drawn*, and a
  * coordinate is not an index into working days: a slice running 3 → 5 has its
  * right edge at calendar day 5, which off a Monday origin is the Saturday
- * nobody worked, while `addWorkdays(origin, 5)` is the Monday after it. The
- * floor is explicit for the same reason it is written in the spec — a
- * fractional start is half-way through a working day, and half a day is not
- * half a date.
+ * nobody worked, while `addWorkdays(origin, 5)` is the Monday after it. Both
+ * ends go through the shared `@wbs/domain` readings — `firstWorkdayOf` and
+ * `lastWorkdayOf`, the same pair be-01's `datesOf` prints the columns with —
+ * rather than a bare floor and ceil of this file's own: an inline floor
+ * applied *before* `addWorkdays` defeated the snap inside it, and a drifted
+ * 2.9999999999999996 named the day before the one the Start column prints.
+ *
+ * Proof: the inline floor put back — `addWorkdays(startDate,
+ * Math.floor(start))` — and `reads a drifted schedule as the same days be-01
+ * prints` failed alone, on the sentence no longer containing `13 Aug →
+ * 14 Aug`: the drifted 2.9999999999999996 floored to 2 before the snap inside
+ * `addWorkdays` could see it, naming 12 Aug. Watched 2026-08-10.
  *
  * Printed by {@link shortIsoDate} and by nothing else: `shortInstant` formats an
  * epoch in the browser's zone, and a `new Date(iso)` of its own parses midnight
@@ -622,7 +628,7 @@ export const lastWorkdayOf = (start: number, finish: number): number =>
  */
 function spanWords(startDate: IsoDate | null, start: number, finish: number, today: Date): string {
   if (startDate === null) return `Workdays ${daysNumber(start)} → ${daysNumber(finish)}`;
-  const from = addWorkdays(startDate, Math.floor(start));
+  const from = addWorkdays(startDate, firstWorkdayOf(start));
   const to = addWorkdays(startDate, lastWorkdayOf(start, finish));
   return `${shortIsoDate(from, today)} → ${shortIsoDate(to, today)}`;
 }

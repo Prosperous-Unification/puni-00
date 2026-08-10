@@ -114,10 +114,10 @@ const DRIFT = 1e-9;
  * returned untouched.
  *
  * Applied at the discrete calendar boundaries — {@link addWorkdays}' floor and
- * `datesOf`'s ceil in `work-item.service` — and nowhere else: the engine's own
- * numbers stay verbatim on the wire, and only the step from a fractional
- * offset to a whole calendar day may not let one drifted bit mint or eat a
- * day.
+ * the three discrete readings {@link firstWorkdayOf}, {@link lastWorkdayOf}
+ * and {@link wholeDaysCovering} — and nowhere else: the engine's own numbers
+ * stay verbatim on the wire, and only the step from a fractional offset to a
+ * whole calendar day may not let one drifted bit mint or eat a day.
  *
  * Proof: with the window widened to 0.5, `keeps a genuine fraction just shy of
  * a boundary as real work` (the production path, `work-item.service.test.ts`)
@@ -129,6 +129,86 @@ const DRIFT = 1e-9;
 export function snapWorkdays(workdays: number): number {
   const whole = Math.round(workdays);
   return Math.abs(workdays - whole) < DRIFT ? whole : workdays;
+}
+
+/**
+ * The whole workday a span standing at `offset` begins on: {@link snapWorkdays},
+ * then floor.
+ *
+ * One of the three discrete calendar readings, shared so that be-01's printed
+ * dates and fe-01's Gantt are one arithmetic rather than two copies of a rule
+ * — a copy with the snap left out reads a drifted 8.999999999999998 as day 8
+ * and starts a row a whole day early on screen. A genuine fraction still
+ * floors: half a day is not half a date, and the fraction stays in the
+ * schedule, where it means something.
+ *
+ * Proof: the snap dropped from this floor (a bare `Math.floor(offset)`) and
+ * one test failed in each tier — `reads drift on either side of a whole day
+ * as that whole day` here; `holds the calendar steady when a chained finish
+ * drifts below the whole day` (`work-item.service.test.ts`) on a successor
+ * `startsOn` of `"2026-08-20"`, its predecessor's own last day, where
+ * `"2026-08-21"` was owed; and `reads a drifted schedule as the same days
+ * be-01 prints` (`gantt-panel.test.tsx`) on the bar's sentence losing
+ * `13 Aug → 14 Aug` to a bare floor's 12 Aug. Watched 2026-08-10.
+ */
+export function firstWorkdayOf(offset: number): number {
+  return Math.floor(snapWorkdays(offset));
+}
+
+/**
+ * The last workday a span is still on: {@link snapWorkdays}, then `ceil − 1`,
+ * and never before the span's own first workday.
+ *
+ * A task of any length occupies the day it finishes on, so a two-day task
+ * starting on workday 3 is still on workday 4 and not on workday 5 — `ceil −
+ * 1` rather than `finish - Number.EPSILON`, which silently does nothing at a
+ * whole finish (see `datesOf` in be-01's `work-item.service.ts`, where this
+ * arithmetic lived first). The clamp keeps a zero-length span — a parent with
+ * nothing under it, an unestimated leaf — on the same day
+ * {@link firstWorkdayOf} starts it.
+ *
+ * The snap is why this is here and not written inline where it is needed: a
+ * chain of PERT sixths that sums to exactly 15 arrives as 15.000000000000002,
+ * and a bare ceil reads the drifted bit as a sixteenth day — a Monday, three
+ * calendar days late on screen.
+ *
+ * Proof, twice, both watched 2026-08-10:
+ *
+ * - the snap dropped (a bare `Math.ceil(finish) - 1`): `reads drift on either
+ *   side of a whole day as that whole day` failed here, `ends a chain of PERT
+ *   estimates on the day the estimates add up to` and `holds the calendar
+ *   steady when a chained finish drifts above the whole day`
+ *   (`work-item.service.test.ts`) failed on an `endsOn` of `"2026-08-31"`
+ *   where `"2026-08-28"` was owed, and `reads a drifted schedule as the same
+ *   days be-01 prints` (`gantt-panel.test.tsx`) failed on a `data-last-day`
+ *   of `'5'` where `'4'` was owed.
+ * - the `- 1` dropped, so a span's last day is the one it spills into: four
+ *   cases failed here, and `reads the same dates under a bar as the row's
+ *   Start and End cells` (`gantt-panel.test.tsx`) failed on `expected
+ *   '2026-08-17' to be '2026-08-14'` — the same failure first watched
+ *   2026-08-09 against the panel's own copy of this arithmetic, re-watched
+ *   against the shared one.
+ */
+export function lastWorkdayOf(start: number, finish: number): number {
+  return Math.max(firstWorkdayOf(start), Math.ceil(snapWorkdays(finish)) - 1);
+}
+
+/**
+ * How many whole days cover a span `span` days long: {@link snapWorkdays},
+ * then ceil.
+ *
+ * What sizes a chart axis: a horizon of 5.5 workdays needs six cells, and a
+ * horizon of 6.000000000000001 is six days arriving with a drifted bit, not a
+ * reason to mint a seventh cell that no mark can ever stand in.
+ *
+ * Proof: the snap dropped (a bare `Math.ceil(span)`) and `counts the cells a
+ * span needs, drift snapped and fractions covered` failed here, with `does
+ * not mint an axis cell from a drifted horizon` (`gantt-panel.test.tsx`)
+ * failing beside it on a seventh cell — `['0' … '6']` where `['0' … '5']` was
+ * owed. Watched 2026-08-10.
+ */
+export function wholeDaysCovering(span: number): number {
+  return Math.ceil(snapWorkdays(span));
 }
 
 /** The first workday on or after `date` — `date` itself unless it is a weekend. */

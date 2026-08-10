@@ -306,4 +306,43 @@ describe('shapes — arithmetic over a long chain', () => {
     expect(finish).not.toBe(15);
     expect(Math.abs(finish - 15)).toBeLessThan(1e-9);
   });
+
+  it('answers a drifted negative float when a notBefore floor ends the project — pinned, not endorsed', () => {
+    // A floor at day 13 stands a 23/6-day row past everything else in the
+    // plan, so that row *is* the project finish — and the engine reports it
+    // with a float of about -1.8e-15 and `critical: false`. The backward pass
+    // reconstructs `latestStart` as `projectFinish - days`, and
+    // `(13 + 23/6) - 23/6` is not 13 in doubles; the tight-path rule that
+    // catches exactly this is scoped to plans with resource queues on
+    // purpose (see `lateTimes` — a plan with nobody assigned must answer what
+    // the engine before leveling answered, drift included).
+    //
+    // This test PINS that answer; it does not endorse it. The project's own
+    // last row reporting negative slack and no red is a defect of the
+    // reported float, held here so the day it changes is a deliberate one
+    // rather than a silent side effect. The bound mirrors the chain test
+    // above: the drift is real, nonzero, and orders of magnitude inside the
+    // 1e-9 snap window that keeps it off the calendar.
+    //
+    // Proof this pin can fail: the tight-path scoping dropped (`hasQueues &&`
+    // removed from the condition in `lateTimes`), so the rule covers every
+    // plan, and this test failed on `Expected: < 0, Received: 0`; watched
+    // 2026-08-10.
+    const rows = [item('done-early'), item('floored')];
+    const found = plan(rows, [], { 'done-early': 3, floored: 23 / 6 }, new Map([['floored', 13]]));
+
+    const floored = found.workItems.get('floored');
+    if (floored === undefined) throw new Error('the floored row is not in the plan');
+    // The floor held, and the row ends the project.
+    expect(floored.earliestStart).toBe(13);
+    expect(floored.earliestFinish).toBeGreaterThan(
+      found.workItems.get('done-early')?.earliestFinish ?? NaN,
+    );
+    expect(found.slices.get(sliceKey('floored', DEV))).toMatchObject({ boundBy: 'notBefore' });
+    // The pinned answer: negative by an IEEE-subtraction bit, and therefore
+    // not critical.
+    expect(floored.float).toBeLessThan(0);
+    expect(floored.float).toBeGreaterThan(-1e-9);
+    expect(floored.critical).toBe(false);
+  });
 });

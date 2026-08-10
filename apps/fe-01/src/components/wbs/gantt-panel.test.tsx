@@ -1907,6 +1907,21 @@ const SLICES: SliceView[] = [
 ];
 
 /**
+ * {@link SLICES} as a chained schedule actually delivers them: whole workdays
+ * arriving with drifted floating-point bits on either side.
+ *
+ * The rows and their printed dates stay {@link PLAN}'s on purpose — be-01
+ * snaps the drift before it prints, so the fixture's claim about the Start and
+ * End columns is the same clean day, and the chart has to land on it from the
+ * drifted numbers alone.
+ */
+const DRIFTED_SLICES: SliceView[] = [
+  sliceOf('sanding', 0, 3),
+  sliceOf('sealing', 2.9999999999999996, 5.000000000000001),
+  sliceOf('rigging', 3.0000000000000004, 6.000000000000001),
+];
+
+/**
  * What this fake was asked for and does not do.
  *
  * A throw rather than a silent `undefined`, for `plan-cards.test.tsx`'s reason:
@@ -2291,6 +2306,44 @@ describe('the calendar axis agrees with the columns', () => {
     await showTheChart(null);
 
     expect(document.querySelectorAll('[data-axis-date]')).toHaveLength(0);
+    expect([...document.querySelectorAll('[data-axis-day]')].map((day) => day.textContent)).toEqual(
+      ['0', '1', '2', '3', '4', '5'],
+    );
+  });
+
+  itDom('reads a drifted schedule as the same days be-01 prints', async () => {
+    // The engine's numbers, exactly as a chained schedule delivers them: whole
+    // days wearing drifted bits. The columns print be-01's snapped dates, and
+    // the chart must land on the same days from the drifted values alone — a
+    // bare floor on `Sealing`'s 2.9999999999999996 starts its sentence a day
+    // early (12 Aug), and a bare ceil on its 5.000000000000001 hands it a
+    // fifth workday, whose date over the weekend is Monday 17 Aug.
+    await showTheChart(MONDAY, { slices: DRIFTED_SLICES });
+
+    const bar = barOn('sealing');
+    expect(bar.getAttribute('data-last-day')).toBe('4');
+    expect(axisDateOn('4')).toBe(columnDay('finish', 2));
+    expect(labelOf(bar)).toContain('13 Aug → 14 Aug');
+    expect(labelOf(bar)).not.toContain('12 Aug');
+    expect(labelOf(bar)).not.toContain('17 Aug');
+    // The fixture's own claim about what be-01 printed, so a chart and a
+    // table agreeing on the wrong days would still be caught.
+    expect(columnDay('start', 2)).toBe('2026-08-13');
+    expect(columnDay('finish', 2)).toBe('2026-08-14');
+    // And `Rigging`'s drifted 6.000000000000001 does not stretch the calendar:
+    // the axis keeps the eight cells the clean plan draws, ending Monday
+    // 2026-08-17.
+    expect(document.querySelectorAll('[data-axis-day]')).toHaveLength(8);
+    expect(markAttribute('[data-axis-day="7"]', 'data-axis-date')).toBe('2026-08-17');
+  });
+
+  itDom('does not mint an axis cell from a drifted horizon', async () => {
+    // No start date, so the axis is the workday one and its horizon is the
+    // engine's own numbers, drift included: `Rigging` reaches
+    // 6.000000000000001, and a bare ceil drew a seventh cell no work can ever
+    // stand in.
+    await showTheChart(null, { slices: DRIFTED_SLICES });
+
     expect([...document.querySelectorAll('[data-axis-day]')].map((day) => day.textContent)).toEqual(
       ['0', '1', '2', '3', '4', '5'],
     );

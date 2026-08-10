@@ -1,4 +1,10 @@
-import { addWorkdays, calendarDaysBetween, type IsoDate } from '@wbs/domain/workday';
+import {
+  addWorkdays,
+  calendarDaysBetween,
+  firstWorkdayOf,
+  type IsoDate,
+  snapWorkdays,
+} from '@wbs/domain/workday';
 
 /**
  * The payload promised something the drawing needs and did not keep it.
@@ -467,21 +473,43 @@ export interface CalendarScale {
  *   `expected [Function] to throw an error`, because with no `addWorkdays` at
  *   construction the refusal is deferred to whichever mark asks first.
  *
+ * And twice more for the snap, `gantt-geometry.test.ts`, watched 2026-08-10:
+ *
+ * - `startOf` floored the raw offset (`Math.floor(workday)`, the fraction
+ *   `workday - whole`). `reads a drifted whole offset exactly as the whole
+ *   day it is` failed on `expected 10.999999999999998 to be 11` — the ninth
+ *   workday's mark standing a bit less than a calendar day early.
+ * - `endOf` read the raw offset (`!Number.isInteger(workday)` on a drifted
+ *   whole). The same test failed on `expected 21 to be 19`: a finish of
+ *   15.000000000000002 was handed the **start** reading, the far side of the
+ *   weekend, two calendar days past where day 15's work stops.
+ *
  * @throws Whatever {@link addWorkdays} throws when `startDate` is not a
  * calendar date, and it throws here rather than at the first mark placed: a
  * scale that cannot say where day zero is has no answer to give any of them.
  */
 export function calendarScale(startDate: IsoDate): CalendarScale {
   const origin = addWorkdays(startDate, 0);
+  // Both readings snap before they decide anything discrete: the engine's
+  // chained doubles hand this scale 8.999999999999998 for the ninth day, and a
+  // bare floor put the whole part a workday early while `Number.isInteger`
+  // read a drifted whole finish as a fraction — each standing a mark almost a
+  // calendar day away from the dates be-01 prints beside it. The fraction that
+  // survives the snap is real work and rides inside its workday untouched.
   const startOf = (workday: number): number => {
     if (workday <= 0) return workday;
-    const whole = Math.floor(workday);
-    return calendarDaysBetween(origin, addWorkdays(origin, whole)) + (workday - whole);
+    const snapped = snapWorkdays(workday);
+    const whole = firstWorkdayOf(snapped);
+    return calendarDaysBetween(origin, addWorkdays(origin, whole)) + (snapped - whole);
   };
   return {
     startOf,
-    endOf: (workday: number): number =>
-      workday <= 0 || !Number.isInteger(workday) ? startOf(workday) : startOf(workday - 1) + 1,
+    endOf: (workday: number): number => {
+      const snapped = snapWorkdays(workday);
+      return snapped <= 0 || !Number.isInteger(snapped)
+        ? startOf(snapped)
+        : startOf(snapped - 1) + 1;
+    },
   };
 }
 
