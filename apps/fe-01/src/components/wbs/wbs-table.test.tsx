@@ -6553,7 +6553,7 @@ describe('the widths the table is laid out by', () => {
       [...document.querySelectorAll<HTMLElement>('colgroup col')].map((col) => col.style.width),
     ).toEqual(
       layout.columns.map((column) =>
-        column.width === undefined ? '' : `${String(column.width)}px`,
+        column.colWidth === undefined ? '' : `${String(column.colWidth)}px`,
       ),
     );
     expect(screen.getByRole('table').style.minWidth).toBe(`${String(layout.minWidth)}px`);
@@ -6888,34 +6888,25 @@ describe('the widths this browser has dragged', () => {
     };
   }
 
-  itDom(
-    'offers a handle on every column that declares a width, and on none that does not',
-    async () => {
-      // The Name column is the remainder-absorber: asking for its declared width
-      // is already an error, so a handle on it would be a gesture with nothing to
-      // write. Asserted as set equality rather than as "Name has none", because
-      // the interesting half is that every other column does.
-      // Proof: the handle rendered for every leaf column instead of every sizable
-      // one, this failed on `expected [ 'drag', 'number', 'name', …(14) ] to
-      // deeply equal [ 'drag', 'number', 'depends', …(13) ]` — the Name column
-      // offering a resize handle. Watched, 2026-08-09.
-      await threeRoots();
+  itDom('offers a handle on every column, the Name column included', async () => {
+    // Until `name-column-drag` this case held the opposite: the Name column
+    // was the remainder-absorber and a handle on it was a gesture with
+    // nothing to write. A dragged Name writes an override now — the delta
+    // spec strikes the old requirement by name — so the handle set is every
+    // leaf column, and Name's gesture is the one that starts from a measured
+    // width rather than a resolved one.
+    await threeRoots();
 
-      const ids = screen
-        .getAllByRole('columnheader')
-        .map((th) => th.getAttribute('data-column') ?? '');
-      const sizable = frameLayout(ids, UNDATED)
-        .columns.filter((column) => column.width !== undefined)
-        .map((column) => column.id);
-      const handles = [...document.querySelectorAll('thead [data-resize-handle]')].map((handle) =>
-        handle.getAttribute('data-resize-handle'),
-      );
+    const ids = screen
+      .getAllByRole('columnheader')
+      .map((th) => th.getAttribute('data-column') ?? '');
+    const handles = [...document.querySelectorAll('thead [data-resize-handle]')].map((handle) =>
+      handle.getAttribute('data-resize-handle'),
+    );
 
-      expect(handles).toEqual(sizable);
-      expect(ids).toContain('name');
-      expect(handles).not.toContain('name');
-    },
-  );
+    expect(handles).toEqual(ids);
+    expect(handles).toContain('name');
+  });
 
   itDom('works a dragged width out from where the handle was grabbed', () => {
     // The gesture itself is `e2e/layout.spec.ts`'s: jsdom performs no default
@@ -6927,6 +6918,80 @@ describe('the widths this browser has dragged', () => {
     expect(widthFromDrag('number', 93, -1000, UNDATED)).toBe(36);
     expect(widthFromDrag('drag', 24, -50, UNDATED)).toBe(24);
     expect(widthFromDrag('number', 93, 10_000, UNDATED)).toBe(600);
+    // The Name column clamps to its own bounds: the flexible floor — the same
+    // 200 the cell's `min-width` declares — up to the one shared ceiling. Its
+    // `fromWidth` is the one measured number in the gesture, taken from the
+    // header cell at pointerdown; jsdom measures every box at 0, so the
+    // gesture itself is `e2e/layout.spec.ts`'s.
+    expect(widthFromDrag('name', 200, 60, UNDATED)).toBe(260);
+    expect(widthFromDrag('name', 300, -1000, UNDATED)).toBe(200);
+    expect(widthFromDrag('name', 300, 10_000, UNDATED)).toBe(600);
+  });
+
+  itDom('lays a remembered Name width on the Name cells, and leaves its <col> silent', async () => {
+    // The excess-width design, asserted where jsdom can see it: the dragged
+    // width reaches the browser as `width` + `min-width` on the Name cells —
+    // `table-layout: fixed` takes a column's width from the first row's cell —
+    // while the `<col>` stays unsized, so the viewport's excess keeps landing
+    // on Name alone instead of being distributed across every sized column.
+    // The distribution itself is a browser's to prove: `e2e/layout.spec.ts`
+    // measures Number still on its 93px envelope with a Name override in
+    // force.
+    storedWidths({ name: 300 });
+    await threeRoots();
+
+    const header = document.querySelector<HTMLElement>('thead th[data-column="name"]');
+    const body = document.querySelector<HTMLElement>('tbody td[data-column="name"]');
+    expect(header?.style.width).toBe('300px');
+    expect(header?.style.minWidth).toBe('300px');
+    expect(body?.style.width).toBe('300px');
+    expect(body?.style.minWidth).toBe('300px');
+    expect(laidOut().name).toBe('');
+    // And the table's own minimum counts the override in place of the 200px
+    // floor, so the frame starts scrolling at the width the reader asked for.
+    expect(screen.getByRole('table').style.minWidth).toBe('1547px');
+  });
+
+  itDom('drops a stored Name width outside Name’s own bounds, each end on its own', async () => {
+    // The same claim rules as every other column, read against Name's own
+    // range: the flexible floor up to the shared ceiling. A width below 200
+    // is one no Name drag can produce — the clamp stops there — so a stored
+    // one is a hand-edit, refused exactly as Number's 1e9 is.
+    storedWidths({ name: 150, number: 240 });
+    await threeRoots();
+
+    const header = document.querySelector<HTMLElement>('thead th[data-column="name"]');
+    expect(header?.style.width).toBe('');
+    expect(header?.style.minWidth).toBe('200px');
+    // The entry beside it still applies: one bad entry takes only itself.
+    expect(laidOut().number).toBe('240px');
+
+    cleanup();
+    localStorage.clear();
+    storedWidths({ name: 1e9 });
+    await threeRoots();
+
+    const above = document.querySelector<HTMLElement>('thead th[data-column="name"]');
+    expect(above?.style.width).toBe('');
+    expect(above?.style.minWidth).toBe('200px');
+  });
+
+  itDom('one reset gives Name back to the remainder with the rest', async () => {
+    // Reset stays `forgetWidthOverrides`: one key forgotten, never a snapshot
+    // written, and Name goes back to being the column with no width at all.
+    storedWidths({ name: 300, number: 140 });
+    await threeRoots();
+    expect(document.querySelector<HTMLElement>('thead th[data-column="name"]')?.style.width).toBe(
+      '300px',
+    );
+
+    click('Reset layout');
+
+    const header = document.querySelector<HTMLElement>('thead th[data-column="name"]');
+    expect(header?.style.width).toBe('');
+    expect(header?.style.minWidth).toBe('200px');
+    expect(laidOut().number).toBe('93px');
+    expect(stored()).toBe(null);
   });
 
   itDom('lays a remembered width out over the one it would have resolved', async () => {

@@ -313,9 +313,11 @@ keyboard while it is.
 _Avoid_: context menu, row menu, kebab, overflow menu
 
 **Flexible column**:
-The one column of the table with no declared width — the name — which takes whatever the
-declared ones leave, down to a floor it does not shrink past. Not an unsized column: asking
-for its width is an error, because the pinned offsets are sums of declared widths.
+The one column whose `<col>` never declares a width — the name — which absorbs whatever the
+viewport leaves over, down to a floor it does not shrink past. Draggable like any other:
+a dragged width becomes a column width override riding on its cells, with the `<col>` still
+silent so the excess keeps landing on it alone. Asking for its width with no override in
+force is an error, because the pinned offsets are sums of declared widths.
 _Avoid_: auto column, fill column, stretch
 
 **Table minimum width**:
