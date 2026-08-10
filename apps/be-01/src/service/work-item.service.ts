@@ -3,6 +3,7 @@ import {
   type EstimateMethod,
   finalDays,
   type IsoDate,
+  snapWorkdays,
   workdaysBetween,
 } from '@wbs/domain';
 
@@ -195,7 +196,25 @@ function datesOf(
   // nothing — at a finish of 4 the epsilon is smaller than the gap between
   // representable doubles, so the subtraction rounded straight back to 4 and a
   // two-day task claimed a third day. A zero-length row keeps its start.
-  const lastDay = Math.max(timing.earliestStart, Math.ceil(timing.earliestFinish) - 1);
+  //
+  // The finish goes through `snapWorkdays` before the ceil: a chain of PERT
+  // sixths that sums to exactly 15 arrives as 15.000000000000002, and the ceil
+  // read that drifted bit as a sixteenth day — a Monday, three calendar days
+  // late on screen. The engine's span anchoring stops this fault within one
+  // work item; across a dependency chain the bit survives (see
+  // `schedule-shapes.test.ts`, 'accumulates PERT sixths…'), so the snap at
+  // this discrete boundary is what keeps it off the calendar. `addWorkdays`
+  // snaps its own floor for the mirror-image drift.
+  //
+  // Proof: the snap removed from this ceil and two tests failed — `ends a
+  // chain of PERT estimates on the day the estimates add up to` and `holds
+  // the calendar steady when a chained finish drifts above the whole day`,
+  // both on an `endsOn` of `"2026-08-31"` where `"2026-08-28"` was owed;
+  // watched 2026-08-10.
+  const lastDay = Math.max(
+    timing.earliestStart,
+    Math.ceil(snapWorkdays(timing.earliestFinish)) - 1,
+  );
   return {
     startsOn: addWorkdays(startDate, timing.earliestStart),
     endsOn: addWorkdays(startDate, lastDay),

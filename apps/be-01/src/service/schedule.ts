@@ -731,14 +731,19 @@ export function schedule(
   edges: readonly DependencyEdge[],
   slices: readonly Slice[],
   /**
-   * The earliest offset each leaf may start at, from a manual constraint.
+   * The earliest offset each work item may start at, from a manual constraint.
    *
    * Taken as a floor alongside the predecessors' finishes, never as a pin: a
    * work item told "not before day 10" whose predecessor finishes on day 14
    * starts on day 14. Dany's call — the constraint may only ever push an item
    * later, so the dependency tree and the calendar cannot contradict each
-   * other. A leaf absent from the map is unconstrained. It applies to the work
-   * item's **first** slice, and thereby to all of them.
+   * other. A work item absent from the map is unconstrained. It applies to the
+   * work item's **first** slice, and thereby to all of them.
+   *
+   * A floor keyed by a **parent** reaches every leaf beneath it, exactly as a
+   * dependency declared on a parent does: "this phase starts no earlier than
+   * the 12th" means none of its work does. Each leaf takes the latest of its
+   * own floor and every ancestor's — see the expansion below.
    */
   notBefore: ReadonlyMap<string, number> = new Map(),
 ): Schedule {
@@ -767,6 +772,29 @@ export function schedule(
   // out of date with the tree the moment a leaf is added under either end.
   const leafEdges = expandToLeaves(index, edges);
 
+  // Floors expanded down the tree the same way the edges are: a floor keyed by
+  // any row constrains every leaf beneath it, and each leaf keeps the
+  // **latest** of its own floor and every ancestor's. `Math.max`, never a
+  // copy-down — a parent's day 3 must not overwrite a child's own day 9.
+  // Until 2026-08-10 this map was read for leaf ids alone, so a floor written
+  // on a parent was accepted, stored, echoed back — and constrained nothing;
+  // `floors every leaf beneath a parent told not to start before a day`
+  // (`work-item.service.test.ts`) was watched failing on the leaf starting
+  // `2026-08-06` under a parent floored to `2026-08-12`.
+  //
+  // Proof: the `Math.max` replaced with a bare copy-down (`set(leafId,
+  // atLeast)`) and two tests in `schedule-shapes.test.ts` failed — `composes
+  // ancestor floors with a dependency, each leaf keeping its own maximum` on
+  // `L2` at `earliestStart: 5` where its own day-9 floor was owed, and
+  // `carries a grandparent's floor two levels down to the leaf` on
+  // `earliestStart: 3` where the grandparent's day 6 was; watched 2026-08-10.
+  const leafFloors = new Map<string, number>();
+  for (const [flooredId, atLeast] of notBefore) {
+    for (const leafId of index.leavesUnder.get(flooredId) ?? []) {
+      leafFloors.set(leafId, Math.max(leafFloors.get(leafId) ?? 0, atLeast));
+    }
+  }
+
   /**
    * The nodes, in the order they run: every leaf's slices in role order, and
    * the intra-item chain between them.
@@ -791,7 +819,7 @@ export function schedule(
         item,
         at,
         offsets,
-        notBefore: at === 0 ? (notBefore.get(leafId) ?? 0) : 0,
+        notBefore: at === 0 ? (leafFloors.get(leafId) ?? 0) : 0,
         predecessors: [],
         successors: [],
       });

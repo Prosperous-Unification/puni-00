@@ -8,6 +8,7 @@ import {
   isMonday,
   isWeekend,
   nextWorkday,
+  snapWorkdays,
   workdaysBetween,
 } from './workday';
 
@@ -60,6 +61,23 @@ describe('addWorkdays', () => {
     expect(addWorkdays(THURSDAY, 3.4)).toBe(addWorkdays(THURSDAY, 3));
   });
 
+  it('reads a whole day arriving with a drifted bit as that whole day', () => {
+    // A chained schedule accumulates `finish = start + days` in doubles:
+    // 1/6 + 49/6 + 4/6 arrives as 8.999999999999998, and a bare floor read
+    // that ninth day as the eighth — a row starting a whole day early.
+    expect(addWorkdays(MONDAY, 8.999999999999998)).toBe(addWorkdays(MONDAY, 9));
+    // The mirror drift: 45/6 + 25/6 + 20/6 arrives as 15.000000000000002.
+    // Harmless to a floor, but the same snap covers it here so both discrete
+    // boundaries treat one drifted value as one day.
+    expect(addWorkdays(MONDAY, 15.000000000000002)).toBe(addWorkdays(MONDAY, 15));
+  });
+
+  it('still floors a genuine fraction near a boundary — 14.9 is real work', () => {
+    // 14.9 is a tenth of a day short of 15: someone's estimate, not drift.
+    // Snapping it up would move a date by a day the plan never contained.
+    expect(addWorkdays(MONDAY, 14.9)).toBe(addWorkdays(MONDAY, 14));
+  });
+
   it('refuses to walk backwards', () => {
     // Nothing happens before the plan's own start, and quietly counting into
     // last week is the kind of answer that reads as deliberate.
@@ -70,6 +88,19 @@ describe('addWorkdays', () => {
     // 2026-12-31 is a Thursday, so +1 workday is the Friday, +2 is Monday 4 Jan.
     expect(addWorkdays('2026-12-31', 1)).toBe('2027-01-01');
     expect(addWorkdays('2026-12-31', 2)).toBe('2027-01-04');
+  });
+});
+
+describe('snapWorkdays', () => {
+  it('snaps drift on both sides of a whole day, and nothing else', () => {
+    expect(snapWorkdays(8.999999999999998)).toBe(9);
+    expect(snapWorkdays(15.000000000000002)).toBe(15);
+    expect(snapWorkdays(15)).toBe(15);
+    expect(snapWorkdays(0)).toBe(0);
+    // Real fractions pass through untouched — a half-day is work, not error.
+    expect(snapWorkdays(14.9)).toBe(14.9);
+    expect(snapWorkdays(0.5)).toBe(0.5);
+    expect(snapWorkdays(3.6666666666666665)).toBe(3.6666666666666665);
   });
 });
 
