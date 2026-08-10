@@ -5427,10 +5427,17 @@ describe('dependencies in the table', () => {
     });
   });
 
-  /** The depends cell of one row: the chips, the box, and the card. */
+  /**
+   * The depends cell's wrapper for one row: the strip, the box, and the card.
+   *
+   * Through the `<td>` rather than as the box's parent — since
+   * `deps-single-line` the box's parent is the clipping strip, and the strip
+   * carries no hover handler; the wrapper above it does.
+   */
   const dependsCellOf = (number: string): HTMLElement => {
-    const found = screen.getByLabelText(`Add a dependency to ${number}`).parentElement;
-    if (found === null) throw new Error(`no depends cell for ${number}`);
+    const cell = screen.getByLabelText(`Add a dependency to ${number}`).closest('td');
+    const found = cell?.firstElementChild;
+    if (!(found instanceof HTMLElement)) throw new Error(`no depends cell for ${number}`);
     return found;
   };
 
@@ -5628,6 +5635,118 @@ describe('dependencies in the table', () => {
     // having no start date and so no day to put in it either. Watched,
     // 2026-08-09.
     expect(row?.querySelector('[data-finish]')?.getAttribute('title')).toContain('No estimate yet');
+  });
+
+  /**
+   * The strip the chips and the box sit in at rest — the clipper
+   * `deps-single-line` added — and the wrapper above it, which is still the
+   * positioned ancestor the popovers hang from. Reached from the box, thrown
+   * rather than defaulted: a missing strip is the change gone, not a cell
+   * with nothing to say.
+   */
+  const stripOf = (number: string): { strip: HTMLElement; wrapper: HTMLElement } => {
+    const strip = screen.getByLabelText(`Add a dependency to ${number}`).parentElement;
+    if (!(strip instanceof HTMLElement) || !strip.hasAttribute('data-depends-strip')) {
+      throw new Error(`the ${number} depends box is not in a strip`);
+    }
+    const wrapper = strip.parentElement;
+    if (!(wrapper instanceof HTMLElement)) throw new Error(`the ${number} strip has no wrapper`);
+    return { strip, wrapper };
+  };
+
+  itDom('clamps the chips and the box onto one nowrap line at rest', async () => {
+    // jsdom lays nothing out, so what is watched here is the declarations
+    // arriving on the strip: one flex line that does not wrap, clipping what
+    // overruns it. That the seven-chip row really is one line tall — and that
+    // a clipped chip really is invisible — is Chromium's to prove, in
+    // `e2e/deps-cell.spec.ts` (R5 #14–16 fault class).
+    //
+    // Proof: the strip's rest branch forced to `flexWrap: 'wrap'` — the strip
+    // losing nowrap — this failed on `expected 'wrap' to be 'nowrap'`.
+    // Watched, 2026-08-10.
+    await threeRoots();
+    dependOn('030', '010');
+    await waitFor(() => {
+      expect(screen.getByLabelText('Stop 030 waiting for 010')).toBeDefined();
+    });
+    dependOn('030', '020');
+    await waitFor(() => {
+      expect(screen.getByLabelText('Stop 030 waiting for 020')).toBeDefined();
+    });
+    fireEvent.blur(screen.getByLabelText('Add a dependency to 030'));
+
+    const { strip, wrapper } = stripOf('030');
+    // The chips share the strip with the box: the clamp is about the pair.
+    expect(screen.getByLabelText('Stop 030 waiting for 010').parentElement).toBe(strip);
+    expect(screen.getByLabelText('Stop 030 waiting for 020').parentElement).toBe(strip);
+    expect(strip.style.display).toBe('flex');
+    expect(strip.style.flexWrap).toBe('nowrap');
+    expect(strip.style.whiteSpace).toBe('nowrap');
+    expect(strip.style.overflow).toBe('hidden');
+    // And the wrapper above it is still the positioned ancestor, with the
+    // superseded wrap declaration really gone from it.
+    expect(wrapper.style.position).toBe('relative');
+    expect(wrapper.style.whiteSpace).toBe('');
+  });
+
+  itDom('keeps the truncation fade on the strip, rest and open alike', async () => {
+    // The fade is the truncation cue, and it is *unconditional*: "fade only
+    // when clipped" would need the `scrollWidth` measurement the `+N` marker
+    // was rejected for, and a fade over an unclipped short row is invisible
+    // against the row background by construction. So the one thing a test can
+    // hold it to is that no condition grows back — the declaration is there
+    // at rest and stays there with the picker open.
+    //
+    // Proof, two faults, both watched 2026-08-10: the fade deleted from the
+    // strip, this failed at rest on `expected '' to contain
+    // 'linear-gradient'`; the fade put behind `picker === null`, it failed
+    // the same way at the assertion below the focus — the picker open.
+    await threeRoots();
+    dependOn('030', '010');
+    await waitFor(() => {
+      expect(screen.getByLabelText('Stop 030 waiting for 010')).toBeDefined();
+    });
+    fireEvent.blur(screen.getByLabelText('Add a dependency to 030'));
+
+    const { strip } = stripOf('030');
+    expect(strip.style.maskImage).toContain('linear-gradient');
+
+    fireEvent.focus(screen.getByLabelText('Add a dependency to 030'));
+    expect(screen.getAllByRole('listbox')).toHaveLength(1);
+    expect(strip.style.maskImage).toContain('linear-gradient');
+    // While the picker owns the cell the strip wraps as the cell always did,
+    // so nothing about typing or the open list changes.
+    expect(strip.style.flexWrap).toBe('wrap');
+  });
+
+  itDom('keeps both popovers out of the clipper', async () => {
+    // The strip is an `overflow: hidden` box, and an absolutely positioned
+    // popover escapes such a box only when its containing block is outside it
+    // — the `<td>` exemption's own rule, one layer down. A listbox or a card
+    // that slipped *inside* the strip would be cut to one line however the
+    // `<td>` is styled, so both stay children of the wrapper.
+    //
+    // Proof: the strip's closing tag moved past the listbox — the listbox
+    // rendered inside the clipper — this failed on `expected
+    // <span …(2)>…(3)</span> to be <span …(1)>…(2)</span>`, the listbox's
+    // parent the strip rather than the wrapper. Watched, 2026-08-10.
+    await threeRoots();
+    dependOn('030', '010');
+    await waitFor(() => {
+      expect(screen.getByLabelText('Stop 030 waiting for 010')).toBeDefined();
+    });
+    fireEvent.blur(screen.getByLabelText('Add a dependency to 030'));
+
+    const { strip, wrapper } = stripOf('030');
+    fireEvent.mouseEnter(wrapper);
+    const card = screen.getByRole('tooltip');
+    expect(card.parentElement).toBe(wrapper);
+    expect(strip.contains(card)).toBe(false);
+
+    fireEvent.focus(screen.getByLabelText('Add a dependency to 030'));
+    const list = screen.getByRole('listbox');
+    expect(list.parentElement).toBe(wrapper);
+    expect(strip.contains(list)).toBe(false);
   });
 });
 

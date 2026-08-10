@@ -539,7 +539,11 @@
 
   /*
    * A dependency chip. Compact on purpose: seven of them share a 110px column
-   * and wrap, and the padding is the only thing deciding how many reach a line.
+   * and rest clipped to one line behind the strip's fade, and the padding is
+   * the only thing deciding how many are on screen before the clip. Spacing
+   * is the strip's `gap` in `wbs-table.tsx`, not a margin here: a chip's own
+   * bottom margin would make the strip's one rested line taller than a
+   * chipless row's, and equal row heights are the point of `deps-single-line`.
    */
   [data-grid] td[data-column='depends'] button {
     border: 1px solid var(--border);
@@ -547,7 +551,6 @@
     background: color-mix(in oklab, var(--muted) 70%, var(--background));
     color: var(--muted-foreground);
     padding: 0 4px;
-    margin: 0 2px 2px 0;
     line-height: 1.5;
     cursor: pointer;
   }

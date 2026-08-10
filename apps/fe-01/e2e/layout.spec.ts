@@ -169,9 +169,9 @@ async function dragColumnEdge(page: Page, columnId: string, travel: number): Pro
  * chip, one estimate.
  *
  * Through the UI rather than through the API, because half of what is being
- * measured is what the controls inside the cells do to them — a chip list that
- * wraps, a textarea that grew to fit its name — and none of that exists in a
- * plan seeded behind the table's back.
+ * measured is what the controls inside the cells do to them — a chip strip
+ * that clips, a textarea that grew to fit its name — and none of that exists
+ * in a plan seeded behind the table's back.
  */
 async function seedPlan(page: Page, account: string): Promise<void> {
   await page.goto('/');
@@ -516,9 +516,10 @@ function controlBoxes(page: Page): Promise<{ cell: Box; control: Box }[]> {
       const cellBox = cell.getBoundingClientRect();
       const column = cell.getAttribute('data-column') ?? '(a cell with no data-column)';
       // Inputs and textareas, which is every control in this table that has
-      // ever asserted a width of its own. Not the chip buttons: those wrap
-      // onto a second line rather than overrunning, and the cell is what
-      // reflows around them.
+      // ever asserted a width of its own. Not the chip buttons: since
+      // `deps-single-line` those rest clipped behind their strip's fade — a
+      // clipped chip's rect overruns on purpose while painting nothing
+      // outside the cell, and `e2e/deps-cell.spec.ts` is what measures that.
       return [...cell.querySelectorAll('input, textarea')].map((control) => {
         const box = control.getBoundingClientRect();
         return {
@@ -1460,8 +1461,11 @@ test.describe('the table, measured by a browser', () => {
     await depends.click();
     await depends.fill(chips.join(', '));
     await depends.press('Enter');
-    // Seven, with the one the plan was seeded with: a `depends` cell several
-    // lines tall, which is the shape this fixture is for.
+    // Seven, with the one the plan was seeded with. This used to make a
+    // `depends` cell several lines tall; since `deps-single-line` the cell
+    // rests clipped to one line, and `e2e/deps-cell.spec.ts` owns what that
+    // looks like — here the seven chips are simply the heaviest content the
+    // width equation has to keep inside its column.
     await expect(page.getByRole('button', { name: /^Stop 020 waiting for / })).toHaveCount(7);
 
     for (const viewport of VIEWPORTS) {

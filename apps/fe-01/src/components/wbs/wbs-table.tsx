@@ -344,12 +344,32 @@ const opensAPopover = (columnId: string): boolean =>
 /**
  * How wide the Depends on list opens, in px, whatever its column is.
  *
- * The column is 110px — enough for the chips, which wrap — and an entry in
+ * The column is 110px — one clipped line of chips at rest — and an entry in
  * this list is a number and a work item's name. A list held to its own column
  * would be a list nobody can read; it hangs over the columns beside it, which
  * is what `opensAPopover` exempts the cell for. The browser gate measures it.
  */
 const DEP_LIST_WIDTH = 260;
+
+/**
+ * The truncation cue on the Depends on cell's strip: the strip's last 14px
+ * fade to transparent, so a line of chips that was clipped visibly runs out
+ * rather than ending on what looks like the last chip.
+ *
+ * Declared **unconditionally** — clipped or not, picker open or not. "Fade
+ * only when clipped" needs the `scrollWidth` measurement the `+N` marker was
+ * rejected for, and a fade over an unclipped short row fades the strip's own
+ * empty tail — the controls in this table are transparent at rest
+ * (`styles.css`), so there is nothing there to see it on. A mask rather than
+ * a painted gradient, so it holds over a tinted row (`--cell-bg`) as well as
+ * a white one.
+ *
+ * Proof: this taken off the strip, `keeps the truncation fade on the strip,
+ * rest and open alike` failed on `expected '' to contain 'linear-gradient'`;
+ * made conditional on the closed picker, the same test failed the same way
+ * with the picker open. Both watched, 2026-08-10.
+ */
+const DEP_EDGE_FADE = 'linear-gradient(to right, #000 calc(100% - 14px), transparent)';
 
 // SHORTHAND_HELP moved onto {@link FoldedRoleCard}: the card is the folded
 // cell's one hint, and the native `title` that used to say this raced it.
@@ -4475,18 +4495,23 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                   current === dependsCell ? null : current,
                 );
               }}
-              // `normal` rather than `nowrap`: a row waiting on six others has
-              // six chips, and a line of them that cannot wrap is a line that
-              // runs into the next column — or, now, one the cell clips. An
-              // uneven row height is a cost worth paying; a dependency nobody
-              // can see is not.
+              // This wrapper carried `whiteSpace: 'normal'` until 2026-08-10,
+              // with the rationale "an uneven row height is a cost worth
+              // paying; a dependency nobody can see is not". The change
+              // `deps-single-line` reverses that decision by name — and
+              // `table-geometry-and-tab-order`'s "wraps its chips onto a
+              // second line rather than clipping them" with it (archived at
+              // openspec/changes/archive/2026-08-10-table-geometry-and-tab-order/)
+              // — because the full list now lives in the DependsCard hover
+              // and the box's sr-only description, so the cell no longer has
+              // to be several lines tall to say it. At rest the strip below
+              // clamps to one clipped line; the fade on it is the cue.
               //
               // The positioned ancestor the listbox below is placed against —
               // which is what decides *where* the list opens, not whether it
               // is clipped. The clipper is the `<td>`, and it is what
               // {@link POPOVER_COLUMNS} exempts.
               style={{
-                whiteSpace: 'normal',
                 position: 'relative',
                 display: 'block',
                 maxWidth: '100%',
@@ -4497,140 +4522,183 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                   {`Waiting for ${waitingFor.map(dependsLine).join(', ')}`}
                 </span>
               )}
-              {waitingFor.map(({ id, number }) => (
-                <button
-                  key={id}
-                  type="button"
-                  aria-label={`Stop ${row.original.number} waiting for ${number}`}
-                  title="Remove this dependency"
-                  onClick={() =>
-                    void live.current.run(() =>
-                      live.current.api.removeDependency(row.original.id, id),
-                    )
-                  }
-                >
-                  {number} ✕
-                </button>
-              ))}
-              <input
-                aria-label={`Add a dependency to ${row.original.number}`}
-                role="combobox"
-                aria-expanded={open}
-                aria-controls={open ? `dep-options-${row.original.id}` : undefined}
-                aria-activedescendant={
-                  activeOption === undefined ? undefined : `dep-option-${activeOption.id}`
-                }
-                aria-autocomplete="list"
-                aria-describedby={waitingFor.length > 0 ? waitsForId : undefined}
-                placeholder="search, or 010, 020"
-                title="Type to search by number or name, or a list of numbers separated by commas or spaces"
-                style={{ width: '100%', boxSizing: 'border-box' }}
-                data-depends-input={row.original.id}
-                // A cell of the keyboard grid, so Tab reaches this box and
-                // leaves it again rather than walking the chips' ✕ buttons.
-                data-cell={cellKey(row.original.id, 'depends')}
-                value={picker?.typed ?? ''}
-                onFocus={() => {
-                  live.current.setDepPicker({
-                    rowId: row.original.id,
-                    typed: '',
-                    highlightId: null,
-                  });
+              {/*
+                The strip: the chips and the box, and nothing else — the
+                popovers below hang from the wrapper, because this box clips
+                and they must not be inside the clipper. At rest it is one
+                flex line that does not wrap; while the picker owns the cell
+                it wraps exactly as the cell always did, so typing and the
+                open list are unchanged (precedent:
+                {@link CellInputProps.restShowsFirstLineOnly} — clamped at
+                rest, whole while somebody is in it). `whiteSpace: 'nowrap'`
+                is not decoration beside `flexWrap`: it is what keeps a
+                squeezed chip's `✕` from folding under its number and growing
+                the one line into two. The fade is the truncation cue and it
+                is unconditional — {@link DEP_EDGE_FADE} says why. No `+N`
+                marker: counting hidden variable-width pills means real
+                layout measurement for marginal information.
+
+                Proof: the rest branch's `flexWrap` forced to `'wrap'`,
+                `clamps the chips and the box onto one nowrap line at rest`
+                failed on `expected 'wrap' to be 'nowrap'`. Watched,
+                2026-08-10. The row height itself — seven chips no taller
+                than none, a clipped chip invisible — is Chromium's proof,
+                in `e2e/deps-cell.spec.ts`.
+              */}
+              <span
+                data-depends-strip={row.original.id}
+                style={{
+                  display: 'flex',
+                  flexWrap: picker === null ? 'nowrap' : 'wrap',
+                  alignItems: 'center',
+                  gap: 2,
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  WebkitMaskImage: DEP_EDGE_FADE,
+                  maskImage: DEP_EDGE_FADE,
                 }}
-                onBlur={() => {
-                  live.current.setDepPicker((current) =>
-                    current?.rowId === row.original.id ? null : current,
-                  );
-                }}
-                onChange={(e) => {
-                  const typed = e.currentTarget.value;
-                  // Typing is aiming at the narrowed-to entry; emptying the
-                  // cell aims at nothing again.
-                  const first =
-                    typed.trim() === ''
-                      ? undefined
-                      : live.current
-                          .depEntriesFor(row.original, typed)
-                          .find((entry) => entry.refusal === undefined);
-                  live.current.setDepPicker({
-                    rowId: row.original.id,
-                    typed,
-                    highlightId: first?.id ?? null,
-                  });
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Tab') {
-                    // The move blurs this input, which closes the list and
-                    // drops what was typed into it — this cell's blur contract
-                    // since it was written, now reached by Tab on purpose. The
-                    // typed text is a *search*: committing it on the way out
-                    // would add dependencies nobody confirmed.
-                    //
-                    // Proof: the call dropped, leaving only the `return`, both
-                    // `Tab from the depends input closes the picker…` and
-                    // `Shift+Tab from the depends input lands in the name…`
-                    // failed with the key left to the browser. Watched,
-                    // 2026-08-07.
-                    live.current.onTabKey(e, row.original.id, 'depends');
-                    return;
+              >
+                {waitingFor.map(({ id, number }) => (
+                  <button
+                    key={id}
+                    type="button"
+                    aria-label={`Stop ${row.original.number} waiting for ${number}`}
+                    title="Remove this dependency"
+                    onClick={() =>
+                      void live.current.run(() =>
+                        live.current.api.removeDependency(row.original.id, id),
+                      )
+                    }
+                  >
+                    {number} ✕
+                  </button>
+                ))}
+                <input
+                  aria-label={`Add a dependency to ${row.original.number}`}
+                  role="combobox"
+                  aria-expanded={open}
+                  aria-controls={open ? `dep-options-${row.original.id}` : undefined}
+                  aria-activedescendant={
+                    activeOption === undefined ? undefined : `dep-option-${activeOption.id}`
                   }
-                  if (open && commandChordIn(e) !== null) {
-                    // Inert means consumed. Skipping `onCommandKey` was not
-                    // enough on its own: Cmd/⌘+Enter fell through to the Enter
-                    // branch below, which reads no modifiers, and added the
-                    // highlighted dependency — codex round 2, finding 2.
-                    // Proof: this guard removed, `Cmd+Enter in the open
-                    // depends list adds no dependency` failed on `expected
-                    // <button type="button" …(2)></button> to be null` — the
-                    // chip for an edge nobody confirmed. Watched, 2026-08-08.
-                    e.preventDefault();
-                    return;
-                  }
-                  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-                    e.preventDefault();
-                    live.current.moveDepHighlight(
-                      row.original.id,
-                      e.key === 'ArrowDown' ? 1 : -1,
-                      // The refused entries are not in this list, so the
-                      // highlight steps over them: a highlight that could stop
-                      // on one would be an Enter that does nothing, which is
-                      // the click this change exists to prevent.
-                      pickable.map((entry) => entry.id),
+                  aria-autocomplete="list"
+                  aria-describedby={waitingFor.length > 0 ? waitsForId : undefined}
+                  placeholder="search, or 010, 020"
+                  title="Type to search by number or name, or a list of numbers separated by commas or spaces"
+                  // `minWidth: 0` is what lets the box shrink behind the chips
+                  // on the strip's one rested line: a flex item's automatic
+                  // minimum would hold an `<input>` at its intrinsic width and
+                  // push its rect out past the cell. `100%` is still its claim
+                  // — the whole cell where it has the line to itself, the
+                  // remainder where it does not.
+                  style={{ width: '100%', minWidth: 0, boxSizing: 'border-box' }}
+                  data-depends-input={row.original.id}
+                  // A cell of the keyboard grid, so Tab reaches this box and
+                  // leaves it again rather than walking the chips' ✕ buttons.
+                  data-cell={cellKey(row.original.id, 'depends')}
+                  value={picker?.typed ?? ''}
+                  onFocus={() => {
+                    live.current.setDepPicker({
+                      rowId: row.original.id,
+                      typed: '',
+                      highlightId: null,
+                    });
+                  }}
+                  onBlur={() => {
+                    live.current.setDepPicker((current) =>
+                      current?.rowId === row.original.id ? null : current,
                     );
-                    return;
-                  }
-                  if (e.key === 'Escape') {
-                    live.current.setDepPicker(null);
-                    return;
-                  }
-                  if (!open) {
-                    // Closed, this is a cell like any other and the chords
-                    // reach it. Open, the list owns the keyboard — the routing
-                    // matrix's inert row, and the reason this is a condition
-                    // rather than an unconditional call.
-                    // Proof: the condition forced true, `every chord is inert
-                    // while the depends list is open` failed on `expected
-                    // <input …(11)></input> to be <input …(10)></input>` — the
-                    // focus taken out of a list somebody was reading. Watched,
-                    // 2026-08-08.
-                    live.current.onCommandKey(e, row.original, 'depends');
-                  }
-                  if (e.key !== 'Enter') return;
-                  e.preventDefault();
-                  if (activeOption !== undefined) {
-                    live.current.pickDependency(row.original.id, activeOption.id);
-                    return;
-                  }
-                  // No highlight to take — the typed flow: one number or a
-                  // separated list of them, exactly as this cell always worked.
-                  const typed = picker?.typed ?? e.currentTarget.value;
-                  if (typed.trim() === '') return;
-                  live.current.dependOn(row.original.id, typed);
-                  live.current.setDepPicker((current) =>
-                    current === null ? null : { ...current, typed: '', highlightId: null },
-                  );
-                }}
-              />
+                  }}
+                  onChange={(e) => {
+                    const typed = e.currentTarget.value;
+                    // Typing is aiming at the narrowed-to entry; emptying the
+                    // cell aims at nothing again.
+                    const first =
+                      typed.trim() === ''
+                        ? undefined
+                        : live.current
+                            .depEntriesFor(row.original, typed)
+                            .find((entry) => entry.refusal === undefined);
+                    live.current.setDepPicker({
+                      rowId: row.original.id,
+                      typed,
+                      highlightId: first?.id ?? null,
+                    });
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Tab') {
+                      // The move blurs this input, which closes the list and
+                      // drops what was typed into it — this cell's blur contract
+                      // since it was written, now reached by Tab on purpose. The
+                      // typed text is a *search*: committing it on the way out
+                      // would add dependencies nobody confirmed.
+                      //
+                      // Proof: the call dropped, leaving only the `return`, both
+                      // `Tab from the depends input closes the picker…` and
+                      // `Shift+Tab from the depends input lands in the name…`
+                      // failed with the key left to the browser. Watched,
+                      // 2026-08-07.
+                      live.current.onTabKey(e, row.original.id, 'depends');
+                      return;
+                    }
+                    if (open && commandChordIn(e) !== null) {
+                      // Inert means consumed. Skipping `onCommandKey` was not
+                      // enough on its own: Cmd/⌘+Enter fell through to the Enter
+                      // branch below, which reads no modifiers, and added the
+                      // highlighted dependency — codex round 2, finding 2.
+                      // Proof: this guard removed, `Cmd+Enter in the open
+                      // depends list adds no dependency` failed on `expected
+                      // <button type="button" …(2)></button> to be null` — the
+                      // chip for an edge nobody confirmed. Watched, 2026-08-08.
+                      e.preventDefault();
+                      return;
+                    }
+                    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                      e.preventDefault();
+                      live.current.moveDepHighlight(
+                        row.original.id,
+                        e.key === 'ArrowDown' ? 1 : -1,
+                        // The refused entries are not in this list, so the
+                        // highlight steps over them: a highlight that could stop
+                        // on one would be an Enter that does nothing, which is
+                        // the click this change exists to prevent.
+                        pickable.map((entry) => entry.id),
+                      );
+                      return;
+                    }
+                    if (e.key === 'Escape') {
+                      live.current.setDepPicker(null);
+                      return;
+                    }
+                    if (!open) {
+                      // Closed, this is a cell like any other and the chords
+                      // reach it. Open, the list owns the keyboard — the routing
+                      // matrix's inert row, and the reason this is a condition
+                      // rather than an unconditional call.
+                      // Proof: the condition forced true, `every chord is inert
+                      // while the depends list is open` failed on `expected
+                      // <input …(11)></input> to be <input …(10)></input>` — the
+                      // focus taken out of a list somebody was reading. Watched,
+                      // 2026-08-08.
+                      live.current.onCommandKey(e, row.original, 'depends');
+                    }
+                    if (e.key !== 'Enter') return;
+                    e.preventDefault();
+                    if (activeOption !== undefined) {
+                      live.current.pickDependency(row.original.id, activeOption.id);
+                      return;
+                    }
+                    // No highlight to take — the typed flow: one number or a
+                    // separated list of them, exactly as this cell always worked.
+                    const typed = picker?.typed ?? e.currentTarget.value;
+                    if (typed.trim() === '') return;
+                    live.current.dependOn(row.original.id, typed);
+                    live.current.setDepPicker((current) =>
+                      current === null ? null : { ...current, typed: '', highlightId: null },
+                    );
+                  }}
+                />
+              </span>
               {picker !== null && entries.length > 0 && (
                 <ul
                   role="listbox"
