@@ -87,10 +87,10 @@ unclipped one is not`: the unclipped first chip answering a hit test at
     centre answering something else;
   - the existing layout, hover-card and keyboard suites staying green over
     the restructured cell.
-    The PR's `pixels` CI job is the proof for all of these — **not yet
-    observed at the time of this writing**; this file is updated with the
-    job's conclusion once the PR has run it, and until then no result is
-    claimed.
+    The PR's `pixels` CI job is the proof for all of these — **observed green
+    on PR #35** (`pixels pass 5m29s`, 114 e2e tests passed, both
+    `deps-cell.spec.ts` tests among them by name in the job log; `gate pass
+3m18s` beside it, 2026-08-10). A CI result, still not a local run.
 - **The fade's look.** That an unconditional fade reads well — and really is
   invisible over a short row — is a judgement for eyes on dev (task 4.2), not
   for a DOM assertion; what is pinned is that the declaration exists and that

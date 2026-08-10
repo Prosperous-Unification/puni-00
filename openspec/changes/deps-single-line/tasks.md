@@ -55,8 +55,10 @@ Only `- [ ]` checkboxes are tracked by the apply phase.
       chip answering the chip itself. Written here; **proven by the PR's
       `pixels` CI job** — this host has no browser, so no local run is
       claimed (R5)
-- [ ] 3.2 The `pixels` CI job green on the PR — the row height, the clip and
-      the existing layout/hover suites, all measured in Chromium
+- [x] 3.2 The `pixels` CI job green on the PR — the row height, the clip and
+      the existing layout/hover suites, all measured in Chromium. Observed on
+      PR #35: `pixels pass 5m29s`, 114 e2e tests, both `deps-cell.spec.ts`
+      tests green by name in the job log, 2026-08-10
 
 ## 4. Gate
 
