@@ -1113,6 +1113,69 @@ test.describe('the table, measured by a browser', () => {
     expect((await columnGeometry(page, 'name')).declared).toBe('');
   });
 
+  test('keeps a depth-6 name readable and editable with Name dragged to its floor', async ({
+    page,
+  }) => {
+    /*
+     * The combined case both cross-reviews asked for: the narrowest Name a
+     * drag can produce (its 200px floor) under the deepest indent the fixture
+     * draws — a depth-6 row spends the 24px share the Number column's cap
+     * withheld inside the Name cell — with a name long enough to need several
+     * lines. Each half is proven on its own elsewhere (the floor by the drag
+     * clamp, the share by the deep-plan outline case); nothing else proves
+     * the three survive each other.
+     *
+     * Watched red first, honestly: on a probe branch the width assertion was
+     * pointed at the pre-drag width — the drag's effect denied — and failed
+     * on `Expected: 397 / Received: 200` in CI's `pixels` (run 31434774350,
+     * 2026-08-10), the wrap and typing assertions standing behind it. Then
+     * this version, green on the same gesture.
+     */
+    await seedDeepBranch(page);
+    const deep = page.getByLabel('Name of 030.1.1.1.1.1.1', { exact: true });
+    await deep.fill('Reticulating the splines across every warehouse aisle end simultaneously');
+    await deep.blur();
+
+    // To the floor, from wherever this viewport lays Name out: aimed a step
+    // past it so the clamp is what stops the gesture, with the pointer still
+    // inside the viewport.
+    const before = await columnGeometry(page, 'name');
+    await dragColumnEdge(page, 'name', -(Math.ceil(before.laidOut) - FLEXIBLE_FLOOR + 20));
+    const cell = await columnGeometry(page, 'name');
+    expect(Math.round(cell.laidOut)).toBe(FLEXIBLE_FLOOR);
+
+    // Visible, wrapped vertically, and inside its own cell: the auto-sizing
+    // textarea answers a 168px writing width with more lines, never with an
+    // overflow — a shallow row's one-line box is the yardstick.
+    await expect(deep).toBeVisible();
+    const boxes = await page.evaluate(() => {
+      const boxFor = (label: string) => {
+        const node = document.querySelector(`[aria-label="${label}"]`);
+        if (!(node instanceof HTMLElement)) throw new Error(`${label} is not on screen`);
+        return node.getBoundingClientRect();
+      };
+      const deepBox = boxFor('Name of 030.1.1.1.1.1.1');
+      const deepCell = document
+        .querySelector('[aria-label="Name of 030.1.1.1.1.1.1"]')
+        ?.closest('td')
+        ?.getBoundingClientRect();
+      if (deepCell === undefined) throw new Error('the depth-6 row has no Name cell');
+      return {
+        deepHeight: deepBox.height,
+        deepRight: deepBox.right,
+        cellRight: deepCell.right,
+        shallowHeight: boxFor('Name of 040').height,
+      };
+    });
+    expect(boxes.deepHeight).toBeGreaterThan(boxes.shallowHeight);
+    expect(boxes.deepRight).toBeLessThanOrEqual(boxes.cellRight + 1);
+
+    // And typing still lands in it — an editor, not a picture of one.
+    await deep.click();
+    await page.keyboard.type('zz9');
+    await expect(deep).toHaveValue(/zz9/);
+  });
+
   test('paints the pinned block over the row that scrolls behind it, and stops there', async ({
     page,
   }) => {

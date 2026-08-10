@@ -462,9 +462,11 @@ export function clampColumnWidth(columnId: string, width: number, state: FrameLa
  */
 export function sizableColumn(columnId: string, state: FrameLayoutState): boolean {
   // Proof: this arm deleted, `says which ids can be sized at all…` failed on
-  // `expected false to be true` — and through the storage filter that reads
-  // this, a remembered Name width would be silently dropped on every reload.
-  // Watched, 2026-08-10; the storage half in `wbs-table.test.tsx`.
+  // `expected false to be true` — and on the storage production path, `lays a
+  // remembered Name width on the table itself, and leaves its <col> silent`
+  // (wbs-table.test.tsx) failed on `expected '200px' to be '300px'`: the
+  // stored entry silently dropped by the filter that reads this, the table
+  // opening as if nothing had been dragged. Both watched, 2026-08-10.
   if (FLEXIBLE_COLUMNS.has(columnId)) return true;
   try {
     defaultWidthFor(columnId, state);
@@ -917,8 +919,11 @@ export function flexibleCellStyle(
   if (!FLEXIBLE_COLUMNS.has(columnId)) return undefined;
   // Proof: the override dropped from this floor, `lays out, adds up, folds
   // and pins a dragged Name from the one number it resolved` failed on
-  // `expected { minWidth: 200 } to deeply equal { minWidth: 300 }`. Watched,
-  // 2026-08-10.
+  // `expected { minWidth: 200 } to deeply equal { minWidth: 300 }` — and on
+  // the rendered production path, `lays a remembered Name width on the table
+  // itself, and leaves its <col> silent` (wbs-table.test.tsx) failed on
+  // `expected '200px' to be '300px'`, the header Name cell's own min-width.
+  // Both watched, 2026-08-10.
   return { minWidth: state.columnWidthOverrides?.get(columnId) ?? FLEXIBLE_FLOOR };
 }
 

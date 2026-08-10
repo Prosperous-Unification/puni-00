@@ -112,6 +112,12 @@ and the test that observed it — written only after the observation.
       flexible override is in force (`tableWidthStyle`) — and the losing
       branch (the cell `width` declaration, the pinned Name width) is
       deleted, not left as dead config
+- [x] 5.4 (cross-review finding 1) The combined case: Name dragged to its
+      200px floor at the depth-6 fixture row — the 24px withheld share, a
+      several-line name — asserting the textarea visible, wrapped taller than
+      a one-line row, inside its cell, and taking typing. Watched red first
+      on a probe branch with the drag's effect denied: `Expected: 397 /
+Received: 200`, CI `pixels` run 31434774350, 2026-08-10
 - [x] 5.3 The existing envelope, fit-matrix and handle-set browser cases stay
       green, the handle-set case now expecting Name handled — observed in the
       same `pixels` runs: 115 of 116 passing with the one failure being 5.2's
