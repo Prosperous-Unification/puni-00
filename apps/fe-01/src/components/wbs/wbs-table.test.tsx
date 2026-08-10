@@ -7025,7 +7025,7 @@ describe('the widths this browser has dragged', () => {
       await dateTheRow();
       expect(laidOut()['not-before']).toBe('110px');
 
-      click('Reset column widths');
+      click('Reset layout');
 
       expect(laidOut()['not-before']).toBe('84px');
       expect(stored()).toBe(null);
@@ -7038,16 +7038,16 @@ describe('the widths this browser has dragged', () => {
     // <button …(3)></button> to be null` on a project nobody had dragged a
     // column in. Watched, 2026-08-09.
     await threeRoots();
-    expect(screen.queryByRole('button', { name: 'Reset column widths' })).toBe(null);
+    expect(screen.queryByRole('button', { name: 'Reset layout' })).toBe(null);
 
     cleanup();
     localStorage.clear();
     storedWidths({ number: 240 });
     await threeRoots();
-    expect(screen.getByRole('button', { name: 'Reset column widths' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Reset layout' })).toBeInTheDocument();
 
-    click('Reset column widths');
-    expect(screen.queryByRole('button', { name: 'Reset column widths' })).toBe(null);
+    click('Reset layout');
+    expect(screen.queryByRole('button', { name: 'Reset layout' })).toBe(null);
   });
 
   itDom('changes a width without rebuilding a single cell of the table', async () => {
@@ -7070,7 +7070,7 @@ describe('the widths this browser has dragged', () => {
     name.focus();
     fireEvent.change(name, { target: { value: 'Strip the old wir' } });
 
-    click('Reset column widths');
+    click('Reset layout');
 
     expect(laidOut().number).toBe('93px');
     expect(document.activeElement).toBe(screen.getByLabelText('Name of 010'));
@@ -7096,6 +7096,172 @@ describe('the widths this browser has dragged', () => {
       expect(laidOut().number).toBe('300px');
     });
     expect(localStorage.getItem(KEY)).toBe(JSON.stringify({ number: 240 }));
+  });
+});
+
+describe('the chart height this browser has dragged', () => {
+  /** Where the key lives for the project every test in here opens. */
+  const KEY = 'wbs.ganttHeight.p1';
+
+  const openTheChart = async (): Promise<HTMLElement> => {
+    await threeRoots();
+    fireEvent.click(screen.getByRole('button', { name: 'Gantt' }));
+    const panel = document.querySelector('[data-gantt-panel]');
+    if (!(panel instanceof HTMLElement)) throw new Error('no gantt panel rendered');
+    return panel;
+  };
+
+  itDom('opens the chart at the remembered height', async () => {
+    localStorage.setItem(KEY, '500');
+    const panel = await openTheChart();
+    expect(panel.style.height).toBe('500px');
+  });
+
+  itDom('opening a project does not change what is remembered about it', async () => {
+    // The write happens when a drag is let go of and at no other time; a
+    // sanitize-and-write-back on read would quietly rewrite a preference the
+    // reader never touched.
+    localStorage.setItem(KEY, '500');
+    await openTheChart();
+    expect(localStorage.getItem(KEY)).toBe('500');
+  });
+
+  itDom('refuses storage that is not a number, and drops the key', async () => {
+    // localStorage is user-editable, so what comes back is a claim.
+    localStorage.setItem(KEY, 'not a number at all');
+    const panel = await openTheChart();
+    expect(panel.style.height).toBe('');
+    expect(panel.classList.contains('max-h-[40vh]')).toBe(true);
+    expect(localStorage.getItem(KEY)).toBeNull();
+  });
+
+  itDom('refuses a height below the floor, and drops the key', async () => {
+    localStorage.setItem(KEY, '10');
+    const panel = await openTheChart();
+    expect(panel.style.height).toBe('');
+    expect(localStorage.getItem(KEY)).toBeNull();
+  });
+
+  itDom('refuses a height above the ceiling, and drops the key', async () => {
+    // `1e999` parses to Infinity, which is above the ceiling exactly as any
+    // huge finite number is — the range check is the only line either needs
+    // (T1's finiteness lesson).
+    localStorage.setItem(KEY, '99999');
+    const panel = await openTheChart();
+    expect(panel.style.height).toBe('');
+    expect(localStorage.getItem(KEY)).toBeNull();
+  });
+
+  /**
+   * jsdom has no pointer capture, so the call the real gesture depends on is
+   * filled in before the drag is driven. What these tests can see is the
+   * wiring — the height following the pointer, the commit, the fallback; the
+   * browser's own half (capture, hit-testing, a real from-height) is
+   * `e2e/gantt.spec.ts`'s.
+   */
+  const grabbable = (): HTMLElement => {
+    const handle = screen.getByRole('separator', { name: 'Resize the Gantt chart' });
+    handle.setPointerCapture = () => undefined;
+    return handle;
+  };
+
+  // A hand-built event, because jsdom's PointerEvent takes neither the
+  // `pointerId` nor the `clientY` an init dictionary hands it — the axis
+  // hover's `axisPointer` (gantt-panel.test.tsx) is the same shape for the
+  // same reason.
+  const heightPointer = (
+    name: 'pointerdown' | 'pointermove' | 'pointerup' | 'pointercancel',
+    pointerId: number,
+    clientY: number,
+  ): Event => {
+    const grab = new Event(name, { bubbles: true, cancelable: true });
+    Object.defineProperty(grab, 'pointerId', { value: pointerId });
+    Object.defineProperty(grab, 'clientY', { value: clientY });
+    return grab;
+  };
+
+  itDom('follows the pointer while dragged, and remembers where it was let go', async () => {
+    localStorage.setItem(KEY, '400');
+    const panel = await openTheChart();
+    const handle = grabbable();
+
+    fireEvent(handle, heightPointer('pointerdown', 7, 600));
+    fireEvent(handle, heightPointer('pointermove', 7, 550));
+
+    // Up 50px is 50px taller, and nothing is written while the drag is in
+    // flight — the write is the release's alone.
+    expect(panel.style.height).toBe('450px');
+    expect(localStorage.getItem(KEY)).toBe('400');
+
+    fireEvent(handle, heightPointer('pointerup', 7, 500));
+
+    expect(panel.style.height).toBe('500px');
+    expect(localStorage.getItem(KEY)).toBe('500');
+  });
+
+  itDom('a cancelled gesture falls back to the height last let go at', async () => {
+    localStorage.setItem(KEY, '400');
+    const panel = await openTheChart();
+    const handle = grabbable();
+
+    fireEvent(handle, heightPointer('pointerdown', 7, 600));
+    fireEvent(handle, heightPointer('pointermove', 7, 500));
+    expect(panel.style.height).toBe('500px');
+
+    fireEvent(handle, heightPointer('pointercancel', 7, 500));
+
+    expect(panel.style.height).toBe('400px');
+    expect(localStorage.getItem(KEY)).toBe('400');
+  });
+
+  itDom('another pointer’s move is not this drag', async () => {
+    localStorage.setItem(KEY, '400');
+    const panel = await openTheChart();
+    const handle = grabbable();
+
+    fireEvent(handle, heightPointer('pointerdown', 7, 600));
+    fireEvent(handle, heightPointer('pointermove', 8, 100));
+
+    expect(panel.style.height).toBe('400px');
+  });
+
+  itDom(
+    'a height override alone offers the reset, and pressing it forgets the height',
+    async () => {
+      localStorage.setItem(KEY, '500');
+      const panel = await openTheChart();
+      expect(panel.style.height).toBe('500px');
+
+      click('Reset layout');
+
+      expect(panel.style.height).toBe('');
+      expect(panel.classList.contains('max-h-[40vh]')).toBe(true);
+      expect(localStorage.getItem(KEY)).toBeNull();
+      expect(screen.queryByRole('button', { name: 'Reset layout' })).toBeNull();
+    },
+  );
+
+  itDom('one reset forgets the widths and the height together', async () => {
+    localStorage.setItem(KEY, '500');
+    localStorage.setItem('wbs.columnWidths.p1', JSON.stringify({ number: 240 }));
+    await openTheChart();
+
+    click('Reset layout');
+
+    expect(localStorage.getItem(KEY)).toBeNull();
+    expect(localStorage.getItem('wbs.columnWidths.p1')).toBeNull();
+  });
+
+  itDom('the reset sits in the toolbar row, not on a line of its own', async () => {
+    // The control joins the toolbar's own flex row — never `toolbarControls`,
+    // the array the Plan actions sheet renders (plan-cards.test.tsx holds that
+    // side) — and the line of its own between toolbar and table is gone.
+    localStorage.setItem(KEY, '500');
+    await openTheChart();
+
+    const reset = screen.getByRole('button', { name: 'Reset layout' });
+    expect(reset.parentElement?.hasAttribute('data-toolbar')).toBe(true);
+    expect(document.querySelector('[data-width-controls]')).toBeNull();
   });
 });
 

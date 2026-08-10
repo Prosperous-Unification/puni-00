@@ -775,6 +775,9 @@ describe('the toolbar sheet', () => {
      * Watched, 2026-08-09.
      */
     localStorage.setItem('wbs.columnWidths.p1', JSON.stringify({ number: 240 }));
+    // And a dragged chart height, so the absence below is about the whole
+    // layout reset rather than the widths half of it.
+    localStorage.setItem('wbs.ganttHeight.p1', '500');
     const api = fakeApi();
     widthIs(PHONE);
     render(<WbsTable projectId="p1" api={api} />);
@@ -786,7 +789,7 @@ describe('the toolbar sheet', () => {
     // below a fact about this control rather than about an empty dialog.
     expect(await screen.findByRole('button', { name: 'Add work item' })).toBeInTheDocument();
 
-    expect(screen.queryByRole('button', { name: 'Reset column widths' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Reset layout' })).toBeNull();
     // And no handle anywhere on the page: the cards have no column edges to
     // grab, and the table that does is not rendered at all.
     expect(document.querySelectorAll('[data-resize-handle]').length).toBe(0);

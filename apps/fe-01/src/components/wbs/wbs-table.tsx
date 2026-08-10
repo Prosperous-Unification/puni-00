@@ -62,7 +62,7 @@ import {
 import { FoldedRoleCard } from './folded-role-card';
 import { GanttFaultBoundary } from './gantt-fault';
 import type { GanttPlan, ServiceTeamLabel } from './gantt-geometry';
-import { GanttPanel } from './gantt-panel';
+import { clampedGanttHeight, GANTT_CEILING_PX, GANTT_MIN_PX, GanttPanel } from './gantt-panel';
 import { HoverPreview } from './hover-preview';
 import { type Command, commandChordIn, undoChord } from './keyboard-bindings';
 import { KeyboardCheatSheet, opensCheatSheet } from './keyboard-cheat-sheet';
@@ -608,6 +608,70 @@ function rememberExpansion(projectId: string, expanded: ExpandedState): void {
 const widthOverridesKey = (projectId: string): string => `wbs.columnWidths.${projectId}`;
 
 /**
+ * Where this browser remembers how tall one project's Gantt panel was dragged.
+ *
+ * Per project and per browser for {@link widthOverridesKey}'s reason: the
+ * chart's share of the screen is one reader's answer, and be-01 is never told
+ * about it.
+ */
+const ganttHeightKey = (projectId: string): string => `wbs.ganttHeight.${projectId}`;
+
+/**
+ * The panel height this browser last saved for `projectId`, or none where it
+ * has never saved one.
+ *
+ * The stored value is a claim, not a fact — user-editable storage read at a
+ * boundary. Anything that is not a number inside the same range the drag
+ * clamps to — {@link GANTT_MIN_PX} up to {@link GANTT_CEILING_PX}, the same
+ * constants, so the two cannot drift apart — takes the key with it and the
+ * panel opens at its default share. One comparison each way and no separate
+ * finiteness test in front of them: `1e999` parses to `Infinity`, which is
+ * above the ceiling exactly as `-Infinity` is below the floor, and JSON has no
+ * `NaN` (the line that could not fail, `T1 column-widths-drag`).
+ *
+ * Deliberately not the "unknown is not OK" throw, for {@link
+ * rememberedWidthOverrides}'s reason: the alternative is a chart nobody can
+ * open until they clear storage by hand, over a preference about its height.
+ */
+function rememberedGanttHeight(projectId: string): number | null {
+  const stored = localStorage.getItem(ganttHeightKey(projectId));
+  if (stored === null) return null;
+  const claimed = parsedOrNothing(stored);
+  // Proof: with this refusal deleted, `refuses storage that is not a number,
+  // and drops the key`, `refuses a height below the floor…` and `refuses a
+  // height above the ceiling…` (wbs-table.test.tsx) all failed — the panel
+  // drawn at the claimed height, the key still there. Watched, 2026-08-10.
+  if (typeof claimed !== 'number' || claimed < GANTT_MIN_PX || claimed > GANTT_CEILING_PX) {
+    localStorage.removeItem(ganttHeightKey(projectId));
+    return null;
+  }
+  return claimed;
+}
+
+/**
+ * Writes the panel height in force for `projectId`.
+ *
+ * Called when a drag is let go of and at no other time, for {@link
+ * rememberWidthOverrides}'s reason: opening a project must not change what is
+ * remembered about it.
+ */
+function rememberGanttHeight(projectId: string, heightPx: number): void {
+  localStorage.setItem(ganttHeightKey(projectId), JSON.stringify(heightPx));
+}
+
+/**
+ * Forgets the remembered panel height for `projectId` — the chart half of a
+ * {@link Layout reset}.
+ *
+ * `removeItem`, never a default written over it: what the panel returns to is
+ * its default share as it stands then, exactly as the columns return to what
+ * the frame layout resolves now.
+ */
+function forgetGanttHeight(projectId: string): void {
+  localStorage.removeItem(ganttHeightKey(projectId));
+}
+
+/**
  * The plan as it stands when the key is read, which is before a single row has
  * arrived.
  *
@@ -701,8 +765,8 @@ function rememberWidthOverrides(projectId: string, overrides: ReadonlyMap<string
 }
 
 /**
- * Forgets every remembered width for `projectId` — the storage half of a
- * {@link Width reset}.
+ * Forgets every remembered width for `projectId` — the widths half of a
+ * {@link Layout reset}.
  *
  * `removeItem`, never an empty object written over it. What the columns return
  * to is whatever the frame layout resolves for them *now*, and a snapshot
@@ -830,6 +894,108 @@ function ColumnResizeHandle({
         cursor: 'col-resize',
         // Or the frame under it takes a touch drag as a scroll and the column
         // never moves.
+        touchAction: 'none',
+        userSelect: 'none',
+      }}
+    />
+  );
+}
+
+/** What the handle on the Gantt panel's top edge does with the height its gesture works out. */
+interface GanttHeightResize {
+  /** Follows the pointer: how tall the panel is drawn while the drag is in flight. */
+  drag: (heightPx: number) => void;
+  /** The height the reader let go at, which is the one that is remembered. */
+  commit: (heightPx: number) => void;
+  /** A `pointercancel` — the browser took the gesture away — which leaves the height as it was. */
+  abandon: () => void;
+}
+
+/**
+ * The grab handle on the Gantt panel's top edge: dragging it up gives the
+ * chart more of the screen, dragging it down gives it back to the plan.
+ *
+ * {@link ColumnResizeHandle}'s shape turned on its side — pointer capture, the
+ * from-height taken **once** at `pointerdown`, the write held back to the
+ * release — and rendered by the shell **outside** {@link GanttFaultBoundary}
+ * on purpose: a chart that cannot be drawn costs the reader the chart, and
+ * must not cost them the edge that gives it its screen back.
+ *
+ * The height a new gesture counts from is the panel as the browser really laid
+ * it out — the override may be CSS-capped on a smaller screen than it was
+ * dragged on, and counting from the stored number would open every such
+ * gesture with a jump. jsdom lays nothing out and measures every box at 0, so
+ * a zero falls back to the override, then to the floor; the real from-height
+ * is provable only in Chromium (`e2e/gantt.spec.ts`).
+ */
+function GanttHeightHandle({
+  heightPx,
+  resize,
+}: {
+  /** The override in force, or `null` while the panel stands at its default share. */
+  heightPx: number | null;
+  resize: GanttHeightResize;
+}) {
+  const grabbed = useRef<{ pointerId: number; fromY: number; fromHeight: number } | null>(null);
+  const heightAt = (clientY: number, from: { fromY: number; fromHeight: number }): number =>
+    clampedGanttHeight(from.fromHeight + (from.fromY - clientY), window.innerHeight);
+
+  return (
+    <div
+      data-gantt-height-handle
+      role="separator"
+      aria-orientation="horizontal"
+      aria-label="Resize the Gantt chart"
+      title="Drag to resize the Gantt chart"
+      onPointerDown={(event) => {
+        // The browser's own answer to a press and a drag across the page is a
+        // text selection, and there is nothing in this strip to select.
+        event.preventDefault();
+        // Capture, for {@link ColumnResizeHandle}'s reason: a hand does not
+        // stay inside a 6px strip.
+        event.currentTarget.setPointerCapture(event.pointerId);
+        const panel = event.currentTarget.nextElementSibling;
+        // The panel, or the fault standing in for it — either way the box this
+        // gesture resizes. Absent means the handle was mounted without one,
+        // which is an invariant broken, not a state to default.
+        if (!(panel instanceof HTMLElement)) throw new Error('no chart under the height handle');
+        const measured = panel.getBoundingClientRect().height;
+        grabbed.current = {
+          pointerId: event.pointerId,
+          fromY: event.clientY,
+          fromHeight: measured > 0 ? measured : (heightPx ?? GANTT_MIN_PX),
+        };
+      }}
+      onPointerMove={(event) => {
+        const from = grabbed.current;
+        // A move with no grab behind it is the pointer crossing the strip, and
+        // a second pointer's move is somebody else's gesture: neither is this
+        // drag.
+        if (from?.pointerId !== event.pointerId) return;
+        resize.drag(heightAt(event.clientY, from));
+      }}
+      onPointerUp={(event) => {
+        const from = grabbed.current;
+        if (from?.pointerId !== event.pointerId) return;
+        grabbed.current = null;
+        resize.commit(heightAt(event.clientY, from));
+      }}
+      onPointerCancel={() => {
+        if (grabbed.current === null) return;
+        grabbed.current = null;
+        resize.abandon();
+      }}
+      className="shrink-0"
+      style={{
+        height: 6,
+        // Pulled over the panel's own top border so the grab strip and the
+        // drawn edge are one line, not a gap above it.
+        marginBottom: -6,
+        position: 'relative',
+        zIndex: 1,
+        cursor: 'row-resize',
+        // Or the frame under it takes a touch drag as a scroll and the
+        // boundary never moves.
         touchAction: 'none',
         userSelect: 'none',
       }}
@@ -1185,18 +1351,29 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
   /** Which project the widths above belong to, so a save cannot pair them with another. */
   const widthProject = useRef(projectId);
   /**
-   * Swaps the widths whole when the project does.
+   * The Gantt panel's dragged height, or `null` while this project's panel has
+   * never been dragged — which is the bounded default share, not a number.
+   *
+   * Read straight into the initial state for {@link widthOverrides}'s reason:
+   * an effect would open the chart at its default and move it a frame later.
+   */
+  const [ganttHeightPx, setGanttHeightPx] = useState<number | null>(() =>
+    rememberedGanttHeight(projectId),
+  );
+  /**
+   * Swaps the widths and the panel height whole when the project does.
    *
    * Not the expansion's effect, and not paired with a save: nothing is written
-   * here at all. The widths are written when a drag is let go of and when the
+   * here at all. Both are written when a drag is let go of and when the
    * reset is pressed, so there is no first-save-after-a-switch to guard against
-   * — only the read, which would otherwise leave one project's widths laid out
-   * over another's columns.
+   * — only the read, which would otherwise leave one project's layout laid out
+   * over another's.
    */
   useEffect(() => {
     if (widthProject.current === projectId) return;
     widthProject.current = projectId;
     setWidthOverrides(rememberedWidthOverrides(projectId));
+    setGanttHeightPx(rememberedGanttHeight(projectId));
   }, [projectId]);
   /**
    * What has been typed into the Find box.
@@ -2112,18 +2289,44 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     },
   };
 
+  /** What the handle on the Gantt panel's top edge does with the heights its gestures work out. */
+  const resizeGantt: GanttHeightResize = {
+    drag: (heightPx) => {
+      // Per move, so the boundary follows the pointer. Only the write below is
+      // held back to the end of the gesture.
+      setGanttHeightPx(heightPx);
+    },
+    commit: (heightPx) => {
+      setGanttHeightPx(heightPx);
+      rememberGanttHeight(projectId, heightPx);
+    },
+    abandon: () => {
+      // Re-read from storage rather than remembered in a ref, for
+      // {@link resizeColumn}'s reason: the storage is the last committed
+      // answer by construction.
+      setGanttHeightPx(rememberedGanttHeight(projectId));
+    },
+  };
+
   /**
-   * Forgets every width for this project, so each column returns to what the
-   * frame layout resolves for it **now**.
+   * Forgets every width **and** the panel height for this project, so each
+   * returns to what is resolved for it **now** — the columns to the frame
+   * layout's answer, the panel to its default share.
    *
-   * Forgotten, never frozen. Storing the widths as they stand would turn a
-   * reset into a rename of today's defaults, and a column whose default had
-   * moved since — `not-before` is 56px or 84px — would come back to the wrong
-   * one.
+   * Forgotten, never frozen. Storing either as it stands would turn a reset
+   * into a rename of today's defaults, and a column whose default had moved
+   * since — `not-before` is 56px or 84px — would come back to the wrong one.
+   *
+   * Proof: the height half deleted, `one reset forgets the widths and the
+   * height together` (wbs-table.test.tsx) failed on `expected '500' to be
+   * null` — the widths forgotten, the chart still holding its dragged share.
+   * Watched, 2026-08-10.
    */
-  function resetColumnWidths(): void {
+  function resetLayout(): void {
     setWidthOverrides(new Map());
     forgetWidthOverrides(projectId);
+    setGanttHeightPx(null);
+    forgetGanttHeight(projectId);
   }
 
   /**
@@ -5955,6 +6158,38 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
           className="mb-1.5 flex shrink-0 flex-wrap items-center gap-x-1.5 gap-y-1"
         >
           {toolbarControls}
+          {/*
+            The layout reset, and the whole of why it is **here** — the
+            toolbar row's own child — rather than in `toolbarControls`: that
+            array is rendered both in this row and in the Plan actions sheet,
+            so a control put there reaches the phone by construction — and a
+            phone is drawing cards, which have no columns to widen. This row
+            is rendered only when the sheet is not, so the sheet cannot see
+            it.
+
+            Offered only while there is something to forget — a dragged
+            column or a dragged chart edge. A control that provably does
+            nothing reads as a broken one. Proof of the height half: the
+            `ganttHeightPx` arm of the condition removed, `a height override
+            alone offers the reset…` failed on `Unable to find … "Reset
+            layout"`. Watched, 2026-08-10.
+
+            Proof of the placement: the reset moved into `toolbarControls`,
+            `plan-cards.test.tsx`'s `offers no width control at all, because a
+            card has no columns` failed on `expected <button …(2)></button> to
+            be null` — the control on the sheet at 390px. Watched, 2026-08-09.
+          */}
+          {(widthOverrides.size > 0 || ganttHeightPx !== null) && (
+            <Button
+              variant="outline"
+              size="sm"
+              type="button"
+              title="Forget the widths and the chart height dragged here, and lay the layout out at its own again"
+              onClick={resetLayout}
+            >
+              Reset layout
+            </Button>
+          )}
         </div>
       )}
 
@@ -6056,36 +6291,6 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         />
       ) : (
         <>
-          {/*
-            The width reset, and the whole of why it is **here** rather than in
-            `toolbarControls`: that array is rendered both in the desktop
-            toolbar row and in the Plan actions sheet, so a control put there
-            reaches the phone by construction — and a phone is drawing cards,
-            which have no columns to widen. This branch is the table renderer's
-            own, and the cards branch above cannot reach it.
-
-            Offered only while there is something to forget. A control that
-            provably does nothing reads as a broken one, and on a table nobody
-            has dragged a column in this one would.
-
-            Proof of the placement: the reset moved into `toolbarControls`,
-            `plan-cards.test.tsx`'s `offers no width control at all, because a
-            card has no columns` failed on `expected <button …(2)></button> to
-            be null` — the control on the sheet at 390px. Watched, 2026-08-09.
-          */}
-          {widthOverrides.size > 0 && (
-            <div data-width-controls className="mb-1.5 flex shrink-0 items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                type="button"
-                title="Forget the widths dragged here, and lay every column out at its own again"
-                onClick={resetColumnWidths}
-              >
-                Reset column widths
-              </Button>
-            </div>
-          )}
           {/*
             The table scrolls inside this, in both directions, so the page never
             scrolls sideways and the toolbar and the alerts above stay where they
@@ -6310,18 +6515,21 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         and the toggle that mounts it is in the same one toolbar the sheet
         opens.
       */}
+      {ganttOpen && <GanttHeightHandle heightPx={ganttHeightPx} resize={resizeGantt} />}
       {ganttOpen && (
         // The boundary wraps the panel and nothing else, which is the whole of
         // the degradation this feature is allowed: a chart that cannot be drawn
         // costs the reader the chart, never the editor above it. See
         // {@link GanttFaultBoundary} for why it resets on the read rather than
-        // on a key.
+        // on a key. The height handle above stands outside it for the same
+        // reason turned around: the fault must not take the drag with it.
         <GanttFaultBoundary generation={chartRead.generation}>
           <GanttPanel
             plan={ganttPlan}
             startDate={startDate}
             scheduleError={scheduleError}
             generation={chartRead.generation}
+            heightPx={ganttHeightPx}
             onPickRow={goToRow}
           />
         </GanttFaultBoundary>

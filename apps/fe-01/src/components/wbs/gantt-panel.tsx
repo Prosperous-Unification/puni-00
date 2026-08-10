@@ -7,6 +7,8 @@ import {
 } from '@wbs/domain/workday';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { cn } from '@/lib/utils';
+
 import {
   ASSUMED_UNESTIMATED_WORKDAYS,
   type EstimateTrio,
@@ -49,6 +51,43 @@ export const ROW_PX = 28;
 
 /** How wide the sticky-left column of row labels is, in CSS pixels. */
 const LABEL_COLUMN_PX = 176;
+
+/**
+ * The least height a drag may leave the panel at: the axis row and two chart
+ * rows, `3 × {@link ROW_PX}`. Below it the panel shows nothing worth keeping
+ * open, and a drag that went further is a gesture that got away — the handle
+ * stays where it is, still there to be dragged back.
+ */
+export const GANTT_MIN_PX = 3 * ROW_PX;
+
+/**
+ * The most height a stored drag is believed at: 80% of a 2160px display, the
+ * tallest viewport a height could honestly have been dragged on. Read by
+ * **both** the drag clamp and the stored-height check
+ * ({@link clampedGanttHeight} is the one function they share), so no drag can
+ * produce a height a reload would reject.
+ */
+export const GANTT_CEILING_PX = 0.8 * 2160;
+
+/**
+ * How much of the viewport's height an open chart may take: the live cap on a
+ * drag, and the CSS `max-height` a remembered height is applied under — so a
+ * height dragged on a tall monitor opens sane on a laptop, and the plan above
+ * always keeps a strip of the screen.
+ */
+export const GANTT_VIEWPORT_SHARE = 0.8;
+
+/**
+ * The height a drag — or a stored height claiming to be one — settles at:
+ * inside `[{@link GANTT_MIN_PX}, {@link GANTT_CEILING_PX}]` and no more than
+ * {@link GANTT_VIEWPORT_SHARE} of `viewportPx`. The floor wins over a viewport
+ * whose share is below it: a panel under the floor shows nothing, and on such
+ * a screen it is the CSS `max-height` that bounds what is drawn, not this.
+ */
+export function clampedGanttHeight(px: number, viewportPx: number): number {
+  const cap = Math.min(GANTT_CEILING_PX, GANTT_VIEWPORT_SHARE * viewportPx);
+  return Math.max(GANTT_MIN_PX, Math.min(px, cap));
+}
 
 /**
  * How much of a row's height a bar leaves empty above and below it, in rows.
@@ -759,7 +798,14 @@ function notBeforeWords(startDate: IsoDate | null, offset: number): string {
  * @throws GanttDataError out of {@link layOutGantt} when the payload's slices
  * name something the payload has not got. See there.
  */
-export function GanttPanel({ plan, startDate, scheduleError, generation, onPickRow }: GanttProps) {
+export function GanttPanel({
+  plan,
+  startDate,
+  scheduleError,
+  generation,
+  heightPx,
+  onPickRow,
+}: GanttProps) {
   // The cycle answer is a different panel rather than a branch inside one, and
   // that is what lets {@link GanttChart} hold its hooks unconditionally: this
   // component has none, so the early return below cannot be a hook order that
@@ -775,7 +821,13 @@ export function GanttPanel({ plan, startDate, scheduleError, generation, onPickR
     );
   }
   return (
-    <GanttChart plan={plan} startDate={startDate} generation={generation} onPickRow={onPickRow} />
+    <GanttChart
+      plan={plan}
+      startDate={startDate}
+      generation={generation}
+      heightPx={heightPx}
+      onPickRow={onPickRow}
+    />
   );
 }
 
@@ -797,6 +849,13 @@ interface GanttProps {
    * numbers of a read that has been replaced.
    */
   generation: number;
+  /**
+   * The panel height override in force, or `null` while nothing has been
+   * dragged — which keeps the bounded default share, and stores nothing.
+   * A number is applied as the panel's own height under the
+   * {@link GANTT_VIEWPORT_SHARE} cap.
+   */
+  heightPx: number | null;
   /** Takes the plan to a row — the caller decides what "takes" means. */
   onPickRow: (rowId: string) => void;
 }
@@ -825,7 +884,13 @@ interface OpenSurface {
  * Separate from {@link GanttPanel} for the cycle answer's sake alone; see
  * there.
  */
-function GanttChart({ plan, startDate, generation, onPickRow }: Omit<GanttProps, 'scheduleError'>) {
+function GanttChart({
+  plan,
+  startDate,
+  generation,
+  heightPx,
+  onPickRow,
+}: Omit<GanttProps, 'scheduleError'>) {
   // How far the chart is scrolled, in CSS pixels. Held only so the caption can
   // name the month actually on screen.
   const [scrolledPx, setScrolledPx] = useState(0);
@@ -951,8 +1016,18 @@ function GanttChart({ plan, startDate, generation, onPickRow }: Omit<GanttProps,
       // and this takes a bounded share of what is left, so neither the page nor
       // the section it sits in ever scrolls sideways. `shrink-0` with a max
       // height rather than a flex basis — the table stays the editor and the
-      // chart takes what it needs up to the cap.
-      className="border-border max-h-[40vh] shrink-0 overflow-auto border-t"
+      // chart takes what it needs up to the cap. A dragged height replaces the
+      // bounded share with its own number, under the live cap that keeps a
+      // height dragged on a tall monitor sane on a laptop.
+      className={cn(
+        'border-border shrink-0 overflow-auto border-t',
+        heightPx === null && 'max-h-[40vh]',
+      )}
+      style={
+        heightPx === null
+          ? undefined
+          : { height: heightPx, maxHeight: `${String(GANTT_VIEWPORT_SHARE * 100)}vh` }
+      }
       onScroll={(scrollEvent) => {
         setScrolledPx(scrollEvent.currentTarget.scrollLeft);
         // The surface is a fixed layer and is not in this scroll box, so the

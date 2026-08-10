@@ -1361,3 +1361,86 @@ test.describe('a bar on a touch screen', () => {
  * all. FAULT F is the negative that does hold the behaviour, and it is the one
  * recorded.
  */
+
+test.describe('the chart edge the reader drags', () => {
+  /**
+   * Every `wbs.ganttHeight.*` value this page holds. The project's id is
+   * be-01's and unknown to the test, so the keys are found by their prefix —
+   * one project per fresh account means at most one entry.
+   */
+  const storedHeights = (page: Page): Promise<string[]> =>
+    page.evaluate(() =>
+      Object.keys(localStorage)
+        .filter((key) => key.startsWith('wbs.ganttHeight.'))
+        .map((key) => localStorage.getItem(key) ?? ''),
+    );
+
+  /**
+   * Grabs the edge, drags it `travel` px down (negative is up) with real
+   * moves, and measures the panel **before letting go**. Mid-flight, not
+   * after: the release commits the height on its own, so a follow that died
+   * would be papered over by the commit — this run's first negative, watched
+   * doing exactly that with the move application short-circuited and both
+   * tests green through it. The mid-drag height is what the pointer is owed.
+   */
+  async function dragTheEdge(page: Page, travel: number): Promise<Rect> {
+    const grip = await page.locator('[data-gantt-height-handle]').boundingBox();
+    if (grip === null) throw new Error('the height handle is not on the page');
+    const fromX = grip.x + grip.width / 2;
+    const fromY = grip.y + grip.height / 2;
+    await page.mouse.move(fromX, fromY);
+    await page.mouse.down();
+    await page.mouse.move(fromX, fromY + travel, { steps: 8 });
+    const midFlight = await rectOf(page, '[data-gantt-panel]');
+    await page.mouse.up();
+    return midFlight;
+  }
+
+  test('gives the chart the screen the pointer asks for, remembers it, and resets', async ({
+    page,
+  }) => {
+    await seedPlan(page, nextAccount());
+    await openTheChart(page);
+    const panelAtRest = await rectOf(page, '[data-gantt-panel]');
+    const planAtRest = await rectOf(page, '[data-table-frame]');
+
+    const inFlight = await dragTheEdge(page, -150);
+
+    // The chart followed the pointer while the button was still down, and is
+    // 150px taller once it is let go — the plan above gave that strip up; the
+    // section they share did not grow.
+    expect(Math.abs(inFlight.height - (panelAtRest.height + 150))).toBeLessThanOrEqual(1.5);
+    const panelDragged = await rectOf(page, '[data-gantt-panel]');
+    expect(Math.abs(panelDragged.height - (panelAtRest.height + 150))).toBeLessThanOrEqual(1.5);
+    const planDragged = await rectOf(page, '[data-table-frame]');
+    expect(planDragged.height).toBeLessThanOrEqual(planAtRest.height - 140);
+
+    // A reload reads the height back — the remembered claim, believed.
+    await page.reload();
+    await openTheChart(page);
+    const panelReloaded = await rectOf(page, '[data-gantt-panel]');
+    expect(Math.abs(panelReloaded.height - panelDragged.height)).toBeLessThanOrEqual(1.5);
+
+    // The reset returns the default share and forgets the key — pressed on
+    // the toolbar row, where the control lives.
+    await page.getByRole('button', { name: 'Reset layout' }).click();
+    const panelReset = await rectOf(page, '[data-gantt-panel]');
+    expect(Math.abs(panelReset.height - panelAtRest.height)).toBeLessThanOrEqual(1.5);
+    expect(await storedHeights(page)).toEqual([]);
+  });
+
+  test('stops at the floor, and is still there to be dragged back open', async ({ page }) => {
+    await seedPlan(page, nextAccount());
+    await openTheChart(page);
+
+    // Far past the bottom of the screen: a gesture that got away.
+    await dragTheEdge(page, 2000);
+    const floored = await rectOf(page, '[data-gantt-panel]');
+    expect(Math.abs(floored.height - 3 * ROW_PX)).toBeLessThanOrEqual(1.5);
+
+    // And the same edge gives the chart its screen back.
+    await dragTheEdge(page, -100);
+    const reopened = await rectOf(page, '[data-gantt-panel]');
+    expect(Math.abs(reopened.height - (3 * ROW_PX + 100))).toBeLessThanOrEqual(1.5);
+  });
+});

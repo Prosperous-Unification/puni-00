@@ -23,7 +23,10 @@ import {
   barLabelFor,
   barText,
   CHART_PAD_PX,
+  clampedGanttHeight,
   DAY_PX,
+  GANTT_CEILING_PX,
+  GANTT_MIN_PX,
   GanttPanel,
   initialsOf,
   monthWords,
@@ -275,6 +278,7 @@ describe('every mark on the chart lands on the calendar day its workday is', () 
         startDate={MONDAY_START}
         scheduleError={null}
         generation={0}
+        heightPx={null}
         onPickRow={() => undefined}
       />,
     );
@@ -331,6 +335,7 @@ describe('every mark on the chart lands on the calendar day its workday is', () 
         startDate={MONDAY_START}
         scheduleError={null}
         generation={0}
+        heightPx={null}
         onPickRow={() => undefined}
       />,
     );
@@ -368,6 +373,7 @@ describe('the chart is drawn in calendar days', () => {
         startDate={MONDAY_START}
         scheduleError={null}
         generation={0}
+        heightPx={null}
         onPickRow={() => undefined}
       />,
     );
@@ -400,6 +406,7 @@ describe('the chart is drawn in calendar days', () => {
         startDate={MONDAY_START}
         scheduleError={null}
         generation={0}
+        heightPx={null}
         onPickRow={() => undefined}
       />,
     );
@@ -470,6 +477,7 @@ describe('the chart is drawn in calendar days', () => {
         startDate={null}
         scheduleError={null}
         generation={0}
+        heightPx={null}
         onPickRow={() => undefined}
       />,
     );
@@ -507,6 +515,7 @@ describe('the chart is drawn in calendar days', () => {
         startDate={null}
         scheduleError={null}
         generation={0}
+        heightPx={null}
         onPickRow={() => undefined}
       />,
     );
@@ -546,6 +555,7 @@ describe('the chart is drawn in calendar days', () => {
         startDate={MONDAY_START}
         scheduleError={null}
         generation={0}
+        heightPx={null}
         onPickRow={() => undefined}
       />,
     );
@@ -590,6 +600,7 @@ describe('the chart is drawn in calendar days', () => {
         startDate={MONDAY_START}
         scheduleError={null}
         generation={0}
+        heightPx={null}
         onPickRow={() => undefined}
       />,
     );
@@ -626,6 +637,7 @@ describe('the chart is drawn in calendar days', () => {
         startDate={null}
         scheduleError={null}
         generation={0}
+        heightPx={null}
         onPickRow={() => undefined}
       />,
     );
@@ -665,6 +677,7 @@ describe('the chart is drawn in calendar days', () => {
         startDate={MONDAY_START}
         scheduleError={null}
         generation={0}
+        heightPx={null}
         onPickRow={() => undefined}
       />,
     );
@@ -714,6 +727,7 @@ describe('the chart is drawn in calendar days', () => {
         startDate={null}
         scheduleError={null}
         generation={0}
+        heightPx={null}
         onPickRow={() => undefined}
       />,
     );
@@ -748,6 +762,7 @@ describe('the chart is drawn in calendar days', () => {
         startDate={null}
         scheduleError={null}
         generation={0}
+        heightPx={null}
         onPickRow={() => undefined}
       />,
     );
@@ -772,6 +787,7 @@ describe('the chart is drawn in calendar days', () => {
         startDate={null}
         scheduleError={null}
         generation={0}
+        heightPx={null}
         onPickRow={() => undefined}
       />,
     );
@@ -813,6 +829,7 @@ describe('the chart is drawn in calendar days', () => {
         startDate={null}
         scheduleError={null}
         generation={0}
+        heightPx={null}
         onPickRow={() => undefined}
       />,
     );
@@ -856,6 +873,7 @@ describe('the chart is drawn in calendar days', () => {
         startDate={MONDAY_START}
         scheduleError={null}
         generation={0}
+        heightPx={null}
         onPickRow={() => undefined}
       />,
     );
@@ -883,6 +901,7 @@ describe('the chart is drawn in calendar days', () => {
         startDate={null}
         scheduleError={null}
         generation={0}
+        heightPx={null}
         onPickRow={() => undefined}
       />,
     );
@@ -921,6 +940,7 @@ describe('the chart is drawn in calendar days', () => {
         startDate={MONDAY_START}
         scheduleError={null}
         generation={0}
+        heightPx={null}
         onPickRow={() => undefined}
       />,
     );
@@ -947,6 +967,7 @@ describe('the chart is drawn in calendar days', () => {
         startDate={MONDAY_START}
         scheduleError={null}
         generation={0}
+        heightPx={null}
         onPickRow={() => undefined}
       />,
     );
@@ -1008,6 +1029,7 @@ describe('the chart is drawn in calendar days', () => {
         startDate={null}
         scheduleError="cycle"
         generation={0}
+        heightPx={null}
         onPickRow={() => undefined}
       />,
     );
@@ -1096,6 +1118,7 @@ describe('the marks that had to be seen', () => {
         startDate={startDate}
         scheduleError={null}
         generation={0}
+        heightPx={null}
         onPickRow={() => undefined}
       />,
     );
@@ -1209,6 +1232,7 @@ describe('the marks that had to be seen', () => {
         })}
         startDate={MONDAY_START}
         scheduleError={null}
+        heightPx={null}
         onPickRow={() => undefined}
       />,
     );
@@ -1336,6 +1360,7 @@ describe('the canvas holds every mark it draws', () => {
         startDate={MONDAY_START}
         scheduleError={null}
         generation={0}
+        heightPx={null}
         onPickRow={() => undefined}
       />,
     );
@@ -1366,6 +1391,7 @@ describe('the canvas holds every mark it draws', () => {
         startDate={MONDAY_START}
         scheduleError={null}
         generation={0}
+        heightPx={null}
         onPickRow={() => undefined}
       />,
     );
@@ -1407,6 +1433,7 @@ describe('the words on the bars are HTML over the chart', () => {
         startDate={MONDAY_START}
         scheduleError={null}
         generation={0}
+        heightPx={null}
         onPickRow={() => undefined}
       />,
     );
@@ -1451,6 +1478,7 @@ describe('the words on the bars are HTML over the chart', () => {
         startDate={null}
         scheduleError={null}
         generation={0}
+        heightPx={null}
         onPickRow={() => undefined}
       />,
     );
@@ -1493,6 +1521,7 @@ describe('the words on the bars are HTML over the chart', () => {
         plan={oneAssignedBar({ start: 5, finish: 6, duration: 1 })}
         startDate={null}
         scheduleError={null}
+        heightPx={null}
         onPickRow={() => undefined}
       />,
     );
@@ -1514,6 +1543,7 @@ describe('the words on the bars are HTML over the chart', () => {
         })}
         startDate={null}
         scheduleError={null}
+        heightPx={null}
         onPickRow={() => undefined}
       />,
     );
@@ -1531,6 +1561,7 @@ describe('the words on the bars are HTML over the chart', () => {
         })}
         startDate={null}
         scheduleError={null}
+        heightPx={null}
         onPickRow={() => undefined}
       />,
     );
@@ -1555,6 +1586,7 @@ describe('the words on the bars are HTML over the chart', () => {
         startDate={null}
         scheduleError={null}
         generation={0}
+        heightPx={null}
         onPickRow={() => undefined}
       />,
     );
@@ -1603,6 +1635,7 @@ describe('the words on the bars are HTML over the chart', () => {
         startDate={null}
         scheduleError={null}
         generation={0}
+        heightPx={null}
         onPickRow={() => undefined}
       />,
     );
@@ -1626,6 +1659,7 @@ describe('the axis is a calendar', () => {
         startDate={startDate}
         scheduleError={null}
         generation={0}
+        heightPx={null}
         onPickRow={() => undefined}
       />,
     );
@@ -1711,6 +1745,7 @@ describe('the axis is a calendar', () => {
         startDate={MONDAY_START}
         scheduleError={null}
         generation={0}
+        heightPx={null}
         onPickRow={() => undefined}
       />,
     );
@@ -2264,6 +2299,33 @@ describe('a chart that cannot be drawn', () => {
     expect(screen.getAllByLabelText(/^Name of /)).toHaveLength(4);
   });
 
+  itDom('leaves the drag handle standing, and dragging it still moves the boundary', async () => {
+    // The handle is the shell's and stands outside the boundary: a reader who
+    // shrank the chart to almost nothing and then hit a skew must still be
+    // able to drag it back open.
+    await showTheChart(MONDAY, { slices: SLICES_MISSING_A_PREDECESSOR });
+    expect(faultWords()).toContain('The chart cannot be drawn');
+
+    const handle = screen.getByRole('separator', { name: 'Resize the Gantt chart' });
+    // jsdom has no pointer capture; the browser half is e2e/gantt.spec.ts's.
+    // The events are hand-built for {@link axisPointer}'s reason: jsdom takes
+    // neither `pointerId` nor `clientY` from an init dictionary.
+    handle.setPointerCapture = () => undefined;
+    const grabAt = (name: string, clientY: number): Event => {
+      const grab = new Event(name, { bubbles: true, cancelable: true });
+      Object.defineProperty(grab, 'pointerId', { value: 3 });
+      Object.defineProperty(grab, 'clientY', { value: clientY });
+      return grab;
+    };
+    fireEvent(handle, grabAt('pointerdown', 600));
+    fireEvent(handle, grabAt('pointermove', 500));
+    fireEvent(handle, grabAt('pointerup', 500));
+
+    // 84 — the floor, which is what a drag counts from where jsdom lays
+    // nothing out — plus the 100px of travel.
+    expect(localStorage.getItem('wbs.ganttHeight.p1')).toBe('184');
+  });
+
   itDom('draws the chart again when the next read is whole', async () => {
     // The skew is one object the fake reads on every call, so moving it here is
     // a peer's next edit arriving — which is what a transient skew is.
@@ -2365,6 +2427,7 @@ describe('the caption follows the scroll', () => {
         startDate="2026-08-24"
         scheduleError={null}
         generation={0}
+        heightPx={null}
         onPickRow={() => undefined}
       />,
     );
@@ -2426,6 +2489,7 @@ describe('the arrows switch', () => {
         plan={everyMarkOnOneDay()}
         startDate={MONDAY_START}
         scheduleError={null}
+        heightPx={null}
         onPickRow={() => undefined}
       />,
     );
@@ -2519,6 +2583,7 @@ describe('a bar is named and operable without a mouse', () => {
         startDate={MONDAY_START}
         scheduleError={null}
         generation={0}
+        heightPx={null}
         onPickRow={picked}
       />,
     );
@@ -2604,6 +2669,7 @@ describe('one surface at a time, and it goes when its facts do', () => {
       startDate={MONDAY_START}
       scheduleError={null}
       generation={generation}
+      heightPx={null}
       onPickRow={() => undefined}
     />
   );
@@ -2770,6 +2836,7 @@ describe('the axis says its date, at the chart’s own speed', () => {
         startDate={startDate}
         scheduleError={null}
         generation={0}
+        heightPx={null}
         onPickRow={() => undefined}
       />,
     );
@@ -2915,10 +2982,73 @@ describe('the dates a bar says are printed by shortIsoDate and nothing else', ()
         startDate="2027-06-01"
         scheduleError={null}
         generation={0}
+        heightPx={null}
         onPickRow={() => undefined}
       />,
     );
 
     expect(linesOf(surfaceOn('strip-dev'))).toContain('1 Jun 2027 → 1 Jun 2027 · 1 day');
+  });
+});
+
+describe('the height a drag may settle at', () => {
+  // Pure arithmetic, no DOM: the same function is the drag's clamp and the
+  // stored-height check, so these cases bound both at once.
+  it('stops a drag below the floor at the floor', () => {
+    expect(clampedGanttHeight(10, 900)).toBe(GANTT_MIN_PX);
+    expect(clampedGanttHeight(-500, 900)).toBe(GANTT_MIN_PX);
+  });
+
+  it('stops a drag above the ceiling at the ceiling, however tall the screen', () => {
+    expect(clampedGanttHeight(99999, 100000)).toBe(GANTT_CEILING_PX);
+  });
+
+  it('keeps the chart to 80% of the viewport it is really on', () => {
+    expect(clampedGanttHeight(900, 1000)).toBe(800);
+  });
+
+  it('leaves a height every bound allows alone', () => {
+    expect(clampedGanttHeight(400, 1000)).toBe(400);
+  });
+
+  it('holds the floor even on a viewport whose 80% is below it', () => {
+    // 80% of 90px is 72, under the 84px floor: the floor wins, because a
+    // panel below it shows nothing worth keeping open — the CSS max-height
+    // is what keeps it on such a screen, not the clamp.
+    expect(clampedGanttHeight(84, 90)).toBe(GANTT_MIN_PX);
+  });
+});
+
+describe('the height the panel is drawn at', () => {
+  const panelAt = (heightPx: number | null): HTMLElement => {
+    render(
+      <GanttPanel
+        plan={planOf({
+          rows: [rowAt('r1', 0, 2, { number: '010', name: 'One' })],
+          slices: [sliceAt('r1-dev', 'r1', 0, 2)],
+        })}
+        startDate={null}
+        scheduleError={null}
+        generation={0}
+        heightPx={heightPx}
+        onPickRow={() => undefined}
+      />,
+    );
+    const panel = document.querySelector('[data-gantt-panel]');
+    if (!(panel instanceof HTMLElement)) throw new Error('no gantt panel rendered');
+    return panel;
+  };
+
+  itDom('keeps its bounded default share while nothing has been dragged', () => {
+    const panel = panelAt(null);
+    expect(panel.classList.contains('max-h-[40vh]')).toBe(true);
+    expect(panel.style.height).toBe('');
+  });
+
+  itDom('is drawn at the override, under the live viewport cap', () => {
+    const panel = panelAt(400);
+    expect(panel.style.height).toBe('400px');
+    expect(panel.style.maxHeight).toBe('80vh');
+    expect(panel.classList.contains('max-h-[40vh]')).toBe(false);
   });
 });

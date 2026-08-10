@@ -966,10 +966,10 @@ test.describe('the table, measured by a browser', () => {
     await scrollFrameTo(page, SCROLLED);
     // Nothing to reset until something has been dragged, so the control is not
     // there to be pressed: a button that provably does nothing reads as broken.
-    await expect(page.getByRole('button', { name: 'Reset column widths' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Reset layout' })).toHaveCount(0);
 
     await dragColumnEdge(page, 'number', 40);
-    await page.getByRole('button', { name: 'Reset column widths' }).click();
+    await page.getByRole('button', { name: 'Reset layout' }).click();
 
     expect((await columnGeometry(page, 'number')).declared).toBe(
       `${String(widthFor('number', SEEDED_PLAN))}px`,
@@ -979,7 +979,7 @@ test.describe('the table, measured by a browser', () => {
       number: declaredLeft('number'),
       name: declaredLeft('name'),
     });
-    await expect(page.getByRole('button', { name: 'Reset column widths' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Reset layout' })).toHaveCount(0);
   });
 
   test('offers a handle on every column the browser lays out at a declared width', async ({

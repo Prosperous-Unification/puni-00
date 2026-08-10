@@ -285,7 +285,7 @@ export class UnknownColumnError extends Error {
  * How wide the column with this id is laid out for this plan **before** the
  * reader has said otherwise, in px.
  *
- * The width table's own answer, which is what a {@link Width reset} returns a
+ * The width table's own answer, which is what a {@link Layout reset} returns a
  * column to and what {@link floorFor} takes the narrower of. Everything that
  * lays the table out wants {@link widthFor} instead — this one cannot see an
  * override, which is exactly why the reset can be "the width resolved now"
