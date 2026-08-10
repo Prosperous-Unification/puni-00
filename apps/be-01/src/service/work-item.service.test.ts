@@ -949,6 +949,44 @@ describe('the calendar — weekend edges and fractions of a day', () => {
     expect(await datesFor(second)).toEqual({ startsOn: '2026-08-10', endsOn: '2026-08-12' });
   });
 
+  it('keeps a zero-length row on its own start day, whole or fractional', async () => {
+    // Two sign-offs with nothing to do, each waiting on work that finishes
+    // where it stands: one at a whole workday, one at 3.4. `datesOf` reads
+    // each row's two ends through two different helpers, and this is where
+    // they have to meet — a zero-length span's last day is its first.
+    //
+    // Proof, twice, both watched 2026-08-11:
+    //
+    // - the clamp dropped at this call site (`lastWorkdayOf(0,
+    //   timing.earliestFinish)`): the whole-day gate's `endsOn` came back
+    //   `"2026-08-10"` where `"2026-08-11"` was owed — a row ending the day
+    //   before it starts. **Nothing else in the file saw it**: with the clamp
+    //   gone the other 71 cases passed, which is why this test exists.
+    // - the clamp reading the start a day up (`lastWorkdayOf(Math.ceil(
+    //   timing.earliestStart), …)`): the fractional gate failed on `expected
+    //   "2026-08-12" to be "2026-08-11"`, the whole-day pair untouched — the
+    //   half of this test the whole days cannot stand in for.
+    const wholeRunner = await add('Prime');
+    const wholeGate = await add('Sign off');
+    const partRunner = await add('Sand');
+    const partGate = await add('Approve');
+    await flatDaysOf(wholeRunner, 3);
+    await flatDaysOf(wholeGate, 0);
+    await flatDaysOf(partRunner, 3.4);
+    await flatDaysOf(partGate, 0);
+    await service.addDependency(wholeGate, OWNER, wholeRunner);
+    await service.addDependency(partGate, OWNER, partRunner);
+    await projects.update(projectId, { startDate: THURSDAY });
+
+    // Three whole days from the Thursday end on the Monday; the gate stands on
+    // the Tuesday after them, both ends.
+    expect(await datesFor(wholeRunner)).toEqual({ startsOn: '2026-08-06', endsOn: '2026-08-10' });
+    expect(await datesFor(wholeGate)).toEqual({ startsOn: '2026-08-11', endsOn: '2026-08-11' });
+    // 3.4 days end inside the Tuesday, and the gate shares that same Tuesday.
+    expect(await datesFor(partRunner)).toEqual({ startsOn: '2026-08-06', endsOn: '2026-08-11' });
+    expect(await datesFor(partGate)).toEqual({ startsOn: '2026-08-11', endsOn: '2026-08-11' });
+  });
+
   it('moves the dates and the printed figure together when the method changes', async () => {
     const id = await add('Strip');
     await service.setEstimate(id, OWNER, roleId, { optimistic: 2, realistic: 3, pessimistic: 10 });

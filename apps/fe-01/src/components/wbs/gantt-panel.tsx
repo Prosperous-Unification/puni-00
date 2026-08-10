@@ -569,12 +569,15 @@ function calendarAxis(startDate: IsoDate, horizon: number): AxisDay[] {
   // walk already knows. The origin is a workday by construction, so the first
   // cell takes 0.
   let workday = -1;
-  // `wholeDaysCovering` for the same reason the workday axis counts with it:
-  // one rule for how many cells a horizon needs. Here the placed horizon
-  // arrives already snapped through `calendarScale`, so the helper's own snap
-  // is a backstop rather than the guard — see `verify.md` in the
-  // `gantt-calendar-snap` change for why that fault has no reachable negative.
-  return Array.from({ length: wholeDaysCovering(horizon) }, (_, offset) => {
+  // A bare ceil, and **not** `wholeDaysCovering` — which the workday axis does
+  // count with, because there the horizon is the engine's own drifted numbers.
+  // The invariant here: this horizon is read off marks already placed by
+  // `calendarScale`, whose `startOf`/`endOf` snap before every discrete step,
+  // so nothing drifted survives to reach this ceil. A snap-aware helper on that
+  // input is protection whose absence no test can observe — R5 does not ship
+  // one. `gantt-calendar-snap`'s `verify.md` records the injection that stayed
+  // green and why.
+  return Array.from({ length: Math.ceil(horizon) }, (_, offset) => {
     const date = addCalendarDays(origin, offset);
     const weekend = isWeekend(date);
     if (!weekend) workday += 1;

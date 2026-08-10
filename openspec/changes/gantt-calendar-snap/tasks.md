@@ -58,3 +58,16 @@ Only `- [ ]` checkboxes are tracked by the apply phase.
 - [x] 6.2 `bunx nx format:check --all`, `bunx nx run-many -t test lint
 typecheck --parallel=2` and `bunx @fission-ai/openspec@1.3.0 validate
 --all --json` green; results in `verify.md`
+
+## 7. Cross-review fixes (2026-08-11)
+
+- [x] 7.1 be-01 `work-item.service.test.ts`: a zero-length row's dates on the
+      production path, at a whole start and at a fractional one — the clamp
+      dropped at `datesOf`'s call site and watched failing there **alone**
+      (71 other cases in the file green with it gone), then the clamp watched
+      reading the start a day up and only the fractional half failing
+- [x] 7.2 `calendarAxis` counts with `Math.ceil(horizon)` again, the invariant
+      written where the helper call was: R5 does not ship a changed check
+      whose absence no test can observe, and this one's injection stayed
+      green across all 1078 fe-01 cases. `workdayAxis` keeps
+      `wholeDaysCovering`, where the drifted horizon is real
