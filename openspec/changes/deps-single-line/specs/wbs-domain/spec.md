@@ -11,15 +11,31 @@ dependency listbox and the hover card open, and both popovers SHALL stay
 outside the strip — the strip is a clipper, and a popover inside it could
 never escape. The `<td>`'s popover clip exemption is untouched.
 
-The truncation cue SHALL be an unconditional CSS edge fade on the strip:
-declared whether or not anything is clipped and whether or not the picker is
-open, because "fade only when clipped" needs a `scrollWidth` measurement and a
-fade over an unclipped short row is invisible against the row background by
-construction. There SHALL be no `+N` marker and no measurement: nothing counts
-the hidden chips.
+The truncation cue SHALL be a CSS edge fade on the strip, applied at rest —
+whenever the picker is closed, whether or not anything is clipped. The rest
+condition is the picker's state and SHALL NOT be a measurement: "fade only
+when clipped" needs a `scrollWidth` read, and that is the door this
+requirement keeps shut. The fade SHALL be absent while the picker owns the
+cell: the strip wraps then, nothing is clipped, and the box spans the full
+width, so a fade there would dim the focus ring, the caret and the typed
+text. One cosmetic cost at rest is known and accepted pending eyes on dev:
+the box claims `width: 100%`, so a short row's placeholder tail sits under
+the fade. The fade assumes a physical right edge, and the strip SHALL pin
+`direction: ltr` to keep that true (the app is LTR-only today; a
+logical-direction mask is not portable gradient syntax). There SHALL be no
+`+N` marker and no measurement: nothing counts the hidden chips.
 
 While the picker owns the cell, the strip SHALL wrap as the cell always did,
 so nothing about typing, the open list, or the keyboard changes.
+
+At rest the chips' remove buttons SHALL be out of the tab order
+(`tabIndex -1`): a clipped chip is a native button a sequential Tab or a
+reader's focus walk would otherwise reach, invisible, and the browser may
+scroll the clipping strip to show what it focused — shifting the rested
+layout. With the picker open — the strip wrapped, every chip on screen —
+they SHALL be focusable again. The keyboard path to removal is unchanged:
+Tab enters the cell at the box, the picker opens on the focus, and the chips
+are visible and focusable.
 
 The full list SHALL stay readable where it already lives: the `DependsCard`
 hover and the box's sr-only `Waiting for …` description.
@@ -49,11 +65,23 @@ This supersedes two recorded requirements, by name:
   visible edge, and a hit test at its centre answers something other than the
   chip, while the same probe on an unclipped chip answers the chip itself
 
-#### Scenario: the fade is unconditional
+#### Scenario: the fade belongs to rest
 
-- **WHEN** the cell rests with nothing clipped, or the picker is open
-- **THEN** the edge fade is declared on the strip all the same, and nothing
-  measures whether it was needed
+- **WHEN** the cell rests, with or without anything clipped
+- **THEN** the edge fade is declared on the strip, and nothing measures
+  whether it was needed
+
+#### Scenario: the fade leaves with the picker
+
+- **WHEN** the picker owns the cell
+- **THEN** no fade is declared on the strip — the strip has wrapped, and the
+  box's focus ring, caret and typed text are undimmed
+
+#### Scenario: a clipped chip cannot take the focus
+
+- **WHEN** the cell rests and Tab or a reader's focus walk passes it
+- **THEN** no chip remove button takes the focus, and with the picker open —
+  every chip on screen — the same buttons are focusable again
 
 #### Scenario: the popovers stay outside the clipper
 

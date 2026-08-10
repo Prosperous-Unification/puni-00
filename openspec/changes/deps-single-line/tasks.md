@@ -60,13 +60,37 @@ Only `- [ ]` checkboxes are tracked by the apply phase.
       PR #35: `pixels pass 5m29s`, 114 e2e tests, both `deps-cell.spec.ts`
       tests green by name in the job log, 2026-08-10
 
-## 4. Gate
+## 4. Review fixes (codex + agy, 2026-08-10, decisions made by the coordinator)
 
-- [x] 4.1 `bunx nx format:check --all`, the run-many gate
+- [x] 4.a The fade becomes **rest-only** — applied when `picker === null`, a
+      state condition, never a measurement (the plan's "unconditional" claim
+      was wrong in this implementation: the box's `width: 100%` puts the
+      focus ring, caret and typed text under the mask while the picker is
+      open, and a short row's placeholder tail under it at rest — the tail
+      stays, recorded in the delta spec as known and cosmetic, awaiting eyes
+      on dev). Test renamed to `keeps the truncation fade on the rested
+strip, and off the open one`, asserting the fade present at rest and
+      **absent** with the picker open; negatives re-watched: the fade
+      deleted → red at rest; applied unconditionally → red with the picker
+      open
+- [x] 4.b Clipped chips out of the tab order at rest: `tabIndex={-1}` on the
+      chip ✕ buttons while `picker === null`, focusable again with the
+      picker open (strip wrapped, chips visible) — test: `keeps clipped
+chips out of the tab order at rest`, both states; negative: the
+      condition dropped → watched failing on `expected +0 to be -1`
+- [x] 4.c The strip pins `direction: 'ltr'` — the mask fades a physical
+      right edge, and a logical-direction mask is not portable gradient
+      syntax — asserted in the one-line-rest test
+- [x] 4.d The one-line-rest jsdom fixture bumped to seven chips (the
+      deep-plan shape), all seven asserted inside the strip
+
+## 5. Gate
+
+- [x] 5.1 `bunx nx format:check --all`, the run-many gate
       (`test lint typecheck build`) and
       `bunx @fission-ai/openspec@1.3.0 validate --all --json` green;
       `verify.md` records the commands, their output, and the failure-proof
       table naming every injected fault above and the test that observed it
-- [ ] 4.2 Deploy to dev and Dany looks — a dependency-heavy plan whose rows
+- [ ] 5.2 Deploy to dev and Dany looks — a dependency-heavy plan whose rows
       all sit at one height, the fade saying "there is more", the hover card
       saying what

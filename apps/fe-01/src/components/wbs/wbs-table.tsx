@@ -356,18 +356,23 @@ const DEP_LIST_WIDTH = 260;
  * fade to transparent, so a line of chips that was clipped visibly runs out
  * rather than ending on what looks like the last chip.
  *
- * Declared **unconditionally** — clipped or not, picker open or not. "Fade
- * only when clipped" needs the `scrollWidth` measurement the `+N` marker was
- * rejected for, and a fade over an unclipped short row fades the strip's own
- * empty tail — the controls in this table are transparent at rest
- * (`styles.css`), so there is nothing there to see it on. A mask rather than
- * a painted gradient, so it holds over a tinted row (`--cell-bg`) as well as
- * a white one.
+ * Applied at **rest only** — whenever the picker is closed, clipped or not.
+ * The rest condition is the picker's state, never a measurement: "fade only
+ * when clipped" would need the `scrollWidth` read the `+N` marker was
+ * rejected for, and that door stays shut. It is not applied while the picker
+ * owns the cell, because the strip wraps then — nothing is clipped, there is
+ * nothing to cue, and the box spans the full width, so the mask would fade
+ * the focus ring, the caret and the typed text across the last 14px. One
+ * known cosmetic cost at rest: the box's `width: 100%` means a chipless
+ * row's placeholder tail sits under the fade — recorded in the delta spec,
+ * awaiting eyes on dev. A mask rather than a painted gradient, so it holds
+ * over a tinted row (`--cell-bg`) as well as a white one.
  *
- * Proof: this taken off the strip, `keeps the truncation fade on the strip,
- * rest and open alike` failed on `expected '' to contain 'linear-gradient'`;
- * made conditional on the closed picker, the same test failed the same way
- * with the picker open. Both watched, 2026-08-10.
+ * Proof, two faults, both watched 2026-08-10: this taken off the strip,
+ * `keeps the truncation fade on the rested strip, and off the open one`
+ * failed at rest on `expected '' to contain 'linear-gradient'`; applied
+ * unconditionally, the same test failed with the picker open on
+ * `expected 'linear-gradient(to right, #000 calc(1…' to be ''`.
  */
 const DEP_EDGE_FADE = 'linear-gradient(to right, #000 calc(100% - 14px), transparent)';
 
@@ -4533,10 +4538,11 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                 rest, whole while somebody is in it). `whiteSpace: 'nowrap'`
                 is not decoration beside `flexWrap`: it is what keeps a
                 squeezed chip's `✕` from folding under its number and growing
-                the one line into two. The fade is the truncation cue and it
-                is unconditional — {@link DEP_EDGE_FADE} says why. No `+N`
-                marker: counting hidden variable-width pills means real
-                layout measurement for marginal information.
+                the one line into two. The fade is the rest state's
+                truncation cue — {@link DEP_EDGE_FADE} says why it belongs to
+                rest and to nothing else. No `+N` marker: counting hidden
+                variable-width pills means real layout measurement for
+                marginal information.
 
                 Proof: the rest branch's `flexWrap` forced to `'wrap'`,
                 `clamps the chips and the box onto one nowrap line at rest`
@@ -4554,8 +4560,13 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                   gap: 2,
                   whiteSpace: 'nowrap',
                   overflow: 'hidden',
-                  WebkitMaskImage: DEP_EDGE_FADE,
-                  maskImage: DEP_EDGE_FADE,
+                  // Pinned, in one line: the mask above fades the *physical*
+                  // right edge — the app is LTR-only today, and a
+                  // logical-direction gradient is not portable syntax.
+                  direction: 'ltr',
+                  ...(picker === null
+                    ? { WebkitMaskImage: DEP_EDGE_FADE, maskImage: DEP_EDGE_FADE }
+                    : {}),
                 }}
               >
                 {waitingFor.map(({ id, number }) => (
@@ -4564,6 +4575,19 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                     type="button"
                     aria-label={`Stop ${row.original.number} waiting for ${number}`}
                     title="Remove this dependency"
+                    // Out of the tab order while the strip is clipped: a
+                    // clipped chip is a native button a sequential Tab could
+                    // still reach, invisible, and the browser may scroll the
+                    // `overflow: hidden` strip to show what it focused —
+                    // shifting the rested layout. With the picker open the
+                    // strip wraps, every chip is on screen, and the ✕ is
+                    // focusable the way a visible button should be. Keyboard
+                    // removal is unchanged: Tab enters the cell at the box,
+                    // the picker opens on the focus, the chips are back.
+                    // Proof: the condition dropped (chips always focusable),
+                    // `keeps clipped chips out of the tab order at rest`
+                    // failed on `expected +0 to be -1`. Watched, 2026-08-10.
+                    tabIndex={picker === null ? -1 : undefined}
                     onClick={() =>
                       void live.current.run(() =>
                         live.current.api.removeDependency(row.original.id, id),
