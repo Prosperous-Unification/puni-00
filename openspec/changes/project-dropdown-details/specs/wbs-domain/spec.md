@@ -144,6 +144,19 @@ SHALL push it past the window edge or give the document a horizontal scroll.
 An entry too wide for that bound SHALL be truncated, and the entry SHALL carry
 its full untruncated text — name and meta — in a hover title.
 
+The half that truncates SHALL be the meta, never the name (amended 2026-08-10,
+Dany: a long owner name squeezed every project name to `New pr…` and the picker
+offered choices nobody could tell apart). The name SHALL be shown whole up to
+the listbox's own width; only a name wider than the listbox itself may clip at
+the box's edge, and the title still carries the whole of it.
+
+#### Scenario: the name is never the half that gives way
+
+- **GIVEN** a short project name owned by an account whose username is 32 wide
+  glyphs
+- **WHEN** the picker is opened in a browser
+- **THEN** the name is shown whole and the meta is the half that is clipped
+
 The bound SHALL be proven in a browser, at each width the header is required to
 fit one row at, against the widest entry be-01 can produce: a username of the
 longest length registration permits, in the widest glyphs it permits, beside a

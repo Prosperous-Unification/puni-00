@@ -76,6 +76,7 @@ function measureOpenListbox(page: Page): Promise<{
   pastRightEdge: number;
   pageOverflowX: number;
   entryOverflow: number;
+  nameOverflow: number;
   entryTitle: string;
 }> {
   return page.evaluate(() => {
@@ -85,16 +86,23 @@ function measureOpenListbox(page: Page): Promise<{
     if (entry === null) throw new Error('the open picker is offering nothing');
     const title = entry.getAttribute('title');
     if (title === null) throw new Error('the entry carries no title');
-    // The clipped span, not the row: `truncate` is on the two inner spans, and
-    // the `<li>` itself is a flex container that fits whatever they shrink to.
+    // The clipped span, not the row: `truncate` is on the meta span, and the
+    // `<li>` itself is a flex container that fits whatever its items come to.
     const clipped = [...entry.querySelectorAll('span')];
     const overflow = Math.max(...clipped.map((span) => span.scrollWidth - span.clientWidth));
+    // The name span alone, apart: the name is `shrink-0` and must never be
+    // the half that gives way — the meta is. A `shrink-0` span's own scroll
+    // and client widths agree even when it overflows its row, so a non-zero
+    // number here means the name went back to shrinking.
+    const nameSpan = clipped.at(0);
+    if (nameSpan === undefined) throw new Error('the entry holds no name span');
     return {
       pastRightEdge: Math.round(
         list.getBoundingClientRect().right - document.documentElement.clientWidth,
       ),
       pageOverflowX: document.documentElement.scrollWidth - document.documentElement.clientWidth,
       entryOverflow: overflow,
+      nameOverflow: nameSpan.scrollWidth - nameSpan.clientWidth,
       entryTitle: title,
     };
   });
@@ -409,12 +417,19 @@ test.describe('the open project picker, measured by a browser', () => {
     await page.setViewportSize({ width: 1280, height: 800 });
     await openPicker(page);
 
-    const { entryOverflow, entryTitle } = await measureOpenListbox(page);
+    const { entryOverflow, nameOverflow, entryTitle } = await measureOpenListbox(page);
 
     expect(
       entryOverflow,
       'the entry was not clipped, so its title is not standing in for anything',
     ).toBeGreaterThan(0);
+    // The half that clipped is the meta, never the name: a long owner used to
+    // squeeze every name to `New pr…` and the picker offered choices nobody
+    // could tell apart (Dany, 2026-08-10).
+    // Proof: `min-w-0 truncate` put back on the name span, this failed on
+    // `Expected: 0, Received: 277` while the entry still clipped. Watched in
+    // Chromium, 2026-08-10.
+    expect(nameOverflow, 'the name is the half that clipped; it must show whole').toBe(0);
     // The whole name and the whole meta, which is what makes the clipping
     // survivable: the owner is how two projects of one name are told apart, so
     // a title carrying the name alone would lose exactly the part that was cut.

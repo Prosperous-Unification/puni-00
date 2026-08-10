@@ -380,14 +380,20 @@ export function ProjectPage({ token, api: apiOverride, presence, account, nav }:
                     }}
                   >
                     {/*
-                      Both halves clip rather than either one pushing the list
-                      wider: `min-w-0` is what lets a flex item shrink below its
-                      content at all, and `truncate` is what it does then.
+                      The name is shown whole and the meta is the half that
+                      gives way — `shrink-0` here, `min-w-0 truncate` on the
+                      meta below. The other way round, a long owner name (an
+                      e2e run's generated account, say) squeezed every `New
+                      project …` to `New pr…` and the picker offered choices
+                      nobody could tell apart — Dany, 2026-08-10. A name wider
+                      than the listbox itself still clips at the box's edge
+                      (the viewport is the physical bound, and the `title`
+                      carries the full text); the meta never causes it.
                       `whitespace-nowrap` above stays — the entry is one line
                       whether it fits or not, and wrapping instead would make a
                       long name a two-row option rather than a clipped one.
                     */}
-                    <span className="min-w-0 truncate">{entry.name}</span>
+                    <span className="shrink-0">{entry.name}</span>
                     {/*
                       A real space in the text, not only the `gap` beside it: an
                       entry's accessible name is `Rewire the shed (kat · 1 Jun)`
