@@ -89,7 +89,8 @@ import {
   floorFor,
   frameLayout,
   type FrameLayoutState,
-  indentFor,
+  hierarchyIndentFor,
+  numberIndentFor,
   pinnedCellStyle,
   POPOVER_ROW_LAYER,
   sizableColumn,
@@ -4156,8 +4157,12 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
             // number to size it to instead, so a number past the envelope is
             // clipped by {@link CELL}'s `overflow: hidden` and read here. The
             // same bargain the short dates make.
+            // `numberIndentFor`, the capped half of the indent pair: this
+            // column's declared width is what the cap protects, and the share
+            // it withholds past `DEEPEST_INDENT` is carried by the Name cell
+            // beside it.
             title={row.original.number}
-            style={{ paddingLeft: indentFor(row.depth), whiteSpace: 'nowrap' }}
+            style={{ paddingLeft: numberIndentFor(row.depth), whiteSpace: 'nowrap' }}
           >
             {/*
               No triangles while a search is on. What is open during a search
@@ -4231,7 +4236,24 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                 // just opened.
                 live.current.setHoveredCell((current) => (current === nameCell ? null : current));
               }}
-              style={{ position: 'relative', display: 'block', maxWidth: '100%' }}
+              style={{
+                position: 'relative',
+                display: 'block',
+                maxWidth: '100%',
+                // The share of the indent the Number cell's cap withheld: zero
+                // until `DEEPEST_INDENT`, one step per level past it, so the
+                // outline the reader's eye adds up across the two cells —
+                // `hierarchyIndentFor` — keeps stepping right at every depth.
+                // On this cell and not the Number cell because Name is the
+                // flexible column: it has no declared width to outgrow and no
+                // pinned neighbour to be painted over.
+                // Proof: this line put back to `paddingLeft: 0` (the shipped
+                // state the cap flattened) — `hands the Name cell the share of
+                // the indent the Number cap withheld` failed on `expected
+                // { number: '48px', name: '0px' } to deeply equal { number:
+                // '48px', name: '12px' }`. Watched, 2026-08-10.
+                paddingLeft: hierarchyIndentFor(row.depth) - numberIndentFor(row.depth),
+              }}
             >
               <CellInput
                 aria-label={`Name of ${row.original.number}`}

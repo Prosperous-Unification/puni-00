@@ -7,7 +7,7 @@ import { type CellElement, cellKey } from './editable-grid';
 import type { CommitOutcome } from './live-editing';
 import { composeNameCell } from './name-notes';
 import type { PrintedDay } from './short-date';
-import { indentFor } from './table-frame';
+import { cardIndentFor } from './table-frame';
 import type { TreeRow } from './wbs-rows';
 
 /** One work item as the list draws it: the row, where it sits, and its branch. */
@@ -180,9 +180,12 @@ export function PlanCards({
             aria-label={`Work item ${row.number}`}
             // The outline, kept: a card list with no indent is a flat list of
             // rows whose numbers are the only thing saying what is under what.
-            // Capped by the `min-w-0` chain rather than by arithmetic — a
-            // deeply nested plan indents until the card stops shrinking.
-            style={{ marginLeft: indentFor(depth) }}
+            // `cardIndentFor` — the cards' own cap over the uncapped step: two
+            // levels past the Number column's, because nothing here overlaps,
+            // and no further, because the margin comes out of a 390px phone.
+            // The `min-w-0` chain still keeps a card from shrinking under its
+            // own content.
+            style={{ marginLeft: cardIndentFor(depth) }}
             className="border-border bg-card flex min-w-0 flex-col gap-2 rounded-lg border p-3"
           >
             <header className="flex items-center gap-2">

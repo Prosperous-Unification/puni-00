@@ -340,6 +340,18 @@ row's expander and its frozen-number lock; a number past it is clipped and kept 
 the cell's title. Measured by a browser, never chosen by reading the markup.
 _Avoid_: max width, longest value, cap
 
+**Number indent**:
+The capped share of a row's indent, drawn inside the Number cell: one step per level down
+to a stated deepest level, and flat past it, so the indent can never outgrow the column's
+declared width. One half of a pair with the hierarchy indent.
+_Avoid_: indent, padding, offset
+
+**Hierarchy indent**:
+A row's whole indent, one step per level with no cap. Surfaces with no declared column
+width to protect take it whole; the Name cell carries its difference from the number
+indent, so the outline keeps stepping right past the Number cell's cap.
+_Avoid_: full indent, real depth, uncapped padding
+
 **Column width override**:
 One column's width as this browser was told it by a drag, replacing the width the frame
 layout would otherwise resolve. Held per project, per browser, and never seen by anyone

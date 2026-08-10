@@ -2174,6 +2174,50 @@ describe('the chart mirrors the plan', () => {
  * is the test that says they cannot disagree — string for string, be-01's
  * printed dates against the panel's own.
  */
+describe('the label rail indents past the Number cap', () => {
+  itDom('steps one level at every depth, uncapped', () => {
+    // `hierarchyIndentFor` whole, not the Number cell's capped half: the rail
+    // has no 93px column to protect, and a rail on the capped indent drew a
+    // depth-5 row's label flush under its depth-4 parent's — the flattening
+    // `deep-indent` removes. jsdom watches the arithmetic arrive on the
+    // buttons; that padding really moves a label's text is a browser fact the
+    // e2e deep-plan fixture measures.
+    render(
+      <GanttPanel
+        plan={planOf({
+          rows: [
+            rowAt('root', 0, 1),
+            rowAt('four', 0, 1, { depth: 4 }),
+            rowAt('five', 0, 1, { depth: 5 }),
+            rowAt('six', 0, 1, { depth: 6 }),
+          ],
+          slices: [sliceAt('root-dev', 'root', 0, 1)],
+        })}
+        startDate={MONDAY_START}
+        scheduleError={null}
+        generation={0}
+        heightPx={null}
+        onPickRow={() => undefined}
+      />,
+    );
+
+    const railPad = (id: string): string => {
+      const label = document.querySelector<HTMLElement>(`[data-gantt-label="${id}"]`);
+      if (label === null) throw new Error(`no label on the rail for ${id}`);
+      return label.style.paddingLeft;
+    };
+
+    // Proof: the rail pointed back at the capped `numberIndentFor` — this
+    // failed on `expected '56px' to be '68px'` at depth 5. Watched,
+    // 2026-08-10.
+    expect(railPad('root')).toBe('8px');
+    expect(railPad('four')).toBe('56px');
+    // Past `DEEPEST_INDENT`, where the capped indent held both at 56px.
+    expect(railPad('five')).toBe('68px');
+    expect(railPad('six')).toBe('80px');
+  });
+});
+
 describe('the calendar axis agrees with the columns', () => {
   itDom('reads the same dates under a bar as the row’s Start and End cells', async () => {
     await showTheChart();

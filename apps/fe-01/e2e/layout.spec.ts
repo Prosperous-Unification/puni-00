@@ -11,8 +11,9 @@ import {
   FLEXIBLE_FLOOR,
   frameLayout,
   type FrameLayoutState,
-  indentFor,
+  hierarchyIndentFor,
   NUMBER_ENVELOPE,
+  numberIndentFor,
   PINNED_COLUMN_IDS,
   widthFor,
 } from '../src/components/wbs/table-frame';
@@ -1339,24 +1340,27 @@ test.describe('the table, measured by a browser', () => {
     // make a row several lines tall. Every one of those is a way a cell has
     // pushed its column wider than declared in the past.
     const addRow = page.getByRole('button', { name: 'Add work item' });
-    for (const number of ['030', '040', '050', '060', '070']) {
+    for (const number of ['030', '040', '050', '060', '070', '080', '090']) {
       await addRow.click();
       await expect(page.getByLabel(`Name of ${number}`)).toBeVisible();
     }
 
-    // Four levels deep, which is where `indentFor` stops. Two facts about the
-    // numbering decide every string below, and both cost a browser run to
-    // learn: Tab indents a row under its **previous sibling**, so getting one
-    // level deeper takes one more press; and every number is derived from
-    // position, so indenting a root **renumbers the roots after it** — which
-    // is why each chain starts at `040` again rather than at the row that was
-    // called `050` a moment ago. Guessing produced `030.1.1` from one press,
-    // and then `040.1` from a row that had quietly been renumbered.
+    // Six levels deep — two past `numberIndentFor`'s cap, which is the depth
+    // `deep-indent` is about. Two facts about the numbering decide every
+    // string below, and both cost a browser run to learn: Tab indents a row
+    // under its **previous sibling**, so getting one level deeper takes one
+    // more press; and every number is derived from position, so indenting a
+    // root **renumbers the roots after it** — which is why each chain starts
+    // at `040` again rather than at the row that was called `050` a moment
+    // ago. Guessing produced `030.1.1` from one press, and then `040.1` from
+    // a row that had quietly been renumbered.
     const chains = [
       ['040', '030.1'],
       ['040', '030.2', '030.1.1'],
       ['040', '030.2', '030.1.2', '030.1.1.1'],
       ['040', '030.2', '030.1.2', '030.1.1.2', '030.1.1.1.1'],
+      ['040', '030.2', '030.1.2', '030.1.1.2', '030.1.1.1.2', '030.1.1.1.1.1'],
+      ['040', '030.2', '030.1.2', '030.1.1.2', '030.1.1.1.2', '030.1.1.1.1.2', '030.1.1.1.1.1.1'],
     ];
     for (const chain of chains) {
       for (const [step, number] of chain.entries()) {
@@ -1368,9 +1372,82 @@ test.describe('the table, measured by a browser', () => {
       }
     }
 
-    const deep = page.getByLabel('Name of 030.1.1.1.1');
+    const deep = page.getByLabel('Name of 030.1.1.1.1.1.1');
     await deep.fill('Reticulating-the-splines-across-every-warehouse-aisle-end-simultaneously');
     await deep.blur();
+
+    // The outline the reader's eye adds up, one row per depth. No single
+    // element's edge moves at every level — the Number cell's padding is flat
+    // past its cap, and the Name cell's share is zero below it — so what is
+    // measured is the **sum** of the two: the Number cell's used padding plus
+    // how far the Name box stands from its own cell's edge. That sum is
+    // `hierarchyIndentFor`, and it must be strictly deeper at every level,
+    // depth 6 included — the two levels past the cap used to draw flush.
+    const outlineNumbers = [
+      '030',
+      '030.1',
+      '030.1.1',
+      '030.1.1.1',
+      '030.1.1.1.1',
+      '030.1.1.1.1.1',
+      '030.1.1.1.1.1.1',
+    ];
+    const outline = await page.evaluate((numbers) => {
+      return numbers.map((number) => {
+        const nameBox = document.querySelector(`[aria-label="Name of ${number}"]`);
+        const numberSpan =
+          nameBox?.closest('tr')?.querySelector<HTMLElement>(`span[title="${number}"]`) ?? null;
+        const nameCell = nameBox?.closest('td') ?? null;
+        if (!(nameBox instanceof HTMLElement) || numberSpan === null || nameCell === null) {
+          throw new Error(`no indent-carrying cells on screen for ${number}`);
+        }
+        return {
+          number,
+          numberIndent: Number.parseFloat(getComputedStyle(numberSpan).paddingLeft),
+          nameShare: nameBox.getBoundingClientRect().left - nameCell.getBoundingClientRect().left,
+        };
+      });
+    }, outlineNumbers);
+    for (const [depth, measured] of outline.entries()) {
+      // Each half is the arithmetic it claims: the capped indent on the
+      // Number cell, the withheld share in front of the Name box.
+      expect(measured.numberIndent, `${measured.number}'s Number indent`).toBe(
+        numberIndentFor(depth),
+      );
+      // Within half a pixel of the arithmetic — rect edges are sub-pixel.
+      expect(measured.nameShare, `${measured.number}'s Name share`).toBeCloseTo(
+        hierarchyIndentFor(depth) - numberIndentFor(depth) + (outline[0]?.nameShare ?? 0),
+        0,
+      );
+      // And the sum steps right at this level — strictly, which is the claim
+      // the capped indent broke past depth 4.
+      if (depth > 0) {
+        const shallower = outline[depth - 1];
+        expect(
+          measured.numberIndent + measured.nameShare,
+          `${measured.number} stands deeper than ${shallower.number}`,
+        ).toBeGreaterThan(shallower.numberIndent + shallower.nameShare);
+      }
+    }
+
+    // The Gantt label rail takes the uncapped indent whole — it has no 93px
+    // column to protect — so its own edge keeps stepping right to depth 6 too.
+    await page.getByRole('button', { name: 'Gantt', exact: true }).click();
+    await expect(page.locator('[data-gantt-labels]')).toBeVisible();
+    const railPads = await page.evaluate((numbers) => {
+      return numbers.map((number) => {
+        const label = [...document.querySelectorAll<HTMLElement>('[data-gantt-label]')].find(
+          (each) => each.textContent.startsWith(`${number} `),
+        );
+        if (label === undefined) throw new Error(`no label on the rail for ${number}`);
+        return Number.parseFloat(getComputedStyle(label).paddingLeft);
+      });
+    }, outlineNumbers);
+    for (const [depth, pad] of railPads.entries()) {
+      expect(pad, `the rail label at depth ${String(depth)}`).toBe(hierarchyIndentFor(depth) + 8);
+    }
+    await page.getByRole('button', { name: 'Gantt', exact: true }).click();
+    await expect(page.locator('[data-gantt-labels]')).toHaveCount(0);
 
     // Six more roots for 020 to wait for — its own subtree cannot supply them,
     // and an ancestor is a dependency be-01 refuses.
@@ -1685,7 +1762,9 @@ test.describe('the table, measured by a browser', () => {
     expect(needed.contentWidth).toBeGreaterThan(0);
     // Drawn at the indent the envelope names, or this measurement is about a
     // row at some other depth and the width it picks is that row's.
-    expect(needed.indent).toBe(`${String(indentFor(NUMBER_ENVELOPE.split('.').length - 1))}px`);
+    expect(needed.indent).toBe(
+      `${String(numberIndentFor(NUMBER_ENVELOPE.split('.').length - 1))}px`,
+    );
     // The declared width holds everything the cell has to draw: the indent, the
     // expander, the lock and two levels of number.
     expect(widthFor('number', SEEDED_PLAN)).toBeGreaterThanOrEqual(needed.contentWidth);

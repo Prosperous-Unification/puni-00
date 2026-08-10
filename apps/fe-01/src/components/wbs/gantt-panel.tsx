@@ -24,7 +24,7 @@ import {
 } from './gantt-geometry';
 import { type AnchorRect, HoverCard } from './hover-card';
 import { shortIsoDate } from './short-date';
-import { indentFor } from './table-frame';
+import { hierarchyIndentFor } from './table-frame';
 
 /**
  * How wide one workday is on screen, in CSS pixels.
@@ -1104,8 +1104,12 @@ function GanttChart({
               // is clicked` on the button no longer being findable by its
               // number. Watched, 2026-08-09.
               title={rowWords(label.number, label.name)}
-              // The house indent, so the chart's outline is the plan's outline.
-              style={{ height: ROW_PX, paddingLeft: indentFor(label.depth) + 8 }}
+              // The house indent, so the chart's outline is the plan's outline
+              // — `hierarchyIndentFor`, the uncapped half of the pair: this
+              // rail has no declared column width to protect, so a depth-6
+              // label stands two steps deeper than a depth-4 one, where the
+              // Number cell's capped indent would draw them flush.
+              style={{ height: ROW_PX, paddingLeft: hierarchyIndentFor(label.depth) + 8 }}
               className="hover:bg-accent block w-full truncate pr-2 text-left text-xs"
               onClick={() => {
                 onPickRow(label.id);
