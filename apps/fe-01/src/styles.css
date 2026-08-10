@@ -436,13 +436,24 @@
   }
 
   /*
-   * R5, deliberately absent on this head: the `tr[data-dep-lit]` rule that
-   * re-points `--cell-bg` to `--grid-dep-lit` is withheld so the `pixels` CI
-   * job can watch `e2e/hover-cards.spec.ts`'s three dependency-hover tests
-   * fail on the unmoved paint — the negative jsdom cannot see, because jsdom
-   * does not run this stylesheet. The next commit restores it and records
-   * both observations (`openspec/changes/dep-hover-highlights/verify.md`).
+   * A row some hovered Depends on cell is waiting for (`data-dep-lit`,
+   * written by `wbs-table.tsx`'s dependency hover). Re-points `--cell-bg` for
+   * the reason `tr:hover` does: the pinned cells' inline backgrounds follow
+   * the row only through that join. After `tr:hover` at equal specificity on
+   * purpose — the two never name the same row (a row does not wait for
+   * itself), but if that ever changes, "lit" should win over "under the
+   * pointer".
+   *
+   * Proof: this rule withheld from PR #38's first head (`ec1580e`) — the
+   * attribute set, the paint unchanged, jsdom green throughout — and the
+   * `pixels` job watched failing all three dependency-hover tests in
+   * `e2e/hover-cards.spec.ts` on the unmoved colour (`Expected: not
+   * "oklab(0.978225 …)"`, poll timeout). Watched, 2026-08-10;
+   * `openspec/changes/dep-hover-highlights/verify.md` has the runs.
    */
+  [data-grid] tbody tr[data-dep-lit] {
+    --cell-bg: var(--grid-dep-lit);
+  }
 
   /*
    * The separators. Horizontal everywhere, vertical only at the three

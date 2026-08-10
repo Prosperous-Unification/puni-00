@@ -70,7 +70,7 @@ Row 6 is the browser's and was watched in CI (see below).
 | `lights rows without remounting the cells under a half-typed name`        | **`depHover` added to the `columns` memo's dependency list**                                | `expected <textarea …(5)></textarea> to be <textarea …(5)></textarea>` — same label, different node: a remount    |
 | `emphasises the pill's entry in the card as a background, not bold`       | **`emphasisedId` hardcoded to `null`** — the pill hover never reaching the card             | `expected '' to be 'var(--grid-dep-lit)'`                                                                         |
 | `a collapsed dependency has no row to light, and the card still names it` | **the card's list narrowed to rows on screen** — `waitingFor` filtered to rendered `<tr>`s  | `Unable to find an accessible element with the role "tooltip"` — the hidden dependency dropped, the cell mute     |
-| the three hover tests in `e2e/hover-cards.spec.ts`                        | **the `tr[data-dep-lit]` rule withheld** from `styles.css` on the first PR head             | recorded below when the `pixels` job has been observed on both heads                                              |
+| the three hover tests in `e2e/hover-cards.spec.ts`                        | **the `tr[data-dep-lit]` rule withheld** from `styles.css` on the first PR head             | `pixels fail 5m51s` on `ec1580e` — all three red on the unmoved paint; see "Watched in CI" below                  |
 
 The five jsdom tests were also watched red before the implementation
 existed (each failed on an empty lit set or a missing card entry), then
@@ -78,6 +78,19 @@ green with it. Each restored guard carries a `Proof:` comment naming its
 fault and the figure it was watched failing on (the pill leave, `depLit`,
 the `emphasisedId` feed, `waitingFor`'s source, and the remount test's own
 comment).
+
+**Watched in CI** (PR #38, 2026-08-10). The red half: head `ec1580e`
+withheld the `tr[data-dep-lit]` rule — run 31434033908 concluded
+`gate pass 2m35s`, `pixels fail 5m51s`, with all three dependency-hover
+tests red by name on the unmoved paint (`Expected: not "oklab(0.978225
+-0.0000970799 -0.0010455)"`, `Timeout 10000ms exceeded while waiting on
+the predicate`) and every other e2e test in the new suite's file green.
+Two latent flakes in the tests' own reads were found in that run's shape
+and fixed before the restore head: a remembered colour could be captured
+mid-cross-fade (now `settledRowBg`, which waits for `getAnimations()` to
+empty before reading), and one change-poll compared two rows to each other
+instead of a row to its own rest. The green half is recorded here from the
+restore head's run.
 
 Two jsdom modelling notes, so the tests say what a browser does: a pill
 leave dispatched with jsdom's default `relatedTarget: null` reads to React
@@ -106,8 +119,16 @@ row`: seven chips, real area and real clipping asserted first, the
     the first PR head withholds the `tr[data-dep-lit]` rule so the job is
     watched red on exactly these tests (jsdom green throughout — the rule
     is invisible to it, which is why the negative has to be a browser's),
-    and the restoring head is watched green. Observations recorded here
-    when they land.
+    and the restoring head is watched green. The red half is recorded above
+    ("Watched in CI"); the green half's run is recorded there when it
+    lands.
+- **One pre-existing test failed on the red head's run and it is not this
+  change's.** `opens the folded figure in the same breath as the mouse
+  arrives` (the first test in the same file, untouched here) read `Dev for
+010No estimate yet…` — its seed's `2/3/8` estimate never reached be-01
+  for that throwaway account, a race in the seed, not in the hover. It had
+  been green on `main`'s runs and is watched on the restore head; if it
+  stays red there, it is its own investigation, not a cover for this one.
 - **The tint's look.** Whether 12% ring ink reads as "these rows" at
   arm's length is a judgement for eyes on dev (task 4.2); what is pinned
   is one shared declared tint, painted, distinct from each row's rest

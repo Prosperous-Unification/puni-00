@@ -292,6 +292,23 @@ const rowBg = (page: Page, number: string): Promise<string> =>
     .locator('td[data-column="name"]')
     .evaluate((cell) => getComputedStyle(cell).backgroundColor);
 
+/**
+ * The same colour, read only once the cell's 100ms background cross-fade has
+ * finished — a CSS transition registers on `getAnimations()` while it runs.
+ *
+ * Every *remembered* colour goes through this. A colour captured mid-fade —
+ * the rest shade read just after the pointer left the row, or the lit shade
+ * read the frame the light arrived — is a value no settled frame will ever
+ * show again, and an assertion against it fails on a timing nobody chose.
+ * The change-detection polls stay on {@link rowBg}: "has it moved off rest"
+ * is true mid-fade too, and sooner.
+ */
+async function settledRowBg(page: Page, number: string): Promise<string> {
+  const cell = rowOf(page, number).locator('td[data-column="name"]');
+  await expect.poll(() => cell.evaluate((td) => td.getAnimations().length)).toBe(0);
+  return cell.evaluate((td) => getComputedStyle(td).backgroundColor);
+}
+
 test.describe('hovering a dependency lights the rows it names', () => {
   /** A third row, waiting for the two the shared seed made. */
   async function seed030WaitingForBoth(page: Page): Promise<void> {
@@ -312,8 +329,8 @@ test.describe('hovering a dependency lights the rows it names', () => {
     await seed030WaitingForBoth(page);
     // The rest colours differ (banding), which is what makes the equality at
     // the bottom a claim about one shared tint rather than about any change.
-    const rest010 = await rowBg(page, '010');
-    const rest020 = await rowBg(page, '020');
+    const rest010 = await settledRowBg(page, '010');
+    const rest020 = await settledRowBg(page, '020');
 
     await page.getByLabel('Add a dependency to 030').hover();
 
@@ -326,7 +343,7 @@ test.describe('hovering a dependency lights the rows it names', () => {
     await expect.poll(() => rowBg(page, '020')).not.toBe(rest020);
     // One tint: a banded and an unbanded row land on the same colour, so the
     // rule re-pointed `--cell-bg` rather than nudging each row's own grey.
-    expect(await rowBg(page, '010')).toBe(await rowBg(page, '020'));
+    expect(await settledRowBg(page, '010')).toBe(await settledRowBg(page, '020'));
 
     await page.mouse.move(0, 0);
     await expect.poll(() => rowBg(page, '010')).toBe(rest010);
@@ -335,13 +352,14 @@ test.describe('hovering a dependency lights the rows it names', () => {
 
   test('a pill narrows the light to its row and tints its line in the card', async ({ page }) => {
     await seed030WaitingForBoth(page);
-    const rest020 = await rowBg(page, '020');
+    const rest010 = await settledRowBg(page, '010');
+    const rest020 = await settledRowBg(page, '020');
 
     await page.getByRole('button', { name: 'Stop 030 waiting for 010' }).hover();
 
     await expect(rowOf(page, '010')).toHaveAttribute('data-dep-lit', 'true');
     await expect(rowOf(page, '020')).not.toHaveAttribute('data-dep-lit', 'true');
-    await expect.poll(() => rowBg(page, '010')).not.toBe(await rowBg(page, '020'));
+    await expect.poll(() => rowBg(page, '010')).not.toBe(rest010);
     expect(await rowBg(page, '020')).toBe(rest020);
 
     // The card is open — the pill is inside the cell the card belongs to —
@@ -354,7 +372,7 @@ test.describe('hovering a dependency lights the rows it names', () => {
       exact: true,
     });
     const other = card.getByText('020 - Draft the replacement layout', { exact: true });
-    const litRow = await rowBg(page, '010');
+    const litRow = await settledRowBg(page, '010');
     expect(await emphasised.evaluate((line) => getComputedStyle(line).backgroundColor)).toBe(
       litRow,
     );
@@ -390,7 +408,7 @@ test.describe('hovering a dependency lights the rows it names', () => {
     await page.getByLabel('Name of 010').click();
     await page.getByLabel('Name of 010').blur();
     await page.mouse.move(0, 0);
-    const rest090 = await rowBg(page, '090');
+    const rest090 = await settledRowBg(page, '090');
 
     const probed = await page.evaluate(() => {
       const chip = document.querySelector('[aria-label="Stop 020 waiting for 090"]');

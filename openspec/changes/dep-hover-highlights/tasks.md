@@ -87,13 +87,18 @@ accessible element with the role "tooltip"` — the hidden dependency
       **proven by the PR's `pixels` CI job** — this host has no browser, so
       no local run is claimed (R5)
 
-- [ ] 3.2 The browser negative, watched red first in CI: the first PR head
+- [x] 3.2 The browser negative, watched red first in CI: the first PR head
       withholds the `tr[data-dep-lit]` rule from `styles.css` — the
       attribute set, the paint unchanged, jsdom green throughout — and the
       `pixels` job is watched failing all three tests above; the following
-      commit restores the rule and the job is watched green. The observed
-      run names, heads and failure text go here and in `verify.md` when
-      they land
+      commit restores the rule and the job is watched green. Red half
+      observed on PR #38, head `ec1580e` (run 31434033908, 2026-08-10):
+      `gate pass 2m35s`, `pixels fail 5m51s`, all three dependency-hover
+      tests failing by name on the unmoved paint (`Expected: not
+"oklab(0.978225 …)"`, `Timeout 10000ms exceeded while waiting on the
+predicate`). One pre-existing test failed in the same run on a seed
+      race (`verify.md`, "Not verified"). The green half is recorded in
+      `verify.md` when the restore head's run lands
 
 ## 4. Gate
 
