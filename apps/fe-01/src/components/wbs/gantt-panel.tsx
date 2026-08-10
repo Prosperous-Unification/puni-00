@@ -342,6 +342,34 @@ export function monthWords(date: IsoDate): string {
 }
 
 /**
+ * One axis cell's two lines: the date in words, then what kind of day it is.
+ *
+ * `Mon 17 Aug 2026` over `Workday 5` or `Weekend`; a cell of the dateless
+ * workday axis has only its number to say. Fixed English tables for
+ * {@link monthWords}' reason — a caption asserted by text cannot move with the
+ * machine's locale — and the weekday is read at UTC midnight the way
+ * `isWeekend` reads it, never through a bare `new Date(iso)`, whose parse
+ * moves the day by one in half the world's zones.
+ *
+ * @throws monthWords' error on a month no calendar has.
+ */
+export function axisDayWords(day: {
+  date: IsoDate | null;
+  workday: number | null;
+  offset: number;
+  weekend: boolean;
+}): string[] {
+  if (day.date === null) return [`Workday ${String(day.workday ?? day.offset)}`];
+  const weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const;
+  const weekday = weekdays[new Date(`${day.date}T00:00:00Z`).getUTCDay()];
+  const dated = `${weekday} ${String(Number(day.date.slice(8)))} ${monthWords(day.date)}`;
+  return [
+    dated,
+    day.weekend || day.workday === null ? 'Weekend' : `Workday ${String(day.workday)}`,
+  ];
+}
+
+/**
  * Somebody's initials: the first letter of their first and last names.
  *
  * What a bar too narrow for a name gets. Two letters at most, because a third
@@ -807,6 +835,10 @@ function GanttChart({ plan, startDate, generation, onPickRow }: Omit<GanttProps,
   // their shape is not designed yet; hiding them is the whole feature.
   const [arrowsShown, setArrowsShown] = useState(true);
   const [open, setOpen] = useState<OpenSurface | null>(null);
+  // The axis's own open card: which cell, and the rectangle it was placed
+  // against. Separate from the bars' state and mutually exclusive with it —
+  // each opener closes the other, so `getByRole('tooltip')` is singular.
+  const [openDay, setOpenDay] = useState<{ offset: number; anchor: AnchorRect } | null>(null);
   /** The opening that has been asked for and not yet happened. */
   const opening = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -817,6 +849,7 @@ function GanttChart({ plan, startDate, generation, onPickRow }: Omit<GanttProps,
   const dismiss = useCallback(() => {
     cancelOpening();
     setOpen(null);
+    setOpenDay(null);
   }, [cancelOpening]);
 
   // Every timer this panel started, stopped when it goes: a surface opening
@@ -843,6 +876,7 @@ function GanttChart({ plan, startDate, generation, onPickRow }: Omit<GanttProps,
   // {@link GanttProps.generation}.
   useEffect(() => {
     setOpen(null);
+    setOpenDay(null);
   }, [generation]);
 
   // At least one row of user space, so an empty plan still has a viewBox with a
@@ -900,7 +934,13 @@ function GanttChart({ plan, startDate, generation, onPickRow }: Omit<GanttProps,
    */
   const showSurface = (sliceId: string, mark: SVGRectElement): void => {
     const box = mark.getBoundingClientRect();
+    setOpenDay(null);
     setOpen({ sliceId, anchor: { left: box.left, top: box.top, bottom: box.bottom } });
+  };
+  const showDaySurface = (offset: number, cell: HTMLElement): void => {
+    const box = cell.getBoundingClientRect();
+    setOpen(null);
+    setOpenDay({ offset, anchor: { left: box.left, top: box.top, bottom: box.bottom } });
   };
 
   return (
@@ -1028,7 +1068,22 @@ function GanttChart({ plan, startDate, generation, onPickRow }: Omit<GanttProps,
                 {...(day.date === null ? {} : { 'data-axis-date': day.date })}
                 {...(day.workday === null ? {} : { 'data-axis-workday': day.workday })}
                 {...(day.weekend ? { 'data-axis-weekend': 'true' } : {})}
-                title={day.date ?? `Workday ${String(day.workday ?? day.offset)}`}
+                // No native `title`: one hint, and it is the card the pointer
+                // opens below — the browser's own tooltip would race it after
+                // a delay nobody chose (`instant-hovers`' rule, and Dany's
+                // ask: knowing the month must not take a second and a half).
+                onPointerOver={(pointer) => {
+                  // The bars' touch seam, on the axis: a tap synthesizes mouse
+                  // events, and only the pointer events say which they came
+                  // from.
+                  if (pointer.pointerType !== 'mouse') return;
+                  const cell = pointer.currentTarget;
+                  cancelOpening();
+                  opening.current = setTimeout(() => {
+                    showDaySurface(day.offset, cell);
+                  }, HOVER_OPEN_MS);
+                }}
+                onPointerOut={dismiss}
                 // The first day of each week reads as the heading it is, over
                 // the heavier gridline under it; a weekend cell is greyed back,
                 // like the column beneath it.
@@ -1479,6 +1534,28 @@ function GanttChart({ plan, startDate, generation, onPickRow }: Omit<GanttProps,
           ))}
         </HoverCard>
       )}
+      {/*
+        The axis cell's card: the date in words, because the cell itself has
+        room for two digits and the corner names only the month on screen. The
+        cell is found through the axis again rather than carried in the state —
+        an axis rebuilt under an open card (start date edited) answers with
+        the new cell or with nothing, never with a stale date.
+      */}
+      {openDay !== null &&
+        (() => {
+          const day = axis.find((cell) => cell.offset === openDay.offset);
+          if (day === undefined) return null;
+          const lines = axisDayWords(day);
+          return (
+            <HoverCard label={lines[0] ?? 'this day'} anchor={openDay.anchor}>
+              {lines.map((line) => (
+                <p key={line} className="text-xs">
+                  {line}
+                </p>
+              ))}
+            </HoverCard>
+          );
+        })()}
     </section>
   );
 }

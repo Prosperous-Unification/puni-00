@@ -1084,6 +1084,24 @@ test.describe('the surface a bar opens, as a browser places it', () => {
     await expect(surface(page)).toContainText('010.2');
   });
 
+  test('names an axis day’s month on hover, from the chart and not the browser', async ({
+    page,
+  }) => {
+    await seedPlan(page, nextAccount());
+    await openTheChart(page);
+
+    // A dated cell past the first weekend, hovered by a real mouse: the card
+    // is the chart's own `HoverCard`, portalled from a sticky axis inside an
+    // overflow scroller — the arrangement jsdom cannot hit-test. The month in
+    // words is the whole point of the card; the native title is gone, so the
+    // browser has nothing slower to show instead.
+    const cell = page.locator('[data-axis-day="7"]');
+    await cell.hover();
+    await expect(surface(page)).toBeVisible();
+    await expect(surface(page)).toContainText(/[A-Z][a-z]{2} \d{4}/);
+    await expect(cell).not.toHaveAttribute('title');
+  });
+
   test('flips a surface above a bar that has no room below it', async ({ page }) => {
     await seedPlan(page, nextAccount(), { extraRows: 16 });
     await openTheChart(page);

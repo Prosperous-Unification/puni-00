@@ -2759,6 +2759,135 @@ describe('one surface at a time, and it goes when its facts do', () => {
   });
 });
 
+describe('the axis says its date, at the chart’s own speed', () => {
+  const drawDated = (startDate: IsoDate | null) =>
+    render(
+      <GanttPanel
+        plan={planOf({
+          rows: [rowAt('strip', 0, 10)],
+          slices: [sliceAt('strip-dev', 'strip', 0, 10)],
+        })}
+        startDate={startDate}
+        scheduleError={null}
+        generation={0}
+        onPickRow={() => undefined}
+      />,
+    );
+
+  const axisPointer = (kind: 'mouse' | 'touch', name: 'pointerover' | 'pointerout'): Event => {
+    const event = new Event(name, { bubbles: true, cancelable: true });
+    Object.defineProperty(event, 'pointerType', { value: kind });
+    return event;
+  };
+
+  const cellAt = (offset: number): Element => {
+    const cell = document.querySelector(`[data-axis-day="${String(offset)}"]`);
+    if (cell === null) throw new Error(`no axis cell at offset ${String(offset)}`);
+    return cell;
+  };
+
+  itDom('names the day and its month after the chart’s delay, not the browser’s', () => {
+    vi.useFakeTimers();
+    try {
+      drawDated(MONDAY_START);
+      // Cell 7 is Monday 2026-08-17, workday 5 — past the first weekend, where
+      // a raw offset and a calendar day disagree.
+      fireEvent(cellAt(7), axisPointer('mouse', 'pointerover'));
+      act(() => {
+        vi.advanceTimersByTime(1000);
+      });
+      expect(linesOf(screen.getByRole('tooltip'))).toEqual(['Mon 17 Aug 2026', 'Workday 5']);
+      // One hint, and it is the card: the native title is gone.
+      expect(cellAt(7).getAttribute('title')).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  itDom('calls a Saturday a weekend, not a workday', () => {
+    vi.useFakeTimers();
+    try {
+      drawDated(MONDAY_START);
+      // Cell 5 is Saturday 2026-08-15: nobody's workday.
+      fireEvent(cellAt(5), axisPointer('mouse', 'pointerover'));
+      act(() => {
+        vi.advanceTimersByTime(1000);
+      });
+      expect(linesOf(screen.getByRole('tooltip'))).toEqual(['Sat 15 Aug 2026', 'Weekend']);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  itDom('says the workday alone when the plan is not on a calendar', () => {
+    vi.useFakeTimers();
+    try {
+      drawDated(null);
+      fireEvent(cellAt(5), axisPointer('mouse', 'pointerover'));
+      act(() => {
+        vi.advanceTimersByTime(1000);
+      });
+      expect(linesOf(screen.getByRole('tooltip'))).toEqual(['Workday 5']);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  itDom('opens nothing for a pointer that crosses the axis', () => {
+    vi.useFakeTimers();
+    try {
+      drawDated(MONDAY_START);
+      fireEvent(cellAt(7), axisPointer('mouse', 'pointerover'));
+      fireEvent(cellAt(7), axisPointer('mouse', 'pointerout'));
+      act(() => {
+        vi.advanceTimersByTime(1000);
+      });
+      expect(noSurface()).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  itDom('opens nothing for a pointer that is not a mouse', () => {
+    // The bars' touch seam, on the axis: Chromium synthesizes mouse events
+    // from a tap, and the pointer events are the only ones that say which
+    // they came from.
+    vi.useFakeTimers();
+    try {
+      drawDated(MONDAY_START);
+      fireEvent(cellAt(7), axisPointer('touch', 'pointerover'));
+      act(() => {
+        vi.advanceTimersByTime(1000);
+      });
+      expect(noSurface()).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  itDom('keeps one card on the page: the axis’s replaces a bar’s', () => {
+    vi.useFakeTimers();
+    try {
+      drawDated(MONDAY_START);
+      const bar = document.querySelector('[data-gantt-bar="strip-dev"]');
+      if (bar === null) throw new Error('no bar to rest on');
+      fireEvent(bar, axisPointer('mouse', 'pointerover'));
+      act(() => {
+        vi.advanceTimersByTime(1000);
+      });
+      fireEvent(cellAt(7), axisPointer('mouse', 'pointerover'));
+      act(() => {
+        vi.advanceTimersByTime(1000);
+      });
+      // `getByRole` throws where two match — this is the one-at-a-time
+      // assertion, and the card standing is the axis's.
+      expect(linesOf(screen.getByRole('tooltip'))[0]).toBe('Mon 17 Aug 2026');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
 describe('the dates a bar says are printed by shortIsoDate and nothing else', () => {
   itDom('prints a day in another year with that year on it', () => {
     // `shortIsoDate` drops the year only when it matches the reader's own, so a
