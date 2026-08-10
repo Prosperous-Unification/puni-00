@@ -4491,6 +4491,15 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         id: 'depends',
         header: 'Depends on',
         cell: ({ row }) => {
+          // From the tree (`dependenciesOf` walks `flat`), never from the
+          // rows on screen: a collapsed or filtered-out dependency has no row
+          // to light, and the card naming it is then the only place it is
+          // said at all.
+          // Proof: narrowed to entries with a rendered `<tr>`, `a collapsed
+          // dependency has no row to light, and the card still names it`
+          // failed on `Unable to find an accessible element with the role
+          // "tooltip"` — the hidden dependency dropped, the cell left with
+          // nothing to say. Watched, 2026-08-10.
           const waitingFor = live.current.dependenciesOf(row.original.dependsOn);
           const dependsCell = cellKey(row.original.id, 'depends');
           // This cell's picker, or null while it is closed or under another row.
@@ -4923,6 +4932,9 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                   // This cell's pill hover and no other's: a card is only on
                   // screen for the hovered cell, but the guard keeps a stale
                   // `depHover` from another row emphasising an entry here.
+                  // Proof: hardcoded to null, `emphasises the pill's entry in
+                  // the card as a background, not bold` failed on `expected
+                  // '' to be 'var(--grid-dep-lit)'`. Watched, 2026-08-10.
                   emphasisedId={
                     live.current.depHover?.rowId === row.original.id
                       ? live.current.depHover.pillId

@@ -6513,6 +6513,11 @@ describe('hovering a dependency lights the rows it names', () => {
     // the lot — dropping the focus to the body and the half-typed name with
     // it. The lit rows are asserted first so this cannot pass vacuously on a
     // hover that wrote nothing.
+    //
+    // Proof: `depHover` added to the `columns` memo's dependency list, this
+    // failed on `expected <textarea …(5)></textarea> to be <textarea
+    // …(5)></textarea>` — the same-labelled box a different node, the cell
+    // remounted under the typist. Watched, 2026-08-10.
     await planWhere030Waits();
     const input = screen.getByLabelText('Name of 010');
     input.focus();
