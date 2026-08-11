@@ -1621,6 +1621,31 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    */
   const [depHover, setDepHover] = useState<{ rowId: string; pillId: string | null } | null>(null);
   /**
+   * The same reading of the same cell, from the **keyboard**: whose Depends on
+   * cell holds the focus, and which of its pills has it.
+   *
+   * The light is the change's one visual answer to "what does this row wait
+   * for", and a hover-only answer is no answer to somebody who never touches a
+   * mouse. Focus is the keyboard's pointer, so it drives the same light through
+   * the same derivation ({@link WbsTable}'s `depLit` reads `depHover ??
+   * depFocus`) — the pointer's reading wins while both are live, because the
+   * pointer is where the eyes are.
+   *
+   * A second state rather than more writers on `depHover`, and that is the
+   * whole of why: focus and the pointer come and go independently, so one field
+   * would have a blur clearing a live hover and a mouseleave clearing a live
+   * focus. Two fields cannot interfere, and "the pointer wins" is then one
+   * `??` rather than a rule spread over four writers.
+   *
+   * **Sequential Tab reaches the box and not the chips.** `deps-single-line`
+   * holds a clipped chip out of the tab order on purpose — see the chips'
+   * `tabIndex` below — so the per-pill narrowing is reachable from focus
+   * wherever focus can land on a chip at all, and the cell-level light is what
+   * a Tab through the plan gets. That narrowing is stated in the change's spec
+   * rather than left to be discovered here.
+   */
+  const [depFocus, setDepFocus] = useState<{ rowId: string; pillId: string | null } | null>(null);
+  /**
    * The `@` mention open in a folded role's cell: whose cell, and what has been
    * typed after the `@`.
    *
@@ -4086,6 +4111,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     setDepPicker,
     depHover,
     setDepHover,
+    setDepFocus,
     openMenuRowId,
     setOpenMenuRowId,
     depEntriesFor,
@@ -4150,6 +4176,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     setDepPicker,
     depHover,
     setDepHover,
+    setDepFocus,
     openMenuRowId,
     setOpenMenuRowId,
     depEntriesFor,
@@ -4703,11 +4730,63 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                           : current,
                       );
                     }}
-                    onClick={() =>
+                    // The keyboard's reading of the same pill — see
+                    // {@link depFocus}. The enter/leave pair above, with focus
+                    // in place of the pointer, and one difference: the blur
+                    // *clears* where the leave widens. A leave means the
+                    // pointer is still in the cell (the wrapper's own leave is
+                    // what clears); a blur means nothing of the sort, and
+                    // widening on it would leave the cell lit forever once the
+                    // focus walked out of the plan from a chip. Focus moving
+                    // chip → box relights the cell from the box's own focus,
+                    // which fires after this blur.
+                    onFocus={() => {
+                      live.current.setDepFocus((current) =>
+                        current?.rowId === row.original.id && current.pillId === id
+                          ? current
+                          : { rowId: row.original.id, pillId: id },
+                      );
+                    }}
+                    onBlur={() => {
+                      live.current.setDepFocus((current) =>
+                        current?.rowId === row.original.id && current.pillId === id
+                          ? null
+                          : current,
+                      );
+                    }}
+                    onClick={() => {
+                      // This button *is* the pill, so the click unmounts it and
+                      // no `mouseleave` or `blur` of its own ever arrives: the
+                      // hover would stay on an id the cell no longer names and
+                      // keep the cut edge's row lit under a pointer that had
+                      // not moved. The pointer *is* still in the cell, so this
+                      // widens to the cell itself — exactly what the leave that
+                      // cannot fire would have done, which is why the light
+                      // goes to the remaining dependencies rather than out.
+                      // Focus is cleared instead, for the reason `onBlur` above
+                      // gives. `depLit` refuses a `pillId` the cell no longer
+                      // names as well: this end is the pointer's truth, that
+                      // end is the paint's.
+                      //
+                      // Proof: this widen dropped, `widens back to the
+                      // remaining dependencies when a pill is deleted under the
+                      // pointer` failed on `expected [] to deeply equal
+                      // ['020']` — the light gone from a cell the pointer was
+                      // still in. Watched, 2026-08-11.
+                      live.current.setDepHover((current) =>
+                        current?.rowId === row.original.id && current.pillId === id
+                          ? { rowId: row.original.id, pillId: null }
+                          : current,
+                      );
+                      live.current.setDepFocus((current) =>
+                        current?.rowId === row.original.id && current.pillId === id
+                          ? null
+                          : current,
+                      );
                       void live.current.run(() =>
                         live.current.api.removeDependency(row.original.id, id),
-                      )
-                    }
+                      );
+                    }}
                   >
                     {number} ✕
                   </button>
@@ -4742,10 +4821,28 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                       typed: '',
                       highlightId: null,
                     });
+                    // The keyboard's cell-level light — see {@link depFocus}.
+                    // This is the reachable half: Tab through the plan lands on
+                    // this box, and the rows the row waits for light while it
+                    // is here. Guarded on having something to say by the same
+                    // rule the wrapper's `mouseenter` uses.
+                    if (waitingFor.length > 0) {
+                      live.current.setDepFocus({ rowId: row.original.id, pillId: null });
+                    }
                   }}
                   onBlur={() => {
                     live.current.setDepPicker((current) =>
                       current?.rowId === row.original.id ? null : current,
+                    );
+                    // Only the cell-level focus this box owns. `pillId === null`
+                    // in the guard and not just the row: focus moving box → chip
+                    // fires this blur *before* the chip's focus, and without the
+                    // field in the guard a later blur could not tell its own
+                    // reading from the chip's.
+                    live.current.setDepFocus((current) =>
+                      current?.rowId === row.original.id && current.pillId === null
+                        ? null
+                        : current,
                     );
                   }}
                   onChange={(e) => {
@@ -4934,7 +5031,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                   // `depHover` from another row emphasising an entry here.
                   // Proof: hardcoded to null, `emphasises the pill's entry in
                   // the card as a background, not bold` failed on `expected
-                  // '' to be 'var(--grid-dep-lit)'`. Watched, 2026-08-10.
+                  // '' to be 'var(--card-dep-lit)'`. Watched, 2026-08-11.
                   emphasisedId={
                     live.current.depHover?.rowId === row.original.id
                       ? live.current.depHover.pillId
@@ -5814,29 +5911,53 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
   const shownRows = table.getRowModel().rows.filter((row) => search.visibleIds.has(row.id));
 
   /**
-   * The rows the dependency hover lights, by id — the {@link depHover} row's
-   * whole waited-for set while the pointer is on the cell, the one pill's row
-   * while it is on a pill.
+   * The rows the dependency hover lights, by id — the read row's whole
+   * waited-for set while the pointer or the focus is on the cell, the one
+   * pill's row while it is on a pill.
    *
-   * Derived from the hovered row's `dependsOn` and never from its own id: the
-   * hovered row is the *successor*, and lighting it would answer "what does
-   * this wait for" by pointing at the question. A dependency whose row is
-   * collapsed or filtered out is in this set and on no shown `<tr>`, so
-   * nothing lights — the hover card still names it, which is the guarantee. A
-   * hovered row the tree no longer holds lights nothing, modeled rather than
-   * thrown: a hover can outlive its row by one refetch, exactly as
-   * {@link goToRow}'s absences can.
+   * `depHover ?? depFocus`: the pointer's reading wins over the keyboard's
+   * while both are live, because the pointer is where the eyes are. See
+   * {@link depFocus} for why they are two states and not one.
+   *
+   * Derived from the read row's `dependsOn` and never from its own id: that row
+   * is the *successor*, and lighting it would answer "what does this wait for"
+   * by pointing at the question. Nothing here filters the row back out of its
+   * own dependency set, because nothing can put it there: `be-01`'s dependency
+   * service refuses an edge that closes a cycle (`service/dependency.ts`), and
+   * a row waiting for itself is the shortest cycle there is. The guarantee is
+   * upstream-enforced, and the change's spec says so.
+   *
+   * A dependency whose row is collapsed or filtered out is in this set and on
+   * no shown `<tr>`, so nothing lights — the hover card still names it, which
+   * is the guarantee. A read row the tree no longer holds lights nothing,
+   * modeled rather than thrown: a hover can outlive its row by one refetch,
+   * exactly as {@link goToRow}'s absences can.
+   *
+   * **`pillId` is checked against the cell, not trusted.** It is a remembered
+   * id, and the edge under it can be cut while the pointer is still on the
+   * strip — the ✕ *is* the pill, so a click unmounts the element and the
+   * `mouseleave` that would have cleared the id never fires. The chip's
+   * `onClick` widens the hover back to the cell for that case; this is the
+   * other end of it, and it is what makes the derivation total over remembered
+   * state rather than dependent on every writer being right: a `pillId` the
+   * cell no longer names lights nothing, so no reader follows a light to an
+   * edge that is gone.
    *
    * Proof: derived from `depHover.rowId` instead, `lights every dependency's
    * row from the cell, and no other row` failed on `expected ['030'] to
    * deeply equal ['010', '020']` — the successor lit, its dependencies dark.
-   * Watched, 2026-08-10.
+   * Watched, 2026-08-10. The `includes` guard: dropped together with the
+   * chip's widen, `widens back to the remaining dependencies when a pill is
+   * deleted under the pointer` failed on `expected ['010'] to deeply equal
+   * ['020']` — the cut edge still lit. Watched, 2026-08-11.
    */
   const depLit: ReadonlySet<string> = (() => {
-    if (depHover === null) return new Set();
-    if (depHover.pillId !== null) return new Set([depHover.pillId]);
-    const hovered = flat.find((row) => row.id === depHover.rowId);
-    return new Set(hovered === undefined ? [] : hovered.dependsOn);
+    const read = depHover ?? depFocus;
+    if (read === null) return new Set();
+    const hovered = flat.find((row) => row.id === read.rowId);
+    if (hovered === undefined) return new Set();
+    if (read.pillId === null) return new Set(hovered.dependsOn);
+    return hovered.dependsOn.includes(read.pillId) ? new Set([read.pillId]) : new Set();
   })();
 
   /**

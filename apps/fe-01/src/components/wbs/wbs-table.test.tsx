@@ -6430,6 +6430,85 @@ describe('hovering a dependency lights the rows it names', () => {
     expect(litNumbers()).toEqual([]);
   });
 
+  itDom(
+    'widens back to the remaining dependencies when a pill is deleted under the pointer',
+    async () => {
+      await planWhere030Waits();
+      fireEvent.mouseEnter(hoverTargetOf('030'));
+      fireEvent.mouseEnter(screen.getByLabelText('Stop 030 waiting for 010'));
+      expect(litNumbers()).toEqual(['010']);
+
+      // The ✕ *is* the pill, and that is the whole of the fault: the click
+      // unmounts the element the pointer is on, so no `mouseleave` of its own
+      // can ever arrive to say the pointer left it. Nothing else moves here —
+      // no leave is fired, no hover is re-entered — because nothing else moves
+      // in the browser either. The pointer is exactly where it was.
+      fireEvent.click(screen.getByLabelText('Stop 030 waiting for 010'));
+      await waitFor(() => {
+        expect(screen.queryByLabelText('Stop 030 waiting for 010')).toBeNull();
+      });
+
+      // The cut edge's row is dark and the remaining dependency's is lit: the
+      // light widened to the cell, because the cell is where the pointer still
+      // is. Both ends of the fix answer to this one assertion, with a red of
+      // their own: with the chip's widen dropped the light goes out altogether
+      // (`expected [] to deeply equal ['020']`), and with `depLit`'s check of
+      // `pillId` against the cell dropped as well it stays on the deleted edge
+      // (`expected ['010'] to deeply equal ['020']`).
+      expect(litNumbers()).toEqual(['020']);
+    },
+  );
+
+  itDom('lights the rows a cell waits for while its box holds the focus', async () => {
+    await planWhere030Waits();
+    expect(litNumbers()).toEqual([]);
+
+    // The keyboard's half of the light. Tab through the plan lands on this box
+    // — `deps-single-line` keeps the chips out of the rested tab order, so the
+    // box is where a Tab arrives — and the rows this row waits for light with
+    // no pointer anywhere near them.
+    //
+    // `fireEvent.focus` and not `.focus()`: React reads focus through
+    // `focusin`, which is what this dispatches, and it is wrapped in `act` so
+    // the render it causes has landed by the assertion below. A bare `.focus()`
+    // moves `document.activeElement` and leaves the state update unflushed —
+    // watched, `expected [] to deeply equal ['010', '020']`. That a real Tab
+    // reaches this box and really paints is the browser's to say, in
+    // `e2e/hover-cards.spec.ts`.
+    fireEvent.focus(screen.getByLabelText('Add a dependency to 030'));
+
+    expect(litNumbers()).toEqual(['010', '020']);
+
+    fireEvent.blur(screen.getByLabelText('Add a dependency to 030'));
+    expect(litNumbers()).toEqual([]);
+  });
+
+  itDom('narrows to a focused pill, and clears when the focus leaves it', async () => {
+    await planWhere030Waits();
+    const box = screen.getByLabelText('Add a dependency to 030');
+    fireEvent.focus(box);
+    expect(litNumbers()).toEqual(['010', '020']);
+
+    // The chips are focusable while the picker owns the cell — the `tabIndex`
+    // −1 above is the *rested* strip's, where a clipped chip would be a button
+    // focused off screen — so this is a focus that can really be carried, and
+    // it narrows exactly as a hovered pill does. Box first, then chip, in the
+    // order a browser fires them: the old element's blur lands before the new
+    // one's focus, which is why the box's blur cannot clear what the chip's
+    // focus is about to write.
+    fireEvent.blur(box);
+    fireEvent.focus(screen.getByLabelText('Stop 030 waiting for 010'));
+    expect(litNumbers()).toEqual(['010']);
+
+    // A blur clears where a mouseleave widens, and the asymmetry is the point:
+    // a leave means the pointer is still in the cell and the wrapper's own
+    // leave is what clears, but a blur means nothing of the sort. Widening here
+    // would leave the cell lit with nobody in it once the focus walked out of
+    // the plan from a chip.
+    fireEvent.blur(screen.getByLabelText('Stop 030 waiting for 010'));
+    expect(litNumbers()).toEqual([]);
+  });
+
   itDom('emphasises the pill’s entry in the card as a background, not bold', async () => {
     await planWhere030Waits();
     fireEvent.mouseEnter(hoverTargetOf('030'));
@@ -6446,8 +6525,12 @@ describe('hovering a dependency lights the rows it names', () => {
     fireEvent.mouseEnter(screen.getByLabelText('Stop 030 waiting for 010'));
 
     // The same tint the lit rows use, as a background swatch — emphasis by
-    // weight would make one line read as a heading over the others.
-    expect(entryOf('010 - Strip').style.background).toBe('var(--grid-dep-lit)');
+    // weight would make one line read as a heading over the others. The card's
+    // surface token, not the grid's: the same dose of the same ink into the
+    // surface this line sits on, which is what keeps the emphasis moving the
+    // same perceptual direction in both places (`styles.css`, and the browser
+    // proof in `e2e/hover-cards.spec.ts` that walks both palettes).
+    expect(entryOf('010 - Strip').style.background).toBe('var(--card-dep-lit)');
     expect(entryOf('010 - Strip').style.fontWeight).toBe('');
     expect(entryOf('020 - Sand').style.background).toBe('');
 

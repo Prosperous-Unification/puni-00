@@ -29,10 +29,17 @@ export interface DependsCardProps {
    * singled out.
    *
    * Emphasised as a background swatch in the same tint the table lights the
-   * entry's row with (`--grid-dep-lit`, the `tr[data-dep-lit]` rule in
-   * `styles.css`), so the card and the grid say "this one" in the same voice.
-   * Not bold: a bold line among plain ones reads as a heading over the list,
-   * not as a highlight in it.
+   * entry's row with, so the card and the grid say "this one" in the same
+   * voice. Not bold: a bold line among plain ones reads as a heading over the
+   * list, not as a highlight in it.
+   *
+   * `--card-dep-lit` and not `--grid-dep-lit`, which is the same tint and not
+   * the same colour: both are the same dose of `--ring` into the surface they
+   * land on, and this card's surface is `--popover` where the rows' is
+   * `--background`. In the dark palette those two greys sit either side of one
+   * absolute mix, so a single token moved the rows lighter and this line darker
+   * — see the tokens' own note in `styles.css`. In light they coincide, which
+   * is why the fault only ever showed on a dark page.
    */
   emphasisedId: string | null;
 }
@@ -57,10 +64,25 @@ export function DependsCard({ number, entries, emphasisedId }: DependsCardProps)
           key={entry.id}
           style={
             entry.id === emphasisedId
-              ? // The row tint, verbatim — see {@link DependsCardProps.emphasisedId}.
-                // The token rather than a literal, for `MATCH_TINT`'s reason:
-                // `.dark` re-points the palette and a literal would not follow.
-                { background: 'var(--grid-dep-lit)', borderRadius: 3 }
+              ? // The row tint on *this* surface — see
+                // {@link DependsCardProps.emphasisedId}. The token rather than a
+                // literal, for `MATCH_TINT`'s reason: `.dark` re-points the
+                // palette and a literal would not follow.
+                //
+                // Inset, and the inset given straight back as negative margin:
+                // a swatch with no padding is a box the exact shape of the
+                // glyphs, whose rounded corners cut into the first and last
+                // letter and read as a rendering fault rather than as a
+                // highlight. The margin is what keeps the emphasis from
+                // *moving* the line it emphasises — padding alone would shift
+                // this line's text 4px right of every other line's and reflow
+                // the card as the pointer walked the pills.
+                {
+                  background: 'var(--card-dep-lit)',
+                  borderRadius: 4,
+                  padding: '1px 4px',
+                  margin: '-1px -4px',
+                }
               : undefined
           }
         >

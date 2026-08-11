@@ -309,6 +309,41 @@ async function settledRowBg(page: Page, number: string): Promise<string> {
   return cell.evaluate((td) => getComputedStyle(td).backgroundColor);
 }
 
+/** The painted colour of an element's own background, whatever notation it is in. */
+const bgOf = (locator: Locator): Promise<string> =>
+  locator.evaluate((el) => getComputedStyle(el).backgroundColor);
+
+/** A background nothing painted — what Chromium answers for `background: none`. */
+const TRANSPARENT = 'rgba(0, 0, 0, 0)';
+
+/**
+ * The sRGB luminance of any colour the engine can parse, 0–255.
+ *
+ * **Rasterised, not parsed.** A computed `color-mix` comes back from Chromium as
+ * `oklab(…)` and a resting grey as `rgb(…)`, and string equality between two
+ * notations is exactly how "the card and the grid say this one in the same
+ * voice" was recorded as true while the two were moving in opposite directions
+ * on a dark page. Whether a tint is *lighter or darker than what it sits on* is
+ * a question about one number, and the engine that paints the colour is the only
+ * honest place to get it.
+ *
+ * A colour the engine refuses leaves `fillStyle` at whatever it held, so an
+ * unparseable value would silently read as one more grey rather than as a
+ * mistake. The sentinel is what makes that loud.
+ */
+const luminance = (page: Page, colour: string): Promise<number> =>
+  page.evaluate((c) => {
+    const ctx = document.createElement('canvas').getContext('2d');
+    if (ctx === null) throw new Error('no 2d context to rasterise a colour in');
+    const sentinel = '#ff00ff';
+    ctx.fillStyle = sentinel;
+    ctx.fillStyle = c;
+    if (ctx.fillStyle === sentinel) throw new Error(`this engine will not parse ${c}`);
+    ctx.fillRect(0, 0, 1, 1);
+    const [r, g, b] = ctx.getImageData(0, 0, 1, 1).data;
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  }, colour);
+
 test.describe('hovering a dependency lights the rows it names', () => {
   /** A third row, waiting for the two the shared seed made. */
   async function seed030WaitingForBoth(page: Page): Promise<void> {
@@ -362,28 +397,119 @@ test.describe('hovering a dependency lights the rows it names', () => {
     await expect.poll(() => rowBg(page, '010')).not.toBe(rest010);
     expect(await rowBg(page, '020')).toBe(rest020);
 
-    // The card is open — the pill is inside the cell the card belongs to —
-    // and the pill's own line carries the lit row's exact painted colour: the
-    // emphasis is the same tint spoken twice, not a second colour and not a
-    // weight.
+    // The card is open — the pill is inside the cell the card belongs to — and
+    // the pill's own line, and only it, carries a swatch, at the card's
+    // ordinary weight: emphasis by background, not by heading.
+    //
+    // *Which* colour that swatch is belongs to the next test, not this one.
+    // Asserting the lit row's exact value here is what hid the fault this test
+    // ran green through for a day: in the default palette `--background` and
+    // `--popover` are the same white, so the grid's tint and the card's are the
+    // same number, and an assertion that they are equal is satisfied by a
+    // token that moves the two surfaces in opposite directions on a dark page.
+    // Direction against each surface is the real claim, and it takes both
+    // palettes to make it.
     expect(await cardsOpen(page)).toBe(1);
     const card = page.locator('[role="tooltip"]');
     const emphasised = card.getByText('010 - Survey the existing warehouse racking', {
       exact: true,
     });
     const other = card.getByText('020 - Draft the replacement layout', { exact: true });
-    const litRow = await settledRowBg(page, '010');
-    expect(await emphasised.evaluate((line) => getComputedStyle(line).backgroundColor)).toBe(
-      litRow,
-    );
+    expect(await bgOf(emphasised)).not.toBe(TRANSPARENT);
     expect(await emphasised.evaluate((line) => getComputedStyle(line).fontWeight)).toBe('400');
-    expect(await other.evaluate((line) => getComputedStyle(line).backgroundColor)).not.toBe(litRow);
+    expect(await bgOf(other)).toBe(TRANSPARENT);
 
     // Off the pill onto the cell's input area: the light widens back to every
     // dependency — the browser's own leave, `relatedTarget` and all.
     await page.getByLabel('Add a dependency to 030').hover();
     await expect(rowOf(page, '020')).toHaveAttribute('data-dep-lit', 'true');
     await expect.poll(() => rowBg(page, '020')).not.toBe(rest020);
+  });
+
+  test('the tint moves the same way on both surfaces, in both palettes', async ({ page }) => {
+    await seed030WaitingForBoth(page);
+    const pill = page.getByRole('button', { name: 'Stop 030 waiting for 010' });
+    const card = page.locator('[role="tooltip"]');
+    const line = card.getByText('010 - Survey the existing warehouse racking', { exact: true });
+
+    // Both palettes, and it has to be both: the grid sits on `--background` and
+    // the card on `--popover`, which are the same white in the default theme and
+    // `oklch(0.129 …)` against `oklch(0.208 …)` in the dark one. One absolute
+    // tint mixed against the page therefore lands *between* the two dark
+    // surfaces — lighter than the rows, darker than the card — and the single
+    // emphasis reads as a tint in the grid and as a cutout in the card. Light
+    // alone can never see that, because light alone has one surface.
+    //
+    // The app ships no theme switch; the palette is a class on the root and this
+    // is how a browser reaches it. That the class is the whole mechanism is
+    // `styles.css`'s own claim (`.dark` re-points the custom properties every
+    // token is mixed from), and reaching it here is what holds it to it.
+    for (const palette of ['light', 'dark'] as const) {
+      await page.evaluate((wanted) => {
+        document.documentElement.classList.toggle('dark', wanted === 'dark');
+      }, palette);
+
+      await page.mouse.move(0, 0);
+      await expect(rowOf(page, '010')).not.toHaveAttribute('data-dep-lit', 'true');
+      const gridRest = await luminance(page, await settledRowBg(page, '010'));
+
+      await pill.hover();
+      await expect(rowOf(page, '010')).toHaveAttribute('data-dep-lit', 'true');
+      // One card, so the two reads below are of the surface and the line on it.
+      expect(await cardsOpen(page), `${palette}: no card to read the swatch off`).toBe(1);
+      const gridLit = await luminance(page, await settledRowBg(page, '010'));
+      const cardRest = await luminance(page, await bgOf(card));
+      const cardLit = await luminance(page, await bgOf(line));
+
+      // Non-vacuous first, in both places: a tint that did not move cannot be
+      // said to have moved the right way, and `Math.sign(0)` is `0`, which would
+      // otherwise agree with itself.
+      expect(
+        Math.abs(gridLit - gridRest),
+        `${palette}: the row's tint did not move`,
+      ).toBeGreaterThan(1);
+      expect(
+        Math.abs(cardLit - cardRest),
+        `${palette}: the card's swatch did not move`,
+      ).toBeGreaterThan(1);
+
+      // The claim: the same emphasis, the same way, off whatever it sits on.
+      // Lighter than both surfaces on a dark page, darker than both on a light
+      // one — never one of each.
+      expect(
+        Math.sign(gridLit - gridRest),
+        `${palette}: the row goes ${gridLit > gridRest ? 'lighter' : 'darker'} and the card's line goes ${cardLit > cardRest ? 'lighter' : 'darker'}`,
+      ).toBe(Math.sign(cardLit - cardRest));
+    }
+  });
+
+  test('the keyboard gets the same light, from the box’s focus', async ({ page }) => {
+    await seed030WaitingForBoth(page);
+    const rest010 = await settledRowBg(page, '010');
+    const rest020 = await settledRowBg(page, '020');
+
+    // Focus, with the pointer parked at the origin by the seed: the light is
+    // the change's one visual answer to "what does this row wait for", and a
+    // pointer-only answer is no answer to somebody who never holds a mouse.
+    // Tab through the plan lands on this box — `deps-single-line` keeps the
+    // chips out of the rested tab order — so the box is the keyboard's handle
+    // on the cell, and the cell-level light is what it gets.
+    await page.getByLabel('Add a dependency to 030').focus();
+
+    await expect(rowOf(page, '010')).toHaveAttribute('data-dep-lit', 'true');
+    await expect(rowOf(page, '020')).toHaveAttribute('data-dep-lit', 'true');
+    await expect(rowOf(page, '030')).not.toHaveAttribute('data-dep-lit', 'true');
+    // Painted, not merely attributed — the pinned cells, through `--cell-bg`,
+    // which is the whole reason these reads are a browser's and not jsdom's.
+    await expect.poll(() => rowBg(page, '010')).not.toBe(rest010);
+    await expect.poll(() => rowBg(page, '020')).not.toBe(rest020);
+
+    // Out of the cell to a control outside the grid, so nothing else in a row
+    // is focused and painting over what is being read.
+    await page.getByRole('button', { name: 'Add work item' }).focus();
+    await expect(rowOf(page, '010')).not.toHaveAttribute('data-dep-lit', 'true');
+    await expect.poll(() => rowBg(page, '010')).toBe(rest010);
+    await expect.poll(() => rowBg(page, '020')).toBe(rest020);
   });
 
   test('a clipped chip has no hover target, and the cell still lights its row', async ({
