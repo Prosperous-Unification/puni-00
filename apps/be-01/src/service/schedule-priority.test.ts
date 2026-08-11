@@ -263,6 +263,16 @@ describe('a priority written up the tree reaches the leaves', () => {
  * (`main` @ `94ed488`, 2026-08-11) and are pinned verbatim. They are the
  * regression: adding a prioritising to the queue must not move a plan that priorities
  * nothing, and the only proof of that is the plan itself.
+ *
+ * Three of them were **re-derived** at `dep-waits-on-first-role` (2026-08-11),
+ * which moved this plan on purpose: `c-c` waits on `c-a`'s anchor — its `Dev`,
+ * finishing day 7 — instead of on the whole of `c-a`, so `c-c/role-dev` starts
+ * 8 → 7, and sam's queue reverses behind it: `c-a/role-qa` 7 → 9.5 with
+ * `boundBy` `roleOrder` → `person` and `c-c/role-dev` as its resource
+ * predecessor, while `c-p1/role-qa` — unestimated, floating — takes the
+ * project's new finish, float 3.5 → 6.5. Everything else is untouched, which is
+ * the point: the anchor rule moves what waits on a dependency and nothing else.
+ * Priority is still what this pin is *for*; the plan still priorities nothing.
  */
 const CONTENTION_ROWS: readonly WorkItem[] = [
   item('c-a'),
@@ -338,15 +348,15 @@ describe('a plan that priorities nothing is scheduled exactly as it was', () => 
         roleId: 'role-qa',
         duration: 1,
         estimated: true,
-        earliestStart: 7,
-        earliestFinish: 8,
-        latestStart: 7,
-        latestFinish: 8,
+        earliestStart: 9.5,
+        earliestFinish: 10.5,
+        latestStart: 9.5,
+        latestFinish: 10.5,
         float: 0,
         critical: true,
         personId: 'sam',
-        boundBy: 'roleOrder',
-        resourcePredecessorId: null,
+        boundBy: 'person',
+        resourcePredecessorId: 'c-c/role-dev',
       },
       'c-b/role-dev': {
         workItemId: 'c-b',
@@ -368,10 +378,10 @@ describe('a plan that priorities nothing is scheduled exactly as it was', () => 
         roleId: 'role-dev',
         duration: 2.5,
         estimated: true,
-        earliestStart: 8,
-        earliestFinish: 10.5,
-        latestStart: 8,
-        latestFinish: 10.5,
+        earliestStart: 7,
+        earliestFinish: 9.5,
+        latestStart: 7,
+        latestFinish: 9.5,
         float: 0,
         critical: true,
         personId: 'sam',
@@ -415,9 +425,9 @@ describe('a plan that priorities nothing is scheduled exactly as it was', () => 
         estimated: false,
         earliestStart: 4,
         earliestFinish: 4,
-        latestStart: 7.5,
-        latestFinish: 7.5,
-        float: 3.5,
+        latestStart: 10.5,
+        latestFinish: 10.5,
+        float: 6.5,
         critical: false,
         personId: 'sam',
         boundBy: 'roleOrder',
@@ -443,6 +453,11 @@ describe('a plan that priorities nothing is scheduled exactly as it was', () => 
     // The projection the table actually reads, pinned beside the slices it is
     // read off: `c-parent` appears here and nowhere above, so a change that
     // moved only the roll-up onto parents would pass a slices-only pin.
+    //
+    // Re-derived with the slices above at `dep-waits-on-first-role`: `c-a`
+    // finishes 8 → 10.5 because its `QA` was pushed behind `c-c`, `c-c` runs
+    // 7 → 9.5, and the two `latestFinish`es that read the project's end
+    // (`c-p1`, `c-parent`) follow it 7.5 → 10.5.
     const saidOfWorkItems = [...found.workItems].sort(([left], [right]) => (left < right ? -1 : 1));
 
     expect(Object.fromEntries(saidOfWorkItems)).toEqual({
@@ -450,9 +465,9 @@ describe('a plan that priorities nothing is scheduled exactly as it was', () => 
         duration: 4,
         estimated: true,
         earliestStart: 4,
-        earliestFinish: 8,
+        earliestFinish: 10.5,
         latestStart: 4,
-        latestFinish: 8,
+        latestFinish: 10.5,
         float: 0,
         critical: true,
       },
@@ -469,10 +484,10 @@ describe('a plan that priorities nothing is scheduled exactly as it was', () => 
       'c-c': {
         duration: 2.5,
         estimated: true,
-        earliestStart: 8,
-        earliestFinish: 10.5,
-        latestStart: 8,
-        latestFinish: 10.5,
+        earliestStart: 7,
+        earliestFinish: 9.5,
+        latestStart: 7,
+        latestFinish: 9.5,
         float: 0,
         critical: true,
       },
@@ -492,7 +507,7 @@ describe('a plan that priorities nothing is scheduled exactly as it was', () => 
         earliestStart: 0,
         earliestFinish: 4,
         latestStart: 0,
-        latestFinish: 7.5,
+        latestFinish: 10.5,
         float: 0,
         critical: true,
       },
@@ -512,7 +527,7 @@ describe('a plan that priorities nothing is scheduled exactly as it was', () => 
         earliestStart: 0,
         earliestFinish: 4,
         latestStart: 0,
-        latestFinish: 7.5,
+        latestFinish: 10.5,
         float: 0,
         critical: true,
       },
