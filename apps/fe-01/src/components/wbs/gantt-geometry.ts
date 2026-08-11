@@ -229,6 +229,12 @@ export interface DependencyEdge {
   successorId: string;
 }
 
+/** One work item of the full tree: its id and its parent, nothing a hidden row would need. */
+export interface GanttTreeRow {
+  id: string;
+  parentId: string | null;
+}
+
 /** A role of the plan: its id, its name for the words on a bar, and its place in the list. */
 export interface GanttRole {
   id: string;
@@ -247,6 +253,17 @@ export interface GanttPlan {
   rows: readonly GanttRow[];
   slices: readonly GanttSlice[];
   dependencies: readonly DependencyEdge[];
+  /**
+   * Every work item of the plan with its parent — the full tree the shown
+   * rows were cut from, in tree order.
+   *
+   * What a dependency arrow's anchor is selected through: a predecessor that
+   * is a collapsed branch keeps its leaves here after `rows` has dropped
+   * them, and the arrow must still leave the latest-finishing anchor among
+   * them (design.md D6). Ids and parents alone, because ancestry is the one
+   * fact about a hidden row the drawing needs.
+   */
+  tree: readonly GanttTreeRow[];
   roles: readonly GanttRole[];
   personNames: ReadonlyMap<string, string>;
 }
@@ -361,19 +378,25 @@ export interface GanttSummaryBracket {
   finish: number;
 }
 
-/** A stored dependency drawn: the predecessor's projection finish to the successor's start. */
+/**
+ * A stored dependency drawn: the predecessor's **anchor** to the successor's
+ * start — the anchor slice's span for a leaf predecessor, and for a parent the
+ * latest-finishing anchor among its leaves. Never the projection finish: the
+ * predecessor's later roles run in parallel with the successor, so an arrow
+ * from the projection would point backwards past the start it lands on.
+ */
 export interface GanttDependencyArrow {
   predecessorId: string;
   successorId: string;
   fromRowIndex: number;
   /**
-   * Where the predecessor's projection begins.
+   * Where the anchor begins.
    *
    * Not a coordinate the arrow is drawn at — the line leaves `fromFinish`. It
-   * is carried because a **span** is what a calendar reading needs: a
-   * projection of no days at all is on no workday, and its finish then has to
-   * be read as its own start rather than as the end of the workday before it.
-   * See {@link placeOnCalendar}.
+   * is carried because a **span** is what a calendar reading needs: an anchor
+   * of no days at all — an unestimated first role — is on no workday, and its
+   * finish then has to be read as its own start rather than as the end of the
+   * workday before it. See {@link placeOnCalendar}.
    */
   fromStart: number;
   fromFinish: number;
@@ -783,8 +806,9 @@ function personNameOf(slice: GanttSlice, personNames: ReadonlyMap<string, string
  * hand-off is the chart lying about who is waiting for whom.
  *
  * @throws GanttDataError on a dangling `resourcePredecessorId`, a
- * person-floored slice with no resource predecessor or an unnamed person, and
- * a slice under a role the plan does not list.
+ * person-floored slice with no resource predecessor or an unnamed person, a
+ * slice under a role the plan does not list, and a dependency between shown
+ * rows whose predecessor has no slice in the payload to anchor its arrow.
  */
 export function layOutGantt(plan: GanttPlan): GanttGeometry {
   const rowNames = new Map(plan.rows.map((row) => [row.id, row.name]));
@@ -955,17 +979,86 @@ export function layOutGantt(plan: GanttPlan): GanttGeometry {
     });
   }
 
+  // The leaves beneath every work item of the **full** tree — a leaf maps to
+  // itself. The tree and not the shown rows, because the anchor of a collapsed
+  // predecessor branch lives on leaves `plan.rows` has dropped.
+  const leavesUnder = (() => {
+    const childrenOf = new Map<string, GanttTreeRow[]>();
+    for (const treeRow of plan.tree) {
+      if (treeRow.parentId === null) continue;
+      const group = childrenOf.get(treeRow.parentId);
+      if (group === undefined) childrenOf.set(treeRow.parentId, [treeRow]);
+      else group.push(treeRow);
+    }
+    const found = new Map<string, string[]>();
+    const walk = (id: string): string[] => {
+      const already = found.get(id);
+      if (already !== undefined) return already;
+      const children = childrenOf.get(id);
+      const leaves = children === undefined ? [id] : children.flatMap((child) => walk(child.id));
+      found.set(id, leaves);
+      return leaves;
+    };
+    for (const treeRow of plan.tree) walk(treeRow.id);
+    return found;
+  })();
+
+  /**
+   * The predecessor's anchor span, **selected** from the payload's slices and
+   * never recomputed from estimates (design.md D6): a leaf's first slice in
+   * role order, and for a parent the latest-finishing anchor among its
+   * leaves. An id the tree does not hold reads as a leaf — its own slices —
+   * which for a parent finds none and lands on the throw below.
+   *
+   * @throws GanttDataError when a leaf under the predecessor has no slice in
+   * the payload. Not a collapsed row — that absence is modeled on `rows`, and
+   * the caller skipped it before asking. be-01 emits at least one slice for
+   * every leaf, so a shown predecessor with none anywhere is a broken
+   * promise, and an arrow silently dropped would hide exactly the wait the
+   * chart exists to show.
+   *
+   * Proof: this throw replaced by a skip — the anchorless edge dropped the
+   * way a hidden row's is — and `throws when a shown predecessor has no slice
+   * in the payload at all` alone failed, `1 failed | 66 passed`, on `expected
+   * function to throw an error, but it didn't`: the chart came back quietly
+   * short one arrow. Watched 2026-08-11.
+   */
+  const anchorSpanOf = (
+    predecessorId: string,
+    successorId: string,
+  ): { start: number; finish: number } => {
+    const leafIds = leavesUnder.get(predecessorId) ?? [predecessorId];
+    const anchors = leafIds.map((leafId) => {
+      const first = inRoleOrder(slicesByWorkItem.get(leafId) ?? [], rolesById).at(0);
+      if (first === undefined) {
+        throw new GanttDataError(
+          `dependency ${predecessorId} → ${successorId}: ${leafId} has no slice in this ` +
+            `payload, so the arrow has no anchor to leave from`,
+        );
+      }
+      return { start: first.slice.earliestStart, finish: first.slice.earliestFinish };
+    });
+    // Never empty, so the pick below has a seed: the walk maps a childless id
+    // to itself, a parent to its children's leaves, and the `??` arm is one id.
+    let latest = anchors[0];
+    for (const anchor of anchors) {
+      if (anchor.finish > latest.finish) latest = anchor;
+    }
+    return latest;
+  };
+
   const arrows: GanttDependencyArrow[] = [];
   for (const edge of plan.dependencies) {
     const from = placedRows.get(edge.predecessorId);
     const to = placedRows.get(edge.successorId);
     if (from === undefined || to === undefined) continue;
+    const anchor = anchorSpanOf(edge.predecessorId, edge.successorId);
     arrows.push({
       predecessorId: edge.predecessorId,
       successorId: edge.successorId,
       fromRowIndex: from.rowIndex,
-      fromStart: from.row.schedule.earliestStart,
-      fromFinish: from.row.schedule.earliestFinish,
+      fromStart: anchor.start,
+      fromFinish: anchor.finish,
       toRowIndex: to.rowIndex,
       toStart: to.row.schedule.earliestStart,
     });

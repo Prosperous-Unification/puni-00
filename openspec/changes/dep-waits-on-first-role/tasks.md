@@ -65,7 +65,7 @@ at its anchors` watched failing on their pinned starts; restored with
 
 ## 3. The arrow leaves the anchor
 
-- [ ] 3.1 `gantt-geometry.test.ts`: the three spec scenarios watched failing
+- [x] 3.1 `gantt-geometry.test.ts`: the three spec scenarios watched failing
       first — `the arrow does not overshoot a parallel successor` (fromFinish
       day 3, not 5), `an arrow from a branch leaves its latest anchor`
       (day 4, parent's row index), `a zero-length anchor draws from its own
@@ -79,7 +79,7 @@ day` (the `fromStart === fromFinish` calendar reading, which already
       (an anchor map passed in, or the full tree) is the implementer's call;
       a collapsed predecessor branch must still anchor correctly, and there
       is a test with the predecessor's leaves absent from `plan.rows`.
-- [ ] 3.2 R5 on the selection: a dependency whose predecessor has no slice in
+- [x] 3.2 R5 on the selection: a dependency whose predecessor has no slice in
       the payload at all is a broken promise — throw into the error boundary,
       never skip the arrow silently (the existing "not among rows = collapsed,
       skip" rule stays for _rows_; a row present with no slice anywhere is the

@@ -86,10 +86,26 @@ const sliceAt = (
   ...extras,
 });
 
+/**
+ * The full tree a fixture's shown rows imply: each row's parent is the
+ * nearest shallower row above it — enough for every plan in this file, whose
+ * predecessors are all shown.
+ */
+const treeFrom = (rows: readonly GanttRow[]): { id: string; parentId: string | null }[] => {
+  const above: { id: string; depth: number }[] = [];
+  return rows.map((row) => {
+    while (above.length > 0 && above[above.length - 1].depth >= row.depth) above.pop();
+    const parentId = above.length > 0 ? above[above.length - 1].id : null;
+    above.push({ id: row.id, depth: row.depth });
+    return { id: row.id, parentId };
+  });
+};
+
 const planOf = (parts: Partial<GanttPlan>): GanttPlan => ({
   rows: [],
   slices: [],
   dependencies: [],
+  tree: treeFrom(parts.rows ?? []),
   roles: [{ id: 'dev', name: 'Dev' }],
   personNames: new Map(),
   ...parts,
