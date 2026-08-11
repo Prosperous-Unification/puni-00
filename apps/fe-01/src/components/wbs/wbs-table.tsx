@@ -4695,7 +4695,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                   // block above: an empty cell has nothing to wrap, and the
                   // wrap is what made it two lines tall the moment it was
                   // clicked into.
-                  flexWrap: picker !== null && waitingFor.length > 0 ? 'wrap' : 'nowrap',
+                  flexWrap: picker !== null ? 'wrap' : 'nowrap',
                   alignItems: 'center',
                   gap: 2,
                   whiteSpace: 'nowrap',
