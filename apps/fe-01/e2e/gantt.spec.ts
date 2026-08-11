@@ -154,13 +154,19 @@ const rowOf = (page: Page, number: string): Locator =>
  * sticky-label tests one wider than the window.
  * @param fixture.extraRows Roots added after the three, for the tests that need
  * a plan taller than its own frame.
+ * @param fixture.costedExtras Whether those extra roots are given the same Dev
+ * estimate as the leaves. They draw a bar each when they are and **nothing at
+ * all** when they are not (`gantt-declutter`), so a test that needs a mark at
+ * the bottom of a tall chart — rather than only rows down there — asks for
+ * this. Off by default: the tests that want height alone should not pay for
+ * sixteen estimates they never read.
  */
 async function seedPlan(
   page: Page,
   account: string,
-  fixture: { estimate?: string; extraRows?: number } = {},
+  fixture: { estimate?: string; extraRows?: number; costedExtras?: boolean } = {},
 ): Promise<void> {
-  const { estimate = '2/4/6', extraRows = 0 } = fixture;
+  const { estimate = '2/4/6', extraRows = 0, costedExtras = false } = fixture;
   await page.goto('/');
   await page.getByRole('button', { name: 'Need an account? Register' }).click();
   await page.getByLabel('Username').fill(account);
@@ -220,6 +226,12 @@ async function seedPlan(
     const number = String((added + 2) * 10).padStart(3, '0');
     await addRow.click();
     await expect(page.getByLabel(`Name of ${number}`)).toBeVisible();
+    if (costedExtras) {
+      const box = page.getByLabel(`Dev estimate for ${number}`);
+      await box.fill(estimate);
+      await box.blur();
+      await expect(box).not.toHaveValue('');
+    }
   }
 }
 
@@ -1154,7 +1166,11 @@ test.describe('the surface a bar opens, as a browser places it', () => {
   });
 
   test('flips a surface above a bar that has no room below it', async ({ page }) => {
-    await seedPlan(page, nextAccount(), { extraRows: 16 });
+    // Costed extras, and that is this fixture's whole subject: the surface has
+    // to open on a bar at the **bottom** of a tall chart, and a row nobody has
+    // estimated draws no bar to open one on since `gantt-declutter`. Sixteen
+    // uncosted rows give the panel height and leave the last mark up at row 2.
+    await seedPlan(page, nextAccount(), { extraRows: 16, costedExtras: true });
     await openTheChart(page);
 
     // The panel at its bottom, so the last bar drawn stands on the panel's own

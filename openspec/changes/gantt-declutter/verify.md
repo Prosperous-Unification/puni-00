@@ -78,6 +78,20 @@ that routes off either end of the schedule` (arrows asked for first), and two
   putting the drawing back, which is fault 4 above. There is no other fault that
   makes a mark nothing draws appear, and a check about a removal cannot have one.
 
+## CI's first browser run
+
+`pixels` on the first push: **1 failed, 123 passed**. Every rewritten and new
+case in `gantt.spec.ts` passed in Chromium, including both about the switch.
+
+The failure was a case this change did not touch — `flips a surface above a bar
+that has no room below it` — and it failed for the change's own reason: its
+fixture adds sixteen roots nobody estimates, so the tall chart it builds used to
+end in thirty-two ghost bars and now ends in **empty rows**. The last bar on the
+chart is `010.2`'s, up at row 2, and the surface asserted at the bottom of the
+window never opened there. The fixture now costs those extra rows
+(`costedExtras`), which is what "a bar with no room below it" has to mean on a
+chart that only draws costed work.
+
 ## Coordination
 
 `gantt-geometry.ts` is untouched by this change. `change/dep-waits-on-first-role`

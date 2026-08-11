@@ -75,7 +75,9 @@ that can break a check about a mark that is gone.
       here — `libatk-1.0.so.0: cannot open shared object file` — and installing
       the browser's system libraries is a change to the box, not to this branch.
       Ports 3100/3200/4200 were checked and clear, so the landmine is not what
-      stopped it. CI's `pixels` job is the first browser run of this change; the
-      e2e edits are unwatched until it reports.
+      stopped it. CI's `pixels` job is the first browser run of this change: it
+      reported 1 failed, 123 passed — every rewritten and new case green, and
+      one untouched case failing because its sixteen uncosted extra rows no
+      longer draw the bar it hovers. The fixture costs them now.
 - [x] 4.3 `verify.md` written from the runs, with the failure-proof table: every
       negative above, the fault injected, and the failure observed
