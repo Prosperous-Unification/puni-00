@@ -13,13 +13,8 @@ import type {
 } from '@/lib/wbs-api';
 
 import type { GanttPlan, GanttRow, GanttSlice } from './gantt-geometry';
+import { PERSON_BAR_COLORS, UNASSIGNED_BAR_COLOR } from './gantt-geometry';
 import {
-  ASSUMED_UNESTIMATED_WORKDAYS,
-  PERSON_BAR_COLORS,
-  UNASSIGNED_BAR_COLOR,
-} from './gantt-geometry';
-import {
-  assumedLabelFor,
   barLabelFor,
   barText,
   CHART_PAD_PX,
@@ -142,6 +137,25 @@ const labelOf = (bar: Element): string =>
 
 /** Whether any surface is open anywhere on the page. */
 const noSurface = (): boolean => screen.queryByRole('tooltip') === null;
+
+/**
+ * Presses the arrows switch, which is what puts an arrow on the chart at all
+ * since `gantt-declutter`.
+ *
+ * The chart opens with none, so every assertion below about an elbow, a head or
+ * the canvas one routes off has to ask for them first. Both throws are the
+ * point: a helper that quietly did nothing would leave those assertions reading
+ * a chart with no arrows on it and failing as arguments rather than as
+ * geometry, and the run before this one would look the same as the run after.
+ */
+function askForTheArrows(): void {
+  const toggle = document.querySelector('[data-gantt-arrows-toggle]');
+  if (!(toggle instanceof HTMLElement)) throw new Error('the arrows switch is not on the panel');
+  fireEvent.click(toggle);
+  if (document.querySelector('[data-gantt-arrow]') === null) {
+    throw new Error('the arrows switch was pressed and no arrow was drawn');
+  }
+}
 
 /**
  * One attribute of one mark on the chart, or a sentence saying the mark is not
@@ -284,6 +298,10 @@ describe('every mark on the chart lands on the calendar day its workday is', () 
       />,
     );
 
+    // The two arrow marks are drawn only once somebody asks for them
+    // (`gantt-declutter`), and this test is about where they land.
+    askForTheArrows();
+
     // Workday 5 is Monday 2026-08-17, and the chart is a calendar: seven days
     // in. Every mark below is on that one day, and each of them is drawn by a
     // block of its own that could be left reading the workday number.
@@ -314,11 +332,10 @@ describe('every mark on the chart lands on the calendar day its workday is', () 
     expect(markAttribute('[data-axis-day="7"]', 'data-axis-date')).toBe('2026-08-17');
     expect(markAttribute('[data-axis-day="7"]', 'data-axis-workday')).toBe('5');
 
-    // The parent's ghost bar ends at the end of workday 7, which is nine
-    // calendar days in — its right edge is `x + width`, the rect's own reading
-    // of the span the bracket path used to carry.
-    const ghost = drawnBox('[data-gantt-bracket="hull"]');
-    expect(ghost.x + ghost.width).toBe(9);
+    // The parent's row carries no mark of its own since `gantt-declutter`, and
+    // the row is still there: `hull` is row 0 and the three rows below it are
+    // where they were.
+    expect(document.querySelectorAll('[data-gantt-bracket]')).toHaveLength(0);
 
     // And the three marks joining two rows: the arrow leaves the Friday's right
     // edge at 5 and arrives at the Monday at 7, so the weekend is the gap.
@@ -535,14 +552,15 @@ describe('the chart is drawn in calendar days', () => {
   });
 
   /**
-   * The ghost bar: an unestimated slice drawn across the assumed span, and
-   * drawn so nobody reads it as a schedule.
+   * The slice nobody costed, and the mark it no longer gets.
    *
-   * Both marks together, because either alone is a bar that lies. Two workdays
-   * at full strength is an estimate nobody made; two workdays with no fill is
-   * an outline of an estimate nobody made.
+   * It used to be drawn across an assumed span of two workdays, translucent and
+   * dashed, with a `?` on it — two of every three bars on a fresh plan, each of
+   * them a width nobody gave. Dany named them clutter, and the chart's answer is
+   * now nothing at all: the plan's own `?` cells are where unestimated work is
+   * found.
    */
-  itDom('draws an unestimated slice as a translucent, dashed bar of the assumed span', () => {
+  itDom('draws no mark at all for a slice nobody estimated', () => {
     render(
       <GanttPanel
         plan={planOf({
@@ -561,31 +579,25 @@ describe('the chart is drawn in calendar days', () => {
       />,
     );
 
-    const ghost = barFor('sand-dev');
-    // Proof: `ASSUMED_BAR_CLASSES` emptied to `''`, so an unestimated bar drew
-    // in Kat's solid colour at the assumed width — the worst of the two, a
-    // guess that reads as a schedule. This test alone failed, on `expected
-    // false to be true`, and `keeps the assumed span out of the engine's own
-    // numbers` beside it went on passing: it is the width that test watches and
-    // the paint this one does. Watched, 2026-08-09.
-    expect(ghost?.classList.contains('[fill-opacity:0.35]')).toBe(true);
-    expect(ghost?.classList.contains('[stroke-dasharray:3_2]')).toBe(true);
-    // Kat's colour either way: the bar says "guessed", never "nobody's".
-    expect(ghost?.getAttribute('fill')).toBe(PERSON_BAR_COLORS[0]);
-    // The assumed span is two **workdays**, and this one stands on the Friday:
-    // four calendar days wide, because the weekend it is drawn over is drawn.
-    // The two numbers are deliberately different here — a fixture where they
-    // agreed would pass on the axis this change replaced.
-    expect(ghost?.getAttribute('width')).toBe('4');
-    expect(ASSUMED_UNESTIMATED_WORKDAYS).toBe(2);
-    expect(ghost?.getAttribute('data-assumed')).toBe('true');
+    // No bar, no tick, no label, and nothing carrying the hook the browser gate
+    // used to find these by.
+    expect(barFor('sand-dev')).toBeNull();
+    expect(document.querySelector('[data-gantt-tick="sand-dev"]')).toBeNull();
+    expect(document.querySelector('[data-gantt-bar-label="sand-dev"]')).toBeNull();
+    // One bar on a two-slice chart, counted rather than named: the count is
+    // what moves to 2 the moment an uncosted slice is drawn again, and
+    // `data-assumed` — the hook that used to say which was which — went with
+    // the mark it described.
+    expect(document.querySelectorAll('[data-gantt-bar]')).toHaveLength(1);
 
-    // And an estimated bar carries none of it — without this the two assertions
-    // above would pass against a chart where every bar is a ghost.
-    const real = barFor('strip-dev');
-    expect(real?.classList.contains('[fill-opacity:0.35]')).toBe(false);
-    expect(real?.classList.contains('[stroke-dasharray:3_2]')).toBe(false);
-    expect(real?.getAttribute('data-assumed')).toBeNull();
+    // And the estimated bar beside it is untouched — without this the four
+    // assertions above would hold of a panel that drew no bars at all. Row 0's
+    // bar is still on row 0: the unestimated row keeps its place, it just has
+    // nothing on it.
+    const real = drawnBox('[data-gantt-bar="strip-dev"]');
+    expect(Math.floor(real.y)).toBe(0);
+    expect(real.width).toBe(3);
+    expect(document.querySelectorAll('[data-gantt-label]')).toHaveLength(2);
   });
 
   itDom('draws the width it is given and says the numbers it was sent', () => {
@@ -606,17 +618,12 @@ describe('the chart is drawn in calendar days', () => {
       />,
     );
 
-    // The drawn width is the assumption — two workdays from the Thursday, which
-    // is the Thursday and the Friday and so two calendar days — while
-    // `data-start` and `data-finish` are what be-01 said, and they are equal.
-    //
-    // Proof: the width taken as `endOf(bar.finish) − startOf(bar.start)`,
-    // which is codex 14's fault: an unestimated slice finishes where it starts.
-    // This test alone failed, on `expected '0' to be '2'` — a bar of no area at
-    // all, and every estimated case beside it stayed green. Watched 2026-08-09.
-    expect(barFor('sand-dev')?.getAttribute('width')).toBe('2');
-    expect(barFor('sand-dev')?.getAttribute('data-start')).toBe('3');
-    expect(barFor('sand-dev')?.getAttribute('data-finish')).toBe('3');
+    // The slice nobody estimated draws nothing, and the engine numbers on the
+    // one that was are what be-01 said: `data-start` and `data-finish` are the
+    // **workdays**, beside a width the calendar decided.
+    expect(barFor('sand-dev')).toBeNull();
+    expect(barFor('trim-dev')?.getAttribute('data-start')).toBe('3');
+    expect(barFor('trim-dev')?.getAttribute('data-finish')).toBe('5');
 
     // And an estimated 3 → 5 stops at the Friday rather than running on to the
     // Monday its successor would start at: two days, no weekend tail.
@@ -624,18 +631,40 @@ describe('the chart is drawn in calendar days', () => {
     expect(barFor('trim-dev')?.getAttribute('width')).toBe('2');
   });
 
-  itDom('writes the guess on the ghost bar, and the person with it', () => {
+  /**
+   * A slice **estimated** at no days is drawn by a tick, because a
+   * `<rect width="0">` paints nothing at all and the row would read as empty.
+   * `expectedDays({0, 0, 0})` is 0, so this is a real answer — somebody costed
+   * this work at nothing — and it is the one case that keeps the tick apart
+   * from the unestimated slice beside it, which is now not drawn at all.
+   */
+  itDom('draws no hand-off line to a slice that is not drawn', () => {
+    // Kat does `strip` and then `sand`, and nobody has costed `sand`. The
+    // dashed line is drawn from one bar to another, so with `sand`'s bar gone
+    // it would run to a point on an empty row — a mark pointing at nothing,
+    // which is worse than no mark. `trim` is Kat's next estimated slice and
+    // keeps its line, so this is not "no links are drawn any more".
     render(
       <GanttPanel
         plan={planOf({
-          rows: [rowAt('sand', 3, 3), rowAt('trim', 3, 3)],
+          rows: [rowAt('strip', 0, 3), rowAt('sand', 3, 3), rowAt('trim', 3, 6)],
           slices: [
-            sliceAt('sand-dev', 'sand', 3, 3, { estimated: false, personId: 'kat' }),
-            sliceAt('trim-dev', 'trim', 3, 3, { estimated: false }),
+            sliceAt('strip-dev', 'strip', 0, 3, { personId: 'kat' }),
+            sliceAt('sand-dev', 'sand', 3, 3, {
+              estimated: false,
+              personId: 'kat',
+              boundBy: 'person',
+              resourcePredecessorId: 'strip-dev',
+            }),
+            sliceAt('trim-dev', 'trim', 3, 6, {
+              personId: 'kat',
+              boundBy: 'person',
+              resourcePredecessorId: 'strip-dev',
+            }),
           ],
           personNames: new Map([['kat', 'Kat']]),
         })}
-        startDate={null}
+        startDate={MONDAY_START}
         scheduleError={null}
         generation={0}
         heightPx={null}
@@ -643,28 +672,14 @@ describe('the chart is drawn in calendar days', () => {
       />,
     );
 
-    // Proof: the `assumedLabelFor` branch reverted to the old `bar.estimated ?
-    // barLabelFor(…) : null` — no ghost writes anything. This test alone
-    // failed, on `expected undefined to be 'Kat · ?'`, and the chart carried two
-    // bars of guessed width with nothing on them saying so. Watched,
-    // 2026-08-09.
-    expect(document.querySelector('[data-gantt-bar-label="sand-dev"]')?.textContent).toBe(
-      'Kat · ? · sand - sand',
-    );
-    // Nobody on it: the `?` is still the point and is still written, the row
-    // words after it.
-    expect(document.querySelector('[data-gantt-bar-label="trim-dev"]')?.textContent).toBe(
-      '? · trim - trim',
-    );
+    expect(document.querySelector('[data-gantt-person-link="strip-dev->sand-dev"]')).toBeNull();
+    // The one whose both ends are drawn is still drawn — without this the
+    // assertion above would hold of a chart with no links at all.
+    expect(document.querySelector('[data-gantt-person-link="strip-dev->trim-dev"]')).not.toBeNull();
+    expect(document.querySelectorAll('[data-gantt-person-link]')).toHaveLength(1);
   });
 
-  /**
-   * A slice **estimated** at no days is drawn by a tick, because a
-   * `<rect width="0">` paints nothing at all and the row would read as empty.
-   * `expectedDays({0, 0, 0})` is 0, so this is a real answer and not the
-   * unestimated one — which now has a bar of its own and no tick.
-   */
-  itDom('marks a zero-day estimate with a tick where it starts, and a ghost with none', () => {
+  itDom('marks a zero-day estimate with a tick, and an unestimated one with nothing', () => {
     render(
       <GanttPanel
         plan={planOf({
@@ -696,10 +711,11 @@ describe('the chart is drawn in calendar days', () => {
     expect(markAttribute('[data-gantt-tick="sand-dev"]', 'x1')).toBe('7');
     expect(barFor('sand-dev')?.getAttribute('width')).toBe('0');
     expect(document.querySelector('[data-gantt-tick="strip-dev"]')).toBeNull();
-    // The unestimated slice on the same workday is two workdays wide; a tick
-    // under it would be the old mark left behind on a bar that no longer needs
-    // one, and its width says the two are not the same fact.
-    expect(barFor('trim-dev')?.getAttribute('width')).toBe('2');
+    // The unestimated slice stands on the same workday and draws neither mark:
+    // no bar and no tick. Somebody costing this work at zero days said
+    // something; nobody costing it at all said nothing, and the two answers are
+    // no longer drawn the same way — or drawn at all, in the second case.
+    expect(barFor('trim-dev')).toBeNull();
     expect(document.querySelector('[data-gantt-tick="trim-dev"]')).toBeNull();
   });
 
@@ -917,40 +933,6 @@ describe('the chart is drawn in calendar days', () => {
     expect(qa).not.toContain('2/3/8');
   });
 
-  itDom('says on the ghost bar that its width is a drawing and not an estimate', () => {
-    render(
-      <GanttPanel
-        plan={planOf({
-          rows: [rowAt('sand', 3, 3, { number: '020', name: 'Sand the deck' })],
-          slices: [sliceAt('sand-dev', 'sand', 3, 3, { estimated: false })],
-        })}
-        startDate={null}
-        scheduleError={null}
-        generation={0}
-        heightPx={null}
-        onPickRow={() => undefined}
-      />,
-    );
-
-    // A line of its own, between the dates and the trio, so it is read rather
-    // than found.
-    //
-    // Proof: the line dropped from `barFacts` — this test alone failed, on
-    // `expected [ '020 - Sand the deck', …(5) ] to deeply equal [ '020 - Sand
-    // the deck', …(6) ]`, and the only thing left saying
-    // the two days were invented was the bar's own paint. Watched, 2026-08-09.
-    expect(linesOf(surfaceOn('sand-dev'))).toEqual([
-      '020 - Sand the deck',
-      'Dev · Unassigned',
-      'No team',
-      'Workdays 3 → 3 · not estimated',
-      'Not estimated — drawn as 2 days',
-      'No estimate for this role',
-      'Float 0 days',
-      'Starts with the project',
-    ]);
-  });
-
   itDom('says a fraction in prose to two places, and draws it whole', () => {
     render(
       <GanttPanel
@@ -997,8 +979,9 @@ describe('the chart is drawn in calendar days', () => {
         onPickRow={() => undefined}
       />,
     );
+    askForTheArrows();
 
-    // Four marks no assertion about a bar can see, each of them a `map` in the
+    // Three marks no assertion about a bar can see, each of them a `map` in the
     // SVG that could be deleted whole without a bar moving. Where each of them
     // stands is `every mark on the chart lands on the calendar day its workday
     // is`; that they are drawn at all is here.
@@ -1007,17 +990,10 @@ describe('the chart is drawn in calendar days', () => {
     // failed this test and only this test, and the sentence stood in for the
     // missing mark every time (vitest abbreviates the selector in its summary
     // line):
-    //   bracket — `expected 'nothing on the chart at [data-gantt-b…' to be '9'`
-    //   (re-watched 2026-08-09 as a rect: the block deleted, this test alone)
     //   arrow   — `expected 'nothing on the chart at [data-gantt-a…' to contain 'M 5 1.5'`
     //   link    — `expected 'nothing on the chart at [data-gantt-p…' to contain '[stroke-dasharray:4_3]'`
     //   flag    — `expected 'nothing on the chart at [data-gantt-n…' to match /^M 7 /`
     // Watched, 2026-08-09.
-    // An existence check and nothing more, deliberately: the ghost bar's whole
-    // shape — inset, height, radii, translucent fill — is asserted in `the
-    // marks that had to be seen`, where the relation to a leaf's bar is the
-    // assertion. Here it is drawn at all, spanning its nine calendar days.
-    expect(markAttribute('[data-gantt-bracket="hull"]', 'width')).toBe('9');
     expect(markAttribute('[data-gantt-arrow="strip->sand"]', 'd')).toContain('M 5 1.5');
     // Dashed and its own colour: a hand-off is not a dependency, and the two
     // are told apart by nothing but how they are drawn.
@@ -1152,6 +1128,7 @@ describe('the marks that had to be seen', () => {
 
   itDom('leaves the successor’s left edge alone when the two bars touch', () => {
     drawTouchingPlan();
+    askForTheArrows();
 
     const route = pointsOf('[data-gantt-arrow="strip->sand"]');
     const last = route.at(-1);
@@ -1187,6 +1164,7 @@ describe('the marks that had to be seen', () => {
 
   itDom('points a filled head at the successor’s start', () => {
     drawTouchingPlan();
+    askForTheArrows();
 
     const head = pointsOf('[data-gantt-arrow-head="strip->sand"]');
     // Proof: the `<path data-gantt-arrow-head>` deleted from the SVG, which is
@@ -1245,68 +1223,65 @@ describe('the marks that had to be seen', () => {
     );
   });
 
-  itDom('still marks a parent whose projection has no days', () => {
+  itDom('leaves a zero-projection parent’s row empty and its children where they were', () => {
     // Every child unestimated, so the branch's projection starts and finishes
-    // on one workday — a modeled state the seeded ustsu plan is full of. The
-    // ghost rect would have zero width there, which is no mark at all; the
-    // parent gets the leaves' own answer, a tick where the branch stands.
+    // on one workday — a modeled state the seeded ustsu plan is full of, and
+    // the state the ghost bar used to answer with a tick. Both the tick and the
+    // ghost are gone: a parent's row draws nothing at either projection.
     render(
       <GanttPanel
         plan={planOf({
-          rows: [rowAt('hull', 5, 5, { leaf: false }), rowAt('strip', 5, 5, { depth: 1 })],
-          slices: [sliceAt('strip-dev', 'strip', 5, 5, { duration: 0, estimated: false })],
+          rows: [
+            rowAt('hull', 5, 8, { leaf: false }),
+            rowAt('strip', 5, 5, { depth: 1 }),
+            rowAt('sand', 5, 8, { depth: 1 }),
+          ],
+          slices: [
+            sliceAt('strip-dev', 'strip', 5, 5, { duration: 0 }),
+            sliceAt('sand-dev', 'sand', 5, 8),
+          ],
         })}
         startDate={MONDAY_START}
         scheduleError={null}
+        generation={0}
         heightPx={null}
         onPickRow={() => undefined}
       />,
     );
-    const mark = document.querySelector('[data-gantt-bracket="hull"]');
-    if (mark === null) throw new Error('the zero-span parent left no mark at all');
-    expect(mark.tagName).toBe('line');
-    // On the calendar: workday 5 of a Monday start is seven days in, and the
-    // tick spans the bar band rather than being a point.
-    expect(mark.getAttribute('x1')).toBe('7');
-    expect(mark.getAttribute('x2')).toBe('7');
-    expect(Number(mark.getAttribute('y2')) - Number(mark.getAttribute('y1'))).toBeCloseTo(0.64, 12);
+
+    expect(document.querySelectorAll('[data-gantt-bracket]')).toHaveLength(0);
+    // Beside the absence and on the same render, the two facts an empty chart
+    // would fail: the children are still drawn, and they are still on rows 1
+    // and 2 — the parent's row is empty, not gone. Row alignment with the
+    // table is what the browser gate measures.
+    expect(
+      Math.floor(
+        Number(document.querySelector('[data-gantt-tick="strip-dev"]')?.getAttribute('y1')),
+      ),
+    ).toBe(1);
+    expect(Math.floor(drawnBox('[data-gantt-bar="sand-dev"]').y)).toBe(2);
+    expect(document.querySelectorAll('[data-gantt-label]')).toHaveLength(3);
+    expect(viewBoxOf(document.querySelector('[data-gantt-chart]')).height).toBe(3);
   });
 
-  itDom('draws a parent as the ghost of a bar: a leaf’s shape, translucent, unstroked', () => {
+  itDom('draws no mark of its own on a parent’s row', () => {
     drawTouchingPlan();
 
-    // The same shape the leaf bar beside it has — inset, height, both corner
-    // radii — read off the two rects rather than written out, so the "same
-    // bar as other bars" claim is the assertion and not a comment.
-    const ghost = drawnBox('[data-gantt-bracket="hull"]');
-    const leaf = drawnBox('[data-gantt-bar="strip-dev"]');
-    expect(ghost.y - Math.floor(ghost.y)).toBeCloseTo(leaf.y - Math.floor(leaf.y), 12);
-    expect(ghost.height).toBe(leaf.height);
-    const attributeOf = (selector: string, attribute: string): string | null =>
-      document.querySelector(selector)?.getAttribute(attribute) ?? null;
-    // Not-null before equal: two rects that both lost their radii would agree
-    // on null, and `expect(null).toBe(null)` is a check that cannot fail.
-    expect(attributeOf('[data-gantt-bracket="hull"]', 'rx')).not.toBeNull();
-    expect(attributeOf('[data-gantt-bracket="hull"]', 'rx')).toBe(
-      attributeOf('[data-gantt-bar="strip-dev"]', 'rx'),
-    );
-    expect(attributeOf('[data-gantt-bracket="hull"]', 'ry')).toBe(
-      attributeOf('[data-gantt-bar="strip-dev"]', 'ry'),
-    );
-    // The span is the projection on the calendar: hull runs workdays 5 → 10,
-    // which is calendar days 7 → 12 across the middle weekend.
-    expect(ghost.x).toBe(7);
-    expect(ghost.width).toBe(5);
-    // Translucent foreground and no stroke: visibly a projection of the rows
-    // beneath it, not an eleventh person's work.
-    //
-    // Proof: the class replaced by `fill-foreground` whole — a parent drawn as
-    // solid ink, indistinguishable from work. This test alone failed, on
-    // `expected 'fill-foreground' to contain 'fill-foreground/15'`. Watched
-    // 2026-08-09.
-    const paint = attributeOf('[data-gantt-bracket="hull"]', 'class') ?? '';
-    expect(paint).toContain('fill-foreground/15');
-    expect(paint).not.toContain('stroke');
+    // The ghost bar is gone whole — rect and tick both, so nothing is left
+    // spanning the projection its children already draw.
+    expect(document.querySelectorAll('[data-gantt-bracket]')).toHaveLength(0);
+    // And nothing else moved to make room: both leaves are drawn, on their own
+    // rows, at the calendar days they were at. An assertion about an absence
+    // with no assertion about a presence beside it passes against a chart that
+    // draws nothing at all.
+    const strip = drawnBox('[data-gantt-bar="strip-dev"]');
+    const sand = drawnBox('[data-gantt-bar="sand-dev"]');
+    expect(Math.floor(strip.y)).toBe(1);
+    expect(Math.floor(sand.y)).toBe(2);
+    expect(sand.x).toBe(TOUCH_AT);
+    // The parent's row is still a row: three labels, three units of user space.
+    expect(document.querySelectorAll('[data-gantt-label]')).toHaveLength(3);
+    expect(viewBoxOf(document.querySelector('[data-gantt-chart]')).height).toBe(3);
   });
 });
 
@@ -1390,6 +1365,9 @@ describe('the canvas holds every mark it draws', () => {
         onPickRow={() => undefined}
       />,
     );
+    // The routes are the whole fixture, and no route is drawn until they are
+    // asked for.
+    askForTheArrows();
 
     const xs = everyDrawnX();
     // The fixture really does route outside the schedule, at both ends. Without
@@ -1578,24 +1556,6 @@ describe('the words on the bars are HTML over the chart', () => {
     expect(labelOn('strip-dev')?.textContent).toBe('strip - strip');
   });
 
-  itDom('keeps the ? first on an unestimated bar, the row words after it', () => {
-    render(
-      <GanttPanel
-        plan={planOf({
-          rows: [rowAt('seal', 0, 0)],
-          slices: [sliceAt('seal-dev', 'seal', 0, 0, { duration: 0, estimated: false })],
-        })}
-        startDate={null}
-        scheduleError={null}
-        heightPx={null}
-        onPickRow={() => undefined}
-      />,
-    );
-    // The `?` is the width's own disclaimer and is never dropped; the row
-    // words follow it rather than replace it.
-    expect(labelOn('seal-dev')?.textContent).toBe('? · seal - seal');
-  });
-
   itDom('writes the label in ink the bar it sits on can be read through', () => {
     // Nine people down the rows, so the ninth takes `#bcbd22` — the palette's
     // highlighter, the one entry white disappears into.
@@ -1633,18 +1593,6 @@ describe('the words on the bars are HTML over the chart', () => {
     expect(barLabelFor('Kat Bloom', 1)).toBe('KB');
     expect(barLabelFor('Kat Bloom', 0.2)).toBeNull();
     expect(barLabelFor(null, 4)).toBeNull();
-  });
-
-  itDom('keeps the ? on a ghost bar however little room the name leaves', () => {
-    // The assumed span is 2 workdays — 56px, of which 50 are writable — and
-    // `Kat · ?` is 7 characters at ~5.5px, so the name rides along. A longer
-    // name gives up its letters first and then itself; the `?` never goes.
-    expect(assumedLabelFor('Kat', ASSUMED_UNESTIMATED_WORKDAYS)).toBe('Kat · ?');
-    expect(assumedLabelFor('Katherine Bloomfield', ASSUMED_UNESTIMATED_WORKDAYS)).toBe('KB · ?');
-    expect(assumedLabelFor('Katherine Bloomfield', 0.5)).toBe('?');
-    expect(assumedLabelFor(null, ASSUMED_UNESTIMATED_WORKDAYS)).toBe('?');
-    // Narrower than one `?` and there is nothing honest to write.
-    expect(assumedLabelFor('Kat', 0.2)).toBeNull();
   });
 
   itDom('takes initials from the first and last names, and never doubles one', () => {
@@ -2613,6 +2561,7 @@ describe('the arrows switch', () => {
         plan={everyMarkOnOneDay()}
         startDate={MONDAY_START}
         scheduleError={null}
+        generation={0}
         heightPx={null}
         onPickRow={() => undefined}
       />,
@@ -2620,37 +2569,83 @@ describe('the arrows switch', () => {
 
   const countOf = (selector: string): number => document.querySelectorAll(selector).length;
 
-  itDom('hides every arrow and its head, and touches nothing else', () => {
-    drawEveryMark();
+  /** The switch itself, or a throw naming a panel that has not got one. */
+  function theSwitch(): HTMLElement {
     const toggle = document.querySelector('[data-gantt-arrows-toggle]');
     if (!(toggle instanceof HTMLElement)) throw new Error('the arrows switch is not on the panel');
+    return toggle;
+  }
 
-    // Shown by default, and the switch says so.
-    expect(toggle.getAttribute('aria-pressed')).toBe('true');
-    expect(countOf('[data-gantt-arrow]')).toBe(1);
-    expect(countOf('[data-gantt-arrow-head]')).toBe(1);
+  itDom('opens with no arrows at all, and draws both marks when asked', () => {
+    drawEveryMark();
+    const toggle = theSwitch();
 
-    fireEvent.click(toggle);
-
-    // Both marks of the stored dependency are gone — the elbow and the head
-    // are two paths, and a filter keyed on one of them leaves the other as a
-    // floating triangle pointing at nothing.
-    //
-    // Proof: the `arrowsShown &&` moved onto the elbow alone, heads left
-    // drawn. This test alone failed, on `expected 1 to be +0` for the head
-    // count. Watched 2026-08-09.
+    // Off on open, and the switch says so. This is the whole change: sixty
+    // elbows bury the bars they join, so nobody gets them until they ask.
     expect(toggle.getAttribute('aria-pressed')).toBe('false');
     expect(countOf('[data-gantt-arrow]')).toBe(0);
     expect(countOf('[data-gantt-arrow-head]')).toBe(0);
-    // The person link, the caret and every bar are untouched: the switch
-    // removes the stored-dependency marks alone.
+    // Beside the absence, on the same render: the marks that must still be
+    // there. An absence assertion alone passes against a panel that drew
+    // nothing at all.
     expect(countOf('[data-gantt-person-link]')).toBe(1);
     expect(countOf('[data-gantt-not-before]')).toBe(1);
     expect(countOf('[data-gantt-bar]')).toBe(3);
 
     fireEvent.click(toggle);
+
+    // Both marks of the stored dependency arrive together — the elbow and the
+    // head are two paths of one mark, and a condition on one of them leaves a
+    // floating triangle pointing at nothing.
+    expect(toggle.getAttribute('aria-pressed')).toBe('true');
     expect(countOf('[data-gantt-arrow]')).toBe(1);
     expect(countOf('[data-gantt-arrow-head]')).toBe(1);
+
+    fireEvent.click(toggle);
+    expect(countOf('[data-gantt-arrow]')).toBe(0);
+    expect(countOf('[data-gantt-arrow-head]')).toBe(0);
+  });
+
+  itDom('opens with the arrows a fresh panel is remounted onto', () => {
+    drawEveryMark();
+    fireEvent.click(theSwitch());
+    expect(countOf('[data-gantt-arrow]')).toBe(1);
+
+    // A remount and not a rerender: the fault boundary throws this panel away
+    // and builds another on the next whole read, and a preference held in a
+    // hook alone goes with it. The stored answer is what survives that.
+    cleanup();
+    drawEveryMark();
+
+    expect(theSwitch().getAttribute('aria-pressed')).toBe('true');
+    expect(countOf('[data-gantt-arrow]')).toBe(1);
+    expect(countOf('[data-gantt-arrow-head]')).toBe(1);
+    expect(localStorage.getItem('wbs.ganttArrows')).toBe('true');
+  });
+
+  itDom('refuses a stored answer that is not a boolean, and drops the key', () => {
+    // The stored value is a claim, not a fact: hand-edited storage read at a
+    // boundary. `"yes"` is a string a person would write and JSON parses
+    // happily, which is why the check is on the type rather than on the parse.
+    //
+    // Proof: the `typeof claimed !== 'boolean'` refusal deleted, so a truthy
+    // claim was taken as the answer. This test alone failed, on `expected +0
+    // to be 1` — the arrows drawn from a string, and the key still in storage.
+    localStorage.setItem('wbs.ganttArrows', JSON.stringify('yes'));
+    drawEveryMark();
+
+    expect(theSwitch().getAttribute('aria-pressed')).toBe('false');
+    expect(countOf('[data-gantt-arrow]')).toBe(0);
+    expect(localStorage.getItem('wbs.ganttArrows')).toBeNull();
+  });
+
+  itDom('refuses storage that is not JSON at all, and drops the key', () => {
+    localStorage.setItem('wbs.ganttArrows', '{not json');
+    drawEveryMark();
+
+    expect(theSwitch().getAttribute('aria-pressed')).toBe('false');
+    expect(countOf('[data-gantt-arrow]')).toBe(0);
+    expect(localStorage.getItem('wbs.ganttArrows')).toBeNull();
   });
 });
 
