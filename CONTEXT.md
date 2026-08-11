@@ -159,10 +159,11 @@ project holding two roles is two slices, run one after the other in role order.
 _Avoid_: task, bar, segment, phase, item×role
 
 **Anchor slice**:
-A work item's first slice in role order — the one a dependency waits on. Reordering a
-project's roles moves what every dependency waits for. Unestimated, it is zero days long
-and the wait clears the moment it is reached.
-_Avoid_: dev slice, first estimated slice, handoff point
+A work item's first slice in role order that somebody estimated — the one a dependency
+waits on. A role listed in front of it and left unestimated is stepped over. Reordering a
+project's roles moves what every dependency waits for. Where nothing is estimated the
+anchor is the work item's finish, which for a work item of no days is its own start.
+_Avoid_: dev slice, first slice, handoff point
 
 **Projection**:
 A work item's own schedule, read off its slices: the earliest of their starts, the latest

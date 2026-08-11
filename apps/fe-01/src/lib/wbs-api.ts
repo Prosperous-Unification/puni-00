@@ -585,7 +585,12 @@ export interface ProjectApi {
   freeze(projectId: string): Promise<void>;
   unfreezeProject(projectId: string): Promise<void>;
   unfreeze(id: string): Promise<void>;
-  /** Records "`predecessorId` must finish before this starts". */
+  /**
+   * Records "`predecessorId`'s **anchor** must finish before this starts" —
+   * its first role somebody estimated, not the whole of it. The roles behind
+   * that anchor run alongside this work item. Since `dep-waits-on-first-role`
+   * (2026-08-11); the edge itself is unchanged, only what it means.
+   */
   addDependency(id: string, predecessorId: string): Promise<void>;
   removeDependency(id: string, predecessorId: string): Promise<void>;
 }

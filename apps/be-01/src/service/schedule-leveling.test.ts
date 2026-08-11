@@ -337,6 +337,97 @@ describe('leveling — slack and critical through people', () => {
     const row = found.workItems.get('w');
     expect(row?.float).toBe(0);
     expect(row?.critical).toBe(true);
+    // `tail` is pinned here because this fixture has an edge in it and nothing
+    // was watching where the edge landed: `tail` ran from day 8 under the
+    // whole-item rule and runs from day 1 under the anchor rule, and the test
+    // stayed green through the move. It waits on `w`'s `Dev` — `w`'s first
+    // estimated slice, done on day 1 — while `w`'s `QA` sits in kat's queue
+    // until day 6, five days after the row it no longer holds.
+    //
+    // Proof: `anchorNode` in `schedule.ts` set to the leaf's last node — the
+    // whole-item rule — and this failed on `earliestStart` `Expected: 1,
+    // Received: 8`; watched 2026-08-11.
+    expect(planned(found, 'tail', DEV)).toMatchObject({
+      earliestStart: 1,
+      earliestFinish: 2,
+      boundBy: 'predecessor',
+    });
+  });
+});
+
+describe('leveling — the anchor and the queue', () => {
+  it('holds a successor to the anchor a person pushed, not to the anchor the plan alone would have', () => {
+    // `kat` does `hog` (0→6, the longest path there is, so hers first) and then
+    // `lead`'s `Dev`, which is `lead`'s anchor and cannot start before she is
+    // free: 6→8. The plan alone would have put that anchor at 0→2 and released
+    // `sub` on day 2. It is released on day 8 — the **levelled** anchor finish
+    // — and `boundBy` says the dependency, not the person: `sub` is nobody's
+    // work.
+    //
+    // Proof: `anchorNode` set to the leaf's last node — the whole-item rule —
+    // and this failed on `sub` `earliestStart` `Expected: 8, Received: 11`,
+    // the day `lead`'s QA finished; watched 2026-08-11.
+    const rows = [item('hog'), item('lead'), item('sub')];
+    const slices = [
+      slice('hog', DEV, 6, 'kat'),
+      slice('lead', DEV, 2, 'kat'),
+      slice('lead', QA, 3, null),
+      slice('sub', DEV, 1, null),
+    ];
+
+    const found = schedule(rows, [edge('lead', 'sub')], slices);
+
+    expect(planned(found, 'lead', DEV)).toMatchObject({
+      earliestStart: 6,
+      earliestFinish: 8,
+      boundBy: 'person',
+      resourcePredecessorId: sliceKey('hog', DEV),
+    });
+    expect(planned(found, 'sub', DEV)).toMatchObject({
+      earliestStart: 8,
+      earliestFinish: 9,
+      boundBy: 'predecessor',
+    });
+    // `lead`'s QA runs beside `sub` rather than before it — the whole point of
+    // the anchor rule, and here it is a person who set the day they share.
+    expect(planned(found, 'lead', QA)).toMatchObject({ earliestStart: 8, earliestFinish: 11 });
+    expect(overlaps(found)).toEqual([]);
+  });
+
+  it('queues a predecessor’s later role against its own successor’s work', () => {
+    // The contention the anchor rule created and nothing could produce before
+    // it: `kat` holds both `lead`'s `QA` and `sub`'s `Dev`, and under the
+    // whole-item rule `lead`'s QA always ran first because `sub` could not
+    // start until it had. Now they are eligible on the same day — `lead`'s
+    // anchor releases `sub` on day 2, and `lead`'s QA is free from day 2 too —
+    // so the leveller has to choose, and the loser records whom it waited for.
+    //
+    // The tie goes to `lead`'s QA on the critical-path ranking, so `sub` is the
+    // one that queues: 5→6, `boundBy` the person, behind `lead/role-qa`.
+    //
+    // Proof: `anchorNode` set to the leaf's last node — the whole-item rule —
+    // and this failed on `boundBy` `person` → `predecessor` and
+    // `resourcePredecessorId` `lead/role-qa` → `null`, on the same day 5. That
+    // is the finding exactly: under the old rule this contention could not
+    // exist, and the days alone would not have shown it. Watched 2026-08-11.
+    const rows = [item('lead'), item('sub')];
+    const slices = [
+      slice('lead', DEV, 2, null),
+      slice('lead', QA, 3, 'kat'),
+      slice('sub', DEV, 1, 'kat'),
+    ];
+
+    const found = schedule(rows, [edge('lead', 'sub')], slices);
+
+    expect(planned(found, 'lead', QA)).toMatchObject({ earliestStart: 2, earliestFinish: 5 });
+    expect(planned(found, 'sub', DEV)).toMatchObject({
+      earliestStart: 5,
+      earliestFinish: 6,
+      boundBy: 'person',
+      resourcePredecessorId: sliceKey('lead', QA),
+    });
+    expect(overlaps(found)).toEqual([]);
+    expect(found.waitingForPerson).toBe(1);
   });
 });
 

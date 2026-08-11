@@ -93,3 +93,65 @@ day` (the `fromStart === fromFinish` calendar reading, which already
       failure-proof table — every fault injected in 1.3, 2.2, 3.1, 3.2 with
       the test that observed it and the observed output — and the standing
       note that `build` and e2e are CI's on this host.
+
+## 5. The anchor is the first _estimated_ slice (Dany, 2026-08-11)
+
+An independent probe found the rule as first shipped switches every dependency
+off in a project that lists a role nobody estimates: `[Design, Dev, QA]` with
+`Design` blank makes every anchor zero days long, and a fifteen-day three-item
+chain came back with all three rows on day zero. Dany's decision on being shown
+it: "first in list of project roles, then first that is estimated".
+
+- [x] 5.1 `schedule-shapes.test.ts`: the probe as a regression —
+      `a chain does not collapse because a project lists a role nobody
+estimated`, three roles, `c1 → c2 → c3` of 4-day Dev, asserting 0→4,
+      4→8, 8→12 — plus `walks past an unestimated role to the first one
+somebody estimated` (the old `a zero-length anchor clears immediately`,
+      reversed), `anchors a predecessor nobody estimated at all on its
+finish`, `carries an unestimated predecessor's own wait through to its
+successor` and `a branch anchors each leaf on its own first estimate`.
+      All four watched failing on the first-slice-plain rule before the walk
+      landed. Then `schedule.ts`: `anchorNode` beside `firstNode`, the first
+      slice with `days !== null` and the last node where there is none.
+- [x] 5.2 Negative on the walk: `anchorNodeOf` replaced by `firstNodeOf` and
+      the four tests above watched failing with their observed values, and
+      `anchorNode` set to the last node — the whole-item rule — watched
+      failing on the tests that predate this decision. Both recorded as
+      `Proof:` comments at the adjacency loop.
+- [x] 5.3 `schedule-leveling.test.ts`: the rule with a person in the plan,
+      which had no coverage at all. `holds a successor to the anchor a person
+pushed` (successor released at the **levelled** anchor finish, `boundBy`
+      the dependency), `queues a predecessor's later role against its own
+successor's work` (the contention class this change created —
+      `resourcePredecessorId` asserted, watched flipping to `predecessor`/
+      `null` under the whole-item rule), and `tail`'s start pinned in `reports
+the least slack of a work item whose slices a person pushed apart`,
+      which moved 8 → 1 under this change with nothing asserting on it.
+- [x] 5.4 `schedule-identity.test.ts`: the corpus coverage the narrowing cost,
+      paid back as invariants over the same thousand plans — successor starts
+      no earlier than the latest anchor finish among its predecessors, no
+      negative float, projections span their slices — with the corpus half
+      asserted (edges whose predecessor's anchor is not its first slice > 0).
+      Watched failing at seed 21 under the first-slice rule. The growth
+      property's anchor identification follows the engine's walk.
+- [x] 5.5 fe: `anchorSpanOf` walks to the first slice the payload marks
+      `estimated`, last where none is, pinned by `an arrow leaves the first
+estimated role, not the unestimated one in front of it` and watched
+      failing on `own.at(0)`. The hover card's `predecessor` sentence stops
+      saying "to finish" and names the anchor. Stale contract on
+      `wbs-api.ts`'s `addDependency` updated.
+- [x] 5.6 Spec, design and glossary: the estimated-anchor rule with the
+      zero-day nuance stated, the fall-through specced as a scenario, D1
+      rewritten so the first version's blast radius is the recorded motivation
+      rather than a deleted mistake, and D5 naming two inert-today
+      consequences — trailing slices taking the project's `latestFinish`, and
+      `critical-snap`'s non-tiling arm becoming the ordinary case.
+
+## 6. Rebase onto main
+
+- [x] 6.1 Rebased onto `main` @ `e0bfcef` (#41, #42, #43 merged). Six
+      collision points; `schedule-identity.test.ts` resolved keeping main's
+      snapped oracle beside this branch's growth property, and
+      `schedule-priority.test.ts`'s pre-priority pin re-derived where the
+      anchor rule moves it, with the move recorded beside the pin. Full gate
+      green after.

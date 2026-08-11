@@ -784,7 +784,7 @@ describe('the chart is drawn in calendar days', () => {
       'Workdays 2 → 5 · 3 days',
       '2/3/8',
       'Float 2 days',
-      'Waits for a dependency to finish',
+      'Waits for a dependency’s first estimated role',
       'after 3.1 Design',
     ]);
     // The heading against `rowWords`' own output and not against the literal

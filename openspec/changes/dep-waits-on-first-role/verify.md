@@ -1,6 +1,7 @@
 # verify — `dep-waits-on-first-role`
 
-Branch `change/dep-waits-on-first-role`, cut from `main` @ `94ed488`.
+Branch `change/dep-waits-on-first-role`, cut from `main` @ `94ed488` and
+rebased onto `main` @ `e0bfcef` (#41, #42, #43 merged) on 2026-08-11.
 
 be-01's engine and fe-01's Gantt geometry. No migration, no API shape change,
 no gw-01 change; the wire is untouched — the fe anchor is _selection_ over
@@ -100,6 +101,16 @@ guard that the successor side did not move (design.md D2), a scope pin rather
 than a failure proof, and a table of injected faults is not where a test with
 none belongs.
 
+**Two rows of this table are history rather than current evidence.** `a
+zero-length anchor clears immediately` and `a zero-length anchor draws from its
+own day` were watched exactly as recorded, but Dany's estimated-anchor decision
+later that day reversed the first outright — it is now `walks past an
+unestimated role to the first one somebody estimated`, asserting day 4 where it
+asserted day 0 — and narrowed the second to a predecessor nobody estimated
+anywhere. The rows stay because deleting a watched observation to tidy the
+record is how a table stops being a record. The proofs that stand today are in
+the section below.
+
 The 2.4 rule held: every downstream failure the flip produced was explained by
 the anchor rule before any expectation was touched. The full be-01 run after
 the flip failed exactly four tests — the two parity runs (seed 1, a
@@ -149,3 +160,99 @@ parents through the leaves two levels down`): leaves under a nested child,
 - **Task 4.2-style eyes on dev** — how the parallel-QA chart reads at arm's
   length is Dany's to judge after merge; what is pinned is that the arrow
   leaves the anchor and never points backwards past the start it lands on.
+
+## The estimated-anchor decision, and the rebase (2026-08-11)
+
+The rule as first shipped anchored on the predecessor's first slice **plain**.
+An independent probe showed that switches every dependency off in a project
+listing a role nobody estimated — `[Design, Dev, QA]` with `Design` blank makes
+every anchor zero days long, and a three-item chain of four-day `Dev` work came
+back with all three rows on day zero. Dany: "first in list of project roles,
+then first that is estimated". This section is that decision implemented, the
+review's P2s and P3s, and the rebase.
+
+### The gate, re-run on the rebased branch
+
+Run from the repo root, 2026-08-11.
+
+| Command                                          | Result                                                                                   |
+| ------------------------------------------------ | ---------------------------------------------------------------------------------------- |
+| `bunx nx format:check --all`                     | green, exit 0                                                                            |
+| `bunx nx run-many -t test lint typecheck build`  | green — 21 projects; be-01: **623 tests** in 53 files, fe-01: **1112 tests** in 45 files |
+| `bunx @fission-ai/openspec@1.3.0 validate --all` | green — 27 items, 27 passed, 0 failed                                                    |
+
+The run-many target list is the repo's own TypeScript and Vite compile, not a
+container image; the house rule that never runs on this box is `dagger` and
+`docker`, and neither was invoked. `bun run e2e` was **not** run and no result
+is claimed for it — the browser gate is CI's `pixels` job (R5).
+
+### The failure proofs
+
+Every check below was watched failing against a deliberately broken engine
+before it was recorded as green. `anchorNode → first` is the first-slice-plain
+rule this decision replaced; `anchorNode → last` is the whole-item rule the
+branch replaced before that.
+
+| Fault injected                  | Test that observed it                                                              | Observed output                                                                                                             |
+| ------------------------------- | ---------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `anchorNode → first`            | `a chain does not collapse because a project lists a role nobody estimated`        | `c2` `earliestStart` Expected 4, Received 0 — the whole chain on day zero                                                   |
+| `anchorNode → first`            | `walks past an unestimated role to the first one somebody estimated`               | Expected 4, Received 0                                                                                                      |
+| `anchorNode → first`            | `a branch anchors each leaf on its own first estimate`                             | Expected 5, Received 0                                                                                                      |
+| `anchorNode → first`            | `carries an unestimated predecessor's own wait through to its successor`           | `B` `earliestStart` Expected 3, Received 0                                                                                  |
+| `anchorNode → first`            | `holds the anchor rule's own invariants over every multi-role plan with edges`     | `seed 21: r1 starts 0, before r0's anchor finishes at 1.1666666666666667`                                                   |
+| `anchorNode → last`             | `never moves a successor when a predecessor's later slices grow`                   | `seed 3: r1c0 moved from 8.666666666666666 to 11.333333333333332 when only later slices grew`                               |
+| `anchorNode → last`             | `reports the least slack of a work item whose slices a person pushed apart`        | `tail` `earliestStart` Expected 1, Received 8                                                                               |
+| `anchorNode → last`             | `holds a successor to the anchor a person pushed…`                                 | `sub` `earliestStart` Expected 8, Received 11                                                                               |
+| `anchorNode → last`             | `queues a predecessor's later role against its own successor's work`               | `boundBy` `person` → `predecessor`, `resourcePredecessorId` `lead/role-qa` → `null`, same day 5                             |
+| fe `anchorSpanOf` → `own.at(0)` | `an arrow leaves the first estimated role, not the unestimated one in front of it` | `1 failed \| 68 passed` — `expected { predecessorId: 'strip', …(6) } to match object { fromStart: 5, fromFinish: 9, …(1) }` |
+
+The last one is what holds be-01's walk and fe's walk together: one rule, two
+implementations, and a test that fails when they drift rather than a comment
+asking the reader to check.
+
+### What moved, beyond the walk itself
+
+- **The hover card** (`gantt-geometry.ts`): `predecessor` read "Waits for a
+  dependency to finish", which the anchor rule made false — the predecessor's
+  later roles run alongside the bar those words sit on. It now reads "Waits for
+  a dependency's first estimated role", in the shape of its sibling "Waits for
+  an earlier role on this item". Three assertions moved with it.
+- **Leveling coverage** (`schedule-leveling.test.ts`): the anchor rule had none
+  with a person in the plan. Two tests added — the successor released at the
+  **levelled** anchor finish, and the contention class this change created,
+  where a predecessor's later role and its own successor's work compete for one
+  person and `resourcePredecessorId` records who waited. `tail`'s start pinned
+  in the fixture that had an edge nothing was watching.
+- **Corpus coverage** (`schedule-identity.test.ts`): the narrowing dropped
+  multi-role-with-dependencies from the thousand-plan corpus. The same plans run
+  again against the new rule's own invariants, with the corpus half asserted so
+  a green run cannot be an empty one.
+- **Stale contract** (`wbs-api.ts`): `addDependency`'s "must finish before this
+  starts" now names the anchor.
+- **Docs**: D1 rewritten so the first version's blast radius is the recorded
+  motivation; D2 gains the argument for why the two sides read the estimate
+  differently; D5 names two consequences that are inert today and on the wire —
+  trailing slices taking the project's `latestFinish`, and `critical-snap`'s
+  non-tiling projection arm becoming the ordinary case rather than the rare one.
+
+### The rebase
+
+Six collision points against `main` @ `e0bfcef`:
+
+- `schedule-identity.test.ts` — main's `snappedSlack` oracle and this branch's
+  growth property are disjoint tests; both kept, and `expectSameSchedule` stays
+  main's, which is what codex's rebase P1 asked for.
+- `schedule-priority.test.ts` — the real one. Its pre-priority `CONTENTION` pin
+  moves under the anchor rule: `c-c` waits on `c-a`'s `Dev` (day 7) rather than
+  the whole of `c-a` (day 8), and sam's queue reverses behind it. Three slices
+  and four projections re-derived, with the move recorded beside the pin.
+- `goesFirst`/`SlicePriority`, the `tiles` projection, the six fixture helpers
+  and `wbs-table.tsx` merged with no conflict. Priority stays the first
+  comparator term.
+
+## Still not verified
+
+- **The browser assertions** — unchanged from above: no browser on this host,
+  CI's `pixels` job owns the drawn arrow.
+- **The hover card's new sentence read at arm's length** — pinned at the data
+  layer, not eyeballed on dev. Dany's to judge.

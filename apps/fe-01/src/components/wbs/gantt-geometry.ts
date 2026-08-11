@@ -725,9 +725,20 @@ export function placeOnWorkdays(chart: GanttGeometry): PlacedGantt {
   return placeGantt(chart, asItIs, asItIs);
 }
 
+/**
+ * What each floor says on a bar's hover card, in the reader's words.
+ *
+ * `predecessor` used to read "Waits for a dependency to finish", which stopped
+ * being true at `dep-waits-on-first-role` (2026-08-11): the wait is on the
+ * predecessor's **anchor** — its first estimated role — and the roles behind
+ * that anchor run alongside this bar. A card saying "to finish" beside an
+ * arrow leaving the middle of the predecessor is the chart contradicting
+ * itself, so it names the anchor instead, in the same shape as the sibling
+ * below it.
+ */
 const FLOOR_SENTENCE: Record<Exclude<BindingFloor, 'person'>, string> = {
   projectStart: 'Starts with the project',
-  predecessor: 'Waits for a dependency to finish',
+  predecessor: 'Waits for a dependency’s first estimated role',
   roleOrder: 'Waits for an earlier role on this item',
   notBefore: 'Held by its start-no-earlier-than date',
 };
@@ -1007,9 +1018,17 @@ export function layOutGantt(plan: GanttPlan): GanttGeometry {
   /**
    * The predecessor's anchor span, **selected** from the payload's slices and
    * never recomputed from estimates (design.md D6): a leaf's first slice in
-   * role order, and for a parent the latest-finishing anchor among its
-   * leaves. An id the tree does not hold reads as a leaf — its own slices —
-   * which for a parent finds none and lands on the throw below.
+   * role order **that somebody estimated**, its last slice when nobody
+   * estimated any of them, and for a parent the latest-finishing anchor among
+   * its leaves. An id the tree does not hold reads as a leaf — its own
+   * slices — which for a parent finds none and lands on the throw below.
+   *
+   * The walk is be-01's, read off the `estimated` flag the wire already
+   * carries rather than off any number this file works out for itself, so the
+   * arrow leaves the slice the engine actually joined the edge to. The two
+   * agreeing is not left to inspection: `an arrow leaves the first estimated
+   * role, not the unestimated one in front of it` pins it against a payload
+   * shaped like the engine's own probe.
    *
    * @throws GanttDataError when a leaf under the predecessor has no slice in
    * the payload. Not a collapsed row — that absence is modeled on `rows`, and
@@ -1030,14 +1049,15 @@ export function layOutGantt(plan: GanttPlan): GanttGeometry {
   ): { start: number; finish: number } => {
     const leafIds = leavesUnder.get(predecessorId) ?? [predecessorId];
     const anchors = leafIds.map((leafId) => {
-      const first = inRoleOrder(slicesByWorkItem.get(leafId) ?? [], rolesById).at(0);
-      if (first === undefined) {
+      const own = inRoleOrder(slicesByWorkItem.get(leafId) ?? [], rolesById);
+      const anchor = own.find((each) => each.slice.estimated) ?? own.at(-1);
+      if (anchor === undefined) {
         throw new GanttDataError(
           `dependency ${predecessorId} → ${successorId}: ${leafId} has no slice in this ` +
             `payload, so the arrow has no anchor to leave from`,
         );
       }
-      return { start: first.slice.earliestStart, finish: first.slice.earliestFinish };
+      return { start: anchor.slice.earliestStart, finish: anchor.slice.earliestFinish };
     });
     // Never empty, so the pick below has a seed: the walk maps a childless id
     // to itself, a parent to its children's leaves, and the `??` arm is one id.

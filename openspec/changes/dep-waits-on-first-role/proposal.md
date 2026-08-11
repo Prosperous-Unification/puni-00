@@ -14,21 +14,27 @@ A dependency today holds the successor until the predecessor's **last** slice
 finishes: 030 waits for 020's QA. Dany's call (2026-08-11): 030 needs 020's
 **dev** — the rule his own pre-wbs scheduler applied ("deps retarget the DEV
 task; nothing ever waits on QA"). The wait belongs to the predecessor's
-**first slice in role order** — its _anchor slice_ — and its later roles run
-in parallel with the successor.
+_anchor slice_ — its **first slice in role order that somebody estimated** —
+and its later roles run in parallel with the successor.
 
 Asked "first role in role order, or a per-project handoff flag?", Dany chose
-**first-in-order**. A richer per-edge model (an edge naming which slice it
-waits on) is wanted _in theory, later_; this change picks the default that
-model would fall back to, and adds no schema for it.
+**first-in-order**. Shown that first-in-order taken plain switches every
+dependency off in a project listing a role nobody estimates — `Design` in
+`[Design, Dev, QA]` zeroes every anchor, and a probed three-item chain
+collapsed from fifteen days to all-start-day-zero — he settled it: "first in
+list of project roles, then first that is estimated". A richer per-edge model
+(an edge naming which slice it waits on) is wanted _in theory, later_; this
+change picks the default that model would fall back to, and adds no schema
+for it.
 
 ## What Changes
 
-**Engine.** The expanded edge joins the predecessor's **first** slice to the
+**Engine.** The expanded edge joins the predecessor's **anchor** slice to the
 successor's first, instead of last-to-first. Parent ends still expand to
 leaves: every predecessor leaf's anchor finishes before any successor leaf
-starts. Successor-side attachment, floors, cycle detection at the write, and
-the item-anchored arithmetic are untouched.
+starts. A predecessor nobody estimated anywhere anchors on its own finish.
+Successor-side attachment (the first slice plain, estimated or not), floors,
+cycle detection at the write, and the item-anchored arithmetic are untouched.
 
 **Gantt arrows.** An arrow drawn from the predecessor's projection finish can
 now point backwards in time (successor starts while the predecessor's QA

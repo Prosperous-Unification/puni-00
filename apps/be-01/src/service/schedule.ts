@@ -829,18 +829,26 @@ function slackOf(latestStart: number, earliestStart: number): number {
  * hands `QA` its work item's predecessors.
  *
  * Edges are taken as written and expanded here: one declared on a parent means
- * every leaf beneath its predecessor has its **anchor slice** — its first slice
- * in role order — finish before every leaf beneath its successor starts, which
- * is "all of 010's first-role work before any of 020" (Dany's rule,
- * 2026-08-11: a dependency waits on the predecessor's Dev, never on its QA).
- * Between two leaves it joins the predecessor's **first** slice to the
- * successor's **first** — on the successor side never the first *estimated*
- * one, which would leave an unestimated `Dev` with no predecessor at all and
- * start the row before the thing it waits for. The predecessor's later slices
- * are free to run in parallel with the successor. Edges still touch only
- * slices at an item's boundary and the intra-item chains are private,
- * forward-only paths, so a cycle is still a property of the leaf graph alone
- * and {@link hasCycle} still answers for it.
+ * every leaf beneath its predecessor has its **anchor slice** finish before
+ * every leaf beneath its successor starts, which is "all of 010's first-role
+ * work before any of 020" (Dany's rule, 2026-08-11: a dependency waits on the
+ * predecessor's Dev, never on its QA).
+ *
+ * The anchor is the first slice in role order **that somebody estimated** —
+ * "first in list of project roles, then first that is estimated", his words —
+ * and the work item's finish when nobody estimated any of it. A `Design` role
+ * the project lists and this plan left blank therefore does not stand in
+ * front of the `Dev` the wait is really about; without that walk every edge
+ * in such a plan would anchor on a zero-length slice and decide nothing.
+ *
+ * On the **successor** side the edge lands on the first slice plain, never
+ * the first estimated one: that would leave an unestimated `Dev` with no
+ * predecessor at all and start the row before the thing it waits for. The
+ * asymmetry is the point — see `design.md` D2. The predecessor's slices
+ * behind its anchor are free to run in parallel with the successor. Edges
+ * still touch only slices of one item's own chain and those chains are
+ * private, forward-only paths, so a cycle is still a property of the leaf
+ * graph alone and {@link hasCycle} still answers for it.
  *
  * **The arithmetic is anchored on each work item's own start**, not accumulated
  * from slice to slice: a slice finishes at `base + offsets[i + 1]` rather than
@@ -943,6 +951,7 @@ export function schedule(
    */
   const nodes: SliceNode[] = [];
   const firstNode = new Map<string, number>();
+  const anchorNode = new Map<string, number>();
   let items = 0;
   for (const leafId of leafIds) {
     const { slices: own, offsets } = slicesOf(leafId);
@@ -969,12 +978,33 @@ export function schedule(
     // because a slice created it — and the one thing that could make it not is
     // the fault `firstNodeOf` below names, which is why nothing is written for
     // a leaf with no node rather than a dangling index.
-    if (nodes.length > first) firstNode.set(leafId, first);
+    if (nodes.length > first) {
+      firstNode.set(leafId, first);
+      // The **anchor**: the first slice in role order somebody estimated, and
+      // the leaf's last slice when nobody estimated any of them. Dany's rule
+      // in his own words (2026-08-11): "first in list of project roles, then
+      // first that is estimated".
+      //
+      // `days !== null` and not `days > 0`, which is what `Scheduled.estimated`
+      // means everywhere else in this engine: an explicit zero is somebody
+      // saying this role takes no time, and the anchor honours the statement
+      // rather than second-guessing it. Nobody having said anything is the
+      // different fact, and it is the one this walk steps over.
+      //
+      // The fall-through is the **last** node rather than the first, so the
+      // edge leaves the work item's finish. For a leaf nothing is estimated on
+      // that finish *is* its start, so the edge imposes exactly what the leaf's
+      // own predecessors imposed and nothing more — the degenerate case, kept
+      // as a stated consequence.
+      const estimated = own.findIndex((slice) => slice.days !== null);
+      anchorNode.set(leafId, estimated === -1 ? nodes.length - 1 : first + estimated);
+    }
   }
 
   /**
-   * Where a leaf's slices begin among the nodes — the node every external edge
-   * touches, on either side (the anchor going out, the attachment coming in).
+   * Where a leaf's slices begin among the nodes — the node an external edge
+   * arrives* at. It leaves from {@link anchorNodeOf}, which is not always
+   * this one.
    *
    * Every leaf has an entry: the loop above made one for each of them, and
    * refused the leaf it was handed no slice for. It throws rather than skipping
@@ -993,21 +1023,40 @@ export function schedule(
     return found;
   };
 
-  // The predecessor's **first** slice — its anchor — to the successor's
-  // **first**: the anchor finishes before any of the successor starts, the
-  // predecessor's later roles run in parallel with it, and the successor's own
-  // order carries the wait to the roles behind its first. Pushed onto the two
-  // nodes rather than rebuilt into a map — the adjacency is written once per
-  // edge.
+  /**
+   * The leaf's **anchor** node — where an external edge leaves it. Recorded
+   * beside {@link firstNode} above, and absent for exactly the leaf that map is
+   * absent for, so this throws for the same reason and with the same words.
+   */
+  const anchorNodeOf = (leafId: string): number => {
+    const found = anchorNode.get(leafId);
+    if (found === undefined) throw new Error(`no slice for work item ${leafId}`);
+    return found;
+  };
+
+  // The predecessor's **anchor** slice to the successor's **first**: the anchor
+  // finishes before any of the successor starts, the predecessor's later roles
+  // run in parallel with it, and the successor's own order carries the wait to
+  // the roles behind its first. Pushed onto the two nodes rather than rebuilt
+  // into a map — the adjacency is written once per edge.
   //
-  // Proof: the join reverted to the predecessor's **last** node — then spelt
-  // `endsOf(predecessorId).last`, the whole-item rule this replaced — and
-  // `waits for the first role, not the last` failed on `Expected: 3,
-  // Received: 5`, `a branch releases at its anchors` on `Expected: 4,
-  // Received: 5`, `a zero-length anchor clears immediately` on `Expected: 0,
-  // Received: 4` (`schedule-shapes.test.ts`); watched 2026-08-11.
+  // Proof: the join reverted to the predecessor's **last** node — the
+  // whole-item rule this replaced — and `waits for the first role, not the
+  // last` failed on `Expected: 3, Received: 5`, `a branch releases at its
+  // anchors` on `Expected: 4, Received: 5` (`schedule-shapes.test.ts`);
+  // watched 2026-08-11.
+  //
+  // Proof: `anchorNodeOf` replaced by `firstNodeOf` — the first slice plain,
+  // this change's own predecessor — and four failed: `a chain does not
+  // collapse because a project lists a role nobody estimated` on `c2`
+  // `earliestStart` `Expected: 4, Received: 0`, `walks past an unestimated
+  // role to the first one somebody estimated` on `Expected: 4, Received: 0`,
+  // `a branch anchors each leaf on its own first estimate` on `Expected: 5,
+  // Received: 0`, and `carries an unestimated predecessor's own wait through
+  // to its successor` on `B` `earliestStart` `Expected: 3, Received: 0`;
+  // watched 2026-08-11.
   for (const { predecessorId, successorId } of leafEdges) {
-    const before = firstNodeOf(predecessorId);
+    const before = anchorNodeOf(predecessorId);
     const after = firstNodeOf(successorId);
     nodes[before].successors.push(after);
     nodes[after].predecessors.push(before);

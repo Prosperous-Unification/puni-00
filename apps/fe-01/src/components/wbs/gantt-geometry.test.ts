@@ -181,7 +181,7 @@ describe('bars', () => {
 
     expect(chart.bars.map((bar) => bar.floorWords)).toEqual([
       'Starts with the project',
-      'Waits for a dependency to finish',
+      'Waits for a dependency’s first estimated role',
       'Waits for an earlier role on this item',
       'Held by its start-no-earlier-than date',
     ]);
@@ -330,7 +330,7 @@ describe('person links', () => {
 
     expect(chart.personLinks).toEqual([]);
     expect(chart.arrows.map((arrow) => [arrow.fromFinish, arrow.toStart])).toEqual([[4, 4]]);
-    expect(chart.bars[2].floorWords).toBe('Waits for a dependency to finish');
+    expect(chart.bars[2].floorWords).toBe('Waits for a dependency’s first estimated role');
   });
 
   it('names the person and the slice they were finishing', () => {
@@ -660,17 +660,49 @@ describe('dependency arrows', () => {
     ]);
   });
 
-  it('a zero-length anchor draws from its own day', () => {
-    // `strip`'s first role is unestimated: its anchor stands at day 5 with no
-    // days in it, and the `fromStart === fromFinish` calendar reading — built
-    // for zero-day projections — is what keeps the arrow leaving where day 5
-    // begins, the Monday at 7, not the end of the workday before it at 5.
+  it('an arrow leaves the first estimated role, not the unestimated one in front of it', () => {
+    // The engine's own probe, drawn: `strip`'s Dev carries no estimate, so the
+    // anchor walks on to its QA — 5→9 — and the arrow leaves day 9, which is
+    // where `sand` starts. An arrow from the unestimated Dev would leave day 5
+    // and point at a bar four days to its right with nothing between them,
+    // claiming a wait the engine did not impose.
+    //
+    // Proof: the selection reverted to `own.at(0)` — the first slice plain,
+    // which is what this file did before the walk — and this alone failed,
+    // `1 failed | 68 passed`, on `expected { predecessorId: 'strip', …(6) } to
+    // match object { fromStart: 5, fromFinish: 9, …(1) }`; watched 2026-08-11.
     const chart = layOutGantt(
       planOf({
-        rows: [rowAt('strip', 5, 9), rowAt('sand', 5, 7)],
+        rows: [rowAt('strip', 5, 9), rowAt('sand', 9, 11)],
         slices: [
           sliceAt('strip-dev', 'strip', 5, 5, { duration: 0, estimated: false }),
           sliceAt('strip-qa', 'strip', 5, 9, { roleId: 'qa' }),
+          sliceAt('sand-dev', 'sand', 9, 11, { boundBy: 'predecessor' }),
+        ],
+        dependencies: [{ predecessorId: 'strip', successorId: 'sand' }],
+      }),
+    );
+
+    expect(chart.arrows[0]).toMatchObject({ fromStart: 5, fromFinish: 9, toStart: 9 });
+  });
+
+  it('a zero-length anchor draws from its own day', () => {
+    // Nobody estimated any of `strip`, so there is no estimated slice to
+    // anchor on and the walk falls through to its last — which for a work item
+    // of no days at all stands at day 5 with no days in it. The
+    // `fromStart === fromFinish` calendar reading, built for zero-day
+    // projections, is what keeps the arrow leaving where day 5 begins, the
+    // Monday at 7, not the end of the workday before it at 5.
+    const chart = layOutGantt(
+      planOf({
+        rows: [rowAt('strip', 5, 5), rowAt('sand', 5, 7)],
+        slices: [
+          sliceAt('strip-dev', 'strip', 5, 5, { duration: 0, estimated: false }),
+          sliceAt('strip-qa', 'strip', 5, 5, {
+            roleId: 'qa',
+            duration: 0,
+            estimated: false,
+          }),
           sliceAt('sand-dev', 'sand', 5, 7, { boundBy: 'predecessor' }),
         ],
         dependencies: [{ predecessorId: 'strip', successorId: 'sand' }],

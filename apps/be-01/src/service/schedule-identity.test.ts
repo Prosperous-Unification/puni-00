@@ -8,6 +8,7 @@ import {
   schedule,
   type Scheduled,
   type Slice,
+  sliceKey,
 } from './schedule';
 
 /**
@@ -477,12 +478,12 @@ describe('the slice engine against the one it replaced', () => {
     // doubling every predecessor's non-first slice — QA grown everywhere — may
     // move late starts and floats, and must move no successor's start.
     //
-    // Proof: with the join in `schedule.ts` reverted to the predecessor's
-    // last node (then spelt `endsOf(...).last`; the map now holds first nodes
-    // alone), this failed at seed 3 — `r1c0 moved from 8.666666666666666 to
-    // 11.333333333333332 when only later slices grew` — alone: the narrowed
-    // parity runs above cannot see the revert, which is exactly why this test
-    // exists. Watched 2026-08-11.
+    // Proof: with `anchorNode` in `schedule.ts` set to the leaf's **last**
+    // node — the whole-item rule this change replaced — this failed at seed 3,
+    // `r1c0 moved from 8.666666666666666 to 11.333333333333332 when only later
+    // slices grew`, and alone: the narrowed parity runs above cannot see the
+    // revert, which is exactly why this test exists. Watched 2026-08-11 and
+    // re-watched against the estimated-anchor walk the same day.
     let grownPlans = 0;
     for (let seed = 1; seed <= 1000; seed += 1) {
       const plan = generatePlan(seed, RELEASED_ROLES);
@@ -494,12 +495,16 @@ describe('the slice engine against the one it replaced', () => {
       const successorLeaves = new Set(
         plan.edges.flatMap((each) => index.leavesUnder.get(each.successorId) ?? []),
       );
-      // `estimates` is in role order within each work item, so the first entry
-      // per leaf is its anchor slice — the one that must keep its days.
+      // `estimates` is in role order within each work item, so the first
+      // **estimated** entry per leaf is its anchor slice — the one that must
+      // keep its days. The unestimated entries in front of it are not anchors
+      // and have no days to double anyway, so the walk is the engine's own
+      // (`schedule.ts`: `own.findIndex((slice) => slice.days !== null)`) with
+      // the `null` case falling out for free.
       const anchorSeen = new Set<string>();
       const grown: Slice[] = plan.estimates.map((each) => {
-        const anchor = !anchorSeen.has(each.workItemId);
-        anchorSeen.add(each.workItemId);
+        const anchor = each.days !== null && !anchorSeen.has(each.workItemId);
+        if (anchor) anchorSeen.add(each.workItemId);
         const doubled =
           !anchor && predecessorLeaves.has(each.workItemId) && each.days !== null
             ? each.days * 2
@@ -530,6 +535,103 @@ describe('the slice engine against the one it replaced', () => {
     // The corpus half: a green run over plans nothing grew in would prove
     // nothing at all.
     expect(grownPlans).toBeGreaterThan(500);
+  });
+
+  it('holds the anchor rule’s own invariants over every multi-role plan with edges', () => {
+    // What the narrowing cost, paid back. Parity with the whole-item oracle was
+    // the only thing this corpus proved about multi-role plans *with*
+    // dependencies, and this change had to drop it — the two engines disagree
+    // there on purpose. The corpus itself is not the loss; it is a thousand
+    // trees, floors and edge sets nothing else in the suite generates. So the
+    // same plans run through the same generator, checked against the new rule's
+    // own invariants instead of against an engine that no longer agrees:
+    //
+    //   1. every successor starts no earlier than the **latest anchor finish**
+    //      among its predecessors — the rule itself, over every expanded edge;
+    //   2. no slice carries negative float, which is what a backward pass that
+    //      lost track of the new edges would produce;
+    //   3. every leaf's projection spans its slices exactly.
+    //
+    // Read off `plan.estimates`, which is in role order per work item, so the
+    // expected anchor is found the way `schedule.ts` finds it and not by
+    // asking the engine where it put one.
+    //
+    // Proof: `anchorNode` set to the leaf's first node — the first slice
+    // plain, this change's own predecessor — and this failed at seed 21,
+    // `r1 starts 0, before r0's anchor finishes at 1.1666666666666667`;
+    // watched 2026-08-11.
+    let edgesChecked = 0;
+    let walkedPast = 0;
+    for (let seed = 1; seed <= 1000; seed += 1) {
+      const plan = generatePlan(seed, RELEASED_ROLES);
+      if (plan.edges.length === 0) continue;
+      const index = indexTree(plan.rows);
+      const found = schedule(plan.rows, plan.edges, slicesFrom(plan), plan.notBefore);
+
+      const anchorRoleOf = new Map<string, string | null>();
+      for (const each of plan.estimates) {
+        if (each.days === null || anchorRoleOf.has(each.workItemId)) continue;
+        anchorRoleOf.set(each.workItemId, each.roleId);
+      }
+      const anchorFinishOf = (leafId: string): number => {
+        const roleId = anchorRoleOf.get(leafId);
+        // Nothing estimated: the walk falls through to the work item's finish.
+        if (roleId === undefined) {
+          const row = found.workItems.get(leafId);
+          if (row === undefined) throw new Error(`${leafId} lost its schedule`);
+          return row.earliestFinish;
+        }
+        const anchor = found.slices.get(sliceKey(leafId, roleId));
+        if (anchor === undefined) throw new Error(`${leafId} lost its anchor slice`);
+        return anchor.earliestFinish;
+      };
+
+      for (const { predecessorId, successorId } of expandToLeaves(index, plan.edges)) {
+        edgesChecked += 1;
+        // The predecessor's first slice in role order carries no estimate, so
+        // the anchor is not it and the walk had to step over something.
+        if (plan.estimates.find((each) => each.workItemId === predecessorId)?.days === null) {
+          walkedPast += 1;
+        }
+        const successor = found.workItems.get(successorId);
+        if (successor === undefined) throw new Error(`${successorId} lost its schedule`);
+        const owed = anchorFinishOf(predecessorId);
+        // Not `toBe`: these are PERT sixths and the comparison is an
+        // inequality, so the tolerance is the arithmetic's own and nothing is
+        // being rounded away.
+        if (successor.earliestStart < owed - 1e-9) {
+          throw new Error(
+            `seed ${String(seed)}: ${successorId} starts ${String(successor.earliestStart)}, ` +
+              `before ${predecessorId}'s anchor finishes at ${String(owed)}`,
+          );
+        }
+      }
+
+      for (const [key, placed] of found.slices) {
+        if (placed.float < -1e-9) {
+          throw new Error(`seed ${String(seed)}: ${key} carries float ${String(placed.float)}`);
+        }
+      }
+
+      for (const leafId of index.leafIds) {
+        const own = plan.estimates
+          .filter((each) => each.workItemId === leafId)
+          .map((each) => found.slices.get(sliceKey(leafId, each.roleId)))
+          .filter((placed) => placed !== undefined);
+        if (own.length === 0) continue;
+        const row = found.workItems.get(leafId);
+        if (row === undefined) throw new Error(`${leafId} lost its schedule`);
+        expect(row.earliestStart).toBe(Math.min(...own.map((s) => s.earliestStart)));
+        expect(row.earliestFinish).toBe(Math.max(...own.map((s) => s.earliestFinish)));
+      }
+    }
+
+    // The corpus half. `walkedPast` counts the edges whose predecessor's anchor
+    // is **not** its first slice — the plans the estimated-anchor walk exists
+    // for. A green run with that at zero would be this rule untested over the
+    // whole corpus, which is the shape this test was written to stop.
+    expect(edgesChecked).toBeGreaterThan(1000);
+    expect(walkedPast).toBeGreaterThan(0);
   });
 
   it('generates plans worth measuring, so a green run is not an empty one', () => {
