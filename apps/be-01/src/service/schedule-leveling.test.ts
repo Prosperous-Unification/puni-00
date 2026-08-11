@@ -345,16 +345,22 @@ describe('leveling — slack against a person, in thirds of a day', () => {
 
   it('reports a queue that ends the project as critical, exactly', () => {
     // `kat` does `a` and then `b`, and that queue is the longest path there is.
-    // Both slices are therefore critical and have no slack — and `critical` is
-    // an exact comparison with zero, so a late start reconstructed by
-    // subtracting a duration from a finish it was added to reports
-    // -2.220446049250313e-16 and paints neither row red.
+    // Both slices are therefore critical and have no slack.
+    //
+    // The late starts are asserted verbatim because they are the only place the
+    // tight-path rule's answer still shows. `float` is reported through
+    // `slackOf`, which snaps a ±1e-15 difference to zero, so it comes back `0`
+    // and `critical` comes back `true` whether or not the rule ran — the red
+    // this test is here to catch has to be read off `latestStart`, which the
+    // engine reports as it computed it.
     const rows = [item('a'), item('b')];
     const slices = [slice('a', DEV, THIRD, 'kat'), slice('b', DEV, 1, 'kat')];
 
     const found = schedule(rows, [], slices);
 
     expect(planned(found, 'b', DEV).earliestStart).toBe(THIRD);
+    expect(planned(found, 'a', DEV).latestStart).toBe(0);
+    expect(planned(found, 'b', DEV).latestStart).toBe(THIRD);
     expect(planned(found, 'a', DEV).float).toBe(0);
     expect(planned(found, 'a', DEV).critical).toBe(true);
     expect(planned(found, 'b', DEV).float).toBe(0);

@@ -304,7 +304,47 @@ function durationsFrom(plan: GeneratedPlan, shuffle: boolean, seed: number): Map
   return durations;
 }
 
-/** Every field of every row, `toBe`-equal, or a throw naming the seed and the two numbers. */
+/**
+ * The one field this engine deliberately no longer answers verbatim: slack,
+ * with drift inside `@wbs/domain`'s 1e-9 window snapped to the whole number it
+ * is a drifted reading of.
+ *
+ * Copied from `schedule.ts`'s `slackOf` rather than imported, for the reason
+ * the oracle above is copied: a differential that calls the code under test to
+ * decide what the code under test should say cannot see that code change. Two
+ * lines, and the day they stop matching is a red run here.
+ *
+ * The old engine reported a raw `latestStart - earliestStart`, so on every plan
+ * whose finish is a chain of PERT sixths its critical rows came back with a
+ * float of about ±1.8e-15 and no red — cloud case A1, and the defect
+ * `critical-snap` fixes. Applying the same snap to the oracle's answer is what
+ * keeps this file a claim about the **engine** rather than about the drift:
+ * every other field is still `toBe`-exact, and any difference in slack larger
+ * than a snapped bit still fails.
+ */
+const snappedSlack = (slack: number): number => {
+  const whole = Math.round(slack);
+  const snapped = Math.abs(slack - whole) < 1e-9 ? whole : slack;
+  return snapped === 0 ? 0 : snapped;
+};
+
+/**
+ * Every field of every row, `toBe`-equal, or a throw naming the seed and the
+ * two numbers — with `float` and `critical` read off the oracle's answer put
+ * through {@link snappedSlack}, which is the whole of what this change moved.
+ *
+ * `critical` is derived from the snapped float rather than taken from the
+ * oracle because the two are one fact. For a leaf that is immediate: the
+ * oracle's `critical` **is** its own raw `float === 0` (line 103), so a leaf
+ * whose 1.8e-15 became 0 is a leaf that became red. A parent's is
+ * `beneath.some((s) => s.critical)` (line 127) rather than a comparison of its
+ * own float — but its float is the least of those same leaves', so it snaps to
+ * 0 exactly when one of them does, and the derived answer lands on the rows the
+ * oracle would have marked either way.
+ *
+ * Reading it any other way would let the assertion pass on a plan where the
+ * new engine paints slack red or leaves a tight row white.
+ */
 function expectSameSchedule(
   seed: number,
   expected: ReadonlyMap<string, Scheduled>,
@@ -314,10 +354,12 @@ function expectSameSchedule(
   for (const [id, was] of expected) {
     const now = found.get(id);
     if (now === undefined) throw new Error(`seed ${String(seed)}: ${id} lost its schedule`);
-    for (const field of Object.keys(was) as (keyof Scheduled)[]) {
-      if (now[field] === was[field]) continue;
+    const slack = snappedSlack(was.float);
+    const owed: Scheduled = { ...was, float: slack, critical: slack === 0 };
+    for (const field of Object.keys(owed) as (keyof Scheduled)[]) {
+      if (now[field] === owed[field]) continue;
       throw new Error(
-        `seed ${String(seed)}, ${id}.${field}: ${String(was[field])} became ${String(now[field])}`,
+        `seed ${String(seed)}, ${id}.${field}: ${String(owed[field])} became ${String(now[field])}`,
       );
     }
   }
@@ -364,6 +406,39 @@ describe('the slice engine against the one it replaced', () => {
 
       expectSameSchedule(seed, expected, found);
     }
+  });
+
+  it('holds plans the snap actually moves, so the comparison is not the old one in disguise', () => {
+    // `expectSameSchedule` puts the oracle's slack through `snappedSlack`
+    // before comparing it. If no plan in the corpus carried drifted slack that
+    // would be a no-op, and the two tests above would still be green having
+    // proved nothing about `critical-snap` — the shape R5 exists to stop. This
+    // counts the rows where the old engine's raw slack and its snapped reading
+    // differ, and the subset of those where the row changes colour.
+    //
+    // Both counts are asserted nonzero rather than pinned to a figure: the
+    // exact number is the generator's, and pinning it would make an unrelated
+    // change to the corpus look like a regression here.
+    let drifted = 0;
+    let turnedRed = 0;
+    for (let seed = 1; seed <= 1000; seed += 1) {
+      const plan = generatePlan(seed, RELEASED_ROLES);
+      const durations = durationsFrom(plan, true, seed);
+      for (const was of previousSchedule(
+        plan.rows,
+        plan.edges,
+        durations,
+        plan.notBefore,
+      ).values()) {
+        const slack = snappedSlack(was.float);
+        if (slack === was.float) continue;
+        drifted += 1;
+        if (slack === 0 && !was.critical) turnedRed += 1;
+      }
+    }
+
+    expect(drifted).toBeGreaterThan(0);
+    expect(turnedRed).toBeGreaterThan(0);
   });
 
   it('generates plans worth measuring, so a green run is not an empty one', () => {

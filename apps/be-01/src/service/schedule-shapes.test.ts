@@ -307,27 +307,63 @@ describe('shapes — arithmetic over a long chain', () => {
     expect(Math.abs(finish - 15)).toBeLessThan(1e-9);
   });
 
-  it('answers a drifted negative float when a notBefore floor ends the project — pinned, not endorsed', () => {
+  it('paints every row that ends the project red, drift and all', () => {
+    // Cloud case A1, watched live on dev 2026-08-11. Three PERT finals of
+    // 45/6, 25/6 and 20/6 days chained end to end — the trios 0/8/13, 3/4/6
+    // and 0/3/8 — sum to exactly 15 and arrive as 15.000000000000002, and a
+    // fourth row of a flat 15 days runs beside them. All four end the project
+    // and none of them can slip by so much as an hour.
+    //
+    // The engine agreed about one of them. `flat`'s late start came back as
+    // 15.000000000000002 − 15 = 1.8e-15 and the chain's own ends drifted the
+    // same way, so `latestStart - earliestStart === 0` was false on three
+    // rows of four: the Slack column printed `0` (it rounds to a tenth) with
+    // no `critical` beside it and no red on the bar — a row saying in one
+    // breath that it has no slack and that it is not what sets the finish.
+    const rows = [item('chain-a'), item('chain-b'), item('chain-c'), item('flat')];
+    const found = plan(rows, [edge('chain-a', 'chain-b'), edge('chain-b', 'chain-c')], {
+      'chain-a': 45 / 6,
+      'chain-b': 25 / 6,
+      'chain-c': 20 / 6,
+      flat: 15,
+    }).workItems;
+
+    // The drift is still there in the finish — this asserts the shape is the
+    // one A1 hit, so a future engine that stops drifting does not leave this
+    // test passing about nothing.
+    expect(found.get('chain-c')?.earliestFinish).not.toBe(15);
+    expect(found.get('chain-a')).toMatchObject({ float: 0, critical: true });
+    expect(found.get('chain-b')).toMatchObject({ float: 0, critical: true });
+    expect(found.get('chain-c')).toMatchObject({ float: 0, critical: true });
+    expect(found.get('flat')).toMatchObject({ float: 0, critical: true });
+  });
+
+  it('reports no float on a row a notBefore floor stands at the project finish', () => {
     // A floor at day 13 stands a 23/6-day row past everything else in the
-    // plan, so that row *is* the project finish — and the engine reports it
-    // with a float of about -1.8e-15 and `critical: false`. The backward pass
-    // reconstructs `latestStart` as `projectFinish - days`, and
-    // `(13 + 23/6) - 23/6` is not 13 in doubles; the tight-path rule that
-    // catches exactly this is scoped to plans with resource queues on
-    // purpose (see `lateTimes` — a plan with nobody assigned must answer what
-    // the engine before leveling answered, drift included).
+    // plan, so that row *is* the project finish and cannot slip at all. The
+    // backward pass reconstructs its `latestStart` as `projectFinish - days`,
+    // and `(13 + 23/6) - 23/6` is not 13 in doubles, so the raw subtraction
+    // gives about -1.8e-15.
     //
-    // This test PINS that answer; it does not endorse it. The project's own
-    // last row reporting negative slack and no red is a defect of the
-    // reported float, held here so the day it changes is a deliberate one
-    // rather than a silent side effect. The bound mirrors the chain test
-    // above: the drift is real, nonzero, and orders of magnitude inside the
-    // 1e-9 snap window that keeps it off the calendar.
+    // **This test used to pin that** — `float < 0`, `critical: false` — as a
+    // known defect, held so the day it changed would be a deliberate one
+    // rather than a silent side effect. 2026-08-11 is that day: cloud case A1
+    // hit the same arithmetic on a plain PERT chain and made the same row say
+    // `0` in the Slack column with no red beside it. `slackOf` now snaps the
+    // slack through `snapWorkdays`' 1e-9 window before reporting it and
+    // before comparing it to zero, so what is printed and what is classified
+    // are one number. The test guarded the defect; it guards the fix now.
     //
-    // Proof this pin can fail: the tight-path scoping dropped (`hasQueues &&`
-    // removed from the condition in `lateTimes`), so the rule covers every
-    // plan, and this test failed on `Expected: < 0, Received: 0`; watched
-    // 2026-08-10.
+    // The tight-path rule in `lateTimes` is untouched and still scoped to
+    // plans with resource queues — it moves `latestStart` itself, which the
+    // identity claim rests on. This snaps only the difference the reader is
+    // shown.
+    //
+    // Proof this test can fail: the `snapWorkdays` call dropped from
+    // `slackOf`, and it failed on `Expected: 0 Received:
+    // -1.7763568394002505e-15`; with the `-0` normalisation dropped instead
+    // it failed on `Expected: 0 Received: -0`, which is the same day on
+    // screen and a different number to `Object.is`. Both watched 2026-08-11.
     const rows = [item('done-early'), item('floored')];
     const found = plan(rows, [], { 'done-early': 3, floored: 23 / 6 }, new Map([['floored', 13]]));
 
@@ -339,10 +375,35 @@ describe('shapes — arithmetic over a long chain', () => {
       found.workItems.get('done-early')?.earliestFinish ?? NaN,
     );
     expect(found.slices.get(sliceKey('floored', DEV))).toMatchObject({ boundBy: 'notBefore' });
-    // The pinned answer: negative by an IEEE-subtraction bit, and therefore
-    // not critical.
-    expect(floored.float).toBeLessThan(0);
-    expect(floored.float).toBeGreaterThan(-1e-9);
-    expect(floored.critical).toBe(false);
+    // The drift is still in the numbers the snap is applied to — asserted so
+    // this cannot quietly become a test about an engine that stopped drifting.
+    expect(floored.latestStart).not.toBe(13);
+    expect(floored.float).toBe(0);
+    expect(floored.critical).toBe(true);
+  });
+
+  it('keeps a sixth of a day of real slack, and the row that has it out of the red', () => {
+    // The other side of the snap, on the engine's own path: a sixth of a day
+    // is the smallest fraction a PERT final can carry, and it is eight orders
+    // of magnitude above the 1e-9 window. `short` rides beside a 2-day branch
+    // with exactly that much room, and it must keep it — a window wide enough
+    // to swallow this one would paint a row red that can be started a morning
+    // late without touching the plan's finish.
+    //
+    // Proof: `DRIFT` in `@wbs/domain`'s `workday.ts` widened from 1e-9 to 0.5
+    // and this test failed on the colour first — `Expected: false Received:
+    // true` on `short`, a row with a morning of slack painted as the thing
+    // that sets the plan's finish — and on `Expected: 0.16666666666666666
+    // Received: 0` with that assertion taken out; both watched 2026-08-11.
+    const rows = [item('long'), item('short'), item('join')];
+    const found = plan(rows, [edge('long', 'join'), edge('short', 'join')], {
+      long: 2,
+      short: 11 / 6,
+      join: 1,
+    }).workItems;
+
+    expect(found.get('long')).toMatchObject({ float: 0, critical: true });
+    expect(found.get('short')?.critical).toBe(false);
+    expect(found.get('short')?.float).toBeCloseTo(1 / 6, 12);
   });
 });
