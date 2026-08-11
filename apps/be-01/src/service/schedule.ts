@@ -1,3 +1,5 @@
+import { snapWorkdays } from '@wbs/domain';
+
 import type { WorkItem } from '../repository';
 import { deriveNumbers } from './derive-numbers';
 
@@ -672,6 +674,58 @@ function lateTimes(
 }
 
 /**
+ * A row's slack: how far its late start is after its early one, with
+ * accumulated floating-point drift snapped out — and therefore the one number
+ * `critical` is read off.
+ *
+ * Both ends come out of chains of double additions the engine deliberately
+ * reports verbatim, so a row that cannot slip by so much as an hour subtracts
+ * to ±1e-15 rather than to 0. Three PERT sixths summing to exactly 15 arrive as
+ * 15.000000000000002 (`snapWorkdays`' own example), every row that ends there
+ * inherits the drifted bit, and an exact `=== 0` reads it as slack: cloud case
+ * A1, live on dev — a chain and a flat row all ending the project, Slack
+ * printing `0` on each of them and only one carrying `critical`.
+ *
+ * {@link snapWorkdays}, at the same 1e-9 window the calendar boundaries use,
+ * because this is the same step: a continuous offset becoming a discrete
+ * answer, here `critical` rather than a date. Sharing the window is what makes
+ * the two agree — a difference the calendar has already decided is not a day
+ * cannot be a difference the Slack column decides is float. Applied to the
+ * **reported** slack and not only to the comparison, so what the column prints
+ * and what the red says are the same number.
+ *
+ * The snap is on slack alone. `latestStart` and `latestFinish` stay verbatim,
+ * and so does the leveller's own float — its priority rule ranks genuinely
+ * different floats and must keep separating two rows the schedule can tell
+ * apart. Real slack survives untouched at every size a plan can express: the
+ * smallest fraction a PERT final carries is a sixth of a day, eight orders of
+ * magnitude above the window, and a test on this path holds it.
+ *
+ * `-0` is normalised because a drifted zero is as often below as above. It is
+ * `0` to `===` and to the reader — same colour, same printed slack — and it is
+ * **not** `0` to `Object.is`, which is what `toBe` and `toMatchObject` compare
+ * with, so leaving it would make the fixed answer unassertable.
+ *
+ * Proof, both watched 2026-08-11 and each fault then reverted:
+ *
+ * - the `snapWorkdays` call dropped (a bare `latestStart - earliestStart`) and
+ *   four tests failed — `paints every row that ends the project red, drift and
+ *   all` on `critical: false` with a float of `8.881784197001252e-16` for
+ *   `chain-a`, which is case A1's own shape; `reports no float on a row a
+ *   notBefore floor stands at the project finish` on `Expected: 0 Received:
+ *   -1.7763568394002505e-15`; and both differential tests in
+ *   `schedule-identity.test.ts`, `seed 1, r0c0g0.float: 0 became
+ *   -1.7763568394002505e-15`.
+ * - the `-0` normalisation dropped instead, and the floor test failed alone,
+ *   on `Expected: 0 Received: -0` — the same day on screen and a different
+ *   number to `Object.is`.
+ */
+function slackOf(latestStart: number, earliestStart: number): number {
+  const slack = snapWorkdays(latestStart - earliestStart);
+  return slack === 0 ? 0 : slack;
+}
+
+/**
  * The schedule for a project: computed in slices, and levelled so that one
  * person does one thing at a time.
  *
@@ -951,6 +1005,7 @@ export function schedule(
     const { slice } = node;
     const placed = leveled.placed[at];
     const { latestStart, latestFinish } = late[at];
+    const slack = slackOf(latestStart, placed.start);
     if (placed.boundBy === 'person') waiting.add(slice.workItemId);
     scheduledSlices.set(node.key, {
       workItemId: slice.workItemId,
@@ -965,8 +1020,8 @@ export function schedule(
       earliestFinish: placed.finish,
       latestStart,
       latestFinish,
-      float: latestStart - placed.start,
-      critical: latestStart - placed.start === 0,
+      float: slack,
+      critical: slack === 0,
       personId: slice.personId,
       boundBy: placed.boundBy,
       resourcePredecessorId:
@@ -1035,6 +1090,20 @@ function projectOntoWorkItems(
         (s.earliestStart === own[at - 1].earliestFinish &&
           s.latestStart === own[at - 1].latestFinish),
     );
+    // Proof: with `tiles` forced to `false`, so that tiling slices are
+    // aggregated too, `answers what the previous engine answered` failed at
+    // seed 256 — a row's slack of 12.333333333333332 became 12.33333333333333;
+    // watched 2026-08-09. Forced to `true`, so that a work item a person pulled
+    // apart is read off its ends, `reports the least slack of a work item whose
+    // slices a person pushed apart` failed with a slack of 5 on a row holding a
+    // critical slice.
+    //
+    // The aggregated side — a row a person pulled apart — needs no
+    // {@link slackOf} of its own: every slice's float is snapped before it gets
+    // here, and the least of snapped numbers is one of them. Its `critical` is
+    // left as it was, read off the slices rather than off the aggregate, which
+    // is that branch's own rule and not this change's to move.
+    const slack = tiles ? slackOf(late, start) : Math.min(...own.map((s) => s.float));
     projected.set(leafId, {
       duration: own.reduce((sum, s) => sum + s.duration, 0),
       estimated: own.some((s) => s.estimated),
@@ -1042,15 +1111,8 @@ function projectOntoWorkItems(
       earliestFinish: Math.max(...own.map((s) => s.earliestFinish)),
       latestStart: late,
       latestFinish: Math.max(...own.map((s) => s.latestFinish)),
-      // Proof: with `tiles` forced to `false`, so that tiling slices are
-      // aggregated too, `answers what the previous engine answered` failed at
-      // seed 256 — a row's slack of 12.333333333333332 became
-      // 12.33333333333333; watched 2026-08-09. Forced to `true`, so that a work
-      // item a person pulled apart is read off its ends, `reports the least
-      // slack of a work item whose slices a person pushed apart` failed with a
-      // slack of 5 on a row holding a critical slice.
-      float: tiles ? late - start : Math.min(...own.map((s) => s.float)),
-      critical: tiles ? late - start === 0 : own.some((s) => s.critical),
+      float: slack,
+      critical: tiles ? slack === 0 : own.some((s) => s.critical),
     });
   }
 
