@@ -477,8 +477,9 @@ describe('the slice engine against the one it replaced', () => {
     // doubling every predecessor's non-first slice — QA grown everywhere — may
     // move late starts and floats, and must move no successor's start.
     //
-    // Proof: with the join in `schedule.ts` reverted to `endsOf(...).last`,
-    // this failed at seed 3 — `r1c0 moved from 8.666666666666666 to
+    // Proof: with the join in `schedule.ts` reverted to the predecessor's
+    // last node (then spelt `endsOf(...).last`; the map now holds first nodes
+    // alone), this failed at seed 3 — `r1c0 moved from 8.666666666666666 to
     // 11.333333333333332 when only later slices grew` — alone: the narrowed
     // parity runs above cannot see the revert, which is exactly why this test
     // exists. Watched 2026-08-11.

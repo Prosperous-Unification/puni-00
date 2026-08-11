@@ -146,8 +146,9 @@ export interface EstimateTrio {
  * The shown rows only — the panel passes the same list its renderer draws, so
  * mirroring the tree is identity rather than synchronisation. `schedule` is
  * the work item's projection and carries no more of it than the drawing
- * reads: a summary bracket spans it, and a dependency arrow leaves one row's
- * finish for another's start.
+ * reads: a summary bracket spans it, and a dependency arrow lands on its
+ * start — the arrow *leaves* the predecessor's anchor slice, selected from
+ * `slices`, never this projection's finish.
  */
 export interface GanttRow {
   id: string;

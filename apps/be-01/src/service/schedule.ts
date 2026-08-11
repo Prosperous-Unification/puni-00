@@ -942,7 +942,7 @@ export function schedule(
    * this loop asks it for every leaf before any edge is drawn.
    */
   const nodes: SliceNode[] = [];
-  const ends = new Map<string, { first: number; last: number }>();
+  const firstNode = new Map<string, number>();
   let items = 0;
   for (const leafId of leafIds) {
     const { slices: own, offsets } = slicesOf(leafId);
@@ -967,13 +967,14 @@ export function schedule(
     }
     // Recorded only if the group put a node in. It always does — a group exists
     // because a slice created it — and the one thing that could make it not is
-    // the fault `endsOf` below names, which is why the range is not written for
-    // a leaf with nothing in it rather than written as an empty one.
-    if (nodes.length > first) ends.set(leafId, { first, last: nodes.length - 1 });
+    // the fault `firstNodeOf` below names, which is why nothing is written for
+    // a leaf with no node rather than a dangling index.
+    if (nodes.length > first) firstNode.set(leafId, first);
   }
 
   /**
-   * Where a leaf's slices begin and end among the nodes.
+   * Where a leaf's slices begin among the nodes — the node every external edge
+   * touches, on either side (the anchor going out, the attachment coming in).
    *
    * Every leaf has an entry: the loop above made one for each of them, and
    * refused the leaf it was handed no slice for. It throws rather than skipping
@@ -986,8 +987,8 @@ export function schedule(
    * of coming back with the row missing and the edge ignored; watched
    * 2026-08-09.
    */
-  const endsOf = (leafId: string): { first: number; last: number } => {
-    const found = ends.get(leafId);
+  const firstNodeOf = (leafId: string): number => {
+    const found = firstNode.get(leafId);
     if (found === undefined) throw new Error(`no slice for work item ${leafId}`);
     return found;
   };
@@ -999,14 +1000,15 @@ export function schedule(
   // nodes rather than rebuilt into a map — the adjacency is written once per
   // edge.
   //
-  // Proof: `.first` reverted to `.last` — the whole-item rule this replaced —
-  // and `waits for the first role, not the last` failed on `Expected: 3,
+  // Proof: the join reverted to the predecessor's **last** node — then spelt
+  // `endsOf(predecessorId).last`, the whole-item rule this replaced — and
+  // `waits for the first role, not the last` failed on `Expected: 3,
   // Received: 5`, `a branch releases at its anchors` on `Expected: 4,
   // Received: 5`, `a zero-length anchor clears immediately` on `Expected: 0,
   // Received: 4` (`schedule-shapes.test.ts`); watched 2026-08-11.
   for (const { predecessorId, successorId } of leafEdges) {
-    const before = endsOf(predecessorId).first;
-    const after = endsOf(successorId).first;
+    const before = firstNodeOf(predecessorId);
+    const after = firstNodeOf(successorId);
     nodes[before].successors.push(after);
     nodes[after].predecessors.push(before);
   }

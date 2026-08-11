@@ -610,6 +610,56 @@ describe('dependency arrows', () => {
     ]);
   });
 
+  it('anchors a parent of parents through the leaves two levels down', () => {
+    // `hull` holds `deck`, and only `deck` holds the leaves `strip` and
+    // `sand` — plus `keel` directly under `hull`. `rig` depends on `hull`, so
+    // the anchor is the latest-finishing first-role work among the leaf
+    // descendants at **any** depth: `keel`'s Dev ends day 1, `strip`'s day 2,
+    // `sand`'s day 4 — the arrow leaves day 4, from `hull`'s bracket row. A
+    // walk that stopped at `hull`'s direct children would take `deck` for a
+    // leaf and find it has no slice.
+    //
+    // Proof: `leavesUnder`'s recursion shallowed to direct children —
+    // `children.map((child) => child.id)` in place of the `flatMap` over
+    // `walk` — and this failed alone, `1 failed | 67 passed`, on
+    // `GanttDataError: dependency hull → rig: deck has no slice in this
+    // payload`; watched 2026-08-11.
+    const chart = layOutGantt(
+      planOf({
+        rows: [
+          rowAt('hull', 0, 6, { leaf: false }),
+          rowAt('deck', 0, 6, { depth: 1, leaf: false }),
+          rowAt('strip', 0, 5, { depth: 2 }),
+          rowAt('sand', 0, 6, { depth: 2 }),
+          rowAt('keel', 0, 3, { depth: 1 }),
+          rowAt('rig', 4, 6),
+        ],
+        slices: [
+          sliceAt('strip-dev', 'strip', 0, 2),
+          sliceAt('strip-qa', 'strip', 2, 5, { roleId: 'qa' }),
+          sliceAt('sand-dev', 'sand', 0, 4),
+          sliceAt('sand-qa', 'sand', 4, 6, { roleId: 'qa' }),
+          sliceAt('keel-dev', 'keel', 0, 1),
+          sliceAt('keel-qa', 'keel', 1, 3, { roleId: 'qa' }),
+          sliceAt('rig-dev', 'rig', 4, 6, { boundBy: 'predecessor' }),
+        ],
+        dependencies: [{ predecessorId: 'hull', successorId: 'rig' }],
+      }),
+    );
+
+    expect(chart.arrows).toEqual([
+      {
+        predecessorId: 'hull',
+        successorId: 'rig',
+        fromRowIndex: 0,
+        fromStart: 0,
+        fromFinish: 4,
+        toRowIndex: 5,
+        toStart: 4,
+      },
+    ]);
+  });
+
   it('a zero-length anchor draws from its own day', () => {
     // `strip`'s first role is unestimated: its anchor stands at day 5 with no
     // days in it, and the `fromStart === fromFinish` calendar reading — built
