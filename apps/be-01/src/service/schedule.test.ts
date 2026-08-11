@@ -332,7 +332,11 @@ describe('schedule — a work item’s roles run one after another', () => {
 });
 
 describe('schedule — where a dependency lands on the slices', () => {
-  it('waits for the predecessor’s last role, not its first', () => {
+  it('waits for the predecessor’s anchor and runs beside its later roles', () => {
+    // The anchor rule (`dep-waits-on-first-role`, 2026-08-11): the edge leaves
+    // `a`'s first slice, so `b` starts when `a`'s Dev finishes on day 3 and
+    // `a`'s QA runs 3→5 alongside it. Under the whole-item rule this replaced,
+    // `b` sat at 5→6.
     const rows = [item('a'), item('b')];
 
     const found = planSlices(
@@ -341,8 +345,9 @@ describe('schedule — where a dependency lands on the slices', () => {
       [work('a', DEV, 3), work('a', QA, 2), work('b', DEV, 1), work('b', QA, null)],
     );
 
-    expect(sliceOf(found, 'b', DEV)).toMatchObject({ earliestStart: 5, earliestFinish: 6 });
-    expect(found.workItems.get('b')).toMatchObject({ earliestStart: 5, earliestFinish: 6 });
+    expect(sliceOf(found, 'b', DEV)).toMatchObject({ earliestStart: 3, earliestFinish: 4 });
+    expect(found.workItems.get('b')).toMatchObject({ earliestStart: 3, earliestFinish: 4 });
+    expect(sliceOf(found, 'a', QA)).toMatchObject({ earliestStart: 3, earliestFinish: 5 });
   });
 
   it('does not let an unestimated first role escape the wait', () => {

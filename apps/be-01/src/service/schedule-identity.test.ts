@@ -382,11 +382,20 @@ describe('the slice engine against the one it replaced', () => {
     //
     // Every field `toBe`-equal, not `toBeCloseTo`: slack is a column and
     // `critical` is a red row, and both are read off exact comparisons with zero.
+    //
+    // Narrowed 2026-08-11 (`dep-waits-on-first-role`): the generated edges are
+    // dropped from both engines. A dependency now waits on the predecessor's
+    // anchor slice, so a multi-role plan with dependencies moves **by design**
+    // and parity with the whole-item oracle holds only where the two rules
+    // coincide — no dependencies here, edges kept in the single-role run below
+    // (design.md D7). The anchor rule has direct tests instead:
+    // `schedule-shapes.test.ts`, and the growth property at the end of this
+    // block.
     for (let seed = 1; seed <= 1000; seed += 1) {
       const plan = generatePlan(seed, RELEASED_ROLES);
       const durations = durationsFrom(plan, true, seed);
-      const expected = previousSchedule(plan.rows, plan.edges, durations, plan.notBefore);
-      const found = schedule(plan.rows, plan.edges, slicesFrom(plan), plan.notBefore).workItems;
+      const expected = previousSchedule(plan.rows, [], durations, plan.notBefore);
+      const found = schedule(plan.rows, [], slicesFrom(plan), plan.notBefore).workItems;
 
       expectSameSchedule(seed, expected, found);
     }
@@ -399,8 +408,28 @@ describe('the slice engine against the one it replaced', () => {
     // role position and the adapter slices in the same order — and this is that
     // definition held to: the same estimates, added up the way the repository
     // now hands them over, come out the same on both sides.
+    //
+    // Narrowed 2026-08-11 (`dep-waits-on-first-role`): edges dropped, for the
+    // two-role run's reason — three roles with a dependency is exactly the
+    // shape the anchor rule moves on purpose.
     for (let seed = 1; seed <= 1000; seed += 1) {
       const plan = generatePlan(seed, 3);
+      const durations = durationsFrom(plan, false, seed);
+      const expected = previousSchedule(plan.rows, [], durations, plan.notBefore);
+      const found = schedule(plan.rows, [], slicesFrom(plan), plan.notBefore).workItems;
+
+      expectSameSchedule(seed, expected, found);
+    }
+  });
+
+  it('answers what it answered for a single-role plan, edges and all', () => {
+    // The one multi-row scope where the anchor rule and the whole-item rule
+    // are the same rule: with one role the first slice *is* the last slice, so
+    // the edges stay in and every number still has to match the oracle to the
+    // bit (2026-08-11, design.md D7). One addend per work item makes the
+    // shuffle moot, so the totals are summed as they arrived.
+    for (let seed = 1; seed <= 1000; seed += 1) {
+      const plan = generatePlan(seed, 1);
       const durations = durationsFrom(plan, false, seed);
       const expected = previousSchedule(plan.rows, plan.edges, durations, plan.notBefore);
       const found = schedule(plan.rows, plan.edges, slicesFrom(plan), plan.notBefore).workItems;
@@ -440,6 +469,66 @@ describe('the slice engine against the one it replaced', () => {
 
     expect(drifted).toBeGreaterThan(0);
     expect(turnedRed).toBeGreaterThan(0);
+  });
+
+  it('never moves a successor when a predecessor’s later slices grow', () => {
+    // The property the whole-item rule could never satisfy, and the new rule's
+    // whole point: a successor waits on its predecessors' anchors alone, so
+    // doubling every predecessor's non-first slice — QA grown everywhere — may
+    // move late starts and floats, and must move no successor's start.
+    //
+    // Proof: with the join in `schedule.ts` reverted to `endsOf(...).last`,
+    // this failed at seed 3 — `r1c0 moved from 8.666666666666666 to
+    // 11.333333333333332 when only later slices grew` — alone: the narrowed
+    // parity runs above cannot see the revert, which is exactly why this test
+    // exists. Watched 2026-08-11.
+    let grownPlans = 0;
+    for (let seed = 1; seed <= 1000; seed += 1) {
+      const plan = generatePlan(seed, RELEASED_ROLES);
+      if (plan.edges.length === 0) continue;
+      const index = indexTree(plan.rows);
+      const predecessorLeaves = new Set(
+        plan.edges.flatMap((each) => index.leavesUnder.get(each.predecessorId) ?? []),
+      );
+      const successorLeaves = new Set(
+        plan.edges.flatMap((each) => index.leavesUnder.get(each.successorId) ?? []),
+      );
+      // `estimates` is in role order within each work item, so the first entry
+      // per leaf is its anchor slice — the one that must keep its days.
+      const anchorSeen = new Set<string>();
+      const grown: Slice[] = plan.estimates.map((each) => {
+        const anchor = !anchorSeen.has(each.workItemId);
+        anchorSeen.add(each.workItemId);
+        const doubled =
+          !anchor && predecessorLeaves.has(each.workItemId) && each.days !== null
+            ? each.days * 2
+            : each.days;
+        return {
+          workItemId: each.workItemId,
+          roleId: each.roleId,
+          days: doubled,
+          personId: null,
+        };
+      });
+      if (grown.every((slice, at) => slice.days === plan.estimates[at].days)) continue;
+      grownPlans += 1;
+
+      const before = schedule(plan.rows, plan.edges, slicesFrom(plan), plan.notBefore).workItems;
+      const after = schedule(plan.rows, plan.edges, grown, plan.notBefore).workItems;
+      for (const id of successorLeaves) {
+        const was = before.get(id)?.earliestStart;
+        const now = after.get(id)?.earliestStart;
+        if (now !== was) {
+          throw new Error(
+            `seed ${String(seed)}: ${id} moved from ${String(was)} to ${String(now)} ` +
+              `when only later slices grew`,
+          );
+        }
+      }
+    }
+    // The corpus half: a green run over plans nothing grew in would prove
+    // nothing at all.
+    expect(grownPlans).toBeGreaterThan(500);
   });
 
   it('generates plans worth measuring, so a green run is not an empty one', () => {

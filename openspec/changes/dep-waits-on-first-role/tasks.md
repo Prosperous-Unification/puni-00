@@ -41,23 +41,23 @@ at its anchors` watched failing on their pinned starts; restored with
 
 ## 2. What the oracle still proves, and the property it never could
 
-- [ ] 2.1 `schedule-identity.test.ts`: the multi-role parity runs (two-role,
+- [x] 2.1 `schedule-identity.test.ts`: the multi-role parity runs (two-role,
       three-role) drop their generated edges — parity vs the pre-slice oracle
       now holds only where the rules coincide (design.md D7). A single-role
       parity run **keeps** its edges (first slice is last slice; watched green
       unchanged). Each narrowed run's comment states why the scope narrowed,
       dated.
-- [ ] 2.2 The anchor property, on the generated multi-role plans: doubling
+- [x] 2.2 The anchor property, on the generated multi-role plans: doubling
       every predecessor's non-first slice durations moves no successor's
       start. Negative: with the join reverted to `.last`, watched failing on
       a moved start; restored with a `Proof:` comment.
-- [ ] 2.3 `live-plan-identity.test.ts` / `fixtures/live-plan-2026-08-09.json`:
+- [x] 2.3 `live-plan-identity.test.ts` / `fixtures/live-plan-2026-08-09.json`:
       run the captured plan through the new engine. If any number moves, the
       moved fields are re-derived and updated **in the fixture**, and the test
       gains a comment naming each moved row and the anchor that moved it; if
       none moves (no dependency in the capture has a multi-role predecessor),
       a comment states that instead — silence is not an answer either way.
-- [ ] 2.4 Downstream service tests (`work-item.service.test.ts`,
+- [x] 2.4 Downstream service tests (`work-item.service.test.ts`,
       `schedule-shapes.test.ts` floors-compose cases, `dependency.test.ts`):
       audit every failure, update only numbers that encoded last-slice waits,
       each with the rule named in an adjacent comment. A failure that is not

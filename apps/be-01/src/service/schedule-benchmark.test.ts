@@ -90,8 +90,12 @@ describe('the leveled pass, at the size of a real plan', () => {
     // Leveling binds here: without that this measures the pass that already
     // existed rather than the one this change added.
     // The exact figure, so a fixture that quietly stops queueing is visible:
-    // 159 of the 200 work items wait for the person on them.
-    expect(found.waitingForPerson).toBe(159);
+    // 175 of the 200 work items wait for the person on them. 159 under the
+    // whole-item dependency rule; the anchor rule (`dep-waits-on-first-role`,
+    // 2026-08-11) releases successors at their predecessors' first-role
+    // finishes, more slices contend for the same people at once, and the
+    // person becomes the strictly-latest floor on sixteen more rows.
+    expect(found.waitingForPerson).toBe(175);
   });
 
   it('schedules 600 slices in under 10ms', () => {

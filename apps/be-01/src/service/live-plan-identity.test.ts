@@ -172,6 +172,11 @@ describe('a captured live plan, through the slice engine', () => {
   });
 
   it('answers exactly what the live server answered', async () => {
+    // Re-run under the anchor rule (`dep-waits-on-first-role`, 2026-08-11):
+    // nothing moved. The capture's one dependency — `030` waiting on `010` —
+    // has a predecessor holding a single role, so its first slice is its last
+    // and the two rules are the same rule on this plan. Every number below is
+    // still the live server's, unedited.
     const tree = await replay([]);
 
     expect(tree.scheduleError).toBeNull();
