@@ -85,6 +85,13 @@ const row = (over: Partial<ExportRow> & Pick<ExportRow, 'id' | 'number'>): Expor
   schedule: { earliestStart: 0, earliestFinish: 0, float: 0, critical: false },
   assignees: {},
   doesEveryPhase: null,
+  // Unranked, and spelled out rather than left off. `ExportRow.priority` is
+  // `number | null` and not optional, but a spread of a `Partial` satisfies
+  // that check, so the omission compiled — and every row every test in this
+  // file built carried `undefined`, which `String()` turns into the literal
+  // text `undefined` in the Priority column. Found 2026-08-11 by the first
+  // assertion that read the cell rather than the header.
+  priority: null,
   ...over,
 });
 
@@ -241,6 +248,35 @@ describe('the columns', () => {
     expect(csvColumns(planToCsv(plan({ method: 'optimistic' })))).toContain(
       'Dev final (optimistic)',
     );
+  });
+
+  it('writes a priority as the number somebody typed, and an unranked row blank', () => {
+    // The header alone was pinned until 2026-08-11, and a column whose cell is
+    // never read is a column that can quietly export the wrong thing. `2`, not
+    // `2.0` and not the row's position; blank, not `0` and not `—` — unranked
+    // is a state of its own, exactly as the cell in the table is blank.
+    //
+    // The index is read off the header rather than typed, so inserting a column
+    // to the left of Priority moves this assertion with it instead of silently
+    // pointing it at Not before.
+    const rows = [row({ id: 'a', number: '010', priority: 2 }), row({ id: 'b', number: '020' })];
+    const csv = planToCsv(plan({ rows }));
+    const at = csvColumns(csv).indexOf('Priority');
+
+    expect(csvDataRow(csv)[at]).toBe('2');
+    expect(csvDataRow(csv, 1)[at]).toBe('');
+
+    const markdown = planToMarkdown(plan({ rows }));
+    const heading = markdown
+      .split('\n')
+      .find((each) => each.startsWith('| Number |'))
+      ?.slice(1, -1)
+      .split(' | ')
+      .map((cell) => cell.trim());
+    const column = heading?.indexOf('Priority') ?? -1;
+    expect(column).toBeGreaterThan(-1);
+    expect(markdownRow(markdown, '010')[column]).toBe('2');
+    expect(markdownRow(markdown, '020')[column]).toBe('');
   });
 
   it('carries the number as the only outline there is, indenting nothing', () => {

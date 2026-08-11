@@ -193,11 +193,15 @@ test.describe('the phases surface, in a browser', () => {
     expect(threePhases.filter((id) => id.endsWith('-final'))).toHaveLength(3);
     await expect(page.getByRole('button', { name: 'Unfold Design estimates' })).toBeVisible();
     // 1219 + one folded phase, and the browser laying it out rather than a
-    // number this repository asserted about itself. Past a 1280 laptop's
-    // 1248px frame since `column-rebalance`, and further past it since
-    // `priority-column` added 48px to every state: two folded phases scroll by
-    // a sliver now and three by more, which is what the pinned columns are the
-    // backstop for.
+    // number this repository asserted about itself. **Three** folded phases are
+    // what scrolls a 1280 laptop's 1248px frame — 1315 against 1248 — and have
+    // done since `column-rebalance`; that is what the pinned columns are the
+    // backstop for. Two do not scroll, in either state: 1219 on this plan,
+    // which sets no earliest start and so keeps `not-before` at its narrow
+    // 56px, and 1247 with that column at its dated 84px — one pixel inside the
+    // frame. `priority-column` added 48px to every one of those figures and
+    // spent the margin `column-rebalance` left; it did not cross it.
+    // `table-frame.test.ts` computes the same three states in the repo gate.
     expect(await page.evaluate(() => document.querySelector('table')?.style.minWidth ?? '')).toBe(
       '1315px',
     );

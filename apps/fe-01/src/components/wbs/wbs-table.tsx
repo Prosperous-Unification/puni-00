@@ -3743,12 +3743,23 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
       // `Number` answers `NaN` for either.
       const asNumber = Number(trimmed);
       // The one refusal this client makes on its own, and only because it
-      // cannot be asked: JSON has no literal for `NaN`, so a request carrying
-      // one arrives as `null` — which is what clears a priority. Everything that
-      // *is* a number goes out and is answered on, `0` and `-1` and `1.5`
-      // included: the rule about what a priority may be is be-01's, and a second
-      // copy of it here is a rule that can quietly disagree.
-      if (Number.isNaN(asNumber)) {
+      // cannot be asked: JSON has no literal for `NaN` **or for `Infinity`**, so
+      // a request carrying either arrives as `null` — which is what clears a
+      // priority. `Number.isFinite` rather than `Number.isNaN` for exactly that
+      // reason: `Number('1e999')` is `Infinity`, is not `NaN`, and would go out
+      // as somebody's priority silently wiped. The same trap, on stored column
+      // widths, is why {@link rememberedWidthOverrides} range-checks.
+      //
+      // Everything that *is* a finite number goes out and is answered on, `0`
+      // and `-1` and `1.5` included: the rule about what a priority may be is
+      // be-01's, and a second copy of it here is a rule that can quietly
+      // disagree.
+      //
+      // Proof: written back as `Number.isNaN`, `says so, and sends nothing,
+      // when what was typed is a number too big to be one` failed on `expected
+      // [ { priority: null } ] to deeply equal []` — the clear request, sent
+      // from a typed `1e999`. Watched, 2026-08-11.
+      if (!Number.isFinite(asNumber)) {
         pushToast({ kind: 'error', text: 'A priority is a whole number from 1 upward.' });
         return Promise.resolve<CommitOutcome>('refused');
       }

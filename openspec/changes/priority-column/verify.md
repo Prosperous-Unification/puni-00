@@ -10,7 +10,7 @@ Run from the repo root on this branch, 2026-08-11.
 | Command                                                | Result                                                                                   |
 | ------------------------------------------------------ | ---------------------------------------------------------------------------------------- |
 | `bunx nx format:check --all`                           | green, exit 0                                                                            |
-| `bunx nx run-many -t test lint typecheck --parallel=2` | green — 21 projects; be-01: **601 tests** in 53 files; fe-01: **1097 tests** in 45 files |
+| `bunx nx run-many -t test lint typecheck --parallel=2` | green — 21 projects; be-01: **602 tests** in 53 files; fe-01: **1099 tests** in 45 files |
 | `bunx @fission-ai/openspec@1.3.0 validate --all`       | green — 24 items, 24 passed, 0 failed                                                    |
 
 **`build` was not run on this host** — the standing rule and the `PreToolUse`
@@ -65,21 +65,23 @@ start earlier" costs, and `still waits for its own floor` asserts both halves.
 Every check this change adds, the fault injected, and what was watched — all
 2026-08-11, locally, each fault then reverted and the suite watched green.
 
-| Check                                                  | Injected fault                                                            | Observed                                                                                                                                                                                                          |
-| ------------------------------------------------------ | ------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Priority orders the queue** (`goesFirst`)            | the priority comparison deleted                                           | 8 of the 11 in `schedule-priority.test.ts` failed; `starts the smaller priority first when two work items want one person` came back with the priority-1 work item at 2→5, behind the one it outranks             |
-| **Unset is last** (`?? Infinity`)                      | `?? 0`                                                                    | `puts a work item nobody has given a priority behind one somebody has` failed — the work item with no priority took the person at day 0 and the priority-9 one waited                                             |
-| **Unset is a constant**                                | `?? unleveled.placed[at].finish` — "unset falls back to the plan's order" | the same test **and** `answers what the engine answered before priority existed` failed: a plan that sets no priorities was rescheduled                                                                           |
-| **Most-specific wins** (`priorityByLeaf`)              | the floor rule — `Math.min` over the leaf and every ancestor              | `lets a leaf's own priority beat its parent's, in both directions` and `gives the nearer ancestor's priority to a leaf between two` failed, both on the leaf taking the person it does not outrank                |
-| **A priority is not a pin**                            | the top priority's `predecessors` cleared and its `notBefore` zeroed      | `still waits for a predecessor`, `still waits for its own floor` and `keeps a work item's own roles in role order` failed — the work item with the smallest priority started on day 0 over the thing it waits for |
-| **The write path refuses** (`asOptionalPriority`)      | the throw deleted, the value taken as it arrives                          | `refuses a priority that is not a whole number of 1 or more` failed — `0`, `-1`, `1.5`, `'2'`, `true` and `1e20` each answered 200 and stored, the work item ending on `1e20`                                     |
-| **Undo restores a priority** (`fieldsOf` / `revertTo`) | each of the two lines deleted in turn                                     | `puts a replaced priority back…` and `takes a first priority away again…` failed both times — the undo restored nothing                                                                                           |
-| **The column is nullable** (migration)                 | `integer NOT NULL DEFAULT 1`                                              | `lets the outgoing release keep inserting work items…` and `leaves work items that existed before the column with no priority` failed on `Received: 1`                                                            |
-| **…and has no default**                                | a bare `integer NOT NULL`                                                 | the outgoing release's own `INSERT` failed, `NOT NULL constraint failed: work_item.priority`                                                                                                                      |
-| **An emptied cell clears** (`setPriority`)             | the empty-string branch deleted                                           | `clears the priority when the cell is emptied, rather than sending a zero` failed — `Number('')` is 0, and 0 went out                                                                                             |
-| **Blank at rest** (the cell)                           | `placeholder="1+"` added                                                  | `is blank on every row of a plan nobody has given priorities` failed                                                                                                                                              |
-| **Text is refused here** (the `NaN` guard)             | the guard disabled                                                        | `says so, and sends nothing, when what was typed is not a number at all` failed — `urgent` went out as a request that clears the priority                                                                         |
-| **The hover line is conditional** (`barFacts`)         | the null check dropped                                                    | `says the priority where the work item carries one, and nothing where it does not` failed on the card reading `Priority null`, and the order test failed with it                                                  |
+| Check                                                  | Injected fault                                                            | Observed                                                                                                                                                                                                                                                                 |
+| ------------------------------------------------------ | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Priority orders the queue** (`goesFirst`)            | the priority comparison deleted                                           | 8 of the 11 in `schedule-priority.test.ts` failed; `starts the smaller priority first when two work items want one person` came back with the priority-1 work item at 3→5, behind the one it outranks and bound by `person`                                              |
+| **Unset is last** (`?? Infinity`)                      | `?? 0`                                                                    | `puts a work item nobody has given a priority behind one somebody has` failed — the work item with no priority took the person at day 0 and the priority-9 one waited                                                                                                    |
+| **Unset is a constant**                                | `?? unleveled.placed[at].finish` — "unset falls back to the plan's order" | the same test **and** `answers what the engine answered before priority existed` failed: a plan that sets no priorities was rescheduled                                                                                                                                  |
+| **Most-specific wins** (`priorityByLeaf`)              | the floor rule — `Math.min` over the leaf and every ancestor              | `lets a leaf's own priority beat its parent's, in both directions` and `gives the nearer ancestor's priority to a leaf between two` failed, both on the leaf taking the person it does not outrank                                                                       |
+| **A priority is not a pin**                            | the top priority's `predecessors` cleared and its `notBefore` zeroed      | `still waits for a predecessor`, `still waits for its own floor` and `keeps a work item's own roles in role order` failed — the work item with the smallest priority started on day 0 over the thing it waits for                                                        |
+| **The write path refuses** (`asOptionalPriority`)      | the throw deleted, the value taken as it arrives                          | `refuses a priority that is not a whole number of 1 or more` failed — `0`, `-1`, `1.5`, `'2'`, `true` and `1e20` each answered 200 and stored, the work item ending on `1e20`                                                                                            |
+| **Undo restores a priority** (`fieldsOf` / `revertTo`) | each of the two lines deleted in turn                                     | `puts a replaced priority back…` and `takes a first priority away again…` failed both times — the undo restored nothing                                                                                                                                                  |
+| **The column is nullable** (migration)                 | `integer NOT NULL DEFAULT 1`                                              | `lets the outgoing release keep inserting work items…` and `leaves work items that existed before the column with no priority` failed on `Received: 1`                                                                                                                   |
+| **…and has no default**                                | a bare `integer NOT NULL`                                                 | the outgoing release's own `INSERT` failed, `NOT NULL constraint failed: work_item.priority`                                                                                                                                                                             |
+| **An emptied cell clears** (`setPriority`)             | the empty-string branch deleted                                           | `clears the priority when the cell is emptied, rather than sending a zero` failed — `Number('')` is 0, and 0 went out                                                                                                                                                    |
+| **Blank at rest** (the cell)                           | `placeholder="1+"` added                                                  | `is blank on every row of a plan nobody has given priorities` failed                                                                                                                                                                                                     |
+| **Text is refused here** (the `NaN` guard)             | the guard disabled                                                        | `says so, and sends nothing, when what was typed is not a number at all` failed — `urgent` went out as a request that clears the priority                                                                                                                                |
+| **…and so is `1e999`** (the same guard)                | `Number.isFinite` written back as `Number.isNaN`                          | `says so, and sends nothing, when what was typed is a number too big to be one` failed on `expected [ { priority: null } ] to deeply equal []` — `Number('1e999')` is `Infinity`, is not `NaN`, and `JSON.stringify` sent the clear request                              |
+| **The hover line is conditional** (`barFacts`)         | the null check dropped                                                    | `says the priority where the work item carries one, and nothing where it does not` failed on the card reading `Priority null`, and the order test failed with it                                                                                                         |
+| **The export writes the value** (`plan-export.ts`)     | the Priority cell replaced by `() => ''`                                  | `writes a priority as the number somebody typed, and an unranked row blank` failed on `expected '' to be '2'`; adding that assertion also found the file's own `row()` fixture omitting `priority`, so every export test had been exporting the literal text `undefined` |
 
 Two assertions are pinned knowing what they cannot catch, and say so where they
 sit. The unset default cannot be caught by the no-priority regression alone —
@@ -95,12 +97,22 @@ question.
 ## The regression, in full
 
 `answers what the engine answered before priority existed` pins every field of
-every slice of a plan holding three people's queues, a dependency, a floor, a
-two-level parent, a work item split across two people and an unestimated slice
-— with no priority anywhere. The numbers were taken from this engine on `main`
-@ `94ed488` before a line of this change was written, and are in the test as
-literals. It is the whole of the claim that a plan with no priorities is scheduled
-byte for byte as it was.
+every slice — all thirteen, including `personId` and `resourcePredecessorId` —
+**and** the work-item projection beside them, for a plan holding three people's
+queues, a dependency, a floor, a two-level parent, a work item split across two
+people and an unestimated slice, with no priority anywhere. The numbers were
+taken from this engine on `main` @ `94ed488` before a line of this change was
+written, and are in the test as literals. It is the whole of the claim that a
+plan with no priorities is scheduled byte for byte as it was.
+
+The two additions are what make that claim true rather than merely likely. The
+pin listed seven fields until 2026-08-11 and left out `resourcePredecessorId`,
+which is the leveller's own record of who waited behind whom: a prioritising
+that reordered the queue and still landed every slice on the same day would
+have moved that field alone, and a seven-field pin would have called the plan
+unchanged. It also asserted nothing at all about `found.workItems`, where
+`c-parent` — the only two-level roll-up in the fixture — appears and nowhere
+else.
 
 ## The 48px, and what it costs
 

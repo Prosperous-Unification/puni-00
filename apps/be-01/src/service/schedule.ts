@@ -984,10 +984,11 @@ export function schedule(
    * could not begin for three days and pushed the other out to 5→7, finishing
    * the project two days later than it needs to; watched 2026-08-09.
    *
-   * Proof: the priority comparison deleted and three tests in
+   * Proof: the priority comparison deleted and 8 of the 11 tests in
    * `schedule-priority.test.ts` failed — `starts the smaller priority first
-   * when two work items want one person` on the work item with the smaller priority coming back at
-   * 2→5 behind the one it outranks; watched 2026-08-11.
+   * when two work items want one person` on the work item with the smaller
+   * priority coming back at 3→5, behind the one it outranks and bound by
+   * `person`; watched 2026-08-11.
    */
   const goesFirst = (left: number, right: number): boolean => {
     const first = priorityOf[left];

@@ -293,98 +293,231 @@ describe('a plan that priorities nothing is scheduled exactly as it was', () => 
   it('answers what the engine answered before priority existed', () => {
     const found = schedule(CONTENTION_ROWS, CONTENTION_EDGES, CONTENTION_SLICES, CONTENTION_FLOORS);
 
-    const said = [...found.slices]
-      .map(([key, placed]) => [
-        // The key is opaque and NUL-separated — written as an escape here for
-        // the same reason `sliceKey` writes it as one: a literal NUL in a
-        // source file makes git call the file binary.
-        key.replace('\u0000', '/'),
+    // The key is opaque and NUL-separated — written as an escape here for the
+    // same reason `sliceKey` writes it as one: a literal NUL in a source file
+    // makes git call the file binary.
+    const readable = (key: string): string => key.replace('\u0000', '/');
+
+    // **Every field of every slice**, not a projection of some of them. An
+    // earlier version of this pin listed seven fields and left out
+    // `resourcePredecessorId` — which is precisely the leveller's own artifact,
+    // the record of *who waited behind whom*. A prioritising that reordered the
+    // queue while landing every slice on the same day would have moved that
+    // field and nothing else, and a seven-field pin would have called the plan
+    // unchanged. `personId`, `duration` and `estimated` are here for the same
+    // reason: what is not asserted is not pinned.
+    const saidOfSlices = [...found.slices]
+      .map(([key, placed]): [string, unknown] => [
+        readable(key),
         {
-          earliestStart: placed.earliestStart,
-          earliestFinish: placed.earliestFinish,
-          latestStart: placed.latestStart,
-          latestFinish: placed.latestFinish,
-          float: placed.float,
-          critical: placed.critical,
-          boundBy: placed.boundBy,
+          ...placed,
+          resourcePredecessorId:
+            placed.resourcePredecessorId === null ? null : readable(placed.resourcePredecessorId),
         },
       ])
       .sort(([left], [right]) => (left < right ? -1 : 1));
 
-    expect(Object.fromEntries(said)).toEqual({
+    expect(Object.fromEntries(saidOfSlices)).toEqual({
       'c-a/role-dev': {
+        workItemId: 'c-a',
+        roleId: 'role-dev',
+        duration: 3,
+        estimated: true,
         earliestStart: 4,
         earliestFinish: 7,
         latestStart: 4,
         latestFinish: 7,
         float: 0,
         critical: true,
+        personId: 'kat',
         boundBy: 'person',
+        resourcePredecessorId: 'c-p1/role-dev',
       },
       'c-a/role-qa': {
+        workItemId: 'c-a',
+        roleId: 'role-qa',
+        duration: 1,
+        estimated: true,
         earliestStart: 7,
         earliestFinish: 8,
         latestStart: 7,
         latestFinish: 8,
         float: 0,
         critical: true,
+        personId: 'sam',
         boundBy: 'roleOrder',
+        resourcePredecessorId: null,
       },
       'c-b/role-dev': {
+        workItemId: 'c-b',
+        roleId: 'role-dev',
+        duration: 2,
+        estimated: true,
         earliestStart: 7,
         earliestFinish: 9,
         latestStart: 8.5,
         latestFinish: 10.5,
         float: 1.5,
         critical: false,
+        personId: 'kat',
         boundBy: 'person',
+        resourcePredecessorId: 'c-a/role-dev',
       },
       'c-c/role-dev': {
+        workItemId: 'c-c',
+        roleId: 'role-dev',
+        duration: 2.5,
+        estimated: true,
         earliestStart: 8,
         earliestFinish: 10.5,
         latestStart: 8,
         latestFinish: 10.5,
         float: 0,
         critical: true,
+        personId: 'sam',
         boundBy: 'predecessor',
+        resourcePredecessorId: null,
       },
       'c-d/role-dev': {
+        workItemId: 'c-d',
+        roleId: 'role-dev',
+        duration: 3,
+        estimated: true,
         earliestStart: 4,
         earliestFinish: 7,
         latestStart: 7.5,
         latestFinish: 10.5,
         float: 3.5,
         critical: false,
+        personId: 'ro',
         boundBy: 'predecessor',
+        resourcePredecessorId: null,
       },
       'c-p1/role-dev': {
+        workItemId: 'c-p1',
+        roleId: 'role-dev',
+        duration: 4,
+        estimated: true,
         earliestStart: 0,
         earliestFinish: 4,
         latestStart: 0,
         latestFinish: 4,
         float: 0,
         critical: true,
+        personId: 'kat',
         boundBy: 'projectStart',
+        resourcePredecessorId: null,
       },
       'c-p1/role-qa': {
+        workItemId: 'c-p1',
+        roleId: 'role-qa',
+        duration: 0,
+        estimated: false,
         earliestStart: 4,
         earliestFinish: 4,
         latestStart: 7.5,
         latestFinish: 7.5,
         float: 3.5,
         critical: false,
+        personId: 'sam',
         boundBy: 'roleOrder',
+        resourcePredecessorId: null,
       },
       'c-p2/role-dev': {
+        workItemId: 'c-p2',
+        roleId: 'role-dev',
+        duration: 1,
+        estimated: true,
         earliestStart: 0,
         earliestFinish: 1,
         latestStart: 6.5,
         latestFinish: 7.5,
         float: 6.5,
         critical: false,
+        personId: 'ro',
         boundBy: 'projectStart',
+        resourcePredecessorId: null,
       },
     });
+
+    // The projection the table actually reads, pinned beside the slices it is
+    // read off: `c-parent` appears here and nowhere above, so a change that
+    // moved only the roll-up onto parents would pass a slices-only pin.
+    const saidOfWorkItems = [...found.workItems].sort(([left], [right]) => (left < right ? -1 : 1));
+
+    expect(Object.fromEntries(saidOfWorkItems)).toEqual({
+      'c-a': {
+        duration: 4,
+        estimated: true,
+        earliestStart: 4,
+        earliestFinish: 8,
+        latestStart: 4,
+        latestFinish: 8,
+        float: 0,
+        critical: true,
+      },
+      'c-b': {
+        duration: 2,
+        estimated: true,
+        earliestStart: 7,
+        earliestFinish: 9,
+        latestStart: 8.5,
+        latestFinish: 10.5,
+        float: 1.5,
+        critical: false,
+      },
+      'c-c': {
+        duration: 2.5,
+        estimated: true,
+        earliestStart: 8,
+        earliestFinish: 10.5,
+        latestStart: 8,
+        latestFinish: 10.5,
+        float: 0,
+        critical: true,
+      },
+      'c-d': {
+        duration: 3,
+        estimated: true,
+        earliestStart: 4,
+        earliestFinish: 7,
+        latestStart: 7.5,
+        latestFinish: 10.5,
+        float: 3.5,
+        critical: false,
+      },
+      'c-p1': {
+        duration: 4,
+        estimated: true,
+        earliestStart: 0,
+        earliestFinish: 4,
+        latestStart: 0,
+        latestFinish: 7.5,
+        float: 0,
+        critical: true,
+      },
+      'c-p2': {
+        duration: 1,
+        estimated: true,
+        earliestStart: 0,
+        earliestFinish: 1,
+        latestStart: 6.5,
+        latestFinish: 7.5,
+        float: 6.5,
+        critical: false,
+      },
+      'c-parent': {
+        duration: 0,
+        estimated: true,
+        earliestStart: 0,
+        earliestFinish: 4,
+        latestStart: 0,
+        latestFinish: 7.5,
+        float: 0,
+        critical: true,
+      },
+    });
+
     expect(found.waitingForPerson).toBe(2);
   });
 });

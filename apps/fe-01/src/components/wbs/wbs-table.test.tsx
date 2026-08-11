@@ -1893,6 +1893,37 @@ describe('the priority cell', () => {
     });
     expect(patched).toEqual([]);
   });
+
+  itDom(
+    'says so, and sends nothing, when what was typed is a number too big to be one',
+    async () => {
+      // `1e999` is the trap the same guard already has to survive on a stored
+      // column width (`rememberedWidthOverrides`, `wbs-table.tsx`): `Number` reads
+      // it as `Infinity`, which is not `NaN` and would pass a `Number.isNaN`
+      // check — and JSON has no literal for `Infinity` either, so the request
+      // arrives at be-01 as `{"priority":null}`, which is the request that
+      // **clears** a priority. Somebody's priority silently wiped by a typo is
+      // the fault this refuses; the guard is `Number.isFinite`, not `isNaN`.
+      //
+      // The patch is recorded as the wire sees it — through `JSON.stringify` —
+      // because `Infinity` in a JS object is not the value that arrives, and a
+      // test watching the object alone cannot see the loss.
+      const api = await twoRows();
+      const onTheWire: unknown[] = [];
+      const perform = api.patch.bind(api);
+      api.patch = (id: string, patch: Record<string, unknown>) => {
+        onTheWire.push(JSON.parse(JSON.stringify(patch)));
+        return perform(id, patch);
+      };
+
+      typeIntoPriority('010', '1e999');
+
+      await waitFor(() => {
+        expect(screen.getByText(/A priority is a whole number from 1 upward\./)).toBeDefined();
+      });
+      expect(onTheWire).toEqual([]);
+    },
+  );
 });
 
 describe('the earliest-start cell', () => {
