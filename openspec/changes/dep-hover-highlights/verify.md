@@ -23,15 +23,7 @@ run-many and fe-01 at **1080 tests**. `build` is off this round's local
 run-many by house rule — builds go to `h2puni`, not this box — and CI's `gate`
 job is what runs it.
 
-`nx` reported `fe-01:test` and `gw-01:test` as flaky across the runs: the
-first gate run failed `fe-01:test` under `--parallel=2` load and the same
-suite passed standalone (`bunx vitest run`, 1080/1080) and on the recorded
-gate re-run. `deps-single-line`'s verify saw the same gw-01 flake; nothing
-in this change touches gw-01, and the fe-01 failure did not reproduce.
-
-**`bun run e2e` was not run.** This host has no Chromium; the browser
-assertions are written and the PR's `pixels` CI job is what proves them —
-including, this once, the red half. See "Not verified".
+`nx` reported `gw-01:test` flaky again on the review round, as it did on 2026-08-10 and as `deps-single-line`'s verify did before that. The `--skip-nx-cache` run-many failed one gw-01 test — the presence roster answering with the asking socket's own project — on `no roster arrived for ada` (`fan-out.integration.test.ts:165`, a 3s timeout in a websocket fixture). `gw-01:test` alone passed immediately afterwards, and the recorded run-many above is green. Nothing in this change touches gw-01. On 2026-08-10 `fe-01:test` flaked the same way under `--parallel=2` load and passed standalone; it did not flake this round.
 
 ## What moved
 
@@ -86,15 +78,17 @@ Rows 1–5 were watched 2026-08-10; rows 6–9 on 2026-08-11, with the ✕ row w
 
 Three heads on PR #38, each pushed alone and watched to conclusion — `ci.yml` has `cancel-in-progress: true`, so a second push would have cancelled the first run and left nothing observed.
 
-| Head        | What was withheld                                                | Run         | Result                                                      |
-| ----------- | ---------------------------------------------------------------- | ----------- | ----------------------------------------------------------- |
-| `ec1580e`   | the `tr[data-dep-lit]` rule (round 1, superseded — see below)    | 31434033908 | `gate pass 2m35s`, `pixels fail 5m51s`                      |
-| `04a4b9e`   | nothing (round 1's restore head)                                 | 31434962012 | `gate` success, `pixels` success                            |
-| `756a24a`   | the `tr[data-dep-lit]` rule, on the review round's own spec text | 31452990284 | `gate` success, `pixels` failure — **5 failed, 117 passed** |
-| FAULT_2_SHA | nothing, but the card's swatch pointed back at `--grid-dep-lit`  | FAULT_2_RUN | FAULT_2_RESULT                                              |
-| GREEN_SHA   | nothing — the head that ships                                    | GREEN_RUN   | GREEN_RESULT                                                |
+| Head      | What was withheld                                                | Run         | Result                                                      |
+| --------- | ---------------------------------------------------------------- | ----------- | ----------------------------------------------------------- |
+| `ec1580e` | the `tr[data-dep-lit]` rule (round 1, superseded — see below)    | 31434033908 | `gate pass 2m35s`, `pixels fail 5m51s`                      |
+| `04a4b9e` | nothing (round 1's restore head)                                 | 31434962012 | `gate` success, `pixels` success                            |
+| `756a24a` | the `tr[data-dep-lit]` rule, on the review round's own spec text | 31452990284 | `gate` success, `pixels` failure — **5 failed, 117 passed** |
+| `fbbef7f` | nothing, but the card's swatch pointed back at `--grid-dep-lit`  | 31453443062 | `gate` success, `pixels` failure — **1 failed, 121 passed** |
+| GREEN_SHA | nothing — the head that ships                                    | GREEN_RUN   | GREEN_RESULT                                                |
 
 On `756a24a` the five red were, by name, `the cell lights every dependency's row, and dark again on leaving`, `a pill narrows the light to its row and tints its line in the card`, `a clipped chip has no hover target, and the cell still lights its row`, `the keyboard gets the same light, from the box's focus` and `the tint moves the same way on both surfaces, in both palettes`. The first four failed on the unmoved paint — `Expected: not "oklch(1 0 0)"`, `Timeout 10000ms exceeded while waiting on the predicate` — and the fifth on its own non-vacuity guard, before it could reach the direction claim at all: `light: the row's tint did not move`, `Received: 0`. `gate` passed on the same head, all 1091 jsdom tests included: the rule is invisible to jsdom, which is why this negative has to be a browser's.
+
+On `fbbef7f` exactly one went red — `the tint moves the same way on both surfaces, in both palettes`, **1 failed and 121 passed** — on `dark: the row goes lighter and the card's line goes darker`, `Expected: -1`, `Received: 1`. The light palette passed in the same run, which is the finding stated as a measurement rather than as a description: the inversion exists only where the two surfaces differ, and the default theme is where they do not. A check that ran in one palette could not have seen it, and `04a4b9e`'s green `pixels` job is what that looks like from the outside.
 
 **Round 1's red does not prove round 1's checks, and that is why there are two fault heads here.** Run 31434033908 was recorded on `ec1580e`; afterwards `settledRowBg` was added and the pill assertion rewritten, so the run predates the text it was cited for — codex's finding, and correct. The re-watch above is on the current text, and on five checks rather than three: the keyboard check and the two-palette direction check are new this round and both go red on the same withheld rule (the first has a paint assertion, the second cannot claim a direction for a tint that did not move).
 
