@@ -31,23 +31,48 @@ export interface FrameLayoutState {
    * table minimum, the folded minimum and the pinned offsets together or not
    * at all.
    *
-   * Read by {@link widthFor} and by nothing else. It is **not** clamped on the
-   * way through: a width outside the range a drag can produce is refused where
-   * it is read out of storage (`rememberedWidthOverrides` in `wbs-table.tsx`),
-   * and clamping here as well would make that refusal a check that cannot
-   * fail.
+   * Read by {@link widthFor}, by {@link frameLayout}'s flexible arm and by
+   * {@link flexibleCellStyle} — the two places a flexible column's override
+   * lives that the width table cannot answer for — and by nothing else. It is
+   * **not** clamped on the way through: a width outside the range a drag can
+   * produce is refused where it is read out of storage
+   * (`rememberedWidthOverrides` in `wbs-table.tsx`), and clamping here as well
+   * would make that refusal a check that cannot fail.
    */
   columnWidthOverrides?: Map<string, number>;
 }
 
 /**
- * One column of a resolved frame, with the width it declares — or none, where
- * the layout decides it.
+ * One column of a resolved frame, with the width it resolves to and the width
+ * its `<col>` declares — two readings of one resolution, not two systems.
+ *
+ * They differ for exactly one column in one state: a {@link FLEXIBLE_COLUMNS}
+ * member carrying an override. Its `width` is the override — what the table
+ * minimum counts — while its `colWidth` stays `undefined`, and the dragged
+ * width reaches the browser as the table's **own** width instead
+ * ({@link tableWidthStyle}): with every other column sized and the table
+ * exactly as wide as their sum plus the override, fixed layout hands the
+ * flexible column exactly the override and the viewport keeps the slack.
+ * Expressing the override on the Name cells against a `width: 100%` table was
+ * the design tried first, and Chromium refused it: it took the cell's width
+ * and then distributed the viewport's excess across **every** sized column,
+ * moving Number off its measured 93px envelope (`Expected: 93 / Received:
+ * 103.484375`, CI `pixels` run 31430669282, 2026-08-10) — so that branch is
+ * deleted, not kept as config. `e2e/layout.spec.ts` measures the consequence
+ * in a browser either way.
  */
 export interface ResolvedColumn {
   id: string;
-  /** px, or `undefined` for a {@link FLEXIBLE_COLUMNS} member. */
+  /**
+   * px the layout resolved — the override for a dragged flexible column — or
+   * `undefined` for a flexible member nobody has dragged.
+   */
   width: number | undefined;
+  /**
+   * px the `<col>` declares, or `undefined` where the `<colgroup>` must stay
+   * silent: every {@link FLEXIBLE_COLUMNS} member, dragged or not.
+   */
+  colWidth: number | undefined;
 }
 
 /**
@@ -234,11 +259,12 @@ export const FIXED_COLUMNS: readonly string[] = [...COLUMN_WIDTHS.keys(), ...PLA
  * A table that fits the window is a table with one column that is not a
  * number: everything else is a figure, a date or a control of a known size,
  * and the name is the sentence that should have the rest. So the `<colgroup>`
- * emits no `<col width>` for these and `table-layout: fixed` divides the
- * remainder among them.
+ * emits no `<col width>` for these — a dragged one included, whose width rides
+ * on its cells instead (see {@link ResolvedColumn.colWidth}) — and
+ * `table-layout: fixed` hands the remainder to them.
  *
- * A set, not a sentinel width. {@link widthFor} keeps throwing on anything it
- * has no number for, because a flexible column and an unsized one look
+ * A set, not a sentinel width. {@link widthFor} keeps throwing on a flexible
+ * column with no override, because a flexible column and an unsized one look
  * identical to a caller that gets a plausible number back — and the caller
  * that must not get one is the pinned-offset arithmetic. Membership here is
  * the question to ask instead.
@@ -313,11 +339,15 @@ export function defaultWidthFor(columnId: string, state: FrameLayoutState): numb
  * in px — the override where there is one, and the width table's own answer
  * where there is not.
  *
- * Never ask it about a {@link FLEXIBLE_COLUMNS} member: those have no declared
- * width by design and this throws for them exactly as it does for a typo. That
- * is the point — a sentinel would let the pinned-offset arithmetic add a
- * number the browser never uses. The default is resolved **first**, so an
- * override naming the flexible column throws rather than sizing it.
+ * A {@link FLEXIBLE_COLUMNS} member resolves its override **before** the width
+ * table is consulted — the table has no row for it by design — and with no
+ * override this still throws for it exactly as for a typo. That is the point:
+ * a sentinel would let the pinned-offset arithmetic add a number the browser
+ * never uses. Until `name-column-drag` an override naming the flexible column
+ * threw too; the delta spec records the supersession.
+ *
+ * For every other column the default is resolved **first**, so an override
+ * naming a column nothing sizes throws rather than sizing it.
  *
  * The override is taken as it stands rather than clamped; see
  * {@link FrameLayoutState.columnWidthOverrides} for why that matters.
@@ -331,8 +361,14 @@ export function defaultWidthFor(columnId: string, state: FrameLayoutState): numb
  * two disagreeing is exactly the overlap this module exists to make impossible.
  */
 export function widthFor(columnId: string, state: FrameLayoutState): number {
+  const override = state.columnWidthOverrides?.get(columnId);
+  // Proof: this arm deleted so a dragged flexible column fell through to the
+  // width table, `resolves a dragged width for the flexible column, and a
+  // floor of its own` failed on `UnknownColumnError: No declared width for
+  // column "name"` with the override in force. Watched, 2026-08-10.
+  if (FLEXIBLE_COLUMNS.has(columnId) && override !== undefined) return override;
   const resolved = defaultWidthFor(columnId, state);
-  return state.columnWidthOverrides?.get(columnId) ?? resolved;
+  return override ?? resolved;
 }
 
 /**
@@ -371,11 +407,27 @@ const NARROWEST_COLUMN = 36;
  * in force: a floor that moved with the override would let a column be walked
  * down one drag at a time.
  *
- * @throws {UnknownColumnError} through {@link defaultWidthFor}, for a flexible
- * column as much as for a typo — a flexible column has no width to have a
- * floor under.
+ * A {@link FLEXIBLE_COLUMNS} member takes an explicit arm answering
+ * {@link FLEXIBLE_FLOOR} — the same constant {@link flexibleCellStyle} puts on
+ * the cell and {@link frameLayout} budgets in the minimum, because the floors
+ * disagreeing is the two-width-systems fault this module exists to prevent.
+ * Deliberately not the `min(default, NARROWEST_COLUMN)` path, which would
+ * resolve 36 for a column whose cell declares it may never shrink past 200.
+ * This arm was the recorded injected fault of `column-widths-drag`'s negative
+ * "refuses the flexible column a width and a floor alike"; `name-column-drag`
+ * retires that negative by name and adopts the arm as the behaviour.
+ *
+ * @throws {UnknownColumnError} through {@link defaultWidthFor}, for a typo —
+ * an id nothing sizes still has no width to have a floor under.
  */
 export function floorFor(columnId: string, state: FrameLayoutState): number {
+  // Proof: this arm deleted, `resolves a dragged width for the flexible
+  // column, and a floor of its own` and `has a floor that does not move with
+  // the plan…` (table-frame.test.ts) both failed on `UnknownColumnError: No
+  // declared width for column "name"` out of the floor lookup — and with it
+  // gone, every stored `name` width would be refused at mount and every Name
+  // drag would throw out of the clamp. Watched, 2026-08-10.
+  if (FLEXIBLE_COLUMNS.has(columnId)) return FLEXIBLE_FLOOR;
   return Math.min(defaultWidthFor(columnId, state), NARROWEST_COLUMN);
 }
 
@@ -384,9 +436,12 @@ export function floorFor(columnId: string, state: FrameLayoutState): number {
  *
  * What a drag writes, and the shape the stored-width check accepts: the check
  * reads {@link floorFor} and {@link WIDEST_COLUMN} rather than repeating the
- * arithmetic, so no drag can produce a width a reload would reject.
+ * arithmetic, so no drag can produce a width a reload would reject. The
+ * flexible column clamps like any other, to its own
+ * [{@link FLEXIBLE_FLOOR}, {@link WIDEST_COLUMN}].
  *
- * @throws {UnknownColumnError} through {@link floorFor}.
+ * @throws {UnknownColumnError} through {@link floorFor}, for an id nothing
+ * sizes.
  */
 export function clampColumnWidth(columnId: string, width: number, state: FrameLayoutState): number {
   return Math.min(Math.max(width, floorFor(columnId, state)), WIDEST_COLUMN);
@@ -401,9 +456,18 @@ export function clampColumnWidth(columnId: string, width: number, state: FrameLa
  *
  * A role's column for a phase the project no longer holds answers `true` and
  * is then never looked at — the harmlessness a remembered expansion's deleted
- * row ids already have.
+ * row ids already have. A {@link FLEXIBLE_COLUMNS} member answers `true` since
+ * `name-column-drag`: a dragged Name is stored like any other column, and the
+ * range check beside this filter judges its entry against Name's own bounds.
  */
 export function sizableColumn(columnId: string, state: FrameLayoutState): boolean {
+  // Proof: this arm deleted, `says which ids can be sized at all…` failed on
+  // `expected false to be true` — and on the storage production path, `lays a
+  // remembered Name width on the table itself, and leaves its <col> silent`
+  // (wbs-table.test.tsx) failed on `expected '200px' to be '300px'`: the
+  // stored entry silently dropped by the filter that reads this, the table
+  // opening as if nothing had been dragged. Both watched, 2026-08-10.
+  if (FLEXIBLE_COLUMNS.has(columnId)) return true;
   try {
     defaultWidthFor(columnId, state);
     return true;
@@ -459,12 +523,35 @@ export const PINNED_COLUMN_IDS: readonly string[] = ['drag', 'number', 'name'];
  * to add, so the sum would be right at exactly one window size.
  */
 export function frameLayout(leafIds: readonly string[], state: FrameLayoutState): FrameLayout {
-  const columns: ResolvedColumn[] = leafIds.map((id) => ({
-    id,
-    width: FLEXIBLE_COLUMNS.has(id) ? undefined : widthFor(id, state),
-  }));
+  const columns: ResolvedColumn[] = leafIds.map((id) => {
+    if (!FLEXIBLE_COLUMNS.has(id)) {
+      const width = widthFor(id, state);
+      return { id, width, colWidth: width };
+    }
+    // A flexible column resolves its override where one is in force, and its
+    // `<col>` stays silent either way — see {@link ResolvedColumn.colWidth}
+    // for the excess-width design that hangs on that difference.
+    const override = state.columnWidthOverrides?.get(id);
+    // Proof: `colWidth` handed the override, `lays out, adds up, folds and
+    // pins a dragged Name from the one number it resolved` failed on
+    // `expected 300 to be undefined` — a sized `<col name>` — and `still
+    // refuses a column pinned behind the flexible one, override or not`
+    // failed on `expected [Function] to throw an error` beside it, the
+    // refusal blinded by the same number. Watched, 2026-08-10. The browser
+    // consequence — excess distributed across every column, Number off its
+    // 93px envelope — is `e2e/layout.spec.ts`'s to watch.
+    return { id, width: override, colWidth: undefined };
+  });
   return {
     columns,
+    // The flexible floor is budgeted only while nothing overrides it: a
+    // dragged Name enters the minimum at its dragged width, which is how the
+    // frame starts scrolling at the width the reader actually asked for.
+    // Proof: the flexible arm made to count `FLEXIBLE_FLOOR` regardless of the
+    // override, `lays out, adds up, folds and pins a dragged Name from the one
+    // number it resolved` failed on `expected 1007 to be 1107` — the folded
+    // minimum a hundred pixels short of the table on screen. Watched,
+    // 2026-08-10.
     minWidth: columns.reduce((total, column) => total + (column.width ?? FLEXIBLE_FLOOR), 0),
     pinned: pinnedGeometryFor(columns, PINNED_COLUMN_IDS),
   };
@@ -498,10 +585,11 @@ export function pinnedGeometryFor(
     if (resolved === undefined) continue;
     if (flexibleBefore !== null) {
       // Unknown is not OK, and this is the shape of the unknown: a flexible
-      // column's width is whatever the frame leaves over, so every column
-      // pinned after one would be held at an offset that is right at exactly
-      // one window size. Name is last today; this is what stops a fourth
-      // pinned column being added behind it in silence.
+      // column's `<col>` is unsized so it absorbs whatever the frame leaves
+      // over — above the table minimum it is laid out wider than any override
+      // says — and every column pinned after one would be held at an offset
+      // that is right at exactly one window size. Name is last today; this is
+      // what stops a fourth pinned column being added behind it in silence.
       //
       // Proof: this branch deleted, `refuses a column pinned behind a flexible
       // one` failed on `expected [Function] to throw an error` — `depends`
@@ -509,13 +597,28 @@ export function pinnedGeometryFor(
       // 110 }`, a plausible offset with Name's missing width counted as
       // nothing. Watched, 2026-08-09.
       throw new Error(
-        `${flexibleBefore} has no declared width, so ${id} cannot be pinned after it — ` +
-          `a sticky offset is a sum of the widths in front of it and a flexible column has none.`,
+        `${flexibleBefore} has no <col> width for an offset to sum, so ${id} cannot be pinned after it — ` +
+          `a sticky offset is a sum of the widths in front of it and a flexible column absorbs the frame's excess.`,
       );
     }
-    pinned.set(id, { left, width: resolved.width });
-    if (resolved.width === undefined) flexibleBefore = id;
-    else left += resolved.width;
+    // The `<col>`'s width, not the resolved one: what a pinned cell declares
+    // must be exactly what the `<colgroup>` declares, and a dragged flexible
+    // column deliberately declares nothing on either — its override reaches
+    // the browser as the table's own width ({@link tableWidthStyle}). A cell
+    // `width` for it was the first design, and Chromium answered it by
+    // distributing the viewport's excess across every sized column; see
+    // {@link ResolvedColumn.colWidth}.
+    pinned.set(id, { left, width: resolved.colWidth });
+    // Keyed on flexibility rather than on the width being missing: a dragged
+    // flexible column has a width, and it is still not a number an offset may
+    // be summed from.
+    // Proof: keyed back on `resolved.width === undefined`, `still refuses a
+    // column pinned behind the flexible one, override or not` failed on
+    // `expected [Function] to throw an error` — `depends` pinned behind a
+    // dragged Name at an offset summed from the override, which the browser
+    // outgrows the moment the viewport has slack. Watched, 2026-08-10.
+    if (resolved.colWidth === undefined) flexibleBefore = id;
+    else left += resolved.colWidth;
   }
   return pinned;
 }
@@ -784,8 +887,11 @@ export function pinnedCellStyle(
     position: 'sticky',
     left: pinned.left,
     // Only where there is one to declare. A flexible column's width is the
-    // `<colgroup>`'s to decide and a fixed `width` here would be a second
-    // opinion about it — the two-width-systems bug, one column along.
+    // table-width arithmetic's to decide — dragged or not — and a fixed
+    // `width` here would be a second opinion about it: the two-width-systems
+    // bug, one column along, and for a dragged Name the exact declaration
+    // Chromium answered by re-distributing the viewport's excess (see
+    // {@link ResolvedColumn.colWidth}).
     ...(pinned.width === undefined ? {} : { width: pinned.width }),
     boxSizing: 'border-box',
     background: part === 'header' ? HEADER_BACKGROUND : ROW_BACKGROUND,
@@ -797,14 +903,68 @@ export function pinnedCellStyle(
  * What one cell carries because its column is flexible, or nothing when it is
  * not.
  *
- * The floor, on the cell as well as in {@link frameLayout}. The table's own
- * `min-width` is what really holds it — under `table-layout: fixed` a cell does
- * not get a vote on its column's width — and this is the belt that says so
- * where a reader of the markup is looking, and that keeps the cell honest if
- * the table is ever laid out any other way.
+ * The floor, on the cell as well as in {@link frameLayout} — and with an
+ * override in force, the override **is** the floor. A `min-width` and never a
+ * `width`: the dragged width itself reaches the browser as the table's own
+ * width ({@link tableWidthStyle}), and a cell `width` was the design Chromium
+ * refused (see {@link ResolvedColumn.colWidth}). The table's own widths are
+ * what really hold this — under `table-layout: fixed` a cell does not get a
+ * vote on its column's width — and this is the belt that says so where a
+ * reader of the markup is looking.
  */
-export function flexibleCellStyle(columnId: string): CSSProperties | undefined {
-  return FLEXIBLE_COLUMNS.has(columnId) ? { minWidth: FLEXIBLE_FLOOR } : undefined;
+export function flexibleCellStyle(
+  columnId: string,
+  state: FrameLayoutState,
+): CSSProperties | undefined {
+  if (!FLEXIBLE_COLUMNS.has(columnId)) return undefined;
+  // Proof: the override dropped from this floor, `lays out, adds up, folds
+  // and pins a dragged Name from the one number it resolved` failed on
+  // `expected { minWidth: 200 } to deeply equal { minWidth: 300 }` — and on
+  // the rendered production path, `lays a remembered Name width on the table
+  // itself, and leaves its <col> silent` (wbs-table.test.tsx) failed on
+  // `expected '200px' to be '300px'`, the header Name cell's own min-width.
+  // Both watched, 2026-08-10.
+  return { minWidth: state.columnWidthOverrides?.get(columnId) ?? FLEXIBLE_FLOOR };
+}
+
+/**
+ * The width the `<table>` itself declares for this layout — the one line the
+ * excess-width measurement decided.
+ *
+ * At rest the table is `width: 100%` with the resolved minimum as its floor:
+ * every fixed column takes its declared px and the flexible column absorbs
+ * whatever the viewport leaves, which is what makes the table fit the window
+ * instead of the window having to fit the table.
+ *
+ * With a **flexible override** in force the table declares its own width as
+ * the resolved sum instead, so every column stands at exactly its resolved
+ * width — Name at the override — and the viewport, not the table, keeps the
+ * slack. That is the branch the browser picked, and the losing one is deleted
+ * rather than kept as config: expressing the override as a `width` on the Name
+ * cells against a `width: 100%` table had Chromium distribute the viewport's
+ * excess across **every** sized column instead, moving Number off the 93px
+ * envelope its own browser test picked.
+ *
+ * Proof: exactly that — this arm absent (the table left at `width: 100%` with
+ * a Name override in force), `keeps every other column on its envelope while
+ * Name holds a dragged width` (`e2e/layout.spec.ts`) failed on `Expected: 93 /
+ * Received: 103.484375` for the Number column, with every jsdom test green
+ * beside it. Watched in CI's `pixels` job, run 31430669282, 2026-08-10. The
+ * jsdom half — the string this declares — is `wbs-table.test.tsx`'s `lays a
+ * remembered Name width on the table itself, and leaves its <col> silent`.
+ */
+export function tableWidthStyle(layout: FrameLayout): CSSProperties {
+  const flexibleOverridden = layout.columns.some(
+    (column) => column.colWidth === undefined && column.width !== undefined,
+  );
+  return {
+    // Proof of the jsdom half: this arm stubbed to a flat '100%', `lays a
+    // remembered Name width on the table itself, and leaves its <col> silent`
+    // (wbs-table.test.tsx) failed on `expected '100%' to be '1547px'`.
+    // Watched, 2026-08-10. The browser half is the JSDoc above.
+    width: flexibleOverridden ? `${String(layout.minWidth)}px` : '100%',
+    minWidth: layout.minWidth,
+  };
 }
 
 /**

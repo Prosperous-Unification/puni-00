@@ -85,6 +85,7 @@ import {
   CELL,
   clampColumnWidth,
   DATE_EDITOR_WIDTH,
+  FLEXIBLE_FLOOR,
   flexibleCellStyle,
   floorFor,
   frameLayout,
@@ -96,6 +97,7 @@ import {
   sizableColumn,
   STICKY_HEADER_CELL,
   TABLE_FRAME,
+  tableWidthStyle,
   WIDEST_COLUMN,
 } from './table-frame';
 import { type Toast, toastKey, ToastStack, useToasts } from './toasts';
@@ -771,7 +773,13 @@ function rememberedWidthOverrides(projectId: string): Map<string, number> {
   for (const [columnId, width] of Object.entries(claimed)) {
     if (!sizableColumn(columnId, STATE_AT_MOUNT)) continue;
     // One comparison each way, and no separate finiteness test in front of
-    // them: see the note above about the line that could not fail.
+    // them: see the note above about the line that could not fail. The range
+    // is each column's own: `name` reads its 200px flexible floor here, so a
+    // stored Name entry is judged by the same rule as everything else.
+    // Proof: the check bypassed for `name`, `drops a stored Name width
+    // outside Name's own bounds, each end on its own` failed on `expected
+    // '150px' to be ''` — a hand-edited 150 laid onto the Name cells below
+    // the floor no drag can pass. Watched, 2026-08-10.
     if (width < floorFor(columnId, STATE_AT_MOUNT) || width > WIDEST_COLUMN) continue;
     kept.set(columnId, width);
   }
@@ -855,6 +863,15 @@ interface ColumnResize {
  * The width the drag counts from is taken **once**, at `pointerdown`. Counting
  * from the width on screen would compound this function's own answer with every
  * move — a drag that accelerates away from the pointer.
+ *
+ * For the one column that resolves no width — an undragged Name — the
+ * from-width is the header cell's **rendered** width, measured at
+ * `pointerdown`: the only measurement in the gesture, because there is no
+ * resolved number to count from and the browser is the only thing that knows
+ * what the remainder-absorber is standing at. jsdom lays nothing out and
+ * measures every box at 0, so a zero falls back to the column's
+ * `FLEXIBLE_FLOOR`; the real from-width is provable only in Chromium
+ * (`e2e/layout.spec.ts`), the same bargain {@link GanttHeightHandle} makes.
  */
 function ColumnResizeHandle({
   columnId,
@@ -866,8 +883,12 @@ function ColumnResizeHandle({
   columnId: string;
   /** What the column is called, so the control has a name to be found by. */
   heading: string;
-  /** The width the column is laid out at now, which a new gesture starts from. */
-  width: number;
+  /**
+   * The width the column resolves to now, which a new gesture starts from —
+   * or `undefined` for an undragged flexible column, whose gesture starts
+   * from the rendered width instead.
+   */
+  width: number | undefined;
   state: FrameLayoutState;
   resize: ColumnResize;
 }) {
@@ -890,7 +911,17 @@ function ColumnResizeHandle({
         // the pointer has travelled — a 6px strip is not something a hand stays
         // inside.
         event.currentTarget.setPointerCapture(event.pointerId);
-        grabbed.current = { pointerId: event.pointerId, fromX: event.clientX, fromWidth: width };
+        const cell = event.currentTarget.closest('th');
+        // The strip is rendered inside the header cell it resizes; a handle
+        // with no cell above it is an invariant broken, not a state to
+        // default.
+        if (cell === null) throw new Error('no header cell above the resize handle');
+        const measured = cell.getBoundingClientRect().width;
+        grabbed.current = {
+          pointerId: event.pointerId,
+          fromX: event.clientX,
+          fromWidth: width ?? (measured > 0 ? measured : FLEXIBLE_FLOOR),
+        };
       }}
       onPointerMove={(event) => {
         const from = grabbed.current;
@@ -5800,17 +5831,35 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
   const layout = frameLayout(leafColumnIds, frameState);
 
   /**
-   * The resize handle for one heading, or nothing where that column has no
-   * declared width to drag.
+   * The resize handle for one heading — every leaf column carries one since
+   * `name-column-drag`, the Name column included.
+   *
+   * Until that change a column resolving no width was refused a handle, and
+   * Name was exactly that column. A dragged Name writes an override now, so
+   * the suppression is retired: the one thing that still varies is where the
+   * gesture's from-width comes from, and that is
+   * {@link ColumnResizeHandle}'s to answer.
    *
    * `declaredHeading` is what the column definition calls itself, which is a
    * string for most of them and a node for the ones whose heading is a glyph or
    * carries a control. Those fall back to the column id: a name a screen reader
    * can say, rather than a node this cannot read text out of.
+   *
+   * @throws {Error} for a heading the layout did not resolve. Every header
+   * cell in this table is a leaf column of the same model `layout` was built
+   * from, so a miss is the overlap bug's shape — a column laid out by nothing
+   * — not a state to render around.
    */
   function resizeHandleFor(columnId: string, declaredHeading: unknown): ReactNode {
     const resolved = layout.columns.find((column) => column.id === columnId);
-    if (resolved?.width === undefined) return null;
+    if (resolved === undefined) {
+      throw new Error(`the ${columnId} heading is not a column this layout resolved`);
+    }
+    // Proof: the retired undefined-width suppression restored above this
+    // return, `offers a handle on every column, the Name column included`
+    // failed on `expected [ 'drag', 'number', 'depends', …(13) ] to deeply
+    // equal [ 'drag', 'number', 'name', …(14) ]` — Name refused its handle
+    // again. Watched, 2026-08-10.
     return (
       <ColumnResizeHandle
         columnId={columnId}
@@ -6452,15 +6501,13 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                 // that came out wider than the offsets assumed is a pinned Name
                 // painted over "Depends on".
                 tableLayout: 'fixed',
-                // The frame's width, never a declared total: every fixed column
-                // takes its declared px and Name absorbs whatever is left, so the
-                // table fits the window instead of the window having to fit the
-                // table. The minimum is the floor under that — the fixed columns
-                // plus Name's own floor — and below it the frame scrolls sideways
-                // with the pinned columns holding the left edge, which is the one
-                // case `width: 100%` cannot cover.
-                width: '100%',
-                minWidth: layout.minWidth,
+                // The frame's width at rest, and the resolved sum while a
+                // dragged Name holds an override — `tableWidthStyle` is the
+                // one line the excess-width measurement decided, and its JSDoc
+                // holds the observation. The minimum stays the floor either
+                // way: below it the frame scrolls sideways with the pinned
+                // columns holding the left edge.
+                ...tableWidthStyle(layout),
               }}
             >
               {/*
@@ -6474,9 +6521,21 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
             */}
               <colgroup>
                 {layout.columns.map((column) => (
+                  // `colWidth`, not `width`: a dragged Name resolves a width
+                  // and its `<col>` must still stay silent, or fixed layout
+                  // distributes the viewport's excess across every sized
+                  // column and moves Number off its measured envelope. The
+                  // dragged width rides on the Name cells below;
+                  // `e2e/layout.spec.ts` measures the consequence.
+                  // Proof: re-pointed at `column.width`, `lays a remembered
+                  // Name width on the Name cells, and leaves its <col> silent`
+                  // failed on `expected '300px' to be ''` — a sized
+                  // `<col name>`. Watched, 2026-08-10. The browser half of the
+                  // same fault — the viewport's excess distributed, Number off
+                  // 93 — is `e2e/layout.spec.ts`'s to watch.
                   <col
                     key={column.id}
-                    style={column.width === undefined ? undefined : { width: column.width }}
+                    style={column.colWidth === undefined ? undefined : { width: column.colWidth }}
                   />
                 ))}
               </colgroup>
@@ -6496,7 +6555,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                         style={{
                           ...CELL,
                           ...STICKY_HEADER_CELL,
-                          ...flexibleCellStyle(header.column.id),
+                          ...flexibleCellStyle(header.column.id, frameState),
                           ...pinnedCellStyle(layout, header.column.id, 'header'),
                         }}
                       >
@@ -6583,7 +6642,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                           ...(opensAPopover(cell.column.id)
                             ? { overflow: 'visible' as const }
                             : {}),
-                          ...flexibleCellStyle(cell.column.id),
+                          ...flexibleCellStyle(cell.column.id, frameState),
                           ...pinnedCellStyle(layout, cell.column.id, 'body'),
                           // Last, so it wins over the pinned layer it is raising.
                           // A pinned cell is sticky *with a z-index*, which makes

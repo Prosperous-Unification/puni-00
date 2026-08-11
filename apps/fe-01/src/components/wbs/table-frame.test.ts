@@ -26,6 +26,7 @@ import {
   sizableColumn,
   STICKY_HEADER_CELL,
   TABLE_FRAME,
+  tableWidthStyle,
   UnknownColumnError,
   WIDEST_COLUMN,
   widthFor,
@@ -95,14 +96,14 @@ describe('the resolved frame layout', () => {
       const layout = frameLayout(RENDERED, state);
       let running = 0;
       for (const id of PINNED_COLUMN_IDS) {
-        const width = layout.columns.find((column) => column.id === id)?.width;
-        expect(layout.pinned.get(id)).toEqual({ left: running, width });
-        if (width === undefined) {
+        const resolved = layout.columns.find((column) => column.id === id);
+        expect(layout.pinned.get(id)).toEqual({ left: running, width: resolved?.colWidth });
+        if (resolved?.colWidth === undefined) {
           // Only the last pinned column may be flexible; see the refusal below.
           expect(id).toBe(PINNED_COLUMN_IDS.at(-1));
           continue;
         }
-        running += width;
+        running += resolved.colWidth;
       }
     }
   });
@@ -203,8 +204,8 @@ describe('the resolved frame layout', () => {
     expect(() => widthFor('name', DATED)).toThrow(UnknownColumnError);
     // And the floor it may not shrink past is on the cell as well as in the
     // table's minimum.
-    expect(flexibleCellStyle('name')).toEqual({ minWidth: FLEXIBLE_FLOOR });
-    expect(flexibleCellStyle('depends')).toBeUndefined();
+    expect(flexibleCellStyle('name', DATED)).toEqual({ minWidth: FLEXIBLE_FLOOR });
+    expect(flexibleCellStyle('depends', DATED)).toBeUndefined();
   });
 
   it('has no width for a Notes column, because there is no Notes column', () => {
@@ -612,27 +613,90 @@ describe('a column this browser has dragged to another width', () => {
     });
   });
 
-  it('refuses the flexible column a width and a floor alike, override or not', () => {
-    // A flexible column has no declared width to override, and a plausible
-    // number handed back is the pinned-offset bug again — so an override
-    // naming one is an error rather than a width.
-    // Proof: `floorFor` made to answer `FLEXIBLE_FLOOR` for a flexible column
-    // instead of resolving its default, this failed on `expected [Function] to
-    // throw an error`. Watched, 2026-08-09.
-    const named: FrameLayoutState = {
-      hasAnyNotBefore: true,
-      columnWidthOverrides: new Map([['name', 300]]),
-    };
+  /**
+   * The Name column dragged to 300px, which is every consumer's question about
+   * the one column whose override and `<col>` width are different answers.
+   */
+  const NAME_DRAGGED: FrameLayoutState = {
+    hasAnyNotBefore: true,
+    columnWidthOverrides: new Map([['name', 300]]),
+  };
 
-    expect(() => widthFor('name', named)).toThrow(UnknownColumnError);
-    expect(() => floorFor('name', DATED)).toThrow(UnknownColumnError);
-    expect(() => clampColumnWidth('name', 300, DATED)).toThrow(UnknownColumnError);
-    // And the layout still leaves it to the `<colgroup>`, which is what the
-    // throw is protecting: an override that reached it would be a declared
-    // width on the one column that must not have one.
-    const layout = frameLayout(RENDERED, named);
-    expect(layout.columns.find((column) => column.id === 'name')?.width).toBeUndefined();
-    expect(layout.pinned.get('name')?.width).toBeUndefined();
+  it('resolves a dragged width for the flexible column, and a floor of its own', () => {
+    // Until `name-column-drag` this test was `refuses the flexible column a
+    // width and a floor alike, override or not`, and the flexible arm in
+    // `floorFor` was that negative's recorded injected fault
+    // (`column-widths-drag/verify.md` row 4). The supersession adopts the
+    // fault as the behaviour — the delta spec strikes the old requirement by
+    // name — so what is proven flips from refusal to the resolved floor:
+    // `FLEXIBLE_FLOOR`, the same constant `flexibleCellStyle` declares on the
+    // cell, because the two disagreeing is the two-width-systems fault this
+    // module exists to prevent. The `min(default, NARROWEST_COLUMN)` path
+    // would have said 36.
+    expect(widthFor('name', NAME_DRAGGED)).toBe(300);
+    expect(floorFor('name', DATED)).toBe(FLEXIBLE_FLOOR);
+    expect(clampColumnWidth('name', 100, DATED)).toBe(FLEXIBLE_FLOOR);
+    expect(clampColumnWidth('name', 10_000, DATED)).toBe(WIDEST_COLUMN);
+    expect(clampColumnWidth('name', 300, DATED)).toBe(300);
+    // With no override there is still no width to hand back: a sentinel would
+    // let the pinned-offset arithmetic add a number the browser never uses.
+    expect(() => widthFor('name', DATED)).toThrow(UnknownColumnError);
+  });
+
+  it('lays out, adds up, folds and pins a dragged Name from the one number it resolved', () => {
+    // The four-consumer case, extended to the flexible column: the minimum
+    // and the folded minimum carry the override, while the `<col>` and the
+    // pinned cell deliberately do not — the dragged width reaches the browser
+    // as the table's **own** width, so every column stands at exactly its
+    // resolved width and the viewport keeps the slack. A cell `width` was the
+    // design tried first, and Chromium answered it by distributing the
+    // viewport's excess across every sized column — Number measured at 103.48
+    // against its 93px envelope (CI `pixels` run 31430669282, 2026-08-10) —
+    // so it is deleted, not kept. `e2e/layout.spec.ts` measures the
+    // consequence; this asserts the markup contract.
+    const draggedName = frameLayout(RENDERED, NAME_DRAGGED);
+    const resting = frameLayout(RENDERED, DATED);
+    const name = draggedName.columns.find((column) => column.id === 'name');
+
+    expect(name?.width).toBe(300);
+    expect(name?.colWidth).toBeUndefined();
+    // And a fixed column's two answers are one number, which is what keeps
+    // `colWidth` a second reading rather than a second system.
+    const number = draggedName.columns.find((column) => column.id === 'number');
+    expect(number?.colWidth).toBe(number?.width);
+    expect(draggedName.minWidth).toBe(resting.minWidth - FLEXIBLE_FLOOR + 300);
+    // The pinned Name cell declares no width, dragged or not: what a cell
+    // declares must be exactly what the `<colgroup>` declares, and for Name
+    // that is nothing — the table-width arithmetic is what hands it the
+    // override.
+    expect(draggedName.pinned.get('name')).toEqual({ left: 117, width: undefined });
+    // Name is the last pinned column, so no offset in front of it moves.
+    expect(draggedName.pinned.get('number')).toEqual(resting.pinned.get('number'));
+    expect(foldedTableMinWidth(['role-dev'], NAME_DRAGGED)).toBe(
+      foldedTableMinWidth(['role-dev'], DATED) + (300 - FLEXIBLE_FLOOR),
+    );
+    // The table's own width is where the override reaches the browser: the
+    // resolved sum with the override in force, the frame's 100% without.
+    expect(tableWidthStyle(draggedName)).toEqual({
+      width: `${String(draggedName.minWidth)}px`,
+      minWidth: draggedName.minWidth,
+    });
+    expect(tableWidthStyle(resting)).toEqual({ width: '100%', minWidth: resting.minWidth });
+    // The cell still carries the override as its floor — the belt, not the
+    // declaration.
+    expect(flexibleCellStyle('name', NAME_DRAGGED)).toEqual({ minWidth: 300 });
+  });
+
+  it('still refuses a column pinned behind the flexible one, override or not', () => {
+    // An override gives Name a width, and that width is still not a number an
+    // offset may be summed from: the `<col>` is unsized so Name keeps
+    // absorbing the viewport's excess, and above the table minimum it is laid
+    // out wider than the override says.
+    const { columns } = frameLayout(RENDERED, NAME_DRAGGED);
+
+    expect(() => pinnedGeometryFor(columns, [...PINNED_COLUMN_IDS, 'depends'])).toThrow(
+      /cannot be pinned after it/,
+    );
   });
 
   it('clamps a drag to this column’s own floor and to the one shared ceiling', () => {
@@ -659,6 +723,11 @@ describe('a column this browser has dragged to another width', () => {
     for (const id of FIXED_COLUMNS) expect(floorFor(id, DATED)).toBe(floorFor(id, UNDATED));
     expect(floorFor('not-before', DATED)).toBe(36);
     expect(floorFor('drag', DATED)).toBe(24);
+    // The flexible column's floor is a constant of its own and moves with
+    // nothing at all, which is what lets a stored `name` entry be range-checked
+    // at mount like every other.
+    expect(floorFor('name', DATED)).toBe(floorFor('name', UNDATED));
+    expect(floorFor('name', DATED)).toBe(FLEXIBLE_FLOOR);
   });
 
   it('says which ids can be sized at all, which is what a stored width is checked against', () => {
@@ -666,7 +735,9 @@ describe('a column this browser has dragged to another width', () => {
     // A phase this project no longer holds is sizable and simply never asked
     // about — the harmlessness a remembered expansion's deleted row ids have.
     expect(sizableColumn('role-gone-final', DATED)).toBe(true);
-    expect(sizableColumn('name', DATED)).toBe(false);
+    // Sizable since `name-column-drag`: a stored `name` entry survives this
+    // filter and is then judged by the range check against Name's own bounds.
+    expect(sizableColumn('name', DATED)).toBe(true);
     expect(sizableColumn('serviec', DATED)).toBe(false);
   });
 });

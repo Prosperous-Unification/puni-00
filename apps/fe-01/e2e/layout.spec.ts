@@ -984,13 +984,12 @@ test.describe('the table, measured by a browser', () => {
     await expect(page.getByRole('button', { name: 'Reset layout' })).toHaveCount(0);
   });
 
-  test('offers a handle on every column the browser lays out at a declared width', async ({
-    page,
-  }) => {
-    // The set, measured in the browser rather than in the markup: a handle is
-    // only a handle where there is a column edge under it. The Name column is
-    // the remainder-absorber and has none — dragging it is a gesture with
-    // nothing to write, because its width is whatever the others leave.
+  test('offers a handle on every column, the Name column included', async ({ page }) => {
+    // The set, measured in the browser rather than in the markup. Until
+    // `name-column-drag` the Name column was refused a handle — the
+    // remainder-absorber had nothing to write — and this test asserted the
+    // refusal; a dragged Name writes an override now, so the handle set is
+    // every rendered column.
     await scrollFrameTo(page, 0);
     const handled = await page.evaluate(() =>
       [...document.querySelectorAll('thead th')]
@@ -1003,13 +1002,192 @@ test.describe('the table, measured by a browser', () => {
       ),
     );
 
-    expect(handled).toEqual(
-      frameLayout(shown, SEEDED_PLAN)
-        .columns.filter((column) => column.width !== undefined)
-        .map((column) => column.id),
+    expect(handled).toEqual(shown);
+    expect(handled).toContain('name');
+  });
+
+  test('widens the Name column by dragging its header edge, with its <col> silent', async ({
+    page,
+  }) => {
+    /*
+     * The Name gesture, in the only thing that can perform one: jsdom carries
+     * out no default action for a pointer event, so `wbs-table.test.tsx` can
+     * see Name's handle arrive and can never see it do anything — the
+     * fourteenth/fifteenth/sixteenth failures' shape, and `T1
+     * column-widths-drag`'s row 16 one column along.
+     *
+     * Made at NARROW, below the table's minimum, because that is where a
+     * dragged Name is laid out at the dragged width itself: above the minimum
+     * the unsized column absorbs the viewport's slack and the drag moves only
+     * the minimum. Down here Name stands at exactly its 200px floor before
+     * the drag, which is also what the gesture's measured from-width has to
+     * find.
+     */
+    await page.setViewportSize(NARROW);
+    await scrollFrameTo(page, SCROLLED);
+    const before = await columnGeometry(page, 'name');
+    // No override yet: no `<col>` width, and the floor is what is laid out.
+    expect(before.declared).toBe('');
+    expect(Math.round(before.laidOut)).toBe(FLEXIBLE_FLOOR);
+
+    await dragColumnEdge(page, 'name', 60);
+
+    const after = await columnGeometry(page, 'name');
+    // The `<col>` stays silent — the dragged width lives on the Name cells —
+    // and the browser lays out exactly the width the gesture wrote: the
+    // measured 200px floor plus the travel.
+    expect(after.declared).toBe('');
+    expect(Math.round(after.laidOut)).toBe(FLEXIBLE_FLOOR + 60);
+    // The pinned offsets in front of Name do not move: it is the last pinned
+    // column, so no offset ever sums it.
+    expect(await measuredLefts(page, PINNED_IDS)).toEqual({
+      drag: declaredLeft('drag'),
+      number: declaredLeft('number'),
+      name: declaredLeft('name'),
+    });
+    // And the one minimum the whole frame reads counts the override: the
+    // table's declared floor grew by exactly the travel.
+    const minWidth = await page.evaluate(
+      () => document.querySelector('table')?.style.minWidth ?? '(no table)',
     );
-    expect(shown).toContain('name');
-    expect(handled).not.toContain('name');
+    const shown = await page.evaluate(() =>
+      [...document.querySelectorAll('thead th')].map(
+        (header) => header.getAttribute('data-column') ?? '(a cell with no data-column)',
+      ),
+    );
+    expect(minWidth).toBe(
+      `${String(frameLayout(shown, dragged('name', FLEXIBLE_FLOOR + 60)).minWidth)}px`,
+    );
+  });
+
+  test('keeps every other column on its envelope while Name holds a dragged width', async ({
+    page,
+  }) => {
+    /*
+     * The excess-width measurement, at the widest viewport the header matrix
+     * covers — and the measurement that decided task 5's branch. The design
+     * tried first expressed the override as `width` + `min-width` on the Name
+     * cells against a `width: 100%` table, and this test watched Chromium
+     * refuse it: with every column effectively sized, fixed layout
+     * distributed the viewport's slack across all of them — `Expected: 93 /
+     * Received: 103.484375` for the Number column (CI `pixels` run
+     * 31430669282, 2026-08-10). So the winner is the fallback the plan named:
+     * with a Name override in force the table declares its own width as the
+     * resolved sum, every column stands at exactly its resolved width, and
+     * the viewport — not the table — keeps the slack. The losing branch is
+     * deleted, not kept as dead config; the same failure is this test's
+     * negative, watched red with the gate in place before the winning line
+     * existed.
+     */
+    await page.setViewportSize({ width: 1512, height: 982 });
+    await dragColumnEdge(page, 'name', -150);
+
+    // The override the drag wrote, read back rather than predicted: the
+    // gesture counts from the rendered width, which owns a scrollbar's worth
+    // of variance this test must not.
+    const written = await page.evaluate(() => {
+      const key = Object.keys(localStorage).find((each) => each.startsWith('wbs.columnWidths.'));
+      if (key === undefined) throw new Error('the drag stored no widths');
+      return JSON.parse(localStorage.getItem(key) ?? '{}') as Record<string, unknown>;
+    });
+    const override = written['name'];
+    if (typeof override !== 'number') throw new Error('the drag stored no width for name');
+
+    const measured = await measure(page);
+    // The precondition that makes this a slack measurement at all: the table's
+    // resolved sum with the override is inside the viewport, so there is
+    // excess for a wrong design to distribute.
+    const ids = measured.columns.map((column) => column.id);
+    const resolvedSum = frameLayout(ids, dragged('name', override)).minWidth;
+    expect(resolvedSum).toBeLessThan(measured.frame.clientWidth);
+    // The envelopes hold: the slack went nowhere near the sized columns.
+    for (const id of ['number', 'start', 'finish']) {
+      const column = measured.columns.find((each) => each.id === id);
+      expect(column?.width, id).toBeCloseTo(widthFor(id, SEEDED_PLAN), 0);
+    }
+    // Name stands at exactly the override — the table is exactly as wide as
+    // its columns, and the slack is the frame's own blank space rather than
+    // anybody's column.
+    const name = measured.columns.find((column) => column.id === 'name');
+    expect(name?.width).toBeCloseTo(override, 0);
+    expect(measured.frame.scrollWidth).toBeLessThanOrEqual(measured.frame.clientWidth);
+    expect((await columnGeometry(page, 'name')).declared).toBe('');
+  });
+
+  test('keeps a depth-6 name readable and editable with Name dragged to its floor', async ({
+    page,
+  }) => {
+    /*
+     * The combined case both cross-reviews asked for: the narrowest Name a
+     * drag can produce (its 200px floor) under the deepest indent the fixture
+     * draws — a depth-6 row spends the 24px share the Number column's cap
+     * withheld inside the Name cell — with a name long enough to need several
+     * lines. Each half is proven on its own elsewhere (the floor by the drag
+     * clamp, the share by the deep-plan outline case); nothing else proves
+     * the three survive each other.
+     *
+     * Watched red first, honestly: on a probe branch the width assertion was
+     * pointed at the pre-drag width — the drag's effect denied — and failed
+     * on `Expected: 397 / Received: 200` in CI's `pixels` (run 31434774350,
+     * 2026-08-10), the wrap and typing assertions standing behind it.
+     *
+     * Then this version threw before it could assert, on its own fixture: the
+     * yardstick named `040`, a row {@link seedDeepBranch} indents away — `Name
+     * of 040 is not on screen`, CI `pixels` run 31435567028, 2026-08-11. The
+     * drag half stood; only the lookup was wrong. Yardstick repointed at `030`
+     * below, with the reason it cannot be any other row written beside it —
+     * green on that gesture in CI `pixels` run 31441016178, 6.9s, 117 passed.
+     */
+    await seedDeepBranch(page);
+    const deep = page.getByLabel('Name of 030.1.1.1.1.1.1', { exact: true });
+    await deep.fill('Reticulating the splines across every warehouse aisle end simultaneously');
+    await deep.blur();
+
+    // To the floor, from wherever this viewport lays Name out: aimed a step
+    // past it so the clamp is what stops the gesture, with the pointer still
+    // inside the viewport.
+    const before = await columnGeometry(page, 'name');
+    await dragColumnEdge(page, 'name', -(Math.ceil(before.laidOut) - FLEXIBLE_FLOOR + 20));
+    const cell = await columnGeometry(page, 'name');
+    expect(Math.round(cell.laidOut)).toBe(FLEXIBLE_FLOOR);
+
+    // Visible, wrapped vertically, and inside its own cell: the auto-sizing
+    // textarea answers a 168px writing width with more lines, never with an
+    // overflow — a shallow row's one-line box is the yardstick.
+    //
+    // `030` is that row, and the choice is forced: {@link seedDeepBranch}
+    // spends one spare root per chain, so of the seven rows it adds only the
+    // branch's own parent is left un-indented by the time it returns — and
+    // the two rows the fixture seeds before it, `010` and `020`, carry names
+    // long enough to wrap at this width themselves, which is no yardstick at
+    // all. `030` is empty and at depth 0: one line, by construction.
+    await expect(deep).toBeVisible();
+    const boxes = await page.evaluate(() => {
+      const boxFor = (label: string) => {
+        const node = document.querySelector(`[aria-label="${label}"]`);
+        if (!(node instanceof HTMLElement)) throw new Error(`${label} is not on screen`);
+        return node.getBoundingClientRect();
+      };
+      const deepBox = boxFor('Name of 030.1.1.1.1.1.1');
+      const deepCell = document
+        .querySelector('[aria-label="Name of 030.1.1.1.1.1.1"]')
+        ?.closest('td')
+        ?.getBoundingClientRect();
+      if (deepCell === undefined) throw new Error('the depth-6 row has no Name cell');
+      return {
+        deepHeight: deepBox.height,
+        deepRight: deepBox.right,
+        cellRight: deepCell.right,
+        shallowHeight: boxFor('Name of 030').height,
+      };
+    });
+    expect(boxes.deepHeight).toBeGreaterThan(boxes.shallowHeight);
+    expect(boxes.deepRight).toBeLessThanOrEqual(boxes.cellRight + 1);
+
+    // And typing still lands in it — an editor, not a picture of one.
+    await deep.click();
+    await page.keyboard.type('zz9');
+    await expect(deep).toHaveValue(/zz9/);
   });
 
   test('paints the pinned block over the row that scrolls behind it, and stops there', async ({
