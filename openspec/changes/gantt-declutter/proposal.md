@@ -35,13 +35,24 @@ it for: a new one.
 - Impact: non-breaking. The chart stops being where unestimated work is found;
   the plan's own `?` cells are, and `unestimated-navigator` counts them.
 
+**Not-before carets**
+
+- From: a caret is drawn on every row that carries a start date.
+- To: only on a row that draws a bar — a caret is placed in the band above the
+  bar its row starts with, so on a row that now draws nothing it would float
+  over an empty track.
+- Impact: follows from the two removals above; no row that keeps a bar loses
+  its caret.
+
 ## Non-Goals
 
 - No re-routing or restyling of the arrows. Off by default is the whole answer.
 - No new mark in place of what is removed — no hairline bracket, no row
   shading, no "not estimated" words on the chart.
 - No schedule, engine, wire or be-01 change. Every removal is in the paint;
-  `gantt-geometry.ts` is not touched.
+  `gantt-geometry.ts` keeps every number it computed, including the bracket
+  spans and assumed widths nothing draws any more — the only edits to it are
+  doc comments that said "drawn" of marks the panel no longer draws.
 - The arrows preference is not part of the layout reset.
 
 ## Constraints
@@ -72,7 +83,9 @@ are gone.
 none. One deviation worth naming: the remembered arrows answer is keyed per
 **browser** (`wbs.ganttArrows`), not per project like the panel height beside
 it. Arrows on or off is a preference about a feature; a panel height is one
-plan's share of one screen.
+plan's share of one screen. Two tabs open at once diverge until each is
+reloaded: the answer is read once on mount and written on the press, with no
+`storage` listener, so a toggle in one tab does not reach the other.
 
 ## Impact
 

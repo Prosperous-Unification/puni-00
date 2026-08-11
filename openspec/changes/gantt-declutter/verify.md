@@ -12,9 +12,14 @@ Run 2026-08-11, branch `change/gantt-declutter`, worktree
 | `bunx @fission-ai/openspec@1.3.0 validate --all --json`      | 26 items, 26 passed                                                                                                                 |
 | `bun run e2e`                                                | **NOT RUN.** Chromium will not launch on this host: `chrome-headless-shell: error while loading shared libraries: libatk-1.0.so.0`. |
 
-`apps/fe-01` vitest: 1099 passed across 45 files; `gantt-panel.test.tsx` 89, the
-same count it started at — four cases added (three about the switch, one about a
-hand-off), four deleted with the marks they described, and three rewritten.
+`apps/fe-01` vitest: 1100 passed across 45 files; `gantt-panel.test.tsx` 90,
+one above the count it started at — five cases added (three about the switch,
+one about a hand-off, one about a caret with no bar under it), four deleted with
+the marks they described, and three rewritten.
+
+Every figure in this file is from the re-run after the cross-review fixes
+(caret filter, the `localStorage` write moved out of the state updater, and the
+stale doc comments), not from the first pass.
 
 **On the browser gate.** Ports 3100/3200/4200 were checked with `ss -ltnp` and
 were clear, so `LLM_README.md`'s `reuseExistingServer` landmine is not what
@@ -53,11 +58,12 @@ reverted. Each `Proof:` comment beside the code quotes the same output.
 | --- | ------------------------------------------------ | ---------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 1   | A stored arrows answer must be a boolean         | the type check replaced by `claimed === true \|\| (typeof claimed === 'string' …)` | `2 failed \| 90 passed` — `refuses a stored answer that is not a boolean…` on `expected 'true' to be 'false'`, `refuses storage that is not JSON at all…` on `expected '{not json' to be null`                                     |
 | 2   | The arrows open **off**                          | `useState(rememberedArrows)` → `useState(true)`                                    | `9 failed \| 83 passed` — `opens with no arrows at all…` on `expected 'true' to be 'false'`, and five geometry cases on the helper's `the arrows switch was pressed and no arrow was drawn`                                        |
-| 3   | The answer is written when the switch is pressed | the `localStorage.setItem` in `onClick` deleted                                    | `1 failed \| 91 passed` — `opens with the arrows a fresh panel is remounted onto` on `expected 'false' to be 'true'`                                                                                                               |
+| 3   | The answer is written when the switch is pressed | the `localStorage.setItem` in `onClick` deleted                                    | `1 failed \| 89 passed` — `opens with the arrows a fresh panel is remounted onto` on `expected 'false' to be 'true'` (re-watched after the write moved out of the state updater)                                                   |
 | 4   | A parent's row draws no mark                     | the ghost rect's `placed.brackets` block put back                                  | `3 failed \| 86 passed` — `draws no mark of its own on a parent's row`, `leaves a zero-projection parent's row empty…`, `puts the bar, the caret, the tick…` on `expected <rect …(6)></rect> to have a length of +0 but got 1`     |
 | 5   | A parent's **row** stays on the chart            | `rowCount` and the label rail taken from the rows something is drawn on            | `7 failed \| 85 passed` — the two above on `expected …(2) to have a length of 3 but got 2`, and five of `the chart mirrors the plan` on lists missing `010 - Hull`                                                                 |
 | 6   | Only costed slices are drawn                     | `drawnBars` given `placed.bars` whole                                              | `4 failed \| 85 passed` — `draws no mark at all for a slice nobody estimated`, `draws the width it is given…`, `marks a zero-day estimate with a tick…`, `draws no hand-off line…`, each on an `SVGElement` where null is asserted |
 | 7   | A hand-off to an undrawn slice is not drawn      | `drawnLinks` given `placed.personLinks` whole                                      | `1 failed \| 88 passed` — `draws no hand-off line to a slice that is not drawn`                                                                                                                                                    |
+| 8   | A caret needs a bar to stand over                | `drawnFlags` given `placed.notBeforeFlags` whole                                   | `1 failed \| 89 passed` — `draws no not-before caret on a row that draws no bar`, on an `SVGElement` where the parent's caret is asserted null                                                                                     |
 
 Two things about the shape of these. Faults 4 and 5 are the two halves of one
 requirement pulling in opposite directions — the mark must go and the row must
@@ -94,7 +100,10 @@ chart that only draws costed work.
 
 ## Coordination
 
-`gantt-geometry.ts` is untouched by this change. `change/dep-waits-on-first-role`
-is moving the arrow anchors in that file; the two meet only in `arrowRoute`'s
-inputs, and this change alters no route — it decides whether routes are drawn at
-all, and starts at "no".
+`gantt-geometry.ts` carries no logic change here — the only edits to it are five
+doc comments that described brackets and assumed spans as **drawn**, which they
+have not been since this change (`GanttRow`, `GanttRow.leaf`, `PlacedBar`,
+`PlacedBracket`, `ASSUMED_UNESTIMATED_WORKDAYS`). Not one number it computes
+moved. `change/dep-waits-on-first-role` is moving the arrow anchors in that file;
+the two meet only in `arrowRoute`'s inputs, and this change alters no route — it
+decides whether routes are drawn at all, and starts at "no".

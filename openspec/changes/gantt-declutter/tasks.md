@@ -2,10 +2,11 @@
 Ordered TDD slices. Only `- [ ]` checkboxes are tracked by the apply phase.
 -->
 
-Every slice below is a removal in the **paint**. `gantt-geometry.ts` is not
-touched at all: `placeGantt` goes on placing brackets and assumed spans, the
+Every slice below is a removal in the **paint**. `gantt-geometry.ts` keeps every
+number it computes: `placeGantt` goes on placing brackets and assumed spans, the
 horizon goes on containing them, and the panel simply stops drawing three of the
-marks it is handed. That is what keeps row indexes, y-positions and the axis
+marks it is handed. The only edits to that file are doc comments that called
+those marks "drawn". That is what keeps row indexes, y-positions and the axis
 identical either side of this change — and it is also why the arrow-anchor work
 on `change/dep-waits-on-first-role` and this change cannot collide.
 
@@ -66,6 +67,15 @@ that can break a check about a mark that is gone.
       were working around asserted instead: the seeded plan draws one bar per
       estimated slice — two on a three-row plan, where it drew five — and every
       drawn bar has width in the browser
+
+- [x] 3.5 A not-before caret is drawn only where a bar is: `layOutGantt`
+      collects the flag before it knows whether the row is a leaf or whether any
+      of its slices was costed, so a parent held at a date and an unestimated
+      leaf held at one each drew a caret over an empty track — test:
+      `gantt-panel.test.tsx`, three rows carrying a start date of which one
+      draws a bar, asserting the one caret **and** that both empty rows are
+      still on the chart at their own index; negative: the filter dropped,
+      watched drawing the parent's caret again
 
 ## 4. The gate
 

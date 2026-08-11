@@ -480,9 +480,9 @@ export function barLabelFor(personName: string | null, drawnSpan: number): strin
  * The whole of what a bar writes on itself: who, then the row's own words.
  *
  * `who` is the assignee reading the width already decided — a name, initials,
- * the assumed bar's `?`-carrying candidate, or null when nobody fits or nobody
- * is on it — and the row words follow it always, because sixty anonymous
- * colours was the fault this label exists to remove. The string is **not**
+ * or null when nobody fits or nobody is on it — and the row words follow it
+ * always, because sixty anonymous colours was the fault this label exists to
+ * remove. The string is **not**
  * measured against the bar: the label box is the bar's width and crops with an
  * ellipsis, so a narrow bar shows as much of the words as it has pixels for
  * rather than none of them.
@@ -1023,6 +1023,27 @@ function GanttChart({
       drawnBars.some(({ bar }) => bar.sliceId === link.fromSliceId) &&
       drawnBars.some(({ bar }) => bar.sliceId === link.toSliceId),
   );
+  /**
+   * The not-before carets whose row has a bar to stand over.
+   *
+   * The same reasoning as {@link drawnLinks}, one mark along: the caret is
+   * drawn in the clear band **above** the bar its row starts with, so on a row
+   * that now draws nothing — a parent, or a leaf nobody estimated — it is a
+   * triangle floating over an empty track. `layOutGantt` collects the flag
+   * before it asks whether the row is a leaf and before any slice is costed,
+   * which is right for the geometry and wrong for the paint.
+   *
+   * By **row** and not by slice: a not-before holds the work item, not one of
+   * its roles, so any drawn bar on the row is a bar for the caret to sit over.
+   *
+   * Proof: this filter deleted, `placed.notBeforeFlags` drawn whole. `draws no
+   * not-before caret on a row that draws no bar` alone failed, `1 failed | 89
+   * passed`, on an `SVGElement` where the parent's caret is asserted null — the
+   * triangle back over its empty row. Watched 2026-08-11.
+   */
+  const drawnFlags = placed.notBeforeFlags.filter((flag) =>
+    drawnBars.some(({ bar }) => bar.rowIndex === flag.rowIndex),
+  );
   const axis =
     startDate === null ? workdayAxis(placed.horizon) : calendarAxis(startDate, placed.horizon);
   // How many cells the axis holds — every whole day of the schedule. Read off
@@ -1144,20 +1165,24 @@ function GanttChart({
                   : 'border-border hover:bg-accent text-muted-foreground/60 rounded border border-dashed px-1 normal-case line-through'
               }
               onClick={() => {
-                setArrowsShown((shown) => {
-                  const asked = !shown;
-                  // Written here and nowhere else, so opening a chart never
-                  // changes what is remembered about it — the same bargain
-                  // `rememberGanttHeight` makes with a drag that is let go of.
-                  //
-                  // Proof: this line deleted, so the answer lived in the hook
-                  // alone. `opens with the arrows a fresh panel is remounted
-                  // onto` alone failed, `1 failed | 91 passed`, on `expected
-                  // 'false' to be 'true'` — the switch back off on the next
-                  // mount. Watched 2026-08-11.
-                  localStorage.setItem(ARROWS_KEY, JSON.stringify(asked));
-                  return asked;
-                });
+                // The next answer worked out here, beside the write, and the
+                // setter given a value rather than a function: a state updater
+                // React may call twice is no place for a side effect, and the
+                // rendered `arrowsShown` is the only answer a click on this
+                // switch can be flipping.
+                const asked = !arrowsShown;
+                // Written here and nowhere else, so opening a chart never
+                // changes what is remembered about it — the same bargain
+                // `rememberGanttHeight` makes with a drag that is let go of.
+                //
+                // Proof: this line deleted, so the answer lived in the hook
+                // alone. `opens with the arrows a fresh panel is remounted
+                // onto` alone failed, `1 failed | 89 passed`, on `expected
+                // 'false' to be 'true'` — the switch back off on the next
+                // mount. Watched 2026-08-11, and again after the write moved
+                // out of the updater above.
+                localStorage.setItem(ARROWS_KEY, JSON.stringify(asked));
+                setArrowsShown(asked);
               }}
             >
               Arrows
@@ -1428,9 +1453,10 @@ function GanttChart({
                 above the bar, pointing at the day. Above and not on, because on
                 is where it was and where nothing could see it — see
                 {@link NOT_BEFORE_LENGTH_PX}. The `<title>` names the date,
-                which is the one thing the mark's position cannot say.
+                which is the one thing the mark's position cannot say. From
+                {@link drawnFlags}: a row with no bar has nothing to stand over.
               */}
-              {placed.notBeforeFlags.map((flag) => (
+              {drawnFlags.map((flag) => (
                 <path
                   key={`${String(flag.rowIndex)}@${String(flag.workday)}`}
                   data-gantt-not-before={flag.rowIndex}

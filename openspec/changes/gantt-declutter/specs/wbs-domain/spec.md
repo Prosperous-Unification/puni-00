@@ -37,6 +37,11 @@ those roles' bars and nothing for the rest; a leaf with none SHALL draw an empty
 track. The engine's numbers, the date columns and the arrows between rows SHALL
 be unchanged by the absence — nothing about the schedule is decided here.
 
+A not-before caret SHALL be drawn only on a row that draws at least one bar. The
+caret stands in the band above the bar its row starts with, so on a row that
+draws nothing it is a mark over an empty track pointing at a bar that is not
+there — the same rule that keeps a hand-off line off an undrawn slice.
+
 #### Scenario: a two-role leaf
 
 - **WHEN** a leaf holds Dev 0→3 and QA 3→5, both estimated
@@ -58,6 +63,13 @@ be unchanged by the absence — nothing about the schedule is decided here.
 - **WHEN** every child of a parent is unestimated
 - **THEN** the parent's row holds no mark at all, and the rows below it are not
   shifted
+
+#### Scenario: a start date held on a row that draws nothing
+
+- **WHEN** a parent and an unestimated leaf each carry a start-no-earlier-than
+  date, beside a leaf that carries one and draws a bar
+- **THEN** only the drawn leaf's row holds a not-before caret, and both empty
+  rows stay on the chart at their own index
 
 #### Scenario: the critical path is visible
 

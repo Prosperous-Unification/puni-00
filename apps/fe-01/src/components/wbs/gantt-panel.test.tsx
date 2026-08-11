@@ -1223,6 +1223,45 @@ describe('the marks that had to be seen', () => {
     );
   });
 
+  itDom('draws no not-before caret on a row that draws no bar', () => {
+    // Three rows held at a start date, and only one of them draws a bar: a
+    // parent (which now draws nothing of its own) and a leaf nobody estimated
+    // (which now draws nothing either) would each carry a caret floating over
+    // an empty track, because `layOutGantt` collects the flag before it asks
+    // whether the row is a leaf or whether any of its slices was costed.
+    render(
+      <GanttPanel
+        plan={planOf({
+          rows: [
+            rowAt('hull', 5, 8, { leaf: false, notBeforeOffset: 5 }),
+            rowAt('strip', 5, 8, { depth: 1, notBeforeOffset: 5 }),
+            rowAt('sand', 6, 6, { depth: 1, notBeforeOffset: 6 }),
+          ],
+          slices: [
+            sliceAt('strip-dev', 'strip', 5, 8),
+            sliceAt('sand-dev', 'sand', 6, 6, { estimated: false }),
+          ],
+        })}
+        startDate={MONDAY_START}
+        scheduleError={null}
+        generation={0}
+        heightPx={null}
+        onPickRow={() => undefined}
+      />,
+    );
+
+    expect(document.querySelector('[data-gantt-not-before="0"]')).toBeNull();
+    expect(document.querySelector('[data-gantt-not-before="2"]')).toBeNull();
+    // Beside the two absences and on the same render: the caret that must
+    // still be drawn. Without it the assertions above would hold of a panel
+    // that had stopped drawing carets at all.
+    expect(document.querySelector('[data-gantt-not-before="1"]')).not.toBeNull();
+    expect(document.querySelectorAll('[data-gantt-not-before]')).toHaveLength(1);
+    // And the rows are where they were: the caret went, the row did not.
+    expect(document.querySelectorAll('[data-gantt-label]')).toHaveLength(3);
+    expect(viewBoxOf(document.querySelector('[data-gantt-chart]')).height).toBe(3);
+  });
+
   itDom('leaves a zero-projection parent’s row empty and its children where they were', () => {
     // Every child unestimated, so the branch's projection starts and finishes
     // on one workday — a modeled state the seeded ustsu plan is full of, and
