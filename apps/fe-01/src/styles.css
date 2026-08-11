@@ -625,8 +625,34 @@
     cursor: pointer;
   }
 
+  /*
+   * Hovered: the row's own ink at the row's own dose, into whatever surface
+   * the row is currently painted — `--cell-bg`, which is the join every other
+   * state in this file re-points (banded, hovered, dep-lit, drop target).
+   *
+   * `var(--accent)` was here and pointed the wrong way on a light page. It is
+   * an absolute colour, `oklch(0.968)`, and a row under the pointer is
+   * `--grid-hover` at `oklch(0.939)`: the patch came out *lighter* than the
+   * row it sits in, so the affordance read as a hole punched through the row
+   * to the page behind it rather than as something the pointer had picked up.
+   * Measured in a cloud Chromium on dev at `2b2affec`, 2026-08-11 — button
+   * `oklch(0.968 0.007 247.896)` against cell `oklab(0.93903 …)`. On a
+   * dependency-lit row it was worse and quieter at once: the lit row is
+   * `oklab(0.96448 …)`, four thousandths away, so the hover all but vanished.
+   * Dark mode was right by accident — `--accent` is `oklch(0.279)` there,
+   * above the `oklab(0.18885 …)` row — which is the tell that one absolute
+   * value cannot answer for two themes.
+   *
+   * The same ink into whichever surface it lands on moves both the same way
+   * instead: down on a light page, up on a dark one, because a mix toward
+   * `--foreground` from below rises and from above falls. `--card-dep-lit`'s
+   * pattern (see the token block), one layer further in — the surface here is
+   * not the page but the row, and the row is already a mix. 7% is
+   * `--grid-hover`'s own dose, so the affordance stands off the hovered row
+   * by exactly as much as the hovered row stands off the page.
+   */
   [data-grid] td[data-column='depends'] button[data-dep-add]:hover {
-    background: var(--accent);
+    background: color-mix(in oklab, var(--foreground) 7%, var(--cell-bg));
     color: var(--foreground);
   }
 

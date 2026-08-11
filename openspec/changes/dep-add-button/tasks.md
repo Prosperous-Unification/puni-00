@@ -86,3 +86,37 @@ a half-typed search when the add button is pressed` — `03` typed, the
       table naming every injected fault above and the test that observed it
 - [ ] 4.2 Deploy to dev and Dany looks — a `+` at the head of every Depends
       on cell, quiet enough to ignore and there without asking
+
+## 5. Review fixes, observed in a browser first
+
+The two P2 findings from the cross review were **derived** and not seen, so
+both were measured on dev at `2b2affec` in a cloud Chromium before anything
+was changed — the numbers are in `verify.md`, "Observed before the fix".
+Both held.
+
+- [x] 5.1 An empty cell no longer grows when it is clicked into. The strip
+      wraps only where there are chips to wrap, so the box can share the
+      line with the affordance instead of claiming one of its own. Observed
+      at 26px rest against 44.98px open, the box dropping to a second line
+      and the listbox 21px down the page with it. The crowded cell's open
+      state is untouched, which is the half `deps-single-line` measured. The
+      `+` was **not** hidden while the picker is open to buy the height
+      back: always visible is the whole of what it is for
+- [x] 5.2 The hover pays attention to the row it lands on — the row's own
+      ink at `--grid-hover`'s own dose, mixed into `--cell-bg` rather than
+      painted as an absolute colour. `--accent` was `oklch(0.968)` over a
+      hovered row's `oklab(0.93903 …)`, lighter than the row, and read as a
+      hole punched through it; four thousandths from a dep-lit row's colour,
+      where it all but vanished. `--cell-bg` is the join every other row
+      state re-points, so every one of them gets the same treatment.
+      `--card-dep-lit`'s pattern (#38), one layer further in
+- [x] 5.3 The `title` deleted — it disagreed with the accessible name the
+      button was deliberately given, putting the control back under the two
+      names that name was chosen to avoid
+- [x] 5.4 Four checks, each watched red on an injected fault: two in jsdom
+      (the chipless strip's one nowrap line, the absent tooltip), watched
+      locally; two in Chromium (the empty cell's open height, the hover's
+      direction against the row in both palettes), watched in CI. The faults
+      and what each said are in `verify.md`
+- [ ] 5.5 Re-deployed to dev on the fixed head and both findings
+      re-measured in a fresh cloud browser session

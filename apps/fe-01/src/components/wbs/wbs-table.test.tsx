@@ -5907,6 +5907,58 @@ describe('dependencies in the table', () => {
     expect(fireEvent.mouseDown(addButtonOf('030'))).toBe(false);
     expect(box.value).toBe('01');
   });
+
+  itDom(
+    'leaves an empty cell’s open strip on one nowrap line, and a chipped one wrapping',
+    async () => {
+      // The wrap is for the chips and for nothing else. With `flexWrap: 'wrap'`
+      // the box's `width: 100%` claim is a whole flex line, so it cannot share
+      // one with the `+` beside it: an empty cell grew a second line the moment
+      // somebody clicked into it, taking the listbox down the page with it.
+      // Observed in a cloud Chromium on dev at `2b2affec` — 26px at rest,
+      // 44.98px open — and the pixels are `e2e/deps-cell.spec.ts`'s to keep;
+      // what jsdom watches is the declaration that decides it.
+      //
+      // Both halves in one check on purpose: `nowrap` everywhere would pass the
+      // first assertion and silently undo `deps-single-line`'s open state, which
+      // is the fault a chipless-only test could not see.
+      //
+      // Proof: the chip condition dropped (`picker !== null ? 'wrap' :
+      // 'nowrap'`, the branch as it shipped), this failed on `expected 'wrap' to
+      // be 'nowrap'`. Watched, 2026-08-11.
+      await threeRoots();
+
+      // 030 waits for nothing: the chipless cell the growth was measured on.
+      fireEvent.focus(screen.getByLabelText('Add a dependency to 030'));
+      expect(screen.getByRole('listbox')).toBeDefined();
+      expect(stripOf('030').strip.style.flexWrap).toBe('nowrap');
+
+      // And the crowded cell is untouched — one chip is enough to need the room.
+      fireEvent.blur(screen.getByLabelText('Add a dependency to 030'));
+      dependOn('020', '010');
+      await waitFor(() => {
+        expect(screen.getByLabelText('Stop 020 waiting for 010')).toBeDefined();
+      });
+      expect(stripOf('020').strip.style.flexWrap).toBe('wrap');
+    },
+  );
+
+  itDom('answers to one name, with no tooltip saying a different one', async () => {
+    // The name is `Make 030 wait for something`, chosen so that this control
+    // and the box beside it are not two controls under one name. A
+    // `title="Add a dependency"` was here as well, which put the control back
+    // under two: the tooltip a sighted reader gets and the name a reader's
+    // walk announces disagreed, and neither is the other's summary (codex
+    // review, 2026-08-11).
+    //
+    // Proof: `title="Add a dependency"` restored on the button, this failed on
+    // `expected 'Add a dependency' to be null`. Watched, 2026-08-11.
+    await threeRoots();
+
+    const add = addButtonOf('030');
+    expect(add.getAttribute('title')).toBeNull();
+    expect(add.getAttribute('aria-label')).toBe('Make 030 wait for something');
+  });
 });
 
 describe('picking dependencies from a list', () => {

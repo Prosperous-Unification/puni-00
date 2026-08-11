@@ -4644,8 +4644,8 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                 popovers below hang from the wrapper, because this box clips
                 and they must not be inside the clipper. At rest it is one
                 flex line that does not wrap; while the picker owns the cell
-                it wraps exactly as the cell always did, so typing and the
-                open list are unchanged (precedent:
+                **and the cell has chips** it wraps exactly as the cell always
+                did, so typing and the open list are unchanged (precedent:
                 {@link CellInputProps.restShowsFirstLineOnly} — clamped at
                 rest, whole while somebody is in it). `whiteSpace: 'nowrap'`
                 is not decoration beside `flexWrap`: it is what keeps a
@@ -4656,18 +4656,46 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                 variable-width pills means real layout measurement for
                 marginal information.
 
+                **And only with chips**, which is this change's own correction
+                and not a tidy. `wrap` plus the box's `width: 100%` claim
+                means the box can never share a flex line with anything: its
+                hypothetical size is the whole strip, so the 13px `+` beside
+                it pushed it onto a second line and made an *empty* cell grow
+                the moment somebody clicked into it. Measured on dev at
+                `2b2affec` in a cloud Chromium, 2026-08-11: a chipless row
+                rested at **26px** and stood at **44.98px** with the picker
+                open, the box dropping from `y=198` to `y=219.98` and taking
+                the listbox 21px down the page with it — the affordance
+                moving the list somebody had just opened to read. Clicking
+                the cell and clicking the `+` measured identically, so it was
+                the layout and not the button's handler.
+
+                Wrapping only for chips returns the open empty cell to the
+                geometry it has at rest — one line, the box shrunk past the
+                `+` by `minWidth: 0` to the same `84.2px` it rests at — and
+                leaves the crowded cell's open state untouched, which is the
+                half `deps-single-line` measured. The `+` was not hidden
+                instead: always on screen is the whole of what it is for
+                (Dany, 2026-08-11), and a cell somebody is typing into is
+                where an affordance saying "another one" has most to say.
+
                 Proof: the rest branch's `flexWrap` forced to `'wrap'`,
                 `clamps the chips and the box onto one nowrap line at rest`
                 failed on `expected 'wrap' to be 'nowrap'`. Watched,
-                2026-08-10. The row height itself — seven chips no taller
-                than none, a clipped chip invisible — is Chromium's proof,
-                in `e2e/deps-cell.spec.ts`.
+                2026-08-10. The chipless half is its own check, below. The
+                row height itself — seven chips no taller than none, a
+                clipped chip invisible, an empty cell no taller open than
+                shut — is Chromium's proof, in `e2e/deps-cell.spec.ts`.
               */}
               <span
                 data-depends-strip={row.original.id}
                 style={{
                   display: 'flex',
-                  flexWrap: picker === null ? 'nowrap' : 'wrap',
+                  // Wrapping is for the chips, and only for them. See the
+                  // block above: an empty cell has nothing to wrap, and the
+                  // wrap is what made it two lines tall the moment it was
+                  // clicked into.
+                  flexWrap: picker !== null && waitingFor.length > 0 ? 'wrap' : 'nowrap',
                   alignItems: 'center',
                   gap: 2,
                   whiteSpace: 'nowrap',
@@ -4717,8 +4745,15 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                   // is a reader told the same thing twice with no way to tell
                   // which is which. The chips' voice instead: they say `Stop
                   // 020 waiting for 030`, so this says what it starts.
+                  //
+                  // No `title` beside it. `Add a dependency` was one, and a
+                  // tooltip reading one thing while the accessible name reads
+                  // another is the control answering to two names — the exact
+                  // fault the name above was chosen to avoid, reintroduced by
+                  // the attribute that was meant to explain it (codex review,
+                  // 2026-08-11). The sighted reader has the `+`; anyone who
+                  // needs words has the name.
                   aria-label={`Make ${row.original.number} wait for something`}
-                  title="Add a dependency"
                   // Deliberately not a tab stop, at rest and with the picker
                   // open alike — where the chips flip (`deps-single-line`).
                   // The keyboard already has this exact path and reaches it
