@@ -644,10 +644,17 @@ function lateTimes(
     }
 
     // The tight-path rule. Proof: with this branch removed, `reports a queue
-    // that ends the project as critical, exactly` failed — both slices of a
-    // person's queue that is the longest path in the plan came back with a
-    // float of -2.220446049250313e-16 and `critical: false`; watched
-    // 2026-08-09.
+    // that ends the project as critical, exactly` failed on `a`'s late start —
+    // `Expected: 0 Received: -2.220446049250313e-16` — and, with that
+    // assertion taken out of the way, on `b`'s: `Expected: 1.3333333333333333
+    // Received: 1.333333333333333`; watched 2026-08-11.
+    //
+    // It is watched on the late starts and nowhere else. Under the same fault
+    // the whole of `apps/be-01` was green before those two assertions existed:
+    // the -2.2e-16 the rule exists to prevent is inside `slackOf`'s window, so
+    // the `float` and `critical` assertions in that test — and every
+    // differential — report the snapped answer either way. What the rule buys
+    // is the number the engine hands out verbatim, not the colour.
     const early = placed[taken];
     if (hasQueues && finish === early.finish) {
       anchorOf[node.item] = { finish, at };
@@ -697,9 +704,17 @@ function lateTimes(
  * The snap is on slack alone. `latestStart` and `latestFinish` stay verbatim,
  * and so does the leveller's own float — its priority rule ranks genuinely
  * different floats and must keep separating two rows the schedule can tell
- * apart. Real slack survives untouched at every size a plan can express: the
- * smallest fraction a PERT final carries is a sixth of a day, eight orders of
- * magnitude above the window, and a test on this path holds it.
+ * apart. Real slack survives untouched at the sizes plans are written in: a
+ * PERT final over whole-day estimates lands on a multiple of a sixth of a day,
+ * eight orders of magnitude above the window, and a test on this path holds it.
+ *
+ * Smaller is expressible, and the window does eat it. `ThreePointEstimate` is
+ * three `number>=0` with no floor under them, so a plan may put 5e-10 of a day
+ * against a row, and slack that size snaps to `0` and reads `critical`. That is
+ * an accepted edge rather than a case this cannot reach: a row with less than a
+ * billionth of a workday to spare is a row that cannot move, and red is the
+ * answer a reader wants for it. The window is chosen against the fractions
+ * estimates are given in, not against every double the type admits.
  *
  * `-0` is normalised because a drifted zero is as often below as above. It is
  * `0` to `===` and to the reader — same colour, same printed slack — and it is

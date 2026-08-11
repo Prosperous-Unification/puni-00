@@ -334,8 +334,14 @@ const snappedSlack = (slack: number): number => {
  * through {@link snappedSlack}, which is the whole of what this change moved.
  *
  * `critical` is derived from the snapped float rather than taken from the
- * oracle because the two are one fact: the old engine's `critical` is its own
- * raw `float === 0`, and a row whose 1.8e-15 became 0 is a row that became red.
+ * oracle because the two are one fact. For a leaf that is immediate: the
+ * oracle's `critical` **is** its own raw `float === 0` (line 103), so a leaf
+ * whose 1.8e-15 became 0 is a leaf that became red. A parent's is
+ * `beneath.some((s) => s.critical)` (line 127) rather than a comparison of its
+ * own float — but its float is the least of those same leaves', so it snaps to
+ * 0 exactly when one of them does, and the derived answer lands on the rows the
+ * oracle would have marked either way.
+ *
  * Reading it any other way would let the assertion pass on a plan where the
  * new engine paints slack red or leaves a tight row white.
  */

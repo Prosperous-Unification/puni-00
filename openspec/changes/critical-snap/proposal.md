@@ -50,9 +50,15 @@ deliberate. It is now the endorsed answer, and says so.
 
 ## Constraints
 
-- The window must not swallow real slack: a sixth of a day is the smallest
-  fraction a PERT final can carry, eight orders of magnitude above 1e-9, and a
-  negative test proves a wide window eats it.
+- The window must not swallow the slack plans are written in: a PERT final over
+  whole-day estimates lands on a multiple of a sixth of a day, eight orders of
+  magnitude above 1e-9, and a negative test proves a wide window eats it.
+- Slack below the window is expressible and will be called critical.
+  `ThreePointEstimate` is three `number>=0` with no minimum, so a 5e-10-day
+  estimate parses and its slack snaps to `0`. Accepted: a row with under a
+  billionth of a workday to spare cannot move, and red is the right answer for
+  it. The window is sized against the fractions estimates are given in, not
+  against every double the type admits.
 
 ## Capabilities
 
