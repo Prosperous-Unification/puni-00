@@ -88,7 +88,7 @@ day` (the `fromStart === fromFinish` calendar reading, which already
 
 ## 4. Verify
 
-- [ ] 4.1 `verify.md`: the gate (`bunx nx format:check --all`,
+- [x] 4.1 `verify.md`: the gate (`bunx nx format:check --all`,
       `bunx nx run-many -t test lint typecheck`, openspec validate), the
       failure-proof table — every fault injected in 1.3, 2.2, 3.1, 3.2 with
       the test that observed it and the observed output — and the standing
