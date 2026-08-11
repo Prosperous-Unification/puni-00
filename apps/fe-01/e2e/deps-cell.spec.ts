@@ -1,4 +1,11 @@
-import { expect, type Page, test } from '@playwright/test';
+import { expect, type Locator, type Page, test } from '@playwright/test';
+
+/** The painted colour of an element's own background, whatever notation it is in. */
+const bgOf = (locator: Locator): Promise<string> =>
+  locator.evaluate((el) => getComputedStyle(el).backgroundColor);
+
+/** A background nothing painted — what Chromium answers for `background: none`. */
+const TRANSPARENT = 'rgba(0, 0, 0, 0)';
 
 /**
  * `deps-single-line`, measured by a browser.
@@ -67,8 +74,13 @@ test.describe('the deps cell rests on one line', () => {
       };
       const strip = rowOf('020').querySelector('[data-depends-strip]');
       if (!(strip instanceof HTMLElement)) throw new Error('020 has no depends strip');
+      // The chips by their own name, not every button in the cell: since
+      // `dep-add-button` the strip also carries the add affordance, and a bare
+      // `button` query would count it as an eighth chip.
       const chips = [
-        ...rowOf('020').querySelectorAll<HTMLElement>('td[data-column="depends"] button'),
+        ...rowOf('020').querySelectorAll<HTMLElement>(
+          'td[data-column="depends"] button[aria-label^="Stop "]',
+        ),
       ];
       return {
         chipBoxes: chips.map((chip) => {
@@ -165,5 +177,288 @@ test.describe('the deps cell rests on one line', () => {
       probed.last.answersToTheChip,
       'a clipped chip still answered a hit test at its centre',
     ).toBe(false);
+  });
+});
+
+/**
+ * `dep-add-button`, measured by a browser.
+ *
+ * jsdom watches the button arrive at the head of the strip, focus the box on a
+ * click, and cancel its own press (`wbs-table.test.tsx`). What it cannot watch
+ * is any of the three reasons the button is shaped the way it is: whether the
+ * head of a clipping line really escapes the clip, whether a real click really
+ * lands the caret in the box, and whether a real press really leaves a
+ * half-typed search alone — the last two being the exact fault class of R5
+ * #12/#14/#15, where a green jsdom suite sat over a default action only a
+ * browser performs.
+ */
+test.describe('the deps cell offers an always-visible add button', () => {
+  test('keeps the add button visible in a cell whose chips are clipped', async ({ page }) => {
+    const probed = await page.evaluate(() => {
+      const at = (label: string): HTMLElement => {
+        const found = document.querySelector(`[aria-label="${label}"]`);
+        if (!(found instanceof HTMLElement)) throw new Error(`not on screen: ${label}`);
+        return found;
+      };
+      const probe = (label: string) => {
+        const node = at(label);
+        const box = node.getBoundingClientRect();
+        const hit = document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2);
+        return {
+          width: box.width,
+          height: box.height,
+          answersToItself: hit !== null && node.contains(hit),
+          answered: hit === null ? '(nothing)' : `<${hit.tagName.toLowerCase()}>`,
+        };
+      };
+      const strip = at('Stop 020 waiting for 030').closest('[data-depends-strip]');
+      if (!(strip instanceof HTMLElement)) throw new Error('no depends strip on the page');
+      return {
+        // The clip is engaged: more strip content than strip. Without this the
+        // whole test would be about an uncrowded cell, where nothing is at risk
+        // and the button's placement decides nothing (R5 #16).
+        stripScrollWidth: strip.scrollWidth,
+        stripClientWidth: strip.clientWidth,
+        add: probe('Make 020 wait for something'),
+        chip: probe('Stop 020 waiting for 030'),
+        lastChip: probe('Stop 020 waiting for 090'),
+      };
+    });
+
+    expect(
+      probed.stripScrollWidth,
+      'nothing is clipped, so this test is about an uncrowded cell',
+    ).toBeGreaterThan(probed.stripClientWidth);
+    // And the clip really does hide what it overruns — the fact the button's
+    // placement is chosen against, re-established here so the claim below is
+    // read against a cell that is genuinely cutting things off.
+    expect(
+      probed.lastChip.answersToItself,
+      'the last chip is not clipped, so this fixture stopped overrunning',
+    ).toBe(false);
+
+    // The claim: the affordance is laid out with real area and answers a hit
+    // test at its own centre, in the crowded cell that clipped the chip above.
+    expect(probed.add.width).toBeGreaterThan(0);
+    expect(probed.add.height).toBeGreaterThan(0);
+    expect(
+      probed.add.answersToItself,
+      `the add button's own centre answers ${probed.add.answered}`,
+    ).toBe(true);
+
+    // And it costs the strip's line nothing: no taller than the chips, which
+    // are what set that line's height and so the row's. Sub-pixel tolerance,
+    // rect edges being fractional.
+    expect(probed.chip.height).toBeGreaterThan(0);
+    expect(
+      probed.add.height,
+      `the add button is ${String(probed.add.height)}px where a chip is ${String(probed.chip.height)}px`,
+    ).toBeLessThanOrEqual(probed.chip.height + 1);
+  });
+
+  test('opens the picker from the add button, with the caret in the box', async ({ page }) => {
+    // 010 waits for nothing in this fixture and so has rows left to be offered
+    // — 020 already waits for seven of the nine, and a cell with nothing to
+    // offer opens no list at all (the same trap `layout.spec.ts` records).
+    await page.getByRole('button', { name: 'Make 010 wait for something' }).click();
+
+    await expect(page.getByRole('listbox')).toBeVisible();
+    // The caret is where somebody can type, which is the whole point of the
+    // affordance: it is not a second path to the picker, it is the first path
+    // to the box.
+    await expect(page.getByLabel('Add a dependency to 010')).toBeFocused();
+  });
+
+  test('keeps a half-typed search when the add button is pressed', async ({ page }) => {
+    // The press must not move the focus. Without the `preventDefault` on it the
+    // button takes the focus, the box blurs, and this cell's blur closes the
+    // picker and drops what was typed into it — a control that means "search"
+    // eating the search. jsdom can only see the cancel; this sees the effect.
+    const box = page.getByLabel('Add a dependency to 010');
+    await box.click();
+    await box.fill('03');
+    await expect(page.getByRole('listbox')).toBeVisible();
+
+    await page.getByRole('button', { name: 'Make 010 wait for something' }).click();
+
+    await expect(box).toHaveValue('03');
+    await expect(box).toBeFocused();
+    await expect(page.getByRole('listbox')).toBeVisible();
+  });
+
+  /**
+   * Every rect this file needs off one row, in one round trip: the row itself,
+   * the strip's two flex items, and the list hanging under them.
+   */
+  async function measure(page: Page, number: string) {
+    return page.evaluate((n) => {
+      const box = document.querySelector(`[aria-label="Add a dependency to ${n}"]`);
+      const row = box?.closest('tr');
+      if (!(row instanceof HTMLTableRowElement)) throw new Error(`no row on screen for ${n}`);
+      const add = row.querySelector('button[data-dep-add]');
+      const list = document.querySelector('[role="listbox"]');
+      const rect = (el: Element | null | undefined) =>
+        el instanceof HTMLElement ? el.getBoundingClientRect() : null;
+      const r = (el: Element | null | undefined) => {
+        const found = rect(el);
+        return found === null ? null : { top: found.top, height: found.height };
+      };
+      return { row: r(row), add: r(add), box: r(box), list: r(list) };
+    }, number);
+  }
+
+  test('rests an empty cell at its own height while the picker is open', async ({ page }) => {
+    // The box claims `width: 100%`, so under `flex-wrap: wrap` its hypothetical
+    // size is the whole strip and it can share a line with nothing — the `+`
+    // beside it pushed it onto a second one, and a cell with no chips at all
+    // grew by a line the moment somebody clicked into it, carrying the list
+    // they had just opened down the page.
+    //
+    // Measured on dev at `2b2affec` in a cloud Chromium, 2026-08-11, before the
+    // fix: row 030 **26px** at rest and **44.98px** open, the box dropping from
+    // `y=198` to `y=219.98` and the listbox from `219` to `240.98`. Clicking
+    // the cell and clicking the `+` measured the same, which is what made it
+    // the strip's layout rather than the button's handler.
+    //
+    // jsdom watches the declaration that decides this (`wbs-table.test.tsx`,
+    // `leaves an empty cell’s open strip on one nowrap line`); whether the row
+    // is really one line tall is layout, and jsdom lays nothing out — R5
+    // #14–16, the same reason the seven-chip claim above lives here.
+    //
+    // 010 waits for nothing in this fixture and has rows left to offer, so its
+    // list really opens; 020 is the crowded row and is deliberately not it.
+    const rest = await measure(page, '010');
+    // Real area before the equality, or a table that rendered nothing would
+    // satisfy it (R5 #16).
+    expect(rest.row?.height, 'the rested row has no height to compare against').toBeGreaterThan(0);
+    expect(rest.add?.height, 'no add button on the rested row').toBeGreaterThan(0);
+    expect(rest.list, 'a listbox is open before anything was clicked').toBeNull();
+    // At rest the two share one line, which is the state the open one must hold.
+    expect(Math.abs((rest.box?.top ?? 0) - (rest.add?.top ?? 0))).toBeLessThanOrEqual(2);
+
+    // Into the cell itself, not the `+`: the finding is about the click a
+    // reader has always had, and the button's own path is checked below it.
+    await page.getByLabel('Add a dependency to 010').click();
+    await expect(page.getByRole('listbox')).toBeVisible();
+
+    const open = await measure(page, '010');
+    expect(open.list, 'the picker opened no list to measure').not.toBeNull();
+    // The claim: the row is the height it was. Sub-pixel tolerance, rect edges
+    // being fractional — the fault this catches was 19px.
+    expect(
+      Math.abs((open.row?.height ?? 0) - (rest.row?.height ?? 0)),
+      `the open row is ${String(open.row?.height)}px where it rests at ${String(rest.row?.height)}px`,
+    ).toBeLessThanOrEqual(1);
+    // And it is one line because the box is still beside the `+`, not under it
+    // — the row height above could also be held by a `+` that vanished.
+    expect(
+      Math.abs((open.box?.top ?? 0) - (open.add?.top ?? 0)),
+      'the box wrapped under the add button',
+    ).toBeLessThanOrEqual(2);
+    expect(open.add?.height, 'the add button left the open cell').toBeGreaterThan(0);
+
+    // The same, through the affordance's own click.
+    await page.keyboard.press('Escape');
+    await page.getByLabel('Name of 020').click();
+    await page.mouse.move(0, 0);
+    await page.getByRole('button', { name: 'Make 010 wait for something' }).click();
+    await expect(page.getByRole('listbox')).toBeVisible();
+
+    const viaAdd = await measure(page, '010');
+    expect(
+      Math.abs((viaAdd.row?.height ?? 0) - (rest.row?.height ?? 0)),
+      `the row opened from the + is ${String(viaAdd.row?.height)}px where it rests at ${String(rest.row?.height)}px`,
+    ).toBeLessThanOrEqual(1);
+    // The list is where the rested cell's bottom is, rather than a line below.
+    expect(
+      Math.abs((viaAdd.list?.top ?? 0) - (open.list?.top ?? 0)),
+      'the two ways into the picker anchor its list differently',
+    ).toBeLessThanOrEqual(1);
+  });
+
+  /**
+   * The sRGB luminance of any colour the engine can parse, 0–255 — rasterised
+   * rather than parsed, because a computed `color-mix` comes back as
+   * `oklab(…)` and a resting grey as `rgb(…)`, and no string comparison
+   * between the two notations answers "lighter or darker". `hover-cards.spec.ts`
+   * carries the same helper and the incident that produced it (PR #38).
+   */
+  const luminance = (page: Page, colour: string): Promise<number> =>
+    page.evaluate((c) => {
+      const ctx = document.createElement('canvas').getContext('2d');
+      if (ctx === null) throw new Error('no 2d context to rasterise a colour in');
+      const sentinel = '#ff00ff';
+      ctx.fillStyle = sentinel;
+      ctx.fillStyle = c;
+      if (ctx.fillStyle === sentinel) throw new Error(`this engine will not parse ${c}`);
+      ctx.fillRect(0, 0, 1, 1);
+      const [r, g, b] = ctx.getImageData(0, 0, 1, 1).data;
+      return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    }, colour);
+
+  test('picks the add button up off the row it is hovered on, in both palettes', async ({
+    page,
+  }) => {
+    // The hover paint was `var(--accent)`, an absolute `oklch(0.968)`, and a
+    // row under the pointer is `--grid-hover` at `oklch(0.939)`: on a light
+    // page the patch came out *lighter* than the row it sits in, so the
+    // affordance read as a hole punched through the row rather than as
+    // something the pointer had picked up. Measured in a cloud Chromium on dev
+    // at `2b2affec`, 2026-08-11: button `oklch(0.968 0.007 247.896)`, cell
+    // `oklab(0.93903 …)`. Dark mode was right by accident, `--accent` being
+    // `oklch(0.279)` above an `oklab(0.18885 …)` row — one absolute value
+    // answering for two themes, and getting one of them.
+    //
+    // Both palettes, and it has to be both: light alone cannot tell "darker
+    // than the row" from "an absolute colour that happens to be darker here",
+    // and the direction is the whole claim. The app ships no theme switch; the
+    // palette is a class on the root, which is `styles.css`'s own account of
+    // how a theme works, and reaching it here is what holds it to it
+    // (precedent: `hover-cards.spec.ts`, `the tint moves the same way on both
+    // surfaces, in both palettes`).
+    const add = page.getByRole('button', { name: 'Make 010 wait for something' });
+    const depsCell = page
+      .getByLabel('Add a dependency to 010')
+      .locator('xpath=ancestor::td[@data-column="depends"]');
+
+    for (const palette of ['light', 'dark'] as const) {
+      await page.evaluate((wanted) => {
+        document.documentElement.classList.toggle('dark', wanted === 'dark');
+      }, palette);
+
+      // The row under the pointer but not the affordance: the surface the
+      // patch is judged against is the row's *hovered* colour, not its rest.
+      await page.getByLabel('Name of 010').hover();
+      await expect.poll(() => depsCell.evaluate((td) => td.getAnimations().length)).toBe(0);
+      const rowColour = await bgOf(depsCell);
+      // Nothing painted on the button yet, or the reads below would compare a
+      // hover state with itself.
+      expect(await bgOf(add), `${palette}: the add button is painted at rest`).toBe(TRANSPARENT);
+
+      await add.hover();
+      await expect.poll(() => bgOf(add)).not.toBe(TRANSPARENT);
+      const buttonColour = await bgOf(add);
+      // The row is the same colour it was: the pointer only moved within it,
+      // so any difference below is the button's and not the row's.
+      expect(await bgOf(depsCell), `${palette}: the row moved under the pointer`).toBe(rowColour);
+
+      const rowLuminance = await luminance(page, rowColour);
+      const buttonLuminance = await luminance(page, buttonColour);
+
+      // Non-vacuous first: a patch that did not move cannot have moved the
+      // right way, and `Math.sign(0)` agrees with everything.
+      expect(
+        Math.abs(buttonLuminance - rowLuminance),
+        `${palette}: the hovered add button is the row's own colour`,
+      ).toBeGreaterThan(1);
+
+      // The claim: down on a light page, up on a dark one — the affordance
+      // lifting off the row in whichever direction that row's own ink runs,
+      // never toward the page behind it.
+      expect(
+        Math.sign(buttonLuminance - rowLuminance),
+        `${palette}: the hovered add button is ${buttonLuminance > rowLuminance ? 'lighter' : 'darker'} (${String(Math.round(buttonLuminance))}) than the row it sits on (${String(Math.round(rowLuminance))})`,
+      ).toBe(palette === 'light' ? -1 : 1);
+    }
   });
 });

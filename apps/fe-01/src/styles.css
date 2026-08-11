@@ -582,8 +582,13 @@
    * is the strip's `gap` in `wbs-table.tsx`, not a margin here: a chip's own
    * bottom margin would make the strip's one rested line taller than a
    * chipless row's, and equal row heights are the point of `deps-single-line`.
+   *
+   * `:not([data-dep-add])` because the add affordance beside them is a button
+   * in the same cell and means the opposite thing: a chip's hover goes
+   * `--destructive`, which is the ✕ saying what the click will do, and an
+   * "add" that turned red under the pointer would be promising a removal.
    */
-  [data-grid] td[data-column='depends'] button {
+  [data-grid] td[data-column='depends'] button:not([data-dep-add]) {
     border: 1px solid var(--border);
     border-radius: var(--radius-sm);
     background: color-mix(in oklab, var(--muted) 70%, var(--background));
@@ -593,9 +598,62 @@
     cursor: pointer;
   }
 
-  [data-grid] td[data-column='depends'] button:hover {
+  [data-grid] td[data-column='depends'] button:not([data-dep-add]):hover {
     border-color: var(--destructive);
     color: var(--destructive);
+  }
+
+  /*
+   * The add affordance. Always on screen — that is the whole of what it is for
+   * (Dany, 2026-08-11), so nothing here fades it in on a row hover the way the
+   * ⋯ button is faded: an affordance nobody sees marks nothing, which is the
+   * note the notes marker already carries.
+   *
+   * Quiet all the same: no border and no fill, so a column of them reads as a
+   * margin rather than as a column of controls, and the row's ink stays on the
+   * chips. `line-height: 1.5` and `padding: 0 4px` are the chip's own, to the
+   * pixel — the chips set the strip's line box, and an affordance taller than
+   * one would make every deps row taller than every other row in the table.
+   */
+  [data-grid] td[data-column='depends'] button[data-dep-add] {
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: none;
+    color: var(--muted-foreground);
+    padding: 0 4px;
+    line-height: 1.5;
+    cursor: pointer;
+  }
+
+  /*
+   * Hovered: the row's own ink at the row's own dose, into whatever surface
+   * the row is currently painted — `--cell-bg`, which is the join every other
+   * state in this file re-points (banded, hovered, dep-lit, drop target).
+   *
+   * `var(--accent)` was here and pointed the wrong way on a light page. It is
+   * an absolute colour, `oklch(0.968)`, and a row under the pointer is
+   * `--grid-hover` at `oklch(0.939)`: the patch came out *lighter* than the
+   * row it sits in, so the affordance read as a hole punched through the row
+   * to the page behind it rather than as something the pointer had picked up.
+   * Measured in a cloud Chromium on dev at `2b2affec`, 2026-08-11 — button
+   * `oklch(0.968 0.007 247.896)` against cell `oklab(0.93903 …)`. On a
+   * dependency-lit row it was worse and quieter at once: the lit row is
+   * `oklab(0.96448 …)`, four thousandths away, so the hover all but vanished.
+   * Dark mode was right by accident — `--accent` is `oklch(0.279)` there,
+   * above the `oklab(0.18885 …)` row — which is the tell that one absolute
+   * value cannot answer for two themes.
+   *
+   * The same ink into whichever surface it lands on moves both the same way
+   * instead: down on a light page, up on a dark one, because a mix toward
+   * `--foreground` from below rises and from above falls. `--card-dep-lit`'s
+   * pattern (see the token block), one layer further in — the surface here is
+   * not the page but the row, and the row is already a mix. 7% is
+   * `--grid-hover`'s own dose, so the affordance stands off the hovered row
+   * by exactly as much as the hovered row stands off the page.
+   */
+  [data-grid] td[data-column='depends'] button[data-dep-add]:hover {
+    background: color-mix(in oklab, var(--foreground) 7%, var(--cell-bg));
+    color: var(--foreground);
   }
 
   /* The derived figures. Tabular, so a column of them lines up on the decimal

@@ -4696,8 +4696,8 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                 popovers below hang from the wrapper, because this box clips
                 and they must not be inside the clipper. At rest it is one
                 flex line that does not wrap; while the picker owns the cell
-                it wraps exactly as the cell always did, so typing and the
-                open list are unchanged (precedent:
+                **and the cell has chips** it wraps exactly as the cell always
+                did, so typing and the open list are unchanged (precedent:
                 {@link CellInputProps.restShowsFirstLineOnly} — clamped at
                 rest, whole while somebody is in it). `whiteSpace: 'nowrap'`
                 is not decoration beside `flexWrap`: it is what keeps a
@@ -4708,18 +4708,46 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                 variable-width pills means real layout measurement for
                 marginal information.
 
+                **And only with chips**, which is this change's own correction
+                and not a tidy. `wrap` plus the box's `width: 100%` claim
+                means the box can never share a flex line with anything: its
+                hypothetical size is the whole strip, so the 13px `+` beside
+                it pushed it onto a second line and made an *empty* cell grow
+                the moment somebody clicked into it. Measured on dev at
+                `2b2affec` in a cloud Chromium, 2026-08-11: a chipless row
+                rested at **26px** and stood at **44.98px** with the picker
+                open, the box dropping from `y=198` to `y=219.98` and taking
+                the listbox 21px down the page with it — the affordance
+                moving the list somebody had just opened to read. Clicking
+                the cell and clicking the `+` measured identically, so it was
+                the layout and not the button's handler.
+
+                Wrapping only for chips returns the open empty cell to the
+                geometry it has at rest — one line, the box shrunk past the
+                `+` by `minWidth: 0` to the same `84.2px` it rests at — and
+                leaves the crowded cell's open state untouched, which is the
+                half `deps-single-line` measured. The `+` was not hidden
+                instead: always on screen is the whole of what it is for
+                (Dany, 2026-08-11), and a cell somebody is typing into is
+                where an affordance saying "another one" has most to say.
+
                 Proof: the rest branch's `flexWrap` forced to `'wrap'`,
                 `clamps the chips and the box onto one nowrap line at rest`
                 failed on `expected 'wrap' to be 'nowrap'`. Watched,
-                2026-08-10. The row height itself — seven chips no taller
-                than none, a clipped chip invisible — is Chromium's proof,
-                in `e2e/deps-cell.spec.ts`.
+                2026-08-10. The chipless half is its own check, below. The
+                row height itself — seven chips no taller than none, a
+                clipped chip invisible, an empty cell no taller open than
+                shut — is Chromium's proof, in `e2e/deps-cell.spec.ts`.
               */}
               <span
                 data-depends-strip={row.original.id}
                 style={{
                   display: 'flex',
-                  flexWrap: picker === null ? 'nowrap' : 'wrap',
+                  // Wrapping is for the chips, and only for them. See the
+                  // block above: an empty cell has nothing to wrap, and the
+                  // wrap is what made it two lines tall the moment it was
+                  // clicked into.
+                  flexWrap: picker !== null && waitingFor.length > 0 ? 'wrap' : 'nowrap',
                   alignItems: 'center',
                   gap: 2,
                   whiteSpace: 'nowrap',
@@ -4733,6 +4761,95 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                     : {}),
                 }}
               >
+                {/*
+                  The add affordance, first on the strip's line and always on
+                  it. Adding a dependency has only ever been discoverable by
+                  knowing that the cell's box is a box — a rested cell full of
+                  chips shows `010 ✕ 030 ✕` and nothing that says another one
+                  can be added (Dany, 2026-08-11). This is that affordance, and
+                  it triggers exactly the flow a click in the cell already
+                  triggers: the box takes the focus, and the box's own
+                  `onFocus` opens the picker ready to type.
+
+                  **First, not last.** The strip clips its right edge and fades
+                  the last {@link DEP_EDGE_FADE} pixels of it; a trailing
+                  affordance in a cell waiting on seven rows would be clipped
+                  out of sight in exactly the crowded cell that needs it most,
+                  and the box's `width: 100%` claim would have pushed it there
+                  on an empty one too. The leading edge is the one place on a
+                  clipping `nowrap` line that is never cut. Proven in Chromium
+                  — `keeps the add button visible in a cell whose chips are
+                  clipped`, `e2e/deps-cell.spec.ts` — because whether a box is
+                  clipped is a layout fact and jsdom lays nothing out (R5
+                  #14–16).
+
+                  Sized as a chip and no larger: the row rests at 28px and the
+                  chips are what set that line's height, so an affordance built
+                  to their `line-height` costs the row nothing. `flexShrink: 0`
+                  because a squeezed cell must clip chips rather than crush
+                  this.
+                */}
+                <button
+                  type="button"
+                  data-dep-add={row.original.id}
+                  // Not `Add a dependency to 020` — that is the box's own
+                  // label, and two controls in one cell answering to one name
+                  // is a reader told the same thing twice with no way to tell
+                  // which is which. The chips' voice instead: they say `Stop
+                  // 020 waiting for 030`, so this says what it starts.
+                  //
+                  // No `title` beside it. `Add a dependency` was one, and a
+                  // tooltip reading one thing while the accessible name reads
+                  // another is the control answering to two names — the exact
+                  // fault the name above was chosen to avoid, reintroduced by
+                  // the attribute that was meant to explain it (codex review,
+                  // 2026-08-11). The sighted reader has the `+`; anyone who
+                  // needs words has the name.
+                  aria-label={`Make ${row.original.number} wait for something`}
+                  // Deliberately not a tab stop, at rest and with the picker
+                  // open alike — where the chips flip (`deps-single-line`).
+                  // The keyboard already has this exact path and reaches it
+                  // first: Tab into the cell lands on the box, and the box's
+                  // focus is what opens the picker. A stop here would add one
+                  // Tab per row to every walk through the plan and offer
+                  // nothing at the end of it that the next Tab does not
+                  // already do. It stays a `<button>` with a name, so a
+                  // reader's element walk still finds it; what it does not do
+                  // is stand in the sequential order.
+                  tabIndex={-1}
+                  onMouseDown={(pressed) => {
+                    // The press must not move the focus. Without this the
+                    // button takes it, and a button taking the focus from this
+                    // cell's *own* box is a blur — which closes the picker and
+                    // drops what was typed into it (the box's `onBlur`, this
+                    // cell's contract since it was written). Somebody who
+                    // types `03` and then reaches for the affordance beside it
+                    // would lose the search to the control that means "search".
+                    // The precedent is the Name cell's notes marker, which
+                    // forwards its press to the box under it the same way.
+                    //
+                    // The click below still fires — `preventDefault` on
+                    // `mousedown` suppresses the focus, not the click (R5 #14's
+                    // lesson, read the other way round). And the action lives
+                    // there rather than here for two reasons: a `mousedown`
+                    // that re-renders before the browser performs its default
+                    // action is R5 #12's fault class, and an assistive
+                    // technology's activation dispatches a click with no
+                    // `mousedown` at all.
+                    pressed.preventDefault();
+                  }}
+                  onClick={(pressed) => {
+                    // The box is this button's sibling on the strip — the same
+                    // reach the notes marker makes, scoped by the row's own id
+                    // so a stale query can never focus another row's cell.
+                    pressed.currentTarget.parentElement
+                      ?.querySelector<HTMLInputElement>(`[data-depends-input="${row.original.id}"]`)
+                      ?.focus();
+                  }}
+                  style={{ flexShrink: 0 }}
+                >
+                  +
+                </button>
                 {waitingFor.map(({ id, number }) => (
                   <button
                     key={id}

@@ -5945,6 +5945,167 @@ describe('dependencies in the table', () => {
     expect(list.parentElement).toBe(wrapper);
     expect(strip.contains(list)).toBe(false);
   });
+
+  /**
+   * The add affordance on one row's deps cell — `dep-add-button`. By its own
+   * name, which is deliberately not the box's: two controls in one cell
+   * answering to `Add a dependency to 030` would be a reader told the same
+   * thing twice.
+   */
+  const addButtonOf = (number: string): HTMLElement =>
+    screen.getByLabelText(`Make ${number} wait for something`);
+
+  itDom('offers an add button at the head of every rested deps cell', async () => {
+    // Always on screen and first on the strip's line. First is the load-bearing
+    // half: the strip clips its right edge, so a trailing affordance would be
+    // cut out of sight in exactly the crowded cell that needs it most. jsdom
+    // can watch it arrive at the head of the strip; that the head of a clipping
+    // line really is the one place never cut is Chromium's, in
+    // `e2e/deps-cell.spec.ts` (R5 #14–16).
+    //
+    // Proof: the button removed from the strip, this failed on `Unable to find
+    // a label with the text of: Make 030 wait for something`. Watched,
+    // 2026-08-11.
+    await threeRoots();
+
+    const { strip } = stripOf('030');
+    const add = addButtonOf('030');
+    expect(strip.firstElementChild).toBe(add);
+    // Not squeezed away by a crowded line: the cell clips chips, never this.
+    expect(add.style.flexShrink).toBe('0');
+    // A real button, so a reader's element walk finds it — see the tab-order
+    // test below for the one thing it deliberately is not.
+    expect(add.tagName).toBe('BUTTON');
+  });
+
+  itDom('opens the picker from the add button, on the box the cell already has', async () => {
+    // What the button is for: the flow a click in the cell already triggers,
+    // reached without knowing the cell holds a box. The click focuses the box
+    // and the box's own `onFocus` opens the picker — no second path to the
+    // picker, which is why nothing here asserts a new one.
+    //
+    // Proof: the `onClick` body dropped (the button rendered and inert), this
+    // failed on `expected <body><div>…(1)</div></body> to be <input …(10)>
+    // </input>` — the focus never left the document body. Watched, 2026-08-11.
+    await threeRoots();
+
+    fireEvent.click(addButtonOf('030'));
+
+    const box = screen.getByLabelText('Add a dependency to 030');
+    expect(document.activeElement).toBe(box);
+    // The picker is open on it: 030 can wait for 010 and 020, so the list has
+    // entries to show.
+    expect(screen.getByRole('listbox')).toBeDefined();
+  });
+
+  itDom('keeps the add button out of the tab order, at rest and with the picker open', async () => {
+    // Where the chips flip — `deps-single-line` takes them out at rest and puts
+    // them back when the strip wraps — this one never enters. The keyboard has
+    // this exact path already and reaches it first: Tab into the cell lands on
+    // the box, and the box's focus is what opens the picker. A stop here would
+    // cost one Tab per row on every walk through the plan and do nothing at the
+    // end of it that the next Tab does not already do.
+    //
+    // Proof: the chips' condition copied onto it (`picker === null ? -1 :
+    // undefined`), this failed on `expected +0 to be -1` at the assertion below
+    // the focus. Watched, 2026-08-11.
+    await threeRoots();
+    dependOn('030', '010');
+    await waitFor(() => {
+      expect(screen.getByLabelText('Stop 030 waiting for 010')).toBeDefined();
+    });
+    fireEvent.blur(screen.getByLabelText('Add a dependency to 030'));
+
+    expect(addButtonOf('030').tabIndex).toBe(-1);
+    // Both at rest: the chip's -1 is `deps-single-line`'s and is asserted
+    // beside this one so the contrast below is between two known states.
+    expect(screen.getByLabelText('Stop 030 waiting for 010').tabIndex).toBe(-1);
+
+    fireEvent.focus(screen.getByLabelText('Add a dependency to 030'));
+    expect(stripOf('030').strip.style.flexWrap).toBe('wrap');
+    // The chip is back in the order — and the add button is still out of it.
+    expect(screen.getByLabelText('Stop 030 waiting for 010').tabIndex).toBe(0);
+    expect(addButtonOf('030').tabIndex).toBe(-1);
+  });
+
+  itDom('refuses the press the focus, so the box beside it keeps what was typed', async () => {
+    // The press must not move the focus: a button that takes it from this
+    // cell's *own* box blurs the box, and this box's blur closes the picker and
+    // drops the search typed into it. Somebody who types `01` and then reaches
+    // for the affordance beside it would lose the search to the control that
+    // means "search".
+    //
+    // jsdom performs no default action at all (R5 #14–15's fault class), so
+    // what is watched here is the refusal itself — `preventDefault` on the
+    // press — and the typed text surviving it is Chromium's, in
+    // `e2e/deps-cell.spec.ts`.
+    //
+    // Proof: the `preventDefault` dropped from `onMouseDown`, this failed on
+    // `expected true to be false` — the press left to the browser, which would
+    // have moved the focus onto the button. Watched, 2026-08-11.
+    await threeRoots();
+
+    const box = screen.getByLabelText<HTMLInputElement>('Add a dependency to 030');
+    fireEvent.focus(box);
+    fireEvent.change(box, { target: { value: '01' } });
+
+    // `fireEvent` answers `false` when the event was cancelled, which is the
+    // only observation jsdom can make about a default action it never performs.
+    expect(fireEvent.mouseDown(addButtonOf('030'))).toBe(false);
+    expect(box.value).toBe('01');
+  });
+
+  itDom(
+    'leaves an empty cell’s open strip on one nowrap line, and a chipped one wrapping',
+    async () => {
+      // The wrap is for the chips and for nothing else. With `flexWrap: 'wrap'`
+      // the box's `width: 100%` claim is a whole flex line, so it cannot share
+      // one with the `+` beside it: an empty cell grew a second line the moment
+      // somebody clicked into it, taking the listbox down the page with it.
+      // Observed in a cloud Chromium on dev at `2b2affec` — 26px at rest,
+      // 44.98px open — and the pixels are `e2e/deps-cell.spec.ts`'s to keep;
+      // what jsdom watches is the declaration that decides it.
+      //
+      // Both halves in one check on purpose: `nowrap` everywhere would pass the
+      // first assertion and silently undo `deps-single-line`'s open state, which
+      // is the fault a chipless-only test could not see.
+      //
+      // Proof: the chip condition dropped (`picker !== null ? 'wrap' :
+      // 'nowrap'`, the branch as it shipped), this failed on `expected 'wrap' to
+      // be 'nowrap'`. Watched, 2026-08-11.
+      await threeRoots();
+
+      // 030 waits for nothing: the chipless cell the growth was measured on.
+      fireEvent.focus(screen.getByLabelText('Add a dependency to 030'));
+      expect(screen.getByRole('listbox')).toBeDefined();
+      expect(stripOf('030').strip.style.flexWrap).toBe('nowrap');
+
+      // And the crowded cell is untouched — one chip is enough to need the room.
+      fireEvent.blur(screen.getByLabelText('Add a dependency to 030'));
+      dependOn('020', '010');
+      await waitFor(() => {
+        expect(screen.getByLabelText('Stop 020 waiting for 010')).toBeDefined();
+      });
+      expect(stripOf('020').strip.style.flexWrap).toBe('wrap');
+    },
+  );
+
+  itDom('answers to one name, with no tooltip saying a different one', async () => {
+    // The name is `Make 030 wait for something`, chosen so that this control
+    // and the box beside it are not two controls under one name. A
+    // `title="Add a dependency"` was here as well, which put the control back
+    // under two: the tooltip a sighted reader gets and the name a reader's
+    // walk announces disagreed, and neither is the other's summary (codex
+    // review, 2026-08-11).
+    //
+    // Proof: `title="Add a dependency"` restored on the button, this failed on
+    // `expected 'Add a dependency' to be null`. Watched, 2026-08-11.
+    await threeRoots();
+
+    const add = addButtonOf('030');
+    expect(add.getAttribute('title')).toBeNull();
+    expect(add.getAttribute('aria-label')).toBe('Make 030 wait for something');
+  });
 });
 
 describe('picking dependencies from a list', () => {
