@@ -98,16 +98,27 @@ window never opened there. The fixture now costs those extra rows
 (`costedExtras`), which is what "a bar with no room below it" has to mean on a
 chart that only draws costed work.
 
-On the push carrying the cross-review fixes, `pixels` reported **1 failed, 128
-passed** — `header.spec.ts` › `the widest entry be-01 permits stays inside the
-window`, on its `renameSelectedProject` helper timing out at 10s with the
-project combobox still reading `New project`. Not a gantt case, not on any path
-this change touches, and the log around it is a run of `ws proxy error:
-ECONNRESET` / `EPIPE`: a rename that did not come back over the socket. The job
-was re-run on the same commit and passed, `gate` and `pixels` both green at
-`a954395`. Recorded rather than dismissed — it is the first time this case has
-failed in the runs of 2026-08-11, so it is one observation of a flake and not a
-known one.
+**`pixels` is flaky on this box's CI, and it was proved rather than assumed.**
+Three runs of the same job over the cross-review fixes:
+
+| Commit    | Diff from the run before    | `pixels`                                                                                                                                                           |
+| --------- | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `a954395` | the fixes                   | **1 failed, 128 passed** — `header.spec.ts` › `the widest entry be-01 permits stays…`                                                                              |
+| `a954395` | none (job re-run)           | **pass**                                                                                                                                                           |
+| `f8b7d62` | one markdown file, this one | **2 failed, 127 passed** — `header.spec.ts` › `a short entry is shown whole`, and `name-cell.spec.ts` › `a peer's longer name arriving while the cell is focused…` |
+
+Three different cases across two failures, none of them a gantt case, and the
+last of them on a diff that is **one paragraph of markdown** — no code, no
+fixture, nothing a browser can load. What they have in common is what has to
+arrive over the websocket: a rename that never came back to the picker, and a
+peer's name that never reached a focused box (`the peer name never reached the
+box`, received `Strip the wiring`). The logs around each are a run of `ws proxy
+error: ECONNRESET` / `EPIPE` from the Vite dev server.
+
+So the failures are the runner's socket delivery under load, not this change.
+Written down rather than dismissed, because "re-ran it and it went green" is the
+sentence that hides a real intermittent fault: the evidence here is the
+markdown-only diff, which no amount of re-running can explain away.
 
 ## Coordination
 
