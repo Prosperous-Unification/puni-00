@@ -829,13 +829,18 @@ function slackOf(latestStart: number, earliestStart: number): number {
  * hands `QA` its work item's predecessors.
  *
  * Edges are taken as written and expanded here: one declared on a parent means
- * every leaf beneath its predecessor must finish before every leaf beneath its
- * successor starts, which is what a planner means by "the whole of 010 before
- * 020". Between two leaves it joins the predecessor's **last** slice to the
- * successor's **first** — never to the first *estimated* one, which would leave
- * an unestimated `Dev` with no predecessor at all and start the row before the
- * thing it waits for. Because edges only touch an item's ends, a cycle is still
- * a property of the leaf graph alone and {@link hasCycle} still answers for it.
+ * every leaf beneath its predecessor has its **anchor slice** — its first slice
+ * in role order — finish before every leaf beneath its successor starts, which
+ * is "all of 010's first-role work before any of 020" (Dany's rule,
+ * 2026-08-11: a dependency waits on the predecessor's Dev, never on its QA).
+ * Between two leaves it joins the predecessor's **first** slice to the
+ * successor's **first** — on the successor side never the first *estimated*
+ * one, which would leave an unestimated `Dev` with no predecessor at all and
+ * start the row before the thing it waits for. The predecessor's later slices
+ * are free to run in parallel with the successor. Edges still touch only
+ * slices at an item's boundary and the intra-item chains are private,
+ * forward-only paths, so a cycle is still a property of the leaf graph alone
+ * and {@link hasCycle} still answers for it.
  *
  * **The arithmetic is anchored on each work item's own start**, not accumulated
  * from slice to slice: a slice finishes at `base + offsets[i + 1]` rather than
@@ -845,10 +850,12 @@ function slackOf(latestStart: number, earliestStart: number): number {
  * reads a finish through `Math.ceil`, so that bit is a whole day on screen.
  * Anchoring is what makes this engine answer what its predecessor answered.
  * With nobody assigned nothing but the plan constrains a slice, so the
- * anchoring is also what the graph says: only the first slice of a work item
- * has an external predecessor and only the last has an external successor. A
- * person is what breaks that, and the anchor moves to the slice they held back
- * — see {@link SpanAnchor}.
+ * anchoring is also what the graph says: external edges *arrive* only at a
+ * work item's first slice, and where they *leave* from does not matter — an
+ * outgoing edge imposes no floor on the slice it leaves. (They now leave the
+ * first slice too; the backward pass never assumed otherwise — it walks the
+ * adjacency as built.) A person is what breaks that, and the anchor moves to
+ * the slice they held back — see {@link SpanAnchor}.
  *
  * Everything here is an offset from day zero, in **working days**. The calendar
  * lives one layer up: `work-item.service` turns the project's start date and
@@ -985,12 +992,20 @@ export function schedule(
     return found;
   };
 
-  // The predecessor's **last** slice to the successor's **first**: the whole of
-  // one work item before the whole of the other, and the successor's own order
-  // carries the wait to the roles behind its first. Pushed onto the two nodes
-  // rather than rebuilt into a map — the adjacency is written once per edge.
+  // The predecessor's **first** slice — its anchor — to the successor's
+  // **first**: the anchor finishes before any of the successor starts, the
+  // predecessor's later roles run in parallel with it, and the successor's own
+  // order carries the wait to the roles behind its first. Pushed onto the two
+  // nodes rather than rebuilt into a map — the adjacency is written once per
+  // edge.
+  //
+  // Proof: `.first` reverted to `.last` — the whole-item rule this replaced —
+  // and `waits for the first role, not the last` failed on `Expected: 3,
+  // Received: 5`, `a branch releases at its anchors` on `Expected: 4,
+  // Received: 5`, `a zero-length anchor clears immediately` on `Expected: 0,
+  // Received: 4` (`schedule-shapes.test.ts`); watched 2026-08-11.
   for (const { predecessorId, successorId } of leafEdges) {
-    const before = endsOf(predecessorId).last;
+    const before = endsOf(predecessorId).first;
     const after = endsOf(successorId).first;
     nodes[before].successors.push(after);
     nodes[after].predecessors.push(before);

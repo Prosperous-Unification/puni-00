@@ -12,6 +12,7 @@ import { schedule, sliceKey } from './schedule';
  */
 
 const DEV = 'role-dev';
+const QA = 'role-qa';
 
 let position = 0;
 const item = (id: string, parentId: string | null = null): WorkItem => ({
@@ -145,6 +146,97 @@ describe('shapes — a dependency between two nested branches', () => {
     expect(found.get('P')).toMatchObject({ earliestStart: 0, earliestFinish: 4 });
     expect(found.get('Q')).toMatchObject({ earliestStart: 4, earliestFinish: 7 });
     expect(found.get('D1')).toMatchObject({ earliestStart: 4, earliestFinish: 7 });
+  });
+});
+
+/** Two slices per leaf — `[Dev, QA]` days in role order; null is unestimated. */
+const roledPlan = (
+  rows: readonly WorkItem[],
+  edges: readonly DependencyEdge[],
+  days: Record<string, [number | null, number | null]>,
+) => {
+  const childless = new Set(rows.map((row) => row.parentId).filter((id) => id !== null));
+  const slices: Slice[] = rows
+    .filter((row) => !childless.has(row.id))
+    .flatMap((row) => [
+      { workItemId: row.id, roleId: DEV, days: days[row.id][0], personId: null },
+      { workItemId: row.id, roleId: QA, days: days[row.id][1], personId: null },
+    ]);
+  return schedule(rows, edges, slices);
+};
+
+/** One work item's projection, or a throw — a test asserting on `undefined` asserts nothing. */
+const projectionOf = (found: ReturnType<typeof schedule>, id: string) => {
+  const row = found.workItems.get(id);
+  if (row === undefined) throw new Error(`${id} lost its schedule`);
+  return row;
+};
+
+describe('shapes — a dependency waits on the anchor slice', () => {
+  it('waits for the first role, not the last', () => {
+    // `B` needs `A`'s Dev, never its QA: the anchor — `A`'s first slice in
+    // role order — finishes on day 3, and `A`'s QA runs 3→5 alongside `B`.
+    const found = roledPlan([item('A'), item('B')], [edge('A', 'B')], {
+      A: [3, 2],
+      B: [1, 1],
+    });
+
+    expect(projectionOf(found, 'B').earliestStart).toBe(3);
+    expect(found.slices.get(sliceKey('A', QA))).toMatchObject({
+      earliestStart: 3,
+      earliestFinish: 5,
+    });
+  });
+
+  it('an unestimated first role does not escape the wait', () => {
+    // Green under the last-slice rule too — kept as the guard that the
+    // successor side did not move (design.md D2): the edge lands on `B`'s
+    // first slice plain, never its first *estimated* one, so the row waits
+    // even though nobody has put a number on its Dev.
+    const found = roledPlan([item('A'), item('B')], [edge('A', 'B')], {
+      A: [3, null],
+      B: [null, 2],
+    });
+
+    expect(found.slices.get(sliceKey('B', DEV))).toMatchObject({
+      earliestStart: 3,
+      earliestFinish: 3,
+    });
+    expect(found.slices.get(sliceKey('B', QA))).toMatchObject({
+      earliestStart: 3,
+      earliestFinish: 5,
+    });
+    expect(projectionOf(found, 'B').earliestStart).toBe(3);
+  });
+
+  it('a zero-length anchor clears immediately', () => {
+    // `A`'s first role carries no estimate, so its anchor is zero days long
+    // and the dependency imposes only `A`'s own predecessors' wait — here,
+    // none (design.md D1). `B` starts day 0 while `A`'s QA runs 0→4.
+    const found = roledPlan([item('A'), item('B')], [edge('A', 'B')], {
+      A: [null, 4],
+      B: [2, null],
+    });
+
+    expect(projectionOf(found, 'B').earliestStart).toBe(0);
+    expect(found.slices.get(sliceKey('A', QA))).toMatchObject({
+      earliestStart: 0,
+      earliestFinish: 4,
+    });
+  });
+
+  it('a branch releases at its anchors', () => {
+    // `Q` waits for all of `P`'s first-role work: `P1`'s anchor ends day 2,
+    // `P2`'s day 4, and the latest of them releases `Q` on day 4 while `P`'s
+    // own projection runs to day 5 (design.md D3).
+    const found = roledPlan(
+      [item('P'), item('P1', 'P'), item('P2', 'P'), item('Q')],
+      [edge('P', 'Q')],
+      { P1: [2, 3], P2: [4, 1], Q: [1, null] },
+    );
+
+    expect(projectionOf(found, 'Q').earliestStart).toBe(4);
+    expect(projectionOf(found, 'P')).toMatchObject({ earliestStart: 0, earliestFinish: 5 });
   });
 });
 

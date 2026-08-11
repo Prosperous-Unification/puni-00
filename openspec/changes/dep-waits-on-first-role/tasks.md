@@ -15,7 +15,7 @@ Only `- [ ]` checkboxes are tracked by the apply phase.
 
 ## 1. The engine joins the anchor, and the docs stop saying "whole"
 
-- [ ] 1.1 `schedule-shapes.test.ts`: the four spec scenarios as tests, watched
+- [x] 1.1 `schedule-shapes.test.ts`: the four spec scenarios as tests, watched
       failing under the last-slice rule first — `waits for the first role, not
 the last` (A: 3d Dev + 2d QA, B→A: B starts day 3, A's QA 3→5, watched
       failing on `expected 5 to be 3`), `an unestimated first role does not
@@ -25,7 +25,7 @@ immediately` (B starts day 0), `a branch releases at its anchors`
       (P1 2d+3d, P2 4d+1d, Q→P: Q starts day 4, P's projection reaches 5).
       Then the join in `schedule.ts` flips from `endsOf(predecessorId).last`
       to `.first`, and all four are watched green.
-- [ ] 1.2 The words follow the code, same slice as the flip: the `schedule()`
+- [x] 1.2 The words follow the code, same slice as the flip: the `schedule()`
       JSDoc contract paragraph ("the whole of 010 before 020" → the anchor
       rule, including the parent expansion reading), the edge-join comment at
       the adjacency loop, and the anchoring corollary ("only the last has an
@@ -34,7 +34,7 @@ immediately` (B starts day 0), `a branch releases at its anchors`
       `repository/schema.ts`'s dependency-table JSDoc gets the same reword.
       `CONTEXT.md`: **Dependency** reworded, **Anchor slice** added (terms
       only, per config — as they resolve, not batched).
-- [ ] 1.3 Negative proof for the rule itself: with the join reverted to
+- [x] 1.3 Negative proof for the rule itself: with the join reverted to
       `.last`, `waits for the first role, not the last` and `a branch releases
 at its anchors` watched failing on their pinned starts; restored with
       `Proof:` comments naming the revert.
