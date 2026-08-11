@@ -406,6 +406,30 @@ export class LiveField {
     // failed on `expected [ 'patch', 'create' ] to deeply equal [ 'patch' ]`
     // — a row created against a request nobody had heard back from.
     if (this.sent?.typed === text && this.sent.baseline === this.shown) return this.sent.landing;
+    // The refusal this submission supersedes, dropped **synchronously** and
+    // before anything is sent. Typing over a refused draft and being refused
+    // again is one gesture with a window in the middle of it: the commit
+    // raises the toast that says why, React flushes that discrete update
+    // inside this blur — before any microtask — and {@link takeNode} runs
+    // against the ref callback the render rebuilt, finds the *previous*
+    // draft still held, and writes it into a box holding the newer one. The
+    // second refusal then lands a round trip later and records the right
+    // text under a box already showing the wrong one, where `sync` cannot
+    // correct it because rule 4 is holding.
+    //
+    // Observed live on dev, 2026-08-11: `urgent` typed over a refused
+    // `1e999` blurred back to `1e999`. Proof: this line removed, `shows the
+    // draft just refused, not the one refused before it` failed on
+    // `expected '1e999' to be 'urgent'`. Watched, 2026-08-11.
+    //
+    // What this deliberately does not do is put `text` here in its place.
+    // The map is the copy that survives the face, and a draft still in the
+    // air is not yet a refusal: holding it would have a remount restore it
+    // with {@link refused} raised over an edit that then lands, freezing the
+    // cell against the next peer edit. The window it leaves — a remount
+    // between this line and the answer — loses the draft rather than
+    // restoring a stale one, which is the trade this change chose.
+    heldRefusals.delete(this.cellKey);
     // No `sync()` afterwards: `shown` is deliberately left holding the old
     // value until the refetch this commit triggers comes back. Advancing it
     // here would be recording a write that has not happened yet, and a failed

@@ -1816,6 +1816,15 @@ describe('the priority cell', () => {
     fireEvent.blur(cell);
   };
 
+  /** This row's priority cell as the refusal map keys it — `rowId::priority`. */
+  const priorityCellKey = (number: string): string => {
+    const key = priorityCell(number).dataset['cell'];
+    // The box is a `CellInput`, which requires a `cellKey` and renders it as
+    // `data-cell`. A cell without one is a bug in the wiring, not a state.
+    if (key === undefined) throw new Error(`The priority cell of ${number} carries no data-cell.`);
+    return key;
+  };
+
   itDom('is blank on every row of a plan nobody has given priorities', async () => {
     // No placeholder and no em-dash. A priority is a scale, and a hint on every
     // empty cell of every row is a wall of grey saying nothing — Dany's
@@ -1924,6 +1933,97 @@ describe('the priority cell', () => {
       expect(onTheWire).toEqual([]);
     },
   );
+
+  itDom('sends what was typed on Enter, without waiting for the cell to be left', async () => {
+    // Enter is the keystroke a number goes in with, and until this it sent
+    // nothing at all: the dates under the plan sat still until the reader
+    // happened to click elsewhere. Observed live on dev, Group D, 2026-08-11.
+    const api = await twoRows();
+    const patched = watchPatches(api);
+
+    const cell = priorityCell('010');
+    cell.focus();
+    fireEvent.change(cell, { target: { value: '1' } });
+    fireEvent.keyDown(cell, { key: 'Enter' });
+
+    await waitFor(() => {
+      expect(patched).toEqual([{ priority: 1 }]);
+    });
+    // The caret stays where it is. Moving on is the chord's — Ctrl/⌘ + Enter
+    // saves and lands in the next row — and a bare Enter that also moved would
+    // be a second chord wearing the first one's key.
+    expect(document.activeElement).toBe(priorityCell('010'));
+  });
+
+  itDom('sends one request for a priority entered with Enter and then left', async () => {
+    // Rule 5 of `LiveField`: `shown` has not advanced while the request is out,
+    // so the blur that follows an Enter looks exactly like a fresh edit unless
+    // the submission already recorded is what answers it. Two patches here
+    // would be two journal entries and two Ctrl/⌘ + Zs for one typed number.
+    const api = await twoRows();
+    const patched = watchPatches(api);
+
+    const cell = priorityCell('010');
+    cell.focus();
+    fireEvent.change(cell, { target: { value: '4' } });
+    fireEvent.keyDown(cell, { key: 'Enter' });
+    fireEvent.blur(cell);
+
+    await waitFor(() => {
+      expect(priorityCell('010').value).toBe('4');
+    });
+    expect(patched).toEqual([{ priority: 4 }]);
+  });
+
+  itDom('leaves Ctrl/⌘ + Enter to the chord, which saves and moves on', async () => {
+    // The modifier guard on the bare-Enter branch, and the negative that says
+    // it can fail: without it the branch consumes the chord, so a save that
+    // was supposed to land in the next row leaves the caret in Prio.
+    // Proof: the four modifier tests dropped from that branch, this failed on
+    // `expected <input aria-label="Priority for 010" …> to be <textarea
+    // aria-label="Name of 020" …>`. Watched, 2026-08-11.
+    const api = await twoRows();
+    const patched = watchPatches(api);
+
+    const cell = priorityCell('010');
+    cell.focus();
+    fireEvent.change(cell, { target: { value: '2' } });
+    fireEvent.keyDown(cell, { key: 'Enter', code: 'Enter', metaKey: true });
+
+    await waitFor(() => {
+      expect(document.activeElement).toBe(screen.getByLabelText('Name of 020'));
+    });
+    expect(patched).toEqual([{ priority: 2 }]);
+  });
+
+  itDom('shows the draft just refused, not the one refused before it', async () => {
+    // A refusal is held so the only copy of what somebody typed is not lost
+    // (`LiveField`, rule 4) — and what has to be held is the *newest* of them.
+    // Typing over a refused draft and being refused again put the previous
+    // draft back on screen: the number on the row was one nobody had typed for
+    // several seconds. Observed live on dev, Group D, 2026-08-11.
+    await twoRows();
+
+    typeIntoPriority('010', '1e999');
+    await waitFor(() => {
+      expect(screen.getByText(/A priority is a whole number from 1 upward\./)).toBeDefined();
+    });
+    expect(priorityCell('010').value).toBe('1e999');
+
+    typeIntoPriority('010', 'urgent');
+
+    await waitFor(() => {
+      expect(refusedDraftFor(priorityCellKey('010'))).toBe('urgent');
+    });
+    expect(priorityCell('010').value).toBe('urgent');
+
+    // Emptying the box is how a draft is abandoned rather than retried, and it
+    // is what keeps this test's refusal out of the next one's map.
+    typeIntoPriority('010', '');
+    await waitFor(() => {
+      expect(refusedDraftFor(priorityCellKey('010'))).toBeUndefined();
+    });
+  });
 });
 
 describe('the earliest-start cell', () => {

@@ -90,6 +90,18 @@ export const KEY_BINDINGS: readonly KeyBinding[] = [
     renderers: EITHER_RENDERER,
   },
   {
+    keys: 'Enter in Prio',
+    does: 'Saves the number and stays on the row, so the dates move while you are still looking at it. Ctrl/⌘ + Enter is the save that also moves on.',
+    where: 'Editing',
+    // Its own entry rather than a sentence inside the one above, and the
+    // reason is that one's `renderers`: Enter-in-the-name is answered by both
+    // faces, and the cards renderer has no Prio cell at all. A sentence about
+    // Prio in an `EITHER_RENDERER` entry is the fault this field exists to
+    // prevent — a sheet promising a key that does nothing on the renderer
+    // reading it, which is how ⌘+Enter came to be promised on a phone.
+    renderers: TABLE_ONLY,
+  },
+  {
     keys: 'Ctrl/⌘ + Enter',
     does: 'Saves what is in this cell and moves to the next row’s name — or, on the last row of the plan, makes a new work item there and lands in it. A save the server refuses leaves the caret where it is and makes nothing.',
     where: 'Editing',
