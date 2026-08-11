@@ -582,8 +582,13 @@
    * is the strip's `gap` in `wbs-table.tsx`, not a margin here: a chip's own
    * bottom margin would make the strip's one rested line taller than a
    * chipless row's, and equal row heights are the point of `deps-single-line`.
+   *
+   * `:not([data-dep-add])` because the add affordance beside them is a button
+   * in the same cell and means the opposite thing: a chip's hover goes
+   * `--destructive`, which is the ✕ saying what the click will do, and an
+   * "add" that turned red under the pointer would be promising a removal.
    */
-  [data-grid] td[data-column='depends'] button {
+  [data-grid] td[data-column='depends'] button:not([data-dep-add]) {
     border: 1px solid var(--border);
     border-radius: var(--radius-sm);
     background: color-mix(in oklab, var(--muted) 70%, var(--background));
@@ -593,9 +598,36 @@
     cursor: pointer;
   }
 
-  [data-grid] td[data-column='depends'] button:hover {
+  [data-grid] td[data-column='depends'] button:not([data-dep-add]):hover {
     border-color: var(--destructive);
     color: var(--destructive);
+  }
+
+  /*
+   * The add affordance. Always on screen — that is the whole of what it is for
+   * (Dany, 2026-08-11), so nothing here fades it in on a row hover the way the
+   * ⋯ button is faded: an affordance nobody sees marks nothing, which is the
+   * note the notes marker already carries.
+   *
+   * Quiet all the same: no border and no fill, so a column of them reads as a
+   * margin rather than as a column of controls, and the row's ink stays on the
+   * chips. `line-height: 1.5` and `padding: 0 4px` are the chip's own, to the
+   * pixel — the chips set the strip's line box, and an affordance taller than
+   * one would make every deps row taller than every other row in the table.
+   */
+  [data-grid] td[data-column='depends'] button[data-dep-add] {
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: none;
+    color: var(--muted-foreground);
+    padding: 0 4px;
+    line-height: 1.5;
+    cursor: pointer;
+  }
+
+  [data-grid] td[data-column='depends'] button[data-dep-add]:hover {
+    background: var(--accent);
+    color: var(--foreground);
   }
 
   /* The derived figures. Tabular, so a column of them lines up on the decimal

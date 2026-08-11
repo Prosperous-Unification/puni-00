@@ -4681,6 +4681,101 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                     : {}),
                 }}
               >
+                {/*
+                  The add affordance, first on the strip's line and always on
+                  it. Adding a dependency has only ever been discoverable by
+                  knowing that the cell's box is a box — a rested cell full of
+                  chips shows `010 ✕ 030 ✕` and nothing that says another one
+                  can be added (Dany, 2026-08-11). This is that affordance, and
+                  it triggers exactly the flow a click in the cell already
+                  triggers: the box takes the focus, and the box's own
+                  `onFocus` opens the picker ready to type.
+
+                  **First, not last.** The strip clips its right edge and fades
+                  the last {@link DEP_EDGE_FADE} pixels of it; a trailing
+                  affordance in a cell waiting on seven rows would be clipped
+                  out of sight in exactly the crowded cell that needs it most,
+                  and the box's `width: 100%` claim would have pushed it there
+                  on an empty one too. The leading edge is the one place on a
+                  clipping `nowrap` line that is never cut. Proven in Chromium
+                  — `keeps the add button visible in a cell whose chips are
+                  clipped`, `e2e/deps-cell.spec.ts` — because whether a box is
+                  clipped is a layout fact and jsdom lays nothing out (R5
+                  #14–16).
+
+                  Sized as a chip and no larger: the row rests at 28px and the
+                  chips are what set that line's height, so an affordance built
+                  to their `line-height` costs the row nothing. `flexShrink: 0`
+                  because a squeezed cell must clip chips rather than crush
+                  this.
+                */}
+                <button
+                  type="button"
+                  data-dep-add={row.original.id}
+                  // Not `Add a dependency to 020` — that is the box's own
+                  // label, and two controls in one cell answering to one name
+                  // is a reader told the same thing twice with no way to tell
+                  // which is which. The chips' voice instead: they say `Stop
+                  // 020 waiting for 030`, so this says what it starts.
+                  aria-label={`Make ${row.original.number} wait for something`}
+                  title="Add a dependency"
+                  // Deliberately not a tab stop, at rest and with the picker
+                  // open alike — where the chips flip (`deps-single-line`).
+                  // The keyboard already has this exact path and reaches it
+                  // first: Tab into the cell lands on the box, and the box's
+                  // focus is what opens the picker. A stop here would add one
+                  // Tab per row to every walk through the plan and offer
+                  // nothing at the end of it that the next Tab does not
+                  // already do. It stays a `<button>` with a name, so a
+                  // reader's element walk still finds it; what it does not do
+                  // is stand in the sequential order.
+                  tabIndex={-1}
+                  onMouseDown={(pressed) => {
+                    // The press must not move the focus. Without this the
+                    // button takes it, and a button taking the focus from this
+                    // cell's *own* box is a blur — which closes the picker and
+                    // drops what was typed into it (the box's `onBlur`, this
+                    // cell's contract since it was written). Somebody who
+                    // types `03` and then reaches for the affordance beside it
+                    // would lose the search to the control that means "search".
+                    // The precedent is the Name cell's notes marker, which
+                    // forwards its press to the box under it the same way.
+                    //
+                    // The click below still fires — `preventDefault` on
+                    // `mousedown` suppresses the focus, not the click (R5 #14's
+                    // lesson, read the other way round). And the action lives
+                    // there rather than here for two reasons: a `mousedown`
+                    // that re-renders before the browser performs its default
+                    // action is R5 #12's fault class, and an assistive
+                    // technology's activation dispatches a click with no
+                    // `mousedown` at all.
+                    pressed.preventDefault();
+                  }}
+                  onClick={(pressed) => {
+                    // The box is this button's sibling on the strip — the same
+                    // reach the notes marker makes, scoped by the row's own id
+                    // so a stale query can never focus another row's cell.
+                    pressed.currentTarget.parentElement
+                      ?.querySelector<HTMLInputElement>(`[data-depends-input="${row.original.id}"]`)
+                      ?.focus();
+                  }}
+                  // WATCHED RED, this head only: `order: 1` moves the paint
+                  // order and leaves the DOM order every jsdom assertion here
+                  // is about, so `keeps the add button visible in a cell whose
+                  // chips are clipped` is Chromium's to fail alone. Removed on
+                  // the next head.
+                  onMouseUp={(released) => {
+                    // WATCHED RED, this head only: the press moving the focus
+                    // after all. No jsdom test dispatches a `mouseup`, so
+                    // `keeps a half-typed search when the add button is
+                    // pressed` is Chromium's to fail alone. Removed on the
+                    // next head.
+                    released.currentTarget.focus();
+                  }}
+                  style={{ flexShrink: 0, order: 1 }}
+                >
+                  +
+                </button>
                 {waitingFor.map(({ id, number }) => (
                   <button
                     key={id}

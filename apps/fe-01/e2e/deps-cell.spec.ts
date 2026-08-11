@@ -67,8 +67,13 @@ test.describe('the deps cell rests on one line', () => {
       };
       const strip = rowOf('020').querySelector('[data-depends-strip]');
       if (!(strip instanceof HTMLElement)) throw new Error('020 has no depends strip');
+      // The chips by their own name, not every button in the cell: since
+      // `dep-add-button` the strip also carries the add affordance, and a bare
+      // `button` query would count it as an eighth chip.
       const chips = [
-        ...rowOf('020').querySelectorAll<HTMLElement>('td[data-column="depends"] button'),
+        ...rowOf('020').querySelectorAll<HTMLElement>(
+          'td[data-column="depends"] button[aria-label^="Stop "]',
+        ),
       ];
       return {
         chipBoxes: chips.map((chip) => {
@@ -165,5 +170,112 @@ test.describe('the deps cell rests on one line', () => {
       probed.last.answersToTheChip,
       'a clipped chip still answered a hit test at its centre',
     ).toBe(false);
+  });
+});
+
+/**
+ * `dep-add-button`, measured by a browser.
+ *
+ * jsdom watches the button arrive at the head of the strip, focus the box on a
+ * click, and cancel its own press (`wbs-table.test.tsx`). What it cannot watch
+ * is any of the three reasons the button is shaped the way it is: whether the
+ * head of a clipping line really escapes the clip, whether a real click really
+ * lands the caret in the box, and whether a real press really leaves a
+ * half-typed search alone — the last two being the exact fault class of R5
+ * #12/#14/#15, where a green jsdom suite sat over a default action only a
+ * browser performs.
+ */
+test.describe('the deps cell offers an always-visible add button', () => {
+  test('keeps the add button visible in a cell whose chips are clipped', async ({ page }) => {
+    const probed = await page.evaluate(() => {
+      const at = (label: string): HTMLElement => {
+        const found = document.querySelector(`[aria-label="${label}"]`);
+        if (!(found instanceof HTMLElement)) throw new Error(`not on screen: ${label}`);
+        return found;
+      };
+      const probe = (label: string) => {
+        const node = at(label);
+        const box = node.getBoundingClientRect();
+        const hit = document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2);
+        return {
+          width: box.width,
+          height: box.height,
+          answersToItself: hit !== null && node.contains(hit),
+          answered: hit === null ? '(nothing)' : `<${hit.tagName.toLowerCase()}>`,
+        };
+      };
+      const strip = at('Stop 020 waiting for 030').closest('[data-depends-strip]');
+      if (!(strip instanceof HTMLElement)) throw new Error('no depends strip on the page');
+      return {
+        // The clip is engaged: more strip content than strip. Without this the
+        // whole test would be about an uncrowded cell, where nothing is at risk
+        // and the button's placement decides nothing (R5 #16).
+        stripScrollWidth: strip.scrollWidth,
+        stripClientWidth: strip.clientWidth,
+        add: probe('Make 020 wait for something'),
+        chip: probe('Stop 020 waiting for 030'),
+        lastChip: probe('Stop 020 waiting for 090'),
+      };
+    });
+
+    expect(
+      probed.stripScrollWidth,
+      'nothing is clipped, so this test is about an uncrowded cell',
+    ).toBeGreaterThan(probed.stripClientWidth);
+    // And the clip really does hide what it overruns — the fact the button's
+    // placement is chosen against, re-established here so the claim below is
+    // read against a cell that is genuinely cutting things off.
+    expect(
+      probed.lastChip.answersToItself,
+      'the last chip is not clipped, so this fixture stopped overrunning',
+    ).toBe(false);
+
+    // The claim: the affordance is laid out with real area and answers a hit
+    // test at its own centre, in the crowded cell that clipped the chip above.
+    expect(probed.add.width).toBeGreaterThan(0);
+    expect(probed.add.height).toBeGreaterThan(0);
+    expect(
+      probed.add.answersToItself,
+      `the add button's own centre answers ${probed.add.answered}`,
+    ).toBe(true);
+
+    // And it costs the strip's line nothing: no taller than the chips, which
+    // are what set that line's height and so the row's. Sub-pixel tolerance,
+    // rect edges being fractional.
+    expect(probed.chip.height).toBeGreaterThan(0);
+    expect(
+      probed.add.height,
+      `the add button is ${String(probed.add.height)}px where a chip is ${String(probed.chip.height)}px`,
+    ).toBeLessThanOrEqual(probed.chip.height + 1);
+  });
+
+  test('opens the picker from the add button, with the caret in the box', async ({ page }) => {
+    // 010 waits for nothing in this fixture and so has rows left to be offered
+    // — 020 already waits for seven of the nine, and a cell with nothing to
+    // offer opens no list at all (the same trap `layout.spec.ts` records).
+    await page.getByRole('button', { name: 'Make 010 wait for something' }).click();
+
+    await expect(page.getByRole('listbox')).toBeVisible();
+    // The caret is where somebody can type, which is the whole point of the
+    // affordance: it is not a second path to the picker, it is the first path
+    // to the box.
+    await expect(page.getByLabel('Add a dependency to 010')).toBeFocused();
+  });
+
+  test('keeps a half-typed search when the add button is pressed', async ({ page }) => {
+    // The press must not move the focus. Without the `preventDefault` on it the
+    // button takes the focus, the box blurs, and this cell's blur closes the
+    // picker and drops what was typed into it — a control that means "search"
+    // eating the search. jsdom can only see the cancel; this sees the effect.
+    const box = page.getByLabel('Add a dependency to 010');
+    await box.click();
+    await box.fill('03');
+    await expect(page.getByRole('listbox')).toBeVisible();
+
+    await page.getByRole('button', { name: 'Make 010 wait for something' }).click();
+
+    await expect(box).toHaveValue('03');
+    await expect(box).toBeFocused();
+    await expect(page.getByRole('listbox')).toBeVisible();
   });
 });
