@@ -145,12 +145,18 @@ function rosterSeenBy(client: { received: unknown[] }): string[] {
  * lets the assertions say what is in it.
  *
  * `settle`'s fixed 60ms is not a fact about the network: a roster arrives one
- * broadcast after the `subscribe` that caused it, and under `bun test
- * --coverage` that round trip overran 60ms in about three runs in ten —
- * `expect(rosterSeenBy(linus)).toEqual(['ada', 'linus'])` receiving `['linus']`,
- * the frame from its own subscribe and not yet the one from the broadcast.
- * Bounded, then thrown rather than passed (AGENTS.md, R5): a roster that never
- * arrives is a failure, and it says which socket was still waiting.
+ * broadcast after the `subscribe` that caused it, and waiting a set number of
+ * milliseconds for it is a guess. Bounded, then thrown rather than passed
+ * (AGENTS.md, R5): a roster that never arrives is a failure, and it says which
+ * socket was still waiting.
+ *
+ * The wait was read as the whole story once, and it was not: these tests still
+ * failed at 19 runs in 45 with three suites running at once, because the
+ * `subscribe` was being dropped rather than delayed — no wait of any length
+ * would have caught up with it. See `presence-race.integration.test.ts` and
+ * `WsConnection.joined` in `app.ts` for what it was. A deadline of 3s against a
+ * broadcast that follows in single-digit milliseconds is generous on purpose:
+ * what it is here to catch is the frame that never comes.
  *
  * @throws When a roster of that size has not arrived within the deadline.
  */

@@ -10,7 +10,20 @@ export interface JwtClaims {
   [k: string]: unknown;
 }
 
-export class JwtVerifier {
+/**
+ * Turns a token into the claims it carries, or throws.
+ *
+ * Named separately from {@link JwtVerifier} so a caller can be handed one that
+ * resolves when the caller chooses — which is the only way to test what gw-01's
+ * `/ws` handlers do while a verification is still in flight.
+ *
+ * @throws When the token does not verify.
+ */
+export interface TokenVerifier {
+  verify(token: string): Promise<JwtClaims>;
+}
+
+export class JwtVerifier implements TokenVerifier {
   constructor(private readonly opts: JwtVerifierOptions) {}
 
   async verify(token: string): Promise<JwtClaims> {
