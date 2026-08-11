@@ -187,6 +187,15 @@ export interface WorkItem {
   frozenNumber: string | null;
   /** A day this item may not start before — a floor, never a pin. */
   startNoEarlierThan: IsoDate | null;
+  /**
+   * How important this work is — an integer of 1 or more, smaller being more
+   * important — or null for "nobody has said".
+   *
+   * An ordering of the leveller's queue, never a constraint on the calendar. See
+   * `schedule.ts`'s `goesFirst` for what it decides and `schema.ts` for why
+   * null is a state of its own.
+   */
+  priority: number | null;
   /** The service or team this work is labelled with, or null. */
   serviceTeamId: string | null;
   /**
@@ -202,6 +211,15 @@ export interface WorkItemPatch {
   notes?: string;
   /** `null` removes the constraint and lets the dependencies alone decide. */
   startNoEarlierThan?: IsoDate | null;
+  /**
+   * An integer of 1 or more, or `null` to leave this work with no priority.
+   *
+   * Validated at the controller, which is the only place a value that is not a
+   * whole number of at least 1 can enter: the column is an integer and the
+   * leveller reads it as a priority, so a 0 or a 1.5 would order the queue by a
+   * number nobody could have meant.
+   */
+  priority?: number | null;
   /** `null` takes the label off. Never constrains who may be assigned the work. */
   serviceTeamId?: string | null;
 }

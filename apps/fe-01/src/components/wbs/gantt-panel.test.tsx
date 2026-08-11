@@ -53,6 +53,7 @@ const rowAt = (
   leaf: true,
   schedule: { earliestStart, earliestFinish },
   notBeforeOffset: null,
+  priority: null,
   // The three facts a row is enriched with before the chart is drawn. Absent
   // by default and named by the tests that are about them, so a fixture never
   // has to state a team it is not asking about.
@@ -700,6 +701,31 @@ describe('the chart is drawn in calendar days', () => {
     // one, and its width says the two are not the same fact.
     expect(barFor('trim-dev')?.getAttribute('width')).toBe('2');
     expect(document.querySelector('[data-gantt-tick="trim-dev"]')).toBeNull();
+  });
+
+  itDom('says the priority where the work item carries one, and nothing where it does not', () => {
+    // Two rows, one with a priority and one without, in one render — so the assertion is
+    // that the line appears *and* that its absence is the other row's whole
+    // answer, rather than two tests that could each be right about a different
+    // build.
+    render(
+      <GanttPanel
+        plan={planOf({
+          rows: [rowAt('strip', 0, 3, { priority: 2 }), rowAt('sand', 0, 2)],
+          slices: [sliceAt('strip-dev', 'strip', 0, 3), sliceAt('sand-dev', 'sand', 0, 2)],
+        })}
+        startDate={null}
+        scheduleError={null}
+        generation={0}
+        heightPx={null}
+        onPickRow={() => undefined}
+      />,
+    );
+
+    expect(linesOf(surfaceOn('strip-dev'))).toContain('Priority 2');
+    // Not "Priority —" and not a blank line: having no priority is a state of its own,
+    // and a bar with nothing to say about it says nothing.
+    expect(linesOf(surfaceOn('sand-dev')).filter((line) => line.includes('Priority'))).toEqual([]);
   });
 
   itDom('says everything it knows in a surface, in the order the spec sets', () => {
@@ -1804,6 +1830,7 @@ function rowOf(parts: {
     name: parts.name,
     notes: '',
     frozenNumber: null,
+    priority: null,
     rolledUp: parts.rolledUp ?? false,
     estimates: parts.rolledUp === true ? {} : { [DEV.id]: NO_DAYS },
     dependsOn: [],

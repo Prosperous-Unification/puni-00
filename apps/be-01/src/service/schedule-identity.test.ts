@@ -186,6 +186,7 @@ function generatePlan(seed: number, roleCount: number): GeneratedPlan {
     name: id,
     notes: '',
     frozenNumber: null,
+    priority: null,
     startNoEarlierThan: null,
     serviceTeamId: null,
     revision: 0,

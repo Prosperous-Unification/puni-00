@@ -23,6 +23,9 @@ const REVISIONS = '20260807090000_add_revisions';
 const JOURNAL = '20260807180000_add_command_journal';
 // A column on `role`, so like the revisions it appears in the order and nowhere else here.
 const ROLE_POSITION = '20260809090000_add_role_position';
+// A column on `work_item`, the same shape again: it appears in the order, and
+// in the two cases of its own at the bottom of this file.
+const PRIORITY = '20260811100000_add_priority';
 
 const WBS_TABLES = ['project', 'work_item', 'role', 'estimate'] as const;
 // Its own migration, reversed with the domain because it references `work_item`.
@@ -74,6 +77,7 @@ describe('the WBS domain migration', () => {
       const reversed = rollbackTo(db.path, FOLDER, USERS);
 
       expect(reversed).toEqual([
+        PRIORITY,
         ROLE_POSITION,
         JOURNAL,
         REVISIONS,
@@ -179,6 +183,92 @@ describe('the role position migration', () => {
         expect(written?.position).toBe(0);
       } finally {
         sqlite.close();
+      }
+    } finally {
+      db.cleanup();
+    }
+  });
+});
+
+describe('the priority migration', () => {
+  it('lets the outgoing release keep inserting work items against the migrated schema', () => {
+    // The blue/green half, the same shape the role position migration has:
+    // green migrates while blue is still serving and blue's `INSERT` names the
+    // columns it was compiled against. Written out rather than built through
+    // drizzle, because drizzle is the new release and the point is what the old
+    // one sends.
+    const db = tempDb();
+    try {
+      runMigrations(db.path, FOLDER);
+      const sqlite = openDatabase(db.path);
+      try {
+        sqlite.run(
+          "INSERT INTO users (id, username, password_hash, created_at) VALUES ('u', 'owner', 'x', 1)",
+        );
+        sqlite.run(
+          'INSERT INTO project (id, name, owner_id, restricted, estimate_method, start_date, revision, created_at)' +
+            " VALUES ('p', 'Rewire the shed', 'u', 0, 'pert', NULL, 0, 1)",
+        );
+
+        sqlite.run(
+          'INSERT INTO work_item (id, project_id, parent_id, position, name, notes, revision)' +
+            " VALUES ('w1', 'p', NULL, 10, 'Strip', '', 0)",
+        );
+
+        const written = sqlite
+          .query<{ priority: number | null }, []>("SELECT priority FROM work_item WHERE id = 'w1'")
+          .get();
+        expect(written?.priority).toBeNull();
+      } finally {
+        sqlite.close();
+      }
+    } finally {
+      db.cleanup();
+    }
+  });
+
+  it('leaves work items that existed before the column with no priority', () => {
+    // The other half of "nullable, no default", and the half a `DEFAULT 1`
+    // would break silently: every plan on the live server was written before
+    // this column existed, and a work item with no priority is placed *after*
+    // every work item that has one. A default would make every row of every plan
+    // the most important work in it and reorder the queues of every plan that
+    // has people on it.
+    //
+    // Reached the way the role backfill case is: roll back to the migration
+    // before this one, write a work item the way the previous release wrote
+    // one, and migrate forward again.
+    const db = tempDb();
+    try {
+      runMigrations(db.path, FOLDER);
+      rollbackTo(db.path, FOLDER, ROLE_POSITION);
+      const before = openDatabase(db.path);
+      try {
+        before.run(
+          "INSERT INTO users (id, username, password_hash, created_at) VALUES ('u', 'owner', 'x', 1)",
+        );
+        before.run(
+          'INSERT INTO project (id, name, owner_id, restricted, estimate_method, start_date, revision, created_at)' +
+            " VALUES ('p', 'Rewire the shed', 'u', 0, 'pert', NULL, 0, 1)",
+        );
+        before.run(
+          'INSERT INTO work_item (id, project_id, parent_id, position, name, notes, revision)' +
+            " VALUES ('w1', 'p', NULL, 10, 'Strip', '', 0)",
+        );
+      } finally {
+        before.close();
+      }
+
+      runMigrations(db.path, FOLDER);
+
+      const after = openDatabase(db.path);
+      try {
+        const row = after
+          .query<{ priority: number | null }, []>('SELECT priority FROM work_item')
+          .get();
+        expect(row?.priority).toBeNull();
+      } finally {
+        after.close();
       }
     } finally {
       db.cleanup();

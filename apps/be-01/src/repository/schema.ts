@@ -181,6 +181,22 @@ export const workItem = sqliteTable(
      */
     startNoEarlierThan: text('start_no_earlier_than'),
     /**
+     * How important this work is, or null for "nobody has said" — an integer of
+     * 1 or more, smaller being more important.
+     *
+     * An **ordering**, never a constraint. It decides which of two work items
+     * competing for the same person is placed first, and it decides nothing at
+     * all in a plan where nothing competes: it cannot move a work item in front
+     * of its own dependencies, its floor or its earlier roles. See `goesFirst`
+     * in `service/schedule.ts` for where it is asked.
+     *
+     * Nullable with no default, because null is a real state here and not a
+     * missing 1: a plan where nobody has set a priority is scheduled exactly as
+     * it was before this column existed, and a work item with no priority is placed
+     * after every work item that has one rather than among them.
+     */
+    priority: integer('priority'),
+    /**
      * The service or team this work belongs to, or null. A label on the work,
      * not a constraint on who may be assigned it.
      */

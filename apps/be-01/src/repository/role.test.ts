@@ -55,6 +55,7 @@ const newItem = (id: string, position: number, name: string): WorkItem => ({
   name,
   notes: '',
   frozenNumber: null,
+  priority: null,
   startNoEarlierThan: null,
   serviceTeamId: null,
   revision: 0,

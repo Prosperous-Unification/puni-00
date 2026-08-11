@@ -95,6 +95,7 @@ async function fill(parentId: string, count: number): Promise<void> {
         name: `Back box ${String(i)}`,
         notes: '',
         frozenNumber: null,
+        priority: null,
         startNoEarlierThan: null,
         serviceTeamId: null,
         revision: 0,
@@ -445,6 +446,66 @@ describe('the plan waits for the people in it', () => {
       earliestFinish: 5,
     });
     expect(tree?.waitingForPerson).toBe(1);
+  });
+
+  it('starts the work somebody said matters most, end to end', async () => {
+    // The whole path: a PATCH writes the priority, `tree` reads the rows, the
+    // engine priorities its queue by them and the dates come back the other way
+    // round. Without the priority `first` reads first and takes `ada`.
+    const first = await add('Strip');
+    const second = await add('Sand');
+    await service.setEstimate(first, OWNER, roleId, flat(3));
+    await service.setEstimate(second, OWNER, roleId, flat(2));
+    await directory.assign(first, roleId, 'ada');
+    await directory.assign(second, roleId, 'ada');
+
+    const before = await service.tree(projectId);
+    expect(before?.workItems.find((w) => w.id === first)?.schedule.earliestStart).toBe(0);
+
+    await service.patch(second, OWNER, { priority: 1 });
+    const after = await service.tree(projectId);
+
+    expect(after?.workItems.find((w) => w.id === second)?.schedule).toMatchObject({
+      earliestStart: 0,
+      earliestFinish: 2,
+    });
+    expect(after?.workItems.find((w) => w.id === first)?.schedule).toMatchObject({
+      earliestStart: 2,
+      earliestFinish: 5,
+    });
+    // The priority is on the row that comes back, so the table has something to
+    // render without a second read.
+    expect(after?.workItems.find((w) => w.id === second)?.priority).toBe(1);
+  });
+
+  it('reaches every leaf beneath a parent somebody gave a priority', async () => {
+    // The mirror of the parent floor: a priority written on a phase means its work
+    // is what matters, and the leaves beneath it are the only things a queue
+    // can be made of.
+    const phase = await add('Phase');
+    const inside = await add('Wire', phase);
+    const other = await add('Sand');
+    await service.setEstimate(inside, OWNER, roleId, flat(3));
+    await service.setEstimate(other, OWNER, roleId, flat(2));
+    await directory.assign(inside, roleId, 'ada');
+    await directory.assign(other, roleId, 'ada');
+
+    // `Phase` reads first, so `Wire` already takes `ada` — a priority on `other`
+    // is what makes the second half of this say anything at all.
+    await service.patch(other, OWNER, { priority: 2 });
+    const after = await service.tree(projectId);
+    expect(after?.workItems.find((w) => w.id === other)?.schedule.earliestStart).toBe(0);
+
+    // And now the phase outranks it — 1 against 2 — through its leaf, which is
+    // the only thing in the queue.
+    await service.patch(phase, OWNER, { priority: 1 });
+    const ranked = await service.tree(projectId);
+
+    expect(ranked?.workItems.find((w) => w.id === inside)?.schedule).toMatchObject({
+      earliestStart: 0,
+      earliestFinish: 3,
+    });
+    expect(ranked?.workItems.find((w) => w.id === other)?.schedule.earliestStart).toBe(3);
   });
 
   it('leaves them where they were when the two are different people', async () => {

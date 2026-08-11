@@ -31,6 +31,7 @@ const JOURNAL = '20260807180000_add_command_journal';
 // A column on `role`, so like the revisions it appears in the order and in
 // nothing else this file checks.
 const ROLE_POSITION = '20260809090000_add_role_position';
+const PRIORITY = '20260811100000_add_priority';
 
 function tempDb(): { path: string; cleanup: () => void } {
   const dir = mkdtempSync(join(tmpdir(), 'wbs-migrate-down-'));
@@ -112,6 +113,7 @@ describe('readMigrationFolders', () => {
       REVISIONS,
       JOURNAL,
       ROLE_POSITION,
+      PRIORITY,
     ]);
     for (const f of folders) expect(f.downSql.trim()).not.toBe('');
   });
@@ -147,11 +149,13 @@ describe('rollbackTo, against a real database', () => {
         REVISIONS,
         JOURNAL,
         ROLE_POSITION,
+        PRIORITY,
       ]);
 
       const reversed = rollbackTo(db.path, FOLDER, INIT);
 
       expect(reversed).toEqual([
+        PRIORITY,
         ROLE_POSITION,
         JOURNAL,
         REVISIONS,
@@ -196,6 +200,7 @@ describe('rollbackTo, against a real database', () => {
         REVISIONS,
         JOURNAL,
         ROLE_POSITION,
+        PRIORITY,
       ]);
     } finally {
       db.cleanup();
@@ -209,6 +214,7 @@ describe('rollbackTo, against a real database', () => {
       const reversed = rollbackTo(db.path, FOLDER, ROLLBACK_ALL);
 
       expect(reversed).toEqual([
+        PRIORITY,
         ROLE_POSITION,
         JOURNAL,
         REVISIONS,
@@ -243,7 +249,7 @@ describe('rollbackTo, against a real database', () => {
     const db = tempDb();
     try {
       runMigrations(db.path, FOLDER);
-      expect(rollbackTo(db.path, FOLDER, ROLE_POSITION)).toEqual([]);
+      expect(rollbackTo(db.path, FOLDER, PRIORITY)).toEqual([]);
       expect(tables(db.path)).toContain('users');
     } finally {
       db.cleanup();

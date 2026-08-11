@@ -168,6 +168,13 @@ Placing every slice so that nobody is doing two at once. Always on, and invisibl
 plan with nobody assigned — which is what every plan was until it arrived.
 _Avoid_: smoothing, balancing, allocation, capacity planning
 
+**Priority**:
+How important one work item's work is, as an integer from 1 upward, smaller being more
+important — or absent, which is a state of its own and not a large number. Decides which
+of two slices competing for one person is placed first; never overrides a dependency, a
+floor or a calendar.
+_Avoid_: priority, importance, urgency, severity, weight
+
 **Eligible slice**:
 One whose predecessors have all been placed — its dependencies and its work item's
 earlier roles. The set of them is what the schedule takes its next slice from, highest

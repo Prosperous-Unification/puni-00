@@ -500,6 +500,12 @@ function fieldsOf(patch: WorkItemPatch): (keyof WorkItemPatch)[] {
   if (patch.name !== undefined) named.push('name');
   if (patch.notes !== undefined) named.push('notes');
   if (patch.startNoEarlierThan !== undefined) named.push('startNoEarlierThan');
+  // Proof: this line and the matching one in {@link revertTo} each deleted in
+  // turn, and both `puts a replaced priority back, and leaves a priority a rename
+  // did not name` and `takes a first priority away again, rather than leaving a
+  // 1 behind` failed — the undo restored nothing and the work item kept the
+  // priority the undone patch had written; watched 2026-08-11.
+  if (patch.priority !== undefined) named.push('priority');
   if (patch.serviceTeamId !== undefined) named.push('serviceTeamId');
   return named;
 }
@@ -517,6 +523,7 @@ function revertTo(before: WorkItem, patch: WorkItemPatch): WorkItemPatch {
   if (patch.name !== undefined) out.name = before.name;
   if (patch.notes !== undefined) out.notes = before.notes;
   if (patch.startNoEarlierThan !== undefined) out.startNoEarlierThan = before.startNoEarlierThan;
+  if (patch.priority !== undefined) out.priority = before.priority;
   if (patch.serviceTeamId !== undefined) out.serviceTeamId = before.serviceTeamId;
   return out;
 }
@@ -820,6 +827,7 @@ export class WorkItemService {
       notes: input.notes ?? '',
       frozenNumber: null,
       startNoEarlierThan: null,
+      priority: null,
       serviceTeamId: null,
       // A row that has never been changed since it came into existence. The
       // estimate handoff below is a real second write and leaves a first child

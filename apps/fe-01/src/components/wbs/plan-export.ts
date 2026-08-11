@@ -33,6 +33,8 @@ export interface ExportRow {
   /** By id — resolved to work item numbers here, because an id is not readable. */
   dependsOn: readonly string[];
   startNoEarlierThan: string | null;
+  /** The priority somebody gave this work — 1 upward, smaller first — or null. */
+  priority: number | null;
   dates: { startsOn: string; endsOn: string } | null;
   schedule: { earliestStart: number; earliestFinish: number; float: number; critical: boolean };
   assignees: Record<string, string | undefined>;
@@ -286,6 +288,10 @@ function columnsOf(plan: PlanExport, markSums: boolean): ExportColumn[] {
           })
           .join(', '),
     },
+    // Beside the other thing a planner writes down about when work happens.
+    // Blank for a work item nobody has given a priority, exactly as the column is: a
+    // spreadsheet reader sorting on this wants an empty cell, not a 0.
+    { header: 'Priority', cell: (row) => (row.priority === null ? '' : String(row.priority)) },
     { header: 'Not before', cell: (row) => row.startNoEarlierThan ?? '' },
     { header: 'Starts', cell: (row) => startsCell(plan, row) },
     { header: 'Ends', cell: (row) => endsCell(plan, row) },

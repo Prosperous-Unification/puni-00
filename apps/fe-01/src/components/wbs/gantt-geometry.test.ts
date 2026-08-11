@@ -31,6 +31,7 @@ const rowAt = (
   leaf: true,
   schedule: { earliestStart, earliestFinish },
   notBeforeOffset: null,
+  priority: null,
   // The three facts a row is enriched with before the chart is drawn. Absent
   // by default and named by the tests that are about them, so a fixture never
   // has to state a team it is not asking about.

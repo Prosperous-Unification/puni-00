@@ -231,6 +231,7 @@ describe('the columns', () => {
       'QA by',
       'Total days (PERT)',
       'Depends on',
+      'Priority',
       'Not before',
       'Starts',
       'Ends',
@@ -311,8 +312,8 @@ describe('the columns', () => {
         schedule: { earliestStart: 0, earliestFinish: 3, float: 2.5, critical: false },
       }),
     ];
-    expect(csvDataRow(planToCsv(plan({ rows })))[18]).toBe('critical');
-    expect(csvDataRow(planToCsv(plan({ rows })), 1)[18]).toBe('2.5');
+    expect(csvDataRow(planToCsv(plan({ rows })))[19]).toBe('critical');
+    expect(csvDataRow(planToCsv(plan({ rows })), 1)[19]).toBe('2.5');
   });
 });
 
@@ -410,15 +411,15 @@ describe('hostile text', () => {
   it('round-trips every field through a reader that knows only RFC 4180', () => {
     const records = parseCsv(planToCsv(plan({ rows: nasty })));
     expect(csvDataRow(planToCsv(plan({ rows: nasty })), 0)[1]).toBe('a,b');
-    expect(csvDataRow(planToCsv(plan({ rows: nasty })), 0)[19]).toBe('say "hi"');
+    expect(csvDataRow(planToCsv(plan({ rows: nasty })), 0)[20]).toBe('say "hi"');
     expect(csvDataRow(planToCsv(plan({ rows: nasty })), 1)[1]).toBe('multi\r\nline\nname');
-    expect(csvDataRow(planToCsv(plan({ rows: nasty })), 1)[19]).toBe(
+    expect(csvDataRow(planToCsv(plan({ rows: nasty })), 1)[20]).toBe(
       'first line\nsecond, line\nthird "line"',
     );
     // Every record has the same width — a field that broke out of its quotes
     // would show up here as a short or a long one.
     const widths = new Set(records.slice(-4).map((record) => record.length));
-    expect([...widths]).toEqual([20]);
+    expect([...widths]).toEqual([21]);
   });
 
   it('separates records with CRLF, per RFC 4180', () => {
@@ -432,9 +433,9 @@ describe('hostile text', () => {
   it('prefixes a field a spreadsheet would run as a formula', () => {
     const csv = planToCsv(plan({ rows: nasty }));
     expect(csvDataRow(csv, 2)[1]).toBe("'=SUM(A1)");
-    expect(csvDataRow(csv, 2)[19]).toBe("'@echo");
+    expect(csvDataRow(csv, 2)[20]).toBe("'@echo");
     expect(csvDataRow(csv, 3)[1]).toBe("'+1 (555) 0100");
-    expect(csvDataRow(csv, 3)[19]).toBe("'-3 days");
+    expect(csvDataRow(csv, 3)[20]).toBe("'-3 days");
   });
 
   it('guards the header block too — a project name is a field like any other', () => {

@@ -371,6 +371,21 @@ interface SpanAnchor {
 
 /** What a slice's turn is decided by, in the order the decision is made. */
 interface SlicePriority {
+  /**
+   * What somebody said this work is worth, smaller first — or `Infinity` where
+   * nobody has said anything.
+   *
+   * The only one of these four a person writes, and therefore the first asked:
+   * a planner who priorities two work items is overruling the engine's own guess at
+   * which of them matters, and a rule that asked the guess first would make the
+   * priority decide only the cases the guess could not.
+   *
+   * `Infinity` rather than a large number or a null: it is the value that makes
+   * "no priority goes last" arithmetic rather than a special case, and it is what
+   * makes a plan that priorities nothing schedule byte for byte as it did before
+   * this field existed — every slice ties here and the three below decide alone.
+   */
+  priority: number;
   /** Where the critical path puts it, with nobody's calendar in the way. */
   start: number;
   /** How much it could slip there without moving the project. */
@@ -578,6 +593,52 @@ function placeSlices(
   // 2026-08-09.
   if (order.length !== nodes.length) throw new ScheduleCycleError();
   return { order, placed, resourceSuccessors };
+}
+
+/**
+ * Every leaf's priority, taken from the nearest row above it that carries one.
+ *
+ * A priority written on a parent reaches every leaf beneath it, exactly as a
+ * dependency and a floor do — and it resolves by the **most specific**
+ * statement, which is deliberately not the floor rule. A floor takes the latest
+ * of everything that applies because a floor is a hard constraint and the
+ * strictest of them must hold; a priority is somebody's statement of what
+ * matters, and the one written closest to the work is the one that meant that
+ * work. So a leaf's own beats its parent's in **both** directions, and the
+ * nearer of two ancestors beats the further.
+ *
+ * Leaves with nobody's priority above them are simply absent, which is what
+ * `goesFirst` reads as `Infinity`.
+ *
+ * The upward walk terminates because {@link indexTree} has already walked the
+ * same tree downward: a loop among the parents is a loop among the children,
+ * and that walk would not have returned.
+ *
+ * Proof: written as the floor rule — the smallest priority of the leaf and
+ * every ancestor — and two tests in `schedule-priority.test.ts` failed: `lets a
+ * leaf's own priority beat its parent's, in both directions` on the leaf carrying
+ * 5 under a parent carrying 1 taking the person at day 0 from the standalone 2,
+ * and `gives the nearer ancestor's priority to a leaf between two` on the same
+ * inversion; watched 2026-08-11.
+ */
+function priorityByLeaf(rows: readonly WorkItem[], index: TreeIndex): Map<string, number> {
+  const parentOf = new Map(rows.map((row) => [row.id, row.parentId]));
+  const ownPriority = new Map(rows.map((row) => [row.id, row.priority]));
+  const found = new Map<string, number>();
+  for (const leafId of index.leafIds) {
+    for (
+      let cursor: string | null | undefined = leafId;
+      cursor !== null && cursor !== undefined;
+    ) {
+      const own = ownPriority.get(cursor);
+      if (own !== undefined && own !== null) {
+        found.set(leafId, own);
+        break;
+      }
+      cursor = parentOf.get(cursor);
+    }
+  }
+  return found;
 }
 
 /** One slice's late times: the last it may finish, and the last it may start. */
@@ -886,7 +947,11 @@ export function schedule(
   );
 
   const numbers = deriveNumbers(rows);
+  const leafPriorities = priorityByLeaf(rows, index);
   const priorityOf: SlicePriority[] = nodes.map((node, at) => ({
+    // Both slices of one work item carry its priority, which is what keeps a priority a
+    // fact about the work rather than about one of its phases.
+    priority: leafPriorities.get(node.slice.workItemId) ?? Infinity,
     start: unleveled.placed[at].start,
     float: criticalPath[at].latestStart - unleveled.placed[at].start,
     // `deriveNumbers` covers every row or throws, so the fallback is
@@ -897,24 +962,37 @@ export function schedule(
     at: node.at,
   }));
   /**
-   * The priority rule, in full: what the critical path needs first, then what
-   * has least room to move, then the plan's own order.
+   * The priority rule, in full: what somebody said matters most, then what the
+   * critical path needs first, then what has least room to move, then the
+   * plan's own order.
    *
    * The last two are what make it deterministic rather than merely correct.
    * Two slices that tie on time are separated by their work item's number and
    * then by their place in the role order, so the same plan cannot schedule two
-   * ways — and no pair can tie on all four, since two slices of one work item
+   * ways — and no pair can tie on all five, since two slices of one work item
    * differ in the last.
+   *
+   * **This rule decides an order, never a date.** Whichever slice is taken
+   * first is still placed at the latest of its own floors, so a priority cannot
+   * put a work item in front of its dependencies, its floor or its earlier
+   * roles — it decides who goes first where the schedule has a choice, which is
+   * exactly the case where two slices are both eligible and want one person.
    *
    * Proof: the first two comparisons deleted, so that the plan's own order
    * decided, and two tests failed — `gives the queue to the slice that can
    * start soonest, before the one with less slack` put `kat` on a slice she
    * could not begin for three days and pushed the other out to 5→7, finishing
    * the project two days later than it needs to; watched 2026-08-09.
+   *
+   * Proof: the priority comparison deleted and three tests in
+   * `schedule-priority.test.ts` failed — `starts the smaller priority first
+   * when two work items want one person` on the work item with the smaller priority coming back at
+   * 2→5 behind the one it outranks; watched 2026-08-11.
    */
   const goesFirst = (left: number, right: number): boolean => {
     const first = priorityOf[left];
     const second = priorityOf[right];
+    if (first.priority !== second.priority) return first.priority < second.priority;
     if (first.start !== second.start) return first.start < second.start;
     if (first.float !== second.float) return first.float < second.float;
     if (first.number !== second.number) return first.number < second.number;

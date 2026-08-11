@@ -223,6 +223,7 @@ describe('DELETE /api/projects/:id/roles/:roleId', () => {
     name: 'Strip',
     notes: '',
     frozenNumber: null,
+    priority: null,
     startNoEarlierThan: null,
     serviceTeamId: null,
     revision: 0,
