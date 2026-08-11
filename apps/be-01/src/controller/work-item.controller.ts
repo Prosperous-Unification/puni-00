@@ -84,10 +84,41 @@ function asOptionalDate(value: unknown, field: string): IsoDate | null | undefin
   return value;
 }
 
+/**
+ * A priority of 1 or more, `null` to leave the work with no priority, or absent to leave it
+ * as it is.
+ *
+ * Validated here rather than trusted, for the reason the date above it is: this
+ * is the only gate in front of the column. A 0, a negative or a fraction stores
+ * a order the leveller will honour and nobody could have meant — the queue comes
+ * out in an order with no explanation on screen, which is worse than a refusal.
+ * `Number.isSafeInteger` covers the fraction, the `NaN`, the infinity and the
+ * value beyond what an integer column can hold, in one question; `typeof` is
+ * asked first because `true` and `'2'` are not numbers and JSON lets them
+ * through.
+ *
+ * No ceiling. "From 1 to infinity" was the ask, and how large a planner's own
+ * scale runs is not this API's to decide.
+ */
+function asOptionalPriority(value: unknown, field: string): number | null | undefined {
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+  // Proof: this throw deleted, so the value is taken as it arrives, and
+  // `refuses a priority that is not a whole number of 1 or more` failed —
+  // `0`, `-1`, `1.5`, `'2'`, `true` and `1e20` were each answered 200 and
+  // stored, and the work item came back carrying `1e20` where its own 3 was
+  // owed; watched 2026-08-11.
+  if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 1) {
+    throw new BadRequest(`${field}_must_be_a_whole_number_from_1`);
+  }
+  return value;
+}
+
 function parsePatch(body: unknown): {
   name?: string;
   notes?: string;
   startNoEarlierThan?: IsoDate | null;
+  priority?: number | null;
   serviceTeamId?: string | null;
 } {
   const raw = asRecord(body);
@@ -96,6 +127,7 @@ function parsePatch(body: unknown): {
     name: asOptionalText(raw['name'], 'name'),
     notes: asOptionalText(raw['notes'], 'notes'),
     startNoEarlierThan: asOptionalDate(raw['startNoEarlierThan'], 'startNoEarlierThan'),
+    priority: asOptionalPriority(raw['priority'], 'priority'),
     serviceTeamId:
       'serviceTeamId' in raw ? asIdOrNull(raw['serviceTeamId'], 'serviceTeamId') : undefined,
   };

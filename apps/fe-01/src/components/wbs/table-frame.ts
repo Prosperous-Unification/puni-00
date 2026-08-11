@@ -179,6 +179,12 @@ const COLUMN_WIDTHS = new Map<string, number>([
   // 20px lock, five characters of number and the cell's 8px of padding.
   ['number', 93],
   ['depends', 110],
+  // A priority, and priorities are short: 48px holds four digits and the 8px of padding
+  // the declared width includes, which is a scale running past a thousand. The
+  // header is `Prio` for the same reason `Not bef.` is abbreviated — a
+  // 10px all-caps `PRIORITY` wraps to two lines in this column and makes the
+  // whole header row two lines tall.
+  ['priority', 48],
   ['team', 120],
   ['final-total', 52],
   // Both date columns at one width; see {@link DAY_ENVELOPE} for what that
@@ -960,7 +966,7 @@ export function tableWidthStyle(layout: FrameLayout): CSSProperties {
   return {
     // Proof of the jsdom half: this arm stubbed to a flat '100%', `lays a
     // remembered Name width on the table itself, and leaves its <col> silent`
-    // (wbs-table.test.tsx) failed on `expected '100%' to be '1547px'`.
+    // (wbs-table.test.tsx) failed on `expected '100%' to be '1595px'`.
     // Watched, 2026-08-10. The browser half is the JSDoc above.
     width: flexibleOverridden ? `${String(layout.minWidth)}px` : '100%',
     minWidth: layout.minWidth,

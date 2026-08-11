@@ -43,6 +43,7 @@ const RENDERED = [
   'number',
   'name',
   'depends',
+  'priority',
   'team',
   'final-total',
   'not-before',
@@ -74,9 +75,9 @@ describe('the resolved frame layout', () => {
     // Name declares nothing: it is the column that takes what the others leave.
     expect(layout.columns.find((column) => column.id === 'name')?.width).toBeUndefined();
     expect(layout.columns.find((column) => column.id === 'number')?.width).toBe(93);
-    // 807px of fixed columns with a dated `not-before`, plus Name's 200px
+    // 855px of fixed columns with a dated `not-before`, plus Name's 200px
     // floor, plus a folded column for each of two phases.
-    expect(layout.minWidth).toBe(807 + FLEXIBLE_FLOOR + 2 * 96);
+    expect(layout.minWidth).toBe(855 + FLEXIBLE_FLOOR + 2 * 96);
   });
 
   it('holds every pinned column at the sum of the widths the same call declared', () => {
@@ -236,6 +237,7 @@ describe('the resolved frame layout', () => {
       drag: 24,
       number: 93,
       depends: 110,
+      priority: 48,
       team: 120,
       'final-total': 52,
       'not-before': 84,
@@ -303,9 +305,16 @@ describe('the width equation the table is laid out by', () => {
     // scrolls its frame at 1280 now, which is the backstop the pinned columns
     // exist for. One role unfolded has never fitted, which is why unfolding is
     // an accordion.
-    expect(frameLayout([...RENDERED, 'r1-final', 'r2-final'], DATED).minWidth).toBe(1199);
+    //
+    // Each figure is 48px larger since `priority-column`: the two-phase plan
+    // needs 1247 where it needed 1199, which is one pixel inside that same
+    // 1248 — the margin `column-rebalance` left is now spent, and a single row
+    // setting an earliest start is what a two-phase plan has left before it
+    // scrolls. A plan with no dates on it is 28px narrower again and sits
+    // comfortably inside. 48px is the narrowest a four-digit priority fits in.
+    expect(frameLayout([...RENDERED, 'r1-final', 'r2-final'], DATED).minWidth).toBe(1247);
     expect(frameLayout([...RENDERED, 'r1-final', 'r2-final', 'r3-final'], DATED).minWidth).toBe(
-      1295,
+      1343,
     );
     expect(
       frameLayout(
@@ -320,7 +329,7 @@ describe('the width equation the table is laid out by', () => {
         ],
         DATED,
       ).minWidth,
-    ).toBe(1475);
+    ).toBe(1523);
   });
 
   it('makes the declared width include the cell chrome, and clips what overruns', () => {
@@ -510,14 +519,14 @@ describe('how wide the phases make the table', () => {
     // The sentence the Phases dialog prints, and the phases' own ids rather
     // than a count: every width resolves per column id now, so a figure summed
     // from invented ids would answer about columns that do not exist.
-    expect(foldedTableMinWidth(['role-dev', 'role-qa'], DATED)).toBe(1199);
+    expect(foldedTableMinWidth(['role-dev', 'role-qa'], DATED)).toBe(1247);
     expect(
       foldedTableMinWidth(['role-dev', 'role-qa', 'role-ops'], DATED) -
         foldedTableMinWidth(['role-dev', 'role-qa'], DATED),
     ).toBe(widthFor('anything-final', DATED));
     // And it answers the narrow state too, which is the fact a count could
     // never carry into it.
-    expect(foldedTableMinWidth(['role-dev', 'role-qa'], UNDATED)).toBe(1199 - (84 - 56));
+    expect(foldedTableMinWidth(['role-dev', 'role-qa'], UNDATED)).toBe(1247 - (84 - 56));
   });
 
   it('is the fixed columns plus Name plus the phases, with nothing left out', () => {
@@ -537,7 +546,7 @@ describe('how wide the phases make the table', () => {
   it('has no phases to be wide for at all, and still declares a table', () => {
     // A project may hold none — `R1`'s spec says the seeded pair is data rather
     // than a limit — and the dialog still has a number to print.
-    expect(foldedTableMinWidth([], DATED)).toBe(1007);
+    expect(foldedTableMinWidth([], DATED)).toBe(1055);
   });
 });
 

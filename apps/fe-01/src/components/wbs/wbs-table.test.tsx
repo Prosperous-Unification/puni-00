@@ -360,6 +360,7 @@ function fakeApi(): ProjectApi & {
         name: input.name ?? '',
         notes: '',
         frozenNumber: null,
+        priority: null,
         startNoEarlierThan: null,
         serviceTeamId: null,
         assignees: {},
@@ -426,6 +427,7 @@ function fakeApi(): ProjectApi & {
         parentId: index === 0 ? row.parentId : copyId(row.parentId ?? row.id),
         name: index === 0 ? `${row.name} (copy)` : row.name,
         frozenNumber: null,
+        priority: null,
         estimates: { ...row.estimates },
       }));
       const inside = new Set(subtree.map((r) => r.id));
@@ -1780,6 +1782,150 @@ describe('the plan on a calendar', () => {
   });
 });
 
+describe('the priority cell', () => {
+  /** Two empty root rows, and the api the table is driving. */
+  async function twoRows() {
+    const api = fakeApi();
+    render(<WbsTable projectId="p1" api={api} />);
+    click('Add work item');
+    await screen.findByLabelText('Name of 010');
+    click('Add work item');
+    await screen.findByLabelText('Name of 020');
+    return api;
+  }
+
+  /** Every PATCH the table sends, still performed. */
+  const watchPatches = (api: ProjectApi): unknown[] => {
+    const seen: unknown[] = [];
+    const perform = api.patch.bind(api);
+    api.patch = (id: string, patch: Record<string, unknown>) => {
+      seen.push(patch);
+      return perform(id, patch);
+    };
+    return seen;
+  };
+
+  const priorityCell = (number: string): HTMLInputElement =>
+    screen.getByLabelText<HTMLInputElement>(`Priority for ${number}`);
+
+  /** Types into the cell and leaves it, which is when a `CellInput` commits. */
+  const typeIntoPriority = (number: string, text: string): void => {
+    const cell = priorityCell(number);
+    fireEvent.focus(cell);
+    fireEvent.change(cell, { target: { value: text } });
+    fireEvent.blur(cell);
+  };
+
+  itDom('is blank on every row of a plan nobody has given priorities', async () => {
+    // No placeholder and no em-dash. A priority is a scale, and a hint on every
+    // empty cell of every row is a wall of grey saying nothing — Dany's
+    // compaction, 2026-08-08.
+    await twoRows();
+
+    for (const number of ['010', '020']) {
+      expect(priorityCell(number).value).toBe('');
+      expect(priorityCell(number).placeholder).toBe('');
+    }
+  });
+
+  itDom('sends what was typed and shows what came back', async () => {
+    const api = await twoRows();
+    const patched = watchPatches(api);
+
+    typeIntoPriority('010', '2');
+
+    await waitFor(() => {
+      expect(patched).toEqual([{ priority: 2 }]);
+    });
+    await waitFor(() => {
+      expect(priorityCell('010').value).toBe('2');
+    });
+  });
+
+  itDom('clears the priority when the cell is emptied, rather than sending a zero', async () => {
+    // `Number('')` is 0, and 0 is a priority be-01 refuses. An emptied box is the
+    // one reading this client makes on its own.
+    const api = await twoRows();
+    const patched = watchPatches(api);
+
+    typeIntoPriority('010', '3');
+    await waitFor(() => {
+      expect(patched).toEqual([{ priority: 3 }]);
+    });
+
+    typeIntoPriority('010', '');
+
+    await waitFor(() => {
+      expect(patched).toEqual([{ priority: 3 }, { priority: null }]);
+    });
+  });
+
+  itDom('sends a number be-01 will refuse rather than deciding for it', async () => {
+    // `0`, `-1` and `1.5` go out and come back refused, exactly as a bad name
+    // does. The rule about what a priority may be is be-01's, and a second copy of
+    // it here is a rule that can quietly disagree with the one that counts.
+    const api = await twoRows();
+    const patched = watchPatches(api);
+
+    typeIntoPriority('010', '0');
+    await waitFor(() => {
+      expect(patched).toEqual([{ priority: 0 }]);
+    });
+
+    typeIntoPriority('020', '1.5');
+    await waitFor(() => {
+      expect(patched).toEqual([{ priority: 0 }, { priority: 1.5 }]);
+    });
+  });
+
+  itDom('says so, and sends nothing, when what was typed is not a number at all', async () => {
+    // The one refusal this client makes alone, and only because it cannot ask:
+    // JSON has no literal for `NaN`, so a request carrying one arrives as
+    // `null` — which is the request that clears a priority. Silently clearing
+    // somebody's priority because they typed a letter is the fault this avoids.
+    const api = await twoRows();
+    const patched = watchPatches(api);
+
+    typeIntoPriority('010', 'urgent');
+
+    await waitFor(() => {
+      expect(screen.getByText(/A priority is a whole number from 1 upward\./)).toBeDefined();
+    });
+    expect(patched).toEqual([]);
+  });
+
+  itDom(
+    'says so, and sends nothing, when what was typed is a number too big to be one',
+    async () => {
+      // `1e999` is the trap the same guard already has to survive on a stored
+      // column width (`rememberedWidthOverrides`, `wbs-table.tsx`): `Number` reads
+      // it as `Infinity`, which is not `NaN` and would pass a `Number.isNaN`
+      // check — and JSON has no literal for `Infinity` either, so the request
+      // arrives at be-01 as `{"priority":null}`, which is the request that
+      // **clears** a priority. Somebody's priority silently wiped by a typo is
+      // the fault this refuses; the guard is `Number.isFinite`, not `isNaN`.
+      //
+      // The patch is recorded as the wire sees it — through `JSON.stringify` —
+      // because `Infinity` in a JS object is not the value that arrives, and a
+      // test watching the object alone cannot see the loss.
+      const api = await twoRows();
+      const onTheWire: unknown[] = [];
+      const perform = api.patch.bind(api);
+      api.patch = (id: string, patch: Record<string, unknown>) => {
+        onTheWire.push(JSON.parse(JSON.stringify(patch)));
+        return perform(id, patch);
+      };
+
+      typeIntoPriority('010', '1e999');
+
+      await waitFor(() => {
+        expect(screen.getByText(/A priority is a whole number from 1 upward\./)).toBeDefined();
+      });
+      expect(onTheWire).toEqual([]);
+    },
+  );
+});
+
 describe('the earliest-start cell', () => {
   /** One empty root row on a plan that is on a calendar, so the cell will open. */
   async function datedPlan() {
@@ -2536,8 +2682,8 @@ describe('role columns fold away', () => {
 
   itDom('unfolds one role at a time, so the table still fits the window', async () => {
     // The accordion, and it is arithmetic rather than taste: a folded role
-    // costs 96px and an unfolded one 372, so two roles folded need 1171px and
-    // fit a 1280 laptop while one of them open needs 1447 and does not.
+    // costs 96px and an unfolded one 372, so two roles folded need 1219px and
+    // sit just past a 1280 laptop while one of them open needs 1495.
     // `table-frame.test.ts` pins those three numbers; this is the behaviour
     // that keeps the table on the second of them.
     // Proof: `toggleRole` put back to `[...current, roleId]`, this failed on
@@ -2551,14 +2697,14 @@ describe('role columns fold away', () => {
     expect(screen.getByLabelText('QA optimistic for 010')).toBeDefined();
     expect(screen.queryByLabelText('Dev optimistic for 010')).toBeNull();
     // And the width the table declares follows, which is the whole reason.
-    expect(screen.getByRole('table').style.minWidth).toBe('1447px');
+    expect(screen.getByRole('table').style.minWidth).toBe('1495px');
 
     // Folding the open one leaves nothing open, rather than putting the other
     // one back.
     fireEvent.click(screen.getByRole('button', { name: 'Fold QA estimates' }));
     expect(screen.queryByLabelText('QA optimistic for 010')).toBeNull();
     expect(screen.queryByLabelText('Dev optimistic for 010')).toBeNull();
-    expect(screen.getByRole('table').style.minWidth).toBe('1171px');
+    expect(screen.getByRole('table').style.minWidth).toBe('1219px');
   });
 
   itDom('says what the fold button does, which is no longer hiding the assignee', async () => {
@@ -4942,7 +5088,7 @@ describe('Tab moves between the fields, from every cell', () => {
 
       // One cell along, not two: the handler moves the focus and takes the key,
       // so the browser adds no move of its own.
-      expect(document.activeElement).toBe(screen.getByLabelText('Service or team for 030'));
+      expect(document.activeElement).toBe(screen.getByLabelText('Priority for 030'));
       expect(screen.queryByRole('listbox')).toBeNull();
       // Typed text is a search, not a value. Leaving discards it, which is what
       // leaving this cell has always done.
@@ -4981,6 +5127,7 @@ describe('Tab moves between the fields, from every cell', () => {
     for (const [from, to] of stepsThrough([
       'Name of 010',
       'Add a dependency to 010',
+      'Priority for 010',
       'Service or team for 010',
       'Dev optimistic for 010',
       'Dev realistic for 010',
@@ -6244,6 +6391,7 @@ describe('dependencies in the table — cross-review findings', () => {
             name: 'Strip',
             notes: '',
             frozenNumber: null,
+            priority: null,
             rolledUp: false,
             estimates: {},
             dependsOn: [],
@@ -6685,6 +6833,7 @@ describe('the chart under a plan being edited', () => {
               name: 'Strip',
               notes: '',
               frozenNumber: null,
+              priority: null,
               rolledUp: false,
               estimates: {},
               dependsOn: [],
@@ -6940,11 +7089,11 @@ describe('the widths the table is laid out by', () => {
     // plan has Dev unfolded and QA folded, so the floor is the 779px of fixed
     // columns — nobody has dated a row, so `not-before` is at its narrow 56 —
     // plus 372 for the open role, 96 for the closed one and Name's 200.
-    // Folded it would be 1171; the difference is why unfolding is an
+    // Folded it would be 1219; the difference is why unfolding is an
     // accordion.
-    expect(table.style.minWidth).toBe('1447px');
+    expect(table.style.minWidth).toBe('1495px');
     fireEvent.click(screen.getByRole('button', { name: 'Fold Dev estimates' }));
-    expect(screen.getByRole('table').style.minWidth).toBe('1171px');
+    expect(screen.getByRole('table').style.minWidth).toBe('1219px');
   });
 
   itDom('carries a row’s whole number in its cell, however much of it is shown', async () => {
@@ -7382,12 +7531,12 @@ describe('the widths this browser has dragged', () => {
       expect(body?.style.width).toBe('');
       expect(body?.style.minWidth).toBe('300px');
       expect(laidOut().name).toBe('');
-      // The table's own width is the declaration: the resolved sum — the 1447
+      // The table's own width is the declaration: the resolved sum — the 1495
       // this plan resolves at rest, less the 200 floor, plus the 300 override
       // — as its width and its minimum alike, so the frame keeps the slack
       // above it and scrolls below it.
-      expect(screen.getByRole('table').style.width).toBe('1547px');
-      expect(screen.getByRole('table').style.minWidth).toBe('1547px');
+      expect(screen.getByRole('table').style.width).toBe('1595px');
+      expect(screen.getByRole('table').style.minWidth).toBe('1595px');
     },
   );
 
@@ -10266,12 +10415,12 @@ describe('a phase changing, and what the table does about it', () => {
     // still in the table's header. Watched, 2026-08-09.
     await oneRow();
     unfoldRole('QA');
-    expect(screen.getByRole('table').style.minWidth).toBe('1447px');
+    expect(screen.getByRole('table').style.minWidth).toBe('1495px');
 
     await removePhase('QA');
 
-    // One phase left, folded: 779px of fixed columns, 200 for Name, 96 for it.
-    expect(screen.getByRole('table').style.minWidth).toBe('1075px');
+    // One phase left, folded: 827px of fixed columns, 200 for Name, 96 for it.
+    expect(screen.getByRole('table').style.minWidth).toBe('1123px');
     expect(screen.queryByLabelText('QA optimistic for 010')).toBeNull();
   });
 

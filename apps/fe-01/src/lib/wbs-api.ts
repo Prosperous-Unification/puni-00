@@ -141,6 +141,16 @@ export interface WorkItemView {
   dates: { startsOn: string; endsOn: string } | null;
   /** A day this item may not start before — a floor the dependencies can push past. */
   startNoEarlierThan: string | null;
+  /**
+   * How important this work is — 1 upward, smaller first — or null where
+   * nobody has said.
+   *
+   * An ordering of be-01's leveller and nothing the client computes with: it
+   * decides which of two work items competing for one person is placed first,
+   * and the dates that come back are already the answer. Rendered as a number
+   * and sent back as one.
+   */
+  priority: number | null;
   /** The team this work is labelled with, or null. Never constrains who is assigned it. */
   serviceTeamId: string | null;
   /**
@@ -537,6 +547,8 @@ export interface ProjectApi {
       name?: string;
       notes?: string;
       startNoEarlierThan?: string | null;
+      /** An integer of 1 or more, or `null` to leave the work with no priority. */
+      priority?: number | null;
       serviceTeamId?: string | null;
     },
   ): Promise<void>;

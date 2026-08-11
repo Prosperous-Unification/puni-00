@@ -27,6 +27,7 @@ function buildPlan(): { rows: WorkItem[]; edges: DependencyEdge[]; slices: Slice
     name: id,
     notes: '',
     frozenNumber: null,
+    priority: null,
     startNoEarlierThan: null,
     serviceTeamId: null,
     revision: 0,

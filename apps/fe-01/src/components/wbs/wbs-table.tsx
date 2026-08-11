@@ -3719,6 +3719,56 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
   );
 
   /**
+   * Sets or clears one work item's priority, from what was typed into its cell.
+   *
+   * An ordering, which be-01 honours in its leveller's queue — never a
+   * date and never a constraint: a work item with a priority still waits for its
+   * dependencies, its floor and its calendar. The bars move because the engine
+   * moved them.
+   *
+   * The parse is deliberately narrow and the refusal is be-01's. Everything
+   * that is not an empty box is sent as a number and answered on: a `0`, a
+   * `-1` or a `1.5` comes back a 400 and the draft stays in the box the way
+   * every other refused edit does, rather than being silently swallowed by a
+   * client-side rule the server does not share. What is decided here is only
+   * the one thing be-01 cannot see — an emptied box is `null`, not `0`, and
+   * `Number('')` is `0`.
+   */
+  const setPriority = useCallback(
+    (id: string, typed: string): Promise<CommitOutcome> => {
+      const trimmed = typed.trim();
+      if (trimmed === '') return run(() => api.patch(id, { priority: null }));
+      // `Number` rather than `parseInt`: `parseInt('1.5')` is 1 and
+      // `parseInt('2x')` is 2, so both would go out as priorities nobody typed.
+      // `Number` answers `NaN` for either.
+      const asNumber = Number(trimmed);
+      // The one refusal this client makes on its own, and only because it
+      // cannot be asked: JSON has no literal for `NaN` **or for `Infinity`**, so
+      // a request carrying either arrives as `null` — which is what clears a
+      // priority. `Number.isFinite` rather than `Number.isNaN` for exactly that
+      // reason: `Number('1e999')` is `Infinity`, is not `NaN`, and would go out
+      // as somebody's priority silently wiped. The same trap, on stored column
+      // widths, is why {@link rememberedWidthOverrides} range-checks.
+      //
+      // Everything that *is* a finite number goes out and is answered on, `0`
+      // and `-1` and `1.5` included: the rule about what a priority may be is
+      // be-01's, and a second copy of it here is a rule that can quietly
+      // disagree.
+      //
+      // Proof: written back as `Number.isNaN`, `says so, and sends nothing,
+      // when what was typed is a number too big to be one` failed on `expected
+      // [ { priority: null } ] to deeply equal []` — the clear request, sent
+      // from a typed `1e999`. Watched, 2026-08-11.
+      if (!Number.isFinite(asNumber)) {
+        pushToast({ kind: 'error', text: 'A priority is a whole number from 1 upward.' });
+        return Promise.resolve<CommitOutcome>('refused');
+      }
+      return run(() => api.patch(id, { priority: asNumber }));
+    },
+    [api, pushToast, run],
+  );
+
+  /**
    * The row whose earliest-start cell is being edited, or none.
    *
    * One id rather than a set, which is the whole of "at most one editor on the
@@ -4133,6 +4183,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     setHoveredCell,
     setFocusedCell,
     setNotBefore,
+    setPriority,
     editingNotBefore,
     openNotBefore,
     closeNotBefore,
@@ -4198,6 +4249,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     setHoveredCell,
     setFocusedCell,
     setNotBefore,
+    setPriority,
     editingNotBefore,
     openNotBefore,
     closeNotBefore,
@@ -5040,6 +5092,59 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                 />
               )}
             </span>
+          );
+        },
+      }),
+      column.display({
+        id: 'priority',
+        // `Prio`, not `Priority` and not `PRIORITY`: the column is 48px and the
+        // header row is 10px all-caps, in which the full word wraps to two
+        // lines and takes the whole header row with it. The sentence moves into
+        // the `title`, which is the bargain Days, Not bef., Start, End and
+        // Slack already make.
+        header: () => (
+          <span title="How important this work is: 1 upward, smaller first. It decides who gets a shared person first — never who skips their dependencies.">
+            Prio
+          </span>
+        ),
+        cell: ({ row }) => {
+          const own = row.original.priority;
+          return (
+            <CellInput
+              aria-label={`Priority for ${row.original.number}`}
+              cellKey={cellKey(row.original.id, 'priority')}
+              data-priority={row.original.id}
+              // Numeric, so a phone offers digits — and `inputMode` rather than
+              // `type="number"`: a number input brings spinners this column has
+              // no room for, and swallows the arrow keys the grid navigates
+              // with.
+              inputMode="numeric"
+              title={
+                own === null
+                  ? 'How important this work is: 1 upward, smaller first. Blank means nobody has said.'
+                  : `Priority ${String(own)}. Smaller is more important; it decides who gets a shared person first.`
+              }
+              style={{
+                width: '100%',
+                boxSizing: 'border-box',
+                font: 'inherit',
+                background: 'transparent',
+                border: 'none',
+                textAlign: 'right',
+              }}
+              onKeyDown={(e) => {
+                live.current.onAltMove(e, row.original, 'priority');
+                live.current.onCommandKey(e, row.original, 'priority');
+                live.current.onTabKey(e, row.original.id, 'priority');
+                live.current.onArrowKey(e, row.original.id, 'priority');
+              }}
+              // Blank at rest for a work item nobody has given a priority — no
+              // placeholder, and no em-dash. A priority is a scale, and a column of
+              // grey hints down every row of a plan nobody has given priorities is a wall of
+              // furniture saying nothing. Dany's compaction, 2026-08-08.
+              value={own === null ? '' : String(own)}
+              commit={(typed) => live.current.setPriority(row.original.id, typed)}
+            />
           );
         },
       }),
@@ -6029,6 +6134,10 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         earliestFinish: row.original.schedule.earliestFinish,
       },
       notBeforeOffset: notBeforeOffsetOf(startDate, row.original.startNoEarlierThan),
+      // Straight off the tree read, like the trio beside it: what a bar says is
+      // a fact about the plan the chart was drawn from, not about a draft
+      // somebody is half-way through typing into the column.
+      priority: row.original.priority,
       team: teamLabelOf(row.original.serviceTeamId),
       // The trio the plan holds for each role on this row, straight off the
       // tree read — the drafts a reader is half-way through typing are not

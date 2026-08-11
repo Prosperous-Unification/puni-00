@@ -392,7 +392,7 @@ describe('how wide the phases make the table', () => {
     // the phone's toolbar sheet too, and the sentence used to describe a table
     // that reader has never seen.
     expect(document.body.textContent).toContain(
-      '2 phases need ≥1171px of width to sit side by side',
+      '2 phases need ≥1219px of width to sit side by side',
     );
     expect(document.body.textContent).toContain('under 768px the plan is drawn as cards instead');
     expect(document.body.textContent).not.toContain('before the table scrolls sideways');
@@ -408,7 +408,7 @@ describe('how wide the phases make the table', () => {
     // `expected '…≥1144px…' to contain '≥1123px'` for the undated plan and on
     // `≥1151px` for the dated one — one number where the table lays out two.
     // Watched, 2026-08-09, when those two figures were the table's; they are
-    // 1171 and 1199 since `column-rebalance`, and the assertions below read
+    // 1219 and 1247 since `priority-column`, and the assertions below read
     // them from the layout rather than repeating them.
     cleanup();
     stubbed({ roles: [DEV, QA], frameState: UNDATED });

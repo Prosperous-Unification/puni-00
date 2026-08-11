@@ -128,6 +128,7 @@ function fakeApi(options: { refusePatch?: boolean; dated?: boolean } = {}): Proj
         name: input.name ?? '',
         notes: '',
         frozenNumber: null,
+        priority: null,
         rolledUp: false,
         estimates: {},
         dependsOn: [],

@@ -36,6 +36,7 @@ const insertItem = async (
     name,
     notes: '',
     frozenNumber: null,
+    priority: null,
     startNoEarlierThan: null,
     serviceTeamId: null,
     revision: 0,

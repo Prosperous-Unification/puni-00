@@ -76,6 +76,7 @@ export class WorkItemRepository implements WorkItemStore {
       patch.name === undefined &&
       patch.notes === undefined &&
       patch.startNoEarlierThan === undefined &&
+      patch.priority === undefined &&
       patch.serviceTeamId === undefined
     ) {
       const found = await this.findById(id);

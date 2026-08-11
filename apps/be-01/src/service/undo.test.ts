@@ -186,6 +186,38 @@ describe('undoing each kind of change', () => {
     expect(after?.notes).toBe('second note');
   });
 
+  it('puts a replaced priority back, and leaves a priority a rename did not name', async () => {
+    const strip = await root('Strip');
+    await workItems.patch(strip, ownerId, { priority: 5 });
+    await workItems.patch(strip, ownerId, { priority: 1 });
+
+    expectDone(await undone());
+    expect((await found(strip))?.priority).toBe(5);
+
+    // And the other direction of the same rule: a rename undone must not carry
+    // a priority somebody else set in between back with it.
+    await workItems.patch(strip, ownerId, { name: 'Strip out' });
+    await workItems.patch(strip, ownerId, { priority: 2 });
+    expectDone(await undone());
+    expect((await found(strip))?.priority).toBe(5);
+    expectDone(await undone());
+    const after = await found(strip);
+    expect(after?.name).toBe('Strip');
+    expect(after?.priority).toBe(5);
+  });
+
+  it('takes a first priority away again, rather than leaving a 1 behind', async () => {
+    // Unranked is a state of its own, so undoing the first priority a work item
+    // ever had has to put `null` back — not the smallest number, which would
+    // be the tool inventing an opinion nobody wrote.
+    const strip = await root('Strip');
+    await workItems.patch(strip, ownerId, { priority: 1 });
+
+    expectDone(await undone());
+
+    expect((await found(strip))?.priority).toBeNull();
+  });
+
   it('puts a replaced estimate back exactly', async () => {
     const strip = await root('Strip');
     await workItems.setEstimate(strip, ownerId, dev(), DAYS);
@@ -598,6 +630,7 @@ describe('an undo refuses when what it touched has moved', () => {
         name: 'Something else entirely',
         notes: '',
         frozenNumber: null,
+        priority: null,
         startNoEarlierThan: null,
         serviceTeamId: null,
         revision: 0,
@@ -693,6 +726,37 @@ describe('redo', () => {
 
     expect(expectDone(await workItems.redo(projectId, ownerId))).toBe('rename “Strip out”');
     expect((await found(strip))?.name).toBe('Strip out');
+  });
+
+  it('re-applies a priority, and a first one that was undone to nothing', async () => {
+    // Undo was watched on both directions of `priority`; redo was not. There is
+    // no priority-specific line in the redo path to delete — `record` journals
+    // the forward patch whole and `walkStack` re-applies it through the same
+    // store — so what this covers is the **round trip**: the command is
+    // persisted and read back before it is re-applied, and this is the only
+    // assertion that a `priority` survives that. The second half is the one
+    // worth having: redoing the *first* priority a work item ever had puts a
+    // number back over a `null`, which is the asymmetric case.
+    //
+    // Proof: `revertTo`'s `priority` line deleted, this failed at its own undo
+    // on `Expected: 5, Received: 1`, alongside the two undo tests above.
+    // Watched, 2026-08-11.
+    const strip = await root('Strip');
+    await workItems.patch(strip, ownerId, { priority: 5 });
+    await workItems.patch(strip, ownerId, { priority: 1 });
+
+    expectDone(await undone());
+    expect((await found(strip))?.priority).toBe(5);
+    expectDone(await workItems.redo(projectId, ownerId));
+    expect((await found(strip))?.priority).toBe(1);
+
+    const fresh = await root('Fresh');
+    await workItems.patch(fresh, ownerId, { priority: 3 });
+
+    expectDone(await undone());
+    expect((await found(fresh))?.priority).toBeNull();
+    expectDone(await workItems.redo(projectId, ownerId));
+    expect((await found(fresh))?.priority).toBe(3);
   });
 
   it('walks back up the stack in the order the undoing happened', async () => {

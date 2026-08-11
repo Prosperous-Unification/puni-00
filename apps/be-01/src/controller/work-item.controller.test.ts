@@ -245,6 +245,76 @@ describe('work item routes', () => {
     });
   });
 
+  it('refuses a priority that is not a whole number of 1 or more', async () => {
+    // The column is an integer and the leveller reads it as a priority, so a 0, a
+    // negative or a fraction is a number nobody could have meant — and a priority
+    // nothing else in the system would ever question. Refused here, where the
+    // request is still one request, rather than found later in a queue order
+    // nobody can explain.
+    const { token, send, projectId } = await setup();
+    const created = await send(`/api/projects/${projectId}/work-items`, token, {
+      method: 'POST',
+      body: JSON.stringify({ parentId: null, afterId: null, name: 'Strip' }),
+    });
+    const { id } = (await created.json()) as { id: string };
+    await send(`/api/work-items/${id}`, token, {
+      method: 'PATCH',
+      body: JSON.stringify({ priority: 3 }),
+    });
+
+    // No `NaN` and no infinity here: JSON has no literal for either, and
+    // `JSON.stringify` sends `null` for both — which is a request to clear the
+    // priority and is accepted. `Number.isSafeInteger` still refuses them for any
+    // caller that is not a request body. `1e20` is the reachable end of the
+    // same question: a number JSON carries and an integer column cannot.
+    for (const bad of [0, -1, 1.5, '2', true, 1e20]) {
+      const res = await send(`/api/work-items/${id}`, token, {
+        method: 'PATCH',
+        body: JSON.stringify({ priority: bad }),
+      });
+      // The value is carried into the assertion so a failure names which of
+      // them got through, rather than reporting `400 !== 200` seven times.
+      expect([res.status, String(bad)]).toEqual([400, String(bad)]);
+    }
+
+    // Nothing was written by any of them: the work item still holds the priority it
+    // had before the refusals.
+    const tree = await send(`/api/projects/${projectId}/work-items`, token);
+    const { workItems } = (await tree.json()) as { workItems: { priority: number | null }[] };
+    expect(workItems[0]?.priority).toBe(3);
+  });
+
+  it('takes a priority and gives it back, and clears it', async () => {
+    const { token, send, projectId } = await setup();
+    const created = await send(`/api/projects/${projectId}/work-items`, token, {
+      method: 'POST',
+      body: JSON.stringify({ parentId: null, afterId: null, name: 'Strip' }),
+    });
+    const { id } = (await created.json()) as { id: string };
+    const set = await send(`/api/work-items/${id}`, token, {
+      method: 'PATCH',
+      body: JSON.stringify({ priority: 42 }),
+    });
+    expect(set.status).toBe(200);
+    expect((await set.json()) as { priority: number }).toMatchObject({ priority: 42 });
+
+    // No ceiling: `1 to infinity` was the ask, and a number a planner picks is
+    // not the system's to bound.
+    const big = await send(`/api/work-items/${id}`, token, {
+      method: 'PATCH',
+      body: JSON.stringify({ priority: 1_000_000 }),
+    });
+    expect((await big.json()) as { priority: number }).toMatchObject({ priority: 1_000_000 });
+
+    const cleared = await send(`/api/work-items/${id}`, token, {
+      method: 'PATCH',
+      body: JSON.stringify({ priority: null }),
+    });
+    expect((await cleared.json()) as { priority: number | null }).toMatchObject({
+      priority: null,
+    });
+  });
+
   it('refuses a client that tries to choose the number', async () => {
     // Numbers are the system's to decide. Accepting one silently would let a
     // client write a label that the next derivation overwrites without warning.

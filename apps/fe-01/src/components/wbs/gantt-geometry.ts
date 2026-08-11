@@ -165,6 +165,15 @@ export interface GanttRow {
   schedule: { earliestStart: number; earliestFinish: number };
   /** The workday its manual start date holds at, or null when it has none. */
   notBeforeOffset: number | null;
+  /**
+   * How important this work is — 1 upward, smaller first — or null where
+   * nobody has said.
+   *
+   * Carried so a bar can say it, and for nothing else: it is be-01's engine
+   * that priorities the queue, and the coordinates on this chart are already the
+   * answer. Nothing here reads it as a position.
+   */
+  priority: number | null;
   /** The service team this work is labelled with, resolved against the directory read. */
   team: ServiceTeamLabel;
   /**
@@ -336,6 +345,8 @@ export interface GanttBar {
   trio: EstimateTrio | null;
   /** What the bar's row waits for, in words — see {@link GanttRow.waitsFor}. */
   waitsFor: readonly string[];
+  /** The priority on the work item this slice is work for — see {@link GanttRow.priority}. */
+  priority: number | null;
 }
 
 /**
@@ -914,6 +925,7 @@ export function layOutGantt(plan: GanttPlan): GanttGeometry {
         // once.
         trio: (slice.roleId === null ? undefined : row.trioByRole.get(slice.roleId)) ?? null,
         waitsFor: row.waitsFor,
+        priority: row.priority,
       };
       bars.push(bar);
       barBySliceId.set(slice.id, bar);

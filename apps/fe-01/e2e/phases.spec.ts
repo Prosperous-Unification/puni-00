@@ -176,7 +176,7 @@ test.describe('the phases surface, in a browser', () => {
     const minWidthBefore = await page.evaluate(
       () => document.querySelector('table')?.style.minWidth ?? '',
     );
-    expect(minWidthBefore).toBe('1171px');
+    expect(minWidthBefore).toBe('1219px');
 
     await page.getByRole('button', { name: 'Phases', exact: true }).click();
     await page.getByLabel('New phase').fill('Design');
@@ -185,19 +185,25 @@ test.describe('the phases surface, in a browser', () => {
 
     // The arithmetic the surface prints, while it is still open to print it.
     await expect(
-      page.getByText('3 phases need ≥1267px of width to sit side by side'),
+      page.getByText('3 phases need ≥1315px of width to sit side by side'),
     ).toBeVisible();
     await page.keyboard.press('Escape');
 
     const threePhases = await columnsOnScreen(page);
     expect(threePhases.filter((id) => id.endsWith('-final'))).toHaveLength(3);
     await expect(page.getByRole('button', { name: 'Unfold Design estimates' })).toBeVisible();
-    // 1171 + one folded phase, and the browser laying it out rather than a
-    // number this repository asserted about itself. Past a 1280 laptop's
-    // 1248px frame since `column-rebalance`: three folded phases scroll now,
-    // which is what the pinned columns are the backstop for.
+    // 1219 + one folded phase, and the browser laying it out rather than a
+    // number this repository asserted about itself. **Three** folded phases are
+    // what scrolls a 1280 laptop's 1248px frame — 1315 against 1248 — and have
+    // done since `column-rebalance`; that is what the pinned columns are the
+    // backstop for. Two do not scroll, in either state: 1219 on this plan,
+    // which sets no earliest start and so keeps `not-before` at its narrow
+    // 56px, and 1247 with that column at its dated 84px — one pixel inside the
+    // frame. `priority-column` added 48px to every one of those figures and
+    // spent the margin `column-rebalance` left; it did not cross it.
+    // `table-frame.test.ts` computes the same three states in the repo gate.
     expect(await page.evaluate(() => document.querySelector('table')?.style.minWidth ?? '')).toBe(
-      '1267px',
+      '1315px',
     );
   });
 

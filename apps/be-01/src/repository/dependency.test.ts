@@ -66,6 +66,7 @@ async function addWorkItem(name: string): Promise<string> {
       name,
       notes: '',
       frozenNumber: null,
+      priority: null,
       startNoEarlierThan: null,
       serviceTeamId: null,
       revision: 0,

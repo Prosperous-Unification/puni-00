@@ -124,6 +124,7 @@ async function replay(extraRoles: readonly string[]) {
       name: row.name,
       notes: row.notes,
       frozenNumber: null,
+      priority: null,
       startNoEarlierThan: row.startNoEarlierThan,
       serviceTeamId: row.serviceTeamId,
       revision: row.revision,

@@ -52,7 +52,7 @@ const SEEDED_PLAN: FrameLayoutState = { hasAnyNotBefore: false };
  * How far the frame is scrolled sideways for the sticky half of the checks.
  *
  * Small, because the table fits now. Since 2026-08-08 it is `width: 100%` with
- * a minimum of about 1171px for a two-role plan, so at any ordinary viewport
+ * a minimum of about 1219px for a two-role plan, so at any ordinary viewport
  * there is nothing to scroll at all — {@link NARROW} is the width these tests
  * run at, and this is inside what it leaves over.
  */
@@ -825,7 +825,7 @@ test.describe('the table, measured by a browser', () => {
     await scrollFrameTo(page, 0);
     const [heading] = await rowBoxes(page, 'thead tr');
     // Or an empty list would satisfy `findOverlap` without a table being laid
-    // out at all. Twelve fixed columns plus a folded column per role.
+    // out at all. Thirteen fixed columns plus a folded column per role.
     expect(heading.length).toBeGreaterThan(12);
     expect(findOverlap(heading)).toBe(undefined);
   });
@@ -841,8 +841,9 @@ test.describe('the table, measured by a browser', () => {
     await scrollFrameTo(page, 0);
     const controls = await controlBoxes(page);
     // Or an empty table would satisfy the assertion below without laying
-    // anything out at all. Six boxes to a row — the name, the dependency box,
-    // the service/team picker, two folded role cells and the date — over the
+    // anything out at all. Seven boxes to a row — the name, the dependency
+    // box, the priority cell, the service/team picker, two folded role cells
+    // and the date — over the
     // two rows this plan seeds. Written as the number it is: it was `> 12`
     // until a browser first ran this, which was one more than a row has held
     // since the Notes column was folded into the Name cell.
@@ -1442,12 +1443,12 @@ test.describe('the table, measured by a browser', () => {
 
   test('fits every laptop width with the roles folded', async ({ page }) => {
     // The state a plan is read in, and the one R6 is actually about: two roles
-    // folded is 779px of fixed columns plus two 96px roles plus Name's 200
-    // floor — 1171px — so both of these have room to spare.
+    // folded is 827px of fixed columns plus two 96px roles plus Name's 200
+    // floor — 1219px — so both of these have room to spare.
     for (const viewport of VIEWPORTS) {
       await page.setViewportSize({ width: viewport.width, height: viewport.height });
       const measured = await measure(page);
-      // Or this is a check about a table that never laid out. Eleven fixed
+      // Or this is a check about a table that never laid out. Twelve fixed
       // columns and one per folded role.
       expect(measured.columns.length).toBeGreaterThan(11);
       expect(
@@ -1480,13 +1481,13 @@ test.describe('the table, measured by a browser', () => {
   test('holds the equation with one role unfolded, and scrolls only where it must', async ({
     page,
   }) => {
-    // The accordion's arithmetic, measured: one role open is 1382px, which
+    // The accordion's arithmetic, measured: one role open is 1430px, which
     // fits 1512 and does not fit 1280. Both answers are asserted — the second
     // is the pinned backstop doing its job, not a failure.
     for (const role of ['Dev', 'QA']) {
       await page.getByRole('button', { name: `Unfold ${role} estimates` }).click();
       await expect(page.getByLabel(`${role} optimistic for 010`)).toBeVisible();
-      // The other role folded itself, which is what keeps this to 1382.
+      // The other role folded itself, which is what keeps this to 1430.
       const other = role === 'Dev' ? 'QA' : 'Dev';
       await expect(page.getByLabel(`${other} optimistic for 010`)).toHaveCount(0);
 
@@ -1656,7 +1657,7 @@ test.describe('the table, measured by a browser', () => {
   test('scrolls the frame below the table’s minimum, with the name still pinned', async ({
     page,
   }) => {
-    // The backstop, at a width no laptop has: the table cannot be 1171px wide
+    // The backstop, at a width no laptop has: the table cannot be 1219px wide
     // in a 900px window, so the frame scrolls and the three identity columns
     // hold the left edge — Name at 117, the sum of the two fixed columns in
     // front of it, while it is scrolling.

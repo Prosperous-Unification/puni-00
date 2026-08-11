@@ -11,6 +11,7 @@ const item = (id: string, parentId: string | null, number: string): WorkItemView
   name: id,
   notes: '',
   frozenNumber: null,
+  priority: null,
   rolledUp: false,
   estimates: {},
 });

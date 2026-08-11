@@ -21,6 +21,7 @@ const ROW: WorkItemView = {
   name: 'Survey the racking',
   notes: '',
   frozenNumber: null,
+  priority: null,
   rolledUp: false,
   revision: 1,
   estimates: {},

@@ -72,6 +72,7 @@ export function inMemoryWorkItems(
           patch.startNoEarlierThan === undefined
             ? existing.startNoEarlierThan
             : patch.startNoEarlierThan,
+        priority: patch.priority === undefined ? existing.priority : patch.priority,
         serviceTeamId:
           patch.serviceTeamId === undefined ? existing.serviceTeamId : patch.serviceTeamId,
       };

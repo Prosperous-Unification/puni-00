@@ -1,0 +1,17 @@
+-- How important a work item is becomes a stored fact.
+--
+-- Nullable with no default, and both halves of that matter. Null is a real
+-- state — "nobody has prioritised this" — and the schedule places an unprioritised work
+-- item after every work item that has one rather than among them, so a `DEFAULT 1` would
+-- silently priority every row of every existing plan as the most important thing in
+-- it. Nullable is also what keeps this additive across a blue/green swap: the
+-- outgoing release's INSERT does not name this column and both colours share
+-- the file.
+--
+-- Proof, both watched 2026-08-11 in `migrate.test.ts`. Written `integer NOT
+-- NULL DEFAULT 1`: the insert still runs, and both `lets the outgoing release
+-- keep inserting work items against the migrated schema` and `leaves work items
+-- that existed before the column unprioritised` failed on `Received: 1` where null
+-- was owed. Written a bare `integer NOT NULL`: the outgoing release's statement
+-- itself failed, `NOT NULL constraint failed: work_item.priority`.
+ALTER TABLE `work_item` ADD `priority` integer;

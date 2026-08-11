@@ -717,6 +717,15 @@ export function barFacts(bar: GanttBar, startDate: IsoDate | null, today: Date):
     bar.estimated ? null : `Not estimated — drawn as ${dayWords(ASSUMED_UNESTIMATED_WORKDAYS)}`,
     trioWords(bar.trio),
     bar.critical ? 'On the critical path — no float' : `Float ${dayWords(bar.float)}`,
+    // Only where somebody set one. Unranked is a state of its own, and a line
+    // reading `Priority —` on every bar of every plan that priorities nothing is
+    // furniture, not a fact — the same bargain the cell in the table makes by
+    // rendering blank at rest.
+    //
+    // Proof: the null check dropped, so the line is always built, and `says
+    // nothing about priority for a work item nobody has given a priority` failed on the
+    // card containing `Priority null`; watched 2026-08-11.
+    bar.priority === null ? null : `Priority ${String(bar.priority)}`,
     bar.floorWords,
     bar.waitsFor.length === 0 ? null : `after ${bar.waitsFor.join(', ')}`,
   ].filter((line): line is string => line !== null);
