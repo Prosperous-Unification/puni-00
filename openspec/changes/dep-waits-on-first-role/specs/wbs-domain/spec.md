@@ -67,7 +67,10 @@ Parents SHALL span their descendants' projections exactly as they span their
 leaves' schedules today, and rolled-up estimates SHALL be untouched: effort and
 span stay two different numbers.
 
-The projection SHALL be what leaves be-01. Slices SHALL NOT appear on the wire.
+The projection SHALL leave be-01 beside the slices it is read from — one
+payload, one engine pass. The table reads the projection; the chart reads the
+slices themselves (the `Slices cross the wire` requirement), and the arrow
+anchors below are selected from them, never recomputed.
 
 #### Scenario: the row spans its slices
 
