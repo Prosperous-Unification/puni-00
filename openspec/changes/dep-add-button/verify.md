@@ -130,11 +130,13 @@ is whole once it is left` failed on `the peer name never reached the box` —
 `Expected: "Survey the existing warehouse racking…" / Received: "Strip the
 wiring"`, a peer edit that never arrived over the socket. Nothing here touches
 the Name cell, live editing or the gateway; it is the flake class already
-recorded in `dep-hover-highlights`' verify. It passed on the green head below,
-which is the evidence for that claim rather than the assertion of it.
+recorded in `dep-hover-highlights`' verify. It passed on the green head below — test 110,
+`✓ a peer's longer name arriving while the cell is focused is whole once it is
+left (1.7s)` — which is the evidence for that claim rather than the assertion of
+it.
 
-**The green half.** Head `HEAD_SHA`, run `GREEN_RUN`, 2026-08-11: `gate`
-**pass**, `pixels` **pass** — `GREEN_TOTAL` e2e tests, the three
+**The green half.** Head `1126ec5`, run 31473982270, 2026-08-11: `gate`
+**pass**, `pixels` **pass** — **125** e2e tests, all of them, the three
 `deps-cell.spec.ts` add-button tests green by name, and the two
 `deps-single-line` tests beside them green with the eighth button now on the
 strip.
