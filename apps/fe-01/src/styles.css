@@ -652,7 +652,7 @@
    * by exactly as much as the hovered row stands off the page.
    */
   [data-grid] td[data-column='depends'] button[data-dep-add]:hover {
-    background: var(--accent);
+    background: color-mix(in oklab, var(--foreground) 7%, var(--cell-bg));
     color: var(--foreground);
   }
 
