@@ -98,6 +98,17 @@ window never opened there. The fixture now costs those extra rows
 (`costedExtras`), which is what "a bar with no room below it" has to mean on a
 chart that only draws costed work.
 
+On the push carrying the cross-review fixes, `pixels` reported **1 failed, 128
+passed** — `header.spec.ts` › `the widest entry be-01 permits stays inside the
+window`, on its `renameSelectedProject` helper timing out at 10s with the
+project combobox still reading `New project`. Not a gantt case, not on any path
+this change touches, and the log around it is a run of `ws proxy error:
+ECONNRESET` / `EPIPE`: a rename that did not come back over the socket. The job
+was re-run on the same commit and passed, `gate` and `pixels` both green at
+`a954395`. Recorded rather than dismissed — it is the first time this case has
+failed in the runs of 2026-08-11, so it is one observation of a flake and not a
+known one.
+
 ## Coordination
 
 `gantt-geometry.ts` carries no logic change here — the only edits to it are five
