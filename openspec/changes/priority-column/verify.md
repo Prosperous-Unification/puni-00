@@ -104,12 +104,16 @@ byte for byte as it was.
 
 ## The 48px, and what it costs
 
-The table's declared minimum grows by 48px in every state. A two-phase plan
-with both folded needed 1199px and now needs 1247, which is past the ~1214 a
-1280px laptop leaves: a plan that used to sit just inside the window now scrolls
-its frame by a sliver, with the pinned columns holding the left edge — the
-backstop that case already existed for. `table-frame.test.ts` carries the new
-figures and the comment that says which change moved them.
+The table's declared minimum grows by 48px in every state. A two-phase plan with
+both folded needed 1199px and now needs 1247 — one pixel inside the 1248px a
+1280px laptop's frame gives, where `column-rebalance` left it one pixel inside at
+1247 against the same 1248. The margin is spent: a two-phase plan is now one
+column away from scrolling, and the browser gate measures the state that matters
+(no row setting a date, so `not-before` is at its narrow 56px and the table is
+1219px). Three folded phases scroll, as they already did. The pinned columns hold
+the left edge either way, which is the backstop that case exists for.
+`table-frame.test.ts`, `e2e/phases.spec.ts` and `e2e/layout.spec.ts` carry the
+new figures and the comments that say which change moved them.
 
 ## Not verified
 

@@ -307,10 +307,11 @@ describe('the width equation the table is laid out by', () => {
     // an accordion.
     //
     // Each figure is 48px larger since `priority-column`: the two-phase plan
-    // now needs 1247 where it needed 1199, which is 33px past the 1214 a 1280
-    // laptop leaves — a two-phase plan scrolls its frame by a sliver where it
-    // used to sit inside. The pinned columns are what that costs, and 48px is
-    // the narrowest a four-digit priority fits in.
+    // needs 1247 where it needed 1199, which is one pixel inside that same
+    // 1248 — the margin `column-rebalance` left is now spent, and a single row
+    // setting an earliest start is what a two-phase plan has left before it
+    // scrolls. A plan with no dates on it is 28px narrower again and sits
+    // comfortably inside. 48px is the narrowest a four-digit priority fits in.
     expect(frameLayout([...RENDERED, 'r1-final', 'r2-final'], DATED).minWidth).toBe(1247);
     expect(frameLayout([...RENDERED, 'r1-final', 'r2-final', 'r3-final'], DATED).minWidth).toBe(
       1343,
