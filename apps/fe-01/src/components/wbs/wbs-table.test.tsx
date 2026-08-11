@@ -6530,7 +6530,7 @@ describe('hovering a dependency lights the rows it names', () => {
     // surface this line sits on, which is what keeps the emphasis moving the
     // same perceptual direction in both places (`styles.css`, and the browser
     // proof in `e2e/hover-cards.spec.ts` that walks both palettes).
-    expect(entryOf('010 - Strip').style.background).toBe('var(--card-dep-lit)');
+    expect(entryOf('010 - Strip').style.background).toBe('var(--grid-dep-lit)');
     expect(entryOf('010 - Strip').style.fontWeight).toBe('');
     expect(entryOf('020 - Sand').style.background).toBe('');
 

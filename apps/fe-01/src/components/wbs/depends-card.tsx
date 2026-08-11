@@ -78,7 +78,11 @@ export function DependsCard({ number, entries, emphasisedId }: DependsCardProps)
                 // this line's text 4px right of every other line's and reflow
                 // the card as the pointer walked the pills.
                 {
-                  background: 'var(--card-dep-lit)',
+                  // WITHHELD on this head: the pre-review absolute token, back
+                  // in place so `the tint moves the same way on both surfaces,
+                  // in both palettes` is watched failing on the inversion it
+                  // exists to catch. Restored by the next commit.
+                  background: 'var(--grid-dep-lit)',
                   borderRadius: 4,
                   padding: '1px 4px',
                   margin: '-1px -4px',

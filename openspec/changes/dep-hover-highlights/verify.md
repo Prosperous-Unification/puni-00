@@ -86,13 +86,15 @@ Rows 1–5 were watched 2026-08-10; rows 6–9 on 2026-08-11, with the ✕ row w
 
 Three heads on PR #38, each pushed alone and watched to conclusion — `ci.yml` has `cancel-in-progress: true`, so a second push would have cancelled the first run and left nothing observed.
 
-| Head        | What was withheld                                                | Run         | Result                                 |
-| ----------- | ---------------------------------------------------------------- | ----------- | -------------------------------------- |
-| `ec1580e`   | the `tr[data-dep-lit]` rule (round 1, superseded — see below)    | 31434033908 | `gate pass 2m35s`, `pixels fail 5m51s` |
-| `04a4b9e`   | nothing (round 1's restore head)                                 | 31434962012 | `gate` success, `pixels` success       |
-| FAULT_1_SHA | the `tr[data-dep-lit]` rule, on the review round's own spec text | FAULT_1_RUN | FAULT_1_RESULT                         |
-| FAULT_2_SHA | nothing, but the card's swatch pointed back at `--grid-dep-lit`  | FAULT_2_RUN | FAULT_2_RESULT                         |
-| GREEN_SHA   | nothing — the head that ships                                    | GREEN_RUN   | GREEN_RESULT                           |
+| Head        | What was withheld                                                | Run         | Result                                                      |
+| ----------- | ---------------------------------------------------------------- | ----------- | ----------------------------------------------------------- |
+| `ec1580e`   | the `tr[data-dep-lit]` rule (round 1, superseded — see below)    | 31434033908 | `gate pass 2m35s`, `pixels fail 5m51s`                      |
+| `04a4b9e`   | nothing (round 1's restore head)                                 | 31434962012 | `gate` success, `pixels` success                            |
+| `756a24a`   | the `tr[data-dep-lit]` rule, on the review round's own spec text | 31452990284 | `gate` success, `pixels` failure — **5 failed, 117 passed** |
+| FAULT_2_SHA | nothing, but the card's swatch pointed back at `--grid-dep-lit`  | FAULT_2_RUN | FAULT_2_RESULT                                              |
+| GREEN_SHA   | nothing — the head that ships                                    | GREEN_RUN   | GREEN_RESULT                                                |
+
+On `756a24a` the five red were, by name, `the cell lights every dependency's row, and dark again on leaving`, `a pill narrows the light to its row and tints its line in the card`, `a clipped chip has no hover target, and the cell still lights its row`, `the keyboard gets the same light, from the box's focus` and `the tint moves the same way on both surfaces, in both palettes`. The first four failed on the unmoved paint — `Expected: not "oklch(1 0 0)"`, `Timeout 10000ms exceeded while waiting on the predicate` — and the fifth on its own non-vacuity guard, before it could reach the direction claim at all: `light: the row's tint did not move`, `Received: 0`. `gate` passed on the same head, all 1091 jsdom tests included: the rule is invisible to jsdom, which is why this negative has to be a browser's.
 
 **Round 1's red does not prove round 1's checks, and that is why there are two fault heads here.** Run 31434033908 was recorded on `ec1580e`; afterwards `settledRowBg` was added and the pill assertion rewritten, so the run predates the text it was cited for — codex's finding, and correct. The re-watch above is on the current text, and on five checks rather than three: the keyboard check and the two-palette direction check are new this round and both go red on the same withheld rule (the first has a paint assertion, the second cannot claim a direction for a tint that did not move).
 

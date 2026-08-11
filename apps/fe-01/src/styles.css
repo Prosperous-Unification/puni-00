@@ -465,19 +465,9 @@
    * "oklab(0.978225 …)"`, poll timeout). Watched, 2026-08-10;
    * `openspec/changes/dep-hover-highlights/verify.md` has the runs.
    */
-  /*
-   * WITHHELD on this head, on purpose, and restored by the next commit. This is
-   * the R5 fault head for the review round: the five dependency-hover checks in
-   * `e2e/hover-cards.spec.ts` are watched failing on the unmoved paint against
-   * the spec text they now have, because the run recorded for round 1
-   * (31434033908, head `ec1580e`) predates `settledRowBg`, the rewritten pill
-   * assertion, the keyboard check and the two-palette direction check. jsdom
-   * stays green throughout — the rule is invisible to it, which is the whole
-   * reason the negative has to be a browser's.
-   */
-  /* [data-grid] tbody tr[data-dep-lit] {
+  [data-grid] tbody tr[data-dep-lit] {
     --cell-bg: var(--grid-dep-lit);
-  } */
+  }
 
   /*
    * The separators. Horizontal everywhere, vertical only at the three
