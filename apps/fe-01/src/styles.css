@@ -169,6 +169,24 @@
   --grid-invalid: color-mix(in oklab, var(--destructive) 10%, var(--background));
   --grid-drop: color-mix(in oklab, var(--ring) 22%, var(--background));
   --grid-match: color-mix(in oklab, var(--highlight) 55%, var(--background));
+  /* The rows a hovered Depends on cell names. The drop tint's ink at a lower
+     dose: related-but-different meanings ("where this lands" / "what this
+     waits for") in the same hue, apart from the greys either could sit on.
+
+     Twice, because "the same tint" is a *direction* and not a value. The grid
+     sits on `--background` and the hover card on `--popover`, and the dark
+     palette pulls those apart — `oklch(0.129 …)` against `oklch(0.208 …)`.
+     One absolute colour mixed against the page was lighter than the rows and
+     darker than the card, so the one voice read as a tint in the grid and as a
+     cutout in the card: the same emphasis pointing two opposite ways on one
+     screen. The same dose of the same ink into whichever surface it lands on
+     moves both the same way instead — lighter on a dark page, darker on a
+     light one — because a mix toward `--ring` from below rises and from above
+     falls. The percentages are the same on purpose and must stay so:
+     `--card-dep-lit` is `--grid-dep-lit`'s answer on the other surface, not a
+     second decision about how strong the emphasis is. */
+  --grid-dep-lit: color-mix(in oklab, var(--ring) 12%, var(--background));
+  --card-dep-lit: color-mix(in oklab, var(--ring) 12%, var(--popover));
 }
 
 /*
@@ -429,6 +447,26 @@
 
   [data-grid] tbody tr:hover {
     --cell-bg: var(--grid-hover);
+  }
+
+  /*
+   * A row some hovered Depends on cell is waiting for (`data-dep-lit`,
+   * written by `wbs-table.tsx`'s dependency hover). Re-points `--cell-bg` for
+   * the reason `tr:hover` does: the pinned cells' inline backgrounds follow
+   * the row only through that join. After `tr:hover` at equal specificity on
+   * purpose — the two never name the same row (a row does not wait for
+   * itself), but if that ever changes, "lit" should win over "under the
+   * pointer".
+   *
+   * Proof: this rule withheld from PR #38's first head (`ec1580e`) — the
+   * attribute set, the paint unchanged, jsdom green throughout — and the
+   * `pixels` job watched failing all three dependency-hover tests in
+   * `e2e/hover-cards.spec.ts` on the unmoved colour (`Expected: not
+   * "oklab(0.978225 …)"`, poll timeout). Watched, 2026-08-10;
+   * `openspec/changes/dep-hover-highlights/verify.md` has the runs.
+   */
+  [data-grid] tbody tr[data-dep-lit] {
+    --cell-bg: var(--grid-dep-lit);
   }
 
   /*

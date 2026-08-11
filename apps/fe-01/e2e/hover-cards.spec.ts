@@ -274,6 +274,316 @@ test.describe('a card and the pinned columns it slides under', () => {
   });
 });
 
+/** The `<tr>` a numbered row's cells sit in, found through its own Name box. */
+const rowOf = (page: Page, number: string): Locator =>
+  page.getByLabel(`Name of ${number}`).locator('xpath=ancestor::tr');
+
+/**
+ * The painted colour of a row's pinned Name cell.
+ *
+ * The **pinned** cell on purpose: it paints an opaque inline background, so a
+ * highlight only reaches it through the `--cell-bg` join — which is exactly
+ * the wiring these tests exist to see. jsdom asserts the `data-dep-lit`
+ * attribute; whether any pixel changes colour is the cascade's doing, and the
+ * cascade runs here.
+ */
+const rowBg = (page: Page, number: string): Promise<string> =>
+  rowOf(page, number)
+    .locator('td[data-column="name"]')
+    .evaluate((cell) => getComputedStyle(cell).backgroundColor);
+
+/**
+ * The same colour, read only once the cell's 100ms background cross-fade has
+ * finished — a CSS transition registers on `getAnimations()` while it runs.
+ *
+ * Every *remembered* colour goes through this. A colour captured mid-fade —
+ * the rest shade read just after the pointer left the row, or the lit shade
+ * read the frame the light arrived — is a value no settled frame will ever
+ * show again, and an assertion against it fails on a timing nobody chose.
+ * The change-detection polls stay on {@link rowBg}: "has it moved off rest"
+ * is true mid-fade too, and sooner.
+ */
+async function settledRowBg(page: Page, number: string): Promise<string> {
+  const cell = rowOf(page, number).locator('td[data-column="name"]');
+  await expect.poll(() => cell.evaluate((td) => td.getAnimations().length)).toBe(0);
+  return cell.evaluate((td) => getComputedStyle(td).backgroundColor);
+}
+
+/** The painted colour of an element's own background, whatever notation it is in. */
+const bgOf = (locator: Locator): Promise<string> =>
+  locator.evaluate((el) => getComputedStyle(el).backgroundColor);
+
+/** A background nothing painted — what Chromium answers for `background: none`. */
+const TRANSPARENT = 'rgba(0, 0, 0, 0)';
+
+/**
+ * The sRGB luminance of any colour the engine can parse, 0–255.
+ *
+ * **Rasterised, not parsed.** A computed `color-mix` comes back from Chromium as
+ * `oklab(…)` and a resting grey as `rgb(…)`, and string equality between two
+ * notations is exactly how "the card and the grid say this one in the same
+ * voice" was recorded as true while the two were moving in opposite directions
+ * on a dark page. Whether a tint is *lighter or darker than what it sits on* is
+ * a question about one number, and the engine that paints the colour is the only
+ * honest place to get it.
+ *
+ * A colour the engine refuses leaves `fillStyle` at whatever it held, so an
+ * unparseable value would silently read as one more grey rather than as a
+ * mistake. The sentinel is what makes that loud.
+ */
+const luminance = (page: Page, colour: string): Promise<number> =>
+  page.evaluate((c) => {
+    const ctx = document.createElement('canvas').getContext('2d');
+    if (ctx === null) throw new Error('no 2d context to rasterise a colour in');
+    const sentinel = '#ff00ff';
+    ctx.fillStyle = sentinel;
+    ctx.fillStyle = c;
+    if (ctx.fillStyle === sentinel) throw new Error(`this engine will not parse ${c}`);
+    ctx.fillRect(0, 0, 1, 1);
+    const [r, g, b] = ctx.getImageData(0, 0, 1, 1).data;
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  }, colour);
+
+test.describe('hovering a dependency lights the rows it names', () => {
+  /** A third row, waiting for the two the shared seed made. */
+  async function seed030WaitingForBoth(page: Page): Promise<void> {
+    await page.getByRole('button', { name: 'Add work item' }).click();
+    await expect(page.getByLabel('Name of 030')).toBeVisible();
+    const depends = page.getByLabel('Add a dependency to 030');
+    await depends.click();
+    await depends.fill('010, 020');
+    await depends.press('Enter');
+    await expect(page.getByRole('button', { name: /^Stop 030 waiting for / })).toHaveCount(2);
+    // At rest: the picker owns the cell while the box has the focus.
+    await page.getByLabel('Name of 010').click();
+    await page.getByLabel('Name of 010').blur();
+    await page.mouse.move(0, 0);
+  }
+
+  test('the cell lights every dependency’s row, and dark again on leaving', async ({ page }) => {
+    await seed030WaitingForBoth(page);
+    // The rest colours differ (banding), which is what makes the equality at
+    // the bottom a claim about one shared tint rather than about any change.
+    const rest010 = await settledRowBg(page, '010');
+    const rest020 = await settledRowBg(page, '020');
+
+    await page.getByLabel('Add a dependency to 030').hover();
+
+    await expect(rowOf(page, '010')).toHaveAttribute('data-dep-lit', 'true');
+    await expect(rowOf(page, '020')).toHaveAttribute('data-dep-lit', 'true');
+    // Not the hovered row itself: the lit set is its dependencies, not it.
+    await expect(rowOf(page, '030')).not.toHaveAttribute('data-dep-lit', 'true');
+    // Polled: the cells cross-fade their background over 100ms.
+    await expect.poll(() => rowBg(page, '010')).not.toBe(rest010);
+    await expect.poll(() => rowBg(page, '020')).not.toBe(rest020);
+    // One tint: a banded and an unbanded row land on the same colour, so the
+    // rule re-pointed `--cell-bg` rather than nudging each row's own grey.
+    expect(await settledRowBg(page, '010')).toBe(await settledRowBg(page, '020'));
+
+    await page.mouse.move(0, 0);
+    await expect.poll(() => rowBg(page, '010')).toBe(rest010);
+    await expect.poll(() => rowBg(page, '020')).toBe(rest020);
+  });
+
+  test('a pill narrows the light to its row and tints its line in the card', async ({ page }) => {
+    await seed030WaitingForBoth(page);
+    const rest010 = await settledRowBg(page, '010');
+    const rest020 = await settledRowBg(page, '020');
+
+    await page.getByRole('button', { name: 'Stop 030 waiting for 010' }).hover();
+
+    await expect(rowOf(page, '010')).toHaveAttribute('data-dep-lit', 'true');
+    await expect(rowOf(page, '020')).not.toHaveAttribute('data-dep-lit', 'true');
+    await expect.poll(() => rowBg(page, '010')).not.toBe(rest010);
+    expect(await rowBg(page, '020')).toBe(rest020);
+
+    // The card is open — the pill is inside the cell the card belongs to — and
+    // the pill's own line, and only it, carries a swatch, at the card's
+    // ordinary weight: emphasis by background, not by heading.
+    //
+    // *Which* colour that swatch is belongs to the next test, not this one.
+    // Asserting the lit row's exact value here is what hid the fault this test
+    // ran green through for a day: in the default palette `--background` and
+    // `--popover` are the same white, so the grid's tint and the card's are the
+    // same number, and an assertion that they are equal is satisfied by a
+    // token that moves the two surfaces in opposite directions on a dark page.
+    // Direction against each surface is the real claim, and it takes both
+    // palettes to make it.
+    expect(await cardsOpen(page)).toBe(1);
+    const card = page.locator('[role="tooltip"]');
+    const emphasised = card.getByText('010 - Survey the existing warehouse racking', {
+      exact: true,
+    });
+    const other = card.getByText('020 - Draft the replacement layout', { exact: true });
+    expect(await bgOf(emphasised)).not.toBe(TRANSPARENT);
+    expect(await emphasised.evaluate((line) => getComputedStyle(line).fontWeight)).toBe('400');
+    expect(await bgOf(other)).toBe(TRANSPARENT);
+
+    // Off the pill onto the cell's input area: the light widens back to every
+    // dependency — the browser's own leave, `relatedTarget` and all.
+    await page.getByLabel('Add a dependency to 030').hover();
+    await expect(rowOf(page, '020')).toHaveAttribute('data-dep-lit', 'true');
+    await expect.poll(() => rowBg(page, '020')).not.toBe(rest020);
+  });
+
+  test('the tint moves the same way on both surfaces, in both palettes', async ({ page }) => {
+    await seed030WaitingForBoth(page);
+    const pill = page.getByRole('button', { name: 'Stop 030 waiting for 010' });
+    const card = page.locator('[role="tooltip"]');
+    const line = card.getByText('010 - Survey the existing warehouse racking', { exact: true });
+
+    // Both palettes, and it has to be both: the grid sits on `--background` and
+    // the card on `--popover`, which are the same white in the default theme and
+    // `oklch(0.129 …)` against `oklch(0.208 …)` in the dark one. One absolute
+    // tint mixed against the page therefore lands *between* the two dark
+    // surfaces — lighter than the rows, darker than the card — and the single
+    // emphasis reads as a tint in the grid and as a cutout in the card. Light
+    // alone can never see that, because light alone has one surface.
+    //
+    // The app ships no theme switch; the palette is a class on the root and this
+    // is how a browser reaches it. That the class is the whole mechanism is
+    // `styles.css`'s own claim (`.dark` re-points the custom properties every
+    // token is mixed from), and reaching it here is what holds it to it.
+    for (const palette of ['light', 'dark'] as const) {
+      await page.evaluate((wanted) => {
+        document.documentElement.classList.toggle('dark', wanted === 'dark');
+      }, palette);
+
+      await page.mouse.move(0, 0);
+      await expect(rowOf(page, '010')).not.toHaveAttribute('data-dep-lit', 'true');
+      const gridRest = await luminance(page, await settledRowBg(page, '010'));
+
+      await pill.hover();
+      await expect(rowOf(page, '010')).toHaveAttribute('data-dep-lit', 'true');
+      // One card, so the two reads below are of the surface and the line on it.
+      expect(await cardsOpen(page), `${palette}: no card to read the swatch off`).toBe(1);
+      const gridLit = await luminance(page, await settledRowBg(page, '010'));
+      const cardRest = await luminance(page, await bgOf(card));
+      const cardLit = await luminance(page, await bgOf(line));
+
+      // Non-vacuous first, in both places: a tint that did not move cannot be
+      // said to have moved the right way, and `Math.sign(0)` is `0`, which would
+      // otherwise agree with itself.
+      expect(
+        Math.abs(gridLit - gridRest),
+        `${palette}: the row's tint did not move`,
+      ).toBeGreaterThan(1);
+      expect(
+        Math.abs(cardLit - cardRest),
+        `${palette}: the card's swatch did not move`,
+      ).toBeGreaterThan(1);
+
+      // The claim: the same emphasis, the same way, off whatever it sits on.
+      // Lighter than both surfaces on a dark page, darker than both on a light
+      // one — never one of each.
+      expect(
+        Math.sign(gridLit - gridRest),
+        `${palette}: the row goes ${gridLit > gridRest ? 'lighter' : 'darker'} and the card's line goes ${cardLit > cardRest ? 'lighter' : 'darker'}`,
+      ).toBe(Math.sign(cardLit - cardRest));
+    }
+  });
+
+  test('the keyboard gets the same light, from the box’s focus', async ({ page }) => {
+    await seed030WaitingForBoth(page);
+    const rest010 = await settledRowBg(page, '010');
+    const rest020 = await settledRowBg(page, '020');
+
+    // Focus, with the pointer parked at the origin by the seed: the light is
+    // the change's one visual answer to "what does this row wait for", and a
+    // pointer-only answer is no answer to somebody who never holds a mouse.
+    // Tab through the plan lands on this box — `deps-single-line` keeps the
+    // chips out of the rested tab order — so the box is the keyboard's handle
+    // on the cell, and the cell-level light is what it gets.
+    await page.getByLabel('Add a dependency to 030').focus();
+
+    await expect(rowOf(page, '010')).toHaveAttribute('data-dep-lit', 'true');
+    await expect(rowOf(page, '020')).toHaveAttribute('data-dep-lit', 'true');
+    await expect(rowOf(page, '030')).not.toHaveAttribute('data-dep-lit', 'true');
+    // Painted, not merely attributed — the pinned cells, through `--cell-bg`,
+    // which is the whole reason these reads are a browser's and not jsdom's.
+    await expect.poll(() => rowBg(page, '010')).not.toBe(rest010);
+    await expect.poll(() => rowBg(page, '020')).not.toBe(rest020);
+
+    // Out of the cell to a control outside the grid, so nothing else in a row
+    // is focused and painting over what is being read.
+    await page.getByRole('button', { name: 'Add work item' }).focus();
+    await expect(rowOf(page, '010')).not.toHaveAttribute('data-dep-lit', 'true');
+    await expect.poll(() => rowBg(page, '010')).toBe(rest010);
+    await expect.poll(() => rowBg(page, '020')).toBe(rest020);
+  });
+
+  test('a clipped chip has no hover target, and the cell still lights its row', async ({
+    page,
+  }) => {
+    // The U3→U4 case, named in the plan rather than discovered: after
+    // `deps-single-line` the strip clips, so a chip can stand out of sight
+    // with no pixel to hover — its *row* must still light from the cell-level
+    // hover. Seven siblings onto 020, the deep-plan shape `deps-cell.spec.ts`
+    // proves the clipping of.
+    const addRow = page.getByRole('button', { name: 'Add work item' });
+    for (const number of ['030', '040', '050', '060', '070', '080', '090']) {
+      await addRow.click();
+      await expect(page.getByLabel(`Name of ${number}`)).toBeVisible();
+    }
+    const waitedFor = ['030', '040', '050', '060', '070', '080', '090'];
+    const depends = page.getByLabel('Add a dependency to 020');
+    await depends.click();
+    await depends.fill(waitedFor.join(', '));
+    await depends.press('Enter');
+    await expect(page.getByRole('button', { name: /^Stop 020 waiting for / })).toHaveCount(7);
+    await page.getByLabel('Name of 010').click();
+    await page.getByLabel('Name of 010').blur();
+    await page.mouse.move(0, 0);
+    const rest090 = await settledRowBg(page, '090');
+
+    const probed = await page.evaluate(() => {
+      const chip = document.querySelector('[aria-label="Stop 020 waiting for 090"]');
+      if (!(chip instanceof HTMLElement)) throw new Error('no chip for 090 on the page');
+      const strip = chip.closest('[data-depends-strip]');
+      if (!(strip instanceof HTMLElement)) throw new Error('the 090 chip is not in a strip');
+      const box = chip.getBoundingClientRect();
+      const at = document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2);
+      // Somewhere in the cell that is neither a chip nor the box: the first
+      // pixel along the strip's midline that hit-tests to the strip itself —
+      // a gap between chips. That is what "cell-level hover" is once chips
+      // crowd the cell, and finding it by hit test rather than by offset
+      // keeps the probe honest about what the pointer would really land on.
+      const stripBox = strip.getBoundingClientRect();
+      const y = stripBox.y + stripBox.height / 2;
+      let cellPoint: { x: number; y: number } | null = null;
+      for (let x = Math.ceil(stripBox.x) + 1; x < stripBox.right - 1; x += 1) {
+        if (document.elementFromPoint(x, y) === strip) {
+          cellPoint = { x, y };
+          break;
+        }
+      }
+      return {
+        chipWidth: box.width,
+        chipHeight: box.height,
+        clippedChipIsHoverable: at !== null && chip.contains(at),
+        stripClips: strip.scrollWidth > strip.clientWidth,
+        cellPoint,
+      };
+    });
+    // The preconditions, before the claim (R5 #16): the chip is laid out with
+    // real area, the strip really clips, and the chip's own centre answers to
+    // something else — there is genuinely no hover target on it.
+    expect(probed.chipWidth).toBeGreaterThan(0);
+    expect(probed.chipHeight).toBeGreaterThan(0);
+    expect(probed.stripClips, 'nothing is clipped; this fixture stopped overrunning').toBe(true);
+    expect(probed.clippedChipIsHoverable, 'the 090 chip still answers a hit test').toBe(false);
+    if (probed.cellPoint === null) throw new Error('no cell-level hover point in the strip');
+
+    await page.mouse.move(probed.cellPoint.x, probed.cellPoint.y);
+
+    // Every dependency's row lights — the clipped chip's included.
+    for (const number of waitedFor) {
+      await expect(rowOf(page, number)).toHaveAttribute('data-dep-lit', 'true');
+    }
+    await expect.poll(() => rowBg(page, '090')).not.toBe(rest090);
+  });
+});
+
 test.describe('the Name cell answers from its marker alone', () => {
   test('opens nothing from the cell and the rendered notes from the marker', async ({ page }) => {
     const name = page.getByLabel('Name of 010');
