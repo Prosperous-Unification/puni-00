@@ -141,8 +141,166 @@ it.
 `deps-single-line` tests beside them green with the eighth button now on the
 strip.
 
+## The review round — observed before it was fixed
+
+The cross review raised two P2s, both **derived from the source and neither
+seen**. So both were measured before anything was changed: dev deployed at
+`2b2affec` (the head above), a Browser Use cloud Chromium at 1440×900,
+session `b2f8d2d9-c161-434f-95f1-0cfacf9b28f8`, a throwaway account and the
+`deps-cell.spec.ts` fixture — nine rows, `020` waiting for seven, `030`
+waiting for nothing.
+
+**Both held.** Not by the predicted amount in one case, which is the reason
+for measuring rather than reasoning: the review derived ~22px of growth from
+the chip's line box, and the browser said 18.98.
+
+### Finding 1 — an empty cell grew when it was clicked into
+
+| Row 030 (no chips) | at rest | picker open | moved  |
+| ------------------ | ------- | ----------- | ------ |
+| row height         | 26px    | 44.98px     | +18.98 |
+| the box's `y`      | 198     | 219.98      | +21.98 |
+| the `+`'s `y`      | 198.5   | 198         | —      |
+| the box's width    | 84.2px  | 102px       | +17.8  |
+| the listbox's `y`  | —       | 240.98      | —      |
+
+The box on a line of its own, 21.98px under the `+` it rests beside, and the
+list under both. Clicking the cell and clicking the `+` measured
+**identically**, so it was the strip's layout and not the button's handler —
+the review's own "affects clicking the cell directly too", confirmed.
+
+The `020` cell, seven chips, measured in the same session: 26px at rest,
+118.94px open. Unchanged by the fix below and deliberately so — that is
+`deps-single-line`'s open state, where wrapping is what the chips are for.
+
+**Derived, not observed:** that a chipless cell stayed one line _on `main`_.
+No `main` build was measured. It follows from the code — without the `+` the
+open strip has exactly one flex item — but it is a reading, not a
+measurement, and is written here as one.
+
+### Finding 2 — the hover was lighter than the row it sat in
+
+Light palette, row 030 hovered, then the `+` on it hovered:
+
+| what                           | colour                       |
+| ------------------------------ | ---------------------------- |
+| the row under the pointer      | `oklab(0.93903 …)`           |
+| the `+` hovered                | `oklch(0.968 0.007 247.896)` |
+| a dependency-lit row           | `oklab(0.96448 …)`           |
+| the same `+`, dark palette     | `oklch(0.279 0.041 260.031)` |
+| the row under it, dark palette | `oklab(0.18885 …)`           |
+
+Lighter than the row on a light page — the affordance reading as a hole
+punched through the row to the page behind it. Four thousandths from a
+dep-lit row's own colour, where it all but vanished. And right on a dark
+page, which is the tell: one absolute value cannot answer for two themes,
+and this one answered for one.
+
+### Finding 3
+
+`title="Add a dependency"` beside `aria-label="Make 010 wait for something"`,
+read off the live DOM. Deleted.
+
+## The review round — what moved
+
+- **`wbs-table.tsx`**: the strip wraps only where there are chips to wrap —
+  `picker !== null && waitingFor.length > 0`. The box claims `width: 100%`,
+  so under a wrap its hypothetical main size is the whole strip and it can
+  share a flex line with nothing; `minWidth: 0` lets it shrink past the `+`
+  under `nowrap` instead, to the same 84.2px it rests at. The `+` is **not**
+  hidden while the picker is open — always visible is the whole of what it
+  is for, and a cell somebody is typing into is where "another one" has most
+  to say.
+- **`wbs-table.tsx`**: the `title` deleted.
+- **`styles.css`**: the hover is
+  `color-mix(in oklab, var(--foreground) 7%, var(--cell-bg))`. `--cell-bg` is
+  the join every row state re-points (banded, hovered, dep-lit, drop), so the
+  affordance darkens off whatever the row currently is rather than off an
+  absolute value; 7% is `--grid-hover`'s own dose, so it stands off the
+  hovered row by what the hovered row stands off the page. `--card-dep-lit`'s
+  per-surface pattern (#38), one layer further in.
+
+## The review round — failure-proof table
+
+| Check                                                                              | Injected fault                                                    | Observed                                                                                        |
+| ---------------------------------------------------------------------------------- | ----------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `leaves an empty cell’s open strip on one nowrap line…` (jsdom)                    | **the chip condition dropped** — `picker !== null ? 'wrap' : …`   | `expected 'wrap' to be 'nowrap'`. Watched locally, 2026-08-11                                   |
+| the same check's second half                                                       | **`flexWrap: 'nowrap'` unconditionally** — the wrap gone entirely | `expected 'nowrap' to be 'wrap'` on the chipped cell. Watched locally, 2026-08-11               |
+| `answers to one name, with no tooltip saying a different one` (jsdom)              | **the `title` restored**                                          | `expected 'Add a dependency' to be null`. Watched locally, 2026-08-11                           |
+| `rests an empty cell at its own height while the picker is open` (browser)         | **the chip condition dropped**                                    | `the open row is 44.984375px where it rests at 28px` — `Received: 16.984375`, run 31482772312   |
+| `picks the add button up off the row it is hovered on, in both palettes` (browser) | **the hover paint back to `var(--accent)`**                       | `light: the hovered add button is lighter (244) than the row it sits on (235)`, run 31482772312 |
+
+The second half of the wrap check is staged separately on purpose: `nowrap`
+everywhere would satisfy the first assertion while silently undoing
+`deps-single-line`'s open state, and a chipless-only check could not see it.
+
+**One of these faults is not invisible to jsdom, and that is said rather
+than glossed.** The hover fault is a stylesheet rule and jsdom evaluates
+none, so `gate` was green through it and the colour red is Chromium's alone.
+The wrap fault is an inline style the jsdom check reads, so `gate` failed
+beside `pixels` on that head — jsdom stating the declaration, Chromium
+stating the 16.98px it produces. There is no jsdom-invisible version of it
+to stage: under `nowrap` nothing wraps, so no fault reaches that row height
+except through the declaration jsdom can see.
+
+## The review round — watched in CI
+
+Two heads, each pushed alone (`cancel-in-progress`).
+
+**The red half.** Head `b8b7d4d`, run 31482772312, 2026-08-11: `pixels`
+**fail**, and it failed on exactly the two new checks and nothing else — the
+five `deps-cell.spec.ts` tests before them green in the same run, including
+all three the original round added. `gate` **fail**, as predicted above.
+
+**The green half.** Head `b1fe412`, run 31483370458, 2026-08-11: `gate`
+**pass**, `pixels` **pass** — **127** e2e tests, all of them, `rests an empty
+cell at its own height while the picker is open` and `picks the add button up
+off the row it is hovered on, in both palettes` green by name.
+
+Local gate on `b1fe412`: `bunx nx format:check --all` green;
+`bunx nx run-many -t test lint typecheck --parallel=2 --skip-nx-cache` green
+across 21 projects, fe-01 **1097 tests** in 45 files (1095 before this round,
+the two added being the jsdom pair above);
+`bunx @fission-ai/openspec@1.3.0 validate --all` green, 24 passed, 0 failed.
+
+## The review round — re-observed on dev
+
+Dev redeployed to `b1fe412d`, all four health lines printed. A **fresh**
+cloud browser, session `7a095f53-73e0-4151-aec0-3cfb1f67b925`, same fixture
+and same viewport as the before run:
+
+| Row 030 (no chips) | before, open | after, open |
+| ------------------ | ------------ | ----------- |
+| row height         | 44.98px      | **26px**    |
+| the box's `y`      | 219.98       | **198**     |
+| the `+`'s `y`      | 198          | 198.5       |
+| the box's width    | 102px        | **84.2px**  |
+| the listbox's `y`  | 240.98       | **219**     |
+
+The row is the height it rests at, the box is back on the `+`'s own line at
+the width it rests at, and the list sits 21.98px higher — at the rested
+cell's own bottom edge. Identical again through the cell and through the `+`.
+Row 020's open cell measured 118.94px in both runs: `deps-single-line`'s
+state, untouched.
+
+| the `+` hovered | before                     | after               | row it sits on     |
+| --------------- | -------------------------- | ------------------- | ------------------ |
+| light           | `oklch(0.968 …)` — lighter | `oklab(0.882328 …)` | `oklab(0.93903 …)` |
+| dark            | `oklch(0.279 …)` — lighter | `oklab(0.24451 …)`  | `oklab(0.18885 …)` |
+
+Darker than the row on a light page and lighter on a dark one, off the row's
+own current colour in both. And `title` reads `null` on the live DOM.
+
+Both cloud sessions were stopped through `PATCH /api/v4/browsers/{id}`
+`{"action":"stop"}` and answered `"status":"stopped"` — dropping the CDP
+connection does not end a v4 browser or its billing.
+
 ## Not verified
 
-- No browser was run on this host: it has none. Every claim about paint, hit
-  testing and default actions is CI's `pixels` job, cited above.
-- The dev deploy and Dany's eyes on it (`tasks.md` 4.2) are open.
+- Nothing about paint or layout was measured **on this host**: it has no
+  browser. Every such claim is either CI's `pixels` job or the cloud Chromium
+  against dev, and each is cited with its run or session id.
+- That a chipless cell stayed one line on `main` is derived from the code and
+  was not measured — see finding 1 above.
+- Dany's own eyes on dev (`tasks.md` 4.2) are still open. Dev is left on this
+  branch.

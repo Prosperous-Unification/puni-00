@@ -118,5 +118,5 @@ Both held.
       locally; two in Chromium (the empty cell's open height, the hover's
       direction against the row in both palettes), watched in CI. The faults
       and what each said are in `verify.md`
-- [ ] 5.5 Re-deployed to dev on the fixed head and both findings
+- [x] 5.5 Re-deployed to dev on the fixed head and both findings
       re-measured in a fresh cloud browser session
