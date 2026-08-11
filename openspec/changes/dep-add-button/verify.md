@@ -78,8 +78,8 @@ restored — on 2026-08-11. The browser rows are CI's and are recorded under
 | `opens the picker from the add button, on the box the cell already has`       | **the `onClick` body dropped** — the button rendered and inert                          | `expected <body><div>…(1)</div></body> to be <input …(10)></input>` — the focus never moved |
 | `keeps the add button out of the tab order, at rest and with the picker open` | **the chips' condition copied onto it** — `tabIndex={picker === null ? -1 : undefined}` | `expected +0 to be -1` — a stop appearing the moment the picker opened                      |
 | `refuses the press the focus, so the box beside it keeps what was typed`      | **the `preventDefault` dropped** from `onMouseDown`                                     | `expected true to be false` — the press left to the browser                                 |
-| `keeps the add button visible in a cell whose chips are clipped`              | **`order: 1` on the add button** — the DOM order unchanged, the paint order reversed    | see "Watched in CI"                                                                         |
-| `keeps a half-typed search when the add button is pressed`                    | **a focus-stealing `onMouseUp`** on the button — the press moving the focus after all   | see "Watched in CI"                                                                         |
+| `keeps the add button visible in a cell whose chips are clipped`              | **`order: 1` on the add button** — the DOM order unchanged, the paint order reversed    | `the add button's own centre answers <input>` — clipped out of sight, run 31473157529       |
+| `keeps a half-typed search when the add button is pressed`                    | **a focus-stealing `onMouseUp`** on the button — the press moving the focus after all   | `Expected: "03" / Received: ""` — the search eaten by the control that means "search"       |
 
 The two browser faults are deliberately chosen to be **invisible to jsdom**, so
 the observation is the browser's and not a jsdom failure wearing a browser's
@@ -98,11 +98,46 @@ never performs, and that half is recorded green.
 
 ## Watched in CI
 
-Two heads on PR #TBD, each pushed alone and watched to conclusion — `ci.yml`
+Two heads on PR #42, each pushed alone and watched to conclusion — `ci.yml`
 has `cancel-in-progress: true`, so a second push would have cancelled the first
 run and left nothing observed.
 
-_(filled in below once both runs land)_
+**The red half.** Head `b9f7909`, run 31473157529, 2026-08-11: `gate` **pass**
+3m21s, `pixels` **fail** 7m16s, 122 passed / 3 failed. The gate staying green is
+half the observation — both faults are invisible to jsdom, so nothing but
+Chromium could have said this:
+
+- `keeps the add button visible in a cell whose chips are clipped` failed on
+  `the add button's own centre answers <input>` — `expected true, received
+false`. `order: 1` left the button first in the DOM and last in the paint,
+  which put it past the strip's visible edge on a cell waiting on seven rows;
+  the pixel at its centre belongs to the box that had been laid out before it.
+  This is the placement decision measured: the head of a clipping `nowrap` line
+  is the one place never cut, and the tail is cut exactly as predicted.
+- `keeps a half-typed search when the add button is pressed` failed on
+  `toHaveValue` — `Expected: "03" / Received: ""`, with the call log showing the
+  box resolving 24 times to `value=""` and `aria-expanded="true"`: the picker
+  reopened empty. The focus-stealing `onMouseUp` blurred the box, the blur
+  closed the picker and dropped the search, and the click that followed opened a
+  fresh one. Precisely the fault the cancelled press exists to prevent.
+- `opens the picker from the add button, with the caret in the box` **passed**
+  in the same run, as predicted: neither fault touches it, and the click's own
+  focus still lands.
+
+The third failure in that run is **not this change's**:
+`name-cell.spec.ts`'s `a peer's longer name arriving while the cell is focused
+is whole once it is left` failed on `the peer name never reached the box` —
+`Expected: "Survey the existing warehouse racking…" / Received: "Strip the
+wiring"`, a peer edit that never arrived over the socket. Nothing here touches
+the Name cell, live editing or the gateway; it is the flake class already
+recorded in `dep-hover-highlights`' verify. It passed on the green head below,
+which is the evidence for that claim rather than the assertion of it.
+
+**The green half.** Head `HEAD_SHA`, run `GREEN_RUN`, 2026-08-11: `gate`
+**pass**, `pixels` **pass** — `GREEN_TOTAL` e2e tests, the three
+`deps-cell.spec.ts` add-button tests green by name, and the two
+`deps-single-line` tests beside them green with the eighth button now on the
+strip.
 
 ## Not verified
 

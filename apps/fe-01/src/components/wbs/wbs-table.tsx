@@ -4759,20 +4759,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                       ?.querySelector<HTMLInputElement>(`[data-depends-input="${row.original.id}"]`)
                       ?.focus();
                   }}
-                  // WATCHED RED, this head only: `order: 1` moves the paint
-                  // order and leaves the DOM order every jsdom assertion here
-                  // is about, so `keeps the add button visible in a cell whose
-                  // chips are clipped` is Chromium's to fail alone. Removed on
-                  // the next head.
-                  onMouseUp={(released) => {
-                    // WATCHED RED, this head only: the press moving the focus
-                    // after all. No jsdom test dispatches a `mouseup`, so
-                    // `keeps a half-typed search when the add button is
-                    // pressed` is Chromium's to fail alone. Removed on the
-                    // next head.
-                    released.currentTarget.focus();
-                  }}
-                  style={{ flexShrink: 0, order: 1 }}
+                  style={{ flexShrink: 0 }}
                 >
                   +
                 </button>
