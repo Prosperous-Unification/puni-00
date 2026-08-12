@@ -84,6 +84,99 @@ restored.
 | `theme.ts`: `media.addEventListener('change', follow)`                     | `theme.test.ts` — the platform changing under an open page on `system`                      |
 | `account-menu.tsx`: `event.preventDefault()` on a modified `Enter`/`Space` | `account-menu.test.tsx` — R5 #14's guard                                                    |
 
+## The cross-review round, 2026-08-12
+
+Four holds came back from the cross-review
+(`notes/wbs-cross-review-2026-08-12-dark-mode.md`). Two were P2 and are the
+reason this branch moved at all; two are the rules this change states in prose
+and did not keep. Every red below was watched on **h2puni** — jsdom under
+vitest, browser in the official Playwright image — and every injection was
+reverted with `git checkout --` before the next.
+
+| #   | Fault injected                                                                     | Test that went red                                                                       | What it said                                                                                                                                              |
+| --- | ---------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| X1  | `theme.ts`: `media.removeEventListener('change', follow)` deleted from the cleanup | `theme.test.ts` — `stops listening to the machine once it is gone`                       | `the hook left its listener on the platform: expected 8 to be 7`                                                                                          |
+| X2  | `theme.ts`: `readTheme` pointed back at `rememberedTheme`                          | `theme.test.ts` — `reads the same answer without writing anything, for a render to call` | `expected null to be '"midnight"'`                                                                                                                        |
+| X3  | `account-menu.tsx`: `onFocus` taken off `itemProps`                                | `dark-mode.spec.ts` — `answers the arrows after a palette was taken with the mouse`      | `the arrow after a click moved no focus … 24 × locator resolved to <button tabindex="0" … role="menuitem">Log out</button> - unexpected value "inactive"` |
+| X4  | `styles.css`: the `button { background-color: transparent }` reset deleted         | `dark-mode.spec.ts` — `takes the platform’s grey off the light page too`                 | `the Gantt chart … Received + Array [ "button «Arrows»", "button «010 - Survey the existin»", "button «020 - Draft the replacem»" ]`                      |
+
+### X1 — the check that could not fail, again
+
+`stops listening to the machine once it is gone` shipped asserting the **root
+class**, and it could not fail. `paintPalette` runs from a `useEffect`, React
+runs no effect for an unmounted hook, so deleting the unsubscribe left the class
+exactly where the test expected it. The jsdom table above is its own evidence:
+`media.addEventListener` is a row in it and `media.removeEventListener` is not —
+the subscribe red was watched and the unsubscribe red was never asked for.
+
+The implementation was correct all along (`[]` deps, the same function object
+added and removed), so this is a test-honesty defect and not a leak. The fix is
+to ask the platform instead of the document: `vitest.setup.ts`'s stand-in now
+reports `listenerCount`, and the test asserts the **difference** one mount and
+one unmount make — a literal `0` would have made this test's verdict depend on
+how many hooks the tests above it mounted, which the first injection run
+reported as `expected 7 to be 0`. The class assertion is kept as a pin on the
+consequence.
+
+That makes at least seven instances of this shape in this repository.
+
+### X3 — one dead arrow key, and only a browser could see it
+
+`active` is the roving tab stop's index and, until this round, only the arrows
+ever moved it. A **mouse** click on a `menuitemradio` calls `onChoose` alone
+while Chromium moves the DOM focus to the clicked button, so the two disagree —
+and when they disagree by exactly the step an arrow takes, `setActive` is handed
+the value it already holds, React bails out of the re-render, and the focus
+effect's `[open, active]` deps never change. Click `Dark`, press ArrowDown:
+nothing moves. This is the interaction the control is designed around, since the
+menu stays open on purpose so a reader can compare and keep choosing.
+
+Nothing in the suite could see it. `account-menu.test.tsx` drives by keyboard,
+where the two are always in sync, and jsdom's `fireEvent.click` moves no focus
+even where it would matter. The fix is an `onFocus` on each item — the focus
+event and not the click, because the fault is the disagreement rather than the
+click, and anything that moves the focus is then answered by the same line.
+
+### X4 — the light palette changed here too, and nothing said so
+
+`button:not([data-grid], …) { background-color: transparent }` is in
+`@layer base` and is **not** scoped to `.dark`, so the three buttons that
+carried Chromium's `rgb(239, 239, 239)` lose it on a light page as well. Every
+assertion in `dark-mode.spec.ts` ran behind `chooseTheme(page, 'Dark')`, no
+other spec in the repository reads a `backgroundColor`, and there is no
+screenshot baseline anywhere — so a real change to the light UI was shipping
+inside a change whose body describes dark-palette repairs, unmentioned and
+unmeasured.
+
+It is an improvement: the requirement "no surface is painted a colour the
+palette does not name" is palette-agnostic and the grey chip was never a token.
+What it was not is stated or measured. Both now are — the sweep runs from the
+light page too, and the three elements it finds under the injection are the same
+three, by name, that the dark sweep finds.
+
+### The two P3s taken, and the one left
+
+Taken, because both are one line and both are rules this change states
+elsewhere in its own prose:
+
+- `readTheme` (X2): the lazy `useState` initialiser is a render, StrictMode
+  double-invokes it on purpose, and dropping an unreadable key is a write. The
+  read and the write are now two functions; the mount effect does the write.
+  Nothing observable moved — `removeItem` is idempotent and only a corrupt
+  stored value reaches it — which is why this is a rule kept, not a defect
+  fixed.
+- `setActive` called from inside the `setOpen` updater in the trigger's
+  `onClick`: computed beside the setter now, the way `chooseTheme` does it.
+
+**Left, deliberately: storage that throws.** `localStorage.getItem` is
+unguarded here, and it is unguarded in `gantt-panel.tsx`'s `rememberedArrows`,
+`project-page.tsx` and eleven places in `wbs-table.tsx`. This change copied an
+existing decision rather than making one, and a `SecurityError` in a
+partitioned iframe takes the whole app down with or without this branch.
+A repo-wide `safeStorage` is worth doing and is not this change's to do alone.
+Cross-tab sync is the same call and is Dany's, not a reviewer's: nothing in the
+proposal or the spec claims it, and `wbs.ganttArrows` set the precedent.
+
 ## The palette's own defects: before and after
 
 Ratios are WCAG contrast over the real composited surface — every ancestor's

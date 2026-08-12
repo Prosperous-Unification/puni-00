@@ -311,10 +311,11 @@ test.describe('the theme control', () => {
     // at all, so a real change to the light UI shipped inside a change whose
     // body describes dark-palette repairs. Cross-review, 2026-08-12.
     //
-    // Proof: the `<button>` reset deleted, this fails on `the Gantt chart …
-    // expected [ 'button «Arrows»', 'button «010 - …»', 'button «020 - …»' ] to
-    // deeply equal []`, which is the same red `verify.md:56` records against
-    // the dark page. Watched in CI's `pixels` job, 2026-08-12.
+    // Proof: the `<button>` reset deleted, this failed on `the Gantt chart …
+    // Received + Array [ "button «Arrows»", "button «010 - Survey the
+    // existin»", "button «020 - Draft the replacem»" ]` — the same three
+    // elements, by name, that `verify.md`'s red records against the **dark**
+    // page. Watched on h2puni in the Playwright image, 2026-08-12.
     expect(await paletteOf(page), 'this test is about the palette nothing chose').toBe('light');
 
     expect(await unnamedFaces(page), 'the plan').toEqual([]);
@@ -343,8 +344,11 @@ test.describe('the theme control', () => {
     // focus even where it does.
     //
     // Proof: `onFocus` taken back off `itemProps` in `account-menu.tsx`, this
-    // failed on `the arrow after a click moved no focus … expect(locator)
-    // toBeFocused failed`. Watched in CI's `pixels` job, 2026-08-12.
+    // failed on `the arrow after a click moved no focus … 24 × locator
+    // resolved to <button tabindex="0" … role="menuitem">Log out</button> -
+    // unexpected value "inactive"` — the item the arrow should have reached
+    // was on the page, tabbable, and never focused. Watched on h2puni in the
+    // Playwright image, 2026-08-12.
     await accountTrigger(page).click();
     await page.getByRole('menuitemradio', { name: 'Dark' }).click();
     await expect(page.getByRole('menuitemradio', { name: 'Dark' })).toBeFocused();

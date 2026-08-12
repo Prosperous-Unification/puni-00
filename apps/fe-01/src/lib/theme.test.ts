@@ -87,8 +87,9 @@ describe('what this browser remembers', () => {
     // above are the same read plus a write, and a `useState` initialiser is a
     // render — StrictMode calls it twice on purpose to surface exactly that.
     //
-    // Proof: `readTheme` pointed back at `rememberedTheme`, this fails on
-    // `expected null to be '"midnight"'`. Watched, 2026-08-12.
+    // Proof: `readTheme` pointed back at `rememberedTheme`, this failed on
+    // `expected null to be '"midnight"'` — the key gone, from a read.
+    // Watched on h2puni under vitest, 2026-08-12.
     localStorage.setItem(THEME_KEY, JSON.stringify('midnight'));
 
     expect(readTheme()).toBe('system');
@@ -215,18 +216,23 @@ describe('the theme, followed and remembered while the app is open', () => {
     // What is asked instead is the platform, which is the only party an unmount
     // is allowed to change: `vitest.setup.ts`'s stand-in reports how many
     // `change` listeners are live on the one cached list.
-    expect(platform().listenerCount, 'nothing was subscribed to unsubscribe').toBe(0);
+    // A baseline rather than a literal `0`, and that is not defensiveness: the
+    // list is cached per query string for the whole file, so a literal would
+    // make this test's verdict depend on how many hooks the tests above it
+    // mounted — which is exactly what the injection below reported. What is
+    // asserted is the *difference* one mount and one unmount make.
+    const before = platform().listenerCount;
 
     const held = renderHook(() => useTheme());
-    expect(platform().listenerCount, 'the hook never subscribed at all').toBe(1);
+    expect(platform().listenerCount, 'the hook never subscribed at all').toBe(before + 1);
 
     held.unmount();
 
     // Proof: `media.removeEventListener('change', follow)` deleted from the
-    // effect's cleanup in `theme.ts`, this fails on `the hook left its listener
-    // on the platform … expected 1 to be 0`, where the block below stayed
-    // green. Watched, 2026-08-12.
-    expect(platform().listenerCount, 'the hook left its listener on the platform').toBe(0);
+    // effect's cleanup in `theme.ts`, this failed on `the hook left its
+    // listener on the platform: expected 8 to be 7`, where the block below
+    // stayed green — which is the whole point. Watched on h2puni, 2026-08-12.
+    expect(platform().listenerCount, 'the hook left its listener on the platform').toBe(before);
 
     act(() => {
       platform().setMatches(true);
