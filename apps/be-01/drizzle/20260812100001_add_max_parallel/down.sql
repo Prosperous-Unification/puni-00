@@ -1,0 +1,15 @@
+-- Reverses 20260812100001_add_max_parallel.
+--
+-- Dropping this loses every statement anybody made about how many people may
+-- be on one work item, and it cannot be recomputed: the release that comes
+-- back runs every work item one person at a time, so a six-day item three
+-- people were compressing into two goes back to six. Nothing else in the plan
+-- goes — the work items, their estimates, their dependencies, their teams and
+-- their dates all survive — which is why this runs only when the release that
+-- added the column is being taken away.
+--
+-- Reversed **before** `20260812100000_add_team_slots`: rollback order is the
+-- reverse of application order, which is what `migrate-down-cli.ts --to=<name>`
+-- does with the applied set, and `migrate.test.ts` walks it rather than
+-- trusting the CLI's exit code.
+ALTER TABLE `work_item` DROP COLUMN `max_parallel`;

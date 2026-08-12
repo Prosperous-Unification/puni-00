@@ -65,6 +65,7 @@ const newItem = (id: string, position: number, name: string): WorkItem => ({
   priority: null,
   startNoEarlierThan: null,
   serviceTeamId: null,
+  maxParallel: 1,
   revision: 0,
 });
 

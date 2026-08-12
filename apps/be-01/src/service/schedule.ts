@@ -17,6 +17,11 @@ export interface DependencyEdge {
  * be somewhere in the plan, so it gets one slice belonging to nobody rather
  * than falling out of the graph its neighbours' dependencies run through.
  *
+ * `days` is **effort**, not duration: a slice of 6 days' effort that three
+ * people may work at once runs for 2. Duration is `days / width`, and the two
+ * are the same number for every slice of width 1 — which is every slice of
+ * every plan that sets neither capacity field.
+ *
  * `days` is null when nobody has estimated this pair, which is not the same
  * fact as zero — see {@link Scheduled.estimated}.
  */
@@ -35,7 +40,48 @@ export interface Slice {
    * them to. The pass only ever asks "the same person as that slice?".
    */
   personId: string | null;
+  /**
+   * How many slots this block holds at once — 1 unless the plan says
+   * otherwise, and **resolved by the caller**.
+   *
+   * `personId`'s rule for `personId`'s reason: a second implementation of the
+   * clamp inside the pass would put work on widths nobody asked for. The
+   * caller's reading is the item's `maxParallel`, clamped down by its pool's
+   * size and dropped to 1 for a named assignee — one human cannot work beside
+   * themselves.
+   *
+   * The block is **indivisible**: `width` slots for `days / width` days, or it
+   * waits. It never runs narrow and widens later, because a duration that
+   * depended on what was free when the block was popped would depend on
+   * placement order, and `offsets[]` is summed before any of that is known.
+   */
+  width: number;
+  /**
+   * The pool this block draws its slots from, or null for work no sized team
+   * labels — from `effectiveTeamOf`, and **resolved by the caller** for
+   * `width`'s reason.
+   *
+   * Null is the state of every plan that names no team and of every plan whose
+   * teams are unsized. A null-pooled slice reserves nothing and waits for
+   * nothing.
+   */
+  poolId: string | null;
 }
+
+/**
+ * How many slots each pool holds — the sizes the placement is bounded by.
+ *
+ * A separate argument rather than a field on the slice, because the bound is a
+ * fact about the **team** and every slice on one pool must read one number:
+ * carried per slice, two slices could disagree about the size of the pool they
+ * share and the profile would have no answer to give.
+ *
+ * A `poolId` this map has no entry for is a caller fault and the pass throws:
+ * the caller only ever sets `poolId` for a team that **has** a size, so an
+ * absent entry means the two readings came apart. R5 — a default of `Infinity`
+ * here would be a pool constraint silently not applied.
+ */
+export type PoolSizes = ReadonlyMap<string, number>;
 
 /**
  * The key one slice is held under. Opaque: read {@link ScheduledSlice}'s own
@@ -72,15 +118,28 @@ export interface Scheduled {
  *
  * `projectStart` means nothing did — it starts on day zero. `predecessor` is a
  * dependency onto another work item, `roleOrder` the work item's own earlier
- * role, `notBefore` a manual date, and `person` the assignee finishing
- * something else.
+ * role, `notBefore` a manual date, `person` the assignee finishing something
+ * else, and `capacity` the team having no free slot wide enough for the whole
+ * of this block.
  *
- * A tie is **not** `person`: when the assignee comes free exactly as the
- * dependency clears, nobody is waiting for them, and a plan that said otherwise
- * would count that row into "N tasks wait for a person". `person` therefore
- * means the person floor was strictly the latest of them.
+ * A tie is **not** the later kind in this list: when the assignee comes free
+ * exactly as the dependency clears, nobody is waiting for them, and a plan
+ * that said otherwise would count that row into "N tasks wait for a person".
+ * Each kind therefore means its floor was strictly the latest of them.
+ *
+ * `capacity` sits after `person` because a slice can now carry both — the work
+ * item's team spends a slot whether or not somebody is named on the work — so
+ * the order decides a real case rather than a hypothetical one: kat free on
+ * day 4 with a slot opening on day 6 says capacity, and both landing on day 6
+ * says person.
  */
-export type ScheduleFloor = 'projectStart' | 'predecessor' | 'roleOrder' | 'notBefore' | 'person';
+export type ScheduleFloor =
+  | 'projectStart'
+  | 'predecessor'
+  | 'roleOrder'
+  | 'notBefore'
+  | 'person'
+  | 'capacity';
 
 /** One slice's schedule, carrying what it is the schedule of and what held it there. */
 export interface ScheduledSlice extends Scheduled {
@@ -90,14 +149,58 @@ export interface ScheduledSlice extends Scheduled {
   personId: string | null;
   boundBy: ScheduleFloor;
   /**
-   * The slice this one's assignee was busy with, or null.
+   * The slice this one waited behind, or null — the **display referent**, not
+   * the graph.
    *
-   * Set only when `boundBy` is `person` — an arrow drawn for a resource edge
-   * that did not bind would claim a wait that is not there. It is a key into
-   * {@link Schedule.slices}: look it up rather than taking it apart, exactly as
-   * {@link sliceKey} says.
+   * For a `person` floor it is the slice the assignee was busy with. For a
+   * `capacity` floor it is one of {@link capacityPredecessorIds}: the latest
+   * finisher of the blocking set, ties broken by placement order. The graph
+   * carries the whole set; a chart draws one arrow, and the hover says "and N
+   * others" when the set is larger.
+   *
+   * Set only when `boundBy` is `person` or `capacity` — an arrow drawn for a
+   * resource edge that did not bind would claim a wait that is not there. It is
+   * a key into {@link Schedule.slices}: look it up rather than taking it apart,
+   * exactly as {@link sliceKey} says.
    */
   resourcePredecessorId: string | null;
+  /**
+   * Every reservation that had to end for this block to fit — the **whole**
+   * blocking set, as keys into {@link Schedule.slices}.
+   *
+   * Empty for every slice a pool did not hold up. Non-empty exactly when
+   * `boundBy` is `capacity`, which is an invariant the render path relies on
+   * and `floorWordsOf` refuses to work around.
+   *
+   * The set rather than one edge, because one edge reports float that is not
+   * there. Pool of 2, width-1 blocks A and B ending on days 5 and 7, width-2
+   * block X therefore starting on day 7: with only B→X in the graph, A appears
+   * free to slip for ever — and A ending on day 8 pushes X and the project with
+   * it. That is a row reported as having slack it has none of, which is the
+   * class of fault that killed the first leveling algorithm.
+   *
+   * **The error is one-sided by construction.** "At least one of these must
+   * move" is a disjunction, and a DAG cannot express one, so edging all of them
+   * makes the graph at least as tight as reality: float can come out *smaller*
+   * than it truly is, never larger. No row is ever reported movable when it is
+   * not.
+   */
+  capacityPredecessorIds: string[];
+  /**
+   * How many slots this slice held while it ran — the caller's
+   * {@link Slice.width}, carried out so a reader can see why the duration is
+   * what it is.
+   */
+  width: number;
+  /**
+   * The work itself, in days, before it was divided among {@link width}
+   * people.
+   *
+   * `duration` is what the block occupied — `effort / width` — and the two are
+   * the same number at width 1, which is every slice of every plan that sets
+   * neither capacity field.
+   */
+  effort: number;
 }
 
 /**
@@ -118,6 +221,29 @@ export interface Schedule {
    * with nobody assigned, which is the state this tool shipped in until now.
    */
   waitingForPerson: number;
+  /**
+   * How many work items hold a slice a **team's capacity** is the reason for.
+   *
+   * Counted per work item exactly as {@link waitingForPerson} is, and beside it
+   * rather than folded into it: "waiting for a person" and "waiting for a slot"
+   * are different sentences and a planner acts on them differently — one is
+   * somebody's calendar, the other is a headcount. Zero on every plan with no
+   * team sized, which is the state this tool shipped in until now.
+   */
+  waitingForCapacity: number;
+  /**
+   * How many aggregated pool events the levelling pass's window searches
+   * visited, together.
+   *
+   * Instrumentation rather than an answer, and it is on the return type
+   * because the alternative is a wall-clock assertion: a millisecond figure is
+   * not an R5 proof and is flaky in CI, while this counts the work the stated
+   * complexity is a claim about. `schedule-capacity.test.ts` asserts it against
+   * a bound derived from that complexity, and it is the reason the missing
+   * `W <= N` clamp fails as a bounded number rather than as a hang.
+   * `verify.md` records the wall-clock figures, where an observation belongs.
+   */
+  eventsVisited: number;
 }
 
 /** The cycle a graph cannot be ordered around. Typed so callers catch this and nothing else. */
@@ -296,10 +422,35 @@ function groupByWorkItem(
   const sliced = new Map<string, WorkItemSlices>();
   for (const [workItemId, group] of grouped) {
     const offsets = [0];
-    for (const slice of group) offsets.push(offsets[offsets.length - 1] + (slice.days ?? 0));
+    for (const slice of group) offsets.push(offsets[offsets.length - 1] + durationOf(slice));
     sliced.set(workItemId, { slices: group, offsets });
   }
   return sliced;
+}
+
+/**
+ * How long a slice occupies the calendar: its effort divided among the people
+ * working on it at once.
+ *
+ * **`E / 1 === E` exactly**, for every value that can reach {@link Slice.days}.
+ * That is the whole of this change's identity claim and it is narrower than
+ * "for all doubles": `days` arrives only through `finalDays()` over a validated
+ * `ThreePointEstimate`, whose three fields are `number>=0` — finite and
+ * non-negative — or through `null`. Division by one is exact in IEEE-754 for
+ * every finite value, `-0 / 1 === -0`, and the prefix sum's `0 + -0` already
+ * normalises to `+0` on both sides of this change. So `offsets[]` is the same
+ * array of the same doubles for every plan that sets no capacity field, and the
+ * differential is the proof rather than this paragraph.
+ *
+ * The boundary that makes the claim true is asserted separately: a non-finite
+ * estimate cannot reach `Slice.days` (`estimate.test.ts`).
+ *
+ * Proof: the division dropped, so duration is effort again, and `compresses six
+ * days of effort into two when three may work at once` failed with a duration
+ * of 6 where 2 was owed; watched 2026-08-12.
+ */
+function durationOf(slice: Slice): number {
+  return (slice.days ?? 0) / slice.width;
 }
 
 /**
@@ -353,8 +504,305 @@ interface Placed {
   start: number;
   finish: number;
   boundBy: ScheduleFloor;
-  /** The node its assignee was busy with, or -1 when nobody held it up. */
+  /**
+   * The node it waited behind, or -1 when nobody held it up — the display
+   * referent for both resource kinds. See
+   * {@link ScheduledSlice.resourcePredecessorId}.
+   */
   resourcePredecessor: number;
+  /**
+   * Every reservation that had to end for this block to fit, as node indices.
+   *
+   * Empty unless a pool held the block up. The **whole** set, because one edge
+   * reports float that is not there — see
+   * {@link ScheduledSlice.capacityPredecessorIds}.
+   */
+  capacityPredecessors: number[];
+}
+
+/**
+ * One instant at which a pool's usage changes, with everything that changes at
+ * it collected together.
+ *
+ * **Aggregated by timestamp, and that is not tidiness.** Reservations are
+ * half-open `[start, finish)`, so at an instant where one block ends and
+ * another begins the release must be seen before the acquisition; raw
+ * `+W`/`-W` entries evaluated in insertion order can report a transient
+ * over-capacity that never existed and push a block to a later window. Summing
+ * every delta at one timestamp before the instant is evaluated is what makes
+ * the answer independent of the order the entries arrived in, which is the
+ * determinism claim.
+ *
+ * Proof: the merge in `eventAt` removed, so each reservation writes its own
+ * entry, and `lets a block run through the instant another hands its slot over`
+ * failed — the block came back at 4→8 instead of 0→4, pushed off a slot that
+ * was never taken; watched 2026-08-12.
+ */
+interface PoolEvent {
+  at: number;
+  /** The net change in slots in use at this instant: acquisitions less releases. */
+  delta: number;
+  /** The nodes acquiring here, so the scan can keep an active set as it walks. */
+  acquires: number[];
+  /** The nodes releasing here, for the same reason. */
+  releases: number[];
+}
+
+/**
+ * A pool's usage over time, as the events that change it — plus how many slots
+ * it has.
+ *
+ * The events are held sorted and aggregated; nothing else about the profile is
+ * stored, because a reservation is written once and never moved and the usage
+ * at any instant is therefore a function of them alone.
+ */
+interface Pool {
+  size: number;
+  events: PoolEvent[];
+}
+
+/**
+ * A block wider than the pool it draws from, which no placement can satisfy.
+ *
+ * R5, and deliberately not a silent widening or an unbounded search: the width
+ * is clamped to the pool's size by the caller (`widthFor` in
+ * `work-item.service.ts`), so reaching this means the clamp and the sizes came
+ * apart, and a scan that kept looking for a window would run past the last
+ * event for ever. Bounded and named beats hanging.
+ *
+ * `where` names **which** of the two refusals fired, and it is not decoration.
+ * The refusal below the window search is a backstop for the same property, and
+ * with one message between them removing the up-front check left the negative
+ * green — the backstop caught the same plan and said the same words. Watched
+ * 2026-08-12: the two were one message, `refuses a block wider than the pool it
+ * draws from` passed with the up-front check deleted, and the check was a claim
+ * rather than a gate.
+ */
+class CapacityTooNarrowError extends Error {
+  override name = 'CapacityTooNarrowError' as const;
+  constructor(
+    poolId: string,
+    width: number,
+    size: number,
+    where: 'before the search' | 'past the last event',
+  ) {
+    super(
+      `a block of width ${String(width)} cannot fit pool ${poolId}, which holds ` +
+        `${String(size)}: the caller's clamp and the pool sizes disagree ` +
+        `(refused ${where})`,
+    );
+  }
+}
+
+/**
+ * The pools, the reservations on them, and the window search that places a
+ * block against them.
+ *
+ * One object rather than free functions over a map, because the scan counter
+ * below has to be a fact about **this** run: the instrumented perf bound
+ * (`schedule-capacity.test.ts`) asserts how many aggregated events one plan
+ * makes the placement visit, and a module-level counter would be a number about
+ * whatever else the suite had run.
+ */
+function capacityProfile(sizes: PoolSizes) {
+  const pools = new Map<string, Pool>();
+  /**
+   * How many aggregated events every window search has visited, together.
+   *
+   * The instrumented bound R5 asks for in place of a wall-clock assertion: a
+   * wall-clock number is not a proof and is flaky in CI, while this counts the
+   * work the stated complexity is a claim about.
+   */
+  let visited = 0;
+
+  const poolFor = (poolId: string): Pool => {
+    const already = pools.get(poolId);
+    if (already !== undefined) return already;
+    const size = sizes.get(poolId);
+    // R5: the caller sets `poolId` only for a team that has a size, so an
+    // absent entry means the adapter's reading and this map came apart. A
+    // default here would be a capacity constraint quietly not applied.
+    //
+    // Proof: replaced with `?? Infinity` and `refuses a pooled slice whose pool
+    // has no size` failed on `expected [Function] to throw` — the pool bounded
+    // nothing and the plan came back unconstrained; watched 2026-08-12.
+    if (size === undefined) throw new Error(`no size for pool ${poolId}`);
+    const fresh: Pool = { size, events: [] };
+    pools.set(poolId, fresh);
+    return fresh;
+  };
+
+  /** Where `at` belongs in a pool's sorted events — the first entry not before it. */
+  const indexOf = (events: readonly PoolEvent[], at: number): number => {
+    let low = 0;
+    let high = events.length;
+    while (low < high) {
+      const mid = (low + high) >> 1;
+      if (events[mid].at < at) low = mid + 1;
+      else high = mid;
+    }
+    return low;
+  };
+
+  const eventAt = (pool: Pool, at: number): PoolEvent => {
+    const index = indexOf(pool.events, at);
+    if (index < pool.events.length && pool.events[index].at === at) return pool.events[index];
+    const fresh: PoolEvent = { at, delta: 0, acquires: [], releases: [] };
+    pool.events.splice(index, 0, fresh);
+    return fresh;
+  };
+
+  return {
+    /**
+     * The earliest instant at or after `floor` where `width` slots are free for
+     * the **whole** of `duration`, and every reservation that had to end for
+     * that to be true.
+     *
+     * One forward scan over the aggregated events, keeping the running usage
+     * and the set of nodes currently holding slots. Where `usage + width` runs
+     * past the pool, every active reservation goes into the blocking set and
+     * the candidate window restarts at the next instant the aggregate changes —
+     * no candidate between the current one and the violation can help, since
+     * every one of them still contains it.
+     *
+     * **Whole-window, not the start instant.** A pool with a short gap followed
+     * by a reservation overlapping the middle of the candidate duration must
+     * not let the block take the gap.
+     *
+     * Proof: the interior walk disabled, so only the start instant is tested,
+     * and `skips a gap it cannot fit inside and waits for the whole window`
+     * failed — the block took the one-day hole and ran on top of the four-day
+     * reservation behind it; watched 2026-08-12.
+     *
+     * **It terminates**, and the argument is immutable reservations rather than
+     * chronology: every reservation is written once and never moved, so a
+     * search reads a profile that cannot change under it, the candidate walks
+     * strictly forward through a finite event list, and past the last event
+     * usage is 0 — where `width <= size` always fits, which is what the throw
+     * above guarantees.
+     */
+    windowFor(
+      poolId: string | null,
+      width: number,
+      duration: number,
+      floor: number,
+    ): { start: number; blocking: number[] } {
+      // Reserves nothing and waits for nothing: a slice of no length is not
+      // work and a slice on no pool spends nobody's slots. The twin of the
+      // existing person rule and of its watched proof.
+      if (poolId === null || duration === 0 || width === 0) return { start: floor, blocking: [] };
+      const pool = poolFor(poolId);
+      // Refused here rather than found out at the end of the scan: this is the
+      // statement that the caller's clamp and these sizes are one reading, and
+      // it says so before any work is done. The backstop in `advancePast` holds
+      // the same property from the other side; the two are told apart by the
+      // clause they end with, because with one message between them this check
+      // could be deleted and its negative stayed green.
+      //
+      // Proof: deleted, and `refuses a block wider than the pool it draws from`
+      // failed on the message — the backstop caught the same plan and refused
+      // `past the last event`, which is the same refusal arriving after a full
+      // scan instead of before it; watched 2026-08-12.
+      if (width > pool.size) {
+        throw new CapacityTooNarrowError(poolId, width, pool.size, 'before the search');
+      }
+
+      const blocking = new Set<number>();
+      const { events, size } = pool;
+      let usage = 0;
+      const active = new Set<number>();
+      let at = 0;
+      let start = floor;
+      // Everything already over by the floor, folded in before the window is
+      // considered at all — the profile does not begin at the floor.
+      for (; at < events.length && events[at].at <= start; at += 1) {
+        visited += 1;
+        usage += events[at].delta;
+        for (const node of events[at].acquires) active.add(node);
+        for (const node of events[at].releases) active.delete(node);
+      }
+
+      /** Steps the scan past `instant`, then onto the next candidate start. */
+      const advancePast = (instant: number): void => {
+        for (; at < events.length && events[at].at <= instant; at += 1) {
+          visited += 1;
+          usage += events[at].delta;
+          for (const node of events[at].acquires) active.add(node);
+          for (const node of events[at].releases) active.delete(node);
+        }
+        // The backstop, and unreachable while the check above stands: past the
+        // last event usage is 0, and `width <= size` therefore always fits, so
+        // a scan can only run out of events when a block wider than its pool
+        // got this far. Kept anyway, and bounded — a search that instead kept
+        // looking would never come back — and told apart from the up-front
+        // refusal by its clause so neither can stand in for the other.
+        if (at >= events.length) {
+          throw new CapacityTooNarrowError(poolId, width, size, 'past the last event');
+        }
+        const next = events[at];
+        start = next.at;
+        visited += 1;
+        usage += next.delta;
+        for (const node of next.acquires) active.add(node);
+        for (const node of next.releases) active.delete(node);
+        at += 1;
+      };
+
+      for (;;) {
+        if (usage + width > size) {
+          for (const node of active) blocking.add(node);
+          // No candidate at or before this instant can work: every one of them
+          // contains it. The next one is the next instant the aggregate moves.
+          advancePast(start);
+          continue;
+        }
+        // The interior of the candidate window, on a copy of the running state
+        // so a violation leaves the scan where it can resume.
+        let interior = at;
+        let inside = usage;
+        const held = new Set(active);
+        let violatedAt: number | null = null;
+        for (; interior < events.length && events[interior].at < start + duration; interior += 1) {
+          visited += 1;
+          inside += events[interior].delta;
+          for (const node of events[interior].acquires) held.add(node);
+          for (const node of events[interior].releases) held.delete(node);
+          if (inside + width > size) {
+            for (const node of held) blocking.add(node);
+            violatedAt = events[interior].at;
+            break;
+          }
+        }
+        if (violatedAt === null) break;
+        // Every candidate up to and including the violation contains it, so the
+        // next one is the first instant after it.
+        advancePast(violatedAt);
+      }
+
+      return { start, blocking: [...blocking] };
+    },
+
+    /** Writes a placed block's two events onto its pool, tagged with the node holding them. */
+    reserve(
+      poolId: string | null,
+      node: number,
+      width: number,
+      start: number,
+      finish: number,
+    ): void {
+      if (poolId === null || width === 0 || finish === start) return;
+      const pool = poolFor(poolId);
+      const opens = eventAt(pool, start);
+      opens.delta += width;
+      opens.acquires.push(node);
+      const closes = eventAt(pool, finish);
+      closes.delta -= width;
+      closes.releases.push(node);
+    },
+
+    /** How many aggregated events every search of this run has visited together. */
+    eventsVisited: (): number => visited,
+  };
 }
 
 /**
@@ -477,8 +925,22 @@ function eligibleSet(goesFirst: (left: number, right: number) => boolean) {
 function placeSlices(
   graph: SliceGraph,
   goesFirst: (left: number, right: number) => boolean,
-  withPeople: boolean,
-): { order: number[]; placed: Placed[]; resourceSuccessors: number[][] } {
+  /**
+   * Whether people's queues and teams' pools constrain this run.
+   *
+   * Both together, because they are the same kind of fact — a resource the plan
+   * does not create more of — and the run with them off is the critical path
+   * this one ranks by. Splitting them would make the ranking depend on
+   * capacity, which is a placement decision.
+   */
+  withResources: boolean,
+  sizes: PoolSizes,
+): {
+  order: number[];
+  placed: Placed[];
+  resourceSuccessors: number[][];
+  eventsVisited: number;
+} {
   const { nodes } = graph;
   const waitingOn = nodes.map((node) => node.predecessors.length);
   const eligible = eligibleSet(goesFirst);
@@ -490,6 +952,9 @@ function placeSlices(
   /** Each person's last placement — their finishes only ever go up, so it is also their latest. */
   const busyUntil = new Map<string, { node: number; finish: number }>();
   const resourceSuccessors = nodes.map((): number[] => []);
+  const profile = capacityProfile(sizes);
+  /** Which step of `order` each node was placed at, which breaks the display referent's ties. */
+  const placedAt = new Array<number>(nodes.length).fill(0);
 
   for (let taken = eligible.take(); taken !== undefined; taken = eligible.take()) {
     const node = nodes[taken];
@@ -513,20 +978,56 @@ function placeSlices(
     // has estimated no place in the queue` failed — the empty `QA` came back at
     // day 5 rather than day 3, `boundBy: 'person'`, taking its work item's
     // finish with it; watched 2026-08-09.
-    const personId = withPeople && offsets[at + 1] - offsets[at] > 0 ? node.slice.personId : null;
+    const duration = offsets[at + 1] - offsets[at];
+    const personId = withResources && duration > 0 ? node.slice.personId : null;
     const busy = personId === null ? undefined : busyUntil.get(personId);
+    // The same rule as the person's, one line along: a slice of no length
+    // spends nobody's slots, and neither does one no sized team labels. The run
+    // with the resources taken out is the critical path, and it has no pools in
+    // it at all.
+    const poolId = withResources ? node.slice.poolId : null;
+    const { width } = node.slice;
+    // Where the plan alone would put it: the floors that do not depend on a
+    // resource, plus the person's queue. The pool is asked **from** here, which
+    // is what "at or after the floor" means.
+    const planFloor = Math.max(
+      fromPredecessor,
+      fromRoleOrder,
+      node.notBefore,
+      busy === undefined ? 0 : busy.finish,
+    );
+    const window = profile.windowFor(poolId, width, duration, planFloor);
     // Latest wins, and a tie keeps the reason listed first — which is why the
-    // person is last of them; see {@link ScheduleFloor}.
+    // person is second to last and capacity is last; see {@link ScheduleFloor}.
+    // A slice can carry both, because a team's slot is spent whether or not
+    // somebody is named on the work, so the order decides a real case.
     //
     // Proof: the person floor deleted from this list and nine leveling tests
     // failed, `runs two work items assigned to one person one after the other`
     // among them — `b` came back at 0→2 while `kat` was on `a` until day 3;
     // watched 2026-08-09.
+    //
+    // Proof: the capacity entry deleted from this list and `waits for a team's
+    // slots to come free before it starts` failed — the third block on a team
+    // of two came back at day 0 with `boundBy: 'projectStart'`; watched
+    // 2026-08-12.
+    //
+    // Proof: the capacity entry moved above `person` and `names the person, not
+    // the pool, when the two land on the same day` failed — not by naming
+    // `capacity` where the assignee was owed the sentence, which is what the
+    // reorder was predicted to do, but one layer earlier. In that fixture both
+    // floors are day 3, so the window search starts at its answer and steps
+    // over nothing: `capacity` takes the tie with an **empty** blocking set,
+    // the referent below stays `NOBODY`, and the invariant at the end of this
+    // block throws `b role-dev waited for capacity with nothing holding the
+    // pool`. Recorded as observed, which is also what `verify.md`'s F8 row
+    // says; watched 2026-08-12.
     const floors: { at: number; kind: ScheduleFloor }[] = [
       { at: fromPredecessor, kind: 'predecessor' },
       { at: fromRoleOrder, kind: 'roleOrder' },
       { at: node.notBefore, kind: 'notBefore' },
       ...(busy === undefined ? [] : [{ at: busy.finish, kind: 'person' as const }]),
+      { at: window.start, kind: 'capacity' as const },
     ];
     let start = 0;
     let boundBy: ScheduleFloor = 'projectStart';
@@ -558,13 +1059,79 @@ function placeSlices(
     // start of 10.666666666666666 became 10.666666666666668; watched
     // 2026-08-09.
     const finish = held.start + (offsets[at + 1] - offsets[held.at]);
+    // Only where the pool is what held it: a set carried on a slice the pool
+    // let through would be a wait that is not there, in the same way an arrow
+    // for a resource edge that did not bind would be.
+    const capacityPredecessors = boundBy === 'capacity' ? window.blocking : [];
+    /**
+     * Which of the blocking set the arrow points at: the latest finisher, ties
+     * to the one placed first.
+     *
+     * A display referent and nothing more — the graph below keeps the whole
+     * set. The latest finisher because it is the one whose end the reader is
+     * actually looking at, and the tie is broken by placement order rather than
+     * by node index so the choice is the pass's own total order and not the
+     * array's.
+     */
+    let referent = NOBODY;
+    for (const blocker of capacityPredecessors) {
+      if (referent === NOBODY) {
+        referent = blocker;
+        continue;
+      }
+      if (placed[blocker].finish > placed[referent].finish) referent = blocker;
+      else if (
+        placed[blocker].finish === placed[referent].finish &&
+        placedAt[blocker] < placedAt[referent]
+      ) {
+        referent = blocker;
+      }
+    }
+    // A capacity-floored slice with an empty blocking set is impossible — the
+    // floor is the search's own answer and the search records what it stepped
+    // over — so it is a throw rather than a null the render path would have to
+    // invent words for. `floorWordsOf`'s existing refusal, one layer down.
+    //
+    // Proof: the search made to hand back an empty set (its dependency
+    // deliberately broken) **and** this throw replaced by the fall-through it
+    // refuses — the two faults the invariant stands between — and `waits for a
+    // team's slots to come free before it starts` failed on
+    // `resourcePredecessorId: null` with `boundBy: 'capacity'`: a bar claiming
+    // a wait and naming nothing. With the throw restored the same broken search
+    // fails here instead, which is the point of it; watched 2026-08-12.
+    if (boundBy === 'capacity' && referent === NOBODY) {
+      throw new Error(`${node.key} waited for capacity with nothing holding the pool`);
+    }
     placed[taken] = {
       start,
       finish,
       boundBy,
-      resourcePredecessor: boundBy === 'person' && busy !== undefined ? busy.node : NOBODY,
+      resourcePredecessor:
+        boundBy === 'person' && busy !== undefined
+          ? busy.node
+          : boundBy === 'capacity'
+            ? referent
+            : NOBODY,
+      capacityPredecessors,
     };
+    placedAt[taken] = order.length;
     order.push(taken);
+
+    // The reservation, written once and never moved — which is what makes the
+    // scan above read a profile that cannot change under it, and therefore what
+    // makes the placement terminate.
+    profile.reserve(poolId, taken, width, start, finish);
+    // The edges the pool chose: every reservation that had to end for this
+    // block to fit, each pointing at the block. The **whole** set, because a
+    // single edge reports float that is not there — see
+    // {@link ScheduledSlice.capacityPredecessorIds}. Every one of them is
+    // already placed, so the augmented graph stays acyclic in placement order.
+    //
+    // Proof: narrowed to the display referent alone — one edge, from the latest
+    // finisher — and `reports no float on a block whose slack another block's
+    // finish is holding` failed with A's float coming back as 5 rather than 2:
+    // a row reported as movable that cannot move; watched 2026-08-12.
+    for (const blocker of capacityPredecessors) resourceSuccessors[blocker].push(taken);
 
     if (personId !== null) {
       // The edge the pass chose: this person's work, in the order it will be
@@ -594,7 +1161,7 @@ function placeSlices(
   // `tree` turns into the banner saying why the plan has no dates; watched
   // 2026-08-09.
   if (order.length !== nodes.length) throw new ScheduleCycleError();
-  return { order, placed, resourceSuccessors };
+  return { order, placed, resourceSuccessors, eventsVisited: profile.eventsVisited() };
 }
 
 /**
@@ -891,6 +1458,15 @@ export function schedule(
    * own floor and every ancestor's — see the expansion below.
    */
   notBefore: ReadonlyMap<string, number> = new Map(),
+  /**
+   * How many slots each pool holds, by pool id — see {@link PoolSizes}.
+   *
+   * Empty by default, which is every plan whose teams nobody has sized and
+   * therefore every plan that exists today: with no entry here no slice can
+   * carry a `poolId`, so nothing reserves anything and the placement is the one
+   * this engine performed before capacity existed.
+   */
+  poolSizes: PoolSizes = new Map(),
 ): Schedule {
   const index = indexTree(rows);
   const { leafIds } = index;
@@ -1069,7 +1645,7 @@ export function schedule(
   // exactly what this engine answers when nobody is assigned. The order it is
   // computed in is the order the nodes were built in, which is all a plan with
   // no queues in it needs.
-  const unleveled = placeSlices(graph, (left, right) => left < right, false);
+  const unleveled = placeSlices(graph, (left, right) => left < right, false, poolSizes);
   const criticalPath = lateTimes(
     graph,
     unleveled.order,
@@ -1135,7 +1711,7 @@ export function schedule(
     return first.at < second.at;
   };
 
-  const leveled = placeSlices(graph, goesFirst, true);
+  const leveled = placeSlices(graph, goesFirst, true, poolSizes);
   const projectFinish = Math.max(0, ...leveled.placed.map((each) => each.finish));
   // The augmented graph: the plan's edges and the ones the placement chose. A
   // slice held off by a person cannot slip without moving what that person does
@@ -1161,16 +1737,26 @@ export function schedule(
 
   const scheduledSlices = new Map<string, ScheduledSlice>();
   const waiting = new Set<string>();
+  const waitingOnSlots = new Set<string>();
   nodes.forEach((node, at) => {
     const { slice } = node;
     const placed = leveled.placed[at];
     const { latestStart, latestFinish } = late[at];
     const slack = slackOf(latestStart, placed.start);
     if (placed.boundBy === 'person') waiting.add(slice.workItemId);
+    // Beside the person's count, never folded into it: "waiting for a person"
+    // and "waiting for a slot" are different sentences, and `boundBy` names
+    // exactly one of them for any slice.
+    if (placed.boundBy === 'capacity') waitingOnSlots.add(slice.workItemId);
     scheduledSlices.set(node.key, {
       workItemId: slice.workItemId,
       roleId: slice.roleId,
-      duration: slice.days ?? 0,
+      // What the block occupied, which is its effort divided among the people
+      // on it. The same number as the effort at width 1, which is every slice
+      // of every plan that sets no capacity field.
+      duration: (slice.days ?? 0) / slice.width,
+      effort: slice.days ?? 0,
+      width: slice.width,
       // Proof: hard-coded to `true` and the captured live plan came back with
       // three of its rows claiming somebody had estimated them, along with
       // `reports an unestimated leaf as unestimated, not merely as zero` and
@@ -1186,6 +1772,7 @@ export function schedule(
       boundBy: placed.boundBy,
       resourcePredecessorId:
         placed.resourcePredecessor === NOBODY ? null : nodes[placed.resourcePredecessor].key,
+      capacityPredecessorIds: placed.capacityPredecessors.map((blocker) => nodes[blocker].key),
     });
   });
 
@@ -1198,6 +1785,8 @@ export function schedule(
     slices: scheduledSlices,
     workItems: projectOntoWorkItems(rows, index, slicesOf, scheduleOf),
     waitingForPerson: waiting.size,
+    waitingForCapacity: waitingOnSlots.size,
+    eventsVisited: leveled.eventsVisited,
   };
 }
 

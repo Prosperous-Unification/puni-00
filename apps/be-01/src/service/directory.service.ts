@@ -94,7 +94,10 @@ export class DirectoryService {
   async addTeam(name: string): Promise<ServiceTeam | null> {
     const clean = cleanName(name);
     if (clean === null) return null;
-    return this.opts.directory.addTeam({ id: this.newId(), name: clean });
+    // `size: null` — unstated. A team is created by somebody typing a name
+    // into a cell, and how many of them there are is a separate statement made
+    // on the directory page. Null constrains no schedule; see `schema.ts`.
+    return this.opts.directory.addTeam({ id: this.newId(), name: clean, size: null });
   }
 
   /**

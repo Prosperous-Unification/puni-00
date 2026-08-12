@@ -1,0 +1,13 @@
+-- Reverses 20260812100000_add_team_slots.
+--
+-- Dropping this loses every headcount anybody typed, and it cannot be
+-- recomputed: the release that comes back schedules a team's work with no
+-- bound on how much of it runs at once, so a plan that was spread over six
+-- weeks by a team of two collapses back onto whatever the dependencies alone
+-- allow. Nothing else in the plan goes — the teams, their names, their
+-- memberships and every label on the work all survive — which is why this runs
+-- only when the release that added the column is being taken away.
+--
+-- Reversed **after** `20260812100001_add_max_parallel`, which is the order
+-- `migrate-down-cli.ts --to=<name>` walks the applied set in.
+ALTER TABLE `service_team` DROP COLUMN `size`;

@@ -39,6 +39,7 @@ const insertItem = async (
     priority: null,
     startNoEarlierThan: null,
     serviceTeamId: null,
+    maxParallel: 1,
     revision: 0,
   };
   await workItems.insert(item, []);

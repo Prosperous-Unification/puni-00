@@ -80,6 +80,7 @@ function row(parentId: string | null, position: number, name: string): WorkItem 
     priority: null,
     startNoEarlierThan: null,
     serviceTeamId: null,
+    maxParallel: 1,
     revision: 0,
   };
 }

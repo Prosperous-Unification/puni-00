@@ -26,6 +26,11 @@ const ROLE_POSITION = '20260809090000_add_role_position';
 // A column on `work_item`, the same shape again: it appears in the order, and
 // in the two cases of its own at the bottom of this file.
 const PRIORITY = '20260811100000_add_priority';
+// The two capacity columns, in application order. Both are columns on existing
+// tables, so like the revisions they appear in the order and in their own
+// cases at the bottom of this file.
+const TEAM_SLOTS = '20260812100000_add_team_slots';
+const MAX_PARALLEL = '20260812100001_add_max_parallel';
 
 const WBS_TABLES = ['project', 'work_item', 'role', 'estimate'] as const;
 // Its own migration, reversed with the domain because it references `work_item`.
@@ -76,7 +81,12 @@ describe('the WBS domain migration', () => {
 
       const reversed = rollbackTo(db.path, FOLDER, USERS);
 
+      // Newest first. The two capacity columns reverse in the opposite order
+      // to the one they were applied in, which is the whole of the rollback
+      // ordering claim: `max_parallel` down, then `size` down.
       expect(reversed).toEqual([
+        MAX_PARALLEL,
+        TEAM_SLOTS,
         PRIORITY,
         ROLE_POSITION,
         JOURNAL,
@@ -269,6 +279,132 @@ describe('the priority migration', () => {
         expect(row?.priority).toBeNull();
       } finally {
         after.close();
+      }
+    } finally {
+      db.cleanup();
+    }
+  });
+});
+
+describe('the capacity migrations', () => {
+  it('lets the outgoing release keep inserting work items and teams against both', () => {
+    // The blue/green half, the same shape the priority and role-position
+    // migrations have: green migrates while blue is still serving, and blue's
+    // `INSERT` names the columns it was compiled against. Written out rather
+    // than built through drizzle, because drizzle is the new release and the
+    // point is what the old one sends.
+    //
+    // Proof: `DEFAULT 1` removed from `max_parallel` and this failed on that
+    // exact statement with `NOT NULL constraint failed: work_item.max_parallel`;
+    // watched 2026-08-12.
+    const db = tempDb();
+    try {
+      runMigrations(db.path, FOLDER);
+      const sqlite = openDatabase(db.path);
+      try {
+        sqlite.run(
+          "INSERT INTO users (id, username, password_hash, created_at) VALUES ('u', 'owner', 'x', 1)",
+        );
+        sqlite.run(
+          'INSERT INTO project (id, name, owner_id, restricted, estimate_method, start_date, revision, created_at)' +
+            " VALUES ('p', 'Rewire the shed', 'u', 0, 'pert', NULL, 0, 1)",
+        );
+        sqlite.run(
+          'INSERT INTO work_item (id, project_id, parent_id, position, name, notes, revision)' +
+            " VALUES ('w1', 'p', NULL, 10, 'Strip', '', 0)",
+        );
+        sqlite.run("INSERT INTO service_team (id, name) VALUES ('t1', 'Platform')");
+
+        const item = sqlite
+          .query<{ max_parallel: number }, []>("SELECT max_parallel FROM work_item WHERE id = 'w1'")
+          .get();
+        // One at a time, which is what the column's default says and what
+        // every work item written before it did.
+        expect(item?.max_parallel).toBe(1);
+        const team = sqlite
+          .query<{ size: number | null }, []>("SELECT size FROM service_team WHERE id = 't1'")
+          .get();
+        expect(team?.size).toBeNull();
+      } finally {
+        sqlite.close();
+      }
+    } finally {
+      db.cleanup();
+    }
+  });
+
+  it('leaves teams that existed before the column unsized', () => {
+    // The other half of "nullable, no default", and the half a `DEFAULT 1`
+    // would break silently: every team on the live server was written before
+    // this column existed, and an unsized team constrains nothing. A default
+    // of 1 would serialize every team's work on every plan that names one, on
+    // the day the migration ran and with nobody having edited anything.
+    //
+    // Reached the way the priority backfill case is: roll back to the
+    // migration before this one, write a team the way the previous release
+    // wrote one, and migrate forward again.
+    const db = tempDb();
+    try {
+      runMigrations(db.path, FOLDER);
+      rollbackTo(db.path, FOLDER, PRIORITY);
+      const before = openDatabase(db.path);
+      try {
+        before.run("INSERT INTO service_team (id, name) VALUES ('t1', 'Platform')");
+      } finally {
+        before.close();
+      }
+
+      runMigrations(db.path, FOLDER);
+
+      const after = openDatabase(db.path);
+      try {
+        const row = after.query<{ size: number | null }, []>('SELECT size FROM service_team').get();
+        expect(row?.size).toBeNull();
+      } finally {
+        after.close();
+      }
+    } finally {
+      db.cleanup();
+    }
+  });
+
+  it('walks back to the prior applied set and lets the outgoing release read the result', () => {
+    // The rollback, asserted by **reading the result** rather than by trusting
+    // an exit code: `AGENTS.md` — "an exit code is evidence only if the tool's
+    // contract guarantees the effect". Two migrations, reversed newest first,
+    // and then the release that comes back must be able to write and read a
+    // work item and a team without either column.
+    const db = tempDb();
+    try {
+      runMigrations(db.path, FOLDER);
+
+      const reversed = rollbackTo(db.path, FOLDER, PRIORITY);
+
+      expect(reversed).toEqual([MAX_PARALLEL, TEAM_SLOTS]);
+      const back = openDatabase(db.path);
+      try {
+        back.run(
+          "INSERT INTO users (id, username, password_hash, created_at) VALUES ('u', 'owner', 'x', 1)",
+        );
+        back.run(
+          'INSERT INTO project (id, name, owner_id, restricted, estimate_method, start_date, revision, created_at)' +
+            " VALUES ('p', 'Rewire the shed', 'u', 0, 'pert', NULL, 0, 1)",
+        );
+        back.run(
+          'INSERT INTO work_item (id, project_id, parent_id, position, name, notes, priority, revision)' +
+            " VALUES ('w1', 'p', NULL, 10, 'Strip', '', 2, 0)",
+        );
+        back.run("INSERT INTO service_team (id, name) VALUES ('t1', 'Platform')");
+        // The columns are gone, and the release that comes back reads what it
+        // knows about.
+        const row = back
+          .query<{ priority: number | null }, []>("SELECT priority FROM work_item WHERE id = 'w1'")
+          .get();
+        expect(row?.priority).toBe(2);
+        expect(() => back.query('SELECT max_parallel FROM work_item').get()).toThrow();
+        expect(() => back.query('SELECT size FROM service_team').get()).toThrow();
+      } finally {
+        back.close();
       }
     } finally {
       db.cleanup();
