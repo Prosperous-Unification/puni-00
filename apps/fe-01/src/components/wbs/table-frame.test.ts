@@ -731,12 +731,20 @@ describe('a column this browser has dragged to another width', () => {
       foldedTableMinWidth(['role-dev'], DATED) + (300 - FLEXIBLE_FLOOR),
     );
     // The table's own width is where the override reaches the browser: the
-    // resolved sum with the override in force, the frame's 100% without.
+    // resolved sum with the override in force, and `min(100%, cap)` without —
+    // a drag outranks `FLEXIBLE_CAP` exactly as it outranks the floor, because
+    // it is the reader saying what this column should be.
     expect(tableWidthStyle(draggedName)).toEqual({
       width: `${String(draggedName.minWidth)}px`,
       minWidth: draggedName.minWidth,
     });
-    expect(tableWidthStyle(resting)).toEqual({ width: '100%', minWidth: resting.minWidth });
+    expect(tableWidthStyle(resting)).toEqual({
+      width: `min(100%, ${String(resting.maxWidth)}px)`,
+      minWidth: resting.minWidth,
+    });
+    // And with the override in force the two ends of the range are the same
+    // number: there is no cap left to reach.
+    expect(draggedName.maxWidth).toBe(draggedName.minWidth);
     // The cell still carries the override as its floor — the belt, not the
     // declaration.
     expect(flexibleCellStyle('name', NAME_DRAGGED)).toEqual({ minWidth: 300 });
