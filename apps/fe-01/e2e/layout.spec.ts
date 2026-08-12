@@ -2086,6 +2086,13 @@ test.describe('the table, measured by a browser', () => {
     // the number this change was planned with — this failed on `Start declares
     // 84px where the widest day it can print, "20 May 2027 ?", needs 114`.
     // Watched, 2026-08-10.
+    //
+    // The 114 in that quote is a 16px figure. At this change's 13px the same
+    // envelope needs 94.02 (86.02 of text and 8 of chrome, measured in
+    // Chromium on h2puni, 2026-08-12), so the declared 114 now clears it by
+    // 20px and the assertion would still pass at 95. Neither column is being
+    // narrowed — a stated non-goal — and the note is here so the slack is on
+    // the page rather than inferred from a superseded number.
     const year = await dateThePlanOffThisYear(page);
     const printable = everyPrintedDay(year, new Date());
     // End draws the marker after the day on an unestimated row, and a marker
@@ -2131,6 +2138,15 @@ test.describe('the table, measured by a browser', () => {
     //
     // 93 is what that measurement picked: 12px of indent, a 12.5px expander, a
     // 20px lock, five characters of number and the cell's 8px of padding.
+    //
+    // The 92.5625 above is a **2026-08-10** figure, taken while the grid body
+    // was the page's 16px. At this change's 13px the same cell needs 75.53
+    // (measured in Chromium on h2puni, 2026-08-12), so what this assertion
+    // pins today is `93 >= 75.53` and it would still pass with the column at
+    // 76. That slack is the type change and nothing else, and narrowing the
+    // column is a stated non-goal — but the guard against a *future*
+    // accidental narrowing is 17px looser than the proof line reads, which is
+    // the reason this paragraph exists.
     await seedDeepBranch(page);
     const envelope = page.getByLabel(`Name of ${ENVELOPE_NUMBER}`, { exact: true });
     await expect(envelope).toBeVisible();
