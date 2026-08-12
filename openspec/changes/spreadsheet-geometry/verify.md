@@ -28,9 +28,13 @@ a green `run-many -t test` on that host says nothing about fe-01.
 | `bunx nx run-many -t lint typecheck --parallel=2` | h2puni | green, 21 projects                    |
 | fe-01 unit suite under node                       | h2puni | **48 files, 1208 passed**             |
 | `bun run e2e` (whole suite)                       | h2puni | 160 passed — see the two flakes below |
-| `bunx nx run-many -t test lint typecheck build`   | CI     | GATE_RESULT                           |
-| `bun run e2e` (`pixels`)                          | CI     | PIXELS_RESULT                         |
-| `openspec validate --all --json`                  | CI     | OPENSPEC_RESULT                       |
+| the whole gate                                    | CI     | **green**, run 31619178851            |
+| `bun run e2e` (`pixels`)                          | CI     | **green**, 160 passed (6.8m)          |
+| `openspec validate --all --json`                  | CI     | **green**, 37/37                      |
+
+CI ran at head `f4f0779`: the gate job green — be-01 655, gw-01 45, fe-01's own
+suite, lint, typecheck, build, the secrets scan and the migration lint — and the
+pixels job green at 160.
 
 `build` is not runnable on h2puni: `shellcheck` is absent there and two build
 targets need it. CI is where that half of the gate is observed.
