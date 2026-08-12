@@ -1602,17 +1602,25 @@ test.describe('the chart edge the reader drags', () => {
     await openTheChart(page);
 
     const grip = await rectOfLocator(page.locator('[data-gantt-height-handle]'), 'the height handle');
-    // The panel is pulled up over the strip by the handle's own negative
-    // margin, so the two boxes share these pixels and only paint order decides
-    // who gets the press. Sweep across the width — the chart's sticky label
-    // column and its calendar header are different elements and cover
-    // different halves — and top to bottom of the 6px, because a strip that
-    // only answers on its first row is not a strip a hand can find.
+    // The strip is only contested where the chart has something drawn under
+    // it, so the sweep is taken **across the chart's own top row** rather than
+    // across the panel: the sticky label column, its corner, and the calendar
+    // axis beside it. Measuring those two boxes first is what stops this test
+    // going vacuous the day the fixture's plan gets narrower than the window —
+    // an empty strip belongs to the handle whatever the layering says.
+    const labels = await rectOfLocator(page.locator('[data-gantt-labels]'), "the chart's label column");
+    const axis = await rectOfLocator(page.locator('[data-gantt-axis]'), "the chart's calendar axis");
+    const contested = Math.min(axis.right, grip.right);
+    expect(contested).toBeGreaterThan(labels.right);
+
+    // Top to bottom of the 6px as well as across it: a strip that only answers
+    // on its first row is not a strip a hand can find.
     const sweep = [1, 3, 5].flatMap((down) =>
-      [0.02, 0.2, 0.4, 0.5, 0.6, 0.8, 0.98].map((across) => ({
-        x: Math.round(grip.left + grip.width * across),
-        y: Math.round(grip.top + down),
-      })),
+      [0.02, 0.5, 0.98].flatMap((across) =>
+        [labels.left + labels.width * across, labels.right + (contested - labels.right) * across].map(
+          (x) => ({ x: Math.round(x), y: Math.round(grip.top + down) }),
+        ),
+      ),
     );
     expect(await whatIsUnderThePointer(page, sweep)).toEqual(sweep.map(() => 'the handle'));
 
