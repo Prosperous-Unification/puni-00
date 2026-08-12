@@ -153,6 +153,7 @@ function measureAgreement(page: Page): Promise<{
   underTheAxis: number;
   panelScrollLeft: number;
   frameScrollLeft: number;
+  diag: string;
 }> {
   return page.evaluate(() => {
     const frame = document.querySelector('[data-table-frame]');
@@ -180,6 +181,7 @@ function measureAgreement(page: Page): Promise<{
       underTheAxis: label.getBoundingClientRect().top - axis.getBoundingClientRect().bottom,
       panelScrollLeft: panel.scrollLeft,
       frameScrollLeft: frame.scrollLeft,
+      diag: `rowH ${String(shown.getBoundingClientRect().height)} labelH ${String(label.getBoundingClientRect().height)} frameTop ${String(frame.scrollTop)} panelTop ${String(panel.scrollTop)} headB ${String(headingBottom)} axisB ${String(axis.getBoundingClientRect().bottom)}`,
     };
   });
 }
@@ -284,9 +286,7 @@ test.describe('the plan and its chart as one surface', () => {
     expect(scrolled.index, 'the wheel did not scroll the table').toBeGreaterThan(0);
     expect(
       scrolled.underTheAxis,
-      `the table is showing ${scrolled.id} and the chart is ${String(
-        Math.round(scrolled.underTheAxis - scrolled.underTheHeading),
-      )}px off it`,
+      scrolled.diag,
     ).toBeCloseTo(scrolled.underTheHeading, 0);
   });
 
