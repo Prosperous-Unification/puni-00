@@ -14,6 +14,7 @@ import { cn } from '@/lib/utils';
 
 import {
   ASSUMED_UNESTIMATED_WORKDAYS,
+  CAPACITY_LINK_COLOR,
   type EstimateTrio,
   type GanttBar,
   type GanttPlan,
@@ -561,6 +562,37 @@ export function barLabelFor(personName: string | null, drawnSpan: number): strin
 }
 
 /**
+ * What a bar with nobody on it writes instead of a name: whose team's work it
+ * is, and how many of them are on it.
+ *
+ * `Platform ×3` where the plan runs three at once, `Platform` where it runs
+ * one. The team and not a blank because an unassigned bar's colour says only
+ * "nobody is named", and on a plan that schedules by team that is the least
+ * interesting half of the truth — the pool it draws from is what decides its
+ * dates. A bar somebody **is** named on keeps the name: one label, and the
+ * person is the more specific fact.
+ *
+ * The candidates are tried longest-first through the same room measurement
+ * {@link barLabelFor} makes, so a narrow bar drops the name and keeps the
+ * count — `×3` is the half a reader cannot get from anywhere else on the chart.
+ *
+ * Null where there is no team to name: no label, exactly as an unassigned bar
+ * writes none today.
+ */
+export function poolLabelFor(
+  team: ServiceTeamLabel,
+  width: number,
+  drawnSpan: number,
+): string | null {
+  const name = team.state === 'named' || team.state === 'inherited' ? team.name : null;
+  if (name === null) return null;
+  const room = drawnSpan * DAY_PX - 2 * LABEL_PAD_PX;
+  const candidates =
+    width > 1 ? [`${name} ×${String(width)}`, `×${String(width)}`, name] : [name];
+  return candidates.find((label) => room >= label.length * LABEL_CHAR_PX) ?? null;
+}
+
+/**
  * The whole of what a bar writes on itself: who, then the row's own words.
  *
  * `who` is the assignee reading the width already decided — a name, initials,
@@ -781,11 +813,22 @@ function dayWords(days: number): string {
 const durationWords = (bar: GanttBar): string =>
   bar.estimated ? dayWords(bar.duration) : 'not estimated';
 
-/** The service team a bar is labelled with, in words, absences included. */
+/**
+ * The service team a bar is labelled with, in words, absences included.
+ *
+ * An **inherited** label says where it came from, because a reader looking at
+ * the row cannot: the row itself names no team, and the pool its dates were
+ * computed against belongs to an ancestor. "Why did this bar move when somebody
+ * edited a team's number" is exactly the question the ancestor's number
+ * answers, and it is unanswerable from a bar that says `Team Platform` with no
+ * Platform anywhere on the row.
+ */
 function teamWords(team: ServiceTeamLabel): string {
   switch (team.state) {
     case 'named':
       return `Team ${team.name}`;
+    case 'inherited':
+      return `Team ${team.name} — inherited from ${team.fromRow}`;
     case 'none':
       return 'No team';
     // Not a blank and not a throw: the label and the team list are two reads at
@@ -794,6 +837,40 @@ function teamWords(team: ServiceTeamLabel): string {
     case 'unresolved':
       return 'Team not in this directory read';
   }
+}
+
+/**
+ * What a bar says about running several people at once, or null where there is
+ * nothing to say.
+ *
+ * Three states, and the two that print are the two a reader cannot work out
+ * from the dates alone:
+ *
+ * - **Compressed.** `width > 1`: the bar is shorter than the work is long, and
+ *   the sentence carries both numbers — `3 people in parallel — 6 days of work
+ *   in 2` — so nobody reads a 2-day bar as a 2-day job.
+ * - **Overridden.** A person is named on a work item asking for several: D3's
+ *   rule is that one human cannot work beside themselves, so the engine
+ *   scheduled width 1 and the number somebody typed did nothing. Silence here
+ *   is the plan ignoring that number without saying so.
+ *
+ * Null at width 1 with nothing overridden, which is every plan that has never
+ * been given a parallelism: a line reading `1 person in parallel` on every bar
+ * of every plan is furniture, exactly as the priority line would be.
+ *
+ * Both numbers are needed and they are different facts — `maxParallel` is what
+ * was typed on the work item, `width` is what the engine could give it after
+ * the team's size and the named person had their say. The override arm is the
+ * one place the two are printed against each other on the chart.
+ */
+function parallelWords(bar: GanttBar): string | null {
+  if (bar.personName !== null && bar.maxParallel > 1) {
+    return `One person is named — ${daysNumber(bar.maxParallel)} in parallel not applied`;
+  }
+  if (bar.width <= 1) return null;
+  return `${daysNumber(bar.width)} people in parallel — ${dayWords(bar.effort)} of work in ${daysNumber(
+    bar.duration,
+  )}`;
 }
 
 /** A bar's own role's three points, or the absence of them, in words. */
@@ -836,6 +913,11 @@ export function barFacts(bar: GanttBar, startDate: IsoDate | null, today: Date):
     rowWords(bar.workItemNumber, bar.workItemName),
     `${bar.roleName ?? 'No role'} · ${bar.personName ?? 'Unassigned'}`,
     teamWords(bar.team),
+    // Straight after the team, because it is a fact about that team's people:
+    // the compressed line explains a bar shorter than its own estimate, and the
+    // override line explains a stored number the plan did not use. Both are
+    // null on a plan nobody has given a parallelism, which is every plan today.
+    parallelWords(bar),
     `${spanWords(startDate, bar.start, bar.finish, today)} · ${durationWords(bar)}`,
     // A line of its own rather than a word tucked into the duration: the bar is
     // drawn a width nobody gave it, and the sentence that says so has to be as
@@ -1203,6 +1285,16 @@ function GanttChart({
    * rest. Watched 2026-08-11, and again on this branch 2026-08-12.
    */
   const drawnLinks = placed.personLinks.filter(
+    (link) =>
+      drawnBars.some(({ bar }) => bar.sliceId === link.fromSliceId) &&
+      drawnBars.some(({ bar }) => bar.sliceId === link.toSliceId),
+  );
+  /**
+   * The pool waits whose both ends are on the chart — {@link drawnLinks}' rule,
+   * one mark along and for the same reason: a line onto a bar that is not drawn
+   * runs to a point on an empty row.
+   */
+  const drawnPoolWaits = placed.capacityLinks.filter(
     (link) =>
       drawnBars.some(({ bar }) => bar.sliceId === link.fromSliceId) &&
       drawnBars.some(({ bar }) => bar.sliceId === link.toSliceId),
@@ -1748,6 +1840,30 @@ function GanttChart({
               ))}
 
               {/*
+                Where a team had nobody spare: the slice whose finish freed the
+                slots, to the slice that was waiting for them. One line per
+                wait, drawn from be-01's display referent — the hover sentence
+                is what says "and N others", because a fan of lines onto one
+                start is unreadable.
+
+                A longer dash and one colour for every team, so it cannot be
+                read as somebody's hand-off — see {@link CAPACITY_LINK_COLOR}.
+              */}
+              {drawnPoolWaits.map((link) => (
+                <path
+                  key={`${link.fromSliceId}~>${link.toSliceId}`}
+                  data-gantt-capacity-link={`${link.fromSliceId}->${link.toSliceId}`}
+                  d={
+                    `M ${String(link.fromX)} ${String(link.fromRowIndex + ROW_MIDDLE)} ` +
+                    `L ${String(link.toX)} ${String(link.toRowIndex + ROW_MIDDLE)}`
+                  }
+                  stroke={CAPACITY_LINK_COLOR}
+                  className="fill-none [stroke-dasharray:8_4]"
+                  vectorEffect="non-scaling-stroke"
+                />
+              ))}
+
+              {/*
                 Where a row's own start date holds it: a caret in the clear band
                 above the bar, pointing at the day. Above and not on, because on
                 is where it was and where nothing could see it — see
@@ -1941,8 +2057,13 @@ function GanttChart({
               // a bar stretched over a Saturday has those pixels to write in.
               // The row's own words follow either answer and are cropped by
               // the box, not the string — see {@link barText}.
+              // Nobody named and a team on the row: the bar says whose people
+              // are on it and how many — see {@link poolLabelFor}. Never over a
+              // name: one label, and the person is the more specific fact.
               const who = bar.estimated
-                ? barLabelFor(bar.personName, width)
+                ? bar.personName === null
+                  ? poolLabelFor(bar.team, bar.width, width)
+                  : barLabelFor(bar.personName, width)
                 : assumedLabelFor(bar.personName, width);
               const shown = barText(who, rowWords(bar.workItemNumber, bar.workItemName), width);
               if (shown === null) return null;

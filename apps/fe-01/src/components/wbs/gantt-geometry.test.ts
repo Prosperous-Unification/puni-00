@@ -36,6 +36,8 @@ const rowAt = (
   schedule: { earliestStart, earliestFinish },
   notBeforeOffset: null,
   priority: null,
+  // One at a time, which is every row of every plan nobody has widened.
+  maxParallel: 1,
   // The three facts a row is enriched with before the chart is drawn. Absent
   // by default and named by the tests that are about them, so a fixture never
   // has to state a team it is not asking about.
@@ -71,6 +73,11 @@ const sliceAt = (
   critical: false,
   boundBy: 'projectStart',
   resourcePredecessorId: null,
+  // Width 1 is the plan nobody has sized: effort is the duration, and no pool
+  // held anything up. The capacity fixtures below pass their own three.
+  width: 1,
+  effort: earliestFinish - earliestStart,
+  capacityPredecessorIds: [],
   ...extras,
 });
 
@@ -404,14 +411,218 @@ describe('person links', () => {
 });
 
 /**
+ * A bar whose date came from its team having nobody spare.
+ *
+ * Two slices on one pool: `strip` holds Platform's slots until day 3, and
+ * `sand` — which needs three of them — cannot start until it lets go. The
+ * blocking set is what be-01 sends; `resourcePredecessorId` is its display
+ * referent, be-01's own pick of the latest finisher out of it.
+ */
+describe('a bar held by a team’s capacity', () => {
+  const pooled = (parts: Partial<GanttPlan> = {}): GanttPlan =>
+    planOf({
+      rows: [
+        rowAt('strip', 0, 3, { team: { state: 'named', name: 'Platform' } }),
+        rowAt('sand', 3, 5, { team: { state: 'named', name: 'Platform' } }),
+      ],
+      slices: [
+        sliceAt('strip-dev', 'strip', 0, 3),
+        sliceAt('sand-dev', 'sand', 3, 5, {
+          boundBy: 'capacity',
+          resourcePredecessorId: 'strip-dev',
+          capacityPredecessorIds: ['strip-dev'],
+          width: 3,
+          effort: 6,
+          duration: 2,
+        }),
+      ],
+      ...parts,
+    });
+
+  const wordsFor = (chart: ReturnType<typeof layOutGantt>, sliceId: string): string =>
+    chart.bars.find((bar) => bar.sliceId === sliceId)?.floorWords ?? '';
+
+  it('names the team, how many people it needs, and what freeing them let it start', () => {
+    const chart = layOutGantt(pooled());
+
+    expect(wordsFor(chart, 'sand-dev')).toBe(
+      'Waits for Platform to free 3 people — after strip (Dev)',
+    );
+  });
+
+  it('says “a person” for a slice that needs one slot, not “1 people”', () => {
+    const chart = layOutGantt(
+      pooled({
+        slices: [
+          sliceAt('strip-dev', 'strip', 0, 3),
+          sliceAt('sand-dev', 'sand', 3, 5, {
+            boundBy: 'capacity',
+            resourcePredecessorId: 'strip-dev',
+            capacityPredecessorIds: ['strip-dev'],
+          }),
+        ],
+      }),
+    );
+
+    expect(wordsFor(chart, 'sand-dev')).toBe('Waits for Platform to free a person — after strip (Dev)');
+  });
+
+  /**
+   * The whole blocking set is carried and only one of it is named.
+   *
+   * D8's reading on screen: the wait is disjunctive — at least one of these had
+   * to move — so naming the referent and counting the rest is the only sentence
+   * that is true. A card listing all of them is a card nobody reads to the end.
+   */
+  it('counts the rest of the blocking set rather than naming every one of it', () => {
+    const chart = layOutGantt(
+      pooled({
+        rows: [
+          rowAt('strip', 0, 3, { team: { state: 'named', name: 'Platform' } }),
+          rowAt('sand', 0, 2, { team: { state: 'named', name: 'Platform' } }),
+          rowAt('wax', 3, 5, { team: { state: 'named', name: 'Platform' } }),
+        ],
+        slices: [
+          sliceAt('strip-dev', 'strip', 0, 3),
+          sliceAt('sand-dev', 'sand', 0, 2),
+          sliceAt('wax-dev', 'wax', 3, 5, {
+            boundBy: 'capacity',
+            resourcePredecessorId: 'strip-dev',
+            capacityPredecessorIds: ['strip-dev', 'sand-dev'],
+            width: 2,
+            effort: 4,
+            duration: 2,
+          }),
+        ],
+      }),
+    );
+
+    expect(wordsFor(chart, 'wax-dev')).toBe(
+      'Waits for Platform to free 2 people — after strip (Dev) and 1 others',
+    );
+  });
+
+  it('says so where the freeing row is not on screen at all', () => {
+    const chart = layOutGantt(
+      pooled({
+        // `strip`'s row is gone — collapsed away or narrowed off by a search —
+        // while its slice is still in the payload, which is the state a hidden
+        // predecessor leaves behind.
+        rows: [rowAt('sand', 3, 5, { team: { state: 'named', name: 'Platform' } })],
+      }),
+    );
+
+    expect(wordsFor(chart, 'sand-dev')).toBe(
+      'Waits for Platform to free 3 people — after work that is not shown',
+    );
+  });
+
+  it('reads an inherited label as the pool, because that is what be-01 scheduled on', () => {
+    const chart = layOutGantt(
+      pooled({
+        rows: [
+          rowAt('strip', 0, 3, { team: { state: 'named', name: 'Platform' } }),
+          rowAt('sand', 3, 5, {
+            team: { state: 'inherited', name: 'Platform', fromRow: '010 Backend' },
+          }),
+        ],
+      }),
+    );
+
+    expect(wordsFor(chart, 'sand-dev')).toBe(
+      'Waits for Platform to free 3 people — after strip (Dev)',
+    );
+  });
+
+  it('draws one pool wait, from the display referent to the bar that waited', () => {
+    const chart = layOutGantt(pooled());
+
+    expect(chart.capacityLinks).toEqual([
+      {
+        fromSliceId: 'strip-dev',
+        fromRowIndex: 0,
+        fromStart: 0,
+        fromFinish: 3,
+        toSliceId: 'sand-dev',
+        toRowIndex: 1,
+        toStart: 3,
+      },
+    ]);
+    // Not a hand-off: nobody is named on either slice, and a pool wait drawn as
+    // a person link would tell the reader to go and talk to somebody.
+    expect(chart.personLinks).toEqual([]);
+  });
+
+  it('draws no pool wait to a slice whose row is not on the chart', () => {
+    const chart = layOutGantt(
+      pooled({ rows: [rowAt('sand', 3, 5, { team: { state: 'named', name: 'Platform' } })] }),
+    );
+
+    expect(chart.capacityLinks).toEqual([]);
+  });
+
+  it('throws when a capacity floor names no display referent', () => {
+    const nothingToWaitFor = pooled({
+      slices: [
+        sliceAt('strip-dev', 'strip', 0, 3),
+        sliceAt('sand-dev', 'sand', 3, 5, {
+          boundBy: 'capacity',
+          capacityPredecessorIds: ['strip-dev'],
+          width: 3,
+        }),
+      ],
+    });
+
+    expect(() => layOutGantt(nothingToWaitFor)).toThrow(GanttDataError);
+    expect(() => layOutGantt(nothingToWaitFor)).toThrow('names no display referent');
+  });
+
+  /**
+   * The invariant `capacity-engine` holds on its own side, asserted here on the
+   * production read path — which is where a malformed payload actually arrives.
+   */
+  it('throws when a capacity floor says nothing was holding the pool', () => {
+    const heldByNothing = pooled({
+      slices: [
+        sliceAt('strip-dev', 'strip', 0, 3),
+        sliceAt('sand-dev', 'sand', 3, 5, {
+          boundBy: 'capacity',
+          resourcePredecessorId: 'strip-dev',
+          capacityPredecessorIds: [],
+          width: 3,
+        }),
+      ],
+    });
+
+    expect(() => layOutGantt(heldByNothing)).toThrow(GanttDataError);
+    expect(() => layOutGantt(heldByNothing)).toThrow('nothing was holding the pool');
+  });
+
+  it('throws when a capacity-floored row names no team to be short of', () => {
+    const noPool = pooled({
+      rows: [rowAt('strip', 0, 3), rowAt('sand', 3, 5)],
+    });
+
+    expect(() => layOutGantt(noPool)).toThrow(GanttDataError);
+    expect(() => layOutGantt(noPool)).toThrow('names no team');
+  });
+});
+
+/**
  * A floor this module has no words for.
  *
- * `boundBy` is a wire value, and the union says five because that is what
- * be-01 sends today. A sixth added there — a resource calendar, a fixed date —
+ * `boundBy` is a wire value, and the union says six because that is what be-01
+ * sends today. A seventh added there — a resource calendar, a fixed date —
  * arrives here as a string, and the cast is how a test says "the payload
  * carried a value this build has never heard of" without waiting for be-01 to
  * grow one. That is the boundary that makes it safe: nothing else in this file
  * casts, and this one exists to reach the branch a type cannot.
+ *
+ * It said `resourceCalendar` until this change and that was a **seventh** name
+ * nobody sends; the sixth be-01 had been sending since `capacity-engine` was
+ * `capacity`, and this file could not say the word (the C2 cross-review's P3-1).
+ * The unknown one is now plainly invented, and `capacity` has tests of its own
+ * above.
  */
 describe('a binding floor this build does not know', () => {
   const heldByTheUnknown = (): GanttPlan =>
@@ -419,7 +630,7 @@ describe('a binding floor this build does not know', () => {
       rows: [rowAt('strip', 0, 3)],
       slices: [
         sliceAt('strip-dev', 'strip', 0, 3, {
-          boundBy: 'resourceCalendar' as BindingFloor,
+          boundBy: 'phaseOfTheMoon' as BindingFloor,
         }),
       ],
     });
@@ -432,7 +643,7 @@ describe('a binding floor this build does not know', () => {
     // `undefined`, and the bar's hover title ending `…Float 0 days\n` with
     // nothing after the newline. Watched 2026-08-09.
     expect(() => layOutGantt(heldByTheUnknown())).toThrow(GanttDataError);
-    expect(() => layOutGantt(heldByTheUnknown())).toThrow('resourceCalendar');
+    expect(() => layOutGantt(heldByTheUnknown())).toThrow('phaseOfTheMoon');
   });
 });
 
@@ -1150,6 +1361,7 @@ describe('the shapes a real schedule makes', () => {
       brackets: [],
       arrows: [],
       personLinks: [],
+      capacityLinks: [],
       notBeforeFlags: [],
       horizon: 1,
     });

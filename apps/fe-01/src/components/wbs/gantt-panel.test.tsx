@@ -49,6 +49,7 @@ const rowAt = (
   schedule: { earliestStart, earliestFinish },
   notBeforeOffset: null,
   priority: null,
+  maxParallel: 1,
   // The three facts a row is enriched with before the chart is drawn. Absent
   // by default and named by the tests that are about them, so a fixture never
   // has to state a team it is not asking about.
@@ -78,6 +79,9 @@ const sliceAt = (
   critical: false,
   boundBy: 'projectStart',
   resourcePredecessorId: null,
+  width: 1,
+  effort: earliestFinish - earliestStart,
+  capacityPredecessorIds: [],
   ...extras,
 });
 
@@ -755,6 +759,47 @@ describe('the chart is drawn in calendar days', () => {
     expect(document.querySelectorAll('[data-gantt-person-link]')).toHaveLength(2);
   });
 
+  itDom('draws a pool wait as its own line, apart from a person’s hand-off', () => {
+    // Platform's slots are full until `strip` ends, and `sand` needs two of
+    // them. Nobody is named on either: this is a wait a reader answers by
+    // hiring or by reassigning, not by asking somebody to hurry — which is why
+    // it must not be drawn as a hand-off.
+    render(
+      <GanttPanel
+        plan={planOf({
+          rows: [
+            rowAt('strip', 0, 3, { team: { state: 'named', name: 'Platform' } }),
+            rowAt('sand', 3, 5, { team: { state: 'named', name: 'Platform' }, maxParallel: 2 }),
+          ],
+          slices: [
+            sliceAt('strip-dev', 'strip', 0, 3),
+            sliceAt('sand-dev', 'sand', 3, 5, {
+              boundBy: 'capacity',
+              resourcePredecessorId: 'strip-dev',
+              capacityPredecessorIds: ['strip-dev'],
+              width: 2,
+              effort: 4,
+              duration: 2,
+            }),
+          ],
+        })}
+        startDate={null}
+        scheduleError={null}
+        generation={0}
+        heightPx={null}
+        onPickRow={() => undefined}
+      />,
+    );
+
+    // Row middles, the same arithmetic every other line on this chart is drawn
+    // with: out of `strip`'s finish at 3 on row 0, into `sand`'s start at 3 on
+    // row 1.
+    expect(markAttribute('[data-gantt-capacity-link="strip-dev->sand-dev"]', 'd')).toBe(
+      'M 3 0.5 L 3 1.5',
+    );
+    expect(document.querySelectorAll('[data-gantt-person-link]')).toHaveLength(0);
+  });
+
   itDom(
     'marks a zero-day estimate with a tick, and an unestimated one with a bar or nothing',
     () => {
@@ -881,6 +926,124 @@ describe('the chart is drawn in calendar days', () => {
     // the plan's Number column read, and a test written to a literal alone
     // would let the two drift apart while staying green.
     expect(linesOf(surface)[0]).toBe(rowWords('3.2', 'API'));
+  });
+
+  itDom('says how many people a compressed bar runs, and how long the work really is', () => {
+    // Six days of work run by three people in two: the bar is two days wide and
+    // the estimate says six, and without this line the two read as a
+    // contradiction.
+    render(
+      <GanttPanel
+        plan={planOf({
+          rows: [
+            rowAt('strip', 0, 2, { team: { state: 'named', name: 'Platform' }, maxParallel: 3 }),
+          ],
+          slices: [sliceAt('strip-dev', 'strip', 0, 2, { width: 3, effort: 6, duration: 2 })],
+        })}
+        startDate={null}
+        scheduleError={null}
+        generation={0}
+        heightPx={null}
+        onPickRow={() => undefined}
+      />,
+    );
+
+    expect(linesOf(surfaceOn('strip-dev'))).toContain('3 people in parallel — 6 days of work in 2');
+  });
+
+  itDom('says a named person is why a parallelism did not apply', () => {
+    // D3 on screen: one human cannot work beside themselves, so naming kat on a
+    // `maxParallel: 3` item collapses it to width 1 — and the number somebody
+    // typed did nothing, which is the fact this line exists to state.
+    render(
+      <GanttPanel
+        plan={planOf({
+          rows: [
+            rowAt('strip', 0, 6, { team: { state: 'named', name: 'Platform' }, maxParallel: 3 }),
+            rowAt('sand', 0, 3, { maxParallel: 1 }),
+          ],
+          slices: [
+            sliceAt('strip-dev', 'strip', 0, 6, { personId: 'kat', width: 1, effort: 6 }),
+            sliceAt('sand-dev', 'sand', 0, 3, { personId: 'kat', width: 1, effort: 3 }),
+          ],
+          personNames: new Map([['kat', 'Kat']]),
+        })}
+        startDate={null}
+        scheduleError={null}
+        generation={0}
+        heightPx={null}
+        onPickRow={() => undefined}
+      />,
+    );
+
+    expect(linesOf(surfaceOn('strip-dev'))).toContain(
+      'One person is named — 3 in parallel not applied',
+    );
+    // And nothing at all on the row that asked for one at a time, which is
+    // every row of every plan today: a line saying `1 in parallel` on all of
+    // them is furniture, exactly as `Priority —` would be.
+    expect(
+      linesOf(surfaceOn('sand-dev')).filter((line) => line.includes('parallel')),
+    ).toEqual([]);
+  });
+
+  itDom('names the ancestor an inherited team came from', () => {
+    // The row itself names no team; its dates were scheduled against one an
+    // ancestor named. A bar saying `Team Platform` with no Platform on the row
+    // leaves "why did this move when somebody edited a team's number"
+    // unanswerable.
+    render(
+      <GanttPanel
+        plan={planOf({
+          rows: [
+            rowAt('strip', 0, 3, {
+              team: { state: 'inherited', name: 'Platform', fromRow: '010 Backend' },
+            }),
+          ],
+          slices: [sliceAt('strip-dev', 'strip', 0, 3)],
+        })}
+        startDate={null}
+        scheduleError={null}
+        generation={0}
+        heightPx={null}
+        onPickRow={() => undefined}
+      />,
+    );
+
+    expect(linesOf(surfaceOn('strip-dev'))).toContain('Team Platform — inherited from 010 Backend');
+  });
+
+  itDom('says whose people a pool-held bar is waiting for', () => {
+    render(
+      <GanttPanel
+        plan={planOf({
+          rows: [
+            rowAt('strip', 0, 3, { team: { state: 'named', name: 'Platform' } }),
+            rowAt('sand', 3, 5, { team: { state: 'named', name: 'Platform' }, maxParallel: 2 }),
+          ],
+          slices: [
+            sliceAt('strip-dev', 'strip', 0, 3),
+            sliceAt('sand-dev', 'sand', 3, 5, {
+              boundBy: 'capacity',
+              resourcePredecessorId: 'strip-dev',
+              capacityPredecessorIds: ['strip-dev'],
+              width: 2,
+              effort: 4,
+              duration: 2,
+            }),
+          ],
+        })}
+        startDate={null}
+        scheduleError={null}
+        generation={0}
+        heightPx={null}
+        onPickRow={() => undefined}
+      />,
+    );
+
+    expect(linesOf(surfaceOn('sand-dev'))).toContain(
+      'Waits for Platform to free 2 people — after strip (Dev)',
+    );
   });
 
   itDom('says no float figure at all on a bar of the critical path', () => {
@@ -1885,6 +2048,54 @@ describe('the words on the bars are HTML over the chart', () => {
     expect(box?.querySelector('[data-gantt-chart]')).not.toBeNull();
   });
 
+  itDom('writes the team and how many of them on a bar nobody is named on', () => {
+    render(
+      <GanttPanel
+        plan={planOf({
+          rows: [
+            rowAt('strip', 0, 6, { team: { state: 'named', name: 'Platform' }, maxParallel: 3 }),
+            rowAt('sand', 0, 4),
+          ],
+          slices: [
+            sliceAt('strip-dev', 'strip', 0, 6, { width: 3, effort: 18, duration: 6 }),
+            sliceAt('sand-dev', 'sand', 0, 4),
+          ],
+        })}
+        startDate={null}
+        scheduleError={null}
+        generation={0}
+        heightPx={null}
+        onPickRow={() => undefined}
+      />,
+    );
+
+    expect(labelOn('strip-dev')?.textContent).toBe('Platform ×3 · strip - strip');
+    // And a bar with no team on it writes the row's words alone, exactly as it
+    // did before this change: nothing to say about a pool it is not on.
+    expect(labelOn('sand-dev')?.textContent).toBe('sand - sand');
+  });
+
+  itDom('keeps the person’s name on a bar somebody is named on, team or no team', () => {
+    // One label, and the person is the more specific fact: `Platform ×1` over
+    // kat's own bar would replace who is doing it with who it belongs to.
+    render(
+      <GanttPanel
+        plan={planOf({
+          rows: [rowAt('strip', 0, 4, { team: { state: 'named', name: 'Platform' } })],
+          slices: [sliceAt('strip-dev', 'strip', 0, 4, { personId: 'kat' })],
+          personNames: new Map([['kat', 'Kat']]),
+        })}
+        startDate={null}
+        scheduleError={null}
+        generation={0}
+        heightPx={null}
+        onPickRow={() => undefined}
+      />,
+    );
+
+    expect(labelOn('strip-dev')?.textContent).toBe('Kat · strip - strip');
+  });
+
   itDom('writes nothing at all on a bar too narrow to hold a letter', () => {
     render(
       <GanttPanel
@@ -2189,6 +2400,7 @@ function rowOf(parts: {
     notes: '',
     frozenNumber: null,
     priority: null,
+    maxParallel: 1,
     rolledUp: parts.rolledUp ?? false,
     estimates: parts.rolledUp === true ? {} : { [DEV.id]: NO_DAYS },
     dependsOn: [],
@@ -2283,6 +2495,9 @@ const sliceOf = (workItemId: string, start: number, finish: number): SliceView =
   critical: false,
   boundBy: 'projectStart',
   resourcePredecessorId: null,
+  width: 1,
+  effort: finish - start,
+  capacityPredecessorIds: [],
 });
 
 const SLICES: SliceView[] = [
