@@ -66,10 +66,15 @@ rather than by a sentinel width.
 
 ### Requirement: The grid body is typed for a grid
 
-The table's body SHALL be set at 13px over a 1.4 line — the cells, the boxes
-typed into them and the buttons inside them alike, because the app's reset stops
-at the grid deliberately and a control it does not reach keeps the platform's
-own 13.33px face. A row holding one line of text SHALL be no taller than 28px.
+The table's body SHALL be set at 13px over a 1.4 line — the cells and the boxes
+typed into them. The buttons inside them SHALL NOT be typed with it: the app's
+reset stops at the grid deliberately, so a control it does not reach keeps the
+platform's own 13.33px face, and that third of a pixel between a button and its
+cell is the only thing any test can read to tell an intact reset guard from a
+lost one. A rule one layer up which types the buttons too leaves the guard
+standing and blinds its oracle, which is why a control inside the grid SHALL
+keep the platform's own size. A row holding one line of text SHALL be no taller
+than 28px.
 
 The boxes SHALL NOT sit on their line's baseline: an `inline-block` box reserves
 descender room no glyph in it uses, which is 5px of every row.
@@ -87,6 +92,12 @@ to draw its envelope.
 - **WHEN** the plan table is drawn
 - **THEN** a body cell and the box inside it are both 13px, and both are
   smaller than the page's own type
+
+#### Scenario: a button in a cell
+
+- **WHEN** a control inside a body cell is drawn
+- **THEN** its type is the platform's own and not its cell's, so a reader of the
+  two sizes can still tell the reset guard is there
 
 #### Scenario: a row holding one line
 

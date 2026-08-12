@@ -31,9 +31,12 @@ is believed (R5). The fault numbers are `verify.md`'s.
 
 ## 3. The grid's type, and the row height it buys
 
-- [x] The grid body, its boxes and its buttons at 13px over a 1.4 line, scoped
-      to `tbody` so the phone's cards keep the page's type — the boundary the
-      number's 11px rule already draws.
+- [x] The grid body and its boxes at 13px over a 1.4 line, scoped to `tbody` so
+      the phone's cards keep the page's type — the boundary the number's 11px
+      rule already draws. The buttons are **not** in the rule: typing them was
+      one commit of this branch and it blinded the reset guard's only oracle in
+      CI (run `31617201732`), so they keep the platform's 13.33px. `verify.md`
+      records what that cost.
 - [x] The boxes off the baseline. An inline-block on the baseline reserves
       descender room, which was 29.19px of row against a 28px budget.
 - [x] One browser negative for both: the cell, the box, the comparison against
