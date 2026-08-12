@@ -217,10 +217,9 @@ let account = 0;
 /** The account this test registered, unique per run and per case. */
 let signedInAs = '';
 
-test.beforeEach(({}, testInfo) => {
+test.beforeEach(() => {
   account += 1;
   signedInAs = `surface-${String(Date.now())}-${String(account)}`;
-  testInfo.setTimeout(testInfo.timeout + 30_000);
 });
 
 test.describe('the plan and its chart as one surface', () => {
