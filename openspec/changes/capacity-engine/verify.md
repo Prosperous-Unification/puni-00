@@ -11,17 +11,27 @@ see or type is C2 and C3.
 
 ## The gate
 
-Run on CI, on the pull request, 2026-08-12. This box (`h1claw`) does not run
-builds or test suites — the rule is house policy and a `PreToolUse` hook denies
-it — so every figure below is CI's or `h2puni`'s, never this host's.
+Run on CI, on PR #48, head `5c94591`, 2026-08-12 — run
+[31594532014](https://github.com/Prosperous-Unification/wbs-tool-v1/actions/runs/31594532014),
+both jobs green. This box (`h1claw`) does not run builds or test suites — the
+rule is house policy and a `PreToolUse` hook denies it — so every figure below
+is CI's or `h2puni`'s, never this host's.
 
-| Command                                                      | Where  | Result                                             |
-| ------------------------------------------------------------ | ------ | -------------------------------------------------- |
-| `bunx nx format:check --all`                                 | CI     | see the run linked from PR #48                     |
-| `bunx nx run-many -t test lint typecheck build --parallel=2` | CI     | see the run linked from PR #48                     |
-| `bunx @fission-ai/openspec@1.3.0 validate --all --json`      | CI     | see the run linked from PR #48                     |
-| `bun run e2e` (the `pixels` job)                             | CI     | owned by CI; this change touches no pixel          |
-| the seventeen fault injections below                         | h2puni | all seventeen observed red, output quoted verbatim |
+| Command                                                      | Where  | Result                                                                                 |
+| ------------------------------------------------------------ | ------ | -------------------------------------------------------------------------------------- |
+| `bunx nx format:check --all`                                 | CI     | green, exit 0                                                                          |
+| `bunx nx run-many -t test lint typecheck build --parallel=2` | CI     | green — 21 projects; be-01 **655 tests** in 54 files, `libs/domain` **154** in 7 files |
+| `bunx @fission-ai/openspec@1.3.0 validate --all --json`      | CI     | green — 32 items, **32 passed, 0 failed**                                              |
+| secrets scan, doc caps, compose config, migration lint       | CI     | green                                                                                  |
+| `bun run e2e` (the `pixels` job)                             | CI     | green — this change touches no pixel, and the job is the reason that can be said       |
+| the seventeen fault injections below                         | h2puni | all seventeen observed red, output quoted verbatim                                     |
+
+be-01 was **623** tests when #45 merged: this change adds **32**, of which 23 are
+`schedule-capacity.test.ts` and the rest are the migration walk, the adapter's
+two width rules and the identity differential's new run. `libs/domain` gains
+`effective-team.test.ts`'s 7. fe-01 is untouched — no file under `apps/fe-01`
+changed — and its count is not quoted here, because vitest's summary is not in
+the gate log to quote.
 
 A first attempt to run the whole gate on `h2puni` wedged: `nx run-many` sat at
 0.2% CPU for twenty-three minutes with no child task and no output, alongside
