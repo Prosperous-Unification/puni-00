@@ -24,13 +24,21 @@ its base: the two rewrite the same regions of `wbs-table.tsx`,
 
 | command                                           | where  | result          |
 | ------------------------------------------------- | ------ | --------------- |
-| fe-01 unit suite under node                       | h2puni | UNIT_RESULT     |
-| `bun run e2e`                                     | h2puni | E2E_RESULT      |
-| `bunx nx format:check --all`                      | h2puni | FORMAT_RESULT   |
-| `bunx nx run-many -t lint typecheck --parallel=2` | h2puni | LINT_RESULT     |
-| `bunx nx run-many -t test lint typecheck build`   | CI     | GATE_RESULT     |
-| `bun run e2e` (`pixels`)                          | CI     | PIXELS_RESULT   |
-| `openspec validate --all --json`                  | CI     | OPENSPEC_RESULT |
+| fe-01 unit suite under node                       | h2puni | **48 files, 1209 passed**  |
+| `bun run e2e`                                     | h2puni | **161 passed** (5.9m)      |
+| `bunx nx format:check --all`                      | h2puni | green (silent)             |
+| `bunx nx run-many -t lint typecheck --parallel=2` | h2puni | green, 21 projects         |
+| the whole gate                                    | CI     | **green**, run 31619227292 |
+| `bun run e2e` (`pixels`)                          | CI     | **green**, 161 passed      |
+| `openspec validate --all --json`                  | CI     | **green**, 38/38           |
+
+CI ran at head `c0a4df9`. The pixels job failed on its **first** attempt, and on
+something this change does not touch: `header.spec.ts`'s
+`the entry is clipped and its full text is still readable`, where renaming the
+project never reached the combobox — `Expected: "Rewire the shed…" / Received:
+"New project"`, twenty-two polls over ten seconds. The same spec had passed on
+h2puni at the same head minutes earlier and passed on the re-run. Recorded as a
+flake in the project picker's rename, not as a result.
 
 ## The faults, watched
 
