@@ -21,7 +21,13 @@ import { cn } from '@/lib/utils';
  * asserts both ends of the mark and was watched failing against a plain anchor.
  */
 export function PageNav() {
-  const shape = cn(buttonVariants({ variant: 'ghost', size: 'sm' }), 'shrink-0');
+  // `text-foreground` because these are `<a href>`s: `buttonVariants` names no
+  // colour for `ghost` at rest, and `styles.css`'s reset gives `color: inherit`
+  // to form controls and not to links — so each of these kept the user agent's
+  // `-webkit-link` blue, `rgb(0, 0, 238)`. On a white page that reads as a
+  // slightly wrong shade of chrome; on the dark page it is 2.14:1 against
+  // `--background` and all but gone. Measured, `openspec/changes/dark-mode/verify.md`.
+  const shape = cn(buttonVariants({ variant: 'ghost', size: 'sm' }), 'text-foreground shrink-0');
   const marked = { className: 'bg-accent text-accent-foreground' };
   return (
     <nav aria-label="Pages" className="flex shrink-0 items-center gap-1">

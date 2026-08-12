@@ -1,7 +1,7 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
-import { AccountMenu } from './account-menu';
+import { type AccountMenuProps, AccountMenu } from './account-menu';
 
 // fe-01 tests require jsdom; only Vitest provides it. Skip under plain `bun test`.
 const hasDom = typeof document !== 'undefined';
@@ -26,8 +26,18 @@ describe('the account menu', () => {
     // Most tests here never take the item; the callback is required.
   };
 
+  /**
+   * The palette props, for the tests that are not about the palette.
+   *
+   * Spread rather than defaulted in the component: the theme is `app.tsx`'s to
+   * hold — one answer for the whole document, above the branch that decides
+   * whether anybody is signed in — and a default here would let a caller mount
+   * a menu whose control says `System` while the page is dark.
+   */
+  const palette = { theme: 'system' as const, onChooseTheme: nothing };
+
   itDom('names its trigger with the account it belongs to', () => {
-    render(<AccountMenu username="kat" onSignOut={nothing} />);
+    render(<AccountMenu username="kat" onSignOut={nothing} {...palette} />);
 
     const trigger = screen.getByRole('button', { name: 'kat' });
     expect(trigger.getAttribute('aria-haspopup')).toBe('menu');
@@ -35,7 +45,7 @@ describe('the account menu', () => {
   });
 
   itDom('opens a menu that says who is signed in', () => {
-    render(<AccountMenu username="kat" onSignOut={nothing} />);
+    render(<AccountMenu username="kat" onSignOut={nothing} {...palette} />);
 
     fireEvent.click(screen.getByRole('button', { name: 'kat' }));
 
@@ -47,7 +57,7 @@ describe('the account menu', () => {
   });
 
   itDom('moves the focus onto the item it opens', () => {
-    render(<AccountMenu username="kat" onSignOut={nothing} />);
+    render(<AccountMenu username="kat" onSignOut={nothing} {...palette} />);
 
     fireEvent.click(screen.getByRole('button', { name: 'kat' }));
 
@@ -58,7 +68,7 @@ describe('the account menu', () => {
   });
 
   itDom('opens on ArrowDown, which is the only key the trigger claims', () => {
-    render(<AccountMenu username="kat" onSignOut={nothing} />);
+    render(<AccountMenu username="kat" onSignOut={nothing} {...palette} />);
 
     fireEvent.keyDown(screen.getByRole('button', { name: 'kat' }), { key: 'ArrowDown' });
 
@@ -67,7 +77,7 @@ describe('the account menu', () => {
 
   itDom('signs out when the item is taken, and closes', () => {
     const signOut = vi.fn();
-    render(<AccountMenu username="kat" onSignOut={signOut} />);
+    render(<AccountMenu username="kat" onSignOut={signOut} {...palette} />);
 
     fireEvent.click(screen.getByRole('button', { name: 'kat' }));
     fireEvent.click(screen.getByRole('menuitem', { name: 'Log out' }));
@@ -77,7 +87,7 @@ describe('the account menu', () => {
   });
 
   itDom('closes on Escape and gives the focus back to the trigger', () => {
-    render(<AccountMenu username="kat" onSignOut={nothing} />);
+    render(<AccountMenu username="kat" onSignOut={nothing} {...palette} />);
 
     fireEvent.click(screen.getByRole('button', { name: 'kat' }));
     fireEvent.keyDown(screen.getByRole('menuitem', { name: 'Log out' }), { key: 'Escape' });
@@ -87,7 +97,7 @@ describe('the account menu', () => {
   });
 
   itDom('closes on a press anywhere else', () => {
-    render(<AccountMenu username="kat" onSignOut={nothing} />);
+    render(<AccountMenu username="kat" onSignOut={nothing} {...palette} />);
 
     fireEvent.click(screen.getByRole('button', { name: 'kat' }));
     fireEvent.mouseDown(document.body);
@@ -96,7 +106,7 @@ describe('the account menu', () => {
   });
 
   itDom('leaves a press on its own trigger to the toggle', () => {
-    render(<AccountMenu username="kat" onSignOut={nothing} />);
+    render(<AccountMenu username="kat" onSignOut={nothing} {...palette} />);
 
     fireEvent.click(screen.getByRole('button', { name: 'kat' }));
     // The press the outside-listener must not act on: it is inside the
@@ -106,5 +116,145 @@ describe('the account menu', () => {
     fireEvent.mouseDown(screen.getByRole('button', { name: 'kat' }));
 
     expect(screen.getByRole('menu', { name: 'Signed in as kat' })).toBeDefined();
+  });
+});
+
+/**
+ * The palette control the menu grew in `dark-mode`.
+ *
+ * Three answers rather than a switch, because "follow the machine" is an answer
+ * of its own — `lib/theme.ts` has the reasoning, and `theme.test.ts` the
+ * resolution. What is asserted here is only the menu: the roles a reader meets,
+ * which item the menu opens onto now that there are four, and that the keyboard
+ * reaches all of them.
+ *
+ * Watched failures are in `openspec/changes/dark-mode/verify.md`.
+ */
+describe('the palette, in the account menu', () => {
+  const nothing = () => {
+    // Most tests here never choose; the callback is required.
+  };
+
+  const open = (props: Partial<AccountMenuProps> = {}) => {
+    render(
+      <AccountMenu
+        username="kat"
+        onSignOut={nothing}
+        theme="system"
+        onChooseTheme={nothing}
+        {...props}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'kat' }));
+  };
+
+  itDom('offers the three answers as one question', () => {
+    open();
+
+    // `menuitemradio` and not `menuitem`: one answer with three values. The
+    // group is what names the question they answer.
+    const group = screen.getByRole('group', { name: 'Theme' });
+    expect(within(group).getAllByRole('menuitemradio').map((item) => item.textContent)).toEqual([
+      'System',
+      'Light',
+      'Dark',
+    ]);
+  });
+
+  itDom('checks the one this browser is on, and only that one', () => {
+    open({ theme: 'dark' });
+
+    expect(screen.getByRole('menuitemradio', { name: 'Dark' }).getAttribute('aria-checked')).toBe(
+      'true',
+    );
+    expect(screen.getByRole('menuitemradio', { name: 'System' }).getAttribute('aria-checked')).toBe(
+      'false',
+    );
+  });
+
+  itDom('reports the answer that was taken', () => {
+    const chosen = vi.fn();
+    open({ onChooseTheme: chosen });
+
+    fireEvent.click(screen.getByRole('menuitemradio', { name: 'Dark' }));
+
+    expect(chosen).toHaveBeenCalledWith('dark');
+  });
+
+  itDom('stays open when a palette is chosen, unlike the way out', () => {
+    open();
+
+    fireEvent.click(screen.getByRole('menuitemradio', { name: 'Light' }));
+
+    // The page changing colour is the whole feedback this control has, and a
+    // menu that closed on the same tick would take the comparison — and the
+    // way back — off the screen with it.
+    expect(screen.getByRole('menu', { name: 'Signed in as kat' })).toBeDefined();
+  });
+
+  itDom('still opens onto the way out, with three items above it', () => {
+    open();
+
+    expect(document.activeElement).toBe(screen.getByRole('menuitem', { name: 'Log out' }));
+  });
+
+  itDom('walks every item with the arrows, and wraps', () => {
+    open();
+    const logOut = screen.getByRole('menuitem', { name: 'Log out' });
+
+    fireEvent.keyDown(logOut, { key: 'ArrowUp' });
+    expect(document.activeElement).toBe(screen.getByRole('menuitemradio', { name: 'Dark' }));
+
+    fireEvent.keyDown(screen.getByRole('menuitemradio', { name: 'Dark' }), { key: 'ArrowDown' });
+    // Past the last item and round to the first, which is `ActionsMenu`'s rule:
+    // four items and a dead end at either one is a keyboard that stops working
+    // before the menu does.
+    expect(document.activeElement).toBe(logOut);
+    fireEvent.keyDown(logOut, { key: 'ArrowDown' });
+    expect(document.activeElement).toBe(screen.getByRole('menuitemradio', { name: 'System' }));
+  });
+
+  itDom('answers the arrow that points along the row it drew', () => {
+    open();
+
+    fireEvent.keyDown(screen.getByRole('menuitem', { name: 'Log out' }), { key: 'ArrowLeft' });
+    expect(document.activeElement).toBe(screen.getByRole('menuitemradio', { name: 'Dark' }));
+
+    fireEvent.keyDown(screen.getByRole('menuitemradio', { name: 'Dark' }), { key: 'ArrowRight' });
+    expect(document.activeElement).toBe(screen.getByRole('menuitem', { name: 'Log out' }));
+  });
+
+  itDom('keeps the tab stop on the item that has the focus', () => {
+    open();
+
+    // Roving: the item with the focus is the one Tab would leave from, and the
+    // rest are out of the tab order entirely.
+    expect(screen.getByRole('menuitem', { name: 'Log out' }).getAttribute('tabindex')).toBe('0');
+    expect(screen.getByRole('menuitemradio', { name: 'Dark' }).getAttribute('tabindex')).toBe('-1');
+  });
+
+  itDom('closes on Escape from a palette item too', () => {
+    open();
+
+    fireEvent.keyDown(screen.getByRole('menuitem', { name: 'Log out' }), { key: 'ArrowUp' });
+    fireEvent.keyDown(screen.getByRole('menuitemradio', { name: 'Dark' }), { key: 'Escape' });
+
+    expect(screen.queryByRole('menu')).toBeNull();
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'kat' }));
+  });
+
+  itDom('takes a modified Enter away, and leaves a bare one to the browser', () => {
+    open();
+    const dark = screen.getByRole('menuitemradio', { name: 'Dark' });
+
+    // R5 #14, in this menu. jsdom performs no default action for a synthetic
+    // key, so what it can see is the `preventDefault` and not the click that
+    // would follow it — which is why the browser half of this is in
+    // `e2e/dark-mode.spec.ts`. A guard that returned without preventing would
+    // leave Chromium to fire the click it had just refused.
+    expect(fireEvent.keyDown(dark, { key: 'Enter', ctrlKey: true })).toBe(false);
+    // Bare: not prevented, so the browser's own click on a `<button>` is what
+    // takes the item. Nothing here fakes that click.
+    expect(fireEvent.keyDown(dark, { key: 'Enter' })).toBe(true);
   });
 });

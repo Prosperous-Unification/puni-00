@@ -1,0 +1,193 @@
+import { act, cleanup, renderHook } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+
+import type { DriveableMediaQueryList } from '../../vitest.setup';
+import {
+  DARK_CLASS,
+  DARK_QUERY,
+  paletteFor,
+  paintPalette,
+  rememberedTheme,
+  systemMedia,
+  THEME_KEY,
+  useTheme,
+} from './theme';
+
+// fe-01 tests require jsdom; only Vitest provides it. Skip under plain `bun test`.
+const hasDom = typeof document !== 'undefined';
+const itDom = hasDom ? it : it.skip;
+
+/**
+ * The one list the app and this file both hold, so driving it here is felt
+ * there. `vitest.setup.ts` caches by query string precisely for this — the cast
+ * is to the extra method that stand-in adds, and to nothing else.
+ */
+const platform = (): DriveableMediaQueryList =>
+  window.matchMedia(DARK_QUERY) as DriveableMediaQueryList;
+
+beforeEach(() => {
+  localStorage.removeItem(THEME_KEY);
+  document.documentElement.classList.remove(DARK_CLASS);
+  platform().setMatches(false);
+});
+
+afterEach(() => {
+  cleanup();
+});
+
+/**
+ * The setting behind the theme control: three answers, one of which is "ask the
+ * machine".
+ *
+ * Watched failures for every test here are in
+ * `openspec/changes/dark-mode/verify.md`.
+ */
+describe('what the theme setting resolves to', () => {
+  itDom('follows the machine, both ways, while the choice is system', () => {
+    expect(paletteFor('system', true)).toBe('dark');
+    expect(paletteFor('system', false)).toBe('light');
+  });
+
+  itDom('ignores the machine once a palette has been chosen outright', () => {
+    // The whole reason there are three states and not a checkbox: a reader who
+    // chose light means it at midnight, on a laptop that has gone dark.
+    expect(paletteFor('light', true)).toBe('light');
+    expect(paletteFor('dark', false)).toBe('dark');
+  });
+});
+
+describe('what this browser remembers', () => {
+  itDom('starts on system, having never been told', () => {
+    expect(rememberedTheme()).toBe('system');
+  });
+
+  itDom('reads back an answer it was given', () => {
+    localStorage.setItem(THEME_KEY, JSON.stringify('dark'));
+
+    expect(rememberedTheme()).toBe('dark');
+  });
+
+  itDom('refuses a stored answer that is not one of the three, and drops the key', () => {
+    localStorage.setItem(THEME_KEY, JSON.stringify('midnight'));
+
+    expect(rememberedTheme()).toBe('system');
+    expect(localStorage.getItem(THEME_KEY)).toBeNull();
+  });
+
+  itDom('refuses storage that is not JSON at all, and drops the key', () => {
+    localStorage.setItem(THEME_KEY, '{not json');
+
+    expect(rememberedTheme()).toBe('system');
+    expect(localStorage.getItem(THEME_KEY)).toBeNull();
+  });
+});
+
+describe('what the theme puts on the document', () => {
+  itDom('hangs the dark token set on the root, and takes it off again', () => {
+    paintPalette('dark');
+    expect(document.documentElement.classList.contains(DARK_CLASS)).toBe(true);
+
+    paintPalette('light');
+    expect(document.documentElement.classList.contains(DARK_CLASS)).toBe(false);
+  });
+
+  itDom('refuses a runtime that cannot be asked what colour scheme it prefers', () => {
+    const real = window.matchMedia;
+    // The failure this guards is a runtime with no `matchMedia`, and the only
+    // way to construct it is to take the one this environment installed away.
+    Object.defineProperty(window, 'matchMedia', { value: undefined, configurable: true });
+
+    expect(() => systemMedia()).toThrow(/colour scheme/);
+
+    Object.defineProperty(window, 'matchMedia', { value: real, configurable: true });
+  });
+});
+
+describe('the theme, followed and remembered while the app is open', () => {
+  itDom('opens on the answer this browser last gave, without a paint in between', () => {
+    localStorage.setItem(THEME_KEY, JSON.stringify('dark'));
+
+    const held = renderHook(() => useTheme());
+
+    expect(held.result.current.choice).toBe('dark');
+    expect(held.result.current.palette).toBe('dark');
+    expect(document.documentElement.classList.contains(DARK_CLASS)).toBe(true);
+  });
+
+  itDom('opens on the machine’s own answer where nothing was ever chosen', () => {
+    platform().setMatches(true);
+
+    const held = renderHook(() => useTheme());
+
+    expect(held.result.current.choice).toBe('system');
+    expect(held.result.current.palette).toBe('dark');
+    expect(document.documentElement.classList.contains(DARK_CLASS)).toBe(true);
+  });
+
+  itDom('writes the answer down as it is chosen, and paints it', () => {
+    const held = renderHook(() => useTheme());
+
+    act(() => {
+      held.result.current.chooseTheme('dark');
+    });
+
+    expect(localStorage.getItem(THEME_KEY)).toBe(JSON.stringify('dark'));
+    expect(document.documentElement.classList.contains(DARK_CLASS)).toBe(true);
+  });
+
+  itDom('follows the machine changing under it while the choice is system', () => {
+    const held = renderHook(() => useTheme());
+    expect(document.documentElement.classList.contains(DARK_CLASS)).toBe(false);
+
+    act(() => {
+      platform().setMatches(true);
+    });
+
+    expect(held.result.current.palette).toBe('dark');
+    expect(document.documentElement.classList.contains(DARK_CLASS)).toBe(true);
+  });
+
+  itDom('leaves a chosen palette where it is when the machine changes under it', () => {
+    const held = renderHook(() => useTheme());
+    act(() => {
+      held.result.current.chooseTheme('light');
+    });
+
+    act(() => {
+      platform().setMatches(true);
+    });
+
+    expect(held.result.current.palette).toBe('light');
+    expect(document.documentElement.classList.contains(DARK_CLASS)).toBe(false);
+  });
+
+  itDom('goes back to the machine’s answer when system is chosen again', () => {
+    platform().setMatches(true);
+    const held = renderHook(() => useTheme());
+    act(() => {
+      held.result.current.chooseTheme('light');
+    });
+    expect(document.documentElement.classList.contains(DARK_CLASS)).toBe(false);
+
+    act(() => {
+      held.result.current.chooseTheme('system');
+    });
+
+    expect(held.result.current.palette).toBe('dark');
+    expect(document.documentElement.classList.contains(DARK_CLASS)).toBe(true);
+  });
+
+  itDom('stops listening to the machine once it is gone', () => {
+    const held = renderHook(() => useTheme());
+    held.unmount();
+
+    act(() => {
+      platform().setMatches(true);
+    });
+
+    // The class is what a leaked listener would move, and there is no component
+    // left to move it: an unmounted hook that still repaints the document is a
+    // second theme fighting the one on screen.
+    expect(document.documentElement.classList.contains(DARK_CLASS)).toBe(false);
+  });
+});

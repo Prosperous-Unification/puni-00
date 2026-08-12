@@ -6,6 +6,7 @@ import { AccountMenu } from '@/components/chrome/account-menu';
 import { AppFaultBoundary } from '@/components/chrome/app-fault';
 import { PresencePanel } from '@/components/presence/presence-panel';
 import { loadSession, me as fetchMe, saveSession, type Session } from '@/lib/api';
+import { useTheme } from '@/lib/theme';
 
 /**
  * The document's whole app, inside the boundary that catches what it throws.
@@ -30,6 +31,11 @@ export function App() {
 function AppContent() {
   const [session, setSession] = useState<Session | null>(null);
   const [checked, setChecked] = useState(false);
+  // Above the branch below on purpose: the palette belongs to the browser
+  // rather than to the account, so the sign-in form, the "Loading…" line and
+  // the plan are all painted the same — and signing out does not flash a
+  // remembered dark page white on the way to the form.
+  const { choice: theme, chooseTheme } = useTheme();
 
   // A token in localStorage is a claim, not a session. It is checked against
   // /api/auth/me before the app renders as signed in, so an expired or
@@ -125,6 +131,8 @@ function AppContent() {
         account={
           <AccountMenu
             username={session.user.username}
+            theme={theme}
+            onChooseTheme={chooseTheme}
             onSignOut={() => {
               saveSession(null);
               setSession(null);
