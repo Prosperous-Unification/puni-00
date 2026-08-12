@@ -22,13 +22,13 @@ frame that one taught to scroll sideways, and the link below refuses to touch
 
 ## The gate
 
-| command                                           | where  | result                    |
-| ------------------------------------------------- | ------ | ------------------------- |
-| fe-01 unit suite under node                       | h2puni | **49 files, 1232 passed** |
-| `bun run e2e`                                     | h2puni | **168 passed** (5.9m)     |
-| `bunx nx format:check --all`                      | h2puni | green (silent)            |
-| `bunx nx run-many -t lint typecheck --parallel=2` | h2puni | green, 21 projects        |
-| `bunx @fission-ai/openspec@1.3.0 validate --all`  | h2puni | green, **41/41**          |
+| command                                           | where  | result                     |
+| ------------------------------------------------- | ------ | -------------------------- |
+| fe-01 unit suite under node                       | h2puni | **49 files, 1232 passed**  |
+| `bun run e2e`                                     | h2puni | **168 passed** (5.9m)      |
+| `bunx nx format:check --all`                      | h2puni | green (silent)             |
+| `bunx nx run-many -t lint typecheck --parallel=2` | h2puni | green, 21 projects         |
+| `bunx @fission-ai/openspec@1.3.0 validate --all`  | h2puni | green, **41/41**           |
 | the whole gate                                    | CI     | **green**, run 31642238631 |
 | `bun run e2e` (`pixels`)                          | CI     | **green**, 8m26s, same run |
 
