@@ -22,8 +22,8 @@ its base: the two rewrite the same regions of `wbs-table.tsx`,
 
 ## The gate
 
-| command                                           | where  | result          |
-| ------------------------------------------------- | ------ | --------------- |
+| command                                           | where  | result                     |
+| ------------------------------------------------- | ------ | -------------------------- |
 | fe-01 unit suite under node                       | h2puni | **48 files, 1209 passed**  |
 | `bun run e2e`                                     | h2puni | **161 passed** (5.9m)      |
 | `bunx nx format:check --all`                      | h2puni | green (silent)             |
