@@ -1760,10 +1760,9 @@ test.describe('the table, measured by a browser', () => {
       ).toBeLessThanOrEqual(measured.document.clientWidth);
       // And the table really is wider than the frame here, or the scroll
       // assertion below is about a table that simply fitted.
-      expect(
-        needed,
-        `${viewport.name}: both roles open should not fit this frame`,
-      ).toBeGreaterThan(measured.frame.clientWidth);
+      expect(needed, `${viewport.name}: both roles open should not fit this frame`).toBeGreaterThan(
+        measured.frame.clientWidth,
+      );
       expect(
         measured.frame.scrollWidth,
         `${viewport.name}: ${String(needed)}px of table in ${String(measured.frame.clientWidth)}px of frame and nothing to scroll`,
