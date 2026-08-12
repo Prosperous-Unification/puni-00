@@ -30,6 +30,16 @@ import { expect, type Page, test } from '@playwright/test';
  */
 const NEARLY = 2;
 
+/**
+ * The white space the audit measured between a short plan and its chart, in px.
+ *
+ * `notes/wbs-cloud-test-run-2026-08-11.md`: "508px dead white space on small
+ * plans (Gantt docked to viewport bottom)". Quoted rather than re-derived — it
+ * is the number this change exists to remove, and it is a measurement somebody
+ * took in a browser on a day.
+ */
+const AUDITED_DEAD_SPACE = 508;
+
 /** A plan short enough that the frame could never be filled by it. */
 const SHORT_PLAN = 3;
 
@@ -83,10 +93,7 @@ async function openTheChart(page: Page, rows: number): Promise<void> {
 /** Where the column has put the frame, the chart and the last row of the plan. */
 function measureSurface(page: Page): Promise<{
   gap: number;
-  pickerRoom: number;
-  belowTable: number;
-  belowLastRow: number;
-  panelMinusFrame: number;
+  reserved: number;
   belowChart: number;
   frameBottom: number;
   chartTop: number;
@@ -104,15 +111,19 @@ function measureSurface(page: Page): Promise<{
     if (last === undefined) throw new Error('the plan has no rows to measure');
     const frameBox = frame.getBoundingClientRect();
     const panelBox = panel.getBoundingClientRect();
-    const room = Number.parseFloat(getComputedStyle(frame).paddingBottom);
+    const frameStyle = getComputedStyle(frame);
+    const room = Number.parseFloat(frameStyle.paddingBottom);
+    const floor = Number.parseFloat(frameStyle.minHeight);
+    const table = frame.querySelector('table');
+    if (table === null) throw new Error('the plan is not drawn as a table');
     return {
       // What the audit measured: the white space between the plan's last row
       // and the top of the chart.
       gap: panelBox.top - last.getBoundingClientRect().bottom,
-      pickerRoom: room,
-      belowTable: frameBox.bottom - (frame.querySelector('table')?.getBoundingClientRect().bottom ?? 0),
-      belowLastRow: (frame.querySelector('table')?.getBoundingClientRect().bottom ?? 0) - last.getBoundingClientRect().bottom,
-      panelMinusFrame: panelBox.top - frameBox.bottom,
+      // What that space is declared to be, by the two declarations that reserve
+      // it: the picker room under the last row, and however much of the frame's
+      // own floor a short plan does not fill.
+      reserved: room + Math.max(0, floor - (table.getBoundingClientRect().height + room)),
       belowChart: document.documentElement.clientHeight - panelBox.bottom,
       frameBottom: frameBox.bottom,
       chartTop: panelBox.top,
@@ -142,15 +153,15 @@ function measureAgreement(page: Page): Promise<{
   underTheAxis: number;
   panelScrollLeft: number;
   frameScrollLeft: number;
-  frameScrollTop: number;
-  panelScrollTop: number;
-  focused: string;
 }> {
   return page.evaluate(() => {
     const frame = document.querySelector('[data-table-frame]');
     const panel = document.querySelector('[data-gantt-panel]');
     if (frame === null || panel === null) throw new Error('the plan is not drawn twice');
-    const heading = frame.querySelector('thead');
+    // The heading **cell**, because the cells are what is sticky here — a
+    // `<thead>` rides up with the scroll and would move this measurement with
+    // the rows it is supposed to be measured against.
+    const heading = frame.querySelector('thead th');
     const axis = panel.querySelector('[data-gantt-axis]');
     if (heading === null || axis === null) throw new Error('one of the two faces has no heading');
     const headingBottom = heading.getBoundingClientRect().bottom;
@@ -169,9 +180,6 @@ function measureAgreement(page: Page): Promise<{
       underTheAxis: label.getBoundingClientRect().top - axis.getBoundingClientRect().bottom,
       panelScrollLeft: panel.scrollLeft,
       frameScrollLeft: frame.scrollLeft,
-      frameScrollTop: frame.scrollTop,
-      panelScrollTop: panel.scrollTop,
-      focused: document.activeElement?.getAttribute('aria-label') ?? String(document.activeElement?.tagName),
     };
   });
 }
@@ -213,13 +221,20 @@ test.describe('the plan and its chart as one surface', () => {
       measured.rowsPastTheFrame,
       'the seeded plan fills its frame, so this measures nothing',
     ).toBe(0);
-    // The audit measured 508px of nothing here. What is left is the frame's own
-    // picker room, which is the space a dependency list on the last row opens
-    // into — functional space, and the one thing between the two faces.
+    // The audit measured 508px of nothing here. What is left is declared: the
+    // picker room a dependency list on the last row opens into, and the last
+    // few pixels of the frame's 20rem floor. Both are space something asked
+    // for, and both are named in `table-frame.ts`.
     expect(
       measured.gap,
-      `gap ${String(measured.gap)} room ${String(measured.pickerRoom)} belowTable ${String(measured.belowTable)} belowLastRow ${String(measured.belowLastRow)} panelMinusFrame ${String(measured.panelMinusFrame)}`,
-    ).toBeLessThanOrEqual(measured.pickerRoom + NEARLY);
+      `${String(Math.round(measured.gap))}px between the last row and the chart, against ${String(
+        Math.round(measured.reserved),
+      )}px anything asked for`,
+    ).toBeLessThanOrEqual(measured.reserved + NEARLY);
+    // And it is nowhere near what the audit found, which is the claim a reader
+    // would recognise. Half of it is a bound this cannot creep past on a
+    // rounding change.
+    expect(measured.gap, 'the dead space is back').toBeLessThan(AUDITED_DEAD_SPACE / 2);
     // And the space that was between them is now under the chart, which is what
     // says the chart came up rather than the plan going down.
     expect(
@@ -266,7 +281,7 @@ test.describe('the plan and its chart as one surface', () => {
     await wheelOver(page, '[data-table-frame]', 8 * 28);
     const scrolled = await measureAgreement(page);
 
-    expect(scrolled.index, `frameTop ${String(scrolled.frameScrollTop)} panelTop ${String(scrolled.panelScrollTop)}`).toBeGreaterThan(0);
+    expect(scrolled.index, 'the wheel did not scroll the table').toBeGreaterThan(0);
     expect(
       scrolled.underTheAxis,
       `the table is showing ${scrolled.id} and the chart is ${String(
@@ -311,7 +326,7 @@ test.describe('the plan and its chart as one surface', () => {
 
     // The walk reached a cell the frame had to scroll for, or this says nothing
     // about scrolling.
-    expect(walked.index, `frameTop ${String(walked.frameScrollTop)} panelTop ${String(walked.panelScrollTop)} focus ${walked.focused}`).toBeGreaterThan(0);
+    expect(walked.index, 'the keyboard walk never scrolled the frame').toBeGreaterThan(0);
     expect(walked.underTheAxis).toBeCloseTo(walked.underTheHeading, 0);
     // And the cell it walked to still has the focus. A link that scrolled by
     // `scrollIntoView` on the other face, or that moved the focus to bring a

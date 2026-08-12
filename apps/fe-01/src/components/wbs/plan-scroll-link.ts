@@ -158,21 +158,30 @@ export function alignmentMove(driver: PlanFace, follower: PlanFace): number | nu
 /**
  * Reads the renderer's face out of the frame that scrolls it.
  *
- * The heading is the `<thead>`, which is sticky against this frame, and the
- * rows are the ones carrying an id — `<tr data-row-id>`, the same attribute the
- * dependency proofs find a row by. Group rows and any other decoration are not
- * rows of the plan and are not counted, or the index would stop being the
+ * The heading is a heading **cell** and not the `<thead>`, because the cells are
+ * what is sticky — `HEADER_CELL` in `table-frame.ts` says why, and a browser
+ * says what it costs to forget: `<thead>` is not itself stuck, so its box rides
+ * up with the scroll while its cells stay, and a content top measured from it
+ * moves with the rows instead of standing still. Every row then measures as
+ * showing, the first one always wins, and the chart sits on row 0 whatever the
+ * table does. Watched on h2puni, 2026-08-12: the frame at `scrollTop 224` and
+ * the panel at `0`, with `takes the chart to the row the table was scrolled to`
+ * red on the frame having scrolled eight rows and the chart none.
+ *
+ * The rows are the ones carrying an id — `<tr data-row-id>`, the same attribute
+ * the dependency proofs find a row by. Group rows and any other decoration are
+ * not rows of the plan and are not counted, or the index would stop being the
  * panel's index.
  *
- * @throws When the frame holds no heading row. This module aligns to the bottom
- * edge of one, and a frame without one is a table this module has never seen —
- * measuring from the box's own top instead would silently hide the first row
- * under the heading it could not find. R5: unknown is not OK.
+ * @throws When the frame holds no heading cell. This module aligns to the
+ * bottom edge of one, and a frame without one is a table this module has never
+ * seen — measuring from the box's own top instead would silently hide the first
+ * row under the heading it could not find. R5: unknown is not OK.
  */
 export function rendererFace(frame: HTMLElement): PlanFace {
-  const heading = frame.querySelector('thead');
+  const heading = frame.querySelector('thead th');
   if (heading === null) {
-    throw new Error('the plan frame has no heading row to measure its content top from');
+    throw new Error('the plan frame has no heading cell to measure its content top from');
   }
   const rows = frame.querySelectorAll('tbody tr[data-row-id]');
   return {

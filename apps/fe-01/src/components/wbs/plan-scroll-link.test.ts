@@ -174,8 +174,15 @@ function fakeFrame(ids: readonly string[], { contentTop = 100 } = {}): HTMLEleme
   const frame = document.createElement('div');
   const table = document.createElement('table');
   const head = document.createElement('thead');
+  const headRow = document.createElement('tr');
+  const headCell = document.createElement('th');
   const body = document.createElement('tbody');
-  place(head, () => boxAt(contentTop - HEADING, HEADING));
+  // The cell rather than the group, because the cell is what is sticky: a
+  // `<thead>` box rides up with the scroll while its cells stay put, which is
+  // the fault a browser caught on 2026-08-12.
+  place(headCell, () => boxAt(contentTop - HEADING, HEADING));
+  headRow.append(headCell);
+  head.append(headRow);
   ids.forEach((id, index) => {
     const row = document.createElement('tr');
     row.setAttribute('data-row-id', id);
@@ -208,13 +215,16 @@ function fakePanel(ids: readonly string[], { contentTop = 500 } = {}): HTMLEleme
 const IDS = Array.from({ length: 20 }, (_, index) => `row-${String(index)}`);
 
 describe('reading a face off the page', () => {
-  it('refuses a frame with no heading row', () => {
+  it('refuses a frame whose heading has no cells', () => {
     // R5: the content top is the bottom edge of a heading, and measuring from
     // the box's own top instead would hide the follower's first row under a
-    // heading this could not find.
+    // heading this could not find. A `<thead>` with nothing in it is the sharp
+    // end of that: it is on the page, it has a box, and its box is not the one
+    // that stays still — which is the fault a browser caught on 2026-08-12.
     const frame = document.createElement('div');
+    frame.append(document.createElement('table')).append(document.createElement('thead'));
     document.body.append(frame);
-    expect(() => rendererFace(frame)).toThrow(/heading row/);
+    expect(() => rendererFace(frame)).toThrow(/heading cell/);
   });
 
   it('refuses a panel with no calendar axis', () => {
