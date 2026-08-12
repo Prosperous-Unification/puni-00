@@ -154,8 +154,31 @@ function contrastOf(locator: Locator): Promise<number> {
 /** What WCAG asks of body text, and what every ratio below is held to. */
 const READABLE = 4.5;
 
-/** The face a `<button>` paints itself when no author stylesheet gives it one. */
-const USER_AGENT_BUTTON_FACE = 'rgb(239, 239, 239)';
+/**
+ * The faces a `<button>` paints itself when no author stylesheet gives it one —
+ * **both** of them.
+ *
+ * `ButtonFace` is not one colour: it is whatever the user agent thinks the page
+ * is, and `color-scheme` is what tells it. On a light page Chromium paints
+ * `rgb(239, 239, 239)`; the moment `color-scheme: dark` reaches the root it
+ * paints `rgb(107, 107, 107)` instead. Measured on this branch, 2026-08-12, by
+ * reverting each fix in turn.
+ *
+ * Naming only the light one is how this assertion was written first, and it was
+ * a check that could not fail: with `color-scheme` fixed, no element on a dark
+ * page is ever `rgb(239, 239, 239)`, so the sweep passed with the `<button>`
+ * reset deleted. That is the exact defect class R5 exists for, caught by
+ * watching the red that never came.
+ *
+ * The mid-grey is legible — 5.13:1 under the dark palette's near-white ink — so
+ * this is not a contrast claim and could not be made as one. It is the claim the
+ * requirement actually states: no surface is painted a colour the palette does
+ * not name.
+ */
+const USER_AGENT_BUTTON_FACES = ['rgb(239, 239, 239)', 'rgb(107, 107, 107)'];
+
+/** What Chromium paints an unstyled `<a href>` on a page it has been told is dark. */
+const USER_AGENT_DARK_LINK = 'rgb(158, 158, 255)';
 
 let account = 0;
 
@@ -280,8 +303,11 @@ test.describe('what the dark palette paints', () => {
     await expect(label).toBeVisible();
 
     // 1.10:1 before this change: a `<button>` naming no background kept the
-    // user agent's `ButtonFace`, and the dark palette's near-white ink was
-    // written on near-white paint.
+    // user agent's `ButtonFace`, and with the root still declaring no
+    // `color-scheme` that face was the light one — `rgb(239, 239, 239)` under
+    // the dark palette's near-white ink. Fixed by `color-scheme: dark` first
+    // and by the `<button>` reset second; `nothing on the page is painted a
+    // colour the palette never names` is what holds the second one.
     const ratio = await contrastOf(label);
     expect(ratio, `a Gantt row label reads at ${ratio.toFixed(2)}:1`).toBeGreaterThanOrEqual(
       READABLE,
@@ -319,7 +345,28 @@ test.describe('what the dark palette paints', () => {
     expect(ratio, `the Directory link reads at ${ratio.toFixed(2)}:1`).toBeGreaterThanOrEqual(
       READABLE,
     );
-    expect(await link.evaluate((node) => getComputedStyle(node).color)).not.toBe('rgb(0, 0, 238)');
+
+    // The ratio alone is a check that cannot fail here, and it was written as
+    // one. `color-scheme: dark` moves the user agent's own link colour to
+    // `rgb(158, 158, 255)`, which reads at 8.0:1 — so with `text-foreground`
+    // deleted this test stayed green while the header was painted a periwinkle
+    // no token names. Watched, 2026-08-12. The claim is therefore what the
+    // requirement says: the link is the palette's ink, not the browser's guess
+    // at one.
+    const colour = await link.evaluate((node) => getComputedStyle(node).color);
+    expect(colour, 'the Directory link kept a user agent link colour').not.toBe(
+      USER_AGENT_DARK_LINK,
+    );
+    expect(colour, 'the Directory link is not the palette’s own ink').toBe(
+      await page.evaluate(() => {
+        const probe = document.createElement('span');
+        probe.style.color = 'var(--foreground)';
+        document.body.append(probe);
+        const painted = getComputedStyle(probe).color;
+        probe.remove();
+        return painted;
+      }),
+    );
   });
 
   test('the dependency picker is a card of the palette’s own colour', async ({ page }) => {
@@ -356,12 +403,12 @@ test.describe('what the dark palette paints', () => {
           if (box.width === 0 || box.height === 0) continue;
           const style = getComputedStyle(node);
           if (style.visibility === 'hidden' || style.display === 'none') continue;
-          if (style.backgroundColor === unnamed) {
+          if (unnamed.includes(style.backgroundColor)) {
             found.push(`${node.tagName.toLowerCase()} «${node.textContent.slice(0, 24)}»`);
           }
         }
         return found;
-      }, USER_AGENT_BUTTON_FACE);
+      }, USER_AGENT_BUTTON_FACES);
 
     expect(await face(), 'the plan').toEqual([]);
 

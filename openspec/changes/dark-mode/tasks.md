@@ -1,7 +1,8 @@
 # Tasks
 
 Ordered TDD slices. Each negative is watched failing before the line it guards
-is believed (R5).
+is believed (R5). The commands, their output and the watched-red table are in
+`verify.md`.
 
 ## 1. The setting, as a module
 
@@ -19,7 +20,6 @@ is believed (R5).
       storage that is not JSON at all, the platform changing under an open page
       while the choice is `system`, the same change ignored while it is not,
       and the subscription released on unmount.
-- [x] Watch each fail with the line it names removed.
 
 ## 2. The palette before the first paint
 
@@ -32,8 +32,6 @@ is believed (R5).
       and assert it agrees with `paletteFor(rememberedTheme(), …)`. Plus: the
       key and the query are in it by name, and it carries no attribute that
       would defer it.
-- [x] Watch it fail with the script deleted, with the key misspelt, and with
-      `type="module"` added.
 
 ## 3. The control
 
@@ -50,12 +48,11 @@ is believed (R5).
       **staying open** on a choice, `Log out` still the item the menu opens
       onto, the arrows walking all four and wrapping, the roving `tabindex`,
       and `Escape` from a palette item.
-- [x] Watch each fail with the wiring it names removed.
 
 ## 4. The dark palette's own defects
 
-Each of these was found by measuring, in Chromium, with the probe described in
-`verify.md`. The token values before and after are in the same file.
+Each was found by measuring in Chromium; the before and after ratios, and the
+revert that produced each before, are the table in `verify.md`.
 
 - [x] `styles.css`: preflight's `background-color: transparent` on `<button>`,
       outside the grid. Three raw buttons kept the user agent's `ButtonFace`;
@@ -80,25 +77,36 @@ In `apps/fe-01/e2e/dark-mode.spec.ts` — jsdom computes no colours and has no
 - [x] `emulateMedia({ colorScheme: 'dark' })` paints the app dark with nothing
       chosen, and does not once `Light` has been.
 - [x] A remembered dark page is dark **at first paint**, asserted before the
-      app has mounted.
-- [x] `color-scheme` on the root follows the palette.
+      app has mounted. The class only: under the dev server the stylesheet is
+      an import of the entry module the test refuses, so `color-scheme` is
+      `normal` there for a reason that is Vite's rather than the bootstrap's —
+      watched, and recorded in `verify.md`.
+- [x] `color-scheme` on the root follows the palette, on a page whose
+      stylesheet has loaded.
 - [x] Contrast, measured over the real composited surfaces: the Gantt's row
-      labels, `Log out`, and the dependency picker's options, in dark.
+      labels, `Log out`, the palette's own three answers, the header's page
+      links, and the dependency picker's options, in dark.
 - [x] No visible element painted the user agent's button face.
-- [x] Watch each fail with the fix it covers reverted.
+- [x] Every measurement is taken **after** the colour transition has drained.
+      The chrome carries `transition-colors`, so a read inside the ~150ms flip
+      answers with an interpolated `oklab(…)` belonging to neither palette:
+      the `Directory` link measured **1.03:1** mid-flight where it rests at
+      15.9:1. Found by this suite going red on a fix that was correct.
 
 ## 6. The existing both-palette checks
 
-- [x] `hover-cards.spec.ts` and `deps-cell.spec.ts` toggle `.dark` by hand and
-      say in a comment that the app ships no theme switch. It does now: the
-      comments are corrected and one of the two is driven **through the
-      control**, so the direction rule is asserted against the palette a reader
-      can actually reach.
+- [x] `hover-cards.spec.ts` and `deps-cell.spec.ts` said in a comment that the
+      app ships no theme switch. It does now, and both comments say so.
+- [x] `deps-cell.spec.ts` is driven **through the control** — the account menu
+      and the answer in it — so the per-surface direction rule is asserted
+      against the palette a reader can actually reach.
+- [x] `hover-cards.spec.ts` still toggles the class directly, and says why: it
+      measures a hover card that an open menu would take off the screen.
 
 ## 7. Gate
 
 - [x] `bunx nx format:check --all`
 - [x] `bunx nx run-many -t test lint typecheck build --parallel=2`
-- [x] `bun run e2e` (this checkout's dev server only — see the landmine)
+- [x] `bun run e2e`
 - [x] `openspec validate --all --json`
-- [x] `verify.md` with the commands, their output, and the failure-proof table.
+- [x] `verify.md` with the commands, their output, and the watched-red table.

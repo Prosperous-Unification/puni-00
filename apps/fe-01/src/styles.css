@@ -303,13 +303,22 @@
  * finished, and what it left behind was a hole in the palette that only the
  * dark set could show. `color: inherit` above makes a `<button>` take the
  * page's ink; nothing made it take the page's paper, so it kept the user
- * agent's `ButtonFace`, which is `rgb(239, 239, 239)` and follows no token.
- * On a light page that is a grey box nobody looks twice at. On a dark one it is
- * near-white text on near-white paint: the Gantt's row labels measured
- * **1.10:1** and `Log out` the same, which is the whole of the "dark mode is
- * unreachable and broken where it is forced" finding from the 2026-08-11 UI
- * audit. Measured in this repository's own chromium; the sweep is in
- * `openspec/changes/dark-mode/verify.md`.
+ * agent's `ButtonFace`, which follows no token at all.
+ *
+ * `ButtonFace` is not one colour, and that is the part worth writing down: it
+ * is whatever the user agent thinks the page is, and `color-scheme` above is
+ * the only thing that tells it. Before this change the root declared none, so a
+ * forced `.dark` page got the **light** face, `rgb(239, 239, 239)`, under
+ * near-white ink — the Gantt's row labels at **1.10:1**, which is the whole of
+ * the "dark mode is unreachable and broken where it is forced" finding from the
+ * 2026-08-11 UI audit. With `color-scheme: dark` in place the same unstyled
+ * button paints `rgb(107, 107, 107)` and reads at **5.13:1**.
+ *
+ * So this line is not what buys the contrast — `color-scheme` already did — and
+ * it is not written as though it were. It buys the requirement: no surface is
+ * painted a colour the palette does not name, and a mid-grey the browser chose
+ * is exactly that. Measured by reverting each of the two in turn, 2026-08-12;
+ * both reverts and both numbers are in `openspec/changes/dark-mode/verify.md`.
  *
  * Every raw `<button>` outside the grid was read before this line was written:
  * `app-fault.tsx` and `directory-page.tsx` name `bg-background`, `plan-cards.tsx`

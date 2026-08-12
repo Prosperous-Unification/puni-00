@@ -334,6 +334,20 @@ its number — behind a single button on its row. One is open at a time, and it 
 keyboard while it is.
 _Avoid_: context menu, row menu, kebab, overflow menu
 
+**Theme choice**:
+What a reader has asked the app to be painted in: `system`, `light` or `dark`. Remembered
+per browser, under one key for every project, because it answers about this screen in this
+room. `system` is an answer of its own — follow whatever the machine is set to, and keep
+following it while the page is open — rather than the absence of one.
+_Avoid_: theme mode, dark mode setting, colour preference
+
+**Palette**:
+Which of the two token sets is actually on screen once a Theme choice has been resolved:
+`light` or `dark`. `styles.css` declares both and the `dark` class on the root selects the
+second; every `bg-card` and `color-mix` in the app reads it through a custom property and
+knows nothing about there being two. Not a Colour, which is a deploy slot.
+_Avoid_: theme (for what is painted), colour scheme, skin
+
 **Flexible column**:
 The one column whose `<col>` never declares a width — the name — which absorbs whatever the
 viewport leaves over, down to a floor it does not shrink past. Draggable like any other:
