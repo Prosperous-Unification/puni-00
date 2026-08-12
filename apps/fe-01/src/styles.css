@@ -74,16 +74,27 @@
  * possible at all — `.dark` re-points the same custom properties, and every
  * `bg-card` in the app follows without knowing anything about it.
  *
- * **Dark mode is configured, not shipped.** Nothing sets the `dark` class, and
- * no toggle exists; this change is the foundation, and a theme switch is a
- * feature with its own persistence and its own contrast review. What is bought
- * here is that adding it later is one attribute rather than a palette audit.
+ * **Dark mode ships since `dark-mode`.** `lib/theme.ts` puts `.dark` on the
+ * root from a remembered three-state answer — system, light, dark — and the
+ * control is in the account menu. The foundation this block was written as
+ * turned out to be exactly one attribute, as promised; what it did not buy was
+ * the contrast review, which that change did and recorded.
+ *
+ * `color-scheme` is declared **beside the tokens, on the same two selectors**,
+ * and nowhere else. It is what the platform reads rather than this app: the
+ * scrollbar down the side of the plan, the calendar a `not-before` field drops,
+ * the caret in every box, and — the fault it was found by — the `ButtonFace`
+ * grey a `<button>` that names no background paints itself. Written from
+ * JavaScript instead it would be a second declaration of the palette that could
+ * disagree with the class; written here it cannot.
  *
  * `oklch` rather than hex: it is the registry's own notation since Tailwind v4,
  * and the lightness channel is what makes a hover shade a number rather than a
  * guess.
  */
 :root {
+  color-scheme: light;
+
   --radius: 0.5rem;
 
   --background: oklch(1 0 0);
@@ -115,6 +126,8 @@
 }
 
 .dark {
+  color-scheme: dark;
+
   --background: oklch(0.129 0.042 264.695);
   --foreground: oklch(0.984 0.003 247.858);
   --card: oklch(0.208 0.042 265.755);
@@ -135,6 +148,36 @@
   --input: oklch(1 0 0 / 15%);
   --ring: oklch(0.551 0.027 264.364);
   --highlight: oklch(0.62 0.12 96);
+
+  /*
+   * **Nothing re-points a `--grid-*` token here, and that is a rule rather than
+   * an omission.** The `:root` block below derives every grid surface from
+   * `--foreground` and `--background`, which the lines above re-point on this
+   * same element — a custom property substitutes at computed-value time, so
+   * those mixes invert by themselves and a `.dark` copy would be a second thing
+   * to keep in step, and the one that drifts.
+   *
+   * Two things to know before overriding one anyway, said here because this is
+   * where somebody would be reading:
+   *
+   * 1. **A `--grid-*` line added to this block would do nothing.** The grid's
+   *    block is `:root`, which is `(0, 1, 0)` — the same weight as `.dark` —
+   *    and it is written *after* this one, so the cascade reads source order
+   *    and `:root` wins. An override has to sit below that block, not in here.
+   *    Measured, 2026-08-12: `--grid-band-hover` set here changed no pixel.
+   * 2. **The hover pair moves together or not at all.** `--grid-hover` at 7%
+   *    and `--grid-band-hover` at 9.5% are one decision — 9.5 is the band's 2.5
+   *    plus the hover's 7 — so re-pointing one of them makes the pointer say
+   *    two different things on alternate rows, which is the exact defect
+   *    `table-mechanics` removed. Watched: `--grid-band-hover` overridden to 7%
+   *    *below* the grid block, `a banded row moves as far under the pointer as
+   *    a plain one, in dark` failed on `Expected: < 3 Received: 3.5748`.
+   *
+   * Before this change none of that had ever been measured in dark, because
+   * nothing put this class on the document: the arithmetic was argued and
+   * believed. It is measured now, in both palettes, by
+   * `e2e/hover-cards.spec.ts`.
+   */
 }
 
 /*
@@ -277,15 +320,43 @@
  * heading and paragraph margins because the chrome now spaces itself with
  * `gap-*` and a user-agent `0.67em` on an `h1` fights it.
  *
- * What is deliberately NOT in it: preflight's `border-width: 0` on everything,
- * and its `background-color: transparent` on buttons. Tailwind v4 emits
- * `border-style` and `border-width` together in the `border` utility, so the
- * preflight line that makes `border` work is redundant here — and it is the
- * line most likely to erase a border somebody drew with a `style` prop. The
- * button line is worse: it would strip every chrome button this change has not
- * reached yet down to bare text, so a swap left for `H` would look broken
- * rather than merely old. Author styles outrank the user agent's whatever the
- * layer, so a vendored `<Button>` needs neither.
+ * What is deliberately NOT in it: preflight's `border-width: 0` on everything.
+ * Tailwind v4 emits `border-style` and `border-width` together in the `border`
+ * utility, so the preflight line that makes `border` work is redundant here —
+ * and it is the line most likely to erase a border somebody drew with a `style`
+ * prop. Author styles outrank the user agent's whatever the layer, so a
+ * vendored `<Button>` needs it least of all.
+ *
+ * **Preflight's `background-color: transparent` on buttons IS in it now, and
+ * was not.** The reason it was left out — that it would strip every chrome
+ * button no swap had reached down to bare text — expired when the swap
+ * finished, and what it left behind was a hole in the palette that only the
+ * dark set could show. `color: inherit` above makes a `<button>` take the
+ * page's ink; nothing made it take the page's paper, so it kept the user
+ * agent's `ButtonFace`, which follows no token at all.
+ *
+ * `ButtonFace` is not one colour, and that is the part worth writing down: it
+ * is whatever the user agent thinks the page is, and `color-scheme` above is
+ * the only thing that tells it. Before this change the root declared none, so a
+ * forced `.dark` page got the **light** face, `rgb(239, 239, 239)`, under
+ * near-white ink — the Gantt's row labels at **1.10:1**, which is the whole of
+ * the "dark mode is unreachable and broken where it is forced" finding from the
+ * 2026-08-11 UI audit. With `color-scheme: dark` in place the same unstyled
+ * button paints `rgb(107, 107, 107)` and reads at **5.13:1**.
+ *
+ * So this line is not what buys the contrast — `color-scheme` already did — and
+ * it is not written as though it were. It buys the requirement: no surface is
+ * painted a colour the palette does not name, and a mid-grey the browser chose
+ * is exactly that. Measured by reverting each of the two in turn, 2026-08-12;
+ * both reverts and both numbers are in `openspec/changes/dark-mode/verify.md`.
+ *
+ * Every raw `<button>` outside the grid was read before this line was written:
+ * `app-fault.tsx` and `directory-page.tsx` name `bg-background`, `plan-cards.tsx`
+ * draws a border, `phases-dialog.tsx`'s is `sr-only`, and `<Button>` has carried
+ * `bg-transparent` in its own base since it was vendored. The three that
+ * changed are the three that were broken. Inside the grid nothing changes at
+ * all: the guard stops there, and every button in the table has said
+ * `background: none` for itself in the components layer since it was written.
  */
 @layer base {
   *:not([data-grid], [data-grid] *),
@@ -361,6 +432,17 @@
     font: inherit;
     color: inherit;
     letter-spacing: inherit;
+  }
+
+  /*
+   * The other half of `color: inherit` above: a button takes the page's paper
+   * as well as its ink. `button` alone and not the form controls beside it —
+   * a text box's white field is the platform telling a reader where to type,
+   * and `color-scheme` on the root is what makes that field follow the palette
+   * instead.
+   */
+  button:not([data-grid], [data-grid] *) {
+    background-color: transparent;
   }
 }
 

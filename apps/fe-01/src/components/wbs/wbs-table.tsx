@@ -5125,8 +5125,15 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                     margin: 0,
                     padding: 0,
                     listStyle: 'none',
-                    background: '#fff',
-                    border: '1px solid #ccc',
+                    // Tokens and not `#fff`/`#ccc`: this list is the one
+                    // popover in the app that never took the palette, so on a
+                    // dark page it stayed a white card with near-white text on
+                    // it — 1.05:1, measured. `CreatablePicker`'s `PickerList`
+                    // has read `--popover` since it was written; this is the
+                    // same surface saying the same thing.
+                    background: 'var(--popover)',
+                    color: 'var(--popover-foreground)',
+                    border: '1px solid var(--border)',
                     maxHeight: 200,
                     overflowY: 'auto',
                     zIndex: 10,
@@ -5171,8 +5178,14 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                         padding: '2px 6px',
                         cursor: entry.refusal === undefined ? 'pointer' : 'default',
                         whiteSpace: 'nowrap',
-                        color: entry.refusal === undefined ? undefined : '#999',
-                        background: entry.id === activeOption?.id ? '#e8f0fe' : undefined,
+                        color: entry.refusal === undefined ? undefined : 'var(--muted-foreground)',
+                        // No `background` here at all any more. `#e8f0fe` was
+                        // an inline style that outranked the stylesheet's own
+                        // `[data-grid] [role='option'][aria-selected='true']`
+                        // rule — which paints `var(--accent)` and has been
+                        // there all along — so the keyboard's highlight was a
+                        // fixed pale blue while the pointer's followed the
+                        // palette. One rule now answers for both.
                       }}
                       onClick={() => {
                         if (entry.refusal !== undefined) return;

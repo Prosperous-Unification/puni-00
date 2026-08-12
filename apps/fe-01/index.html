@@ -4,6 +4,46 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>WBS tool v2</title>
+    <!--
+      The palette, before the first paint.
+
+      `lib/theme.ts` is the setting; this is the same answer read early enough
+      to matter. React mounts one paint after the document does, so a browser
+      remembering `dark` would otherwise show a white page and then go dark —
+      on every load, to exactly the reader who asked not to be shown a white
+      page. With the class on `<html>` before the stylesheet resolves, the
+      `color-scheme: dark` declared beside the dark tokens reaches the canvas
+      itself, and there is nothing white to flash.
+
+      Deliberately duplicated logic, and pinned rather than trusted:
+      `src/index-bootstrap.test.ts` runs *this* script and compares what it puts
+      on the root against `paletteFor` and `rememberedTheme` for every stored
+      value either can meet. The alternative — importing the module — is a
+      second network round trip in front of the first paint, which is the thing
+      being avoided.
+
+      No `type="module"`: a module script is deferred, and deferred is after the
+      paint this exists to get in front of. No storage written either; the app
+      does that, a tick later, through the one function that owns the key.
+    -->
+    <script>
+      (function () {
+        var choice = 'system';
+        try {
+          var stored = localStorage.getItem('wbs.theme');
+          if (stored !== null) choice = JSON.parse(stored);
+        } catch (unreadable) {
+          // A hand-edited store is the only way here — nothing but `theme.ts`
+          // writes this key. Recovered from as "never answered", which is what
+          // `rememberedTheme` does with the same bytes.
+          choice = 'system';
+        }
+        if (choice !== 'light' && choice !== 'dark') {
+          choice = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        }
+        document.documentElement.classList.toggle('dark', choice === 'dark');
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

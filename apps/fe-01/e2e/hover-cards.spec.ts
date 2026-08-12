@@ -440,10 +440,14 @@ test.describe('hovering a dependency lights the rows it names', () => {
     // emphasis reads as a tint in the grid and as a cutout in the card. Light
     // alone can never see that, because light alone has one surface.
     //
-    // The app ships no theme switch; the palette is a class on the root and this
-    // is how a browser reaches it. That the class is the whole mechanism is
-    // `styles.css`'s own claim (`.dark` re-points the custom properties every
-    // token is mixed from), and reaching it here is what holds it to it.
+    // The app **ships a theme switch** since `dark-mode`, and this still sets
+    // the class by hand: the control is three items in the account menu, and an
+    // open popover over the grid is exactly the kind of second surface these
+    // reads would pick up by accident. `deps-cell.spec.ts` walks the real
+    // control for the direction rule instead, so the two are covered between
+    // them; that the class is the whole mechanism is `styles.css`'s own claim
+    // (`.dark` re-points the custom properties every token is mixed from), and
+    // `dark-mode.spec.ts` is what holds the control to reaching it.
     for (const palette of ['light', 'dark'] as const) {
       await page.evaluate((wanted) => {
         document.documentElement.classList.toggle('dark', wanted === 'dark');
@@ -836,62 +840,107 @@ test.describe('the pointer moves a row by the same ink on both phases of the str
   const rowLuminance = async (page: Page, number: string): Promise<number> =>
     luminance(page, await settledRowBg(page, number));
 
-  test('a banded row moves as far under the pointer as a plain one', async ({ page }) => {
-    // The plan is the file's `beforeEach`'s — seeding a second one here signs
-    // up over an account that is already signed in, and the Register button
-    // the helper clicks is not on that page.
-    await parkPointer(page);
+  /**
+   * Puts the page in one palette, the way the test above it does and for the
+   * same reason: the control is three items in an account menu, and an open
+   * popover over the grid is another surface these reads would pick up.
+   */
+  const wearPalette = (page: Page, palette: 'light' | 'dark'): Promise<void> =>
+    page.evaluate((wanted) => {
+      document.documentElement.classList.toggle('dark', wanted === 'dark');
+    }, palette);
 
-    // 010 is the first body row and 020 the second, which is the one
-    // `tr:nth-child(even)` bands. The precondition is that they differ at
-    // rest: with no stripe at all this whole test would be about one colour.
-    const restPlain = await rowLuminance(page, '010');
-    const restBand = await rowLuminance(page, '020');
-    expect(restBand, 'there is no stripe to hover, so this test measures nothing').toBeLessThan(
-      restPlain - 2,
-    );
+  /**
+   * **Both palettes since `dark-mode`, and that is not symmetry for its own
+   * sake.** `--grid-hover` and `--grid-band-hover` carry no `.dark` twin, on
+   * the argument written over them in `styles.css`: both are mixes of
+   * `--foreground` into `--background`, which `.dark` re-points, so the pair is
+   * supposed to invert by itself. That argument was written while `.dark` was
+   * **unreachable** — nothing in the app put the class on the document — so it
+   * had never been measured against a browser. This change is what makes it
+   * reachable, which makes the measurement this change's to take. The
+   * arithmetic says the dark steps are 0.05985 against light's 0.06097; what
+   * a rasteriser makes of that is what these two now read.
+   *
+   * **The dark case is real but blunter, and that is worth stating rather than
+   * discovering.** `--grid-band-hover` overridden to `--grid-hover`'s own 7%
+   * (below the grid's `:root` block, which is the only place such an override
+   * wins — see `styles.css`) fails the light case at `Received: 7.0` against
+   * the `< 3` bar and the dark case at `Received: 3.5748`. The same
+   * two-and-a-half-percentage-point fault, a third of the signal, because sRGB
+   * luminance compresses hard at the dark end. The bar is left where it is —
+   * it is the reader-visible quantity in both palettes — but a *smaller*
+   * mismatch than that one would pass in dark and fail in light. Watched on
+   * h2puni, 2026-08-12.
+   */
+  for (const palette of ['light', 'dark'] as const) {
+    test(`a banded row moves as far under the pointer as a plain one, in ${palette}`, async ({
+      page,
+    }) => {
+      // The plan is the file's `beforeEach`'s — seeding a second one here signs
+      // up over an account that is already signed in, and the Register button
+      // the helper clicks is not on that page.
+      await wearPalette(page, palette);
+      await parkPointer(page);
 
-    await rowOf(page, '010').hover();
-    const hoverPlain = await rowLuminance(page, '010');
-    await parkPointer(page);
-    await expect.poll(() => rowLuminance(page, '010')).toBe(restPlain);
+      // 010 is the first body row and 020 the second, which is the one
+      // `tr:nth-child(even)` bands. The precondition is that they differ at
+      // rest: with no stripe at all this whole test would be about one colour.
+      const restPlain = await rowLuminance(page, '010');
+      const restBand = await rowLuminance(page, '020');
+      expect(
+        Math.abs(restPlain - restBand),
+        'there is no stripe to hover, so this test measures nothing',
+      ).toBeGreaterThan(2);
 
-    await rowOf(page, '020').hover();
-    const hoverBand = await rowLuminance(page, '020');
+      await rowOf(page, '010').hover();
+      const hoverPlain = await rowLuminance(page, '010');
+      await parkPointer(page);
+      await expect.poll(() => rowLuminance(page, '010')).toBe(restPlain);
 
-    const stepPlain = restPlain - hoverPlain;
-    const stepBand = restBand - hoverBand;
+      await rowOf(page, '020').hover();
+      const hoverBand = await rowLuminance(page, '020');
 
-    // Each phase moves at all, and downward: the pointer darkens a light page.
-    expect(stepPlain, 'the pointer did not darken a plain row').toBeGreaterThan(8);
-    expect(stepBand, 'the pointer did not darken a banded row').toBeGreaterThan(8);
-    // And by the same amount. This is the assertion the single absolute token
-    // failed: 19.6 against 12.6 on the palette this ships with.
-    expect(
-      Math.abs(stepPlain - stepBand),
-      'the pointer moves a banded row and a plain row by different amounts',
-    ).toBeLessThan(3);
-  });
+      // Signed toward the page's own ink rather than always downward: on a
+      // light page the pointer darkens a row and on a dark one it lightens it,
+      // and a subtraction fixed one way would call the dark half a failure for
+      // doing exactly what the tokens promise.
+      const toward = palette === 'light' ? 1 : -1;
+      const stepPlain = (restPlain - hoverPlain) * toward;
+      const stepBand = (restBand - hoverBand) * toward;
 
-  test('a hovered banded row is nobody else’s colour', async ({ page }) => {
-    // The other half of "reads on both phases": the hovered banded row has to
-    // be distinct from the rest shade of *both* kinds of row, or the pointer
-    // is saying something one row along already says.
-    await parkPointer(page);
+      // Each phase moves at all, and the right way.
+      expect(stepPlain, 'the pointer did not move a plain row toward the ink').toBeGreaterThan(8);
+      expect(stepBand, 'the pointer did not move a banded row toward the ink').toBeGreaterThan(8);
+      // And by the same amount. This is the assertion the single absolute token
+      // failed: 19.6 against 12.6 on the palette this ships with.
+      expect(
+        Math.abs(stepPlain - stepBand),
+        'the pointer moves a banded row and a plain row by different amounts',
+      ).toBeLessThan(3);
+    });
 
-    const restPlain = await rowLuminance(page, '010');
-    const restBand = await rowLuminance(page, '020');
+    test(`a hovered banded row is nobody else’s colour, in ${palette}`, async ({ page }) => {
+      // The other half of "reads on both phases": the hovered banded row has to
+      // be distinct from the rest shade of *both* kinds of row, or the pointer
+      // is saying something one row along already says.
+      await wearPalette(page, palette);
+      await parkPointer(page);
 
-    await rowOf(page, '020').hover();
-    const hoverBand = await rowLuminance(page, '020');
+      const restPlain = await rowLuminance(page, '010');
+      const restBand = await rowLuminance(page, '020');
 
-    expect(
-      Math.abs(hoverBand - restBand),
-      'a hovered banded row is its own rest shade',
-    ).toBeGreaterThan(8);
-    expect(
-      Math.abs(hoverBand - restPlain),
-      'a hovered banded row is the colour of every unbanded row',
-    ).toBeGreaterThan(8);
-  });
+      await rowOf(page, '020').hover();
+      const hoverBand = await rowLuminance(page, '020');
+
+      expect(
+        Math.abs(hoverBand - restBand),
+        'a hovered banded row is its own rest shade',
+      ).toBeGreaterThan(8);
+      expect(
+        Math.abs(hoverBand - restPlain),
+        'a hovered banded row is the colour of every unbanded row',
+      ).toBeGreaterThan(8);
+    });
+  }
 });

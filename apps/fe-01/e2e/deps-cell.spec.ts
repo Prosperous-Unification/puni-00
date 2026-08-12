@@ -55,6 +55,29 @@ async function seedSevenChips(page: Page, account: string): Promise<void> {
   await page.getByLabel('Name of 010').blur();
 }
 
+/**
+ * Switches the palette the way a reader does: the account menu, and the answer
+ * in it.
+ *
+ * `Escape` afterwards because choosing a palette deliberately leaves the menu
+ * open — the page changing colour underneath it is the whole feedback — and an
+ * open popover over the grid is a surface the measurements below would read by
+ * accident. `theme-choice.tsx` has the reason it stays open;
+ * `dark-mode.spec.ts` has the assertion that it does.
+ */
+async function chooseTheme(page: Page, answer: 'Light' | 'Dark'): Promise<void> {
+  await page.locator('header button[aria-haspopup="menu"]').click();
+  await page.getByRole('menuitemradio', { name: answer }).click();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('menuitemradio', { name: answer })).toBeHidden();
+  // The chrome carries `transition-colors`, so the flip is a ~150ms colour
+  // animation on every surface at once and a read taken inside it answers with
+  // an interpolated `oklab(…)` belonging to neither palette. Drained rather
+  // than waited out: nothing in this app animates without end.
+  // `dark-mode.spec.ts` has the measurement that made this necessary.
+  await expect.poll(() => page.evaluate(() => document.getAnimations().length)).toBe(0);
+}
+
 let account = 0;
 
 test.beforeEach(async ({ page }) => {
@@ -411,20 +434,28 @@ test.describe('the deps cell offers an always-visible add button', () => {
     //
     // Both palettes, and it has to be both: light alone cannot tell "darker
     // than the row" from "an absolute colour that happens to be darker here",
-    // and the direction is the whole claim. The app ships no theme switch; the
-    // palette is a class on the root, which is `styles.css`'s own account of
-    // how a theme works, and reaching it here is what holds it to it
-    // (precedent: `hover-cards.spec.ts`, `the tint moves the same way on both
-    // surfaces, in both palettes`).
+    // and the direction is the whole claim. The app **ships a theme switch**
+    // since `dark-mode`, and this walks it rather than putting the class on the
+    // root by hand: a rule about what a reader sees is worth only as much as
+    // the reader's own way of getting there, and a class set from
+    // `page.evaluate` would keep passing on the day the control stopped
+    // reaching it. `hover-cards.spec.ts` still toggles the class directly — it
+    // measures a hover card that an open menu would take off the screen — and
+    // says so where it does.
     const add = page.getByRole('button', { name: 'Make 010 wait for something' });
     const depsCell = page
       .getByLabel('Add a dependency to 010')
       .locator('xpath=ancestor::td[@data-column="depends"]');
 
     for (const palette of ['light', 'dark'] as const) {
-      await page.evaluate((wanted) => {
-        document.documentElement.classList.toggle('dark', wanted === 'dark');
-      }, palette);
+      await chooseTheme(page, palette === 'dark' ? 'Dark' : 'Light');
+      await expect
+        .poll(() =>
+          page.evaluate(() =>
+            document.documentElement.classList.contains('dark') ? 'dark' : 'light',
+          ),
+        )
+        .toBe(palette);
 
       // The row under the pointer but not the affordance: the surface the
       // patch is judged against is the row's *hovered* colour, not its rest.
