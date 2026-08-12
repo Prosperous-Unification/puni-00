@@ -324,7 +324,15 @@ test.describe('the deps cell offers an always-visible add button', () => {
         el instanceof HTMLElement ? el.getBoundingClientRect() : null;
       const r = (el: Element | null | undefined) => {
         const found = rect(el);
-        return found === null ? null : { top: found.top, height: found.height };
+        // The middle as well as the top, because "on the same line" is a claim
+        // about the middles: the strip is `align-items: center` and the box and
+        // the `+` are different heights — 24.19px against 19.5px, measured on
+        // h2puni once `spreadsheet-geometry` typed the grid's buttons — so
+        // their tops differ by half that difference while sitting on one line,
+        // and their centres do not differ at all.
+        return found === null
+          ? null
+          : { top: found.top, height: found.height, middle: found.top + found.height / 2 };
       };
       return { row: r(row), add: r(add), box: r(box), list: r(list) };
     }, number);
@@ -356,8 +364,10 @@ test.describe('the deps cell offers an always-visible add button', () => {
     expect(rest.row?.height, 'the rested row has no height to compare against').toBeGreaterThan(0);
     expect(rest.add?.height, 'no add button on the rested row').toBeGreaterThan(0);
     expect(rest.list, 'a listbox is open before anything was clicked').toBeNull();
-    // At rest the two share one line, which is the state the open one must hold.
-    expect(Math.abs((rest.box?.top ?? 0) - (rest.add?.top ?? 0))).toBeLessThanOrEqual(2);
+    // At rest the two share one line, which is the state the open one must
+    // hold. Centres, not tops — see the measurement above; the fault this
+    // catches puts a whole line between them.
+    expect(Math.abs((rest.box?.middle ?? 0) - (rest.add?.middle ?? 0))).toBeLessThanOrEqual(2);
 
     // Into the cell itself, not the `+`: the finding is about the click a
     // reader has always had, and the button's own path is checked below it.
@@ -375,7 +385,7 @@ test.describe('the deps cell offers an always-visible add button', () => {
     // And it is one line because the box is still beside the `+`, not under it
     // — the row height above could also be held by a `+` that vanished.
     expect(
-      Math.abs((open.box?.top ?? 0) - (open.add?.top ?? 0)),
+      Math.abs((open.box?.middle ?? 0) - (open.add?.middle ?? 0)),
       'the box wrapped under the add button',
     ).toBeLessThanOrEqual(2);
     expect(open.add?.height, 'the add button left the open cell').toBeGreaterThan(0);
