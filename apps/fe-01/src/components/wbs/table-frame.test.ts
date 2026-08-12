@@ -395,10 +395,14 @@ describe('a pinned cell', () => {
 
 describe('the two indents a depth resolves to', () => {
   it('steps one level at a time while the tree is shallow, and the two agree there', () => {
+    // "Shallow" is every depth up to the cap, whatever the cap is: the third
+    // literal here was `numberIndentFor(3) === 36`, true of a cap of 4 and a
+    // statement about the *other* branch once `table-mechanics` moved it to 2.
     expect(numberIndentFor(0)).toBe(0);
     expect(numberIndentFor(1)).toBe(12);
-    expect(numberIndentFor(3)).toBe(36);
-    for (const depth of [0, 1, 3, DEEPEST_INDENT]) {
+    expect(DEEPEST_INDENT).toBeGreaterThan(0);
+    for (let depth = 0; depth <= DEEPEST_INDENT; depth += 1) {
+      expect(numberIndentFor(depth)).toBe(12 * depth);
       expect(hierarchyIndentFor(depth)).toBe(numberIndentFor(depth));
     }
   });
@@ -443,8 +447,15 @@ describe('the two indents a depth resolves to', () => {
     for (const depth of [0, 1, DEEPEST_INDENT]) {
       expect(hierarchyIndentFor(depth) - numberIndentFor(depth)).toBe(0);
     }
-    expect(hierarchyIndentFor(5) - numberIndentFor(5)).toBe(12);
-    expect(hierarchyIndentFor(6) - numberIndentFor(6)).toBe(24);
+    // Stated against the cap rather than against the two depths it happened to
+    // be at: `table-mechanics` moved {@link DEEPEST_INDENT} from 4 to 2 and
+    // these two literals were the arithmetic of the old one, so the test that
+    // holds the *relation* had to be rewritten before it could see the change
+    // at all. One step per level past the cap, at every level past the cap.
+    for (const past of [1, 2, 3]) {
+      const depth = DEEPEST_INDENT + past;
+      expect(hierarchyIndentFor(depth) - numberIndentFor(depth)).toBe(12 * past);
+    }
   });
 
   it('caps the card indent at its own stated depth, deeper than the Number cap', () => {

@@ -336,6 +336,66 @@ function numberCellNeeds(page: Page, number: string): Promise<NumberCell> {
 }
 
 /**
+ * The two numbers the UI audit found reading identically, 2026-08-12.
+ *
+ * A row and its own child, four and five dotted segments — the pair a clip at
+ * a fixed width collapses, because the shallower number is a prefix of the
+ * deeper one and the extra segments are all past the cut. Both are built by
+ * {@link seedDeepBranch}.
+ */
+const CLIPPED_PAIR = ['030.1.1.1', '030.1.1.1.1'] as const;
+
+/** What a Number cell actually shows of its number, and what it keeps back. */
+interface VisibleNumber {
+  /** The prefix of the number inside the cell's clip box — what a reader reads. */
+  visible: string;
+  /** The whole number, wherever the cell carries it for a hover. */
+  title: string | null;
+}
+
+/**
+ * Measures how much of one row's number a browser really draws.
+ *
+ * Character by character through a `Range`, rather than from `scrollWidth`:
+ * the question is not whether the cell overflows — the column's whole bargain
+ * is that deep numbers do — but *where the overflow begins*, because two rows
+ * whose cuts land on the same glyph read as one row. `scrollWidth` answers
+ * "is there more" and this answers "how much of it is there", and only the
+ * second one can see the audit's fault.
+ *
+ * The clip edge is the cell's padding box (`clientLeft` + `clientWidth`),
+ * which is where `overflow: hidden` cuts — not the border-box `right` that
+ * {@link numberCellNeeds} compares content against.
+ */
+function visibleNumberIn(page: Page, number: string): Promise<VisibleNumber> {
+  return page.evaluate((wanted) => {
+    const cell = [...document.querySelectorAll('td[data-column="number"]')].find(
+      (each) => each.querySelector('[data-number]')?.textContent === wanted,
+    );
+    if (cell === undefined) throw new Error(`no row is numbered ${wanted}`);
+    const span = cell.querySelector('[data-number]');
+    const text = span?.firstChild;
+    if (span === null || text === null || text === undefined) {
+      throw new Error(`the ${wanted} Number cell draws no number`);
+    }
+    const drawn = cell.firstElementChild;
+    if (drawn === null) throw new Error(`the ${wanted} Number cell draws nothing`);
+    const clipRight = cell.getBoundingClientRect().left + cell.clientLeft + cell.clientWidth;
+    const range = document.createRange();
+    let shown = 0;
+    for (let end = 1; end <= wanted.length; end += 1) {
+      range.setStart(text, 0);
+      range.setEnd(text, end);
+      // Half a pixel of slack: a glyph whose right edge lands on the clip is
+      // drawn, and sub-pixel layout puts it either side of the boundary.
+      if (range.getBoundingClientRect().right > clipRight + 0.5) break;
+      shown = end;
+    }
+    return { visible: wanted.slice(0, shown), title: drawn.getAttribute('title') };
+  }, number);
+}
+
+/**
  * Every day the table can print, as `shortIsoDate` prints it, for a year that
  * is not the reader's own.
  *
@@ -1987,6 +2047,46 @@ test.describe('the table, measured by a browser', () => {
     expect(overrun.cellHeight).toBe(envelope.cellHeight);
     // And still readable, whole, on hover.
     expect(overrun.title).toBe(PAST_ENVELOPE_NUMBER);
+  });
+
+  test('two rows a level apart read as two different numbers at depth 4', async ({ page }) => {
+    // The UI audit's clipping, 2026-08-12: `030.1.1.1` and `030.1.1.1.1` — one
+    // level apart, and the deeper one a *child* of the other — both drew as
+    // `030.1` inside a 93px column, so two rows on the same screen were the
+    // same row to read and the outline said nothing about which was which.
+    //
+    // Clipping itself is the column's bargain and the test above keeps it. The
+    // line this one draws is different and narrower: whatever is clipped, what
+    // is *left* has to still tell two rows apart. A `title` is not an answer —
+    // it is one row at a time, on hover, with a pointer.
+    //
+    // Measured as the visible prefix rather than as `scrollWidth`, because the
+    // fault was never that the cell overflowed: it was that the two overflows
+    // began at the same glyph. Proof: `DEEPEST_INDENT` put back to 4 and the
+    // 11px `font-size` taken off `[data-number]`, this failed on
+    // `expected '030.1' not to be '030.1'`. Watched, 2026-08-12.
+    await seedDeepBranch(page);
+    const deeper = page.getByLabel(`Name of ${CLIPPED_PAIR[1]}`, { exact: true });
+    await expect(deeper).toBeVisible();
+    // A level apart, and the shallower one a prefix of the deeper: this is the
+    // pair where a clip that cuts at a fixed width cuts both to one string.
+    expect(CLIPPED_PAIR[1].startsWith(`${CLIPPED_PAIR[0]}.`)).toBe(true);
+    expect(CLIPPED_PAIR[0].split('.').length).toBe(4);
+
+    // Frozen, so both carry the lock and the pair differs by its numbers alone
+    // — the lock is 20px of the same cell and only one row would have had it.
+    await page.getByRole('button', { name: 'Freeze numbering' }).click();
+    await expect(page.getByLabel('Number is frozen').first()).toBeVisible();
+
+    const [shallow, deep] = await Promise.all(CLIPPED_PAIR.map((n) => visibleNumberIn(page, n)));
+
+    expect(shallow.visible.length, 'the shallower row shows no number at all').toBeGreaterThan(0);
+    expect(deep.visible.length, 'the deeper row shows no number at all').toBeGreaterThan(0);
+    expect(deep.visible, 'a row and its child read as the same number').not.toBe(shallow.visible);
+    // The whole number is still one hover away on both, which is the half the
+    // clip bargain owes and the half this fix must not have spent.
+    expect(shallow.title).toBe(CLIPPED_PAIR[0]);
+    expect(deep.title).toBe(CLIPPED_PAIR[1]);
   });
 
   test('walks the row with Tab in the order the cells are in the DOM', async ({ page }) => {

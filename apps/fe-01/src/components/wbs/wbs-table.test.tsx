@@ -24,6 +24,7 @@ import { initialsOf } from './initials';
 import { refusedDraftFor } from './live-editing';
 import {
   DATE_EDITOR_WIDTH,
+  DEEPEST_INDENT,
   frameLayout,
   type FrameLayoutState,
   POPOVER_ROW_LAYER,
@@ -7673,14 +7674,28 @@ describe('the outline past the Number cap', () => {
       return { number: numberSpan.style.paddingLeft, name: nameWrapper.style.paddingLeft };
     };
 
+    /** `010` with `depth` levels of `.1` under it — the row built above. */
+    const at = (depth: number): string => ['010', ...Array<string>(depth).fill('1')].join('.');
+
     // Below the cap the Number cell does all the indenting and the Name cell
     // none of it — the rendered table is unchanged there.
-    expect(indents('010.1')).toEqual({ number: '12px', name: '0px' });
-    expect(indents('010.1.1.1.1')).toEqual({ number: '48px', name: '0px' });
+    //
+    // Read off {@link DEEPEST_INDENT} rather than off the four pixel literals
+    // this held until `table-mechanics`: they were the arithmetic of a cap of
+    // 4, so moving the cap to 2 to unclip the number would have been a test
+    // edit either way. Written against the cap, the relation is what is pinned
+    // and the next move of the cap is free.
+    const capped = `${String(DEEPEST_INDENT * 12)}px`;
+    expect(indents(at(1))).toEqual({ number: '12px', name: '0px' });
+    expect(indents(at(DEEPEST_INDENT))).toEqual({ number: capped, name: '0px' });
     // Past the cap the Number cell stays put and the Name cell steps: the sum
     // grows by one step at every level, which is the whole of `deep-indent`.
-    expect(indents('010.1.1.1.1.1')).toEqual({ number: '48px', name: '12px' });
-    expect(indents('010.1.1.1.1.1.1')).toEqual({ number: '48px', name: '24px' });
+    for (const past of [1, 2, 3, 4]) {
+      expect(indents(at(DEEPEST_INDENT + past))).toEqual({
+        number: capped,
+        name: `${String(12 * past)}px`,
+      });
+    }
   });
 });
 
