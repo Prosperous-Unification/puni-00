@@ -88,6 +88,7 @@ import { type CardAssignee, PlanCards } from './plan-cards';
 import { describeGaps, findEstimateGaps } from './plan-completeness';
 import { type PlanExport, planFileName, planToCsv, planToMarkdown } from './plan-export';
 import { useRendererForViewport } from './plan-renderer';
+import { linkPlanScroll } from './plan-scroll-link';
 import { printedDay, shortIsoDate } from './short-date';
 import {
   CARET_GUTTER_PX,
@@ -1790,6 +1791,39 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    * one project has not asked for it on every project they open afterwards.
    */
   const [ganttOpen, setGanttOpen] = useState(false);
+
+  /**
+   * The frame the table scrolls inside, so the chart under it can be held on
+   * the row the table is showing.
+   *
+   * The only thing this ref is for. Every other reader of the frame finds it by
+   * `[data-table-frame]`, and so does the browser gate.
+   */
+  const frameRef = useRef<HTMLDivElement | null>(null);
+  /**
+   * Holds the plan's two faces on one row while both are on screen.
+   *
+   * Installed from here rather than from either face, because neither face owns
+   * the other and this component owns both. The panel is found by the attribute
+   * the gate already knows it by rather than by a ref threaded through
+   * `GanttFaultBoundary` — the boundary may have unmounted the panel by the
+   * time this runs, which is a state the query answers `null` for and a ref
+   * would answer `null` for too, at the cost of a prop on a component this
+   * change otherwise does not touch.
+   *
+   * `generation` is a dependency for that boundary: a chart that faulted and
+   * was reset is a new panel element, and a link left holding the old one would
+   * listen to a node nothing scrolls. The renderer is one because the outline
+   * cards have no frame to link — `frameRef` is `null` under them, and the
+   * effect re-runs to say so when a rotation swaps the renderer.
+   */
+  useEffect(() => {
+    const frame = frameRef.current;
+    if (frame === null || !ganttOpen) return;
+    const panel = document.querySelector<HTMLElement>('[data-gantt-panel]');
+    if (panel === null) return;
+    return linkPlanScroll(frame, panel);
+  }, [ganttOpen, renderer, chartRead.generation]);
 
   const latestRefresh = useRef(0);
   /**
@@ -7071,7 +7105,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
             against this box — see `table-frame.ts` for why it has to be the one
             that scrolls.
           */}
-          <div data-table-frame style={TABLE_FRAME}>
+          <div data-table-frame ref={frameRef} style={TABLE_FRAME}>
             {/*
             `separate` with no spacing rather than the browser's default gap:
             the pinned columns' offsets are the running total of their widths,

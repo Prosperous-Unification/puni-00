@@ -7271,12 +7271,14 @@ describe('the frame the table scrolls inside', () => {
     // scrollport the heading below sticks to.
     expect(frame?.style.overflow).toBe('auto');
     // That bound was `max-height: calc(100vh - 16rem)` until `H
-    // header-fits-a-row`; it is now a zero flex basis inside a column that is
-    // one window tall, so the height is the remainder rather than an estimate
-    // of the chrome. Same claim — this box is bounded and therefore scrolls —
-    // read off the property that now carries it. What a browser makes of it is
-    // `e2e/header.spec.ts`'s; jsdom lays nothing out.
-    expect(frame?.style.flex).toBe('1 1 0%');
+    // header-fits-a-row`; it is now `flex-shrink: 1` inside a column that is
+    // one window tall, so a plan past the remainder is shrunk to it rather than
+    // measured against an estimate of the chrome. Same claim — this box is
+    // bounded and therefore scrolls — read off the property that now carries
+    // it. Since `unified-scroll-docking` it does not grow past its own rows
+    // either. What a browser makes of both is `e2e/header.spec.ts`'s and
+    // `e2e/plan-surface.spec.ts`'s; jsdom lays nothing out.
+    expect(frame?.style.flex).toBe('0 1 auto');
     // And the flex basis is the only opinion about it: a `max-height` back
     // beside it would be the estimate again, disagreeing with the layout the
     // first time the header changed.
