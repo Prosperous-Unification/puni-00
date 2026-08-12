@@ -55,6 +55,16 @@ rerun quietly. No fe-01 or gw-01 file is touched by this branch at all.
 
 The commit after `c2fca51` adds this paragraph and nothing else.
 
+**The cross-review fixes** re-ran the gate on h2puni at the same numbers — be-01
+**680 pass, 0 fail**, 24,318 `expect()` calls, 16.83s; `lint` and `typecheck`
+pass; `format:check --all` clean; openspec 37/37 — and CI
+[31625199549](https://github.com/Prosperous-Unification/wbs-tool-v1/actions/runs/31625199549)
+passed both jobs first attempt at head `534d7c6`: `gate` 2m53s, `pixels` 8m0s.
+That head was then rebased onto `main` @ `c085998` (#52 `gantt-handle-z` merged;
+no file in common with this branch, `comm -12` over both name lists is empty),
+which is the head CI runs last before the merge. This paragraph is the only
+change after `534d7c6`.
+
 ## The failure-proof table (R5)
 
 Thirteen checks, thirteen injected faults, each watched failing before it was
