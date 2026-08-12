@@ -291,3 +291,42 @@ describe('two patches for one cell in the air at once', () => {
     expect(pending.map((patch) => patch.typed)).toEqual(['Beta', 'Gamma']);
   });
 });
+
+describe('a refused draft typed over and refused again', () => {
+  /**
+   * The fault, in the smallest shape that has it. A client-side refusal raises
+   * a toast, React flushes that discrete update **inside the blur** — before
+   * any microtask — and the ref callback rebuilt by that render runs
+   * `takeNode` against a map still holding the *previous* draft. It wrote the
+   * old text into a box holding the new one, and the newer refusal then
+   * recorded the right text a round trip later under a box already showing the
+   * wrong one, where `sync` could not correct it because rule 4 was holding.
+   *
+   * The rerender below is that render, and a rerender rather than a remount is
+   * the point: nothing unmounts, exactly as fault B above.
+   *
+   * Observed live on dev in the Prio cell, 2026-08-11 — `urgent` typed over a
+   * refused `1e999` blurred back to `1e999`.
+   *
+   * Proof: `heldRefusals.delete(this.cellKey)` removed from `submit`, this
+   * failed on `expected 'Beta' to be 'Gamma'`. Watched, 2026-08-11.
+   */
+  itDom('shows the newer draft, not the one it replaced', async () => {
+    const { pending, commit } = queuedCommits();
+    const view = render(<TableFace value="Alpha" commit={commit} />);
+
+    typeAndLeave('Beta');
+    await answerPatch(pending[0], 'refused');
+    expect(refusedDraftFor(CELL)).toBe('Beta');
+
+    typeAndLeave('Gamma');
+    view.rerender(<TableFace value="Alpha" commit={commit} />);
+
+    expect(screen.getByLabelText<HTMLInputElement>('Name of 010').value).toBe('Gamma');
+
+    await answerPatch(pending[1], 'refused');
+
+    expect(refusedDraftFor(CELL)).toBe('Gamma');
+    expect(screen.getByLabelText<HTMLInputElement>('Name of 010').value).toBe('Gamma');
+  });
+});
