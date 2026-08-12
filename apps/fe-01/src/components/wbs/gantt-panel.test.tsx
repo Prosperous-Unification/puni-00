@@ -1338,6 +1338,94 @@ describe('the marks that had to be seen', () => {
     expect(document.querySelectorAll('[data-gantt-label]')).toHaveLength(3);
     expect(viewBoxOf(document.querySelector('[data-gantt-chart]')).height).toBe(3);
   });
+
+  /**
+   * A10's shape, which is where the routing fault was measured: `010` three
+   * days, `020` two and `030` four both waiting on it, `040` two waiting on
+   * both. `020` finishes before `030` does, so the arrow from `020` to `040`
+   * has room for a plain elbow and used to turn down through the whole length
+   * of `030`'s bar on the row between them.
+   */
+  const a10Plan = (): GanttPlan =>
+    planOf({
+      rows: [rowAt('010', 0, 3), rowAt('020', 3, 5), rowAt('030', 3, 7), rowAt('040', 7, 9)],
+      slices: [
+        sliceAt('010-dev', '010', 0, 3),
+        sliceAt('020-dev', '020', 3, 5),
+        sliceAt('030-dev', '030', 3, 7),
+        sliceAt('040-dev', '040', 7, 9),
+      ],
+      dependencies: [
+        { predecessorId: '010', successorId: '020' },
+        { predecessorId: '010', successorId: '030' },
+        { predecessorId: '020', successorId: '040' },
+        { predecessorId: '030', successorId: '040' },
+      ],
+    });
+
+  itDom('draws no arrow through a bar, off the marks it actually drew', () => {
+    render(
+      <GanttPanel
+        plan={a10Plan()}
+        startDate={MONDAY_START}
+        scheduleError={null}
+        generation={0}
+        heightPx={null}
+        onPickRow={() => undefined}
+      />,
+    );
+    askForTheArrows();
+
+    // Read off the document rather than off the geometry: this is the one
+    // assertion that can see the panel handing the router the wrong bars, the
+    // wrong inset or the wrong approach — `gantt-geometry.test.ts` proves the
+    // routing itself, and would go on passing through all three.
+    const bars = [...document.querySelectorAll('[data-gantt-bar]')].map((bar) => {
+      const box = drawnBox(`[data-gantt-bar="${String(bar.getAttribute('data-gantt-bar'))}"]`);
+      return {
+        id: String(bar.getAttribute('data-gantt-bar')),
+        left: box.x,
+        right: box.x + box.width,
+        top: box.y,
+        bottom: box.y + box.height,
+      };
+    });
+    expect(bars).toHaveLength(4);
+
+    const crossings: string[] = [];
+    for (const arrow of [...document.querySelectorAll('[data-gantt-arrow]')]) {
+      const id = String(arrow.getAttribute('data-gantt-arrow'));
+      const route = pointsOf(`[data-gantt-arrow="${id}"]`);
+      for (const [index, corner] of route.entries()) {
+        if (index === 0) continue;
+        const from = route[index - 1];
+        for (const bar of bars) {
+          const spans = (low: number, high: number, one: number, other: number): boolean =>
+            Math.min(one, other) < high && Math.max(one, other) > low;
+          const inside =
+            from.x === corner.x
+              ? from.x > bar.left &&
+                from.x < bar.right &&
+                spans(bar.top, bar.bottom, from.y, corner.y)
+              : from.y > bar.top &&
+                from.y < bar.bottom &&
+                spans(bar.left, bar.right, from.x, corner.x);
+          if (inside) crossings.push(`${id} run ${String(index)} crosses ${bar.id}`);
+        }
+      }
+    }
+
+    // Proof: `arrowRoute` given back its pre-`arrow-dodge` body — the plain
+    // elbow whenever `toX - fromX >= 2 * approach`, the jog otherwise, and no
+    // reading of the bars at all. This test alone failed, on `expected [
+    // '020->040 run 2 crosses 030-dev' ] to deeply equal []`. Watched
+    // 2026-08-12.
+    expect(crossings).toEqual([]);
+    // Not a vacuous pass over an empty list: four arrows were read, and each
+    // has at least the three runs an elbow is made of.
+    expect(document.querySelectorAll('[data-gantt-arrow]')).toHaveLength(4);
+    expect(pointsOf('[data-gantt-arrow="020->040"]').length).toBeGreaterThan(3);
+  });
 });
 
 /**

@@ -12,8 +12,12 @@ import {
   inkOn,
   layOutGantt,
   PERSON_BAR_COLORS,
+  type PlacedArrow,
+  type PlacedBar,
+  type PlacedGantt,
   placeOnCalendar,
   placeOnWorkdays,
+  routeArrow,
   UNASSIGNED_BAR_COLOR,
 } from './gantt-geometry';
 
@@ -1420,5 +1424,525 @@ describe('placing the chart on a calendar', () => {
     expect([placed.arrows[0].fromX, placed.arrows[0].toX]).toEqual([5, 5]);
     expect(placed.notBeforeFlags[0].x).toBe(5);
     expect(placed.horizon).toBe(chart.horizon);
+  });
+});
+
+describe('routing an arrow past the bars it does not join', () => {
+  /**
+   * The panel's own two numbers, in the units {@link routeArrow} takes them in:
+   * `ARROW_APPROACH_PX / DAY_PX` and `BAR_INSET`.
+   *
+   * Stated here rather than imported because the router's promise is about
+   * **any** clearance — a chart drawn at another day width keeps it — and
+   * because a geometry test that reached into the panel for its numbers would
+   * be measuring the panel. What proves the panel passes these is a panel test:
+   * `no arrow crosses a bar it does not join` in `gantt-panel.test.tsx`.
+   */
+  const CLEARANCE = { approach: 10 / 28, barInset: 0.18 };
+
+  /** Where a bar is painted, in the two units the route is in. */
+  const rectOf = (placed: PlacedBar) => ({
+    left: placed.x,
+    right: placed.x + placed.width,
+    top: placed.bar.rowIndex + CLEARANCE.barInset,
+    bottom: placed.bar.rowIndex + 1 - CLEARANCE.barInset,
+  });
+
+  /**
+   * Whether one run of a route passes through the inside of one bar — read
+   * apart from the router's own `runCrossesBar` on purpose.
+   *
+   * Written as the two cases a route can have rather than as one overlap
+   * formula, so that a wrong reading inside the router cannot make every
+   * assertion below agree with it. A run that is neither horizontal nor
+   * vertical is a route this module does not draw, and it fails here rather
+   * than being measured: see `every run is horizontal or vertical` below.
+   */
+  const runsInside = (
+    from: { x: number; y: number },
+    to: { x: number; y: number },
+    rect: { left: number; right: number; top: number; bottom: number },
+  ): boolean => {
+    const spans = (low: number, high: number, from_: number, to_: number): boolean =>
+      Math.min(from_, to_) < high && Math.max(from_, to_) > low;
+    if (from.x === to.x) {
+      return (
+        from.x > rect.left && from.x < rect.right && spans(rect.top, rect.bottom, from.y, to.y)
+      );
+    }
+    if (from.y === to.y) {
+      return (
+        from.y > rect.top && from.y < rect.bottom && spans(rect.left, rect.right, from.x, to.x)
+      );
+    }
+    throw new Error(`a route ran from ${String(from.x)},${String(from.y)} diagonally`);
+  };
+
+  /** How a chart's arrows are routed: this module's answer unless a test says otherwise. */
+  type Router = (arrow: PlacedArrow, drawn: PlacedBar[]) => { x: number; y: number }[];
+
+  const asItRoutes: Router = (arrow, drawn) => routeArrow(arrow, drawn, CLEARANCE);
+
+  /** Every (arrow, bar) pair the chart draws through, named the way a reader would find it. */
+  const crossingsIn = (placed: PlacedGantt, route_: Router = asItRoutes): string[] => {
+    // The bars the panel paints, which since `gantt-declutter` is the estimated
+    // ones — and the same list the panel hands the router.
+    const drawn = placed.bars.filter(({ bar }) => bar.estimated);
+    const found: string[] = [];
+    for (const arrow of placed.arrows) {
+      const route = route_(arrow, drawn);
+      for (const [index, corner] of route.entries()) {
+        if (index === 0) continue;
+        for (const bar of drawn) {
+          if (!runsInside(route[index - 1], corner, rectOf(bar))) continue;
+          found.push(
+            `${arrow.predecessorId}->${arrow.successorId} run ${String(index)} ` +
+              `crosses ${bar.bar.sliceId}`,
+          );
+        }
+      }
+    }
+    return found;
+  };
+
+  /**
+   * A10's fixture, on the workday axis: `010` 3 days, `020` 2 and `030` 4 both
+   * waiting on it, `040` 2 waiting on both.
+   *
+   * The shape the defect was measured on. `020` finishes at 5 and `040` starts
+   * at 7, so the old router had room for its plain elbow and turned down one
+   * approach short of 7 — straight through `030`, which runs 3 → 7 on the row
+   * in between.
+   */
+  const a10 = (): GanttPlan =>
+    planOf({
+      rows: [rowAt('010', 0, 3), rowAt('020', 3, 5), rowAt('030', 3, 7), rowAt('040', 7, 9)],
+      slices: [
+        sliceAt('010-dev', '010', 0, 3),
+        sliceAt('020-dev', '020', 3, 5),
+        sliceAt('030-dev', '030', 3, 7),
+        sliceAt('040-dev', '040', 7, 9),
+      ],
+      dependencies: [
+        { predecessorId: '010', successorId: '020' },
+        { predecessorId: '010', successorId: '030' },
+        { predecessorId: '020', successorId: '040' },
+        { predecessorId: '030', successorId: '040' },
+      ],
+    });
+
+  const routeOf = (placed: PlacedGantt, predecessorId: string, successorId: string) => {
+    const arrow = placed.arrows.find(
+      (each) => each.predecessorId === predecessorId && each.successorId === successorId,
+    );
+    if (arrow === undefined) throw new Error(`no arrow ${predecessorId} -> ${successorId}`);
+    return routeArrow(
+      arrow,
+      placed.bars.filter(({ bar }) => bar.estimated),
+      CLEARANCE,
+    );
+  };
+
+  it('keeps every arrow of the A10 plan out of every bar', () => {
+    // Proof: `routeArrow` given back the router this replaced — the plain elbow
+    // whenever `toX - fromX >= 2 * approach` and the jog otherwise, with no
+    // reading of the bars at all. This test alone failed on `expected [
+    // '020->040 run 2 crosses 030-dev' ] to deeply equal []`, which is A10's
+    // finding in one line. Watched 2026-08-12.
+    expect(crossingsIn(placeOnWorkdays(layOutGantt(a10())))).toEqual([]);
+  });
+
+  it('keeps every arrow of the A10 plan out of every bar on a calendar too', () => {
+    // The same plan with the weekends in it: `030` is drawn 3 → 9 rather than
+    // 3 → 7, so the bar the descent has to clear is two calendar days wider
+    // than the workdays say. Proof: the same router swap; `expected [
+    // '020->040 run 2 crosses 030-dev' ] to deeply equal []`. Watched
+    // 2026-08-12.
+    expect(crossingsIn(placeOnCalendar(layOutGantt(a10()), '2026-06-01'))).toEqual([]);
+  });
+
+  it('dodges into the band beside the row it cannot descend through', () => {
+    const route = routeOf(placeOnWorkdays(layOutGantt(a10())), '020', '040');
+    const { approach, barInset } = CLEARANCE;
+
+    // Out of `020`, into the band under its row, right past `030`'s finish,
+    // down the two rows there, back to the turn and in. The exact corners,
+    // because "it clears" is true of a route that goes around the whole chart
+    // as well, and this one is the smallest dodge available.
+    expect(route).toEqual([
+      { x: 5, y: 1.5 },
+      { x: 5 + approach, y: 1.5 },
+      { x: 5 + approach, y: 2 - barInset / 2 },
+      { x: 7 + approach, y: 2 - barInset / 2 },
+      { x: 7 + approach, y: 3 - barInset / 2 },
+      { x: 7 - approach, y: 3 - barInset / 2 },
+      { x: 7 - approach, y: 3.5 },
+      { x: 7, y: 3.5 },
+    ]);
+  });
+
+  it('leaves the three arrows nothing stands under exactly where they were', () => {
+    const placed = placeOnWorkdays(layOutGantt(a10()));
+    const { approach, barInset } = CLEARANCE;
+
+    // `010 -> 020` and `010 -> 030` touch, so both are the five-run jog the
+    // panel has drawn since `gantt-polish`, and `030 -> 040` touches as well.
+    // Nothing about a clear chart moved: the dodge is what the router adds.
+    expect(routeOf(placed, '010', '020')).toEqual([
+      { x: 3, y: 0.5 },
+      { x: 3 + approach, y: 0.5 },
+      { x: 3 + approach, y: 1 - barInset / 2 },
+      { x: 3 - approach, y: 1 - barInset / 2 },
+      { x: 3 - approach, y: 1.5 },
+      { x: 3, y: 1.5 },
+    ]);
+    expect(routeOf(placed, '030', '040')).toEqual([
+      { x: 7, y: 2.5 },
+      { x: 7 + approach, y: 2.5 },
+      { x: 7 + approach, y: 3 - barInset / 2 },
+      { x: 7 - approach, y: 3 - barInset / 2 },
+      { x: 7 - approach, y: 3.5 },
+      { x: 7, y: 3.5 },
+    ]);
+  });
+
+  it('still draws the plain elbow when the column it turns at is clear', () => {
+    const placed = placeOnWorkdays(
+      layOutGantt(
+        planOf({
+          rows: [rowAt('010', 0, 3), rowAt('020', 6, 8)],
+          slices: [sliceAt('010-dev', '010', 0, 3), sliceAt('020-dev', '020', 6, 8)],
+          dependencies: [{ predecessorId: '010', successorId: '020' }],
+        }),
+      ),
+    );
+
+    // Three runs and no band: the shape this chart has always drawn where there
+    // is room and nothing in the way.
+    expect(routeOf(placed, '010', '020')).toEqual([
+      { x: 3, y: 0.5 },
+      { x: 6 - CLEARANCE.approach, y: 0.5 },
+      { x: 6 - CLEARANCE.approach, y: 1.5 },
+      { x: 6, y: 1.5 },
+    ]);
+  });
+
+  it('leaves on the anchor’s own edge when the next role stands against it', () => {
+    const placed = placeOnWorkdays(
+      layOutGantt(
+        planOf({
+          rows: [rowAt('010', 0, 5), rowAt('020', 5, 7)],
+          slices: [
+            sliceAt('010-dev', '010', 0, 3),
+            sliceAt('010-qa', '010', 3, 5, { roleId: 'qa' }),
+            sliceAt('020-dev', '020', 5, 7),
+          ],
+          dependencies: [{ predecessorId: '010', successorId: '020' }],
+        }),
+      ),
+    );
+
+    const route = routeOf(placed, '010', '020');
+    // The arrow leaves the anchor — `dep-waits-on-first-role` — which is the
+    // Dev bar's right edge at 3, and QA is drawn 3 → 5 right against it. So
+    // there is nowhere to step out to: the route leaves on the edge itself and
+    // drops into the band under the row.
+    expect(route[0]).toEqual({ x: 3, y: 0.5 });
+    expect(route[1]).toEqual({ x: 3, y: 1 - CLEARANCE.barInset / 2 });
+    expect(crossingsIn(placed)).toEqual([]);
+  });
+
+  it('dodges the same way for an arrow that climbs the chart', () => {
+    const placed = placeOnWorkdays(
+      layOutGantt(
+        planOf({
+          // The payload's order is the tree's, and a successor is as often
+          // drawn above its predecessor as below it. `030` waits on `010` two
+          // rows down, and `020` sits between them across the column the
+          // ascent would otherwise turn at.
+          rows: [rowAt('030', 5, 7), rowAt('020', 3, 7), rowAt('010', 0, 3)],
+          slices: [
+            sliceAt('030-dev', '030', 5, 7),
+            sliceAt('020-dev', '020', 3, 7),
+            sliceAt('010-dev', '010', 0, 3),
+          ],
+          dependencies: [{ predecessorId: '010', successorId: '030' }],
+        }),
+      ),
+    );
+
+    const arrow = placed.arrows[0];
+    // The case this test is for, asserted rather than assumed: a fixture that
+    // drifted into descending would go on passing and prove nothing about the
+    // direction it was written for.
+    expect(arrow.toRowIndex).toBeLessThan(arrow.fromRowIndex);
+    // Proof: `routeArrow` given back its pre-`arrow-dodge` body. There is
+    // horizontal room between 3 and 5, so the old router drew the plain elbow
+    // and turned up at 4.643 — inside `020`, which runs 3 → 7 on the row
+    // between. Failed on `expected [ '010->030 run 2 crosses 020-dev' ] to
+    // deeply equal []`. Watched 2026-08-12.
+    expect(crossingsIn(placed)).toEqual([]);
+    // And it is a dodge rather than the elbow: the three-run route is the one
+    // that crosses here.
+    expect(routeOf(placed, '010', '030').length).toBeGreaterThan(4);
+  });
+
+  it('goes left of everything when the rows in between leave no column', () => {
+    const placed = placeOnWorkdays(
+      layOutGantt(
+        planOf({
+          rows: [rowAt('010', 0, 2), rowAt('020', 0, 20), rowAt('030', 3, 5)],
+          slices: [
+            sliceAt('010-dev', '010', 0, 2),
+            // The row in between spans the whole chart, so every column from
+            // the predecessor's finish to the successor's start is under a bar.
+            sliceAt('020-dev', '020', 0, 20),
+            sliceAt('030-dev', '030', 3, 5),
+          ],
+          dependencies: [{ predecessorId: '010', successorId: '030' }],
+        }),
+      ),
+    );
+
+    const route = routeOf(placed, '010', '030');
+    // The only clear column is left of the wide bar, and the route takes it —
+    // outside the schedule, inside the canvas the panel pads for exactly this.
+    expect(Math.min(...route.map((corner) => corner.x))).toBe(-CLEARANCE.approach);
+    expect(crossingsIn(placed)).toEqual([]);
+  });
+
+  it('every run is horizontal or vertical', () => {
+    const route = routeOf(placeOnWorkdays(layOutGantt(a10())), '020', '040');
+    expect(
+      route.every(
+        (corner, index) =>
+          index === 0 || corner.x === route[index - 1].x || corner.y === route[index - 1].y,
+      ),
+    ).toBe(true);
+  });
+
+  it('arrives at the successor’s start from its left, so the head points right', () => {
+    const placed = placeOnWorkdays(layOutGantt(a10()));
+    for (const arrow of placed.arrows) {
+      const route = routeOf(placed, arrow.predecessorId, arrow.successorId);
+      const last = route[route.length - 1];
+      const before = route[route.length - 2];
+      expect([last.x, last.y]).toEqual([arrow.toX, arrow.toRowIndex + 0.5]);
+      expect(before.y).toBe(last.y);
+      expect(before.x).toBeLessThan(last.x);
+    }
+  });
+});
+
+describe('the invariant over a sweep of generated plans', () => {
+  /**
+   * The panel's two numbers again — see the describe above; the sweep is a
+   * second reading of the same promise and takes the same clearance.
+   */
+  const CLEARANCE = { approach: 10 / 28, barInset: 0.18 };
+
+  /**
+   * The same plans on every run: a linear congruential step, seeded per plan.
+   *
+   * Not `Math.random`: a sweep that finds a fault nobody can reproduce is a
+   * sweep that gets deleted. The seed is the plan's index, so a failure names
+   * the plan that produced it.
+   */
+  const numbersFrom = (seed: number): ((below: number) => number) => {
+    let state = seed * 2654435761 + 1;
+    return (below) => {
+      state = (state * 1664525 + 1013904223) % 4294967296;
+      return Math.floor((state / 4294967296) * below);
+    };
+  };
+
+  /**
+   * A small plan with a schedule that hangs together: three to seven leaves,
+   * one or two roles each, some of them unestimated, dependencies that only
+   * ever point backwards through the build order — and then the **rows
+   * shuffled**, so an arrow is as likely to climb the chart as to descend it.
+   *
+   * Deliberately its own little engine rather than a fixture: what is being
+   * swept is the router's promise on shapes nobody wrote down, and the two
+   * facts it rests on — a row's earliest start is its first slice's, and an
+   * arrow leaves the anchor's finish — are the two this builder keeps.
+   */
+  const generatedPlan = (seed: number): GanttPlan => {
+    const next = numbersFrom(seed);
+    const leafCount = 3 + next(5);
+    const ids = Array.from({ length: leafCount }, (_, index) => `0${String(index + 1)}0`);
+    const slices: GanttSlice[] = [];
+    const rows: GanttRow[] = [];
+    const dependencies: { predecessorId: string; successorId: string }[] = [];
+    const anchorFinish = new Map<string, number>();
+    const finishOf = new Map<string, number>();
+
+    for (const [index, id] of ids.entries()) {
+      let start = 0;
+      for (const earlier of ids.slice(0, index)) {
+        if (next(3) !== 0) continue;
+        dependencies.push({ predecessorId: earlier, successorId: id });
+        start = Math.max(start, anchorFinish.get(earlier) ?? 0);
+      }
+      let cursor = start;
+      const own: GanttSlice[] = [];
+      for (const roleId of next(2) === 0 ? ['dev'] : ['dev', 'qa']) {
+        const estimated = next(4) !== 0;
+        const duration = estimated ? 1 + next(4) : 0;
+        own.push(
+          sliceAt(`${id}-${roleId}`, id, cursor, cursor + duration, {
+            roleId,
+            estimated,
+            duration,
+          }),
+        );
+        cursor += duration;
+      }
+      const anchor = own.find((slice) => slice.estimated) ?? own[own.length - 1];
+      anchorFinish.set(id, anchor.earliestFinish);
+      finishOf.set(id, cursor);
+      slices.push(...own);
+      rows.push(rowAt(id, start, cursor));
+    }
+
+    // The shuffle is the point: the payload's order is the tree's, and a plan
+    // whose rows all descend would never route an arrow upwards.
+    for (let index = rows.length - 1; index > 0; index -= 1) {
+      const swap = next(index + 1);
+      [rows[index], rows[swap]] = [rows[swap], rows[index]];
+    }
+    return planOf({ rows, slices, dependencies });
+  };
+
+  /** Where a bar is painted, as the describe above reads it. */
+  const rectOf = (placed: PlacedBar) => ({
+    left: placed.x,
+    right: placed.x + placed.width,
+    top: placed.bar.rowIndex + CLEARANCE.barInset,
+    bottom: placed.bar.rowIndex + 1 - CLEARANCE.barInset,
+  });
+
+  const runsInside = (
+    from: { x: number; y: number },
+    to: { x: number; y: number },
+    rect: { left: number; right: number; top: number; bottom: number },
+  ): boolean => {
+    const spans = (low: number, high: number, one: number, other: number): boolean =>
+      Math.min(one, other) < high && Math.max(one, other) > low;
+    if (from.x === to.x) {
+      return (
+        from.x > rect.left && from.x < rect.right && spans(rect.top, rect.bottom, from.y, to.y)
+      );
+    }
+    if (from.y === to.y) {
+      return (
+        from.y > rect.top && from.y < rect.bottom && spans(rect.left, rect.right, from.x, to.x)
+      );
+    }
+    throw new Error('a route ran diagonally');
+  };
+
+  /**
+   * The router this change replaced, kept here as the sweep's own control.
+   *
+   * It is what makes the sweep a check that can fail: run the same plans
+   * through it and the crossings come back in the hundreds, so a green sweep is
+   * evidence about the router rather than about the generator having produced
+   * nothing worth crossing. See `verify.md`.
+   */
+  const routeAsItWas = (arrow: PlacedArrow): { x: number; y: number }[] => {
+    const { approach, barInset } = CLEARANCE;
+    const fromY = arrow.fromRowIndex + 0.5;
+    const toY = arrow.toRowIndex + 0.5;
+    const turn = arrow.toX - approach;
+    const crossing =
+      arrow.toRowIndex > arrow.fromRowIndex
+        ? arrow.fromRowIndex + 1 - barInset / 2
+        : arrow.fromRowIndex + barInset / 2;
+    return arrow.toX - arrow.fromX >= 2 * approach
+      ? [
+          { x: arrow.fromX, y: fromY },
+          { x: turn, y: fromY },
+          { x: turn, y: toY },
+          { x: arrow.toX, y: toY },
+        ]
+      : [
+          { x: arrow.fromX, y: fromY },
+          { x: arrow.fromX + approach, y: fromY },
+          { x: arrow.fromX + approach, y: crossing },
+          { x: turn, y: crossing },
+          { x: turn, y: toY },
+          { x: arrow.toX, y: toY },
+        ];
+  };
+
+  /** Every crossing the given router draws on the given placed chart. */
+  const crossingsUnder = (
+    placed: PlacedGantt,
+    route_: (arrow: PlacedArrow, drawn: PlacedBar[]) => { x: number; y: number }[],
+  ): string[] => {
+    const drawn = placed.bars.filter(({ bar }) => bar.estimated);
+    const found: string[] = [];
+    for (const arrow of placed.arrows) {
+      const route = route_(arrow, drawn);
+      for (const [index, corner] of route.entries()) {
+        if (index === 0) continue;
+        for (const bar of drawn) {
+          if (runsInside(route[index - 1], corner, rectOf(bar))) {
+            found.push(`${arrow.predecessorId}->${arrow.successorId} crosses ${bar.bar.sliceId}`);
+          }
+        }
+      }
+    }
+    return found;
+  };
+
+  const PLAN_COUNT = 400;
+
+  const sweep = (
+    place: (chart: ReturnType<typeof layOutGantt>) => PlacedGantt,
+    route_: (arrow: PlacedArrow, drawn: PlacedBar[]) => { x: number; y: number }[],
+  ): { arrows: number; crossings: string[]; plansWithArrows: number } => {
+    let arrows = 0;
+    let plansWithArrows = 0;
+    const crossings: string[] = [];
+    for (let seed = 1; seed <= PLAN_COUNT; seed += 1) {
+      const placed = place(layOutGantt(generatedPlan(seed)));
+      arrows += placed.arrows.length;
+      if (placed.arrows.length > 0) plansWithArrows += 1;
+      for (const crossing of crossingsUnder(placed, route_))
+        crossings.push(`#${String(seed)} ${crossing}`);
+    }
+    return { arrows, crossings, plansWithArrows };
+  };
+
+  it('draws no arrow through a bar, on 400 plans on the workday axis', () => {
+    const swept = sweep(placeOnWorkdays, (arrow, drawn) => routeArrow(arrow, drawn, CLEARANCE));
+
+    // Proof, and the reason this is not a check that cannot fail: the same 400
+    // plans under the router this replaced. `expected 0 to be 0` is what a
+    // sweep over an empty generator would say, so the control is asserted to
+    // find crossings before the router is asserted to find none.
+    const control = sweep(placeOnWorkdays, routeAsItWas);
+    expect(control.crossings.length).toBeGreaterThan(20);
+    expect(swept.crossings).toEqual([]);
+    // And the sweep is not measuring an empty chart: most of the plans hold
+    // arrows, and there are hundreds of them.
+    expect(swept.arrows).toBeGreaterThan(400);
+    expect(swept.plansWithArrows).toBeGreaterThan(PLAN_COUNT / 2);
+  });
+
+  it('draws no arrow through a bar, on the same plans placed on a calendar', () => {
+    const onCalendar = (chart: ReturnType<typeof layOutGantt>): PlacedGantt =>
+      placeOnCalendar(chart, '2026-06-01');
+    const swept = sweep(onCalendar, (arrow, drawn) => routeArrow(arrow, drawn, CLEARANCE));
+
+    // The weekends widen every bar the descent has to clear, so this is a
+    // different sweep and not the same one twice: its control finds crossings
+    // the workday one does not.
+    const control = sweep(onCalendar, routeAsItWas);
+    expect(control.crossings.length).toBeGreaterThan(20);
+    expect(swept.crossings).toEqual([]);
+    expect(swept.arrows).toBeGreaterThan(400);
   });
 });

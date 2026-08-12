@@ -744,6 +744,255 @@ export function placeOnWorkdays(chart: GanttGeometry): PlacedGantt {
 }
 
 /**
+ * Half a row down: where a line between two rows leaves, runs and arrives.
+ *
+ * The chart's y unit is one row, so a row's middle is its index plus this. It
+ * lives here rather than beside the paint because {@link routeArrow} builds
+ * whole polylines in this unit and the panel draws its person links in the
+ * same one — two halves of one number is how a line and the bar it joins end
+ * up on different heights.
+ */
+export const ROW_MIDDLE = 0.5;
+
+/** A corner of a dependency arrow's route: `x` in the placed unit, `y` in rows. */
+export interface ArrowPoint {
+  x: number;
+  y: number;
+}
+
+/**
+ * The two numbers a route is drawn with, in the chart's own units.
+ *
+ * Both are the panel's and neither is derivable here. `approach` is how far a
+ * line steps clear of a bar before it turns — a legibility decision the panel
+ * keeps in pixels and divides by its own day scale. `barInset` is how much of
+ * a row the paint leaves empty above and below a bar, which is the only thing
+ * that turns a {@link PlacedBar}'s `x` and `width` into a rectangle with a top
+ * and a bottom: this module places no `y` on a bar, and the router has to know
+ * the whole rectangle to keep out of it.
+ */
+export interface ArrowClearance {
+  approach: number;
+  barInset: number;
+}
+
+/**
+ * The rectangle a placed bar is painted as, resolved once so the crossing test
+ * below reads as geometry rather than as two half-facts.
+ */
+interface BarRect {
+  left: number;
+  right: number;
+  top: number;
+  bottom: number;
+}
+
+const rectOf = (placed: PlacedBar, barInset: number): BarRect => ({
+  left: placed.x,
+  right: placed.x + placed.width,
+  top: placed.bar.rowIndex + barInset,
+  bottom: placed.bar.rowIndex + 1 - barInset,
+});
+
+/**
+ * Whether a straight run between two corners passes through the **inside** of a
+ * bar.
+ *
+ * Touching is not crossing, and the whole of the routing rests on that
+ * difference: an arrow leaves its predecessor's right edge and arrives at its
+ * successor's left one, so a test that counted an edge as a collision would
+ * call every arrow blocked and leave {@link routeArrow} nothing to return.
+ *
+ * The run's **closed** box against the bar's **open** rectangle, which is the
+ * one reading that stays right for a run with no thickness: a vertical run has
+ * a box of no width, so an overlap asked for as positive area would find none
+ * and every descent would read as clear. A horizontal run along a bar's top
+ * edge is clear here; one a hair inside it is not.
+ */
+function runCrossesBar(from: ArrowPoint, to: ArrowPoint, rect: BarRect): boolean {
+  return (
+    Math.max(from.x, to.x) > rect.left &&
+    Math.min(from.x, to.x) < rect.right &&
+    Math.max(from.y, to.y) > rect.top &&
+    Math.min(from.y, to.y) < rect.bottom
+  );
+}
+
+/**
+ * The heights and edges one arrow's routes are built from.
+ *
+ * `bandFrom` and `bandTo` are the clear insets beside the two rows — air by
+ * construction, since no bar is drawn inside {@link ArrowClearance.barInset}.
+ * For rows that touch they are the **same** band: a route that stepped from
+ * one expression of one gap to the other would jog by an inset for nothing,
+ * and the two only part when there are rows in between to cross.
+ */
+interface ArrowFrame {
+  fromX: number;
+  fromY: number;
+  toX: number;
+  toY: number;
+  /** Where a route turns onto the successor's row: one approach clear of its left edge. */
+  turn: number;
+  bandFrom: number;
+  bandTo: number;
+}
+
+const frameOf = (arrow: PlacedArrow, clearance: ArrowClearance): ArrowFrame => {
+  const band = clearance.barInset / 2;
+  const descending = arrow.toRowIndex > arrow.fromRowIndex;
+  // The band on the side the successor is on. Not the inset above the
+  // successor's own bar, which is where a not-before caret stands — the browser
+  // showed those two marks crossing, and a line running through an
+  // arrowhead-sized triangle makes a puzzle of both.
+  const bandFrom = descending ? arrow.fromRowIndex + 1 - band : arrow.fromRowIndex + band;
+  return {
+    fromX: arrow.fromX,
+    fromY: arrow.fromRowIndex + ROW_MIDDLE,
+    toX: arrow.toX,
+    toY: arrow.toRowIndex + ROW_MIDDLE,
+    turn: arrow.toX - clearance.approach,
+    bandFrom,
+    bandTo:
+      Math.abs(arrow.toRowIndex - arrow.fromRowIndex) <= 1
+        ? bandFrom
+        : descending
+          ? arrow.toRowIndex - band
+          : arrow.toRowIndex + 1 - band,
+  };
+};
+
+/** A route with the corners that go nowhere dropped, so `M x y L x y` is never drawn. */
+const trimmed = (corners: ArrowPoint[]): ArrowPoint[] =>
+  corners.filter(
+    (corner, index) =>
+      index === 0 || corner.x !== corners[index - 1].x || corner.y !== corners[index - 1].y,
+  );
+
+/** The plain elbow: out along the predecessor's row, down at `column`, in along the successor's. */
+const elbowThrough = (frame: ArrowFrame, column: number): ArrowPoint[] =>
+  trimmed([
+    { x: frame.fromX, y: frame.fromY },
+    { x: column, y: frame.fromY },
+    { x: column, y: frame.toY },
+    { x: frame.toX, y: frame.toY },
+  ]);
+
+/**
+ * The banded route: out to `exit`, into the clear band beside the predecessor's
+ * row, across to `column`, down it to the band beside the successor's row, back
+ * to the turn, and in.
+ *
+ * Every corner that goes nowhere is dropped, so for rows that touch and a
+ * `column` at the turn this is the five-run jog the panel has drawn since
+ * `gantt-polish`: the extra runs exist only when the crossing has to happen
+ * somewhere other than under the successor's left edge.
+ */
+const bandedThrough = (frame: ArrowFrame, exit: number, column: number): ArrowPoint[] =>
+  trimmed([
+    { x: frame.fromX, y: frame.fromY },
+    { x: exit, y: frame.fromY },
+    { x: exit, y: frame.bandFrom },
+    { x: column, y: frame.bandFrom },
+    { x: column, y: frame.bandTo },
+    { x: frame.turn, y: frame.bandTo },
+    { x: frame.turn, y: frame.toY },
+    { x: frame.toX, y: frame.toY },
+  ]);
+
+/**
+ * The corners one dependency arrow is drawn through: out of the predecessor's
+ * anchor, across, and into the successor's left edge from outside it — through
+ * the inside of no bar on the way.
+ *
+ * **The invariant.** No run of the returned route passes through the interior
+ * of any bar in `bars`, the two the arrow joins included; it touches those two
+ * only on the edge it leaves and the edge it arrives at. That is the whole of
+ * this function: the route it hands back was drawn by the panel in three points
+ * for years, and three points is only clear when nothing happens to stand under
+ * the column they turn at. On the A10 shape — two successors of one predecessor
+ * and a fourth item waiting on both — the second arrow's descent ran straight
+ * down the length of the third row's bar, because the old choice between the
+ * plain elbow and the jog was made on **horizontal room alone** and never asked
+ * what the descent would land on.
+ *
+ * **How.** Candidate columns, nearest the ideal turn first: the turn itself,
+ * and one approach clear of either edge of every bar on the rows the route may
+ * cross. Each is tried as a plain elbow (when there is room to turn at it),
+ * then as a banded route stepping out past the predecessor, then as a banded
+ * route leaving on the predecessor's own edge — the last for a predecessor
+ * whose row holds another bar right against it, which is a real shape since
+ * `dep-waits-on-first-role` made the arrow leave a **middle** slice.
+ *
+ * **Why it always has an answer.** The last candidate is a column left of every
+ * bar on those rows, and the banded route through it crosses bars nowhere: the
+ * bands are air by construction, the column is clear of every rectangle, the
+ * run into the successor's row descends at one approach left of its start, and
+ * no bar on a row starts before that row's own earliest start. The one shape
+ * that defeats it is an arrow whose **start** is already strictly inside
+ * another bar of its own row — two slices of one row overlapping — which no
+ * route can leave without crossing; the banded fallback is returned as it
+ * stands rather than a route being searched for that cannot exist.
+ *
+ * `bars` is what the panel actually paints, which since `gantt-declutter` is
+ * the estimated ones: a bar nothing draws is not something to dodge.
+ */
+export function routeArrow(
+  arrow: PlacedArrow,
+  bars: readonly PlacedBar[],
+  clearance: ArrowClearance,
+): ArrowPoint[] {
+  const frame = frameOf(arrow, clearance);
+  const firstRow = Math.min(arrow.fromRowIndex, arrow.toRowIndex);
+  const lastRow = Math.max(arrow.fromRowIndex, arrow.toRowIndex);
+  // Every run of every candidate stays between the two rows the arrow joins, so
+  // a bar outside them is not an obstacle and not a source of columns either.
+  const obstacles = bars
+    .filter((placed) => placed.bar.rowIndex >= firstRow && placed.bar.rowIndex <= lastRow)
+    .map((placed) => rectOf(placed, clearance.barInset));
+
+  const isClear = (route: ArrowPoint[]): boolean =>
+    route.every(
+      (corner, index) =>
+        index === 0 || obstacles.every((rect) => !runCrossesBar(route[index - 1], corner, rect)),
+    );
+
+  // Left of everything on these rows, and never right of the canvas's own left
+  // edge: the column the fallback below is guaranteed on.
+  let clearOfEverything = 0;
+  for (const rect of obstacles) clearOfEverything = Math.min(clearOfEverything, rect.left);
+  clearOfEverything -= clearance.approach;
+
+  const columns = [frame.turn];
+  for (const rect of obstacles) {
+    columns.push(rect.left - clearance.approach, rect.right + clearance.approach);
+  }
+  columns.push(clearOfEverything);
+  // Nearest the ideal turn first, so a chart with nothing in the way is drawn
+  // exactly as it was and a dodge is the smallest one that clears.
+  const ordered = [...new Set(columns)].sort(
+    (one, other) => Math.abs(one - frame.turn) - Math.abs(other - frame.turn),
+  );
+
+  for (const column of ordered) {
+    // Room to turn at this column: one approach out of the predecessor and one
+    // into the successor. Without it the elbow collapses onto the successor's
+    // left edge, under its own bar — `gantt-polish`'s fault, and why the banded
+    // routes exist at all.
+    if (column >= arrow.fromX + clearance.approach && column <= frame.turn) {
+      const elbow = elbowThrough(frame, column);
+      if (isClear(elbow)) return elbow;
+    }
+    for (const exit of [arrow.fromX + clearance.approach, arrow.fromX]) {
+      const banded = bandedThrough(frame, exit, column);
+      if (isClear(banded)) return banded;
+    }
+  }
+
+  return bandedThrough(frame, arrow.fromX, clearOfEverything);
+}
+
+/**
  * What each floor says on a bar's hover card, in the reader's words.
  *
  * `predecessor` used to read "Waits for a dependency to finish", which stopped
