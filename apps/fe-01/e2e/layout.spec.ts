@@ -1658,6 +1658,27 @@ test.describe('the table, measured by a browser', () => {
     );
   });
 
+  test('PROBE dumps what makes the first row tall', async ({ page }) => {
+    const dump = await page.evaluate(() =>
+      [...document.querySelectorAll('tbody tr')].slice(0, 2).map((row) => ({
+        row: row.getBoundingClientRect().height,
+        cells: [...row.querySelectorAll('td')].map((cell) => ({
+          id: cell.getAttribute('data-column'),
+          h: Math.round(cell.getBoundingClientRect().height * 100) / 100,
+          inner: [...cell.querySelectorAll('*')].slice(0, 3).map((node) => ({
+            tag: node.tagName,
+            h: Math.round(node.getBoundingClientRect().height * 100) / 100,
+            lh: getComputedStyle(node).lineHeight,
+            fs: getComputedStyle(node).fontSize,
+            st: (node as HTMLElement).style.height,
+          })),
+        })),
+      })),
+    );
+    // eslint-disable-next-line no-console
+    console.log(JSON.stringify(dump));
+  });
+
   test('holds the equation with one role unfolded, and scrolls only where it must', async ({
     page,
   }) => {
@@ -2598,41 +2619,5 @@ test.describe('the Number column keeps its figures in a line', () => {
       before,
       1,
     );
-  });
-});
-
-test.describe('PROBE — delete me', () => {
-  test.beforeEach(async ({ page }) => {
-    await seedPlan(page);
-  });
-
-  test('dumps what makes the first row tall', async ({ page }) => {
-    const dump = await page.evaluate(() => {
-      const row = document.querySelector('tbody tr');
-      if (!(row instanceof HTMLElement)) throw new Error('no row');
-      return {
-        row: row.getBoundingClientRect().height,
-        cells: [...row.querySelectorAll('td')].map((cell) => {
-          const style = getComputedStyle(cell);
-          const child = cell.firstElementChild;
-          return {
-            id: cell.getAttribute('data-column'),
-            h: cell.getBoundingClientRect().height,
-            inner: [...cell.querySelectorAll('*')]
-              .map((node) => ({
-                tag: node.tagName,
-                h: Math.round(node.getBoundingClientRect().height * 100) / 100,
-                lh: getComputedStyle(node).lineHeight,
-                fs: getComputedStyle(node).fontSize,
-              }))
-              .slice(0, 4),
-            pad: style.padding,
-            childTag: child?.tagName,
-          };
-        }),
-      };
-    });
-    // eslint-disable-next-line no-console
-    console.log(JSON.stringify(dump, null, 1));
   });
 });
