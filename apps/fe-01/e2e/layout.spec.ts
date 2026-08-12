@@ -2109,6 +2109,43 @@ test.describe('the table, measured by a browser', () => {
     expect(deep.title).toBe(CLIPPED_PAIR[1]);
   });
 
+  test('sets the Number column’s type below the row’s own, at the size the cap was bought with', async ({
+    page,
+  }) => {
+    // Half the depth-4 fix is `DEEPEST_INDENT`, which the unit test above
+    // asserts as a relation, and half is this type size, which nothing named
+    // outright: the test above it fails when *both* halves are reverted and
+    // was never watched red on this one alone. So the value is pinned here,
+    // once, where the browser is the thing reading it.
+    //
+    // It is also the boundary the rule's own scope now depends on. `[data-grid]
+    // tbody [data-number]` is `tbody` and not `[data-grid]` alone because the
+    // phone's cards carry `data-grid` as well — `mobile.spec.ts` holds that end
+    // down, and this holds the end that must not be lost to narrowing it.
+    //
+    // Against the row's computed size as well as against the literal: the
+    // claim the rule's comment makes is comparative — "smaller than the name
+    // beside it" — and a page whose whole type moved would satisfy the literal
+    // alone while the column read exactly as it did before.
+    const type = await page.evaluate(() => {
+      const cell = document.querySelector('td[data-column="number"]');
+      const span = cell?.querySelector('[data-number]');
+      const row = cell?.closest('tr');
+      if (!(span instanceof HTMLElement) || !(row instanceof HTMLElement)) {
+        throw new Error('no numbered span in any Number cell');
+      }
+      return { number: getComputedStyle(span).fontSize, row: getComputedStyle(row).fontSize };
+    });
+
+    expect(type.number, 'the Number column is not at the size the cap was measured at').toBe(
+      '11px',
+    );
+    expect(
+      Number.parseFloat(type.number),
+      'the number is no smaller than the row it sits in',
+    ).toBeLessThan(Number.parseFloat(type.row));
+  });
+
   test('walks the row with Tab in the order the cells are in the DOM', async ({ page }) => {
     // The production grid's own selector, `readonly` and `disabled` included:
     // a parent's rolled-up figures and the earliest-start cell of a plan with

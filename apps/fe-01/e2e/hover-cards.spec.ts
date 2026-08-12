@@ -512,6 +512,51 @@ test.describe('hovering a dependency lights the rows it names', () => {
     await expect.poll(() => rowBg(page, '020')).toBe(rest020);
   });
 
+  test('the light outranks the pointer on a banded row as well as a plain one', async ({
+    page,
+  }) => {
+    // The stripe the light lands on must not decide what the light looks
+    // like. `table-mechanics` added a second hover token for banded rows, and
+    // `[data-grid] tbody tr:nth-child(even):hover` outweighs
+    // `tr[data-dep-lit]` — one attribute and two pseudo-classes against one
+    // attribute — so source order, which is what that block's comment said
+    // held the two apart, decided nothing at all. On an odd row the light
+    // won; on an even one the pointer painted straight over it.
+    //
+    // Reachable without a drag, which is why this test is here and not in a
+    // drag spec: `data-dep-lit` comes from `depHover ?? depFocus`, and the
+    // *focus* half lights a row while the pointer is resting somewhere else
+    // of the reader's choosing.
+    //
+    // 020 is the second body row, so it is the banded one — the assertion at
+    // the top, that the two lit rows are one colour, is what says so without
+    // reading the stripe out of the stylesheet.
+    await seed030WaitingForBoth(page);
+
+    // The keyboard's light, with the pointer parked at the origin by the seed.
+    await page.getByLabel('Add a dependency to 030').focus();
+    await expect(rowOf(page, '010')).toHaveAttribute('data-dep-lit', 'true');
+    await expect(rowOf(page, '020')).toHaveAttribute('data-dep-lit', 'true');
+    const lit = await settledRowBg(page, '020');
+    expect(lit, 'the lit tint differs by stripe before the pointer is anywhere near').toBe(
+      await settledRowBg(page, '010'),
+    );
+
+    // The pointer onto the banded lit row, and nothing else: the Name cell
+    // opens no preview of its own, and hovering moves no focus, so the light
+    // is still the box's.
+    await rowOf(page, '020').locator('td[data-column="name"]').hover();
+    await expect(rowOf(page, '020')).toHaveAttribute('data-dep-lit', 'true');
+
+    expect(
+      await settledRowBg(page, '020'),
+      'the pointer repainted the lit row on a banded stripe',
+    ).toBe(lit);
+    // And the unhovered lit row has not moved either, so the equality above is
+    // a claim about the pointer rather than about the whole page settling.
+    expect(await settledRowBg(page, '010')).toBe(lit);
+  });
+
   test('a clipped chip has no hover target, and the cell still lights its row', async ({
     page,
   }) => {
