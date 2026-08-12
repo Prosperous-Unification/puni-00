@@ -29,10 +29,16 @@ frame that one taught to scroll sideways, and the link below refuses to touch
 | `bunx nx format:check --all`                      | h2puni | green (silent)            |
 | `bunx nx run-many -t lint typecheck --parallel=2` | h2puni | green, 21 projects        |
 | `bunx @fission-ai/openspec@1.3.0 validate --all`  | h2puni | green, **41/41**          |
-| the whole gate                                    | CI     | see below                 |
-| `bun run e2e` (`pixels`)                          | CI     | see below                 |
+| the whole gate                                    | CI     | **green**, run 31642238631 |
+| `bun run e2e` (`pixels`)                          | CI     | **green**, 8m26s, same run |
 
 168 browser cases against `main`'s 162: the six of `e2e/plan-surface.spec.ts`.
+
+CI ran at `217c465`, which is this file one commit before the two lines above
+were filled in — the run's own numbers cannot be in the tree the run read. The
+run before it, 31641438953, failed `format:check` on this file and `design.md`
+and nothing else: prettier's markdown tables, fixed by `nx format:write`. Its
+`pixels` job passed at 9m10s on the same code.
 
 ## The faults, watched — the arithmetic and the link
 
