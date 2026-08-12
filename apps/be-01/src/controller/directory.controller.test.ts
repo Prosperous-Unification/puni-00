@@ -133,6 +133,84 @@ async function addTeam(name: string): Promise<string> {
   return team.id;
 }
 
+describe('PATCH /api/teams/:id/size', () => {
+  it('sets how many of a team may be at work at once, and clears it', async () => {
+    const platform = await addTeam('Platform');
+
+    expect(await call('PATCH', `/api/teams/${platform}/size`, { size: 4 })).toEqual({
+      status: 200,
+      body: { team: { id: platform, name: 'Platform', size: 4 } },
+    });
+    expect(await store.listTeams()).toEqual([{ id: platform, name: 'Platform', size: 4 }]);
+
+    // Cleared is **unstated**, which constrains no schedule — not a team of
+    // one, which serialises every item it labels.
+    expect(await call('PATCH', `/api/teams/${platform}/size`, { size: null })).toEqual({
+      status: 200,
+      body: { team: { id: platform, name: 'Platform', size: null } },
+    });
+  });
+
+  it('refuses a size that is not a whole number of 1 or more', async () => {
+    // The floor is the load-bearing half: a team of 0 is a pool of no slots,
+    // the engine divides effort by a width clamped to that pool, and the plan
+    // comes back with every date `Infinity` and nothing on screen to say why.
+    const platform = await addTeam('Platform');
+    await call('PATCH', `/api/teams/${platform}/size`, { size: 4 });
+
+    for (const bad of [0, -1, 1.5, '3', true, 1e20]) {
+      const refused = await call('PATCH', `/api/teams/${platform}/size`, { size: bad });
+      // The value rides into the assertion so a failure names which of them got
+      // through rather than reporting the same mismatch six times.
+      expect([refused.status, String(bad)]).toEqual([400, String(bad)]);
+    }
+
+    // A body naming no size at all is a request that says nothing, and this
+    // route writes exactly one field — absent cannot mean "leave it".
+    expect(await call('PATCH', `/api/teams/${platform}/size`, {})).toEqual({
+      status: 400,
+      body: { error: 'size_required' },
+    });
+
+    expect(await store.listTeams()).toEqual([{ id: platform, name: 'Platform', size: 4 }]);
+  });
+
+  it('refuses a size above what a team can mean', async () => {
+    // Injected apart from the guard above, because neither probe can see the
+    // other's line: `1e20` is refused by `Number.isSafeInteger` whether or not
+    // a ceiling exists, and `1001` passes the integer guard cleanly. A range
+    // check probed only with a non-finite value is the vacuous check this repo
+    // has shipped before.
+    const platform = await addTeam('Platform');
+
+    expect(await call('PATCH', `/api/teams/${platform}/size`, { size: 1001 })).toEqual({
+      status: 400,
+      body: { error: 'size_must_be_at_most_1000' },
+    });
+    expect(await call('PATCH', `/api/teams/${platform}/size`, { size: 1000 })).toMatchObject({
+      status: 200,
+    });
+  });
+
+  it('answers 404 for a team that is gone, and 401 with no token', async () => {
+    expect(await call('PATCH', `/api/teams/${crypto.randomUUID()}/size`, { size: 2 })).toEqual({
+      status: 404,
+      body: { error: 'not_found' },
+    });
+
+    const platform = await addTeam('Platform');
+    const res = await app.handle(
+      new Request(`http://localhost/api/teams/${platform}/size`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ size: 2 }),
+      }),
+    );
+    expect(res.status).toBe(401);
+    expect(await store.listTeams()).toEqual([{ id: platform, name: 'Platform', size: null }]);
+  });
+});
+
 describe('PATCH /api/teams/:id', () => {
   it('renames a team', async () => {
     const platform = await addTeam('Platform');

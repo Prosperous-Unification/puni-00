@@ -19,6 +19,7 @@ const NOTHING_POINTS_AT_IT: DirectoryUsageRows = {
   roles: [],
   people: [],
   members: [],
+  team: null,
 };
 
 /**
@@ -56,6 +57,15 @@ export function inMemoryDirectory(): DirectoryStore {
       // No project here to touch: these Maps hold no work items, so the
       // fixture can only ever honestly report the empty set.
       return Promise.resolve({ ok: true, team: { ...found, name }, projectIds: [] });
+    },
+    resizeTeam(teamId, size) {
+      const found = teams.get(teamId);
+      if (found === undefined) return Promise.resolve({ ok: false, reason: 'not_found' });
+      teams.set(teamId, { ...found, size });
+      // No project here to touch, the same absence `renameTeam` above reports:
+      // these Maps hold no work items, so the fan-out this write is *for* is
+      // asserted against real SQLite in `service/directory.service.test.ts`.
+      return Promise.resolve({ ok: true, team: { ...found, size }, projectIds: [] });
     },
     listPeople: () =>
       Promise.resolve(

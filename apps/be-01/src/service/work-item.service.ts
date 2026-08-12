@@ -404,6 +404,15 @@ export type WorkItemRefusal =
   | 'cycle'
   | 'frozen'
   | 'rolled_up'
+  /**
+   * A parallelism written on a row that has children.
+   *
+   * Its own reason rather than `rolled_up`: nothing is rolled up here — a
+   * parent's parallelism is not the sum of its children's — and a client
+   * showing "this row's figures come from below" for a refusal that means "this
+   * cell is not yours to type in" would be explaining the wrong thing.
+   */
+  | 'has_children'
   /** A dependency onto the work item's own ancestor, descendant, or itself. */
   | 'ancestor'
   /** A subtree past {@link MAX_DUPLICATED_ROWS}. */
@@ -572,6 +581,14 @@ function fieldsOf(patch: WorkItemPatch): (keyof WorkItemPatch)[] {
   // priority the undone patch had written; watched 2026-08-11.
   if (patch.priority !== undefined) named.push('priority');
   if (patch.serviceTeamId !== undefined) named.push('serviceTeamId');
+  // Proof: this line deleted, so a patch naming only a parallelism journals
+  // nothing at all, and both `puts a replaced parallelism back, and leaves one
+  // a rename did not name` and `takes a first parallelism away again, rather
+  // than leaving a 3 behind` failed on
+  // `refused: stale_undo — “Strip” has changed since then` — the undo reached
+  // past the unjournalled write to an entry the same write had made stale.
+  // Watched 2026-08-12; {@link revertTo}'s matching line carries its own.
+  if (patch.maxParallel !== undefined) named.push('maxParallel');
   return named;
 }
 
@@ -590,6 +607,18 @@ function revertTo(before: WorkItem, patch: WorkItemPatch): WorkItemPatch {
   if (patch.startNoEarlierThan !== undefined) out.startNoEarlierThan = before.startNoEarlierThan;
   if (patch.priority !== undefined) out.priority = before.priority;
   if (patch.serviceTeamId !== undefined) out.serviceTeamId = before.serviceTeamId;
+  // `before.maxParallel` is a number and never null — the column is `NOT NULL`
+  // — so the inverse of a reset to 1 is the stored number itself rather than a
+  // second null.
+  //
+  // Proof: this line deleted, so the inverse of a parallelism patch is the
+  // empty patch, and `puts a replaced parallelism back, and leaves one a rename
+  // did not name` failed at its **first** undo on
+  // `refused: stale_undo — “Strip” has changed since then`, with
+  // `takes a first parallelism away again` failing the same way. An inverse
+  // that names no field does not merely restore nothing — it takes the whole
+  // stack down with it. Watched 2026-08-12.
+  if (patch.maxParallel !== undefined) out.maxParallel = before.maxParallel;
   return out;
 }
 
@@ -997,6 +1026,23 @@ export class WorkItemService {
     const context = await this.contextFor(id, actorId);
     if (!context.ok) return context;
     const before = context.result.workItem;
+    // A row with children has no slices of its own — `slicesOf` skips it — so a
+    // parallelism stored there would be a number on screen that decides
+    // nothing. Refused rather than accepted-and-ignored, which is the same
+    // refusal `setEstimate` makes about the same shape of row, decided against
+    // the same read.
+    //
+    // A leaf that *later* gains a child keeps whatever it was given: the write
+    // was legal when it was made, and rewriting it now would be this change
+    // editing a row nobody asked it to.
+    //
+    // Proof: this check deleted and `refuses a parallelism on a row that has
+    // children` failed on `Expected: 400, Received: 200` — the parent took the
+    // write and came back carrying a number no slice of that plan reads;
+    // watched 2026-08-12.
+    if (patch.maxParallel !== undefined && context.result.rows.some((row) => row.parentId === id)) {
+      return { ok: false, reason: 'has_children' };
+    }
     const written = await this.opts.workItems.patch(id, patch);
     if (!written.ok) return { ok: false, reason: written.reason };
     const updated = written.workItem;

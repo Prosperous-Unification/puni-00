@@ -75,6 +75,12 @@ export function inMemoryWorkItems(
         priority: patch.priority === undefined ? existing.priority : patch.priority,
         serviceTeamId:
           patch.serviceTeamId === undefined ? existing.serviceTeamId : patch.serviceTeamId,
+        // `null` is **back to one at a time**, not "no answer": the real column
+        // is `NOT NULL` and would refuse a null outright, so a fixture that
+        // stored one would be laxer than the schema it stands for and would let
+        // a `maxParallel: null` test pass here and fail against SQLite.
+        maxParallel:
+          patch.maxParallel === undefined ? existing.maxParallel : (patch.maxParallel ?? 1),
       };
       byId.set(id, updated);
       return { ok: true, workItem: updated };

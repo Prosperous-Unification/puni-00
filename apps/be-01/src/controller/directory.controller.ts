@@ -37,6 +37,63 @@ const statusFor = (reason: DirectoryRefusal): number =>
   reason === 'not_found' || reason === 'unknown_team' ? 404 : 422;
 
 /**
+ * How many of a team may be at work at once, or `null` for unstated.
+ *
+ * A **route of its own**, hand-parsing its body, rather than a second optional
+ * field on the rename above. Two reasons, both about the refusal rather than
+ * about REST: the rename validates through an Elysia schema, which answers its
+ * own 422 for a body of the wrong shape, and this field's refusals have to be
+ * named 400s a client can branch on — `0`, `-1`, `1.5`, `'3'` and `1001` are
+ * each a different mistake and none of them is "the body is not an object".
+ * Elysia also strips unknown properties before a handler runs, so a `size`
+ * checked after `{ body: … }` would never see one it had not been told about.
+ * It is `workItemController`'s reasoning, applied to the one route here that
+ * needs it.
+ *
+ * The floor of 1 is the load-bearing half. A team of 0 is a pool of no slots,
+ * and the engine's duration is `effort / width` with `width` clamped to the
+ * pool — so a mistyped 0 is a plan of `Infinity` dates with nothing on screen
+ * to say why. The ceiling of 1000 is a product limit and is honest about being
+ * one; its negative is `1001`, because `1e999` is `Infinity` and the integer
+ * guard already refuses that — a range check probed with `1e999` alone would
+ * be a check that cannot fail.
+ */
+const MOST_PEOPLE_AT_ONCE = 1000;
+
+class BadSize extends Error {
+  constructor(public readonly reason: string) {
+    super(reason);
+  }
+}
+
+/**
+ * Proof: the integer guard deleted and `refuses a size that is not a whole
+ * number of 1 or more` failed on the first value — `[200, "0"]` where
+ * `[400, "0"]` was owed, a team of no slots taken and written. The ceiling
+ * deleted on its own, with the integer guard left in place, and `refuses a size
+ * above what a team can mean` failed with `status: 200` and the row coming back
+ * `size: 1001`. Both watched 2026-08-12, and injected separately because
+ * neither probe can see the other's line.
+ */
+function sizeOf(body: unknown): number | null {
+  if (typeof body !== 'object' || body === null) throw new BadSize('expected_object');
+  const raw = body as Record<string, unknown>;
+  // Absent and `null` are **not** the same request here, unlike a work item
+  // patch: this route writes one field, so an absent `size` is a body that
+  // says nothing at all rather than a field left alone.
+  if (!('size' in raw)) throw new BadSize('size_required');
+  const value = raw['size'];
+  if (value === null) return null;
+  if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 1) {
+    throw new BadSize('size_must_be_a_whole_number_from_1');
+  }
+  if (value > MOST_PEOPLE_AT_ONCE) {
+    throw new BadSize(`size_must_be_at_most_${String(MOST_PEOPLE_AT_ONCE)}`);
+  }
+  return value;
+}
+
+/**
  * `?cascade=true` and nothing else — the same flag `roleController`'s delete
  * takes, and the second, explicit call rather than a body on a DELETE.
  */
@@ -80,6 +137,13 @@ function answerRemoval(outcome: RemoveDirectoryOutcome, set: { status?: number |
  */
 export function directoryController(auth: AuthService, directory: DirectoryService) {
   return new Elysia({ prefix: '/api' })
+    .onError(({ error, set }) => {
+      if (error instanceof BadSize) {
+        set.status = 400;
+        return { error: error.reason };
+      }
+      return undefined;
+    })
     .get('/teams', async ({ headers, set }) => {
       const user = await userFromHeaders(auth, headers);
       if (user === null) {
@@ -130,6 +194,19 @@ export function directoryController(auth: AuthService, directory: DirectoryServi
       },
       { body: named },
     )
+    .patch('/teams/:id/size', async ({ params, body, headers, set }) => {
+      const user = await userFromHeaders(auth, headers);
+      if (user === null) {
+        set.status = 401;
+        return { error: 'unauthenticated' };
+      }
+      const outcome = await directory.resizeTeam(params.id, sizeOf(body));
+      if (!outcome.ok) {
+        set.status = statusFor(outcome.reason === 'taken' ? 'not_found' : outcome.reason);
+        return { error: outcome.reason };
+      }
+      return { team: outcome.result };
+    })
     .get('/people', async ({ headers, set }) => {
       const user = await userFromHeaders(auth, headers);
       if (user === null) {

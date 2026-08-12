@@ -414,6 +414,34 @@ function groupByWorkItem(
     if (!leaves.has(slice.workItemId)) {
       throw new Error(`slice for ${slice.workItemId}, which is not a leaf of this project`);
     }
+    // A width is people, and the smallest number of people that can do work is
+    // one. Refused **here**, at the boundary the slices enter the engine
+    // through, because `durationOf` divides by it: a width of 0 is `Infinity`
+    // days for a slice with effort and `NaN` for one without, and neither is
+    // refused anywhere downstream — `windowFor` short-circuits on a zero width
+    // and reserves nothing, `CapacityTooNarrowError` does not fire because
+    // `0 > 0` is false, and the plan comes back with every date `Infinity` and
+    // nothing to say why. R5: malformed trusted data throws rather than being
+    // divided by.
+    //
+    // Unreachable through the API as of this change — both write paths refuse a
+    // 0 — which is exactly why it is here rather than nowhere: this engine
+    // refuses the impossible at its own boundary, and a validation that is the
+    // *only* guard is one schema edit away from not being one. Named as the
+    // open P2 of PR #48's cross-review.
+    //
+    // Proof: this check deleted and `refuses a slice claiming no people at all`
+    // failed — the plan came back with `duration: Infinity`,
+    // `earliestFinish: Infinity`, `latestStart: NaN` and `float: NaN`, and no
+    // refusal anywhere. Deleted again for `refuses a width that is not a whole
+    // number of people`, which came back with `duration: 2.4` — six days over
+    // two and a half people. Both watched 2026-08-12.
+    if (!Number.isInteger(slice.width) || slice.width < 1) {
+      throw new Error(
+        `slice for ${slice.workItemId} claims a width of ${String(slice.width)}: ` +
+          `a width is people, and duration is effort divided by it`,
+      );
+    }
     const group = grouped.get(slice.workItemId);
     if (group === undefined) grouped.set(slice.workItemId, [slice]);
     else group.push(slice);

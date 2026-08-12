@@ -231,6 +231,21 @@ export interface WorkItemPatch {
   priority?: number | null;
   /** `null` takes the label off. Never constrains who may be assigned the work. */
   serviceTeamId?: string | null;
+  /**
+   * How many people may be on this work item at once — an integer of 1 to
+   * 1000, or `null` to put it back to one at a time.
+   *
+   * `null` **resets** where `priority`'s clears: `work_item.max_parallel` is
+   * `NOT NULL` because 1 and unset are the same fact, and a second spelling of
+   * one fact is what the column's default exists to prevent. The store turns
+   * the `null` into a 1 rather than writing it — see
+   * {@link WorkItemStore.patch}.
+   *
+   * Validated at the controller, which is the only place a value that is not a
+   * whole number of 1 to 1000 can enter. A 0 there would be a width of 0, and
+   * `effort / 0` is a plan of `Infinity` dates.
+   */
+  maxParallel?: number | null;
 }
 
 /**
@@ -472,6 +487,18 @@ export interface DirectoryUsageRows {
    * else and go with them, so they force no confirmation.
    */
   members: readonly Person[];
+  /**
+   * The team this usage is about, as the database holds it — `null` when the
+   * usage is a person's.
+   *
+   * Carried because removing a **sized** team does more than null a label: it
+   * takes a pool constraint away, and every row whose effective team is this
+   * one moves. The reader cannot tell a sized team from an unsized one out of
+   * the work items alone, and a confirmation that says only "the label goes"
+   * about a removal that also moves every date is a confirmation of the wrong
+   * thing.
+   */
+  team: ServiceTeam | null;
 }
 
 /** What one confirmed directory removal took with it. */
@@ -513,6 +540,18 @@ export interface DirectoryStore {
    * at the same moment both pass a check-then-update.
    */
   renameTeam(teamId: string, name: string): Promise<ServiceTeamWritten>;
+  /**
+   * Sets how many of a team may be at work at once, or clears it back to
+   * unstated.
+   *
+   * Answers the same {@link TouchedProjects} a rename does — every project
+   * holding a work item this team labels — because a size moves **dates** in
+   * every one of them, which is a stronger reason to tell them than a name is.
+   * Inheritance needs no widening of that read and gets none: a leaf inherits
+   * only from an ancestor in its own project, so a project with an inherited
+   * label always holds the labelled ancestor too.
+   */
+  resizeTeam(teamId: string, size: number | null): Promise<ServiceTeamWritten>;
   listPeople(): Promise<PersonWithTeams[]>;
   /**
    * Adds a person, or returns the one with that name, joining them to

@@ -1,3 +1,5 @@
+import { type EffectiveTeam, effectiveTeamOf } from '@wbs/domain';
+
 import type { Assignment, DirectoryUsageRows, WorkItem } from '../repository';
 import { assumedAssignee } from './assumed-assignee';
 import { deriveNumbers } from './derive-numbers';
@@ -13,6 +15,31 @@ import { deriveNumbers } from './derive-numbers';
 export type DirectoryEffect =
   | { kind: 'assignment_dropped'; role: { id: string; name: string } }
   | { kind: 'label_nulled' }
+  | {
+      /**
+       * The team was **sized**, and this row's work draws slots from it — so
+       * the removal takes a capacity constraint away and this row's dates move
+       * with it.
+       *
+       * Beside `label_nulled` rather than folded into it, and on rows that
+       * carry no label of their own: a leaf under a labelled parent inherits
+       * the pool, holds no label to null, and its dates move exactly as the
+       * labelled row's do. A confirmation that listed only the labelled rows
+       * would show one row and move twenty.
+       */
+      kind: 'capacity_released';
+      /** How many of the team may be at work at once today — the bound that goes. */
+      size: number;
+      /**
+       * The row whose label puts this one on the pool: this row itself, or the
+       * nearest ancestor above it that carries the team.
+       *
+       * Equal to the row's own id exactly when the label is its own, so the
+       * payload never says "inherited" twice — once here and once as a flag
+       * beside it.
+       */
+      fromId: string;
+    }
   | {
       kind: 'assumed_assignee_changed';
       /**
@@ -153,13 +180,53 @@ export function directoryUsageOfPerson(rows: DirectoryUsageRows, personId: strin
 }
 
 /**
- * The directory usage of one team: every work item labelled with it, across
- * every project, and every person who belongs to it.
+ * The directory usage of one team: every work item labelled with it, every work
+ * item that **inherits** it while the team is sized, and every person who
+ * belongs to it.
  *
  * No assignment moves — a team labels the work and a person does it, and the
- * two are deliberately unconnected — so `label_nulled` is the only effect a
- * team's removal has on a work item.
+ * two are deliberately unconnected — so `label_nulled` is the only effect an
+ * **unsized** team's removal has on a work item.
+ *
+ * A **sized** team's removal does more, and this is where that is said out
+ * loud: the size is a pool every one of its slices draws slots from, so taking
+ * the team away lets that work run as wide as it likes and moves dates through
+ * the whole labelled subtree. The rows that inherit the label carry no label to
+ * null and would otherwise not appear in the confirmation at all, which is why
+ * `effectiveTeamOf` is read here rather than `serviceTeamId` alone.
+ *
+ * The reading is {@link effectiveTeamOf}'s and nobody's second copy — the same
+ * function the scheduler's adapter resolves `poolId` through — so the rows this
+ * names and the rows whose dates actually move cannot drift apart.
+ *
+ * Proof: the effective-team read replaced by `row.serviceTeamId === teamId`, so
+ * only rows carrying the label themselves are named, and `names the capacity a
+ * sized team takes with it, inherited rows included` failed — the inheriting
+ * leaf `API` vanished from the confirmation entirely, leaving somebody
+ * agreeing to one row and moving two.
+ *
+ * Proof: the null-size arm replaced by a default of 1, so every team's removal
+ * claims a capacity effect, and `says nothing about capacity when the team was
+ * never sized` failed — an unsized team's removal reported
+ * `capacity_released, size: 1` on two rows whose dates cannot move at all,
+ * which is a confirmation lying in the other direction. Both watched
+ * 2026-08-12.
  */
 export function directoryUsageOfTeam(rows: DirectoryUsageRows, teamId: string): DirectoryUsage {
-  return usageFrom(rows, (row) => (row.serviceTeamId === teamId ? [{ kind: 'label_nulled' }] : []));
+  // Null size is *unstated*, and an unstated team bounds nothing: removing it
+  // moves no date, so there is no capacity effect to name. Read off the team
+  // row rather than guessed from the work items, which cannot tell the two
+  // apart.
+  const size = rows.team?.size ?? null;
+  const inForce: ReadonlyMap<string, EffectiveTeam> =
+    size === null ? new Map() : effectiveTeamOf(rows.workItems);
+  return usageFrom(rows, (row) => {
+    const effects: DirectoryEffect[] =
+      row.serviceTeamId === teamId ? [{ kind: 'label_nulled' }] : [];
+    const effective = inForce.get(row.id);
+    if (size !== null && effective?.teamId === teamId) {
+      effects.push({ kind: 'capacity_released', size, fromId: effective.fromId });
+    }
+    return effects;
+  });
 }

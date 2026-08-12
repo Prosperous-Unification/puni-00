@@ -114,12 +114,62 @@ function asOptionalPriority(value: unknown, field: string): number | null | unde
   return value;
 }
 
+/**
+ * How many people may be on one work item at once: a whole number of 1 to
+ * {@link MOST_PEOPLE_AT_ONCE}, `null` to put it back to one at a time, or
+ * absent to leave it.
+ *
+ * The floor is 1 and it is load-bearing rather than tidy. A 0 stored here is a
+ * **width of 0**, and the engine's duration is `effort / width` — so a single
+ * mistyped 0 turns every date in the plan into `Infinity`, and no screen
+ * anywhere could say why. This validation is the whole of what stands between
+ * that and the column.
+ *
+ * The ceiling is a product limit and is honest about being one: above a
+ * thousand people on one work item the number is not a plan. It is emphatically
+ * **not** justified by floating-point — plan v1 argued from a minimum effort of
+ * a sixth of a day, and `ThreePointEstimate` has no minimum at all.
+ *
+ * `Number.isSafeInteger` covers the fraction, the `NaN`, the infinity and the
+ * value beyond what an integer column can hold in one question — which is why
+ * the ceiling's own negative uses `1001` and not `1e999`: `1e999` parses to
+ * `Infinity`, `Number.isInteger(Infinity)` is false, and a range check deleted
+ * under a `1e999` probe would stay green. That exact vacuous check has shipped
+ * here before (`T1 column-widths-drag`).
+ */
+const MOST_PEOPLE_AT_ONCE = 1000;
+
+function asOptionalParallelism(value: unknown, field: string): number | null | undefined {
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+  // Proof: this throw deleted, so the value is taken as it arrives, and
+  // `refuses a parallelism that is not a whole number of 1 or more` failed on
+  // the very first value — `[500, "0"]` where `[400, "0"]` was owed. The 500 is
+  // the second half of the answer and is worth reading: a `0` written here
+  // reaches `widthFor`, comes out as a width of 0, and `groupByWorkItem`'s
+  // refusal throws — so **every read of that project 500s** until somebody
+  // finds the row. Watched 2026-08-12.
+  if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 1) {
+    throw new BadRequest(`${field}_must_be_a_whole_number_from_1`);
+  }
+  // Proof: `<= MOST_PEOPLE_AT_ONCE` deleted with the integer guard left in
+  // place, and `refuses a parallelism above what a plan can mean` failed on
+  // `Expected: 400, Received: 200` — a thousand and one people on one work
+  // item, taken. Injected separately from the guard above because each is
+  // invisible to the other's probe; watched 2026-08-12.
+  if (value > MOST_PEOPLE_AT_ONCE) {
+    throw new BadRequest(`${field}_must_be_at_most_${String(MOST_PEOPLE_AT_ONCE)}`);
+  }
+  return value;
+}
+
 function parsePatch(body: unknown): {
   name?: string;
   notes?: string;
   startNoEarlierThan?: IsoDate | null;
   priority?: number | null;
   serviceTeamId?: string | null;
+  maxParallel?: number | null;
 } {
   const raw = asRecord(body);
   refuseDerivedFields(raw);
@@ -130,6 +180,7 @@ function parsePatch(body: unknown): {
     priority: asOptionalPriority(raw['priority'], 'priority'),
     serviceTeamId:
       'serviceTeamId' in raw ? asIdOrNull(raw['serviceTeamId'], 'serviceTeamId') : undefined,
+    maxParallel: asOptionalParallelism(raw['maxParallel'], 'maxParallel'),
   };
 }
 
@@ -146,6 +197,16 @@ function parsePatch(body: unknown): {
  * `unknown_person` and `unknown_team` join `unknown_role` on 404: an id the
  * directory no longer holds is a thing that is not there, whichever of the
  * request's ids named it.
+ *
+ * `has_children` falls through to **400**, which is the capacity plan's own
+ * table (§5.1) and is a deliberate split from `rolled_up`'s 409 beside it. The
+ * two refuse the same shape of row for different reasons: an estimate on a
+ * parent would be *ignored or double-counted* — a legal request against a
+ * tree that had no children yet — while a parallelism there is a field the
+ * client should never have offered, because the cell for it is read-only on
+ * every parent row. 400 says "do not send this"; 409 says "try again against a
+ * different tree". Recorded in `design.md` because the two sitting side by side
+ * will look like an oversight otherwise.
  */
 const statusFor = (reason: WorkItemRefusal): number =>
   reason === 'forbidden'

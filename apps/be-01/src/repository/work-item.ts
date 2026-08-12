@@ -77,12 +77,25 @@ export class WorkItemRepository implements WorkItemStore {
       patch.notes === undefined &&
       patch.startNoEarlierThan === undefined &&
       patch.priority === undefined &&
-      patch.serviceTeamId === undefined
+      patch.serviceTeamId === undefined &&
+      patch.maxParallel === undefined
     ) {
       const found = await this.findById(id);
       return found === null ? { ok: false, reason: 'not_found' } : { ok: true, workItem: found };
     }
     await Promise.resolve();
+    // `max_parallel` is `NOT NULL`, and `null` on the patch means **back to
+    // one at a time** rather than "no answer": 1 and unset are the same fact,
+    // which is why the column has a default instead of being nullable. Spread
+    // as it arrives it would reach SQLite as a null and fail the constraint.
+    //
+    // Proof: this normalisation replaced by the plain `...patch` spread and
+    // `puts a reset to one at a time back to the number it replaced` failed on
+    // `SQLiteError: NOT NULL constraint failed: work_item.max_parallel` —
+    // a 500 for a request that means "one at a time"; watched 2026-08-12.
+    const { maxParallel, ...fields } = patch;
+    const written =
+      maxParallel === undefined ? fields : { ...fields, maxParallel: maxParallel ?? 1 };
     return this.db.transaction((tx) => {
       const wanted = patch.serviceTeamId;
       // `null` takes the label off and names no team, so there is nothing to
@@ -97,7 +110,7 @@ export class WorkItemRepository implements WorkItemStore {
       }
       const rows = tx
         .update(workItem)
-        .set({ ...patch, revision: bumpedWorkItem })
+        .set({ ...written, revision: bumpedWorkItem })
         .where(eq(workItem.id, id))
         .returning()
         .all();
