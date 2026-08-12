@@ -1620,6 +1620,16 @@ test.describe('the table, measured by a browser', () => {
     //
     // Proof: FAULT-GRID-TYPE (see verify.md) — the `font-size` dropped from
     // the `[data-grid] tbody` block in `styles.css`.
+    // A name that fits one line of the column, typed rather than assumed: the
+    // seeded plan's own names are two sentences long and wrap to two lines at
+    // 1280, so the fixture's first row measures 47px and says nothing about
+    // the budget. Measured on h2puni before this was written, which is how the
+    // row this asserts came to be typed here.
+    const name = page.getByLabel('Name of 010');
+    await name.fill('Survey');
+    await name.blur();
+    await expect(name).toHaveValue('Survey');
+
     const measured = await page.evaluate(() => {
       const cell = document.querySelector('tbody td[data-column="name"]');
       const box = cell?.querySelector('textarea');
@@ -1638,45 +1648,29 @@ test.describe('the table, measured by a browser', () => {
         // The box as well as the cell it is in: the base reset's `font:
         // inherit` stops at `[data-grid]`, so a box this rule missed would
         // keep the platform's own font while the cell around it moved.
-        box: getComputedStyle(box).fontSize,
+        type: getComputedStyle(box).fontSize,
         page: getComputedStyle(page).fontSize,
         row: row.getBoundingClientRect().height,
         rows: document.querySelectorAll('tbody tr').length,
+        box: box.getBoundingClientRect().height,
       };
     });
 
     expect(measured.cell).toBe('13px');
-    expect(measured.box).toBe('13px');
+    expect(measured.type).toBe('13px');
     // Below the page's own type rather than merely at 13px: the claim is
     // comparative, and a page whose whole scale moved would satisfy the
     // literal alone.
     expect(Number.parseFloat(measured.cell)).toBeLessThan(Number.parseFloat(measured.page));
     // The row-height budget, on the seeded plan's single-line rows.
     expect(measured.rows).toBeGreaterThan(0);
+    // One line, or the row measured below is a wrapped name rather than the
+    // budget's case: two lines of this type is 40px of box and no budget in
+    // this change would hold it.
+    expect(measured.box).toBeLessThan(2 * 18.2);
     expect(measured.row, 'a single-line row is taller than the budget').toBeLessThanOrEqual(
       ROW_HEIGHT_BUDGET,
     );
-  });
-
-  test('PROBE dumps what makes the first row tall', async ({ page }) => {
-    const dump = await page.evaluate(() =>
-      [...document.querySelectorAll('tbody tr')].slice(0, 2).map((row) => ({
-        row: row.getBoundingClientRect().height,
-        cells: [...row.querySelectorAll('td')].map((cell) => ({
-          id: cell.getAttribute('data-column'),
-          h: Math.round(cell.getBoundingClientRect().height * 100) / 100,
-          inner: [...cell.querySelectorAll('*')].slice(0, 3).map((node) => ({
-            tag: node.tagName,
-            h: Math.round(node.getBoundingClientRect().height * 100) / 100,
-            lh: getComputedStyle(node).lineHeight,
-            fs: getComputedStyle(node).fontSize,
-            st: (node as HTMLElement).style.height,
-          })),
-        })),
-      })),
-    );
-    // eslint-disable-next-line no-console
-    console.log(JSON.stringify(dump));
   });
 
   test('holds the equation with one role unfolded, and scrolls only where it must', async ({
