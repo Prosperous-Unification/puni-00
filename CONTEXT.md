@@ -148,14 +148,22 @@ The sum of a parent's descendants' estimates, per role, computed on read and nev
 _Avoid_: aggregate, total, computed estimate
 
 **Dependency**:
-One work item waiting for another to finish before it starts. Either end may be a parent,
-which means every leaf beneath it. Held once per pair, in one direction.
+One work item waiting for another's anchor slice to finish before it starts; the
+predecessor's later roles run in parallel with it. Either end may be a parent, which
+means every leaf beneath it. Held once per pair, in one direction.
 _Avoid_: link, blocker, edge (outside the graph code)
 
 **Slice**:
 One leaf work item's work for one role — the unit a schedule is computed in. A leaf in a
 project holding two roles is two slices, run one after the other in role order.
 _Avoid_: task, bar, segment, phase, item×role
+
+**Anchor slice**:
+A work item's first slice in role order that somebody estimated — the one a dependency
+waits on. A role listed in front of it and left unestimated is stepped over. Reordering a
+project's roles moves what every dependency waits for. Where nothing is estimated the
+anchor is the work item's finish, which for a work item of no days is its own start.
+_Avoid_: dev slice, first slice, handoff point
 
 **Projection**:
 A work item's own schedule, read off its slices: the earliest of their starts, the latest

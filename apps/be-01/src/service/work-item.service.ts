@@ -1502,7 +1502,8 @@ export class WorkItemService {
 
   /** Sends the whole tree, for a change that can renumber more than it touched. */
   /**
-   * Records "`predecessorId` must finish before this starts".
+   * Records "`predecessorId`'s anchor — its first slice in role order — must
+   * finish before this starts"; the predecessor's later roles run beside it.
    *
    * Broadcast as a whole-tree change, not a patch: one edge moves every date
    * downstream of it, and working out which rows those are is the schedule's

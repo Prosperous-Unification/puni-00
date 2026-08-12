@@ -70,11 +70,27 @@ const sliceAt = (
   ...extras,
 });
 
+/**
+ * The full tree a fixture's shown rows imply: each row's parent is the nearest
+ * shallower row above it. The tests about a **hidden** branch pass their own
+ * `tree`, because hidden rows are exactly what shown rows cannot imply.
+ */
+const treeFrom = (rows: readonly GanttRow[]): { id: string; parentId: string | null }[] => {
+  const above: { id: string; depth: number }[] = [];
+  return rows.map((row) => {
+    while (above.length > 0 && above[above.length - 1].depth >= row.depth) above.pop();
+    const parentId = above.length > 0 ? above[above.length - 1].id : null;
+    above.push({ id: row.id, depth: row.depth });
+    return { id: row.id, parentId };
+  });
+};
+
 /** A plan with two roles and one person, over the rows and slices given. */
 const planOf = (parts: Partial<GanttPlan>): GanttPlan => ({
   rows: [],
   slices: [],
   dependencies: [],
+  tree: treeFrom(parts.rows ?? []),
   roles: [
     { id: 'dev', name: 'Dev' },
     { id: 'qa', name: 'QA' },
@@ -165,7 +181,7 @@ describe('bars', () => {
 
     expect(chart.bars.map((bar) => bar.floorWords)).toEqual([
       'Starts with the project',
-      'Waits for a dependency to finish',
+      'Waits for a dependency’s first estimated role',
       'Waits for an earlier role on this item',
       'Held by its start-no-earlier-than date',
     ]);
@@ -314,7 +330,7 @@ describe('person links', () => {
 
     expect(chart.personLinks).toEqual([]);
     expect(chart.arrows.map((arrow) => [arrow.fromFinish, arrow.toStart])).toEqual([[4, 4]]);
-    expect(chart.bars[2].floorWords).toBe('Waits for a dependency to finish');
+    expect(chart.bars[2].floorWords).toBe('Waits for a dependency’s first estimated role');
   });
 
   it('names the person and the slice they were finishing', () => {
@@ -487,6 +503,231 @@ describe('dependency arrows', () => {
 
     expect(chart.arrows).toEqual([]);
     expect(chart.bars.map((bar) => bar.sliceId)).toEqual(['sand-dev']);
+  });
+
+  it('the arrow does not overshoot a parallel successor', () => {
+    // `sand` waits on `strip`'s anchor — its Dev, done on day 3 — while
+    // `strip`'s QA runs 3→5 beside it. An arrow from the projection finish at
+    // 5 would point backwards past the start it lands on.
+    const chart = layOutGantt(
+      planOf({
+        rows: [rowAt('strip', 0, 5), rowAt('sand', 3, 6)],
+        slices: [
+          sliceAt('strip-dev', 'strip', 0, 3),
+          sliceAt('strip-qa', 'strip', 3, 5, { roleId: 'qa' }),
+          sliceAt('sand-dev', 'sand', 3, 6, { boundBy: 'predecessor' }),
+        ],
+        dependencies: [{ predecessorId: 'strip', successorId: 'sand' }],
+      }),
+    );
+
+    expect(chart.arrows).toEqual([
+      {
+        predecessorId: 'strip',
+        successorId: 'sand',
+        fromRowIndex: 0,
+        fromStart: 0,
+        fromFinish: 3,
+        toRowIndex: 1,
+        toStart: 3,
+      },
+    ]);
+  });
+
+  it('an arrow from a branch leaves its latest anchor', () => {
+    // `rig` depends on the parent: every leaf's first-role work must be done,
+    // and `sand`'s Dev is the later of them at day 4 — `strip`'s at 2, both
+    // QAs running on to 5. The arrow leaves day 4, from the parent's own
+    // bracket row.
+    const chart = layOutGantt(
+      planOf({
+        rows: [
+          rowAt('hull', 0, 5, { leaf: false }),
+          rowAt('strip', 0, 5, { depth: 1 }),
+          rowAt('sand', 0, 5, { depth: 1 }),
+          rowAt('rig', 4, 6),
+        ],
+        slices: [
+          sliceAt('strip-dev', 'strip', 0, 2),
+          sliceAt('strip-qa', 'strip', 2, 5, { roleId: 'qa' }),
+          sliceAt('sand-dev', 'sand', 0, 4),
+          sliceAt('sand-qa', 'sand', 4, 5, { roleId: 'qa' }),
+          sliceAt('rig-dev', 'rig', 4, 6, { boundBy: 'predecessor' }),
+        ],
+        dependencies: [{ predecessorId: 'hull', successorId: 'rig' }],
+      }),
+    );
+
+    expect(chart.arrows).toEqual([
+      {
+        predecessorId: 'hull',
+        successorId: 'rig',
+        fromRowIndex: 0,
+        fromStart: 0,
+        fromFinish: 4,
+        toRowIndex: 3,
+        toStart: 4,
+      },
+    ]);
+  });
+
+  it('anchors a collapsed branch through the full tree, not the shown rows', () => {
+    // The same branch with its leaves collapsed away: their rows are gone from
+    // `rows`, their slices are still in the payload, and the tree is what
+    // still says whose they are. The arrow must leave the same day 4.
+    const chart = layOutGantt(
+      planOf({
+        rows: [rowAt('hull', 0, 5, { leaf: false }), rowAt('rig', 4, 6)],
+        slices: [
+          sliceAt('strip-dev', 'strip', 0, 2),
+          sliceAt('strip-qa', 'strip', 2, 5, { roleId: 'qa' }),
+          sliceAt('sand-dev', 'sand', 0, 4),
+          sliceAt('sand-qa', 'sand', 4, 5, { roleId: 'qa' }),
+          sliceAt('rig-dev', 'rig', 4, 6, { boundBy: 'predecessor' }),
+        ],
+        tree: [
+          { id: 'hull', parentId: null },
+          { id: 'strip', parentId: 'hull' },
+          { id: 'sand', parentId: 'hull' },
+          { id: 'rig', parentId: null },
+        ],
+        dependencies: [{ predecessorId: 'hull', successorId: 'rig' }],
+      }),
+    );
+
+    // The hidden leaves draw no bars — that rule is untouched.
+    expect(chart.bars.map((bar) => bar.sliceId)).toEqual(['rig-dev']);
+    expect(chart.arrows).toEqual([
+      {
+        predecessorId: 'hull',
+        successorId: 'rig',
+        fromRowIndex: 0,
+        fromStart: 0,
+        fromFinish: 4,
+        toRowIndex: 1,
+        toStart: 4,
+      },
+    ]);
+  });
+
+  it('anchors a parent of parents through the leaves two levels down', () => {
+    // `hull` holds `deck`, and only `deck` holds the leaves `strip` and
+    // `sand` — plus `keel` directly under `hull`. `rig` depends on `hull`, so
+    // the anchor is the latest-finishing first-role work among the leaf
+    // descendants at **any** depth: `keel`'s Dev ends day 1, `strip`'s day 2,
+    // `sand`'s day 4 — the arrow leaves day 4, from `hull`'s bracket row. A
+    // walk that stopped at `hull`'s direct children would take `deck` for a
+    // leaf and find it has no slice.
+    //
+    // Proof: `leavesUnder`'s recursion shallowed to direct children —
+    // `children.map((child) => child.id)` in place of the `flatMap` over
+    // `walk` — and this failed alone, `1 failed | 67 passed`, on
+    // `GanttDataError: dependency hull → rig: deck has no slice in this
+    // payload`; watched 2026-08-11.
+    const chart = layOutGantt(
+      planOf({
+        rows: [
+          rowAt('hull', 0, 6, { leaf: false }),
+          rowAt('deck', 0, 6, { depth: 1, leaf: false }),
+          rowAt('strip', 0, 5, { depth: 2 }),
+          rowAt('sand', 0, 6, { depth: 2 }),
+          rowAt('keel', 0, 3, { depth: 1 }),
+          rowAt('rig', 4, 6),
+        ],
+        slices: [
+          sliceAt('strip-dev', 'strip', 0, 2),
+          sliceAt('strip-qa', 'strip', 2, 5, { roleId: 'qa' }),
+          sliceAt('sand-dev', 'sand', 0, 4),
+          sliceAt('sand-qa', 'sand', 4, 6, { roleId: 'qa' }),
+          sliceAt('keel-dev', 'keel', 0, 1),
+          sliceAt('keel-qa', 'keel', 1, 3, { roleId: 'qa' }),
+          sliceAt('rig-dev', 'rig', 4, 6, { boundBy: 'predecessor' }),
+        ],
+        dependencies: [{ predecessorId: 'hull', successorId: 'rig' }],
+      }),
+    );
+
+    expect(chart.arrows).toEqual([
+      {
+        predecessorId: 'hull',
+        successorId: 'rig',
+        fromRowIndex: 0,
+        fromStart: 0,
+        fromFinish: 4,
+        toRowIndex: 5,
+        toStart: 4,
+      },
+    ]);
+  });
+
+  it('an arrow leaves the first estimated role, not the unestimated one in front of it', () => {
+    // The engine's own probe, drawn: `strip`'s Dev carries no estimate, so the
+    // anchor walks on to its QA — 5→9 — and the arrow leaves day 9, which is
+    // where `sand` starts. An arrow from the unestimated Dev would leave day 5
+    // and point at a bar four days to its right with nothing between them,
+    // claiming a wait the engine did not impose.
+    //
+    // Proof: the selection reverted to `own.at(0)` — the first slice plain,
+    // which is what this file did before the walk — and this alone failed,
+    // `1 failed | 68 passed`, on `expected { predecessorId: 'strip', …(6) } to
+    // match object { fromStart: 5, fromFinish: 9, …(1) }`; watched 2026-08-11.
+    const chart = layOutGantt(
+      planOf({
+        rows: [rowAt('strip', 5, 9), rowAt('sand', 9, 11)],
+        slices: [
+          sliceAt('strip-dev', 'strip', 5, 5, { duration: 0, estimated: false }),
+          sliceAt('strip-qa', 'strip', 5, 9, { roleId: 'qa' }),
+          sliceAt('sand-dev', 'sand', 9, 11, { boundBy: 'predecessor' }),
+        ],
+        dependencies: [{ predecessorId: 'strip', successorId: 'sand' }],
+      }),
+    );
+
+    expect(chart.arrows[0]).toMatchObject({ fromStart: 5, fromFinish: 9, toStart: 9 });
+  });
+
+  it('a zero-length anchor draws from its own day', () => {
+    // Nobody estimated any of `strip`, so there is no estimated slice to
+    // anchor on and the walk falls through to its last — which for a work item
+    // of no days at all stands at day 5 with no days in it. The
+    // `fromStart === fromFinish` calendar reading, built for zero-day
+    // projections, is what keeps the arrow leaving where day 5 begins, the
+    // Monday at 7, not the end of the workday before it at 5.
+    const chart = layOutGantt(
+      planOf({
+        rows: [rowAt('strip', 5, 5), rowAt('sand', 5, 7)],
+        slices: [
+          sliceAt('strip-dev', 'strip', 5, 5, { duration: 0, estimated: false }),
+          sliceAt('strip-qa', 'strip', 5, 5, {
+            roleId: 'qa',
+            duration: 0,
+            estimated: false,
+          }),
+          sliceAt('sand-dev', 'sand', 5, 7, { boundBy: 'predecessor' }),
+        ],
+        dependencies: [{ predecessorId: 'strip', successorId: 'sand' }],
+      }),
+    );
+
+    expect(chart.arrows[0]).toMatchObject({ fromStart: 5, fromFinish: 5 });
+
+    const placed = placeOnCalendar(chart, '2026-08-10');
+    expect(placed.arrows[0].fromX).toBe(7);
+  });
+
+  it('throws when a shown predecessor has no slice in the payload at all', () => {
+    // Not a collapsed row — `strip` is on the chart — and be-01 emits at least
+    // one slice for every leaf, so a shown predecessor with none anywhere is a
+    // broken promise: the arrow has no anchor to leave, and a chart quietly
+    // short one arrow would hide exactly the wait it exists to show.
+    const missing = planOf({
+      rows: [rowAt('strip', 0, 3), rowAt('sand', 3, 5)],
+      slices: [sliceAt('sand-dev', 'sand', 3, 5)],
+      dependencies: [{ predecessorId: 'strip', successorId: 'sand' }],
+    });
+
+    expect(() => layOutGantt(missing)).toThrow(GanttDataError);
+    expect(() => layOutGantt(missing)).toThrow('no slice');
   });
 });
 

@@ -6302,6 +6302,11 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
       ),
     })),
     slices: chartRead.slices,
+    // The full tree, ids and parents alone — `flat` and not `shownRows`, for
+    // `namedInTheTree`'s reason: a dependency arrow's anchor is selected from
+    // the predecessor's leaves' slices, and a collapsed branch's leaves are
+    // exactly the rows the shown set has dropped (design.md D6).
+    tree: flat.map((row) => ({ id: row.id, parentId: row.parentId })),
     // The stored dependencies of the rows on screen. An edge whose other end is
     // collapsed away or narrowed off is dropped by `layOutGantt`, which is a
     // modeled absence there rather than a filter here.

@@ -418,14 +418,16 @@ export const assignment = sqliteTable(
 export type AssignmentRow = typeof assignment.$inferSelect;
 
 /**
- * A finish-to-start dependency: `successor` cannot start until `predecessor`
- * finishes.
+ * A finish-to-start dependency: `successor` cannot start until `predecessor`'s
+ * **anchor slice** — its first slice in role order — finishes; the
+ * predecessor's later roles run in parallel with the successor
+ * (`service/schedule.ts`).
  *
- * Either end may be a parent, and that is the point — "the whole of 010 before
- * 020" is what a planner writes, and drawing an edge from every leaf under 010
- * would be tedious and wrong the moment a leaf is added. The expansion to leaves
- * happens when the schedule is computed, not here; storing it would be a second
- * copy to fall out of date with the tree.
+ * Either end may be a parent, and that is the point — "all of 010's first-role
+ * work before any of 020" is what a planner writes, and drawing an edge from
+ * every leaf under 010 would be tedious and wrong the moment a leaf is added.
+ * The expansion to leaves happens when the schedule is computed, not here;
+ * storing it would be a second copy to fall out of date with the tree.
  *
  * `projectId` is denormalised from the two work items so a project's edges are
  * one indexed read rather than a join. It does **not** make a cross-project edge

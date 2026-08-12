@@ -12,6 +12,9 @@ import { schedule, sliceKey } from './schedule';
  */
 
 const DEV = 'role-dev';
+const QA = 'role-qa';
+/** A role in front of `DEV`, for the plans whose point is what sits before it. */
+const DESIGN = 'role-design';
 
 let position = 0;
 const item = (id: string, parentId: string | null = null): WorkItem => ({
@@ -110,9 +113,10 @@ describe('shapes — a dependency between two nested branches', () => {
    *     L2 (4)           M2 (1)
    *   L3 (1)
    * ```
-   * `P → Q`, declared at the top: the whole of one branch before the whole of
-   * the other, through a parent on **both** sides and a second level of
-   * nesting under each.
+   * `P → Q`, declared at the top: every leaf's anchor under one branch before
+   * any leaf under the other, through a parent on **both** sides and a second
+   * level of nesting under each. Single-role leaves, so each anchor is the
+   * leaf entire — the multi-role reading has its own describe below.
    */
   const branches = () =>
     plan(
@@ -131,10 +135,11 @@ describe('shapes — a dependency between two nested branches', () => {
       { L1: 2, L2: 4, L3: 1, M1: 3, M2: 1 },
     ).workItems;
 
-  it('holds every leaf under the successor until every leaf under the predecessor is done', () => {
+  it('holds every leaf under the successor until every predecessor leaf’s anchor finishes', () => {
     const found = branches();
 
-    // `L2` is the last of `P`'s leaves to finish, two levels down.
+    // `L2`'s anchor is the last of `P`'s to finish, two levels down — its one
+    // slice, these leaves being single-role.
     expect(found.get('M1')).toMatchObject({ earliestStart: 4, earliestFinish: 7 });
     expect(found.get('M2')).toMatchObject({ earliestStart: 4, earliestFinish: 5 });
   });
@@ -145,6 +150,316 @@ describe('shapes — a dependency between two nested branches', () => {
     expect(found.get('P')).toMatchObject({ earliestStart: 0, earliestFinish: 4 });
     expect(found.get('Q')).toMatchObject({ earliestStart: 4, earliestFinish: 7 });
     expect(found.get('D1')).toMatchObject({ earliestStart: 4, earliestFinish: 7 });
+  });
+});
+
+/** Two slices per leaf — `[Dev, QA]` days in role order; null is unestimated. */
+const roledPlan = (
+  rows: readonly WorkItem[],
+  edges: readonly DependencyEdge[],
+  days: Record<string, [number | null, number | null]>,
+  notBefore?: ReadonlyMap<string, number>,
+) => {
+  const childless = new Set(rows.map((row) => row.parentId).filter((id) => id !== null));
+  const slices: Slice[] = rows
+    .filter((row) => !childless.has(row.id))
+    .flatMap((row) => [
+      { workItemId: row.id, roleId: DEV, days: days[row.id][0], personId: null },
+      { workItemId: row.id, roleId: QA, days: days[row.id][1], personId: null },
+    ]);
+  return schedule(rows, edges, slices, notBefore);
+};
+
+/**
+ * The same, for a **three**-role project listing `Design, Dev, QA` in that
+ * order — the shape the anchor rule is about, because it has a role in front
+ * of `Dev` that a plan may well leave unestimated.
+ */
+const threeRolePlan = (
+  rows: readonly WorkItem[],
+  edges: readonly DependencyEdge[],
+  days: Record<string, [number | null, number | null, number | null]>,
+  notBefore?: ReadonlyMap<string, number>,
+) => {
+  const childless = new Set(rows.map((row) => row.parentId).filter((id) => id !== null));
+  const slices: Slice[] = rows
+    .filter((row) => !childless.has(row.id))
+    .flatMap((row) => [
+      { workItemId: row.id, roleId: DESIGN, days: days[row.id][0], personId: null },
+      { workItemId: row.id, roleId: DEV, days: days[row.id][1], personId: null },
+      { workItemId: row.id, roleId: QA, days: days[row.id][2], personId: null },
+    ]);
+  return schedule(rows, edges, slices, notBefore);
+};
+
+/** One work item's projection, or a throw — a test asserting on `undefined` asserts nothing. */
+const projectionOf = (found: ReturnType<typeof schedule>, id: string) => {
+  const row = found.workItems.get(id);
+  if (row === undefined) throw new Error(`${id} lost its schedule`);
+  return row;
+};
+
+describe('shapes — a dependency waits on the anchor slice', () => {
+  it('waits for the first role, not the last', () => {
+    // `B` needs `A`'s Dev, never its QA: the anchor — `A`'s first slice in
+    // role order — finishes on day 3, and `A`'s QA runs 3→5 alongside `B`.
+    const found = roledPlan([item('A'), item('B')], [edge('A', 'B')], {
+      A: [3, 2],
+      B: [1, 1],
+    });
+
+    expect(projectionOf(found, 'B').earliestStart).toBe(3);
+    expect(found.slices.get(sliceKey('A', QA))).toMatchObject({
+      earliestStart: 3,
+      earliestFinish: 5,
+    });
+  });
+
+  it('an unestimated first role does not escape the wait', () => {
+    // Green under the last-slice rule too — kept as the guard that the
+    // successor side did not move (design.md D2): the edge lands on `B`'s
+    // first slice plain, never its first *estimated* one, so the row waits
+    // even though nobody has put a number on its Dev.
+    const found = roledPlan([item('A'), item('B')], [edge('A', 'B')], {
+      A: [3, null],
+      B: [null, 2],
+    });
+
+    expect(found.slices.get(sliceKey('B', DEV))).toMatchObject({
+      earliestStart: 3,
+      earliestFinish: 3,
+    });
+    expect(found.slices.get(sliceKey('B', QA))).toMatchObject({
+      earliestStart: 3,
+      earliestFinish: 5,
+    });
+    expect(projectionOf(found, 'B').earliestStart).toBe(3);
+  });
+
+  it('walks past an unestimated role to the first one somebody estimated', () => {
+    // `A`'s Dev carries no estimate, so the anchor is not it: the walk goes on
+    // down the role order and stops at `A`'s QA, the first slice of `A`
+    // anybody put a number on (design.md D1). `B` waits until day 4.
+    //
+    // Until 2026-08-11 this read the other way — the anchor was the first
+    // slice plain, zero days long, and `B` started on day 0 with the edge
+    // having decided nothing. Dany's call, on the probe below: "first in list
+    // of project roles, then first that is estimated".
+    const found = roledPlan([item('A'), item('B')], [edge('A', 'B')], {
+      A: [null, 4],
+      B: [2, null],
+    });
+
+    expect(projectionOf(found, 'B').earliestStart).toBe(4);
+    expect(found.slices.get(sliceKey('A', QA))).toMatchObject({
+      earliestStart: 0,
+      earliestFinish: 4,
+    });
+  });
+
+  it('a chain does not collapse because a project lists a role nobody estimated', () => {
+    // The probe that settled the rule (2026-08-11). Three roles — `Design`,
+    // `Dev`, `QA` — and a plan that estimates only `Dev`, which is every plan
+    // in `refs/gantt/`. `c1 → c2 → c3`, four days of Dev each.
+    //
+    // Under the first-slice-plain rule every one of these anchors was the
+    // unestimated `Design`, zero days long, so every edge in the plan went
+    // inert and all three rows started on day 0 — twelve days of work drawn
+    // as four. The estimated-anchor rule is what stops that: the chain runs
+    // 0→4, 4→8, 8→12, and only `Design` and `QA` are free to sit anywhere.
+    const found = threeRolePlan(
+      [item('c1'), item('c2'), item('c3')],
+      [edge('c1', 'c2'), edge('c2', 'c3')],
+      { c1: [null, 4, null], c2: [null, 4, null], c3: [null, 4, null] },
+    );
+
+    expect(projectionOf(found, 'c1')).toMatchObject({ earliestStart: 0, earliestFinish: 4 });
+    expect(projectionOf(found, 'c2')).toMatchObject({ earliestStart: 4, earliestFinish: 8 });
+    expect(projectionOf(found, 'c3')).toMatchObject({ earliestStart: 8, earliestFinish: 12 });
+    // Both sides of the asymmetry in one row: the edge *arrives* at `c3`'s
+    // `Design` — its first slice plain, unestimated and zero-length — and its
+    // `Dev` follows in role order behind it, while the edge *left* `c2` from
+    // the `Dev` that was `c2`'s first estimate.
+    expect(found.slices.get(sliceKey('c3', DESIGN))).toMatchObject({
+      earliestStart: 8,
+      earliestFinish: 8,
+      boundBy: 'predecessor',
+    });
+    expect(found.slices.get(sliceKey('c3', DEV))).toMatchObject({
+      earliestStart: 8,
+      boundBy: 'roleOrder',
+    });
+  });
+
+  it('anchors a predecessor nobody estimated at all on its finish', () => {
+    // No slice of `A` carries a number, so there is no estimated slice to
+    // anchor on and the walk falls through to `A`'s **finish** — which for a
+    // work item of no days at all is its own start. The edge then imposes
+    // exactly what `A`'s own predecessors imposed, here nothing, and `B`
+    // starts on day 0. That is the degenerate case kept deliberate rather
+    // than accidental (design.md D1).
+    const found = threeRolePlan([item('A'), item('B')], [edge('A', 'B')], {
+      A: [null, null, null],
+      B: [2, null, null],
+    });
+
+    expect(projectionOf(found, 'A')).toMatchObject({ earliestStart: 0, earliestFinish: 0 });
+    expect(projectionOf(found, 'B').earliestStart).toBe(0);
+  });
+
+  it('carries an unestimated predecessor’s own wait through to its successor', () => {
+    // The fall-through is the item's finish, not day zero: `A` is estimated,
+    // `B` is estimated nowhere, `C` waits on `B`. `B` starts at `A`'s anchor
+    // (day 3) and finishes there too, so `C` starts on day 3 — the wait `A`
+    // imposed is carried rather than lost.
+    const found = threeRolePlan(
+      [item('A'), item('B'), item('C')],
+      [edge('A', 'B'), edge('B', 'C')],
+      { A: [null, 3, 9], B: [null, null, null], C: [1, null, null] },
+    );
+
+    expect(projectionOf(found, 'B')).toMatchObject({ earliestStart: 3, earliestFinish: 3 });
+    expect(projectionOf(found, 'C').earliestStart).toBe(3);
+  });
+
+  it('a branch anchors each leaf on its own first estimate', () => {
+    // Two leaves under `P`, each with a different role estimated: `P1` only
+    // its `Dev` (0→2), `P2` only its `QA` (0→5, behind two zero-length roles).
+    // Each leaf's anchor is its own first estimated slice, and `Q` waits for
+    // the latest of them — day 5, not `P1`'s day 2 and not day 0.
+    const found = threeRolePlan(
+      [item('P'), item('P1', 'P'), item('P2', 'P'), item('Q')],
+      [edge('P', 'Q')],
+      { P1: [null, 2, null], P2: [null, null, 5], Q: [1, null, null] },
+    );
+
+    expect(projectionOf(found, 'Q').earliestStart).toBe(5);
+  });
+
+  it('a branch releases at its anchors', () => {
+    // `Q` waits for all of `P`'s first-role work: `P1`'s anchor ends day 2,
+    // `P2`'s day 4, and the latest of them releases `Q` on day 4 while `P`'s
+    // own projection runs to day 5 (design.md D3).
+    const found = roledPlan(
+      [item('P'), item('P1', 'P'), item('P2', 'P'), item('Q')],
+      [edge('P', 'Q')],
+      { P1: [2, 3], P2: [4, 1], Q: [1, null] },
+    );
+
+    expect(projectionOf(found, 'Q').earliestStart).toBe(4);
+    expect(projectionOf(found, 'P')).toMatchObject({ earliestStart: 0, earliestFinish: 5 });
+  });
+
+  it('splits critical from slack inside the predecessor when the successor runs on', () => {
+    // `B`'s ten-day Dev runs 3→13 and is the whole project. `A`'s Dev (0→3)
+    // releases it, so Dev cannot slip: float 0, critical. `A`'s QA (3→5) has
+    // no successor at all after the flip — the edge leaves the anchor — so it
+    // may run as late as 11→13: float 13 − 5 = 8, and no red. The row
+    // projects the min-slice rule: `A` reports slack 0 and critical because
+    // its Dev is, even with eight days of room on its QA.
+    const found = roledPlan([item('A'), item('B')], [edge('A', 'B')], {
+      A: [3, 2],
+      B: [10, null],
+    });
+
+    expect(found.slices.get(sliceKey('A', DEV))).toMatchObject({
+      earliestStart: 0,
+      earliestFinish: 3,
+      float: 0,
+      critical: true,
+    });
+    expect(found.slices.get(sliceKey('A', QA))).toMatchObject({
+      earliestStart: 3,
+      earliestFinish: 5,
+      latestStart: 11,
+      latestFinish: 13,
+      float: 8,
+      critical: false,
+    });
+    expect(projectionOf(found, 'A')).toMatchObject({ float: 0, critical: true });
+    expect(projectionOf(found, 'B')).toMatchObject({
+      earliestFinish: 13,
+      float: 0,
+      critical: true,
+    });
+  });
+
+  it('a chain of anchors: each successor starts at its predecessor’s Dev finish', () => {
+    // Three two-role items in a line. `A`'s Dev 0→2 releases `B` on day 2
+    // while `A`'s QA runs 2→5 beside it; `B`'s Dev 2→6 releases `C` on day 6
+    // while `B`'s QA runs 6→8 beside it. The rows: `A` 0→5, `B` 2→8, `C`
+    // 6→12 — each QA tail overlapping the successor it no longer holds.
+    const found = roledPlan([item('A'), item('B'), item('C')], [edge('A', 'B'), edge('B', 'C')], {
+      A: [2, 3],
+      B: [4, 2],
+      C: [1, 5],
+    });
+
+    expect(projectionOf(found, 'A')).toMatchObject({ earliestStart: 0, earliestFinish: 5 });
+    expect(projectionOf(found, 'B')).toMatchObject({ earliestStart: 2, earliestFinish: 8 });
+    expect(projectionOf(found, 'C')).toMatchObject({ earliestStart: 6, earliestFinish: 12 });
+    // Day 6 is `B`'s Dev finish, not its QA's day 8: the wait was the anchor's.
+    expect(found.slices.get(sliceKey('C', DEV))).toMatchObject({
+      earliestStart: 6,
+      boundBy: 'predecessor',
+    });
+  });
+
+  it('a multi-role diamond joins at the latest anchor, not the latest projection', () => {
+    // `A` [1, 1] fans out to `B` [3, 4] and `C` [6, 1]; `D` [2, 2] joins the
+    // fan back in. Both branches start at `A`'s Dev finish, day 1: `B`'s Dev
+    // 1→4, QA 4→8; `C`'s Dev 1→7, QA 7→8. Both projections end on day 8 — so
+    // a join at the projections would put `D` at 8 either way. The anchors
+    // differ: `B`'s Dev ends day 4, `C`'s day 7, and `D` starts at 7 — `C`'s
+    // longer Dev is the binding predecessor.
+    const found = roledPlan(
+      [item('A'), item('B'), item('C'), item('D')],
+      [edge('A', 'B'), edge('A', 'C'), edge('B', 'D'), edge('C', 'D')],
+      { A: [1, 1], B: [3, 4], C: [6, 1], D: [2, 2] },
+    );
+
+    expect(found.slices.get(sliceKey('C', DEV))).toMatchObject({ earliestFinish: 7 });
+    expect(found.slices.get(sliceKey('B', DEV))).toMatchObject({ earliestFinish: 4 });
+    expect(projectionOf(found, 'D')).toMatchObject({ earliestStart: 7, earliestFinish: 11 });
+    expect(found.slices.get(sliceKey('D', DEV))).toMatchObject({ boundBy: 'predecessor' });
+  });
+});
+
+describe('shapes — a multi-role dependency beside a manual floor', () => {
+  it('lets the floor win over the anchor when it is the later of the two', () => {
+    // `A`'s anchor lets go on day 2 (Dev 0→2, QA 2→4 beside everything), and
+    // `B`'s own floor says day 5: the floor is later, `B`'s Dev runs 5→8, its
+    // QA 8→9, and the floor is named.
+    const found = roledPlan(
+      [item('A'), item('B')],
+      [edge('A', 'B')],
+      { A: [2, 2], B: [3, 1] },
+      new Map([['B', 5]]),
+    );
+
+    expect(projectionOf(found, 'B')).toMatchObject({ earliestStart: 5, earliestFinish: 9 });
+    expect(found.slices.get(sliceKey('B', DEV))).toMatchObject({
+      earliestStart: 5,
+      boundBy: 'notBefore',
+    });
+  });
+
+  it('lets the anchor swallow the floor when the Dev runs past it', () => {
+    // The same shape with `A`'s Dev at four days: day 2 is already gone when
+    // the anchor lets go on day 4, so the floor decided nothing and the
+    // dependency is named. `B`'s Dev 4→7, QA 7→8.
+    const found = roledPlan(
+      [item('A'), item('B')],
+      [edge('A', 'B')],
+      { A: [4, 2], B: [3, 1] },
+      new Map([['B', 2]]),
+    );
+
+    expect(projectionOf(found, 'B')).toMatchObject({ earliestStart: 4, earliestFinish: 8 });
+    expect(found.slices.get(sliceKey('B', DEV))).toMatchObject({
+      earliestStart: 4,
+      boundBy: 'predecessor',
+    });
   });
 });
 
