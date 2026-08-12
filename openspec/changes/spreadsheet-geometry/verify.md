@@ -45,7 +45,7 @@ that reads at its cell's size is how a lost guard would show, and a rule one
 layer up defeats it while the guard is intact. The buttons are back on the
 platform's 13.33px — a third of a pixel of type, against blinding a guard — and
 the alignment it was reaching for is asserted where it belongs, on the two
-controls' centres. Re-run at `8a6d9f2`: `tailwind`, `deps-cell` and `layout`
+controls' centres. Re-run at `f1d4fed`: `tailwind`, `deps-cell` and `layout`
 together, **55 passed**.
 
 ### The two flakes, named rather than dropped
