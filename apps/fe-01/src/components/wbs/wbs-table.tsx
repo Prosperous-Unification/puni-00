@@ -4414,7 +4414,15 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                   // colgroup's job now.
                   width: '100%',
                   boxSizing: 'border-box',
-                  resize: 'vertical',
+                  // No `resize` here. It said `vertical` until
+                  // `table-mechanics`, and an inline property outranks every
+                  // stylesheet: the grip that put a row out of line with its
+                  // chart row was written from *this* object, not from
+                  // Tailwind's preflight, and a rule in `styles.css` could not
+                  // reach it. `[data-grid] textarea { resize: none }` is where
+                  // the answer lives now, for this box and any other the grid
+                  // grows — and it is load-bearing rather than a belt: with
+                  // this line gone the browser's own default is `both`.
                   font: 'inherit',
                   ...(matched ? { background: MATCH_TINT } : {}),
                 }}

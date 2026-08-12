@@ -785,7 +785,9 @@ test.describe('the pointer moves a row by the same ink on both phases of the str
     luminance(page, await settledRowBg(page, number));
 
   test('a banded row moves as far under the pointer as a plain one', async ({ page }) => {
-    await seedPlan(page, `e2e-stripe-${String(Date.now())}`);
+    // The plan is the file's `beforeEach`'s — seeding a second one here signs
+    // up over an account that is already signed in, and the Register button
+    // the helper clicks is not on that page.
     await parkPointer(page);
 
     // 010 is the first body row and 020 the second, which is the one
@@ -823,7 +825,6 @@ test.describe('the pointer moves a row by the same ink on both phases of the str
     // The other half of "reads on both phases": the hovered banded row has to
     // be distinct from the rest shade of *both* kinds of row, or the pointer
     // is saying something one row along already says.
-    await seedPlan(page, `e2e-stripe-distinct-${String(Date.now())}`);
     await parkPointer(page);
 
     const restPlain = await rowLuminance(page, '010');

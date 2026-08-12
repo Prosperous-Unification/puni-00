@@ -538,13 +538,21 @@
    * No resize grip on the Name cell, which is the only `<textarea>` in the
    * grid.
    *
-   * Tailwind's preflight sets `resize: vertical` on every textarea, so every
-   * row of every plan shipped with a drag handle in its bottom-right corner —
-   * and dragging it is not an edit. It writes an inline height the auto-grow
-   * never reads back, the Gantt row beside it keeps the height the plan gave
-   * it, and the two are out of line for the rest of the session with no undo
-   * and no way back but a reload. Measured on dev, 2026-08-12: one drag took a
-   * 28px row to 124px against a 28px chart row.
+   * Every row of every plan shipped with a drag handle in its bottom-right
+   * corner, and dragging it is not an edit. It writes an inline height the
+   * auto-grow never reads back, the Gantt row beside it keeps the height the
+   * plan gave it, and the two are out of line for the rest of the session with
+   * no undo and no way back but a reload. Measured on dev, 2026-08-12: one
+   * drag took a 28px row to 124px against a 28px chart row.
+   *
+   * The grip was **inline**, from the Name cell's own `style` object in
+   * `wbs-table.tsx` — not from Tailwind's preflight, which this build's served
+   * CSS carries no `resize` rule from at all. That matters here because it is
+   * the difference between this rule being the fix and this rule being unable
+   * to reach the box: an inline property outranks a stylesheet whatever its
+   * layer. The inline `resize` is gone, and a browser's own default for a
+   * textarea is `both`, so this rule is what holds — proven by taking it out
+   * and watching `e2e/name-cell.spec.ts` report `both`.
    *
    * `none` rather than a smaller grip, because the height of this box is not a
    * reader's choice to make: it is the height of the text in it, decided by
