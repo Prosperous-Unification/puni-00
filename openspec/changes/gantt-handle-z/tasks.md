@@ -11,8 +11,9 @@ where the chart is not drawn cannot see the chart taking the press.
 
 ## 1. Watch the strip fail
 
-- [x] 1.1 `owns every point on its strip, rather than the chart sliding under
-      it` in `e2e/gantt.spec.ts`: `document.elementFromPoint` over 18 points —
+- [x] 1.1 The strip's own case in `e2e/gantt.spec.ts`:
+      `owns every point on its strip, rather than the chart sliding under it`.
+      `document.elementFromPoint` over 18 points —
       three heights down the 6px, three positions across the label column and
       three across the calendar axis beside it — each named by what it hits, so
       the failure reads as the element rather than as `false`. Watched failing
