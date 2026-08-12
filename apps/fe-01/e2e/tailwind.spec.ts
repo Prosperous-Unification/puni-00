@@ -190,6 +190,15 @@ test.describe('Tailwind, in the browser', () => {
     // `<button>` `border-box`, so a test asserting `content-box` on this
     // element failed against a correctly scoped reset — watched 2026-08-09 —
     // and one asserting `border-box` would have passed with the guard gone.
+    //
+    // What this margin is, since `spreadsheet-geometry`: 13.333px against
+    // 13px, where it used to be 13.333px against 16px. A third of a pixel is
+    // the whole distance, and it is still the right distance — a lost guard
+    // makes the two **equal**, and a rule that typed the grid's buttons at the
+    // body's size does too. That is not hypothetical: one commit of
+    // `spreadsheet-geometry` did exactly that and this test caught it in CI's
+    // `pixels` (run 31617201732). The buttons stayed on the platform's face
+    // because of it. Do not close the third of a pixel.
     expect(sizes.chip).not.toBe(sizes.cell);
   });
 

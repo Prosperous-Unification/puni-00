@@ -4,6 +4,7 @@ import {
   flexRender,
   getCoreRowModel,
   getExpandedRowModel,
+  type RowData,
   useReactTable,
 } from '@tanstack/react-table';
 import { workdaysBetween } from '@wbs/domain/workday';
@@ -1282,6 +1283,32 @@ interface ChartRead {
 const NO_CHART_READ: ChartRead = { slices: [], roles: [], people: [], generation: 0 };
 
 const column = createColumnHelper<TreeRow>();
+
+declare module '@tanstack/react-table' {
+  /**
+   * What a column is called out loud, where that is not what its heading
+   * shows.
+   *
+   * Two columns print a mark rather than a word — `#` for the numbering and
+   * `o`/`r`/`p` for the three estimate points — because the words do not fit
+   * in 93px and 44px and a clipped word says less than a mark does. A heading
+   * a screen reader reads as "hash" or "oh" is a column with no name, so the
+   * word is declared here and put on the `<th>` as its `aria-label`.
+   *
+   * On the definition rather than in a lookup beside the render, so the
+   * heading and the word it stands for are written in the same place; on the
+   * `<th>` rather than inside it because an `aria-label` on a `<span>` with no
+   * role of its own is not reliably part of the cell's accessible name — the
+   * fault this went through: `getByRole('columnheader', { name: 'Number' })`
+   * found nothing with the label a level down.
+   */
+  // The generic parameters are TanStack's own; this interface is merged into
+  // its declaration, so they are named to match rather than used here.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  interface ColumnMeta<TData extends RowData, TValue> {
+    spokenHeading?: string;
+  }
+}
 
 /**
  * The work breakdown: one grid that is a table and a nested list at once.
@@ -4274,7 +4301,15 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
       }),
       column.display({
         id: 'number',
-        header: 'Number',
+        // `#`, which is what a column of work item numbers is called on every
+        // spreadsheet a reader of this table has ever used — and 93px of a
+        // 1280px laptop is not where the word `Number` earns its eight
+        // characters. The accessible name is the word, on the glyph itself:
+        // `#` is punctuation a screen reader announces as "number sign" or
+        // skips outright, and the column header is read once per cell by
+        // anything walking the table.
+        meta: { spokenHeading: 'Number' },
+        header: () => <span>#</span>,
         cell: ({ row }) => (
           <span
             // The whole number, because the cell may not be showing all of it:
@@ -5710,13 +5745,22 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                     // The role's name is on the group column; repeating it three
                     // times over is how the headers came to set the table's width.
                     //
-                    // The word itself in a `title`, because the column is 52px
+                    // The word itself in a `title`, because the column is 44px
                     // and the word is not: measured on 2026-08-09, `optimistic`
                     // wants 84px and reads `optimi`, `pessimistic` wants 95px
                     // and reads `pessin`. There is no ellipsis to hint at it
                     // either — the same answer the `Days` header takes, where
                     // the sentence that would not fit moved into the `title`.
-                    header: () => <span title={point}>{point}</span>,
+                    //
+                    // One letter since `spreadsheet-geometry`, which is the
+                    // shorthand these cells already teach: the folded column's
+                    // box takes `o/r/p` as its placeholder and reads a trio
+                    // typed as `2/3/8`. A clipped word said less than its own
+                    // first letter does — `optimi` is not a word — and the
+                    // letter is what let the column drop to 44px. The word is
+                    // still the heading's accessible name and its `title`.
+                    meta: { spokenHeading: point },
+                    header: () => <span title={point}>{point.slice(0, 1)}</span>,
                     cell: ({ row }) => {
                       const problem = live.current.trioProblemFor(row.original, role.id);
                       const wrong = problem?.points.includes(point) ?? false;
@@ -6383,8 +6427,14 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    *
    * `declaredHeading` is what the column definition calls itself, which is a
    * string for most of them and a node for the ones whose heading is a glyph or
-   * carries a control. Those fall back to the column id: a name a screen reader
-   * can say, rather than a node this cannot read text out of.
+   * carries a control. A node whose column declared
+   * {@link ColumnMeta.spokenHeading} is called with the word instead — the call
+   * site resolves it — and the rest fall back to the column id: a name a screen
+   * reader can say, rather than a node this cannot read text out of.
+   *
+   * Proof: the call site reading `columnDef.header` alone, `says a mark
+   * heading's word on the handle beside it` failed on `expected 'Resize
+   * number' to be 'Resize Number'`. Watched on h2puni, 2026-08-12.
    *
    * @throws {Error} for a heading the layout did not resolve. Every header
    * cell in this table is a leaf column of the same model `layout` was built
@@ -7093,6 +7143,10 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                         // name attached is a failure that says two numbers
                         // disagreed without saying which column moved.
                         data-column={header.column.id}
+                        // The word, where the heading under it is a mark; see
+                        // {@link ColumnMeta.spokenHeading}. Undefined for every
+                        // other column, which renders no attribute at all.
+                        aria-label={header.column.columnDef.meta?.spokenHeading}
                         style={{
                           ...CELL,
                           ...STICKY_HEADER_CELL,
@@ -7116,7 +7170,11 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                         `position: sticky` through `STICKY_HEADER_CELL`, which
                         is what the absolute strip is positioned against.
                       */}
-                        {resizeHandleFor(header.column.id, header.column.columnDef.header)}
+                        {resizeHandleFor(
+                          header.column.id,
+                          header.column.columnDef.meta?.spokenHeading ??
+                            header.column.columnDef.header,
+                        )}
                       </th>
                     ))}
                   </tr>

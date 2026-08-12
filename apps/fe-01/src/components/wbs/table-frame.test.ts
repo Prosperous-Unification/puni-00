@@ -9,6 +9,7 @@ import {
   DAY_ENVELOPE,
   DEEPEST_INDENT,
   FIXED_COLUMNS,
+  FLEXIBLE_CAP,
   FLEXIBLE_COLUMNS,
   FLEXIBLE_FLOOR,
   flexibleCellStyle,
@@ -187,9 +188,9 @@ describe('the resolved frame layout', () => {
       ),
     ).toEqual({
       'r1-final': 96,
-      'r1-optimistic': 52,
-      'r1-realistic': 52,
-      'r1-pessimistic': 52,
+      'r1-optimistic': 44,
+      'r1-realistic': 44,
+      'r1-pessimistic': 44,
       'r1-assignee': 120,
     });
   });
@@ -329,7 +330,43 @@ describe('the width equation the table is laid out by', () => {
         ],
         DATED,
       ).minWidth,
-    ).toBe(1523);
+    ).toBe(1499);
+  });
+
+  it('caps the table at the fixed columns plus the Name cap', () => {
+    // The other end of the same equation, and the reason it is an end of *this*
+    // equation rather than a `max-width` on the Name cells: `table-layout:
+    // fixed` gives a cell no vote on its column's width, so the only place a
+    // cap on the flexible column can be spent is the table's own width.
+    //
+    // Both ends are summed from the same resolved columns, or the cap would be
+    // a second opinion about the widths the `<colgroup>` declares — the fault
+    // this module exists to prevent, one column along.
+    expect(frameLayout(['drag', 'number'], DATED).maxWidth).toBe(24 + 93);
+    expect(frameLayout(['name'], DATED).maxWidth).toBe(FLEXIBLE_CAP);
+    // The two-phase plan the browser gate measures: 1247 at the floor, and the
+    // same fixed columns with Name at its cap instead.
+    expect(frameLayout([...RENDERED, 'r1-final', 'r2-final'], DATED).maxWidth).toBe(
+      1247 - FLEXIBLE_FLOOR + FLEXIBLE_CAP,
+    );
+    // Above the floor and below the widest a drag may reach, or the cap is
+    // either not a cap or not reachable.
+    expect(FLEXIBLE_CAP).toBeGreaterThan(FLEXIBLE_FLOOR);
+    expect(FLEXIBLE_CAP).toBeLessThan(WIDEST_COLUMN);
+  });
+
+  it('lays the cap on the table itself, with the minimum still under it', () => {
+    // What the `<table>` is told, which is the one declaration the cap reaches
+    // the browser through.
+    // Proof: the `min()` reverted to a flat `'100%'`, this failed on `expected
+    // { width: '100%', minWidth: 1247 } to deeply equal { width: 'min(100%,
+    // 1467px)', …(1) }`, with the dragged case's resting half beside it.
+    // Watched on h2puni, 2026-08-12 (fault F2).
+    const layout = frameLayout([...RENDERED, 'r1-final', 'r2-final'], DATED);
+    expect(tableWidthStyle(layout)).toEqual({
+      width: `min(100%, ${String(layout.maxWidth)}px)`,
+      minWidth: layout.minWidth,
+    });
   });
 
   it('makes the declared width include the cell chrome, and clips what overruns', () => {
@@ -696,12 +733,20 @@ describe('a column this browser has dragged to another width', () => {
       foldedTableMinWidth(['role-dev'], DATED) + (300 - FLEXIBLE_FLOOR),
     );
     // The table's own width is where the override reaches the browser: the
-    // resolved sum with the override in force, the frame's 100% without.
+    // resolved sum with the override in force, and `min(100%, cap)` without —
+    // a drag outranks `FLEXIBLE_CAP` exactly as it outranks the floor, because
+    // it is the reader saying what this column should be.
     expect(tableWidthStyle(draggedName)).toEqual({
       width: `${String(draggedName.minWidth)}px`,
       minWidth: draggedName.minWidth,
     });
-    expect(tableWidthStyle(resting)).toEqual({ width: '100%', minWidth: resting.minWidth });
+    expect(tableWidthStyle(resting)).toEqual({
+      width: `min(100%, ${String(resting.maxWidth)}px)`,
+      minWidth: resting.minWidth,
+    });
+    // And with the override in force the two ends of the range are the same
+    // number: there is no cap left to reach.
+    expect(draggedName.maxWidth).toBe(draggedName.minWidth);
     // The cell still carries the override as its floor — the belt, not the
     // declaration.
     expect(flexibleCellStyle('name', NAME_DRAGGED)).toEqual({ minWidth: 300 });

@@ -483,6 +483,16 @@
  * of the dependency chips, which only decides how many fit on a line of a cell
  * whose height nothing asserts.
  *
+ * The third exception is `spreadsheet-geometry`'s, and it is the largest: the
+ * grid body's own type, 13px over a 1.4 line. It moves pixels on purpose —
+ * that is the change — and it moves them in one direction only, because every
+ * column in `table-frame.ts` was measured at the browser's 16px and none of
+ * them was made narrower here. So every envelope holds with room to spare
+ * (`e2e/layout.spec.ts` asserts the declared width is **at least** what the
+ * browser needs, and each of those assertions was re-run), the rows are
+ * shorter, and the columns are the width they were. Making them narrower is a
+ * measurement of its own and is deliberately not in this change.
+ *
  * `@layer components`, so a `className` on a cell still wins: the layer order
  * at the top of this file puts utilities last. The base layer's `[data-grid]`
  * guard is not in play here — that guard scopes the *reset* away from the grid,
@@ -495,6 +505,89 @@
    */
   [data-grid] {
     --cell-bg: var(--background);
+  }
+
+  /*
+   * The grid's own type, which is the whole of "make it feel like a
+   * spreadsheet" that is not a padding (Dany, 2026-08-08, U4).
+   *
+   * The table read at the browser's default 16px — the size a paragraph is set
+   * in — with a 26px row, and a plan is not prose: it is a page of short
+   * strings and figures that a reader scans down a column of. 13px is what a
+   * spreadsheet sets its cells in, and it buys back four pixels a row and
+   * about a fifth of every string's width across a table that has to fit a
+   * 1280px laptop.
+   *
+   * `tbody` and not `[data-grid]`, for the reason the number's 11px rule
+   * beside it already gives: `plan-cards.tsx` carries `data-grid` too, so
+   * `editable-grid.ts` can find the phone's cards, and a card is not a cell in
+   * a fixed column — it is the whole of a work item on a 390px screen. A card
+   * list has no `<tbody>`. The heading row is untouched as well: it is a 10px
+   * caption already and it is above the `<tbody>`, not in it.
+   *
+   * Named on the boxes as well as on the cells, and that is not belt and
+   * braces. The base reset's `font: inherit` for form controls stops at
+   * `[data-grid]` deliberately, so a box in this table takes the *browser's*
+   * font unless something says otherwise — some cells carry `font: inherit`
+   * inline and some do not, which is a table typed in two sizes the moment
+   * this rule reaches only one of them.
+   *
+   * **The buttons are deliberately not in that list**, and they were, for one
+   * commit. A grid `<button>` keeps the platform's 13.33px — the chips, the
+   * dependency cell's `+`, the ⋯ — and that is not an oversight either: it is
+   * what `e2e/tailwind.spec.ts`'s `leaves a control inside the grid the
+   * platform's text size` asserts, because a chip at the cell's size is how a
+   * lost `[data-grid]` guard would show. Typing them here made that test fail
+   * in CI's `pixels` (run 31617201732) — the guard intact and its only oracle
+   * defeated by a rule one layer up. A third of a pixel of type is not worth
+   * blinding it. What the difference cost was a `+` sitting 2.09px off the box
+   * beside it, and the fix for that is where it belongs:
+   * `e2e/deps-cell.spec.ts` compares the two controls' **centres**, which is
+   * what "on one line" means under `align-items: center`.
+   *
+   * `line-height` at 1.4 rather than the plan's ~1.45 because 1.4 is already
+   * this repository's line: `cell-input.tsx` caps a resting box at
+   * `maxRestRows * 1.4em`, and a stylesheet at 1.45 against a cap at 1.4 is
+   * two line heights, the second of which crops the third line of a note by a
+   * couple of pixels.
+   *
+   * Proof: the `font-size` dropped from this block, `sets the grid body's type
+   * below the page's own, and keeps a row inside its budget` failed on
+   * `Expected: "13px" / Received: "16px"`. Watched on h2puni, 2026-08-12
+   * (fault F3).
+   */
+  [data-grid] tbody,
+  [data-grid] tbody input,
+  [data-grid] tbody textarea {
+    font-size: 13px;
+    line-height: 1.4;
+  }
+
+  /*
+   * The five pixels under every box, which are a row's height and nothing a
+   * reader can see.
+   *
+   * A `<textarea>` is `inline-block` and sits on its line's **baseline**, so
+   * the line box under it reserves room for descenders that no glyph in the
+   * box will ever use: measured on h2puni, a 21.8px box in a 27.19px line,
+   * which is a 29.19px row against this change's 28px budget. `middle` takes
+   * the box off the baseline and the reservation with it.
+   *
+   * `vertical-align` and not `display: block`, which would also have worked:
+   * this is one property about one alignment, where blockifying the boxes
+   * changes how every cell that puts something *beside* its box lays out — the
+   * assignee cell's assumed name, the dependency strip's chips. Both of those
+   * are flex containers, which ignore this property entirely, so the rule is
+   * inert exactly where it would have been a risk.
+   *
+   * Proof: this declaration set back to `baseline`, `sets the grid body's type
+   * below the page's own, and keeps a row inside its budget` failed on `a
+   * single-line row is taller than the budget — Expected: <= 28 / Received:
+   * 29.1875`. Watched on h2puni, 2026-08-12 (fault F4).
+   */
+  [data-grid] tbody input,
+  [data-grid] tbody textarea {
+    vertical-align: middle;
   }
 
   [data-grid] th,

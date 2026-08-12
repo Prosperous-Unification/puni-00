@@ -98,6 +98,18 @@ export interface FrameLayout {
   columns: readonly ResolvedColumn[];
   /** The narrowest the whole table may be laid out, in px. */
   minWidth: number;
+  /**
+   * The widest the whole table lays itself out at unasked, in px — every fixed
+   * column at its declared width and the flexible one at {@link FLEXIBLE_CAP}.
+   *
+   * The same sum as {@link minWidth} with the other end of the flexible
+   * column's range in it, and computed from the same resolved columns for the
+   * reason this interface exists: a cap summed from one list while the
+   * `<colgroup>` declared another is the two-width-systems fault one column
+   * along. With a drag in force the two are equal — the override is the
+   * column's width at both ends.
+   */
+  maxWidth: number;
   /** The {@link PINNED_COLUMN_IDS} that are on screen in this state, and where they are held. */
   pinned: ReadonlyMap<string, PinnedGeometry>;
 }
@@ -288,6 +300,32 @@ export const FLEXIBLE_COLUMNS: ReadonlySet<string> = new Set(['name']);
 export const FLEXIBLE_FLOOR = 200;
 
 /**
+ * The widest a flexible column is budgeted at before the table stops growing,
+ * in px — the other end of {@link FLEXIBLE_FLOOR}.
+ *
+ * Dany's ask on 2026-08-08 was "the Name column half as wide". Half of what it
+ * had at 1512 is about 420px, and 420 is also about fifty characters of the
+ * grid's own type — a sentence, where the floor is a phrase. Past it a wider
+ * window buys the reader nothing: names are short, and the extra was spent on
+ * a column of white space that pushed the dates further from the names they
+ * belong to.
+ *
+ * **A cap on the flexible column is a cap on the table**, which is why it is
+ * spent here rather than as a `max-width` on the Name cells.
+ * `table-layout: fixed` gives a cell no vote on its column's width — the same
+ * reason {@link flexibleCellStyle} declares a floor and never a width — so the
+ * only place this can be honoured is the `<table>`'s own width, through
+ * {@link FrameLayout.maxWidth} and {@link tableWidthStyle}. A cell `max-width`
+ * would have been the second width authority `column-widths-drag` exists to
+ * prevent.
+ *
+ * A **drag outranks it**: an override is a reader saying what they want this
+ * column to be, and {@link WIDEST_COLUMN} is that answer's own ceiling. The
+ * cap is what an *unasked* table settles at.
+ */
+export const FLEXIBLE_CAP = 420;
+
+/**
  * The widths of a role's columns, which have no fixed ids: a role is created at
  * runtime and its columns are named `<roleId>-final`, `<roleId>-<point>` and
  * `<roleId>-assignee`. Sized by suffix, because the role half of the id is
@@ -296,9 +334,17 @@ export const FLEXIBLE_FLOOR = 200;
  * The folded column is the one that grew: it shows the figure *and* who is
  * doing the work (`4.8 · Kat`) since the assignee stopped folding away with
  * the trio. The three point boxes hold a number of days and are sized for one.
+ *
+ * 52 → 44 for the point boxes in `spreadsheet-geometry`, and the heading is
+ * what paid for it: `optimistic` wants 84px and read `optimi` in a 52px
+ * column, so the width was never the word's — it was three boxes each holding
+ * a number of days. At `o · r · p` the heading asks for nothing and 44px is
+ * five characters of the grid's 13px type, which is a number of days with a
+ * decimal in it. The word itself is still in the heading's `title` and in its
+ * accessible name.
  */
 const ROLE_FINAL_WIDTH = 96;
-const ROLE_POINT_WIDTH = 52;
+const ROLE_POINT_WIDTH = 44;
 const ROLE_ASSIGNEE_WIDTH = 120;
 
 /** An id the width table has never heard of — a typo, or a new column nobody sized. */
@@ -559,6 +605,14 @@ export function frameLayout(leafIds: readonly string[], state: FrameLayoutState)
     // minimum a hundred pixels short of the table on screen. Watched,
     // 2026-08-10.
     minWidth: columns.reduce((total, column) => total + (column.width ?? FLEXIBLE_FLOOR), 0),
+    // The same sum with the flexible column at the other end of its range, and
+    // a dragged one at the width it was dragged to: an override is a reader's
+    // own answer and outranks the cap, exactly as it outranks the floor above.
+    //
+    // Proof: `FLEXIBLE_CAP` swapped for `FLEXIBLE_FLOOR` here, `caps the
+    // table at the fixed columns plus the Name cap` failed on `expected 200 to
+    // be 420`. Watched on h2puni, 2026-08-12 (fault F1).
+    maxWidth: columns.reduce((total, column) => total + (column.width ?? FLEXIBLE_CAP), 0),
     pinned: pinnedGeometryFor(columns, PINNED_COLUMN_IDS),
   };
 }
@@ -983,10 +1037,13 @@ export function flexibleCellStyle(
  * The width the `<table>` itself declares for this layout — the one line the
  * excess-width measurement decided.
  *
- * At rest the table is `width: 100%` with the resolved minimum as its floor:
- * every fixed column takes its declared px and the flexible column absorbs
- * whatever the viewport leaves, which is what makes the table fit the window
- * instead of the window having to fit the table.
+ * At rest the table is `min(100%, maxWidth)` with the resolved minimum as its
+ * floor: every fixed column takes its declared px and the flexible column
+ * absorbs whatever the viewport leaves, which is what makes the table fit the
+ * window instead of the window having to fit the table — until that remainder
+ * passes {@link FLEXIBLE_CAP}, where the table stops growing and the window
+ * keeps the rest. It was a flat `100%` until `spreadsheet-geometry`; the cap
+ * is the whole of what that change put here.
  *
  * With a **flexible override** in force the table declares its own width as
  * the resolved sum instead, so every column stands at exactly its resolved
@@ -1014,7 +1071,15 @@ export function tableWidthStyle(layout: FrameLayout): CSSProperties {
     // remembered Name width on the table itself, and leaves its <col> silent`
     // (wbs-table.test.tsx) failed on `expected '100%' to be '1595px'`.
     // Watched, 2026-08-10. The browser half is the JSDoc above.
-    width: flexibleOverridden ? `${String(layout.minWidth)}px` : '100%',
+    // `min(100%, max)` and not a `maxWidth` beside the `width`: the two say
+    // the same thing to a browser, and one declaration is what keeps a reader
+    // of the markup from having to resolve two. The frame is what the 100% is
+    // a percentage of, so the table takes the window until the Name column
+    // reaches {@link FLEXIBLE_CAP} and stops there, leaving the slack to the
+    // right of the last column rather than inside the Name cells.
+    width: flexibleOverridden
+      ? `${String(layout.minWidth)}px`
+      : `min(100%, ${String(layout.maxWidth)}px)`,
     minWidth: layout.minWidth,
   };
 }

@@ -25,6 +25,8 @@ import { refusedDraftFor } from './live-editing';
 import {
   DATE_EDITOR_WIDTH,
   DEEPEST_INDENT,
+  FLEXIBLE_CAP,
+  FLEXIBLE_FLOOR,
   frameLayout,
   type FrameLayoutState,
   POPOVER_ROW_LAYER,
@@ -2768,24 +2770,32 @@ describe('role columns fold away', () => {
     expect(screen.queryByLabelText('Dev optimistic for 010')).toBeNull();
   });
 
-  itDom('says each sub-heading’s whole word, which its 52px cannot', async () => {
-    // Measured on 2026-08-09: `optimistic` wants 84px in a 52px column and
-    // reads `optimi`, `pessimistic` wants 95 and reads `pessin` — and there is
-    // no ellipsis to say the word was cut. The `title` is the only place the
-    // whole word is available to a reader who cannot widen the column.
+  itDom('heads each point with its first letter, and says the whole word twice over', async () => {
+    // Superseded, deliberately: this asserted the heading *read* `optimistic`
+    // and was clipped to `optimi` by a 52px column, with the whole word in the
+    // `title` as the only place a reader could get it. `spreadsheet-geometry`
+    // stopped printing a word no column of this table can hold — `optimistic`
+    // wants 84px, measured 2026-08-09 — and prints the letter the cells
+    // already teach (`o/r/p` is the folded box's own placeholder) at 44px.
+    //
+    // The word is still reachable in both of the ways it was: as the `title`,
+    // and — new here — as the heading's accessible name, which is what a
+    // screen reader reads out for the column and what `o` alone would have
+    // reduced to a letter.
     await oneRow();
 
     unfoldRole('Dev');
 
-    expect(headerTitled('optimistic')).toBe('optimistic');
-    expect(headerTitled('realistic')).toBe('realistic');
-    expect(headerTitled('pessimistic')).toBe('pessimistic');
+    for (const point of ['optimistic', 'realistic', 'pessimistic']) {
+      expect(headerTitled(point.slice(0, 1))).toBe(point);
+      expect(screen.getByRole('columnheader', { name: point })).toBeDefined();
+    }
   });
 
   itDom('unfolds one role at a time, so the table still fits the window', async () => {
     // The accordion, and it is arithmetic rather than taste: a folded role
-    // costs 96px and an unfolded one 372, so two roles folded need 1219px and
-    // sit just past a 1280 laptop while one of them open needs 1495.
+    // costs 96px and an unfolded one 348, so two roles folded need 1219px and
+    // sit just past a 1280 laptop while one of them open needs 1471.
     // `table-frame.test.ts` pins those three numbers; this is the behaviour
     // that keeps the table on the second of them.
     // Proof: `toggleRole` put back to `[...current, roleId]`, this failed on
@@ -2799,7 +2809,8 @@ describe('role columns fold away', () => {
     expect(screen.getByLabelText('QA optimistic for 010')).toBeDefined();
     expect(screen.queryByLabelText('Dev optimistic for 010')).toBeNull();
     // And the width the table declares follows, which is the whole reason.
-    expect(screen.getByRole('table').style.minWidth).toBe('1495px');
+    // 1471 since `spreadsheet-geometry` took the three point columns to 44px.
+    expect(screen.getByRole('table').style.minWidth).toBe('1471px');
 
     // Folding the open one leaves nothing open, rather than putting the other
     // one back.
@@ -7179,7 +7190,11 @@ describe('the order of the columns', () => {
 
     const headers = screen.getAllByRole('columnheader').map((th) => th.textContent.trim());
 
-    expect(headers.slice(0, 4)).toEqual(['', 'Number', 'Name', 'Depends on']);
+    // `#` rather than `Number` since `spreadsheet-geometry`: the glyph every
+    // spreadsheet heads this column with, in a column 93px wide. The word is
+    // still the heading's accessible name, which the assertion below is about.
+    expect(headers.slice(0, 4)).toEqual(['', '#', 'Name', 'Depends on']);
+    expect(screen.getByRole('columnheader', { name: 'Number' })).toBeDefined();
     // And the schedule stays on the right, where it reads as an outcome of
     // everything to its left rather than as something to fill in.
     // The schedule stays on the right, where it reads as an outcome of
@@ -7354,16 +7369,20 @@ describe('the widths the table is laid out by', () => {
     // total is what this replaces: it made the window fit the table.
     // Proof: the `<table>` put back to a declared total —
     // `width: tableMinWidth(leafColumnIds)` with no `minWidth` — this failed
-    // on `expected '1420px' to be '100%'`. Watched, 2026-08-08.
-    expect(table.style.width).toBe('100%');
+    // on `expected '1420px' to be '100%'`. Watched, 2026-08-08, when this read
+    // a flat `100%`; `spreadsheet-geometry` put the Name cap in the same
+    // declaration and the frame's 100% is still the first term of it.
+    expect(table.style.width).toBe(
+      `min(100%, ${String(frameLayout(columnIds, UNDATED).maxWidth)}px)`,
+    );
     expect(table.style.minWidth).toBe(`${String(frameLayout(columnIds, UNDATED).minWidth)}px`);
     // Not a constant, which is the point of computing it per render: this
     // plan has Dev unfolded and QA folded, so the floor is the 779px of fixed
     // columns — nobody has dated a row, so `not-before` is at its narrow 56 —
-    // plus 372 for the open role, 96 for the closed one and Name's 200.
+    // plus 348 for the open role, 96 for the closed one and Name's 200.
     // Folded it would be 1219; the difference is why unfolding is an
     // accordion.
-    expect(table.style.minWidth).toBe('1495px');
+    expect(table.style.minWidth).toBe('1471px');
     fireEvent.click(screen.getByRole('button', { name: 'Fold Dev estimates' }));
     expect(screen.getByRole('table').style.minWidth).toBe('1219px');
   });
@@ -7773,6 +7792,27 @@ describe('the widths this browser has dragged', () => {
     expect(handles).toContain('name');
   });
 
+  itDom('says a mark heading’s word on the handle beside it', async () => {
+    // The handle's accessible name is the heading it was rendered with, and
+    // this change turned `header: 'Number'` into a node drawing `#`. A node is
+    // not a string, so the handle fell through to the column id and the one
+    // control that reads a heading said `Resize number` where it had said
+    // `Resize Number` — the exact loss `ColumnMeta.spokenHeading` exists to
+    // prevent, one call away from the `<th>` that was already told.
+    await threeRoots();
+
+    const spoken = new Map(
+      [...document.querySelectorAll('thead [data-resize-handle]')].map((handle) => [
+        handle.getAttribute('data-resize-handle'),
+        handle.getAttribute('aria-label'),
+      ]),
+    );
+
+    expect(spoken.get('number')).toBe('Resize Number');
+    // The columns whose heading is already a word are unmoved by the fallback.
+    expect(spoken.get('name')).toBe('Resize Name');
+  });
+
   itDom('works a dragged width out from where the handle was grabbed', () => {
     // The gesture itself is `e2e/layout.spec.ts`'s: jsdom performs no default
     // action for a pointer event and cannot tell a working drag from a
@@ -7817,14 +7857,47 @@ describe('the widths this browser has dragged', () => {
       expect(body?.style.width).toBe('');
       expect(body?.style.minWidth).toBe('300px');
       expect(laidOut().name).toBe('');
-      // The table's own width is the declaration: the resolved sum — the 1495
+      // The table's own width is the declaration: the resolved sum — the 1471
       // this plan resolves at rest, less the 200 floor, plus the 300 override
       // — as its width and its minimum alike, so the frame keeps the slack
       // above it and scrolls below it.
-      expect(screen.getByRole('table').style.width).toBe('1595px');
-      expect(screen.getByRole('table').style.minWidth).toBe('1595px');
+      expect(screen.getByRole('table').style.width).toBe('1571px');
+      expect(screen.getByRole('table').style.minWidth).toBe('1571px');
     },
   );
+
+  itDom('lays the Name cap on the table itself, with nothing dragged', async () => {
+    // The at-rest half of the same declaration, and the whole of how
+    // `FLEXIBLE_CAP` reaches a browser: the table takes the frame until the
+    // Name column would pass the cap and stops there, leaving the slack to the
+    // right of the last column instead of inside the Name cells.
+    //
+    // `min(100%, …)` and not a `max-width` beside a `width`, so there is one
+    // declaration to read; and on the table rather than on the cells, because
+    // `table-layout: fixed` gives a cell no vote on its column's width.
+    //
+    // Proof: the `min()` in `tableWidthStyle` reverted to a flat `'100%'`,
+    // this failed on `expected '100%' to be 'min(100%, 1691px)'`. Watched on
+    // h2puni, 2026-08-12 (fault F2).
+    await threeRoots();
+
+    const table = screen.getByRole('table');
+    const resolved = Number.parseInt(table.style.minWidth, 10);
+
+    expect(resolved).toBeGreaterThan(0);
+    // The minimum budgets Name's floor and the cap swaps in the other end of
+    // the same range, so the difference between the two is exactly what the
+    // Name column is allowed to grow by and nothing else.
+    expect(table.style.width).toBe(
+      `min(100%, ${String(resolved - FLEXIBLE_FLOOR + FLEXIBLE_CAP)}px)`,
+    );
+    // And the Name cells still declare a floor and no width: the cap is the
+    // table's, or it is a second width authority.
+    expect(document.querySelector<HTMLElement>('thead th[data-column="name"]')?.style.width).toBe(
+      '',
+    );
+    expect(laidOut().name).toBe('');
+  });
 
   itDom('drops a stored Name width outside Name’s own bounds, each end on its own', async () => {
     // The same claim rules as every other column, read against Name's own
@@ -7867,7 +7940,7 @@ describe('the widths this browser has dragged', () => {
     expect(header?.style.width).toBe('');
     expect(header?.style.minWidth).toBe('200px');
     expect(laidOut().number).toBe('93px');
-    expect(screen.getByRole('table').style.width).toBe('100%');
+    expect(screen.getByRole('table').style.width).toMatch(/^min\(100%, \d+px\)$/);
     expect(stored()).toBe(null);
   });
 
@@ -11038,7 +11111,7 @@ describe('a phase changing, and what the table does about it', () => {
     // still in the table's header. Watched, 2026-08-09.
     await oneRow();
     unfoldRole('QA');
-    expect(screen.getByRole('table').style.minWidth).toBe('1495px');
+    expect(screen.getByRole('table').style.minWidth).toBe('1471px');
 
     await removePhase('QA');
 

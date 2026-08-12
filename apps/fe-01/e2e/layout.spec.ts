@@ -7,6 +7,7 @@ import { type Box, findOverlap, findOverrun } from '../src/components/wbs/box-ge
 import { shortIsoDate } from '../src/components/wbs/short-date';
 import {
   DAY_ENVELOPE,
+  FLEXIBLE_CAP,
   FLEXIBLE_COLUMNS,
   FLEXIBLE_FLOOR,
   frameLayout,
@@ -26,6 +27,20 @@ import {
  * `the earliest-start column is as narrow as the plan lets it be`.
  */
 const SEEDED_PLAN: FrameLayoutState = { hasAnyNotBefore: false };
+
+/**
+ * The tallest a row holding one line of text may be laid out, in px.
+ *
+ * A budget rather than a measurement: it is what `spreadsheet-geometry`
+ * undertook not to exceed, and the 13px type it ships comes in under it. A
+ * number pinned to what the browser happens to produce would fail on a
+ * one-pixel drift in either direction and would say nothing about the plan.
+ * 28px is the row height every other document in this repository quotes — the
+ * chart's `ROW_PX`, the header spec's `ROWS_PAST_THE_FOLD` arithmetic — so a
+ * table row that stayed inside it is a table that still lines up with all of
+ * them.
+ */
+const ROW_HEIGHT_BUDGET = 28;
 
 /**
  * The layout gate.
@@ -1519,11 +1534,20 @@ test.describe('the table, measured by a browser', () => {
     }
   });
 
-  test('gives the name column everything the other columns did not take', async ({ page }) => {
+  test('gives the name column everything the other columns did not take, up to its cap', async ({
+    page,
+  }) => {
     // The half of "fits" that a minimum width alone would not prove: the table
     // is as wide as the frame and the flexible column is where the difference
     // went. A fixed Name width satisfies the overflow assertions above and
     // fails this one.
+    //
+    // **Superseded in part by `spreadsheet-geometry`**, and the supersession is
+    // the point of the change rather than a casualty of it: this asserted the
+    // remainder at *every* viewport, and at 1512 the remainder is now more than
+    // a Name column is allowed to be. Above `FLEXIBLE_CAP` the table stops
+    // growing and the window keeps the slack — so the claim splits in two, and
+    // both halves are asserted here rather than one of them being dropped.
     for (const viewport of VIEWPORTS) {
       await page.setViewportSize({ width: viewport.width, height: viewport.height });
       const measured = await measure(page);
@@ -1531,18 +1555,134 @@ test.describe('the table, measured by a browser', () => {
       const others = measured.columns
         .filter((column) => column.id !== 'name')
         .reduce((total, column) => total + column.width, 0);
-      expect(name?.width, viewport.name).toBeCloseTo(measured.frame.clientWidth - others, 0);
+      const remainder = measured.frame.clientWidth - others;
+
+      if (remainder > FLEXIBLE_CAP) {
+        // Capped: the Name column is exactly the cap and the frame keeps the
+        // difference — which is the whole of what the cap does, and it is
+        // asserted as a fact about the frame too, or "capped" and "clipped"
+        // would look the same from here.
+        expect(name?.width, `${viewport.name}: capped`).toBeCloseTo(FLEXIBLE_CAP, 0);
+        expect(
+          measured.frame.scrollWidth,
+          `${viewport.name}: the frame scrolls with a capped table in it`,
+        ).toBeLessThanOrEqual(measured.frame.clientWidth);
+      } else {
+        expect(name?.width, viewport.name).toBeCloseTo(remainder, 0);
+      }
       // And it really did grow past its floor at these widths, or the
-      // assertion above would hold for a table that simply fitted.
+      // assertions above would hold for a table that simply fitted.
       expect(name?.width, viewport.name).toBeGreaterThan(FLEXIBLE_FLOOR);
     }
+    // Or every viewport in the matrix took the same branch and half of this is
+    // a claim nothing read. 1512 is the wide one; 1280 is the narrow one.
+    expect(VIEWPORTS.map((viewport) => viewport.width)).toEqual([1280, 1512]);
+  });
+
+  test('stops the table at the Name cap, and leaves the rest of the window empty', async ({
+    page,
+  }) => {
+    // The cap where a browser is the only thing that can see it: the `<table>`
+    // carries `min(100%, maxWidth)` and Chromium is what resolves that against
+    // the frame. A window wide enough that the remainder passes the cap is the
+    // state the declaration exists for — the 1512 laptop already does, and this
+    // goes wider so the gap is unmistakable rather than 40px.
+    //
+    // Proof: the `min()` in `tableWidthStyle` reverted to a flat `'100%'`,
+    // this failed on `the Name column is not at its cap — Expected: 420 /
+    // Received: 869`. Watched on h2puni, 2026-08-12 (fault F2).
+    await page.setViewportSize({ width: 1920, height: 982 });
+    const measured = await measure(page);
+    const name = measured.columns.find((column) => column.id === 'name');
+    const table = await page.evaluate(() => {
+      const found = document.querySelector('table[data-grid]');
+      if (found === null) throw new Error('the plan table is not on the page');
+      return found.getBoundingClientRect().width;
+    });
+
+    expect(name?.width, 'the Name column is not at its cap').toBeCloseTo(FLEXIBLE_CAP, 0);
+    // The table really is narrower than the frame, and by the amount the cap
+    // withheld — a table that filled the frame with a 420px Name would mean
+    // some other column took the difference.
+    expect(table).toBeLessThan(measured.frame.clientWidth - 1);
+    expect(measured.frame.scrollWidth).toBeLessThanOrEqual(measured.frame.clientWidth);
+    expectItFits(measured, '1920×982, both roles folded, Name capped');
+  });
+
+  test('sets the grid body’s type below the page’s own, and keeps a row inside its budget', async ({
+    page,
+  }) => {
+    // The type scale `spreadsheet-geometry` is mostly made of, and the row
+    // height it is spent on. Both are browser facts: a computed `font-size`
+    // and a laid-out rectangle, neither of which jsdom has an opinion about.
+    //
+    // The heading row is deliberately not asserted here — it is a 10px caption
+    // and has been since `column-rebalance`; what moved is the body.
+    //
+    // Proof: the `font-size` dropped from the `[data-grid] tbody` block in
+    // `styles.css`, this failed on `Expected: "13px" / Received: "16px"`; and
+    // with `vertical-align` set back to `baseline`, on `a single-line row is
+    // taller than the budget — Expected: <= 28 / Received: 29.1875`. Both
+    // watched on h2puni, 2026-08-12 (faults F3 and F4).
+    // A name that fits one line of the column, typed rather than assumed: the
+    // seeded plan's own names are two sentences long and wrap to two lines at
+    // 1280, so the fixture's first row measures 47px and says nothing about
+    // the budget. Measured on h2puni before this was written, which is how the
+    // row this asserts came to be typed here.
+    const name = page.getByLabel('Name of 010');
+    await name.fill('Survey');
+    await name.blur();
+    await expect(name).toHaveValue('Survey');
+
+    const measured = await page.evaluate(() => {
+      const cell = document.querySelector('tbody td[data-column="name"]');
+      const box = cell?.querySelector('textarea');
+      const row = document.querySelector('tbody tr');
+      const page = document.querySelector('main');
+      if (
+        !(cell instanceof HTMLElement) ||
+        !(box instanceof HTMLElement) ||
+        !(row instanceof HTMLElement) ||
+        !(page instanceof HTMLElement)
+      ) {
+        throw new Error('no first row with a name box in it');
+      }
+      return {
+        cell: getComputedStyle(cell).fontSize,
+        // The box as well as the cell it is in: the base reset's `font:
+        // inherit` stops at `[data-grid]`, so a box this rule missed would
+        // keep the platform's own font while the cell around it moved.
+        type: getComputedStyle(box).fontSize,
+        page: getComputedStyle(page).fontSize,
+        row: row.getBoundingClientRect().height,
+        rows: document.querySelectorAll('tbody tr').length,
+        box: box.getBoundingClientRect().height,
+      };
+    });
+
+    expect(measured.cell).toBe('13px');
+    expect(measured.type).toBe('13px');
+    // Below the page's own type rather than merely at 13px: the claim is
+    // comparative, and a page whose whole scale moved would satisfy the
+    // literal alone.
+    expect(Number.parseFloat(measured.cell)).toBeLessThan(Number.parseFloat(measured.page));
+    // The row-height budget, on the seeded plan's single-line rows.
+    expect(measured.rows).toBeGreaterThan(0);
+    // One line, or the row measured below is a wrapped name rather than the
+    // budget's case: two lines of this type is 40px of box and no budget in
+    // this change would hold it.
+    expect(measured.box).toBeLessThan(2 * 18.2);
+    expect(measured.row, 'a single-line row is taller than the budget').toBeLessThanOrEqual(
+      ROW_HEIGHT_BUDGET,
+    );
   });
 
   test('holds the equation with one role unfolded, and scrolls only where it must', async ({
     page,
   }) => {
-    // The accordion's arithmetic, measured: one role open is 1430px, which
-    // fits 1512 and does not fit 1280. Both answers are asserted — the second
+    // The accordion's arithmetic, measured: one role open is 1406px, which
+    // fits 1512 and does not fit 1280. It was 1430 until
+    // `spreadsheet-geometry` took the three point columns from 52px to 44. Both answers are asserted — the second
     // is the pinned backstop doing its job, not a failure.
     for (const role of ['Dev', 'QA']) {
       await page.getByRole('button', { name: `Unfold ${role} estimates` }).click();
@@ -1946,6 +2086,13 @@ test.describe('the table, measured by a browser', () => {
     // the number this change was planned with — this failed on `Start declares
     // 84px where the widest day it can print, "20 May 2027 ?", needs 114`.
     // Watched, 2026-08-10.
+    //
+    // The 114 in that quote is a 16px figure. At this change's 13px the same
+    // envelope needs 94.02 (86.02 of text and 8 of chrome, measured in
+    // Chromium on h2puni, 2026-08-12), so the declared 114 now clears it by
+    // 20px and the assertion would still pass at 95. Neither column is being
+    // narrowed — a stated non-goal — and the note is here so the slack is on
+    // the page rather than inferred from a superseded number.
     const year = await dateThePlanOffThisYear(page);
     const printable = everyPrintedDay(year, new Date());
     // End draws the marker after the day on an unestimated row, and a marker
@@ -1991,6 +2138,15 @@ test.describe('the table, measured by a browser', () => {
     //
     // 93 is what that measurement picked: 12px of indent, a 12.5px expander, a
     // 20px lock, five characters of number and the cell's 8px of padding.
+    //
+    // The 92.5625 above is a **2026-08-10** figure, taken while the grid body
+    // was the page's 16px. At this change's 13px the same cell needs 75.53
+    // (measured in Chromium on h2puni, 2026-08-12), so what this assertion
+    // pins today is `93 >= 75.53` and it would still pass with the column at
+    // 76. That slack is the type change and nothing else, and narrowing the
+    // column is a stated non-goal — but the guard against a *future*
+    // accidental narrowing is 17px looser than the proof line reads, which is
+    // the reason this paragraph exists.
     await seedDeepBranch(page);
     const envelope = page.getByLabel(`Name of ${ENVELOPE_NUMBER}`, { exact: true });
     await expect(envelope).toBeVisible();
