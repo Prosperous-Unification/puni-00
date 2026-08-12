@@ -1726,6 +1726,10 @@ function floorWordsOf(
       // The display referent, and the same refusal the person arm makes one
       // case above: a bar whose date came from a wait names what it waited for,
       // or the payload has lost the reason for its own start.
+      //
+      // Proof: this throw replaced by `return 'Waits for a team'`, `throws when
+      // a capacity floor names no display referent` alone failed, on `expected
+      // function to throw an error, but it didn't`. Watched 2026-08-13.
       if (predecessor === undefined) {
         throw new GanttDataError(
           `slice ${slice.id} is floored by a team's capacity but names no display referent`,
@@ -1736,11 +1740,22 @@ function floorWordsOf(
       // by a scan that recorded who was holding the pool — so an empty one here
       // is malformed trusted data, and `?? 0` in its place would print "and 0
       // others" over a sentence with no cause behind it.
+      //
+      // Proof: this throw deleted and the count clamped with `Math.max(0, …)`
+      // in its place — the shape a defensive fix would take — `throws when a
+      // capacity floor says nothing was holding the pool` alone failed, on
+      // `expected function to throw an error, but it didn't`. Watched
+      // 2026-08-13.
       if (slice.capacityPredecessorIds.length === 0) {
         throw new GanttDataError(
           `slice ${slice.id} is floored by a team's capacity but nothing was holding the pool`,
         );
       }
+      // Proof: this throw replaced by `poolNameOf(team) ?? 'its team'`, `throws
+      // when a capacity-floored row names no team to be short of` alone failed,
+      // on `expected function to throw an error, but it didn't` — a sentence
+      // about a pool the chart cannot name, over a bar whose whole explanation
+      // is whose people it is short of. Watched 2026-08-13.
       const poolName = poolNameOf(team);
       if (poolName === null) {
         throw new GanttDataError(

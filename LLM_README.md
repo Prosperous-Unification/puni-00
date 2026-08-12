@@ -110,6 +110,8 @@ contract: `docs/runbook-prod-deploy.md`.**
 - **Capacity C2 must not be deployed without C3.** `capacity-write-paths` first lets a client size
   a team; be-01 then emits `boundBy: 'capacity'` and fe-01's `floorWordsOf` throws on it by design.
   Merging is safe, deploying is the gate — `openspec/changes/capacity-write-paths/design.md`.
+  **`capacity-ui` (C3) closes it**: `floorWordsOf` has a `capacity` arm, watched red in
+  `openspec/changes/capacity-ui/verify.md`. Delete these two lines when C3 merges, not before.
 - `.dockerignore` is **not recursive**: `**/*.db`, not `*.db`.
 - Server umask is `0002` — create sensitive files with their mode from birth, never chmod after
   (`configure.sh` does not yet honour this; see findings).
