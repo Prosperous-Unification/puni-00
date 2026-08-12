@@ -2062,9 +2062,23 @@ test.describe('the table, measured by a browser', () => {
     //
     // Measured as the visible prefix rather than as `scrollWidth`, because the
     // fault was never that the cell overflowed: it was that the two overflows
-    // began at the same glyph. Proof: `DEEPEST_INDENT` put back to 4 and the
-    // 11px `font-size` taken off `[data-number]`, this failed on
-    // `expected '030.1' not to be '030.1'`. Watched, 2026-08-12.
+    // began within a glyph of each other.
+    //
+    // **"The two strings differ" is not the assertion**, and watching it fail
+    // is how that was found: with `DEEPEST_INDENT` back at 4 and the 11px off,
+    // the pair draws `030.1` and `030` — two different strings, neither of
+    // them a number, and a test that only compared them passed on the very
+    // geometry the audit reported. What is asserted instead is that the
+    // shallower row shows its number **whole** and the deeper one shows more
+    // of its own than that: a reader can then read one of them outright and
+    // tell the other from it by what is left. Proof: with the cap and the type
+    // size put back, this fails on `the number at depth 4 is not shown whole
+    // … expected '030.1' to be '030.1.1.1'`. Watched, 2026-08-12.
+    //
+    // What it does not claim: that the deeper number is whole. It is not —
+    // `030.1.1.1.1` loses its last glyph to the clip and carries it in the
+    // `title`, which is the column's bargain and a named non-goal of this
+    // change.
     await seedDeepBranch(page);
     const deeper = page.getByLabel(`Name of ${CLIPPED_PAIR[1]}`, { exact: true });
     await expect(deeper).toBeVisible();
@@ -2080,9 +2094,15 @@ test.describe('the table, measured by a browser', () => {
 
     const [shallow, deep] = await Promise.all(CLIPPED_PAIR.map((n) => visibleNumberIn(page, n)));
 
-    expect(shallow.visible.length, 'the shallower row shows no number at all').toBeGreaterThan(0);
-    expect(deep.visible.length, 'the deeper row shows no number at all').toBeGreaterThan(0);
+    expect(shallow.visible, 'the number at depth 4 is not shown whole').toBe(CLIPPED_PAIR[0]);
     expect(deep.visible, 'a row and its child read as the same number').not.toBe(shallow.visible);
+    // Strictly more of the deeper number than the whole of the shallower one:
+    // the two are told apart by what the deeper row shows *past* its parent's
+    // number, not by where two clips happened to land.
+    expect(
+      deep.visible.startsWith(shallow.visible) && deep.visible.length > shallow.visible.length,
+      `the deeper row shows ${deep.visible}, which is no more of its number than its parent's`,
+    ).toBe(true);
     // The whole number is still one hover away on both, which is the half the
     // clip bargain owes and the half this fix must not have spent.
     expect(shallow.title).toBe(CLIPPED_PAIR[0]);

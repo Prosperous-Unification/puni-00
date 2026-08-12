@@ -44,9 +44,12 @@ a dialog marked `aria-modal="true"`, and Escape then stops closing it.
 
 **A deep row's number**
 
-- From: `030.1.1.1` and `030.1.1.1.1` both draw as `030.1` in a 93px column
-- To: `DEEPEST_INDENT` 4 → 2 and 11px type on the number; the levels the cap
-  gives up are already carried by the Name cell, so the outline is unchanged
+- From: `030.1.1.1` and `030.1.1.1.1` draw as `030.1` and `030` in a 93px
+  column — neither of them a number
+- To: `DEEPEST_INDENT` 4 → 2 and 11px type on the number, which draws the
+  four-segment number whole and the five-segment one all but its last glyph;
+  the levels the cap gives up are already carried by the Name cell, so the
+  outline is unchanged
 
 ## Non-Goals
 

@@ -139,10 +139,16 @@ SHALL NOT.
 
 ### Requirement: A deep row's number reads as its own number
 
-Two rows one level apart SHALL show different numbers in the Number column at
-depth 4, where a row's number has four dotted segments and its child's has
-five. Whatever the column clips, what it still draws SHALL tell the two rows
-apart without a hover.
+A row whose number has four dotted segments SHALL show that number **whole** in
+the Number column, and its child — five segments — SHALL show strictly more of
+its own number than the whole of its parent's. Whatever the column clips, what
+it still draws SHALL tell the two rows apart without a hover, and it SHALL tell
+them apart by the segments the deeper row adds rather than by where two clips
+happened to land.
+
+The five-segment number itself is NOT undertaken to be whole: it loses its last
+glyph to the clip and carries it in the `title`, which is the bargain the
+column's declared width makes at every depth past its envelope.
 
 The whole number SHALL still be carried for a hover on both rows, and the
 Number column SHALL keep the declared width it has: the reclaimed indent steps
@@ -153,7 +159,7 @@ across the two cells is what it was at every depth.
 
 - **GIVEN** a plan with rows numbered `030.1.1.1` and `030.1.1.1.1`
 - **WHEN** their Number cells are read
-- **THEN** the two show different numbers, and each carries its whole number for a hover
+- **THEN** the first shows `030.1.1.1` whole, the second shows more than that of its own number, and each carries its whole number for a hover
 
 #### Scenario: the outline across the two cells
 
