@@ -1536,31 +1536,45 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    * Roles whose columns are unfolded — the three points, next to the final
    * figure and its assignee, which are always on screen.
    *
-   * **At most one, which is what makes the table fit.** A folded role costs
-   * 96px and an unfolded one 372, and the width equation in `table-frame.ts`
-   * says the difference plainly: two folded roles need 1144px and fit a 1280
-   * laptop, while one of them unfolded needs 1420 and does not. So this is an
-   * accordion — unfolding a role folds whichever was open — rather than a set
-   * that can grow until the dates fall off the screen again. Dany's call,
-   * 2026-08-08.
+   * **A set, and any number of them.** It was an accordion until
+   * `unfolding-may-scroll` — unfolding a role folded whichever was open —
+   * because a folded role costs 96px and an unfolded one 348, and one open
+   * role already needs more width than a 1280 laptop has. That arithmetic is
+   * unchanged and it is not what the rule was worth: a reader comparing two
+   * phases' three points had to hold one of them in their head, and a table
+   * that reshuffles itself when you open something reads as a bug whatever it
+   * is protecting.
    *
-   * A list rather than a `string | null` because it is what the column builder
-   * asks (`unfoldedRoles.includes(role.id)`) and what the `columns` memo may
-   * depend on; the invariant is on the writer below, which is the only one.
-   * Local state, not shared: my unfolding must not reshuffle anyone else's
+   * **Horizontal scrolling is the accepted cost, and only here.** Dany's call,
+   * 2026-08-08 (U3): with anything unfolded the frame MAY scroll sideways, and
+   * the pinned handle, number and name are what make that readable. Folded,
+   * the no-scroll guarantee is exactly what it was — that is the state a plan
+   * is read in, and `e2e/layout.spec.ts` still holds it at every laptop width
+   * in the matrix.
+   *
+   * A list rather than a `Set` because it is what the column builder asks
+   * (`unfoldedRoles.includes(role.id)`) and what the `columns` memo may depend
+   * on. Local state, not shared: my unfolding must not reshuffle anyone else's
    * table.
    */
   const [unfoldedRoles, setUnfoldedRoles] = useState<readonly string[]>([]);
 
   /**
-   * Unfolds a role, folding whatever was unfolded — or folds it again.
+   * Unfolds a role, or folds it again — and leaves every other role alone.
    *
-   * Proof: written as `[...current, roleId]`, `unfolds one role at a time, so
-   * the table still fits the window` failed on `expected <input …(5)></input>
-   * to be null`. Watched, 2026-08-08.
+   * The one writer, which is why the rule it keeps is stated on the state
+   * above rather than here. It was `current.includes(roleId) ? [] : [roleId]`
+   * until `unfolding-may-scroll`: the second arm is what made this an
+   * accordion, and the first folded the open one whichever role was clicked.
+   *
+   * Proof: written as `current.includes(roleId) ? [] : [roleId]` again,
+   * `unfolds each role on its own, and leaves the others open` failed on
+   * FAULT-ACCORDION (see verify.md).
    */
   const toggleRole = useCallback((roleId: string) => {
-    setUnfoldedRoles((current) => (current.includes(roleId) ? [] : [roleId]));
+    setUnfoldedRoles((current) =>
+      current.includes(roleId) ? current.filter((each) => each !== roleId) : [...current, roleId],
+    );
   }, []);
   /** The project's start date, or null while the plan is not on a calendar. */
   const [startDate, setStartDate] = useState<string | null>(null);
@@ -5398,14 +5412,15 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                 // everything under it instead.
                 // The assignee no longer folds away — it is beside the figure
                 // in this very cell, and `@` assigns from there — so the
-                // button is about the three points and nothing else. It says
-                // the accordion out loud too, because unfolding this role
-                // folds whichever one was open and a table that reshuffles
-                // without saying why reads as a bug.
+                // button is about the three points and nothing else. It said
+                // "any other role folds" until `unfolding-may-scroll`, and no
+                // other role folds now; what the reader is owed instead is
+                // that the table may become wider than the window, which is
+                // the one thing unfolding can do that it could not before.
                 title={`${role.name} — ${
                   unfolded
                     ? 'fold the three points back into the figure'
-                    : 'show the three points behind the figure; any other role folds'
+                    : 'show the three points behind the figure; the table may scroll sideways'
                 }`}
                 onClick={() => {
                   live.current.toggleRole(role.id);
