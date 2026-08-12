@@ -44,8 +44,13 @@ In `wbs-table.test.tsx`, `the chords reach the picker cells and the date cell`
 - [x] `[data-grid] textarea { resize: none }` in `styles.css`.
 - [x] `e2e/name-cell.spec.ts`: a drag of the bottom-right corner leaves the box
       and the row the height they were, and the box still grows with its text.
-- [x] Watch both fail with the rule removed. A browser only (R5 #14–16): jsdom
-      performs no drag and reports no `resize`.
+- [x] Watch the drag fail with the rule removed — red, `Received: "both"`. A
+      browser only (R5 #14–16): jsdom performs no drag and reports no `resize`.
+      The auto-grow half stays green with the grip back, which is the point of
+      it: it guards the machinery this fix must not have touched.
+- [x] The grip was **inline** — `resize: 'vertical'` in the Name cell's own
+      `style` object — so the CSS rule alone could not reach it. Both halves of
+      that are in this change; `verify.md` has the measurement.
 
 ## 4. The hovered row on both phases of the stripe
 
@@ -53,7 +58,10 @@ In `wbs-table.test.tsx`, `the chords reach the picker cells and the date cell`
       hover's, and `tbody tr:nth-child(even):hover` before `[data-dep-lit]`.
 - [x] `e2e/hover-cards.spec.ts`: the step in rasterised luminance is the same
       on both phases, and a hovered banded row is nobody else's colour.
-- [x] Watch both fail with the new rule removed.
+- [x] Watch the step fail with the new rule removed — red, a gap of 7.2126
+      against a tolerance of 3. The distinctness half stays green without it:
+      one absolute shade was already nobody else's colour, it was the _size_
+      of the step that was wrong. Kept as a pin, not claimed as a proof.
 
 ## 5. The shortcuts sheet as a modal
 
