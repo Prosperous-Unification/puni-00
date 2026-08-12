@@ -1013,9 +1013,15 @@ function placeSlices(
     // 2026-08-12.
     //
     // Proof: the capacity entry moved above `person` and `names the person, not
-    // the pool, when the two land on the same day` failed on `boundBy:
-    // 'capacity'` where the assignee was owed the sentence, taking the row out
-    // of "N tasks wait for a person" with it; watched 2026-08-12.
+    // the pool, when the two land on the same day` failed — not by naming
+    // `capacity` where the assignee was owed the sentence, which is what the
+    // reorder was predicted to do, but one layer earlier. In that fixture both
+    // floors are day 3, so the window search starts at its answer and steps
+    // over nothing: `capacity` takes the tie with an **empty** blocking set,
+    // the referent below stays `NOBODY`, and the invariant at the end of this
+    // block throws `b role-dev waited for capacity with nothing holding the
+    // pool`. Recorded as observed, which is also what `verify.md`'s F8 row
+    // says; watched 2026-08-12.
     const floors: { at: number; kind: ScheduleFloor }[] = [
       { at: fromPredecessor, kind: 'predecessor' },
       { at: fromRoleOrder, kind: 'roleOrder' },
