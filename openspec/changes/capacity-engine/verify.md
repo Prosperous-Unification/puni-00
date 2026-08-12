@@ -161,11 +161,17 @@ first, so the Prio column is already in the baseline and In-parallel was the onl
 new column left to measure; the plan's "both columns at their intended widths"
 was written before that.
 
-Round 2 measured the alternative that adds no column at all — saying the number
-inside the existing 120px **Team** cell, `Platform ×3` — and the baseline the
-−19 is against. **This constrains C3, not this change:** C1 carries `width` out
-on `ScheduledSlice` so that whichever surface C3 picks has a true number to
-print, and no layout decision is taken here.
+A second round was written to measure the alternative that adds no column at all
+— saying the number inside the existing 120px **Team** cell, `Platform ×3` — and
+the baseline that −19 is against. **Its probes are committed on the spike branch
+and their output was never captured**: the box hard-rebooted before the run was
+read, and no round-2 figure is claimed here. Re-running them is one
+`bun run e2e -g "SPIKE C0-2"` on a host with a browser, and it is C3's to do if
+C3 wants the Team-cell option costed.
+
+**Either way this constrains C3, not this change:** C1 carries `width` out on
+`ScheduledSlice` so that whichever surface C3 picks has a true number to print,
+and no layout decision is taken here.
 
 ## Not verified
 
