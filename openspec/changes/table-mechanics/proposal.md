@@ -19,8 +19,9 @@ a dialog marked `aria-modal="true"`, and Escape then stops closing it.
 
 **The chords in the picker cells and the date cell**
 
-- From: Ctrl+H/J/K/L and Alt+←/↑/↓/→ do nothing in Depends on, Service/team,
-  the assignee boxes or the earliest-start cell
+- From: Ctrl+H/J/K/L and Alt+←/↑/↓/→ do nothing in Depends on, Service/team or
+  the assignee boxes; the earliest-start cell takes the four motion chords and
+  none of the four row moves
 - To: all eight answered from every cell, an open picker list included
 - Impact: non-breaking. The chords that make or destroy a row (Ctrl+N, Ctrl+D,
   Ctrl/⌘+Enter) are still the open list's to swallow

@@ -6,8 +6,10 @@ Ctrl+H, Ctrl+J, Ctrl+K and Ctrl+L SHALL move the focus left, down, up and right
 between cells from **every** editable cell of the grid, and Alt+←, Alt+↑, Alt+↓
 and Alt+→ SHALL outdent, move up, move down and indent the focused row from
 every one of them. This SHALL hold for the Depends on cell, the Service/team
-cell, an assignee cell and the earliest-start cell, which answered none of the
-eight until this change.
+cell, an assignee cell and the earliest-start cell. The three picker cells
+answered none of the eight until this change; the earliest-start cell answered
+the four motion chords and none of the four row moves, in the cell at rest and
+in its open editor alike.
 
 These eight SHALL be answered whether or not the cell's picker list is open. The
 Depends on box and both `CreatablePicker` columns open their list on focus, so a

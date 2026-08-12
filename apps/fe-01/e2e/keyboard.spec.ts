@@ -602,10 +602,20 @@ test.describe('the shortcuts sheet holds the keyboard like a modal', () => {
 
   test('Tab never leaves it, and Escape still closes it afterwards', async ({ page }) => {
     // Proof: the Tab branch of the sheet's key handler returned early, this
-    // failed on `the focus walked out of the sheet on Tab 1 of 12`. Watched,
-    // 2026-08-12. The Escape half was watched separately, with the listener
-    // put back on the backdrop where the audit found it: `expected … to be
-    // hidden` — the dialog the reader was stuck behind.
+    // failed on `the focus walked out of the sheet on Tab 2 of 12`. Watched,
+    // 2026-08-12.
+    //
+    // The Escape half of the chain is **not** this test's to prove, and trying
+    // it says why: with the listener put back on the backdrop where the audit
+    // found it, and the trap left in place, this still passes — the focus
+    // never leaves the sheet, so an Escape aimed inside it reaches a React
+    // handler on the backdrop by bubbling, exactly as it did before the audit.
+    // The fault was the two together, and a Playwright expect that has already
+    // failed on Tab 2 never reaches the Escape below. What holds that half is
+    // `keyboard-cheat-sheet.test.tsx`'s `closes on Escape from anywhere on the
+    // page`, which presses Escape at `document.body` — watched red against the
+    // backdrop listener, 2026-08-12. This line stays because the *order* is
+    // the reader's experience: Tab, then Escape, then the table.
     await seedRows(page, `e2e-sheet-${String(Date.now())}-${String(account)}`, 3);
     await openCheatSheet(page);
 
@@ -644,8 +654,8 @@ test.describe('the shortcuts sheet holds the keyboard like a modal', () => {
     // backdrop on any viewport the sheet is centred in.
     //
     // Proof: `event.target === event.currentTarget` inverted, this failed on
-    // `expected … to be visible` — the sheet closed under a click on itself.
-    // Watched, 2026-08-12.
+    // `expect(locator).toBeVisible() failed … element(s) not found` — the
+    // sheet closed under a click on itself. Watched, 2026-08-12.
     await seedRows(page, `e2e-sheet-away-${String(Date.now())}-${String(account)}`, 3);
     await openCheatSheet(page);
 
