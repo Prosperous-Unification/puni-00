@@ -38,7 +38,15 @@ h2puni has no sudo for `playwright install-deps`.
 The first full unit run of this branch's tree — after the implementation and
 before its tests were written — was **1,238**. The 27 added are this change's.
 
-**CI:** filled in below at the head CI ran.
+**CI:** run
+[31648271596](https://github.com/Prosperous-Unification/wbs-tool-v1/actions/runs/31648271596)
+at head `01ca5d6` **failed `gate`** — and it failed on this file's sibling, not
+on any code: `LLM_README.md` came to **152 lines against its 150-line cap**,
+because the landmine's exit note was written as two extra lines rather than
+folded into the three already there. `pixels` passed, 7m31s. Recorded rather
+than quietly replaced: the doc-cap hook is a real gate and the fix is to
+compress the note, not to raise the cap. The only commit between that head and
+the green one is the compression plus this paragraph.
 
 ## The failure-proof table (R5)
 
