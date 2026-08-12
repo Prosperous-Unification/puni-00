@@ -1734,8 +1734,10 @@ test.describe('the table, measured by a browser', () => {
     // hold is that the frame — never the page — is what scrolls, and that the
     // three pinned columns still stand at their declared offsets once it has.
     //
-    // Proof: FAULT-ACCORDION (see verify.md) — `toggleRole` put back to
-    // `current.includes(roleId) ? [] : [roleId]`.
+    // Proof: `toggleRole` put back to `current.includes(roleId) ? [] :
+    // [roleId]`, this failed on `getByLabel('Dev optimistic for 010') —
+    // element(s) not found`: the accordion had folded Dev as QA opened.
+    // Watched on h2puni, 2026-08-12 (fault 1).
     for (const role of ['Dev', 'QA']) {
       await page.getByRole('button', { name: `Unfold ${role} estimates` }).click();
       await expect(page.getByLabel(`${role} optimistic for 010`)).toBeVisible();

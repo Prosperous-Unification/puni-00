@@ -1569,7 +1569,11 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    *
    * Proof: written as `current.includes(roleId) ? [] : [roleId]` again,
    * `unfolds each role on its own, and leaves the others open` failed on
-   * FAULT-ACCORDION (see verify.md).
+   * `Unable to find a label with the text of: Dev optimistic for 010`, with
+   * `walks both open roles in turn, and the grid arrows cross between them`
+   * beside it and — in Chromium — `opens every role at once, scrolls the frame
+   * for it, and holds the pinned block` on the same missing box. Watched on
+   * h2puni, 2026-08-12 (fault 1).
    */
   const toggleRole = useCallback((roleId: string) => {
     setUnfoldedRoles((current) =>
