@@ -673,3 +673,38 @@ describe('the scan, instrumented', () => {
     expect(found.eventsVisited).toBeGreaterThan(0);
   });
 });
+
+describe('a width is people, and the engine refuses a slice that claims none', () => {
+  // The boundary this change adds, and the one open P2 of PR #48's cross-review:
+  // C2's validation is the only thing between a typed `0` and this arithmetic,
+  // and a validation that is the *sole* guard is one schema edit away from not
+  // being one. `durationOf` is `effort / width`, so a width of 0 is `Infinity`
+  // days with effort and `NaN` without — and nothing downstream refuses either:
+  // `windowFor` short-circuits on a zero width and reserves nothing,
+  // `CapacityTooNarrowError` cannot fire because `0 > 0` is false, and the plan
+  // comes back with dates no screen can draw and no sentence to explain them.
+  it('refuses a slice claiming no people at all', () => {
+    const rows = [item('a')];
+
+    expect(() =>
+      schedule(rows, [], [slice('a', DEV, 6, { width: 0 })], new Map(), new Map()),
+    ).toThrow(/claims a width of 0/);
+    // The unestimated twin, which fails the other way — `0 / 0` is `NaN`, and a
+    // `NaN` date compares false against every bound it meets, so it does not
+    // even sort.
+    expect(() =>
+      schedule(rows, [], [slice('a', DEV, null, { width: 0 })], new Map(), new Map()),
+    ).toThrow(/claims a width of 0/);
+  });
+
+  it('refuses a width that is not a whole number of people', () => {
+    // Half a person is not a plan, and `effort / 2.5` is a duration nobody
+    // wrote. Injected apart from the `< 1` half above because neither probe can
+    // see the other's clause.
+    const rows = [item('a')];
+
+    expect(() =>
+      schedule(rows, [], [slice('a', DEV, 6, { width: 2.5 })], new Map(), new Map()),
+    ).toThrow(/claims a width of 2.5/);
+  });
+});

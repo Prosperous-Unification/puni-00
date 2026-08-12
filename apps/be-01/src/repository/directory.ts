@@ -44,6 +44,7 @@ const NOTHING_POINTS_AT_IT: DirectoryUsageRows = {
   roles: [],
   people: [],
   members: [],
+  team: null,
 };
 
 /** A reader that is either the connection or an open transaction — see {@link usageRowsIn}. */
@@ -61,10 +62,11 @@ function usageRowsIn(
   reader: Reader,
   projectIds: readonly string[],
   members: readonly Person[],
+  team: ServiceTeam | null = null,
 ): DirectoryUsageRows {
   // `inArray` with an empty list becomes `IN ()`, which SQLite refuses — and a
   // removal touching no project has no tree to number.
-  if (projectIds.length === 0) return { ...NOTHING_POINTS_AT_IT, members };
+  if (projectIds.length === 0) return { ...NOTHING_POINTS_AT_IT, members, team };
   const ids = [...projectIds];
   const workItems = reader.select().from(workItem).where(inArray(workItem.projectId, ids)).all();
   const projects = reader
@@ -90,7 +92,7 @@ function usageRowsIn(
   const named = [...new Set(assignments.map((each) => each.personId))];
   const people =
     named.length === 0 ? [] : reader.select().from(person).where(inArray(person.id, named)).all();
-  return { workItems, projects, assignments, roles, people, members };
+  return { workItems, projects, assignments, roles, people, members, team };
 }
 
 /** The projects holding a work item this removal would touch, with no duplicates. */
@@ -308,14 +310,48 @@ export class DirectoryRepository implements DirectoryStore {
     return usageRowsIn(this.db, this.projectsAssigning(this.db, personId), []);
   }
 
-  /** The same for a team: the projects it labels work in, and the people in it. */
+  /** The same for a team: the projects it labels work in, the people in it, and its own row. */
   async usageOfTeam(teamId: string): Promise<DirectoryUsageRows> {
     await Promise.resolve();
     return usageRowsIn(
       this.db,
       this.projectsLabelled(this.db, teamId),
       this.membersOf(this.db, teamId),
+      this.teamRow(this.db, teamId),
     );
+  }
+
+  /**
+   * Sets or clears a team's size, and answers with the projects it labels work
+   * in.
+   *
+   * The same read `renameTeam` makes, inside the same transaction as the write
+   * and for the same reason: these are the rows the write is about, and a
+   * second read afterwards would answer for a directory that had moved on.
+   *
+   * A size cannot be `taken` — no index holds it — so `not_found` is the only
+   * refusal, and it is decided by the update itself returning no row rather
+   * than by a read in front of it.
+   *
+   * Proof: with the empty-`returning` branch replaced by a fallback row,
+   * `refuses a size for a team that is not there, and tells nobody` failed —
+   * `ok: true` carrying a `result` for an id nothing holds, where a
+   * `not_found` was owed. It is the shape `renameTeam`'s own proof names.
+   * Watched 2026-08-12.
+   */
+  async resizeTeam(teamId: string, size: number | null): Promise<ServiceTeamWritten> {
+    await Promise.resolve();
+    return this.db.transaction((tx) => {
+      const rows = tx
+        .update(serviceTeam)
+        .set({ size })
+        .where(eq(serviceTeam.id, teamId))
+        .returning()
+        .all();
+      const resized = rows.at(0);
+      if (resized === undefined) return { ok: false, reason: 'not_found' };
+      return { ok: true, team: resized, projectIds: this.projectsLabelled(tx, teamId) };
+    });
   }
 
   /**
@@ -399,7 +435,11 @@ export class DirectoryRepository implements DirectoryStore {
         return {
           ok: false,
           reason: 'in_use',
-          usage: usageRowsIn(tx, projectsOf(labelled), members),
+          // The team row is read in this same transaction as the count that
+          // refused, so the size the confirmation names is the size that was in
+          // force when the removal was refused — see
+          // {@link DirectoryUsageRows.team}.
+          usage: usageRowsIn(tx, projectsOf(labelled), members, this.teamRow(tx, teamId)),
         };
       }
       tx.update(workItem)
@@ -428,7 +468,21 @@ export class DirectoryRepository implements DirectoryStore {
     );
   }
 
-  /** Every project holding a work item labelled with this team. */
+  /**
+   * Every project holding a work item labelled with this team — **any** row,
+   * leaves and parents alike.
+   *
+   * The "any row" is the load-bearing word, and it is what makes inheritance
+   * need no widening anywhere: a leaf draws its pool from the nearest labelled
+   * ancestor, `effectiveTeamOf` walks `parentId` and never leaves a project, so
+   * a project with an inheriting leaf always holds the labelled ancestor and is
+   * already in this list.
+   *
+   * Proof: narrowed to rows nothing calls a parent, and
+   * `tells a project the team reaches only through inheritance` failed with
+   * `[]` where one `directory_changed` was owed — a plan whose every date had
+   * just moved, and nobody told. Watched 2026-08-12.
+   */
   private projectsLabelled(reader: Reader, teamId: string): string[] {
     return projectsOf(
       reader
@@ -437,6 +491,11 @@ export class DirectoryRepository implements DirectoryStore {
         .where(eq(workItem.serviceTeamId, teamId))
         .all(),
     );
+  }
+
+  /** One team as the database holds it, or null when nothing holds that id. */
+  private teamRow(reader: Reader, teamId: string): ServiceTeam | null {
+    return reader.select().from(serviceTeam).where(eq(serviceTeam.id, teamId)).all().at(0) ?? null;
   }
 
   /** The people in one team, by name, which is the order a confirmation reads them in. */

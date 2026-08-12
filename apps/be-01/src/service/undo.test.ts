@@ -218,6 +218,65 @@ describe('undoing each kind of change', () => {
     expect((await found(strip))?.priority).toBeNull();
   });
 
+  it('puts a replaced parallelism back, and leaves one a rename did not name', async () => {
+    const strip = await root('Strip');
+    await workItems.patch(strip, ownerId, { maxParallel: 3 });
+    await workItems.patch(strip, ownerId, { maxParallel: 5 });
+
+    expectDone(await undone());
+    expect((await found(strip))?.maxParallel).toBe(3);
+
+    // The other direction of the same rule: a rename undone must not carry a
+    // parallelism somebody else set in between back with it.
+    await workItems.patch(strip, ownerId, { name: 'Strip out' });
+    await workItems.patch(strip, ownerId, { maxParallel: 2 });
+    expectDone(await undone());
+    expect((await found(strip))?.maxParallel).toBe(3);
+    expectDone(await undone());
+    const after = await found(strip);
+    expect(after?.name).toBe('Strip');
+    expect(after?.maxParallel).toBe(3);
+  });
+
+  it('takes a first parallelism away again, rather than leaving a 3 behind', async () => {
+    const strip = await root('Strip');
+    await workItems.patch(strip, ownerId, { maxParallel: 3 });
+
+    expectDone(await undone());
+
+    // 1, not null: one at a time and *unset* are the same fact, which is why
+    // the column is `NOT NULL DEFAULT 1` and why this is the only state before
+    // the first write there is to go back to.
+    expect((await found(strip))?.maxParallel).toBe(1);
+  });
+
+  it('puts a reset to one at a time back to the number it replaced', async () => {
+    const strip = await root('Strip');
+    await workItems.patch(strip, ownerId, { maxParallel: 4 });
+    await workItems.patch(strip, ownerId, { maxParallel: null });
+    expect((await found(strip))?.maxParallel).toBe(1);
+
+    expectDone(await undone());
+
+    expect((await found(strip))?.maxParallel).toBe(4);
+  });
+
+  it('refuses to undo a parallelism onto a row somebody else has since edited', async () => {
+    // The precondition rule, on the new field: an undo that quietly overwrote a
+    // stranger's newer edit is the failure this whole mechanism exists to
+    // refuse, and a field added to `WorkItemPatch` without its revision being
+    // checked would be a hole in it.
+    const strip = await root('Strip');
+    await workItems.patch(strip, ownerId, { maxParallel: 3 });
+    await workItems.patch(strip, strangerId, { name: 'Strip out' });
+
+    expectStale(await undone());
+
+    const after = await found(strip);
+    expect(after?.maxParallel).toBe(3);
+    expect(after?.name).toBe('Strip out');
+  });
+
   it('puts a replaced estimate back exactly', async () => {
     const strip = await root('Strip');
     await workItems.setEstimate(strip, ownerId, dev(), DAYS);

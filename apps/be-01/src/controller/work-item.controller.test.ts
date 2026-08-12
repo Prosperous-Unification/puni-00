@@ -284,6 +284,225 @@ describe('work item routes', () => {
     expect(workItems[0]?.priority).toBe(3);
   });
 
+  it('puts a capacity floor on the wire, which nothing this change ships can draw', async () => {
+    // **The C2-before-C3 landmine, pinned rather than argued.** Two HTTP
+    // requests — size a team, label the work — are now all it takes to make
+    // be-01 emit `boundBy: 'capacity'`, and this is the first change in which
+    // any client can make them. fe-01's `ScheduleFloorView` has five members
+    // and none of them is `capacity`; `floorWordsOf`'s `default:` arm throws
+    // `GanttDataError` on the sixth **by design**, so the Gantt panel of any
+    // plan with a sized, contended team goes to its error boundary until C3
+    // teaches it the word.
+    //
+    // Nothing here is a defect of this change: the route, the fan-out and the
+    // floor are all what C2 is for. It is a **release** constraint, and it is
+    // written as a test so that deleting the constraint means deleting a test
+    // rather than forgetting a paragraph. See `design.md`, "Shipping order",
+    // and the landmine in `LLM_README.md`.
+    const { token, send, projectId, devId } = await setup();
+    const team = await send('/api/teams', token, {
+      method: 'POST',
+      body: JSON.stringify({ name: 'Platform' }),
+    });
+    const { team: platform } = (await team.json()) as { team: { id: string } };
+    const sized = await send(`/api/teams/${platform.id}/size`, token, {
+      method: 'PATCH',
+      body: JSON.stringify({ size: 1 }),
+    });
+    expect(sized.status).toBe(200);
+
+    for (const name of ['Strip', 'Sand']) {
+      const created = await send(`/api/projects/${projectId}/work-items`, token, {
+        method: 'POST',
+        body: JSON.stringify({ parentId: null, afterId: null, name }),
+      });
+      const { id } = (await created.json()) as { id: string };
+      await send(`/api/work-items/${id}`, token, {
+        method: 'PATCH',
+        body: JSON.stringify({ serviceTeamId: platform.id }),
+      });
+      await send(`/api/work-items/${id}/estimates/${devId}`, token, {
+        method: 'PUT',
+        body: JSON.stringify({ optimistic: 2, realistic: 2, pessimistic: 2 }),
+      });
+    }
+
+    const tree = await send(`/api/projects/${projectId}/work-items`, token);
+    const body = (await tree.json()) as {
+      waitingForCapacity: number;
+      slices: { boundBy: string }[];
+    };
+
+    expect(body.slices.map((one) => one.boundBy)).toContain('capacity');
+    expect(body.waitingForCapacity).toBe(1);
+  });
+
+  it('refuses a parallelism that is not a whole number of 1 or more', async () => {
+    // The floor is load-bearing rather than tidy. The engine's duration is
+    // `effort / width` and `width` is clamped from this number, so a stored 0
+    // is a plan of `Infinity` dates with nothing on screen to say why — and
+    // this validation is the whole of what stands between the two.
+    const { token, send, projectId } = await setup();
+    const created = await send(`/api/projects/${projectId}/work-items`, token, {
+      method: 'POST',
+      body: JSON.stringify({ parentId: null, afterId: null, name: 'Strip' }),
+    });
+    const { id } = (await created.json()) as { id: string };
+    await send(`/api/work-items/${id}`, token, {
+      method: 'PATCH',
+      body: JSON.stringify({ maxParallel: 3 }),
+    });
+
+    for (const bad of [0, -1, 1.5, '3', true, 1e20]) {
+      const res = await send(`/api/work-items/${id}`, token, {
+        method: 'PATCH',
+        body: JSON.stringify({ maxParallel: bad }),
+      });
+      // The value rides into the assertion so a failure names which of them got
+      // through rather than reporting `400 !== 200` six times.
+      expect([res.status, String(bad)]).toEqual([400, String(bad)]);
+    }
+
+    // `1e999` written straight into the body rather than through
+    // `JSON.stringify`, which turns an `Infinity` into `null` — a request to
+    // reset, and a perfectly legal one. `JSON.parse` does not: it reads the
+    // literal as `Infinity`, and `Number.isSafeInteger(Infinity)` is false.
+    // **This case cannot see the ceiling** — that is what `1001` below is for,
+    // and writing only this one is how a range check that cannot fail has
+    // shipped here before.
+    const infinite = await send(`/api/work-items/${id}`, token, {
+      method: 'PATCH',
+      body: '{"maxParallel":1e999}',
+    });
+    expect(infinite.status).toBe(400);
+
+    const tree = await send(`/api/projects/${projectId}/work-items`, token);
+    const { workItems } = (await tree.json()) as { workItems: { maxParallel: number }[] };
+    expect(workItems[0]?.maxParallel).toBe(3);
+  });
+
+  it('refuses a parallelism above what a plan can mean', async () => {
+    // A thousand is a product limit and is honest about being one. Injected
+    // apart from the integer guard above because neither probe can see the
+    // other's line: `1e999` is refused by `Number.isSafeInteger` whether or not
+    // a ceiling exists, and `1001` passes the integer guard cleanly.
+    const { token, send, projectId } = await setup();
+    const created = await send(`/api/projects/${projectId}/work-items`, token, {
+      method: 'POST',
+      body: JSON.stringify({ parentId: null, afterId: null, name: 'Strip' }),
+    });
+    const { id } = (await created.json()) as { id: string };
+
+    const refused = await send(`/api/work-items/${id}`, token, {
+      method: 'PATCH',
+      body: JSON.stringify({ maxParallel: 1001 }),
+    });
+    expect(refused.status).toBe(400);
+    expect((await refused.json()) as { error: string }).toEqual({
+      error: 'maxParallel_must_be_at_most_1000',
+    });
+
+    const allowed = await send(`/api/work-items/${id}`, token, {
+      method: 'PATCH',
+      body: JSON.stringify({ maxParallel: 1000 }),
+    });
+    expect(allowed.status).toBe(200);
+  });
+
+  it('takes a parallelism and gives it back, resets it, and leaves it alone', async () => {
+    const { token, send, projectId } = await setup();
+    const created = await send(`/api/projects/${projectId}/work-items`, token, {
+      method: 'POST',
+      body: JSON.stringify({ parentId: null, afterId: null, name: 'Strip' }),
+    });
+    const { id } = (await created.json()) as { id: string };
+
+    const set = await send(`/api/work-items/${id}`, token, {
+      method: 'PATCH',
+      body: JSON.stringify({ maxParallel: 4 }),
+    });
+    expect(set.status).toBe(200);
+    expect((await set.json()) as { maxParallel: number }).toMatchObject({ maxParallel: 4 });
+
+    // A patch that names something else leaves it standing: absent is not the
+    // same request as null.
+    const renamed = await send(`/api/work-items/${id}`, token, {
+      method: 'PATCH',
+      body: JSON.stringify({ name: 'Strip out' }),
+    });
+    expect((await renamed.json()) as { maxParallel: number }).toMatchObject({ maxParallel: 4 });
+
+    // `null` **resets** where a priority's clears: 1 and unset are one fact.
+    const reset = await send(`/api/work-items/${id}`, token, {
+      method: 'PATCH',
+      body: JSON.stringify({ maxParallel: null }),
+    });
+    expect((await reset.json()) as { maxParallel: number }).toMatchObject({ maxParallel: 1 });
+  });
+
+  it('refuses a parallelism on a row that has children', async () => {
+    // A row with children has no slices of its own — `slicesOf` skips it — so a
+    // number stored there decides nothing and would sit on screen looking as
+    // though it did.
+    const { token, send, projectId } = await setup();
+    const created = await send(`/api/projects/${projectId}/work-items`, token, {
+      method: 'POST',
+      body: JSON.stringify({ parentId: null, afterId: null, name: 'Strip' }),
+    });
+    const { id } = (await created.json()) as { id: string };
+    await send(`/api/projects/${projectId}/work-items`, token, {
+      method: 'POST',
+      body: JSON.stringify({ parentId: id, afterId: null, name: 'Sand' }),
+    });
+
+    const refused = await send(`/api/work-items/${id}`, token, {
+      method: 'PATCH',
+      body: JSON.stringify({ maxParallel: 3 }),
+    });
+
+    // 400 rather than `rolled_up`'s 409: nothing is rolled up here — a parent's
+    // parallelism is not the sum of its children's — and the cell for it is
+    // read-only on every parent row, so a client sending one is sending a field
+    // it was never offered.
+    expect(refused.status).toBe(400);
+    expect((await refused.json()) as { error: string }).toEqual({ error: 'has_children' });
+    // And nothing was written: a refusal that answered 400 having stored the
+    // number anyway would be the worse half of the same bug.
+    const tree = await send(`/api/projects/${projectId}/work-items`, token);
+    const { workItems } = (await tree.json()) as {
+      workItems: { id: string; maxParallel: number }[];
+    };
+    expect(workItems.find((each) => each.id === id)?.maxParallel).toBe(1);
+  });
+
+  it('leaves an inert parallelism standing on a leaf that gains a child', async () => {
+    // The other direction of the same rule, and deliberately **not** a cascade:
+    // the write was legal when it was made, and rewriting somebody's number
+    // because a row moved beneath it would be this tool editing a field nobody
+    // asked it to. The number stops deciding anything and C3's cell says so.
+    const { token, send, projectId } = await setup();
+    const created = await send(`/api/projects/${projectId}/work-items`, token, {
+      method: 'POST',
+      body: JSON.stringify({ parentId: null, afterId: null, name: 'Strip' }),
+    });
+    const { id } = (await created.json()) as { id: string };
+    await send(`/api/work-items/${id}`, token, {
+      method: 'PATCH',
+      body: JSON.stringify({ maxParallel: 3 }),
+    });
+
+    await send(`/api/projects/${projectId}/work-items`, token, {
+      method: 'POST',
+      body: JSON.stringify({ parentId: id, afterId: null, name: 'Sand' }),
+    });
+
+    const tree = await send(`/api/projects/${projectId}/work-items`, token);
+    const { workItems } = (await tree.json()) as {
+      workItems: { id: string; maxParallel: number }[];
+    };
+    expect(workItems.find((each) => each.id === id)?.maxParallel).toBe(3);
+  });
+
   it('takes a priority and gives it back, and clears it', async () => {
     const { token, send, projectId } = await setup();
     const created = await send(`/api/projects/${projectId}/work-items`, token, {
