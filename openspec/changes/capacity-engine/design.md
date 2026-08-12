@@ -166,9 +166,18 @@ and its float comes out as **2**, the true answer.
 the union of the causes of a disjunctive constraint — "at least one of these
 must move" — which a DAG cannot express. Edging all of them makes the graph at
 least as tight as reality: float can be reported _smaller_ than it truly is,
-never larger. No row is ever reported movable when it is not. The direction is
-asserted by a test that names it (`under-reports float rather than
-over-reporting it, and says so`), not merely stated here.
+never larger. No row is ever reported movable when it is not.
+
+The direction is **named** by a test, not demonstrated by one.
+`under-reports float rather than over-reporting it, and says so` pins the
+**tight** case — A's reported float, 6-2 = 4, is exactly the disjunctive answer
+— and asserts `a.latestFinish <= x.latestStart` with `float >= 0` over every
+slice, which does gate the one-edge fault: with only B→X, A's late finish is the
+project finish 12 against X's late start of 10, and the `<=` fails. What no
+fixture in the suite carries is a constructed case where the blocking set
+reports float _smaller_ than the true answer, which is what §6 item 20 asked
+for. The one-sidedness is argued here and its negative is gated there; the
+demonstration is owed, and is a follow-up rather than a C1 gap.
 
 Rejected: exact capacity sensitivity (re-place the plan with each block
 delayed). Correct, and `O(V)` full schedules per query.
@@ -225,6 +234,35 @@ the scoping deliberately widened, because three blocks cannot carry the
 floating-point drift the rule exists to keep out. It moved to
 `schedule-identity.test.ts`'s thousand-plan differential, where the widened
 scoping fails at seed 13.
+
+## Batch sequencing — C2 must not reach production ahead of C3
+
+C1 emits a sixth `boundBy`. fe-01 does not know the word: `ScheduleFloorView`
+(`apps/fe-01/src/lib/wbs-api.ts`) lists five members, and `floorWordsOf`'s
+`default:` arm throws `GanttDataError` — deliberately, by its own comment,
+because _"a payload can carry a sixth"_. It now can.
+
+C1 is safe on its own: nothing can write a `size`, so `boundBy: 'capacity'` is
+unreachable in production. **C2 is where that stops being true** — C2 owns
+validation, `WorkItemPatch` and the `directory_changed` fan-out on a size write,
+which is exactly the ability to size a team, while C3 owns the `floorWordsOf`
+case that teaches fe-01 the word. C2 deployed without C3 turns any plan with a
+sized, contended team into an error boundary where its Gantt should be.
+
+So: **C3's `floorWordsOf` arm ships with or before C2's write path.** Not a
+release-order preference — the intervening state is a crash for a supported
+plan.
+
+Related, and C2's to close: width 0 is `Infinity` days, silently.
+`widthFor` is `Math.min(row.maxParallel, slots ?? row.maxParallel)`, so a `size`
+or a `maxParallel` of 0 gives width 0, and `durationOf`'s
+`(slice.days ?? 0) / slice.width` is then `Infinity` (or `NaN` at zero effort).
+Nothing in the engine refuses it — `windowFor` and `reserve` both short-circuit
+on `width === 0`, and `CapacityTooNarrowError` does not fire because `0 > 0` is
+false. Unreachable today, because `addTeam` writes `size: null` unconditionally
+and `maxParallel` is only ever written as `1`. C2's validation is therefore the
+**only** thing standing between a typed `0` and a plan of infinite dates, which
+is a boundary this engine otherwise refuses at its own edge.
 
 ## Plan versus merged reality
 
