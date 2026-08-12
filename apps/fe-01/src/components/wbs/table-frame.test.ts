@@ -358,8 +358,10 @@ describe('the width equation the table is laid out by', () => {
   it('lays the cap on the table itself, with the minimum still under it', () => {
     // What the `<table>` is told, which is the one declaration the cap reaches
     // the browser through.
-    // Proof: FAULT-CAP-FLAT (see verify.md) — the `min()` reverted to a flat
-    // `'100%'`.
+    // Proof: the `min()` reverted to a flat `'100%'`, this failed on `expected
+    // { width: '100%', minWidth: 1247 } to deeply equal { width: 'min(100%,
+    // 1467px)', …(1) }`, with the dragged case's resting half beside it.
+    // Watched on h2puni, 2026-08-12 (fault F2).
     const layout = frameLayout([...RENDERED, 'r1-final', 'r2-final'], DATED);
     expect(tableWidthStyle(layout)).toEqual({
       width: `min(100%, ${String(layout.maxWidth)}px)`,

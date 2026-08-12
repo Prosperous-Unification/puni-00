@@ -7855,8 +7855,9 @@ describe('the widths this browser has dragged', () => {
     // declaration to read; and on the table rather than on the cells, because
     // `table-layout: fixed` gives a cell no vote on its column's width.
     //
-    // Proof: FAULT-CAP-FLAT (see verify.md) — the `min()` reverted to a flat
-    // `'100%'`.
+    // Proof: the `min()` in `tableWidthStyle` reverted to a flat `'100%'`,
+    // this failed on `expected '100%' to be 'min(100%, 1691px)'`. Watched on
+    // h2puni, 2026-08-12 (fault F2).
     await threeRoots();
 
     const table = screen.getByRole('table');

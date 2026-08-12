@@ -609,8 +609,9 @@ export function frameLayout(leafIds: readonly string[], state: FrameLayoutState)
     // a dragged one at the width it was dragged to: an override is a reader's
     // own answer and outranks the cap, exactly as it outranks the floor above.
     //
-    // Proof: FAULT-CAP-SUM (see verify.md) — `FLEXIBLE_CAP` swapped for
-    // `FLEXIBLE_FLOOR` here.
+    // Proof: `FLEXIBLE_CAP` swapped for `FLEXIBLE_FLOOR` here, `caps the
+    // table at the fixed columns plus the Name cap` failed on `expected 200 to
+    // be 420`. Watched on h2puni, 2026-08-12 (fault F1).
     maxWidth: columns.reduce((total, column) => total + (column.width ?? FLEXIBLE_CAP), 0),
     pinned: pinnedGeometryFor(columns, PINNED_COLUMN_IDS),
   };

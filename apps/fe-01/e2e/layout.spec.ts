@@ -1588,8 +1588,9 @@ test.describe('the table, measured by a browser', () => {
     // state the declaration exists for — the 1512 laptop already does, and this
     // goes wider so the gap is unmistakable rather than 40px.
     //
-    // Proof: FAULT-CAP-FLAT (see verify.md) — the `min()` reverted to a flat
-    // `'100%'`.
+    // Proof: the `min()` in `tableWidthStyle` reverted to a flat `'100%'`,
+    // this failed on `the Name column is not at its cap — Expected: 420 /
+    // Received: 869`. Watched on h2puni, 2026-08-12 (fault F2).
     await page.setViewportSize({ width: 1920, height: 982 });
     const measured = await measure(page);
     const name = measured.columns.find((column) => column.id === 'name');
@@ -1618,8 +1619,11 @@ test.describe('the table, measured by a browser', () => {
     // The heading row is deliberately not asserted here — it is a 10px caption
     // and has been since `column-rebalance`; what moved is the body.
     //
-    // Proof: FAULT-GRID-TYPE (see verify.md) — the `font-size` dropped from
-    // the `[data-grid] tbody` block in `styles.css`.
+    // Proof: the `font-size` dropped from the `[data-grid] tbody` block in
+    // `styles.css`, this failed on `Expected: "13px" / Received: "16px"`; and
+    // with `vertical-align` set back to `baseline`, on `a single-line row is
+    // taller than the budget — Expected: <= 28 / Received: 29.1875`. Both
+    // watched on h2puni, 2026-08-12 (faults F3 and F4).
     // A name that fits one line of the column, typed rather than assumed: the
     // seeded plan's own names are two sentences long and wrap to two lines at
     // 1280, so the fixture's first row measures 47px and says nothing about

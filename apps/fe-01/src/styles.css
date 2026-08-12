@@ -542,8 +542,10 @@
    * two line heights, the second of which crops the third line of a note by a
    * couple of pixels.
    *
-   * Proof: FAULT-GRID-TYPE (see `spreadsheet-geometry`'s verify.md) — the
-   * `font-size` dropped from this block.
+   * Proof: the `font-size` dropped from this block, `sets the grid body's type
+   * below the page's own, and keeps a row inside its budget` failed on
+   * `Expected: "13px" / Received: "16px"`. Watched on h2puni, 2026-08-12
+   * (fault F3).
    */
   [data-grid] tbody,
   [data-grid] tbody button,
@@ -570,8 +572,10 @@
    * are flex containers, which ignore this property entirely, so the rule is
    * inert exactly where it would have been a risk.
    *
-   * Proof: FAULT-BASELINE (see `spreadsheet-geometry`'s verify.md) — this
-   * declaration removed.
+   * Proof: this declaration set back to `baseline`, `sets the grid body's type
+   * below the page's own, and keeps a row inside its budget` failed on `a
+   * single-line row is taller than the budget — Expected: <= 28 / Received:
+   * 29.1875`. Watched on h2puni, 2026-08-12 (fault F4).
    */
   [data-grid] tbody input,
   [data-grid] tbody textarea {
