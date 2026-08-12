@@ -673,3 +673,88 @@ test.describe('the Name cell answers from its marker alone', () => {
     await expect(page.getByLabel('Notes on 020')).toHaveCount(0);
   });
 });
+
+test.describe('the Name cell’s preview takes the room around its cell', () => {
+  /** A note far taller than any window, so the card is always sized by its room. */
+  const LONG_NOTE = Array.from({ length: 120 }, (_, at) => `- line ${String(at + 1)}`).join('\n');
+
+  /** Fills a row's note and opens its preview, answering the card. */
+  async function previewOf(page: Page, number: string): Promise<Locator> {
+    const name = page.getByLabel(`Name of ${number}`);
+    await name.fill(`Racking survey\n\n${LONG_NOTE}`);
+    await name.blur();
+    await page.getByLabel(`Notes on ${number}`).hover();
+    expect(await cardsOpen(page), 'the marker opened no preview').toBe(1);
+    return page.locator('[role="tooltip"]').first();
+  }
+
+  test('gives a long note the room below rather than 320px of it', async ({ page }) => {
+    // The whole of the change, in a browser: jsdom lays nothing out, so the
+    // 320px this replaces and the room that replaces it are both invisible to
+    // `hover-card.test.tsx` — it can see the number the component computed, not
+    // the box the browser drew.
+    //
+    // Proof: `maxHeight` in `HoverCard` pinned back to a flat 320 — failed on
+    // `the card is still the old 320px slot: expected 320 to be greater than
+    // 321`. Watched 2026-08-11.
+    const card = await previewOf(page, '010');
+    const box = await boxOf(card, 'the preview');
+    const height = page.viewportSize()?.height ?? 0;
+    expect(height, 'the viewport has no height to measure against').toBeGreaterThan(0);
+
+    expect(box.height, 'the card is still the old 320px slot').toBeGreaterThan(321);
+    expect(box.height, 'the card is taller than nine tenths of the window').toBeLessThanOrEqual(
+      height * 0.9 + 1,
+    );
+    expect(box.y, 'the card starts above the top of the window').toBeGreaterThanOrEqual(-1);
+    expect(box.y + box.height, 'the card runs off the bottom of the window').toBeLessThanOrEqual(
+      height + 1,
+    );
+  });
+
+  test('opens the card above a row low in the table', async ({ page }) => {
+    // A tall card below a low row is a card mostly off the bottom of the
+    // screen, which is exactly what raising the height cap would have caused
+    // and why `roomForCard` picks a side at all.
+    //
+    // Proof: the side forced to `'below'` in `roomForCard` — failed on `the
+    // card opened downward from a row with no room below it: Expected: <= 459,
+    // Received: 936`, a card whose bottom edge is 36px past a 900px window's.
+    // Watched 2026-08-11.
+    const addRow = page.getByRole('button', { name: 'Add work item' });
+    const height = page.viewportSize()?.height ?? 0;
+
+    // Rows until one of them is past the middle of the window, which is where
+    // the room above a cell first exceeds the room below it. Stated rather
+    // than assumed: R5 #16 is a flip asserted on a row that would have opened
+    // downward anyway, which no injected fault can fail.
+    let last = '020';
+    for (let row = 3; row <= 18; row += 1) {
+      await addRow.click();
+      last = `${String(row)}0`.padStart(3, '0');
+      await expect(page.getByLabel(`Name of ${last}`)).toBeVisible();
+      const box = await boxOf(page.getByLabel(`Name of ${last}`), `row ${last}`);
+      if (box.y > height / 2) break;
+    }
+    const cell = await boxOf(page.getByLabel(`Name of ${last}`), 'the low row');
+    expect(
+      height - (cell.y + cell.height),
+      'the low row still has more room below it than above, so there is no flip to see',
+    ).toBeLessThan(cell.y);
+
+    const card = await previewOf(page, last);
+    const box = await boxOf(card, 'the preview');
+
+    expect(
+      box.y + box.height,
+      'the card opened downward from a row with no room below it',
+    ).toBeLessThanOrEqual(cell.y + 1);
+    expect(box.y, 'the flipped card runs off the top of the window').toBeGreaterThanOrEqual(-1);
+
+    // And the pointer still reaches it: the card is above the marker now, so
+    // the trip crosses the cell the other way. The card staying inside its
+    // cell's own subtree is what makes that survivable — see `HoverCard`.
+    await page.mouse.move(Math.round(box.x + box.width / 2), Math.round(box.y + box.height / 2));
+    expect(await cardsOpen(page), 'the flipped card closed on the way to it').toBe(1);
+  });
+});

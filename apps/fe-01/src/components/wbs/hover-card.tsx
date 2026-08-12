@@ -100,8 +100,63 @@ export interface HoverCardProps {
   children: ReactNode;
 }
 
-/** How tall a scrolling card may get before the rest of it is scrolled to. */
-const SCROLLING_MAX_HEIGHT = 320;
+/** How much of the window's height a scrolling card may take. */
+const VIEWPORT_SHARE = 0.9;
+
+/**
+ * How tall a scrolling card is where neither side of its cell has the room.
+ *
+ * A floor rather than a fit: a cell sitting on the fold has a few pixels either
+ * way, and a card sized to those is a card with one line in it. Overflowing the
+ * window by a little and scrolling inside is the readable failure.
+ */
+const SCROLLING_MIN_HEIGHT = 160;
+
+/** How wide a scrolling card may get, in CSS pixels. Documents want the width. */
+const SCROLLING_MAX_WIDTH_PX = 640;
+
+/** Which side of its cell a card opens on, and the height ceiling that side gives it. */
+export interface CardRoom {
+  side: 'below' | 'above';
+  maxHeight: number;
+}
+
+/**
+ * The side a scrolling card opens on and how tall it may be there: whichever
+ * side of its cell has the clear room, capped at {@link VIEWPORT_SHARE} of the
+ * window and floored at {@link SCROLLING_MIN_HEIGHT}.
+ *
+ * Pure, and separated from the component for the same reason as {@link
+ * surfacePlacement}: the rectangle it works on comes from
+ * `getBoundingClientRect`, which jsdom answers with zeroes. The wiring — that a
+ * preview really is measured and really is placed by this — is a browser fact
+ * asserted in `e2e/hover-cards.spec.ts`.
+ *
+ * The gap is subtracted from both sides so the ceiling describes room the card
+ * can actually occupy rather than room up to the window's own edge.
+ *
+ * @param anchor The cell's rectangle, in viewport coordinates.
+ * @param anchor.top Its top edge — the room above it.
+ * @param anchor.bottom Its bottom edge — the window's height less this is the room below.
+ * @param viewportHeight The window's inner height.
+ */
+export function roomForCard(
+  anchor: { top: number; bottom: number },
+  viewportHeight: number,
+): CardRoom {
+  const below = viewportHeight - anchor.bottom - ANCHOR_GAP_PX;
+  const above = anchor.top - ANCHOR_GAP_PX;
+  return {
+    // `>=` rather than `>`: a cell with equal room either way opens downward,
+    // which is where every other card in the table opens and where a reader
+    // looks first.
+    side: below >= above ? 'below' : 'above',
+    maxHeight: Math.min(
+      viewportHeight * VIEWPORT_SHARE,
+      Math.max(below, above, SCROLLING_MIN_HEIGHT),
+    ),
+  };
+}
 
 /**
  * The box a cell opens over the rows below when the mouse rests on it: the
@@ -123,12 +178,20 @@ const SCROLLING_MAX_HEIGHT = 320;
  * HoverCardProps.scrolls} is that one exception.
  *
  * No delay and no follow-cursor anywhere: the state that renders one is set on
- * `mouseenter` and cleared on `mouseleave`. A card opening from a **cell** is
- * not flipped either — it opens from the wrapper's bottom edge and that is the
- * whole of its placement. {@link HoverCardProps.anchor} is the one exception,
- * and it exists because a Gantt bar has no wrapper to open from: such a card is
- * portalled, fixed, flipped and clamped by {@link surfacePlacement}, and the
- * delay before it opens belongs to the panel that opens it rather than to this.
+ * `mouseenter` and cleared on `mouseleave`. A fixed-size card opening from a
+ * **cell** is not flipped — it opens from the wrapper's bottom edge and that is
+ * the whole of its placement. Two exceptions, for two different reasons:
+ *
+ * - {@link HoverCardProps.scrolls} — a card holding a document is as tall as
+ *   the room it has, and below the cell is not where the room is for a row in
+ *   the lower half of the table. It measures its wrapper and opens on the side
+ *   {@link roomForCard} gives it, still inside the wrapper's own subtree,
+ *   because the pointer has to be able to walk from the notes marker onto the
+ *   card without leaving the cell that owns the `mouseleave`.
+ * - {@link HoverCardProps.anchor} — a Gantt bar has no wrapper to open from, so
+ *   such a card is portalled, fixed, flipped and clamped by {@link
+ *   surfacePlacement}, and the delay before it opens belongs to the panel that
+ *   opens it rather than to this.
  */
 export function HoverCard({ label, id, scrolls = false, anchor, children }: HoverCardProps) {
   const card = useRef<HTMLDivElement | null>(null);
@@ -154,12 +217,48 @@ export function HoverCard({ label, id, scrolls = false, anchor, children }: Hove
     // change while it is open, so this runs once per opening.
   }, [anchor]);
 
+  /**
+   * The room this card's cell leaves it, or null until it has been measured.
+   *
+   * Only a scrolling card measures: it is the one card whose height is not its
+   * content's, and the one that can be tall enough to run off the screen.
+   */
+  const [room, setRoom] = useState<CardRoom | null>(null);
+  useLayoutEffect(() => {
+    if (!scrolls || anchor !== undefined) return;
+    // Narrowing, not a guard, and deliberately not a throw: a layout effect runs
+    // on a mounted node, and a mounted node has a parent. No injected fault can
+    // make either null, so a throw here would be a check whose failure can never
+    // be observed — the fault R5's tally is a list of, and the one
+    // `column-widths-drag` deleted a line for rather than keep unprovable. What
+    // *is* provable is that the measurement happens at all: `sizes the one card
+    // that scrolls from the room around its cell`, and the browser's own
+    // `opens the card above a row low in the table`.
+    const wrapper = card.current?.parentElement;
+    if (wrapper === null || wrapper === undefined) return;
+    setRoom(roomForCard(wrapper.getBoundingClientRect(), window.innerHeight));
+    // The cell does not move while the card is open — the card is closed by the
+    // pointer leaving the cell — so this runs once per opening.
+  }, [scrolls, anchor]);
+
   const scrolling: CSSProperties = scrolls
-    ? { maxHeight: SCROLLING_MAX_HEIGHT, overflowY: 'auto', pointerEvents: 'auto' }
+    ? {
+        maxHeight: room === null ? SCROLLING_MIN_HEIGHT : room.maxHeight,
+        overflowY: 'auto',
+        pointerEvents: 'auto',
+      }
     : { pointerEvents: 'none' };
   const anchored: CSSProperties =
     anchor === undefined
-      ? { position: 'absolute', top: '100%', left: 0, maxWidth: CARD_MAX_WIDTH_PX }
+      ? {
+          position: 'absolute',
+          // Measured, so `null` is the frame before the layout effect has run
+          // rather than a card with no room: it opens downward, which is where
+          // it will stay for every row that has the room below.
+          ...(room?.side === 'above' ? { bottom: '100%' } : { top: '100%' }),
+          left: 0,
+          maxWidth: scrolls ? `min(${String(SCROLLING_MAX_WIDTH_PX)}px, 100vw)` : CARD_MAX_WIDTH_PX,
+        }
       : {
           position: 'fixed',
           top: placed.top,
@@ -178,6 +277,18 @@ export function HoverCard({ label, id, scrolls = false, anchor, children }: Hove
       aria-label={label}
       style={{
         ...anchored,
+        // The height ceiling {@link roomForCard} computes is room in the
+        // window, so it has to mean the whole box. Left at `content-box`, the
+        // card's own 6px padding and 1px border are added to it and the card
+        // ends 14px past the edge it was sized to stay inside.
+        //
+        // Proof: this line removed — both browser tests in
+        // `e2e/hover-cards.spec.ts`'s `takes the room around its cell` failed,
+        // on `the card runs off the bottom of the window` and `the flipped card
+        // runs off the top of the window`. It is the fault that found this
+        // line: measured in Chromium at `cardBottom: 908` in a 900px window
+        // before it existed. Watched 2026-08-11.
+        boxSizing: 'border-box',
         zIndex: 20,
         minWidth: 260,
         background: 'var(--popover)',

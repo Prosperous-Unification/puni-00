@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
-import { HoverCard, surfacePlacement } from './hover-card';
+import { HoverCard, roomForCard, surfacePlacement } from './hover-card';
 import { HoverPreview } from './hover-preview';
 
 // fe-01 tests require jsdom; only Vitest provides it. Skip under plain `bun test`.
@@ -37,7 +37,38 @@ describe('a hover card hangs over the rows below without touching them', () => {
     const preview = screen.getByRole('tooltip');
     expect(preview.style.pointerEvents).toBe('auto');
     expect(preview.style.overflowY).toBe('auto');
-    expect(preview.style.maxHeight).toBe('320px');
+  });
+
+  itDom('sizes the one card that scrolls from the room around its cell', () => {
+    // The height is no longer a constant, so what can be asserted here is that
+    // it is *measured*: jsdom's rectangles are all zeroes, which is a cell at
+    // the very top of a 768px window, and `roomForCard` answers that with the
+    // room below rather than with the old 320px.
+    //
+    // Proof: the `useLayoutEffect` body replaced with `return`, so the card
+    // keeps its pre-measurement fallback — this failed on `expected '160px' not
+    // to be '160px'`. The arithmetic itself is asserted below, and that it is a
+    // real cell being measured is `e2e/hover-cards.spec.ts`. Watched 2026-08-11.
+    render(<HoverPreview name="Strip" notes={'- one\n- two'} number="010" />);
+
+    const preview = screen.getByRole('tooltip');
+    expect(preview.style.maxHeight).not.toBe('160px');
+    expect(preview.style.maxHeight).toBe(
+      `${String(roomForCard({ top: 0, bottom: 0 }, window.innerHeight).maxHeight)}px`,
+    );
+    expect(preview.style.maxWidth).toBe('min(640px, 100vw)');
+  });
+
+  itDom('leaves every other card its own width', () => {
+    // The widening is the scrolling card's alone: a folded role's figure is
+    // four words and a 640px box around them is a card that covers three rows
+    // to say "4.8 days".
+    //
+    // Proof: the `scrolls ?` conditional on `maxWidth` collapsed to the wide
+    // branch — failed on `expected '640px' to be '420px'`. Watched 2026-08-11.
+    render(<HoverCard label="Dev for 010">4.8 days</HoverCard>);
+
+    expect(screen.getByRole('tooltip').style.maxWidth).toBe('420px');
   });
 
   itDom('renders a body that is not a work item’s notes', () => {
@@ -125,5 +156,64 @@ describe('an anchored surface stays inside the viewport', () => {
     expect(
       surfacePlacement({ left: 10, top: 30, bottom: 58 }, CARD, { width: 200, height: 100 }),
     ).toEqual({ left: 0, top: 0 });
+  });
+});
+
+describe('a scrolling card takes the room its cell leaves it', () => {
+  /** A 1000px-tall window, so a cell at 400 has 594 below it and 394 above. */
+  const WINDOW_HEIGHT = 1000;
+
+  itDom('opens downward, as tall as the room below, for a cell high on the screen', () => {
+    // Proof: `below >= above` flipped to `below > above` changes nothing here,
+    // so the branch is proven by the test below instead; the *ceiling* is what
+    // this one holds. `Math.max(below, above, …)` reduced to `above` — failed
+    // on `expected { side: 'below', maxHeight: 194 } to deeply equal { side:
+    // 'below', maxHeight: 794 }`, a card given the empty room behind it.
+    // Watched 2026-08-11.
+    expect(roomForCard({ top: 200, bottom: 200 }, WINDOW_HEIGHT)).toEqual({
+      side: 'below',
+      maxHeight: 794,
+    });
+  });
+
+  itDom('flips above when the cell is low enough that above has more room', () => {
+    // The branch the change exists for: at 320px a card below this cell was
+    // merely cramped, at 700px it is off the bottom of the screen entirely.
+    //
+    // Proof: the side forced to `'below'` — failed on `expected { side:
+    // 'below', … } to deeply equal { side: 'above', … }`, and the browser's
+    // half (`opens the card above a row low in the table`) failed with it.
+    // Watched 2026-08-11.
+    expect(roomForCard({ top: 800, bottom: 830 }, WINDOW_HEIGHT)).toEqual({
+      side: 'above',
+      maxHeight: 794,
+    });
+  });
+
+  itDom('never takes more than nine tenths of the window', () => {
+    // A cell at the very top of a tall window has almost the whole of it below,
+    // and a card that tall is one whose top edge is under the toolbar and whose
+    // bottom is on the status bar.
+    //
+    // Proof: the `Math.min` against the share dropped — failed on `expected {
+    // side: 'below', maxHeight: 994 } to deeply equal { side: 'below',
+    // maxHeight: 900 }`. Watched 2026-08-11.
+    expect(roomForCard({ top: 0, bottom: 0 }, WINDOW_HEIGHT)).toEqual({
+      side: 'below',
+      maxHeight: 900,
+    });
+  });
+
+  itDom('gives a card on the fold a floor to be readable in', () => {
+    // A window 300px tall with the cell across its middle: 130 below, 144
+    // above. Sized to either, the card holds a heading and one line.
+    //
+    // Proof: `SCROLLING_MIN_HEIGHT` dropped from the `Math.max` — failed on
+    // `expected { side: 'above', maxHeight: 144 } to deeply equal { side:
+    // 'above', maxHeight: 160 }`. Watched 2026-08-11.
+    expect(roomForCard({ top: 150, bottom: 164 }, 300)).toEqual({
+      side: 'above',
+      maxHeight: 160,
+    });
   });
 });
