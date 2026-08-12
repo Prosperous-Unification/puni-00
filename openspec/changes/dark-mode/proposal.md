@@ -9,12 +9,20 @@ nothing has ever put that class on the document: no control, no
 `prefers-color-scheme` rule, no remembered answer. A reader whose machine is set
 to dark gets the light page anyway.
 
-Forcing the class by hand shows why it was never shipped. Three surfaces are
-unreadable in dark, and two of them are one fault: a `<button>` naming no
-background keeps the user agent's `ButtonFace`, `rgb(239, 239, 239)`, which
-follows no token. The Gantt's row labels and `Log out` measure **1.10:1**. The
-header's page links are `-webkit-link` blue at **2.14:1**, and the deps picker's
-option list is a hard-coded `#fff` card at **1.05:1**.
+Forcing the class by hand shows why it was never shipped, and the reason all but
+one of the defects share is that the root declares no `color-scheme`. Without it
+the browser still thinks a near-black page is a light one and paints its own
+defaults for it: an unstyled `<button>` takes the light `ButtonFace`,
+`rgb(239, 239, 239)`, so the Gantt's row labels and `Log out` measure
+**1.10:1**, and an unstyled link takes `-webkit-link` blue at **2.14:1**. The
+one defect that is nobody's default is the deps picker's option list, a
+hard-coded `#fff` card at **1.05:1**.
+
+Declaring `color-scheme` fixes the ratios by itself — the same unstyled button
+then reads at 5.13:1 and the same link at 8.0:1 — and leaves both surfaces
+painted colours the palette does not name. Those are worth removing on their own
+terms, and the checks that cover them say so rather than pretending to be about
+contrast; a first draft that asserted them as ratios could not fail.
 
 ## What Changes
 

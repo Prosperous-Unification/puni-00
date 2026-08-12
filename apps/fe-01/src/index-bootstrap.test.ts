@@ -16,19 +16,29 @@ const indexHtml = resolve(dirname(fileURLToPath(import.meta.url)), '..', 'index.
 /**
  * The inline script `index.html` runs before the first paint, as text.
  *
- * @throws When there is no inline script in that file, rather than running an
- * empty string and reporting that the bootstrap agrees with the module. That is
- * the fault this whole file exists to catch — the bootstrap deleted, or moved
- * behind `type="module"` and so deferred past the paint — and a check that
- * passes on its absence is no check at all.
+ * Found by its **body** and not by its opening tag: `index.html` carries a
+ * second `<script>`, the module that loads the app, and a pattern loose enough
+ * to allow attributes would take whichever came first. Matching on `THEME_KEY`
+ * appearing inside it names the one script this file is about, whatever
+ * attributes it has grown.
+ *
+ * That last part is the point. An earlier version matched a bare `<script>`
+ * only, which meant adding `type="module"` — the deferral this whole file
+ * exists to refuse — did not fail `is not deferred…` but killed the import
+ * instead: a red, and a red about the wrong thing, naming no fault a reader
+ * could act on. Watched, and recorded in
+ * `openspec/changes/dark-mode/verify.md`.
+ *
+ * @throws When there is no such script, rather than running an empty string and
+ * reporting that the bootstrap agrees with the module. A check that passes on
+ * its subject's absence is no check at all.
  */
 function bootstrapScript(): string {
   const html = readFileSync(indexHtml, 'utf8');
-  const found = /<script>([\s\S]*?)<\/script>/.exec(html);
-  if (found === null || found[1].trim() === '') {
-    throw new Error(`${indexHtml} carries no inline pre-paint script`);
+  for (const found of html.matchAll(/<script[^>]*>([\s\S]*?)<\/script>/g)) {
+    if (found[1].includes(THEME_KEY)) return found[1];
   }
-  return found[1];
+  throw new Error(`${indexHtml} carries no pre-paint script naming ${THEME_KEY}`);
 }
 
 const script = bootstrapScript();
