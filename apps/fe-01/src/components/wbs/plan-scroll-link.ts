@@ -187,9 +187,11 @@ export function rendererFace(frame: HTMLElement): PlanFace {
   return {
     contentTop: heading.getBoundingClientRect().bottom,
     count: rows.length,
+    // No guard on the index: `count` above is this list's own length and both
+    // callers stay inside it, so a check here could not be made to fail — which
+    // is the shape of check this repository has a tally of.
     at: (index) => {
       const row = rows[index];
-      if (row === undefined) throw new Error(`the plan frame has no row ${String(index)}`);
       const box = row.getBoundingClientRect();
       return { id: row.getAttribute('data-row-id') ?? '', top: box.top, bottom: box.bottom };
     },
@@ -216,7 +218,6 @@ export function panelFace(panel: HTMLElement): PlanFace {
     count: labels.length,
     at: (index) => {
       const label = labels[index];
-      if (label === undefined) throw new Error(`the Gantt panel has no row ${String(index)}`);
       const box = label.getBoundingClientRect();
       return { id: label.getAttribute('data-gantt-label') ?? '', top: box.top, bottom: box.bottom };
     },

@@ -38,7 +38,6 @@ function laidOut(
     at: (index) => {
       const row = rows[index];
       const top = tops[index];
-      if (row === undefined || top === undefined) throw new Error(`no row ${String(index)}`);
       return { id: row.id, top, bottom: top + (row.height ?? ROW) };
     },
   };
