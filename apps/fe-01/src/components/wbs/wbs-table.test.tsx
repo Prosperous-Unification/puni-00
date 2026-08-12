@@ -7792,6 +7792,27 @@ describe('the widths this browser has dragged', () => {
     expect(handles).toContain('name');
   });
 
+  itDom('says a mark heading’s word on the handle beside it', async () => {
+    // The handle's accessible name is the heading it was rendered with, and
+    // this change turned `header: 'Number'` into a node drawing `#`. A node is
+    // not a string, so the handle fell through to the column id and the one
+    // control that reads a heading said `Resize number` where it had said
+    // `Resize Number` — the exact loss `ColumnMeta.spokenHeading` exists to
+    // prevent, one call away from the `<th>` that was already told.
+    await threeRoots();
+
+    const spoken = new Map(
+      [...document.querySelectorAll('thead [data-resize-handle]')].map((handle) => [
+        handle.getAttribute('data-resize-handle'),
+        handle.getAttribute('aria-label'),
+      ]),
+    );
+
+    expect(spoken.get('number')).toBe('Resize Number');
+    // The columns whose heading is already a word are unmoved by the fallback.
+    expect(spoken.get('name')).toBe('Resize Name');
+  });
+
   itDom('works a dragged width out from where the handle was grabbed', () => {
     // The gesture itself is `e2e/layout.spec.ts`'s: jsdom performs no default
     // action for a pointer event and cannot tell a working drag from a

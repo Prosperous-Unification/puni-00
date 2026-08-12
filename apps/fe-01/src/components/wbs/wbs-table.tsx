@@ -6427,8 +6427,14 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    *
    * `declaredHeading` is what the column definition calls itself, which is a
    * string for most of them and a node for the ones whose heading is a glyph or
-   * carries a control. Those fall back to the column id: a name a screen reader
-   * can say, rather than a node this cannot read text out of.
+   * carries a control. A node whose column declared
+   * {@link ColumnMeta.spokenHeading} is called with the word instead — the call
+   * site resolves it — and the rest fall back to the column id: a name a screen
+   * reader can say, rather than a node this cannot read text out of.
+   *
+   * Proof: the call site reading `columnDef.header` alone, `says a mark
+   * heading's word on the handle beside it` failed on `expected 'Resize
+   * number' to be 'Resize Number'`. Watched on h2puni, 2026-08-12.
    *
    * @throws {Error} for a heading the layout did not resolve. Every header
    * cell in this table is a leaf column of the same model `layout` was built
@@ -7164,7 +7170,11 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                         `position: sticky` through `STICKY_HEADER_CELL`, which
                         is what the absolute strip is positioned against.
                       */}
-                        {resizeHandleFor(header.column.id, header.column.columnDef.header)}
+                        {resizeHandleFor(
+                          header.column.id,
+                          header.column.columnDef.meta?.spokenHeading ??
+                            header.column.columnDef.header,
+                        )}
                       </th>
                     ))}
                   </tr>
