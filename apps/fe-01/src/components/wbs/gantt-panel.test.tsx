@@ -2557,6 +2557,17 @@ interface ReadSkew {
   roles?: RoleView[];
   /** What the **separate** people read says, when it disagrees with the payload. */
   people?: PersonView[];
+  /**
+   * A team label to hang on the fixture's rows, by row id, and the directory
+   * the separate read answers with.
+   *
+   * A skew option for {@link ReadSkew.waits}' reason: a label on the fixture is
+   * a pool sentence added to twenty drawings that are not about it. A slice
+   * floored by `capacity` on a row naming no team is a payload the geometry
+   * refuses outright, so the two arrive together or not at all.
+   */
+  labels?: Record<string, string>;
+  teams?: TeamView[];
 }
 
 /**
@@ -2577,6 +2588,7 @@ function fakeApi(startDate: string | null, skew: ReadSkew = {}): ProjectApi {
           ...row,
           dates: startDate === null ? null : row.dates,
           dependsOn: skew.waits?.[row.id] ?? row.dependsOn,
+          serviceTeamId: skew.labels?.[row.id] ?? row.serviceTeamId,
         })),
         seq: 0,
         scheduleError: null,
@@ -2594,7 +2606,7 @@ function fakeApi(startDate: string | null, skew: ReadSkew = {}): ProjectApi {
     // The **separate** read, which the skewed fixture below makes disagree with
     // the payload above on purpose.
     roles: () => Promise.resolve(skew.roles ?? [{ ...DEV }]),
-    listTeams: () => Promise.resolve(teams),
+    listTeams: () => Promise.resolve(skew.teams ?? teams),
     listPeople: () => Promise.resolve(skew.people ?? people),
     listProjects: () => notImplemented('listProjects'),
     createProject: () => notImplemented('createProject'),
@@ -2968,6 +2980,79 @@ const SLICES_MISSING_A_PREDECESSOR: SliceView[] = SLICES.map((slice) =>
 /** What the boundary put on screen instead of a chart, or null while it did not. */
 const faultWords = (): string | null =>
   document.querySelector('[data-gantt-fault]')?.textContent ?? null;
+
+/**
+ * {@link SLICES} with a sized, contended team holding one bar back — the plan
+ * the deploy gate is armed against.
+ *
+ * `sealing` waits for `sanding`'s slot rather than for a dependency: `boundBy`
+ * is `capacity`, the blocking set names the slice that had to end, and
+ * `resourcePredecessorId` names the one an arrow is drawn from. This is exactly
+ * what be-01 has been sending since `capacity-engine` (#48) for any plan whose
+ * team is sized and contended, and what `capacity-write-paths` (#52) made
+ * reachable in production by shipping the size write.
+ */
+const SLICES_HELD_BY_A_POOL: SliceView[] = SLICES.map((slice) =>
+  slice.workItemId === 'sealing'
+    ? {
+        ...slice,
+        boundBy: 'capacity' as const,
+        resourcePredecessorId: `sanding::${DEV.id}`,
+        capacityPredecessorIds: [`sanding::${DEV.id}`],
+      }
+    : slice,
+);
+
+/**
+ * The whole read that plan arrives on: the slices, the label the pool is keyed
+ * on, and the directory that names it.
+ *
+ * All three, because a `capacity` floor on a row naming no team is a payload
+ * `gantt-geometry` refuses — the panel would rather throw than draw a sentence
+ * about a pool it cannot name.
+ */
+const POOLED: ReadSkew = {
+  slices: SLICES_HELD_BY_A_POOL,
+  labels: { sealing: 'team-hull', sanding: 'team-hull' },
+  teams: [{ id: 'team-hull', name: 'Hull crew', size: 1 }],
+};
+
+describe('the deploy gate: a plan a sized team is holding back', () => {
+  itDom('draws the chart rather than falling into the boundary', async () => {
+    // **The watched red this whole change is gated on.** `floorWordsOf`'s
+    // `default:` arm throws `GanttDataError` by design — a payload can carry a
+    // sixth floor this build has never heard of — and `capacity` became that
+    // sixth the day #48 merged. #52 then shipped the write that makes a sized
+    // team reachable, so from that merge until this change every plan with a
+    // sized, contended team renders an error boundary where its Gantt should
+    // be. `capacity-engine/design.md`, "Batch sequencing", is where that was
+    // called; `LLM_README.md` carries the landmine.
+    //
+    // Proof: the `case 'capacity':` arm struck from `floorWordsOf` so the
+    // `default:` catches it again. Both tests here failed, on
+    // `expected 'The chart cannot be drawn: slice seal…' to be null` and
+    // `no bar on the chart for sealing`, against four uncaught
+    // `GanttDataError: slice sealing::role-dev is held by capacity, which this
+    // chart has no words for` — the whole chart replaced by the fallback on a
+    // plan be-01 schedules every day. Watched 2026-08-13.
+    await showTheChart(MONDAY, POOLED);
+
+    expect(faultWords()).toBeNull();
+    expect(document.querySelector('[data-gantt-chart]')).not.toBeNull();
+    expect(barOn('sealing')).not.toBeNull();
+  });
+
+  itDom('says what is holding the bar, in the pool’s own words', async () => {
+    // Drawing it is not enough: a bar held by a pool with a sentence about a
+    // dependency on it is a chart that is confidently wrong about why the work
+    // is late.
+    await showTheChart(MONDAY, POOLED);
+
+    fireEvent.focus(barOn('sealing'));
+    const card = screen.getByRole('tooltip');
+    expect(linesOf(card).join(' ')).toContain('Hull crew');
+  });
+});
 
 describe('a chart that cannot be drawn', () => {
   itDom('says why, and leaves the plan alone', async () => {

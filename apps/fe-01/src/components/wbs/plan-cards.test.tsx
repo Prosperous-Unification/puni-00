@@ -52,6 +52,17 @@ const DATED_PLAN = {
 function fakeApi(options: { refusePatch?: boolean; dated?: boolean } = {}): ProjectApi & {
   patched: { id: string; name?: string; notes?: string }[];
   assignments: string[];
+  /**
+   * The plan itself, so a test can arrange one before the first render.
+   *
+   * The cards read the tree and write nothing to the two fields
+   * `capacity-ui` put on them — a team label and a parallelism are typed in the
+   * table and in the directory, never on a phone — so arranging them through a
+   * write path this fake does not have would be modelling a route that does not
+   * exist. Handed over instead, and the assertions are about what a card draws.
+   */
+  rows: WorkItemView[];
+  teams: TeamView[];
 } {
   const rows: WorkItemView[] = [];
   const roleList: RoleView[] = [{ ...DEV }, { ...QA }];
@@ -81,6 +92,8 @@ function fakeApi(options: { refusePatch?: boolean; dated?: boolean } = {}): Proj
   return {
     patched,
     assignments,
+    rows,
+    teams,
     tree: () =>
       Promise.resolve({
         workItems: rows.map(view),
@@ -103,6 +116,12 @@ function fakeApi(options: { refusePatch?: boolean; dated?: boolean } = {}): Proj
           critical: false,
           boundBy: 'projectStart' as const,
           resourcePredecessorId: null,
+          // One at a time and nothing holding a pool. The cards read neither —
+          // a card's parallelism line is the row's stored number — but the
+          // payload carries them, so this fake does too.
+          width: 1,
+          effort: 0,
+          capacityPredecessorIds: [],
         })),
         // The same two lists `roles` and `listPeople` answer with, on the read
         // that carried the slices: the chart is drawn from this payload alone.
@@ -129,6 +148,9 @@ function fakeApi(options: { refusePatch?: boolean; dated?: boolean } = {}): Proj
         notes: '',
         frozenNumber: null,
         priority: null,
+        // One at a time, be-01's `NOT NULL DEFAULT 1`: never absent, because 1
+        // and unset are the same fact.
+        maxParallel: 1,
         rolledUp: false,
         estimates: {},
         dependsOn: [],
@@ -844,5 +866,124 @@ describe('the toolbar sheet', () => {
     fireEvent.keyDown(sheet, { key: '?' });
 
     expect(screen.queryByRole('heading', { name: 'Keyboard shortcuts' })).toBeNull();
+  });
+});
+
+describe('what a card says about capacity', () => {
+  /**
+   * A plan on a phone, arranged before the first render.
+   *
+   * `arrange` is handed the fake's own rows and teams, which is how a label and
+   * a parallelism get onto a plan the cards themselves never write either to.
+   */
+  async function aPlan(
+    arrange: (rows: WorkItemView[], teams: TeamView[], api: ReturnType<typeof fakeApi>) => void,
+    howMany = 1,
+  ): Promise<void> {
+    const api = fakeApi();
+    for (let at = 0; at < howMany; at += 1) await api.create('p1', { parentId: null });
+    arrange(api.rows, api.teams, api);
+    widthIs(PHONE);
+    render(<WbsTable projectId="p1" api={api} />);
+    await screen.findByLabelText('Name of 010');
+  }
+
+  const teamOnCard = (): HTMLElement | null => document.querySelector('[data-card-team]');
+  const parallelOnCard = (): HTMLElement | null => document.querySelector('[data-card-parallel]');
+
+  itDom('names the team a row carries', async () => {
+    await aPlan((rows, teams) => {
+      teams.push({ id: 't1', name: 'Billing', size: 4 });
+      const row = rows[0];
+      if (row !== undefined) row.serviceTeamId = 't1';
+    });
+
+    expect(teamOnCard()?.textContent).toBe('Billing');
+    expect(teamOnCard()?.getAttribute('data-inherited')).toBeNull();
+  });
+
+  itDom('marks a team a row only inherits, and names where the label was written', async () => {
+    // The card is the only face some readers have, and a leaf under a labelled
+    // parent is on that parent's pool: its dates moved for a number written a
+    // row above it. A card showing nothing there cannot explain them.
+    //
+    // Proof: `teamLabel` pointed back at the stored label — the `teamName` this
+    // change replaced, `teamLabelOf(row.serviceTeamId)` — and this failed on
+    // `expected undefined to be '↳ Billing'`: the inheriting card drew no team
+    // line at all. Watched 2026-08-13.
+    await aPlan((rows, teams) => {
+      teams.push({ id: 't1', name: 'Billing', size: 4 });
+      const [parent, child] = rows;
+      if (parent === undefined || child === undefined) throw new Error('two rows expected');
+      parent.serviceTeamId = 't1';
+      child.parentId = parent.id;
+      parent.rolledUp = true;
+    }, 2);
+
+    const cards = [...document.querySelectorAll('[data-card-team]')];
+    expect(cards[0]?.textContent).toBe('Billing');
+    expect(cards[1]?.textContent).toBe('↳ Billing');
+    expect(cards[1]?.getAttribute('data-inherited')).toBe('true');
+    expect(cards[1]?.getAttribute('title')).toContain('inherited from');
+  });
+
+  itDom('draws no team line at all where nothing above carries a label', async () => {
+    await aPlan(() => {
+      // Nothing arranged: the plan every project starts as.
+    });
+
+    expect(teamOnCard()).toBeNull();
+  });
+
+  itDom('says how many people a row runs at, and nothing at one', async () => {
+    await aPlan((rows) => {
+      const row = rows[0];
+      if (row !== undefined) row.maxParallel = 3;
+    });
+
+    expect(parallelOnCard()?.textContent).toBe('3 at once');
+    expect(parallelOnCard()?.getAttribute('data-card-parallel')).toBe('live');
+  });
+
+  itDom('leaves the line off a row nobody has widened', async () => {
+    await aPlan(() => {
+      // `maxParallel` is 1 on every row of every plan nobody has touched, and a
+      // line saying "1 at once" under every card is furniture on a 390px
+      // screen.
+    });
+
+    expect(parallelOnCard()).toBeNull();
+  });
+
+  itDom('says a parallelism is not applied where one person is named on the work', async () => {
+    // C1's D3 on the phone: one human cannot work beside themselves, so the
+    // number is stored and does nothing until the assignment goes.
+    await aPlan((rows, _teams, api) => {
+      const row = rows[0];
+      if (row === undefined) return;
+      row.maxParallel = 3;
+      // Through the write path, because the fake derives both `assignees` and
+      // `doesEveryPhase` from the assignments it holds — a row object with an
+      // `assignees` written straight onto it is a shape the tree never sends.
+      void api.assign(row.id, DEV.id, 'p1');
+    });
+
+    expect(parallelOnCard()?.textContent).toBe('3 at once (not applied)');
+    expect(parallelOnCard()?.getAttribute('data-card-parallel')).toBe('inert');
+  });
+
+  itDom('says a parallelism on a parent is not applied either', async () => {
+    // A parent holds no slices of its own, so the number decides nothing —
+    // the same reading the table's cell makes, and it is made from the row
+    // rather than from a prop so the two faces cannot drift.
+    await aPlan((rows) => {
+      const [parent, child] = rows;
+      if (parent === undefined || child === undefined) throw new Error('two rows expected');
+      parent.maxParallel = 2;
+      child.parentId = parent.id;
+      parent.rolledUp = true;
+    }, 2);
+
+    expect(parallelOnCard()?.textContent).toBe('2 at once (not applied)');
   });
 });

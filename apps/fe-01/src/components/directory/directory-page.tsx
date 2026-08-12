@@ -289,15 +289,26 @@ export function DirectoryPage({ token, api: apiOverride, nav, account }: Directo
     Object.fromEntries(Object.entries(current).filter(([at]) => at !== id));
 
   /**
-   * Drops both drafts for one entry, which is what a committed or abandoned
-   * edit leaves behind.
+   * Drops both drafts for one entry, which is what a **commit** leaves behind.
    *
    * Both, and deliberately: a write to either box refetches the whole
    * directory, so a draft left standing over a value that has just come back
    * would hold the box at what this browser typed and hide what be-01 answered.
+   *
+   * Escape is the other way a draft goes, and it takes only its own box's —
+   * {@link forgetNameDraft} and {@link forgetSizeDraft}. A name abandoned is
+   * not a statement about a size somebody has typed and not yet sent.
    */
   const forgetDraft = (id: string) => {
     setRenamed((current) => withoutDraft(current, id));
+    setResized((current) => withoutDraft(current, id));
+  };
+
+  const forgetNameDraft = (id: string) => {
+    setRenamed((current) => withoutDraft(current, id));
+  };
+
+  const forgetSizeDraft = (id: string) => {
     setResized((current) => withoutDraft(current, id));
   };
 
@@ -680,7 +691,7 @@ export function DirectoryPage({ token, api: apiOverride, nav, account }: Directo
                             event.preventDefault();
                             commitRename('team', team);
                           }
-                          if (event.key === 'Escape') forgetDraft(team.id);
+                          if (event.key === 'Escape') forgetNameDraft(team.id);
                         }}
                       />
                       {/*
@@ -719,7 +730,7 @@ export function DirectoryPage({ token, api: apiOverride, nav, account }: Directo
                             event.preventDefault();
                             commitSize(team);
                           }
-                          if (event.key === 'Escape') forgetDraft(team.id);
+                          if (event.key === 'Escape') forgetSizeDraft(team.id);
                         }}
                       />
                       <span className="text-muted-foreground shrink-0 text-sm">
