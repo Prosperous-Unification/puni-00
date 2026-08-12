@@ -142,6 +142,9 @@ function measureAgreement(page: Page): Promise<{
   underTheAxis: number;
   panelScrollLeft: number;
   frameScrollLeft: number;
+  frameScrollTop: number;
+  panelScrollTop: number;
+  focused: string;
 }> {
   return page.evaluate(() => {
     const frame = document.querySelector('[data-table-frame]');
@@ -166,6 +169,9 @@ function measureAgreement(page: Page): Promise<{
       underTheAxis: label.getBoundingClientRect().top - axis.getBoundingClientRect().bottom,
       panelScrollLeft: panel.scrollLeft,
       frameScrollLeft: frame.scrollLeft,
+      frameScrollTop: frame.scrollTop,
+      panelScrollTop: panel.scrollTop,
+      focused: document.activeElement?.getAttribute('aria-label') ?? String(document.activeElement?.tagName),
     };
   });
 }
@@ -260,7 +266,7 @@ test.describe('the plan and its chart as one surface', () => {
     await wheelOver(page, '[data-table-frame]', 8 * 28);
     const scrolled = await measureAgreement(page);
 
-    expect(scrolled.index, 'the wheel did not scroll the table').toBeGreaterThan(0);
+    expect(scrolled.index, `frameTop ${String(scrolled.frameScrollTop)} panelTop ${String(scrolled.panelScrollTop)}`).toBeGreaterThan(0);
     expect(
       scrolled.underTheAxis,
       `the table is showing ${scrolled.id} and the chart is ${String(
@@ -305,7 +311,7 @@ test.describe('the plan and its chart as one surface', () => {
 
     // The walk reached a cell the frame had to scroll for, or this says nothing
     // about scrolling.
-    expect(walked.index, 'the keyboard walk never scrolled the frame').toBeGreaterThan(0);
+    expect(walked.index, `frameTop ${String(walked.frameScrollTop)} panelTop ${String(walked.panelScrollTop)} focus ${walked.focused}`).toBeGreaterThan(0);
     expect(walked.underTheAxis).toBeCloseTo(walked.underTheHeading, 0);
     // And the cell it walked to still has the focus. A link that scrolled by
     // `scrollIntoView` on the other face, or that moved the focus to bring a
