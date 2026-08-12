@@ -41,9 +41,19 @@ file, unformatted. Recorded rather than quietly replaced — a verify.md that
 shows only the green run is the record defect this repo has held two changes
 for. The only commit between the two is prettier's reflow of the tables below.
 
-Filling these figures in moves this file and therefore the head, so the run that
-observes the final SHA is one later than the one named here. It changes no file
-but this paragraph.
+Filling those figures in moved this file and therefore the head, so there is a
+third run,
+[31617773647](https://github.com/Prosperous-Unification/wbs-tool-v1/actions/runs/31617773647)
+at head `c2fca51` — `gate` pass 3m28s, and `pixels` **failing on its first
+attempt and passing on a rerun**, 8m07s. The failure was
+`dark-mode.spec.ts:239 › is dark at the first paint, before the app has mounted`,
+against a `WebServer` log full of `ws proxy error: write ECONNRESET` and `EPIPE`.
+`git diff a32ee68 c2fca51 --stat` is this file and nothing else, and the run at
+`a32ee68` had already passed `pixels` on the identical fe-01 tree — so that is a
+flake in the browser gate, not this change, and it is written down rather than
+rerun quietly. No fe-01 or gw-01 file is touched by this branch at all.
+
+The commit after `c2fca51` adds this paragraph and nothing else.
 
 ## The failure-proof table (R5)
 
