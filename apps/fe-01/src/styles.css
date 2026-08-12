@@ -548,6 +548,31 @@
     line-height: 1.4;
   }
 
+  /*
+   * The five pixels under every box, which are a row's height and nothing a
+   * reader can see.
+   *
+   * A `<textarea>` is `inline-block` and sits on its line's **baseline**, so
+   * the line box under it reserves room for descenders that no glyph in the
+   * box will ever use: measured on h2puni, a 21.8px box in a 27.19px line,
+   * which is a 29.19px row against this change's 28px budget. `middle` takes
+   * the box off the baseline and the reservation with it.
+   *
+   * `vertical-align` and not `display: block`, which would also have worked:
+   * this is one property about one alignment, where blockifying the boxes
+   * changes how every cell that puts something *beside* its box lays out — the
+   * assignee cell's assumed name, the dependency strip's chips. Both of those
+   * are flex containers, which ignore this property entirely, so the rule is
+   * inert exactly where it would have been a risk.
+   *
+   * Proof: FAULT-BASELINE (see `spreadsheet-geometry`'s verify.md) — this
+   * declaration removed.
+   */
+  [data-grid] tbody input,
+  [data-grid] tbody textarea {
+    vertical-align: middle;
+  }
+
   [data-grid] th,
   [data-grid] td {
     background: var(--cell-bg);
