@@ -98,6 +98,81 @@ first browser run of:
 - `[data-gantt-bar]:not([data-assumed])` in the two places that used to be able
   to assume every drawn bar was costed.
 
+## The rebase onto `#47`, and the cross-review round
+
+This branch was cut from `3d354998` and had **never seen `#47`**
+(`arrow-dodge`). `gh` said `MERGEABLE`/`CLEAN`, a trial merge said `Automatic
+merge went well` on all four source files, and CI was green — against a base two
+hours stale. The merge product was red.
+
+`#47` added a panel test that calls the helper `askForTheArrows()`; this branch
+renamed that helper to `askForTheDetail()` and the button hook to
+`[data-gantt-detail-toggle]`. Git took both sides. The merged
+`gantt-panel.test.tsx` referenced an identifier defined nowhere, which fails
+`typecheck` and stops the **whole file** running under vitest — killing, among
+91 other cases, the single assertion `#47`'s own review called the only one that
+can see the panel handing the router the wrong bars, inset or approach. Found by
+the cross-review (`notes/wbs-cross-review-2026-08-12-declutter-one-button.md`),
+which was the only reader looking at the merge rather than at the branch.
+Reconciled on the rebase; the whole fe-01 suite runs on the rebased tree,
+**46 files, 1146 passed**, on h2puni.
+
+Four holds came with it. Each got a test, and each test was watched red against
+the code it is about, on h2puni under vitest in the Playwright image:
+
+| #   | Fault injected                                                    | Test that went red                                                        | What it said                                                                       |
+| --- | ----------------------------------------------------------------- | ------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| M1  | the merge as git produced it (`askForTheArrows` undefined)        | every one of the 91 in `gantt-panel.test.tsx`                             | `Cannot find name 'askForTheArrows'` — `typecheck`, and the file does not run      |
+| M2  | `openBar` resolved against `chart.bars` rather than `drawnBars`   | `takes an open surface away with the bar the switch stops drawing`        | `the surface outlived the bar it belongs to: expected false to be true`            |
+| M3  | the canvas measured off the drawn set instead of `placed.horizon` | `declares the same canvas across the switch, on the axis that could move` | `the canvas is a different width with the detail on: expected 4.857… to be 2.857…` |
+| M4  | `readDetail` pointed back at `rememberedDetail`                   | _(none — see below)_                                                      | —                                                                                  |
+
+**M3's first fixture could not fail, and that is worth recording.**
+`routeOffBothEnds` holds an unestimated slice, so it looked like the right one;
+its ghost is placed at day 0, _inside_ the estimated bar's own span, so a canvas
+sized off the drawn marks alone comes out the same width in both states and the
+injection went green. The test now builds a fixture whose ghost starts where the
+costed work finishes and therefore reaches past every bar somebody estimated,
+and it asserts that precondition before the equality it is there to make. That
+is the seventh-odd instance of this repository's own failure mode, caught this
+time by injecting before trusting.
+
+**M4 has no test, deliberately.** The `removeItem`s moved out of the lazy
+`useState` initialiser and into a mount effect, because an initialiser is a
+render and StrictMode double-invokes it on purpose — the rule this file already
+states over the switch's own handler, eleven hundred lines below where it was
+being broken. Nothing observable changed: `removeItem` is idempotent, and the
+`DETAIL_KEY` drop only fires on a stored value this panel refuses. Both existing
+key tests (`drops the key the arrows switch wrote, without reading it` and the
+two refusals) stay green across the move, which is the whole claim. A test
+asserting "no write happened during the render phase" would be asserting the
+rule rather than any behaviour, and there is nothing for it to protect.
+
+### Reported, not fixed: ghost bars are obstacles now
+
+`#47` hands the router the drawn set, and since this change that set depends on
+the switch — so **with `Detail` on, every unestimated bar is also an obstacle.**
+`#47` was cleared partly on the argument that `arrow.fromX` is never strictly
+inside a drawn bar, and that argument was load-bearing on the assumed bars being
+absent. It is reachable now: a leaf whose slices in role order are an
+unestimated one and then an estimated one of under two workdays puts `fromX`
+inside the ghost's own span on the arrow's own row, every candidate route reads
+as crossing, and `routeArrow` falls through to the banded fallback that `#47`'s
+review proved dead and found untested.
+
+The consequence is cosmetic — an elbow over a translucent dashed ghost, which is
+what the chart did before `gantt-declutter` — and it is left alone: the
+alternative is a second, switch-independent obstacle list, and the honest
+version of that is a geometry change with its own proposal. What it costs is a
+dead fallback becoming a live path in one state. Written into `arrowRoute`'s
+docstring, where the next reader of that argument will be.
+
+Same shape, one mark along: `#47`'s review dismissed "parent brackets are an
+unlisted obstacle class" on the ground that since `gantt-declutter` a parent's
+row paints nothing at all. This change puts the bracket back on `Detail` on, so
+that dismissal has expired. Also cosmetic, also out of `#47`'s declared
+non-goals, and also worth knowing before anyone cites that note again.
+
 ## Not done
 
 - The `wbs.ganttArrows` answer is **dropped, not migrated**. A reader who

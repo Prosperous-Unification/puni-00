@@ -1700,6 +1700,51 @@ describe('the canvas holds every mark it draws', () => {
     expect(barFor('strip-dev')?.getAttribute('data-finish')).toBe('6');
   });
 
+  itDom('takes an open surface away with the bar the switch stops drawing', () => {
+    // The effect that dismisses an orphaned surface has always claimed this
+    // case — "its row was collapsed away, narrowed off by a search, or is
+    // simply no longer drawn" — and before this switch it could not arise: the
+    // drawn set only ever changed on a refetch, and a refetch bumps
+    // `generation`, which clears both surfaces outright. Now the set changes
+    // when somebody presses `Detail`, and a surface resolved against
+    // `chart.bars` — every bar the plan has — would outlive its own rect,
+    // anchored by its `AnchorRect` snapshot to coordinates on a row that is now
+    // empty, reciting `not estimated` facts about a bar nobody can see.
+    //
+    // The focus opener rather than the pointer, and that is the case: both
+    // self-healing paths need a real event the reachable version does not have.
+    // A pointer must leave the rect to click the switch (`onPointerOut` →
+    // dismiss) and keyboard focus blurs on the way to it (`onBlur` → dismiss);
+    // what is left is a pointer resting on the bar while the switch is worked
+    // from the keyboard, which is neither. jsdom's `fireEvent.focus` moves no
+    // `activeElement`, so nothing here fires a blur either — which is what
+    // makes it the right stand-in for that state. Cross-review, 2026-08-12.
+    render(
+      <GanttPanel
+        plan={routeOffBothEnds()}
+        startDate={MONDAY_START}
+        scheduleError={null}
+        generation={0}
+        heightPx={null}
+        onPickRow={() => undefined}
+      />,
+    );
+    askForTheDetail('[data-assumed]');
+
+    // The ghost is on the chart and its surface is open on it.
+    expect(barFor('sand-dev')?.getAttribute('data-assumed')).toBe('true');
+    expect(linesOf(surfaceOn('sand-dev'))[0]).toContain('sand');
+
+    // The switch off again — the same press, not a refetch, so `generation` is
+    // untouched and the blanket clear it drives never runs.
+    const toggle = document.querySelector('[data-gantt-detail-toggle]');
+    if (!(toggle instanceof HTMLElement)) throw new Error('the detail switch is not on the panel');
+    fireEvent.click(toggle);
+
+    expect(barFor('sand-dev'), 'the ghost bar is still drawn').toBeNull();
+    expect(noSurface(), 'the surface outlived the bar it belongs to').toBe(true);
+  });
+
   itDom('declares the same canvas across the switch, on the axis that could move', () => {
     // **The width, which every other invariance assertion in this file leaves
     // alone.** The cross-state pairs compare `[data-gantt-label]` counts and
@@ -1712,13 +1757,26 @@ describe('the canvas holds every mark it draws', () => {
     // workdays an assumed span is worth, while every assertion in this file
     // stays green. Cross-review, 2026-08-12.
     //
-    // This fixture, because it is the one that holds an unestimated slice —
-    // `sand-dev`, `estimated: false` — and so is the only one where the
-    // narrowing has anything to narrow.
+    // **Its own fixture, and the shape is the whole test.** `routeOffBothEnds`
+    // holds an unestimated slice too and is no use here: its ghost is placed at
+    // day 0, inside the estimated bar's own span, so a canvas sized off the
+    // drawn set alone comes out the same width in both states and the equality
+    // below passes against the very fault it is written for. Watched, on
+    // h2puni, 2026-08-12 — the injection went green before this fixture
+    // existed. What is needed is a ghost that reaches **past** every bar
+    // somebody costed: `sand` starts where `strip` finishes and is drawn across
+    // `ASSUMED_UNESTIMATED_WORKDAYS`, so it is the rightmost mark on the chart
+    // whenever it is drawn at all.
     render(
       <GanttPanel
-        plan={routeOffBothEnds()}
-        startDate={MONDAY_START}
+        plan={planOf({
+          rows: [rowAt('strip', 0, 2), rowAt('sand', 2, 2)],
+          slices: [
+            sliceAt('strip-dev', 'strip', 0, 2),
+            sliceAt('sand-dev', 'sand', 2, 2, { duration: 0, estimated: false }),
+          ],
+        })}
+        startDate={null}
         scheduleError={null}
         generation={0}
         heightPx={null}
@@ -1731,18 +1789,33 @@ describe('the canvas holds every mark it draws', () => {
     // equality below would hold of a switch wired to a constant.
     expect(document.querySelectorAll('[data-assumed]')).toHaveLength(0);
     const atRest = viewBoxOf(document.querySelector('[data-gantt-chart]'));
+    const costedRight = Number(barFor('strip-dev')?.getAttribute('x') ?? 0) + 2;
 
     askForTheDetail('[data-assumed]');
 
     const askedFor = viewBoxOf(document.querySelector('[data-gantt-chart]'));
-    expect(document.querySelectorAll('[data-assumed]').length).toBeGreaterThan(0);
+    expect(document.querySelectorAll('[data-assumed]')).toHaveLength(1);
+    // The precondition that makes the equality a claim: the ghost really does
+    // reach past everything costed, so a canvas measured off the drawn marks
+    // would have to be two workdays narrower at rest.
+    const ghostRight =
+      Number(barFor('sand-dev')?.getAttribute('x') ?? 0) +
+      Number(barFor('sand-dev')?.getAttribute('width') ?? 0);
+    expect(ghostRight, 'the ghost does not reach past the costed work').toBeGreaterThan(
+      costedRight,
+    );
+
     expect(askedFor.width, 'the canvas is a different width with the detail on').toBe(atRest.width);
     expect(askedFor.minX, 'the canvas starts at a different day with the detail on').toBe(
       atRest.minX,
     );
-    // And the width is a number worth comparing, rather than a zero on both
-    // sides of a chart that drew nothing.
-    expect(atRest.width).toBeGreaterThan(8);
+    // And the canvas already reserves the ghost's span at rest, which is the
+    // positive form of the same claim: `placed.horizon` counts every *placed*
+    // bar, drawn or not.
+    expect(
+      atRest.width,
+      'the canvas at rest stops short of the ghost it is not drawing',
+    ).toBeGreaterThanOrEqual(ghostRight);
   });
 });
 
