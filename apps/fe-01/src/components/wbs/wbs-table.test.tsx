@@ -404,9 +404,7 @@ function fakeApi(): ProjectApi & {
       // stored the null would let the table pass a test against a row shape
       // be-01 can never send.
       const written =
-        'maxParallel' in patch && patch.maxParallel === null
-          ? { ...patch, maxParallel: 1 }
-          : patch;
+        'maxParallel' in patch && patch.maxParallel === null ? { ...patch, maxParallel: 1 } : patch;
       if (row !== undefined) Object.assign(row, written);
       return Promise.resolve();
     },
@@ -2108,28 +2106,31 @@ describe('the In-parallel cell', () => {
     expect(parallelCell('020').value).toBe('');
   });
 
-  itDom('resets to one at a time when the cell is emptied, rather than sending a zero', async () => {
-    // `Number('')` is 0, and a width of 0 is a duration of `Infinity` — the
-    // fault `capacity-write-paths` refuses 400 and `capacity-engine` throws on.
-    // An emptied box plainly means one at a time, and `null` is how be-01
-    // spells that.
-    const api = await twoRows();
-    const patched = watchPatches(api);
+  itDom(
+    'resets to one at a time when the cell is emptied, rather than sending a zero',
+    async () => {
+      // `Number('')` is 0, and a width of 0 is a duration of `Infinity` — the
+      // fault `capacity-write-paths` refuses 400 and `capacity-engine` throws on.
+      // An emptied box plainly means one at a time, and `null` is how be-01
+      // spells that.
+      const api = await twoRows();
+      const patched = watchPatches(api);
 
-    typeIntoParallel('010', '4');
-    await waitFor(() => {
-      expect(patched).toEqual([{ maxParallel: 4 }]);
-    });
+      typeIntoParallel('010', '4');
+      await waitFor(() => {
+        expect(patched).toEqual([{ maxParallel: 4 }]);
+      });
 
-    typeIntoParallel('010', '');
-    await waitFor(() => {
-      expect(patched).toEqual([{ maxParallel: 4 }, { maxParallel: null }]);
-    });
-    // Back to blank, because 1 renders as nothing.
-    await waitFor(() => {
-      expect(parallelCell('010').value).toBe('');
-    });
-  });
+      typeIntoParallel('010', '');
+      await waitFor(() => {
+        expect(patched).toEqual([{ maxParallel: 4 }, { maxParallel: null }]);
+      });
+      // Back to blank, because 1 renders as nothing.
+      await waitFor(() => {
+        expect(parallelCell('010').value).toBe('');
+      });
+    },
+  );
 
   itDom('sends a number be-01 will refuse rather than deciding for it', async () => {
     // The rule about what a parallelism may be lives at be-01's boundary
@@ -2165,9 +2166,7 @@ describe('the In-parallel cell', () => {
     typeIntoParallel('010', '1e999');
 
     await waitFor(() => {
-      expect(
-        screen.getByText(/People at once is a whole number from 1 to 1000\./),
-      ).toBeDefined();
+      expect(screen.getByText(/People at once is a whole number from 1 to 1000\./)).toBeDefined();
     });
     expect(patched).toEqual([]);
 

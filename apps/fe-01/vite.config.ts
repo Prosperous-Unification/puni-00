@@ -116,10 +116,7 @@ export default defineConfig(({ command, mode }) => ({
       // its own label or the nearest ancestor's — is the one be-01 pools on.
       // A second copy of it here is a table that disagrees with the dates it
       // is printing.
-      '@wbs/domain/effective-team': resolve(
-        __dirname,
-        '../../libs/domain/src/effective-team.ts',
-      ),
+      '@wbs/domain/effective-team': resolve(__dirname, '../../libs/domain/src/effective-team.ts'),
     },
   },
   server: {

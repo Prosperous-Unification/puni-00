@@ -587,8 +587,7 @@ export function poolLabelFor(
   const name = team.state === 'named' || team.state === 'inherited' ? team.name : null;
   if (name === null) return null;
   const room = drawnSpan * DAY_PX - 2 * LABEL_PAD_PX;
-  const candidates =
-    width > 1 ? [`${name} ×${String(width)}`, `×${String(width)}`, name] : [name];
+  const candidates = width > 1 ? [`${name} ×${String(width)}`, `×${String(width)}`, name] : [name];
   return candidates.find((label) => room >= label.length * LABEL_CHAR_PX) ?? null;
 }
 

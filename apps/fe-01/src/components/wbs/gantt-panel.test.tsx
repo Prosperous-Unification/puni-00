@@ -982,9 +982,7 @@ describe('the chart is drawn in calendar days', () => {
     // And nothing at all on the row that asked for one at a time, which is
     // every row of every plan today: a line saying `1 in parallel` on all of
     // them is furniture, exactly as `Priority —` would be.
-    expect(
-      linesOf(surfaceOn('sand-dev')).filter((line) => line.includes('parallel')),
-    ).toEqual([]);
+    expect(linesOf(surfaceOn('sand-dev')).filter((line) => line.includes('parallel'))).toEqual([]);
   });
 
   itDom('names the ancestor an inherited team came from', () => {

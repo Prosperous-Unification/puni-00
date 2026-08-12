@@ -894,8 +894,7 @@ describe('what a card says about capacity', () => {
   itDom('names the team a row carries', async () => {
     await aPlan((rows, teams) => {
       teams.push({ id: 't1', name: 'Billing', size: 4 });
-      const row = rows[0];
-      if (row !== undefined) row.serviceTeamId = 't1';
+      rows[0].serviceTeamId = 't1';
     });
 
     expect(teamOnCard()?.textContent).toBe('Billing');
@@ -914,7 +913,6 @@ describe('what a card says about capacity', () => {
     await aPlan((rows, teams) => {
       teams.push({ id: 't1', name: 'Billing', size: 4 });
       const [parent, child] = rows;
-      if (parent === undefined || child === undefined) throw new Error('two rows expected');
       parent.serviceTeamId = 't1';
       child.parentId = parent.id;
       parent.rolledUp = true;
@@ -937,8 +935,7 @@ describe('what a card says about capacity', () => {
 
   itDom('says how many people a row runs at, and nothing at one', async () => {
     await aPlan((rows) => {
-      const row = rows[0];
-      if (row !== undefined) row.maxParallel = 3;
+      rows[0].maxParallel = 3;
     });
 
     expect(parallelOnCard()?.textContent).toBe('3 at once');
@@ -960,7 +957,6 @@ describe('what a card says about capacity', () => {
     // number is stored and does nothing until the assignment goes.
     await aPlan((rows, _teams, api) => {
       const row = rows[0];
-      if (row === undefined) return;
       row.maxParallel = 3;
       // Through the write path, because the fake derives both `assignees` and
       // `doesEveryPhase` from the assignments it holds — a row object with an
@@ -978,7 +974,6 @@ describe('what a card says about capacity', () => {
     // rather than from a prop so the two faces cannot drift.
     await aPlan((rows) => {
       const [parent, child] = rows;
-      if (parent === undefined || child === undefined) throw new Error('two rows expected');
       parent.maxParallel = 2;
       child.parentId = parent.id;
       parent.rolledUp = true;

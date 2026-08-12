@@ -447,10 +447,7 @@ describe('the capacity columns', () => {
   });
 
   it('writes the parallelism somebody typed, and leaves a row of one blank', () => {
-    const rows = [
-      row({ id: 'a', number: '010', maxParallel: 3 }),
-      row({ id: 'b', number: '020' }),
-    ];
+    const rows = [row({ id: 'a', number: '010', maxParallel: 3 }), row({ id: 'b', number: '020' })];
     const csv = planToCsv(plan({ rows }));
     const at = columnAt(csv, 'People at once');
     expect(csvDataRow(csv)[at]).toBe('3');

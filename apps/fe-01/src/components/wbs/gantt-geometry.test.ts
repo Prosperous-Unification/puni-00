@@ -464,7 +464,9 @@ describe('a bar held by a team’s capacity', () => {
       }),
     );
 
-    expect(wordsFor(chart, 'sand-dev')).toBe('Waits for Platform to free a person — after strip (Dev)');
+    expect(wordsFor(chart, 'sand-dev')).toBe(
+      'Waits for Platform to free a person — after strip (Dev)',
+    );
   });
 
   /**

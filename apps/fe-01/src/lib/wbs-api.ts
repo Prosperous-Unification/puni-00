@@ -97,9 +97,9 @@ export interface SliceView {
    * **effective** width be-01 scheduled with.
    *
    * Already clamped to the team's size and already 1 wherever somebody is
-   * named on the work (one human cannot work beside themselves). What was
-   * *typed* is {@link WorkItemView.maxParallel}, and the two differing is a
-   * fact the chart, the table and the export each state.
+   * named on the work (one human cannot work beside themselves). The number
+   * somebody *typed* is {@link WorkItemView.maxParallel}, and the two
+   * differing is a fact the chart, the table and the export each state.
    */
   width: number;
   /**

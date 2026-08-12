@@ -2421,7 +2421,6 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     };
   };
 
-
   /**
    * A pending Ctrl+D whose row the tree no longer holds — or no longer holds
    * under the number the toast promised — is disarmed.
@@ -4287,7 +4286,6 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     [dependenciesOf],
   );
 
-
   /**
    * Takes the plan to one row: its name cell gets the caret and is scrolled to.
    *
@@ -5550,40 +5548,40 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
           // the row, its answer changes with it.
           const inherited = live.current.effectiveTeamLabelOf(row.original);
           return (
-          <CreatablePicker
-            label={`Service or team for ${row.original.number}`}
-            placeholder={
-              inherited.state === 'inherited' ? `↳ ${inherited.name}` : 'search or add'
-            }
-            title={
-              inherited.state === 'inherited'
-                ? `${inherited.name} — inherited from ${inherited.fromRow}. This row carries no team of its own.`
-                : undefined
-            }
-            entries={live.current.teams}
-            value={row.original.serviceTeamId}
-            onChoose={(id) => {
-              live.current.setTeamOf(row.original.id, id);
-            }}
-            onCreate={(name) => {
-              live.current.createTeamFor(row.original.id, name);
-            }}
-            onClear={() => {
-              live.current.setTeamOf(row.original.id, null);
-            }}
-            gridCell={{
-              dataCell: cellKey(row.original.id, 'team'),
-              onTabKey: (e) => {
-                live.current.onTabKey(e, row.original.id, 'team');
-              },
-              onCommandKey: (e) => {
-                live.current.onCommandKey(e, row.original, 'team');
-              },
-              onAltMove: (e) => {
-                live.current.onAltMove(e, row.original, 'team');
-              },
-            }}
-          />
+            <CreatablePicker
+              label={`Service or team for ${row.original.number}`}
+              placeholder={
+                inherited.state === 'inherited' ? `↳ ${inherited.name}` : 'search or add'
+              }
+              title={
+                inherited.state === 'inherited'
+                  ? `${inherited.name} — inherited from ${inherited.fromRow}. This row carries no team of its own.`
+                  : undefined
+              }
+              entries={live.current.teams}
+              value={row.original.serviceTeamId}
+              onChoose={(id) => {
+                live.current.setTeamOf(row.original.id, id);
+              }}
+              onCreate={(name) => {
+                live.current.createTeamFor(row.original.id, name);
+              }}
+              onClear={() => {
+                live.current.setTeamOf(row.original.id, null);
+              }}
+              gridCell={{
+                dataCell: cellKey(row.original.id, 'team'),
+                onTabKey: (e) => {
+                  live.current.onTabKey(e, row.original.id, 'team');
+                },
+                onCommandKey: (e) => {
+                  live.current.onCommandKey(e, row.original, 'team');
+                },
+                onAltMove: (e) => {
+                  live.current.onAltMove(e, row.original, 'team');
+                },
+              }}
+            />
           );
         },
       }),
