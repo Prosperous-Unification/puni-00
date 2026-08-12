@@ -28,6 +28,7 @@ const item = (id: string, parentId: string | null = null): WorkItem => ({
   priority: null,
   startNoEarlierThan: null,
   serviceTeamId: null,
+  maxParallel: 1,
   revision: 0,
 });
 
@@ -51,6 +52,8 @@ const plan = (
       roleId: DEV,
       days: row.id in days ? days[row.id] : null,
       personId: null,
+      width: 1,
+      poolId: null,
     }));
   return schedule(rows, edges, slices, notBefore);
 };
@@ -164,8 +167,22 @@ const roledPlan = (
   const slices: Slice[] = rows
     .filter((row) => !childless.has(row.id))
     .flatMap((row) => [
-      { workItemId: row.id, roleId: DEV, days: days[row.id][0], personId: null },
-      { workItemId: row.id, roleId: QA, days: days[row.id][1], personId: null },
+      {
+        workItemId: row.id,
+        roleId: DEV,
+        days: days[row.id][0],
+        personId: null,
+        width: 1,
+        poolId: null,
+      },
+      {
+        workItemId: row.id,
+        roleId: QA,
+        days: days[row.id][1],
+        personId: null,
+        width: 1,
+        poolId: null,
+      },
     ]);
   return schedule(rows, edges, slices, notBefore);
 };
@@ -185,9 +202,30 @@ const threeRolePlan = (
   const slices: Slice[] = rows
     .filter((row) => !childless.has(row.id))
     .flatMap((row) => [
-      { workItemId: row.id, roleId: DESIGN, days: days[row.id][0], personId: null },
-      { workItemId: row.id, roleId: DEV, days: days[row.id][1], personId: null },
-      { workItemId: row.id, roleId: QA, days: days[row.id][2], personId: null },
+      {
+        workItemId: row.id,
+        roleId: DESIGN,
+        days: days[row.id][0],
+        personId: null,
+        width: 1,
+        poolId: null,
+      },
+      {
+        workItemId: row.id,
+        roleId: DEV,
+        days: days[row.id][1],
+        personId: null,
+        width: 1,
+        poolId: null,
+      },
+      {
+        workItemId: row.id,
+        roleId: QA,
+        days: days[row.id][2],
+        personId: null,
+        width: 1,
+        poolId: null,
+      },
     ]);
   return schedule(rows, edges, slices, notBefore);
 };

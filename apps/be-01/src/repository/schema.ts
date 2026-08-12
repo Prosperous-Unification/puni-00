@@ -199,8 +199,31 @@ export const workItem = sqliteTable(
     /**
      * The service or team this work belongs to, or null. A label on the work,
      * not a constraint on who may be assigned it.
+     *
+     * It is also what {@link serviceTeam.size} is spent through: a label on a
+     * parent reaches every leaf beneath it that carries none — most-specific
+     * wins, `effectiveTeamOf` in `libs/domain/src/effective-team.ts` — and each of
+     * those leaves' slices draws a slot from that team's pool. Labelling is
+     * still not assigning: who does the work is a second and independent fact.
      */
     serviceTeamId: text('service_team_id'),
+    /**
+     * How many people may be on this work item at once — 1 or more, never
+     * null.
+     *
+     * An item of `maxParallel: 3` and 6 days of effort runs for 2 days holding
+     * 3 of its team's slots, as one indivisible block: it takes all three or it
+     * waits. Clamped down by the team's own size, so an item cannot claim more
+     * people than the team has, and overridden to 1 by a named assignee — one
+     * human cannot work beside themselves. See `widthFor` in
+     * `service/work-item.service.ts` for where the three rules meet.
+     *
+     * `NOT NULL DEFAULT 1` rather than `priority`'s nullable shape, because
+     * unlike a priority `1` and *unset* are the same fact: one at a time. Two
+     * spellings of one fact is what R2 exists to prevent, and the default is
+     * what keeps the column additive across a blue/green swap.
+     */
+    maxParallel: integer('max_parallel').notNull().default(1),
     /**
      * How many times this work item has been written to: a monotonic counter
      * that starts at 0 and is bumped by every write that changes what the work
@@ -337,6 +360,23 @@ export const serviceTeam = sqliteTable(
   {
     id: text('id').primaryKey(),
     name: text('name').notNull(),
+    /**
+     * How many people of this team may be at work at once, across the whole of
+     * one project's plan — or null for "nobody has said".
+     *
+     * Null is not 1: an unsized team constrains nothing at all, which is the
+     * state every plan written before this column was in was scheduled under.
+     * A sized team of N bounds how many of its work items' slices run at once,
+     * **including the ones somebody is named on** — the slot is keyed on the
+     * work item's team, never on the person's memberships, so a team of 4 never
+     * shows five people at work.
+     *
+     * Global, exactly as a person is: two projects labelled `Platform` each get
+     * N. The scheduler reads it through `slotsOf`, which is the seam a
+     * per-project allocation would be added behind; the argument for and
+     * against is in `openspec/changes/capacity-engine/design.md`.
+     */
+    size: integer('size'),
   },
   (t) => [uniqueIndex('service_team_name').on(t.name)],
 );

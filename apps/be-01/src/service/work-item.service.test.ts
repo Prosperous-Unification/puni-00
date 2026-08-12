@@ -67,7 +67,7 @@ beforeEach(async () => {
   // inside the update's own transaction, because `work_item.service_team_id`
   // has no foreign key to do it.
   for (const name of ['team-billing', 'team-sparks']) {
-    await directory.addTeam({ id: name, name });
+    await directory.addTeam({ id: name, name, size: null });
   }
 });
 
@@ -98,6 +98,7 @@ async function fill(parentId: string, count: number): Promise<void> {
         priority: null,
         startNoEarlierThan: null,
         serviceTeamId: null,
+        maxParallel: 1,
         revision: 0,
       },
       [],
@@ -1248,6 +1249,152 @@ describe('the project’s estimate method', () => {
   });
 });
 
+describe('capacity, as the adapter resolves it', () => {
+  /** A whole-day estimate, so the numbers in these tests are the numbers. */
+  const flat = (days: number) => ({ optimistic: days, realistic: days, pessimistic: days });
+
+  /** One work item's slice in the payload, or a throw. */
+  function slicedFor(
+    tree: Awaited<ReturnType<WorkItemService['tree']>>,
+    workItemId: string,
+  ): NonNullable<typeof tree>['slices'][number] {
+    const found = tree?.slices.find((one) => one.workItemId === workItemId);
+    if (found === undefined) throw new Error(`no slice for ${workItemId}`);
+    return found;
+  }
+
+  /** A leaf written straight through the store, so `maxParallel` can be set before C2's write path exists. */
+  async function leaf(
+    name: string,
+    maxParallel: number,
+    serviceTeamId: string | null = null,
+    parentId: string | null = null,
+  ): Promise<string> {
+    const id = crypto.randomUUID();
+    await workItems.insert(
+      {
+        id,
+        projectId,
+        parentId,
+        position: (position += 10),
+        name,
+        notes: '',
+        frozenNumber: null,
+        priority: null,
+        startNoEarlierThan: null,
+        serviceTeamId,
+        maxParallel,
+        revision: 0,
+      },
+      [],
+    );
+    return id;
+  }
+  let position = 1000;
+
+  it('compresses a work item across the people its parallelism allows', async () => {
+    const strip = await leaf('Strip', 3);
+    await service.setEstimate(strip, OWNER, roleId, flat(6));
+
+    const tree = await service.tree(projectId);
+
+    expect(slicedFor(tree, strip)).toMatchObject({
+      effort: 6,
+      width: 3,
+      duration: 2,
+      earliestStart: 0,
+      earliestFinish: 2,
+    });
+  });
+
+  it('clamps a work item’s parallelism down to the size of its team', async () => {
+    // Nobody may claim more people than the team has. `maxParallel: 4` on a
+    // team of 2 runs at 2, and the block waits for both.
+    //
+    // Proof: the `Math.min` against `slots` dropped from `widthFor` and this
+    // failed with `width: 4` and `duration: 1` — a plan claiming four of a
+    // team of two; watched 2026-08-12.
+    await directory.addTeam({ id: 'team-small', name: 'Small', size: 2 });
+    const strip = await leaf('Strip', 4, 'team-small');
+    await service.setEstimate(strip, OWNER, roleId, flat(4));
+
+    const tree = await service.tree(projectId);
+
+    expect(slicedFor(tree, strip)).toMatchObject({ effort: 4, width: 2, duration: 2 });
+  });
+
+  it('runs a named person’s work one at a time however parallel the item is', async () => {
+    // D3. One human cannot work beside themselves, and `assumedAssignee` means
+    // one named assignment covers every role — so naming somebody collapses
+    // the whole item to width 1.
+    //
+    // Proof: the named-person arm dropped from `widthFor` and this failed with
+    // `width: 3` and `duration: 2` on work one person is doing; watched
+    // 2026-08-12.
+    const strip = await leaf('Strip', 3);
+    await service.setEstimate(strip, OWNER, roleId, flat(6));
+    await directory.assign(strip, roleId, 'kat');
+
+    const tree = await service.tree(projectId);
+
+    expect(slicedFor(tree, strip)).toMatchObject({
+      effort: 6,
+      width: 1,
+      duration: 6,
+      personId: 'kat',
+    });
+  });
+
+  it('draws a leaf’s pool from the team its parent labels', async () => {
+    // D5, through the adapter: a label on a parent reaches the leaves beneath
+    // it, and the pool those leaves spend is that team's. Nothing is copied
+    // down — the rows are read back to prove the label is still only on the
+    // parent.
+    await directory.addTeam({ id: 'team-one', name: 'One', size: 1 });
+    const phase = await leaf('Phase', 1, 'team-one');
+    const first = await leaf('First', 1, null, phase);
+    const second = await leaf('Second', 1, null, phase);
+    await service.setEstimate(first, OWNER, roleId, flat(2));
+    await service.setEstimate(second, OWNER, roleId, flat(2));
+
+    const tree = await service.tree(projectId);
+
+    // A pool of one, so the two children queue behind each other even though
+    // neither of them carries the label.
+    expect(slicedFor(tree, first)).toMatchObject({ earliestStart: 0, earliestFinish: 2 });
+    expect(slicedFor(tree, second)).toMatchObject({
+      earliestStart: 2,
+      earliestFinish: 4,
+      boundBy: 'capacity',
+    });
+    expect(tree?.waitingForCapacity).toBe(1);
+    // Inheritance is a reading, never a stored second copy.
+    const stored = tree?.workItems.filter((row) => [first, second].includes(row.id));
+    for (const row of stored ?? []) expect(row.serviceTeamId).toBeNull();
+  });
+
+  it('leaves an unsized team labelling the work and constraining nothing', async () => {
+    // The identity claim through the adapter: `team-billing` has no size, so
+    // its work draws from no pool and the plan is the one this engine answered
+    // before capacity existed.
+    const strip = await leaf('Strip', 1, 'team-billing');
+    const sand = await leaf('Sand', 1, 'team-billing');
+    await service.setEstimate(strip, OWNER, roleId, flat(2));
+    await service.setEstimate(sand, OWNER, roleId, flat(2));
+
+    const tree = await service.tree(projectId);
+
+    expect(slicedFor(tree, strip)).toMatchObject({ earliestStart: 0, earliestFinish: 2 });
+    expect(slicedFor(tree, sand)).toMatchObject({
+      earliestStart: 0,
+      earliestFinish: 2,
+      boundBy: 'projectStart',
+      capacityPredecessorIds: [],
+    });
+    expect(tree?.waitingForCapacity).toBe(0);
+  });
+});
+
 describe('the slices the schedule placed, on the wire', () => {
   /** A whole-day estimate, so the numbers in these tests are the numbers. */
   const flat = (days: number) => ({ optimistic: days, realistic: days, pessimistic: days });
@@ -1479,7 +1626,10 @@ describe('the slices the schedule placed, on the wire', () => {
     const tree = await service.tree(projectId);
 
     // Additive, asserted rather than asserted about: every name the payload
-    // carried before is still there, and `slices` is the only new one.
+    // carried before is still there, and the new ones are named. `slices` was
+    // this test's own; `waitingForCapacity` is `capacity-engine`'s, and it sits
+    // beside `waitingForPerson` rather than inside it because a queue and a
+    // headcount are different sentences.
     expect(Object.keys(tree ?? {}).sort()).toEqual([
       'assignedPeople',
       'estimateMethod',
@@ -1489,6 +1639,7 @@ describe('the slices the schedule placed, on the wire', () => {
       'seq',
       'slices',
       'startDate',
+      'waitingForCapacity',
       'waitingForPerson',
       'workItems',
     ]);

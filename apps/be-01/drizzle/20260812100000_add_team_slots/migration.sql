@@ -1,0 +1,21 @@
+-- How many people of a team may be at work at once becomes a stored fact.
+--
+-- Nullable with no default, and both halves matter. Null is a real state —
+-- "nobody has said how many of this team there are" — and the schedule then
+-- constrains that team's work not at all, which is what every plan on the live
+-- server was written under. A `DEFAULT 1` would serialize every team's work on
+-- every existing plan the moment this ran, moving dates nobody edited.
+--
+-- Nullable is also what keeps this additive across a blue/green swap: the
+-- outgoing release's `INSERT INTO service_team (id, name)` does not name this
+-- column and both colours share the file. That is `role.position`'s argument;
+-- the difference is that this one cannot take `role.position`'s default,
+-- because unstated and one are different facts here.
+--
+-- Proof, both watched 2026-08-12 in `migrate.test.ts`. Written `integer NOT
+-- NULL DEFAULT 1`: `leaves teams that existed before the column unsized`
+-- failed on `Received: 1` where null was owed, and
+-- `schedule-capacity.test.ts`'s identity differential moved on plans nobody
+-- had touched. Written a bare `integer NOT NULL`: the outgoing release's own
+-- statement failed, `NOT NULL constraint failed: service_team.size`.
+ALTER TABLE `service_team` ADD `size` integer;

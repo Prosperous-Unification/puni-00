@@ -30,6 +30,7 @@ function buildPlan(): { rows: WorkItem[]; edges: DependencyEdge[]; slices: Slice
     priority: null,
     startNoEarlierThan: null,
     serviceTeamId: null,
+    maxParallel: 1,
     revision: 0,
   });
 
@@ -54,6 +55,10 @@ function buildPlan(): { rows: WorkItem[]; edges: DependencyEdge[]; slices: Slice
           roleId,
           days: (at + role) % 7 === 0 ? null : 1 + ((phase + at + role) % 4) / 3,
           personId: covered ? owner : role === 0 ? owner : null,
+          // No capacity in this fixture: the budget below is about the graph
+          // and the queues, and a pool would make it about a second thing.
+          width: 1,
+          poolId: null,
         });
       });
       // A chain inside the phase, and one edge reaching back two phases.

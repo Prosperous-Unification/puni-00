@@ -125,6 +125,10 @@ async function replay(extraRoles: readonly string[]) {
       notes: row.notes,
       frozenNumber: null,
       priority: null,
+      // The capture predates the column, and `DEFAULT 1` is what every row on
+      // the live server got when the migration ran — so 1 here is the captured
+      // plan's own state, not a convenience.
+      maxParallel: 1,
       startNoEarlierThan: row.startNoEarlierThan,
       serviceTeamId: row.serviceTeamId,
       revision: row.revision,

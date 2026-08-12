@@ -19,6 +19,7 @@ const item = (id: string, parentId: string | null = null): WorkItem => ({
   priority: null,
   startNoEarlierThan: null,
   serviceTeamId: null,
+  maxParallel: 1,
   revision: 0,
 });
 
@@ -32,7 +33,7 @@ const slice = (
   roleId: string,
   days: number | null,
   personId: string | null = null,
-): Slice => ({ workItemId, roleId, days, personId });
+): Slice => ({ workItemId, roleId, days, personId, width: 1, poolId: null });
 
 /** One slice's schedule, or a throw — a missing key is a broken fixture, not a null. */
 const planned = (found: Schedule, workItemId: string, roleId: string): ScheduledSlice => {

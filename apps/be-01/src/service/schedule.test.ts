@@ -31,6 +31,8 @@ const schedule = (
       roleId: ONLY_ROLE,
       days: durations.get(row.id) ?? null,
       personId: null,
+      width: 1,
+      poolId: null,
     }));
   return planSlices(rows, edges, slices, notBefore).workItems;
 };
@@ -47,6 +49,7 @@ const item = (id: string, parentId: string | null = null): WorkItem => ({
   priority: null,
   startNoEarlierThan: null,
   serviceTeamId: null,
+  maxParallel: 1,
   revision: 0,
 });
 
@@ -284,6 +287,10 @@ const work = (workItemId: string, roleId: string | null, days: number | null): S
   roleId,
   days,
   personId: null,
+  // One at a time, on no pool: the state every plan is in until somebody
+  // sizes a team or says two people may share a work item.
+  width: 1,
+  poolId: null,
 });
 
 /** One slice's schedule, or a throw — a test asserting on `undefined` asserts nothing. */

@@ -199,6 +199,15 @@ export interface WorkItem {
   /** The service or team this work is labelled with, or null. */
   serviceTeamId: string | null;
   /**
+   * How many people may be on this work item at once — an integer of 1 or
+   * more, never null, because 1 and unset are the same fact.
+   *
+   * The **stored** number. What the schedule actually runs the work at is
+   * narrower: `widthFor` clamps it to the team's own size and drops it to 1 for
+   * a named assignee. See `schema.ts`.
+   */
+  maxParallel: number;
+  /**
    * How many times this work item has been written to, counting writes to its
    * estimates, assignments and dependencies — and not counting a change to the
    * number derived for it. See `schema.ts` for the whole rule.
@@ -356,6 +365,15 @@ export interface DependencyStore {
 export interface ServiceTeam {
   id: string;
   name: string;
+  /**
+   * How many of this team may be at work at once in one project's plan, or
+   * null for "nobody has said".
+   *
+   * Null is not 1 — an unsized team constrains nothing — and the difference is
+   * what keeps every plan written before this field existed scheduling exactly
+   * as it did. See `schema.ts`.
+   */
+  size: number | null;
 }
 
 /** Somebody who does work. Not an account on this tool. */

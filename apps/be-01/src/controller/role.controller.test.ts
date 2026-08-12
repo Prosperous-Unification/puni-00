@@ -226,6 +226,7 @@ describe('DELETE /api/projects/:id/roles/:roleId', () => {
     priority: null,
     startNoEarlierThan: null,
     serviceTeamId: null,
+    maxParallel: 1,
     revision: 0,
   });
 

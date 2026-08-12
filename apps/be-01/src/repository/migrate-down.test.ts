@@ -32,6 +32,12 @@ const JOURNAL = '20260807180000_add_command_journal';
 // nothing else this file checks.
 const ROLE_POSITION = '20260809090000_add_role_position';
 const PRIORITY = '20260811100000_add_priority';
+// Two columns in one release: a nullable `service_team.size` and a
+// `NOT NULL DEFAULT 1` `work_item.max_parallel`. They appear here in the order
+// they are applied, and reverse in the opposite one — which is the rollback
+// ordering `capacity-engine` asserts rather than assumes.
+const TEAM_SLOTS = '20260812100000_add_team_slots';
+const MAX_PARALLEL = '20260812100001_add_max_parallel';
 
 function tempDb(): { path: string; cleanup: () => void } {
   const dir = mkdtempSync(join(tmpdir(), 'wbs-migrate-down-'));
@@ -114,6 +120,8 @@ describe('readMigrationFolders', () => {
       JOURNAL,
       ROLE_POSITION,
       PRIORITY,
+      TEAM_SLOTS,
+      MAX_PARALLEL,
     ]);
     for (const f of folders) expect(f.downSql.trim()).not.toBe('');
   });
@@ -150,11 +158,15 @@ describe('rollbackTo, against a real database', () => {
         JOURNAL,
         ROLE_POSITION,
         PRIORITY,
+        TEAM_SLOTS,
+        MAX_PARALLEL,
       ]);
 
       const reversed = rollbackTo(db.path, FOLDER, INIT);
 
       expect(reversed).toEqual([
+        MAX_PARALLEL,
+        TEAM_SLOTS,
         PRIORITY,
         ROLE_POSITION,
         JOURNAL,
@@ -201,6 +213,8 @@ describe('rollbackTo, against a real database', () => {
         JOURNAL,
         ROLE_POSITION,
         PRIORITY,
+        TEAM_SLOTS,
+        MAX_PARALLEL,
       ]);
     } finally {
       db.cleanup();
@@ -214,6 +228,8 @@ describe('rollbackTo, against a real database', () => {
       const reversed = rollbackTo(db.path, FOLDER, ROLLBACK_ALL);
 
       expect(reversed).toEqual([
+        MAX_PARALLEL,
+        TEAM_SLOTS,
         PRIORITY,
         ROLE_POSITION,
         JOURNAL,
@@ -249,7 +265,7 @@ describe('rollbackTo, against a real database', () => {
     const db = tempDb();
     try {
       runMigrations(db.path, FOLDER);
-      expect(rollbackTo(db.path, FOLDER, PRIORITY)).toEqual([]);
+      expect(rollbackTo(db.path, FOLDER, MAX_PARALLEL)).toEqual([]);
       expect(tables(db.path)).toContain('users');
     } finally {
       db.cleanup();

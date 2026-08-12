@@ -51,6 +51,7 @@ const newItem = (id: string, position: number, name: string, inProject = project
   priority: null,
   startNoEarlierThan: null,
   serviceTeamId: null,
+  maxParallel: 1,
   revision: 0,
 });
 
@@ -123,8 +124,14 @@ describe('DirectoryService.renameTeam', () => {
 
     const outcome = await directory.renameTeam(platform.id, '  Payments  ');
 
-    expect(outcome).toEqual({ ok: true, result: { id: platform.id, name: 'Payments' } });
-    expect(await store.listTeams()).toEqual([{ id: platform.id, name: 'Payments' }]);
+    // `size: null` throughout: a rename says nothing about how big a team
+    // is, and a renamed team that came back sized would be this path writing a
+    // field it never touched.
+    expect(outcome).toEqual({
+      ok: true,
+      result: { id: platform.id, name: 'Payments', size: null },
+    });
+    expect(await store.listTeams()).toEqual([{ id: platform.id, name: 'Payments', size: null }]);
   });
 
   it('refuses a name of whitespace alone, and writes nothing', async () => {
@@ -135,7 +142,7 @@ describe('DirectoryService.renameTeam', () => {
       ok: false,
       reason: 'name_required',
     });
-    expect(await store.listTeams()).toEqual([{ id: platform.id, name: 'Platform' }]);
+    expect(await store.listTeams()).toEqual([{ id: platform.id, name: 'Platform', size: null }]);
   });
 
   it('refuses a name another team holds, naming the survivor', async () => {
@@ -160,7 +167,7 @@ describe('DirectoryService.renameTeam', () => {
 
     expect(await directory.renameTeam(platform.id, 'Platform')).toEqual({
       ok: true,
-      result: { id: platform.id, name: 'Platform' },
+      result: { id: platform.id, name: 'Platform', size: null },
     });
   });
 

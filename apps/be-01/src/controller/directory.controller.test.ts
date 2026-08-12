@@ -139,8 +139,11 @@ describe('PATCH /api/teams/:id', () => {
 
     const renamed = await call('PATCH', `/api/teams/${platform}`, { name: 'Payments' });
 
-    expect(renamed).toEqual({ status: 200, body: { team: { id: platform, name: 'Payments' } } });
-    expect(await store.listTeams()).toEqual([{ id: platform, name: 'Payments' }]);
+    expect(renamed).toEqual({
+      status: 200,
+      body: { team: { id: platform, name: 'Payments', size: null } },
+    });
+    expect(await store.listTeams()).toEqual([{ id: platform, name: 'Payments', size: null }]);
   });
 
   it('answers 409 taken with the surviving name', async () => {
@@ -177,7 +180,7 @@ describe('PATCH /api/teams/:id', () => {
     );
 
     expect(res.status).toBe(401);
-    expect(await store.listTeams()).toEqual([{ id: platform, name: 'Platform' }]);
+    expect(await store.listTeams()).toEqual([{ id: platform, name: 'Platform', size: null }]);
   });
 });
 
@@ -283,7 +286,7 @@ describe('DELETE /api/people/:id and /api/teams/:id', () => {
     );
 
     expect(res.status).toBe(401);
-    expect(await store.listTeams()).toEqual([{ id: platform, name: 'Platform' }]);
+    expect(await store.listTeams()).toEqual([{ id: platform, name: 'Platform', size: null }]);
   });
 });
 

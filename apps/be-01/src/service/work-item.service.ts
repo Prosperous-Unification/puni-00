@@ -1,5 +1,6 @@
 import {
   addWorkdays,
+  effectiveTeamOf,
   type EstimateMethod,
   finalDays,
   firstWorkdayOf,
@@ -113,6 +114,20 @@ function slicesOf(
    * is assigned it is assumed they do both" means once time is involved.
    */
   assigneesOf: ReadonlyMap<string, Record<string, string>>,
+  /**
+   * Each row's effective team — its own label or the nearest ancestor's, from
+   * {@link effectiveTeamOf}.
+   *
+   * Passed in rather than resolved here, because the reading is shared: the
+   * table cell, the cards, the Gantt and the export all show the same inherited
+   * label, and a second walk here would be the copy that drifts.
+   */
+  teamOf: ReadonlyMap<string, { teamId: string }>,
+  /**
+   * How many people each **sized** team may have at work at once. A team nobody
+   * has sized is simply absent, and its work draws from no pool.
+   */
+  teamSizes: ReadonlyMap<string, number>,
 ): Slice[] {
   const inProject = new Set(rows.map((row) => row.id));
   const held = new Set(roleIds);
@@ -141,16 +156,66 @@ function slicesOf(
     // while its own assignee was on somebody else's `Dev`; watched 2026-08-09.
     const personFor = (roleId: string | null): string | null =>
       (roleId === null ? undefined : byRole[roleId]) ?? assumedAssignee(byRole);
+    // The pool this row's work draws from: its effective team, but only where
+    // somebody has said how big that team is. An unsized team labels the work
+    // and constrains nothing, which is the state every plan is in today.
+    const teamId = teamOf.get(row.id)?.teamId ?? null;
+    const slots = teamId === null ? undefined : teamSizes.get(teamId);
+    const poolId = slots === undefined ? null : teamId;
+    /**
+     * How many slots one of this row's slices holds while it runs.
+     *
+     * Three rules, in this order, and each is a statement the plan actually
+     * makes:
+     *
+     * 1. **A named person is one person.** `assumedAssignee` means one named
+     *    assignment covers every role of the item, so naming somebody on a
+     *    `maxParallel: 3` item collapses the whole item to width 1 and
+     *    serialises its roles. One human cannot work beside themselves, and the
+     *    alternative — "kat plus two others" — has the engine claiming people
+     *    the plan has not named.
+     * 2. **Nobody may claim more people than the team has.** A `maxParallel` of
+     *    4 against a team of 2 runs at 2.
+     * 3. Otherwise the stored number.
+     *
+     * Resolved here rather than in the pass for `personId`'s reason: a second
+     * implementation of this inside the scheduler would put work on widths
+     * nobody asked for.
+     *
+     * Proof: the clamp against `slots` dropped and `clamps a work item's
+     * parallelism down to the size of its team` failed with `width: 4` and
+     * `duration: 1` — a plan claiming four of a team of two; watched
+     * 2026-08-12.
+     *
+     * Proof: the named-person arm dropped and `runs a named person's work one
+     * at a time however parallel the item is` failed with `width: 3` and
+     * `duration: 2` on work one person is doing; watched 2026-08-12.
+     */
+    const widthFor = (personId: string | null): number => {
+      if (personId !== null) return 1;
+      return Math.min(row.maxParallel, slots ?? row.maxParallel);
+    };
     if (order.length === 0) {
-      slices.push({ workItemId: row.id, roleId: null, days: null, personId: personFor(null) });
+      const personId = personFor(null);
+      slices.push({
+        workItemId: row.id,
+        roleId: null,
+        days: null,
+        personId,
+        width: widthFor(personId),
+        poolId,
+      });
       continue;
     }
     for (const roleId of order) {
+      const personId = personFor(roleId);
       slices.push({
         workItemId: row.id,
         roleId,
         days: days.get(sliceKey(row.id, roleId)) ?? null,
-        personId: personFor(roleId),
+        personId,
+        width: widthFor(personId),
+        poolId,
       });
     }
   }
@@ -599,6 +664,14 @@ export class WorkItemService {
      */
     waitingForPerson: number;
     /**
+     * How many work items hold a slice a **team's capacity** is the reason for.
+     *
+     * Beside `waitingForPerson` rather than folded into it: a planner reads a
+     * queue and a headcount differently, and `boundBy` names exactly one of the
+     * two for any slice.
+     */
+    waitingForCapacity: number;
+    /**
      * Every slice the schedule placed, in the order the engine placed them.
      *
      * The projection in each row's `schedule` is what a table column shows; this
@@ -684,6 +757,23 @@ export class WorkItemService {
     // Role order comes from the project, because the order the roles are read
     // in is the order the work runs in — see `ProjectRepository.rolesOf`.
     const roles = await this.opts.projects.rolesOf(projectId);
+    // The teams, for their sizes. Global and small — the directory is one list
+    // for the whole deployment — so this is one read rather than a join, and it
+    // is read here rather than inside `slicesOf` so the adapter stays a pure
+    // function of what it is handed.
+    //
+    // `slotsOf` in name and in shape: the scheduler asks how many slots this
+    // project may take of this team, and today's only answer is the team's
+    // global size. A per-project allocation would be one additive table and a
+    // first lookup here, with this as the fallback — `design.md` records the
+    // argument for and against.
+    const teams = await this.opts.directory.listTeams();
+    const slotsOf = new Map<string, number>();
+    for (const team of teams) if (team.size !== null) slotsOf.set(team.id, team.size);
+    // One reading of the label, shared with the table, the cards, the Gantt and
+    // the export — a leaf's own team, or the nearest ancestor's. No write ever
+    // copies a label down; see {@link effectiveTeamOf}.
+    const teamOf = effectiveTeamOf(rows);
     const slices = slicesOf(
       rows,
       stored,
@@ -691,6 +781,8 @@ export class WorkItemService {
       roles.map((each) => each.id),
       project.estimateMethod,
       assigneesOf,
+      teamOf,
+      slotsOf,
     );
     // A manual date becomes an offset before the pass, and offsets become dates
     // after it: the schedule itself never sees a calendar, so weekends are
@@ -715,6 +807,11 @@ export class WorkItemService {
      */
     let waitingForPerson = 0;
     /**
+     * How many work items are waiting for a slot of their team rather than for
+     * the plan. Zero with no schedule, for {@link waitingForPerson}'s reason.
+     */
+    let waitingForCapacity = 0;
+    /**
      * The engine's own output, kept: a plan that could not be scheduled leaves
      * this empty and the rows keep their {@link UNSCHEDULED} spans.
      */
@@ -722,9 +819,10 @@ export class WorkItemService {
     try {
       // The projection **and** the slices: a row's column shows its own span,
       // and a chart draws the slices the span is a projection of.
-      const planned = schedule(rows, edges, slices, notBefore);
+      const planned = schedule(rows, edges, slices, notBefore, slotsOf);
       timing = planned.workItems;
       waitingForPerson = planned.waitingForPerson;
+      waitingForCapacity = planned.waitingForCapacity;
       // Spread rather than rebuilt field by field, and never put through any
       // arithmetic: the engine's numbers are the answer, and this is the layer
       // that would otherwise quietly round them.
@@ -786,6 +884,7 @@ export class WorkItemService {
       seq,
       scheduleError,
       waitingForPerson,
+      waitingForCapacity,
       slices: scheduledSlices,
       // The very array `slicesOf` was handed the ids of, so a slice's `roleId`
       // is a role this list has and its place in the list is the order the
@@ -829,6 +928,9 @@ export class WorkItemService {
       startNoEarlierThan: null,
       priority: null,
       serviceTeamId: null,
+      // One at a time, which is what every work item has always done and what
+      // the column's `DEFAULT 1` says for every row that predates it.
+      maxParallel: 1,
       // A row that has never been changed since it came into existence. The
       // estimate handoff below is a real second write and leaves a first child
       // at 1 — see {@link NumberedWorkItem.revision}.

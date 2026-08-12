@@ -16,6 +16,7 @@ const item = (id: string, parentId: string | null = null): WorkItem => ({
   priority: null,
   startNoEarlierThan: null,
   serviceTeamId: null,
+  maxParallel: 1,
   revision: 0,
 });
 
@@ -172,7 +173,14 @@ describe('canDepend — cross-review findings', () => {
         const parents = new Set(rows.map((r) => r.parentId).filter((id) => id !== null));
         const slices = rows
           .filter((r) => !parents.has(r.id))
-          .map((r) => ({ workItemId: r.id, roleId: 'role-dev', days: 1, personId: null }));
+          .map((r) => ({
+            workItemId: r.id,
+            roleId: 'role-dev',
+            days: 1,
+            personId: null,
+            width: 1,
+            poolId: null,
+          }));
         expect(() =>
           schedule(rows, [...existing, { predecessorId: from.id, successorId: to.id }], slices),
         ).not.toThrow();

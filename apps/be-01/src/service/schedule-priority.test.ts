@@ -33,6 +33,7 @@ const item = (
   startNoEarlierThan: null,
   priority,
   serviceTeamId: null,
+  maxParallel: 1,
   revision: 0,
 });
 
@@ -46,7 +47,7 @@ const slice = (
   roleId: string,
   days: number | null,
   personId: string | null = null,
-): Slice => ({ workItemId, roleId, days, personId });
+): Slice => ({ workItemId, roleId, days, personId, width: 1, poolId: null });
 
 /** One slice's schedule, or a throw — a missing key is a broken fixture, not a null. */
 const planned = (found: Schedule, workItemId: string, roleId: string): ScheduledSlice => {
@@ -332,6 +333,8 @@ describe('a plan that priorities nothing is scheduled exactly as it was', () => 
         workItemId: 'c-a',
         roleId: 'role-dev',
         duration: 3,
+        effort: 3,
+        width: 1,
         estimated: true,
         earliestStart: 4,
         earliestFinish: 7,
@@ -342,11 +345,14 @@ describe('a plan that priorities nothing is scheduled exactly as it was', () => 
         personId: 'kat',
         boundBy: 'person',
         resourcePredecessorId: 'c-p1/role-dev',
+        capacityPredecessorIds: [],
       },
       'c-a/role-qa': {
         workItemId: 'c-a',
         roleId: 'role-qa',
         duration: 1,
+        effort: 1,
+        width: 1,
         estimated: true,
         earliestStart: 9.5,
         earliestFinish: 10.5,
@@ -357,11 +363,14 @@ describe('a plan that priorities nothing is scheduled exactly as it was', () => 
         personId: 'sam',
         boundBy: 'person',
         resourcePredecessorId: 'c-c/role-dev',
+        capacityPredecessorIds: [],
       },
       'c-b/role-dev': {
         workItemId: 'c-b',
         roleId: 'role-dev',
         duration: 2,
+        effort: 2,
+        width: 1,
         estimated: true,
         earliestStart: 7,
         earliestFinish: 9,
@@ -372,11 +381,14 @@ describe('a plan that priorities nothing is scheduled exactly as it was', () => 
         personId: 'kat',
         boundBy: 'person',
         resourcePredecessorId: 'c-a/role-dev',
+        capacityPredecessorIds: [],
       },
       'c-c/role-dev': {
         workItemId: 'c-c',
         roleId: 'role-dev',
         duration: 2.5,
+        effort: 2.5,
+        width: 1,
         estimated: true,
         earliestStart: 7,
         earliestFinish: 9.5,
@@ -387,11 +399,14 @@ describe('a plan that priorities nothing is scheduled exactly as it was', () => 
         personId: 'sam',
         boundBy: 'predecessor',
         resourcePredecessorId: null,
+        capacityPredecessorIds: [],
       },
       'c-d/role-dev': {
         workItemId: 'c-d',
         roleId: 'role-dev',
         duration: 3,
+        effort: 3,
+        width: 1,
         estimated: true,
         earliestStart: 4,
         earliestFinish: 7,
@@ -402,11 +417,14 @@ describe('a plan that priorities nothing is scheduled exactly as it was', () => 
         personId: 'ro',
         boundBy: 'predecessor',
         resourcePredecessorId: null,
+        capacityPredecessorIds: [],
       },
       'c-p1/role-dev': {
         workItemId: 'c-p1',
         roleId: 'role-dev',
         duration: 4,
+        effort: 4,
+        width: 1,
         estimated: true,
         earliestStart: 0,
         earliestFinish: 4,
@@ -417,11 +435,14 @@ describe('a plan that priorities nothing is scheduled exactly as it was', () => 
         personId: 'kat',
         boundBy: 'projectStart',
         resourcePredecessorId: null,
+        capacityPredecessorIds: [],
       },
       'c-p1/role-qa': {
         workItemId: 'c-p1',
         roleId: 'role-qa',
         duration: 0,
+        effort: 0,
+        width: 1,
         estimated: false,
         earliestStart: 4,
         earliestFinish: 4,
@@ -432,11 +453,14 @@ describe('a plan that priorities nothing is scheduled exactly as it was', () => 
         personId: 'sam',
         boundBy: 'roleOrder',
         resourcePredecessorId: null,
+        capacityPredecessorIds: [],
       },
       'c-p2/role-dev': {
         workItemId: 'c-p2',
         roleId: 'role-dev',
         duration: 1,
+        effort: 1,
+        width: 1,
         estimated: true,
         earliestStart: 0,
         earliestFinish: 1,
@@ -447,6 +471,7 @@ describe('a plan that priorities nothing is scheduled exactly as it was', () => 
         personId: 'ro',
         boundBy: 'projectStart',
         resourcePredecessorId: null,
+        capacityPredecessorIds: [],
       },
     });
 

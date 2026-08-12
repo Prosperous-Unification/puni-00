@@ -1,0 +1,17 @@
+-- How many people may work on one work item at once becomes a stored fact.
+--
+-- `NOT NULL DEFAULT 1`, and deliberately not `priority`'s nullable shape.
+-- Unlike a priority, `1` and *unset* are the same fact here — one person at a
+-- time — and two spellings of one fact is the thing R2 exists to prevent. A
+-- reader who blanks the cell is saying "one at a time", not "nobody has said".
+--
+-- The default is also what keeps this additive across a blue/green swap: the
+-- outgoing release's `INSERT INTO work_item (...)` does not name this column
+-- and both colours share the file. That is `role.position`'s argument and
+-- `role.position`'s watched proof.
+--
+-- Proof, watched 2026-08-12 in `migrate.test.ts`: with `DEFAULT 1` removed,
+-- `lets the outgoing release keep inserting work items against the migrated
+-- schema` fails on that exact statement with `NOT NULL constraint failed:
+-- work_item.max_parallel`.
+ALTER TABLE `work_item` ADD `max_parallel` integer DEFAULT 1 NOT NULL;

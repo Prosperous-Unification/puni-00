@@ -190,6 +190,7 @@ function generatePlan(seed: number, roleCount: number): GeneratedPlan {
     priority: null,
     startNoEarlierThan: null,
     serviceTeamId: null,
+    maxParallel: 1,
     revision: 0,
   });
   const roots = 2 + Math.floor(random() * 4);
@@ -265,6 +266,11 @@ const slicesFrom = (plan: GeneratedPlan): Slice[] =>
     roleId: each.roleId,
     days: each.days,
     personId: null,
+    // Width 1 on no pool, which is the state this whole corpus is about: a
+    // plan that sets neither capacity field must schedule byte for byte as it
+    // did before either existed.
+    width: 1,
+    poolId: null,
   }));
 
 /**
@@ -439,6 +445,72 @@ describe('the slice engine against the one it replaced', () => {
     }
   });
 
+  it('answers what it answered with a sized team labelling every row', () => {
+    // The `hasResourceEdges` scoping, over the corpus rather than over a
+    // fixture. A team sized far past anything the plan can ask of it never
+    // contends, so it emits no capacity edge, so the backward pass must run
+    // with the tight-path rule **off** — exactly as it does on a plan with no
+    // team in it at all — and every last bit has to be the one the unpooled run
+    // produced.
+    //
+    // It is here rather than in `schedule-capacity.test.ts` because a
+    // three-block fixture cannot carry the drift the rule exists to keep out:
+    // an earlier fixture-sized version of this check was watched staying green
+    // with the scoping deliberately widened to "a pool exists", which is what
+    // makes a corpus the only honest place for it.
+    //
+    // The comparison is this engine against itself — pooled versus not — rather
+    // than against the oracle, because that is the claim: turning a team's size
+    // on cannot move a plan the size never binds. `eventsVisited` is left out
+    // of it and only out of it, because it is instrumentation about the search
+    // and not a fact about the schedule; the pooled run really does visit
+    // events, and asserting it did not would be asserting the pool was never
+    // consulted.
+    //
+    // Proof: `hasResourceEdges` read as `poolSizes.size > 0 ||
+    // queues.some(...)` instead of from the edges actually emitted, and this
+    // failed at seed 13 — `r0c0g0 role-0.latestFinish` came back
+    // 2.8333333333333335 where 2.833333333333334 was owed, a row whose late
+    // times moved because a team nobody contended for was merely sized;
+    // watched 2026-08-12.
+    const PLATFORM = 'team-platform';
+    for (let seed = 1; seed <= 1000; seed += 1) {
+      const plan = generatePlan(seed, RELEASED_ROLES);
+      const bare = schedule(plan.rows, [], slicesFrom(plan), plan.notBefore);
+      const labelled = plan.rows.map((row) => ({ ...row, serviceTeamId: PLATFORM }));
+      const pooled = schedule(
+        labelled,
+        [],
+        slicesFrom(plan).map((each) => ({ ...each, poolId: PLATFORM })),
+        plan.notBefore,
+        new Map([[PLATFORM, 1000]]),
+      );
+
+      expectSameSchedule(seed, bare.workItems, pooled.workItems);
+      expect(pooled.waitingForPerson).toBe(bare.waitingForPerson);
+      expect(pooled.waitingForCapacity).toBe(0);
+      // Every field of every slice, not only the projection: the projection is
+      // a minimum over slices and can hide a slice that moved under one that
+      // did not.
+      expect(pooled.slices.size).toBe(bare.slices.size);
+      for (const [key, was] of bare.slices) {
+        const now = pooled.slices.get(key);
+        if (now === undefined) throw new Error(`seed ${String(seed)}: ${key} lost its slice`);
+        for (const field of Object.keys(was) as (keyof typeof was)[]) {
+          if (field === 'capacityPredecessorIds') {
+            expect(now.capacityPredecessorIds, `seed ${String(seed)}, ${key}`).toEqual([]);
+            continue;
+          }
+          if (now[field] === was[field]) continue;
+          throw new Error(
+            `seed ${String(seed)}, ${key}.${field}: ` +
+              `${String(was[field])} became ${String(now[field])}`,
+          );
+        }
+      }
+    }
+  });
+
   it('holds plans the snap actually moves, so the comparison is not the old one in disguise', () => {
     // `expectSameSchedule` puts the oracle's slack through `snappedSlack`
     // before comparing it. If no plan in the corpus carried drifted slack that
@@ -514,6 +586,8 @@ describe('the slice engine against the one it replaced', () => {
           roleId: each.roleId,
           days: doubled,
           personId: null,
+          width: 1,
+          poolId: null,
         };
       });
       if (grown.every((slice, at) => slice.days === plan.estimates[at].days)) continue;
