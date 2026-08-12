@@ -315,7 +315,11 @@ test.describe('the theme control', () => {
     // Received + Array [ "button «Arrows»", "button «010 - Survey the
     // existin»", "button «020 - Draft the replacem»" ]` — the same three
     // elements, by name, that `verify.md`'s red records against the **dark**
-    // page. Watched on h2puni in the Playwright image, 2026-08-12.
+    // page. Watched on h2puni in the Playwright image, 2026-08-12, before
+    // `declutter-one-button` landed: that switch reads `Detail` now and gates
+    // three families rather than the arrows alone, so the same injection
+    // reports `button «Detail»` in its place. The assertion is a count of
+    // unnamed faces and names no button, so nothing here depends on the word.
     expect(await paletteOf(page), 'this test is about the palette nothing chose').toBe('light');
 
     expect(await unnamedFaces(page), 'the plan').toEqual([]);
