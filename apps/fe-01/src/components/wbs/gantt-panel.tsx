@@ -1308,7 +1308,20 @@ function GanttChart({
       // to hold them: without this they stack against the page, and the height
       // handle sitting over this box at `z-index: 1` loses every pixel the
       // chart's content reaches — the strip is unpressable exactly where there
-      // is a chart to resize. Watched in Chromium, `e2e/gantt.spec.ts`.
+      // is a chart to resize.
+      //
+      // The invariant is a pair, and this keyword is only half of it: the
+      // section makes the stacking context, and the handle's own `z-index: 1`
+      // (`wbs-table.tsx`, on the 6px grab strip) paints above it. Either half
+      // alone is not enough.
+      //
+      // Proof: two faults, each injected on its own — `isolate` deleted from
+      // this class list, and `zIndex: 1` deleted from the handle. Both turned
+      // `e2e/gantt.spec.ts`'s `owns every point on its strip, rather than the
+      // chart sliding under it` red the same way: all 18 sampled points across
+      // the strip came back as the chart's own boxes (15 × `div in the chart`,
+      // 3 × `span in the chart`) instead of the handle. Watched in Chromium
+      // 2026-08-12.
       className={cn(
         'border-border isolate shrink-0 overflow-auto border-t',
         heightPx === null && 'max-h-[40vh]',
