@@ -2809,7 +2809,8 @@ describe('role columns fold away', () => {
     expect(screen.getByLabelText('QA optimistic for 010')).toBeDefined();
     expect(screen.queryByLabelText('Dev optimistic for 010')).toBeNull();
     // And the width the table declares follows, which is the whole reason.
-    expect(screen.getByRole('table').style.minWidth).toBe('1495px');
+    // 1471 since `spreadsheet-geometry` took the three point columns to 44px.
+    expect(screen.getByRole('table').style.minWidth).toBe('1471px');
 
     // Folding the open one leaves nothing open, rather than putting the other
     // one back.
@@ -7368,16 +7369,20 @@ describe('the widths the table is laid out by', () => {
     // total is what this replaces: it made the window fit the table.
     // Proof: the `<table>` put back to a declared total —
     // `width: tableMinWidth(leafColumnIds)` with no `minWidth` — this failed
-    // on `expected '1420px' to be '100%'`. Watched, 2026-08-08.
-    expect(table.style.width).toBe('100%');
+    // on `expected '1420px' to be '100%'`. Watched, 2026-08-08, when this read
+    // a flat `100%`; `spreadsheet-geometry` put the Name cap in the same
+    // declaration and the frame's 100% is still the first term of it.
+    expect(table.style.width).toBe(
+      `min(100%, ${String(frameLayout(columnIds, UNDATED).maxWidth)}px)`,
+    );
     expect(table.style.minWidth).toBe(`${String(frameLayout(columnIds, UNDATED).minWidth)}px`);
     // Not a constant, which is the point of computing it per render: this
     // plan has Dev unfolded and QA folded, so the floor is the 779px of fixed
     // columns — nobody has dated a row, so `not-before` is at its narrow 56 —
-    // plus 372 for the open role, 96 for the closed one and Name's 200.
+    // plus 348 for the open role, 96 for the closed one and Name's 200.
     // Folded it would be 1219; the difference is why unfolding is an
     // accordion.
-    expect(table.style.minWidth).toBe('1495px');
+    expect(table.style.minWidth).toBe('1471px');
     fireEvent.click(screen.getByRole('button', { name: 'Fold Dev estimates' }));
     expect(screen.getByRole('table').style.minWidth).toBe('1219px');
   });
@@ -7831,12 +7836,12 @@ describe('the widths this browser has dragged', () => {
       expect(body?.style.width).toBe('');
       expect(body?.style.minWidth).toBe('300px');
       expect(laidOut().name).toBe('');
-      // The table's own width is the declaration: the resolved sum — the 1495
+      // The table's own width is the declaration: the resolved sum — the 1471
       // this plan resolves at rest, less the 200 floor, plus the 300 override
       // — as its width and its minimum alike, so the frame keeps the slack
       // above it and scrolls below it.
-      expect(screen.getByRole('table').style.width).toBe('1595px');
-      expect(screen.getByRole('table').style.minWidth).toBe('1595px');
+      expect(screen.getByRole('table').style.width).toBe('1571px');
+      expect(screen.getByRole('table').style.minWidth).toBe('1571px');
     },
   );
 
@@ -7913,7 +7918,7 @@ describe('the widths this browser has dragged', () => {
     expect(header?.style.width).toBe('');
     expect(header?.style.minWidth).toBe('200px');
     expect(laidOut().number).toBe('93px');
-    expect(screen.getByRole('table').style.width).toBe('100%');
+    expect(screen.getByRole('table').style.width).toMatch(/^min\(100%, \d+px\)$/);
     expect(stored()).toBe(null);
   });
 
@@ -11084,7 +11089,7 @@ describe('a phase changing, and what the table does about it', () => {
     // still in the table's header. Watched, 2026-08-09.
     await oneRow();
     unfoldRole('QA');
-    expect(screen.getByRole('table').style.minWidth).toBe('1495px');
+    expect(screen.getByRole('table').style.minWidth).toBe('1471px');
 
     await removePhase('QA');
 

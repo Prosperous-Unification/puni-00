@@ -4,6 +4,7 @@ import {
   flexRender,
   getCoreRowModel,
   getExpandedRowModel,
+  type RowData,
   useReactTable,
 } from '@tanstack/react-table';
 import { workdaysBetween } from '@wbs/domain/workday';
@@ -1282,6 +1283,32 @@ interface ChartRead {
 const NO_CHART_READ: ChartRead = { slices: [], roles: [], people: [], generation: 0 };
 
 const column = createColumnHelper<TreeRow>();
+
+declare module '@tanstack/react-table' {
+  /**
+   * What a column is called out loud, where that is not what its heading
+   * shows.
+   *
+   * Two columns print a mark rather than a word — `#` for the numbering and
+   * `o`/`r`/`p` for the three estimate points — because the words do not fit
+   * in 93px and 44px and a clipped word says less than a mark does. A heading
+   * a screen reader reads as "hash" or "oh" is a column with no name, so the
+   * word is declared here and put on the `<th>` as its `aria-label`.
+   *
+   * On the definition rather than in a lookup beside the render, so the
+   * heading and the word it stands for are written in the same place; on the
+   * `<th>` rather than inside it because an `aria-label` on a `<span>` with no
+   * role of its own is not reliably part of the cell's accessible name — the
+   * fault this went through: `getByRole('columnheader', { name: 'Number' })`
+   * found nothing with the label a level down.
+   */
+  // The generic parameters are TanStack's own; this interface is merged into
+  // its declaration, so they are named to match rather than used here.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  interface ColumnMeta<TData extends RowData, TValue> {
+    spokenHeading?: string;
+  }
+}
 
 /**
  * The work breakdown: one grid that is a table and a nested list at once.
@@ -4281,7 +4308,8 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         // `#` is punctuation a screen reader announces as "number sign" or
         // skips outright, and the column header is read once per cell by
         // anything walking the table.
-        header: () => <span aria-label="Number">#</span>,
+        meta: { spokenHeading: 'Number' },
+        header: () => <span>#</span>,
         cell: ({ row }) => (
           <span
             // The whole number, because the cell may not be showing all of it:
@@ -5731,11 +5759,8 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                     // first letter does — `optimi` is not a word — and the
                     // letter is what let the column drop to 44px. The word is
                     // still the heading's accessible name and its `title`.
-                    header: () => (
-                      <span aria-label={point} title={point}>
-                        {point.slice(0, 1)}
-                      </span>
-                    ),
+                    meta: { spokenHeading: point },
+                    header: () => <span title={point}>{point.slice(0, 1)}</span>,
                     cell: ({ row }) => {
                       const problem = live.current.trioProblemFor(row.original, role.id);
                       const wrong = problem?.points.includes(point) ?? false;
@@ -7112,6 +7137,10 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                         // name attached is a failure that says two numbers
                         // disagreed without saying which column moved.
                         data-column={header.column.id}
+                        // The word, where the heading under it is a mark; see
+                        // {@link ColumnMeta.spokenHeading}. Undefined for every
+                        // other column, which renders no attribute at all.
+                        aria-label={header.column.columnDef.meta?.spokenHeading}
                         style={{
                           ...CELL,
                           ...STICKY_HEADER_CELL,
