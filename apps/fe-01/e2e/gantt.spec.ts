@@ -1572,4 +1572,80 @@ test.describe('the chart edge the reader drags', () => {
     const reopened = await rectOf(page, '[data-gantt-panel]');
     expect(Math.abs(reopened.height - (3 * ROW_PX + 100))).toBeLessThanOrEqual(1.5);
   });
+
+  /**
+   * What the browser says it would hand a press at each point — the element it
+   * hit-tests to, named the way a failure can be read.
+   *
+   * `elementFromPoint` and a real press answer the same question: both walk the
+   * paint order top down. A point the handle does not own is a point the reader
+   * cannot start a drag from.
+   */
+  const whatIsUnderThePointer = (
+    page: Page,
+    points: { x: number; y: number }[],
+  ): Promise<string[]> =>
+    page.evaluate(
+      (sweep) =>
+        sweep.map(({ x, y }) => {
+          const hit = document.elementFromPoint(x, y);
+          if (hit === null) return 'nothing at all';
+          if (hit.closest('[data-gantt-height-handle]') !== null) return 'the handle';
+          const where =
+            hit.closest('[data-gantt-panel]') === null ? 'outside the chart' : 'the chart';
+          return `${hit.tagName.toLowerCase()} in ${where}`;
+        }),
+      points,
+    );
+
+  test('owns every point on its strip, rather than the chart sliding under it', async ({
+    page,
+  }) => {
+    await seedPlan(page, nextAccount());
+    await openTheChart(page);
+
+    const grip = await rectOfLocator(
+      page.locator('[data-gantt-height-handle]'),
+      'the height handle',
+    );
+    // The strip is only contested where the chart has something drawn under
+    // it, so the sweep is taken **across the chart's own top row** rather than
+    // across the panel: the sticky label column, its corner, and the calendar
+    // axis beside it. Measuring those two boxes first is what stops this test
+    // going vacuous the day the fixture's plan gets narrower than the window —
+    // an empty strip belongs to the handle whatever the layering says.
+    const labels = await rectOfLocator(
+      page.locator('[data-gantt-labels]'),
+      "the chart's label column",
+    );
+    const axis = await rectOfLocator(
+      page.locator('[data-gantt-axis]'),
+      "the chart's calendar axis",
+    );
+    const contested = Math.min(axis.right, grip.right);
+    expect(contested).toBeGreaterThan(labels.right);
+
+    // Top to bottom of the 6px as well as across it: a strip that only answers
+    // on its first row is not a strip a hand can find.
+    const sweep = [1, 3, 5].flatMap((down) =>
+      [0.02, 0.5, 0.98].flatMap((across) =>
+        [
+          labels.left + labels.width * across,
+          labels.right + (contested - labels.right) * across,
+        ].map((x) => ({ x: Math.round(x), y: Math.round(grip.top + down) })),
+      ),
+    );
+    expect(await whatIsUnderThePointer(page, sweep)).toEqual(sweep.map(() => 'the handle'));
+
+    // And the press really lands: a click at the strip's far left — the corner
+    // the label column's sticky header covers — is a gesture the handle takes.
+    const farLeft = { x: Math.round(grip.left + 4), y: Math.round(grip.top + 3) };
+    const before = await rectOf(page, '[data-gantt-panel]');
+    await page.mouse.move(farLeft.x, farLeft.y);
+    await page.mouse.down();
+    await page.mouse.move(farLeft.x, farLeft.y - 120, { steps: 8 });
+    const inFlight = await rectOf(page, '[data-gantt-panel]');
+    await page.mouse.up();
+    expect(Math.abs(inFlight.height - (before.height + 120))).toBeLessThanOrEqual(1.5);
+  });
 });
