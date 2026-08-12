@@ -20,8 +20,11 @@ import {
   inkOn,
   layOutGantt,
   type PlacedArrow,
+  type PlacedBar,
   placeOnCalendar,
   placeOnWorkdays,
+  routeArrow,
+  ROW_MIDDLE,
   type ServiceTeamLabel,
 } from './gantt-geometry';
 import { type AnchorRect, HoverCard } from './hover-card';
@@ -100,9 +103,6 @@ export function clampedGanttHeight(px: number, viewportPx: number): number {
  */
 const BAR_INSET = 0.18;
 const BAR_HEIGHT = 1 - 2 * BAR_INSET;
-
-/** Half a row down, which is where a line between two rows leaves and arrives. */
-const ROW_MIDDLE = 0.5;
 
 /**
  * How many workdays a working week is on the **workday** axis.
@@ -230,58 +230,38 @@ export const CHART_PAD_PX = Math.max(ARROW_APPROACH_PX, NOT_BEFORE_LENGTH_PX) + 
  * each axis divided by its own scale, is the only shape that stays a triangle —
  * and it is an element a test can find and a browser can measure the box of.
  *
- * **Two routes, and the second one is the fault this was rewritten for.** A
- * finish-to-start dependency very often has `toStart === fromFinish`: the
- * successor begins the day the predecessor ends. The old elbow then collapsed
- * into a vertical line **on** the successor's left edge, underneath its bar and
- * — on a critical row — underneath a 2px ring, which is a dependency drawn and
- * invisible. So when there is no room between the two, the line steps out past
- * the predecessor's right edge, crosses in the clear band at the far side of
- * the predecessor's row, and comes back to enter the successor's left edge from
- * **outside** it. With room, the plain elbow does the same thing in three
- * points.
+ * **The route is {@link routeArrow}'s**, and it is chosen against the bars the
+ * panel is drawing rather than from the two ends alone. A finish-to-start
+ * dependency very often has `toStart === fromFinish`: the successor begins the
+ * day the predecessor ends. The old elbow then collapsed into a vertical line
+ * **on** the successor's left edge, underneath its bar and — on a critical row
+ * — underneath a 2px ring, which is a dependency drawn and invisible. With no
+ * room the line steps out past the predecessor's right edge and crosses in the
+ * clear band beside its row; with room and nothing under the turn, the plain
+ * elbow does the same thing in three points; and with a bar under the turn it
+ * dodges. Which is which is the geometry's to decide, on the rectangles this
+ * function hands it — `drawnBars`, because a bar nothing paints is not
+ * something to dodge.
  *
  * Either way the last run is horizontal and arrives at the successor's start,
  * so the head always points right and never has to be rotated.
  */
-function arrowRoute(arrow: PlacedArrow): { elbow: string; head: string } {
+function arrowRoute(
+  arrow: PlacedArrow,
+  bars: readonly PlacedBar[],
+): { elbow: string; head: string } {
   const at = (x: number, y: number): string => `${String(x)} ${String(y)}`;
-  const approach = ARROW_APPROACH_PX / DAY_PX;
-  const fromY = arrow.fromRowIndex + ROW_MIDDLE;
   const toY = arrow.toRowIndex + ROW_MIDDLE;
-  // Where the line turns down onto the successor's row: one approach clear of
-  // its left edge, so the head has a straight run to sit on.
-  const turn = arrow.toX - approach;
-  // Which band a jogging arrow crosses in: the clear inset at the far side of
-  // the **predecessor's** row, on the side the successor is on. Not the inset
-  // above the successor's own bar, which is where a not-before caret stands —
-  // the browser showed those two marks crossing, and a line running through an
-  // arrowhead-sized triangle makes a puzzle of both. Either way it is air: no
-  // bar is ever drawn inside {@link BAR_INSET}.
-  const crossing =
-    arrow.toRowIndex > arrow.fromRowIndex
-      ? arrow.fromRowIndex + 1 - BAR_INSET / 2
-      : arrow.fromRowIndex + BAR_INSET / 2;
-  const elbow =
-    arrow.toX - arrow.fromX >= 2 * approach
-      ? [
-          `M ${at(arrow.fromX, fromY)}`,
-          `L ${at(turn, fromY)}`,
-          `L ${at(turn, toY)}`,
-          `L ${at(arrow.toX, toY)}`,
-        ]
-      : [
-          `M ${at(arrow.fromX, fromY)}`,
-          `L ${at(arrow.fromX + approach, fromY)}`,
-          `L ${at(arrow.fromX + approach, crossing)}`,
-          `L ${at(turn, crossing)}`,
-          `L ${at(turn, toY)}`,
-          `L ${at(arrow.toX, toY)}`,
-        ];
+  const route = routeArrow(arrow, bars, {
+    approach: ARROW_APPROACH_PX / DAY_PX,
+    barInset: BAR_INSET,
+  });
   const headX = ARROW_HEAD_PX / DAY_PX;
   const headY = ARROW_HEAD_HALF_PX / ROW_PX;
   return {
-    elbow: elbow.join(' '),
+    elbow: route
+      .map((corner, index) => `${index === 0 ? 'M' : 'L'} ${at(corner.x, corner.y)}`)
+      .join(' '),
     head:
       `M ${at(arrow.toX, toY)} ` +
       `L ${at(arrow.toX - headX, toY - headY)} ` +
@@ -1409,7 +1389,7 @@ function GanttChart({
               */}
               {arrowsShown &&
                 placed.arrows.map((arrow) => {
-                  const route = arrowRoute(arrow);
+                  const route = arrowRoute(arrow, drawnBars);
                   const id = `${arrow.predecessorId}->${arrow.successorId}`;
                   return (
                     <g key={id}>

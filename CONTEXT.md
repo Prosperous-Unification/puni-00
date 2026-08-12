@@ -251,6 +251,13 @@ The drawing of a parent on the Gantt panel: a bracket over its projection. A spa
 never a sum, exactly as the projection is.
 _Avoid_: parent bar, group bar, rollup bar
 
+**Arrow route**:
+The corners a dependency arrow is drawn through, from the predecessor's anchor to the
+successor's start: horizontal and vertical runs only, arriving from the left so the head
+points right. Chosen against the bars the panel is drawing — it passes through no bar's
+interior, the two it joins included — and not merely from the two ends.
+_Avoid_: elbow, path, polyline
+
 **Person link**:
 The line from a resource predecessor to the slice that waited for it — one person's
 hand-off, drawn unlike a dependency arrow. Exists only where the binding floor is the
