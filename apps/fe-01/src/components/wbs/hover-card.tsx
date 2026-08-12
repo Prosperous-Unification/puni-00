@@ -124,7 +124,22 @@ export interface CardRoom {
 /**
  * The side a scrolling card opens on and how tall it may be there: whichever
  * side of its cell has the clear room, capped at {@link VIEWPORT_SHARE} of the
- * window and floored at {@link SCROLLING_MIN_HEIGHT}.
+ * container and floored at {@link SCROLLING_MIN_HEIGHT}.
+ *
+ * **The container is the box the card is clipped by, which is not always the
+ * window.** A cell's card is an absolutely positioned child of the cell, so a
+ * scroll container between the two clips it — and since `unified-scroll-docking`
+ * the table's frame is only as tall as its own rows, rather than as tall as the
+ * window. Measured against the window, a card on the first row of a four-row
+ * plan is placed 320px down a frame that ends 200px down, and the half of it a
+ * reader would have to point at to scroll it is not painted at all.
+ *
+ * Proof: the frame stopped growing with the container left as `window
+ * .innerHeight`, and `e2e/hover-cards.spec.ts`'s `scrolls a note taller than
+ * the preview once the pointer is on it` failed on `the card closed on the way
+ * to it: expected 1, received 0` — the pointer sent to the middle of a card
+ * whose middle was outside the frame, landing on the page behind it. Watched on
+ * h2puni, 2026-08-12.
  *
  * Pure, and separated from the component for the same reason as {@link
  * surfacePlacement}: the rectangle it works on comes from
@@ -137,22 +152,25 @@ export interface CardRoom {
  *
  * @param anchor The cell's rectangle, in viewport coordinates.
  * @param anchor.top Its top edge — the room above it.
- * @param anchor.bottom Its bottom edge — the window's height less this is the room below.
- * @param viewportHeight The window's inner height.
+ * @param anchor.bottom Its bottom edge — the container's bottom less this is the room below.
+ * @param container The box the card is clipped by, in viewport coordinates —
+ * the window, or the window and the scrolling frame where there is one.
+ * @param container.top Its top edge.
+ * @param container.bottom Its bottom edge.
  */
 export function roomForCard(
   anchor: { top: number; bottom: number },
-  viewportHeight: number,
+  container: { top: number; bottom: number },
 ): CardRoom {
-  const below = viewportHeight - anchor.bottom - ANCHOR_GAP_PX;
-  const above = anchor.top - ANCHOR_GAP_PX;
+  const below = container.bottom - anchor.bottom - ANCHOR_GAP_PX;
+  const above = anchor.top - container.top - ANCHOR_GAP_PX;
   return {
     // `>=` rather than `>`: a cell with equal room either way opens downward,
     // which is where every other card in the table opens and where a reader
     // looks first.
     side: below >= above ? 'below' : 'above',
     maxHeight: Math.min(
-      viewportHeight * VIEWPORT_SHARE,
+      (container.bottom - container.top) * VIEWPORT_SHARE,
       Math.max(below, above, SCROLLING_MIN_HEIGHT),
     ),
   };
@@ -236,7 +254,19 @@ export function HoverCard({ label, id, scrolls = false, anchor, children }: Hove
     // `opens the card above a row low in the table`.
     const wrapper = card.current?.parentElement;
     if (wrapper === null || wrapper === undefined) return;
-    setRoom(roomForCard(wrapper.getBoundingClientRect(), window.innerHeight));
+    // What clips this card: the window, and the scrolling frame as well where
+    // the cell is inside one. `overflow: auto` clips to the padding box, so the
+    // frame's own picker room counts as room — it is exactly what that padding
+    // is for. Found by the attribute rather than by walking up looking for a
+    // computed `overflow`, for `editable-grid.ts`'s reason: the frame is a
+    // named thing in this app and the name is the contract.
+    const port = wrapper.closest('[data-table-frame]')?.getBoundingClientRect();
+    setRoom(
+      roomForCard(wrapper.getBoundingClientRect(), {
+        top: Math.max(0, port?.top ?? 0),
+        bottom: Math.min(window.innerHeight, port?.bottom ?? window.innerHeight),
+      }),
+    );
     // The cell does not move while the card is open — the card is closed by the
     // pointer leaving the cell — so this runs once per opening.
   }, [scrolls, anchor]);
