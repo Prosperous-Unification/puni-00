@@ -2207,3 +2207,118 @@ test.describe('the table, measured by a browser', () => {
  * unfailable; and the dependency-list test clicked a box on the one row whose
  * list has nothing left to offer. All four are fixed above.
  */
+
+/**
+ * The left edge of one row's printed number, in viewport coordinates.
+ *
+ * The number's own box rather than the cell's: the cell is where the indent is
+ * applied and the number is what a reader lines up against its neighbours, so a
+ * measurement of the cell would hold whatever the caret did to the figure
+ * inside it.
+ */
+function numberLeftOf(page: Page, number: string): Promise<number> {
+  return page.evaluate((wanted) => {
+    const printed = [...document.querySelectorAll('td[data-column="number"] [data-number]')].find(
+      (each) => each.textContent === wanted,
+    );
+    if (printed === undefined) throw new Error(`no row is numbered ${wanted}`);
+    return printed.getBoundingClientRect().left;
+  }, number);
+}
+
+/**
+ * Two rows at depth 0, the first with a child and the second with none — the
+ * one shape that can see a caret shifting a number.
+ *
+ * Built here rather than from `seedDeepBranch`, which renumbers its rows as it
+ * indents them: the row that started as `040` is not called `040` by the time
+ * the branch exists.
+ */
+async function seedTwoTopRowsOneWithAChild(page: Page): Promise<void> {
+  const addRow = page.getByRole('button', { name: 'Add work item' });
+  await addRow.click();
+  await expect(page.getByLabel('Name of 030', { exact: true })).toBeVisible();
+
+  // Tab on a row's name box makes it a child of the row above, so the third row
+  // becomes `020.1` and `020` gains the caret that `010` has not got.
+  //
+  // The third row rather than the second: `seedPlan` has `020` waiting on `010`,
+  // and a row cannot become a child of the row it depends on.
+  const third = page.getByLabel('Name of 030', { exact: true });
+  await third.focus();
+  await third.press('Tab');
+  await expect(page.getByLabel('Name of 020.1', { exact: true })).toBeVisible();
+}
+
+test.describe('the Number column keeps its figures in a line', () => {
+  test('lines up the number of a parent and a childless sibling', async ({ page }) => {
+    // The fault, in one sentence: the caret used to sit inline in front of the
+    // number, so `030` — which has children — printed a caret's width right of
+    // `040`, which does not. Both are depth 0. A browser is the only thing that
+    // can say two boxes share an x; jsdom lays nothing out and every unit test
+    // over this column passed through the fault.
+    //
+    // Proof: the reserved span's `width: CARET_GUTTER_PX` removed, so the caret
+    // is inline again — failed on `a parent's number is not level with its
+    // childless sibling's: Expected: 44, Received: 56.515625`, the caret's own
+    // 12.5px, and `holds a number still while its row is collapsed` with it.
+    // Watched 2026-08-12.
+    await seedTwoTopRowsOneWithAChild(page);
+
+    // The precondition, stated rather than assumed — R5 #16. Two rows that do
+    // not differ in whether they have a caret could not see this fault.
+    const parent = await numberCellNeeds(page, '020');
+    const sibling = await numberCellNeeds(page, '010');
+    expect(parent.hasExpander, '020 has no caret, so there is no shift to see').toBe(true);
+    expect(sibling.hasExpander, '010 has a caret, so it shifts the same way').toBe(false);
+    expect(parent.indent, 'the two rows are at different depths').toBe(sibling.indent);
+
+    expect(
+      await numberLeftOf(page, '020'),
+      "a parent's number is not level with its childless sibling's",
+    ).toBeCloseTo(await numberLeftOf(page, '010'), 1);
+  });
+
+  test('holds a number still while its row is collapsed and opened again', async ({ page }) => {
+    // The gutter is reserved rather than sized to what is in it, so the caret
+    // turning from ▾ to ▸ must move nothing. Glyph widths are a browser fact.
+    await seedTwoTopRowsOneWithAChild(page);
+    const atRest = await numberLeftOf(page, '020');
+
+    // `exact`, for `seedDeepBranch`'s reason one level up: `Collapse 020` is a
+    // prefix of `Collapse 020.1`.
+    await page.getByRole('button', { name: 'Collapse 020', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Expand 020', exact: true })).toBeVisible();
+    expect(await numberLeftOf(page, '020'), 'collapsing moved the number').toBeCloseTo(atRest, 1);
+
+    await page.getByRole('button', { name: 'Expand 020', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Collapse 020', exact: true })).toBeVisible();
+    expect(await numberLeftOf(page, '020'), 'expanding moved the number').toBeCloseTo(atRest, 1);
+  });
+
+  test('holds a number still when its row’s number is frozen', async ({ page }) => {
+    // The lock is printed after the number now. Before it, freezing moved every
+    // number right by the width of an emoji — the same fault as the caret's,
+    // one column over.
+    //
+    // Proof: the lock moved back in front of `[data-number]` — failed on
+    // `freezing the numbering moved the number: Expected: 56, Received: 76`, an
+    // emoji's width of drift on every frozen row. The first attempt at this
+    // injection removed the number and put it back in the same place, which
+    // changed nothing and was watched passing; the swap is the fault.
+    // Watched 2026-08-12.
+    const before = await numberLeftOf(page, '020');
+
+    await page.getByRole('button', { name: 'Freeze numbering' }).click();
+    await expect(page.locator('[aria-label="Number is frozen"]').first()).toBeVisible();
+
+    // The precondition: a row that did not gain a lock proves nothing.
+    const frozen = await numberCellNeeds(page, '020');
+    expect(frozen.hasLock, '020 was not frozen, so there is no marker to shift it').toBe(true);
+
+    expect(await numberLeftOf(page, '020'), 'freezing the numbering moved the number').toBeCloseTo(
+      before,
+      1,
+    );
+  });
+});

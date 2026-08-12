@@ -671,6 +671,23 @@ export const DEEPEST_INDENT = 4;
 const INDENT_STEP = 12;
 
 /**
+ * How much of the Number cell the disclosure caret owns, in px — reserved on
+ * every row, including the ones that have no caret to put in it.
+ *
+ * Held open rather than collapsed, because the caret used to sit inline: a row
+ * with children printed its number a caret's width right of a childless sibling
+ * at the same depth, and a column of figures that does not line up is the one
+ * thing a column of figures is for. `e2e/layout.spec.ts`'s `lines up the number
+ * of a parent and a childless sibling` is the browser that says so.
+ *
+ * It costs the column nothing. The 93px in {@link COLUMN_WIDTHS} was measured
+ * with an expander present — "12px of indent, a 12.5px expander, a 20px lock,
+ * five characters of number and the cell's 8px of padding" — so this reserves
+ * what the envelope was already sized around.
+ */
+export const CARET_GUTTER_PX = 12;
+
+/**
  * The Number cell's indent for a row `depth` levels down, in px — capped, and
  * only the Number cell's.
  *

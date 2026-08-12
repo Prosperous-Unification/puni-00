@@ -20,6 +20,7 @@ import type {
 } from '@/lib/wbs-api';
 
 import { cellKey } from './editable-grid';
+import { initialsOf } from './initials';
 import { refusedDraftFor } from './live-editing';
 import {
   DATE_EDITOR_WIDTH,
@@ -1556,7 +1557,7 @@ describe('teams and assignees', () => {
     });
     // The QA cell is empty and says who is assumed to be covering it — which
     // is a reading of one assignment, not a second one written down.
-    expect(rowFor('010').querySelector('[data-assumed]')?.textContent).toContain('Ada');
+    expect(rowFor('010').querySelector('[data-assumed]')?.textContent).toBe('· (AD)');
   });
 });
 
@@ -2919,7 +2920,7 @@ describe('assigning from a folded role’s cell with @', () => {
   const addPersonThrough = async (role: string, name: string): Promise<void> => {
     fireEvent.keyDown(typeInto(foldedCell(role), `@${name}`), { key: 'Enter' });
     await waitFor(() => {
-      expect(assigneeShown(role === 'Dev' ? 'role-dev' : 'role-qa')).toContain(name);
+      expect(assigneeShown(role === 'Dev' ? 'role-dev' : 'role-qa')).toContain(initialsOf(name));
     });
     fireEvent.blur(foldedCell(role));
   };
@@ -2954,7 +2955,7 @@ describe('assigning from a folded role’s cell with @', () => {
     fireEvent.keyDown(cell, { key: 'Enter' });
 
     await waitFor(() => {
-      expect(assigneeShown('role-dev')).toBe('· Kateryna');
+      expect(assigneeShown('role-dev')).toBe('· KA');
     });
     // The mention is gone and the estimate half is untouched.
     expect(cell.value).toBe('2/3/8');
@@ -3023,7 +3024,7 @@ describe('assigning from a folded role’s cell with @', () => {
 
     // The figure and who is doing it, in the one cell that never folds away.
     await waitFor(() => {
-      expect(assigneeShown('role-dev')).toBe('· Grace');
+      expect(assigneeShown('role-dev')).toBe('· GR');
     });
     expect(await api.listPeople()).toEqual([{ id: 'person1', name: 'Grace', teamIds: [] }]);
 
@@ -3044,16 +3045,16 @@ describe('assigning from a folded role’s cell with @', () => {
 
     fireEvent.keyDown(typeInto(foldedCell(), '@Ada'), { key: 'Enter' });
     await waitFor(() => {
-      expect(assigneeShown('role-dev')).toBe('· Ada');
+      expect(assigneeShown('role-dev')).toBe('· AD');
     });
 
     const dev = rowFor('010').querySelector('[data-folded-assignee="role-dev"]');
     const qa = rowFor('010').querySelector('[data-folded-assignee="role-qa"]');
-    expect(dev?.textContent).toBe('· Ada');
+    expect(dev?.textContent).toBe('· AD');
     expect(dev?.getAttribute('data-assumed')).toBeNull();
     // Bracketed and grey: a reading of one assignment, not a second one
     // written down.
-    expect(qa?.textContent).toBe('· (Ada)');
+    expect(qa?.textContent).toBe('· (AD)');
     expect(qa?.getAttribute('data-assumed')).toBe('role-qa');
     // The palette's own muted ink rather than the `#666` it was: `styles.css`
     // re-points every token under `.dark` and a literal is the one shade that
@@ -3282,7 +3283,7 @@ describe('assigning from a folded role’s cell with @', () => {
     await oneRow();
     fireEvent.keyDown(typeInto(foldedCell(), '@Ada'), { key: 'Enter' });
     await waitFor(() => {
-      expect(assigneeShown('role-dev')).toBe('· Ada');
+      expect(assigneeShown('role-dev')).toBe('· AD');
     });
     fireEvent.blur(foldedCell());
 
@@ -3303,7 +3304,7 @@ describe('assigning from a folded role’s cell with @', () => {
     await oneRow();
     fireEvent.keyDown(typeInto(foldedCell(), '@Ada'), { key: 'Enter' });
     await waitFor(() => {
-      expect(assigneeShown('role-dev')).toBe('· Ada');
+      expect(assigneeShown('role-dev')).toBe('· AD');
     });
 
     const shown = rowFor('010').querySelector('[data-folded-assignee="role-dev"]');

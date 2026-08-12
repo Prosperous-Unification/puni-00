@@ -64,6 +64,7 @@ import { GanttFaultBoundary } from './gantt-fault';
 import type { GanttPlan, ServiceTeamLabel } from './gantt-geometry';
 import { clampedGanttHeight, GANTT_CEILING_PX, GANTT_MIN_PX, GanttPanel } from './gantt-panel';
 import { HoverPreview } from './hover-preview';
+import { initialsOf } from './initials';
 import { type Command, commandChordIn, undoChord } from './keyboard-bindings';
 import { KeyboardCheatSheet, opensCheatSheet } from './keyboard-cheat-sheet';
 import {
@@ -82,6 +83,7 @@ import { type PlanExport, planFileName, planToCsv, planToMarkdown } from './plan
 import { useRendererForViewport } from './plan-renderer';
 import { printedDay, shortIsoDate } from './short-date';
 import {
+  CARET_GUTTER_PX,
   CELL,
   clampColumnWidth,
   DATE_EDITOR_WIDTH,
@@ -4330,17 +4332,25 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
               reader's own expansion, which the search deliberately does not
               touch, so a click here would appear to do nothing.
             */}
-            {row.getCanExpand() && !live.current.searching ? (
-              <button
-                type="button"
-                aria-label={`${row.getIsExpanded() ? 'Collapse' : 'Expand'} ${row.original.number}`}
-                onClick={row.getToggleExpandedHandler()}
-              >
-                {row.getIsExpanded() ? '▾' : '▸'}
-              </button>
-            ) : null}
-            {row.original.frozenNumber !== null && <span aria-label="Number is frozen">🔒</span>}
+            <span data-caret-gutter style={{ display: 'inline-block', width: CARET_GUTTER_PX }}>
+              {row.getCanExpand() && !live.current.searching ? (
+                <button
+                  type="button"
+                  aria-label={`${row.getIsExpanded() ? 'Collapse' : 'Expand'} ${row.original.number}`}
+                  onClick={row.getToggleExpandedHandler()}
+                >
+                  {row.getIsExpanded() ? '▾' : '▸'}
+                </button>
+              ) : null}
+            </span>
             <span data-number>{row.original.number}</span>
+            {/*
+              After the number, not before it. A marker in front shifts the
+              number right on the rows that have one, which is the same fault
+              the gutter above exists to fix — and this one moves a row against
+              its own siblings rather than against a whole depth.
+            */}
+            {row.original.frozenNumber !== null && <span aria-label="Number is frozen">🔒</span>}
           </span>
         ),
       }),
@@ -5607,27 +5617,33 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                   )}
                   {problem !== null && ' !'}
                   {doing !== null && (
-                    // `4.8 · Kat`, truncated, with the whole name in the
-                    // tooltip: 96px holds a figure and about four characters of
-                    // a person. Grey and in brackets where nobody is assigned
+                    // `4.8 · VA`, and the whole name in the tooltip. 96px holds
+                    // a figure and about four characters of a person, which is
+                    // how this printed `vad…` and `kuc…` — two people who read
+                    // identically. {@link initialsOf} is the same length every
+                    // time, so the column lines up and nothing needs an
+                    // ellipsis. Grey and in brackets where nobody is assigned
                     // and somebody is assumed, exactly as the unfolded column
                     // reads it.
                     <span
                       data-folded-assignee={role.id}
                       {...(doing.assumed ? { 'data-assumed': role.id } : {})}
+                      // No `title`, still. One was written here for the
+                      // initials and taken back out: `leaves the assignee no
+                      // title of its own to say it twice` is a decision from
+                      // 2026-08-09 — a native tooltip is one line, a second
+                      // late, and the hover card already names them in full
+                      // (`folded-role-card.tsx`). Initials make the card more
+                      // load-bearing, not the tooltip more welcome.
                       style={{
                         marginLeft: 4,
                         flex: 'none',
-                        minWidth: 0,
-                        maxWidth: '60%',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
                         whiteSpace: 'nowrap',
                         fontWeight: 'normal',
                         color: doing.assumed ? 'var(--muted-foreground)' : undefined,
                       }}
                     >
-                      · {doing.assumed ? `(${doing.name})` : doing.name}
+                      · {doing.assumed ? `(${initialsOf(doing.name)})` : initialsOf(doing.name)}
                     </span>
                   )}
                   {options.length > 0 && (
