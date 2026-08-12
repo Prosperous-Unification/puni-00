@@ -1513,7 +1513,17 @@ describe('the marks that had to be seen', () => {
         onPickRow={() => undefined}
       />,
     );
-    askForTheArrows();
+    // `askForTheDetail`, not `askForTheArrows`: this test arrived with #47
+    // (`arrow-dodge`) and this branch renamed the helper and the button hook
+    // under it. Git merged both sides without a conflict and the **product**
+    // did not compile — `Cannot find name 'askForTheArrows'`, which fails
+    // `typecheck` and stops the whole file running under vitest, killing the
+    // one assertion #47's own review called the only one that can see the
+    // panel handing the router the wrong bars, inset or approach. Every signal
+    // in front of that merge was green: no conflict markers, `mergeStateStatus
+    // CLEAN`, and a CI run against a base two hours stale. Reconciled on the
+    // rebase, 2026-08-12; the cross-review note has the account.
+    askForTheDetail();
 
     // Read off the document rather than off the geometry: this is the one
     // assertion that can see the panel handing the router the wrong bars, the
@@ -1688,6 +1698,51 @@ describe('the canvas holds every mark it draws', () => {
     expect(barFor('strip-dev')?.getAttribute('x')).toBe('0');
     expect(barFor('strip-dev')?.getAttribute('width')).toBe('8');
     expect(barFor('strip-dev')?.getAttribute('data-finish')).toBe('6');
+  });
+
+  itDom('declares the same canvas across the switch, on the axis that could move', () => {
+    // **The width, which every other invariance assertion in this file leaves
+    // alone.** The cross-state pairs compare `[data-gantt-label]` counts and
+    // `viewBox` *height*, and height cannot move: the rows are the plan's. The
+    // width can. It comes from `placed.horizon`, which reserves `bar.start +
+    // bar.drawnSpan` for every **placed** bar whether or not that bar is drawn
+    // — and the panel's own comment over `drawnBars` names the temptation
+    // exactly, that "the narrowing is here and not in `layOutGantt`". Move the
+    // filter into `placeGantt` and the canvas shrinks at rest by up to the two
+    // workdays an assumed span is worth, while every assertion in this file
+    // stays green. Cross-review, 2026-08-12.
+    //
+    // This fixture, because it is the one that holds an unestimated slice —
+    // `sand-dev`, `estimated: false` — and so is the only one where the
+    // narrowing has anything to narrow.
+    render(
+      <GanttPanel
+        plan={routeOffBothEnds()}
+        startDate={MONDAY_START}
+        scheduleError={null}
+        generation={0}
+        heightPx={null}
+        onPickRow={() => undefined}
+      />,
+    );
+
+    // Non-vacuous, both halves: at rest the assumed bar really is off the
+    // chart, so the two states really do draw different sets. Without this the
+    // equality below would hold of a switch wired to a constant.
+    expect(document.querySelectorAll('[data-assumed]')).toHaveLength(0);
+    const atRest = viewBoxOf(document.querySelector('[data-gantt-chart]'));
+
+    askForTheDetail('[data-assumed]');
+
+    const askedFor = viewBoxOf(document.querySelector('[data-gantt-chart]'));
+    expect(document.querySelectorAll('[data-assumed]').length).toBeGreaterThan(0);
+    expect(askedFor.width, 'the canvas is a different width with the detail on').toBe(atRest.width);
+    expect(askedFor.minX, 'the canvas starts at a different day with the detail on').toBe(
+      atRest.minX,
+    );
+    // And the width is a number worth comparing, rather than a zero on both
+    // sides of a chart that drew nothing.
+    expect(atRest.width).toBeGreaterThan(8);
   });
 });
 

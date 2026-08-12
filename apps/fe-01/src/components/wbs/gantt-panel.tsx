@@ -246,6 +246,28 @@ export const CHART_PAD_PX = Math.max(ARROW_APPROACH_PX, NOT_BEFORE_LENGTH_PX) + 
  * function hands it — `drawnBars`, because a bar nothing paints is not
  * something to dodge.
  *
+ * **Since `declutter-one-button` that set depends on the switch**, and the
+ * consequence is worth stating rather than discovering. With the detail on,
+ * every unestimated bar is drawn, so every one of them is also an obstacle.
+ * `arrow-dodge` was cleared partly on the argument that `arrow.fromX` is never
+ * strictly inside a drawn bar — and that argument was load-bearing on the
+ * assumed bars being *absent*. It is reachable now: a leaf whose slices in role
+ * order are an unestimated one and then an estimated one of under two workdays
+ * has `fromX = stopOf(fromStart, fromFinish)` landing inside the ghost's own
+ * `[startOf(s), stopOf(s, s + ASSUMED_UNESTIMATED_WORKDAYS)]`, on the arrow's
+ * own row. Every candidate route's first run then reads as crossing and
+ * `routeArrow` falls through to its banded fallback, which returns a route
+ * known to cross. It bites when the anchor's duration is under two workdays and
+ * not when it is two or more.
+ *
+ * The consequence is cosmetic — an elbow drawn over a translucent dashed ghost,
+ * which is what the chart did before `gantt-declutter` anyway — and it is left
+ * as it is: the alternative is a second, switch-independent obstacle list, and
+ * the honest version of that is a geometry change with its own proposal. What
+ * it costs is that a fallback the `arrow-dodge` review proved dead is a live
+ * path in the detail-on state. Written down here and in that change's
+ * `verify.md` rather than fixed. Cross-review, 2026-08-12.
+ *
  * Either way the last run is horizontal and arrives at the successor's start,
  * so the head always points right and never has to be rotated.
  */
@@ -324,16 +346,6 @@ function rememberedDetail(): boolean {
   // null` — the retired key still in storage after the chart had been opened.
   // Watched 2026-08-12.
   localStorage.removeItem(RETIRED_ARROWS_KEY);
-  const stored = localStorage.getItem(DETAIL_KEY);
-  if (stored === null) return false;
-  let claimed: unknown;
-  try {
-    claimed = JSON.parse(stored);
-  } catch {
-    // Nothing but this panel writes the key, so the only way here is a
-    // hand-edited store. Recovered from below rather than rethrown.
-    claimed = undefined;
-  }
   // Proof: this refusal replaced by `claimed === true || (typeof claimed ===
   // 'string' && claimed !== '')`, which is what "read the claim, drop nothing"
   // comes to. `2 failed | 89 passed`: `refuses a stored answer that is not a
@@ -342,11 +354,45 @@ function rememberedDetail(): boolean {
   // all, and drops the key` on `expected '{not json' to be null`, the unreadable
   // key left in storage to be read again next time. Watched 2026-08-11, and
   // again over the renamed key 2026-08-12.
-  if (typeof claimed !== 'boolean') {
+  const stored = localStorage.getItem(DETAIL_KEY);
+  if (stored !== null && typeof claimedDetail(stored) !== 'boolean') {
     localStorage.removeItem(DETAIL_KEY);
-    return false;
   }
-  return claimed;
+  return readDetail();
+}
+
+/**
+ * The same read with **nothing written** — what a React render is allowed to
+ * do.
+ *
+ * `useState(readDetail)` below is a lazy initialiser, which React calls during
+ * a render and StrictMode calls **twice** on purpose to surface exactly this:
+ * {@link rememberedDetail} drops two keys, and dropping a key is a write. The
+ * rule is the one this file already states over the switch's own handler — "a
+ * state updater React may call twice is no place for a side effect" — and it
+ * was being kept eleven hundred lines below where it was being broken. The
+ * drops happen in a mount effect instead.
+ *
+ * Nothing anybody can observe changed: `removeItem` is idempotent, and the
+ * `DETAIL_KEY` drop only ever fires on a stored value this panel refuses. It is
+ * a rule kept, not a defect fixed. Cross-review, 2026-08-12.
+ */
+function readDetail(): boolean {
+  const stored = localStorage.getItem(DETAIL_KEY);
+  if (stored === null) return false;
+  const claimed = claimedDetail(stored);
+  return typeof claimed === 'boolean' ? claimed : false;
+}
+
+/** Stored bytes parsed as they were written, or `undefined` if they will not. */
+function claimedDetail(stored: string): unknown {
+  try {
+    return JSON.parse(stored);
+  } catch {
+    // Nothing but this panel writes the key, so the only way here is a
+    // hand-edited store. Recovered from above rather than rethrown.
+    return undefined;
+  }
 }
 
 /**
@@ -1014,7 +1060,17 @@ function GanttChart({
   // itself. Read straight into the initial state rather than in an effect,
   // exactly as the panel height is: an effect would draw every mark for one
   // frame and then take them away. Never shared, never touching the plan.
-  const [detailShown, setDetailShown] = useState(rememberedDetail);
+  //
+  // {@link readDetail} and not {@link rememberedDetail}: the initialiser is a
+  // render, and the two keys `rememberedDetail` drops are writes. The drops run
+  // from the mount effect just below — same answer either way, and the rule
+  // this file states over the switch's own handler kept where it is broken.
+  const [detailShown, setDetailShown] = useState(readDetail);
+  // The retired key, and any stored answer this panel refuses, dropped once
+  // after the first paint. The write half of the read above.
+  useEffect(() => {
+    rememberedDetail();
+  }, []);
   const [open, setOpen] = useState<OpenSurface | null>(null);
   // The axis's own open card: which cell, and the rectangle it was placed
   // against. Separate from the bars' state and mutually exclusive with it —
@@ -1039,16 +1095,6 @@ function GanttChart({
   useEffect(() => cancelOpening, [cancelOpening]);
 
   const chart = layOutGantt(plan);
-  /** The bar the open surface belongs to, or null when there is no surface or no such bar. */
-  const openBar =
-    open === null ? null : (chart.bars.find((bar) => bar.sliceId === open.sliceId) ?? null);
-
-  // The anchor has gone: its row was collapsed away, narrowed off by a search,
-  // or is simply no longer drawn. A surface pointing at a mark that is not on
-  // the chart is worse than none.
-  useEffect(() => {
-    if (open !== null && openBar === null) setOpen(null);
-  }, [open, openBar]);
 
   // The chart read has been replaced, **whether or not the anchor survived**.
   // A slice keeping its id across a refetch keeps its `<rect>` — React reuses
@@ -1105,6 +1151,38 @@ function GanttChart({
    * three on `expected +0 to be 1` / `expected undefined to be 'true'`.
    */
   const drawnBars = detailShown ? placed.bars : placed.bars.filter(({ bar }) => bar.estimated);
+  /**
+   * The bar the open surface belongs to, or null when there is no surface, or
+   * no such bar, or that bar is not being drawn.
+   *
+   * Resolved against {@link drawnBars} and not against `chart.bars`, which
+   * holds every bar the plan has. Before this switch existed the two could not
+   * disagree: the drawn set only ever changed on a refetch, and a refetch bumps
+   * `generation`, which clears both surfaces below. Now the set changes when
+   * somebody presses `Detail`, and a surface resolved off the plan would
+   * outlive the mark it belongs to.
+   *
+   * Both self-healing paths close most of it — keyboard focus on a bar blurs on
+   * the way to the switch, and a pointer must leave the rect to click it — so
+   * what is left is a pointer resting on a bar while the switch is worked from
+   * the **keyboard**: no blur, no pointerout, the rect unmounts, and the card
+   * stays anchored by its `AnchorRect` snapshot to coordinates on a row that is
+   * now empty, reciting `not estimated` facts about a bar nobody can see. Narrow,
+   * and the effect below has always claimed to cover it — "or is simply no
+   * longer drawn" — which was true of every set but this one. Cross-review,
+   * 2026-08-12.
+   *
+   * It has to sit here, under `drawnBars`, rather than up beside `chart`.
+   */
+  const openBar =
+    open === null ? null : (drawnBars.find(({ bar }) => bar.sliceId === open.sliceId)?.bar ?? null);
+
+  // The anchor has gone: its row was collapsed away, narrowed off by a search,
+  // or is simply no longer drawn. A surface pointing at a mark that is not on
+  // the chart is worse than none.
+  useEffect(() => {
+    if (open !== null && openBar === null) setOpen(null);
+  }, [open, openBar]);
   /**
    * The hand-offs whose both ends are on the chart.
    *
