@@ -123,10 +123,12 @@ async function offences(page: Page, what: string): Promise<void> {
   for (const line of found) console.log(`  ${line}`);
 }
 
+const PALETTE = process.env.PROBE_PALETTE === 'light' ? 'light' : 'dark';
+
 async function darken(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    document.documentElement.classList.add('dark');
-  });
+  await page.evaluate((wanted) => {
+    document.documentElement.classList.toggle('dark', wanted === 'dark');
+  }, PALETTE);
   await page.waitForTimeout(400);
 }
 
