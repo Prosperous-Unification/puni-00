@@ -1076,7 +1076,9 @@ export function tableWidthStyle(layout: FrameLayout): CSSProperties {
     // a percentage of, so the table takes the window until the Name column
     // reaches {@link FLEXIBLE_CAP} and stops there, leaving the slack to the
     // right of the last column rather than inside the Name cells.
-    width: flexibleOverridden ? `${String(layout.minWidth)}px` : `min(100%, ${String(layout.maxWidth)}px)`,
+    width: flexibleOverridden
+      ? `${String(layout.minWidth)}px`
+      : `min(100%, ${String(layout.maxWidth)}px)`,
     minWidth: layout.minWidth,
   };
 }
