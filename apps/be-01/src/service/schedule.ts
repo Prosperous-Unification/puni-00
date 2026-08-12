@@ -1003,7 +1003,7 @@ export function schedule(
 
   /**
    * Where a leaf's slices begin among the nodes — the node an external edge
-   * arrives* at. It leaves from {@link anchorNodeOf}, which is not always
+   * arrives at. It leaves from {@link anchorNodeOf}, which is not always
    * this one.
    *
    * Every leaf has an entry: the loop above made one for each of them, and
@@ -1217,8 +1217,10 @@ export function schedule(
  * where there was none. The endpoints are the first slice's own two numbers, so
  * reading them is the same answer with none of that noise.
  *
- * A work item a person has pulled apart does not tile, and then the endpoints
- * are not the answer at all: a row whose `QA` was held back until its assignee
+ * A work item stops tiling when a person pulled it apart — or, since the
+ * anchor rule, whenever a successor's edge leaves a middle slice and splits
+ * the late times with nobody assigned (design.md D5: the non-tiling arm is
+ * ordinary now, not rare). Then the endpoints are not the answer at all: a row whose `QA` was held back until its assignee
  * came free has a critical `QA` and a slack `Dev`, and the difference of its
  * ends would report the slack of the `Dev` and no red.
  *
@@ -1258,7 +1260,8 @@ function projectOntoWorkItems(
     // slices a person pushed apart` failed with a slack of 5 on a row holding a
     // critical slice.
     //
-    // The aggregated side — a row a person pulled apart — needs no
+    // The aggregated side — a row pulled apart by a person or by an
+    // anchor-split of its late times — needs no
     // {@link slackOf} of its own: every slice's float is snapped before it gets
     // here, and the least of snapped numbers is one of them. Its `critical` is
     // left as it was, read off the slices rather than off the aggregate, which

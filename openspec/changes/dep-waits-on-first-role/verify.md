@@ -206,9 +206,10 @@ branch replaced before that.
 | `anchorNode → last`             | `queues a predecessor's later role against its own successor's work`               | `boundBy` `person` → `predecessor`, `resourcePredecessorId` `lead/role-qa` → `null`, same day 5                             |
 | fe `anchorSpanOf` → `own.at(0)` | `an arrow leaves the first estimated role, not the unestimated one in front of it` | `1 failed \| 68 passed` — `expected { predecessorId: 'strip', …(6) } to match object { fromStart: 5, fromFinish: 9, …(1) }` |
 
-The last one is what holds be-01's walk and fe's walk together: one rule, two
-implementations, and a test that fails when they drift rather than a comment
-asking the reader to check.
+The last one guards fe's walk against a hand-authored plan shaped like
+be-01's output; it is not fed from `schedule()` itself, so a be-01-side edit
+to the anchor predicate would not fail it. The two walks share one predicate
+by construction (`days !== null`, the wire's `estimated`), not by test.
 
 ### What moved, beyond the walk itself
 

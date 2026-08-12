@@ -81,13 +81,13 @@ questions, and the answers differ because the questions do.
 An edge on a parent still expands to every leaf pair; each expanded edge then
 applies the new rule: every predecessor leaf's **anchor** finishes before every
 successor leaf's first slice starts. "The whole of 010 before 020" becomes
-"all of 010's first-role work before any of 020" — the reading Dany's own
+"all of 010's first _estimated_ role's work before any of 020" — the reading Dany's own
 scheduler used, extended to branches, which it never had.
 
 ## D4 — Cycles remain a property of the leaf graph
 
-The old argument was "edges only touch an item's ends". The new edges touch
-first slices on both sides — still only slices at an item's boundary, and the
+The old argument was "edges only touch an item's ends". The new edges leave
+the predecessor's anchor — which may be a middle slice — and the
 intra-item chains are still private, forward-only paths within one item. Any
 cycle among slice nodes must therefore cross items only along expanded edges,
 and projecting it item-by-item yields a cycle in the leaf graph — which
