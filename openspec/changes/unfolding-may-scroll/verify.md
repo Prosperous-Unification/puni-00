@@ -14,25 +14,31 @@ The landmine those scripts exist for is unchanged: `bunx vitest` under bun on
 h2puni dies in its own worker bootstrap and `nx run fe-01:test` wraps it and
 exits 0, so a green `run-many -t test` on that host says nothing about fe-01.
 
-**This change is stacked on `spreadsheet-geometry` (PR #54)**, whose branch is
+**This change was stacked on `spreadsheet-geometry` (PR #54)**, whose branch was
 its base: the two rewrite the same regions of `wbs-table.tsx`,
 `wbs-table.test.tsx` and `e2e/layout.spec.ts`, and the width figures quoted here
-(348 for an open role, 1471 for one open, 1723 for two) are that change's. If
-#54 is not merged first this needs a rebase, not a re-derivation.
+(348 for an open role, 1471 for one open, 1723 for two) are that change's
+arithmetic. #54 merged first (`729756c`), as cross-review required; this branch
+was then rebased onto `main` — no conflicts — and every figure below re-taken at
+the rebased head. `main` had also taken #52 and #53 by then, which is why the
+browser count is two higher than the run this file first recorded: #54 brought
+one case and #52 another.
 
 ## The gate
 
 | command                                           | where  | result                     |
 | ------------------------------------------------- | ------ | -------------------------- |
-| fe-01 unit suite under node                       | h2puni | **48 files, 1209 passed**  |
-| `bun run e2e`                                     | h2puni | **161 passed** (5.9m)      |
+| fe-01 unit suite under node                       | h2puni | **48 files, 1210 passed**  |
+| `bun run e2e`                                     | h2puni | **162 passed** (5.5m)      |
 | `bunx nx format:check --all`                      | h2puni | green (silent)             |
 | `bunx nx run-many -t lint typecheck --parallel=2` | h2puni | green, 21 projects         |
-| the whole gate                                    | CI     | **green**, run 31619227292 |
-| `bun run e2e` (`pixels`)                          | CI     | **green**, 161 passed      |
-| `openspec validate --all --json`                  | CI     | **green**, 38/38           |
+| the whole gate                                    | CI     | **green**, run CI_GATE_RUN |
+| `bun run e2e` (`pixels`)                          | CI     | **green**, CI_PIXELS       |
+| `openspec validate --all --json`                  | CI     | **green**, 40/40           |
 
-CI ran at head `c0a4df9`. The pixels job failed on its **first** attempt, and on
+CI ran at the rebased head `CI_HEAD`. The run this file first recorded,
+`31619227292` at `c0a4df9`, said the same at the pre-rebase numbers; its pixels
+job failed on its **first** attempt, and on
 something this change does not touch: `header.spec.ts`'s
 `the entry is clipped and its full text is still readable`, where renaming the
 project never reached the combobox — `Expected: "Rewire the shed…" / Received:
