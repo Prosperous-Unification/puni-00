@@ -468,11 +468,13 @@ describe('float — the blocking set is the whole set', () => {
     //
     // Here: pool of 2 with A (0→2) and B (0→6), and a width-2 block X that
     // waits for 6. **Either** of them ending later than 6 would push X, so
-    // neither may slip past 6 — but A is edged to X as well as B, so A's
-    // reported float is 6-2 = 4 rather than the 4 it truly has. The case where
-    // the reporting is strictly tight is the one asserted; what is asserted
-    // about the direction is that no slice is ever reported movable when it is
-    // not, over the whole plan.
+    // neither may slip past 6, and A's reported float — 6-2 = 4 — is exactly
+    // the disjunctive answer. This fixture is therefore the tight case, and it
+    // is the tight case on purpose: it shows the extra edges cost nothing when
+    // the constraint is not slack. The direction itself is asserted over every
+    // slice of the plan below — no slice is ever reported movable when it is
+    // not, and float is never negative, which is the other way this could
+    // fail.
     const rows = [
       item('A', { serviceTeamId: PLATFORM }),
       item('B', { serviceTeamId: PLATFORM }),
