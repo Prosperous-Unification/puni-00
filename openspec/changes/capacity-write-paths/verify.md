@@ -32,8 +32,18 @@ h1claw; that box denies both.
 be-01's suite; it passed on its own run in 63.5s. Recorded rather than smoothed
 over.
 
-**CI:** run `CI_RUN` at head `CI_HEAD` — `gate` `GATE_TIME`, `pixels`
-`PIXELS_TIME`, conclusion `CI_CONCLUSION`.
+**CI:** run
+[31617039718](https://github.com/Prosperous-Unification/wbs-tool-v1/actions/runs/31617039718)
+at head `a32ee68` — `gate` pass 3m38s, `pixels` pass 7m58s, conclusion `success`.
+
+The run before it, `31616276345`, failed `gate` on `format:check` alone: this
+file, unformatted. Recorded rather than quietly replaced — a verify.md that
+shows only the green run is the record defect this repo has held two changes
+for. The only commit between the two is prettier's reflow of the tables below.
+
+Filling these figures in moves this file and therefore the head, so the run that
+observes the final SHA is one later than the one named here. It changes no file
+but this paragraph.
 
 ## The failure-proof table (R5)
 
