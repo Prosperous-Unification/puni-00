@@ -26,20 +26,20 @@ one case and #52 another.
 
 ## The gate
 
-| command                                           | where  | result                     |
-| ------------------------------------------------- | ------ | -------------------------- |
-| fe-01 unit suite under node                       | h2puni | **48 files, 1210 passed**  |
-| `bun run e2e`                                     | h2puni | **162 passed** (5.5m)      |
-| `bunx nx format:check --all`                      | h2puni | green (silent)             |
-| `bunx nx run-many -t lint typecheck --parallel=2` | h2puni | green, 21 projects         |
-| the whole gate                                    | CI     | **green**, run CI_GATE_RUN |
-| `bun run e2e` (`pixels`)                          | CI     | **green**, CI_PIXELS       |
-| `openspec validate --all --json`                  | CI     | **green**, 40/40           |
+| command                                           | where  | result                       |
+| ------------------------------------------------- | ------ | ---------------------------- |
+| fe-01 unit suite under node                       | h2puni | **48 files, 1210 passed**    |
+| `bun run e2e`                                     | h2puni | **162 passed** (5.5m)        |
+| `bunx nx format:check --all`                      | h2puni | green (silent)               |
+| `bunx nx run-many -t lint typecheck --parallel=2` | h2puni | green, 21 projects           |
+| the whole gate                                    | CI     | **green**, run 31627788850   |
+| `bun run e2e` (`pixels`)                          | CI     | **green**, 162 passed (7.0m) |
+| `openspec validate --all --json`                  | CI     | **green**, 40/40             |
 
-CI ran at the rebased head `CI_HEAD`. The run this file first recorded,
+CI ran at the rebased head `f62d59e`. The run this file first recorded,
 `31619227292` at `c0a4df9`, said the same at the pre-rebase numbers; its pixels
-job failed on its **first** attempt, and on
-something this change does not touch: `header.spec.ts`'s
+job failed on its **first** attempt, and on something this change does not
+touch: `header.spec.ts`'s
 `the entry is clipped and its full text is still readable`, where renaming the
 project never reached the combobox — `Expected: "Rewire the shed…" / Received:
 "New project"`, twenty-two polls over ten seconds. The same spec had passed on
