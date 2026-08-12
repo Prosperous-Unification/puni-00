@@ -304,8 +304,9 @@ describe('the width equation the table is laid out by', () => {
     // cost: it was 1247 against that 1248 — one pixel inside — and the two
     // date columns took 124px to stop wrapping their days. A three-phase plan
     // scrolls its frame at 1280 now, which is the backstop the pinned columns
-    // exist for. One role unfolded has never fitted, which is why unfolding is
-    // an accordion.
+    // exist for. One role unfolded has never fitted a 1280 laptop, and two of
+    // them fit nothing in the matrix: since `unfolding-may-scroll` that is a
+    // state a reader may ask for, and the frame is what scrolls for it.
     //
     // Each figure is 48px larger since `priority-column`: the two-phase plan
     // needs 1247 where it needed 1199, which is one pixel inside that same

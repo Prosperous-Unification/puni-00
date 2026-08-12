@@ -1446,10 +1446,10 @@ describe('teams and assignees', () => {
     render(<WbsTable projectId="p1" api={api} />);
     click('Add work item');
     await screen.findByLabelText('Name of 010');
-    // Dev only: unfolding is an accordion since 2026-08-08, so a second
-    // unfold would fold this one. QA stays folded, which is where the
-    // every-phase assumption is now read — in the folded cell, beside the
-    // figure.
+    // Dev only, and QA deliberately left folded: the folded cell is where the
+    // every-phase assumption is read, beside the figure. A second unfold
+    // would have folded this one until `unfolding-may-scroll`; it would leave
+    // both open now, and this fixture wants one of each.
     unfoldRole('Dev');
     return api;
   }
@@ -7420,8 +7420,8 @@ describe('the widths the table is laid out by', () => {
     // plan has Dev unfolded and QA folded, so the floor is the 779px of fixed
     // columns — nobody has dated a row, so `not-before` is at its narrow 56 —
     // plus 348 for the open role, 96 for the closed one and Name's 200.
-    // Folded it would be 1219; the difference is why unfolding is an
-    // accordion.
+    // Folded it would be 1219, and both open 1723 — the difference is what
+    // `unfolding-may-scroll` decided to spend the frame's scrollbar on.
     expect(table.style.minWidth).toBe('1471px');
     fireEvent.click(screen.getByRole('button', { name: 'Fold Dev estimates' }));
     expect(screen.getByRole('table').style.minWidth).toBe('1219px');

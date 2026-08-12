@@ -1811,7 +1811,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    *
    * `unfoldedRoles` is deliberately **not** settled here, and that is a finding
    * rather than an omission. The plan asked for it (agy #7) on the reading that
-   * the accordion could hold a dead id; it can, and nothing can observe it,
+   * the set could hold a dead id; it can, and nothing can observe it,
    * because `columns` is built by mapping over `roles` and a dead id selects no
    * role to unfold. The sanitizer was written, its negative test watched
    * **passing** with the line deleted, and the line removed —
