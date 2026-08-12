@@ -54,7 +54,7 @@ product, not a layout change.
 Copying `scrollTop` from one face to the other is one line and wrong. The two
 faces do not have the same row heights: a chart row is a declared 28px, a table
 row is 26.19px in this font (measured), and a wrapped name makes it 46. Pixels
-would drift by a row every twenty and would be *wrong from the first row* on any
+would drift by a row every twenty and would be _wrong from the first row_ on any
 plan with a wrapped name — which is the audit's next finding down the list
 ("Wrapped-name row goes 46px vs 28px, its Gantt row doesn't, alignment lost from
 that row down"). Rows are the unit both faces agree on, so rows are the unit.
@@ -68,7 +68,7 @@ there is no clamp and no state where the two faces show different rows.
 
 ## Why the pairing is checked
 
-Row *i* of the table is row *i* of the chart. That is the invariant the whole
+Row _i_ of the table is row _i_ of the chart. That is the invariant the whole
 change stands on and it is pinned from both ends already
 (`gantt-panel.test.tsx`: "draws exactly the rows a search narrowed the plan to",
 "leaves a collapsed branch's children off the chart"). The link uses it for
@@ -107,7 +107,7 @@ quietly come to depend on that.
    `e2e/gantt.spec.ts` is replaced by what it was really about: the section they
    share does not grow and the page does not scroll.
 3. **A test that needed a full frame.** `gives a long note the room below rather
-   than 320px of it` was measuring a two-row plan against a window-tall frame. It
+than 320px of it` was measuring a two-row plan against a window-tall frame. It
    fills the frame first now, and says why.
 
 ## What is left between the two faces
@@ -121,11 +121,11 @@ for a plan honest, and it stops binding at about four rows.
 
 ## Invariants this change had to hold, and how
 
-| invariant | how it is held |
-| --- | --- |
-| Row-for-row correspondence between the faces | Used as the mechanism and checked by id before every move; asserted per case in `e2e/plan-surface.spec.ts` (`toHaveCount(rows)`) |
-| Keyboard walk and cell focus | The link writes `scrollTop` and never calls `focus` or `scrollIntoView`; the browser case walks fifteen cells with Ctrl+J and asserts the focus is still in the cell it walked to |
-| The frame is what scrolls, and the page never does | `flex-shrink: 1` kept; both browser cases assert `pageOverflow === 0`, and the no-shrink fault turns five of six red |
-| `unfolding-may-scroll`'s sideways scroll | `scrollLeft` is never read or written; the browser case unfolds a role, scrolls the frame sideways and asserts both faces keep their own sideways position |
-| The chart's month caption | Follows from the same: the caption is computed from the panel's `scrollLeft` |
-| The folded fit at every laptop width | Untouched — nothing here changes a width |
+| invariant                                          | how it is held                                                                                                                                                                    |
+| -------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Row-for-row correspondence between the faces       | Used as the mechanism and checked by id before every move; asserted per case in `e2e/plan-surface.spec.ts` (`toHaveCount(rows)`)                                                  |
+| Keyboard walk and cell focus                       | The link writes `scrollTop` and never calls `focus` or `scrollIntoView`; the browser case walks fifteen cells with Ctrl+J and asserts the focus is still in the cell it walked to |
+| The frame is what scrolls, and the page never does | `flex-shrink: 1` kept; both browser cases assert `pageOverflow === 0`, and the no-shrink fault turns five of six red                                                              |
+| `unfolding-may-scroll`'s sideways scroll           | `scrollLeft` is never read or written; the browser case unfolds a role, scrolls the frame sideways and asserts both faces keep their own sideways position                        |
+| The chart's month caption                          | Follows from the same: the caption is computed from the panel's `scrollLeft`                                                                                                      |
+| The folded fit at every laptop width               | Untouched — nothing here changes a width                                                                                                                                          |
