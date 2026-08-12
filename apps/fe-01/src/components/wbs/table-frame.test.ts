@@ -9,6 +9,7 @@ import {
   DAY_ENVELOPE,
   DEEPEST_INDENT,
   FIXED_COLUMNS,
+  FLEXIBLE_CAP,
   FLEXIBLE_COLUMNS,
   FLEXIBLE_FLOOR,
   flexibleCellStyle,
@@ -187,9 +188,9 @@ describe('the resolved frame layout', () => {
       ),
     ).toEqual({
       'r1-final': 96,
-      'r1-optimistic': 52,
-      'r1-realistic': 52,
-      'r1-pessimistic': 52,
+      'r1-optimistic': 44,
+      'r1-realistic': 44,
+      'r1-pessimistic': 44,
       'r1-assignee': 120,
     });
   });
@@ -329,7 +330,41 @@ describe('the width equation the table is laid out by', () => {
         ],
         DATED,
       ).minWidth,
-    ).toBe(1523);
+    ).toBe(1499);
+  });
+
+  it('caps the table at the fixed columns plus the Name cap', () => {
+    // The other end of the same equation, and the reason it is an end of *this*
+    // equation rather than a `max-width` on the Name cells: `table-layout:
+    // fixed` gives a cell no vote on its column's width, so the only place a
+    // cap on the flexible column can be spent is the table's own width.
+    //
+    // Both ends are summed from the same resolved columns, or the cap would be
+    // a second opinion about the widths the `<colgroup>` declares — the fault
+    // this module exists to prevent, one column along.
+    expect(frameLayout(['drag', 'number'], DATED).maxWidth).toBe(24 + 93);
+    expect(frameLayout(['name'], DATED).maxWidth).toBe(FLEXIBLE_CAP);
+    // The two-phase plan the browser gate measures: 1247 at the floor, and the
+    // same fixed columns with Name at its cap instead.
+    expect(frameLayout([...RENDERED, 'r1-final', 'r2-final'], DATED).maxWidth).toBe(
+      1247 - FLEXIBLE_FLOOR + FLEXIBLE_CAP,
+    );
+    // Above the floor and below the widest a drag may reach, or the cap is
+    // either not a cap or not reachable.
+    expect(FLEXIBLE_CAP).toBeGreaterThan(FLEXIBLE_FLOOR);
+    expect(FLEXIBLE_CAP).toBeLessThan(WIDEST_COLUMN);
+  });
+
+  it('lays the cap on the table itself, with the minimum still under it', () => {
+    // What the `<table>` is told, which is the one declaration the cap reaches
+    // the browser through.
+    // Proof: FAULT-CAP-FLAT (see verify.md) — the `min()` reverted to a flat
+    // `'100%'`.
+    const layout = frameLayout([...RENDERED, 'r1-final', 'r2-final'], DATED);
+    expect(tableWidthStyle(layout)).toEqual({
+      width: `min(100%, ${String(layout.maxWidth)}px)`,
+      minWidth: layout.minWidth,
+    });
   });
 
   it('makes the declared width include the cell chrome, and clips what overruns', () => {

@@ -483,6 +483,16 @@
  * of the dependency chips, which only decides how many fit on a line of a cell
  * whose height nothing asserts.
  *
+ * The third exception is `spreadsheet-geometry`'s, and it is the largest: the
+ * grid body's own type, 13px over a 1.4 line. It moves pixels on purpose —
+ * that is the change — and it moves them in one direction only, because every
+ * column in `table-frame.ts` was measured at the browser's 16px and none of
+ * them was made narrower here. So every envelope holds with room to spare
+ * (`e2e/layout.spec.ts` asserts the declared width is **at least** what the
+ * browser needs, and each of those assertions was re-run), the rows are
+ * shorter, and the columns are the width they were. Making them narrower is a
+ * measurement of its own and is deliberately not in this change.
+ *
  * `@layer components`, so a `className` on a cell still wins: the layer order
  * at the top of this file puts utilities last. The base layer's `[data-grid]`
  * guard is not in play here — that guard scopes the *reset* away from the grid,
@@ -495,6 +505,47 @@
    */
   [data-grid] {
     --cell-bg: var(--background);
+  }
+
+  /*
+   * The grid's own type, which is the whole of "make it feel like a
+   * spreadsheet" that is not a padding (Dany, 2026-08-08, U4).
+   *
+   * The table read at the browser's default 16px — the size a paragraph is set
+   * in — with a 26px row, and a plan is not prose: it is a page of short
+   * strings and figures that a reader scans down a column of. 13px is what a
+   * spreadsheet sets its cells in, and it buys back four pixels a row and
+   * about a fifth of every string's width across a table that has to fit a
+   * 1280px laptop.
+   *
+   * `tbody` and not `[data-grid]`, for the reason the number's 11px rule
+   * beside it already gives: `plan-cards.tsx` carries `data-grid` too, so
+   * `editable-grid.ts` can find the phone's cards, and a card is not a cell in
+   * a fixed column — it is the whole of a work item on a 390px screen. A card
+   * list has no `<tbody>`. The heading row is untouched as well: it is a 10px
+   * caption already and it is above the `<tbody>`, not in it.
+   *
+   * Named on the boxes as well as on the cells, and that is not belt and
+   * braces. The base reset's `font: inherit` for form controls stops at
+   * `[data-grid]` deliberately, so a box in this table takes the *browser's*
+   * font unless something says otherwise — some cells carry `font: inherit`
+   * inline and some do not, which is a table typed in two sizes the moment
+   * this rule reaches only one of them.
+   *
+   * `line-height` at 1.4 rather than the plan's ~1.45 because 1.4 is already
+   * this repository's line: `cell-input.tsx` caps a resting box at
+   * `maxRestRows * 1.4em`, and a stylesheet at 1.45 against a cap at 1.4 is
+   * two line heights, the second of which crops the third line of a note by a
+   * couple of pixels.
+   *
+   * Proof: FAULT-GRID-TYPE (see `spreadsheet-geometry`'s verify.md) — the
+   * `font-size` dropped from this block.
+   */
+  [data-grid] tbody,
+  [data-grid] tbody input,
+  [data-grid] tbody textarea {
+    font-size: 13px;
+    line-height: 1.4;
   }
 
   [data-grid] th,

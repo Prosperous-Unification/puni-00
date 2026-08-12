@@ -4274,7 +4274,14 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
       }),
       column.display({
         id: 'number',
-        header: 'Number',
+        // `#`, which is what a column of work item numbers is called on every
+        // spreadsheet a reader of this table has ever used — and 93px of a
+        // 1280px laptop is not where the word `Number` earns its eight
+        // characters. The accessible name is the word, on the glyph itself:
+        // `#` is punctuation a screen reader announces as "number sign" or
+        // skips outright, and the column header is read once per cell by
+        // anything walking the table.
+        header: () => <span aria-label="Number">#</span>,
         cell: ({ row }) => (
           <span
             // The whole number, because the cell may not be showing all of it:
@@ -5710,13 +5717,25 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                     // The role's name is on the group column; repeating it three
                     // times over is how the headers came to set the table's width.
                     //
-                    // The word itself in a `title`, because the column is 52px
+                    // The word itself in a `title`, because the column is 44px
                     // and the word is not: measured on 2026-08-09, `optimistic`
                     // wants 84px and reads `optimi`, `pessimistic` wants 95px
                     // and reads `pessin`. There is no ellipsis to hint at it
                     // either — the same answer the `Days` header takes, where
                     // the sentence that would not fit moved into the `title`.
-                    header: () => <span title={point}>{point}</span>,
+                    //
+                    // One letter since `spreadsheet-geometry`, which is the
+                    // shorthand these cells already teach: the folded column's
+                    // box takes `o/r/p` as its placeholder and reads a trio
+                    // typed as `2/3/8`. A clipped word said less than its own
+                    // first letter does — `optimi` is not a word — and the
+                    // letter is what let the column drop to 44px. The word is
+                    // still the heading's accessible name and its `title`.
+                    header: () => (
+                      <span aria-label={point} title={point}>
+                        {point.slice(0, 1)}
+                      </span>
+                    ),
                     cell: ({ row }) => {
                       const problem = live.current.trioProblemFor(row.original, role.id);
                       const wrong = problem?.points.includes(point) ?? false;
