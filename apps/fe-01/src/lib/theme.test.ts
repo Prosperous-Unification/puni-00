@@ -5,8 +5,8 @@ import type { DriveableMediaQueryList } from '../../vitest.setup';
 import {
   DARK_CLASS,
   DARK_QUERY,
-  paletteFor,
   paintPalette,
+  paletteFor,
   rememberedTheme,
   systemMedia,
   THEME_KEY,

@@ -1,6 +1,6 @@
 import type { KeyboardEvent } from 'react';
 
-import { type ThemeChoice, THEME_CHOICES } from '@/lib/theme';
+import { THEME_CHOICES, type ThemeChoice } from '@/lib/theme';
 
 /** What each answer is called on screen. Sentence case, like the rest of the chrome. */
 const WORDS: Record<ThemeChoice, string> = {
@@ -86,7 +86,7 @@ export function ThemeChoiceItems({
           className={
             offered === choice
               ? 'bg-accent text-accent-foreground cursor-pointer rounded-sm border px-2 py-0.5 text-xs'
-              : 'border-transparent hover:bg-accent hover:text-accent-foreground text-muted-foreground cursor-pointer rounded-sm border bg-transparent px-2 py-0.5 text-xs'
+              : 'hover:bg-accent hover:text-accent-foreground text-muted-foreground cursor-pointer rounded-sm border border-transparent bg-transparent px-2 py-0.5 text-xs'
           }
           onClick={() => {
             onChoose(offered);

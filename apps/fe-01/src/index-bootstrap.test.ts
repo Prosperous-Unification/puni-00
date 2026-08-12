@@ -25,10 +25,10 @@ const indexHtml = resolve(dirname(fileURLToPath(import.meta.url)), '..', 'index.
 function bootstrapScript(): string {
   const html = readFileSync(indexHtml, 'utf8');
   const found = /<script>([\s\S]*?)<\/script>/.exec(html);
-  if (found === null || (found[1] ?? '').trim() === '') {
+  if (found === null || found[1].trim() === '') {
     throw new Error(`${indexHtml} carries no inline pre-paint script`);
   }
-  return found[1] ?? '';
+  return found[1];
 }
 
 const script = bootstrapScript();
@@ -39,7 +39,7 @@ function runBootstrap(): 'light' | 'dark' {
   // executed as itself. Importing it is impossible — it is an inline element of
   // an HTML document — and paraphrasing it here would be a check comparing this
   // file with itself.
-  // eslint-disable-next-line @typescript-eslint/no-implied-eval
+  // eslint-disable-next-line @typescript-eslint/no-implied-eval, @typescript-eslint/no-unsafe-call
   new Function(script)();
   return document.documentElement.classList.contains(DARK_CLASS) ? 'dark' : 'light';
 }
@@ -76,7 +76,14 @@ describe('the palette applied before the first paint', () => {
     expect(opener?.[1]?.trim(), 'the bootstrap grew an attribute that defers it').toBe('');
   });
 
-  for (const stored of [null, '"system"', '"light"', '"dark"', '"midnight"', '{not json'] as const) {
+  for (const stored of [
+    null,
+    '"system"',
+    '"light"',
+    '"dark"',
+    '"midnight"',
+    '{not json',
+  ] as const) {
     for (const machineIsDark of [false, true]) {
       itDom(
         `agrees with the module: stored ${stored ?? '(nothing)'}, machine ${machineIsDark ? 'dark' : 'light'}`,

@@ -2,7 +2,7 @@ import { type KeyboardEvent, useEffect, useRef, useState } from 'react';
 
 import { ThemeChoiceItems } from '@/components/chrome/theme-choice';
 import { Button } from '@/components/ui/button';
-import { type ThemeChoice, THEME_CHOICES } from '@/lib/theme';
+import { THEME_CHOICES, type ThemeChoice } from '@/lib/theme';
 
 export interface AccountMenuProps {
   /** Who is signed in. It names the trigger, so it is the account's own word. */

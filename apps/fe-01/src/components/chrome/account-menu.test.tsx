@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
-import { type AccountMenuProps, AccountMenu } from './account-menu';
+import { AccountMenu, type AccountMenuProps } from './account-menu';
 
 // fe-01 tests require jsdom; only Vitest provides it. Skip under plain `bun test`.
 const hasDom = typeof document !== 'undefined';
@@ -154,11 +154,11 @@ describe('the palette, in the account menu', () => {
     // `menuitemradio` and not `menuitem`: one answer with three values. The
     // group is what names the question they answer.
     const group = screen.getByRole('group', { name: 'Theme' });
-    expect(within(group).getAllByRole('menuitemradio').map((item) => item.textContent)).toEqual([
-      'System',
-      'Light',
-      'Dark',
-    ]);
+    expect(
+      within(group)
+        .getAllByRole('menuitemradio')
+        .map((item) => item.textContent),
+    ).toEqual(['System', 'Light', 'Dark']);
   });
 
   itDom('checks the one this browser is on, and only that one', () => {

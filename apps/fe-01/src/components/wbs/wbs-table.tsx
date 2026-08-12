@@ -5178,8 +5178,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                         padding: '2px 6px',
                         cursor: entry.refusal === undefined ? 'pointer' : 'default',
                         whiteSpace: 'nowrap',
-                        color:
-                          entry.refusal === undefined ? undefined : 'var(--muted-foreground)',
+                        color: entry.refusal === undefined ? undefined : 'var(--muted-foreground)',
                         // No `background` here at all any more. `#e8f0fe` was
                         // an inline style that outranked the stylesheet's own
                         // `[data-grid] [role='option'][aria-selected='true']`
