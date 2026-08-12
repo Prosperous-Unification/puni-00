@@ -35,11 +35,25 @@ a green `run-many -t test` on that host says nothing about fe-01.
 `build` is not runnable on h2puni: `shellcheck` is absent there and two build
 targets need it. CI is where that half of the gate is observed.
 
+### The one real failure the whole-suite run found, and what it cost
+
+Typing the grid's **buttons** with its cells — one commit of this branch — made
+`e2e/tailwind.spec.ts`'s `leaves a control inside the grid the platform's text
+size` fail in CI's `pixels` (run 31617201732, one failure, gate green beside it).
+That test is `shadcn-foundation`'s oracle for the `[data-grid]` guard: a chip
+that reads at its cell's size is how a lost guard would show, and a rule one
+layer up defeats it while the guard is intact. The buttons are back on the
+platform's 13.33px — a third of a pixel of type, against blinding a guard — and
+the alignment it was reaching for is asserted where it belongs, on the two
+controls' centres. Re-run at `8a6d9f2`: `tailwind`, `deps-cell` and `layout`
+together, **55 passed**.
+
 ### The two flakes, named rather than dropped
 
 The first full e2e run on h2puni reported three failures. One was real and is
-fixed below (`rests an empty cell at its own height while the picker is open`,
-the `+` beside a 13px box). The other two are the ws-proxy flake this repository
+fixed (`rests an empty cell at its own height while the picker is open`, the `+`
+beside a 13px box — now a centres comparison). The other two are the ws-proxy
+flake this repository
 has already recorded twice — `[vite] ws proxy socket error: write EPIPE` in the
 server log, `hover-cards.spec.ts`'s `opens the card above a row low in the table`
 failing inside `seedPlan` on the registration button, and
