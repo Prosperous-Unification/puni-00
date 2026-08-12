@@ -26,15 +26,16 @@ a green `run-many -t test` on that host says nothing about fe-01.
 | ------------------------------------------------- | ------ | ------------------------------------- |
 | `bunx nx format:check --all`                      | h2puni | green (silent), 2026-08-12            |
 | `bunx nx run-many -t lint typecheck --parallel=2` | h2puni | green, 21 projects                    |
-| fe-01 unit suite under node                       | h2puni | **48 files, 1208 passed**             |
+| fe-01 unit suite under node                       | h2puni | **48 files, 1209 passed**             |
 | `bun run e2e` (whole suite)                       | h2puni | 160 passed — see the two flakes below |
-| the whole gate                                    | CI     | **green**, run 31619178851            |
-| `bun run e2e` (`pixels`)                          | CI     | **green**, 160 passed (6.8m)          |
+| the whole gate                                    | CI     | **green**, run 31625213919            |
+| `bun run e2e` (`pixels`)                          | CI     | **green**, 160 passed (7.0m)          |
 | `openspec validate --all --json`                  | CI     | **green**, 37/37                      |
 
-CI ran at head `f4f0779`: the gate job green — be-01 655, gw-01 45, fe-01's own
+CI ran at head `5316d60`: the gate job green — be-01 655, gw-01 45, fe-01's own
 suite, lint, typecheck, build, the secrets scan and the migration lint — and the
-pixels job green at 160.
+pixels job green at 160. The earlier run `31619178851` at `f4f0779` said the
+same with 1208; the case cross-review added is the difference.
 
 `build` is not runnable on h2puni: `shellcheck` is absent there and two build
 targets need it. CI is where that half of the gate is observed.
@@ -105,3 +106,26 @@ At 13px each of them holds its envelope with room to spare, and
 needs — so every one of those assertions was re-run and is green, and none of the
 constants moved. Narrowing them is a measurement of its own and is a non-goal
 here, stated in the proposal and in `styles.css` where the type is set.
+
+The room to spare is now quantified, because cross-review asked how much of it
+there is. Measured in Chromium on h2puni, 2026-08-12: the Number cell needs
+75.53 against a declared 93, and the date envelope 94.02 (86.02 of text, 8 of
+chrome) against a declared 114. Both `>=` assertions therefore hold with 17px
+and 20px to give — they would still pass at 76 and 95. That is a looser guard
+against a _future_ accidental narrowing than the `Proof:` lines beside them
+read, since those quote 16px figures; both comments now say so.
+
+## What cross-review changed
+
+Two reviewers read this branch at `f984a0e`. The spec correction above is the
+one **P1**: `specs/wbs-domain/spec.md` and the ticked `tasks.md` line both still
+required 13px on the grid's buttons — the state run `31617201732` rejected — so
+archiving the delta as it stood would have instructed the next change to
+reintroduce it. `openspec validate` could not see it, because no scenario read a
+button's size; one does now.
+
+Beside it, one real regression neither reviewer's tools found and a hand
+measurement did: `header: 'Number'` becoming a node meant the Number column's
+resize handle read the column id, `Resize number`, where `main` says
+`Resize Number`. Fixed at the call site through `ColumnMeta.spokenHeading`, with
+the case that was missing — watched red first on h2puni.
