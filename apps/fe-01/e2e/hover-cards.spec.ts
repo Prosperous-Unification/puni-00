@@ -861,6 +861,17 @@ test.describe('the pointer moves a row by the same ink on both phases of the str
    * reachable, which makes the measurement this change's to take. The
    * arithmetic says the dark steps are 0.05985 against light's 0.06097; what
    * a rasteriser makes of that is what these two now read.
+   *
+   * **The dark case is real but blunter, and that is worth stating rather than
+   * discovering.** `--grid-band-hover` overridden to `--grid-hover`'s own 7%
+   * (below the grid's `:root` block, which is the only place such an override
+   * wins — see `styles.css`) fails the light case at `Received: 7.0` against
+   * the `< 3` bar and the dark case at `Received: 3.5748`. The same
+   * two-and-a-half-percentage-point fault, a third of the signal, because sRGB
+   * luminance compresses hard at the dark end. The bar is left where it is —
+   * it is the reader-visible quantity in both palettes — but a *smaller*
+   * mismatch than that one would pass in dark and fail in light. Watched on
+   * h2puni, 2026-08-12.
    */
   for (const palette of ['light', 'dark'] as const) {
     test(`a banded row moves as far under the pointer as a plain one, in ${palette}`, async ({

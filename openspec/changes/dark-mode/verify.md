@@ -154,6 +154,39 @@ What it was not is stated or measured. Both now are — the sweep runs from the
 light page too, and the three elements it finds under the injection are the same
 three, by name, that the dark sweep finds.
 
+### The collision with `table-mechanics`, closed on this side
+
+#49 landed first (`704eba9`), so this branch was rebased onto it and inherits
+its two hover tokens. The cross-review flagged the semantic half: `--grid-hover`
+and `--grid-band-hover` carry no `.dark` twin on the argument that both are
+mixes of properties `.dark` re-points, so the pair "inverts by itself" — and
+that argument was written while `.dark` was **unreachable**. Nothing in the app
+put the class on the document until this change, so the arithmetic had been
+argued and never measured, and neither branch's e2e read a hovered grid row in
+dark. Whichever landed second would ship an unmeasured surface; this is the one
+that landed second.
+
+`e2e/hover-cards.spec.ts`'s two step tests now run in both palettes. Green in
+dark on the merged tree, and non-vacuous:
+
+| Fault injected                                                       | Light case      | Dark case          |
+| -------------------------------------------------------------------- | --------------- | ------------------ |
+| `--grid-band-hover` overridden to `--grid-hover`'s 7%, below `:root` | `Received: 7.0` | `Received: 3.5748` |
+
+Both against a `< 3` bar, so both go red. The dark case is a third of the
+signal for the same fault, because sRGB luminance compresses at the dark end —
+stated in the test rather than left to be found, because a _smaller_ mismatch
+than this one would pass in dark and fail in light.
+
+**And one thing that turned out to be false as first written.** The same
+override placed _inside_ the `.dark` block changed no pixel: the grid's token
+block is `:root`, which is `(0, 1, 0)` — equal weight to `.dark` — and it is
+written after it, so source order decides and `:root` wins. A `.dark` override
+of a `--grid-*` token has to sit below that block to exist at all. Measured
+2026-08-12, after a first injection run passed and the reason turned out to be
+the cascade rather than the test. The note is in the `.dark` block, which is
+where somebody about to make that mistake is reading.
+
 ### The two P3s taken, and the one left
 
 Taken, because both are one line and both are rules this change states

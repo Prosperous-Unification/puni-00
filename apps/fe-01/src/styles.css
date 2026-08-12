@@ -151,24 +151,32 @@
 
   /*
    * **Nothing re-points a `--grid-*` token here, and that is a rule rather than
-   * an omission.** The block below this one derives every grid surface from
+   * an omission.** The `:root` block below derives every grid surface from
    * `--foreground` and `--background`, which the lines above re-point on this
    * same element — a custom property substitutes at computed-value time, so
    * those mixes invert by themselves and a `.dark` copy would be a second thing
    * to keep in step, and the one that drifts.
    *
-   * What that costs, said here because this is where somebody adding a dark
-   * value would be reading: the pairs down there have to move **together**.
-   * `--grid-hover` at 7% and `--grid-band-hover` at 9.5% are one decision —
-   * 9.5 is the band's 2.5 plus the hover's 7 — and a `.dark` override of one of
-   * them silently makes the pointer say two different things on alternate
-   * rows, which is the exact defect `table-mechanics` removed.
+   * Two things to know before overriding one anyway, said here because this is
+   * where somebody would be reading:
+   *
+   * 1. **A `--grid-*` line added to this block would do nothing.** The grid's
+   *    block is `:root`, which is `(0, 1, 0)` — the same weight as `.dark` —
+   *    and it is written *after* this one, so the cascade reads source order
+   *    and `:root` wins. An override has to sit below that block, not in here.
+   *    Measured, 2026-08-12: `--grid-band-hover` set here changed no pixel.
+   * 2. **The hover pair moves together or not at all.** `--grid-hover` at 7%
+   *    and `--grid-band-hover` at 9.5% are one decision — 9.5 is the band's 2.5
+   *    plus the hover's 7 — so re-pointing one of them makes the pointer say
+   *    two different things on alternate rows, which is the exact defect
+   *    `table-mechanics` removed. Watched: `--grid-band-hover` overridden to 7%
+   *    *below* the grid block, `a banded row moves as far under the pointer as
+   *    a plain one, in dark` failed on `Expected: < 3 Received: 3.5748`.
    *
    * Before this change none of that had ever been measured in dark, because
    * nothing put this class on the document: the arithmetic was argued and
    * believed. It is measured now, in both palettes, by
-   * `e2e/hover-cards.spec.ts`'s `a banded row moves as far under the pointer as
-   * a plain one, in dark`.
+   * `e2e/hover-cards.spec.ts`.
    */
 }
 
