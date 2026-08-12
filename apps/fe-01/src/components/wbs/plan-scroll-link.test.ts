@@ -222,7 +222,9 @@ describe('reading a face off the page', () => {
     // end of that: it is on the page, it has a box, and its box is not the one
     // that stays still — which is the fault a browser caught on 2026-08-12.
     const frame = document.createElement('div');
-    frame.append(document.createElement('table')).append(document.createElement('thead'));
+    const table = document.createElement('table');
+    table.append(document.createElement('thead'));
+    frame.append(table);
     document.body.append(frame);
     expect(() => rendererFace(frame)).toThrow(/heading cell/);
   });
