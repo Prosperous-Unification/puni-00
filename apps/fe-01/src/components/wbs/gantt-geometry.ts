@@ -145,9 +145,10 @@ export interface EstimateTrio {
  *
  * The shown rows only — the panel passes the same list its renderer draws, so
  * mirroring the tree is identity rather than synchronisation. `schedule` is
- * the work item's projection and carries no more of it than the drawing
- * reads: a summary bracket spans it, and a dependency arrow leaves one row's
- * finish for another's start.
+ * the work item's projection and carries no more of it than the layout reads:
+ * a dependency arrow leaves one row's finish for another's start, and a
+ * parent's projection is spanned as a bracket the panel has drawn no mark
+ * from since `gantt-declutter` — see {@link PlacedBracket}.
  */
 export interface GanttRow {
   id: string;
@@ -160,7 +161,7 @@ export interface GanttRow {
   name: string;
   /** How deep in the tree, 0 at the root. The label's indent. */
   depth: number;
-  /** True when this row's own slices are drawn as bars; false when it draws a summary bracket. */
+  /** True when this row's own slices are laid out as bars; false when it is spanned by a bracket. */
   leaf: boolean;
   schedule: { earliestStart: number; earliestFinish: number };
   /** The workday its manual start date holds at, or null when it has none. */
@@ -276,8 +277,13 @@ export interface GanttRowLabel {
  * and End columns are unmoved, `data-start`/`data-finish` still carry the
  * engine's numbers verbatim, and dependency arrows and person links are still
  * drawn between them. Only {@link GanttBar.drawnSpan} and the horizon that has
- * to contain it know about this number, and the bar says it is a guess in its
- * own outline, its translucency and its hover text (`gantt-panel.tsx`).
+ * to contain it know about this number.
+ *
+ * Since `gantt-declutter` no unestimated bar is painted at all — the panel
+ * filters them out (`drawnBars`), and the dashed translucent outline and the
+ * `?` that used to say the span was a guess went with them. What is left of
+ * this constant is the width the horizon still reserves, so removing the mark
+ * moved no coordinate of anything beside it.
  */
 export const ASSUMED_UNESTIMATED_WORKDAYS = 2;
 
@@ -525,14 +531,19 @@ export function calendarScale(startDate: IsoDate): CalendarScale {
 }
 
 /**
- * One bar as it is drawn, and the bar the engine placed.
+ * One bar as it is placed, and the bar the engine placed it from.
  *
  * The split is the contract: `x` and `width` are the only two numbers anything
  * about the drawing may read, and `bar` is where `data-start`, `data-finish`
  * and every sentence on hover come from. A bar's width is the span it is
- * **drawn** across and never one taken from the engine's `finish` — an
+ * **laid out** across and never one taken from the engine's `finish` — an
  * unestimated slice has `finish === start`, and a width from that is a mark of
  * no area at all.
+ *
+ * Placed is not drawn: since `gantt-declutter` the panel filters this list to
+ * the estimated slices before it renders anything (`drawnBars`), so an
+ * unestimated bar is a box this module still sizes — and the horizon still
+ * reaches — that nothing paints.
  */
 export interface PlacedBar {
   bar: GanttBar;
@@ -540,7 +551,13 @@ export interface PlacedBar {
   width: number;
 }
 
-/** A parent's bracket as it is drawn: the two ends of its projection, on the calendar. */
+/**
+ * A parent's bracket as it is placed: the two ends of its projection, on the
+ * calendar. **Nothing draws it.** `gantt-declutter` took the ghost bar off the
+ * parent rows; the span is still computed here so the horizon and the layout
+ * tests that measure it are unmoved, and so the mark can come back without the
+ * geometry being rewritten for it.
+ */
 export interface PlacedBracket {
   rowId: string;
   rowIndex: number;
