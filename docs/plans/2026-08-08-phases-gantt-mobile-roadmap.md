@@ -158,6 +158,15 @@ change, not a header one.
    scrolls sideways"), and the three-role Playwright fixture becomes
    buildable — built here, closing C3-4.
 
+**Addendum, `unfolding-may-scroll` (2026-08-12).** The fit language above, and
+everywhere else in this plan, means **folded**: that is the guarantee, and it is
+unchanged. Roles unfold independently now and any unfolded role MAY put the
+table past the frame, which the frame scrolls for. The dialog's figure is the
+folded minimum and stays exactly what it was; `unfoldedRoles` is a set rather
+than an accordion, and the dead-id reading in point 2 still resolves the way
+`phases-ui` recorded it — nothing observes a dead id, because `columns` maps
+over the roles that exist.
+
 **~1 day.**
 
 ## S1 `schedule-on-item-role` — the unit, no leveling yet (P2.2 model)

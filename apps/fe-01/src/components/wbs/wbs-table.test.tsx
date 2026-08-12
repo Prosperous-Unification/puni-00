@@ -1446,10 +1446,10 @@ describe('teams and assignees', () => {
     render(<WbsTable projectId="p1" api={api} />);
     click('Add work item');
     await screen.findByLabelText('Name of 010');
-    // Dev only: unfolding is an accordion since 2026-08-08, so a second
-    // unfold would fold this one. QA stays folded, which is where the
-    // every-phase assumption is now read — in the folded cell, beside the
-    // figure.
+    // Dev only, and QA deliberately left folded: the folded cell is where the
+    // every-phase assumption is read, beside the figure. A second unfold
+    // would have folded this one until `unfolding-may-scroll`; it would leave
+    // both open now, and this fixture wants one of each.
     unfoldRole('Dev');
     return api;
   }
@@ -2792,30 +2792,34 @@ describe('role columns fold away', () => {
     }
   });
 
-  itDom('unfolds one role at a time, so the table still fits the window', async () => {
-    // The accordion, and it is arithmetic rather than taste: a folded role
-    // costs 96px and an unfolded one 348, so two roles folded need 1219px and
-    // sit just past a 1280 laptop while one of them open needs 1471.
-    // `table-frame.test.ts` pins those three numbers; this is the behaviour
-    // that keeps the table on the second of them.
-    // Proof: `toggleRole` put back to `[...current, roleId]`, this failed on
-    // `expected <input …(5)></input> to be null` — QA's three boxes on screen
-    // beside Dev's. Watched, 2026-08-08.
+  itDom('unfolds each role on its own, and leaves the others open', async () => {
+    // **Superseded, by name**: this was `unfolds one role at a time, so the
+    // table still fits the window`, and it asserted the accordion — QA open,
+    // Dev's three boxes gone. `unfolding-may-scroll` reverses that decision
+    // (Dany, 2026-08-08, U3) and adopts its recorded injected fault as the
+    // behaviour: `[...current, roleId]` is what the writer does now.
+    //
+    // The arithmetic it quoted is unchanged and is still pinned in
+    // `table-frame.test.ts`: a folded role costs 96px and an unfolded one 348,
+    // so two folded need 1219px, one open 1471 and both open 1723. What
+    // changed is that the third of those is now reachable, and the frame
+    // scrolling is what pays for it — `e2e/layout.spec.ts` measures that half.
     await oneRow();
 
     unfoldRole('Dev');
     unfoldRole('QA');
 
     expect(screen.getByLabelText('QA optimistic for 010')).toBeDefined();
-    expect(screen.queryByLabelText('Dev optimistic for 010')).toBeNull();
-    // And the width the table declares follows, which is the whole reason.
-    // 1471 since `spreadsheet-geometry` took the three point columns to 44px.
-    expect(screen.getByRole('table').style.minWidth).toBe('1471px');
+    expect(screen.getByLabelText('Dev optimistic for 010')).toBeDefined();
+    expect(screen.getByRole('table').style.minWidth).toBe('1723px');
 
-    // Folding the open one leaves nothing open, rather than putting the other
-    // one back.
+    // Folding one leaves the other open, rather than leaving nothing open.
     fireEvent.click(screen.getByRole('button', { name: 'Fold QA estimates' }));
     expect(screen.queryByLabelText('QA optimistic for 010')).toBeNull();
+    expect(screen.getByLabelText('Dev optimistic for 010')).toBeDefined();
+    expect(screen.getByRole('table').style.minWidth).toBe('1471px');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Fold Dev estimates' }));
     expect(screen.queryByLabelText('Dev optimistic for 010')).toBeNull();
     expect(screen.getByRole('table').style.minWidth).toBe('1219px');
   });
@@ -2823,8 +2827,10 @@ describe('role columns fold away', () => {
   itDom('says what the fold button does, which is no longer hiding the assignee', async () => {
     // The copy is the change: who is doing the work is in the folded cell now,
     // so a button claiming to hide it would be describing the table of a week
-    // ago. And it says the accordion out loud, because a table that reshuffles
-    // without warning reads as a bug.
+    // ago. The second half is superseded with the accordion — it promised that
+    // any other role would fold, and none does — and what replaces it is the
+    // one thing unfolding can now do that it could not before: make the table
+    // wider than the window.
     // Proof: the old copy restored, this failed on `expected 'Dev — show the
     // three-point estimate a…' to contain 'show the three points behind the
     // figu…'`. Watched, 2026-08-08.
@@ -2832,7 +2838,8 @@ describe('role columns fold away', () => {
 
     const folded = screen.getByRole('button', { name: 'Unfold Dev estimates' });
     expect(folded.title).toContain('show the three points behind the figure');
-    expect(folded.title).toContain('any other role folds');
+    expect(folded.title).toContain('the table may scroll sideways');
+    expect(folded.title).not.toContain('any other role folds');
     expect(folded.title).not.toContain('assignee');
 
     unfoldRole('Dev');
@@ -5255,6 +5262,39 @@ describe('Tab moves between the fields, from every cell', () => {
     }
   });
 
+  itDom('walks both open roles in turn, and the grid arrows cross between them', async () => {
+    // The keyboard's half of `unfolding-may-scroll`: with two roles open the
+    // row is eight cells longer than any walk ever asserted, because until
+    // that change a second role could not be open at all. The Tab order and
+    // the grid's own left/right are the two ways across a row and both are
+    // asked here — a handler left off the second role's boxes is invisible to
+    // a walk that only ever sees the first one's.
+    await threeRoots();
+    unfoldRole('QA');
+
+    for (const [from, to] of stepsThrough([
+      'Dev pessimistic for 010',
+      'Dev assignee for 010',
+      'QA optimistic for 010',
+      'QA realistic for 010',
+      'QA pessimistic for 010',
+      'QA assignee for 010',
+      'Name of 020',
+    ])) {
+      focusCaret(from, 'end');
+      tab();
+      expect(document.activeElement).toBe(screen.getByLabelText(to));
+    }
+
+    // And the chord that moves between cells rather than through them: out of
+    // the first open role and into the second, then back.
+    focusCaret('Dev assignee for 010', 'end');
+    fireEvent.keyDown(screen.getByLabelText('Dev assignee for 010'), { key: 'l', ctrlKey: true });
+    expect(document.activeElement).toBe(screen.getByLabelText('QA optimistic for 010'));
+    fireEvent.keyDown(screen.getByLabelText('QA optimistic for 010'), { key: 'h', ctrlKey: true });
+    expect(document.activeElement).toBe(screen.getByLabelText('Dev assignee for 010'));
+  });
+
   itDom('steps over the date cell until the plan is on a calendar', async () => {
     // Without a project start date the earliest-start field is disabled: a Tab
     // that stopped there would take the key and land nothing, which is a dead
@@ -7380,8 +7420,8 @@ describe('the widths the table is laid out by', () => {
     // plan has Dev unfolded and QA folded, so the floor is the 779px of fixed
     // columns — nobody has dated a row, so `not-before` is at its narrow 56 —
     // plus 348 for the open role, 96 for the closed one and Name's 200.
-    // Folded it would be 1219; the difference is why unfolding is an
-    // accordion.
+    // Folded it would be 1219, and both open 1723 — the difference is what
+    // `unfolding-may-scroll` decided to spend the frame's scrollbar on.
     expect(table.style.minWidth).toBe('1471px');
     fireEvent.click(screen.getByRole('button', { name: 'Fold Dev estimates' }));
     expect(screen.getByRole('table').style.minWidth).toBe('1219px');
@@ -11160,8 +11200,8 @@ describe('a phase changing, and what the table does about it', () => {
 
     await removePhase('QA');
 
-    // Dev is still the unfolded one — it is still there, so the accordion keeps
-    // it — and its three boxes are new elements after the rebuild.
+    // Dev is still unfolded — it is still there, so the set keeps it — and its
+    // three boxes are new elements after the rebuild.
     expect(screen.getByLabelText<HTMLInputElement>('Dev optimistic for 010').value).toBe('7');
     const name = screen.getByLabelText<HTMLTextAreaElement>('Name of 010');
     name.setSelectionRange(0, 0);

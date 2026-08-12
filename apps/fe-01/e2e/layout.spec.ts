@@ -1680,15 +1680,26 @@ test.describe('the table, measured by a browser', () => {
   test('holds the equation with one role unfolded, and scrolls only where it must', async ({
     page,
   }) => {
-    // The accordion's arithmetic, measured: one role open is 1406px, which
-    // fits 1512 and does not fit 1280. It was 1430 until
-    // `spreadsheet-geometry` took the three point columns from 52px to 44. Both answers are asserted — the second
-    // is the pinned backstop doing its job, not a failure.
+    // The arithmetic of one open role, measured: 1406px, which fits 1512 and
+    // does not fit 1280. It was 1430 until `spreadsheet-geometry` took the
+    // three point columns from 52px to 44. Both answers are asserted — the
+    // second is the pinned backstop doing its job, not a failure.
+    //
+    // **Superseded in part by `unfolding-may-scroll`**: this used to assert
+    // that the *other* role had folded itself, "which is what keeps this to
+    // 1430". No role folds itself now, so the loop folds the previous one by
+    // hand to keep measuring the one-open state — and the both-open state it
+    // used to prove impossible is the test below.
     for (const role of ['Dev', 'QA']) {
       await page.getByRole('button', { name: `Unfold ${role} estimates` }).click();
       await expect(page.getByLabel(`${role} optimistic for 010`)).toBeVisible();
-      // The other role folded itself, which is what keeps this to 1430.
       const other = role === 'Dev' ? 'QA' : 'Dev';
+      // `exact`, and it is load-bearing: an accessible name is matched as a
+      // substring by default, so `Fold QA estimates` finds the **Unfold**
+      // button as well and folding the other role would unfold it instead.
+      // Watched on h2puni: `expected 0, received 1` for QA's own box.
+      const foldOther = page.getByRole('button', { name: `Fold ${other} estimates`, exact: true });
+      if (await foldOther.isVisible()) await foldOther.click();
       await expect(page.getByLabel(`${other} optimistic for 010`)).toHaveCount(0);
 
       for (const viewport of VIEWPORTS) {
@@ -1711,6 +1722,86 @@ test.describe('the table, measured by a browser', () => {
           ).toBeGreaterThan(measured.frame.clientWidth);
         }
       }
+    }
+  });
+
+  test('opens every role at once, scrolls the frame for it, and holds the pinned block', async ({
+    page,
+  }) => {
+    // `unfolding-may-scroll`, measured: two roles open is 1723px of table, and
+    // there is no laptop in the matrix it fits. The accordion existed to make
+    // that state unreachable; Dany's U3 accepts it instead, and what has to
+    // hold is that the frame — never the page — is what scrolls, and that the
+    // three pinned columns still stand at their declared offsets once it has.
+    //
+    // Proof: `toggleRole` put back to `current.includes(roleId) ? [] :
+    // [roleId]`, this failed on `getByLabel('Dev optimistic for 010') —
+    // element(s) not found`: the accordion had folded Dev as QA opened.
+    // Watched on h2puni, 2026-08-12 (fault 1).
+    for (const role of ['Dev', 'QA']) {
+      await page.getByRole('button', { name: `Unfold ${role} estimates` }).click();
+      await expect(page.getByLabel(`${role} optimistic for 010`)).toBeVisible();
+    }
+    // Both, at once — the state this change exists for, and the one the
+    // accordion made impossible.
+    await expect(page.getByLabel('Dev optimistic for 010')).toBeVisible();
+    await expect(page.getByLabel('QA optimistic for 010')).toBeVisible();
+
+    for (const viewport of VIEWPORTS) {
+      await page.setViewportSize({ width: viewport.width, height: viewport.height });
+      const measured = await measure(page);
+      const needed = equationFor(measured);
+
+      // The page never scrolls sideways, in any state. That is the guarantee
+      // this change does **not** touch.
+      expect(
+        measured.document.scrollWidth,
+        `${viewport.name}, both unfolded: the page itself scrolls sideways`,
+      ).toBeLessThanOrEqual(measured.document.clientWidth);
+      // And the table really is wider than the frame here, or the scroll
+      // assertion below is about a table that simply fitted.
+      expect(needed, `${viewport.name}: both roles open should not fit this frame`).toBeGreaterThan(
+        measured.frame.clientWidth,
+      );
+      expect(
+        measured.frame.scrollWidth,
+        `${viewport.name}: ${String(needed)}px of table in ${String(measured.frame.clientWidth)}px of frame and nothing to scroll`,
+      ).toBeGreaterThan(measured.frame.clientWidth);
+    }
+
+    // Scrolled out to the dates, the pinned block is still where the layout
+    // declares it — the backstop that makes the scrolling readable at all.
+    await page.setViewportSize({ width: 1280, height: 800 });
+    const onScreen = await measure(page);
+    await page.evaluate(() => {
+      const frame = document.querySelector('[data-table-frame]');
+      if (frame === null) throw new Error('the scrolling frame is not on the page');
+      frame.scrollLeft = 400;
+    });
+    const scrolled = await page.evaluate(() => {
+      const frame = document.querySelector('[data-table-frame]');
+      if (!(frame instanceof HTMLElement)) throw new Error('no frame');
+      const cells = ['drag', 'number', 'name'].map((id) => {
+        const cell = document.querySelector(`tbody tr:first-child td[data-column="${id}"]`);
+        if (!(cell instanceof HTMLElement)) throw new Error(`no ${id} cell`);
+        return { id, left: cell.getBoundingClientRect().left };
+      });
+      return { scrollLeft: frame.scrollLeft, frame: frame.getBoundingClientRect().left, cells };
+    });
+
+    // It really scrolled, or every offset below is the unscrolled one.
+    expect(scrolled.scrollLeft).toBeGreaterThan(0);
+    const layout = frameLayout(
+      onScreen.columns.map((column) => column.id),
+      SEEDED_PLAN,
+    );
+    for (const cell of scrolled.cells) {
+      const pinned = layout.pinned.get(cell.id);
+      if (pinned === undefined) throw new Error(`${cell.id} is not pinned in this layout`);
+      expect(
+        Math.round(cell.left - scrolled.frame),
+        `${cell.id} left the offset it is pinned at`,
+      ).toBe(pinned.left);
     }
   });
 
