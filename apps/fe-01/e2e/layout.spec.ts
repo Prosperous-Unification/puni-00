@@ -2178,12 +2178,14 @@ test.describe('the table, measured by a browser', () => {
     // 84px where the widest day it can print, "20 May 2027 ?", needs 114`.
     // Watched, 2026-08-10.
     //
-    // The 114 in that quote is a 16px figure. At this change's 13px the same
-    // envelope needs 94.02 (86.02 of text and 8 of chrome, measured in
-    // Chromium on h2puni, 2026-08-12), so the declared 114 now clears it by
-    // 20px and the assertion would still pass at 95. Neither column is being
-    // narrowed — a stated non-goal — and the note is here so the slack is on
-    // the page rather than inferred from a superseded number.
+    // The 114 in that quote is a 16px figure. `spreadsheet-geometry` took the
+    // body type to 13px and left the re-measurement open; `capacity-ui` is what
+    // needed the room and took it, to **98**. The same envelope measures 94.02
+    // at 13px (86.02 of text and 8 of chrome, Chromium on h2puni, 2026-08-12),
+    // so 98 clears it by 3.98px and this assertion is the browser that says so
+    // — it fails at 94 and passes at 95. The 32px the In-parallel column needs
+    // came out of the 40px of measured slack across these two rather than out
+    // of a column that had none.
     const year = await dateThePlanOffThisYear(page);
     const printable = everyPrintedDay(year, new Date());
     // End draws the marker after the day on an unestimated row, and a marker
@@ -2213,6 +2215,45 @@ test.describe('the table, measured by a browser', () => {
         `${column} declares ${String(widthFor(column, SEEDED_PLAN))}px where the widest day it can print, "${DAY_ENVELOPE}", needs ${String(Math.ceil(measured.envelope + measured.chrome))}`,
       ).toBeGreaterThanOrEqual(measured.envelope + measured.chrome);
     }
+  });
+
+  test('the In-parallel column holds three digits at the grid’s own type', async ({ page }) => {
+    // The tightest column in the table — 32px for `∥` and up to three digits —
+    // and the only thing that can judge it is the browser drawing the glyphs.
+    // 1000 is `capacity-write-paths`' ceiling, so `999` is the widest value any
+    // plan can hold; a four-digit number is refused before it is ever drawn.
+    //
+    // Proof: the declared width dropped to 24, this failed on `in-parallel
+    // declares 24px where "999" needs 30`. Watched 2026-08-13.
+    const measured = await page.evaluate(() => {
+      const cell = document.querySelector('tbody tr:first-child td[data-column="in-parallel"]');
+      if (cell === null) throw new Error('the first row has no in-parallel cell');
+      const probe = document.createElement('span');
+      probe.style.position = 'absolute';
+      probe.style.whiteSpace = 'nowrap';
+      probe.style.visibility = 'hidden';
+      cell.append(probe);
+      probe.textContent = '999';
+      const text = probe.getBoundingClientRect().width;
+      probe.remove();
+      const style = getComputedStyle(cell);
+      return {
+        text,
+        chrome:
+          Number.parseFloat(style.paddingLeft) +
+          Number.parseFloat(style.paddingRight) +
+          (cell.getBoundingClientRect().width - cell.clientWidth),
+      };
+    });
+
+    // Or the probe measured nothing and the comparison below is between zeroes.
+    expect(measured.text).toBeGreaterThan(0);
+    expect(
+      widthFor('in-parallel', SEEDED_PLAN),
+      `in-parallel declares ${String(widthFor('in-parallel', SEEDED_PLAN))}px where "999" needs ${String(
+        Math.ceil(measured.text + measured.chrome),
+      )}`,
+    ).toBeGreaterThanOrEqual(measured.text + measured.chrome);
   });
 
   test('the Number column fits its envelope', async ({ page }) => {
