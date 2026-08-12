@@ -84,6 +84,9 @@ async function openTheChart(page: Page, rows: number): Promise<void> {
 function measureSurface(page: Page): Promise<{
   gap: number;
   pickerRoom: number;
+  belowTable: number;
+  belowLastRow: number;
+  panelMinusFrame: number;
   belowChart: number;
   frameBottom: number;
   chartTop: number;
@@ -107,6 +110,9 @@ function measureSurface(page: Page): Promise<{
       // and the top of the chart.
       gap: panelBox.top - last.getBoundingClientRect().bottom,
       pickerRoom: room,
+      belowTable: frameBox.bottom - (frame.querySelector('table')?.getBoundingClientRect().bottom ?? 0),
+      belowLastRow: (frame.querySelector('table')?.getBoundingClientRect().bottom ?? 0) - last.getBoundingClientRect().bottom,
+      panelMinusFrame: panelBox.top - frameBox.bottom,
       belowChart: document.documentElement.clientHeight - panelBox.bottom,
       frameBottom: frameBox.bottom,
       chartTop: panelBox.top,
@@ -206,7 +212,7 @@ test.describe('the plan and its chart as one surface', () => {
     // into — functional space, and the one thing between the two faces.
     expect(
       measured.gap,
-      `${String(Math.round(measured.gap))}px of nothing between the last row and the chart`,
+      `gap ${String(measured.gap)} room ${String(measured.pickerRoom)} belowTable ${String(measured.belowTable)} belowLastRow ${String(measured.belowLastRow)} panelMinusFrame ${String(measured.panelMinusFrame)}`,
     ).toBeLessThanOrEqual(measured.pickerRoom + NEARLY);
     // And the space that was between them is now under the chart, which is what
     // says the chart came up rather than the plan going down.
