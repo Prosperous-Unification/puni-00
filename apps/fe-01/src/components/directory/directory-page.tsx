@@ -61,18 +61,52 @@ interface Confirming {
 const assumedName = (name: string | null): string => name ?? 'unassigned';
 
 /**
+ * Where one effect is being printed: the row it is listed under, and how to
+ * name another row of the same confirmation.
+ *
+ * `capacity_released` is the arm that needs it. The payload names the row whose
+ * label puts this one on the pool, and where that is an ancestor the sentence
+ * has to say so — a bare "no longer limited to 4 at a time" on a row carrying
+ * no label reads as a claim about a write that will not happen there.
+ */
+export interface EffectContext {
+  /** The work item this effect is listed under. */
+  workItemId: string;
+  /**
+   * `010 Backend` for a row id, or null where the confirmation does not list
+   * it.
+   *
+   * Null is reachable and modeled rather than thrown on: the usage payload
+   * lists the rows a removal *touches*, and a labelled ancestor whose own
+   * effects are empty need not be among them.
+   */
+  rowNamed: (id: string) => string | null;
+}
+
+/**
  * What one effect of a removal does, in the words of somebody reading a plan.
  *
  * Built from the payload's own `kind` and nothing else: be-01 names each arm
  * **and what that arm does** precisely so this page never has to derive an
  * impact from a count.
  */
-export function effectSentence(effect: DirectoryEffect): string {
+export function effectSentence(effect: DirectoryEffect, on: EffectContext): string {
   switch (effect.kind) {
     case 'assignment_dropped':
       return `The ${effect.role.name} assignment goes.`;
     case 'label_nulled':
       return 'The service team label is cleared.';
+    case 'capacity_released':
+      // Two sentences from one arm, and the split is `fromId` against the row
+      // it is listed under — be-01's own way of saying "inherited" without a
+      // second flag beside it. A row that inherits the label loses a bound it
+      // never carried, and a confirmation saying "the label is cleared" about
+      // it would be describing a write that never happens there.
+      return effect.fromId === on.workItemId
+        ? `No longer limited to ${String(effect.size)} at a time. Dates may move earlier.`
+        : `No longer limited to ${String(effect.size)} at a time — the limit it inherits from ${
+            on.rowNamed(effect.fromId) ?? 'a row above it'
+          }. Dates may move earlier.`;
     case 'assumed_assignee_changed':
       return `Assumed to be doing all of it: ${assumedName(effect.assumedNow)} now, ${assumedName(
         effect.assumedAfter,
@@ -138,6 +172,15 @@ export function DirectoryPage({ token, api: apiOverride, nav, account }: Directo
    * at the name this browser last read.
    */
   const [renamed, setRenamed] = useState<Record<string, string>>({});
+  /**
+   * The sizes being typed over the teams' own, by team id.
+   *
+   * A separate record from {@link renamed} and not a second field on it: the
+   * two boxes commit apart — a size typed and a name typed on the same row are
+   * two writes to two routes — and one record would have a name's Escape
+   * throwing away a size somebody had not sent yet.
+   */
+  const [resized, setResized] = useState<Record<string, string>>({});
 
   /**
    * The chip to put the focus on once the panels have redrawn, or null.
@@ -242,10 +285,20 @@ export function DirectoryPage({ token, api: apiOverride, nav, account }: Directo
     [read, reportFailedRead],
   );
 
+  const withoutDraft = (current: Record<string, string>, id: string): Record<string, string> =>
+    Object.fromEntries(Object.entries(current).filter(([at]) => at !== id));
+
+  /**
+   * Drops both drafts for one entry, which is what a committed or abandoned
+   * edit leaves behind.
+   *
+   * Both, and deliberately: a write to either box refetches the whole
+   * directory, so a draft left standing over a value that has just come back
+   * would hold the box at what this browser typed and hide what be-01 answered.
+   */
   const forgetDraft = (id: string) => {
-    setRenamed((current) =>
-      Object.fromEntries(Object.entries(current).filter(([at]) => at !== id)),
-    );
+    setRenamed((current) => withoutDraft(current, id));
+    setResized((current) => withoutDraft(current, id));
   };
 
   const nameShown = (entry: { id: string; name: string }): string =>
@@ -278,6 +331,59 @@ export function DirectoryPage({ token, api: apiOverride, nav, account }: Directo
           ? await directory.patchPerson(entry.id, { name: clean })
           : await directory.renameTeam(entry.id, clean);
       forgetDraft(entry.id);
+      if (!written.ok) {
+        setProblem({ reason: 'taken', survivingName: written.survivingName });
+      }
+    });
+  }
+
+  /**
+   * The size box's own draft, or the size the directory holds — and an empty
+   * box is a real draft, which is why this cannot be `?? ''` over one record.
+   *
+   * `null` size is **unstated**: the team is not counted and constrains no
+   * schedule. It renders as an empty box, so an empty draft and an unstated
+   * size are the same three characters on screen and only the presence of a key
+   * tells them apart.
+   */
+  const sizeShown = (team: TeamView): string =>
+    team.id in resized ? (resized[team.id] ?? '') : team.size === null ? '' : String(team.size);
+
+  /**
+   * Sends the size typed over a team's, if it says something different.
+   *
+   * **The number is not validated here.** `capacity-write-paths` owns what a
+   * size may be, at be-01's boundary, and a second copy of the rule in this box
+   * is a rule free to disagree with it — so `0`, `-1`, `1.5` and `1001` are all
+   * sent and answered on, and the refusal is printed by
+   * `directoryRefusalSentence`. The one thing this does decide is what an
+   * **empty** box means, because be-01 cannot see it: `Number('')` is `0`,
+   * which is a refusal rather than the clear-to-unstated it plainly means.
+   *
+   * A non-finite draft is the other one that cannot be sent: JSON has no
+   * literal for `NaN` or `Infinity`, so a typed `1e999` would arrive as `null`
+   * — which here is the clear, so the box would silently unstate the team
+   * instead of being refused. The same refusal the In-parallel cell makes, for
+   * the same reason.
+   */
+  function commitSize(team: TeamView): void {
+    const typed = sizeShown(team).trim();
+    if (typed === '' && team.size === null) {
+      forgetDraft(team.id);
+      return;
+    }
+    const asNumber = typed === '' ? null : Number(typed);
+    if (asNumber !== null && !Number.isFinite(asNumber)) {
+      setProblem({ reason: 'refused', code: 'size_must_be_a_whole_number_from_1' });
+      return;
+    }
+    if (asNumber === team.size) {
+      forgetDraft(team.id);
+      return;
+    }
+    void attempt(async () => {
+      const written = await directory.resizeTeam(team.id, asNumber);
+      forgetDraft(team.id);
       if (!written.ok) {
         setProblem({ reason: 'taken', survivingName: written.survivingName });
       }
@@ -577,6 +683,45 @@ export function DirectoryPage({ token, api: apiOverride, nav, account }: Directo
                           if (event.key === 'Escape') forgetDraft(team.id);
                         }}
                       />
+                      {/*
+                        How many of them may be at work at once — the number
+                        that moves dates, beside the count of who is in the
+                        team, which does not.
+
+                        The two are deliberately not the same fact and the page
+                        says so rather than defaulting one to the other: a team
+                        of five people nobody has sized bounds nothing, and a
+                        team sized 2 with nobody in it bounds its work to two
+                        at a time. An empty box is *unstated*, which is the
+                        state every team created before capacity existed is in.
+                      */}
+                      <Input
+                        className={`${TAP} w-16 shrink-0 text-right`}
+                        aria-label={`How many of ${team.name} at once`}
+                        inputMode="numeric"
+                        placeholder="—"
+                        title={
+                          team.size === null
+                            ? `Nobody has said how many of ${team.name} there are, so their work is not limited. Type a number to limit it.`
+                            : `At most ${String(team.size)} of ${team.name} are at work at once, across each plan.`
+                        }
+                        value={sizeShown(team)}
+                        disabled={busy}
+                        onChange={(event) => {
+                          const typed = event.currentTarget.value;
+                          setResized((current) => ({ ...current, [team.id]: typed }));
+                        }}
+                        onBlur={() => {
+                          commitSize(team);
+                        }}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter') {
+                            event.preventDefault();
+                            commitSize(team);
+                          }
+                          if (event.key === 'Escape') forgetDraft(team.id);
+                        }}
+                      />
                       <span className="text-muted-foreground shrink-0 text-sm">
                         {count(membersOf(team), 'member')}
                       </span>
@@ -652,7 +797,22 @@ export function DirectoryPage({ token, api: apiOverride, nav, account }: Directo
                         </span>
                         <ul className="text-muted-foreground pl-4">
                           {workItem.effects.map((effect) => (
-                            <li key={`${workItem.id}:${effect.kind}`}>{effectSentence(effect)}</li>
+                            <li key={`${workItem.id}:${effect.kind}`}>
+                              {effectSentence(effect, {
+                                workItemId: workItem.id,
+                                // Named out of the **same project**, which is
+                                // the only list a row id in this payload can
+                                // mean: two projects may each hold a row
+                                // numbered `010`, and resolving across all of
+                                // them would name the wrong one.
+                                rowNamed: (id) => {
+                                  const named = project.workItems.find((each) => each.id === id);
+                                  return named === undefined
+                                    ? null
+                                    : `${named.number} ${named.name}`;
+                                },
+                              })}
+                            </li>
                           ))}
                         </ul>
                       </li>

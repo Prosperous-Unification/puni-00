@@ -114,6 +114,16 @@ export interface CreatablePickerProps {
   onClear: () => void;
   placeholder?: string;
   /**
+   * The box's own hover text, where the caller has something to say about a
+   * value it did not store.
+   *
+   * The Service/team cell's inherited label is the case it exists for: the box
+   * is empty because this row carries no team, and the placeholder beside it
+   * names the one it inherits — which is a claim a reader is owed the source
+   * of.
+   */
+  title?: string;
+  /**
    * What joins this box to a table's keyboard grid, where it stands in one.
    *
    * Both halves together, because either alone is broken: `dataCell` makes the
@@ -177,6 +187,7 @@ export function CreatablePicker({
   onCreate,
   onClear,
   placeholder,
+  title,
   gridCell,
 }: CreatablePickerProps) {
   /** What has been typed, or null while the picker is closed. */
@@ -213,6 +224,7 @@ export function CreatablePicker({
         aria-controls={open ? listId : undefined}
         aria-autocomplete="list"
         placeholder={placeholder}
+        title={title}
         data-cell={gridCell?.dataCell}
         // A layout the grid does not touch: the attribute is what the table
         // finds this box by, and it adds nothing to the flex row it sits in.

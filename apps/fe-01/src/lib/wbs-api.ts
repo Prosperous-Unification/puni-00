@@ -44,17 +44,19 @@ export interface ScheduleView {
  *
  * `projectStart` means nothing did. `predecessor` is a dependency onto another
  * work item, `roleOrder` the work item's own earlier phase, `notBefore` a
- * manual date, and `person` the assignee finishing something else. A tie is
- * never `person`: an assignee who came free exactly as the dependency cleared
- * was not holding anything up. be-01's `ScheduleFloor` is the rule; this is a
- * description of what comes back.
+ * manual date, `person` the assignee finishing something else, and `capacity`
+ * the work item's **team** having no slot free. A tie is never `person` and
+ * never `capacity`: whoever came free exactly as the dependency cleared was not
+ * holding anything up, and between the two the person is named first. be-01's
+ * `ScheduleFloor` is the rule; this is a description of what comes back.
  */
 export type ScheduleFloorView =
   | 'projectStart'
   | 'predecessor'
   | 'roleOrder'
   | 'notBefore'
-  | 'person';
+  | 'person'
+  | 'capacity';
 
 /**
  * One placed slice — one work item's work for one phase — as be-01 sends it.
@@ -90,6 +92,35 @@ export interface SliceView {
   critical: boolean;
   boundBy: ScheduleFloorView;
   resourcePredecessorId: string | null;
+  /**
+   * How many of its team's slots this slice held while it ran — the
+   * **effective** width be-01 scheduled with.
+   *
+   * Already clamped to the team's size and already 1 wherever somebody is
+   * named on the work (one human cannot work beside themselves). What was
+   * *typed* is {@link WorkItemView.maxParallel}, and the two differing is a
+   * fact the chart, the table and the export each state.
+   */
+  width: number;
+  /**
+   * The days of work this slice is, before it was compressed across
+   * {@link SliceView.width} slots — `duration` is `effort / width`.
+   *
+   * Both, because neither answers the other's question: the bar is drawn across
+   * the duration and the estimate the reader typed is the effort. Recomputing
+   * either from the other here would be a second division beside be-01's.
+   */
+  effort: number;
+  /**
+   * Every placed slice that had to end for this one to fit its team's pool.
+   *
+   * The whole blocking set, of which `resourcePredecessorId` names the one an
+   * arrow is drawn from — be-01 picks the latest finisher. Empty for every
+   * floor but `capacity`, and never empty under it: the panel refuses a
+   * capacity floor with nothing behind it rather than drawing a sentence with a
+   * hole in it.
+   */
+  capacityPredecessorIds: string[];
 }
 
 export interface WorkItemView {
@@ -151,6 +182,20 @@ export interface WorkItemView {
    * and sent back as one.
    */
   priority: number | null;
+  /**
+   * How many people may work on this item at once — 1 unless somebody has said
+   * otherwise, and never null.
+   *
+   * `1` and *unset* are the same fact — one at a time — so be-01's column is
+   * `NOT NULL DEFAULT 1` and sending `null` resets it to 1 rather than clearing
+   * it to a second spelling of the same state.
+   *
+   * An ordering of nothing: it compresses an item's own effort across up to
+   * this many of its team's slots, and the dates that come back are already the
+   * answer. A row with children carries whatever it was last given, inert —
+   * a parent holds no slices of its own to run in parallel.
+   */
+  maxParallel: number;
   /** The team this work is labelled with, or null. Never constrains who is assigned it. */
   serviceTeamId: string | null;
   /**
@@ -226,10 +271,19 @@ export interface RoleUsage {
  */
 export type RoleRemoval = { ok: true } | { ok: false; reason: 'in_use'; inUse: RoleUsage };
 
-/** A service or team, global to this deployment. */
+/**
+ * A service or team, global to this deployment, and how many of them may be at
+ * work at once.
+ *
+ * `size` is `null` for **unstated** — the plan does not pretend to know how
+ * many of this team there are, and does not constrain them. That is not the
+ * same fact as `1`, and every team created before capacity existed is `null`;
+ * a default of 1 would have serialised every plan on the deployment.
+ */
 export interface TeamView {
   id: string;
   name: string;
+  size: number | null;
 }
 
 /** Somebody who does work, and the teams they belong to. Empty means a free agent. */
@@ -250,6 +304,29 @@ export interface PersonView {
 export type DirectoryEffect =
   | { kind: 'assignment_dropped'; role: { id: string; name: string } }
   | { kind: 'label_nulled' }
+  | {
+      /**
+       * The pool bounding this work item goes with the team, so its dates may
+       * move earlier.
+       *
+       * Named on **inheriting** rows too, which is why it is a separate arm
+       * from `label_nulled` rather than a field on it: a leaf under a labelled
+       * parent holds no label to clear and its dates move exactly as the
+       * labelled row's do. A confirmation carrying only `label_nulled` would
+       * show one row and move twenty.
+       */
+      kind: 'capacity_released';
+      /** How many of the team may be at work at once today — the bound that goes. */
+      size: number;
+      /**
+       * The row whose label puts this one on the pool: this row itself, or the
+       * nearest ancestor above it that carries the team.
+       *
+       * Equal to the row's own id exactly when the label is its own, so the
+       * payload never says "inherited" twice.
+       */
+      fromId: string;
+    }
   | {
       kind: 'assumed_assignee_changed';
       /**
@@ -345,6 +422,14 @@ export interface DirectoryApi {
   /** Renames a person, or sets exactly the teams they belong to, or both. */
   patchPerson(id: string, patch: PersonPatch): Promise<DirectoryWrite<PersonView>>;
   renameTeam(id: string, name: string): Promise<DirectoryWrite<TeamView>>;
+  /**
+   * Sets how many of a team may be at work at once, or clears it to unstated
+   * with `null`.
+   *
+   * Every project holding work this team labels — inheritance included — is
+   * told, because the number moves dates rather than a word on screen.
+   */
+  resizeTeam(id: string, size: number | null): Promise<DirectoryWrite<TeamView>>;
   /**
    * Removes a person, or answers the **directory usage** that would go with
    * them.
@@ -549,6 +634,14 @@ export interface ProjectApi {
       startNoEarlierThan?: string | null;
       /** An integer of 1 or more, or `null` to leave the work with no priority. */
       priority?: number | null;
+      /**
+       * An integer from 1 to 1000, or `null` to put it back to one at a time.
+       *
+       * Refused with a 400 on a work item that has children: a parent holds no
+       * slices of its own, so a parallelism on it would be a number that
+       * schedules nothing.
+       */
+      maxParallel?: number | null;
       serviceTeamId?: string | null;
     },
   ): Promise<void>;
@@ -885,6 +978,12 @@ export function directoryRefusedWith(thrown: unknown): DirectoryRefusal {
 }
 
 /**
+ * The leader of be-01's over-the-ceiling refusal code, whose tail is the
+ * ceiling itself — `size_must_be_at_most_1000` today.
+ */
+const SIZE_CEILING_CODE = 'size_must_be_at_most_';
+
+/**
  * What a refused directory change says out loud.
  *
  * {@link roleRefusalSentence}'s sibling, and here for the same reason: these
@@ -904,6 +1003,14 @@ export function directoryRefusalSentence(refusal: DirectoryRefusal): string {
   if (refusal.reason === 'taken') {
     return `“${refusal.survivingName}” is already in the directory, so nothing was renamed.`;
   }
+  // The ceiling arm first, and it is a prefix rather than a case because be-01
+  // builds the code out of its own `MOST_PEOPLE_AT_ONCE` — a literal
+  // `size_must_be_at_most_1000` here would be a second copy of that limit,
+  // free to drift from it and silently fall back to printing the wire code the
+  // day it did.
+  if (refusal.code.startsWith(SIZE_CEILING_CODE)) {
+    return `A team size is at most ${refusal.code.slice(SIZE_CEILING_CODE.length)}.`;
+  }
   switch (refusal.code) {
     case 'name_required':
       return 'A name cannot be blank.';
@@ -913,6 +1020,12 @@ export function directoryRefusalSentence(refusal: DirectoryRefusal): string {
       return 'That entry is no longer in the directory — somebody else removed it.';
     case 'nothing_to_change':
       return 'That change asked for nothing, so nothing was sent.';
+    // The floor arm, spelled out rather than left to the fallback: this is the
+    // one directory field somebody types a *number* into, and
+    // `(size_must_be_a_whole_number_from_1)` in the corner of the screen is a
+    // wire code where a sentence about their team belongs.
+    case 'size_must_be_a_whole_number_from_1':
+      return 'A team size is a whole number of 1 or more. Leave it empty for a team nobody has counted.';
     case 'unexpected_response':
       return 'The server replied with something this page could not read.';
     default:
@@ -965,6 +1078,18 @@ export function httpDirectoryApi(token: string): DirectoryApi {
         `/api/teams/${id}`,
         token,
         { method: 'PATCH', body: JSON.stringify({ name }) },
+        'team',
+      );
+    },
+    // Its own route rather than a field on the rename above, which is be-01's
+    // shape and not this client's choice: a rename moves a word on screen and a
+    // size moves every date in every project the team labels work in, so the
+    // two announce different things and are told apart at the boundary.
+    resizeTeam(id, size) {
+      return writeDirectoryAt<TeamView>(
+        `/api/teams/${id}/size`,
+        token,
+        { method: 'PATCH', body: JSON.stringify({ size }) },
         'team',
       );
     },

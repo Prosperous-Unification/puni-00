@@ -5,13 +5,15 @@ import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
   plugins: [react()],
-  // The same two the app is built with. `@wbs/domain/workday` is the pure
-  // calendar module and *not* the lib's index barrel, which re-exports
-  // arktype-touching validators this bundle excludes — see `vite.config.ts`.
+  // The same three the app is built with. `@wbs/domain/workday` and
+  // `@wbs/domain/effective-team` are the two pure modules and *not* the lib's
+  // index barrel, which re-exports arktype-touching validators this bundle
+  // excludes — see `vite.config.ts`.
   resolve: {
     alias: {
       '@': resolve(__dirname, 'src'),
       '@wbs/domain/workday': resolve(__dirname, '../../libs/domain/src/workday.ts'),
+      '@wbs/domain/effective-team': resolve(__dirname, '../../libs/domain/src/effective-team.ts'),
     },
   },
   test: {

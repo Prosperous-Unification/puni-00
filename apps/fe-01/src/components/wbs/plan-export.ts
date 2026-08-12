@@ -1,3 +1,5 @@
+import { type EffectiveTeam, effectiveTeamOf } from '@wbs/domain/effective-team';
+
 import type { EstimateMethod } from '@/lib/wbs-api';
 
 /** One estimate's three points, as a row carries them into an export. */
@@ -21,6 +23,16 @@ export interface ExportTrio {
  */
 export interface ExportRow {
   id: string;
+  /**
+   * The row above this one, or null at the root.
+   *
+   * Carried for one reason: a team label reaches down. `effectiveTeamOf` walks
+   * these to answer which team's people a row's work belongs to, and the export
+   * prints both that answer and the label the row itself stores — an export
+   * that showed moved dates and not the pool that moved them is the CSV
+   * equivalent of a bare newline.
+   */
+  parentId: string | null;
   number: string;
   name: string;
   notes: string;
@@ -35,10 +47,35 @@ export interface ExportRow {
   startNoEarlierThan: string | null;
   /** The priority somebody gave this work — 1 upward, smaller first — or null. */
   priority: number | null;
+  /**
+   * How many people may work on this item at once, as somebody typed it.
+   *
+   * The **stored** number. What the engine could actually give it is
+   * {@link ExportSlice.width}, and the export carries both because they differ
+   * for two reasons a reader has no other way to learn: the team was smaller
+   * than the number, or somebody is named on the work.
+   */
+  maxParallel: number;
   dates: { startsOn: string; endsOn: string } | null;
   schedule: { earliestStart: number; earliestFinish: number; float: number; critical: boolean };
   assignees: Record<string, string | undefined>;
   doesEveryPhase: string | null;
+}
+
+/**
+ * One placed slice, as far as the export is concerned: whose row, how wide it
+ * ran and how much work it was.
+ *
+ * The compression lives here and not on the row: a row's `duration` is what
+ * be-01 placed it across, and it is `effort / width`. Without these three the
+ * CSV shows a two-day row carrying six days of estimate and says nothing about
+ * why.
+ */
+export interface ExportSlice {
+  workItemId: string;
+  width: number;
+  effort: number;
+  duration: number;
 }
 
 /** A role, team or person as the export needs it: something with a name to print. */
@@ -74,6 +111,14 @@ export interface PlanExport {
   people: readonly NamedEntry[];
   /** Every work item, in tree order. Collapsed branches and searches are the screen's business. */
   rows: readonly ExportRow[];
+  /**
+   * Every slice be-01 placed, in its own order.
+   *
+   * Empty on a plan that could not be scheduled, which is the same absence the
+   * dates report as {@link NO_SCHEDULE}: a parallelism column filled in from
+   * nothing would be this document's own invention.
+   */
+  slices: readonly ExportSlice[];
 }
 
 /** The method under the name the project chose it by, never its wire value. */
@@ -171,6 +216,15 @@ function headerFields(plan: PlanExport): { key: string; value: string }[] {
       key: 'Figures',
       value: 'unrounded; an empty cell means nobody has estimated it, never zero',
     },
+    // What the two capacity columns mean, in the one place a reader handed the
+    // table alone can find it. Without it `Ran at` is a bare number beside an
+    // estimate it does not match, and the reader's only reading of a 6-day row
+    // spanning 2 days is that the export is wrong.
+    {
+      key: 'People',
+      value:
+        'the figures are effort. "People at once" is what was asked for and "Ran at" is what the team had free — a row runs for its effort divided by that, so a blank means one at a time',
+    },
   ];
   if (plan.scheduleError !== null) {
     fields.push({
@@ -215,6 +269,67 @@ interface ExportColumn {
 }
 
 /**
+ * Which team's people each row's work is drawn from, and which row said so —
+ * `libs/domain`'s one reading, not an export-shaped copy of it.
+ *
+ * Computed once per document rather than per cell: the walk is over the whole
+ * `rows` list either way, and a per-cell call would re-walk it for each of
+ * them. `rows` is **every** row of the plan (`planForExport`), so an ancestor
+ * that carries the label is always in the list a leaf's chain is resolved
+ * against — an export built from the rows on screen would lose the label a
+ * collapsed parent holds and would then print `` where a pool is what moved
+ * the dates.
+ */
+function teamsInForce(plan: PlanExport): ReadonlyMap<string, EffectiveTeam> {
+  return effectiveTeamOf(plan.rows);
+}
+
+/**
+ * What a row's Team cell says: the team whose people did the work, and where
+ * the label was written when it was not written here.
+ *
+ * The **effective** team rather than the stored one, and the naming of the
+ * source is what makes that safe: a leaf with no label of its own is on a pool
+ * anyway, and an export printing a blank there is an export that cannot explain
+ * its own dates. `010 Backend` is the row named the way every other cross
+ * reference in this document names one — the number, which is also the Depends
+ * on column's currency.
+ */
+function teamCell(plan: PlanExport, inForce: ReadonlyMap<string, EffectiveTeam>, row: ExportRow) {
+  const effective = inForce.get(row.id);
+  if (effective === undefined) return '';
+  const name = nameOf(plan.teams, effective.teamId);
+  if (effective.fromId === row.id) return name;
+  const from = plan.rows.find((each) => each.id === effective.fromId);
+  return from === undefined
+    ? `${name} (inherited)`
+    : `${name} (inherited from ${from.number} ${from.name})`;
+}
+
+/**
+ * The widths be-01 actually ran a row's slices at, as a cell.
+ *
+ * A **set**, joined, and not one number: width is decided per slice, so a row
+ * of `maxParallel: 3` with one role assigned to somebody reads `1, 3` — that
+ * role serialised and the rest not. Printing only the largest would say the
+ * whole item ran three-up, and printing only the smallest would say it never
+ * did.
+ *
+ * Empty where the plan has no slices at all, which is the same absence the
+ * dates report as {@link NO_SCHEDULE}: a column filled in from nothing would be
+ * this document's own invention. Also empty where every width is 1 and nobody
+ * asked for more, because a column of `1`s down an ordinary plan is furniture.
+ */
+function ranAtCell(plan: PlanExport, row: ExportRow): string {
+  const widths = [
+    ...new Set(plan.slices.filter((slice) => slice.workItemId === row.id).map((s) => s.width)),
+  ].sort((a, b) => a - b);
+  if (widths.length === 0) return '';
+  if (row.maxParallel === 1 && widths.every((width) => width === 1)) return '';
+  return widths.map(showFigure).join(', ');
+}
+
+/**
  * Every column, in the order both formats print them.
  *
  * The table stays **flat**: the derived number is the outline already (`010`,
@@ -229,6 +344,7 @@ interface ExportColumn {
  */
 function columnsOf(plan: PlanExport, markSums: boolean): ExportColumn[] {
   const method = METHOD_NAMES[plan.method];
+  const inForce = teamsInForce(plan);
   /** A computed figure, with Markdown's sum marker where one applies. */
   const figure = (row: ExportRow, days: number | undefined): string => {
     if (days === undefined) return '';
@@ -237,10 +353,16 @@ function columnsOf(plan: PlanExport, markSums: boolean): ExportColumn[] {
   return [
     { header: 'Number', cell: (row) => row.number },
     { header: 'Name', cell: (row) => row.name },
+    { header: 'Team', cell: (row) => teamCell(plan, inForce, row) },
+    // The two numbers the schedule's compression is made of, beside the team
+    // whose people they are counted out of. Blank at 1, the Priority column's
+    // bargain: a spreadsheet reader sorting on this wants an empty cell rather
+    // than a column of ones down a plan nobody has widened.
     {
-      header: 'Team',
-      cell: (row) => (row.serviceTeamId === null ? '' : nameOf(plan.teams, row.serviceTeamId)),
+      header: 'People at once',
+      cell: (row) => (row.maxParallel === 1 ? '' : String(row.maxParallel)),
     },
+    { header: 'Ran at', cell: (row) => ranAtCell(plan, row) },
     ...plan.roles.flatMap((role): ExportColumn[] => [
       {
         header: `${role.name} optimistic`,

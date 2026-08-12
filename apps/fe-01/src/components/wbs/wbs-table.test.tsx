@@ -249,6 +249,11 @@ function fakeApi(): ProjectApi & {
             ...scheduleOf(r),
             boundBy: 'projectStart' as const,
             resourcePredecessorId: null,
+            // One at a time and nothing holding a pool, which is every plan
+            // this fake stands in for.
+            width: 1,
+            effort: scheduleOf(r).duration,
+            capacityPredecessorIds: [],
           })),
         // On the read that carried the slices, as be-01 sends them: the chart
         // reads its roles and its names from here and not from the separate
@@ -5249,6 +5254,7 @@ describe('Tab moves between the fields, from every cell', () => {
       'Add a dependency to 010',
       'Priority for 010',
       'Service or team for 010',
+      'People at once for 010',
       'Dev optimistic for 010',
       'Dev realistic for 010',
       'Dev pessimistic for 010',
@@ -6699,6 +6705,9 @@ describe('dependencies in the table — cross-review findings', () => {
                   critical: false,
                   boundBy: 'projectStart' as const,
                   resourcePredecessorId: null,
+                  width: 1,
+                  effort: 7,
+                  capacityPredecessorIds: [],
                   ...schedule,
                 },
               ],
@@ -7141,6 +7150,9 @@ describe('the chart under a plan being edited', () => {
               personId: null,
               boundBy: 'projectStart' as const,
               resourcePredecessorId: null,
+              width: 1,
+              effort: 3,
+              capacityPredecessorIds: [],
               ...scheduleNow(),
             },
           ],
@@ -10992,8 +11004,10 @@ describe('the chords reach the picker cells and the date cell', () => {
     const back = await openTeam('020');
     chord(back, 'l', { ctrl: true });
 
+    // The In-parallel cell, which `capacity-ui` put between the team and the
+    // first role: the chord goes to the next cell of the row, whatever that is.
     await waitFor(() => {
-      expect(document.activeElement).toBe(screen.getByLabelText('Dev optimistic for 020'));
+      expect(document.activeElement).toBe(screen.getByLabelText('People at once for 020'));
     });
   });
 

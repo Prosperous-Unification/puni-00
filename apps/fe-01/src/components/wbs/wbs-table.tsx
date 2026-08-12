@@ -7,6 +7,7 @@ import {
   type RowData,
   useReactTable,
 } from '@tanstack/react-table';
+import { effectiveTeamOf } from '@wbs/domain/effective-team';
 import { workdaysBetween } from '@wbs/domain/workday';
 import {
   type CSSProperties,
@@ -2351,6 +2352,77 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
   }, [workItems]);
 
   /**
+   * Every work item in the plan, named the way a dependency names one.
+   *
+   * **`flat` and not `shownRows`**, and that is the whole of this lookup: a
+   * collapsed branch and a search each hide rows a dependency may point at, and
+   * a bar saying it waits for something it cannot name is a bar saying nothing.
+   * The chart draws what is on screen; what it *says* is drawn from the tree.
+   *
+   * `<number> <name>` is how the plan names a predecessor out loud — the same
+   * words the Depends on chips carry. An unnamed row keeps the number it does
+   * have, which is why the empty name has words rather than a trailing space.
+   */
+  const namedInTheTree = new Map(
+    flat.map((row) => [row.id, `${row.number} ${row.name === '' ? '(unnamed)' : row.name}`]),
+  );
+
+  /**
+   * The service team a work item is labelled with, resolved against the
+   * directory read this client holds.
+   *
+   * The two are different moments — the label comes with the tree and the teams
+   * from their own request — so a team created between them is a **stale**
+   * lookup and says so, rather than rendering a blank label or throwing the
+   * chart away. See {@link ServiceTeamLabel}.
+   */
+  const teamLabelOf = (serviceTeamId: string | null): ServiceTeamLabel => {
+    if (serviceTeamId === null) return { state: 'none' };
+    const named = teams.find((team) => team.id === serviceTeamId);
+    return named === undefined ? { state: 'unresolved' } : { state: 'named', name: named.name };
+  };
+
+  /**
+   * Which team's work each row is, the leaf's own label or the nearest
+   * ancestor's — `libs/domain`'s reading, not a second copy of it.
+   *
+   * The rule be-01's scheduler pools on: a leaf with no label of its own draws
+   * its slots from the team an ancestor named, so a bar can be held by a pool
+   * the row it sits on never mentions. Five surfaces read this one function —
+   * the scheduler's adapter, this table's Team cell, the chart, the cards and
+   * the export — because five copies of "most specific wins" is five chances
+   * for two of them to disagree about the same row while each holds a
+   * defensible answer.
+   *
+   * Over `flat` and not `shownRows`: an ancestor a search or a collapse has
+   * taken off screen still labels the work under it.
+   */
+  const effectiveTeams = effectiveTeamOf(flat);
+
+  /**
+   * A row's team as a cell or a bar can state it: its own label, or the one it
+   * inherits and the row that carries it.
+   *
+   * The inheriting arm is what makes a moved date explicable. Without it a leaf
+   * with no team of its own is `none` everywhere on screen while its dates come
+   * out of a pool, and "why did this row move when somebody edited a team's
+   * number" has no answer anywhere in the tool.
+   */
+  const effectiveTeamLabelOf = (row: TreeRow): ServiceTeamLabel => {
+    if (row.serviceTeamId !== null) return teamLabelOf(row.serviceTeamId);
+    const inherited = effectiveTeams.get(row.id);
+    if (inherited === undefined) return { state: 'none' };
+    const named = teams.find((team) => team.id === inherited.teamId);
+    if (named === undefined) return { state: 'unresolved' };
+    return {
+      state: 'inherited',
+      name: named.name,
+      fromRow: namedInTheTree.get(inherited.fromId) ?? 'a row that is not shown',
+    };
+  };
+
+
+  /**
    * A pending Ctrl+D whose row the tree no longer holds — or no longer holds
    * under the number the toast promised — is disarmed.
    *
@@ -2511,8 +2583,24 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
       teams,
       people,
       rows: flat,
+      // The slices the chart on screen was drawn from, so the export's Ran at
+      // column is the same placement the bars are and not a second reading of
+      // it. Empty until the first read lands and empty again on a plan that
+      // could not be scheduled — both of which the column renders as nothing
+      // rather than as a 1.
+      slices: chartRead.slices,
     }),
-    [projectName, estimateMethod, startDate, scheduleError, roles, teams, people, flat],
+    [
+      projectName,
+      estimateMethod,
+      startDate,
+      scheduleError,
+      roles,
+      teams,
+      people,
+      flat,
+      chartRead.slices,
+    ],
   );
 
   /**
@@ -3830,6 +3918,39 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
   );
 
   /**
+   * Sets or resets how many people may work on one item at once, from what was
+   * typed into its In-parallel cell.
+   *
+   * The same shape as {@link setPriority} one column along, and deliberately
+   * the same: an emptied box is the one thing be-01 cannot see — `Number('')`
+   * is `0`, which is a refusal rather than a reset — and everything else is
+   * sent and answered on, `0`, `-1`, `1.5` and `1001` included. The rule about
+   * what a parallelism may be lives in `capacity-write-paths` at be-01's
+   * boundary; a second copy here is a rule that can quietly disagree with it.
+   *
+   * `null` is a **reset to 1** and not a clear: 1 and unset are the same fact —
+   * one at a time — and the column is `NOT NULL DEFAULT 1`, which is why an
+   * emptied cell renders blank rather than showing the 1 it stores.
+   */
+  const setParallelism = useCallback(
+    (id: string, typed: string): Promise<CommitOutcome> => {
+      const trimmed = typed.trim();
+      if (trimmed === '') return run(() => api.patch(id, { maxParallel: null }));
+      const asNumber = Number(trimmed);
+      // {@link setPriority}'s refusal, for its reason: JSON has no literal for
+      // `NaN` or `Infinity`, so either would arrive as `null` — which here is
+      // the reset, so a typed `1e999` would silently put the item back to one
+      // at a time instead of being refused.
+      if (!Number.isFinite(asNumber)) {
+        pushToast({ kind: 'error', text: 'People at once is a whole number from 1 to 1000.' });
+        return Promise.resolve<CommitOutcome>('refused');
+      }
+      return run(() => api.patch(id, { maxParallel: asNumber }));
+    },
+    [api, pushToast, run],
+  );
+
+  /**
    * The row whose earliest-start cell is being edited, or none.
    *
    * One id rather than a set, which is the whole of "at most one editor on the
@@ -4166,11 +4287,6 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     [dependenciesOf],
   );
 
-  /** What a work item is labelled with, or null where nothing is. */
-  const teamName = useCallback(
-    (row: TreeRow) => teams.find((team) => team.id === row.serviceTeamId)?.name ?? null,
-    [teams],
-  );
 
   /**
    * Takes the plan to one row: its name cell gets the caret and is scrolled to.
@@ -4245,6 +4361,8 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     setFocusedCell,
     setNotBefore,
     setPriority,
+    setParallelism,
+    effectiveTeamLabelOf,
     editingNotBefore,
     openNotBefore,
     closeNotBefore,
@@ -4259,7 +4377,6 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     spanOf,
     assigneeOn,
     waitsFor,
-    teamName,
     matchIds: search.matchIds,
     searching,
   });
@@ -4311,6 +4428,8 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     setFocusedCell,
     setNotBefore,
     setPriority,
+    setParallelism,
+    effectiveTeamLabelOf,
     editingNotBefore,
     openNotBefore,
     closeNotBefore,
@@ -4325,7 +4444,6 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     spanOf,
     assigneeOn,
     waitsFor,
-    teamName,
     matchIds: search.matchIds,
     searching,
   };
@@ -5417,10 +5535,31 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
       column.display({
         id: 'team',
         header: 'Service/team',
-        cell: ({ row }) => (
+        cell: ({ row }) => {
+          // A row with no label of its own still belongs to a team, wherever an
+          // ancestor named one — and the plan's dates were computed against
+          // that team's people. The cell says so in the box's own muted
+          // placeholder ink, which is exactly the "shown but not stored"
+          // distinction a placeholder already means: it is gone the moment
+          // somebody types a label of this row's own, and nothing about it is
+          // sent anywhere. `↳` is the inheritance, in one glyph the 120px
+          // column can afford.
+          //
+          // No write copies a label down. This is a reading of the tree and it
+          // is recomputed from the tree every render; the day somebody moves
+          // the row, its answer changes with it.
+          const inherited = live.current.effectiveTeamLabelOf(row.original);
+          return (
           <CreatablePicker
             label={`Service or team for ${row.original.number}`}
-            placeholder="search or add"
+            placeholder={
+              inherited.state === 'inherited' ? `↳ ${inherited.name}` : 'search or add'
+            }
+            title={
+              inherited.state === 'inherited'
+                ? `${inherited.name} — inherited from ${inherited.fromRow}. This row carries no team of its own.`
+                : undefined
+            }
             entries={live.current.teams}
             value={row.original.serviceTeamId}
             onChoose={(id) => {
@@ -5445,7 +5584,98 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
               },
             }}
           />
+          );
+        },
+      }),
+      column.display({
+        id: 'in-parallel',
+        // `∥`, not `In parallel` and not `PAR`: the column is 32px at a 10px
+        // all-caps header, in which even three letters wrap. The mathematical
+        // parallel-to sign is the shortest thing that reads as "at once", and
+        // the sentence moves into the `title` — the bargain Prio, Days, Not
+        // bef., Start, End and Slack already make.
+        header: () => (
+          <span title="How many people may work on this item at once. Blank means one at a time. It compresses the item's own effort across that many of its team's people — never past the team's size, and never where somebody is named on the work.">
+            ∥
+          </span>
         ),
+        cell: ({ row }) => {
+          const own = row.original.maxParallel;
+          const named = row.original.doesEveryPhase;
+          const hasChildren = row.subRows.length > 0;
+          // Three states the cell renders differently, and each of them is a
+          // fact the reader cannot get anywhere else:
+          //
+          // - a **parent** holds no slices of its own, so `slicesOf` skips it
+          //   and a number on it schedules nothing. The write path answers 400
+          //   `has_children`; the cell is read-only rather than offering an
+          //   edit be-01 refuses. A leaf that later gained a child keeps
+          //   whatever it was given, inert, and the cell says so.
+          // - a leaf somebody is **named** on runs at width 1 whatever this
+          //   says (D3): one human cannot work beside themselves. The number is
+          //   still stored and still applies the moment the assignment goes, so
+          //   it is shown muted rather than hidden.
+          // - anything else is an ordinary editable number.
+          const inert = hasChildren || (named !== null && own > 1);
+          const why = hasChildren
+            ? 'This row has children, so it holds no work of its own. The number is kept and does nothing.'
+            : named !== null && own > 1
+              ? 'One person is named on this work, so it runs one at a time whatever this says.'
+              : own > 1
+                ? `${String(own)} people at once. The item's effort is compressed across them, up to the team's size.`
+                : 'How many people may work on this item at once. Blank means one at a time.';
+          if (hasChildren) {
+            return (
+              <span
+                data-in-parallel={row.original.id}
+                title={why}
+                className="text-muted-foreground block text-right"
+              >
+                {own > 1 ? String(own) : ''}
+              </span>
+            );
+          }
+          return (
+            <CellInput
+              aria-label={`People at once for ${row.original.number}`}
+              cellKey={cellKey(row.original.id, 'in-parallel')}
+              data-in-parallel={row.original.id}
+              inputMode="numeric"
+              title={why}
+              style={{
+                width: '100%',
+                boxSizing: 'border-box',
+                font: 'inherit',
+                background: 'transparent',
+                border: 'none',
+                textAlign: 'right',
+                // Muted where the number is stored and not applied, which is
+                // the one thing a reader of a `3` beside a named person cannot
+                // work out. `opacity` rather than a colour token so the value
+                // stays the cell's own ink in either theme.
+                opacity: inert ? 0.55 : undefined,
+              }}
+              onKeyDown={(e) => {
+                // Enter saves, exactly as the Prio cell one column back does
+                // and for its reason — see the comment there.
+                if (e.key === 'Enter' && !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey) {
+                  e.preventDefault();
+                  void flushCell(e.currentTarget);
+                  return;
+                }
+                live.current.onAltMove(e, row.original, 'in-parallel');
+                live.current.onCommandKey(e, row.original, 'in-parallel');
+                live.current.onTabKey(e, row.original.id, 'in-parallel');
+                live.current.onArrowKey(e, row.original.id, 'in-parallel');
+              }}
+              // Blank at 1, which is every row of every plan nobody has widened
+              // — the Prio column's bargain, for the same reason: a column of
+              // `1`s down a plan that runs one at a time is furniture.
+              value={own > 1 ? String(own) : ''}
+              commit={(typed) => live.current.setParallelism(row.original.id, typed)}
+            />
+          );
+        },
       }),
       ...roles.flatMap((role) => {
         const unfolded = unfoldedRoles.includes(role.id);
@@ -6358,37 +6588,6 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
   })();
 
   /**
-   * Every work item in the plan, named the way a dependency names one.
-   *
-   * **`flat` and not `shownRows`**, and that is the whole of this lookup: a
-   * collapsed branch and a search each hide rows a dependency may point at, and
-   * a bar saying it waits for something it cannot name is a bar saying nothing.
-   * The chart draws what is on screen; what it *says* is drawn from the tree.
-   *
-   * `<number> <name>` is how the plan names a predecessor out loud — the same
-   * words the Depends on chips carry. An unnamed row keeps the number it does
-   * have, which is why the empty name has words rather than a trailing space.
-   */
-  const namedInTheTree = new Map(
-    flat.map((row) => [row.id, `${row.number} ${row.name === '' ? '(unnamed)' : row.name}`]),
-  );
-
-  /**
-   * The service team a work item is labelled with, resolved against the
-   * directory read this client holds.
-   *
-   * The two are different moments — the label comes with the tree and the teams
-   * from their own request — so a team created between them is a **stale**
-   * lookup and says so, rather than rendering a blank label or throwing the
-   * chart away. See {@link ServiceTeamLabel}.
-   */
-  const teamLabelOf = (serviceTeamId: string | null): ServiceTeamLabel => {
-    if (serviceTeamId === null) return { state: 'none' };
-    const named = teams.find((team) => team.id === serviceTeamId);
-    return named === undefined ? { state: 'unresolved' } : { state: 'named', name: named.name };
-  };
-
-  /**
    * What the Gantt panel draws, from the rows the renderer is drawing.
    *
    * **`shownRows`, not the row model**, and that is the whole of the mirroring:
@@ -6430,7 +6629,12 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
       // a fact about the plan the chart was drawn from, not about a draft
       // somebody is half-way through typing into the column.
       priority: row.original.priority,
-      team: teamLabelOf(row.original.serviceTeamId),
+      maxParallel: row.original.maxParallel,
+      // The **effective** team, which is the pool be-01 scheduled this row's
+      // slices against — not the label the row carries, which may be none at
+      // all. A chart drawn from the stored label alone cannot say whose people
+      // a bar is waiting for.
+      team: effectiveTeamLabelOf(row.original),
       // The trio the plan holds for each role on this row, straight off the
       // tree read — the drafts a reader is half-way through typing are not
       // facts about the schedule the chart was drawn from.
@@ -7107,7 +7311,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
           mentionOptions={mentionOptions}
           assigneeOn={assigneeOn}
           waitsFor={waitsFor}
-          teamName={teamName}
+          teamLabel={effectiveTeamLabelOf}
           spanOf={spanOf}
           showDay={showDay}
         />
