@@ -31,6 +31,17 @@ import { expect, type Page, test } from '@playwright/test';
 const NEARLY = 2;
 
 /**
+ * How far apart the two faces may be, as a fraction of a row.
+ *
+ * A twentieth, which is 1.4px of a 28px chart row. The residue is a browser
+ * rounding a written `scrollTop` to a whole pixel — a whole pixel of a row is
+ * a thirty-sixth of one — plus the link's own {@link SETTLED_PX} deadband,
+ * which is there so a follower moved into place does not push back (see
+ * `plan-scroll-link.ts`).
+ */
+const A_ROW_APART = 0.05;
+
+/**
  * The white space the audit measured between a short plan and its chart, in px.
  *
  * `notes/wbs-cloud-test-run-2026-08-11.md`: "508px dead white space on small
@@ -149,11 +160,10 @@ function measureSurface(page: Page): Promise<{
 function measureAgreement(page: Page): Promise<{
   id: string;
   index: number;
-  underTheHeading: number;
-  underTheAxis: number;
+  cutInTable: number;
+  cutInChart: number;
   panelScrollLeft: number;
   frameScrollLeft: number;
-  diag: string;
 }> {
   return page.evaluate(() => {
     const frame = document.querySelector('[data-table-frame]');
@@ -172,16 +182,20 @@ function measureAgreement(page: Page): Promise<{
     const id = shown.getAttribute('data-row-id') ?? '';
     const label = panel.querySelector(`[data-gantt-label="${id}"]`);
     if (label === null) throw new Error(`the chart draws no row ${id}`);
+    const shownBox = shown.getBoundingClientRect();
+    const labelBox = label.getBoundingClientRect();
     return {
       id,
       index: rows.indexOf(shown),
-      // How far each face's copy of that one row has gone under its own
-      // heading. Equal means the two faces are showing the same thing.
-      underTheHeading: shown.getBoundingClientRect().top - headingBottom,
-      underTheAxis: label.getBoundingClientRect().top - axis.getBoundingClientRect().bottom,
+      // How much of that one row each face has under its own heading, as a
+      // fraction of that face's own row. A fraction and not pixels, because the
+      // two rows are not the same height — a table row is 26.19px in this font
+      // and a chart row is a declared 28 — and the same fraction of each is
+      // what "showing the same thing" means when they are not.
+      cutInTable: (headingBottom - shownBox.top) / shownBox.height,
+      cutInChart: (axis.getBoundingClientRect().bottom - labelBox.top) / labelBox.height,
       panelScrollLeft: panel.scrollLeft,
       frameScrollLeft: frame.scrollLeft,
-      diag: `rowH ${String(shown.getBoundingClientRect().height)} labelH ${String(label.getBoundingClientRect().height)} frameTop ${String(frame.scrollTop)} panelTop ${String(panel.scrollTop)} headB ${String(headingBottom)} axisB ${String(axis.getBoundingClientRect().bottom)}`,
     };
   });
 }
@@ -285,9 +299,9 @@ test.describe('the plan and its chart as one surface', () => {
 
     expect(scrolled.index, 'the wheel did not scroll the table').toBeGreaterThan(0);
     expect(
-      scrolled.underTheAxis,
-      scrolled.diag,
-    ).toBeCloseTo(scrolled.underTheHeading, 0);
+      Math.abs(scrolled.cutInChart - scrolled.cutInTable),
+      `the table is showing ${scrolled.id} cut by ${scrolled.cutInTable.toFixed(3)} of a row and the chart by ${scrolled.cutInChart.toFixed(3)}`,
+    ).toBeLessThanOrEqual(A_ROW_APART);
   });
 
   test('takes the table to the row the chart was scrolled to', async ({ page }) => {
@@ -302,7 +316,7 @@ test.describe('the plan and its chart as one surface', () => {
     // Neither face is the master: a wheel over the chart is as much a scroll of
     // the plan as a wheel over the table.
     expect(scrolled.index, 'the wheel did not scroll the chart').toBeGreaterThan(0);
-    expect(scrolled.underTheAxis).toBeCloseTo(scrolled.underTheHeading, 0);
+    expect(Math.abs(scrolled.cutInChart - scrolled.cutInTable)).toBeLessThanOrEqual(A_ROW_APART);
   });
 
   test('follows the keyboard down the plan, and leaves the focus where it walked to', async ({
@@ -327,7 +341,7 @@ test.describe('the plan and its chart as one surface', () => {
     // The walk reached a cell the frame had to scroll for, or this says nothing
     // about scrolling.
     expect(walked.index, 'the keyboard walk never scrolled the frame').toBeGreaterThan(0);
-    expect(walked.underTheAxis).toBeCloseTo(walked.underTheHeading, 0);
+    expect(Math.abs(walked.cutInChart - walked.cutInTable)).toBeLessThanOrEqual(A_ROW_APART);
     // And the cell it walked to still has the focus. A link that scrolled by
     // `scrollIntoView` on the other face, or that moved the focus to bring a
     // row into view, would take the reader out of the cell they were typing in.
@@ -355,7 +369,7 @@ test.describe('the plan and its chart as one surface', () => {
     const scrolled = await measureAgreement(page);
 
     expect(scrolled.index, 'the wheel did not scroll the table').toBeGreaterThan(0);
-    expect(scrolled.underTheAxis).toBeCloseTo(scrolled.underTheHeading, 0);
+    expect(Math.abs(scrolled.cutInChart - scrolled.cutInTable)).toBeLessThanOrEqual(A_ROW_APART);
     // The frame kept the columns it was scrolled to, and the calendar did not
     // move under a caption that names the month at its left edge.
     expect(scrolled.frameScrollLeft, 'the table lost the columns it was scrolled to').toBe(240);
