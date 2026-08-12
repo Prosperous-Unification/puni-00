@@ -19,16 +19,24 @@ not at all, so no test catches it either.
 
 ## The gate
 
-Run on CI, on PR #48, head `8fcdf40` — the merged head, review fixes included —
-2026-08-12, run
-[31607612227](https://github.com/Prosperous-Unification/wbs-tool-v1/actions/runs/31607612227):
-`gate` green in 3m36s, `pixels` green in 7m55s. The figures in the table below
-were read from run
+Run on CI, on PR #48, 2026-08-12, twice green after the rebase and the review
+fixes: run
+[31607612227](https://github.com/Prosperous-Unification/wbs-tool-v1/actions/runs/31607612227)
+at head `8fcdf40` — `gate` 3m36s, `pixels` 7m55s — and run
+[31608505600](https://github.com/Prosperous-Unification/wbs-tool-v1/actions/runs/31608505600)
+at head `82cf12b`, `gate` 3m32s and `pixels` green on a rerun. That rerun is
+worth the sentence: `pixels` first lost `the widest entry be-01 permits stays
+inside the window` to a rename that had not landed in the combobox when the
+assertion read it — an fe-01 test, no file of which this change touches, on a
+tree identical to the one that had passed `pixels` six minutes earlier. A flake,
+named rather than waved past.
+
+The figures in the table below were read from run
 [31594532014](https://github.com/Prosperous-Unification/wbs-tool-v1/actions/runs/31594532014)
-at head `5c94591`, which the rebase has since rewritten; every commit between
-that head and the merged one touches `verify.md`, `design.md` and one comment in
-`schedule.ts` and no other code, and the rerun above is green at the head that
-merges. This box (`h1claw`) does not run builds or test suites — the
+at head `5c94591`, which the rebase has since rewritten. Everything on this
+branch after that head touches `verify.md`, `design.md` and one comment in
+`schedule.ts` — no other code — so the counts still stand, and the two runs above
+say so at the heads that carry the change. This box (`h1claw`) does not run builds or test suites — the
 rule is house policy and a `PreToolUse` hook denies it — so every figure below
 is CI's or `h2puni`'s, never this host's.
 
