@@ -48,6 +48,12 @@ than quietly replaced: the doc-cap hook is a real gate and the fix is to
 compress the note, not to raise the cap. The only commit between that head and
 the green one is the compression plus this paragraph.
 
+The green run is
+[31648887284](https://github.com/Prosperous-Unification/wbs-tool-v1/actions/runs/31648887284)
+at head `5d0521b` — `gate` pass 3m25s, `pixels` pass 8m09s, both on their first
+attempt, conclusion `success`. The commit after `5d0521b` adds this paragraph
+and nothing else.
+
 ## The failure-proof table (R5)
 
 Eleven checks, eleven injected faults, each watched failing before it was
