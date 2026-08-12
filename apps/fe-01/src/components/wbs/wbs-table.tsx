@@ -65,7 +65,13 @@ import type { GanttPlan, ServiceTeamLabel } from './gantt-geometry';
 import { clampedGanttHeight, GANTT_CEILING_PX, GANTT_MIN_PX, GanttPanel } from './gantt-panel';
 import { HoverPreview } from './hover-preview';
 import { initialsOf } from './initials';
-import { type Command, commandChordIn, undoChord } from './keyboard-bindings';
+import {
+  altMoveIn,
+  type Command,
+  commandChordIn,
+  escapesAnOpenList,
+  undoChord,
+} from './keyboard-bindings';
 import { KeyboardCheatSheet, opensCheatSheet } from './keyboard-cheat-sheet';
 import {
   type CommitOutcome,
@@ -1096,51 +1102,6 @@ const ARM_WINDOW_MS = 3000;
 
 /** The armed row's tint: a warning, and the only thing on screen that says so. */
 const ARMED_TINT = 'var(--grid-armed)';
-
-/** What one Alt+arrow does to the focused row's place in the tree. */
-type AltMove = 'up' | 'down' | 'outdent' | 'indent';
-
-/**
- * The structural move an arrow means when Alt is held, or null for any other key.
- *
- * A function rather than a lookup record: indexing a record by an arbitrary
- * `event.key` is exactly the unchecked access `noUncheckedIndexedAccess` exists
- * to stop, and four cases read as well as four entries.
- */
-function altMoveFor(key: string): AltMove | null {
-  switch (key) {
-    case 'ArrowUp':
-      return 'up';
-    case 'ArrowDown':
-      return 'down';
-    case 'ArrowLeft':
-      return 'outdent';
-    case 'ArrowRight':
-      return 'indent';
-    default:
-      return null;
-  }
-}
-
-/**
- * The structural move a keystroke asks for, or null when it asks for none.
- *
- * The modifier rules live here rather than in {@link onAltMove} because two
- * places need the same answer: the handler that performs the move, and the
- * open `@` list that has to swallow the keystroke before the handler ever sees
- * it. Two copies of "is this an Alt+arrow" is how one of them comes to accept
- * a composing arrow the other refuses.
- *
- * A second modifier is somebody else's shortcut, and an IME composition is
- * using the arrows to pick a candidate — the same rule `nextCell` applies.
- * Proof: narrowed to `!event.altKey` alone, `leaves a composing alt arrow, and
- * one with a second modifier, alone` failed on `expected false to be true`.
- * Watched here 2026-08-08, and where this line lived before, 2026-08-06.
- */
-function altMoveIn(event: React.KeyboardEvent): AltMove | null {
-  if (!event.altKey || event.ctrlKey || event.metaKey || event.nativeEvent.isComposing) return null;
-  return altMoveFor(event.key);
-}
 
 /**
  * What the caret in an input is doing, for `nextCell` to decide on.
@@ -3082,9 +3043,13 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    * these cells — is stated in the change's proposal, and plain arrows and
    * Cmd+arrow still walk the caret.
    *
-   * Not attached globally, and not to the dependency picker, the assignee
-   * picker or the date inputs: it lives on the cells that already route their
-   * own keys, which is where typing happens and where a row is being worked on.
+   * Not attached globally: it lives on the cells that route their own keys,
+   * which is every cell of the grid. It reached only some of them until
+   * `table-mechanics` — the dependency picker, the two `CreatablePicker`
+   * columns and the earliest-start cell each swallowed it, so "from any cell"
+   * was false in three cell classes at once. What lets a picker hand it back
+   * without handing back the chords that make and destroy a row is
+   * {@link escapesAnOpenList}.
    */
   const onAltMove = useCallback(
     (event: React.KeyboardEvent, row: TreeRow, columnId: string) => {
@@ -5056,6 +5021,22 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                       live.current.onTabKey(e, row.original.id, 'depends');
                       return;
                     }
+                    if (escapesAnOpenList(e)) {
+                      // The eight keys the list may not swallow: the four
+                      // motion chords out of this cell and the four row moves
+                      // under it. This box opens its list on **focus**, so
+                      // without this branch Ctrl+L into it had no documented
+                      // way out — see {@link escapesAnOpenList}, which is where
+                      // the split between these and the chords that make or
+                      // destroy a row is argued.
+                      //
+                      // Before the ArrowUp/ArrowDown branch below on purpose:
+                      // that one reads no modifiers, so an Alt+↑ aimed at the
+                      // row would have moved the list's highlight instead.
+                      live.current.onAltMove(e, row.original, 'depends');
+                      live.current.onCommandKey(e, row.original, 'depends');
+                      return;
+                    }
                     if (open && commandChordIn(e) !== null) {
                       // Inert means consumed. Skipping `onCommandKey` was not
                       // enough on its own: Cmd/⌘+Enter fell through to the Enter
@@ -5087,9 +5068,10 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                     }
                     if (!open) {
                       // Closed, this is a cell like any other and the chords
-                      // reach it. Open, the list owns the keyboard — the routing
-                      // matrix's inert row, and the reason this is a condition
-                      // rather than an unconditional call.
+                      // that make and destroy a row reach it. Open, the list
+                      // owns those — the routing matrix's inert row, narrowed
+                      // by the branch above to the chords that act on a row
+                      // rather than merely leaving the cell.
                       // Proof: the condition forced true, `every chord is inert
                       // while the depends list is open` failed on `expected
                       // <input …(11)></input> to be <input …(10)></input>` — the
@@ -5334,6 +5316,9 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
               },
               onCommandKey: (e) => {
                 live.current.onCommandKey(e, row.original, 'team');
+              },
+              onAltMove: (e) => {
+                live.current.onAltMove(e, row.original, 'team');
               },
             }}
           />
@@ -5817,6 +5802,9 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                             onCommandKey: (e) => {
                               live.current.onCommandKey(e, row.original, `${role.id}-assignee`);
                             },
+                            onAltMove: (e) => {
+                              live.current.onAltMove(e, row.original, `${role.id}-assignee`);
+                            },
                           }}
                         />
                         {assumed !== null && (
@@ -5894,10 +5882,13 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                   data-cell={cellKey(row.original.id, 'not-before')}
                   title="This work item may not start before this day. Its dependencies can still push it later."
                   onKeyDown={(e) => {
-                    // The chords, and nothing else this cell does not already
-                    // own: a native date input keeps its own arrows for the
-                    // segment under the caret, which is why {@link onArrowKey}
-                    // is absent here.
+                    // The chords and the row moves, and nothing else this cell
+                    // does not already own: a native date input keeps its own
+                    // arrows for the segment under the caret, which is why
+                    // {@link onArrowKey} is absent here. Alt+arrow is not one
+                    // of those — {@link altMoveIn} takes it before the segment
+                    // stepper sees it, exactly as it does in every other cell.
+                    live.current.onAltMove(e, row.original, 'not-before');
                     live.current.onCommandKey(e, row.original, 'not-before');
                     live.current.onTabKey(e, row.original.id, 'not-before');
                   }}
@@ -5980,6 +5971,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                       open();
                       return;
                     }
+                    live.current.onAltMove(e, row.original, 'not-before');
                     live.current.onCommandKey(e, row.original, 'not-before');
                     live.current.onTabKey(e, row.original.id, 'not-before');
                   }}

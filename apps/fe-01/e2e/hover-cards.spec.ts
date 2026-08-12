@@ -758,3 +758,87 @@ test.describe('the Name cell’s preview takes the room around its cell', () => 
     expect(await cardsOpen(page), 'the flipped card closed on the way to it').toBe(1);
   });
 });
+
+/**
+ * What the pointer does to a row, on both phases of the stripe.
+ *
+ * `--grid-hover` was one absolute shade, and the body is banded: a plain row
+ * moved `oklab(1)` → `oklab(0.939 …)` under the pointer and a banded one
+ * `oklab(0.978 …)` → the same `oklab(0.939 …)`. The pointer therefore said two
+ * different things on alternate rows and said the quieter one on half the
+ * plan — which is the "hovering a striped row shows nothing" of the UI audit,
+ * 2026-08-12.
+ *
+ * A browser is the only oracle: every shade here is a `color-mix` resolved at
+ * computed-value time, `:hover` is a state jsdom never enters, and the pinned
+ * Name cell reaches its colour only through the `--cell-bg` join. What is
+ * asserted is the *step*, in rasterised luminance, because that is the
+ * quantity a reader sees — and it is asserted on both phases, because one
+ * phase passing is how this shipped.
+ */
+test.describe('the pointer moves a row by the same ink on both phases of the stripe', () => {
+  /** Where the pointer goes to be nowhere near a row. */
+  const parkPointer = (page: Page): Promise<void> => page.mouse.move(0, 0);
+
+  /** The settled luminance of a row's pinned Name cell. */
+  const rowLuminance = async (page: Page, number: string): Promise<number> =>
+    luminance(page, await settledRowBg(page, number));
+
+  test('a banded row moves as far under the pointer as a plain one', async ({ page }) => {
+    await seedPlan(page, `e2e-stripe-${String(Date.now())}`);
+    await parkPointer(page);
+
+    // 010 is the first body row and 020 the second, which is the one
+    // `tr:nth-child(even)` bands. The precondition is that they differ at
+    // rest: with no stripe at all this whole test would be about one colour.
+    const restPlain = await rowLuminance(page, '010');
+    const restBand = await rowLuminance(page, '020');
+    expect(restBand, 'there is no stripe to hover, so this test measures nothing').toBeLessThan(
+      restPlain - 2,
+    );
+
+    await rowOf(page, '010').hover();
+    const hoverPlain = await rowLuminance(page, '010');
+    await parkPointer(page);
+    await expect.poll(() => rowLuminance(page, '010')).toBe(restPlain);
+
+    await rowOf(page, '020').hover();
+    const hoverBand = await rowLuminance(page, '020');
+
+    const stepPlain = restPlain - hoverPlain;
+    const stepBand = restBand - hoverBand;
+
+    // Each phase moves at all, and downward: the pointer darkens a light page.
+    expect(stepPlain, 'the pointer did not darken a plain row').toBeGreaterThan(8);
+    expect(stepBand, 'the pointer did not darken a banded row').toBeGreaterThan(8);
+    // And by the same amount. This is the assertion the single absolute token
+    // failed: 19.6 against 12.6 on the palette this ships with.
+    expect(
+      Math.abs(stepPlain - stepBand),
+      'the pointer moves a banded row and a plain row by different amounts',
+    ).toBeLessThan(3);
+  });
+
+  test('a hovered banded row is nobody else’s colour', async ({ page }) => {
+    // The other half of "reads on both phases": the hovered banded row has to
+    // be distinct from the rest shade of *both* kinds of row, or the pointer
+    // is saying something one row along already says.
+    await seedPlan(page, `e2e-stripe-distinct-${String(Date.now())}`);
+    await parkPointer(page);
+
+    const restPlain = await rowLuminance(page, '010');
+    const restBand = await rowLuminance(page, '020');
+
+    await rowOf(page, '020').hover();
+    const hoverBand = await rowLuminance(page, '020');
+
+    expect(
+      Math.abs(hoverBand - restBand),
+      'a hovered banded row is its own rest shade',
+    ).toBeGreaterThan(8);
+    expect(
+      Math.abs(hoverBand - restPlain),
+      'a hovered banded row is the colour of every unbanded row',
+    ).toBeGreaterThan(8);
+  });
+});

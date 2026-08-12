@@ -665,8 +665,29 @@ export function foldedTableMinWidth(roleIds: readonly string[], state: FrameLayo
   ).minWidth;
 }
 
-/** How many levels the Number column indents a row before it stops. */
-export const DEEPEST_INDENT = 4;
+/**
+ * How many levels the Number column indents a row before it stops.
+ *
+ * **4 → 2 in `table-mechanics`, and the reason is the sentence
+ * {@link NUMBER_ENVELOPE} already carried**: "a row at `DEEPEST_INDENT` spends
+ * 48px of a 93px column on its indent and another 32 on its expander and lock,
+ * so what is left is a few pixels of number and a `title`." The UI audit of
+ * 2026-08-12 followed that to where it stops being a bargain and starts being
+ * a bug: `050.1.1.1` and `050.1.1.1.1` both drew as `050.1`, so two different
+ * rows were the same row to read, and the indent that was supposed to say
+ * which was which is *capped* — both drew at the same 48px.
+ *
+ * Nothing is lost by stopping earlier, because the steps are not thrown away:
+ * the Name cell carries `hierarchyIndentFor(depth) − numberIndentFor(depth)`,
+ * so the outline a reader's eye adds up across the two cells is exactly what
+ * it was at every depth. What changes is which cell draws it — and the column
+ * whose whole job is a number gets 24px of its width back.
+ *
+ * Not zero. The first two levels are where the Number column is the leading
+ * edge of the outline, and a flush column of numbers under a flush column of
+ * names reads as a list rather than as a tree.
+ */
+export const DEEPEST_INDENT = 2;
 
 const INDENT_STEP = 12;
 
@@ -703,7 +724,8 @@ export const CARET_GUTTER_PX = 12;
  * levels, so at the envelope's own depth the number keeps the larger half of
  * the column and every level after that is spent on white space. A step of 16
  * would take 64px of a 93px column at the deepest indent and leave nothing of
- * the number at all.
+ * the number at all. {@link DEEPEST_INDENT} is where that same argument was
+ * finally taken to its conclusion — two levels of white space, not four.
  *
  * A row deeper than the cap is not stuck at it on every surface: the Name cell
  * carries `hierarchyIndentFor(depth) − numberIndentFor(depth)` on top of this,
@@ -776,12 +798,19 @@ export const cardIndentFor = (depth: number): number =>
  * off the markup.
  *
  * Anything longer is clipped with the whole number in the cell's `title`: the
- * same bargain the short dates make. **That is most of a deep tree**, and it is
- * the price of the envelope Dany chose on 2026-08-10: a row at
- * {@link DEEPEST_INDENT} spends 48px of a 93px column on its indent and another
- * 32 on its expander and lock, so what is left is a few pixels of number and a
- * `title`. The envelope was eleven characters at that indent until this change,
- * and it sized the column for a row almost no plan has.
+ * same bargain the short dates make. The envelope was eleven characters at the
+ * deepest indent until `column-rebalance`, and it sized the column for a row
+ * almost no plan has.
+ *
+ * **What the column shows whole is not what it undertakes to.** This figure is
+ * the *contract* — what the width is picked against, and what may not regress.
+ * Since `table-mechanics` reclaimed the two capped indent steps and set the
+ * number's own type, five levels of a leaf row fit inside the same 93px as
+ * well; that is slack rather than a promise, because it depends on how many
+ * digits a sibling group has taken and on whether the row carries an expander
+ * and a lock. `e2e/layout.spec.ts`'s `two rows a level apart read as two
+ * different numbers` is what holds the slack down, and it names the depth it
+ * measures.
  */
 /** How many dotted levels of number the column shows whole; see {@link NUMBER_ENVELOPE}. */
 const NUMBER_ENVELOPE_LEVELS = 2;

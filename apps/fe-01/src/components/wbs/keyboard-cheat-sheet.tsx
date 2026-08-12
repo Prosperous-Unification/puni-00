@@ -52,6 +52,23 @@ export interface KeyboardCheatSheetProps {
 const TITLE_ID = 'keyboard-cheat-sheet-title';
 
 /**
+ * What a Tab can land on, as a selector.
+ *
+ * Deliberately not every element a browser might focus: the sheet's own markup
+ * is a heading, a ✕ and a definition list, and the trap below only has to know
+ * where the *ends* of that sequence are. `[tabindex="-1"]` is excluded because
+ * the panel itself carries one — it is focusable on arrival and is not a stop
+ * on the way round.
+ */
+const FOCUS_STOPS =
+  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+/** The stops inside `panel`, in document order — possibly none. */
+const focusStopsIn = (panel: HTMLElement): HTMLElement[] => [
+  ...panel.querySelectorAll<HTMLElement>(FOCUS_STOPS),
+];
+
+/**
  * Every key binding this table has, on screen, in one modal dialog.
  *
  * Rendered only while it is open, so mounting is opening: the element that had
@@ -59,13 +76,28 @@ const TITLE_ID = 'keyboard-cheat-sheet-title';
  * closing by Escape, by the ✕ and by clicking away all put the focus back
  * without any of them saying so.
  *
- * There is no focus trap. Tab leaves the dialog, which is a real gap and a
- * named non-goal of the change that added this — the ways out it does prove
- * are Escape, the ✕ and the backdrop. It is also precisely why
- * {@link usePageShortcutsSuspended} is called below rather than only from
- * `ModalContent`: Tab out of this sheet lands in a cell of the table behind it,
- * and until this change Ctrl+N there created a work item nobody could see. This
- * sheet is a modal, so it holds the page's keyboard like one.
+ * **The focus trap and the Escape listener are one effect, and they are one
+ * fault.** "There is no focus trap; Tab leaves the dialog" was a named non-goal
+ * until the UI audit of 2026-08-12 followed it one keystroke further: Escape
+ * was a React handler on the backdrop, so it only ever saw a keystroke
+ * aimed *inside* the sheet — and once Tab had put the focus in the table behind,
+ * Escape stopped closing it. A dialog with `aria-modal="true"` that the
+ * keyboard can walk out of and then cannot dismiss is not a gap in a
+ * convenience, it is a reader stuck on a page they cannot get back to. The
+ * listener is on `document`, in the capture phase, so it answers wherever the
+ * focus has got to; Tab is answered in the same place, which is what keeps the
+ * focus from getting there in the first place.
+ *
+ * It is still not Radix. `ModalContent` would bring a trap, a dismissal
+ * contract and `aria-hidden` on the page behind — and the routing matrix in
+ * `openspec/changes/shadcn-foundation/design.md` decided this sheet is
+ * hand-rolled, which `table-mechanics` had no reason to reverse. What it
+ * changes is the behaviour, not the vendor.
+ *
+ * {@link usePageShortcutsSuspended} is still called below rather than only from
+ * `ModalContent`: the sheet is a modal, so it holds the page's keyboard like
+ * one — and until that call Ctrl+N tabbed into the table behind created a work
+ * item nobody could see.
  *
  * Hand-rolled rather than Radix, and that is a decision rather than an
  * oversight — `openspec/changes/shadcn-foundation/design.md`, the routing
@@ -114,11 +146,60 @@ export function KeyboardCheatSheet({ onClose, renderer, altStyle }: KeyboardChea
     };
   }, []);
 
+  useEffect(() => {
+    const answer = (event: KeyboardEvent): void => {
+      const panel = dialog.current;
+      // React attaches refs before effects run and this listener only exists
+      // for as long as the effect does; a null here is this component being
+      // wrong about itself, not a condition to model.
+      if (panel === null) throw new Error('The cheat sheet took a key without its dialog');
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        onClose();
+        return;
+      }
+      if (event.key !== 'Tab') return;
+      const stops = focusStopsIn(panel);
+      const first = stops.at(0);
+      const last = stops.at(-1);
+      // Nothing to walk — the panel itself holds the focus rather than handing
+      // it to the table. Not a state this sheet is ever in today (it has a ✕),
+      // and the branch is here because "today" is what a markup change edits.
+      if (first === undefined || last === undefined) {
+        event.preventDefault();
+        panel.focus();
+        return;
+      }
+      const here = document.activeElement;
+      // Outside the sheet altogether: a stray click, or a browser that put the
+      // focus somewhere this component did not. The next Tab brings it back.
+      if (!(here instanceof HTMLElement) || !panel.contains(here)) {
+        event.preventDefault();
+        (event.shiftKey ? last : first).focus();
+        return;
+      }
+      // The two ends, and only the two ends: every Tab in between is the
+      // browser's own and moves between stops inside the panel.
+      const leaving = event.shiftKey ? here === first || here === panel : here === last;
+      if (!leaving) return;
+      event.preventDefault();
+      (event.shiftKey ? last : first).focus();
+    };
+    // Capture, so the answer does not depend on what the keystroke was aimed
+    // at or on whether something between it and `document` stops it bubbling.
+    document.addEventListener('keydown', answer, true);
+    return () => {
+      document.removeEventListener('keydown', answer, true);
+    };
+  }, [onClose]);
+
   return (
     // Presentation, because it is a backdrop: the dialog inside it is the
     // thing, and Escape and the ✕ are the ways out that assistive technology
-    // is told about. The click and the key handler are on it together, so a
-    // click away and Escape are one element's business.
+    // is told about. The click is this element's; Escape is not, and that is
+    // the audit's fix — a handler here only ever saw keystrokes aimed inside
+    // the sheet, so a Tab into the table behind took Escape away with it. It
+    // is on `document` now, in the effect above.
     <div
       role="presentation"
       data-cheat-sheet-backdrop
@@ -129,11 +210,6 @@ export function KeyboardCheatSheet({ onClose, renderer, altStyle }: KeyboardChea
         // lands inside it` failed on a sheet that closed when its own heading
         // was clicked. Watched, 2026-08-07.
         if (event.target === event.currentTarget) onClose();
-      }}
-      onKeyDown={(event) => {
-        if (event.key !== 'Escape') return;
-        event.preventDefault();
-        onClose();
       }}
       className="fixed inset-0 z-100 flex items-center justify-center bg-black/40"
     >

@@ -165,6 +165,26 @@
   --grid-header: color-mix(in oklab, var(--foreground) 6%, var(--background));
   --grid-band: color-mix(in oklab, var(--foreground) 2.5%, var(--background));
   --grid-hover: color-mix(in oklab, var(--foreground) 7%, var(--background));
+  /*
+   * The hovered *banded* row, and it is one token rather than a second opinion
+   * about how strong a hover is: 9.5% is the band's own 2.5% plus
+   * `--grid-hover`'s 7%. An `oklab` mix is linear in lightness, so adding the
+   * doses adds the steps — the pointer moves a row by the same amount of ink
+   * whichever phase of the stripe it lands on.
+   *
+   * Why it has to exist at all. `--grid-hover` is an *absolute* shade, so on a
+   * plain row it was a 0.061 step down from `oklab(1)` and on a banded one a
+   * 0.039 step down from `oklab(0.978225 …)` — the pointer said two different
+   * things on alternate rows, and on the banded half it barely said anything.
+   * The `[data-dep-add]` hover further down already solved this shape by
+   * mixing into `--cell-bg` rather than into the page; a row cannot do that,
+   * because `--cell-bg` is the property it is setting. Two tokens are that
+   * same "the same ink into whatever it lands on" written out longhand.
+   *
+   * No `.dark` twin, for this block's own reason: both values are mixes of
+   * properties `.dark` re-points, so the pair inverts by itself.
+   */
+  --grid-band-hover: color-mix(in oklab, var(--foreground) 9.5%, var(--background));
   --grid-armed: color-mix(in oklab, var(--destructive) 14%, var(--background));
   --grid-invalid: color-mix(in oklab, var(--destructive) 10%, var(--background));
   --grid-drop: color-mix(in oklab, var(--ring) 22%, var(--background));
@@ -450,6 +470,18 @@
   }
 
   /*
+   * The same pointer on a banded row, which already carries the band's ink.
+   *
+   * Before `[data-dep-lit]` below and never after it: this selector is
+   * `(0, 2, 2)`, the same weight as the lit row's, so the order in this file
+   * is the whole of what keeps "lit" winning over "under the pointer" — the
+   * rule that block states in prose.
+   */
+  [data-grid] tbody tr:nth-child(even):hover {
+    --cell-bg: var(--grid-band-hover);
+  }
+
+  /*
    * A row some hovered Depends on cell is waiting for (`data-dep-lit`,
    * written by `wbs-table.tsx`'s dependency hover). Re-points `--cell-bg` for
    * the reason `tr:hover` does: the pinned cells' inline backgrounds follow
@@ -502,6 +534,29 @@
     color: inherit;
   }
 
+  /*
+   * No resize grip on the Name cell, which is the only `<textarea>` in the
+   * grid.
+   *
+   * Tailwind's preflight sets `resize: vertical` on every textarea, so every
+   * row of every plan shipped with a drag handle in its bottom-right corner —
+   * and dragging it is not an edit. It writes an inline height the auto-grow
+   * never reads back, the Gantt row beside it keeps the height the plan gave
+   * it, and the two are out of line for the rest of the session with no undo
+   * and no way back but a reload. Measured on dev, 2026-08-12: one drag took a
+   * 28px row to 124px against a 28px chart row.
+   *
+   * `none` rather than a smaller grip, because the height of this box is not a
+   * reader's choice to make: it is the height of the text in it, decided by
+   * `cell-input.tsx`'s measurement and capped by `maxRestRows`. That machinery
+   * is untouched — this property is about the handle, not about `style.height`
+   * — which is what `the box still grows with the text it is given` in
+   * `e2e/name-cell.spec.ts` holds down beside the drag itself.
+   */
+  [data-grid] textarea {
+    resize: none;
+  }
+
   [data-grid] input:focus,
   [data-grid] textarea:focus {
     /* An outline rather than a shadow or a border: it takes no space, and at a
@@ -530,6 +585,23 @@
   [data-grid] [data-number] {
     color: var(--muted-foreground);
     font-variant-numeric: tabular-nums;
+    /*
+     * Smaller than the name beside it, which is the paragraph above taken one
+     * step further: a work item number is a reference, not prose, and the
+     * table's own text is the browser default 16px.
+     *
+     * It is also half the fix for the audit's depth-4 clipping, 2026-08-12.
+     * `050.1.1.1` and `050.1.1.1.1` both drew as `050.1` in a 93px column, and
+     * a number nobody can read is the column doing nothing at all; the other
+     * half is `DEEPEST_INDENT`, which gave 24px of that column back. At this
+     * size five levels of a leaf row fit whole where two did.
+     *
+     * It moves no pixel of the layout: the column is `table-layout: fixed` at a
+     * declared width, and the lock and the expander beside this span keep the
+     * cell's 16px line box, so the row is the height it always was. The same
+     * exception the heading row's 10px caption already takes.
+     */
+    font-size: 11px;
   }
 
   [data-grid] tbody tr[data-frozen='true'] [data-number] {
