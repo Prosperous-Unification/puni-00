@@ -54,24 +54,54 @@ function isThemeChoice(claimed: unknown): claimed is ThemeChoice {
 export function rememberedTheme(): ThemeChoice {
   const stored = localStorage.getItem(THEME_KEY);
   if (stored === null) return 'system';
-  let claimed: unknown;
-  try {
-    claimed = JSON.parse(stored);
-  } catch {
-    // Nothing but this module writes the key, so the only way here is a
-    // hand-edited store. Recovered from below rather than rethrown.
-    claimed = undefined;
-  }
   // Proof: this refusal replaced by `return stored as ThemeChoice`, which is
   // what "read the claim, drop nothing" comes to. `refuses a stored answer that
   // is not one of the three, and drops the key` failed on `expected '"midnight"'
   // to be null` — the unreadable key left in storage to be read again next
   // time — and `refuses storage that is not JSON at all` with it.
+  const claimed = claimedTheme(stored);
   if (!isThemeChoice(claimed)) {
     localStorage.removeItem(THEME_KEY);
     return 'system';
   }
   return claimed;
+}
+
+/**
+ * The same read with **nothing written** — what a React render is allowed to
+ * do.
+ *
+ * {@link useTheme}'s lazy `useState` initialiser calls this and its mount
+ * effect calls {@link rememberedTheme}, which is the same split
+ * {@link useTheme}'s own `chooseTheme` states in prose: a function React may
+ * call twice during a render is no place for a side effect. StrictMode
+ * double-invokes initialisers on purpose to surface exactly this, and before
+ * the split the `removeItem` really did run twice per mount. Nothing anybody
+ * can observe changed — `removeItem` is idempotent and only a corrupt stored
+ * value reaches it — which is why this is a rule being kept rather than a
+ * defect being fixed. Cross-review, 2026-08-12.
+ *
+ * Not folded into one function returning a pair, because the boundary API is
+ * the one `index.html`'s bootstrap is checked against for parity
+ * (`index-bootstrap.test.ts`) and that check reads "what does this module make
+ * of these bytes, storage and all".
+ */
+export function readTheme(): ThemeChoice {
+  const stored = localStorage.getItem(THEME_KEY);
+  if (stored === null) return 'system';
+  const claimed = claimedTheme(stored);
+  return isThemeChoice(claimed) ? claimed : 'system';
+}
+
+/** Stored bytes parsed as they were written, or `undefined` if they will not. */
+function claimedTheme(stored: string): unknown {
+  try {
+    return JSON.parse(stored);
+  } catch {
+    // Nothing but this module writes the key, so the only way here is a
+    // hand-edited store. Recovered from above rather than rethrown.
+    return undefined;
+  }
 }
 
 /** Writes the answer down. `system` is stored, not absent — see {@link rememberedTheme}. */
@@ -141,15 +171,34 @@ export interface Theme {
  * signed in — so the sign-in form is painted the same as the plan behind it,
  * and a remembered dark page does not go white the moment somebody signs out.
  *
- * `useState(rememberedTheme)` — the lazy initialiser, not `useState(rememberedTheme())`
- * — for `rememberedGanttHeight`'s reason: the second reads storage on every
+ * `useState(readTheme)` — the lazy initialiser, not `useState(readTheme())` —
+ * for `rememberedGanttHeight`'s reason: the second reads storage on every
  * render of every parent, and the first reads it once, before the first paint
  * this component is part of. The class still lands one paint after the
  * document's, which is what the bootstrap in `index.html` is for.
+ *
+ * {@link readTheme} and not {@link rememberedTheme}, because the initialiser is
+ * a render: dropping an unreadable key is a write, StrictMode calls this twice
+ * on purpose, and the rule against a side effect in a function React may call
+ * twice is the one `chooseTheme` states at the bottom of this file. The drop
+ * happens in the mount effect below instead. Nothing on screen moved either
+ * way — see {@link readTheme}.
  */
 export function useTheme(): Theme {
-  const [choice, setChoice] = useState<ThemeChoice>(rememberedTheme);
+  const [choice, setChoice] = useState<ThemeChoice>(readTheme);
   const [systemPrefersDark, setSystemPrefersDark] = useState<boolean>(() => systemMedia().matches);
+
+  /**
+   * Drops a stored answer this module cannot read, once, after the first paint.
+   *
+   * The write half of {@link rememberedTheme}, moved out of the initialiser
+   * above. Its return value is the same answer `readTheme` already gave — the
+   * state is not re-seeded from it, because between the two calls nothing but
+   * this line can have written the key.
+   */
+  useEffect(() => {
+    rememberedTheme();
+  }, []);
 
   /**
    * Follows the machine while the page is open.

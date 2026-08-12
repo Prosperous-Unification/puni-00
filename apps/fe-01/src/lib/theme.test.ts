@@ -7,6 +7,7 @@ import {
   DARK_QUERY,
   paintPalette,
   paletteFor,
+  readTheme,
   rememberedTheme,
   systemMedia,
   THEME_KEY,
@@ -80,6 +81,19 @@ describe('what this browser remembers', () => {
     expect(rememberedTheme()).toBe('system');
     expect(localStorage.getItem(THEME_KEY)).toBeNull();
   });
+
+  itDom('reads the same answer without writing anything, for a render to call', () => {
+    // The half `useTheme`'s lazy initialiser is allowed to do. Both refusals
+    // above are the same read plus a write, and a `useState` initialiser is a
+    // render — StrictMode calls it twice on purpose to surface exactly that.
+    //
+    // Proof: `readTheme` pointed back at `rememberedTheme`, this fails on
+    // `expected null to be '"midnight"'`. Watched, 2026-08-12.
+    localStorage.setItem(THEME_KEY, JSON.stringify('midnight'));
+
+    expect(readTheme()).toBe('system');
+    expect(localStorage.getItem(THEME_KEY)).toBe(JSON.stringify('midnight'));
+  });
 });
 
 describe('what the theme puts on the document', () => {
@@ -112,6 +126,17 @@ describe('the theme, followed and remembered while the app is open', () => {
     expect(held.result.current.choice).toBe('dark');
     expect(held.result.current.palette).toBe('dark');
     expect(document.documentElement.classList.contains(DARK_CLASS)).toBe(true);
+  });
+
+  itDom('drops an answer it cannot read, from an effect rather than from a render', () => {
+    localStorage.setItem(THEME_KEY, JSON.stringify('midnight'));
+
+    const held = renderHook(() => useTheme());
+
+    // The behaviour is unchanged by the move — a corrupt key is gone by the
+    // time the hook has mounted, which is all a reader could ever have seen.
+    expect(held.result.current.choice).toBe('system');
+    expect(localStorage.getItem(THEME_KEY)).toBeNull();
   });
 
   itDom('opens on the machine’s own answer where nothing was ever chosen', () => {
@@ -178,8 +203,30 @@ describe('the theme, followed and remembered while the app is open', () => {
   });
 
   itDom('stops listening to the machine once it is gone', () => {
+    // **The class cannot answer this and the listener count can.** This test
+    // asserted only the third block below, and it could not fail: `paintPalette`
+    // runs from a `useEffect`, React runs no effect for an unmounted hook, so
+    // deleting `media.removeEventListener('change', follow)` left the class
+    // exactly where it was and the assertion green. The author watched the
+    // subscribe red and never the unsubscribe — `verify.md`'s own jsdom table
+    // lists `addEventListener` and not its opposite. Caught in cross-review,
+    // 2026-08-12.
+    //
+    // What is asked instead is the platform, which is the only party an unmount
+    // is allowed to change: `vitest.setup.ts`'s stand-in reports how many
+    // `change` listeners are live on the one cached list.
+    expect(platform().listenerCount, 'nothing was subscribed to unsubscribe').toBe(0);
+
     const held = renderHook(() => useTheme());
+    expect(platform().listenerCount, 'the hook never subscribed at all').toBe(1);
+
     held.unmount();
+
+    // Proof: `media.removeEventListener('change', follow)` deleted from the
+    // effect's cleanup in `theme.ts`, this fails on `the hook left its listener
+    // on the platform … expected 1 to be 0`, where the block below stayed
+    // green. Watched, 2026-08-12.
+    expect(platform().listenerCount, 'the hook left its listener on the platform').toBe(0);
 
     act(() => {
       platform().setMatches(true);
@@ -187,7 +234,9 @@ describe('the theme, followed and remembered while the app is open', () => {
 
     // The class is what a leaked listener would move, and there is no component
     // left to move it: an unmounted hook that still repaints the document is a
-    // second theme fighting the one on screen.
+    // second theme fighting the one on screen. Kept as a pin on the consequence
+    // — it is what a reader would see — rather than as the proof, which is the
+    // count above.
     expect(document.documentElement.classList.contains(DARK_CLASS)).toBe(false);
   });
 });

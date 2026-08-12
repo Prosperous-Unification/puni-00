@@ -21,6 +21,15 @@ export interface MenuItemProps {
   ref: (element: HTMLButtonElement | null) => void;
   tabIndex: number;
   onKeyDown: (event: KeyboardEvent<HTMLButtonElement>) => void;
+  /**
+   * Tells the menu which item really holds the focus, whatever moved it there.
+   *
+   * Declared here rather than left to the spread, because the seam is the whole
+   * of what these three props are: an item that took this list's markup and not
+   * this line would be one the arrows compute from the wrong index after a
+   * mouse click. `AccountMenu` has the account of the fault.
+   */
+  onFocus: () => void;
 }
 
 export interface ThemeChoiceItemsProps {

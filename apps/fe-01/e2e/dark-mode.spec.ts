@@ -180,6 +180,30 @@ const USER_AGENT_BUTTON_FACES = ['rgb(239, 239, 239)', 'rgb(107, 107, 107)'];
 /** What Chromium paints an unstyled `<a href>` on a page it has been told is dark. */
 const USER_AGENT_DARK_LINK = 'rgb(158, 158, 255)';
 
+/**
+ * Every visible element on the page painted one of the user agent's own button
+ * faces, named so a failure says which.
+ *
+ * Palette-agnostic on purpose, and used from both palettes: the requirement is
+ * "no surface is painted a colour the palette does not name", and neither of
+ * {@link USER_AGENT_BUTTON_FACES} is named by either palette.
+ */
+function unnamedFaces(page: Page): Promise<string[]> {
+  return page.evaluate((unnamed) => {
+    const found: string[] = [];
+    for (const node of document.querySelectorAll('*')) {
+      const box = node.getBoundingClientRect();
+      if (box.width === 0 || box.height === 0) continue;
+      const style = getComputedStyle(node);
+      if (style.visibility === 'hidden' || style.display === 'none') continue;
+      if (unnamed.includes(style.backgroundColor)) {
+        found.push(`${node.tagName.toLowerCase()} «${node.textContent.slice(0, 24)}»`);
+      }
+    }
+    return found;
+  }, USER_AGENT_BUTTON_FACES);
+}
+
 let account = 0;
 
 test.beforeEach(async ({ page }) => {
@@ -270,6 +294,73 @@ test.describe('the theme control', () => {
     // What a scrollbar, a caret and a date picker read — none of which is a
     // token, and all of which stay light on a dark page without this.
     expect(await scheme()).toBe('dark');
+  });
+
+  test('takes the platform’s grey off the light page too, not only the dark one', async ({
+    page,
+  }) => {
+    // **The light palette changes here, and until 2026-08-12 nothing said so.**
+    // `button:not([data-grid], …) { background-color: transparent }` is in
+    // `@layer base` and is not scoped to `.dark`, so the three buttons that
+    // carried Chromium's `rgb(239, 239, 239)` — the Gantt's `Arrows` switch and
+    // its two row labels, none of which any rule paints — lose it on a light
+    // page as well. That is an improvement and it is what the requirement
+    // states, since the grey chip was never a token; what it was not is
+    // measured. Every other assertion in this file runs behind
+    // `chooseTheme(page, 'Dark')`, and no other spec reads a `backgroundColor`
+    // at all, so a real change to the light UI shipped inside a change whose
+    // body describes dark-palette repairs. Cross-review, 2026-08-12.
+    //
+    // Proof: the `<button>` reset deleted, this fails on `the Gantt chart …
+    // expected [ 'button «Arrows»', 'button «010 - …»', 'button «020 - …»' ] to
+    // deeply equal []`, which is the same red `verify.md:56` records against
+    // the dark page. Watched in CI's `pixels` job, 2026-08-12.
+    expect(await paletteOf(page), 'this test is about the palette nothing chose').toBe('light');
+
+    expect(await unnamedFaces(page), 'the plan').toEqual([]);
+
+    await page.getByRole('button', { name: 'Gantt' }).click();
+    await expect(page.locator('[data-gantt-panel]')).toBeVisible();
+    expect(await unnamedFaces(page), 'the Gantt chart').toEqual([]);
+
+    await accountTrigger(page).click();
+    expect(await unnamedFaces(page), 'the account menu').toEqual([]);
+  });
+
+  test('answers the arrows after a palette was taken with the mouse', async ({ page }) => {
+    // The menu is kept open on purpose after a palette is chosen, so a reader
+    // can compare and keep choosing — and until 2026-08-12 the next arrow key
+    // after a **mouse** click was dead. `active` is the roving tab stop's
+    // index and only the arrows ever moved it, so a click left it at the way
+    // out (index 3) while Chromium put the DOM focus on the clicked radio.
+    // Press the arrow that computes 3 from where the eye is — ArrowDown from
+    // `Dark` at index 2 — and `setActive` is handed the value it already
+    // holds: React bails out, the focus effect's deps do not change, and
+    // nothing moves.
+    //
+    // Only a browser can see it. `account-menu.test.tsx` drives by keyboard,
+    // where the two never disagree, and jsdom's `fireEvent.click` moves no
+    // focus even where it does.
+    //
+    // Proof: `onFocus` taken back off `itemProps` in `account-menu.tsx`, this
+    // failed on `the arrow after a click moved no focus … expect(locator)
+    // toBeFocused failed`. Watched in CI's `pixels` job, 2026-08-12.
+    await accountTrigger(page).click();
+    await page.getByRole('menuitemradio', { name: 'Dark' }).click();
+    await expect(page.getByRole('menuitemradio', { name: 'Dark' })).toBeFocused();
+
+    await page.keyboard.press('ArrowDown');
+
+    // Past the last radio is the way out, which is what index 3 is.
+    await expect(
+      page.getByRole('menuitem', { name: 'Log out' }),
+      'the arrow after a click moved no focus',
+    ).toBeFocused();
+
+    // And back up the way it came, which is what says the index the arrow
+    // computed from was the clicked item's and not a number left over.
+    await page.keyboard.press('ArrowUp');
+    await expect(page.getByRole('menuitemradio', { name: 'Dark' })).toBeFocused();
   });
 
   test('leaves a modified Enter to whatever it was aimed at', async ({ page }) => {
@@ -395,20 +486,7 @@ test.describe('what the dark palette paints', () => {
   });
 
   test('nothing on the page is painted a colour the palette never names', async ({ page }) => {
-    const face = async (): Promise<string[]> =>
-      page.evaluate((unnamed) => {
-        const found: string[] = [];
-        for (const node of document.querySelectorAll('*')) {
-          const box = node.getBoundingClientRect();
-          if (box.width === 0 || box.height === 0) continue;
-          const style = getComputedStyle(node);
-          if (style.visibility === 'hidden' || style.display === 'none') continue;
-          if (unnamed.includes(style.backgroundColor)) {
-            found.push(`${node.tagName.toLowerCase()} «${node.textContent.slice(0, 24)}»`);
-          }
-        }
-        return found;
-      }, USER_AGENT_BUTTON_FACES);
+    const face = (): Promise<string[]> => unnamedFaces(page);
 
     expect(await face(), 'the plan').toEqual([]);
 

@@ -40,6 +40,18 @@ if (typeof window !== 'undefined' && typeof window.localStorage === 'undefined')
 export interface DriveableMediaQueryList extends MediaQueryList {
   /** Flips the answer and tells every live listener, exactly as a platform does. */
   setMatches(matches: boolean): void;
+  /**
+   * How many `change` listeners are live on this list.
+   *
+   * The half {@link setMatches} cannot show. Driving the list proves a
+   * subscription *arrived*; nothing a driven list does can prove one **left**,
+   * because the component that would have repainted on it is already gone —
+   * React runs no effect for an unmounted hook, so `stops listening to the
+   * machine once it is gone` passed with the `removeEventListener` deleted.
+   * Caught in cross-review, 2026-08-12. A count is the only thing the platform
+   * can be asked that an unmount is allowed to change.
+   */
+  readonly listenerCount: number;
 }
 
 /**
@@ -79,6 +91,12 @@ if (typeof window !== 'undefined' && typeof window.matchMedia !== 'function') {
         removeListener: (listener: (event: MediaQueryListEvent) => void) =>
           listeners.delete(listener),
         dispatchEvent: () => true,
+        // A getter and not a snapshot: the list is cached and handed to every
+        // caller of `matchMedia`, so a number captured at construction would
+        // answer for the moment the stand-in was built rather than for now.
+        get listenerCount(): number {
+          return listeners.size;
+        },
         setMatches: (matches: boolean) => {
           list.matches = matches;
           for (const listener of [...listeners]) {

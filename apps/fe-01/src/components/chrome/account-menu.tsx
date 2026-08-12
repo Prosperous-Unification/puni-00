@@ -161,6 +161,30 @@ export function AccountMenu({
     },
     tabIndex: at === active ? 0 : -1,
     onKeyDown: menuKeys(at),
+    /**
+     * Keeps `active` on whatever really holds the focus.
+     *
+     * The arrows compute the next index from `active`, and until this existed
+     * only the arrows ever moved it — so a **mouse** put the focus on an item
+     * the state had never heard of, and the next arrow key was computed from
+     * the wrong place. Once the two disagree by exactly the step the arrow
+     * takes, the arrow is dead: `setActive` is handed the value it already
+     * holds, React bails out of the re-render, and the focus effect above —
+     * deps `[open, active]` — does not re-run. Click `Dark`, press ArrowDown:
+     * nothing moves at all. That is the interaction this control is built
+     * around, since the menu is kept open on purpose so a reader can compare
+     * palettes and keep choosing.
+     *
+     * On the focus event and not on each item's `onClick`, because the fault
+     * is the disagreement rather than the click: anything that moves the focus
+     * — a browser, an assistive technology, a future item — is answered by the
+     * same line. Re-entrant by construction: focusing an element that already
+     * has the focus fires no `focus` event, so the effect above and this
+     * cannot chase each other.
+     */
+    onFocus: () => {
+      setActive(at);
+    },
   });
 
   return (
@@ -175,10 +199,13 @@ export function AccountMenu({
         title="This account"
         className="max-w-40"
         onClick={() => {
-          setOpen((wasOpen) => {
-            if (!wasOpen) setActive(SIGN_OUT_AT);
-            return !wasOpen;
-          });
+          // Computed beside the setter rather than inside it: a state updater
+          // React may call twice is no place for a second setter, which is the
+          // rule `lib/theme.ts`'s `chooseTheme` states and keeps. `open` is
+          // this render's value and a click handler has no newer one.
+          const opening = !open;
+          if (opening) setActive(SIGN_OUT_AT);
+          setOpen(opening);
         }}
         onKeyDown={(event: KeyboardEvent<HTMLButtonElement>) => {
           if (event.key !== 'ArrowDown') return;
