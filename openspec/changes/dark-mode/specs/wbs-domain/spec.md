@@ -108,7 +108,7 @@ text and the non-text marks the plan is read through.
 - **GIVEN** an open dependency picker on the dark palette
 - **WHEN** its options are measured against the list behind them
 - **THEN** the list is the palette's popover colour and the options stand off it
-      by at least 4.5:1
+  by at least 4.5:1
 
 #### Scenario: nothing on the page is painted an unnamed colour
 

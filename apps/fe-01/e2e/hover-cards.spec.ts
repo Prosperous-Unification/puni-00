@@ -440,10 +440,14 @@ test.describe('hovering a dependency lights the rows it names', () => {
     // emphasis reads as a tint in the grid and as a cutout in the card. Light
     // alone can never see that, because light alone has one surface.
     //
-    // The app ships no theme switch; the palette is a class on the root and this
-    // is how a browser reaches it. That the class is the whole mechanism is
-    // `styles.css`'s own claim (`.dark` re-points the custom properties every
-    // token is mixed from), and reaching it here is what holds it to it.
+    // The app **ships a theme switch** since `dark-mode`, and this still sets
+    // the class by hand: the control is three items in the account menu, and an
+    // open popover over the grid is exactly the kind of second surface these
+    // reads would pick up by accident. `deps-cell.spec.ts` walks the real
+    // control for the direction rule instead, so the two are covered between
+    // them; that the class is the whole mechanism is `styles.css`'s own claim
+    // (`.dark` re-points the custom properties every token is mixed from), and
+    // `dark-mode.spec.ts` is what holds the control to reaching it.
     for (const palette of ['light', 'dark'] as const) {
       await page.evaluate((wanted) => {
         document.documentElement.classList.toggle('dark', wanted === 'dark');

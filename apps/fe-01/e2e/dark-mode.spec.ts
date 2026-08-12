@@ -6,17 +6,15 @@ import { expect, type Locator, type Page, test } from '@playwright/test';
  * Everything here is a fact jsdom cannot state. It computes no colours, so a
  * contrast ratio read there is a ratio between two strings; it has no
  * `prefers-color-scheme`, so `vitest.setup.ts` installs a stand-in and what
- * that stand-in proves is that this app *listens*, not what a platform
- * *answers*; and it performs no default action for a key, so the half of R5 #14
- * that says a prevented Enter does not become a click can only be seen in
- * Chromium. `lib/theme.test.ts` and `account-menu.test.tsx` hold the rest.
+ * that stand-in proves is that this app *listens* rather than what a platform
+ * actually *answers*; and it performs no default action for a key, so the half
+ * of R5 #14 that says a prevented Enter does not become a click can only be
+ * seen in Chromium. `lib/theme.test.ts` and `account-menu.test.tsx` hold the
+ * rest.
  *
- * The numbers below were measured on the branch this change is based on, with
- * the probe described in `openspec/changes/dark-mode/verify.md`, before any of
- * it was written: the Gantt's row labels and `Log out` at **1.10:1**, the
- * dependency picker's options at **1.05:1**, the header's page links at
- * **2.14:1**. Each of the three was a surface painted a colour the palette
- * never named.
+ * The numbers quoted below are what each of these assertions read when the fix
+ * it covers is reverted — watched, not remembered, and recorded with the
+ * command that produced them in `openspec/changes/dark-mode/verify.md`.
  */
 
 /** Signs up a throwaway account and makes a plan two estimated rows deep. */
@@ -88,7 +86,7 @@ function contrastOf(locator: Locator): Promise<number> {
       ctx.clearRect(0, 0, 1, 1);
       ctx.fillRect(0, 0, 1, 1);
       const painted = ctx.getImageData(0, 0, 1, 1).data;
-      return [painted[0] ?? 0, painted[1] ?? 0, painted[2] ?? 0, (painted[3] ?? 0) / 255];
+      return [painted[0], painted[1], painted[2], painted[3] / 255];
     };
     const over = (
       top: [number, number, number, number],
@@ -125,7 +123,7 @@ function contrastOf(locator: Locator): Promise<number> {
 
     const ink = over(rgbaOf(getComputedStyle(node).color), surface);
     const [brighter, dimmer] = [luminance(ink), luminance(surface)].sort((a, b) => b - a);
-    return ((brighter ?? 0) + 0.05) / ((dimmer ?? 0) + 0.05);
+    return (brighter + 0.05) / (dimmer + 0.05);
   });
 }
 
@@ -151,9 +149,7 @@ test.describe('the theme control', () => {
     expect(await paletteOf(page)).toBe('dark');
     // Not only the class: the tokens it re-points are what anything is painted
     // from, and a class nothing hangs off is the state this change found.
-    const background = await page.evaluate(
-      () => getComputedStyle(document.body).backgroundColor,
-    );
+    const background = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
 
     await page.reload();
     await expect(accountTrigger(page)).toBeVisible();
@@ -292,9 +288,7 @@ test.describe('what the dark palette paints', () => {
     expect(ratio, `the Directory link reads at ${ratio.toFixed(2)}:1`).toBeGreaterThanOrEqual(
       READABLE,
     );
-    expect(await link.evaluate((node) => getComputedStyle(node).color)).not.toBe(
-      'rgb(0, 0, 238)',
-    );
+    expect(await link.evaluate((node) => getComputedStyle(node).color)).not.toBe('rgb(0, 0, 238)');
   });
 
   test('the dependency picker is a card of the palette’s own colour', async ({ page }) => {
@@ -332,7 +326,7 @@ test.describe('what the dark palette paints', () => {
           const style = getComputedStyle(node);
           if (style.visibility === 'hidden' || style.display === 'none') continue;
           if (style.backgroundColor === unnamed) {
-            found.push(`${node.tagName.toLowerCase()} «${(node.textContent ?? '').slice(0, 24)}»`);
+            found.push(`${node.tagName.toLowerCase()} «${node.textContent.slice(0, 24)}»`);
           }
         }
         return found;
