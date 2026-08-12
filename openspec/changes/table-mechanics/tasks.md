@@ -29,7 +29,9 @@ In `wbs-table.test.tsx`, `the chords reach the picker cells and the date cell`
 - [x] An assignee cell: Alt+← and Alt+→.
 - [x] Earliest start, at rest and in its open editor: the same eight.
 - [x] Watch each fail with the branch it names removed — three injections,
-      fourteen reds, in `verify.md`.
+      twelve of the fourteen cases red, in `verify.md`. The two that stayed
+      green are the Ctrl chords in the earliest-start cell, which were never
+      broken; they are pins.
 - [x] Narrow the two existing inert-list pins by name rather than delete them:
       the chords that make or destroy a row are still swallowed.
 - [x] Reverse `leaves the dependency picker's own alt arrows alone`, which said
@@ -66,8 +68,11 @@ In `wbs-table.test.tsx`, `the chords reach the picker cells and the date cell`
       a click at a **coordinate** on the backdrop closes it and one on the
       sheet does not. jsdom performs no default Tab, so a sheet with no trap
       passes every unit test about one (R5 #14–16).
-- [x] Watch each fail: the Tab branch dead, and the listener put back on the
-      sheet where the audit found it.
+- [x] Watch each fail: the Tab branch dead (red, `Tab 2 of 12`) and the
+      backdrop's own `event.target` test inverted (red). The listener put back
+      on the backdrop is **green** in a browser while the trap holds — the two
+      faults are a chain, and the unit test is what holds that half. Written
+      up in `verify.md` and at the test.
 
 ## 6. A deep row's number
 
@@ -76,16 +81,22 @@ In `wbs-table.test.tsx`, `the chords reach the picker cells and the date cell`
 - [x] Rewrite the three inherited indent pins against `DEEPEST_INDENT` rather
       than against the pixel literals of a cap of 4 — a test stating the old
       arithmetic cannot see the cap move.
-- [x] `e2e/layout.spec.ts`: the depth-4 pair reads as two numbers, measured as
-      the **visible prefix** through a `Range` rather than by `scrollWidth` —
-      the fault was never that the cell overflowed, it was that two overflows
-      began at the same glyph.
-- [x] Watch it fail with the cap back at 4 and the type size off.
+- [x] `e2e/layout.spec.ts`: the four-segment number is drawn **whole** and the
+      five-segment one shows strictly more of its own than that, measured as
+      the visible prefix through a `Range` rather than by `scrollWidth`.
+      Asserting only that the two prefixes _differ_ passed on the audit's own
+      geometry (`030.1` against `030`) — the first version of this pin did
+      that, and watching it not fail is what found it.
+- [x] Watch it fail with the cap back at 4 and the type size off: red,
+      `Expected: "030.1.1.1" Received: "030.1"`.
 
 ## 7. Gate
 
-- [ ] `bunx nx format:check --all`
-- [ ] `bunx nx run-many -t test lint typecheck build --parallel=2`
-- [ ] `bun run e2e` (this checkout's dev server only — see the landmine)
-- [ ] `openspec validate --all --json`
-- [ ] `verify.md` with the commands, their output, and the failure-proof table.
+- [x] `bunx nx format:check --all` (CI)
+- [x] `bunx nx run-many -t test lint typecheck build --parallel=2` (CI; and the
+      fe-01 suite under node on h2puni, 1148 passed — `nx run fe-01:test` on
+      that host is vacuous under bun, see `verify.md`)
+- [x] `bun run e2e` (CI `pixels`; each new spec also run on h2puni in the
+      Playwright image)
+- [x] `openspec validate --all --json` (CI)
+- [x] `verify.md` with the commands, their output, and the failure-proof table.
