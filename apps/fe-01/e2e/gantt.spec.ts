@@ -1591,25 +1591,37 @@ test.describe('the chart edge the reader drags', () => {
           const hit = document.elementFromPoint(x, y);
           if (hit === null) return 'nothing at all';
           if (hit.closest('[data-gantt-height-handle]') !== null) return 'the handle';
-          const where = hit.closest('[data-gantt-panel]') === null ? 'outside the chart' : 'the chart';
+          const where =
+            hit.closest('[data-gantt-panel]') === null ? 'outside the chart' : 'the chart';
           return `${hit.tagName.toLowerCase()} in ${where}`;
         }),
       points,
     );
 
-  test('owns every point on its strip, rather than the chart sliding under it', async ({ page }) => {
+  test('owns every point on its strip, rather than the chart sliding under it', async ({
+    page,
+  }) => {
     await seedPlan(page, nextAccount());
     await openTheChart(page);
 
-    const grip = await rectOfLocator(page.locator('[data-gantt-height-handle]'), 'the height handle');
+    const grip = await rectOfLocator(
+      page.locator('[data-gantt-height-handle]'),
+      'the height handle',
+    );
     // The strip is only contested where the chart has something drawn under
     // it, so the sweep is taken **across the chart's own top row** rather than
     // across the panel: the sticky label column, its corner, and the calendar
     // axis beside it. Measuring those two boxes first is what stops this test
     // going vacuous the day the fixture's plan gets narrower than the window —
     // an empty strip belongs to the handle whatever the layering says.
-    const labels = await rectOfLocator(page.locator('[data-gantt-labels]'), "the chart's label column");
-    const axis = await rectOfLocator(page.locator('[data-gantt-axis]'), "the chart's calendar axis");
+    const labels = await rectOfLocator(
+      page.locator('[data-gantt-labels]'),
+      "the chart's label column",
+    );
+    const axis = await rectOfLocator(
+      page.locator('[data-gantt-axis]'),
+      "the chart's calendar axis",
+    );
     const contested = Math.min(axis.right, grip.right);
     expect(contested).toBeGreaterThan(labels.right);
 
@@ -1617,9 +1629,10 @@ test.describe('the chart edge the reader drags', () => {
     // on its first row is not a strip a hand can find.
     const sweep = [1, 3, 5].flatMap((down) =>
       [0.02, 0.5, 0.98].flatMap((across) =>
-        [labels.left + labels.width * across, labels.right + (contested - labels.right) * across].map(
-          (x) => ({ x: Math.round(x), y: Math.round(grip.top + down) }),
-        ),
+        [
+          labels.left + labels.width * across,
+          labels.right + (contested - labels.right) * across,
+        ].map((x) => ({ x: Math.round(x), y: Math.round(grip.top + down) })),
       ),
     );
     expect(await whatIsUnderThePointer(page, sweep)).toEqual(sweep.map(() => 'the handle'));
