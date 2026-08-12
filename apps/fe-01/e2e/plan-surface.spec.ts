@@ -365,6 +365,12 @@ test.describe('the plan and its chart as one surface', () => {
       frame.scrollLeft = 240;
       panel.scrollLeft = 0;
     });
+    // Read back rather than assumed: 240 is past the end of this frame's own
+    // sideways range at this width, and a browser clamps. What matters is that
+    // it is somewhere sideways and stays there.
+    const sideways = await measureAgreement(page);
+    expect(sideways.frameScrollLeft, 'the frame did not scroll sideways at all').toBeGreaterThan(0);
+
     await wheelOver(page, '[data-table-frame]', 8 * 28);
     const scrolled = await measureAgreement(page);
 
@@ -372,7 +378,9 @@ test.describe('the plan and its chart as one surface', () => {
     expect(Math.abs(scrolled.cutInChart - scrolled.cutInTable)).toBeLessThanOrEqual(A_ROW_APART);
     // The frame kept the columns it was scrolled to, and the calendar did not
     // move under a caption that names the month at its left edge.
-    expect(scrolled.frameScrollLeft, 'the table lost the columns it was scrolled to').toBe(240);
+    expect(scrolled.frameScrollLeft, 'the table lost the columns it was scrolled to').toBe(
+      sideways.frameScrollLeft,
+    );
     expect(scrolled.panelScrollLeft, 'the chart was scrolled sideways by the table').toBe(0);
   });
 });
