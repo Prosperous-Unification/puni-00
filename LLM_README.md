@@ -107,6 +107,9 @@ contract: `docs/runbook-prod-deploy.md`.**
 - **`bun run e2e` reuses whatever holds 3100/3200/4200** (`reuseExistingServer: !isCi`), another
   checkout's `bun run dev` included — 66 tests green against code this tree never built,
   2026-08-09. Check what owns :4200 before believing a local green.
+- **Capacity C2 must not be deployed without C3.** `capacity-write-paths` first lets a client size
+  a team; be-01 then emits `boundBy: 'capacity'` and fe-01's `floorWordsOf` throws on it by design.
+  Merging is safe, deploying is the gate — `openspec/changes/capacity-write-paths/design.md`.
 - `.dockerignore` is **not recursive**: `**/*.db`, not `*.db`.
 - Server umask is `0002` — create sensitive files with their mode from birth, never chmod after
   (`configure.sh` does not yet honour this; see findings).
@@ -120,12 +123,9 @@ Both open findings are **prod-phase** (Dany, 2026-08-06): recorded, not pending.
 1. Rollback unimplemented. `--version` is _refused_ rather than ignored, so deploying an older
    commit means checking it out and rebuilding.
 2. `configure.sh`'s root phase never run on a fresh host; only the plan is tested.
-3. ~~A cell input's React `key` holds its value.~~ **Closed 2026-08-06:** `CellInput` assigns the
-   node's value instead of replacing the node, and holds it back while that cell is typed in.
-4. ~~Smoke calls `/internal/forward` on `be-01` directly.~~ **Closed 2026-08-06:** a backend-hop
-   probe. A gw-01 with a wrong `INTERNAL_AUTH_SECRET` passes every other check; observed.
-5. ~~Health endpoints are status flags.~~ **Closed 2026-08-06:** be-01 queries a table its
-   migrations create and gw-01 probes be-01. Uncaught still: deleting the file underneath.
+
+Findings 3–5 closed 2026-08-06, pruned here for the cap: the cell input's React `key`, the smoke's
+direct `/internal/forward`, health endpoints as status flags (a deleted DB file still passes them).
 
 Lower priority: fe/smoke health accepts any non-empty body; the WS ping passes on any first
 message _containing_ `"pong"`; drain reads a malformed metrics body as zero live sockets;
