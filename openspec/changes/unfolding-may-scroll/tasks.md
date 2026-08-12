@@ -27,11 +27,11 @@ is believed (R5). The fault numbers are `verify.md`'s.
 
 ## 3. The browser, which is the only thing that can see the scroll
 
-- [x] `opens every role at once, scrolls the frame for it, and holds the
-      pinned block`: both open at both matrix widths, the equation asserted
-      past the frame first so the scroll claim cannot go vacuous, the page
-      asserted not to scroll, and the three pinned columns measured against
-      the layout's own offsets after a real scroll. Fault 1, watched.
+- [x] One browser case for both open roles: both open at both matrix widths,
+      the equation asserted past the frame first so the scroll claim cannot go
+      vacuous, the page asserted not to scroll, and the three pinned columns
+      measured against the layout's own offsets after a real scroll. Fault 1,
+      watched.
 - [x] The one-role case keeps measuring one role: it used to rely on the
       accordion folding the other, and it folds it by hand now — by the
       button's **exact** name, because an accessible name is matched as a
