@@ -78,9 +78,10 @@ async function setDate(page: Page, label: string, day: string): Promise<void> {
  *    collapsed onto the successor's own left edge whenever the two bars
  *    touched; a not-before flag painted underneath the bar it belongs to; and a
  *    1px summary bracket. All were faults of **where** and **how heavy**, which
- *    is to say faults of pixels. The bracket outlived two redrawings and is not
- *    drawn at all since `gantt-declutter`; what is measured in its place is the
- *    row it used to stand on, which is still there and still empty.
+ *    is to say faults of pixels. The bracket outlived two redrawings and is
+ *    behind the detail switch since `declutter-one-button`; it is measured in
+ *    both states here, and the row it stands on is asserted to be there and
+ *    empty at rest either way.
  * 6. **A stroke width.** `[stroke-width:2]` in a class attribute is a string;
  *    `getComputedStyle(...).strokeWidth` is the browser's answer.
  *
@@ -320,24 +321,34 @@ async function openTheChart(
 }
 
 /**
- * Presses the arrows switch and waits for the marks it draws.
+ * Presses the detail switch and waits for the marks it draws.
  *
- * The chart opens with no arrows at all since `gantt-declutter`, so every
- * measurement of an elbow or a head has to ask for them first. The count is
- * asserted rather than assumed: a click that landed on nothing would otherwise
- * leave the assertions below measuring a chart with no arrows on it, which is
- * exactly how R5 #14 and #15 hid.
+ * The chart opens with none of the three gated families since
+ * `declutter-one-button` — no arrows, no parent brackets, no assumed bars — so
+ * every measurement of an elbow, a head, a ghost or a guessed width has to ask
+ * for them first. The counts are asserted rather than assumed: a click that
+ * landed on nothing would otherwise leave the assertions below measuring a
+ * chart with none of it on, which is exactly how R5 #14 and #15 hid.
+ *
+ * The press is also the half jsdom cannot answer at all: a real click on a
+ * button inside a sticky, z-indexed subtree of an `overflow-auto` scroller is
+ * the arrangement that has eaten clicks here twice.
  *
  * @param page The page holding the chart.
  * @param heads How many arrow heads the fixture draws once they are asked for.
  */
-async function askForTheArrows(page: Page, heads: number): Promise<void> {
+async function askForTheDetail(page: Page, heads: number): Promise<void> {
   await expect(
     page.locator('[data-gantt-arrow]'),
     'the chart drew arrows before anybody asked for them',
   ).toHaveCount(0);
-  await page.locator('[data-gantt-arrows-toggle]').click();
+  await expect(
+    page.locator('[data-gantt-detail-toggle]'),
+    'the detail switch was already pressed before this test asked',
+  ).toHaveAttribute('aria-pressed', 'false');
+  await page.locator('[data-gantt-detail-toggle]').click();
   await expect(page.locator('[data-gantt-arrow-head]')).toHaveCount(heads);
+  await expect(page.locator('[data-gantt-detail-toggle]')).toHaveAttribute('aria-pressed', 'true');
 }
 
 /** One rectangle, as the browser lays it out. */
@@ -576,15 +587,25 @@ test.describe('the chart, after the browser has scaled it', () => {
    * `d` attribute. What none of those could say is whether the ink lands
    * anywhere a reader can see it.
    *
-   * The third was the parent's ghost bar, and it is not drawn at all since
-   * `gantt-declutter` — what stands in its place here is the fact it was
-   * standing in the way of: the chart draws one row per row of the plan, the
-   * parent's among them, and the parent's is simply empty.
+   * The third was the parent's ghost bar. It is behind the detail switch since
+   * `declutter-one-button`, so this measures it in both states: absent on the
+   * chart the reader opens, drawn once asked for, and the row alignment it was
+   * standing in the middle of true either way.
    */
   test('draws the arrow head and the caret where they can be seen', async ({ page }) => {
     await seedPlan(page, nextAccount(), { estimate: PAST_THE_WEEKEND });
     await openTheChart(page);
-    await askForTheArrows(page, 1);
+
+    // The chart at rest, before anything is asked of it: no ghost on the
+    // parent's row, and one label per row of the plan all the same. Taken here
+    // rather than after the press, because the press is what draws the ghost.
+    await expect(page.locator('[data-gantt-bracket]')).toHaveCount(0);
+    await expect(page.locator('[data-assumed]')).toHaveCount(0);
+    const restingRows = await page.locator('tbody tr').count();
+    expect(restingRows, 'the seeded plan has no rows to line the chart up against').toBe(3);
+    await expect(page.locator('[data-gantt-label]')).toHaveCount(restingRows);
+
+    await askForTheDetail(page, 1);
 
     // The bar the caret belongs to, found through the caret's own row and not
     // by counting: the first attempt at this took `bars.at(1)` on the reasoning
@@ -595,15 +616,17 @@ test.describe('the chart, after the browser has scaled it', () => {
     // zero-height box cannot be overlapped. Watched, which is why the width is
     // asserted here.
     //
-    // No filter on how the bar was costed any more, and that is
-    // `gantt-declutter`'s doing: the uncosted QA slice draws no bar at all, so
-    // the row holds exactly one — and the `!== 1` below is what says so rather
-    // than a filter quietly picking the survivor.
+    // The costed bar specifically, through `:not([data-assumed])`. The detail
+    // switch is on by now, so the row holds its uncosted QA slice's bar as well
+    // — at the same workday, and since `declutter-one-button` with a real width
+    // rather than the zero one R5 #16 could not fail against. The `!== 1` below
+    // is what says the filter picked exactly one, rather than a filter quietly
+    // picking a survivor.
     const successor = await page.evaluate(() => {
       const caret = document.querySelector('[data-gantt-not-before]');
       if (caret === null) throw new Error('no not-before caret was drawn to find a row by');
       const row = caret.getAttribute('data-gantt-not-before');
-      const drawn = [...document.querySelectorAll('[data-gantt-bar]')].filter(
+      const drawn = [...document.querySelectorAll('[data-gantt-bar]:not([data-assumed])')].filter(
         (bar) =>
           Math.floor(Number(bar.getAttribute('y'))) === Number(row) &&
           bar.getBoundingClientRect().width > 0,
@@ -668,16 +691,24 @@ test.describe('the chart, after the browser has scaled it', () => {
       'the caret does not stand at the day the bar starts on',
     ).toBeLessThanOrEqual(NEARLY);
 
-    // 3. The parent's row: no mark of its own, and still a row. The plan holds
-    //    three rows — `010` and its two leaves — and the chart holds three
-    //    labels beside them, which is the alignment the table depends on and
-    //    the thing the ghost bar was standing in the middle of. Counted
+    // 3. The parent's row: the ghost the switch has just drawn, with area, on
+    //    the parent's own row — and the row count unmoved. The plan holds three
+    //    rows — `010` and its two leaves — and the chart holds three labels
+    //    beside them in both states, which is the alignment the table depends
+    //    on and the thing the ghost bar was standing in the middle of. Counted
     //    against the table rather than against a number written here: a chart
     //    that dropped the parent's row would agree with a `3` and disagree
     //    with the plan.
-    await expect(page.locator('[data-gantt-bracket]')).toHaveCount(0);
+    await expect(page.locator('[data-gantt-bracket]')).toHaveCount(1);
+    const ghost = await rectOf(page, '[data-gantt-bracket]');
+    expect(ghost.width, 'the parent’s ghost bar has no width a reader could see').toBeGreaterThan(
+      0,
+    );
+    expect(ghost.top, 'the parent’s ghost is not on the top row of the chart').toBeLessThan(
+      successor.top,
+    );
     const planRows = await page.locator('tbody tr').count();
-    expect(planRows, 'the seeded plan has no rows to line the chart up against').toBeGreaterThan(0);
+    expect(planRows, 'the seeded plan has no rows to line the chart up against').toBe(restingRows);
     await expect(page.locator('[data-gantt-label]')).toHaveCount(planRows);
 
     // 4. The paint, as the browser computed it rather than as a class
@@ -697,7 +728,7 @@ test.describe('the chart, after the browser has scaled it', () => {
       const caret = document.querySelector('[data-gantt-not-before]');
       if (caret === null) throw new Error('no not-before caret was drawn');
       const row = caret.getAttribute('data-gantt-not-before');
-      const bar = [...document.querySelectorAll('[data-gantt-bar]')].find(
+      const bar = [...document.querySelectorAll('[data-gantt-bar]:not([data-assumed])')].find(
         (each) => Math.floor(Number(each.getAttribute('y'))) === Number(row),
       );
       if (bar === undefined) throw new Error(`row ${String(row)} holds no drawn bar`);
@@ -724,16 +755,16 @@ test.describe('the chart, after the browser has scaled it', () => {
    */
   test('paints an arrow that routes off either end of the schedule', async ({ page }) => {
     await seedEdgeRoutes(page, nextAccount());
-    // The one estimated row draws the one bar, and the arrows are asked for
-    // after it: an arrow is drawn from the **rows'** own schedule, so the two
-    // uncosted rows still have routes between them with no bars under them.
+    // The one estimated row draws the one bar at rest, and the detail is asked
+    // for after it: an arrow is drawn from the **rows'** own schedule, so the
+    // two uncosted rows have routes between them either way.
     await openTheChart(page);
     // Two arrows: `020` waits for `010` and both are unestimated, so the
     // successor starts at workday 0 and the route reaches left of the
     // schedule; `040` waits for the estimated `030`, so it starts at the far
     // end of it and the route reaches right of that. Asserted inside the
     // helper, because one arrow would make half of this test vacuous.
-    await askForTheArrows(page, 2);
+    await askForTheDetail(page, 2);
 
     // 1. Every mark's box is inside the canvas it is drawn on. This is the
     //    arithmetic the padded viewBox exists for, and it is measurable here
@@ -775,13 +806,14 @@ test.describe('the chart, after the browser has scaled it', () => {
       'the left-edge arrow head is not painted at its own centre',
     ).toBe('itself');
 
-    // 3. And the switch takes both marks away again. The click is the half
+    // 3. And the switch takes every mark away again. The click is the half
     //    jsdom cannot answer: a real press on a button inside a sticky,
     //    z-indexed subtree of an overflow-auto scroller — the exact
     //    arrangement that has eaten clicks here twice (R5 #14, #15).
-    await page.locator('[data-gantt-arrows-toggle]').click();
+    await page.locator('[data-gantt-detail-toggle]').click();
     await expect(page.locator('[data-gantt-arrow]')).toHaveCount(0);
     await expect(page.locator('[data-gantt-arrow-head]')).toHaveCount(0);
+    await expect(page.locator('[data-assumed]')).toHaveCount(0);
   });
 
   /**
@@ -792,65 +824,102 @@ test.describe('the chart, after the browser has scaled it', () => {
    * away and rebuilt from storage — the session, the remembered project and the
    * preference all read at boot.
    */
-  test('opens with the arrows off, and keeps the answer through a reload', async ({ page }) => {
+  test('opens with the detail off, and keeps the answer through a reload', async ({ page }) => {
     await seedPlan(page, nextAccount(), { estimate: PAST_THE_WEEKEND });
     await openTheChart(page);
 
-    // The chart this plan opens with: bars, no arrows. Both halves, so a chart
-    // that drew nothing at all could not pass the first one alone.
+    // The chart this plan opens with: costed bars, and none of the three gated
+    // families. Both halves, so a chart that drew nothing at all could not pass
+    // the absences alone.
     await expect(page.locator('[data-gantt-bar]').first()).toBeVisible();
     await expect(page.locator('[data-gantt-arrow]')).toHaveCount(0);
-    await expect(page.locator('[data-gantt-arrows-toggle]')).toHaveAttribute(
+    await expect(page.locator('[data-gantt-bracket]')).toHaveCount(0);
+    await expect(page.locator('[data-assumed]')).toHaveCount(0);
+    await expect(page.locator('[data-gantt-detail-toggle]')).toHaveAttribute(
       'aria-pressed',
       'false',
     );
 
-    await askForTheArrows(page, 1);
+    await askForTheDetail(page, 1);
 
     await page.reload();
     await openTheChart(page, { drawn: '[data-gantt-arrow-head]' });
+    // All three families across the reload, and not the arrows alone: the
+    // stored answer is one answer about the whole chart, which is the change.
     await expect(page.locator('[data-gantt-arrow]')).toHaveCount(1);
-    await expect(page.locator('[data-gantt-arrows-toggle]')).toHaveAttribute(
+    await expect(page.locator('[data-gantt-bracket]')).toHaveCount(1);
+    await expect(page.locator('[data-assumed]')).toHaveCount(2);
+    await expect(page.locator('[data-gantt-detail-toggle]')).toHaveAttribute(
       'aria-pressed',
       'true',
     );
 
     // And off again, remembered the same way round: a preference that only
     // ever remembers "on" is a switch with one direction.
-    await page.locator('[data-gantt-arrows-toggle]').click();
+    await page.locator('[data-gantt-detail-toggle]').click();
     await expect(page.locator('[data-gantt-arrow]')).toHaveCount(0);
     await page.reload();
     await openTheChart(page);
     await expect(page.locator('[data-gantt-arrow]')).toHaveCount(0);
+    await expect(page.locator('[data-gantt-bracket]')).toHaveCount(0);
+    await expect(page.locator('[data-assumed]')).toHaveCount(0);
   });
 
   /**
-   * The bars a fresh plan draws, and the ones it no longer does.
+   * The bars a fresh plan draws at rest, and the ones one press brings back.
    *
-   * A new project lists two roles, and a leaf estimated for one of them used to
-   * draw a dashed bar for the other — two bars a row, half of them widths
-   * nobody gave. The count is the whole assertion: one bar per estimated slice,
-   * and the plan seeds exactly two.
+   * A new project lists two roles, and a leaf estimated for one of them draws a
+   * dashed bar for the other — two bars a row, half of them widths nobody gave,
+   * beside the parent's own ghost. At rest that is five marks on a three-row
+   * chart and the reader sees two; the detail switch is the one control that
+   * decides between them, which is the whole of `declutter-one-button`.
+   *
+   * The counts are the assertion, in both directions, and every drawn mark is
+   * measured for area: a count of marks is not a count of things a reader can
+   * see, which is the sixteenth check's lesson.
    */
-  test('draws a bar for the work somebody costed, and none for the rest', async ({ page }) => {
+  test('draws only costed work at rest, and every mark once the detail is asked for', async ({
+    page,
+  }) => {
     await seedPlan(page, nextAccount(), { estimate: PAST_THE_WEEKEND });
     await openTheChart(page);
 
+    /** Every drawn bar's width, as the browser lays it out. */
+    const barWidths = async (): Promise<number[]> =>
+      page
+        .locator('[data-gantt-bar]')
+        .evaluateAll((bars) => bars.map((bar) => bar.getBoundingClientRect().width));
+
     // Two leaves, each estimated for Dev alone, under a parent that draws
-    // nothing: two bars on a three-row chart. Before this change the same plan
-    // drew five — two Dev bars, two ghost QA bars and the parent's ghost.
+    // nothing: two bars on a three-row chart.
     await expect(page.locator('[data-gantt-bar]')).toHaveCount(2);
     await expect(page.locator('[data-gantt-bracket]')).toHaveCount(0);
+    await expect(page.locator('[data-assumed]')).toHaveCount(0);
     const rows = await page.locator('tbody tr').count();
     expect(rows, 'the seeded plan has no rows to line the chart up against').toBe(3);
     await expect(page.locator('[data-gantt-label]')).toHaveCount(rows);
+    expect(Math.min(...(await barWidths())), 'a drawn bar has no width at all').toBeGreaterThan(0);
 
-    // Every bar drawn has area: a count of marks is not a count of things a
-    // reader can see, which is the sixteenth check's lesson.
-    const widths = await page
-      .locator('[data-gantt-bar]')
-      .evaluateAll((bars) => bars.map((bar) => bar.getBoundingClientRect().width));
-    expect(Math.min(...widths), 'a drawn bar has no width at all').toBeGreaterThan(0);
+    await page.locator('[data-gantt-detail-toggle]').click();
+
+    // Asked for: four bars — the two Dev bars and the two uncosted QA slices —
+    // and the parent's ghost over them. Five marks where the reader saw two.
+    await expect(page.locator('[data-gantt-bar]')).toHaveCount(4);
+    await expect(page.locator('[data-assumed]')).toHaveCount(2);
+    await expect(page.locator('[data-gantt-bracket]')).toHaveCount(1);
+    // The plan and the chart still line up row for row, which is the one thing
+    // the switch is not allowed to touch.
+    await expect(page.locator('[data-gantt-label]')).toHaveCount(rows);
+    expect(await page.locator('tbody tr').count()).toBe(rows);
+    // And the marks it brought back are marks, not boxes of nothing: the
+    // assumed bars have width, and so does the ghost.
+    expect(
+      Math.min(...(await barWidths())),
+      'a bar the detail switch drew has no width at all',
+    ).toBeGreaterThan(0);
+    const ghost = await rectOf(page, '[data-gantt-bracket]');
+    expect(ghost.width, 'the parent’s ghost bar has no width at all').toBeGreaterThan(0);
+    expect(ghost.height, 'the parent’s ghost bar has no height at all').toBeGreaterThan(0);
   });
 
   test('holds the labels at the left edge with the chart scrolled fully right', async ({

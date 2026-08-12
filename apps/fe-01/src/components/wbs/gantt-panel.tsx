@@ -13,6 +13,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
 
 import {
+  ASSUMED_UNESTIMATED_WORKDAYS,
   type EstimateTrio,
   type GanttBar,
   type GanttPlan,
@@ -204,7 +205,9 @@ const HEAVIEST_STROKE_PX = 2;
  * So the drawn canvas is the schedule plus this band at either side, and the
  * viewBox says so: `-pad 0 (horizon + 2·pad) rowCount`. The coordinate contract
  * is untouched — a bar's `x` is still `earliestStart` and its `width` still its
- * drawn span, which is `duration` verbatim (design §1). What moves is where the
+ * drawn span, which for every estimated slice is `duration` verbatim (design
+ * §1; the one exception is {@link ASSUMED_UNESTIMATED_WORKDAYS}, which the
+ * horizon accounts for rather than this band). What moves is where the
  * **canvas** ends,
  * which the contract says nothing about, and the axis and the on-bar labels are
  * shifted by the same number so the workday a bar starts on is still the pixel
@@ -270,19 +273,36 @@ function arrowRoute(
 }
 
 /**
- * Where this browser remembers whether it has asked for the dependency arrows.
+ * Where this browser remembers whether it has asked for the chart's detail.
  *
  * One key for the browser, and that is where this parts from
  * `wbs.ganttHeight.<projectId>` beside it: a panel height is one plan's share of
- * one screen, while arrows on or off is an answer about a **feature** — a reader
+ * one screen, while detail on or off is an answer about a **feature** — a reader
  * who has turned sixty elbows off has turned them off, and having to say so
  * again in the next project is the fault this remembers away.
+ *
+ * `wbs.ganttDetail` and no longer `wbs.ganttArrows`, because the switch no
+ * longer answers about the arrows alone. See {@link RETIRED_ARROWS_KEY}.
  */
-const ARROWS_KEY = 'wbs.ganttArrows';
+const DETAIL_KEY = 'wbs.ganttDetail';
 
 /**
- * Whether the arrows are drawn, as this browser last said — and `false` where it
- * has never said, which is the state every reader starts in.
+ * The key the arrows-only switch wrote, for one day, between `gantt-declutter`
+ * and `declutter-one-button`.
+ *
+ * **Dropped rather than migrated**, and the difference matters: it held an
+ * answer about the arrows, and this switch draws two further families of mark
+ * with them. Reading a stored `true` across would open the chart with parent
+ * brackets and uncosted bars on it for a reader who asked for elbows — which is
+ * the clutter Dany asked to be rid of in the first place. So the answer is
+ * discarded and the key is **removed**, rather than left in storage to be
+ * puzzled over by whoever reads a browser's `localStorage` next.
+ */
+const RETIRED_ARROWS_KEY = 'wbs.ganttArrows';
+
+/**
+ * Whether the gated marks are drawn, as this browser last said — and `false`
+ * where it has never said, which is the state every reader starts in.
  *
  * The stored value is a claim, not a fact: user-editable storage read at a
  * boundary. Anything that is not a boolean takes the key with it and the switch
@@ -294,8 +314,17 @@ const ARROWS_KEY = 'wbs.ganttArrows';
  * reason: the alternative is a chart nobody can open until they clear storage by
  * hand, over a preference about a mark.
  */
-function rememberedArrows(): boolean {
-  const stored = localStorage.getItem(ARROWS_KEY);
+function rememberedDetail(): boolean {
+  // The retired key goes whatever this browser has said since, and its value is
+  // never looked at: see {@link RETIRED_ARROWS_KEY}. `removeItem` on a key that
+  // is not there is a no-op, so there is nothing to ask first.
+  //
+  // Proof: this line deleted. `drops the key the arrows switch wrote, without
+  // reading it` alone failed, `1 failed | 90 passed`, on `expected 'true' to be
+  // null` — the retired key still in storage after the chart had been opened.
+  // Watched 2026-08-12.
+  localStorage.removeItem(RETIRED_ARROWS_KEY);
+  const stored = localStorage.getItem(DETAIL_KEY);
   if (stored === null) return false;
   let claimed: unknown;
   try {
@@ -307,20 +336,44 @@ function rememberedArrows(): boolean {
   }
   // Proof: this refusal replaced by `claimed === true || (typeof claimed ===
   // 'string' && claimed !== '')`, which is what "read the claim, drop nothing"
-  // comes to. `2 failed | 90 passed`: `refuses a stored answer that is not a
-  // boolean, and drops the key` on `expected 'true' to be 'false'` — the arrows
+  // comes to. `2 failed | 89 passed`: `refuses a stored answer that is not a
+  // boolean, and drops the key` on `expected 'true' to be 'false'` — the detail
   // drawn from the string `"yes"` — and `refuses storage that is not JSON at
   // all, and drops the key` on `expected '{not json' to be null`, the unreadable
-  // key left in storage to be read again next time. Watched 2026-08-11.
+  // key left in storage to be read again next time. Watched 2026-08-11, and
+  // again over the renamed key 2026-08-12.
   if (typeof claimed !== 'boolean') {
-    localStorage.removeItem(ARROWS_KEY);
+    localStorage.removeItem(DETAIL_KEY);
     return false;
   }
   return claimed;
 }
 
 /**
- * The classes a bar carries beyond its two colours, and the one fact they say.
+ * What an unestimated slice's bar is drawn with beyond its colour: a fill it can
+ * be seen through and an outline that is not solid.
+ *
+ * Both, and not either alone. The bar has a **width nobody gave it**
+ * ({@link ASSUMED_UNESTIMATED_WORKDAYS}), so it has to be unmistakable at a
+ * glance against every estimated bar on the chart: translucent says the block is
+ * not solid ground, and the dashes say the edges are not where anybody put them.
+ * A solid bar at 35% could still read as a pale assignee colour; a dashed bar at
+ * full strength reads as a bar with a border.
+ *
+ * Arbitrary properties rather than a stylesheet for the same reason
+ * {@link BAR_RADIUS_PX} is divided by two scales: these land on an SVG element
+ * inside a non-uniformly scaled user space, and `stroke-dasharray` there is in
+ * user units unless the stroke is non-scaling — which every stroke here is.
+ *
+ * Proof: this arm of {@link barClasses} emptied, so an assumed bar was painted
+ * like a costed one. `draws no mark for a slice nobody estimated until the
+ * detail is asked for` alone failed, `1 failed | 90 passed`, on `expected '' to
+ * contain '[fill-opacity:0.35]'`. Watched 2026-08-12.
+ */
+const ASSUMED_BAR_CLASSES = '[fill-opacity:0.35] [stroke-dasharray:3_2]';
+
+/**
+ * The classes a bar carries beyond its two colours, and the two facts they say.
  *
  * The critical path is a ring rather than a fill, because the fill is the
  * assignee: it is asserted by name in `gantt-panel.test.tsx` rather than through
@@ -328,16 +381,21 @@ function rememberedArrows(): boolean {
  * one. `data-critical` rides along for the browser gate, which needs to find the
  * bar before it can measure it.
  *
- * The translucent, dashed paint an unestimated slice used to carry went with the
- * mark itself (`gantt-declutter`): every bar drawn here is a span somebody
- * costed, and there is no second kind left to tell it apart from.
+ * An unestimated bar is only ever drawn with the detail switch on, and when it
+ * is it has to be told apart from the costed bars beside it at a glance — see
+ * {@link ASSUMED_BAR_CLASSES}.
  *
  * `[stroke-width:2]` and not a border: strokes here carry
  * `vector-effect="non-scaling-stroke"`, so 2 is 2 CSS pixels at any zoom of a
  * user space measured in workdays.
  */
-function barClasses(critical: boolean): string {
-  return critical ? 'stroke-foreground [stroke-width:2]' : '';
+function barClasses(critical: boolean, estimated: boolean): string {
+  return [
+    critical ? 'stroke-foreground [stroke-width:2]' : '',
+    estimated ? '' : ASSUMED_BAR_CLASSES,
+  ]
+    .filter((part) => part !== '')
+    .join(' ');
 }
 
 /**
@@ -460,9 +518,9 @@ export function barLabelFor(personName: string | null, drawnSpan: number): strin
  * The whole of what a bar writes on itself: who, then the row's own words.
  *
  * `who` is the assignee reading the width already decided — a name, initials,
- * or null when nobody fits or nobody is on it — and the row words follow it
- * always, because sixty anonymous colours was the fault this label exists to
- * remove. The string is **not**
+ * the assumed bar's `?`-carrying candidate, or null when nobody fits or nobody
+ * is on it — and the row words follow it always, because sixty anonymous
+ * colours was the fault this label exists to remove. The string is **not**
  * measured against the bar: the label box is the bar's width and crops with an
  * ellipsis, so a narrow bar shows as much of the words as it has pixels for
  * rather than none of them.
@@ -479,6 +537,33 @@ export function barLabelFor(personName: string | null, drawnSpan: number): strin
 export function barText(who: string | null, words: string, drawnSpan: number): string | null {
   if (drawnSpan * DAY_PX - 2 * LABEL_PAD_PX < LABEL_CHAR_PX) return null;
   return who === null ? words : `${who} · ${words}`;
+}
+
+/**
+ * What an unestimated bar writes on itself: the `?` always, and whoever is on it
+ * if there is room for them too.
+ *
+ * The `?` is the point and is never dropped for the name: this bar's width is
+ * {@link ASSUMED_UNESTIMATED_WORKDAYS} and not an estimate, and a bar that says
+ * `Kat` and nothing else is a bar claiming two days of Kat's time. So the
+ * candidates are tried longest-first and the bare `?` is the last of them —
+ * which at two workdays always fits, and is what a bar drawn narrower than that
+ * would fall back to.
+ *
+ * Null rather than an empty string, for {@link barLabelFor}'s reason: a caller
+ * cannot render a label that is there and blank.
+ *
+ * Proof: the call site swapped for {@link barLabelFor}, so an assumed bar wrote
+ * the assignee and the row words and nothing about being a guess. `draws no
+ * mark for a slice nobody estimated until the detail is asked for` alone
+ * failed, `1 failed | 90 passed`, on `expected 'Kat · sand - sand' to contain
+ * '?'`. Watched 2026-08-12.
+ */
+export function assumedLabelFor(personName: string | null, drawnSpan: number): string | null {
+  const room = drawnSpan * DAY_PX - 2 * LABEL_PAD_PX;
+  const who = personName === null ? '' : personName.trim();
+  const candidates = who === '' ? ['?'] : [`${who} · ?`, `${initialsOf(who)} · ?`, '?'];
+  return candidates.find((label) => room >= label.length * LABEL_CHAR_PX) ?? null;
 }
 
 /**
@@ -638,8 +723,17 @@ function dayWords(days: number): string {
   return `${shown} ${shown === '1' ? 'day' : 'days'}`;
 }
 
-/** How long a bar runs, in words. Every drawn bar is a span somebody costed. */
-const durationWords = (bar: GanttBar): string => dayWords(bar.duration);
+/**
+ * How long a bar runs, and what an unestimated slice says instead of a length.
+ *
+ * Proof: the not-estimated arm dropped, so a guessed width read as `0 days` —
+ * the engine's own finish-where-it-starts printed as a fact. `draws no mark for
+ * a slice nobody estimated until the detail is asked for` alone failed,
+ * `1 failed | 90 passed`, on `expected '…14 Aug → 14 Aug · 0 days…' to contain
+ * 'not estimated'`. Watched 2026-08-12.
+ */
+const durationWords = (bar: GanttBar): string =>
+  bar.estimated ? dayWords(bar.duration) : 'not estimated';
 
 /** The service team a bar is labelled with, in words, absences included. */
 function teamWords(team: ServiceTeamLabel): string {
@@ -697,6 +791,18 @@ export function barFacts(bar: GanttBar, startDate: IsoDate | null, today: Date):
     `${bar.roleName ?? 'No role'} · ${bar.personName ?? 'Unassigned'}`,
     teamWords(bar.team),
     `${spanWords(startDate, bar.start, bar.finish, today)} · ${durationWords(bar)}`,
+    // A line of its own rather than a word tucked into the duration: the bar is
+    // drawn a width nobody gave it, and the sentence that says so has to be as
+    // findable as the dates above it. See {@link ASSUMED_UNESTIMATED_WORKDAYS}.
+    // Only ever reached with the detail switch on, which is the only state an
+    // unestimated slice has a bar to say anything about itself in.
+    //
+    // Proof: this line deleted, so the width nobody gave was stated nowhere but
+    // in the paint. `draws no mark for a slice nobody estimated until the detail
+    // is asked for` alone failed, `1 failed | 90 passed`, on the accessible name
+    // no longer containing `Not estimated — drawn as 2 days`. Watched
+    // 2026-08-12.
+    bar.estimated ? null : `Not estimated — drawn as ${dayWords(ASSUMED_UNESTIMATED_WORKDAYS)}`,
     trioWords(bar.trio),
     bar.critical ? 'On the critical path — no float' : `Float ${dayWords(bar.float)}`,
     // Only where somebody set one. Unranked is a state of its own, and a line
@@ -756,11 +862,16 @@ function notBeforeWords(startDate: IsoDate | null, offset: number): string {
  * drawing is the scale's, and the difference between them is what says the
  * conversion happened.
  *
- * **Only costed work is drawn.** A slice nobody has estimated has no bar, no
- * tick and no label, and a parent's row has no mark of its own: both used to be
- * drawn and both were read as clutter (`gantt-declutter`). Every row is still on
- * the chart at its own index — the chart's row `N` stands beside the plan's row
- * `N` — and every width drawn is one somebody gave. See {@link drawnBars}.
+ * **At rest, only costed work is drawn.** A slice nobody has estimated has no
+ * bar, no tick and no label, a parent's row has no mark of its own, and no
+ * dependency arrow is drawn: all three were read as clutter (`gantt-declutter`),
+ * and `declutter-one-button` put all three behind **one** switch rather than
+ * two mechanisms. Pressed, it draws each family as it was drawn before that
+ * change; unpressed — the state every reader starts in — the chart is costed
+ * bars, their labels, the hand-offs between them and the carets over them.
+ * Every row is on the chart at its own index in **both** states: the chart's row
+ * `N` stands beside the plan's row `N`, and nothing the switch does moves a
+ * coordinate. See {@link drawnBars}.
  *
  * **The words are not marks.** The dates a bar and a caret say are
  * `addWorkdays`/{@link lastWorkdayOf} on the engine's workday numbers and are
@@ -893,14 +1004,17 @@ function GanttChart({
   // How far the chart is scrolled, in CSS pixels. Held only so the caption can
   // name the month actually on screen.
   const [scrolledPx, setScrolledPx] = useState(0);
-  // Whether the stored-dependency arrows are drawn. Off until somebody asks,
-  // and their answer outlives the panel: sixty elbows bury the bars they join,
-  // the honest fix to their shape is not designed yet, and a reader who has
-  // turned them off should not have to do it again on the next read. Read
-  // straight into the initial state rather than in an effect, exactly as the
-  // panel height is: an effect would draw every arrow for one frame and then
-  // take them away. Never shared, never touching the plan.
-  const [arrowsShown, setArrowsShown] = useState(rememberedArrows);
+  // Whether the chart's detail is drawn: the stored-dependency arrows, the
+  // parent rows' summary brackets and the unestimated slices' assumed bars, all
+  // three together. Off until somebody asks, and their answer outlives the
+  // panel — sixty elbows and forty ghosts bury the bars they stand among, and a
+  // reader who has turned them off should not have to do it again on the next
+  // read. **One** answer and not three: Dany asked for "all decluttering into
+  // one button" (2026-08-12), so there is no per-family state to disagree with
+  // itself. Read straight into the initial state rather than in an effect,
+  // exactly as the panel height is: an effect would draw every mark for one
+  // frame and then take them away. Never shared, never touching the plan.
+  const [detailShown, setDetailShown] = useState(rememberedDetail);
   const [open, setOpen] = useState<OpenSurface | null>(null);
   // The axis's own open card: which cell, and the rectangle it was placed
   // against. Separate from the bars' state and mutually exclusive with it —
@@ -961,42 +1075,54 @@ function GanttChart({
    */
   const placed = startDate === null ? placeOnWorkdays(chart) : placeOnCalendar(chart, startDate);
   /**
-   * The bars that are drawn: the slices somebody costed, and nothing else.
+   * The bars that are drawn: every placed bar with the detail asked for, and
+   * the slices somebody costed alone without it.
    *
-   * A slice nobody has estimated used to be drawn across an assumed span of two
+   * A slice nobody has estimated is drawn across an assumed span of two
    * workdays, translucent and dashed and carrying a `?`. On a fresh plan that is
    * most of the chart — two roles a leaf, one of them nearly always uncosted, so
-   * ten rows drew twenty bars and half of them were a width nobody gave (Dany,
-   * 2026-08-11: "remove … unestimated QA bars"). Where unestimated work is found
-   * is the plan's own `?` cells, which is a place that can say how many there
-   * are; a chart cannot.
+   * ten rows draw twenty bars and half of them are a width nobody gave (Dany,
+   * 2026-08-11: "remove … unestimated QA bars"). At rest they are not drawn, and
+   * where unestimated work is found is the plan's own `?` cells, which is a
+   * place that can say how many there are; a chart cannot. Asked for, they come
+   * back whole — the reader who wants to see what has not been costed yet says
+   * so with the one switch that says it about everything.
    *
    * One list, read by the rects, the ticks and the on-bar labels alike, so the
    * three cannot come to different answers about which bars exist.
    *
-   * The filtering is here and not in {@link layOutGantt}: `placed.horizon` still
-   * contains the assumed span, so the canvas and the axis are the same width
-   * they were, and this change moves no coordinate of anything.
+   * The narrowing is here and not in {@link layOutGantt}: `placed.horizon`
+   * contains the assumed span either way, so the canvas and the axis are one
+   * width in both states and the switch moves no coordinate of anything.
    *
-   * Proof: the filter dropped (`placed.bars` taken whole), which is the chart
-   * as it was. `4 failed | 85 passed` — `draws no mark at all for a slice
-   * nobody estimated`, `draws the width it is given and says the numbers it was
-   * sent`, `marks a zero-day estimate with a tick, and an unestimated one with
-   * nothing` and `draws no hand-off line to a slice that is not drawn`, each on
-   * an `SVGElement` where the test asserts null. Watched 2026-08-11.
+   * Proof, both directions, watched 2026-08-12. Pinned to `placed.bars` — the
+   * uncosted slice drawn at rest — `6 failed | 85 passed`: the five tests that
+   * assert a mark is absent, each on `expected SVGElement{…} to be null`, and
+   * `the detail switch`'s own case on `expected 1 to be +0` for the assumed
+   * count. Pinned to the filtered arm — the switch drawing nothing new —
+   * `7 failed | 84 passed`: four of them on {@link askForTheDetail}'s own throw,
+   * `the detail switch was pressed and nothing arrived at [data-assumed]`, and
+   * three on `expected +0 to be 1` / `expected undefined to be 'true'`.
    */
-  const drawnBars = placed.bars.filter(({ bar }) => bar.estimated);
+  const drawnBars = detailShown ? placed.bars : placed.bars.filter(({ bar }) => bar.estimated);
   /**
    * The hand-offs whose both ends are on the chart.
    *
-   * A person link is drawn from one bar to another, so a link onto a slice
-   * nobody estimated would now run to a point on an empty row: a dashed line
-   * pointing at nothing, which is worse than no line.
+   * A person link is drawn from one bar to another, so a link onto a slice that
+   * is not drawn would run to a point on an empty row: a dashed line pointing at
+   * nothing, which is worse than no line.
    *
-   * Proof: this filter deleted, `placed.personLinks` drawn whole. `draws no
-   * hand-off line to a slice that is not drawn` alone failed, `1 failed | 88
-   * passed`, on an `SVGElement` where the link to the undrawn slice is asserted
-   * null. Watched 2026-08-11.
+   * Read off {@link drawnBars} and **not** gated on the switch of its own, which
+   * would be a branch nothing could see: with the detail on every placed bar is
+   * drawn, so this filter passes every link, and a `detailShown ? …` here would
+   * have an arm no test could tell from the one beside it. The rule is about
+   * what is on the chart, and the chart is what it reads.
+   *
+   * Proof: this filter deleted, `placed.personLinks` drawn whole. `2 failed |
+   * 89 passed` — `draws no hand-off line to a slice that is not drawn` on an
+   * `SVGElement` where the link to the undrawn slice is asserted null, and `the
+   * detail switch`'s own case on `expected 2 to be 1` for the link count at
+   * rest. Watched 2026-08-11, and again on this branch 2026-08-12.
    */
   const drawnLinks = placed.personLinks.filter(
     (link) =>
@@ -1004,26 +1130,38 @@ function GanttChart({
       drawnBars.some(({ bar }) => bar.sliceId === link.toSliceId),
   );
   /**
-   * The not-before carets whose row has a bar to stand over.
+   * The not-before carets that have something to stand over.
    *
    * The same reasoning as {@link drawnLinks}, one mark along: the caret is
    * drawn in the clear band **above** the bar its row starts with, so on a row
-   * that now draws nothing — a parent, or a leaf nobody estimated — it is a
+   * that draws nothing — a parent, or a leaf nobody estimated — it is a
    * triangle floating over an empty track. `layOutGantt` collects the flag
    * before it asks whether the row is a leaf and before any slice is costed,
    * which is right for the geometry and wrong for the paint.
    *
+   * Gated on the switch and **not** left to {@link drawnBars} alone, which is
+   * where this parts from {@link drawnLinks}: a parent's row draws a bracket
+   * with the detail on and never a bar, so a filter written over the bars would
+   * go on hiding its caret in the one state where the row is not empty. With the
+   * detail on, every row carrying a date draws something — which is the rule as
+   * it stood before `gantt-declutter`.
+   *
    * By **row** and not by slice: a not-before holds the work item, not one of
    * its roles, so any drawn bar on the row is a bar for the caret to sit over.
    *
-   * Proof: this filter deleted, `placed.notBeforeFlags` drawn whole. `draws no
-   * not-before caret on a row that draws no bar` alone failed, `1 failed | 89
-   * passed`, on an `SVGElement` where the parent's caret is asserted null — the
-   * triangle back over its empty row. Watched 2026-08-11.
+   * Proof, both directions, `2 failed | 89 passed` each way and watched
+   * 2026-08-12. Pinned to `placed.notBeforeFlags` — the caret back over the
+   * empty row — `draws no not-before caret on a row that draws no bar until the
+   * detail is asked for` on `expected SVGElement{…} to be null`, and `the detail
+   * switch` on `expected 3 to be 1` at rest. Pinned to the filtered arm — the
+   * switch leaving the empty rows' carets off — the same two, on `expected
+   * <path …(3)><title></title></path>` not to be null and `expected 2 to be 3`.
    */
-  const drawnFlags = placed.notBeforeFlags.filter((flag) =>
-    drawnBars.some(({ bar }) => bar.rowIndex === flag.rowIndex),
-  );
+  const drawnFlags = detailShown
+    ? placed.notBeforeFlags
+    : placed.notBeforeFlags.filter((flag) =>
+        drawnBars.some(({ bar }) => bar.rowIndex === flag.rowIndex),
+      );
   const axis =
     startDate === null ? workdayAxis(placed.horizon) : calendarAxis(startDate, placed.horizon);
   // How many cells the axis holds — every whole day of the schedule. Read off
@@ -1128,19 +1266,28 @@ function GanttChart({
               })()}
             </span>
             {/*
-              The arrows switch, in the one corner that is sticky both ways —
+              The detail switch, in the one corner that is sticky both ways —
               `left-0` from the label column, `top-0` of its own, like the axis
               beside it: it has to stay reachable however far a 60-row chart
               has scrolled, in either direction.
               `aria-pressed` is the state — a toggle, not two buttons.
+
+              `Detail` and no longer `Arrows`: it draws three families of mark
+              and naming one of them was a label that lied about the other two.
+              Six characters, which is what the corner beside the month caption
+              has room for — the `title` is where the three are named.
             */}
             <button
               type="button"
-              data-gantt-arrows-toggle
-              aria-pressed={arrowsShown}
-              title={arrowsShown ? 'Hide dependency arrows' : 'Show dependency arrows'}
+              data-gantt-detail-toggle
+              aria-pressed={detailShown}
+              title={
+                detailShown
+                  ? 'Hide the arrows, the parent bars and the unestimated slices'
+                  : 'Show the arrows, the parent bars and the unestimated slices'
+              }
               className={
-                arrowsShown
+                detailShown
                   ? 'border-border hover:bg-accent rounded border px-1 normal-case'
                   : 'border-border hover:bg-accent text-muted-foreground/60 rounded border border-dashed px-1 normal-case line-through'
               }
@@ -1148,24 +1295,24 @@ function GanttChart({
                 // The next answer worked out here, beside the write, and the
                 // setter given a value rather than a function: a state updater
                 // React may call twice is no place for a side effect, and the
-                // rendered `arrowsShown` is the only answer a click on this
+                // rendered `detailShown` is the only answer a click on this
                 // switch can be flipping.
-                const asked = !arrowsShown;
+                const asked = !detailShown;
                 // Written here and nowhere else, so opening a chart never
                 // changes what is remembered about it — the same bargain
                 // `rememberGanttHeight` makes with a drag that is let go of.
                 //
                 // Proof: this line deleted, so the answer lived in the hook
-                // alone. `opens with the arrows a fresh panel is remounted
-                // onto` alone failed, `1 failed | 89 passed`, on `expected
+                // alone. `opens with the detail a fresh panel is remounted
+                // onto` alone failed, `1 failed | 90 passed`, on `expected
                 // 'false' to be 'true'` — the switch back off on the next
-                // mount. Watched 2026-08-11, and again after the write moved
-                // out of the updater above.
-                localStorage.setItem(ARROWS_KEY, JSON.stringify(asked));
-                setArrowsShown(asked);
+                // mount. Watched 2026-08-11 over the arrows key, and again
+                // 2026-08-12 over this one.
+                localStorage.setItem(DETAIL_KEY, JSON.stringify(asked));
+                setDetailShown(asked);
               }}
             >
-              Arrows
+              Detail
             </button>
           </div>
           {chart.labels.map((label: GanttRowLabel) => (
@@ -1340,26 +1487,47 @@ function GanttChart({
               ))}
 
               {/*
-                A parent's row draws **nothing**, and that is a decision rather
-                than an omission (`gantt-declutter`, Dany: "remove … transparent
-                bars of parent items"). Its projection is the span its children's
-                own bars already cover, so the ghost bar restated a fact the row
-                below it was making — and on a plan of sixty rows the restatement
-                is most of the ink. The row itself stays: `chart.labels` still
-                holds it, the label rail still names it, and the chart's row `N`
-                still stands beside the plan's row `N`, which is what the browser
-                gate measures.
+                A summary row's span, drawn as the **ghost of a bar**: the same
+                rounded shape a leaf gets, in the page's own ink at low opacity
+                and unstroked, so it reads as the projection of the rows
+                beneath it rather than as work of its own. It used to be a 2px
+                bracket with dropped legs, which read as a scratch (Dany,
+                2026-08-09). The span is still the projection be-01 computed —
+                `from`/`to` are the bracket readings `placeGantt` already
+                makes, never a sum of children — and the hook keeps the
+                bracket's name so the browser gate goes on measuring the same
+                fact.
 
-                `placed.brackets` is still computed and still feeds the horizon
-                in `gantt-geometry.ts`. Nothing about the placement changed, so
-                nothing about anybody else's coordinates did either.
+                **Behind the switch**, which is the whole of `declutter-one-button`
+                here: the ghost restates a span its children's own bars already
+                draw, and on a plan of sixty rows the restatement is most of the
+                ink — so at rest a parent's row draws nothing at all. The row
+                itself stays either way: `chart.labels` holds it, the label rail
+                names it, and the chart's row `N` stands beside the plan's row
+                `N`, which is what the browser gate measures.
 
-                Proof that the mark is really gone: the ghost rect's block put
-                back. `3 failed | 86 passed` — `draws no mark of its own on a
-                parent's row`, `leaves a zero-projection parent's row empty…`
-                and `puts the bar, the caret, the tick, the axis cell and the
-                label on day 7`, each on `expected <rect …(6)></rect> to have a
-                length of +0 but got 1`. Watched 2026-08-11.
+                `placed.brackets` is computed in both states and feeds the
+                horizon in `gantt-geometry.ts`, so the switch moves no
+                coordinate of anything.
+
+                Proof of the paint: the class made `fill-foreground` whole — a
+                parent drawn as solid ink. `draws a parent as the ghost of a
+                bar` alone failed, on `expected 'fill-foreground' to contain
+                'fill-foreground/15'`. Watched 2026-08-09.
+
+                Proof of the gate, both directions, `6 failed | 85 passed` each
+                way and watched 2026-08-12. `detailShown &&` dropped from both
+                blocks and the mark came back at rest: `leaves a zero-projection
+                parent's row empty until the detail is asked for` on `expected
+                <line …(7)></line> to have a length of +0 but got 1`, `draws no
+                mark of its own on a parent's row until the detail is asked for`
+                on the same for the `<rect>`, and four counts in `the detail
+                switch` on `expected 1 to be +0`. Replaced by `false &&`, and the
+                switch drew nothing: `puts the bar, the caret, the tick, the axis
+                cell and the label on day 7` on `nothing on the chart at
+                [data-gantt-bracket="hull"]`, three on
+                {@link askForTheDetail}'s own throw, and two on `expected +0 to
+                be 1`.
 
                 Proof that the row stays: the tempting next step — a row that
                 draws nothing left off the chart — injected as `rowCount` and
@@ -1370,6 +1538,57 @@ function GanttChart({
                 `the chart mirrors the plan`'s cases with them on lists missing
                 `010 - Hull`. Watched 2026-08-11.
               */}
+              {detailShown &&
+                placed.brackets
+                  .filter((bracket) => bracket.to > bracket.from)
+                  .map((bracket) => (
+                    <rect
+                      key={bracket.rowId}
+                      data-gantt-bracket={bracket.rowId}
+                      x={bracket.from}
+                      width={bracket.to - bracket.from}
+                      y={bracket.rowIndex + BAR_INSET}
+                      height={BAR_HEIGHT}
+                      rx={BAR_RADIUS_PX / DAY_PX}
+                      ry={BAR_RADIUS_PX / ROW_PX}
+                      className="fill-foreground/15"
+                    />
+                  ))}
+
+              {/*
+                A parent whose projection has no days — every child unestimated
+                — is a modeled state, not a missing row, and a zero-width rect
+                is no mark at all. The same answer the leaves give a zero-day
+                slice: a tick where the branch stands. The bracket path this
+                mark replaced stayed visible at zero span through its stroke,
+                so the tick is what keeps that true of the ghost.
+
+                Behind the same switch as the rect above, for the same reason
+                and by the same `detailShown` — the two are one mark with two
+                shapes, and a state where a branch of no days drew a tick while
+                a branch of some days drew nothing would be a chart nobody
+                designed.
+
+                Proof: this block deleted, so a zero-span parent drew the
+                zero-width rect above. `still marks a parent whose projection
+                has no days` alone failed, `1 failed | 52 passed`, on the mark
+                not being there. Watched 2026-08-09.
+              */}
+              {detailShown &&
+                placed.brackets
+                  .filter((bracket) => bracket.to <= bracket.from)
+                  .map((bracket) => (
+                    <line
+                      key={bracket.rowId}
+                      data-gantt-bracket={bracket.rowId}
+                      x1={bracket.from}
+                      y1={bracket.rowIndex + BAR_INSET}
+                      x2={bracket.from}
+                      y2={bracket.rowIndex + BAR_INSET + BAR_HEIGHT}
+                      className="stroke-foreground/40"
+                      vectorEffect="non-scaling-stroke"
+                    />
+                  ))}
 
               {/*
                 A stored dependency: an elbow that always arrives horizontally at
@@ -1382,12 +1601,13 @@ function GanttChart({
                 paths of one mark, and hiding one alone leaves a floating
                 triangle pointing at nothing.
 
-                Proof: the `arrowsShown &&` moved onto the elbow alone. `hides
-                every arrow and its head, and touches nothing else` alone
-                failed, on `expected 1 to be +0` for the head count. Watched
-                2026-08-09.
+                Proof: the `detailShown &&` moved onto the elbow alone. `opens
+                with none of the three families, and draws all of them when
+                asked` alone failed, `1 failed | 90 passed`, on `expected 1 to
+                be +0` for the head count at rest. Watched 2026-08-09 as
+                `arrowsShown`, and again 2026-08-12 over this gate.
               */}
-              {arrowsShown &&
+              {detailShown &&
                 placed.arrows.map((arrow) => {
                   const route = arrowRoute(arrow, drawnBars);
                   const id = `${arrow.predecessorId}->${arrow.successorId}`;
@@ -1479,26 +1699,42 @@ function GanttChart({
                   // the edge should line up with.
                   data-last-day={lastWorkdayOf(bar.start, bar.finish)}
                   {...(bar.critical ? { 'data-critical': 'true' } : {})}
+                  // The bar whose width is an assumption, findable as such. The
+                  // styling below is what a reader sees; this is what the
+                  // browser gate selects on, and it has to tell a drawn span
+                  // from a measured one before it measures anything. Only ever
+                  // in the document with the detail switch on.
+                  //
+                  // Proof: this hook dropped. `7 failed | 84 passed` —
+                  // four on {@link askForTheDetail}'s own throw, `the detail
+                  // switch was pressed and nothing arrived at [data-assumed]`,
+                  // and three on `expected null to be 'true'` /
+                  // `expected +0 to be 1`. Watched 2026-08-12.
+                  {...(bar.estimated ? {} : { 'data-assumed': 'true' })}
                   x={x}
                   // The **drawn** span in calendar days — the end reading of
                   // the drawn finish less the start reading of the start, so a
                   // bar working through a weekend is drawn across it and one
-                  // stopping on the Friday stops at the Saturday. Read off the
-                  // placement rather than recomputed from the engine's
-                  // `finish`, which is a workday number and not a calendar one.
+                  // stopping on the Friday stops at the Saturday. Never a span
+                  // from the engine's `finish`: an unestimated slice finishes
+                  // where it starts, and that width is no bar at all.
                   width={width}
                   y={bar.rowIndex + BAR_INSET}
                   height={BAR_HEIGHT}
                   rx={BAR_RADIUS_PX / DAY_PX}
                   ry={BAR_RADIUS_PX / ROW_PX}
-                  // Who is on it.
+                  // Who is on it — an unestimated slice included, at 35% through
+                  // {@link ASSUMED_BAR_CLASSES}. It used to be hollow, which was
+                  // honest about the length and cost the reader the assignee;
+                  // now it keeps the person and says "guessed" in how it is
+                  // painted rather than by having no paint.
                   fill={bar.personColor}
                   // The critical path is the **outline**, because the fill is
                   // already saying who. A ring in the foreground colour rather
                   // than the destructive one: `#d62728` is the fourth person's
                   // colour, and a red ring on a red bar is no ring at all.
                   stroke={bar.critical ? undefined : bar.personColor}
-                  className={barClasses(bar.critical)}
+                  className={barClasses(bar.critical, bar.estimated)}
                   vectorEffect="non-scaling-stroke"
                   // A control, because it is one: it takes the keyboard, it has
                   // a name, and Enter and Space act on it. The role is what
@@ -1559,8 +1795,14 @@ function GanttChart({
               costed this work at nothing — and a zero-width rect draws nothing
               at all, so the tick is where it starts and the row does not read as
               empty. Drawn from {@link drawnBars} like the rects above, so the
-              slice that has no bar has no tick either: nobody estimating a slice
-              is not the same answer as somebody estimating it at zero
+              slice that has no bar has no tick either.
+
+              `drawnSpan` and not `duration`, which is what keeps the tick the
+              zero-day estimate's alone: an unestimated slice's drawn span is
+              {@link ASSUMED_UNESTIMATED_WORKDAYS}, so with the detail on it
+              draws its own bar here and never a tick, and with the detail off it
+              is not in {@link drawnBars} to draw either. Nobody estimating a
+              slice is not the same answer as somebody estimating it at zero
               (`expectedDays({0,0,0})` is 0, and
               `libs/domain/src/estimate.test.ts` says so).
             */}
@@ -1594,12 +1836,15 @@ function GanttChart({
               and a span on top would swallow it in its middle.
             */}
             {drawnBars.map(({ bar, x, width }) => {
-              // Who is on the bar, in whatever room it has. The room is the
-              // **drawn** width, weekend cells included: a bar stretched over a
-              // Saturday has those pixels to write in. The row's own words
-              // follow and are cropped by the box, not the string — see
-              // {@link barText}.
-              const who = barLabelFor(bar.personName, width);
+              // An unestimated bar writes the `?` its width is a guess about —
+              // see {@link assumedLabelFor} — and an estimated one writes who is
+              // on it. The room is the **drawn** width, weekend cells included:
+              // a bar stretched over a Saturday has those pixels to write in.
+              // The row's own words follow either answer and are cropped by
+              // the box, not the string — see {@link barText}.
+              const who = bar.estimated
+                ? barLabelFor(bar.personName, width)
+                : assumedLabelFor(bar.personName, width);
               const shown = barText(who, rowWords(bar.workItemNumber, bar.workItemName), width);
               if (shown === null) return null;
               return (
@@ -1607,12 +1852,19 @@ function GanttChart({
                   key={`${bar.sliceId}-label`}
                   data-gantt-bar-label={bar.sliceId}
                   aria-hidden="true"
-                  className="pointer-events-none absolute overflow-hidden text-[9px] font-semibold text-ellipsis whitespace-nowrap"
+                  className={
+                    bar.estimated
+                      ? 'pointer-events-none absolute overflow-hidden text-[9px] font-semibold text-ellipsis whitespace-nowrap'
+                      : // The page's own ink on an assumed bar: `inkOn` picks a
+                        // colour to be read on a **solid** fill, and this one is
+                        // 35% of that colour over whatever the page is.
+                        'text-foreground pointer-events-none absolute overflow-hidden text-[9px] font-semibold text-ellipsis whitespace-nowrap'
+                  }
                   style={{
                     // Dark ink on the three light entries of the palette and
                     // white on the other seven, never one white for all ten.
                     // See {@link inkOn}.
-                    color: inkOn(bar.personColor),
+                    ...(bar.estimated ? { color: inkOn(bar.personColor) } : {}),
                     // Over the SVG, which now begins one band left of the
                     // schedule: the label's pixel is the bar's pixel only with
                     // the same band added. See {@link CHART_PAD_PX}.

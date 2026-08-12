@@ -298,11 +298,12 @@ export interface GanttRowLabel {
  * drawn between them. Only {@link GanttBar.drawnSpan} and the horizon that has
  * to contain it know about this number.
  *
- * Since `gantt-declutter` no unestimated bar is painted at all — the panel
- * filters them out (`drawnBars`), and the dashed translucent outline and the
- * `?` that used to say the span was a guess went with them. What is left of
- * this constant is the width the horizon still reserves, so removing the mark
- * moved no coordinate of anything beside it.
+ * Whether an unestimated bar is painted at all is the detail switch's answer
+ * (`declutter-one-button`): the panel narrows this list to the estimated slices
+ * at rest and takes it whole once the switch is pressed (`drawnBars`), and the
+ * dashed translucent outline and the `?` that say the span is a guess come with
+ * the mark. The horizon reserves this width in **both** states, which is what
+ * makes the switch a decision about paint and not about layout.
  */
 export const ASSUMED_UNESTIMATED_WORKDAYS = 2;
 
@@ -565,10 +566,10 @@ export function calendarScale(startDate: IsoDate): CalendarScale {
  * unestimated slice has `finish === start`, and a width from that is a mark of
  * no area at all.
  *
- * Placed is not drawn: since `gantt-declutter` the panel filters this list to
- * the estimated slices before it renders anything (`drawnBars`), so an
- * unestimated bar is a box this module still sizes — and the horizon still
- * reaches — that nothing paints.
+ * Placed is not drawn: the panel narrows this list to the estimated slices
+ * before it renders anything unless the detail switch is on (`drawnBars`), so
+ * at rest an unestimated bar is a box this module still sizes — and the horizon
+ * still reaches — that nothing paints.
  */
 export interface PlacedBar {
   bar: GanttBar;
@@ -578,10 +579,11 @@ export interface PlacedBar {
 
 /**
  * A parent's bracket as it is placed: the two ends of its projection, on the
- * calendar. **Nothing draws it.** `gantt-declutter` took the ghost bar off the
- * parent rows; the span is still computed here so the horizon and the layout
- * tests that measure it are unmoved, and so the mark can come back without the
- * geometry being rewritten for it.
+ * calendar. **Drawn only with the detail switch on** — `gantt-declutter` took
+ * the ghost bar off the parent rows and `declutter-one-button` put it behind
+ * that one switch with the arrows and the assumed bars. The span is computed
+ * here either way, so the horizon and the layout tests that measure it are
+ * unmoved whichever way the switch is set.
  */
 export interface PlacedBracket {
   rowId: string;
