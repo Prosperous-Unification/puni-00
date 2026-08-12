@@ -3,8 +3,11 @@
 Branch `change/capacity-engine`, cut from `main` @ `e3918f6` (#41 critical-snap,
 #42 dep-add-button, #43 priority-column, #44 gantt-declutter, #45
 dep-waits-on-first-role, #46 priority-commit-polish all merged) on 2026-08-12,
-then rebased onto `main` @ `10fb1ae` (#47 arrow-dodge) before merge, with zero
-conflicts — the two change sets share no file.
+then rebased twice before merge as the fe track landed — onto `10fb1ae` (#47
+arrow-dodge) and onto `704eba9` (#49 table-mechanics) — with zero conflicts
+either time. Neither merged change shares a file with this one: everything they
+touch is `apps/fe-01` and its own `openspec/changes` folder, everything here is
+`apps/be-01`, `libs/domain` and `openspec/changes/capacity-engine`.
 
 be-01's schema, adapter and engine, plus one export from `libs/domain`. Two
 additive migrations with their rollbacks. No gw-01 change, no fe-01 change and
@@ -24,7 +27,10 @@ fixes: run
 [31607612227](https://github.com/Prosperous-Unification/wbs-tool-v1/actions/runs/31607612227)
 at head `8fcdf40` — `gate` 3m36s, `pixels` 7m55s — and run
 [31608505600](https://github.com/Prosperous-Unification/wbs-tool-v1/actions/runs/31608505600)
-at head `82cf12b`, `gate` 3m32s and `pixels` green on a rerun. That rerun is
+at head `82cf12b`, `gate` 3m32s and `pixels` green on a rerun. The second rebase
+has rewritten both of those SHAs; it moved no file, so the trees they ran on
+differ from the merged one only by #49's fe-01 commits, and the run on the final
+head is the one PR #48's checks show green. That rerun is
 worth the sentence: `pixels` first lost `the widest entry be-01 permits stays
 inside the window` to a rename that had not landed in the combobox when the
 assertion read it — an fe-01 test, no file of which this change touches, on a
