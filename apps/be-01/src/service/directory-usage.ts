@@ -196,8 +196,19 @@ export function directoryUsageOfPerson(rows: DirectoryUsageRows, personId: strin
  * `effectiveTeamOf` is read here rather than `serviceTeamId` alone.
  *
  * The reading is {@link effectiveTeamOf}'s and nobody's second copy — the same
- * function the scheduler's adapter resolves `poolId` through — so the rows this
- * names and the rows whose dates actually move cannot drift apart.
+ * function the scheduler's adapter resolves `poolId` through — so a row named
+ * here is a row the scheduler agrees draws from that pool, rather than one a
+ * second, laxer definition of "in the team" turned up.
+ *
+ * What this is **not** is the set of rows whose dates move, and it drifts from
+ * that set both ways. A parent labelled with the sized team whose children each
+ * carry their own is named — `effectiveTeamOf` answers for parents too — and
+ * moves nothing, because `slicesOf` skips a row with children, so no slot of
+ * that pool was ever spent on it. And releasing a pool moves the dependency
+ * successors of the released rows and the rolled-up brackets of every ancestor
+ * above them; those have a different effective team and get no effect. Each
+ * entry says "this row drew from a pool that is going", which is the fact
+ * somebody agreeing to the removal needs and the fact the read can carry.
  *
  * Proof: the effective-team read replaced by `row.serviceTeamId === teamId`, so
  * only rows carrying the label themselves are named, and `names the capacity a

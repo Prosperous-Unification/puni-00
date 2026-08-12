@@ -582,12 +582,15 @@ function fieldsOf(patch: WorkItemPatch): (keyof WorkItemPatch)[] {
   if (patch.priority !== undefined) named.push('priority');
   if (patch.serviceTeamId !== undefined) named.push('serviceTeamId');
   // Proof: this line deleted, so a patch naming only a parallelism journals
-  // nothing at all, and both `puts a replaced parallelism back, and leaves one
-  // a rename did not name` and `takes a first parallelism away again, rather
-  // than leaving a 3 behind` failed on
+  // nothing at all, and all three parallelism undo tests — `puts a replaced
+  // parallelism back, and leaves one a rename did not name`, `takes a first
+  // parallelism away again, rather than leaving a 3 behind` and `puts a reset to
+  // one at a time back to the number it replaced` — failed at their `expectDone`
+  // (undo.test.ts:226, :245, :259) on
   // `refused: stale_undo — “Strip” has changed since then` — the undo reached
   // past the unjournalled write to an entry the same write had made stale.
-  // Watched 2026-08-12; {@link revertTo}'s matching line carries its own.
+  // Watched 2026-08-12; {@link revertTo}'s matching line fails differently and
+  // carries its own.
   if (patch.maxParallel !== undefined) named.push('maxParallel');
   return named;
 }
@@ -612,12 +615,17 @@ function revertTo(before: WorkItem, patch: WorkItemPatch): WorkItemPatch {
   // second null.
   //
   // Proof: this line deleted, so the inverse of a parallelism patch is the
-  // empty patch, and `puts a replaced parallelism back, and leaves one a rename
-  // did not name` failed at its **first** undo on
-  // `refused: stale_undo — “Strip” has changed since then`, with
-  // `takes a first parallelism away again` failing the same way. An inverse
-  // that names no field does not merely restore nothing — it takes the whole
-  // stack down with it. Watched 2026-08-12.
+  // empty patch. The undo then reports **done** — an inverse naming no field
+  // takes the store's no-field branch and writes nothing — and what fails is the
+  // value each test reads back afterwards, in all three: `puts a replaced
+  // parallelism back, and leaves one a rename did not name` on
+  // `Expected: 3, Received: 5` (undo.test.ts:227), `takes a first parallelism
+  // away again, rather than leaving a 3 behind` on `Expected: 1, Received: 3`
+  // (:250), and `puts a reset to one at a time back to the number it replaced`
+  // on `Expected: 4, Received: 1` (:261). That is the worse of the two failures
+  // either line can produce: {@link fieldsOf}'s red at least refuses out loud,
+  // where this one reports a successful undo that moved nothing.
+  // Watched 2026-08-12.
   if (patch.maxParallel !== undefined) out.maxParallel = before.maxParallel;
   return out;
 }
