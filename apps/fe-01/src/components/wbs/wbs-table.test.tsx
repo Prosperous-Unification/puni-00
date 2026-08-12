@@ -24,6 +24,7 @@ import { initialsOf } from './initials';
 import { refusedDraftFor } from './live-editing';
 import {
   DATE_EDITOR_WIDTH,
+  DEEPEST_INDENT,
   frameLayout,
   type FrameLayoutState,
   POPOVER_ROW_LAYER,
@@ -5612,18 +5613,27 @@ describe('moving rows with alt and the arrows', () => {
     expect(namesOnScreen()).toEqual(['Strip', 'Sand', 'Paint']);
   });
 
-  itDom('leaves the dependency picker’s own alt arrows alone', async () => {
-    // The handler lives on the grid cells, not on the document: the picker's
-    // input is not one of them and keeps its Up and Down for its own list.
+  itDom('moves the row from the dependency picker, and leaves its bare arrows alone', async () => {
+    // **This pin is the reverse of the one it replaces.** `leaves the
+    // dependency picker's own alt arrows alone` said the handler lives on the
+    // grid cells and this box is not one of them — which made the sheet's "from
+    // any cell and any caret position" false in the three cell classes that
+    // open a list, and `table-mechanics` reverses it by name. What the picker
+    // keeps is the *bare* arrows, which are its highlight's; Alt is not a
+    // highlight gesture in any cell of this table.
     const api = await threeRoots();
     const moved = watchMoves(api);
 
     const picker = screen.getByLabelText('Add a dependency to 020');
     fireEvent.focus(picker);
+    fireEvent.keyDown(picker, { key: 'ArrowDown' });
+
+    // The bare arrow moved the list's highlight and nothing else.
+    expect(moved).toEqual([]);
+
     fireEvent.keyDown(picker, { key: 'ArrowDown', altKey: true });
 
-    expect(moved).toEqual([]);
-    expect(namesOnScreen()).toEqual(['Strip', 'Sand', 'Paint']);
+    expect(moved).toEqual([['w2', null, 'w3']]);
   });
 });
 
@@ -7664,14 +7674,28 @@ describe('the outline past the Number cap', () => {
       return { number: numberSpan.style.paddingLeft, name: nameWrapper.style.paddingLeft };
     };
 
+    /** `010` with `depth` levels of `.1` under it — the row built above. */
+    const at = (depth: number): string => ['010', ...Array<string>(depth).fill('1')].join('.');
+
     // Below the cap the Number cell does all the indenting and the Name cell
     // none of it — the rendered table is unchanged there.
-    expect(indents('010.1')).toEqual({ number: '12px', name: '0px' });
-    expect(indents('010.1.1.1.1')).toEqual({ number: '48px', name: '0px' });
+    //
+    // Read off {@link DEEPEST_INDENT} rather than off the four pixel literals
+    // this held until `table-mechanics`: they were the arithmetic of a cap of
+    // 4, so moving the cap to 2 to unclip the number would have been a test
+    // edit either way. Written against the cap, the relation is what is pinned
+    // and the next move of the cap is free.
+    const capped = `${String(DEEPEST_INDENT * 12)}px`;
+    expect(indents(at(1))).toEqual({ number: '12px', name: '0px' });
+    expect(indents(at(DEEPEST_INDENT))).toEqual({ number: capped, name: '0px' });
     // Past the cap the Number cell stays put and the Name cell steps: the sum
     // grows by one step at every level, which is the whole of `deep-indent`.
-    expect(indents('010.1.1.1.1.1')).toEqual({ number: '48px', name: '12px' });
-    expect(indents('010.1.1.1.1.1.1')).toEqual({ number: '48px', name: '24px' });
+    for (const past of [1, 2, 3, 4]) {
+      expect(indents(at(DEEPEST_INDENT + past))).toEqual({
+        number: capped,
+        name: `${String(12 * past)}px`,
+      });
+    }
   });
 });
 
@@ -10239,26 +10263,32 @@ describe('the command chords', () => {
     expect(screen.getByRole('listbox', { name: 'QA assignee for 010' })).toBeDefined();
   });
 
-  itDom('every chord is inert while the depends list is open', async () => {
-    // The routing matrix's fourth row: an open list owns the keyboard, and
-    // Escape is how it is given back.
-    const api = await threeRoots();
-    const box = screen.getByLabelText('Add a dependency to 020');
-    box.focus();
-    fireEvent.focus(box);
-    fireEvent.change(box, { target: { value: '010' } });
-    await screen.findByRole('listbox', { name: 'Work items 020 can depend on' });
+  itDom(
+    'every chord that makes or destroys a row is inert while the depends list is open',
+    async () => {
+      // The routing matrix's fourth row, narrowed by `table-mechanics`: an open
+      // list still owns the chords that *act on a row*, and Escape is how it is
+      // given back. The four motion chords are no longer among them — this box
+      // opens its list on focus, so a rule that held only while it was shut held
+      // for nobody, and `Ctrl+J and Ctrl+K walk the Depends on column with its
+      // list open` is that half.
+      const api = await threeRoots();
+      const box = screen.getByLabelText('Add a dependency to 020');
+      box.focus();
+      fireEvent.focus(box);
+      fireEvent.change(box, { target: { value: '010' } });
+      await screen.findByRole('listbox', { name: 'Work items 020 can depend on' });
 
-    newItem(box);
-    nextOrCreate(box);
-    armDelete(box);
-    chord(box, 'j', { ctrl: true });
+      newItem(box);
+      nextOrCreate(box);
+      armDelete(box);
 
-    expect(numbersOnScreen()).toEqual(['010', '020', '030']);
-    expect(armedRow()).toBeNull();
-    expect(document.activeElement).toBe(box);
-    expect(api.rows).toHaveLength(3);
-  });
+      expect(numbersOnScreen()).toEqual(['010', '020', '030']);
+      expect(armedRow()).toBeNull();
+      expect(document.activeElement).toBe(box);
+      expect(api.rows).toHaveLength(3);
+    },
+  );
 
   itDom('the same chords work in that box once the list is closed', async () => {
     // The other half of the matrix row, and what makes the first half a rule
@@ -10278,20 +10308,25 @@ describe('the command chords', () => {
     });
   });
 
-  itDom('every chord is inert while a team picker’s list is open', async () => {
-    const api = await threeRoots();
-    const box = screen.getByLabelText('Service or team for 020');
-    fireEvent.focus(box);
-    fireEvent.change(box, { target: { value: 'Plat' } });
-    await screen.findByRole('listbox', { name: 'Service or team for 020' });
+  itDom(
+    'every chord that makes or destroys a row is inert while a team picker’s list is open',
+    async () => {
+      // Narrowed with the depends box's twin above, and for the same reason: the
+      // four motion chords leave this cell whether the list is up or not.
+      const api = await threeRoots();
+      const box = screen.getByLabelText('Service or team for 020');
+      fireEvent.focus(box);
+      fireEvent.change(box, { target: { value: 'Plat' } });
+      await screen.findByRole('listbox', { name: 'Service or team for 020' });
 
-    newItem(box);
-    armDelete(box);
+      newItem(box);
+      armDelete(box);
 
-    expect(numbersOnScreen()).toEqual(['010', '020', '030']);
-    expect(armedRow()).toBeNull();
-    expect(api.rows).toHaveLength(3);
-  });
+      expect(numbersOnScreen()).toEqual(['010', '020', '030']);
+      expect(armedRow()).toBeNull();
+      expect(api.rows).toHaveLength(3);
+    },
+  );
 
   itDom('the same chords work in a picker whose list is closed', async () => {
     await threeRoots();
@@ -10613,6 +10648,332 @@ describe('the command chords', () => {
       expect(numbersOnScreen()).toEqual(['010', '020', '030', '040']);
     });
     expect(api.rows).toHaveLength(4);
+  });
+});
+
+/**
+ * The eight keys that must work from **every** cell, pickers open included.
+ *
+ * The cheat sheet promises Ctrl+H/J/K/L "between cells" and the Alt+arrows
+ * "from any cell and any caret position", both unqualified — and three cell
+ * classes answered none of them. Every cell here is asserted in all four
+ * directions, once per class, because "the chords are wired" was true of the
+ * Name cell and false of these while one sentence covered both.
+ *
+ * The picker cells are asserted with their list **open**, which is the state
+ * a reader is always in: focusing either box opens its list, so a rule that
+ * only holds while the list is shut is a rule that never holds. The chords
+ * that create and destroy are still the open list's to swallow — that half is
+ * `every chord that makes or destroys a row is inert while … is open`.
+ */
+describe('the chords reach the picker cells and the date cell', () => {
+  const chord = (box: Element, key: string, modifiers: { ctrl?: boolean; alt?: boolean }) =>
+    fireEvent.keyDown(box, {
+      key,
+      code: key.length === 1 ? `Key${key.toUpperCase()}` : key,
+      ctrlKey: modifiers.ctrl ?? false,
+      altKey: modifiers.alt ?? false,
+    });
+
+  /** The Depends on box of one row, with its list open — which is how focus leaves it. */
+  const openDepends = async (number: string): Promise<HTMLElement> => {
+    const box = screen.getByLabelText(`Add a dependency to ${number}`);
+    box.focus();
+    fireEvent.focus(box);
+    await screen.findByRole('listbox', { name: `Work items ${number} can depend on` });
+    return box;
+  };
+
+  /**
+   * Three roots and one team, which is what makes the Service/team box open on
+   * a bare focus: a picker with nothing to offer and nothing typed stays shut,
+   * and a plan with no teams in it is not the state this block is about.
+   */
+  const threeRootsAndATeam = async () => {
+    const api = await threeRoots();
+    const box = screen.getByLabelText('Service or team for 010');
+    fireEvent.focus(box);
+    fireEvent.change(box, { target: { value: 'Platform' } });
+    fireEvent.keyDown(box, { key: 'Enter' });
+    await waitFor(() => {
+      expect(screen.getByLabelText('Service or team for 010')).toHaveProperty('value', 'Platform');
+    });
+    fireEvent.blur(box);
+    return api;
+  };
+
+  /**
+   * One row's Service/team box.
+   *
+   * By role, because an open `CreatablePicker` gives its listbox the same
+   * accessible name as its input — two elements answer to `Service or team for
+   * 020` while the list is up, and only one of them is the box.
+   */
+  const teamBox = (number: string): HTMLElement =>
+    screen.getByRole('combobox', { name: `Service or team for ${number}` });
+
+  /** The Service/team box of one row, with its list open. */
+  const openTeam = async (number: string): Promise<HTMLElement> => {
+    const box = teamBox(number);
+    box.focus();
+    fireEvent.focus(box);
+    await screen.findByRole('listbox', { name: `Service or team for ${number}` });
+    return box;
+  };
+
+  /** A plan on a calendar, so the earliest-start cells are not disabled. */
+  const datedThreeRoots = async () => {
+    const api = await threeRoots();
+    typeIntoDate('Project start date', '2026-08-10');
+    await waitFor(() => {
+      expect(screen.getByLabelText('Earliest start for 020')).toHaveProperty('disabled', false);
+    });
+    return api;
+  };
+
+  itDom('Ctrl+H and Ctrl+L leave the Depends on cell with its list open', async () => {
+    await threeRoots();
+    const box = await openDepends('020');
+
+    chord(box, 'h', { ctrl: true });
+
+    await waitFor(() => {
+      expect(document.activeElement).toBe(screen.getByLabelText('Name of 020'));
+    });
+
+    const back = await openDepends('020');
+    chord(back, 'l', { ctrl: true });
+
+    await waitFor(() => {
+      expect(document.activeElement).toBe(screen.getByLabelText('Priority for 020'));
+    });
+  });
+
+  itDom('Ctrl+J and Ctrl+K walk the Depends on column with its list open', async () => {
+    await threeRoots();
+    const box = await openDepends('020');
+
+    chord(box, 'j', { ctrl: true });
+
+    await waitFor(() => {
+      expect(document.activeElement).toBe(screen.getByLabelText('Add a dependency to 030'));
+    });
+
+    const back = await openDepends('020');
+    chord(back, 'k', { ctrl: true });
+
+    await waitFor(() => {
+      expect(document.activeElement).toBe(screen.getByLabelText('Add a dependency to 010'));
+    });
+  });
+
+  itDom('Alt+↑ and Alt+↓ move the row from the Depends on cell', async () => {
+    await threeRoots();
+    const box = await openDepends('010');
+
+    chord(box, 'ArrowDown', { alt: true });
+
+    await waitFor(() => {
+      expect(namesOnScreen()).toEqual(['Sand', 'Strip', 'Paint']);
+    });
+
+    const up = await openDepends('020');
+    chord(up, 'ArrowUp', { alt: true });
+
+    await waitFor(() => {
+      expect(namesOnScreen()).toEqual(['Strip', 'Sand', 'Paint']);
+    });
+  });
+
+  itDom('Alt+→ and Alt+← restructure the row from the Depends on cell', async () => {
+    await threeRoots();
+    const box = await openDepends('020');
+
+    chord(box, 'ArrowRight', { alt: true });
+
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '010.1', '020']);
+    });
+
+    const out = await openDepends('010.1');
+    chord(out, 'ArrowLeft', { alt: true });
+
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '020', '030']);
+    });
+  });
+
+  itDom('Ctrl+H and Ctrl+L leave the Service/team cell with its list open', async () => {
+    await threeRootsAndATeam();
+    const box = await openTeam('020');
+
+    chord(box, 'h', { ctrl: true });
+
+    await waitFor(() => {
+      expect(document.activeElement).toBe(screen.getByLabelText('Priority for 020'));
+    });
+
+    const back = await openTeam('020');
+    chord(back, 'l', { ctrl: true });
+
+    await waitFor(() => {
+      expect(document.activeElement).toBe(screen.getByLabelText('Dev optimistic for 020'));
+    });
+  });
+
+  itDom('Ctrl+J and Ctrl+K walk the Service/team column with its list open', async () => {
+    await threeRootsAndATeam();
+    const box = await openTeam('020');
+
+    chord(box, 'j', { ctrl: true });
+
+    await waitFor(() => {
+      expect(document.activeElement).toBe(teamBox('030'));
+    });
+
+    const back = await openTeam('020');
+    chord(back, 'k', { ctrl: true });
+
+    await waitFor(() => {
+      expect(document.activeElement).toBe(teamBox('010'));
+    });
+  });
+
+  itDom('Alt+↑ and Alt+↓ move the row from the Service/team cell', async () => {
+    await threeRootsAndATeam();
+    const box = await openTeam('010');
+
+    chord(box, 'ArrowDown', { alt: true });
+
+    await waitFor(() => {
+      expect(namesOnScreen()).toEqual(['Sand', 'Strip', 'Paint']);
+    });
+
+    const up = await openTeam('020');
+    chord(up, 'ArrowUp', { alt: true });
+
+    await waitFor(() => {
+      expect(namesOnScreen()).toEqual(['Strip', 'Sand', 'Paint']);
+    });
+  });
+
+  itDom('Alt+→ and Alt+← restructure the row from the Service/team cell', async () => {
+    await threeRootsAndATeam();
+    const box = await openTeam('020');
+
+    chord(box, 'ArrowRight', { alt: true });
+
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '010.1', '020']);
+    });
+
+    const out = await openTeam('010.1');
+    chord(out, 'ArrowLeft', { alt: true });
+
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '020', '030']);
+    });
+  });
+
+  itDom('Alt+→ and Alt+← restructure the row from an assignee cell', async () => {
+    // The third `CreatablePicker` in this table, and the reason the fix is that
+    // component's rather than the Service/team column's.
+    await threeRoots();
+    const box = screen.getByLabelText('Dev assignee for 020');
+    box.focus();
+    fireEvent.focus(box);
+
+    chord(box, 'ArrowRight', { alt: true });
+
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '010.1', '020']);
+    });
+
+    const out = screen.getByLabelText('Dev assignee for 010.1');
+    out.focus();
+    fireEvent.focus(out);
+    chord(out, 'ArrowLeft', { alt: true });
+
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '020', '030']);
+    });
+  });
+
+  itDom('Ctrl+H and Ctrl+L move out of the Not before cell', async () => {
+    await datedThreeRoots();
+    const box = screen.getByLabelText('Earliest start for 020');
+    box.focus();
+
+    chord(box, 'h', { ctrl: true });
+
+    await waitFor(() => {
+      expect(document.activeElement).toBe(screen.getByLabelText('QA estimate for 020'));
+    });
+  });
+
+  itDom('Ctrl+J and Ctrl+K walk the Not before column', async () => {
+    await datedThreeRoots();
+    const box = screen.getByLabelText('Earliest start for 020');
+    box.focus();
+
+    chord(box, 'j', { ctrl: true });
+
+    await waitFor(() => {
+      expect(document.activeElement).toBe(screen.getByLabelText('Earliest start for 030'));
+    });
+
+    const back = screen.getByLabelText('Earliest start for 020');
+    back.focus();
+    chord(back, 'k', { ctrl: true });
+
+    await waitFor(() => {
+      expect(document.activeElement).toBe(screen.getByLabelText('Earliest start for 010'));
+    });
+  });
+
+  itDom('Alt+↑ and Alt+↓ move the row from the Not before cell', async () => {
+    await datedThreeRoots();
+
+    chord(screen.getByLabelText('Earliest start for 010'), 'ArrowDown', { alt: true });
+
+    await waitFor(() => {
+      expect(namesOnScreen()).toEqual(['Sand', 'Strip', 'Paint']);
+    });
+
+    chord(screen.getByLabelText('Earliest start for 020'), 'ArrowUp', { alt: true });
+
+    await waitFor(() => {
+      expect(namesOnScreen()).toEqual(['Strip', 'Sand', 'Paint']);
+    });
+  });
+
+  itDom('Alt+→ and Alt+← restructure the row from the Not before cell', async () => {
+    await datedThreeRoots();
+
+    chord(screen.getByLabelText('Earliest start for 020'), 'ArrowRight', { alt: true });
+
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '010.1', '020']);
+    });
+
+    chord(screen.getByLabelText('Earliest start for 010.1'), 'ArrowLeft', { alt: true });
+
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '020', '030']);
+    });
+  });
+
+  itDom('Alt+→ restructures the row from an open Not before editor', async () => {
+    // The editor is a different element from the cell at rest, wired through
+    // `DateField` — a cell class the at-rest tests above cannot speak for.
+    await datedThreeRoots();
+    const editor = openNotBefore('020');
+
+    chord(editor, 'ArrowRight', { alt: true });
+
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '010.1', '020']);
+    });
   });
 });
 

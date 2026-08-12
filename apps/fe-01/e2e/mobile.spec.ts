@@ -128,6 +128,44 @@ test.describe('the plan on a phone, measured by a browser', () => {
     }
   });
 
+  test('keeps the card’s number at the card’s own size, not the table’s', async ({ page }) => {
+    // `table-mechanics` took the table's work-item number down to 11px to buy
+    // back a 93px column at depth 4, and wrote that rule as `[data-grid]
+    // [data-number]`. This renderer carries `data-grid` too — `plan-cards.tsx`
+    // sets it so `editable-grid.ts` can find the grid at all — and its header
+    // renders the same span, so the rule reached a surface that change's Known
+    // limits say it is not touching. Nothing here is `table-layout: fixed`,
+    // nothing beside the span holds a 16px line box, and `cardIndentFor` kept
+    // the old outline: the card would have carried a shrunken number for no
+    // reason at all.
+    //
+    // Asserted against the header the span sits in rather than against a
+    // literal, so it is a claim about the number not being singled out —
+    // restyle the cards and this keeps meaning what it says. The floor below
+    // it is what stops it passing vacuously if the cards themselves ever go
+    // to 11px.
+    //
+    // Proof, watched in CI's `pixels` job at `b441c414`, 2026-08-12, with the
+    // rule still written `[data-grid] [data-number]`: `the table's 11px
+    // reached the phone's card … Expected: "16px" Received: "11px"`.
+    const sizes = await page.evaluate(() => {
+      const span = document.querySelector('[data-card] [data-number]');
+      if (!(span instanceof HTMLElement)) throw new Error('no numbered span on any card');
+      const header = span.parentElement;
+      if (!(header instanceof HTMLElement)) throw new Error('the number sits in no header');
+      return {
+        number: getComputedStyle(span).fontSize,
+        header: getComputedStyle(header).fontSize,
+      };
+    });
+
+    expect(sizes.number, 'the table’s 11px reached the phone’s card').toBe(sizes.header);
+    expect(
+      Number.parseFloat(sizes.number),
+      'the cards themselves shrank, so the equality above proves nothing',
+    ).toBeGreaterThan(11);
+  });
+
   test('gives every control a finger has to hit at least 44px', async ({ page }) => {
     const controls = [
       page.getByRole('button', { name: 'Plan actions' }),

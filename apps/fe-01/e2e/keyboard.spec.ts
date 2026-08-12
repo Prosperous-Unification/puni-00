@@ -568,3 +568,111 @@ test.describe('the command chords, in a browser', () => {
     expect(await numbersOnScreen(page)).toEqual(['010', '020', '030']);
   });
 });
+
+/**
+ * The shortcuts sheet as a modal, which is a thing only a browser can judge.
+ *
+ * `keyboard-cheat-sheet.test.tsx` proves the handler: it sees the Tab taken and
+ * the focus placed. What it cannot see is the half the UI audit of 2026-08-12
+ * found on dev — jsdom performs no default action for Tab, so a sheet with no
+ * trap at all passes every unit test about one, and the focus it never moved
+ * stays wherever the test put it. R5 #14–#16's fault class, fourth time.
+ *
+ * The audit's finding was a chain rather than one bug: Tab walked out to the
+ * table behind, and Escape — a React handler on the backdrop — then never saw
+ * another keystroke, so the dialog could no longer be dismissed from the
+ * keyboard at all. Both halves are pressed here, in that order, because the
+ * order is the fault.
+ */
+test.describe('the shortcuts sheet holds the keyboard like a modal', () => {
+  /** Opens the sheet from the toolbar control a reader really clicks. */
+  async function openCheatSheet(page: Page): Promise<void> {
+    await page.getByRole('button', { name: 'Keyboard shortcuts' }).click();
+    await expect(page.getByRole('dialog', { name: 'Keyboard shortcuts' })).toBeVisible();
+  }
+
+  /** Whether the focus is on or inside the open dialog. */
+  const focusIsInTheSheet = (page: Page): Promise<boolean> =>
+    page.evaluate(() => {
+      const dialog = document.querySelector('[role="dialog"]');
+      const here = document.activeElement;
+      if (dialog === null) throw new Error('no dialog is open');
+      return here instanceof HTMLElement && dialog.contains(here);
+    });
+
+  test('Tab never leaves it, and Escape still closes it afterwards', async ({ page }) => {
+    // Proof: the Tab branch of the sheet's key handler returned early, this
+    // failed on `the focus walked out of the sheet on Tab 2 of 12`. Watched,
+    // 2026-08-12.
+    //
+    // The Escape half of the chain is **not** this test's to prove, and trying
+    // it says why: with the listener put back on the backdrop where the audit
+    // found it, and the trap left in place, this still passes — the focus
+    // never leaves the sheet, so an Escape aimed inside it reaches a React
+    // handler on the backdrop by bubbling, exactly as it did before the audit.
+    // The fault was the two together, and a Playwright expect that has already
+    // failed on Tab 2 never reaches the Escape below. What holds that half is
+    // `keyboard-cheat-sheet.test.tsx`'s `closes on Escape from anywhere on the
+    // page`, which presses Escape at `document.body` — watched red against the
+    // backdrop listener, 2026-08-12. This line stays because the *order* is
+    // the reader's experience: Tab, then Escape, then the table.
+    await seedRows(page, `e2e-sheet-${String(Date.now())}-${String(account)}`, 3);
+    await openCheatSheet(page);
+
+    // Twelve, which is more stops than the sheet has: the trap has to hold on
+    // the way round rather than only on the first press off the last stop.
+    for (let press = 1; press <= 12; press += 1) {
+      await page.keyboard.press('Tab');
+      expect(
+        await focusIsInTheSheet(page),
+        `the focus walked out of the sheet on Tab ${String(press)} of 12`,
+      ).toBe(true);
+    }
+    // And backwards, off the first stop, which is the other end of the trap.
+    for (let press = 1; press <= 12; press += 1) {
+      await page.keyboard.press('Shift+Tab');
+      expect(
+        await focusIsInTheSheet(page),
+        `Shift+Tab walked out of the sheet on press ${String(press)} of 12`,
+      ).toBe(true);
+    }
+
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('dialog', { name: 'Keyboard shortcuts' })).toBeHidden();
+    // The table behind is still the reader's: the sheet suspended the page's
+    // shortcuts while it was up, and it has to give them back.
+    await page.getByLabel('Name of 020').click();
+    await expect(page.getByLabel('Name of 020')).toBeFocused();
+  });
+
+  test('a click on the backdrop closes it, and a click on the sheet does not', async ({ page }) => {
+    // The audit reported the backdrop dead on dev. jsdom's own `closes on a
+    // click away from it` fires a click straight at the backdrop node, which
+    // is not the thing a pointer does: a real click is a mousedown and a
+    // mouseup at a **coordinate**, and what is under that coordinate is a
+    // question about layout. This presses the corner of the window, which is
+    // backdrop on any viewport the sheet is centred in.
+    //
+    // Proof: `event.target === event.currentTarget` inverted, this failed on
+    // `expect(locator).toBeVisible() failed … element(s) not found` — the
+    // sheet closed under a click on itself. Watched, 2026-08-12.
+    await seedRows(page, `e2e-sheet-away-${String(Date.now())}-${String(account)}`, 3);
+    await openCheatSheet(page);
+
+    const sheet = page.getByRole('dialog', { name: 'Keyboard shortcuts' });
+    const panel = await sheet.boundingBox();
+    expect(panel, 'the open sheet has no box').not.toBeNull();
+    if (panel === null) return;
+
+    // A click inside the sheet leaves it up, or the check below is about a
+    // dialog that closes on every click anywhere.
+    await page.mouse.click(Math.round(panel.x + panel.width / 2), Math.round(panel.y + 8));
+    await expect(sheet).toBeVisible();
+
+    // Eight pixels in from the top-left corner of the window: outside the
+    // centred panel at this viewport, and inside the backdrop, which is
+    // `fixed inset-0`.
+    await page.mouse.click(8, 8);
+    await expect(sheet).toBeHidden();
+  });
+});

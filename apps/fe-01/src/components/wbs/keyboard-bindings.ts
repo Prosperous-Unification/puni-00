@@ -103,19 +103,19 @@ export const KEY_BINDINGS: readonly KeyBinding[] = [
   },
   {
     keys: 'Ctrl/⌘ + Enter',
-    does: 'Saves what is in this cell and moves to the next row’s name — or, on the last row of the plan, makes a new work item there and lands in it. A save the server refuses leaves the caret where it is and makes nothing.',
+    does: 'Saves what is in this cell and moves to the next row’s name — or, on the last row of the plan, makes a new work item there and lands in it. A save the server refuses leaves the caret where it is and makes nothing. A picker list that is open holds it back until Escape closes it.',
     where: 'Editing',
     renderers: TABLE_ONLY,
   },
   {
     keys: 'Ctrl + N / Alt + N',
-    does: 'A new work item below this one, at the same level, ready to be typed into — from any cell and any caret position, not only at the end of the plan. Two chords for one thing because Chrome keeps Ctrl + N for itself except on a Mac.',
+    does: 'A new work item below this one, at the same level, ready to be typed into — from any cell and any caret position, not only at the end of the plan. A picker list that is open holds it back until Escape closes it. Two chords for one thing because Chrome keeps Ctrl + N for itself except on a Mac.',
     where: 'Editing',
     renderers: TABLE_ONLY,
   },
   {
     keys: 'Ctrl + H / J / K / L',
-    does: 'Left, down, up and right between cells — where the fingers are, and without the arrows’ rule that the text comes first. The way out of a long note in one press.',
+    does: 'Left, down, up and right between cells — where the fingers are, and without the arrows’ rule that the text comes first. The way out of a long note in one press, and out of a cell whose list is open: Depends on, Service/team and the assignee boxes answer these even while they are offering something.',
     where: 'Editing',
     renderers: TABLE_ONLY,
   },
@@ -151,19 +151,19 @@ export const KEY_BINDINGS: readonly KeyBinding[] = [
   },
   {
     keys: 'Alt + ↑ / Alt + ↓',
-    does: 'Moves the row up or down among its siblings. It never changes what the row sits under, and it stops at either end of the group.',
+    does: 'Moves the row up or down among its siblings: Depends on, Service/team and the assignee boxes answer it even while they are offering something. A half-typed @ mention in a folded role’s cell is the one list that holds it back, until Escape closes it. It never changes what the row sits under, and it stops at either end of the group.',
     where: 'Moving rows',
     renderers: TABLE_ONLY,
   },
   {
     keys: 'Alt + →',
-    does: 'Indents the row — from any cell and any caret position, where Tab needs the start of the name.',
+    does: 'Indents the row — from any caret position, where Tab needs the start of the name, and on the same terms as Alt + ↑ / ↓: the pickers answer it, a half-typed @ mention holds it until Escape.',
     where: 'Moving rows',
     renderers: TABLE_ONLY,
   },
   {
     keys: 'Alt + ←',
-    does: 'Outdents the row, from any cell.',
+    does: 'Outdents the row, on the same terms as Alt + → — an open picker list included, a half-typed @ mention excepted.',
     where: 'Moving rows',
     renderers: TABLE_ONLY,
   },
@@ -413,9 +413,10 @@ export function commandChord(pressed: KeyPress): Command | null {
  * A keyboard event, as much of one as {@link commandChordIn} reads.
  *
  * Structural rather than React's own type, so this file still needs no
- * component library to judge a keystroke — and `code` is under `nativeEvent`
- * because that is where a React synthetic event carries the physical key that
- * Alt+N is matched on.
+ * component library to judge a keystroke — and `code` and `isComposing` are
+ * under `nativeEvent` because that is where a React synthetic event carries
+ * the physical key Alt+N is matched on and the IME state {@link altMoveIn}
+ * refuses.
  */
 export interface KeyPressEvent {
   key: string;
@@ -423,7 +424,7 @@ export interface KeyPressEvent {
   metaKey: boolean;
   altKey: boolean;
   shiftKey: boolean;
-  nativeEvent: { code: string };
+  nativeEvent: { code: string; isComposing: boolean };
 }
 
 /**
@@ -445,6 +446,83 @@ export function commandChordIn(event: KeyPressEvent): Command | null {
     altKey: event.altKey,
     shiftKey: event.shiftKey,
   });
+}
+
+/** What one Alt+arrow does to the focused row's place in the tree. */
+export type AltMove = 'up' | 'down' | 'outdent' | 'indent';
+
+/**
+ * The structural move an arrow means when Alt is held, or null for any other key.
+ *
+ * A function rather than a lookup record, for {@link motionFor}'s reason:
+ * indexing a record by an arbitrary `event.key` is exactly the unchecked access
+ * `noUncheckedIndexedAccess` exists to stop.
+ */
+function altMoveFor(key: string): AltMove | null {
+  switch (key) {
+    case 'ArrowUp':
+      return 'up';
+    case 'ArrowDown':
+      return 'down';
+    case 'ArrowLeft':
+      return 'outdent';
+    case 'ArrowRight':
+      return 'indent';
+    default:
+      return null;
+  }
+}
+
+/**
+ * The structural move a keystroke asks for, or null when it asks for none.
+ *
+ * The modifier rules live here rather than in `onAltMove` because four places
+ * need the same answer now: the handler that performs the move, the open `@`
+ * list that swallows the keystroke before the handler sees it, and the two
+ * picker cells whose own lists must let it through ({@link escapesAnOpenList}).
+ * Two copies of "is this an Alt+arrow" is how one of them comes to accept a
+ * composing arrow the other refuses.
+ *
+ * A second modifier is somebody else's shortcut, and an IME composition is
+ * using the arrows to pick a candidate — the same rule `nextCell` applies.
+ * Proof: narrowed to `!event.altKey` alone, `leaves a composing alt arrow, and
+ * one with a second modifier, alone` failed on `expected false to be true`.
+ * Watched here 2026-08-08, and where this line lived before, 2026-08-06.
+ *
+ * It moved out of `wbs-table.tsx` in `table-mechanics`, unchanged, so that this
+ * file can answer "does this keystroke leave the cell" about **both** families
+ * without a component importing a component.
+ */
+export function altMoveIn(event: KeyPressEvent): AltMove | null {
+  if (!event.altKey || event.ctrlKey || event.metaKey || event.nativeEvent.isComposing) return null;
+  return altMoveFor(event.key);
+}
+
+/**
+ * Whether an open picker list must answer this keystroke rather than swallow it.
+ *
+ * **The rule this splits in two.** An open list owns the keyboard, and Escape
+ * is how it is given back — that was the whole of the routing matrix's inert
+ * row, and it made three cell classes answer none of the eight keys the cheat
+ * sheet promises "between cells" and "from any cell". The Depends on box and
+ * both `CreatablePicker`s open their list on **focus**, so "the chords work
+ * once the list is closed" described a state a reader is never in: Ctrl+L into
+ * a Depends on cell had no documented way out of it.
+ *
+ * The eight that pass are the ones that do not act on the list: the four
+ * motion chords leave the cell, and the four Alt+arrows restructure the row
+ * under it. The three that still wait — Ctrl+N, Ctrl+D and Ctrl/⌘+Enter —
+ * make or destroy a row, and firing one through a half-typed search is the
+ * fault the inert rule was written for. A chord that only moves cannot commit
+ * anything to a list nobody has finished reading.
+ *
+ * @param event The keystroke, as a React keyboard event delivers it.
+ * @returns True when the cell's own routing must run despite the open list.
+ */
+export function escapesAnOpenList(event: KeyPressEvent): boolean {
+  if (altMoveIn(event) !== null) return true;
+  const command = commandChordIn(event);
+  return command === 'left' || command === 'down' || command === 'up' || command === 'right';
 }
 
 /**

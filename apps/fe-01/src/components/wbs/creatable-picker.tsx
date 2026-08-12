@@ -1,6 +1,6 @@
 import { type KeyboardEvent, type ReactNode, useState } from 'react';
 
-import { commandChordIn } from './keyboard-bindings';
+import { commandChordIn, escapesAnOpenList } from './keyboard-bindings';
 
 export interface PickableEntry {
   id: string;
@@ -136,8 +136,23 @@ export interface CreatablePickerProps {
      * routing matrix's rule, and Escape is how it is given back — so a chord
      * that fired through one would create a work item under a half-typed
      * search nobody had finished.
+     *
+     * Narrowed in `table-mechanics` to the chords that *act on a row*: the
+     * four motion chords are offered open or shut, because this box opens its
+     * list on focus and a chord that only moves the caret out cannot commit
+     * anything to a list nobody has finished reading. See
+     * {@link escapesAnOpenList}.
      */
     onCommandKey: (event: KeyboardEvent<HTMLInputElement>) => void;
+    /**
+     * The table's Alt+arrow row moves, offered open or shut.
+     *
+     * Beside `onCommandKey` rather than folded into it because they are two
+     * families with two handlers on the table's side, and the cheat sheet
+     * promises this one "from any cell and any caret position" — a promise
+     * this component broke by having no way to make it at all until now.
+     */
+    onAltMove: (event: KeyboardEvent<HTMLInputElement>) => void;
   };
 }
 
@@ -229,6 +244,15 @@ export function CreatablePicker({
           }
           if (e.key === 'Escape') {
             setTyped(null);
+            return;
+          }
+          if (gridCell !== undefined && escapesAnOpenList(e)) {
+            // The eight keys an open list may not swallow — four out of the
+            // cell, four onto the row under it. Offered whether or not the
+            // list is open, because it opens on focus: a rule that only held
+            // while it was shut held for nobody.
+            gridCell.onAltMove(e);
+            gridCell.onCommandKey(e);
             return;
           }
           if (open) {

@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { fireEvent, render, screen } from '@testing-library/react';
+import { createEvent, fireEvent, render, screen } from '@testing-library/react';
 import { useState } from 'react';
 import { describe, expect, it } from 'vitest';
 
@@ -67,6 +67,12 @@ const PROVEN_BY = new Map<string, readonly string[]>(
     'Editing: Ctrl + H / J / K / L': [
       'Ctrl+H, J, K and L move between cells from a caret no arrow could leave',
       'a chord at the grid’s edge is consumed rather than leaking to the browser',
+      'Ctrl+H and Ctrl+L leave the Depends on cell with its list open',
+      'Ctrl+J and Ctrl+K walk the Depends on column with its list open',
+      'Ctrl+H and Ctrl+L leave the Service/team cell with its list open',
+      'Ctrl+J and Ctrl+K walk the Service/team column with its list open',
+      'Ctrl+H and Ctrl+L move out of the Not before cell',
+      'Ctrl+J and Ctrl+K walk the Not before column',
     ],
     'Editing: Ctrl + D, twice': [
       'Ctrl+D twice deletes the row, and says Cmd+Z puts it back',
@@ -103,9 +109,24 @@ const PROVEN_BY = new Map<string, readonly string[]>(
     'Moving rows: Alt + ↑ / Alt + ↓': [
       'swaps the row with the sibling below it',
       'swaps the row with the sibling above it',
+      'Alt+↑ and Alt+↓ move the row from the Depends on cell',
+      'Alt+↑ and Alt+↓ move the row from the Service/team cell',
+      'Alt+↑ and Alt+↓ move the row from the Not before cell',
     ],
-    'Moving rows: Alt + →': ['indents from the middle of the text, where tab would not'],
-    'Moving rows: Alt + ←': ['outdents from an estimate box'],
+    'Moving rows: Alt + →': [
+      'indents from the middle of the text, where tab would not',
+      'Alt+→ and Alt+← restructure the row from the Depends on cell',
+      'Alt+→ and Alt+← restructure the row from the Service/team cell',
+      'Alt+→ and Alt+← restructure the row from an assignee cell',
+      'Alt+→ and Alt+← restructure the row from the Not before cell',
+      'Alt+→ restructures the row from an open Not before editor',
+    ],
+    'Moving rows: Alt + ←': [
+      'outdents from an estimate box',
+      'Alt+→ and Alt+← restructure the row from the Depends on cell',
+      'Alt+→ and Alt+← restructure the row from the Service/team cell',
+      'Alt+→ and Alt+← restructure the row from the Not before cell',
+    ],
     'Estimates: 2/3/8': ['sends one estimate for the trio typed into the folded cell'],
     'Estimates: 5': ['takes one number as the estimator saying all three are the same'],
     'Estimates: Empty it': ['clears the stored trio when the cell is emptied'],
@@ -395,6 +416,63 @@ describe('the cheat sheet overlay', () => {
     fireEvent.click(screen.getByRole('heading', { name: 'Keyboard shortcuts' }));
 
     expect(screen.queryByRole('dialog')).not.toBeNull();
+  });
+
+  itDom('closes on Escape from anywhere on the page, not only from inside it', () => {
+    // The audit's fault, 2026-08-12: Escape was a React handler on the
+    // backdrop, so it only ever saw a keystroke aimed inside the sheet. Tab
+    // put the focus in the table behind — the sheet had no trap — and Escape
+    // stopped closing a dialog nothing else on the keyboard could dismiss.
+    const opener = openFromControl();
+    // The focus somewhere the sheet does not contain, which is exactly where a
+    // Tab used to leave it.
+    opener.focus();
+
+    fireEvent.keyDown(document.body, { key: 'Escape' });
+
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  itDom('keeps Tab inside the sheet, at both ends of it', () => {
+    openFromControl();
+
+    const dialog = screen.getByRole('dialog');
+    const close = screen.getByRole('button', { name: 'Close the keyboard shortcuts' });
+
+    // Forwards off the last stop: back to the first, rather than on into the
+    // table. jsdom performs no default Tab of its own, so what is asserted is
+    // that the key was taken *and* the focus placed — the two halves a real
+    // browser needs, and `e2e/keyboard.spec.ts` is where the browser says so.
+    close.focus();
+    const forwards = createEvent.keyDown(close, { key: 'Tab' });
+    fireEvent(close, forwards);
+
+    expect(forwards.defaultPrevented).toBe(true);
+    expect(dialog.contains(document.activeElement)).toBe(true);
+
+    // Backwards off the panel, which is where the focus lands on open.
+    dialog.focus();
+    const backwards = createEvent.keyDown(dialog, { key: 'Tab', shiftKey: true });
+    fireEvent(dialog, backwards);
+
+    expect(backwards.defaultPrevented).toBe(true);
+    expect(document.activeElement).toBe(close);
+  });
+
+  itDom('brings a Tab pressed outside the sheet back into it', () => {
+    // The recovery half: a click on the page behind can still move the focus
+    // out, and the next Tab is what returns it — without which the trap is a
+    // rule that only holds while it has never been broken.
+    const opener = openFromControl();
+    opener.focus();
+
+    const escaped = createEvent.keyDown(opener, { key: 'Tab' });
+    fireEvent(opener, escaped);
+
+    expect(escaped.defaultPrevented).toBe(true);
+    expect(document.activeElement).toBe(
+      screen.getByRole('button', { name: 'Close the keyboard shortcuts' }),
+    );
   });
 });
 

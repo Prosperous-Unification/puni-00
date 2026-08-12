@@ -445,3 +445,82 @@ test.describe('the Name cell at rest is the name alone', () => {
     );
   });
 });
+
+/**
+ * The grip the Name cell put on its own `<textarea>`, and what it cost.
+ *
+ * A browser draws a resize handle in the bottom-right corner of a textarea, and
+ * the Name cell's own `style` object set `resize: 'vertical'`, so every Name
+ * cell in this table shipped with one. **Not** Tailwind's preflight, which this
+ * build never imports and whose served CSS carries no `resize` rule at all —
+ * this docstring said preflight until 2026-08-12, and it mattered, because an
+ * inline property outranks every layer and a stylesheet rule could not have
+ * reached the box while it was there. `styles.css`'s `[data-grid] textarea`
+ * block and `verify.md`'s defect 1 have the correction.
+ *
+ * Dragging it is not an edit and there is no undo for it: the row's
+ * box takes the dragged height, the chart row beside it keeps the height the
+ * plan gave it, and the two are out of line for the rest of the session.
+ * Measured on dev, 2026-08-12 — one drag took a 28px row to 124px.
+ *
+ * A browser is the only oracle for it. jsdom performs no drag, lays nothing
+ * out and reports no `resize` — this is R5 #14–16's fault class, which is why
+ * the pin is here and not in `wbs-table.test.tsx`.
+ */
+test.describe('the Name cell has no grip to drag it out of line', () => {
+  test('dragging the bottom-right corner leaves the row the height its text asks for', async ({
+    page,
+  }) => {
+    await seedRows(page, `e2e-grip-${String(Date.now())}-${String(account)}`, 2);
+    const cell = page.getByLabel('Name of 010');
+    await writeInto(cell, SHORT_NAME);
+    await settled(page);
+
+    const before = await boxOf(cell);
+    const row = page.locator('tbody tr').first();
+    const rowBefore = await row.evaluate((node) => node.getBoundingClientRect().height);
+
+    const grip = await cell.boundingBox();
+    expect(grip, 'the Name cell has no box to take a corner of').not.toBeNull();
+    if (grip === null) return;
+    // The last two pixels inside the box's bottom-right corner, which is where
+    // a browser puts the handle.
+    await page.mouse.move(grip.x + grip.width - 2, grip.y + grip.height - 2);
+    await page.mouse.down();
+    await page.mouse.move(grip.x + grip.width - 2, grip.y + grip.height + 96, { steps: 12 });
+    await page.mouse.up();
+    await settled(page);
+
+    const after = await boxOf(cell);
+    const rowAfter = await row.evaluate((node) => node.getBoundingClientRect().height);
+
+    expect(
+      await cell.evaluate((node) => getComputedStyle(node).resize),
+      'the box still offers a resize handle',
+    ).toBe('none');
+    expect(after.clientHeight, 'the drag changed the height of the Name box').toBe(
+      before.clientHeight,
+    );
+    expect(rowAfter, 'the drag changed the height of the row').toBe(rowBefore);
+  });
+
+  test('the box still grows with the text it is given', async ({ page }) => {
+    // The other half, and what makes the rule above a rule rather than a box
+    // frozen at one height: `resize: none` is about the *handle*, and the
+    // auto-grow that writes `style.height` is untouched by it.
+    await seedRows(page, `e2e-grow-${String(Date.now())}-${String(account)}`, 2);
+    const cell = page.getByLabel('Name of 010');
+    await writeInto(cell, SHORT_NAME);
+    await settled(page);
+    const short = await boxOf(cell);
+
+    await writeInto(cell, LONG_NAME);
+    await settled(page);
+    const long = await boxOf(cell);
+
+    expect(long.clientHeight, 'a wrapped name did not make the box taller').toBeGreaterThan(
+      short.clientHeight,
+    );
+    expect(linesHidden(long), 'a line of the wrapped name is hidden').toBeLessThan(0.5);
+  });
+});

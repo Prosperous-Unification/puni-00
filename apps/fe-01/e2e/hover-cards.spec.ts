@@ -512,6 +512,58 @@ test.describe('hovering a dependency lights the rows it names', () => {
     await expect.poll(() => rowBg(page, '020')).toBe(rest020);
   });
 
+  test('the light outranks the pointer on a banded row as well as a plain one', async ({
+    page,
+  }) => {
+    // The stripe the light lands on must not decide what the light looks
+    // like. `table-mechanics` added a second hover token for banded rows, and
+    // `[data-grid] tbody tr:nth-child(even):hover` outweighs
+    // `tr[data-dep-lit]` — one attribute and two pseudo-classes against one
+    // attribute — so source order, which is what that block's comment said
+    // held the two apart, decided nothing at all. On an odd row the light
+    // won; on an even one the pointer painted straight over it.
+    //
+    // Reachable without a drag, which is why this test is here and not in a
+    // drag spec: `data-dep-lit` comes from `depHover ?? depFocus`, and the
+    // *focus* half lights a row while the pointer is resting somewhere else
+    // of the reader's choosing.
+    //
+    // 020 is the second body row, so it is the banded one — the assertion at
+    // the top, that the two lit rows are one colour, is what says so without
+    // reading the stripe out of the stylesheet.
+    //
+    // Proof, watched in CI's `pixels` job at `b441c414`, 2026-08-12 — the two
+    // `:not()`s not yet on the banded-hover rule: `the pointer repainted the
+    // lit row on a banded stripe … Expected: "oklab(0.96448 -0.00109706
+    // -0.00467295)" Received: "oklab(0.917255 -0.000368904 -0.00397291)"`.
+    // The received value is `--grid-band-hover` exactly; the expected one is
+    // `--grid-dep-lit`, which is what the odd row beside it kept.
+    await seed030WaitingForBoth(page);
+
+    // The keyboard's light, with the pointer parked at the origin by the seed.
+    await page.getByLabel('Add a dependency to 030').focus();
+    await expect(rowOf(page, '010')).toHaveAttribute('data-dep-lit', 'true');
+    await expect(rowOf(page, '020')).toHaveAttribute('data-dep-lit', 'true');
+    const lit = await settledRowBg(page, '020');
+    expect(lit, 'the lit tint differs by stripe before the pointer is anywhere near').toBe(
+      await settledRowBg(page, '010'),
+    );
+
+    // The pointer onto the banded lit row, and nothing else: the Name cell
+    // opens no preview of its own, and hovering moves no focus, so the light
+    // is still the box's.
+    await rowOf(page, '020').locator('td[data-column="name"]').hover();
+    await expect(rowOf(page, '020')).toHaveAttribute('data-dep-lit', 'true');
+
+    expect(
+      await settledRowBg(page, '020'),
+      'the pointer repainted the lit row on a banded stripe',
+    ).toBe(lit);
+    // And the unhovered lit row has not moved either, so the equality above is
+    // a claim about the pointer rather than about the whole page settling.
+    expect(await settledRowBg(page, '010')).toBe(lit);
+  });
+
   test('a clipped chip has no hover target, and the cell still lights its row', async ({
     page,
   }) => {
@@ -756,5 +808,90 @@ test.describe('the Name cell’s preview takes the room around its cell', () => 
     // cell's own subtree is what makes that survivable — see `HoverCard`.
     await page.mouse.move(Math.round(box.x + box.width / 2), Math.round(box.y + box.height / 2));
     expect(await cardsOpen(page), 'the flipped card closed on the way to it').toBe(1);
+  });
+});
+
+/**
+ * What the pointer does to a row, on both phases of the stripe.
+ *
+ * `--grid-hover` was one absolute shade, and the body is banded: a plain row
+ * moved `oklab(1)` → `oklab(0.939 …)` under the pointer and a banded one
+ * `oklab(0.978 …)` → the same `oklab(0.939 …)`. The pointer therefore said two
+ * different things on alternate rows and said the quieter one on half the
+ * plan — which is the "hovering a striped row shows nothing" of the UI audit,
+ * 2026-08-12.
+ *
+ * A browser is the only oracle: every shade here is a `color-mix` resolved at
+ * computed-value time, `:hover` is a state jsdom never enters, and the pinned
+ * Name cell reaches its colour only through the `--cell-bg` join. What is
+ * asserted is the *step*, in rasterised luminance, because that is the
+ * quantity a reader sees — and it is asserted on both phases, because one
+ * phase passing is how this shipped.
+ */
+test.describe('the pointer moves a row by the same ink on both phases of the stripe', () => {
+  /** Where the pointer goes to be nowhere near a row. */
+  const parkPointer = (page: Page): Promise<void> => page.mouse.move(0, 0);
+
+  /** The settled luminance of a row's pinned Name cell. */
+  const rowLuminance = async (page: Page, number: string): Promise<number> =>
+    luminance(page, await settledRowBg(page, number));
+
+  test('a banded row moves as far under the pointer as a plain one', async ({ page }) => {
+    // The plan is the file's `beforeEach`'s — seeding a second one here signs
+    // up over an account that is already signed in, and the Register button
+    // the helper clicks is not on that page.
+    await parkPointer(page);
+
+    // 010 is the first body row and 020 the second, which is the one
+    // `tr:nth-child(even)` bands. The precondition is that they differ at
+    // rest: with no stripe at all this whole test would be about one colour.
+    const restPlain = await rowLuminance(page, '010');
+    const restBand = await rowLuminance(page, '020');
+    expect(restBand, 'there is no stripe to hover, so this test measures nothing').toBeLessThan(
+      restPlain - 2,
+    );
+
+    await rowOf(page, '010').hover();
+    const hoverPlain = await rowLuminance(page, '010');
+    await parkPointer(page);
+    await expect.poll(() => rowLuminance(page, '010')).toBe(restPlain);
+
+    await rowOf(page, '020').hover();
+    const hoverBand = await rowLuminance(page, '020');
+
+    const stepPlain = restPlain - hoverPlain;
+    const stepBand = restBand - hoverBand;
+
+    // Each phase moves at all, and downward: the pointer darkens a light page.
+    expect(stepPlain, 'the pointer did not darken a plain row').toBeGreaterThan(8);
+    expect(stepBand, 'the pointer did not darken a banded row').toBeGreaterThan(8);
+    // And by the same amount. This is the assertion the single absolute token
+    // failed: 19.6 against 12.6 on the palette this ships with.
+    expect(
+      Math.abs(stepPlain - stepBand),
+      'the pointer moves a banded row and a plain row by different amounts',
+    ).toBeLessThan(3);
+  });
+
+  test('a hovered banded row is nobody else’s colour', async ({ page }) => {
+    // The other half of "reads on both phases": the hovered banded row has to
+    // be distinct from the rest shade of *both* kinds of row, or the pointer
+    // is saying something one row along already says.
+    await parkPointer(page);
+
+    const restPlain = await rowLuminance(page, '010');
+    const restBand = await rowLuminance(page, '020');
+
+    await rowOf(page, '020').hover();
+    const hoverBand = await rowLuminance(page, '020');
+
+    expect(
+      Math.abs(hoverBand - restBand),
+      'a hovered banded row is its own rest shade',
+    ).toBeGreaterThan(8);
+    expect(
+      Math.abs(hoverBand - restPlain),
+      'a hovered banded row is the colour of every unbanded row',
+    ).toBeGreaterThan(8);
   });
 });
