@@ -1301,8 +1301,16 @@ function GanttChart({
       // chart takes what it needs up to the cap. A dragged height replaces the
       // bounded share with its own number, under the live cap that keeps a
       // height dragged on a tall monitor sane on a laptop.
+      //
+      // `isolate` is what keeps the chart's own layering inside the chart. The
+      // sticky label column, its corner and the calendar axis stack against
+      // each other at `z-10`/`z-20`, and `overflow` makes no stacking context
+      // to hold them: without this they stack against the page, and the height
+      // handle sitting over this box at `z-index: 1` loses every pixel the
+      // chart's content reaches — the strip is unpressable exactly where there
+      // is a chart to resize. Watched in Chromium, `e2e/gantt.spec.ts`.
       className={cn(
-        'border-border shrink-0 overflow-auto border-t',
+        'border-border isolate shrink-0 overflow-auto border-t',
         heightPx === null && 'max-h-[40vh]',
       )}
       style={
