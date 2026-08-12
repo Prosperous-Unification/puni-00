@@ -1694,9 +1694,12 @@ test.describe('the table, measured by a browser', () => {
       await page.getByRole('button', { name: `Unfold ${role} estimates` }).click();
       await expect(page.getByLabel(`${role} optimistic for 010`)).toBeVisible();
       const other = role === 'Dev' ? 'QA' : 'Dev';
-      if (await page.getByRole('button', { name: `Fold ${other} estimates` }).isVisible()) {
-        await page.getByRole('button', { name: `Fold ${other} estimates` }).click();
-      }
+      // `exact`, and it is load-bearing: an accessible name is matched as a
+      // substring by default, so `Fold QA estimates` finds the **Unfold**
+      // button as well and folding the other role would unfold it instead.
+      // Watched on h2puni: `expected 0, received 1` for QA's own box.
+      const foldOther = page.getByRole('button', { name: `Fold ${other} estimates`, exact: true });
+      if (await foldOther.isVisible()) await foldOther.click();
       await expect(page.getByLabel(`${other} optimistic for 010`)).toHaveCount(0);
 
       for (const viewport of VIEWPORTS) {
