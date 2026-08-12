@@ -276,6 +276,32 @@ describe('the two faces held on one row', () => {
     stop();
   });
 
+  it('does not let a follower that ran out of chart drag its driver back', () => {
+    const frame = fakeFrame(IDS);
+    const panel = fakePanel(IDS);
+    // A shorter chart than the table it follows: it stops 100px in, which is
+    // where a browser clamps a `scrollTop` past the end of a scroll box.
+    let held = 0;
+    Object.defineProperty(panel, 'scrollTop', {
+      get: () => held,
+      set: (asked: number) => {
+        held = Math.min(asked, 100);
+      },
+    });
+    const stop = linkPlanScroll(frame, panel);
+
+    frame.scrollTop = 7 * ROW;
+    frame.dispatchEvent(new Event('scroll'));
+    expect(panel.scrollTop).toBe(100);
+    // The clamped landing fires its own scroll event, and answering that one
+    // would pull the table back to where the chart ran out — a plan that
+    // refuses to scroll past its chart's last row.
+    panel.dispatchEvent(new Event('scroll'));
+
+    expect(frame.scrollTop).toBe(7 * ROW);
+    stop();
+  });
+
   it('leaves a face that could not move free to drive the next gesture', () => {
     const frame = fakeFrame(IDS);
     const panel = fakePanel(IDS);
