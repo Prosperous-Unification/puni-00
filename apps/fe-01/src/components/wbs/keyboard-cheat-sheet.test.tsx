@@ -46,6 +46,10 @@ const PROVEN_BY = new Map<string, readonly string[]>(
   // binding nothing was written for — the vacuous version of this check.
   Object.entries({
     'Editing: Enter': ['Enter in a name is a newline, and makes nothing'],
+    'Editing: Enter in Prio': [
+      'sends what was typed on Enter, without waiting for the cell to be left',
+      'sends one request for a priority entered with Enter and then left',
+    ],
     'Editing: Ctrl/⌘ + Enter': [
       'Cmd+Enter moves to the next row’s name',
       'Cmd+Enter on the last row makes one and lands in it',

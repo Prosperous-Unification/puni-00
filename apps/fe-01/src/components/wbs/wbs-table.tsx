@@ -5250,6 +5250,40 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                 textAlign: 'right',
               }}
               onKeyDown={(e) => {
+                // Enter saves the number, and that is this column's alone to
+                // say: the Name cell holds real newlines and Enter is the
+                // browser's own there (`command-keys`), so the rule cannot
+                // live in `CellInput`. Without it a typed priority sat in the
+                // box sending nothing until the reader happened to click
+                // somewhere else — the dates under the plan unmoved for as
+                // long as they looked at it. Observed live on dev, 2026-08-11.
+                //
+                // The modifiers are asked about first and the chord is left to
+                // `onCommandKey` underneath: Ctrl/⌘ + Enter saves *and* moves
+                // to the next row, and a bare Enter that also moved would be
+                // that chord wearing this key.
+                //
+                // `flushCell` rather than a commit of this cell's own, because
+                // it is the same "leave this cell now" the chords use and it is
+                // what rule 5 of `LiveField` answers from: the blur that
+                // follows finds the submission already recorded and sends
+                // nothing, so one Enter is one request and one undo.
+                //
+                // Proof, two faults, both watched 2026-08-11. This branch
+                // absent: `sends what was typed on Enter, without waiting for
+                // the cell to be left` failed on `expected [ { priority: 1 } ]
+                // to deeply equal []`. Written as a direct
+                // `setPriority(row.original.id, e.currentTarget.value)`, which
+                // sends the same patch without recording a submission: `sends
+                // one request for a priority entered with Enter and then left`
+                // failed on `expected [ { priority: 4 }, { priority: 4 } ] to
+                // deeply equal [ { priority: 4 } ]` — one typed number, two
+                // journal entries and two Ctrl/⌘ + Zs.
+                if (e.key === 'Enter' && !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey) {
+                  e.preventDefault();
+                  void flushCell(e.currentTarget);
+                  return;
+                }
                 live.current.onAltMove(e, row.original, 'priority');
                 live.current.onCommandKey(e, row.original, 'priority');
                 live.current.onTabKey(e, row.original.id, 'priority');
