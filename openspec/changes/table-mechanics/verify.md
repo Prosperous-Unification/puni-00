@@ -58,6 +58,34 @@ with `~/tm-e2e.sh <spec> -g <name>`. Every one was reverted with
 
 Fifteen unit reds and five browser reds, each watched and each reverted.
 
+### The cross-review round, 2026-08-12
+
+Two P2s came back from the cross-review
+(`notes/wbs-cross-review-2026-08-12-table-mechanics.md`), and both are the same
+shape: a rule reaching further than the argument written above it. Both fixes
+are one selector, and each got its test first. These two reds were **not**
+injected and reverted — the fault _was_ the shipped code, so the tests were
+pushed as a commit of their own (`b441c414`, on this branch rebased onto
+`10fb1aec`) and watched in CI's `pixels` job before the fix landed on top.
+
+| #   | Fault (the code as it stood at `b441c414`)                                     | Test that went red                                                          | What it said                                                                                                        |
+| --- | ------------------------------------------------------------------------------ | --------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| R1  | `tbody tr:nth-child(even):hover` with no `:not()`, outranking `[data-dep-lit]` | 1 (`the light outranks the pointer on a banded row as well as a plain one`) | `the pointer repainted the lit row on a banded stripe … Expected: "oklab(0.96448 …)" Received: "oklab(0.917255 …)"` |
+| R2  | `[data-grid] [data-number] { font-size: 11px }`, unscoped to `tbody`           | 1 (`keeps the card’s number at the card’s own size, not the table’s`)       | `the table’s 11px reached the phone’s card … Expected: "16px" Received: "11px"`                                     |
+
+R1's received value is `--grid-band-hover` to six digits and its expected value
+is `--grid-dep-lit`: the pointer really did paint over the light, on the banded
+row and not on the plain one beside it. The comment above that rule claimed it
+was `(0, 2, 2)` and held up by source order; it is `(0, 3, 2)` and was held up
+by nothing. R2 is the phone's card header taking a rule whose every
+justification is a table argument — a surface this change's Known limits say it
+is not touching.
+
+**`sets the Number column’s type below the row’s own` is a pin, not a red.**
+Added in the same commit and green on both sides of the fix, which is what it
+is for: it holds the end of the rescope that must not move. See the E3 note
+below for why it had to be written at all.
+
 ## What did **not** red, and what that changed
 
 Four predictions failed. Three of them were the test being weaker than its
@@ -87,6 +115,19 @@ The deeper number is still a glyph short of whole and still carries the rest in
 its `title`. That is the column's declared width doing what it has always done,
 it is written into the requirement rather than papered over, and
 `spreadsheet-geometry` is where a wider column would belong.
+
+**And neither half of that geometry was pinned on its own.** E3 reverts _both_
+— the cap and the type size — and the row above records the pair. Taken apart:
+`DEEPEST_INDENT` back at 4 fails **no unit test at all**, because `the outline
+past the Number cap` was rewritten to read the constant and assert the relation
+(the better test, and the reason it cannot see the value); and until the
+cross-review round the 11px was asserted nowhere by name either, so the whole
+of the audit's fix rested on one e2e in `pixels` that only reddens when both
+halves go. Fine while `pixels` is a required check, and worth saying out loud
+rather than leaving to be discovered. `sets the Number column’s type below the
+row’s own` now pins the type size by name, at 1400px, against the row's own
+computed size as well as against the literal. The cap's value is still held by
+the depth-4 pair alone.
 
 **`a hovered banded row is nobody else's colour` did not red under E2.** The
 single absolute `--grid-hover` was already distinct from both rest shades; what

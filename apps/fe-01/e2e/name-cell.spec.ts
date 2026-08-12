@@ -447,11 +447,18 @@ test.describe('the Name cell at rest is the name alone', () => {
 });
 
 /**
- * The grip Tailwind's preflight puts on every `<textarea>`, and what it cost.
+ * The grip the Name cell put on its own `<textarea>`, and what it cost.
  *
- * A browser draws a resize handle in the bottom-right corner of a textarea and
- * preflight sets `resize: vertical`, so every Name cell in this table shipped
- * with one. Dragging it is not an edit and there is no undo for it: the row's
+ * A browser draws a resize handle in the bottom-right corner of a textarea, and
+ * the Name cell's own `style` object set `resize: 'vertical'`, so every Name
+ * cell in this table shipped with one. **Not** Tailwind's preflight, which this
+ * build never imports and whose served CSS carries no `resize` rule at all —
+ * this docstring said preflight until 2026-08-12, and it mattered, because an
+ * inline property outranks every layer and a stylesheet rule could not have
+ * reached the box while it was there. `styles.css`'s `[data-grid] textarea`
+ * block and `verify.md`'s defect 1 have the correction.
+ *
+ * Dragging it is not an edit and there is no undo for it: the row's
  * box takes the dragged height, the chart row beside it keeps the height the
  * plan gave it, and the two are out of line for the rest of the session.
  * Measured on dev, 2026-08-12 — one drag took a 28px row to 124px.

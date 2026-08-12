@@ -531,6 +531,13 @@ test.describe('hovering a dependency lights the rows it names', () => {
     // 020 is the second body row, so it is the banded one — the assertion at
     // the top, that the two lit rows are one colour, is what says so without
     // reading the stripe out of the stylesheet.
+    //
+    // Proof, watched in CI's `pixels` job at `b441c414`, 2026-08-12 — the two
+    // `:not()`s not yet on the banded-hover rule: `the pointer repainted the
+    // lit row on a banded stripe … Expected: "oklab(0.96448 -0.00109706
+    // -0.00467295)" Received: "oklab(0.917255 -0.000368904 -0.00397291)"`.
+    // The received value is `--grid-band-hover` exactly; the expected one is
+    // `--grid-dep-lit`, which is what the odd row beside it kept.
     await seed030WaitingForBoth(page);
 
     // The keyboard's light, with the pointer parked at the origin by the seed.

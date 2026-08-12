@@ -472,12 +472,28 @@
   /*
    * The same pointer on a banded row, which already carries the band's ink.
    *
-   * Before `[data-dep-lit]` below and never after it: this selector is
-   * `(0, 2, 2)`, the same weight as the lit row's, so the order in this file
-   * is the whole of what keeps "lit" winning over "under the pointer" — the
-   * rule that block states in prose.
+   * The two `:not()`s are what keeps "lit" and "would land here" winning over
+   * "under the pointer", and source order is **not** what does it. This
+   * selector is `(0, 5, 2)` — one attribute, four pseudo-classes, two types,
+   * and `:not()` takes the weight of its argument — against `(0, 2, 2)` for
+   * both `[data-grid] tbody tr[data-dep-lit]` below and `[data-grid] tbody
+   * tr[data-drop='into']` at the foot of this file. It outranks both, so
+   * putting it first decides nothing; the only thing that can hold those two
+   * up is this rule declining to match their rows at all.
+   *
+   * That is not hypothetical. `data-dep-lit` is written from `depHover ??
+   * depFocus`, and the *focus* half lights a row while the pointer rests
+   * somewhere else entirely: Tab into `030`'s Depends on box with the pointer
+   * over `020`, and before these two `:not()`s the light held on an odd row
+   * and was overpainted by the band's hover on an even one. A highlight that
+   * behaves differently on alternate stripes is the defect class this whole
+   * change exists to remove.
+   *
+   * `[data-drop='into']` and not `[data-drop]`: `above` and `below` draw an
+   * edge on the `<td>`s and leave `--cell-bg` alone, so a row being dragged
+   * past keeps its hover.
    */
-  [data-grid] tbody tr:nth-child(even):hover {
+  [data-grid] tbody tr:not([data-dep-lit]):not([data-drop='into']):nth-child(even):hover {
     --cell-bg: var(--grid-band-hover);
   }
 
@@ -486,9 +502,11 @@
    * written by `wbs-table.tsx`'s dependency hover). Re-points `--cell-bg` for
    * the reason `tr:hover` does: the pinned cells' inline backgrounds follow
    * the row only through that join. After `tr:hover` at equal specificity on
-   * purpose — the two never name the same row (a row does not wait for
-   * itself), but if that ever changes, "lit" should win over "under the
-   * pointer".
+   * purpose: the two *do* name the same row — `depFocus` lights a row the
+   * pointer happens to be resting on — and "lit" is what should win, which at
+   * `(0, 2, 2)` each it gets from being second. The banded-hover rule above
+   * carries more weight than this one and stays out of the way by predicate
+   * instead; anything else added there has to do the same.
    *
    * Proof: this rule withheld from PR #38's first head (`ec1580e`) — the
    * attribute set, the paint unchanged, jsdom green throughout — and the
@@ -535,8 +553,10 @@
   }
 
   /*
-   * No resize grip on the Name cell, which is the only `<textarea>` in the
-   * grid.
+   * No resize grip on the Name cell — nor on the two `CellInput` textareas the
+   * phone's cards render, which carry `data-grid` as well and had the same
+   * handle for the same reason. That second reach is deliberate and is a fix
+   * too; it is only the table's that was measured.
    *
    * Every row of every plan shipped with a drag handle in its bottom-right
    * corner, and dragging it is not an edit. It writes an inline height the
@@ -593,22 +613,38 @@
   [data-grid] [data-number] {
     color: var(--muted-foreground);
     font-variant-numeric: tabular-nums;
-    /*
-     * Smaller than the name beside it, which is the paragraph above taken one
-     * step further: a work item number is a reference, not prose, and the
-     * table's own text is the browser default 16px.
-     *
-     * It is also half the fix for the audit's depth-4 clipping, 2026-08-12.
-     * `050.1.1.1` and `050.1.1.1.1` both drew as `050.1` in a 93px column, and
-     * a number nobody can read is the column doing nothing at all; the other
-     * half is `DEEPEST_INDENT`, which gave 24px of that column back. At this
-     * size five levels of a leaf row fit whole where two did.
-     *
-     * It moves no pixel of the layout: the column is `table-layout: fixed` at a
-     * declared width, and the lock and the expander beside this span keep the
-     * cell's 16px line box, so the row is the height it always was. The same
-     * exception the heading row's 10px caption already takes.
-     */
+  }
+
+  /*
+   * Smaller than the name beside it, which is the paragraph above taken one
+   * step further: a work item number is a reference, not prose, and the
+   * table's own text is the browser default 16px.
+   *
+   * It is also half the fix for the audit's depth-4 clipping, 2026-08-12.
+   * `050.1.1.1` and `050.1.1.1.1` both drew as `050.1` in a 93px column, and a
+   * number nobody can read is the column doing nothing at all; the other half
+   * is `DEEPEST_INDENT`, which gave 24px of that column back. At this size
+   * five levels of a leaf row fit whole where two did.
+   *
+   * It moves no pixel of the layout: the column is `table-layout: fixed` at a
+   * declared width, and the lock and the expander beside this span keep the
+   * cell's 16px line box, so the row is the height it always was. The same
+   * exception the heading row's 10px caption already takes.
+   *
+   * `tbody` and not `[data-grid]` alone, which is the whole reason this is its
+   * own rule rather than one more declaration in the block above. The phone
+   * renderer carries `data-grid` too — `plan-cards.tsx` sets it so
+   * `editable-grid.ts` can find the grid at all — and its card header renders
+   * the same `[data-number]` span. Every argument written above is a table
+   * argument: a fixed column at a declared width, a lock and an expander
+   * holding a 16px line box, an outline capped by `numberIndentFor`. None of
+   * it holds for a flex card header, whose indent comes from `cardIndentFor`
+   * and did not move. Left unscoped, this shrank the card's number to 11px
+   * inside a change whose Known limits say the cards are out of scope. A card
+   * list has no `<tbody>`, so this is the narrowest thing that says "the
+   * table's number".
+   */
+  [data-grid] tbody [data-number] {
     font-size: 11px;
   }
 
@@ -730,6 +766,14 @@
    * not the page but the row, and the row is already a mix. 7% is
    * `--grid-hover`'s own dose, so the affordance stands off the hovered row
    * by exactly as much as the hovered row stands off the page.
+   *
+   * Which is why the one absolute shade named above — `--grid-hover` at
+   * `oklch(0.939)` — stopped being the only answer when `table-mechanics`
+   * added `--grid-band-hover`: on a hovered *banded* row `--cell-bg` is the
+   * 9.5% mix, so the affordance lands near 16.15% rather than 13.5%. The
+   * mechanism is untouched, which is the point of quoting this block as the
+   * precedent for that one; only the arithmetic in the paragraph above is a
+   * light-palette, odd-row snapshot now.
    */
   [data-grid] td[data-column='depends'] button[data-dep-add]:hover {
     background: color-mix(in oklab, var(--foreground) 7%, var(--cell-bg));

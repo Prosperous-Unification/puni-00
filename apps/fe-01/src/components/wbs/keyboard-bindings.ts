@@ -151,19 +151,19 @@ export const KEY_BINDINGS: readonly KeyBinding[] = [
   },
   {
     keys: 'Alt + ↑ / Alt + ↓',
-    does: 'Moves the row up or down among its siblings, from every cell — an open picker list does not hold it back. It never changes what the row sits under, and it stops at either end of the group.',
+    does: 'Moves the row up or down among its siblings: Depends on, Service/team and the assignee boxes answer it even while they are offering something. A half-typed @ mention in a folded role’s cell is the one list that holds it back, until Escape closes it. It never changes what the row sits under, and it stops at either end of the group.',
     where: 'Moving rows',
     renderers: TABLE_ONLY,
   },
   {
     keys: 'Alt + →',
-    does: 'Indents the row — from any cell and any caret position, where Tab needs the start of the name.',
+    does: 'Indents the row — from any caret position, where Tab needs the start of the name, and on the same terms as Alt + ↑ / ↓: the pickers answer it, a half-typed @ mention holds it until Escape.',
     where: 'Moving rows',
     renderers: TABLE_ONLY,
   },
   {
     keys: 'Alt + ←',
-    does: 'Outdents the row, from any cell — an open picker list included.',
+    does: 'Outdents the row, on the same terms as Alt + → — an open picker list included, a half-typed @ mention excepted.',
     where: 'Moving rows',
     renderers: TABLE_ONLY,
   },

@@ -144,6 +144,10 @@ test.describe('the plan on a phone, measured by a browser', () => {
     // restyle the cards and this keeps meaning what it says. The floor below
     // it is what stops it passing vacuously if the cards themselves ever go
     // to 11px.
+    //
+    // Proof, watched in CI's `pixels` job at `b441c414`, 2026-08-12, with the
+    // rule still written `[data-grid] [data-number]`: `the table's 11px
+    // reached the phone's card … Expected: "16px" Received: "11px"`.
     const sizes = await page.evaluate(() => {
       const span = document.querySelector('[data-card] [data-number]');
       if (!(span instanceof HTMLElement)) throw new Error('no numbered span on any card');
