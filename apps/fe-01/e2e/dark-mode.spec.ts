@@ -48,11 +48,35 @@ async function seedPlan(page: Page, account: string): Promise<void> {
 /** The one button in the header that opens the account menu. */
 const accountTrigger = (page: Page): Locator => page.locator('header button[aria-haspopup="menu"]');
 
-/** Opens the account menu and hands back the answer asked for. */
+/**
+ * Waits for the palette to finish arriving.
+ *
+ * Every button and link in the chrome carries `transition-colors`, so flipping
+ * the class starts a ~150ms colour transition on each of them and a
+ * `getComputedStyle` read taken inside that window answers with an interpolated
+ * `oklab(…)` — a colour neither palette names. Measured: the header's
+ * `Directory` link read `oklab(0.5209 …)` mid-flight against the dark header,
+ * **1.03:1**, where its resting `oklch(0.984 …)` is 15.9:1. A settle this test
+ * did not wait for is a red about nothing, and worse, a green about nothing:
+ * `nothing on the page is painted a colour the palette never names` compares
+ * backgrounds against a literal, and an interpolating one matches no literal at
+ * all.
+ *
+ * `document.getAnimations()` and not one element's, because the flip moves every
+ * surface at once and the reads below walk ancestors. Nothing in this app
+ * animates without end (checked: no `animate-spin`, no `infinite`), so this
+ * drains rather than waits out the timeout.
+ */
+async function settled(page: Page): Promise<void> {
+  await expect.poll(() => page.evaluate(() => document.getAnimations().length)).toBe(0);
+}
+
+/** Opens the account menu, takes the answer asked for, and lets the paint land. */
 async function chooseTheme(page: Page, answer: 'System' | 'Light' | 'Dark'): Promise<void> {
   await accountTrigger(page).click();
   await page.getByRole('menuitemradio', { name: answer }).click();
   await page.keyboard.press('Escape');
+  await settled(page);
 }
 
 /** Which palette the document is in, as the only thing that decides it. */
@@ -177,9 +201,16 @@ test.describe('the theme control', () => {
 
     expect(await page.locator('#root').innerHTML()).toBe('');
     expect(await paletteOf(page)).toBe('dark');
-    expect(await page.evaluate(() => getComputedStyle(document.documentElement).colorScheme)).toBe(
-      'dark',
-    );
+
+    // The class, and deliberately not `color-scheme`. Under the dev server the
+    // stylesheet is an import of the entry module this test just refused, so
+    // there is no `.dark { color-scheme: dark }` on the page to read and
+    // Chromium answers `normal` — a fact about Vite's dev pipeline rather than
+    // about the bootstrap. Watched: asserting it here failed on
+    // `expected 'normal' to be 'dark'` with the bootstrap working perfectly.
+    // `hands the platform its own controls in the right palette` makes that
+    // claim against a page whose stylesheet has loaded, which is the only page
+    // it is a claim about.
   });
 
   test('follows the machine while nothing has been chosen, and stops when something is', async ({

@@ -70,6 +70,12 @@ async function chooseTheme(page: Page, answer: 'Light' | 'Dark'): Promise<void> 
   await page.getByRole('menuitemradio', { name: answer }).click();
   await page.keyboard.press('Escape');
   await expect(page.getByRole('menuitemradio', { name: answer })).toBeHidden();
+  // The chrome carries `transition-colors`, so the flip is a ~150ms colour
+  // animation on every surface at once and a read taken inside it answers with
+  // an interpolated `oklab(…)` belonging to neither palette. Drained rather
+  // than waited out: nothing in this app animates without end.
+  // `dark-mode.spec.ts` has the measurement that made this necessary.
+  await expect.poll(() => page.evaluate(() => document.getAnimations().length)).toBe(0);
 }
 
 let account = 0;
