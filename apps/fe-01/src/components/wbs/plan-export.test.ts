@@ -72,6 +72,14 @@ const DEV = { id: 'role-dev', name: 'Dev' };
 const QA = { id: 'role-qa', name: 'QA' };
 
 const row = (over: Partial<ExportRow> & Pick<ExportRow, 'id' | 'number'>): ExportRow => ({
+  // At the root and one at a time, which is every row of a plan nobody has
+  // arranged or widened. Both spelled out rather than left off, for the reason
+  // the `priority` comment below records: a `Partial` spread satisfies a
+  // required field the base object omits, so an omission compiles and every row
+  // in this file would carry `undefined` — `parentId: undefined` walks no
+  // ancestry, and `maxParallel: undefined` is neither 1 nor a number.
+  parentId: null,
+  maxParallel: 1,
   name: '',
   notes: '',
   rolledUp: false,
@@ -108,6 +116,10 @@ const plan = (over: Partial<PlanExport> = {}): PlanExport => ({
     { id: 'person-bo', name: 'Bo "Boss"' },
   ],
   rows: [],
+  // No placement at all, which is what an unscheduled plan and a plan read
+  // before its first chart both hold. The Ran at column renders it as nothing
+  // rather than as a 1 — see `ranAtCell`.
+  slices: [],
   ...over,
 });
 
@@ -121,6 +133,25 @@ function csvDataRow(text: string, at = 0): string[] {
 /** The column headers of a CSV, which are the record after the blank one. */
 function csvColumns(text: string): string[] {
   return csvDataRow(text, -1);
+}
+
+/**
+ * Where one named column sits, read off the CSV's own header row.
+ *
+ * The Priority assertion has done this since 2026-08-11 and its comment gives
+ * the reason: a column inserted to the left of the one under test moves a typed
+ * index onto its neighbour, and the assertion then passes or fails about a
+ * column nobody meant. `capacity-ui` inserted two of them after Team and broke
+ * nine assertions that had typed theirs, which is the same lesson a second
+ * time; every positional index in this file is now this call.
+ *
+ * Throws rather than answering `-1`, which would silently read the last cell of
+ * every row.
+ */
+function columnAt(text: string, header: string): number {
+  const at = csvColumns(text).indexOf(header);
+  if (at === -1) throw new Error(`no ${header} column in ${csvColumns(text).join(', ')}`);
+  return at;
 }
 
 /** The cells of one Markdown table row, by the number in its first column. */
@@ -226,6 +257,8 @@ describe('the columns', () => {
       'Number',
       'Name',
       'Team',
+      'People at once',
+      'Ran at',
       'Dev optimistic',
       'Dev realistic',
       'Dev pessimistic',
@@ -298,10 +331,11 @@ describe('the columns', () => {
       row({ id: 'b', number: '020', serviceTeamId: 'team-gone' }),
       row({ id: 'c', number: '030' }),
     ];
-    const cells = csvDataRow(planToCsv(plan({ rows })));
-    expect(cells[2]).toBe('Billing, Ltd');
-    expect(csvDataRow(planToCsv(plan({ rows })), 1)[2]).toBe('(unknown)');
-    expect(csvDataRow(planToCsv(plan({ rows })), 2)[2]).toBe('');
+    const csv = planToCsv(plan({ rows }));
+    const team = columnAt(csv, 'Team');
+    expect(csvDataRow(csv)[team]).toBe('Billing, Ltd');
+    expect(csvDataRow(csv, 1)[team]).toBe('(unknown)');
+    expect(csvDataRow(csv, 2)[team]).toBe('');
   });
 
   it('resolves dependencies to numbers, comma-joined, dropping ones that have gone', () => {
@@ -310,8 +344,8 @@ describe('the columns', () => {
       row({ id: 'b', number: '020' }),
       row({ id: 'c', number: '030', dependsOn: ['a', 'gone', 'b'] }),
     ];
-    const cells = csvDataRow(planToCsv(plan({ rows })), 2);
-    expect(cells[14]).toBe('010, 020');
+    const csv = planToCsv(plan({ rows }));
+    expect(csvDataRow(csv, 2)[columnAt(csv, 'Depends on')]).toBe('010, 020');
   });
 
   it('says who is assumed to do a phase nobody was assigned to', () => {
@@ -323,16 +357,20 @@ describe('the columns', () => {
         doesEveryPhase: 'person-ada',
       }),
     ];
-    const cells = csvDataRow(planToCsv(plan({ rows })));
-    expect(cells[7]).toBe('ada');
-    expect(cells[12]).toBe('ada (assumed — the only assignee does every phase)');
+    const csv = planToCsv(plan({ rows }));
+    const cells = csvDataRow(csv);
+    expect(cells[columnAt(csv, 'Dev by')]).toBe('ada');
+    expect(cells[columnAt(csv, 'QA by')]).toBe(
+      'ada (assumed — the only assignee does every phase)',
+    );
   });
 
   it('names an assignee nobody knows rather than printing an id', () => {
     const rows = [row({ id: 'a', number: '010', assignees: { 'role-dev': 'person-gone' } })];
-    const cells = csvDataRow(planToCsv(plan({ rows })));
-    expect(cells[7]).toBe('(unknown)');
-    expect(cells[12]).toBe('');
+    const csv = planToCsv(plan({ rows }));
+    const cells = csvDataRow(csv);
+    expect(cells[columnAt(csv, 'Dev by')]).toBe('(unknown)');
+    expect(cells[columnAt(csv, 'QA by')]).toBe('');
   });
 
   it('marks a critical row rather than printing its slack', () => {
@@ -348,8 +386,139 @@ describe('the columns', () => {
         schedule: { earliestStart: 0, earliestFinish: 3, float: 2.5, critical: false },
       }),
     ];
-    expect(csvDataRow(planToCsv(plan({ rows })))[19]).toBe('critical');
-    expect(csvDataRow(planToCsv(plan({ rows })), 1)[19]).toBe('2.5');
+    const csv = planToCsv(plan({ rows }));
+    expect(csvDataRow(csv)[columnAt(csv, 'Slack')]).toBe('critical');
+    expect(csvDataRow(csv, 1)[columnAt(csv, 'Slack')]).toBe('2.5');
+  });
+});
+
+describe('the capacity columns', () => {
+  /** A placed slice as the export needs one: whose row, how wide, how much work. */
+  const slice = (workItemId: string, width: number, effort: number) => ({
+    workItemId,
+    width,
+    effort,
+    duration: effort / width,
+  });
+
+  it('names the team a row inherits, and the row the label was written on', () => {
+    const rows = [
+      row({ id: 'a', number: '010', name: 'Backend', serviceTeamId: 'team-billing' }),
+      row({ id: 'b', number: '010.1', name: 'Ship it', parentId: 'a' }),
+    ];
+    const csv = planToCsv(plan({ rows }));
+    const team = columnAt(csv, 'Team');
+    // The labelled row says the name alone: `(inherited from 010 Backend)` on
+    // the row that carries the label would be the document telling a reader it
+    // inherited from itself.
+    expect(csvDataRow(csv)[team]).toBe('Billing, Ltd');
+    expect(csvDataRow(csv, 1)[team]).toBe('Billing, Ltd (inherited from 010 Backend)');
+  });
+
+  it('leaves the Team cell empty where no row above carries a label at all', () => {
+    const rows = [
+      row({ id: 'a', number: '010', name: 'Backend' }),
+      row({ id: 'b', number: '010.1', parentId: 'a' }),
+    ];
+    const csv = planToCsv(plan({ rows }));
+    expect(csvDataRow(csv, 1)[columnAt(csv, 'Team')]).toBe('');
+  });
+
+  it('resolves the inherited label against every row of the plan, not the labelled one alone', () => {
+    // Two levels of unlabelled rows between the leaf and the label. The walk
+    // has to go through them, which is what "every row" buys over "the labelled
+    // rows".
+    //
+    // Proof: `teamsInForce` pointed at `plan.rows.filter((r) => r.serviceTeamId
+    // !== null)` rather than at every row, so an unlabelled row is simply not
+    // in the map the chain is walked through. This failed on `expected '' to be
+    // 'Billing, Ltd (inherited from 010 Root)'`, and took `names the team a row
+    // inherits` with it — every inheriting row in the document reported
+    // teamless while its dates came out of the pool. Watched 2026-08-13.
+    const rows = [
+      row({ id: 'a', number: '010', name: 'Root', serviceTeamId: 'team-billing' }),
+      row({ id: 'b', number: '010.1', name: 'Nearer', parentId: 'a' }),
+      row({ id: 'c', number: '010.1.1', name: 'Leaf', parentId: 'b' }),
+    ];
+    const csv = planToCsv(plan({ rows }));
+    expect(csvDataRow(csv, 2)[columnAt(csv, 'Team')]).toBe(
+      'Billing, Ltd (inherited from 010 Root)',
+    );
+  });
+
+  it('writes the parallelism somebody typed, and leaves a row of one blank', () => {
+    const rows = [
+      row({ id: 'a', number: '010', maxParallel: 3 }),
+      row({ id: 'b', number: '020' }),
+    ];
+    const csv = planToCsv(plan({ rows }));
+    const at = columnAt(csv, 'People at once');
+    expect(csvDataRow(csv)[at]).toBe('3');
+    // Blank, not `1`: a column of ones down a plan nobody has widened is
+    // furniture, and a spreadsheet sorting on it wants the empty cell.
+    expect(csvDataRow(csv, 1)[at]).toBe('');
+  });
+
+  it('says what the schedule actually ran a row at, beside what was asked for', () => {
+    const rows = [row({ id: 'a', number: '010', maxParallel: 4 })];
+    // Asked for 4, ran at 2 — the team is smaller than the ask. Six days of
+    // effort across two people is the three-day bar the dates already show, and
+    // this is the only column that says why.
+    const csv = planToCsv(plan({ rows, slices: [slice('a', 2, 6)] }));
+    expect(csvDataRow(csv)[columnAt(csv, 'People at once')]).toBe('4');
+    expect(csvDataRow(csv)[columnAt(csv, 'Ran at')]).toBe('2');
+  });
+
+  it('carries every width a row ran at rather than one of them', () => {
+    // One phase assigned to somebody and one not: the assigned phase runs one
+    // at a time whatever the row asks for, and the other runs three-up. Either
+    // number alone is a claim about the whole row that is false of half of it.
+    const rows = [row({ id: 'a', number: '010', maxParallel: 3 })];
+    const csv = planToCsv(plan({ rows, slices: [slice('a', 3, 6), slice('a', 1, 2)] }));
+    expect(csvDataRow(csv)[columnAt(csv, 'Ran at')]).toBe('1, 3');
+  });
+
+  it('leaves Ran at empty on a plan that was never placed', () => {
+    // The same absence the dates report as an em dash. A `1` here would be this
+    // document inventing a placement out of a plan that has none — and it is
+    // the state every export taken before the first chart read is in.
+    const rows = [row({ id: 'a', number: '010', maxParallel: 3 })];
+    const csv = planToCsv(plan({ rows, slices: [] }));
+    expect(csvDataRow(csv)[columnAt(csv, 'Ran at')]).toBe('');
+    expect(csvDataRow(csv)[columnAt(csv, 'People at once')]).toBe('3');
+  });
+
+  it('leaves Ran at empty down an ordinary one-at-a-time plan', () => {
+    const rows = [row({ id: 'a', number: '010' })];
+    const csv = planToCsv(plan({ rows, slices: [slice('a', 1, 3)] }));
+    expect(csvDataRow(csv)[columnAt(csv, 'Ran at')]).toBe('');
+  });
+
+  it('still reports a width of one where somebody asked for more', () => {
+    // The row that most needs the column: 3 asked for, 1 given, and without
+    // this the reader's only evidence is a bar that is three times too long.
+    const rows = [row({ id: 'a', number: '010', maxParallel: 3 })];
+    const csv = planToCsv(plan({ rows, slices: [slice('a', 1, 6)] }));
+    expect(csvDataRow(csv)[columnAt(csv, 'Ran at')]).toBe('1');
+  });
+
+  it('reads only its own row’s slices', () => {
+    const rows = [
+      row({ id: 'a', number: '010', maxParallel: 2 }),
+      row({ id: 'b', number: '020', maxParallel: 5 }),
+    ];
+    const csv = planToCsv(plan({ rows, slices: [slice('a', 2, 4), slice('b', 5, 10)] }));
+    expect(csvDataRow(csv)[columnAt(csv, 'Ran at')]).toBe('2');
+    expect(csvDataRow(csv, 1)[columnAt(csv, 'Ran at')]).toBe('5');
+  });
+
+  it('says in the header what the two columns mean', () => {
+    // The header block is where a reader handed the table alone finds out that
+    // the figures are effort. Without it a 6-day row spanning 2 days reads as
+    // an export that is simply wrong.
+    const text = planToMarkdown(plan());
+    expect(text).toContain('**People:**');
+    expect(text).toContain('effort divided by');
   });
 });
 
@@ -364,9 +533,10 @@ describe('raw against displayed', () => {
         finalTotal: 22 / 6,
       }),
     ];
-    const cells = csvDataRow(planToCsv(plan({ rows })));
-    expect(cells[6]).toBe('3.6666666666666665');
-    expect(cells[13]).toBe('3.6666666666666665');
+    const csv = planToCsv(plan({ rows }));
+    const cells = csvDataRow(csv);
+    expect(cells[columnAt(csv, 'Dev final (PERT)')]).toBe('3.6666666666666665');
+    expect(cells[columnAt(csv, 'Total days (PERT)')]).toBe('3.6666666666666665');
     expect(markdownRow(planToMarkdown(plan({ rows })), '010')).toContain('3.6666666666666665');
   });
 
@@ -402,10 +572,13 @@ describe('raw against displayed', () => {
         finalTotal: 1,
       }),
     ];
-    const cells = csvDataRow(planToCsv(plan({ rows })));
-    expect(cells.slice(3, 7)).toEqual(['1', '1', '1', '1']);
-    expect(cells.slice(8, 12)).toEqual(['', '', '', '']);
-    expect(cells[13]).toBe('1');
+    const csv = planToCsv(plan({ rows }));
+    const cells = csvDataRow(csv);
+    const dev = columnAt(csv, 'Dev optimistic');
+    const qa = columnAt(csv, 'QA optimistic');
+    expect(cells.slice(dev, dev + 4)).toEqual(['1', '1', '1', '1']);
+    expect(cells.slice(qa, qa + 4)).toEqual(['', '', '', '']);
+    expect(cells[columnAt(csv, 'Total days (PERT)')]).toBe('1');
   });
 
   it('marks a rolled-up parent’s figures as sums, in Markdown only', () => {
@@ -421,7 +594,8 @@ describe('raw against displayed', () => {
     ];
     expect(markdownRow(planToMarkdown(plan({ rows })), '010')).toContain('7 (sum)');
     expect(planToCsv(plan({ rows }))).not.toContain('(sum)');
-    expect(csvDataRow(planToCsv(plan({ rows })))[6]).toBe('7');
+    const csv = planToCsv(plan({ rows }));
+    expect(csvDataRow(csv)[columnAt(csv, 'Dev final (PERT)')]).toBe('7');
   });
 });
 
@@ -445,17 +619,20 @@ describe('hostile text', () => {
   ];
 
   it('round-trips every field through a reader that knows only RFC 4180', () => {
-    const records = parseCsv(planToCsv(plan({ rows: nasty })));
-    expect(csvDataRow(planToCsv(plan({ rows: nasty })), 0)[1]).toBe('a,b');
-    expect(csvDataRow(planToCsv(plan({ rows: nasty })), 0)[20]).toBe('say "hi"');
-    expect(csvDataRow(planToCsv(plan({ rows: nasty })), 1)[1]).toBe('multi\r\nline\nname');
-    expect(csvDataRow(planToCsv(plan({ rows: nasty })), 1)[20]).toBe(
-      'first line\nsecond, line\nthird "line"',
-    );
+    const csv = planToCsv(plan({ rows: nasty }));
+    const records = parseCsv(csv);
+    const name = columnAt(csv, 'Name');
+    const notes = columnAt(csv, 'Notes');
+    expect(csvDataRow(csv, 0)[name]).toBe('a,b');
+    expect(csvDataRow(csv, 0)[notes]).toBe('say "hi"');
+    expect(csvDataRow(csv, 1)[name]).toBe('multi\r\nline\nname');
+    expect(csvDataRow(csv, 1)[notes]).toBe('first line\nsecond, line\nthird "line"');
     // Every record has the same width — a field that broke out of its quotes
-    // would show up here as a short or a long one.
+    // would show up here as a short or a long one. The width is the header
+    // row's own count rather than a typed number, so a column added to the
+    // export moves it instead of failing this on arithmetic.
     const widths = new Set(records.slice(-4).map((record) => record.length));
-    expect([...widths]).toEqual([21]);
+    expect([...widths]).toEqual([csvColumns(csv).length]);
   });
 
   it('separates records with CRLF, per RFC 4180', () => {
@@ -468,10 +645,12 @@ describe('hostile text', () => {
 
   it('prefixes a field a spreadsheet would run as a formula', () => {
     const csv = planToCsv(plan({ rows: nasty }));
-    expect(csvDataRow(csv, 2)[1]).toBe("'=SUM(A1)");
-    expect(csvDataRow(csv, 2)[20]).toBe("'@echo");
-    expect(csvDataRow(csv, 3)[1]).toBe("'+1 (555) 0100");
-    expect(csvDataRow(csv, 3)[20]).toBe("'-3 days");
+    const name = columnAt(csv, 'Name');
+    const notes = columnAt(csv, 'Notes');
+    expect(csvDataRow(csv, 2)[name]).toBe("'=SUM(A1)");
+    expect(csvDataRow(csv, 2)[notes]).toBe("'@echo");
+    expect(csvDataRow(csv, 3)[name]).toBe("'+1 (555) 0100");
+    expect(csvDataRow(csv, 3)[notes]).toBe("'-3 days");
   });
 
   it('guards the header block too — a project name is a field like any other', () => {
