@@ -2,18 +2,33 @@
 
 Branch `change/capacity-engine`, cut from `main` @ `e3918f6` (#41 critical-snap,
 #42 dep-add-button, #43 priority-column, #44 gantt-declutter, #45
-dep-waits-on-first-role, #46 priority-commit-polish all merged) on 2026-08-12.
+dep-waits-on-first-role, #46 priority-commit-polish all merged) on 2026-08-12,
+then rebased onto `main` @ `10fb1ae` (#47 arrow-dodge) before merge, with zero
+conflicts — the two change sets share no file.
 
 be-01's schema, adapter and engine, plus one export from `libs/domain`. Two
-additive migrations with their rollbacks. No API shape change, no gw-01 change,
-no fe-01 change and no pixel: C1 carries the engine, and everything a person can
-see or type is C2 and C3.
+additive migrations with their rollbacks. No gw-01 change, no fe-01 change and
+no pixel: C1 carries the engine, and everything a person can see or type is C2
+and C3. The wire payload does widen, additively: `scheduledSlices` is a spread,
+so `effort`, `width` and `capacityPredecessorIds` reach the client alongside the
+existing twelve, and the tree gains `waitingForCapacity`. fe-01 reads its own
+wire types and names none of them, so nothing on the client moves — but the
+earlier "no API shape change" here was wrong, and `adds slices and moves nothing
+else in the payload` pins the top-level keys exhaustively and the per-slice keys
+not at all, so no test catches it either.
 
 ## The gate
 
-Run on CI, on PR #48, head `5c94591`, 2026-08-12 — run
-[31594532014](https://github.com/Prosperous-Unification/wbs-tool-v1/actions/runs/31594532014),
-both jobs green. This box (`h1claw`) does not run builds or test suites — the
+Run on CI, on PR #48, head `8fcdf40` — the merged head, review fixes included —
+2026-08-12, run
+[31607612227](https://github.com/Prosperous-Unification/wbs-tool-v1/actions/runs/31607612227):
+`gate` green in 3m36s, `pixels` green in 7m55s. The figures in the table below
+were read from run
+[31594532014](https://github.com/Prosperous-Unification/wbs-tool-v1/actions/runs/31594532014)
+at head `5c94591`, which the rebase has since rewritten; every commit between
+that head and the merged one touches `verify.md`, `design.md` and one comment in
+`schedule.ts` and no other code, and the rerun above is green at the head that
+merges. This box (`h1claw`) does not run builds or test suites — the
 rule is house policy and a `PreToolUse` hook denies it — so every figure below
 is CI's or `h2puni`'s, never this host's.
 
@@ -135,7 +150,10 @@ Three of these deserve their exact wording rather than a summary:
   actually happened is that reordering the floors made the referent invariant
   throw — `b role-dev waited for capacity with nothing holding the pool` — so
   the fault is caught one layer earlier than expected. Recorded as observed,
-  because a prediction rewritten after the fact is not an observation.
+  because a prediction rewritten after the fact is not an observation. The
+  inline `Proof:` comment beside the floors list did not say this — it recorded
+  the prediction — and the 2026-08-12 cross-review held the merge for it. It now
+  says what this row says.
 - **F15 was killed rather than timing out.** The script allows 400 seconds and
   the process was killed before then, so the evidence here is "it never
   answered", not "it ran for 400 seconds". Either way the assertion under test
