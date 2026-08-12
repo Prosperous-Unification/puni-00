@@ -2600,3 +2600,39 @@ test.describe('the Number column keeps its figures in a line', () => {
     );
   });
 });
+
+test.describe('PROBE — delete me', () => {
+  test.beforeEach(async ({ page }) => {
+    await seedPlan(page);
+  });
+
+  test('dumps what makes the first row tall', async ({ page }) => {
+    const dump = await page.evaluate(() => {
+      const row = document.querySelector('tbody tr');
+      if (!(row instanceof HTMLElement)) throw new Error('no row');
+      return {
+        row: row.getBoundingClientRect().height,
+        cells: [...row.querySelectorAll('td')].map((cell) => {
+          const style = getComputedStyle(cell);
+          const child = cell.firstElementChild;
+          return {
+            id: cell.getAttribute('data-column'),
+            h: cell.getBoundingClientRect().height,
+            inner: [...cell.querySelectorAll('*')]
+              .map((node) => ({
+                tag: node.tagName,
+                h: Math.round(node.getBoundingClientRect().height * 100) / 100,
+                lh: getComputedStyle(node).lineHeight,
+                fs: getComputedStyle(node).fontSize,
+              }))
+              .slice(0, 4),
+            pad: style.padding,
+            childTag: child?.tagName,
+          };
+        }),
+      };
+    });
+    // eslint-disable-next-line no-console
+    console.log(JSON.stringify(dump, null, 1));
+  });
+});
