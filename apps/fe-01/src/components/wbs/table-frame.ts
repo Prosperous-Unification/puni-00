@@ -1103,7 +1103,7 @@ export function tableWidthStyle(layout: FrameLayout): CSSProperties {
  * vertically at 1280×800 with the frame stopping 112px short of the window, and
  * a wider toolbar would have gone the other way. The whole chrome is now one
  * bar, and the layout says what it costs instead of this file estimating it:
- * `flex: 1 1 0%` gives this element every pixel its parent has left over.
+ * the flex declaration is what hands this element the remainder.
  *
  * That works only while the whole chain is a column flex whose top is fixed to
  * the viewport — `app.tsx`'s `h-full` wrapper against the `html`/`body`/`#root`
@@ -1115,19 +1115,38 @@ export function tableWidthStyle(layout: FrameLayout): CSSProperties {
  * ending at the bottom of the window, and the height it wins — in
  * `e2e/header.spec.ts`, because only a browser can tell those two apart.
  *
+ * **`0 1 auto` rather than `1 1 0%`, since `unified-scroll-docking`: as tall as
+ * it needs, never taller than it has.** A basis of `0%` grew this frame to the
+ * whole remainder whatever was in it, so a four-row plan put 508px of nothing
+ * between its last row and a chart docked to the bottom of the window — the
+ * audit's own measurement, 2026-08-11. A basis of `auto` is the content's own
+ * height, and `flex-shrink: 1` is the half that keeps the guarantee above: a
+ * plan taller than the window still shrinks this frame to exactly the remainder
+ * and still scrolls inside it, because this is the only shrinkable item in the
+ * column — the toolbar, the height handle and the panel are all `shrink-0`.
+ * `flex-grow: 0` is deliberate and is the whole change: nothing left over is
+ * spent on a frame that has no rows to put in it.
+ *
  * `minHeight` is still the floor, and a window too short for it still leaves the
  * page scrolling; that is the honest fallback rather than rows below a fold
- * nothing can reach.
+ * nothing can reach. It is also now a floor on a **short plan** — three rows
+ * and their picker room come to less than 20rem — which is the one state where
+ * this frame is still taller than what it holds, by at most a few rows.
  *
  * The bottom padding is room for the pickers to open into. They are absolutely
  * positioned inside their cells at `top: 100%` and up to 200px tall, and a
  * scroll container clips to its padding box — without the padding a picker on
  * the last row would need the frame scrolled before it could be read. The notes
  * preview is taller than this (320px) and still can.
+ *
+ * It is also the whole of what stands between the last row and the chart on a
+ * short plan now, and it stays: the clipping it exists for is worst in exactly
+ * that state, where the frame ends a few pixels under the last row and there is
+ * white space below it that the picker is not allowed to reach into.
  */
 export const TABLE_FRAME: CSSProperties = {
   overflow: 'auto',
-  flex: '1 1 0%',
+  flex: '0 1 auto',
   minHeight: '20rem',
   paddingBottom: '13rem',
 };

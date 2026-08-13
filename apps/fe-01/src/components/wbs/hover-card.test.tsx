@@ -54,7 +54,7 @@ describe('a hover card hangs over the rows below without touching them', () => {
     const preview = screen.getByRole('tooltip');
     expect(preview.style.maxHeight).not.toBe('160px');
     expect(preview.style.maxHeight).toBe(
-      `${String(roomForCard({ top: 0, bottom: 0 }, window.innerHeight).maxHeight)}px`,
+      `${String(roomForCard({ top: 0, bottom: 0 }, { top: 0, bottom: window.innerHeight }).maxHeight)}px`,
     );
     expect(preview.style.maxWidth).toBe('min(640px, 100vw)');
   });
@@ -162,6 +162,15 @@ describe('an anchored surface stays inside the viewport', () => {
 describe('a scrolling card takes the room its cell leaves it', () => {
   /** A 1000px-tall window, so a cell at 400 has 594 below it and 394 above. */
   const WINDOW_HEIGHT = 1000;
+  /**
+   * That window as the box a card is clipped by.
+   *
+   * A box rather than a height since `unified-scroll-docking`: the frame the
+   * cells sit in is only as tall as its own rows now, so what clips a card is
+   * the frame where there is one and the window where there is not. These cases
+   * are all about the window, which starts at zero.
+   */
+  const WINDOW = { top: 0, bottom: WINDOW_HEIGHT };
 
   itDom('opens downward, as tall as the room below, for a cell high on the screen', () => {
     // Proof: `below >= above` flipped to `below > above` changes nothing here,
@@ -170,7 +179,7 @@ describe('a scrolling card takes the room its cell leaves it', () => {
     // on `expected { side: 'below', maxHeight: 194 } to deeply equal { side:
     // 'below', maxHeight: 794 }`, a card given the empty room behind it.
     // Watched 2026-08-11.
-    expect(roomForCard({ top: 200, bottom: 200 }, WINDOW_HEIGHT)).toEqual({
+    expect(roomForCard({ top: 200, bottom: 200 }, WINDOW)).toEqual({
       side: 'below',
       maxHeight: 794,
     });
@@ -184,7 +193,7 @@ describe('a scrolling card takes the room its cell leaves it', () => {
     // 'below', … } to deeply equal { side: 'above', … }`, and the browser's
     // half (`opens the card above a row low in the table`) failed with it.
     // Watched 2026-08-11.
-    expect(roomForCard({ top: 800, bottom: 830 }, WINDOW_HEIGHT)).toEqual({
+    expect(roomForCard({ top: 800, bottom: 830 }, WINDOW)).toEqual({
       side: 'above',
       maxHeight: 794,
     });
@@ -198,7 +207,7 @@ describe('a scrolling card takes the room its cell leaves it', () => {
     // Proof: the `Math.min` against the share dropped — failed on `expected {
     // side: 'below', maxHeight: 994 } to deeply equal { side: 'below',
     // maxHeight: 900 }`. Watched 2026-08-11.
-    expect(roomForCard({ top: 0, bottom: 0 }, WINDOW_HEIGHT)).toEqual({
+    expect(roomForCard({ top: 0, bottom: 0 }, WINDOW)).toEqual({
       side: 'below',
       maxHeight: 900,
     });
@@ -211,9 +220,28 @@ describe('a scrolling card takes the room its cell leaves it', () => {
     // Proof: `SCROLLING_MIN_HEIGHT` dropped from the `Math.max` — failed on
     // `expected { side: 'above', maxHeight: 144 } to deeply equal { side:
     // 'above', maxHeight: 160 }`. Watched 2026-08-11.
-    expect(roomForCard({ top: 150, bottom: 164 }, 300)).toEqual({
+    expect(roomForCard({ top: 150, bottom: 164 }, { top: 0, bottom: 300 })).toEqual({
       side: 'above',
       maxHeight: 160,
+    });
+  });
+
+  itDom('gives a card no room rather than less than none when its frame is off screen', () => {
+    // Both reviewers, 2026-08-12, agy with the arithmetic. The caller hands
+    // this function the frame ∩ the window, and a frame scrolled entirely off
+    // the top of the window intersects it in nothing: `{top: max(0, -900),
+    // bottom: min(1000, -200)}` is `{0, -200}`, a box whose bottom is above its
+    // top. Nine tenths of a negative height is a card told to be shorter than
+    // nothing. Hardening rather than a bug fix — a card opens on hover and a
+    // cell nobody can point at cannot be hovered — so what it is pinned to is
+    // the arithmetic, not a pointer.
+    //
+    // Proof: the `Math.max` against the container's own top dropped — failed on
+    // `expected { side: 'below', maxHeight: -180 } to deeply equal { side:
+    // 'below', maxHeight: 0 }`. Watched on h2puni, 2026-08-13.
+    expect(roomForCard({ top: -500, bottom: -472 }, { top: 0, bottom: -200 })).toEqual({
+      side: 'below',
+      maxHeight: 0,
     });
   });
 });

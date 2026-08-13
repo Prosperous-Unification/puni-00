@@ -1542,7 +1542,25 @@ test.describe('the chart edge the reader drags', () => {
     const panelDragged = await rectOf(page, '[data-gantt-panel]');
     expect(Math.abs(panelDragged.height - (panelAtRest.height + 150))).toBeLessThanOrEqual(1.5);
     const planDragged = await rectOf(page, '[data-table-frame]');
-    expect(planDragged.height).toBeLessThanOrEqual(planAtRest.height - 140);
+    // The plan never grows to pay for the chart — and since
+    // `unified-scroll-docking` it is not always what pays either: this fixture
+    // is a three-row plan, so the frame is as tall as its own rows and the
+    // strip the chart took was the dead space under them, down to whatever the
+    // frame had over its floor. What the assertion is really about is the
+    // sentence above it — that the section they share did not grow — and the
+    // page not scrolling is what says so, at any plan length.
+    //
+    // It read `planAtRest.height - 140` until then, which was true only while
+    // the frame was as tall as the window whatever it held: at `0 1 auto` it
+    // failed on `expected 320 to be less than or equal to 180`, the frame
+    // sitting on its own 20rem floor. Watched on h2puni, 2026-08-12.
+    expect(planDragged.height).toBeLessThanOrEqual(planAtRest.height);
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollHeight - document.documentElement.clientHeight,
+      ),
+      'the section grew and took the page with it',
+    ).toBe(0);
 
     // A reload reads the height back — the remembered claim, believed.
     await page.reload();

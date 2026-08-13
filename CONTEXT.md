@@ -205,6 +205,13 @@ The second drawing of the plan: every shown row as marks on a calendar axis, und
 plan renderer and mirroring its rows. Read-only — edits happen where they always did.
 _Avoid_: chart, timeline, gantt view
 
+**Linked scroll**:
+The one row the plan renderer and the Gantt panel are both showing first. Scrolling either
+vertically brings the other to that row, whichever was scrolled; sideways they are
+independent, because the columns on screen and the part of the calendar on screen are
+different facts. Rows and not pixels: the two faces do not draw a row at the same height.
+_Avoid_: scroll sync, scroll lock, pinned scroll
+
 **Calendar axis**:
 The Gantt panel's horizontal scale on a plan that has a start date: one unit and one
 cell per calendar day from the plan's first working day, weekends among them and greyed,

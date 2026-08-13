@@ -7271,12 +7271,14 @@ describe('the frame the table scrolls inside', () => {
     // scrollport the heading below sticks to.
     expect(frame?.style.overflow).toBe('auto');
     // That bound was `max-height: calc(100vh - 16rem)` until `H
-    // header-fits-a-row`; it is now a zero flex basis inside a column that is
-    // one window tall, so the height is the remainder rather than an estimate
-    // of the chrome. Same claim — this box is bounded and therefore scrolls —
-    // read off the property that now carries it. What a browser makes of it is
-    // `e2e/header.spec.ts`'s; jsdom lays nothing out.
-    expect(frame?.style.flex).toBe('1 1 0%');
+    // header-fits-a-row`; it is now `flex-shrink: 1` inside a column that is
+    // one window tall, so a plan past the remainder is shrunk to it rather than
+    // measured against an estimate of the chrome. Same claim — this box is
+    // bounded and therefore scrolls — read off the property that now carries
+    // it. Since `unified-scroll-docking` it does not grow past its own rows
+    // either. What a browser makes of both is `e2e/header.spec.ts`'s and
+    // `e2e/plan-surface.spec.ts`'s; jsdom lays nothing out.
+    expect(frame?.style.flex).toBe('0 1 auto');
     // And the flex basis is the only opinion about it: a `max-height` back
     // beside it would be the estimate again, disagreeing with the layout the
     // first time the header changed.
@@ -7336,6 +7338,67 @@ describe('the frame the table scrolls inside', () => {
     const [pinnedBodyCell] = [...rowFor('020').querySelectorAll('td')].slice(1);
     expect(Number(headers[1]?.style.zIndex)).toBeGreaterThan(Number(headers[6]?.style.zIndex));
     expect(Number(headers[1]?.style.zIndex)).toBeGreaterThan(Number(pinnedBodyCell.style.zIndex));
+  });
+});
+
+describe('holding the chart to the row the table is showing', () => {
+  /**
+   * A plan be-01 could work no dates out for, which is what a circle of
+   * dependencies gets back.
+   *
+   * The rows still arrive — the table draws them with dashes where the dates
+   * would be — and it is the *chart* that becomes something else: a sentence
+   * about the circle under the same `[data-gantt-panel]` a chart carries.
+   */
+  const circularApi = (): ProjectApi => {
+    const api = fakeApi();
+    return {
+      ...api,
+      // A cycle takes the slices with it, the way be-01 sends it: there is no
+      // schedule to have placed any.
+      tree: () =>
+        api.tree().then((tree) => ({ ...tree, scheduleError: 'cycle' as const, slices: [] })),
+    };
+  };
+
+  itDom('does not hold the chart to the table while the plan is a circle', async () => {
+    // Found in cross-review, 2026-08-12, and by nothing else: the link is
+    // installed on whatever answers `[data-gantt-panel]`, and on a cycle that
+    // is the message rather than the chart. The message has no calendar axis,
+    // `panelFace` refuses an element it cannot measure — and it does it inside
+    // a scroll listener, where no React boundary is, so every scroll of the
+    // frame threw for as long as the circle stood.
+    //
+    // Proof: the axis guard in `wbs-table.tsx` dropped — this failed on
+    // `expected [ 'Error: the Gantt panel has no calendar axis to measure its
+    // content top from' ] to deeply equal []`. Watched on h2puni, 2026-08-13.
+    render(<WbsTable projectId="p1" api={circularApi()} />);
+    click('Add work item');
+    await screen.findByLabelText('Name of 010');
+    click('Gantt');
+
+    const panel = document.querySelector('[data-gantt-panel]');
+    // The state this is about: a panel, and not a chart.
+    expect(panel).not.toBeNull();
+    expect(panel?.querySelector('[data-gantt-axis]')).toBeNull();
+
+    // A listener that throws does not throw at the dispatch — the browser
+    // reports it to the window instead, which is exactly why this went
+    // unnoticed. So that is where it is watched for.
+    const reported: string[] = [];
+    const onError = (event: ErrorEvent) => {
+      reported.push(String(event.error ?? event.message));
+    };
+    window.addEventListener('error', onError);
+    try {
+      const frame = screen.getByRole('table').parentElement;
+      if (frame === null) throw new Error('no table frame rendered');
+      fireEvent.scroll(frame);
+    } finally {
+      window.removeEventListener('error', onError);
+    }
+
+    expect(reported).toEqual([]);
   });
 });
 

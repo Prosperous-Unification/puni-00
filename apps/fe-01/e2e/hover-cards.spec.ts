@@ -744,6 +744,29 @@ test.describe('the Name cell’s preview takes the room around its cell', () => 
     return page.locator('[role="tooltip"]').first();
   }
 
+  /**
+   * Adds rows until the plan is taller than the frame holding it.
+   *
+   * The frame takes the remainder of the window only while it has rows to put
+   * in it (`table-frame.ts`), so a test about the room around a cell has to say
+   * which of the two states it is measuring. This is the full one, and it is
+   * asserted rather than counted to.
+   */
+  async function fillTheFrame(page: Page): Promise<void> {
+    const addRow = page.getByRole('button', { name: 'Add work item' });
+    const overflow = () =>
+      page.evaluate(() => {
+        const frame = document.querySelector('[data-table-frame]');
+        if (frame === null) throw new Error('the scrolling frame is not on the page');
+        return frame.scrollHeight - frame.clientHeight;
+      });
+    for (let row = 3; row <= 40 && (await overflow()) === 0; row += 1) {
+      await addRow.click();
+      await expect(page.getByLabel(`Name of ${`${String(row)}0`.padStart(3, '0')}`)).toBeVisible();
+    }
+    expect(await overflow(), 'the plan never filled its frame').toBeGreaterThan(0);
+  }
+
   test('gives a long note the room below rather than 320px of it', async ({ page }) => {
     // The whole of the change, in a browser: jsdom lays nothing out, so the
     // 320px this replaces and the room that replaces it are both invisible to
@@ -753,6 +776,14 @@ test.describe('the Name cell’s preview takes the room around its cell', () => 
     // Proof: `maxHeight` in `HoverCard` pinned back to a flat 320 — failed on
     // `the card is still the old 320px slot: expected 320 to be greater than
     // 321`. Watched 2026-08-11.
+    //
+    // The plan is filled out first since `unified-scroll-docking`, and that is
+    // this test's own subject read from the other end: the room is the frame's
+    // and the frame is as tall as its rows, so on the two-row plan this used to
+    // run against there is 267px of room and no assertion about 320 can say
+    // anything. Watched on h2puni, 2026-08-12: `the card is still the old 320px
+    // slot: expected 267 to be greater than 321`.
+    await fillTheFrame(page);
     const card = await previewOf(page, '010');
     const box = await boxOf(card, 'the preview');
     const height = page.viewportSize()?.height ?? 0;

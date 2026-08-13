@@ -543,13 +543,19 @@ describe('the frame the table scrolls inside', () => {
     // its own content never scrolls, which would leave `top: 0` sticking to
     // nothing while the page carried the whole frame away.
     expect(TABLE_FRAME.overflow).toBe('auto');
-    // What bounds it since `H header-fits-a-row`: a zero flex basis, which is
-    // the remainder of a parent whose own height is the window's. The number
-    // this replaces was `maxHeight: calc(100vh - 16rem)` — an estimate of the
-    // chrome above, wrong by 112px at 1280×800 in the direction that left the
-    // page scrolling. A basis of `auto` here would be the frame's own content,
-    // which is the unbounded case this assertion is about.
-    expect(TABLE_FRAME.flex).toBe('1 1 0%');
+    // What bounds it is `flex-shrink: 1` inside a parent whose own height is
+    // the window's: a plan taller than the remainder is shrunk to exactly the
+    // remainder, and this is the only shrinkable item in that column. The
+    // declaration this replaces was `maxHeight: calc(100vh - 16rem)` — an
+    // estimate of the chrome above, wrong by 112px at 1280×800 in the
+    // direction that left the page scrolling.
+    //
+    // The basis is `auto` since `unified-scroll-docking` and the grow factor is
+    // `0`: a frame that grew past its own rows put 508px of nothing between a
+    // short plan and the chart docked under it. Growth is what was wrong, not
+    // the bound — a basis of `auto` with **no shrink** would be the unbounded
+    // case this assertion is really about, and it is the one being ruled out.
+    expect(TABLE_FRAME.flex).toBe('0 1 auto');
     // Stated as well as implied: a `maxHeight` back beside the flex basis would
     // be a second opinion about this element's height, and the two would
     // disagree the moment the header changed — which is the whole fault.
