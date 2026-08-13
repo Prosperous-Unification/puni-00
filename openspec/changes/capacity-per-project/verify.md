@@ -16,7 +16,7 @@ box denies both (`bin/block-local-builds.sh`).
 | target                                                  | result                                                                                                                                               |
 | ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `bunx nx format:check --all`                            | clean, exit 0                                                                                                                                        |
-| be-01 unit (bun, in `apps/be-01`)                       | **696 pass, 0 fail**, 24,459 `expect()` calls, 15.89s across 57 files                                                                                |
+| be-01 unit (bun **1.3.14**, in `apps/be-01`)            | **696 pass, 0 fail**, 24,461 `expect()` calls, 12.27s across 57 files. Under bun 1.2.20: 24,459, same 696/0 — see below.                             |
 | fe-01 unit (`node vitest run`)                          | **1,303 pass across 50 files, 0 fail**, 56.24s                                                                                                       |
 | `bunx nx run-many -t lint typecheck --skip-nx-cache`    | pass, 21 projects                                                                                                                                    |
 | `bunx nx run-many -t build`                             | **not run here.** `tool-bootstrap` and `tool-devsync` refuse without `shellcheck`, which h2puni does not have. CI runs it and is the gate of record. |
@@ -46,26 +46,29 @@ calls — were half a defect of their own: two runs at that same head gave **24,
 twice, at 693/0 either way. Small, and exactly the kind of number this repo prints
 because it is checkable, so it is named here rather than quietly overwritten.
 
-**And the same two came back.** This table said 24,461 for most of the
-cross-review round, and a commit on this branch claimed that number re-measured
-at `eeb6dc5`. It does not reproduce. Six runs of the be-01 suite on h2puni at
-`001c2f1` — four as `bun test` in `apps/be-01`, one more after the record commit,
-one as `bun test apps/be-01` from the repo root — give **24,459** every single
-time, 696 pass / 0 fail / 57 files on all six, bun 1.2.20:
+**The same two came back this round, and the cause is measured rather than
+guessed at.** Two agents ran `apps/be-01` at `001c2f1` and got 24,461 six times
+and 24,459 six times. Both are right: **it is the bun version.** Same tree, same
+head, back to back, one command apart —
 
 ```
- 696 pass
- 0 fail
- 24459 expect() calls
-Ran 696 tests across 57 files. [15.89s]
+$ /usr/local/bin/bun --version                    1.2.20
+$ cd apps/be-01 && /usr/local/bin/bun test
+ 696 pass / 0 fail / 24459 expect() calls    Ran 696 tests across 57 files. [16.04s]
+
+$ /home/puni1/wbs-e2e-work/.bun-1314/bin/bun --version    1.3.14
+$ cd apps/be-01 && …/.bun-1314/bin/bun test
+ 696 pass / 0 fail / 24461 expect() calls    Ran 696 tests across 57 files. [12.27s]
 ```
 
-So the overcount is +2 twice on this branch — 24,454 recorded against 24,452
-measured at `30228896`, and 24,461 against 24,459 here — in the same direction
-both times, on heads whose **test** counts were right to the case. Whatever
-produces the drift, it is in the `expect()` total alone and it survives a change
-of head. 24,459 is what the suite prints; that is what the table carries. The
-fe-01 line is one run at the same head.
+696 tests and 0 failures under both, so the drift is in the `expect()` total and
+nowhere else, and P3-7's 24,454-against-24,452 at `30228896` is the same two
+counted by two different runners. **The number is not portable without the
+version beside it**, which is the whole lesson: this repo prints it because it is
+checkable, and it is only checkable against a named bun. The table carries the
+1.3.14 figure, because that is the toolchain the rest of this gate ran on
+(h2puni's default `bun` is 1.2.20 and is not it). The fe-01 line is one run at
+the same head.
 
 ## The identity differential, and what it does and does not cover
 
