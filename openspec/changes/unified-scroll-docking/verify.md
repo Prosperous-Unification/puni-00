@@ -24,21 +24,27 @@ frame that one taught to scroll sideways, and the link below refuses to touch
 
 | command                                           | where  | result                     |
 | ------------------------------------------------- | ------ | -------------------------- |
-| fe-01 unit suite under node                       | h2puni | **49 files, 1232 passed**  |
+| fe-01 unit suite under node                       | h2puni | **49 files, 1234 passed**  |
 | `bun run e2e`                                     | h2puni | **168 passed** (5.9m)      |
 | `bunx nx format:check --all`                      | h2puni | green (silent)             |
 | `bunx nx run-many -t lint typecheck --parallel=2` | h2puni | green, 21 projects         |
 | `bunx @fission-ai/openspec@1.3.0 validate --all`  | h2puni | green, **41/41**           |
-| the whole gate                                    | CI     | **green**, run 31642238631 |
-| `bun run e2e` (`pixels`)                          | CI     | **green**, 8m26s, same run |
+| the whole gate                                    | CI     | **green**, run 31679163220 |
+| `bun run e2e` (`pixels`)                          | CI     | **green**, same run        |
 
 168 browser cases against `main`'s 162: the six of `e2e/plan-surface.spec.ts`.
+The two the cross-review added are unit cases, so the browser count is
+unchanged and 1232 unit tests are now 1234.
 
-CI ran at `217c465`, which is this file one commit before the two lines above
-were filled in — the run's own numbers cannot be in the tree the run read. The
-run before it, 31641438953, failed `format:check` on this file and `design.md`
-and nothing else: prettier's markdown tables, fixed by `nx format:write`. Its
-`pixels` job passed at 9m10s on the same code.
+Which head each line was taken at, since the cross-review's fixes moved it:
+everything on h2puni was re-run at `c3d06f4` on 2026-08-13 **except**
+`bun run e2e`, whose 168 are from `ee92008` — the browser half at the fixed head
+is CI's `pixels` job in run 31679163220, `gate` and `pixels` both success. As
+before, CI ran one commit before this table was filled in: the run's own numbers
+cannot be in the tree the run read. The run at `e88fcec` was cancelled by the
+push that superseded it, and the earlier record's runs — 31642238631 at
+`217c465`, then 31643692253 at `ee92008`, both green — are what the change was
+reviewed at.
 
 ## The faults, watched — the arithmetic and the link
 
