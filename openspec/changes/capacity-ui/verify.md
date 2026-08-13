@@ -63,7 +63,16 @@ The green run is
 [31648887284](https://github.com/Prosperous-Unification/wbs-tool-v1/actions/runs/31648887284)
 at head `5d0521b` — `gate` pass 3m25s, `pixels` pass 8m09s, both on their first
 attempt, conclusion `success`. The commit after `5d0521b` adds this paragraph
-and nothing else.
+and nothing else. Run
+[31649495823](https://github.com/Prosperous-Unification/wbs-tool-v1/actions/runs/31649495823)
+is the same pair green at `2e831ce`, the head the cross-review read.
+
+**The run of record for the merged head** is
+[31682098351](https://github.com/Prosperous-Unification/wbs-tool-v1/actions/runs/31682098351)
+at `8675cc4` — the rebased tree with the three P2 fixes on it. `gate` pass
+3m43s, `pixels` pass 8m57s, both first attempt, conclusion `success`. `pixels`
+is the only evidence for the e2e suite at this head, and `gate` the only
+evidence for `build`, which h2puni cannot run.
 
 ## The failure-proof table (R5)
 
