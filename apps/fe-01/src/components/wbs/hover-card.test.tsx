@@ -226,7 +226,7 @@ describe('a scrolling card takes the room its cell leaves it', () => {
     });
   });
 
-  itDom('gives a card no room rather than less than none when its frame has left the window', () => {
+  itDom('gives a card no room rather than less than none when its frame is off screen', () => {
     // Both reviewers, 2026-08-12, agy with the arithmetic. The caller hands
     // this function the frame ∩ the window, and a frame scrolled entirely off
     // the top of the window intersects it in nothing: `{top: max(0, -900),
