@@ -1,5 +1,6 @@
 import type { Logger } from '@wbs/observability';
 
+import { CapacityRepository } from './repository/capacity';
 import { CommandJournalRepository } from './repository/command-journal';
 import type { Drizzle } from './repository/db';
 import { DependencyRepository } from './repository/dependency';
@@ -11,6 +12,7 @@ import { RoleRepository } from './repository/role';
 import { UserRepository } from './repository/user';
 import { SubtreeRepository, WorkItemRepository } from './repository/work-item';
 import { AuthService } from './service/auth.service';
+import { CapacityService } from './service/capacity.service';
 import { DirectoryService } from './service/directory.service';
 import { EventSequencer } from './service/event-sequencer';
 import { GatewayBroadcaster } from './service/gateway-broadcaster';
@@ -45,6 +47,7 @@ export interface ServicesOptions {
 export interface BeServices {
   auth: AuthService;
   projects: ProjectService;
+  capacity: CapacityService;
   roles: RoleService;
   directory: DirectoryService;
   workItems: WorkItemService;
@@ -66,6 +69,7 @@ export interface BeServices {
 export function buildServices(opts: ServicesOptions): BeServices {
   const projectStore = new ProjectRepository(opts.db);
   const directoryStore = new DirectoryRepository(opts.db);
+  const capacityStore = new CapacityRepository(opts.db);
   const eventLog = new DrizzleEventLogRepo(opts.db);
 
   // One buffer, shared by the two halves of resume: the broadcaster fills it as
@@ -99,6 +103,14 @@ export function buildServices(opts: ServicesOptions): BeServices {
       jwtKey: opts.jwtKey,
     }),
     projects: new ProjectService({ projects: projectStore }),
+    // The same broadcaster again: a capacity event takes its place in the
+    // project's one sequence, so a client resuming from a work item's sequence is
+    // not replayed a capacity change it has seen — or handed none it has not.
+    capacity: new CapacityService({
+      projects: projectStore,
+      capacity: capacityStore,
+      broadcast,
+    }),
     roles: new RoleService({
       projects: projectStore,
       roles: new RoleRepository(opts.db),
@@ -115,6 +127,7 @@ export function buildServices(opts: ServicesOptions): BeServices {
       estimates: new EstimateRepository(opts.db),
       dependencies: new DependencyRepository(opts.db),
       directory: directoryStore,
+      capacity: capacityStore,
       // The one store that writes across all four of the tables above, because
       // a duplicated subtree is one act — see {@link SubtreeRepository}.
       subtrees: new SubtreeRepository(opts.db),

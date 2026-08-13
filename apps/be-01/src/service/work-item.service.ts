@@ -10,6 +10,7 @@ import {
 } from '@wbs/domain';
 
 import type {
+  CapacityStore,
   CommandJournalStore,
   DependencyStore,
   DirectoryStore,
@@ -22,6 +23,7 @@ import type {
   Role,
   StoredEstimate,
   SubtreeStore,
+  TeamCapacity,
   UndoState,
   WorkItem,
   WorkItemPatch,
@@ -456,6 +458,15 @@ export interface WorkItemServiceOptions {
   projects: ProjectStore;
   estimates: EstimateStore;
   directory: DirectoryStore;
+  /**
+   * How many of each team this project may have at work at once — C1's `slotsOf`
+   * seam with the per-project lookup behind it.
+   *
+   * A collaborator of its own rather than four methods on `directory`, because
+   * the fact is a **project's** and the directory is what the global list is read
+   * through. `capacity-per-project`'s design.md D3.
+   */
+  capacity: CapacityStore;
   dependencies: DependencyStore;
   subtrees: SubtreeStore;
   /**
@@ -752,6 +763,23 @@ export class WorkItemService {
      * assignment to somebody unnamed.
      */
     assignedPeople: Person[];
+    /**
+     * How many of each team this project may have at work at once, for the teams
+     * it has stated a number about.
+     *
+     * The same map `slotsOf` was built from, carried on the read that produced
+     * the slices rather than left to a route of its own — the argument
+     * {@link roles} makes, and it is stronger here: the dates in this payload were
+     * computed **from** these numbers, and a second request at a second moment
+     * could hand a client a number that does not explain the bars beside it.
+     *
+     * A team the project has stated nothing about is **absent** rather than
+     * present as `null`, exactly as it is absent from `slotsOf`: unstated
+     * constrains nothing, and one spelling of it is the rule the column is shaped
+     * by. Every team on the plan is in `/api/teams`; this says which of them this
+     * plan bounds.
+     */
+    teamCapacities: TeamCapacity[];
     estimateMethod: EstimateMethod;
     startDate: IsoDate | null;
     /**
@@ -794,19 +822,23 @@ export class WorkItemService {
     // Role order comes from the project, because the order the roles are read
     // in is the order the work runs in — see `ProjectRepository.rolesOf`.
     const roles = await this.opts.projects.rolesOf(projectId);
-    // The teams, for their sizes. Global and small — the directory is one list
-    // for the whole deployment — so this is one read rather than a join, and it
-    // is read here rather than inside `slicesOf` so the adapter stays a pure
-    // function of what it is handed.
+    // How many slots this project may take of each team, read here rather than
+    // inside `slicesOf` so the adapter stays a pure function of what it is
+    // handed.
     //
-    // `slotsOf` in name and in shape: the scheduler asks how many slots this
-    // project may take of this team, and today's only answer is the team's
-    // global size. A per-project allocation would be one additive table and a
-    // first lookup here, with this as the fallback — `design.md` records the
-    // argument for and against.
-    const teams = await this.opts.directory.listTeams();
-    const slotsOf = new Map<string, number>();
-    for (const team of teams) if (team.size !== null) slotsOf.set(team.id, team.size);
+    // `slotsOf` in name and in shape, and the seam C1 built is now doing the job
+    // it was built for. C1's own comment here predicted "one additive table and a
+    // first lookup, with this as the fallback"; `capacity-per-project` (Dany,
+    // 2026-08-13) kept the first half and refused the second, so this is the one
+    // lookup and there is **no fallback to `serviceTeam.size`** — a team this
+    // project has stated nothing about is absent from the map, and an absent key
+    // is unconstrained.
+    //
+    // Keyed on the team alone, not on the (project, team) pair: this is called
+    // once per project, so a project component inside the map would be constant
+    // for the whole call and every engine test would have to spell it. The pair
+    // is the key in the **store**. design.md D3.
+    const slotsOf = await this.opts.capacity.slotsFor(projectId);
     // One reading of the label, shared with the table, the cards, the Gantt and
     // the export — a leaf's own team, or the nearest ancestor's. No write ever
     // copies a label down; see {@link effectiveTeamOf}.
@@ -929,6 +961,13 @@ export class WorkItemService {
       // separately.
       roles,
       assignedPeople,
+      // Built from `slotsOf` rather than read a second time, so the numbers a
+      // client renders and the numbers these dates came out of cannot be answers
+      // to two different questions. Team-id order, as `listFor` gives, so the
+      // array does not reshuffle between two reads of an unchanged plan.
+      teamCapacities: [...slotsOf]
+        .map(([serviceTeamId, size]) => ({ serviceTeamId, size }))
+        .sort((a, b) => a.serviceTeamId.localeCompare(b.serviceTeamId)),
       estimateMethod: project.estimateMethod,
       startDate: project.startDate,
       projectRevision: project.revision,

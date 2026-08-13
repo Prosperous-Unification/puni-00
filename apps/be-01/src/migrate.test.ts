@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'bun:test';
 
 import { buildApp } from './app';
+import { testCapacityService } from './testing/capacity-fixture';
 import { testAuthService } from './testing/auth-fixture';
 import { testDirectoryService } from './testing/directory-fixture';
 import { testProjectService } from './testing/project-fixture';
@@ -13,6 +14,7 @@ describe('migrate lifecycle', () => {
     const state = { migrationsApplied: false };
     const app = buildApp({
       directory: testDirectoryService(),
+      capacity: testCapacityService(),
       auth: testAuthService(),
       projects: testProjectService(),
       workItems: testWorkItemService(),

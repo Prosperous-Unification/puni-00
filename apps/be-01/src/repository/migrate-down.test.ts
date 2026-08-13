@@ -38,6 +38,10 @@ const PRIORITY = '20260811100000_add_priority';
 // ordering `capacity-engine` asserts rather than assumes.
 const TEAM_SLOTS = '20260812100000_add_team_slots';
 const MAX_PARALLEL = '20260812100001_add_max_parallel';
+// A table of its own, and the one whose rollback ordering matters most: its rows
+// were seeded from `service_team.size`, so it has to reverse before the migration
+// that adds that column.
+const PER_PROJECT_CAPACITY = '20260813120000_add_project_team_capacity';
 
 function tempDb(): { path: string; cleanup: () => void } {
   const dir = mkdtempSync(join(tmpdir(), 'wbs-migrate-down-'));
@@ -122,6 +126,7 @@ describe('readMigrationFolders', () => {
       PRIORITY,
       TEAM_SLOTS,
       MAX_PARALLEL,
+      PER_PROJECT_CAPACITY,
     ]);
     for (const f of folders) expect(f.downSql.trim()).not.toBe('');
   });
@@ -160,11 +165,13 @@ describe('rollbackTo, against a real database', () => {
         PRIORITY,
         TEAM_SLOTS,
         MAX_PARALLEL,
+        PER_PROJECT_CAPACITY,
       ]);
 
       const reversed = rollbackTo(db.path, FOLDER, INIT);
 
       expect(reversed).toEqual([
+        PER_PROJECT_CAPACITY,
         MAX_PARALLEL,
         TEAM_SLOTS,
         PRIORITY,
@@ -215,6 +222,7 @@ describe('rollbackTo, against a real database', () => {
         PRIORITY,
         TEAM_SLOTS,
         MAX_PARALLEL,
+        PER_PROJECT_CAPACITY,
       ]);
     } finally {
       db.cleanup();
@@ -228,6 +236,7 @@ describe('rollbackTo, against a real database', () => {
       const reversed = rollbackTo(db.path, FOLDER, ROLLBACK_ALL);
 
       expect(reversed).toEqual([
+        PER_PROJECT_CAPACITY,
         MAX_PARALLEL,
         TEAM_SLOTS,
         PRIORITY,
@@ -265,7 +274,7 @@ describe('rollbackTo, against a real database', () => {
     const db = tempDb();
     try {
       runMigrations(db.path, FOLDER);
-      expect(rollbackTo(db.path, FOLDER, MAX_PARALLEL)).toEqual([]);
+      expect(rollbackTo(db.path, FOLDER, PER_PROJECT_CAPACITY)).toEqual([]);
       expect(tables(db.path)).toContain('users');
     } finally {
       db.cleanup();

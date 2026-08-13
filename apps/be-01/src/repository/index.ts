@@ -488,17 +488,21 @@ export interface DirectoryUsageRows {
    */
   members: readonly Person[];
   /**
-   * The team this usage is about, as the database holds it — `null` when the
-   * usage is a person's.
+   * What each project in this usage has stated about the team being removed, as
+   * `projectId -> slots`. Empty when the usage is a person's.
    *
-   * Carried because removing a **sized** team does more than null a label: it
-   * takes a pool constraint away, and every row whose effective team is this
-   * one moves. The reader cannot tell a sized team from an unsized one out of
-   * the work items alone, and a confirmation that says only "the label goes"
-   * about a removal that also moves every date is a confirmation of the wrong
-   * thing.
+   * Carried because removing a team a project has **stated a capacity for** does
+   * more than null a label: it takes a pool constraint away, and every row whose
+   * effective team is this one moves. The reader cannot tell that from the work
+   * items alone, and a confirmation that says only "the label goes" about a
+   * removal that also moves every date is a confirmation of the wrong thing.
+   *
+   * **Per project, and that is the change `capacity-per-project` made here.** The
+   * same team may be stated at four on one plan and unstated on the next, so a
+   * single number for the whole confirmation would name a bound that does not
+   * apply to half the rows it is printed on.
    */
-  team: ServiceTeam | null;
+  capacityOf: ReadonlyMap<string, number>;
 }
 
 /** What one confirmed directory removal took with it. */
@@ -522,6 +526,55 @@ export type DirectoryRemoved =
   | { ok: false; reason: 'not_found' }
   | { ok: false; reason: 'in_use'; usage: DirectoryUsageRows };
 
+/** How many of one team may be at work at once on one project's plan. */
+export interface TeamCapacity {
+  serviceTeamId: string;
+  /** At least 1. There is no `null` here: unstated is the absence of an entry. */
+  size: number;
+}
+
+/**
+ * What a capacity write decided. `not_found` is a project or a team nothing
+ * holds, and it is decided by reading both inside the write's own transaction
+ * rather than in front of it.
+ */
+export type CapacityWritten = { ok: true } | { ok: false; reason: 'not_found' };
+
+/**
+ * How many of each team may be at work at once, per project.
+ *
+ * This is C1's `slotsOf` seam with the lookup behind it at last, and the reason
+ * it is a store of its own rather than four methods on {@link DirectoryStore}:
+ * the fact is a **project's**, not the directory's, and the directory store is
+ * the thing the global list is read through. See
+ * `openspec/changes/capacity-per-project/design.md` D3 and D6.
+ *
+ * There is deliberately no read of `serviceTeam.size` anywhere in here. A pair
+ * with no row is _unstated_ and constrains nothing — Dany's call, 2026-08-13,
+ * and the whole of D1.
+ */
+export interface CapacityStore {
+  /**
+   * The slots this project may take of each team it has stated a number for —
+   * keyed on the team alone, because one call is one project.
+   *
+   * A team the project has stated nothing about is **absent from the map**, not
+   * present as `null` or as `Infinity`: the engine reads an absent key as
+   * unconstrained, which is exactly what unstated means.
+   */
+  slotsFor(projectId: string): Promise<Map<string, number>>;
+  /** The same fact in the shape the payload carries, in team-id order. */
+  listFor(projectId: string): Promise<TeamCapacity[]>;
+  /**
+   * Sets this project's capacity for one team, or clears it on `null`.
+   *
+   * `null` **deletes the row**, because unstated has one spelling and it is the
+   * absence of one. A stored null would be a second, and every reader would
+   * then have to handle both — `schema.ts` has the argument on the column.
+   */
+  set(projectId: string, serviceTeamId: string, size: number | null): Promise<CapacityWritten>;
+}
+
 export interface DirectoryStore {
   listTeams(): Promise<ServiceTeam[]>;
   /**
@@ -540,18 +593,6 @@ export interface DirectoryStore {
    * at the same moment both pass a check-then-update.
    */
   renameTeam(teamId: string, name: string): Promise<ServiceTeamWritten>;
-  /**
-   * Sets how many of a team may be at work at once, or clears it back to
-   * unstated.
-   *
-   * Answers the same {@link TouchedProjects} a rename does — every project
-   * holding a work item this team labels — because a size moves **dates** in
-   * every one of them, which is a stronger reason to tell them than a name is.
-   * Inheritance needs no widening of that read and gets none: a leaf inherits
-   * only from an ancestor in its own project, so a project with an inherited
-   * label always holds the labelled ancestor too.
-   */
-  resizeTeam(teamId: string, size: number | null): Promise<ServiceTeamWritten>;
   listPeople(): Promise<PersonWithTeams[]>;
   /**
    * Adds a person, or returns the one with that name, joining them to

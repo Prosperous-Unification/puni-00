@@ -6,6 +6,7 @@ import type {
   WorkItemStore,
 } from '../repository';
 import { WorkItemService } from '../service/work-item.service';
+import { inMemoryCapacity } from '../testing/capacity-fixture';
 import { inMemoryDirectory } from '../testing/directory-fixture';
 import { recordingBroadcaster } from './broadcast-fixture';
 import { inMemoryCommandJournal } from './command-journal-fixture';
@@ -128,6 +129,7 @@ export function testWorkItemService(): WorkItemService {
     estimates,
     dependencies,
     directory,
+    capacity: inMemoryCapacity(),
     subtrees: inMemorySubtrees({ workItems, estimates, dependencies, directory }),
     journal: inMemoryCommandJournal(),
     broadcast: recordingBroadcaster(),

@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'bun:test';
 
 import type { EstimateStore, Project, ProjectStore, WorkItemStore } from '../repository';
+import { inMemoryCapacity } from '../testing/capacity-fixture';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { inMemoryCommandJournal } from '../testing/command-journal-fixture';
 import { inMemoryDependencies } from '../testing/dependency-fixture';
@@ -34,6 +35,7 @@ beforeEach(async () => {
     estimates,
     dependencies: inMemoryDependencies(),
     directory: inMemoryDirectory(),
+    capacity: inMemoryCapacity(),
     journal: inMemoryCommandJournal(),
     broadcast,
   });

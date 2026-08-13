@@ -14,6 +14,7 @@ import { ProjectRepository } from '../repository/project';
 import { RoleRepository } from '../repository/role';
 import { UserRepository } from '../repository/user';
 import { SubtreeRepository, WorkItemRepository } from '../repository/work-item';
+import { inMemoryCapacity } from '../testing/capacity-fixture';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { inMemoryCommandJournal } from '../testing/command-journal-fixture';
 import { personAdded } from '../testing/directory-fixture';
@@ -90,6 +91,7 @@ beforeEach(async () => {
     projects: projectStore,
     estimates: estimateStore,
     directory,
+    capacity: inMemoryCapacity(),
     dependencies,
     subtrees: new SubtreeRepository(db),
     journal: inMemoryCommandJournal(),

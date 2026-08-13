@@ -1,3 +1,4 @@
+import { inMemoryCapacity, testCapacityService } from '../testing/capacity-fixture';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -58,6 +59,7 @@ beforeEach(() => {
 
   app = buildApp({
     directory: testDirectoryService(),
+    capacity: testCapacityService(),
     auth: new AuthService({ users: new UserRepository(db), jwtKey: TEST_JWT_KEY }),
     projects: new ProjectService({ projects }),
     roles: new RoleService({
@@ -71,6 +73,7 @@ beforeEach(() => {
       estimates,
       dependencies,
       directory,
+      capacity: inMemoryCapacity(),
       subtrees: new SubtreeRepository(db),
       journal,
       broadcast: recordingBroadcaster(),

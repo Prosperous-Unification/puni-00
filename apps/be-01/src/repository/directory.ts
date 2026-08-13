@@ -15,7 +15,16 @@ import type {
   ServiceTeamWritten,
 } from './index';
 import { bumpedWorkItem, bumpWorkItems } from './revision';
-import { assignment, person, personTeam, project, role, serviceTeam, workItem } from './schema';
+import {
+  assignment,
+  person,
+  personTeam,
+  project,
+  projectTeamCapacity,
+  role,
+  serviceTeam,
+  workItem,
+} from './schema';
 
 /**
  * Whether a thrown error is SQLite refusing a second team of the same name.
@@ -44,7 +53,7 @@ const NOTHING_POINTS_AT_IT: DirectoryUsageRows = {
   roles: [],
   people: [],
   members: [],
-  team: null,
+  capacityOf: new Map(),
 };
 
 /** A reader that is either the connection or an open transaction — see {@link usageRowsIn}. */
@@ -62,11 +71,16 @@ function usageRowsIn(
   reader: Reader,
   projectIds: readonly string[],
   members: readonly Person[],
-  team: ServiceTeam | null = null,
+  /**
+   * The team being removed, or null for a person's usage. Read here rather than
+   * handed in as a number, because what the confirmation needs is one number
+   * **per project** — see {@link DirectoryUsageRows.capacityOf}.
+   */
+  teamId: string | null = null,
 ): DirectoryUsageRows {
   // `inArray` with an empty list becomes `IN ()`, which SQLite refuses — and a
   // removal touching no project has no tree to number.
-  if (projectIds.length === 0) return { ...NOTHING_POINTS_AT_IT, members, team };
+  if (projectIds.length === 0) return { ...NOTHING_POINTS_AT_IT, members };
   const ids = [...projectIds];
   const workItems = reader.select().from(workItem).where(inArray(workItem.projectId, ids)).all();
   const projects = reader
@@ -92,7 +106,34 @@ function usageRowsIn(
   const named = [...new Set(assignments.map((each) => each.personId))];
   const people =
     named.length === 0 ? [] : reader.select().from(person).where(inArray(person.id, named)).all();
-  return { workItems, projects, assignments, roles, people, members, team };
+  // Read in the same transaction as the rows above, so the numbers the
+  // confirmation prints are the numbers the removal is about to release. A second
+  // read afterwards would answer for a deployment that had moved on.
+  const stated =
+    teamId === null
+      ? []
+      : reader
+          .select({
+            projectId: projectTeamCapacity.projectId,
+            size: projectTeamCapacity.size,
+          })
+          .from(projectTeamCapacity)
+          .where(
+            and(
+              eq(projectTeamCapacity.serviceTeamId, teamId),
+              inArray(projectTeamCapacity.projectId, ids),
+            ),
+          )
+          .all();
+  return {
+    workItems,
+    projects,
+    assignments,
+    roles,
+    people,
+    members,
+    capacityOf: new Map(stated.map((row) => [row.projectId, row.size])),
+  };
 }
 
 /** The projects holding a work item this removal would touch, with no duplicates. */
@@ -317,41 +358,8 @@ export class DirectoryRepository implements DirectoryStore {
       this.db,
       this.projectsLabelled(this.db, teamId),
       this.membersOf(this.db, teamId),
-      this.teamRow(this.db, teamId),
+      teamId,
     );
-  }
-
-  /**
-   * Sets or clears a team's size, and answers with the projects it labels work
-   * in.
-   *
-   * The same read `renameTeam` makes, inside the same transaction as the write
-   * and for the same reason: these are the rows the write is about, and a
-   * second read afterwards would answer for a directory that had moved on.
-   *
-   * A size cannot be `taken` — no index holds it — so `not_found` is the only
-   * refusal, and it is decided by the update itself returning no row rather
-   * than by a read in front of it.
-   *
-   * Proof: with the empty-`returning` branch replaced by a fallback row,
-   * `refuses a size for a team that is not there, and tells nobody` failed —
-   * `ok: true` carrying a `result` for an id nothing holds, where a
-   * `not_found` was owed. It is the shape `renameTeam`'s own proof names.
-   * Watched 2026-08-12.
-   */
-  async resizeTeam(teamId: string, size: number | null): Promise<ServiceTeamWritten> {
-    await Promise.resolve();
-    return this.db.transaction((tx) => {
-      const rows = tx
-        .update(serviceTeam)
-        .set({ size })
-        .where(eq(serviceTeam.id, teamId))
-        .returning()
-        .all();
-      const resized = rows.at(0);
-      if (resized === undefined) return { ok: false, reason: 'not_found' };
-      return { ok: true, team: resized, projectIds: this.projectsLabelled(tx, teamId) };
-    });
   }
 
   /**
@@ -439,7 +447,7 @@ export class DirectoryRepository implements DirectoryStore {
           // refused, so the size the confirmation names is the size that was in
           // force when the removal was refused — see
           // {@link DirectoryUsageRows.team}.
-          usage: usageRowsIn(tx, projectsOf(labelled), members, this.teamRow(tx, teamId)),
+          usage: usageRowsIn(tx, projectsOf(labelled), members, teamId),
         };
       }
       tx.update(workItem)
@@ -493,10 +501,6 @@ export class DirectoryRepository implements DirectoryStore {
     );
   }
 
-  /** One team as the database holds it, or null when nothing holds that id. */
-  private teamRow(reader: Reader, teamId: string): ServiceTeam | null {
-    return reader.select().from(serviceTeam).where(eq(serviceTeam.id, teamId)).all().at(0) ?? null;
-  }
 
   /** The people in one team, by name, which is the order a confirmation reads them in. */
   private membersOf(reader: Reader, teamId: string): Person[] {

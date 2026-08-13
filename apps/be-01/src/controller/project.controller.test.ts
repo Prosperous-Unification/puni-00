@@ -1,3 +1,4 @@
+import { inMemoryCapacity, testCapacityService } from '../testing/capacity-fixture';
 import { describe, expect, it } from 'bun:test';
 
 import { buildApp } from '../app';
@@ -22,6 +23,7 @@ function buildWorkItemService(projectStore: ReturnType<typeof inMemoryProjects>)
     estimates: inMemoryEstimates(workItemStore),
     dependencies: inMemoryDependencies(),
     directory: inMemoryDirectory(),
+    capacity: inMemoryCapacity(),
     journal: inMemoryCommandJournal(),
     broadcast: recordingBroadcaster(),
   });
@@ -49,6 +51,7 @@ function buildHarness() {
   });
   const app = buildApp({
     directory: testDirectoryService(),
+    capacity: testCapacityService(),
     auth,
     projects,
     workItems: buildWorkItemService(projectStore),

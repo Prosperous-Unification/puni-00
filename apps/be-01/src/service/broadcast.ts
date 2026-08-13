@@ -37,7 +37,30 @@ export type ProjectEvent =
    * reconciled against the tree it has not fetched yet — the same argument the
    * three role events make for carrying the role and not the tree.
    */
-  | { type: 'directory_changed' };
+  | { type: 'directory_changed' }
+  /**
+   * How many of a team this project may have at work at once has changed, so
+   * every date in it may have moved.
+   *
+   * It carries nothing, for `directory_changed`'s reason: a client reads the
+   * project's capacities alongside its tree on every refresh, so the only useful
+   * thing to say is "read again".
+   *
+   * Its **own** type rather than `directory_changed`, and the reason is that the
+   * name has to be true. `directory_changed` says "something in the global
+   * directory that this project reads has changed", and a per-project capacity is
+   * not in the directory at all — the same distinction that makes this write fan
+   * out to one project where C2's global size fanned out to every project the
+   * team labelled. C2 folded a proposed `team_capacity_set` into
+   * `directory_changed` because the directory row really did change; here it does
+   * not.
+   *
+   * The choice costs nothing on the wire: fe-01 treats every project event as
+   * "read again" and does not read the type, so it is decided purely on whether
+   * a reader of this union is told the truth. See
+   * `openspec/changes/capacity-per-project/design.md` D6.
+   */
+  | { type: 'capacity_changed' };
 
 /**
  * The subscription name carrying a project's edits.

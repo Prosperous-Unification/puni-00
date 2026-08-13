@@ -3,6 +3,7 @@ import { observabilityPlugin } from '@wbs/observability/server';
 import { Elysia } from 'elysia';
 
 import { authController } from './controller/auth.controller';
+import { capacityController } from './controller/capacity.controller';
 import { directoryController } from './controller/directory.controller';
 import { internalController } from './controller/internal.controller';
 import { projectController } from './controller/project.controller';
@@ -11,6 +12,7 @@ import { smokeController } from './controller/smoke.controller';
 import { workItemController } from './controller/work-item.controller';
 import type { DatabaseHealth } from './repository/health-probe';
 import type { AuthService } from './service/auth.service';
+import type { CapacityService } from './service/capacity.service';
 import type { DirectoryService } from './service/directory.service';
 import type { ProjectService } from './service/project.service';
 import type { ReplayOrchestrator } from './service/replay-orchestrator';
@@ -40,6 +42,12 @@ export interface AppOptions {
    */
   roles: RoleService;
   directory: DirectoryService;
+  /**
+   * Required for the same reason as `projects`: a process built without it would
+   * answer 404 on the capacity route, and a plan whose capacity box silently did
+   * nothing reads as a plan whose numbers do not matter.
+   */
+  capacity: CapacityService;
   /**
    * Shared secret gw-01 presents on /internal/*. Required — a default here
    * would silently diverge from the value gw-01 loads from the environment,
@@ -78,6 +86,11 @@ export function buildApp(opts: AppOptions) {
     .use(roleController(opts.auth, opts.roles))
     .use(workItemController(opts.auth, opts.workItems))
     .use(directoryController(opts.auth, opts.directory))
+    // After `projectController`, whose prefix it shares: Elysia matches in
+    // registration order and `/:id/teams/:teamId/capacity` cannot be shadowed by
+    // anything that route declares, but keeping the two adjacent is what makes
+    // that checkable at a glance.
+    .use(capacityController(opts.auth, opts.capacity))
     .use(
       internalController({
         secret: opts.internalAuthSecret,
