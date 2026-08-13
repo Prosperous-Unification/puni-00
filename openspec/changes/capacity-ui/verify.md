@@ -74,6 +74,19 @@ at `8675cc4` — the rebased tree with the three P2 fixes on it. `gate` pass
 is the only evidence for the e2e suite at this head, and `gate` the only
 evidence for `build`, which h2puni cannot run.
 
+**One flake, recorded rather than quietly re-run.** The commit adding the
+paragraph above is `verify.md`-only — `git diff 8675cc4 1175bb4` touches one
+file — and its run
+[31682877355](https://github.com/Prosperous-Unification/wbs-tool-v1/actions/runs/31682877355)
+still failed `pixels`: `dark-mode.spec.ts` › `is dark at the first paint`, a
+60s timeout inside the `beforeEach` seed waiting for `Dev estimate for 020`,
+with the log full of `[vite] ws proxy socket error: write ECONNRESET` around
+it. **168 passed, 1 failed.** `gate` passed in the same run. That is the
+ws-proxy ECONNRESET class already on the repo's record — it flaked once before
+on a markdown-only diff (`f8b7d62`) — and a docs-only diff cannot reach a
+`fill()`. `gh run rerun --failed` on the same head passed. The head merged is
+`1175bb4` with both jobs `success`.
+
 ## The failure-proof table (R5)
 
 Sixteen checks, sixteen injected faults, each watched failing before it was
