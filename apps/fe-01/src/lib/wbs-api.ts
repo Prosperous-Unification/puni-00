@@ -272,27 +272,21 @@ export interface RoleUsage {
 export type RoleRemoval = { ok: true } | { ok: false; reason: 'in_use'; inUse: RoleUsage };
 
 /**
- * A service or team, global to this deployment, and how many of them may be at
- * work at once.
+ * A service or team, global to this deployment. A name and nothing else.
  *
- * `size` is `null` for **unstated** — the plan does not pretend to know how
- * many of this team there are, and does not constrain them. That is not the
- * same fact as `1`, and every team created before capacity existed is `null`;
- * a default of 1 would have serialised every plan on the deployment.
+ * **No `size`, and its absence is the change.** A team used to carry one global
+ * number for every plan on the deployment; since `capacity-per-project` the
+ * number is the plan's, and be-01 does not send the retired column at all —
+ * `/api/teams` answers `{ id, name }` and a be-01 test pins that shape. So a
+ * fallback to a team's global size cannot be written here: it does not compile.
+ *
+ * That is stronger than the test which used to stand in this file's place, and
+ * it is why that test is gone. How many of a team may be at work at once on one
+ * plan is {@link TeamCapacityView}.
  */
 export interface TeamView {
   id: string;
   name: string;
-  /**
-   * The team's **retired** global size — read by nothing in be-01 since
-   * `capacity-per-project`, and read by nothing here.
-   *
-   * Kept on the view because be-01 still sends the column (it is not dropped
-   * while blue and green share one database file), and dropping it from the type
-   * would make the next reader think it had gone. How many of a team may be at
-   * work at once is a fact about one project now: {@link TeamCapacityView}.
-   */
-  size: number | null;
 }
 
 /**
@@ -301,7 +295,9 @@ export interface TeamView {
  * A team the plan has stated nothing about is **absent** from the list, not
  * present with a `null`: unstated constrains that team's work on that plan not at
  * all, and it has one spelling on the wire exactly as it has one in the database.
- * There is deliberately no fallback to {@link TeamView.size} — Dany, 2026-08-13.
+ * There is deliberately no fallback to a team's retired global size — Dany,
+ * 2026-08-13 — and since that column left {@link TeamView} there is nothing here
+ * to fall back to.
  */
 export interface TeamCapacityView {
   serviceTeamId: string;
@@ -1028,6 +1024,17 @@ export function directoryRefusedWith(thrown: unknown): DirectoryRefusal {
 const SIZE_CEILING_CODE = 'size_must_be_at_most_';
 
 /**
+ * What any 5xx says, in this dialog's own words.
+ *
+ * `wbs-table.tsx`'s refusal helper has carried this arm since 2026-08-09, when
+ * `http_500` reached the corner of the screen verbatim; `send` throws
+ * `Error('http_502')` for a proxy error, so without it the grammatical fallback
+ * below prints a wire code into a dialog somebody is typing a number into. The
+ * sentence never says "the server did not answer", because something did.
+ */
+const SERVER_REFUSAL = 'The server could not save that. Try again.';
+
+/**
  * What a refused **capacity** change says out loud.
  *
  * Its own function rather than an arm of {@link directoryRefusalSentence}, and
@@ -1044,9 +1051,12 @@ const SIZE_CEILING_CODE = 'size_must_be_at_most_';
  *
  * One fallback, and it names the code rather than swallowing it: an unrecognised
  * refusal is something to report, and a message that hid it would leave nobody
- * able to say what be-01 answered.
+ * able to say what be-01 answered. A 5xx is taken **before** it, because a proxy
+ * error is not a word of be-01's and `(http_502)` in the corner of a dialog is
+ * the defect `wbs-table.tsx` fixed for `http_500` a week ago.
  */
 export function capacityRefusalSentence(code: string): string {
+  if (/^http_5\d\d$/.test(code)) return SERVER_REFUSAL;
   if (code.startsWith(SIZE_CEILING_CODE)) {
     return `A plan can have at most ${code.slice(SIZE_CEILING_CODE.length)} of one team at work at once.`;
   }

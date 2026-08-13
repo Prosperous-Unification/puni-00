@@ -42,10 +42,13 @@ export interface TeamOnThePlan {
  * 't-backend', …(3) } ]` — a plan whose pool bounds four rows offering nowhere at
  * all to state the number. Watched 2026-08-13.
  *
- * Proof: `statedFor.get(team.id) ?? null` written as `?? team.size` — the
- * fallback to the retired global column, which is the one wrong answer this change
- * is most likely to be written with — and `never reads the team's retired global
- * size` failed on `expected 7 to be null`. Watched 2026-08-13.
+ * The fallback this change refuses — `statedFor.get(team.id) ?? null` written as
+ * `?? team.size` — used to be pinned by a test here. It is now **unwritable**:
+ * be-01 does not send the retired column and {@link TeamView} does not carry it,
+ * so that line is a type error rather than a green suite. Watched by injecting
+ * it: `error TS2339: Property 'size' does not exist on type 'TeamView'`,
+ * 2026-08-13. A compiler refusing the sentence outranks a test refusing it, and
+ * that is why the test is gone rather than kept beside a field nobody sends.
  */
 export function teamsOnThePlan(
   teams: readonly TeamView[],

@@ -158,8 +158,24 @@ function projectsOf(rows: readonly { projectId: string }[]): string[] {
 export class DirectoryRepository implements DirectoryStore {
   constructor(private readonly db: SQLiteBunDatabase) {}
 
+  /**
+   * Every team, by name.
+   *
+   * **The projection is written out**, and that is the point of it: a bare
+   * `select()` reads every column drizzle knows about, so the retired
+   * `service_team.size` used to travel from here into `/api/teams` without the
+   * string `serviceTeam.size` appearing anywhere for a grep to find. Naming the
+   * two columns is what makes `verify.md`'s grep for readers of that column
+   * decisive — `capacity-per-project` D4, and this file is the one place the
+   * column could still have been read by accident.
+   *
+   * Every other read of this table below is projected for the same reason.
+   */
   listTeams(): Promise<ServiceTeam[]> {
-    return this.db.select().from(serviceTeam).orderBy(asc(serviceTeam.name));
+    return this.db
+      .select({ id: serviceTeam.id, name: serviceTeam.name })
+      .from(serviceTeam)
+      .orderBy(asc(serviceTeam.name));
   }
 
   async addTeam(toAdd: ServiceTeam): Promise<ServiceTeam> {
@@ -167,7 +183,7 @@ export class DirectoryRepository implements DirectoryStore {
     // The row that is there now, which is the earlier one when two arrived at
     // once. Returning `toAdd` would hand back an id nothing holds.
     const rows = await this.db
-      .select()
+      .select({ id: serviceTeam.id, name: serviceTeam.name })
       .from(serviceTeam)
       .where(eq(serviceTeam.name, toAdd.name))
       .limit(1);
@@ -199,7 +215,7 @@ export class DirectoryRepository implements DirectoryStore {
           .update(serviceTeam)
           .set({ name })
           .where(eq(serviceTeam.id, teamId))
-          .returning()
+          .returning({ id: serviceTeam.id, name: serviceTeam.name })
           .all();
         const renamed = rows.at(0);
         if (renamed === undefined) return { ok: false, reason: 'not_found' };
@@ -443,10 +459,12 @@ export class DirectoryRepository implements DirectoryStore {
         return {
           ok: false,
           reason: 'in_use',
-          // The team row is read in this same transaction as the count that
-          // refused, so the size the confirmation names is the size that was in
-          // force when the removal was refused — see
-          // {@link DirectoryUsageRows.team}.
+          // The capacity rows are read in this same transaction as the count
+          // that refused, so the numbers the confirmation names are the ones
+          // that were in force when the removal was refused — see
+          // {@link DirectoryUsageRows.capacityOf}. Per project since
+          // `capacity-per-project`: the team row this used to read carried one
+          // number for every plan, and there is no such number now.
           usage: usageRowsIn(tx, projectsOf(labelled), members, teamId),
         };
       }
@@ -455,7 +473,11 @@ export class DirectoryRepository implements DirectoryStore {
         .where(eq(workItem.serviceTeamId, teamId))
         .run();
       tx.delete(personTeam).where(eq(personTeam.serviceTeamId, teamId)).run();
-      const removed = tx.delete(serviceTeam).where(eq(serviceTeam.id, teamId)).returning().all();
+      const removed = tx
+        .delete(serviceTeam)
+        .where(eq(serviceTeam.id, teamId))
+        .returning({ id: serviceTeam.id })
+        .all();
       if (removed.length === 0) return { ok: false, reason: 'not_found' };
       return {
         ok: true,

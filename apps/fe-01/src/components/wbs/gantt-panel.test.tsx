@@ -3016,7 +3016,7 @@ const SLICES_HELD_BY_A_POOL: SliceView[] = SLICES.map((slice) =>
 const POOLED: ReadSkew = {
   slices: SLICES_HELD_BY_A_POOL,
   labels: { sealing: 'team-hull', sanding: 'team-hull' },
-  teams: [{ id: 'team-hull', name: 'Hull crew', size: 1 }],
+  teams: [{ id: 'team-hull', name: 'Hull crew' }],
 };
 
 describe('the deploy gate: a plan a sized team is holding back', () => {

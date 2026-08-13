@@ -19,9 +19,9 @@ afterEach(cleanup);
  * assertion below pass against a build that still fell back to it — which is the
  * one wrong answer this change is most likely to be written with.
  */
-const BACKEND: TeamView = { id: 't-backend', name: 'Backend', size: null };
-const PLATFORM: TeamView = { id: 't-platform', name: 'Platform', size: null };
-const DESIGN: TeamView = { id: 't-design', name: 'Design', size: null };
+const BACKEND: TeamView = { id: 't-backend', name: 'Backend' };
+const PLATFORM: TeamView = { id: 't-platform', name: 'Platform' };
+const DESIGN: TeamView = { id: 't-design', name: 'Design' };
 
 /** Everything the dialog is given, with each call recorded. */
 function stubbed(overrides: Partial<Parameters<typeof TeamsDialog>[0]> = {}) {
@@ -97,16 +97,15 @@ describe('which teams the plan offers a capacity for', () => {
     expect(listed.find((each) => each.name === 'Backend')?.stated).toBe(2);
   });
 
-  it('never reads the team’s retired global size', () => {
-    // D1, at this boundary: `TeamView.size` is still on the wire because be-01
-    // still sends the column, and a client falling back to it would give a plan
-    // that has stated nothing a bound nobody typed for it.
-    //
-    // Proof: `statedFor.get(team.id) ?? null` written as `?? team.size`, and this
-    // failed on `expected 7 to be null`. Watched 2026-08-13.
-    const globallySized: TeamView = { ...PLATFORM, size: 7 };
-
-    const listed = teamsOnThePlan([globallySized], [], ['t-platform']);
+  it('says a team nobody has counted on this plan is unstated', () => {
+    // D1 at this boundary. This used to be `never reads the team's retired
+    // global size`, and it built a `TeamView` with `size: 7` on it to prove the
+    // fallback was refused. That fixture cannot be written any more: be-01
+    // answers `/api/teams` with `{ id, name }` and `TeamView` carries nothing
+    // else, so `?? team.size` is `error TS2339` rather than a green suite —
+    // watched by injecting it into `teamsOnThePlan`, 2026-08-13. What is left to
+    // pin here is the answer itself: no capacity stated, nothing invented.
+    const listed = teamsOnThePlan([PLATFORM], [], ['t-platform']);
 
     expect(listed[0]?.stated).toBeNull();
   });
@@ -192,6 +191,32 @@ describe('stating how many of a team are at work at once on this plan', () => {
     expect(screen.getByRole('alert').textContent).toContain('at most 1000');
     // And the draft stays, because the sentence is about the number on screen.
     expect(boxFor('Platform').value).toBe('1001');
+  });
+
+  itDom('says a sentence when the proxy answers, not the status it answered with', async () => {
+    // The one refusal nobody can type their way into, and the one every other
+    // surface in this app already has an arm for: `send` throws
+    // `Error('http_502')` for a proxy error, and without a 5xx arm the
+    // grammatical fallback prints `That capacity could not be changed
+    // (http_502).` into a dialog somebody is typing a number into. That is the
+    // defect `wbs-table.tsx` fixed for `not_found` and `http_500` on 2026-08-09,
+    // reappearing in the refusal helper written to replace the one it was fixed
+    // in.
+    //
+    // Proof: the `/^http_5\d\d$/` arm deleted from `capacityRefusalSentence`,
+    // and this failed on `expected 'That capacity could not be changed
+    // (http_502).' to contain 'The server could not save that'`. Watched
+    // 2026-08-13.
+    const setCapacity = vi.fn(() => Promise.reject(new Error('http_502')));
+    stubbed({ setCapacity });
+
+    fireEvent.change(boxFor('Platform'), { target: { value: '3' } });
+    fireEvent.blur(boxFor('Platform'));
+    await settle();
+
+    expect(screen.getByRole('alert').textContent).toContain('The server could not save that');
+    // And no wire code anywhere in it — the sentence is the whole answer.
+    expect(screen.getByRole('alert').textContent).not.toContain('502');
   });
 
   itDom('sends nothing when the box says what the plan already says', async () => {

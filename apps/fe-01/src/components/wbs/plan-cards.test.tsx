@@ -897,7 +897,7 @@ describe('what a card says about capacity', () => {
 
   itDom('names the team a row carries', async () => {
     await aPlan((rows, teams) => {
-      teams.push({ id: 't1', name: 'Billing', size: 4 });
+      teams.push({ id: 't1', name: 'Billing' });
       rows[0].serviceTeamId = 't1';
     });
 
@@ -915,7 +915,7 @@ describe('what a card says about capacity', () => {
     // `expected undefined to be '↳ Billing'`: the inheriting card drew no team
     // line at all. Watched 2026-08-13.
     await aPlan((rows, teams) => {
-      teams.push({ id: 't1', name: 'Billing', size: 4 });
+      teams.push({ id: 't1', name: 'Billing' });
       const [parent, child] = rows;
       parent.serviceTeamId = 't1';
       child.parentId = parent.id;

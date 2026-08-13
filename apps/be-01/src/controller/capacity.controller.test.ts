@@ -137,7 +137,7 @@ describe('PUT /api/projects/:id/teams/:teamId/capacity', () => {
   }
 
   async function team(name: string): Promise<string> {
-    const added = await directoryStore.addTeam({ id: crypto.randomUUID(), name, size: null });
+    const added = await directoryStore.addTeam({ id: crypto.randomUUID(), name });
     return added.id;
   }
 
@@ -171,9 +171,7 @@ describe('PUT /api/projects/:id/teams/:teamId/capacity', () => {
 
     await call(projectId, platform, { size: 4 });
 
-    expect(await directoryStore.listTeams()).toEqual([
-      { id: platform, name: 'Platform', size: null },
-    ]);
+    expect(await directoryStore.listTeams()).toEqual([{ id: platform, name: 'Platform' }]);
   });
 
   it('refuses a capacity that is not a whole number of 1 or more', async () => {

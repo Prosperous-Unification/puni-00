@@ -82,7 +82,7 @@ beforeEach(async () => {
   // inside the update's own transaction, because `work_item.service_team_id`
   // has no foreign key to do it.
   for (const name of ['team-billing', 'team-sparks']) {
-    await directory.addTeam({ id: name, name, size: null });
+    await directory.addTeam({ id: name, name });
   }
 });
 
@@ -1333,7 +1333,7 @@ describe('capacity, as the adapter resolves it', () => {
     // The two is stated **for this project** since `capacity-per-project`. The
     // team is added unsized on purpose: a global size is read by nothing, and
     // seeding one here would let this pass against a build that still read it.
-    await directory.addTeam({ id: 'team-small', name: 'Small', size: null });
+    await directory.addTeam({ id: 'team-small', name: 'Small' });
     await capacity.set(projectId, 'team-small', 2);
     const strip = await leaf('Strip', 4, 'team-small');
     await service.setEstimate(strip, OWNER, roleId, flat(4));
@@ -1370,7 +1370,7 @@ describe('capacity, as the adapter resolves it', () => {
     // it, and the pool those leaves spend is that team's. Nothing is copied
     // down — the rows are read back to prove the label is still only on the
     // parent.
-    await directory.addTeam({ id: 'team-one', name: 'One', size: null });
+    await directory.addTeam({ id: 'team-one', name: 'One' });
     await capacity.set(projectId, 'team-one', 1);
     const phase = await leaf('Phase', 1, 'team-one');
     const first = await leaf('First', 1, null, phase);

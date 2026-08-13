@@ -233,6 +233,12 @@ export function directoryUsageOfPerson(rows: DirectoryUsageRows, personId: strin
  * capacity, and says nothing where a project stated none` failed — the second
  * project's rows carried `capacity_released, size: 4` for a plan that has no
  * pool at all. Watched 2026-08-13.
+ *
+ * That test was **missing** when this comment was first written, and the
+ * injection above left all 693 be-01 tests green: the three other capacity
+ * tests here use a single-project fixture, where `capacityOf` holds one entry
+ * and `.at(0)` is the per-project answer by accident. The cross-review of PR #58
+ * caught it. The proof above is the run against the test as it now stands.
  */
 export function directoryUsageOfTeam(rows: DirectoryUsageRows, teamId: string): DirectoryUsage {
   // A project that has stated nothing for this team is *unstated*, and an

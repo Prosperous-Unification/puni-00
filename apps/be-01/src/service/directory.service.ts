@@ -94,10 +94,11 @@ export class DirectoryService {
   async addTeam(name: string): Promise<ServiceTeam | null> {
     const clean = cleanName(name);
     if (clean === null) return null;
-    // `size: null` — unstated. A team is created by somebody typing a name
-    // into a cell, and how many of them there are is a separate statement made
-    // on the directory page. Null constrains no schedule; see `schema.ts`.
-    return this.opts.directory.addTeam({ id: this.newId(), name: clean, size: null });
+    // No size, because a team no longer has one: a new team is unstated on
+    // every plan, and how many of them are at work at once is said per project
+    // afterwards. The retired column is left at its default `NULL` by the
+    // insert, which is what `capacity-per-project` D4 leaves it as.
+    return this.opts.directory.addTeam({ id: this.newId(), name: clean });
   }
 
   /**

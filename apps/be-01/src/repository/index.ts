@@ -376,19 +376,22 @@ export interface DependencyStore {
   removeAllFor(workItemId: string): Promise<void>;
 }
 
-/** A service or team work can be labelled with. Global, shared by every project. */
+/**
+ * A service or team work can be labelled with. Global, shared by every project.
+ *
+ * **No `size`.** The column is still in the table — blue and green share one
+ * SQLite file and the outgoing release still selects it, which is `design.md`
+ * D4 — but nothing in this release reads it, and this type is where that claim
+ * is enforced rather than asserted. A team's capacity is a fact about one
+ * project now: {@link CapacityStore}.
+ *
+ * It is also the shape `/api/teams` answers with, so leaving `size` here would
+ * put the retired number back on the wire through an unqualified `select()`,
+ * which is exactly how it got there before this type said no.
+ */
 export interface ServiceTeam {
   id: string;
   name: string;
-  /**
-   * How many of this team may be at work at once in one project's plan, or
-   * null for "nobody has said".
-   *
-   * Null is not 1 — an unsized team constrains nothing — and the difference is
-   * what keeps every plan written before this field existed scheduling exactly
-   * as it did. See `schema.ts`.
-   */
-  size: number | null;
 }
 
 /** Somebody who does work. Not an account on this tool. */

@@ -128,14 +128,14 @@ describe('DirectoryService.renameTeam', () => {
 
     const outcome = await directory.renameTeam(platform.id, '  Payments  ');
 
-    // `size: null` throughout: a rename says nothing about how big a team
-    // is, and a renamed team that came back sized would be this path writing a
-    // field it never touched.
+    // An id and a name, and nothing else on the row: a team carries no size
+    // since `capacity-per-project`, and this is where a rename answering with
+    // the retired column would show up.
     expect(outcome).toEqual({
       ok: true,
-      result: { id: platform.id, name: 'Payments', size: null },
+      result: { id: platform.id, name: 'Payments' },
     });
-    expect(await store.listTeams()).toEqual([{ id: platform.id, name: 'Payments', size: null }]);
+    expect(await store.listTeams()).toEqual([{ id: platform.id, name: 'Payments' }]);
   });
 
   it('refuses a name of whitespace alone, and writes nothing', async () => {
@@ -146,7 +146,7 @@ describe('DirectoryService.renameTeam', () => {
       ok: false,
       reason: 'name_required',
     });
-    expect(await store.listTeams()).toEqual([{ id: platform.id, name: 'Platform', size: null }]);
+    expect(await store.listTeams()).toEqual([{ id: platform.id, name: 'Platform' }]);
   });
 
   it('refuses a name another team holds, naming the survivor', async () => {
@@ -171,7 +171,7 @@ describe('DirectoryService.renameTeam', () => {
 
     expect(await directory.renameTeam(platform.id, 'Platform')).toEqual({
       ok: true,
-      result: { id: platform.id, name: 'Platform', size: null },
+      result: { id: platform.id, name: 'Platform' },
     });
   });
 
@@ -548,6 +548,73 @@ describe('the directory usage a removal is refused with', () => {
             // move exactly as its parent's do. `fromId` names where the label
             // it loses came from, which is what the confirmation has to say.
             effects: [{ kind: 'capacity_released', size: 2, fromId: 'design' }],
+          },
+        ],
+      },
+    ]);
+  });
+
+  it('names each project’s own capacity, and says nothing where a project stated none', async () => {
+    // The multi-project case, which is the whole of what `capacity-per-project`
+    // changed about this confirmation: the same team is stated at four on one
+    // plan and unstated on the next, so the number printed beside a row has to
+    // be that row's project's. One number for the confirmation would name a
+    // bound half the rows it printed on were never under.
+    //
+    // The two-project fixture this needs is the one `tells both projects the
+    // team labels work in, and not a third` used before that test went with
+    // `resizeTeam`; nothing on the usage side replaced it, and the single-project
+    // fixtures the other three capacity tests use cannot tell the two answers
+    // apart.
+    //
+    // Proof: `directoryUsageOfTeam`'s per-project lookup replaced by "any project
+    // stated something" (`[...rows.capacityOf.values()].at(0)`), which is the
+    // fault R5 row 9 names and which left **693 pass, 0 fail** before this test
+    // existed. The same injection is now **695 pass, 1 fail**, and the one is
+    // this: `Roof`'s `Shingle` row carries a second effect,
+    // `{ kind: 'capacity_released', size: 4, fromId: <its own id> }`, naming a
+    // pool for a plan that stated none — `Rollout`'s four, printed on somebody
+    // else's rows. Watched 2026-08-13.
+    const platform = await directory.addTeam('Platform');
+    if (platform === null) throw new Error('the fixture team was refused');
+    const roof = await roofProject();
+    await workItems.patch('design', { serviceTeamId: platform.id });
+    await workItems.patch(roof.workItemOf, { serviceTeamId: platform.id });
+    // Stated on `Rollout` and deliberately nowhere else.
+    await capacity.set(projectId, platform.id, 4);
+
+    const outcome = await directory.removeTeam(platform.id, false);
+
+    if (outcome.ok) throw new Error('expected the removal to be refused');
+    if (outcome.reason !== 'in_use') throw new Error(`refused for ${outcome.reason}`);
+    expect(outcome.usage.projects).toEqual([
+      {
+        id: projectId,
+        name: 'Rollout',
+        workItems: [
+          {
+            id: 'design',
+            number: '010',
+            name: 'Design',
+            effects: [
+              { kind: 'label_nulled' },
+              { kind: 'capacity_released', size: 4, fromId: 'design' },
+            ],
+          },
+        ],
+      },
+      {
+        id: roof.projectOf,
+        name: 'Roof',
+        workItems: [
+          {
+            id: roof.workItemOf,
+            number: '010',
+            name: 'Shingle',
+            // The label goes and nothing else does: this plan never stated how
+            // many of the team it had, so no pool leaves with the team and no
+            // date here moves.
+            effects: [{ kind: 'label_nulled' }],
           },
         ],
       },

@@ -31,12 +31,13 @@ vi.mock('@/lib/project-stream', () => ({
 
 const subscribed = vi.mocked(subscribeToProject);
 
-// `size: null` is **unstated** — nobody has counted this team, and its work is
-// bound by nothing. That is the state every team on every deployment was in
-// before `capacity-engine`, and it is deliberately not the same fact as 1.
-const PLATFORM: TeamView = { id: 't1', name: 'Platform', size: null };
-const PAYMENTS: TeamView = { id: 't2', name: 'Payments', size: null };
-const DESIGN: TeamView = { id: 't3', name: 'Design', size: null };
+// A name and an id, which is the whole of a team on this page since
+// `capacity-per-project`: how many of them are at work at once is stated per
+// plan, in the plan's own `Teams` dialog, and the retired global column is not
+// sent by be-01 at all.
+const PLATFORM: TeamView = { id: 't1', name: 'Platform' };
+const PAYMENTS: TeamView = { id: 't2', name: 'Payments' };
+const DESIGN: TeamView = { id: 't3', name: 'Design' };
 
 /**
  * A `DirectoryApi` over an in-memory directory, with every call recorded.
@@ -113,7 +114,7 @@ function fakeDirectory(
       api.added.push(name);
       // Unstated, which is `addTeam`'s own rule in be-01: a new team is not a
       // team of one, and a default of 1 would serialise every plan it labels.
-      const team = { id: `t${String(heldTeams.length + 1)}`, name, size: null };
+      const team = { id: `t${String(heldTeams.length + 1)}`, name };
       heldTeams = [...heldTeams, team];
       return Promise.resolve(team);
     },

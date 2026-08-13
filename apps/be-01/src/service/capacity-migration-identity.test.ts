@@ -191,12 +191,20 @@ describe('every plan schedules identically across the migration', () => {
     //
     // **What this test cannot see, stated because a reader would assume it can.**
     // Seeding only the pairs a plan already labels — the join `design.md` D2
-    // rejects — leaves this **green**: every date in the corpus is identical under
-    // it, because a pair labelling nothing spends no slots. That is exactly D2's
-    // point, and exactly why the promise needs `migrate.test.ts`'s `seeds every
-    // project that existed…` and the third test in this file, not this one alone.
-    // Watched staying green under that injection, 2026-08-13, with only
-    // `gives every project the same numbers…` going red.
+    // rejects — would leave this green **on a database with work items in it**:
+    // every date in the corpus is identical under it, because a pair labelling
+    // nothing spends no slots. That is exactly D2's point, and exactly why the
+    // promise needs `migrate.test.ts`'s `seeds every project that existed…` and
+    // the third test in this file, not this one alone.
+    //
+    // **Reasoned, not watched, and this comment claimed otherwise until the
+    // 2026-08-13 cross-review ran it.** The injection gives 1 pass / 2 fail here,
+    // and not because the join is caught: `slotsAfterTheMigration()` below writes
+    // no work items at all — it does not need any, since the plans are replayed
+    // through in-memory stores — so a seeding joined over `work_item` matches
+    // nothing, seeds nothing, and degenerates into the empty-map injection two
+    // paragraphs up. The first failure's output is character-for-character the
+    // one quoted there. The argument stands; the run does not support it.
     const seeded = await slotsAfterTheMigration();
 
     for (const [at, plan] of oracle.plans.entries()) {
@@ -319,10 +327,12 @@ describe('every plan schedules identically across the migration', () => {
       broadcast: recordingBroadcaster(),
     });
 
-    // Added **unsized**, deliberately: the global column is read by nothing now,
-    // and a fixture that carried the captured sizes would let this pass against a
-    // build that still fell back to them.
-    for (const team of oracle.teams) await directory.addTeam({ ...team, size: null });
+    // The id and the name and nothing else: a team has no size to add since
+    // `capacity-per-project`, and the captured `size` is deliberately left in
+    // the oracle rather than carried in here — a fixture that spread it would
+    // be handing a build that still fell back to the global column the numbers
+    // that make the fallback look right. The type refuses that spread now.
+    for (const team of oracle.teams) await directory.addTeam({ id: team.id, name: team.name });
     for (const who of oracle.people) await directory.addPerson({ ...who }, []);
 
     const project: Project = {
