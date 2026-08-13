@@ -17,12 +17,12 @@ import { RoleRepository } from '../repository/role';
 import { UserRepository } from '../repository/user';
 import { SubtreeRepository, WorkItemRepository } from '../repository/work-item';
 import { AuthService } from '../service/auth.service';
-import { type RecordingBroadcaster, recordingBroadcaster } from '../testing/broadcast-fixture';
 import { CapacityService } from '../service/capacity.service';
 import { DirectoryService } from '../service/directory.service';
 import { ProjectService } from '../service/project.service';
 import { RoleService } from '../service/role.service';
 import { WorkItemService } from '../service/work-item.service';
+import { type RecordingBroadcaster, recordingBroadcaster } from '../testing/broadcast-fixture';
 import { testReplay } from '../testing/replay-fixture';
 
 const TEST_JWT_KEY = 'k'.repeat(32);
@@ -292,9 +292,7 @@ describe('PUT /api/projects/:id/teams/:teamId/capacity', () => {
 
     await call(shed, platform, { size: 2 });
 
-    expect(broadcast.published).toEqual([
-      { projectId: shed, event: { type: 'capacity_changed' } },
-    ]);
+    expect(broadcast.published).toEqual([{ projectId: shed, event: { type: 'capacity_changed' } }]);
     // And the plan that was not told still holds its own number, untouched.
     expect(await capacityStore.slotsFor(roof)).toEqual(new Map([[platform, 9]]));
   });
@@ -318,8 +316,12 @@ describe('PUT /api/projects/:id/teams/:teamId/capacity', () => {
         }),
       );
     const rolesRes = await send(`/api/projects/${projectId}`);
-    const { roles } = (await rolesRes.json()) as { roles: { id: string; name: string }[] };
-    const devId = roles[0]?.id;
+    // `readonly` and indexed through `.at`, so the absence a fresh project could
+    // have is a state the type carries rather than one the cast asserts away — a
+    // project with no phases has no estimate to write and this test would
+    // otherwise fail three lines later on an empty string in the URL.
+    const { roles } = (await rolesRes.json()) as { roles: readonly { id: string }[] };
+    const devId = roles.at(0)?.id;
     if (devId === undefined) throw new Error('the fixture project has no roles');
 
     for (const name of ['Strip', 'Sand']) {

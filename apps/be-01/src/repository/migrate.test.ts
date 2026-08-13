@@ -454,10 +454,10 @@ describe('the per-project capacity migration', () => {
       for (const [id, name] of [
         ['p1', 'Rewire the shed'],
         ['p2', 'Reroof the barn'],
-      ]) {
+      ] as const) {
         before.run(
           'INSERT INTO project (id, name, owner_id, restricted, estimate_method, start_date, revision, created_at)' +
-            ` VALUES ('${String(id)}', '${String(name)}', 'u', 0, 'pert', '2026-09-01', 0, 1)`,
+            ` VALUES ('${id}', '${name}', 'u', 0, 'pert', '2026-09-01', 0, 1)`,
         );
       }
       // Written through `size` on purpose: this is the global number the
@@ -467,10 +467,13 @@ describe('the per-project capacity migration', () => {
         ['t-backend', 'Backend', '1'],
         ['t-platform', 'Platform', '4'],
         ['t-design', 'Design', '1000'],
+        // The unsized team, written the way the outgoing release writes one: the
+        // literal `NULL` rather than a quoted string, because a `'NULL'` would be
+        // the text and would seed as a number.
         ['t-ops', 'Ops', 'NULL'],
-      ]) {
+      ] as const) {
         before.run(
-          `INSERT INTO service_team (id, name, size) VALUES ('${String(id)}', '${String(name)}', ${String(size)})`,
+          `INSERT INTO service_team (id, name, size) VALUES ('${id}', '${name}', ${size})`,
         );
       }
       before.run(
@@ -482,7 +485,9 @@ describe('the per-project capacity migration', () => {
     }
   }
 
-  function capacities(dbPath: string): { project_id: string; service_team_id: string; size: number }[] {
+  function capacities(
+    dbPath: string,
+  ): { project_id: string; service_team_id: string; size: number }[] {
     const after = openDatabase(dbPath);
     try {
       return after

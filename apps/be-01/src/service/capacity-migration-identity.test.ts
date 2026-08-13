@@ -4,10 +4,10 @@ import { join } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
-import { CapacityRepository } from '../repository/capacity';
-import { openDatabase, openDrizzle } from '../repository/db';
 import type { Project, Role, StoredDependency, WorkItem } from '../repository';
 import { ROLE_POSITION_STEP } from '../repository';
+import { CapacityRepository } from '../repository/capacity';
+import { openDatabase, openDrizzle } from '../repository/db';
 import { runMigrations } from '../repository/migrate';
 import { rollbackTo } from '../repository/migrate-down';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
@@ -87,7 +87,7 @@ const oracle = captured as unknown as Oracle;
  * `tree()` would be copying six collaborators and their fixtures — a copy large
  * enough that its own drift is the likelier bug. So
  * `fixtures/capacity-oracle-2026-08-13.json` holds sixteen plans *and* the answer
- * be-01 gave each of them, written by `tools/dev/capture-capacity-oracle.ts` run at
+ * be-01 gave each of them, written by `apps/be-01/tools/capture-capacity-oracle.ts` run at
  * `050fd45` before this branch had a line of code in it (its own commit, so `git
  * log` shows the oracle predates the code it measures).
  *
@@ -200,7 +200,9 @@ describe('every plan schedules identically across the migration', () => {
     const seeded = await slotsAfterTheMigration();
 
     for (const [at, plan] of oracle.plans.entries()) {
-      const answer = oracle.answers[at];
+      // `.at`, so a fixture with fewer answers than plans throws here rather than
+      // spreading `undefined` into the comparison and passing against nothing.
+      const answer = oracle.answers.at(at);
       if (answer === undefined) throw new Error(`no captured answer for ${plan.projectId}`);
       const tree = await replay(plan, seeded);
       // Compared whole rather than field by field: a projection is a minimum over
@@ -288,7 +290,8 @@ describe('every plan schedules identically across the migration', () => {
 
     const store = new CapacityRepository(openDrizzle(path));
     const seeded = new Map<string, Map<string, number>>();
-    for (const plan of oracle.plans) seeded.set(plan.projectId, await store.slotsFor(plan.projectId));
+    for (const plan of oracle.plans)
+      seeded.set(plan.projectId, await store.slotsFor(plan.projectId));
     return seeded;
   }
 

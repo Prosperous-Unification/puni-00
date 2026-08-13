@@ -5,8 +5,8 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import type { DirectoryStore, Person, Role, WorkItem } from '../repository';
-import { openDrizzle } from '../repository/db';
 import { CapacityRepository } from '../repository/capacity';
+import { openDrizzle } from '../repository/db';
 import { DirectoryRepository } from '../repository/directory';
 import { runMigrations } from '../repository/migrate';
 import { ProjectRepository } from '../repository/project';
@@ -14,15 +14,8 @@ import { RoleRepository } from '../repository/role';
 import { UserRepository } from '../repository/user';
 import { WorkItemRepository } from '../repository/work-item';
 import { type RecordingBroadcaster, recordingBroadcaster } from '../testing/broadcast-fixture';
-import { inMemoryEventLog } from '../testing/replay-fixture';
-import { subscriptionFor } from './broadcast';
 import { DirectoryService } from './directory.service';
-import { EventSequencer } from './event-sequencer';
-import { GatewayBroadcaster } from './gateway-broadcaster';
 import { ProjectService } from './project.service';
-import type { PushClient } from './push-client';
-import { ReplayBuffer } from './replay-buffer';
-import { ReplayOrchestrator } from './replay-orchestrator';
 
 /**
  * The directory service, against real SQLite.

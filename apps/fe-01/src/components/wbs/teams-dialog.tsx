@@ -184,7 +184,9 @@ export function TeamsDialog({ teams, setCapacity, onChanged }: TeamsDialogProps)
       // what the reader typed and what the sentence beside it is about, and
       // resetting it to be-01's would leave a sentence explaining a value nobody
       // could see.
-      setProblem(capacityRefusalSentence(thrown instanceof Error ? thrown.message : 'request_failed'));
+      setProblem(
+        capacityRefusalSentence(thrown instanceof Error ? thrown.message : 'request_failed'),
+      );
     } finally {
       setBusy(false);
     }

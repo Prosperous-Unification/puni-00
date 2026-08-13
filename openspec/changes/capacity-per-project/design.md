@@ -125,7 +125,7 @@ So:
   "today's only answer is the team's global size" is replaced by what is now
   true.
 - **`schedule()` is untouched.** Not one line, and that is a claim `git diff
-  --stat` can check.
+--stat` can check.
 
 The consequence worth naming: `slotsFor` is now the **only** thing between the
 stored fact and the schedule, so a bug in it is a plan-wide date change with no
@@ -151,7 +151,7 @@ Two consequences, both stated rather than hidden:
 
 - **A stale number stays in the table**, and the day somebody drops the column
   it will be the last thing anyone sees of the global capacity. A `-- retired by
-  capacity-per-project` comment goes on the schema field, naming this change and
+capacity-per-project` comment goes on the schema field, naming this change and
   the drop it is waiting for, because a column nothing reads and nothing
   documents is the next reader's twenty minutes.
 - **`PATCH /api/teams/:id/size` is removed**, along with `resizeTeam` in the
@@ -233,7 +233,7 @@ in it:
 **No undo**, and the reason is not C2's. C2 said "the directory is not journalled
 at all", which was true and is not the reason here — this fact is a project's,
 and `estimateMethod` and `startDate` are project facts with no undo either.
-Capacity joins them. The one that *does* have undo, `maxParallel`, has it because
+Capacity joins them. The one that _does_ have undo, `maxParallel`, has it because
 it rides `WorkItemPatch` and a work item's revision; a capacity write touches no
 work item and moving one would be inventing a revision bump to hang an undo on.
 
@@ -287,11 +287,11 @@ to be written by accident.
 
 ## Plan versus reality
 
-| the plan said                                                             | what is true                                                                                                                                   | what shipped                                                                                                                       |
-| ------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| A per-project allocation with the global size as the fallback (C1's D6)   | Dany, 2026-08-13: "The global number should not matter, only per project capacity configuration matters" — a fallback is the global number mattering | No fallback. Unstated pairs constrain nothing, and three cases start unconstrained on purpose. D1.                                  |
-| Seed the pairs a team actually labels                                     | A label added to an existing project the day after would then schedule differently with nobody having edited a capacity                          | The cartesian product of existing projects × sized teams, bounded and argued. D2.                                                  |
-| Rekey `slotsOf` on (project, team)                                        | `schedule()` is called once per project, so a project component inside the map is constant for the call and the separator is a new silent bug    | The **store** is keyed on the pair; the map handed to the engine is keyed on the team, and `schedule()` is untouched. D3.           |
-| The directory's size box gains a project scope                            | The directory page has no project, and "the project you last opened" reads as global                                                            | The box moves to a `Teams` dialog in the plan's toolbar and the directory loses it. D5.                                            |
-| `directory_changed` carries the write, as C2's did                        | This is not a change to the global directory                                                                                                    | A new `capacity_changed` event, which costs nothing because fe-01 does not read the type, and is true. D6.                          |
-| An identity differential against the pre-C5 engine                        | The engine did not change; the adapter did, and it is too large to copy into a test                                                             | A committed capture of 16 plans' answers taken at `050fd45`, plus a migration claim and a `slotsFor` claim, composed. D7.           |
+| the plan said                                                           | what is true                                                                                                                                         | what shipped                                                                                                              |
+| ----------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| A per-project allocation with the global size as the fallback (C1's D6) | Dany, 2026-08-13: "The global number should not matter, only per project capacity configuration matters" — a fallback is the global number mattering | No fallback. Unstated pairs constrain nothing, and three cases start unconstrained on purpose. D1.                        |
+| Seed the pairs a team actually labels                                   | A label added to an existing project the day after would then schedule differently with nobody having edited a capacity                              | The cartesian product of existing projects × sized teams, bounded and argued. D2.                                         |
+| Rekey `slotsOf` on (project, team)                                      | `schedule()` is called once per project, so a project component inside the map is constant for the call and the separator is a new silent bug        | The **store** is keyed on the pair; the map handed to the engine is keyed on the team, and `schedule()` is untouched. D3. |
+| The directory's size box gains a project scope                          | The directory page has no project, and "the project you last opened" reads as global                                                                 | The box moves to a `Teams` dialog in the plan's toolbar and the directory loses it. D5.                                   |
+| `directory_changed` carries the write, as C2's did                      | This is not a change to the global directory                                                                                                         | A new `capacity_changed` event, which costs nothing because fe-01 does not read the type, and is true. D6.                |
+| An identity differential against the pre-C5 engine                      | The engine did not change; the adapter did, and it is too large to copy into a test                                                                  | A committed capture of 16 plans' answers taken at `050fd45`, plus a migration claim and a `slotsFor` claim, composed. D7. |

@@ -19,20 +19,34 @@
  * told it has all of it. That is the fact this change is about, and a corpus of
  * one-project services could not carry it.
  *
- *     bun tools/dev/capture-capacity-oracle.ts > \
+ *     bun apps/be-01/tools/capture-capacity-oracle.ts > \
  *       apps/be-01/src/service/fixtures/capacity-oracle-2026-08-13.json
+ *
+ * It lives in `apps/be-01/tools` rather than in `tools/dev` because it imports
+ * be-01's own service and fixtures directly. From `tools/dev` those are deep
+ * relative imports across a project boundary, which
+ * `@nx/enforce-module-boundaries` refuses — and whose autofixer crashes on them,
+ * since be-01 publishes no `index.ts` to redirect them to. Here it is be-01's own
+ * tool, outside `src` so neither be-01's lint nor either of its tsconfigs sees it.
+ *
+ * **Not typechecked, and that is the point.** `WorkItemServiceOptions` gained a
+ * `capacity` collaborator in this very change, so this file as it was run does not
+ * compile against this branch's tree — which is exactly what "it ran before this
+ * branch had a line of code in it" means. Compiling it here would have meant
+ * editing it, and an edited capture script is not the script that produced the
+ * capture.
  */
-import type { Project, Role, StoredDependency, WorkItem } from '../../apps/be-01/src/repository';
-import { ROLE_POSITION_STEP } from '../../apps/be-01/src/repository';
-import { recordingBroadcaster } from '../../apps/be-01/src/testing/broadcast-fixture';
-import { inMemoryCommandJournal } from '../../apps/be-01/src/testing/command-journal-fixture';
-import { inMemoryDependencies } from '../../apps/be-01/src/testing/dependency-fixture';
-import { inMemoryDirectory } from '../../apps/be-01/src/testing/directory-fixture';
-import { inMemoryEstimates } from '../../apps/be-01/src/testing/estimate-fixture';
-import { inMemoryProjects } from '../../apps/be-01/src/testing/project-fixture';
-import { inMemorySubtrees } from '../../apps/be-01/src/testing/subtree-fixture';
-import { inMemoryWorkItems } from '../../apps/be-01/src/testing/work-item-fixture';
-import { WorkItemService } from '../../apps/be-01/src/service/work-item.service';
+import type { Project, Role, StoredDependency, WorkItem } from '../src/repository';
+import { ROLE_POSITION_STEP } from '../src/repository';
+import { recordingBroadcaster } from '../src/testing/broadcast-fixture';
+import { inMemoryCommandJournal } from '../src/testing/command-journal-fixture';
+import { inMemoryDependencies } from '../src/testing/dependency-fixture';
+import { inMemoryDirectory } from '../src/testing/directory-fixture';
+import { inMemoryEstimates } from '../src/testing/estimate-fixture';
+import { inMemoryProjects } from '../src/testing/project-fixture';
+import { inMemorySubtrees } from '../src/testing/subtree-fixture';
+import { inMemoryWorkItems } from '../src/testing/work-item-fixture';
+import { WorkItemService } from '../src/service/work-item.service';
 
 /** How many plans. Large enough to hold every shape below several times over. */
 const PLANS = 16;
@@ -92,7 +106,7 @@ interface Plan {
 
 function planFor(seed: number): Plan {
   const next = stream(seed);
-  const pick = <T,>(from: readonly T[]): T => {
+  const pick = <T>(from: readonly T[]): T => {
     const at = Math.floor(next() * from.length);
     const chosen = from[Math.min(at, from.length - 1)];
     if (chosen === undefined) throw new Error('empty choice list');

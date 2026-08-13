@@ -23,12 +23,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Modal, ModalContent, ModalHeader, ModalTitle, ModalTrigger } from '@/components/ui/modal';
 import type { ProjectStream } from '@/lib/project-stream';
-import type {
-  AssignedPersonView,
-  PersonView,
-  TeamCapacityView,
-  TeamView,
-} from '@/lib/wbs-api';
+import type { AssignedPersonView, PersonView, TeamCapacityView, TeamView } from '@/lib/wbs-api';
 import {
   type Days,
   type EstimateMethod,
@@ -90,7 +85,6 @@ import {
 import { splitMention } from './mention';
 import { composeNameCell, normalizeNewlines, splitNameCell } from './name-notes';
 import { PhasesDialog } from './phases-dialog';
-import { TeamsDialog, teamsOnThePlan } from './teams-dialog';
 import { type CardAssignee, PlanCards } from './plan-cards';
 import { describeGaps, findEstimateGaps } from './plan-completeness';
 import { type PlanExport, planFileName, planToCsv, planToMarkdown } from './plan-export';
@@ -117,6 +111,7 @@ import {
   tableWidthStyle,
   WIDEST_COLUMN,
 } from './table-frame';
+import { TeamsDialog, teamsOnThePlan } from './teams-dialog';
 import { type Toast, toastKey, ToastStack, useToasts } from './toasts';
 import { searchTree } from './tree-search';
 import { toTree, type TreeRow } from './wbs-rows';

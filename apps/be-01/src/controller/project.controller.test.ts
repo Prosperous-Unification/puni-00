@@ -1,4 +1,3 @@
-import { inMemoryCapacity, testCapacityService } from '../testing/capacity-fixture';
 import { describe, expect, it } from 'bun:test';
 
 import { buildApp } from '../app';
@@ -6,6 +5,7 @@ import { ProjectService } from '../service/project.service';
 import { WorkItemService } from '../service/work-item.service';
 import { inMemoryUsers, testAuthService } from '../testing/auth-fixture';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
+import { inMemoryCapacity, testCapacityService } from '../testing/capacity-fixture';
 import { inMemoryCommandJournal } from '../testing/command-journal-fixture';
 import { inMemoryDependencies } from '../testing/dependency-fixture';
 import { inMemoryDirectory, testDirectoryService } from '../testing/directory-fixture';

@@ -51,7 +51,7 @@ async function settle(): Promise<void> {
 }
 
 const boxFor = (name: string): HTMLInputElement =>
-  screen.getByLabelText(`How many of ${name} at once`) as HTMLInputElement;
+  screen.getByLabelText(`How many of ${name} at once`);
 
 describe('which teams the plan offers a capacity for', () => {
   const capacities: TeamCapacityView[] = [{ serviceTeamId: 't-backend', size: 2 }];
@@ -62,12 +62,11 @@ describe('which teams the plan offers a capacity for', () => {
     // parent carries no label of its own and its dates come out of that parent's
     // pool, so a plan bounded by `Backend` must offer somewhere to state it.
     //
-    // Proof: the caller's `effectiveTeams.get(row.id)` replaced by
-    // `row.serviceTeamId`, so only rows carrying a label themselves count, and
-    // this failed on `expected [] to have length 1` — a plan whose pool bounds
-    // four rows offering nowhere at all to state the number. Watched 2026-08-13.
-    // The same fault at the dialog's own boundary is the `effective` argument
-    // being all-null, below.
+    // Proof: the caller's `effectiveTeams.get(row.id)` replaced by each row's
+    // stored `serviceTeamId`, so only rows carrying a label themselves count and
+    // the four rows arrive as four nulls. This failed on `expected [] to deeply
+    // equal [ { id: 't-backend', …(3) } ]` — a plan whose pool bounds four rows
+    // offering nowhere at all to state the number. Watched 2026-08-13.
     const listed = teamsOnThePlan([BACKEND, PLATFORM], capacities, [
       // The labelled ancestor, then three leaves that inherit it.
       't-backend',
@@ -102,6 +101,9 @@ describe('which teams the plan offers a capacity for', () => {
     // D1, at this boundary: `TeamView.size` is still on the wire because be-01
     // still sends the column, and a client falling back to it would give a plan
     // that has stated nothing a bound nobody typed for it.
+    //
+    // Proof: `statedFor.get(team.id) ?? null` written as `?? team.size`, and this
+    // failed on `expected 7 to be null`. Watched 2026-08-13.
     const globallySized: TeamView = { ...PLATFORM, size: 7 };
 
     const listed = teamsOnThePlan([globallySized], [], ['t-platform']);
@@ -140,9 +142,10 @@ describe('stating how many of a team are at work at once on this plan', () => {
     // that is a plan of `Infinity` dates. An emptied box plainly means "this plan
     // does not limit them", which is `null`.
     //
-    // Proof: the empty-box arm replaced by `Number(draft)`, and this failed on
-    // `setCapacity` called with `('t-backend', 0)` where `('t-backend', null)` was
-    // owed. Watched 2026-08-13.
+    // Proof: the empty-box arm replaced by a bare `Number(draft)`, and this failed
+    // on `expected "spy" to be called with arguments: [ 't-backend', null ]` — it
+    // was called with `0`, which be-01 refuses and which would be a plan of
+    // `Infinity` dates if it did not. Watched 2026-08-13.
     const { setCapacity } = stubbed();
 
     fireEvent.change(boxFor('Backend'), { target: { value: '' } });
@@ -158,9 +161,10 @@ describe('stating how many of a team are at work at once on this plan', () => {
     // silently unlimit a team that was limited while looking to the reader like a
     // refusal, so it is refused here.
     //
-    // Proof: the `Number.isFinite` arm deleted, and this failed on `setCapacity`
-    // called with `('t-backend', null)` — the team unlimited, with nothing on
-    // screen said about it. Watched 2026-08-13.
+    // Proof: the `Number.isFinite` arm deleted, and this failed on `expected "spy"
+    // to not be called at all, but actually been called 1 times` — `1e999` on its
+    // way out as `{ size: null }`, unlimiting a limited team with nothing on screen
+    // said about it. Watched 2026-08-13.
     const { setCapacity } = stubbed();
 
     fireEvent.change(boxFor('Backend'), { target: { value: '1e999' } });
@@ -244,9 +248,7 @@ describe('stating how many of a team are at work at once on this plan', () => {
     // assume this number is the team's everywhere.
     stubbed();
 
-    expect(
-      screen.getByText(/another plan sharing a team is not affected/i),
-    ).toBeTruthy();
+    expect(screen.getByText(/another plan sharing a team is not affected/i)).toBeTruthy();
     expect(boxFor('Platform').title).toContain('This plan does not limit');
     expect(boxFor('Backend').title).toContain('on this plan');
   });

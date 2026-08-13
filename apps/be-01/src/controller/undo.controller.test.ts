@@ -1,4 +1,3 @@
-import { inMemoryCapacity, testCapacityService } from '../testing/capacity-fixture';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -22,6 +21,7 @@ import { RoleService } from '../service/role.service';
 import { WorkItemService } from '../service/work-item.service';
 import { TEST_JWT_KEY } from '../testing/auth-fixture';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
+import { inMemoryCapacity, testCapacityService } from '../testing/capacity-fixture';
 import { testDirectoryService } from '../testing/directory-fixture';
 import { testReplay } from '../testing/replay-fixture';
 

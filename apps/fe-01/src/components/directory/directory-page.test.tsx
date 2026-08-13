@@ -54,7 +54,6 @@ function fakeDirectory(
   removals: [string, boolean][];
   added: string[];
   refusePatchWith: (refusal: DirectoryWrite<PersonView> | Error | null) => void;
-  refuseSizeWith: (refusal: Error | null) => void;
   refuseRemovalWith: (usage: DirectoryUsage | null) => void;
   put: (next: PersonView[]) => void;
   holdWrites: () => void;
@@ -92,8 +91,6 @@ function fakeDirectory(
     added: [] as string[],
     refusePatchWith(refusal: DirectoryWrite<PersonView> | Error | null) {
       patchRefusal = refusal;
-    },
-    refuseSizeWith(refusal: Error | null) {
     },
     refuseRemovalWith(usage: DirectoryUsage | null) {
       removalUsage = usage;

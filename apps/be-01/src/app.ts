@@ -77,52 +77,54 @@ export interface AppOptions {
 export function buildApp(opts: AppOptions) {
   const logger = createLogger({ service: 'be-01', version: opts.version });
 
-  return new Elysia()
-    .use(observabilityPlugin({ service: 'be-01' }))
-    .decorate('logger', logger)
-    .use(smokeController)
-    .use(authController(opts.auth))
-    .use(projectController(opts.auth, opts.projects))
-    .use(roleController(opts.auth, opts.roles))
-    .use(workItemController(opts.auth, opts.workItems))
-    .use(directoryController(opts.auth, opts.directory))
-    // After `projectController`, whose prefix it shares: Elysia matches in
-    // registration order and `/:id/teams/:teamId/capacity` cannot be shadowed by
-    // anything that route declares, but keeping the two adjacent is what makes
-    // that checkable at a glance.
-    .use(capacityController(opts.auth, opts.capacity))
-    .use(
-      internalController({
-        secret: opts.internalAuthSecret,
-        // A deliberate pure ack, not a stub. Every mutation in this product is
-        // an HTTP call to be-01; a client message arriving over the socket is
-        // acknowledged and carried no further, because there is no message the
-        // socket is the authority for. The test asserting a forward records no
-        // event and pushes nothing is what keeps this honest.
-        onForward: () => Promise.resolve({ push_responses: [] }),
-        onResume: (points) => opts.replay.replay(points),
-      }),
-    )
-    .get('/health', ({ set }) => {
-      if (!opts.migrationsApplied) {
-        set.status = 503;
-        return { status: 'migrating' as const };
-      }
-      let schema: DatabaseHealth;
-      try {
-        schema = opts.probeDatabase();
-      } catch (err) {
-        // Caught and reported, not rethrown: a 500 from a health endpoint is
-        // indistinguishable at the gate from the process being wedged, and the
-        // operator reading the log needs to know which.
-        logger.error({ err }, 'health probe could not reach the database');
-        set.status = 503;
-        return { status: 'database_unreachable' as const };
-      }
-      if (schema !== 'ok') {
-        set.status = 503;
-        return { status: schema };
-      }
-      return { status: 'ok' as const };
-    });
+  return (
+    new Elysia()
+      .use(observabilityPlugin({ service: 'be-01' }))
+      .decorate('logger', logger)
+      .use(smokeController)
+      .use(authController(opts.auth))
+      .use(projectController(opts.auth, opts.projects))
+      .use(roleController(opts.auth, opts.roles))
+      .use(workItemController(opts.auth, opts.workItems))
+      .use(directoryController(opts.auth, opts.directory))
+      // After `projectController`, whose prefix it shares: Elysia matches in
+      // registration order and `/:id/teams/:teamId/capacity` cannot be shadowed by
+      // anything that route declares, but keeping the two adjacent is what makes
+      // that checkable at a glance.
+      .use(capacityController(opts.auth, opts.capacity))
+      .use(
+        internalController({
+          secret: opts.internalAuthSecret,
+          // A deliberate pure ack, not a stub. Every mutation in this product is
+          // an HTTP call to be-01; a client message arriving over the socket is
+          // acknowledged and carried no further, because there is no message the
+          // socket is the authority for. The test asserting a forward records no
+          // event and pushes nothing is what keeps this honest.
+          onForward: () => Promise.resolve({ push_responses: [] }),
+          onResume: (points) => opts.replay.replay(points),
+        }),
+      )
+      .get('/health', ({ set }) => {
+        if (!opts.migrationsApplied) {
+          set.status = 503;
+          return { status: 'migrating' as const };
+        }
+        let schema: DatabaseHealth;
+        try {
+          schema = opts.probeDatabase();
+        } catch (err) {
+          // Caught and reported, not rethrown: a 500 from a health endpoint is
+          // indistinguishable at the gate from the process being wedged, and the
+          // operator reading the log needs to know which.
+          logger.error({ err }, 'health probe could not reach the database');
+          set.status = 503;
+          return { status: 'database_unreachable' as const };
+        }
+        if (schema !== 'ok') {
+          set.status = 503;
+          return { status: schema };
+        }
+        return { status: 'ok' as const };
+      })
+  );
 }

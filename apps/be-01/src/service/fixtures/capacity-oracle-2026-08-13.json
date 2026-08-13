@@ -36,10 +36,7 @@
   "plans": [
     {
       "projectId": "p1",
-      "roleIds": [
-        "role-0",
-        "role-1"
-      ],
+      "roleIds": ["role-0", "role-1"],
       "estimateMethod": "optimistic",
       "startDate": "2026-09-01",
       "rows": [
@@ -176,9 +173,7 @@
           "serviceTeamId": null,
           "estimates": {},
           "assignees": {},
-          "dependsOn": [
-            "p1-g1"
-          ]
+          "dependsOn": ["p1-g1"]
         },
         {
           "id": "p1-g2-l0",
@@ -283,11 +278,7 @@
     },
     {
       "projectId": "p2",
-      "roleIds": [
-        "role-0",
-        "role-1",
-        "role-2"
-      ],
+      "roleIds": ["role-0", "role-1", "role-2"],
       "estimateMethod": "realistic",
       "startDate": "2026-09-01",
       "rows": [
@@ -392,18 +383,13 @@
             }
           },
           "assignees": {},
-          "dependsOn": [
-            "p2-g0"
-          ]
+          "dependsOn": ["p2-g0"]
         }
       ]
     },
     {
       "projectId": "p3",
-      "roleIds": [
-        "role-0",
-        "role-1"
-      ],
+      "roleIds": ["role-0", "role-1"],
       "estimateMethod": "pessimistic",
       "startDate": "2026-09-01",
       "rows": [
@@ -659,10 +645,7 @@
     },
     {
       "projectId": "p4",
-      "roleIds": [
-        "role-0",
-        "role-1"
-      ],
+      "roleIds": ["role-0", "role-1"],
       "estimateMethod": "pert",
       "startDate": "2026-09-01",
       "rows": [
@@ -762,19 +745,13 @@
             }
           },
           "assignees": {},
-          "dependsOn": [
-            "p4-g1"
-          ]
+          "dependsOn": ["p4-g1"]
         }
       ]
     },
     {
       "projectId": "p5",
-      "roleIds": [
-        "role-0",
-        "role-1",
-        "role-2"
-      ],
+      "roleIds": ["role-0", "role-1", "role-2"],
       "estimateMethod": "optimistic",
       "startDate": "2026-09-01",
       "rows": [
@@ -914,10 +891,7 @@
     },
     {
       "projectId": "p6",
-      "roleIds": [
-        "role-0",
-        "role-1"
-      ],
+      "roleIds": ["role-0", "role-1"],
       "estimateMethod": "realistic",
       "startDate": "2026-09-01",
       "rows": [
@@ -969,9 +943,7 @@
           "serviceTeamId": null,
           "estimates": {},
           "assignees": {},
-          "dependsOn": [
-            "p6-g0"
-          ]
+          "dependsOn": ["p6-g0"]
         },
         {
           "id": "p6-g1-l0",
@@ -1047,18 +1019,13 @@
             }
           },
           "assignees": {},
-          "dependsOn": [
-            "p6-g0"
-          ]
+          "dependsOn": ["p6-g0"]
         }
       ]
     },
     {
       "projectId": "p7",
-      "roleIds": [
-        "role-0",
-        "role-1"
-      ],
+      "roleIds": ["role-0", "role-1"],
       "estimateMethod": "pessimistic",
       "startDate": null,
       "rows": [
@@ -1192,11 +1159,7 @@
     },
     {
       "projectId": "p8",
-      "roleIds": [
-        "role-0",
-        "role-1",
-        "role-2"
-      ],
+      "roleIds": ["role-0", "role-1", "role-2"],
       "estimateMethod": "pert",
       "startDate": "2026-09-01",
       "rows": [
@@ -1351,18 +1314,13 @@
             }
           },
           "assignees": {},
-          "dependsOn": [
-            "p8-g0"
-          ]
+          "dependsOn": ["p8-g0"]
         }
       ]
     },
     {
       "projectId": "p9",
-      "roleIds": [
-        "role-0",
-        "role-1"
-      ],
+      "roleIds": ["role-0", "role-1"],
       "estimateMethod": "optimistic",
       "startDate": "2026-09-01",
       "rows": [
@@ -1438,9 +1396,7 @@
           "serviceTeamId": "team-platform",
           "estimates": {},
           "assignees": {},
-          "dependsOn": [
-            "p9-g0"
-          ]
+          "dependsOn": ["p9-g0"]
         },
         {
           "id": "p9-g1-l0",
@@ -1494,10 +1450,7 @@
     },
     {
       "projectId": "p10",
-      "roleIds": [
-        "role-0",
-        "role-1"
-      ],
+      "roleIds": ["role-0", "role-1"],
       "estimateMethod": "realistic",
       "startDate": "2026-09-01",
       "rows": [
@@ -1551,9 +1504,7 @@
           "serviceTeamId": null,
           "estimates": {},
           "assignees": {},
-          "dependsOn": [
-            "p10-g0"
-          ]
+          "dependsOn": ["p10-g0"]
         },
         {
           "id": "p10-g1-l0",
@@ -1652,11 +1603,7 @@
     },
     {
       "projectId": "p11",
-      "roleIds": [
-        "role-0",
-        "role-1",
-        "role-2"
-      ],
+      "roleIds": ["role-0", "role-1", "role-2"],
       "estimateMethod": "pessimistic",
       "startDate": "2026-09-01",
       "rows": [
@@ -1732,9 +1679,7 @@
           "serviceTeamId": null,
           "estimates": {},
           "assignees": {},
-          "dependsOn": [
-            "p11-g0"
-          ]
+          "dependsOn": ["p11-g0"]
         },
         {
           "id": "p11-g1-l0",
@@ -1911,10 +1856,7 @@
     },
     {
       "projectId": "p12",
-      "roleIds": [
-        "role-0",
-        "role-1"
-      ],
+      "roleIds": ["role-0", "role-1"],
       "estimateMethod": "pert",
       "startDate": "2026-09-01",
       "rows": [
@@ -2128,18 +2070,13 @@
             }
           },
           "assignees": {},
-          "dependsOn": [
-            "p12-g1"
-          ]
+          "dependsOn": ["p12-g1"]
         }
       ]
     },
     {
       "projectId": "p13",
-      "roleIds": [
-        "role-0",
-        "role-1"
-      ],
+      "roleIds": ["role-0", "role-1"],
       "estimateMethod": "optimistic",
       "startDate": "2026-09-01",
       "rows": [
@@ -2212,9 +2149,7 @@
           "serviceTeamId": null,
           "estimates": {},
           "assignees": {},
-          "dependsOn": [
-            "p13-g0"
-          ]
+          "dependsOn": ["p13-g0"]
         },
         {
           "id": "p13-g1-l0",
@@ -2365,19 +2300,13 @@
             }
           },
           "assignees": {},
-          "dependsOn": [
-            "p13-g1"
-          ]
+          "dependsOn": ["p13-g1"]
         }
       ]
     },
     {
       "projectId": "p14",
-      "roleIds": [
-        "role-0",
-        "role-1",
-        "role-2"
-      ],
+      "roleIds": ["role-0", "role-1", "role-2"],
       "estimateMethod": "realistic",
       "startDate": null,
       "rows": [
@@ -2664,18 +2593,13 @@
             }
           },
           "assignees": {},
-          "dependsOn": [
-            "p14-g0"
-          ]
+          "dependsOn": ["p14-g0"]
         }
       ]
     },
     {
       "projectId": "p15",
-      "roleIds": [
-        "role-0",
-        "role-1"
-      ],
+      "roleIds": ["role-0", "role-1"],
       "estimateMethod": "pessimistic",
       "startDate": "2026-09-01",
       "rows": [
@@ -2722,9 +2646,7 @@
           "serviceTeamId": null,
           "estimates": {},
           "assignees": {},
-          "dependsOn": [
-            "p15-g0"
-          ]
+          "dependsOn": ["p15-g0"]
         },
         {
           "id": "p15-g1-l0",
@@ -2955,10 +2877,7 @@
     },
     {
       "projectId": "p16",
-      "roleIds": [
-        "role-0",
-        "role-1"
-      ],
+      "roleIds": ["role-0", "role-1"],
       "estimateMethod": "pert",
       "startDate": "2026-09-01",
       "rows": [
@@ -3275,9 +3194,7 @@
             }
           },
           "assignees": {},
-          "dependsOn": [
-            "p16-g0"
-          ]
+          "dependsOn": ["p16-g0"]
         }
       ]
     }
@@ -3617,9 +3534,7 @@
           },
           "finalTotal": 6,
           "rolledUp": true,
-          "dependsOn": [
-            "p1-g1"
-          ],
+          "dependsOn": ["p1-g1"],
           "assignees": {},
           "doesEveryPhase": null,
           "schedule": {
@@ -4017,9 +3932,7 @@
           "personId": null,
           "boundBy": "capacity",
           "resourcePredecessorId": "p1-g0-l0\u0000role-0",
-          "capacityPredecessorIds": [
-            "p1-g0-l0\u0000role-0"
-          ]
+          "capacityPredecessorIds": ["p1-g0-l0\u0000role-0"]
         },
         {
           "id": "p1-g1-l1\u0000role-1",
@@ -4038,9 +3951,7 @@
           "personId": null,
           "boundBy": "capacity",
           "resourcePredecessorId": "p1-solo\u0000role-0",
-          "capacityPredecessorIds": [
-            "p1-solo\u0000role-0"
-          ]
+          "capacityPredecessorIds": ["p1-solo\u0000role-0"]
         },
         {
           "id": "p1-g2-l0\u0000role-0",
@@ -4173,10 +4084,7 @@
           "personId": null,
           "boundBy": "capacity",
           "resourcePredecessorId": "p1-g1-l1\u0000role-0",
-          "capacityPredecessorIds": [
-            "p1-g0-l0\u0000role-0",
-            "p1-g1-l1\u0000role-0"
-          ]
+          "capacityPredecessorIds": ["p1-g0-l0\u0000role-0", "p1-g1-l1\u0000role-0"]
         },
         {
           "id": "p1-solo\u0000role-1",
@@ -4195,9 +4103,7 @@
           "personId": null,
           "boundBy": "capacity",
           "resourcePredecessorId": "p1-g1-l1\u0000role-1",
-          "capacityPredecessorIds": [
-            "p1-g1-l1\u0000role-1"
-          ]
+          "capacityPredecessorIds": ["p1-g1-l1\u0000role-1"]
         }
       ],
       "roles": [
@@ -4459,9 +4365,7 @@
           },
           "finalTotal": 9,
           "rolledUp": false,
-          "dependsOn": [
-            "p2-g0"
-          ],
+          "dependsOn": ["p2-g0"],
           "assignees": {},
           "doesEveryPhase": null,
           "schedule": {
@@ -5346,9 +5250,7 @@
           "personId": null,
           "boundBy": "capacity",
           "resourcePredecessorId": "p3-g3-l2\u0000role-0",
-          "capacityPredecessorIds": [
-            "p3-g3-l2\u0000role-0"
-          ]
+          "capacityPredecessorIds": ["p3-g3-l2\u0000role-0"]
         },
         {
           "id": "p3-g1-l0\u0000role-0",
@@ -5443,9 +5345,7 @@
           "personId": null,
           "boundBy": "capacity",
           "resourcePredecessorId": "p3-g3-l2\u0000role-0",
-          "capacityPredecessorIds": [
-            "p3-g3-l2\u0000role-0"
-          ]
+          "capacityPredecessorIds": ["p3-g3-l2\u0000role-0"]
         },
         {
           "id": "p3-g2-l0\u0000role-1",
@@ -5910,9 +5810,7 @@
           },
           "finalTotal": 6.666666666666667,
           "rolledUp": false,
-          "dependsOn": [
-            "p4-g1"
-          ],
+          "dependsOn": ["p4-g1"],
           "assignees": {},
           "doesEveryPhase": null,
           "schedule": {
@@ -6784,9 +6682,7 @@
           },
           "finalTotal": 15,
           "rolledUp": true,
-          "dependsOn": [
-            "p6-g0"
-          ],
+          "dependsOn": ["p6-g0"],
           "assignees": {},
           "doesEveryPhase": null,
           "schedule": {
@@ -6940,9 +6836,7 @@
           },
           "finalTotal": 6,
           "rolledUp": false,
-          "dependsOn": [
-            "p6-g0"
-          ],
+          "dependsOn": ["p6-g0"],
           "assignees": {},
           "doesEveryPhase": null,
           "schedule": {
@@ -7486,9 +7380,7 @@
           "personId": null,
           "boundBy": "capacity",
           "resourcePredecessorId": "p7-g0-l1\u0000role-0",
-          "capacityPredecessorIds": [
-            "p7-g0-l1\u0000role-0"
-          ]
+          "capacityPredecessorIds": ["p7-g0-l1\u0000role-0"]
         },
         {
           "id": "p7-g0-l1\u0000role-0",
@@ -8010,9 +7902,7 @@
           },
           "finalTotal": 10,
           "rolledUp": false,
-          "dependsOn": [
-            "p8-g0"
-          ],
+          "dependsOn": ["p8-g0"],
           "assignees": {},
           "doesEveryPhase": null,
           "schedule": {
@@ -8536,9 +8426,7 @@
           },
           "finalTotal": 5,
           "rolledUp": true,
-          "dependsOn": [
-            "p9-g0"
-          ],
+          "dependsOn": ["p9-g0"],
           "assignees": {},
           "doesEveryPhase": null,
           "schedule": {
@@ -8679,9 +8567,7 @@
           "personId": null,
           "boundBy": "capacity",
           "resourcePredecessorId": "p9-solo\u0000role-0",
-          "capacityPredecessorIds": [
-            "p9-solo\u0000role-0"
-          ]
+          "capacityPredecessorIds": ["p9-solo\u0000role-0"]
         },
         {
           "id": "p9-g0-l0\u0000role-1",
@@ -8757,9 +8643,7 @@
           "personId": null,
           "boundBy": "capacity",
           "resourcePredecessorId": "p9-g0-l1\u0000role-1",
-          "capacityPredecessorIds": [
-            "p9-g0-l1\u0000role-1"
-          ]
+          "capacityPredecessorIds": ["p9-g0-l1\u0000role-1"]
         },
         {
           "id": "p9-g1-l0\u0000role-1",
@@ -8816,10 +8700,7 @@
           "personId": null,
           "boundBy": "capacity",
           "resourcePredecessorId": "p9-g0-l0\u0000role-1",
-          "capacityPredecessorIds": [
-            "p9-g0-l0\u0000role-0",
-            "p9-g0-l0\u0000role-1"
-          ]
+          "capacityPredecessorIds": ["p9-g0-l0\u0000role-0", "p9-g0-l0\u0000role-1"]
         }
       ],
       "roles": [
@@ -8971,9 +8852,7 @@
           },
           "finalTotal": 4,
           "rolledUp": true,
-          "dependsOn": [
-            "p10-g0"
-          ],
+          "dependsOn": ["p10-g0"],
           "assignees": {},
           "doesEveryPhase": null,
           "schedule": {
@@ -9638,9 +9517,7 @@
           },
           "finalTotal": 48,
           "rolledUp": true,
-          "dependsOn": [
-            "p11-g0"
-          ],
+          "dependsOn": ["p11-g0"],
           "assignees": {},
           "doesEveryPhase": null,
           "schedule": {
@@ -11031,9 +10908,7 @@
           },
           "finalTotal": 6.666666666666667,
           "rolledUp": false,
-          "dependsOn": [
-            "p12-g1"
-          ],
+          "dependsOn": ["p12-g1"],
           "assignees": {},
           "doesEveryPhase": null,
           "schedule": {
@@ -11207,9 +11082,7 @@
           "personId": null,
           "boundBy": "capacity",
           "resourcePredecessorId": "p12-g2-l0\u0000role-1",
-          "capacityPredecessorIds": [
-            "p12-g2-l0\u0000role-1"
-          ]
+          "capacityPredecessorIds": ["p12-g2-l0\u0000role-1"]
         },
         {
           "id": "p12-g2-l0\u0000role-0",
@@ -11247,9 +11120,7 @@
           "personId": null,
           "boundBy": "capacity",
           "resourcePredecessorId": "p12-g1-l0\u0000role-0",
-          "capacityPredecessorIds": [
-            "p12-g1-l0\u0000role-0"
-          ]
+          "capacityPredecessorIds": ["p12-g1-l0\u0000role-0"]
         },
         {
           "id": "p12-g2-l1\u0000role-0",
@@ -11570,9 +11441,7 @@
           },
           "finalTotal": 5,
           "rolledUp": true,
-          "dependsOn": [
-            "p13-g0"
-          ],
+          "dependsOn": ["p13-g0"],
           "assignees": {},
           "doesEveryPhase": null,
           "schedule": {
@@ -11914,9 +11783,7 @@
           },
           "finalTotal": 4,
           "rolledUp": false,
-          "dependsOn": [
-            "p13-g1"
-          ],
+          "dependsOn": ["p13-g1"],
           "assignees": {},
           "doesEveryPhase": null,
           "schedule": {
@@ -12915,9 +12782,7 @@
           },
           "finalTotal": 9,
           "rolledUp": false,
-          "dependsOn": [
-            "p14-g0"
-          ],
+          "dependsOn": ["p14-g0"],
           "assignees": {},
           "doesEveryPhase": null,
           "schedule": {
@@ -13088,10 +12953,7 @@
           "personId": null,
           "boundBy": "capacity",
           "resourcePredecessorId": "p14-g2-l2\u0000role-1",
-          "capacityPredecessorIds": [
-            "p14-g2-l0\u0000role-0",
-            "p14-g2-l2\u0000role-1"
-          ]
+          "capacityPredecessorIds": ["p14-g2-l0\u0000role-0", "p14-g2-l2\u0000role-1"]
         },
         {
           "id": "p14-g1-l0\u0000role-2",
@@ -13110,9 +12972,7 @@
           "personId": null,
           "boundBy": "capacity",
           "resourcePredecessorId": "p14-g2-l1\u0000role-0",
-          "capacityPredecessorIds": [
-            "p14-g2-l1\u0000role-0"
-          ]
+          "capacityPredecessorIds": ["p14-g2-l1\u0000role-0"]
         },
         {
           "id": "p14-g1-l1\u0000role-0",
@@ -13231,9 +13091,7 @@
           "personId": "person-sam",
           "boundBy": "capacity",
           "resourcePredecessorId": "p14-g2-l2\u0000role-2",
-          "capacityPredecessorIds": [
-            "p14-g2-l2\u0000role-2"
-          ]
+          "capacityPredecessorIds": ["p14-g2-l2\u0000role-2"]
         },
         {
           "id": "p14-g2-l1\u0000role-0",
@@ -13332,9 +13190,7 @@
           "personId": null,
           "boundBy": "capacity",
           "resourcePredecessorId": "p14-g2-l0\u0000role-0",
-          "capacityPredecessorIds": [
-            "p14-g2-l0\u0000role-0"
-          ]
+          "capacityPredecessorIds": ["p14-g2-l0\u0000role-0"]
         },
         {
           "id": "p14-g2-l2\u0000role-2",
@@ -13627,9 +13483,7 @@
           },
           "finalTotal": 28,
           "rolledUp": true,
-          "dependsOn": [
-            "p15-g0"
-          ],
+          "dependsOn": ["p15-g0"],
           "assignees": {},
           "doesEveryPhase": null,
           "schedule": {
@@ -15336,9 +15190,7 @@
           },
           "finalTotal": 6.666666666666667,
           "rolledUp": false,
-          "dependsOn": [
-            "p16-g0"
-          ],
+          "dependsOn": ["p16-g0"],
           "assignees": {},
           "doesEveryPhase": null,
           "schedule": {
@@ -15398,10 +15250,7 @@
           "personId": null,
           "boundBy": "capacity",
           "resourcePredecessorId": "p16-g1-l1\u0000role-0",
-          "capacityPredecessorIds": [
-            "p16-g3-l1\u0000role-0",
-            "p16-g1-l1\u0000role-0"
-          ]
+          "capacityPredecessorIds": ["p16-g3-l1\u0000role-0", "p16-g1-l1\u0000role-0"]
         },
         {
           "id": "p16-g0-l1\u0000role-0",
@@ -15534,10 +15383,7 @@
           "personId": null,
           "boundBy": "capacity",
           "resourcePredecessorId": "p16-g3-l1\u0000role-0",
-          "capacityPredecessorIds": [
-            "p16-g0-l0\u0000role-0",
-            "p16-g3-l1\u0000role-0"
-          ]
+          "capacityPredecessorIds": ["p16-g0-l0\u0000role-0", "p16-g3-l1\u0000role-0"]
         },
         {
           "id": "p16-g1-l1\u0000role-1",
@@ -15556,9 +15402,7 @@
           "personId": null,
           "boundBy": "capacity",
           "resourcePredecessorId": "p16-g0-l0\u0000role-1",
-          "capacityPredecessorIds": [
-            "p16-g0-l0\u0000role-1"
-          ]
+          "capacityPredecessorIds": ["p16-g0-l0\u0000role-1"]
         },
         {
           "id": "p16-g1-l2\u0000role-0",
@@ -15767,9 +15611,7 @@
           "personId": null,
           "boundBy": "capacity",
           "resourcePredecessorId": "p16-g0-l0\u0000role-0",
-          "capacityPredecessorIds": [
-            "p16-g0-l0\u0000role-0"
-          ]
+          "capacityPredecessorIds": ["p16-g0-l0\u0000role-0"]
         },
         {
           "id": "p16-g3-l1\u0000role-1",

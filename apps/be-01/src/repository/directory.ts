@@ -501,7 +501,6 @@ export class DirectoryRepository implements DirectoryStore {
     );
   }
 
-
   /** The people in one team, by name, which is the order a confirmation reads them in. */
   private membersOf(reader: Reader, teamId: string): Person[] {
     return reader
