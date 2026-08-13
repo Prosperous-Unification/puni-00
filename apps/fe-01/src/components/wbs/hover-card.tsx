@@ -124,7 +124,9 @@ export interface CardRoom {
 /**
  * The side a scrolling card opens on and how tall it may be there: whichever
  * side of its cell has the clear room, capped at {@link VIEWPORT_SHARE} of the
- * container and floored at {@link SCROLLING_MIN_HEIGHT}.
+ * container and floored at {@link SCROLLING_MIN_HEIGHT} — the cap winning over
+ * the floor for a container shorter than one, which is a box with nothing to
+ * give rather than a card that may hang out of it.
  *
  * **The container is the box the card is clipped by, which is not always the
  * window.** A cell's card is an absolutely positioned child of the cell, so a
@@ -162,15 +164,24 @@ export function roomForCard(
   anchor: { top: number; bottom: number },
   container: { top: number; bottom: number },
 ): CardRoom {
-  const below = container.bottom - anchor.bottom - ANCHOR_GAP_PX;
+  // A box cannot be shorter than nothing. The caller hands this the frame ∩ the
+  // window, and an intersection of two boxes that do not meet inverts — a frame
+  // scrolled entirely off the top of the window gives `{0, -200}` — where a
+  // share of the negative height is a card told to be shorter than nothing
+  // rather than one told it has no room. Both reviewers, 2026-08-12.
+  const bottom = Math.max(container.top, container.bottom);
+  const below = bottom - anchor.bottom - ANCHOR_GAP_PX;
   const above = anchor.top - container.top - ANCHOR_GAP_PX;
   return {
     // `>=` rather than `>`: a cell with equal room either way opens downward,
     // which is where every other card in the table opens and where a reader
     // looks first.
     side: below >= above ? 'below' : 'above',
+    // The share of the container wins over the floor where the container is
+    // itself shorter than the floor: a card is never taller than the box that
+    // clips it, however little that box has to give.
     maxHeight: Math.min(
-      (container.bottom - container.top) * VIEWPORT_SHARE,
+      (bottom - container.top) * VIEWPORT_SHARE,
       Math.max(below, above, SCROLLING_MIN_HEIGHT),
     ),
   };

@@ -225,4 +225,23 @@ describe('a scrolling card takes the room its cell leaves it', () => {
       maxHeight: 160,
     });
   });
+
+  itDom('gives a card no room rather than less than none when its frame has left the window', () => {
+    // Both reviewers, 2026-08-12, agy with the arithmetic. The caller hands
+    // this function the frame ∩ the window, and a frame scrolled entirely off
+    // the top of the window intersects it in nothing: `{top: max(0, -900),
+    // bottom: min(1000, -200)}` is `{0, -200}`, a box whose bottom is above its
+    // top. Nine tenths of a negative height is a card told to be shorter than
+    // nothing. Hardening rather than a bug fix — a card opens on hover and a
+    // cell nobody can point at cannot be hovered — so what it is pinned to is
+    // the arithmetic, not a pointer.
+    //
+    // Proof: the `Math.max` against the container's own top dropped — failed on
+    // `expected { side: 'below', maxHeight: -180 } to deeply equal { side:
+    // 'below', maxHeight: 0 }`. Watched on h2puni, 2026-08-13.
+    expect(roomForCard({ top: -500, bottom: -472 }, { top: 0, bottom: -200 })).toEqual({
+      side: 'below',
+      maxHeight: 0,
+    });
+  });
 });
