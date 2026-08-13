@@ -11,23 +11,34 @@ existed since C2. What moves is what a reader can see and type.
 **This change disarms the deploy gate.** `LLM_README.md` has carried
 _"DEPLOY GATE STILL ARMED: C2 merged but C3 not started — next hand-run
 `./bin/dev-deploy.sh` hits `floorWordsOf` throw on `boundBy:'capacity'`"_ since
-#53 merged. The mandatory watched red below is the proof that it is now safe;
-the line comes out of `LLM_README.md` on merge, not before.
+#53 merged. The mandatory watched red below is the proof that it is now safe,
+and **the landmine comes out in this branch's own last commit** — so it leaves
+`LLM_README.md` at the moment this merges and not a commit before.
 
 ## The gate
 
-Run on **h2puni** over ssh, 2026-08-12/13. Nothing was compiled or tested on
-h1claw; that box denies both.
+Run on **h2puni** over ssh. The table below is the **rebased** tree
+(base `main@66ef012`, #56 merged), re-run in full on 2026-08-13 after the
+cross-review's three P2 fixes; the earlier `2be2b25`-based numbers it replaces
+are kept in the paragraph under it. Nothing was compiled or tested on h1claw;
+that box denies both.
 
 | target                                                  | result                                                                                                                                               |
 | ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `bunx nx format:check --all`                            | clean                                                                                                                                                |
-| fe-01 unit (`node vitest run`)                          | **1,265 pass across 48 files, 0 fail**, 55.96s                                                                                                       |
-| fe-01 e2e (Playwright image, Chromium)                  | **163 pass, 0 fail**, 5.5m — first attempt, no rerun                                                                                                 |
-| `bun test` in `apps/be-01`                              | 680 pass, 0 fail, 24,320 `expect()` calls, 11.49s — untouched by this change, run because it owns the payload fe-01 now reads three new fields of    |
+| fe-01 unit (`node vitest run`)                          | **1,295 pass across 49 files, 0 fail**, 51.14s                                                                                                       |
+| fe-01 e2e (Playwright image, Chromium)                  | **not re-run on the rebased tree.** 163 pass / 0 fail / 5.5m at `2e831ce`; CI's `pixels` job is the record for this head.                            |
+| `bun test` in `apps/be-01`                              | 680 pass, 0 fail, 24,318 `expect()` calls, 15.62s across 54 files — untouched by this change, run because it owns the payload fe-01 reads            |
 | `bunx nx run-many -t lint typecheck`                    | pass, 21 projects                                                                                                                                    |
 | `bunx nx run-many -t build`                             | **not run here.** `tool-bootstrap` and `tool-devsync` refuse without `shellcheck`, which h2puni does not have. CI runs it and is the gate of record. |
-| `bunx @fission-ai/openspec@1.3.0 validate --all --json` | 41 items, 41 passed, 0 failed                                                                                                                        |
+| `bunx @fission-ai/openspec@1.3.0 validate --all --json` | 42 items, 42 passed, 0 failed                                                                                                                        |
+
+The 1,295 is up from the 1,265 measured at `2e831ce`: **six** are the tests the
+P2 fixes are pinned by — one in `gantt-geometry.test.ts`, one in
+`gantt-panel.test.tsx`, three in `wbs-table.test.tsx`, one in
+`directory-page.test.tsx` — and the rest came with #56 through the rebase.
+`openspec validate` is 42 rather than 41 for the same reason: #56's change is in
+the count now.
 
 `nx run fe-01:test` is **not** how the unit suite was run: under bun on h2puni
 that target runs zero tests and exits 0 (three agents have hit it). The suite is
@@ -63,24 +74,24 @@ of those five was written and watched **red against the shipped branch** before
 a line of its fix existed — one run, `5 failed | 615 passed (620)`, and one
 more, `1 failed | 36 passed (37)`, on 2026-08-13.
 
-| check                                                 | injected fault                                                                 | observed failure                                                                                                                                                                                                                                                                                                                                                                              |
-| ----------------------------------------------------- | ------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **the deploy gate** — `floorWordsOf` knows `capacity` | the `case 'capacity':` arm struck, so `default:` catches it again              | **both** tests of `the deploy gate: a plan a sized team is holding back` — `expected 'The chart cannot be drawn: slice seal…' to be null` and `no bar on the chart for sealing`, against four uncaught `GanttDataError: slice sealing::role-dev is held by capacity, which this chart has no words for`. The whole chart replaced by the fault boundary, on a plan be-01 schedules every day. |
-| a capacity floor names its display referent           | the throw replaced by `return 'Waits for a team'`                              | `throws when a capacity floor names no display referent` alone — `expected function to throw an error, but it didn't`                                                                                                                                                                                                                                                                         |
-| a capacity floor carries a blocking set               | the throw deleted and the count clamped with `Math.max(0, n - 1)`              | `throws when a capacity floor says nothing was holding the pool` alone — `expected function to throw an error, but it didn't`                                                                                                                                                                                                                                                                 |
-| a capacity-floored row names a team                   | the throw replaced by `poolNameOf(team) ?? 'its team'`                         | `throws when a capacity-floored row names no team to be short of` alone — `expected function to throw an error, but it didn't`                                                                                                                                                                                                                                                                |
-| the In-parallel column holds `999`                    | the declared width set to 24                                                   | `the In-parallel column holds three digits at the grid's own type` — `in-parallel declares 24px where "999" needs 30`. Chromium, h2puni.                                                                                                                                                                                                                                                      |
-| the date columns still hold the day envelope          | `DATE_COLUMN_WIDTH` set to 94                                                  | `is as wide as the widest day the formatter can print` — `start declares 94px where the widest day it can print, "20 May 2027 ?", needs 95`. Chromium, h2puni.                                                                                                                                                                                                                                |
-| the In-parallel cell refuses a non-finite draft       | the `Number.isFinite` guard deleted                                            | `refuses a draft JSON cannot carry, rather than silently resetting the row` — `Unable to find an element with the text: /People at once is a whole number from 1 to 1000./`. The typed `1e999` sent as `null`, which is the reset.                                                                                                                                                            |
-| the export resolves inheritance over every row        | `teamsInForce` narrowed to `plan.rows.filter((r) => r.serviceTeamId !== null)` | `resolves the inherited label against every row of the plan` and `names the team a row inherits` — `expected '' to be 'Billing, Ltd (inherited from 010 Root)'`. Every inheriting row reported teamless.                                                                                                                                                                                      |
-| the cards read the **effective** team                 | `teamLabel` pointed back at `teamLabelOf(row.serviceTeamId)`                   | `marks a team a row only inherits, and names where the label was written` — `expected undefined to be '↳ Billing'`. The inheriting card drew no team line at all.                                                                                                                                                                                                                             |
-| an emptied size box clears rather than zeroes         | the empty-box arm replaced by the plain `Number(typed)`                        | `clears to unstated when the box is emptied, rather than sending a zero` — `expected [ [ 't1', 4 ], [ 't1', +0 ] ] to deeply equal [ [ 't1', 4 ], [ 't1', null ] ]`. The page asking for a team of nobody.                                                                                                                                                                                    |
-| the size draft survives the name's Escape             | the name's Escape pointed at the both-drafts `forgetDraft`                     | `keeps a half-typed size when the name beside it is escaped` — `expected '' to be '7'`                                                                                                                                                                                                                                                                                                        |
+| check                                                 | injected fault                                                                 | observed failure                                                                                                                                                                                                                                                                                                                                                                                   |
+| ----------------------------------------------------- | ------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **the deploy gate** — `floorWordsOf` knows `capacity` | the `case 'capacity':` arm struck, so `default:` catches it again              | **both** tests of `the deploy gate: a plan a sized team is holding back` — `expected 'The chart cannot be drawn: slice seal…' to be null` and `no bar on the chart for sealing`, against four uncaught `GanttDataError: slice sealing::role-dev is held by capacity, which this chart has no words for`. The whole chart replaced by the fault boundary, on a plan be-01 schedules every day.      |
+| a capacity floor names its display referent           | the throw replaced by `return 'Waits for a team'`                              | `throws when a capacity floor names no display referent` alone — `expected function to throw an error, but it didn't`                                                                                                                                                                                                                                                                              |
+| a capacity floor carries a blocking set               | the throw deleted and the count clamped with `Math.max(0, n - 1)`              | `throws when a capacity floor says nothing was holding the pool` alone — `expected function to throw an error, but it didn't`                                                                                                                                                                                                                                                                      |
+| a capacity-floored row names a team                   | the throw replaced by `poolNameOf(team) ?? 'its team'`                         | `throws when a capacity-floored row names no team to be short of` alone — `expected function to throw an error, but it didn't`                                                                                                                                                                                                                                                                     |
+| the In-parallel column holds `999`                    | the declared width set to 24                                                   | `the In-parallel column holds three digits at the grid's own type` — `in-parallel declares 24px where "999" needs 30`. Chromium, h2puni.                                                                                                                                                                                                                                                           |
+| the date columns still hold the day envelope          | `DATE_COLUMN_WIDTH` set to 94                                                  | `is as wide as the widest day the formatter can print` — `start declares 94px where the widest day it can print, "20 May 2027 ?", needs 95`. Chromium, h2puni.                                                                                                                                                                                                                                     |
+| the In-parallel cell refuses a non-finite draft       | the `Number.isFinite` guard deleted                                            | `refuses a draft JSON cannot carry, rather than silently resetting the row` — `Unable to find an element with the text: /People at once is a whole number from 1 to 1000./`. The typed `1e999` sent as `null`, which is the reset.                                                                                                                                                                 |
+| the export resolves inheritance over every row        | `teamsInForce` narrowed to `plan.rows.filter((r) => r.serviceTeamId !== null)` | `resolves the inherited label against every row of the plan` and `names the team a row inherits` — `expected '' to be 'Billing, Ltd (inherited from 010 Root)'`. Every inheriting row reported teamless.                                                                                                                                                                                           |
+| the cards read the **effective** team                 | `teamLabel` pointed back at `teamLabelOf(row.serviceTeamId)`                   | `marks a team a row only inherits, and names where the label was written` — `expected undefined to be '↳ Billing'`. The inheriting card drew no team line at all.                                                                                                                                                                                                                                  |
+| an emptied size box clears rather than zeroes         | the empty-box arm replaced by the plain `Number(typed)`                        | `clears to unstated when the box is emptied, rather than sending a zero` — `expected [ [ 't1', 4 ], [ 't1', +0 ] ] to deeply equal [ [ 't1', 4 ], [ 't1', null ] ]`. The page asking for a team of nobody.                                                                                                                                                                                         |
+| the size draft survives the name's Escape             | the name's Escape pointed at the both-drafts `forgetDraft`                     | `keeps a half-typed size when the name beside it is escaped` — `expected '' to be '7'`                                                                                                                                                                                                                                                                                                             |
 | **P2-1** a stale team label degrades, not throws      | `poolNameOf`'s `unresolved` arm returning `null` again (the shipped branch)    | two tests: `carries words for a team the directory read has not caught up with` — `GanttDataError: slice sand-dev is floored by a team's capacity but its row names no team` — and the panel's `still draws when the directory read has not caught up with the pool` — `expected 'The chart cannot be drawn: slice seal…' to be null`. The whole chart in the boundary for a skew that self-heals. |
-| **P2-2** a refused parallelism reads as a sentence    | the `maxParallel_must_be_a_whole_number_from_1` entry struck                   | `says what a parallelism may be when be-01 refuses one` — `expected [ 'That change could not be completed (maxParallel_must_be_a_whole_number_from_1).' ] to include 'People at once is a whole number of 1…'`. The wire code in the corner of the screen.                                                                                                                                     |
-| **P2-2** the ceiling is read out of be-01's own word  | the `PARALLELISM_CEILING_CODE` prefix arm deleted                              | `reads the ceiling out of be-01's own word for it` — `expected [ 'That change could not be completed (maxParallel_must_be_at_most_1000).' ] to include 'People at once is at most 1000.'`                                                                                                                                                                                                     |
-| **P2-2** a parent's refusal says what happened        | the `has_children` entry struck                                                | `says why a parent's parallelism was refused, in the tree's words` — `expected [ 'That change could not be completed (has_children).' ] to include 'A row with work under it…'`                                                                                                                                                                                                               |
-| **P2-3** only the newest directory read writes        | no `latestRead` generation counter (the shipped branch)                        | `and only the newest read may write the screen` alone — `expected null not to be null`, at the assertion after the superseded read answers: the older response putting the name somebody had just changed back on the panel.                                                                                                                                                                  |
+| **P2-2** a refused parallelism reads as a sentence    | the `maxParallel_must_be_a_whole_number_from_1` entry struck                   | `says what a parallelism may be when be-01 refuses one` — `expected [ 'That change could not be completed (maxParallel_must_be_a_whole_number_from_1).' ] to include 'People at once is a whole number of 1…'`. The wire code in the corner of the screen.                                                                                                                                         |
+| **P2-2** the ceiling is read out of be-01's own word  | the `PARALLELISM_CEILING_CODE` prefix arm deleted                              | `reads the ceiling out of be-01's own word for it` — `expected [ 'That change could not be completed (maxParallel_must_be_at_most_1000).' ] to include 'People at once is at most 1000.'`                                                                                                                                                                                                          |
+| **P2-2** a parent's refusal says what happened        | the `has_children` entry struck                                                | `says why a parent's parallelism was refused, in the tree's words` — `expected [ 'That change could not be completed (has_children).' ] to include 'A row with work under it…'`                                                                                                                                                                                                                    |
+| **P2-3** only the newest directory read writes        | no `latestRead` generation counter (the shipped branch)                        | `and only the newest read may write the screen` alone — `expected null not to be null`, at the assertion after the superseded read answers: the older response putting the name somebody had just changed back on the panel.                                                                                                                                                                       |
 
 Two of these are **browser** injections rather than jsdom ones, and that is the
 point of them: a column width is a claim about drawn glyphs, and no unit test in
@@ -104,7 +115,7 @@ this repo can judge one.
   are jsdom's alone (`Tab moves between the fields, from every cell`, and the
   Ctrl+L chord test that now lands in it). No browser has typed into this cell.
 - **The directory read race is fixed and pinned, but not in a browser.** `and
-  only the newest read may write the screen` drives it in jsdom by holding two
+only the newest read may write the screen` drives it in jsdom by holding two
   overlapping reads and answering them out of order. Two real overlapping HTTP
   responses are not what it exercises.
 - **No screenshot was compared.** `layout.spec.ts`'s picture test writes its
@@ -122,12 +133,12 @@ first finding independently, which had not happened before in this batch.
 table above:
 
 - **P2-1** — `floorWordsOf`'s capacity arm threw the whole chart away on the one
-  team state `ServiceTeamLabel` documents as *modeled*: `unresolved`, the stale
+  team state `ServiceTeamLabel` documents as _modeled_: `unresolved`, the stale
   directory lookup. Three of the four surfaces this change unifies degrade for
   it and only the chart threw. `poolNameOf` now gives it words — the cards' own
   — and keeps the throw for `none`, which is a genuine invariant break.
 - **P2-2** — a refused In-parallel number put `maxParallel_must_be_a_whole_
-  number_from_1` in the corner of the screen. Three arms added:
+number_from_1` in the corner of the screen. Three arms added:
   the floor, the ceiling as a **prefix** so the 1000 cannot drift from be-01's
   own, and `has_children`. The sibling size box got both of the first two a
   screen away in `wbs-api.ts`; this cell had neither, and nothing exercised the
@@ -155,7 +166,7 @@ introduces a regression in:
   commonest non-trivial case.
 - `ExportSlice` carries `effort` and `duration` that no consumer reads, under a
   docstring claiming all three do work. The information is not lost — `Total
-  days` and `Starts`/`Ends` carry it.
+days` and `Starts`/`Ends` carry it.
 - `commitRename` calls the both-drafts `forgetDraft`, so committing a name drops
   an unsent size draft beside it. The Escape pair was introduced for exactly
   that asymmetry; the watched red covers Escape only.
@@ -172,7 +183,7 @@ introduces a regression in:
   plans with nothing to do with capacity — the specific thing to look at when
   somebody finally compares a screenshot.
 
-## Overlap with PR #56 (`change/unified-scroll-docking`, unmerged)
+## Overlap with PR #56 (`change/unified-scroll-docking`, **merged** `66ef012`)
 
 `comm -12` over both branches' changed-file lists gives **four** files, all in
 `apps/fe-01/src/components/wbs`:
@@ -194,9 +205,12 @@ is `e2e/gantt.spec.ts`. That is deliberate rather than lucky: the "cards" of
 C3's scope are `plan-cards.tsx`, the phone renderer, and the hover surfaces
 needed nothing.
 
-Whichever merges second rebases. Nothing here depends on #56 landing, and #56's
-own re-measurement of the frame height is unaffected by two columns changing
-width inside it.
+Whichever merges second rebases, and **#56 merged first** (`66ef012`,
+2026-08-13). This branch was rebased onto it on 2026-08-13: all ten commits
+replayed with **no conflict in any of the four files** — the prediction above
+held — and the gate below is the run against the rebased tree, not against the
+`2be2b25` base the earlier runs used. `gh pr view` reported MERGEABLE / CLEAN
+both before and after.
 
 ## Plan versus reality
 

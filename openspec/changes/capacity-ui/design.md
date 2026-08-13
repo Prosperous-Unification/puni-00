@@ -66,7 +66,7 @@ for three anyway: the one four-digit value that exists renders clipped with its
 row, and stated in `table-frame.ts` beside the width. `e2e/layout.spec.ts`
 measures `999` in the cell in Chromium and compares it against the declared
 width — 30px needed, 32 declared — and the negative was watched at 24. Three
-digits is what is *pinned*; the fourth is a stated clip and not a refusal.
+digits is what is _pinned_; the fourth is a stated clip and not a refusal.
 
 An earlier draft of this section said a four-digit parallelism cannot be stored,
 and the R5 proof comment repeated it. It was false — `1000` passes `>` — and the
@@ -180,4 +180,4 @@ would be a second copy of `MOST_PEOPLE_AT_ONCE` free to drift.
   than a stale name: typing the number the stale screen already shows sends
   nothing at all. `directory-page.tsx` now carries `latestRead`, the project
   page's `latestRefresh` six lines over, with `and only the newest read may
-  write the screen` watched red against it. C3's cross-review, P2-3.
+write the screen` watched red against it. C3's cross-review, P2-3.
