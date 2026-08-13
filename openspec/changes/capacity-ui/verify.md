@@ -84,8 +84,10 @@ with the log full of `[vite] ws proxy socket error: write ECONNRESET` around
 it. **168 passed, 1 failed.** `gate` passed in the same run. That is the
 ws-proxy ECONNRESET class already on the repo's record — it flaked once before
 on a markdown-only diff (`f8b7d62`) — and a docs-only diff cannot reach a
-`fill()`. `gh run rerun --failed` on the same head passed. The head merged is
-`1175bb4` with both jobs `success`.
+`fill()`. `gh run rerun --failed` on the same head passed, so `1175bb4` is green
+on both jobs. Every commit after `8675cc4` on this branch, this paragraph
+included, touches `verify.md` and nothing else; each has its own CI run and each
+is green.
 
 ## The failure-proof table (R5)
 
