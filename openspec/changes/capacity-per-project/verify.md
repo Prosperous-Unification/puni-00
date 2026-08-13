@@ -160,9 +160,16 @@ Dany's account, and it is the one thing this document cannot claim.
 
 ## CI
 
-Recorded at the head this document describes, after the PR is opened. `gate` and
-`pixels` both, and the `pixels` job is the only record of the browser suite for
-this head — the Playwright image was not run on h2puni for this change.
+**PR #58, head `10df60e`, run 31699280579 — green on the first attempt, no
+reruns.** `gate` 2m55s, `pixels` 9m42s. `pixels` is the **only** record of the
+browser suite for this head: the Playwright image was not run on h2puni for this
+change, because nothing here makes a claim about real layout the way the
+In-parallel column's 32px did.
+
+`gate` is also the only record of `nx run-many -t build`, which h2puni cannot run
+(no `shellcheck`), and of the secrets scan and the migration lint — the lint being
+the one that reads this change's new `migration.sql` and would refuse a
+destructive statement in it.
 
 ## Deferred, and recorded rather than done
 
