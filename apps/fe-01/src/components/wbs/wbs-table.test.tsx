@@ -7350,12 +7350,15 @@ describe('holding the chart to the row the table is showing', () => {
    * would be — and it is the *chart* that becomes something else: a sentence
    * about the circle under the same `[data-gantt-panel]` a chart carries.
    */
-  const circularApi = () => {
+  const circularApi = (): ProjectApi => {
     const api = fakeApi();
-    const asRead = api.tree;
-    api.tree = () =>
-      asRead().then((tree) => ({ ...tree, scheduleError: 'cycle' as const, slices: [] }));
-    return api;
+    return {
+      ...api,
+      // A cycle takes the slices with it, the way be-01 sends it: there is no
+      // schedule to have placed any.
+      tree: () =>
+        api.tree().then((tree) => ({ ...tree, scheduleError: 'cycle' as const, slices: [] })),
+    };
   };
 
   itDom('does not hold the chart to the table while the plan is a circle', async () => {
