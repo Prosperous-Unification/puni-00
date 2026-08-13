@@ -1,0 +1,19 @@
+-- Reverses 20260813120000_add_project_team_capacity.
+--
+-- Dropping this loses every per-project capacity anybody typed. Most of it can be
+-- recomputed and the interesting part cannot: the release that comes back reads
+-- `service_team.size` again, which this migration seeded these rows *from* and
+-- which no release since has written, so every pair that was never edited comes
+-- back at exactly the number it was seeded with. What is lost is every pair
+-- somebody has edited since — a project told four where the global number says
+-- one goes back to one, and its plan re-spreads.
+--
+-- Nothing else in the plan goes: the teams, their names, their memberships, every
+-- label on the work and every global size all survive, which is why this runs
+-- only when the release that added the table is being taken away.
+--
+-- Reversed **before** `20260812100000_add_team_slots`, which is the order
+-- `migrate-down-cli.ts --to=<name>` walks the applied set in — and the only order
+-- that works, since this table's rows are seeded from the column that migration
+-- adds.
+DROP TABLE IF EXISTS `project_team_capacity`;

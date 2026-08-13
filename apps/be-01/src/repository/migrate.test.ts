@@ -31,6 +31,9 @@ const PRIORITY = '20260811100000_add_priority';
 // cases at the bottom of this file.
 const TEAM_SLOTS = '20260812100000_add_team_slots';
 const MAX_PARALLEL = '20260812100001_add_max_parallel';
+// A table of its own, referencing `project` and `service_team`, so it reverses
+// before the domain and appears in the ordering case as well as in its own.
+const PER_PROJECT_CAPACITY = '20260813120000_add_project_team_capacity';
 
 const WBS_TABLES = ['project', 'work_item', 'role', 'estimate'] as const;
 // Its own migration, reversed with the domain because it references `work_item`.
@@ -39,6 +42,9 @@ const DEPENDENCY_TABLES = ['dependency'] as const;
 const ACCESS_TABLES = ['project_access'] as const;
 // Also its own, and reversed with the domain: they reference `work_item`.
 const DIRECTORY_TABLES = ['service_team', 'person', 'person_team', 'assignment'] as const;
+// Its own migration, reversed with the domain: it references both `project` and
+// `service_team`, so it cannot outlive either.
+const CAPACITY_TABLES = ['project_team_capacity'] as const;
 
 function tempDb(): { path: string; cleanup: () => void } {
   const dir = mkdtempSync(join(tmpdir(), 'wbs-migrate-'));
@@ -67,7 +73,13 @@ describe('the WBS domain migration', () => {
     const db = tempDb();
     try {
       runMigrations(db.path, FOLDER);
-      for (const t of [...WBS_TABLES, ...DEPENDENCY_TABLES, ...ACCESS_TABLES, ...DIRECTORY_TABLES])
+      for (const t of [
+        ...WBS_TABLES,
+        ...DEPENDENCY_TABLES,
+        ...ACCESS_TABLES,
+        ...DIRECTORY_TABLES,
+        ...CAPACITY_TABLES,
+      ])
         expect(tables(db.path)).toContain(t);
     } finally {
       db.cleanup();
@@ -81,10 +93,14 @@ describe('the WBS domain migration', () => {
 
       const reversed = rollbackTo(db.path, FOLDER, USERS);
 
-      // Newest first. The two capacity columns reverse in the opposite order
-      // to the one they were applied in, which is the whole of the rollback
-      // ordering claim: `max_parallel` down, then `size` down.
+      // Newest first. The three capacity migrations reverse in the opposite
+      // order to the one they were applied in, which is the whole of the
+      // rollback ordering claim: `project_team_capacity` down, then
+      // `max_parallel` down, then `size` down. The per-project table reverses
+      // ahead of the column it was seeded from, which is the only order in
+      // which its foreign keys still have something to point at.
       expect(reversed).toEqual([
+        PER_PROJECT_CAPACITY,
         MAX_PARALLEL,
         TEAM_SLOTS,
         PRIORITY,
@@ -98,7 +114,13 @@ describe('the WBS domain migration', () => {
         DEPS,
         WBS,
       ]);
-      for (const t of [...WBS_TABLES, ...DEPENDENCY_TABLES, ...ACCESS_TABLES, ...DIRECTORY_TABLES])
+      for (const t of [
+        ...WBS_TABLES,
+        ...DEPENDENCY_TABLES,
+        ...ACCESS_TABLES,
+        ...DIRECTORY_TABLES,
+        ...CAPACITY_TABLES,
+      ])
         expect(tables(db.path)).not.toContain(t);
       // Reversing the domain must not take the accounts with it: the two
       // migrations are separately deployable and a failed domain release
@@ -380,7 +402,7 @@ describe('the capacity migrations', () => {
 
       const reversed = rollbackTo(db.path, FOLDER, PRIORITY);
 
-      expect(reversed).toEqual([MAX_PARALLEL, TEAM_SLOTS]);
+      expect(reversed).toEqual([PER_PROJECT_CAPACITY, MAX_PARALLEL, TEAM_SLOTS]);
       const back = openDatabase(db.path);
       try {
         back.run(
@@ -403,8 +425,228 @@ describe('the capacity migrations', () => {
         expect(row?.priority).toBe(2);
         expect(() => back.query('SELECT max_parallel FROM work_item').get()).toThrow();
         expect(() => back.query('SELECT size FROM service_team').get()).toThrow();
+        expect(() => back.query('SELECT size FROM project_team_capacity').get()).toThrow();
       } finally {
         back.close();
+      }
+    } finally {
+      db.cleanup();
+    }
+  });
+});
+
+describe('the per-project capacity migration', () => {
+  /**
+   * The state the outgoing release leaves behind, written with its own
+   * statements: two projects, four teams, three of them globally sized, and one
+   * team labelling work in only one of the two projects.
+   *
+   * `Ops` is the unsized team and `p2` is the project that labels nothing at
+   * all, and both are load-bearing — they are the two cases the seeding could
+   * get wrong in opposite directions.
+   */
+  function outgoingRelease(dbPath: string): void {
+    const before = openDatabase(dbPath);
+    try {
+      before.run(
+        "INSERT INTO users (id, username, password_hash, created_at) VALUES ('u', 'owner', 'x', 1)",
+      );
+      for (const [id, name] of [
+        ['p1', 'Rewire the shed'],
+        ['p2', 'Reroof the barn'],
+      ]) {
+        before.run(
+          'INSERT INTO project (id, name, owner_id, restricted, estimate_method, start_date, revision, created_at)' +
+            ` VALUES ('${String(id)}', '${String(name)}', 'u', 0, 'pert', '2026-09-01', 0, 1)`,
+        );
+      }
+      // Written through `size` on purpose: this is the global number the
+      // migration has to carry forward, and a team written without one is the
+      // case it has to leave alone.
+      for (const [id, name, size] of [
+        ['t-backend', 'Backend', '1'],
+        ['t-platform', 'Platform', '4'],
+        ['t-design', 'Design', '1000'],
+        ['t-ops', 'Ops', 'NULL'],
+      ]) {
+        before.run(
+          `INSERT INTO service_team (id, name, size) VALUES ('${String(id)}', '${String(name)}', ${String(size)})`,
+        );
+      }
+      before.run(
+        'INSERT INTO work_item (id, project_id, parent_id, position, name, notes, service_team_id, revision)' +
+          " VALUES ('w1', 'p1', NULL, 10, 'Strip', '', 't-backend', 0)",
+      );
+    } finally {
+      before.close();
+    }
+  }
+
+  function capacities(dbPath: string): { project_id: string; service_team_id: string; size: number }[] {
+    const after = openDatabase(dbPath);
+    try {
+      return after
+        .query<
+          { project_id: string; service_team_id: string; size: number },
+          []
+        >('SELECT project_id, service_team_id, size FROM project_team_capacity ORDER BY project_id, service_team_id')
+        .all();
+    } finally {
+      after.close();
+    }
+  }
+
+  it('seeds every project that existed from the global size it retires', () => {
+    // Claim A of the identity differential — design.md D7. The numbers every
+    // plan on the live server was scheduled under move into the new table, so
+    // that the release which stops reading `service_team.size` schedules those
+    // plans exactly as the release before it did.
+    //
+    // The **cartesian** product, not the join over labelled work: `p2` labels
+    // nothing today, and under a join it would be seeded nothing — so labelling
+    // one row in it with `Platform` the day after this migration would give that
+    // plan an unconstrained Platform where the previous release gave it four,
+    // with nobody having edited a capacity. design.md D2.
+    //
+    // Proof: the `CROSS JOIN` narrowed to joins over `work_item` — on
+    // `wi.project_id = p.id` and `wi.service_team_id = st.id` — and this failed
+    // with five of the six pairs gone from the diff: all three of `p2`, and
+    // `t-design` and `t-platform` on `p1`. Exactly the silent re-scheduling
+    // above, and the only pair left is the one that happens to be labelled
+    // today. Watched 2026-08-13.
+    const db = tempDb();
+    try {
+      runMigrations(db.path, FOLDER);
+      rollbackTo(db.path, FOLDER, MAX_PARALLEL);
+      outgoingRelease(db.path);
+
+      runMigrations(db.path, FOLDER);
+
+      expect(capacities(db.path)).toEqual([
+        { project_id: 'p1', service_team_id: 't-backend', size: 1 },
+        { project_id: 'p1', service_team_id: 't-design', size: 1000 },
+        { project_id: 'p1', service_team_id: 't-platform', size: 4 },
+        { project_id: 'p2', service_team_id: 't-backend', size: 1 },
+        { project_id: 'p2', service_team_id: 't-design', size: 1000 },
+        { project_id: 'p2', service_team_id: 't-platform', size: 4 },
+      ]);
+    } finally {
+      db.cleanup();
+    }
+  });
+
+  it('seeds nothing at all for a team nobody has sized', () => {
+    // The other half, and the half a seeding written with a default would break
+    // silently: an unsized team constrained nothing, and seeding it as 1 would
+    // serialize its work on every plan the day this ran with nobody having
+    // edited anything. C1's own `DEFAULT 1` argument, one table along.
+    //
+    // Proof: `WHERE st.size IS NOT NULL` struck from the seeding, and the
+    // migration itself aborted — `DrizzleError: Failed to run the query`, naming
+    // the seeding `INSERT`, which is drizzle's wrapper around SQLite's `NOT NULL
+    // constraint failed: project_team_capacity.size`. It takes
+    // `seeds every project that existed…` down with it, so **two** tests go red,
+    // not one. The column's own shape is what refuses to write _unstated_ as a
+    // number, which is why it is `NOT NULL` and unstated is the absence of a row.
+    // Watched 2026-08-13; the wrapped message was confirmed by running the bare
+    // statement against `bun:sqlite`, because the migrator prints only its
+    // wrapper.
+    const db = tempDb();
+    try {
+      runMigrations(db.path, FOLDER);
+      rollbackTo(db.path, FOLDER, MAX_PARALLEL);
+      outgoingRelease(db.path);
+
+      runMigrations(db.path, FOLDER);
+
+      expect(capacities(db.path).some((row) => row.service_team_id === 't-ops')).toBe(false);
+      // And the global number it came from is still there, unread: the column is
+      // retired rather than dropped, because the outgoing release still selects
+      // it while both colours share this file. design.md D4.
+      const after = openDatabase(db.path);
+      try {
+        const kept = after
+          .query<
+            { id: string; size: number | null },
+            []
+          >('SELECT id, size FROM service_team ORDER BY id')
+          .all();
+        expect(kept).toEqual([
+          { id: 't-backend', size: 1 },
+          { id: 't-design', size: 1000 },
+          { id: 't-ops', size: null },
+          { id: 't-platform', size: 4 },
+        ]);
+      } finally {
+        after.close();
+      }
+    } finally {
+      db.cleanup();
+    }
+  });
+
+  it('lets the outgoing release keep writing teams and projects against the migrated schema', () => {
+    // The blue/green half, the shape every migration in this file has. This one
+    // adds a table rather than a column, so the statements at risk are the
+    // outgoing release's `INSERT`s into the two tables it references — nothing
+    // it sends names this table, and the cascades are what keep its `DELETE`s
+    // working against constraints it cannot see.
+    const db = tempDb();
+    try {
+      runMigrations(db.path, FOLDER);
+      const sqlite = openDatabase(db.path);
+      try {
+        sqlite.run(
+          "INSERT INTO users (id, username, password_hash, created_at) VALUES ('u', 'owner', 'x', 1)",
+        );
+        sqlite.run(
+          'INSERT INTO project (id, name, owner_id, restricted, estimate_method, start_date, revision, created_at)' +
+            " VALUES ('p', 'Rewire the shed', 'u', 0, 'pert', NULL, 0, 1)",
+        );
+        sqlite.run("INSERT INTO service_team (id, name) VALUES ('t1', 'Platform')");
+        sqlite.run("INSERT INTO project_team_capacity VALUES ('p', 't1', 3)");
+        // The outgoing release's own removal, which knows nothing about this
+        // table: without the cascade it answers 500 for the length of the swap.
+        sqlite.run("DELETE FROM service_team WHERE id = 't1'");
+        const left = sqlite
+          .query<{ n: number }, []>('SELECT COUNT(*) AS n FROM project_team_capacity')
+          .get();
+        expect(left?.n).toBe(0);
+      } finally {
+        sqlite.close();
+      }
+    } finally {
+      db.cleanup();
+    }
+  });
+
+  it('refuses a second capacity for one pair, so unstated has one spelling', () => {
+    // The primary key on the pair, which is what makes "this project states this
+    // about this team" one fact rather than a list. It is also what turns a
+    // re-run of the seeding into a failed statement instead of a doubled table.
+    const db = tempDb();
+    try {
+      runMigrations(db.path, FOLDER);
+      const sqlite = openDatabase(db.path);
+      try {
+        sqlite.run(
+          "INSERT INTO users (id, username, password_hash, created_at) VALUES ('u', 'owner', 'x', 1)",
+        );
+        sqlite.run(
+          'INSERT INTO project (id, name, owner_id, restricted, estimate_method, start_date, revision, created_at)' +
+            " VALUES ('p', 'Rewire the shed', 'u', 0, 'pert', NULL, 0, 1)",
+        );
+        sqlite.run("INSERT INTO service_team (id, name) VALUES ('t1', 'Platform')");
+        sqlite.run("INSERT INTO project_team_capacity VALUES ('p', 't1', 3)");
+        expect(() => {
+          sqlite.run("INSERT INTO project_team_capacity VALUES ('p', 't1', 5)");
+        }).toThrow();
+        // And a null size is refused, because unstated is the absence of a row.
+        expect(() => {
+          sqlite.run("INSERT INTO project_team_capacity VALUES ('p', 't1', NULL)");
+        }).toThrow();
+      } finally {
+        sqlite.close();
       }
     } finally {
       db.cleanup();
