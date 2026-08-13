@@ -16,8 +16,8 @@ box denies both (`bin/block-local-builds.sh`).
 | target                                                  | result                                                                                                                                               |
 | ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `bunx nx format:check --all`                            | clean, exit 0                                                                                                                                        |
-| be-01 unit (bun, in `apps/be-01`)                       | **696 pass, 0 fail**, 24,461 `expect()` calls, 12.08s across 57 files                                                                                |
-| fe-01 unit (`node vitest run`)                          | **1,303 pass across 50 files, 0 fail**, 57.26s                                                                                                       |
+| be-01 unit (bun, in `apps/be-01`)                       | **696 pass, 0 fail**, 24,459 `expect()` calls, 15.59s across 57 files                                                                                |
+| fe-01 unit (`node vitest run`)                          | **1,303 pass across 50 files, 0 fail**, 49.30s                                                                                                       |
 | `bunx nx run-many -t lint typecheck --skip-nx-cache`    | pass, 21 projects                                                                                                                                    |
 | `bunx nx run-many -t build`                             | **not run here.** `tool-bootstrap` and `tool-devsync` refuse without `shellcheck`, which h2puni does not have. CI runs it and is the gate of record. |
 | `bunx @fission-ai/openspec@1.3.0 validate --all --json` | 43 items, 43 passed, 0 failed                                                                                                                        |
@@ -45,6 +45,14 @@ The numbers this table carried before that round — 693 and 24,454 `expect()`
 calls — were half a defect of their own: two runs at that same head gave **24,452**
 twice, at 693/0 either way. Small, and exactly the kind of number this repo prints
 because it is checkable, so it is named here rather than quietly overwritten.
+
+**And it happened again, by two, in the same direction.** The cross-review round
+first recorded **24,461** here. Three runs at this head on h2puni give **24,459**
+every time, at 696/0 each. Both overcounts are +2 on a head whose recorded and
+measured test counts agree exactly, so the drift is in the `expect()` total and
+not in the suite. The measured number is the one in the table; the recorded one is
+named here so the third occurrence is recognisable as a pattern rather than
+rediscovered as a surprise.
 
 ## The identity differential, and what it does and does not cover
 
@@ -243,11 +251,20 @@ Dany's account, and it is the one thing this document cannot claim.
 
 ## CI
 
-**PR #58, head `10df60e`, run 31699280579 — green on the first attempt, no
-reruns.** `gate` 2m55s, `pixels` 9m42s. `pixels` is the **only** record of the
-browser suite for this head: the Playwright image was not run on h2puni for this
-change, because nothing here makes a claim about real layout the way the
-In-parallel column's 32px did.
+**PR #58, head `eeb6dc5`, run 31737864369 — green, no reruns.** `gate` 3m52s,
+`pixels` 9m01s. `pixels` is the **only** record of the browser suite for this
+head: the Playwright image was not run on h2puni for this change, because nothing
+here makes a claim about real layout the way the In-parallel column's 32px did.
+
+Two heads are on the record before it. Run 31699280579 at `10df60e` was green
+first time (`gate` 2m55s, `pixels` 9m42s) and run 31700149128 at `3022889` after
+it. Run **31736929230 at `5c3ac76` failed**, and it is worth naming because of
+what failed: `gate` died in 40s on `bunx nx format:check --all` over this file,
+two trailing spaces in the two table rows whose numbers the cross-review round
+changed. `pixels` passed in the same run. `eeb6dc5` is that padding and nothing
+else. The lesson is small and repeatable — a markdown table edited by hand does
+not survive prettier's column alignment, and the gate checks it before it runs
+anything.
 
 `gate` is also the only record of `nx run-many -t build`, which h2puni cannot run
 (no `shellcheck`), and of the secrets scan and the migration lint — the lint being
