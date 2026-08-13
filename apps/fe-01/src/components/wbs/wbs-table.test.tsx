@@ -7341,6 +7341,64 @@ describe('the frame the table scrolls inside', () => {
   });
 });
 
+describe('holding the chart to the row the table is showing', () => {
+  /**
+   * A plan be-01 could work no dates out for, which is what a circle of
+   * dependencies gets back.
+   *
+   * The rows still arrive — the table draws them with dashes where the dates
+   * would be — and it is the *chart* that becomes something else: a sentence
+   * about the circle under the same `[data-gantt-panel]` a chart carries.
+   */
+  const circularApi = () => {
+    const api = fakeApi();
+    const asRead = api.tree;
+    api.tree = () =>
+      asRead().then((tree) => ({ ...tree, scheduleError: 'cycle' as const, slices: [] }));
+    return api;
+  };
+
+  itDom('does not hold the chart to the table while the plan is a circle', async () => {
+    // Found in cross-review, 2026-08-12, and by nothing else: the link is
+    // installed on whatever answers `[data-gantt-panel]`, and on a cycle that
+    // is the message rather than the chart. The message has no calendar axis,
+    // `panelFace` refuses an element it cannot measure — and it does it inside
+    // a scroll listener, where no React boundary is, so every scroll of the
+    // frame threw for as long as the circle stood.
+    //
+    // Proof: the axis guard in `wbs-table.tsx` dropped — this failed on
+    // `expected [ 'Error: the Gantt panel has no calendar axis to measure its
+    // content top from' ] to deeply equal []`. Watched on h2puni, 2026-08-13.
+    render(<WbsTable projectId="p1" api={circularApi()} />);
+    click('Add work item');
+    await screen.findByLabelText('Name of 010');
+    click('Gantt');
+
+    const panel = document.querySelector('[data-gantt-panel]');
+    // The state this is about: a panel, and not a chart.
+    expect(panel).not.toBeNull();
+    expect(panel?.querySelector('[data-gantt-axis]')).toBeNull();
+
+    // A listener that throws does not throw at the dispatch — the browser
+    // reports it to the window instead, which is exactly why this went
+    // unnoticed. So that is where it is watched for.
+    const reported: string[] = [];
+    const onError = (event: ErrorEvent) => {
+      reported.push(String(event.error ?? event.message));
+    };
+    window.addEventListener('error', onError);
+    try {
+      const frame = screen.getByRole('table').parentElement;
+      if (frame === null) throw new Error('no table frame rendered');
+      fireEvent.scroll(frame);
+    } finally {
+      window.removeEventListener('error', onError);
+    }
+
+    expect(reported).toEqual([]);
+  });
+});
+
 describe('the widths the table is laid out by', () => {
   /**
    * jsdom lays nothing out, so none of this can watch a column stop short of

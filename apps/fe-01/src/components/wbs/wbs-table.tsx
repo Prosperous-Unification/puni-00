@@ -1822,6 +1822,21 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     if (frame === null || !ganttOpen) return;
     const panel = document.querySelector<HTMLElement>('[data-gantt-panel]');
     if (panel === null) return;
+    // A panel is not always a chart. A plan whose dependencies run in a circle
+    // draws the sentence about it under this same attribute
+    // (`gantt-panel.tsx`), and that section has no calendar axis and no rows to
+    // pair — `panelFace` refuses an element it cannot measure, and it would do
+    // it inside a scroll listener, where no boundary of ours is: every scroll
+    // of the frame would throw for as long as the circle stood. Found in
+    // cross-review, 2026-08-12; `wbs-table.test.tsx` holds it.
+    //
+    // Read off the axis rather than off `scheduleError` because the axis is
+    // exactly what the link needs — a panel that is a message of any other kind
+    // is as unusable, and would not have to be remembered here. The dependency
+    // list already covers the swap: `scheduleError` is set on the same read as
+    // `chartRead` below, so a read that lands or clears a circle brings a new
+    // `generation` with it.
+    if (panel.querySelector('[data-gantt-axis]') === null) return;
     return linkPlanScroll(frame, panel);
   }, [ganttOpen, renderer, chartRead.generation]);
 
