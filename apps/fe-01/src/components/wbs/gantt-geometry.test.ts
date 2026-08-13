@@ -608,6 +608,29 @@ describe('a bar held by a team’s capacity', () => {
     expect(() => layOutGantt(noPool)).toThrow(GanttDataError);
     expect(() => layOutGantt(noPool)).toThrow('names no team');
   });
+
+  /**
+   * The one state above that is a **skew** and not a broken payload, so the
+   * sentence degrades instead of the chart being thrown away.
+   *
+   * `unresolved` is what {@link ServiceTeamLabel} documents as normal — the
+   * label rides the tree read and the names ride the directory read, and a team
+   * created between the two is a stale lookup. The cards say
+   * `a team this plan has not loaded` for it, the export says `(unknown)`, and
+   * before this arm the chart said nothing at all because it threw.
+   */
+  it('carries words for a team the directory read has not caught up with', () => {
+    const staleLookup = pooled({
+      rows: [
+        rowAt('strip', 0, 3, { team: { state: 'named', name: 'Platform' } }),
+        rowAt('sand', 3, 5, { team: { state: 'unresolved' } }),
+      ],
+    });
+
+    expect(wordsFor(layOutGantt(staleLookup), 'sand-dev')).toBe(
+      'Waits for a team this plan has not loaded to free 3 people — after strip (Dev)',
+    );
+  });
 });
 
 /**

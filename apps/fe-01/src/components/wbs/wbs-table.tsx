@@ -193,7 +193,36 @@ const REFUSAL_SENTENCES: Readonly<Record<string, string | undefined>> = {
   // where the typed list composes its own sentence and keeps the word instead.
   cycle: 'That dependency could not be added: it would make a loop.',
   ancestor: 'That dependency could not be added: the row it names is already above this one.',
+  // The three the In-parallel cell earns, spelled out rather than left to the
+  // fallback below. That cell deliberately keeps no copy of be-01's rule and
+  // sends `0`, `-1`, `1.5` and `1001` for be-01 to answer — which is right, and
+  // which means be-01's own word is what arrives here, so `INVALID_REQUEST`'s
+  // status arm never fires and the grammatical fallback would carry the token
+  // through. `(maxParallel_must_be_a_whole_number_from_1)` in the corner of the
+  // screen is the same defect `not_found` and `http_500` were fixed for above,
+  // in the one column of this table somebody types a number into every week.
+  // `wbs-api.ts`'s `directoryRefusalSentence` makes the same bargain for the
+  // size box the same rule is written on.
+  maxParallel_must_be_a_whole_number_from_1:
+    'People at once is a whole number of 1 or more. Empty the cell for one at a time.',
+  // be-01 refuses a parallelism on a parent because a parent holds no slices,
+  // so nothing there would read the number. Only reachable through a race — the
+  // cell is read-only on every row that already has children — which is exactly
+  // why the sentence has to say what happened rather than name the code.
+  has_children:
+    'A row with work under it runs no people of its own — set People at once on the rows beneath it.',
 };
+
+/**
+ * The prefix be-01 builds its parallelism ceiling out of.
+ *
+ * A prefix rather than an entry above, and for `wbs-api.ts`'s stated reason:
+ * be-01 spells the limit into the code from its own `MOST_PEOPLE_AT_ONCE`, so a
+ * literal `maxParallel_must_be_at_most_1000` here would be a second copy of
+ * that number — free to drift from it, and to fall silently back to printing
+ * the wire code the day it did.
+ */
+const PARALLELISM_CEILING_CODE = 'maxParallel_must_be_at_most_';
 
 /** What any 5xx says. Something answered, so never "the server did not answer". */
 const SERVER_REFUSAL = 'The server could not complete that change. Try again.';
@@ -239,6 +268,9 @@ const refusalSentence = (thrown: unknown): string => {
   const code = failureText(thrown, 'unknown');
   const known = REFUSAL_SENTENCES[code];
   if (known !== undefined) return known;
+  if (code.startsWith(PARALLELISM_CEILING_CODE)) {
+    return `People at once is at most ${code.slice(PARALLELISM_CEILING_CODE.length)}.`;
+  }
   // The whole 5xx family, matched rather than listed: a proxy in front of
   // be-01 can answer with any of them and none of them is the reader's doing.
   if (/^http_5\d\d$/.test(code)) return SERVER_REFUSAL;

@@ -2150,6 +2150,77 @@ describe('the In-parallel cell', () => {
     });
   });
 
+  /**
+   * Two rows over an api that answers every parallelism with one of be-01's
+   * own words — the half of "send it and let be-01 answer" that nothing in this
+   * file exercised: the test above asserts only that the number was **sent**.
+   */
+  async function twoRowsRefusing(code: string): Promise<void> {
+    const api = fakeApi();
+    const perform = api.patch.bind(api);
+    api.patch = (id: string, patch: Record<string, unknown>) =>
+      'maxParallel' in patch ? Promise.reject(new Error(code)) : perform(id, patch);
+    render(<WbsTable projectId="p1" api={api} />);
+    click('Add work item');
+    await screen.findByLabelText('Name of 010');
+  }
+
+  itDom('says what a parallelism may be when be-01 refuses one', async () => {
+    // Proof: the `maxParallel_must_be_a_whole_number_from_1` entry struck from
+    // `REFUSAL_SENTENCES`, so the grammatical fallback carries the code. This
+    // failed on `expected [ 'That change could not be completed
+    // (maxParallel_must_be_a_whole_number_from_1).' ] to contain 'People at
+    // once is a whole number of 1 or more…'` — the wire code in the corner of
+    // the screen, which is the defect `not_found` and `http_500` were fixed for
+    // on 2026-08-09 and the sibling size box avoids one screen away. Watched
+    // 2026-08-13.
+    await twoRowsRefusing('maxParallel_must_be_a_whole_number_from_1');
+
+    typeIntoParallel('010', '0');
+
+    await waitFor(() => {
+      expect(toastTexts()).toContain(
+        'People at once is a whole number of 1 or more. Empty the cell for one at a time.',
+      );
+    });
+  });
+
+  itDom('reads the ceiling out of be-01’s own word for it', async () => {
+    // The limit is spelled into the code from be-01's `MOST_PEOPLE_AT_ONCE`, so
+    // the sentence is built from what arrived rather than from a second copy of
+    // 1000 here — `wbs-api.ts`'s bargain for the size box, for its reason.
+    //
+    // Proof: the prefix arm deleted. This failed on `expected [ 'That change
+    // could not be completed (maxParallel_must_be_at_most_1000).' ] to contain
+    // 'People at once is at most 1000.'`. Watched 2026-08-13.
+    await twoRowsRefusing('maxParallel_must_be_at_most_1000');
+
+    typeIntoParallel('010', '1001');
+
+    await waitFor(() => {
+      expect(toastTexts()).toContain('People at once is at most 1000.');
+    });
+  });
+
+  itDom('says why a parent’s parallelism was refused, in the tree’s words', async () => {
+    // `has_children` is be-01's, and it is only reachable through this cell:
+    // the cell is read-only on every parent, so this is the row that gained a
+    // child while the draft was open.
+    //
+    // Proof: the `has_children` entry struck. This failed on `expected [ 'That
+    // change could not be completed (has_children).' ] to contain 'A row with
+    // work under it…'`. Watched 2026-08-13.
+    await twoRowsRefusing('has_children');
+
+    typeIntoParallel('010', '3');
+
+    await waitFor(() => {
+      expect(toastTexts()).toContain(
+        'A row with work under it runs no people of its own — set People at once on the rows beneath it.',
+      );
+    });
+  });
+
   itDom('refuses a draft JSON cannot carry, rather than silently resetting the row', async () => {
     // `Number('1e999')` is `Infinity`, which `JSON.stringify` writes as `null`
     // — and `null` here is the **reset to one at a time**. A typed `1e999`

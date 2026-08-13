@@ -2220,8 +2220,10 @@ test.describe('the table, measured by a browser', () => {
   test('the In-parallel column holds three digits at the grid’s own type', async ({ page }) => {
     // The tightest column in the table — 32px for `∥` and up to three digits —
     // and the only thing that can judge it is the browser drawing the glyphs.
-    // 1000 is `capacity-write-paths`' ceiling, so `999` is the widest value any
-    // plan can hold; a four-digit number is refused before it is ever drawn.
+    // `capacity-write-paths` refuses `value > 1000`, so `1000` is storable and
+    // three digits is not the whole range — this measures the widest value the
+    // column is *sized* for. The one four-digit value renders clipped with its
+    // `title` saying it whole, which `table-frame.ts` states beside the width.
     //
     // Proof: the declared width dropped to 24, this failed on `in-parallel
     // declares 24px where "999" needs 30`. Watched 2026-08-13.

@@ -193,11 +193,37 @@ export function DirectoryPage({ token, api: apiOverride, nav, account }: Directo
   const chipNodes = useRef(new Map<string, HTMLButtonElement>());
   const chipKey = (personId: string, teamId: string): string => `${personId}:${teamId}`;
 
+  /**
+   * The read entitled to write the screen — `wbs-table.tsx`'s `latestRefresh`,
+   * for its reason and one more of this page's own.
+   *
+   * Three call sites fire {@link read} and none is gated on the others:
+   * arrival, `window.focus` and `visibilitychange`. Two of them overlap the
+   * moment somebody switches windows twice, they finish in whatever order the
+   * network gives them, and an earlier one landing last would replace the
+   * panels with a directory older than what is on screen — with nothing
+   * guaranteed to arrive afterwards and repair it.
+   *
+   * The page being non-optimistic does not cover this: that is an argument
+   * about **writes**, and every write here re-reads. The hazard is in the
+   * reads. And a stale *number* is worse than a stale name, because
+   * {@link commitSize} short-circuits on the size it believes be-01 holds —
+   * type what the stale screen shows and nothing is sent at all.
+   */
+  const latestRead = useRef(0);
+
   const read = useCallback(async () => {
+    const generation = latestRead.current + 1;
+    latestRead.current = generation;
     const [foundPeople, foundTeams] = await Promise.all([
       directory.listPeople(),
       directory.listTeams(),
     ]);
+    // Proof: this line deleted, `and only the newest read may write the screen`
+    // alone failed, on `expected null not to be null` — a superseded read
+    // putting the name somebody had just changed back on the panel. Watched
+    // 2026-08-13.
+    if (generation !== latestRead.current) return;
     setPeople(foundPeople);
     setTeams(foundTeams);
   }, [directory]);

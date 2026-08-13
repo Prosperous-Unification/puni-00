@@ -58,11 +58,20 @@ The plan drew a 48px column. `capacity-engine`'s C0 measurement — recorded in
 that change's `verify.md`, and constraining this change rather than that one —
 found a 48px column overflowing the 1280px folded table by 19px.
 
-The 32 is `∥` for a heading and three right-aligned digits. 1000 is C2's
-ceiling, so `999` is the widest value any plan can hold; a four-digit
-parallelism cannot be stored. `e2e/layout.spec.ts` measures `999` in the cell in
-Chromium and compares it against the declared width — 30px needed, 32 declared —
-and the negative was watched at 24.
+The 32 is `∥` for a heading and three right-aligned digits. C2 refuses
+`value > 1000` (`work-item.controller.ts`), so **`1000` itself is storable** and
+the widest value a plan can hold is four digits, not three. The column is sized
+for three anyway: the one four-digit value that exists renders clipped with its
+`title` saying it whole — the same bargain the Number column makes with a deep
+row, and stated in `table-frame.ts` beside the width. `e2e/layout.spec.ts`
+measures `999` in the cell in Chromium and compares it against the declared
+width — 30px needed, 32 declared — and the negative was watched at 24. Three
+digits is what is *pinned*; the fourth is a stated clip and not a refusal.
+
+An earlier draft of this section said a four-digit parallelism cannot be stored,
+and the R5 proof comment repeated it. It was false — `1000` passes `>` — and the
+comment in `table-frame.ts` said the true thing 200 lines away. C3's
+cross-review, P3-2.
 
 Where the 32px came from is the second half of the decision. The folded table
 had none to spare, so it came out of the **date columns**, which had measured
@@ -157,9 +166,18 @@ would be a second copy of `MOST_PEOPLE_AT_ONCE` free to drift.
 - **No per-project team allocation.** C1 built the seam and this change does not
   use it. A size is global, so two projects labelled `Platform` each get its full
   size — the stated cost, recorded in C1's D6.
-- **The directory concurrency test C2 owed is still owed.** C2's `verify.md`
-  names it as "C3's half": one editor's response held in flight, a peer write
-  landing, the older response refused the chance to overwrite the newer number
-  on screen. This change does not add it — the directory page is non-optimistic
-  and re-reads after every write, so the shape the plan described does not exist
-  on it. Recorded rather than quietly dropped.
+- **The directory concurrency test C2 owed is now paid, and the reason it was
+  first deferred was wrong.** C2's `verify.md` names it as "C3's half": one
+  editor's response held in flight, a peer write landing, the older response
+  refused the chance to overwrite the newer number on screen. An earlier draft
+  of this section deferred it on the grounds that the directory page is
+  non-optimistic and re-reads after every write. That is true and it is an
+  argument about **writes**; the hazard is in the **reads**. Three call sites
+  fire `read()` — arrival, `window.focus`, `visibilitychange` — none gated on
+  the others, and `read()` had no generation counter, so two overlapping reads
+  landed in whatever order the network gave them and the older one won the
+  screen. `commitSize`'s `asNumber === team.size` short-circuit makes that worse
+  than a stale name: typing the number the stale screen already shows sends
+  nothing at all. `directory-page.tsx` now carries `latestRead`, the project
+  page's `latestRefresh` six lines over, with `and only the newest read may
+  write the screen` watched red against it. C3's cross-review, P2-3.

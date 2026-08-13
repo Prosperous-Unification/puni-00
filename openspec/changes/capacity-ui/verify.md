@@ -56,9 +56,12 @@ and nothing else.
 
 ## The failure-proof table (R5)
 
-Eleven checks, eleven injected faults, each watched failing before it was
+Sixteen checks, sixteen injected faults, each watched failing before it was
 believed. Every `Proof:` comment in the diff quotes the output below rather than
-a reconstruction of it.
+a reconstruction of it. The last five are the cross-review's three P2s, and each
+of those five was written and watched **red against the shipped branch** before
+a line of its fix existed — one run, `5 failed | 615 passed (620)`, and one
+more, `1 failed | 36 passed (37)`, on 2026-08-13.
 
 | check                                                 | injected fault                                                                 | observed failure                                                                                                                                                                                                                                                                                                                                                                              |
 | ----------------------------------------------------- | ------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -73,6 +76,11 @@ a reconstruction of it.
 | the cards read the **effective** team                 | `teamLabel` pointed back at `teamLabelOf(row.serviceTeamId)`                   | `marks a team a row only inherits, and names where the label was written` — `expected undefined to be '↳ Billing'`. The inheriting card drew no team line at all.                                                                                                                                                                                                                             |
 | an emptied size box clears rather than zeroes         | the empty-box arm replaced by the plain `Number(typed)`                        | `clears to unstated when the box is emptied, rather than sending a zero` — `expected [ [ 't1', 4 ], [ 't1', +0 ] ] to deeply equal [ [ 't1', 4 ], [ 't1', null ] ]`. The page asking for a team of nobody.                                                                                                                                                                                    |
 | the size draft survives the name's Escape             | the name's Escape pointed at the both-drafts `forgetDraft`                     | `keeps a half-typed size when the name beside it is escaped` — `expected '' to be '7'`                                                                                                                                                                                                                                                                                                        |
+| **P2-1** a stale team label degrades, not throws      | `poolNameOf`'s `unresolved` arm returning `null` again (the shipped branch)    | two tests: `carries words for a team the directory read has not caught up with` — `GanttDataError: slice sand-dev is floored by a team's capacity but its row names no team` — and the panel's `still draws when the directory read has not caught up with the pool` — `expected 'The chart cannot be drawn: slice seal…' to be null`. The whole chart in the boundary for a skew that self-heals. |
+| **P2-2** a refused parallelism reads as a sentence    | the `maxParallel_must_be_a_whole_number_from_1` entry struck                   | `says what a parallelism may be when be-01 refuses one` — `expected [ 'That change could not be completed (maxParallel_must_be_a_whole_number_from_1).' ] to include 'People at once is a whole number of 1…'`. The wire code in the corner of the screen.                                                                                                                                     |
+| **P2-2** the ceiling is read out of be-01's own word  | the `PARALLELISM_CEILING_CODE` prefix arm deleted                              | `reads the ceiling out of be-01's own word for it` — `expected [ 'That change could not be completed (maxParallel_must_be_at_most_1000).' ] to include 'People at once is at most 1000.'`                                                                                                                                                                                                     |
+| **P2-2** a parent's refusal says what happened        | the `has_children` entry struck                                                | `says why a parent's parallelism was refused, in the tree's words` — `expected [ 'That change could not be completed (has_children).' ] to include 'A row with work under it…'`                                                                                                                                                                                                               |
+| **P2-3** only the newest directory read writes        | no `latestRead` generation counter (the shipped branch)                        | `and only the newest read may write the screen` alone — `expected null not to be null`, at the assertion after the superseded read answers: the older response putting the name somebody had just changed back on the panel.                                                                                                                                                                  |
 
 Two of these are **browser** injections rather than jsdom ones, and that is the
 point of them: a column width is a claim about drawn glyphs, and no unit test in
@@ -95,11 +103,74 @@ this repo can judge one.
   column's **width**; the cell's three states and its place in the keyboard grid
   are jsdom's alone (`Tab moves between the fields, from every cell`, and the
   Ctrl+L chord test that now lands in it). No browser has typed into this cell.
-- **The directory concurrency test C2 owed is still owed**, and this change
-  argues it does not apply — see `design.md`, "What this change does not do".
+- **The directory read race is fixed and pinned, but not in a browser.** `and
+  only the newest read may write the screen` drives it in jsdom by holding two
+  overlapping reads and answering them out of order. Two real overlapping HTTP
+  responses are not what it exercises.
 - **No screenshot was compared.** `layout.spec.ts`'s picture test writes its
   artefact; nobody looked at it. The In-parallel column is 32px of new furniture
   in a table Dany reads daily, and the eye that has to judge it is his.
+
+## The 2026-08-13 cross-review
+
+codex + agy + a driven verify against a private clone at `2e831ce`, written up
+in the workspace as `notes/wbs-cross-review-2026-08-13-capacity-c3.md`. Verdict
+**MERGEABLE-after**: no P1, three P2, eight P3. Both CLIs converged on the same
+first finding independently, which had not happened before in this batch.
+
+**Fixed here, each watched red first** — the five rows at the foot of the R5
+table above:
+
+- **P2-1** — `floorWordsOf`'s capacity arm threw the whole chart away on the one
+  team state `ServiceTeamLabel` documents as *modeled*: `unresolved`, the stale
+  directory lookup. Three of the four surfaces this change unifies degrade for
+  it and only the chart threw. `poolNameOf` now gives it words — the cards' own
+  — and keeps the throw for `none`, which is a genuine invariant break.
+- **P2-2** — a refused In-parallel number put `maxParallel_must_be_a_whole_
+  number_from_1` in the corner of the screen. Three arms added:
+  the floor, the ceiling as a **prefix** so the 1000 cannot drift from be-01's
+  own, and `has_children`. The sibling size box got both of the first two a
+  screen away in `wbs-api.ts`; this cell had neither, and nothing exercised the
+  refusal path at all.
+- **P2-3** — `directory-page.tsx`'s `read()` had no generation counter with
+  three ungated call sites. Now `latestRead`, the project page's pattern. See
+  `design.md`, "What this change does not do", for why the original deferral
+  argument was wrong.
+
+**Also fixed, one line each:** two `Proof:` comments in `gantt-panel.test.tsx`
+credited `capacity-write-paths` as #52 (it is #53); `design.md` D3 and the R5
+proof comment in `e2e/layout.spec.ts` both claimed a four-digit parallelism
+cannot be stored, when C2 refuses `> 1000` and so `1000` is storable —
+`table-frame.ts` said the true thing 200 lines away. The code was right in both
+cases; only the record was wrong.
+
+**Refuted:** agy's P2 that `LLM_README.md` is 151 lines and over its cap. It is
+150, in the clone and in the worktree.
+
+**Recorded and not applied** — six P3s, none of them a behaviour this change
+introduces a regression in:
+
+- `gantt-geometry.ts`'s blocking-set count reads `and 1 others` for a set of
+  exactly two, and a test pins the string verbatim. User-visible copy, and the
+  commonest non-trivial case.
+- `ExportSlice` carries `effort` and `duration` that no consumer reads, under a
+  docstring claiming all three do work. The information is not lost — `Total
+  days` and `Starts`/`Ends` carry it.
+- `commitRename` calls the both-drafts `forgetDraft`, so committing a name drops
+  an unsent size draft beside it. The Escape pair was introduced for exactly
+  that asymmetry; the watched red covers Escape only.
+- The chart never says the team's size clamped the number — the export can
+  (`People at once` vs `Ran at`) and the cell's `title` hints at it. Outside the
+  plan's §4.3 letter, which lists three sentences and not this one.
+- The In-parallel cell's muted state is per-row (`doesEveryPhase`) where be-01's
+  `widthFor` collapses per **slice**, so a leaf with two roles on two different
+  people prints an un-muted number that does nothing. The chart gets it right
+  per bar; the table and the cards do not. Reasoned, not executed.
+- The over-bar `{team} ×{n}` label reaches every team-labelled plan, not only
+  capacity ones: an estimated bar with nobody named previously wrote nothing.
+  That is the plan's §4.3 letter, and it is the one visual change that lands on
+  plans with nothing to do with capacity — the specific thing to look at when
+  somebody finally compares a screenshot.
 
 ## Overlap with PR #56 (`change/unified-scroll-docking`, unmerged)
 

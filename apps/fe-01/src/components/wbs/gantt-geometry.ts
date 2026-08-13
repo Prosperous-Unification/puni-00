@@ -1195,20 +1195,46 @@ function personFloorWords(
 }
 
 /**
- * The team a bar's pool sentence names, or null where the chart cannot name one.
+ * What this module calls a team the directory read does not hold yet.
  *
- * `unresolved` is the modeled stale-lookup state {@link ServiceTeamLabel}
- * describes and it has no name to print; `none` on a capacity-floored bar is a
- * payload that has lost the label the pool was keyed on, and the caller throws
- * on it rather than inventing a team.
+ * Word for word what `plan-cards.tsx` prints for the same state, and repeated
+ * rather than imported: the card and the bar are two surfaces of one skew and
+ * a reader who sees both should read the same sentence twice, but a value
+ * import from the geometry into the cards would tie a pure layout module to a
+ * component's copy for one string. If either moves, the other is a grep away.
+ */
+const STALE_TEAM_WORDS = 'a team this plan has not loaded';
+
+/**
+ * What a bar's pool sentence calls the team, or null where there is no team to
+ * call anything.
+ *
+ * The two nameless states are not the same fact and this is where they part.
+ * `unresolved` is the **modeled** skew {@link ServiceTeamLabel} describes — the
+ * label rides the tree read and the names ride the directory read, so a team
+ * created between the two is a stale lookup that the next read heals — and it
+ * degrades into words, the same words `plan-cards.tsx` prints and beside the
+ * export's `(unknown)`. `none` on a capacity-floored bar is a payload that has
+ * lost the label the pool was keyed on: be-01 floors on a team or not at all,
+ * so there is no team here to be short of, and the caller throws rather than
+ * inventing one.
+ *
+ * Proof: this arm returning `null` again for `unresolved`, so the caller's
+ * no-team throw catches it — `carries words for a team the directory read has
+ * not caught up with` and the panel's `still draws when the directory read has
+ * not caught up with the pool` failed, the second on `expected 'The chart
+ * cannot be drawn: slice seal…' to be null` against `GanttDataError: slice
+ * sealing::role-dev is floored by a team's capacity but its row names no team`.
+ * Watched 2026-08-13.
  */
 function poolNameOf(team: ServiceTeamLabel): string | null {
   switch (team.state) {
     case 'named':
     case 'inherited':
       return team.name;
-    case 'none':
     case 'unresolved':
+      return STALE_TEAM_WORDS;
+    case 'none':
       return null;
   }
 }
@@ -1751,6 +1777,12 @@ function floorWordsOf(
           `slice ${slice.id} is floored by a team's capacity but nothing was holding the pool`,
         );
       }
+      // `null` here is `none` alone — the label the pool was keyed on is gone
+      // from a payload that could only have been floored on one, which is the
+      // wire having lost half of what it sent. The other nameless state,
+      // `unresolved`, is a skew that heals and {@link poolNameOf} gives it
+      // words instead.
+      //
       // Proof: this throw replaced by `poolNameOf(team) ?? 'its team'`, `throws
       // when a capacity-floored row names no team to be short of` alone failed,
       // on `expected function to throw an error, but it didn't` — a sentence

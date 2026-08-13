@@ -2987,7 +2987,7 @@ const faultWords = (): string | null =>
  * is `capacity`, the blocking set names the slice that had to end, and
  * `resourcePredecessorId` names the one an arrow is drawn from. This is exactly
  * what be-01 has been sending since `capacity-engine` (#48) for any plan whose
- * team is sized and contended, and what `capacity-write-paths` (#52) made
+ * team is sized and contended, and what `capacity-write-paths` (#53) made
  * reachable in production by shipping the size write.
  */
 const SLICES_HELD_BY_A_POOL: SliceView[] = SLICES.map((slice) =>
@@ -3020,7 +3020,7 @@ describe('the deploy gate: a plan a sized team is holding back', () => {
     // **The watched red this whole change is gated on.** `floorWordsOf`'s
     // `default:` arm throws `GanttDataError` by design — a payload can carry a
     // sixth floor this build has never heard of — and `capacity` became that
-    // sixth the day #48 merged. #52 then shipped the write that makes a sized
+    // sixth the day #48 merged. #53 then shipped the write that makes a sized
     // team reachable, so from that merge until this change every plan with a
     // sized, contended team renders an error boundary where its Gantt should
     // be. `capacity-engine/design.md`, "Batch sequencing", is where that was
@@ -3049,6 +3049,29 @@ describe('the deploy gate: a plan a sized team is holding back', () => {
     fireEvent.focus(barOn('sealing'));
     const card = screen.getByRole('tooltip');
     expect(linesOf(card).join(' ')).toContain('Hull crew');
+  });
+
+  itDom('still draws when the directory read has not caught up with the pool', async () => {
+    // The same plan, one read behind: the label rides the tree and the team
+    // names ride the directory, so a team created between the two is
+    // `unresolved` — the skew `ServiceTeamLabel` documents as normal, and which
+    // the cards, the export and the table all degrade for.
+    //
+    // Proof: the `unresolved` arm of `poolNameOf` returning `null` again, so
+    // the capacity arm's no-team throw catches it. This test alone failed, on
+    // `expected 'The chart cannot be drawn: slice seal…' to be null` against
+    // `GanttDataError: slice sealing::role-dev is floored by a team's capacity
+    // but its row names no team` — the whole chart in the boundary for a state
+    // that self-heals on the next read. Watched 2026-08-13.
+    await showTheChart(MONDAY, { ...POOLED, teams: [] });
+
+    expect(faultWords()).toBeNull();
+    expect(barOn('sealing')).not.toBeNull();
+
+    fireEvent.focus(barOn('sealing'));
+    expect(linesOf(screen.getByRole('tooltip')).join(' ')).toContain(
+      'a team this plan has not loaded',
+    );
   });
 });
 

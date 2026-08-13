@@ -427,6 +427,62 @@ describe('the directory page re-reads', () => {
     });
   });
 
+  /**
+   * Three call sites fire {@link DirectoryPage}'s read — arrival, `focus` and
+   * `visibilitychange` — and none is gated on the others, so two of them
+   * overlap the moment somebody switches windows twice. They can finish out of
+   * order, and an earlier one landing last would put a directory older than
+   * what is on screen back on it, with nothing guaranteed to arrive afterwards
+   * and repair it.
+   *
+   * Worse here than on the project page it is borrowed from: `commitSize`
+   * short-circuits on `asNumber === team.size`, so typing the number a stale
+   * screen already shows sends **nothing** — the box looks committed while
+   * be-01 still holds the other value, and every date in every plan that team
+   * labels stays where it was. C3's cross-review, P2-3.
+   */
+  itDom('and only the newest read may write the screen', async () => {
+    const api = fakeDirectory([KAT], [PLATFORM]);
+    /** Every people read still in flight, oldest first, answered by hand. */
+    const pending: ((people: PersonView[]) => void)[] = [];
+    api.listPeople = () =>
+      new Promise<PersonView[]>((answer) => {
+        pending.push(answer);
+      });
+
+    pageWith(api);
+    await waitFor(() => {
+      expect(pending).toHaveLength(1);
+    });
+    pending[0]([KAT]);
+    await drawn('Kat');
+
+    // Two overlapping re-reads: the window comes forward, and the tab is
+    // switched back to before the first answer has arrived.
+    fireEvent.focus(window);
+    fireEvent(document, new Event('visibilitychange'));
+    await waitFor(() => {
+      expect(pending).toHaveLength(3);
+    });
+
+    // The newest answers first — somebody has renamed Kat to Bo.
+    pending[2]([{ id: 'p1', name: 'Bo', teamIds: [] }]);
+    await waitFor(() => {
+      expect(screen.queryByLabelText('Name of Bo')).not.toBeNull();
+    });
+
+    // And the superseded one answers last, carrying the name that has gone.
+    pending[1]([KAT]);
+    await new Promise((settle) => {
+      setTimeout(settle, 0);
+    });
+
+    await waitFor(() => {
+      expect(screen.queryByLabelText('Name of Bo')).not.toBeNull();
+    });
+    expect(screen.queryByLabelText('Name of Kat')).toBeNull();
+  });
+
   itDom('and not on every render, which is what makes the count above mean something', async () => {
     const api = fakeDirectory([KAT], [PLATFORM]);
     const page = pageWith(api);
