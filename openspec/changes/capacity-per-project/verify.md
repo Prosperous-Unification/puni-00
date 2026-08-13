@@ -16,8 +16,8 @@ box denies both (`bin/block-local-builds.sh`).
 | target                                                  | result                                                                                                                                               |
 | ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `bunx nx format:check --all`                            | clean, exit 0                                                                                                                                        |
-| be-01 unit (bun, in `apps/be-01`)                       | **696 pass, 0 fail**, 24,461 `expect()` calls, 12.08s across 57 files                                                                               |
-| fe-01 unit (`node vitest run`)                          | **1,303 pass across 50 files, 0 fail**, 57.26s                                                                                                      |
+| be-01 unit (bun, in `apps/be-01`)                       | **696 pass, 0 fail**, 24,461 `expect()` calls, 12.08s across 57 files                                                                                |
+| fe-01 unit (`node vitest run`)                          | **1,303 pass across 50 files, 0 fail**, 57.26s                                                                                                       |
 | `bunx nx run-many -t lint typecheck --skip-nx-cache`    | pass, 21 projects                                                                                                                                    |
 | `bunx nx run-many -t build`                             | **not run here.** `tool-bootstrap` and `tool-devsync` refuse without `shellcheck`, which h2puni does not have. CI runs it and is the gate of record. |
 | `bunx @fission-ai/openspec@1.3.0 validate --all --json` | 43 items, 43 passed, 0 failed                                                                                                                        |
