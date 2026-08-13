@@ -23,7 +23,12 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Modal, ModalContent, ModalHeader, ModalTitle, ModalTrigger } from '@/components/ui/modal';
 import type { ProjectStream } from '@/lib/project-stream';
-import type { AssignedPersonView, PersonView, TeamView } from '@/lib/wbs-api';
+import type {
+  AssignedPersonView,
+  PersonView,
+  TeamCapacityView,
+  TeamView,
+} from '@/lib/wbs-api';
 import {
   type Days,
   type EstimateMethod,
@@ -85,6 +90,7 @@ import {
 import { splitMention } from './mention';
 import { composeNameCell, normalizeNewlines, splitNameCell } from './name-notes';
 import { PhasesDialog } from './phases-dialog';
+import { TeamsDialog, teamsOnThePlan } from './teams-dialog';
 import { type CardAssignee, PlanCards } from './plan-cards';
 import { describeGaps, findEstimateGaps } from './plan-completeness';
 import { type PlanExport, planFileName, planToCsv, planToMarkdown } from './plan-export';
@@ -1623,6 +1629,15 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    * the tree rather than filtered by anything.
    */
   const [teams, setTeams] = useState<TeamView[]>([]);
+  /**
+   * How many of each team this plan may have at work at once, as be-01 sent it
+   * with the tree.
+   *
+   * Off the tree read and not a request of its own: the dates on screen were
+   * computed from these numbers, and a separately-fetched capacity could put a
+   * number beside bars it does not explain. `wbs-api.ts` has the argument.
+   */
+  const [teamCapacities, setTeamCapacities] = useState<TeamCapacityView[]>([]);
   const [people, setPeople] = useState<PersonView[]>([]);
   const [dragging, setDragging] = useState<string | null>(null);
   const [dropHint, setDropHint] = useState<{ rowId: string; zone: DropZone } | null>(null);
@@ -1997,6 +2012,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
       generation,
     });
     setStack({ undoable: tree.undoable, redoable: tree.redoable });
+    setTeamCapacities(tree.teamCapacities);
     setScheduleError(tree.scheduleError);
     setEstimateMethod(tree.estimateMethod);
     setStartDate(tree.startDate);
@@ -6890,6 +6906,33 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         that went dead while somebody else's edit was refetching would be
         unopenable on a plan two people are working on.
       */}
+      {/*
+        How many of each team on this plan are at work at once. Beside the phases
+        for the reason it is beside them: both are the **project's** own lists,
+        both move what the table draws, and the button belongs to the dialog rather
+        than sitting next to it because Radix restores focus to its trigger.
+
+        C3 put this box in the directory, where a global size belonged. The number
+        is one plan's now — `capacity-per-project`, Dany 2026-08-13 — and the
+        directory page has no plan; design.md D5 has the argument.
+
+        Not disabled by `busy`: it has its own in-flight state, and a button that
+        went dead while somebody else's edit was refetching would be unopenable on
+        a plan two people are working on.
+      */}
+      <TeamsDialog
+        teams={teamsOnThePlan(
+          teams,
+          teamCapacities,
+          // Every row's **effective** team, so a team only an ancestor carries is
+          // offered a box: its pool is what the leaves below it spend. The same
+          // reading the cell, the cards, the export and the bars use — one
+          // `effectiveTeamOf` per render and never a second copy.
+          flat.map((row) => effectiveTeams.get(row.id)?.teamId ?? null),
+        )}
+        setCapacity={(teamId, size) => api.setTeamCapacity(projectId, teamId, size)}
+        onChanged={refreshOrMarkStale}
+      />
       <PhasesDialog
         roles={roles}
         // The same object the `<colgroup>` above is resolved from, so the

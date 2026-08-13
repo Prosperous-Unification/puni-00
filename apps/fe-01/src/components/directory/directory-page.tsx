@@ -173,16 +173,6 @@ export function DirectoryPage({ token, api: apiOverride, nav, account }: Directo
    */
   const [renamed, setRenamed] = useState<Record<string, string>>({});
   /**
-   * The sizes being typed over the teams' own, by team id.
-   *
-   * A separate record from {@link renamed} and not a second field on it: the
-   * two boxes commit apart — a size typed and a name typed on the same row are
-   * two writes to two routes — and one record would have a name's Escape
-   * throwing away a size somebody had not sent yet.
-   */
-  const [resized, setResized] = useState<Record<string, string>>({});
-
-  /**
    * The chip to put the focus on once the panels have redrawn, or null.
    *
    * A ref rather than state: it is read once, in the effect that watches the
@@ -206,9 +196,14 @@ export function DirectoryPage({ token, api: apiOverride, nav, account }: Directo
    *
    * The page being non-optimistic does not cover this: that is an argument
    * about **writes**, and every write here re-reads. The hazard is in the
-   * reads. And a stale *number* is worse than a stale name, because
-   * {@link commitSize} short-circuits on the size it believes be-01 holds —
-   * type what the stale screen shows and nothing is sent at all.
+   * reads.
+   *
+   * C3 had a second, sharper reason here — `commitSize` short-circuited on the
+   * size it believed be-01 held, so typing what a stale screen showed sent
+   * nothing at all. That box moved to the plan's own `TeamsDialog` in
+   * `capacity-per-project`, and the short-circuit went with it. The guard stays:
+   * the stale-name hazard is enough on its own, and every one of the three call
+   * sites is still ungated without it.
    */
   const latestRead = useRef(0);
 
@@ -321,21 +316,16 @@ export function DirectoryPage({ token, api: apiOverride, nav, account }: Directo
    * directory, so a draft left standing over a value that has just come back
    * would hold the box at what this browser typed and hide what be-01 answered.
    *
-   * Escape is the other way a draft goes, and it takes only its own box's —
-   * {@link forgetNameDraft} and {@link forgetSizeDraft}. A name abandoned is
-   * not a statement about a size somebody has typed and not yet sent.
+   * Escape is the other way a draft goes — {@link forgetNameDraft}, which since
+   * `capacity-per-project` is the only draft this page holds: the size box that
+   * made these two functions two moved to the plan's own `TeamsDialog`.
    */
   const forgetDraft = (id: string) => {
     setRenamed((current) => withoutDraft(current, id));
-    setResized((current) => withoutDraft(current, id));
   };
 
   const forgetNameDraft = (id: string) => {
     setRenamed((current) => withoutDraft(current, id));
-  };
-
-  const forgetSizeDraft = (id: string) => {
-    setResized((current) => withoutDraft(current, id));
   };
 
   const nameShown = (entry: { id: string; name: string }): string =>
@@ -374,58 +364,13 @@ export function DirectoryPage({ token, api: apiOverride, nav, account }: Directo
     });
   }
 
-  /**
-   * The size box's own draft, or the size the directory holds — and an empty
-   * box is a real draft, which is why this cannot be `?? ''` over one record.
-   *
-   * `null` size is **unstated**: the team is not counted and constrains no
-   * schedule. It renders as an empty box, so an empty draft and an unstated
-   * size are the same three characters on screen and only the presence of a key
-   * tells them apart.
-   */
-  const sizeShown = (team: TeamView): string =>
-    team.id in resized ? (resized[team.id] ?? '') : team.size === null ? '' : String(team.size);
-
-  /**
-   * Sends the size typed over a team's, if it says something different.
-   *
-   * **The number is not validated here.** `capacity-write-paths` owns what a
-   * size may be, at be-01's boundary, and a second copy of the rule in this box
-   * is a rule free to disagree with it — so `0`, `-1`, `1.5` and `1001` are all
-   * sent and answered on, and the refusal is printed by
-   * `directoryRefusalSentence`. The one thing this does decide is what an
-   * **empty** box means, because be-01 cannot see it: `Number('')` is `0`,
-   * which is a refusal rather than the clear-to-unstated it plainly means.
-   *
-   * A non-finite draft is the other one that cannot be sent: JSON has no
-   * literal for `NaN` or `Infinity`, so a typed `1e999` would arrive as `null`
-   * — which here is the clear, so the box would silently unstate the team
-   * instead of being refused. The same refusal the In-parallel cell makes, for
-   * the same reason.
-   */
-  function commitSize(team: TeamView): void {
-    const typed = sizeShown(team).trim();
-    if (typed === '' && team.size === null) {
-      forgetDraft(team.id);
-      return;
-    }
-    const asNumber = typed === '' ? null : Number(typed);
-    if (asNumber !== null && !Number.isFinite(asNumber)) {
-      setProblem({ reason: 'refused', code: 'size_must_be_a_whole_number_from_1' });
-      return;
-    }
-    if (asNumber === team.size) {
-      forgetDraft(team.id);
-      return;
-    }
-    void attempt(async () => {
-      const written = await directory.resizeTeam(team.id, asNumber);
-      forgetDraft(team.id);
-      if (!written.ok) {
-        setProblem({ reason: 'taken', survivingName: written.survivingName });
-      }
-    });
-  }
+  /*
+    `sizeShown` and `commitSize` lived here, with C3's whole argument about what
+    an empty box and a non-finite draft mean. They are in
+    `components/wbs/teams-dialog.tsx` now, because the number is one plan's rather
+    than the deployment's — `capacity-per-project`, Dany 2026-08-13, design.md D5.
+    The two local decisions and both of their watched negatives moved with them.
+  */
 
   /** Sets exactly the teams a person belongs to — the set the chips show. */
   function setMemberships(person: PersonView, teamIds: readonly string[]): void {
@@ -721,44 +666,18 @@ export function DirectoryPage({ token, api: apiOverride, nav, account }: Directo
                         }}
                       />
                       {/*
-                        How many of them may be at work at once — the number
-                        that moves dates, beside the count of who is in the
-                        team, which does not.
+                        No size box. How many of a team are at work at once is a
+                        fact about one **plan** since `capacity-per-project`
+                        (Dany, 2026-08-13: "The global number should not matter,
+                        only per project capacity configuration matters"), and
+                        this page has no plan — a box here could only have meant
+                        "the plan you last had open", which reads as global and is
+                        not. It is the `Teams` dialog in the plan's own toolbar.
 
-                        The two are deliberately not the same fact and the page
-                        says so rather than defaulting one to the other: a team
-                        of five people nobody has sized bounds nothing, and a
-                        team sized 2 with nobody in it bounds its work to two
-                        at a time. An empty box is *unstated*, which is the
-                        state every team created before capacity existed is in.
+                        Removed rather than disabled or left showing a number from
+                        somewhere: a control that writes a value no schedule reads
+                        is worse than no control at all. design.md D4 and D5.
                       */}
-                      <Input
-                        className={`${TAP} w-16 shrink-0 text-right`}
-                        aria-label={`How many of ${team.name} at once`}
-                        inputMode="numeric"
-                        placeholder="—"
-                        title={
-                          team.size === null
-                            ? `Nobody has said how many of ${team.name} there are, so their work is not limited. Type a number to limit it.`
-                            : `At most ${String(team.size)} of ${team.name} are at work at once, across each plan.`
-                        }
-                        value={sizeShown(team)}
-                        disabled={busy}
-                        onChange={(event) => {
-                          const typed = event.currentTarget.value;
-                          setResized((current) => ({ ...current, [team.id]: typed }));
-                        }}
-                        onBlur={() => {
-                          commitSize(team);
-                        }}
-                        onKeyDown={(event) => {
-                          if (event.key === 'Enter') {
-                            event.preventDefault();
-                            commitSize(team);
-                          }
-                          if (event.key === 'Escape') forgetSizeDraft(team.id);
-                        }}
-                      />
                       <span className="text-muted-foreground shrink-0 text-sm">
                         {count(membersOf(team), 'member')}
                       </span>

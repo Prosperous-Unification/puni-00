@@ -283,7 +283,30 @@ export type RoleRemoval = { ok: true } | { ok: false; reason: 'in_use'; inUse: R
 export interface TeamView {
   id: string;
   name: string;
+  /**
+   * The team's **retired** global size — read by nothing in be-01 since
+   * `capacity-per-project`, and read by nothing here.
+   *
+   * Kept on the view because be-01 still sends the column (it is not dropped
+   * while blue and green share one database file), and dropping it from the type
+   * would make the next reader think it had gone. How many of a team may be at
+   * work at once is a fact about one project now: {@link TeamCapacityView}.
+   */
   size: number | null;
+}
+
+/**
+ * How many of one team may be at work at once **on one project's plan**.
+ *
+ * A team the plan has stated nothing about is **absent** from the list, not
+ * present with a `null`: unstated constrains that team's work on that plan not at
+ * all, and it has one spelling on the wire exactly as it has one in the database.
+ * There is deliberately no fallback to {@link TeamView.size} — Dany, 2026-08-13.
+ */
+export interface TeamCapacityView {
+  serviceTeamId: string;
+  /** At least 1. Never null, and never zero — a pool of no slots is a plan of infinite dates. */
+  size: number;
 }
 
 /** Somebody who does work, and the teams they belong to. Empty means a free agent. */
@@ -422,14 +445,6 @@ export interface DirectoryApi {
   /** Renames a person, or sets exactly the teams they belong to, or both. */
   patchPerson(id: string, patch: PersonPatch): Promise<DirectoryWrite<PersonView>>;
   renameTeam(id: string, name: string): Promise<DirectoryWrite<TeamView>>;
-  /**
-   * Sets how many of a team may be at work at once, or clears it to unstated
-   * with `null`.
-   *
-   * Every project holding work this team labels — inheritance included — is
-   * told, because the number moves dates rather than a word on screen.
-   */
-  resizeTeam(id: string, size: number | null): Promise<DirectoryWrite<TeamView>>;
   /**
    * Removes a person, or answers the **directory usage** that would go with
    * them.
@@ -576,6 +591,20 @@ export interface ProjectApi {
      * bar can be painted and labelled from one moment's answer.
      */
     assignedPeople: AssignedPersonView[];
+    /**
+     * How many of each team this plan may have at work at once, for the teams it
+     * has stated a number about.
+     *
+     * Carried on the tree rather than fetched separately, and for a stronger
+     * reason than `roles` has: the dates and bars in this very payload were
+     * computed **from** these numbers, so a second request at a second moment
+     * could put a capacity on screen that does not explain the bars beside it.
+     *
+     * A team with no entry is _unstated_ and bounds nothing. Which teams the plan
+     * is labelled with is a different question, answered by the rows — see
+     * `effectiveTeamOf`.
+     */
+    teamCapacities: TeamCapacityView[];
     estimateMethod: EstimateMethod;
     startDate: string | null;
     /**
@@ -610,6 +639,21 @@ export interface ProjectApi {
   setEstimateMethod(projectId: string, method: EstimateMethod): Promise<void>;
   /** Puts the plan on a calendar, or `null` to take it off again. */
   setStartDate(projectId: string, startDate: string | null): Promise<void>;
+  /**
+   * States how many of one team may be at work at once on this plan, or clears it
+   * to unstated on `null`.
+   *
+   * `PUT`, because the body carries the whole of the fact and the same request
+   * twice is the same state — be-01's shape, and the reason is on its route.
+   *
+   * The number is **not** validated here. `capacity-per-project` owns what it may
+   * be, at be-01's boundary, and a second copy of that rule in this client is a
+   * rule free to disagree with it — so `0`, `-1`, `1.5` and `1001` are all sent
+   * and answered on. The two things the caller decides, because be-01 cannot see
+   * them, are what an *empty box* means and that a non-finite draft is not sent;
+   * both are argued in `teams-dialog.tsx` and were C3's D6 before that.
+   */
+  setTeamCapacity(projectId: string, teamId: string, size: number | null): Promise<void>;
   roles(projectId: string): Promise<RoleView[]>;
   /** Adds a phase to the project. Throws `taken` when the name is already one. */
   addRole(projectId: string, name: string): Promise<RoleView>;
@@ -984,6 +1028,50 @@ export function directoryRefusedWith(thrown: unknown): DirectoryRefusal {
 const SIZE_CEILING_CODE = 'size_must_be_at_most_';
 
 /**
+ * What a refused **capacity** change says out loud.
+ *
+ * Its own function rather than an arm of {@link directoryRefusalSentence}, and
+ * that is the whole of `capacity-per-project`'s move on this tier: the two size
+ * arms used to live there, because the box lived on the directory page and the
+ * number was the team's. It is the plan's number now, and every sentence here
+ * says "on this plan" — which the directory's own refusals must not, because the
+ * directory has no plan.
+ *
+ * The ceiling arm is a **prefix**, not a case, because be-01 builds the code out
+ * of its own `MOST_PEOPLE_AT_ONCE`: a literal `size_must_be_at_most_1000` here
+ * would be a second copy of that limit, free to drift from it and to fall back to
+ * printing the wire code the day it did.
+ *
+ * One fallback, and it names the code rather than swallowing it: an unrecognised
+ * refusal is something to report, and a message that hid it would leave nobody
+ * able to say what be-01 answered.
+ */
+export function capacityRefusalSentence(code: string): string {
+  if (code.startsWith(SIZE_CEILING_CODE)) {
+    return `A plan can have at most ${code.slice(SIZE_CEILING_CODE.length)} of one team at work at once.`;
+  }
+  switch (code) {
+    // The floor arm, spelled out rather than left to the fallback: this is a box
+    // somebody types a *number* into, and `(size_must_be_a_whole_number_from_1)`
+    // in the corner of the screen is a wire code where a sentence about their plan
+    // belongs. A pool of nobody is a plan of infinite dates, which is why zero is
+    // a refusal and an empty box is not.
+    case 'size_must_be_a_whole_number_from_1':
+      return 'How many of a team are at work at once is a whole number of 1 or more. Leave it empty for a team this plan does not limit.';
+    case 'size_required':
+      return 'That change asked for nothing, so nothing was sent.';
+    case 'not_found':
+      return 'That team or this plan is no longer there — somebody else removed it.';
+    case 'forbidden':
+      return 'This plan is restricted, so its capacities cannot be changed from this account.';
+    case 'unexpected_response':
+      return 'The server replied with something this page could not read.';
+    default:
+      return `That capacity could not be changed (${code}).`;
+  }
+}
+
+/**
  * What a refused directory change says out loud.
  *
  * {@link roleRefusalSentence}'s sibling, and here for the same reason: these
@@ -1003,14 +1091,6 @@ export function directoryRefusalSentence(refusal: DirectoryRefusal): string {
   if (refusal.reason === 'taken') {
     return `“${refusal.survivingName}” is already in the directory, so nothing was renamed.`;
   }
-  // The ceiling arm first, and it is a prefix rather than a case because be-01
-  // builds the code out of its own `MOST_PEOPLE_AT_ONCE` — a literal
-  // `size_must_be_at_most_1000` here would be a second copy of that limit,
-  // free to drift from it and silently fall back to printing the wire code the
-  // day it did.
-  if (refusal.code.startsWith(SIZE_CEILING_CODE)) {
-    return `A team size is at most ${refusal.code.slice(SIZE_CEILING_CODE.length)}.`;
-  }
   switch (refusal.code) {
     case 'name_required':
       return 'A name cannot be blank.';
@@ -1020,12 +1100,6 @@ export function directoryRefusalSentence(refusal: DirectoryRefusal): string {
       return 'That entry is no longer in the directory — somebody else removed it.';
     case 'nothing_to_change':
       return 'That change asked for nothing, so nothing was sent.';
-    // The floor arm, spelled out rather than left to the fallback: this is the
-    // one directory field somebody types a *number* into, and
-    // `(size_must_be_a_whole_number_from_1)` in the corner of the screen is a
-    // wire code where a sentence about their team belongs.
-    case 'size_must_be_a_whole_number_from_1':
-      return 'A team size is a whole number of 1 or more. Leave it empty for a team nobody has counted.';
     case 'unexpected_response':
       return 'The server replied with something this page could not read.';
     default:
@@ -1081,18 +1155,6 @@ export function httpDirectoryApi(token: string): DirectoryApi {
         'team',
       );
     },
-    // Its own route rather than a field on the rename above, which is be-01's
-    // shape and not this client's choice: a rename moves a word on screen and a
-    // size moves every date in every project the team labels work in, so the
-    // two announce different things and are told apart at the boundary.
-    resizeTeam(id, size) {
-      return writeDirectoryAt<TeamView>(
-        `/api/teams/${id}/size`,
-        token,
-        { method: 'PATCH', body: JSON.stringify({ size }) },
-        'team',
-      );
-    },
     // `?cascade=true` and nothing else — `directoryController`'s own rule, and
     // `roleController`'s before it: the flag is the second, explicit call
     // rather than a body on a DELETE, and it is **absent** rather than
@@ -1138,6 +1200,7 @@ export function httpProjectApi(token: string): ProjectApi {
         slices: SliceView[];
         roles: RoleView[];
         assignedPeople: AssignedPersonView[];
+        teamCapacities: TeamCapacityView[];
         estimateMethod: EstimateMethod;
         startDate: string | null;
         projectRevision: number;
@@ -1169,6 +1232,19 @@ export function httpProjectApi(token: string): ProjectApi {
       await send(`/api/projects/${projectId}`, token, {
         method: 'PATCH',
         body: JSON.stringify({ startDate }),
+      });
+    },
+    // `PUT` and the whole body, which is be-01's shape: there is one field, so
+    // the same request twice is the same state and an absent one could only mean
+    // "leave the only thing there is alone".
+    //
+    // Sent as typed. The rule about what a capacity may be lives at be-01's
+    // boundary — see `setTeamCapacity` on {@link ProjectApi} — so a `0` or a
+    // `1001` goes and is refused with a code the dialog turns into a sentence.
+    async setTeamCapacity(projectId, teamId, size) {
+      await send(`/api/projects/${projectId}/teams/${teamId}/capacity`, token, {
+        method: 'PUT',
+        body: JSON.stringify({ size }),
       });
     },
     async setEstimateMethod(projectId, method) {
