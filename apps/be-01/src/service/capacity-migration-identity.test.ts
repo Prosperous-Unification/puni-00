@@ -1,0 +1,387 @@
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+
+import { CapacityRepository } from '../repository/capacity';
+import { openDatabase, openDrizzle } from '../repository/db';
+import type { Project, Role, StoredDependency, WorkItem } from '../repository';
+import { ROLE_POSITION_STEP } from '../repository';
+import { runMigrations } from '../repository/migrate';
+import { rollbackTo } from '../repository/migrate-down';
+import { recordingBroadcaster } from '../testing/broadcast-fixture';
+import { inMemoryCapacity } from '../testing/capacity-fixture';
+import { inMemoryCommandJournal } from '../testing/command-journal-fixture';
+import { inMemoryDependencies } from '../testing/dependency-fixture';
+import { inMemoryDirectory } from '../testing/directory-fixture';
+import { inMemoryEstimates } from '../testing/estimate-fixture';
+import { inMemoryProjects } from '../testing/project-fixture';
+import { inMemorySubtrees } from '../testing/subtree-fixture';
+import { inMemoryWorkItems } from '../testing/work-item-fixture';
+import captured from './fixtures/capacity-oracle-2026-08-13.json';
+import { WorkItemService } from './work-item.service';
+
+const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
+/** The pre-C5 tip: `main@050fd45`'s schema, and the state the migration runs against. */
+const PRE_C5 = '20260812100001_add_max_parallel';
+
+interface CapturedRow {
+  id: string;
+  parentId: string | null;
+  position: number;
+  name: string;
+  priority: number | null;
+  maxParallel: number;
+  startNoEarlierThan: string | null;
+  serviceTeamId: string | null;
+  estimates: Record<string, { optimistic: number; realistic: number; pessimistic: number }>;
+  assignees: Record<string, string>;
+  dependsOn: string[];
+}
+
+interface CapturedPlan {
+  projectId: string;
+  roleIds: string[];
+  estimateMethod: 'pert' | 'optimistic' | 'realistic' | 'pessimistic';
+  startDate: string | null;
+  rows: CapturedRow[];
+}
+
+interface Oracle {
+  capturedAt: string;
+  capturedFrom: string;
+  teams: { id: string; name: string; size: number | null }[];
+  people: { id: string; name: string }[];
+  plans: CapturedPlan[];
+  /** Whatever `tree()` answered. Compared whole, so it is deliberately not narrowed. */
+  answers: Record<string, unknown>[];
+}
+
+// The boundary: a file captured from a be-01 that no longer exists, read as the
+// fixture it is. Nothing here validates it into existence — the first test below
+// asserts the shape and the coverage the rest of the file depends on, and would
+// fail loudly on a recapture of something thinner.
+const oracle = captured as unknown as Oracle;
+
+/**
+ * The pre-`capacity-per-project` identity differential: **Claim B** of
+ * `design.md` D7.
+ *
+ * The promise this change makes is that every plan on the deployment schedules
+ * byte-identically across the migration. It decomposes into two claims, and
+ * either on its own reads like the whole thing and is not:
+ *
+ * - **Claim A**, in `repository/migrate.test.ts`: the migration writes one row per
+ *   (existing project, sized team) carrying that team's global number.
+ * - **Claim B**, here: those numbers produce the answer be-01 gave before the
+ *   change — every field of every work item and every slice.
+ *
+ * And the wire between them, `slotsFor`, is pinned on its own in
+ * `repository/capacity.test.ts`, because Claim B holds `slotsFor`'s *output* fixed
+ * by construction and a `slotsFor` reading the wrong column would pass both.
+ *
+ * **The oracle is data, not a copied function.** C1's identity differential copied
+ * the previous engine into its test file, because the engine was one pure function
+ * and copying it was cheap. What changed here is the **adapter**, and copying
+ * `tree()` would be copying six collaborators and their fixtures — a copy large
+ * enough that its own drift is the likelier bug. So
+ * `fixtures/capacity-oracle-2026-08-13.json` holds sixteen plans *and* the answer
+ * be-01 gave each of them, written by `tools/dev/capture-capacity-oracle.ts` run at
+ * `050fd45` before this branch had a line of code in it (its own commit, so `git
+ * log` shows the oracle predates the code it measures).
+ *
+ * **Re-running that script against this branch would prove nothing** — it would
+ * measure the new code against itself. The JSON is the pin; the script is
+ * committed for reproducibility only.
+ *
+ * The plans are read **out of the fixture** rather than regenerated from a shared
+ * generator, for the same reason: a generator both sides call is free to drift in
+ * one direction and take the whole differential with it.
+ */
+describe('every plan schedules identically across the migration', () => {
+  it('has an oracle worth measuring against, captured before this branch existed', () => {
+    // `schedule-identity.test.ts`'s `generates plans worth measuring` rule. A
+    // recapture that lost any of this makes the differential below vacuous while
+    // leaving it green, so the coverage is asserted rather than assumed.
+    expect(oracle.capturedFrom).toBe('050fd45');
+    expect(oracle.plans).toHaveLength(16);
+    expect(oracle.answers).toHaveLength(16);
+
+    const rows = oracle.plans.flatMap((plan) => plan.rows);
+    expect(rows).toHaveLength(151);
+    // Every estimate method, so the differential covers what a plan is computed
+    // in and not only PERT.
+    expect([...new Set(oracle.plans.map((plan) => plan.estimateMethod))].sort()).toEqual([
+      'optimistic',
+      'pert',
+      'pessimistic',
+      'realistic',
+    ]);
+    // Plans off the calendar, and manual dates on plans that are on it.
+    expect(oracle.plans.filter((plan) => plan.startDate === null)).toHaveLength(2);
+    expect(
+      oracle.plans.filter((plan) => plan.rows.some((row) => row.startNoEarlierThan !== null)),
+    ).toHaveLength(3);
+    // Every team including the unsized one, and the unlabelled case.
+    expect([...new Set(rows.map((row) => row.serviceTeamId))].sort()).toEqual([
+      null,
+      'team-backend',
+      'team-design',
+      'team-platform',
+      'team-unsized',
+    ]);
+    expect(oracle.teams.filter((team) => team.size === null)).toHaveLength(1);
+    // Parents that carry a label whose leaves do not — the inheritance case the
+    // pool is drawn through.
+    expect(
+      oracle.plans.some((plan) =>
+        plan.rows.some(
+          (row) =>
+            row.parentId === null &&
+            row.serviceTeamId !== null &&
+            plan.rows.some((leaf) => leaf.parentId === row.id && leaf.serviceTeamId === null),
+        ),
+      ),
+    ).toBe(true);
+
+    const slices = oracle.answers.flatMap((answer) => answer['slices'] as { boundBy: string }[]);
+    // All six binding floors, and capacity among them 25 times: without those the
+    // differential would be measuring plans no pool ever touched.
+    expect([...new Set(slices.map((slice) => slice.boundBy))].sort()).toEqual([
+      'capacity',
+      'notBefore',
+      'person',
+      'predecessor',
+      'projectStart',
+      'roleOrder',
+    ]);
+    expect(slices.filter((slice) => slice.boundBy === 'capacity')).toHaveLength(25);
+    expect(
+      oracle.answers.reduce((sum, answer) => sum + (answer['waitingForCapacity'] as number), 0),
+    ).toBe(18);
+    // Widths above one, so the parallelism arm of the adapter is exercised too.
+    expect(
+      [...new Set(slices.map((slice) => (slice as unknown as { width: number }).width))].sort(),
+    ).toEqual([1, 2, 3]);
+    // And no plan in the corpus failed to schedule, which would make its answer a
+    // page of `UNSCHEDULED` and assert nothing.
+    for (const answer of oracle.answers) expect(answer['scheduleError']).toBeNull();
+  });
+
+  it('answers exactly what be-01 answered, with the migration’s own seeded numbers', async () => {
+    // The claim, and the two halves of how it is set up are both load-bearing.
+    //
+    // The **numbers** come from the real migration: a temp database rolled back to
+    // the pre-C5 tip, the teams written the way the outgoing release writes them
+    // with their global sizes, then migrated forward. Nothing here decides what
+    // gets seeded; `runMigrations` does, and `slotsFor` reads back what it wrote.
+    //
+    // The **plans** come out of the fixture and are replayed through this branch's
+    // service. So the only thing that could make this pass while the change is
+    // wrong is `slotsFor` and the migration agreeing on a wrong answer, which is
+    // what `repository/capacity.test.ts` exists for.
+    //
+    // Proof: the seeded map replaced by an empty one — every pair unstated, which
+    // is the shape of forgetting the seeding altogether — and this failed on `p1`'s
+    // very first comparison: `p1-g0-l0role-1` came back `boundBy: 'roleOrder'` with
+    // an empty `capacityPredecessorIds` where `boundBy: 'capacity'` and four
+    // predecessors were owed, and its `earliestStart` moved 7.5 → 3. Watched
+    // 2026-08-13.
+    //
+    // **What this test cannot see, stated because a reader would assume it can.**
+    // Seeding only the pairs a plan already labels — the join `design.md` D2
+    // rejects — leaves this **green**: every date in the corpus is identical under
+    // it, because a pair labelling nothing spends no slots. That is exactly D2's
+    // point, and exactly why the promise needs `migrate.test.ts`'s `seeds every
+    // project that existed…` and the third test in this file, not this one alone.
+    // Watched staying green under that injection, 2026-08-13, with only
+    // `gives every project the same numbers…` going red.
+    const seeded = await slotsAfterTheMigration();
+
+    for (const [at, plan] of oracle.plans.entries()) {
+      const answer = oracle.answers[at];
+      if (answer === undefined) throw new Error(`no captured answer for ${plan.projectId}`);
+      const tree = await replay(plan, seeded);
+      // Compared whole rather than field by field: a projection is a minimum over
+      // slices and can hide a slice that moved under one that did not, and naming
+      // the fields here would be a list to forget to extend.
+      expect({ project: plan.projectId, ...tree }).toEqual({
+        project: plan.projectId,
+        ...answer,
+        // The one key the capture could not carry, because it did not exist:
+        // `teamCapacities` is this change's own addition to the payload. Its
+        // *values* are the seeded numbers, which is the thing under test, so it is
+        // asserted here rather than deleted from the comparison.
+        teamCapacities: [...(seeded.get(plan.projectId) ?? new Map<string, number>())]
+          .map(([serviceTeamId, size]) => ({ serviceTeamId, size }))
+          .sort((a, b) => a.serviceTeamId.localeCompare(b.serviceTeamId)),
+      });
+    }
+  });
+
+  it('gives every project the same numbers, which is what makes the identity hold', async () => {
+    // Why the differential can pass at all: before the change, two projects
+    // labelled `Platform` were each told they had all of it, and after it each was
+    // seeded with that same number. The identity is not a property of the engine —
+    // it is a property of the **seeding**, and this is that property stated on its
+    // own so a reader does not have to infer it from 16 passing comparisons.
+    const seeded = await slotsAfterTheMigration();
+
+    const sized = oracle.teams.filter((team) => team.size !== null);
+    for (const plan of oracle.plans) {
+      const slots = seeded.get(plan.projectId);
+      if (slots === undefined) throw new Error(`${plan.projectId} was seeded nothing at all`);
+      for (const team of sized) expect(slots.get(team.id)).toBe(team.size);
+      // The unsized team is seeded nowhere, so it is absent — which is unstated,
+      // which is what it was before the migration.
+      for (const team of oracle.teams.filter((each) => each.size === null)) {
+        expect(slots.has(team.id)).toBe(false);
+      }
+    }
+  });
+
+  let dir: string | null = null;
+
+  afterEach(() => {
+    if (dir !== null) rmSync(dir, { recursive: true, force: true });
+    dir = null;
+  });
+
+  /**
+   * The oracle's teams and projects written the way the release being replaced
+   * wrote them, then migrated forward — and the numbers `slotsFor` reads back.
+   *
+   * The `INSERT`s are written out rather than built through drizzle, exactly as
+   * `migrate.test.ts` writes them and for the same reason: drizzle is the new
+   * release, and the point is the state the old one left behind.
+   */
+  async function slotsAfterTheMigration(): Promise<Map<string, Map<string, number>>> {
+    dir = mkdtempSync(join(tmpdir(), 'wbs-capacity-identity-'));
+    const path = join(dir, 'test.db');
+    runMigrations(path, FOLDER);
+    rollbackTo(path, FOLDER, PRE_C5);
+    const before = openDatabase(path);
+    try {
+      before.run(
+        "INSERT INTO users (id, username, password_hash, created_at) VALUES ('u', 'owner', 'x', 1)",
+      );
+      for (const plan of oracle.plans) {
+        before.run(
+          'INSERT INTO project (id, name, owner_id, restricted, estimate_method, start_date, revision, created_at)' +
+            ` VALUES (?, ?, 'u', 0, ?, ?, 0, 1)`,
+          [plan.projectId, `Plan ${plan.projectId}`, plan.estimateMethod, plan.startDate],
+        );
+      }
+      for (const team of oracle.teams) {
+        before.run('INSERT INTO service_team (id, name, size) VALUES (?, ?, ?)', [
+          team.id,
+          team.name,
+          team.size,
+        ]);
+      }
+    } finally {
+      before.close();
+    }
+
+    runMigrations(path, FOLDER);
+
+    const store = new CapacityRepository(openDrizzle(path));
+    const seeded = new Map<string, Map<string, number>>();
+    for (const plan of oracle.plans) seeded.set(plan.projectId, await store.slotsFor(plan.projectId));
+    return seeded;
+  }
+
+  /** One captured plan, rebuilt behind this branch's service and read back through it. */
+  async function replay(
+    plan: CapturedPlan,
+    seeded: ReadonlyMap<string, ReadonlyMap<string, number>>,
+  ): Promise<NonNullable<Awaited<ReturnType<WorkItemService['tree']>>>> {
+    const projects = inMemoryProjects();
+    const directory = inMemoryDirectory();
+    const workItems = inMemoryWorkItems(directory);
+    const estimates = inMemoryEstimates(workItems);
+    const dependencies = inMemoryDependencies();
+    const service = new WorkItemService({
+      workItems,
+      projects,
+      estimates,
+      dependencies,
+      directory,
+      capacity: inMemoryCapacity({
+        [plan.projectId]: Object.fromEntries(seeded.get(plan.projectId) ?? []),
+      }),
+      subtrees: inMemorySubtrees({ workItems, estimates, dependencies, directory }),
+      journal: inMemoryCommandJournal(),
+      broadcast: recordingBroadcaster(),
+    });
+
+    // Added **unsized**, deliberately: the global column is read by nothing now,
+    // and a fixture that carried the captured sizes would let this pass against a
+    // build that still fell back to them.
+    for (const team of oracle.teams) await directory.addTeam({ ...team, size: null });
+    for (const who of oracle.people) await directory.addPerson({ ...who }, []);
+
+    const project: Project = {
+      id: plan.projectId,
+      name: `Plan ${plan.projectId}`,
+      ownerId: 'owner',
+      restricted: false,
+      estimateMethod: plan.estimateMethod,
+      startDate: plan.startDate,
+      revision: 0,
+      createdAt: 1,
+    };
+    const roles: Role[] = plan.roleIds.map((id, place) => ({
+      id,
+      projectId: plan.projectId,
+      name: `Role ${String(place)}`,
+      position: (place + 1) * ROLE_POSITION_STEP,
+    }));
+    await projects.create(project, roles);
+    for (const row of plan.rows) {
+      const stored: WorkItem = {
+        id: row.id,
+        projectId: plan.projectId,
+        parentId: row.parentId,
+        position: row.position,
+        name: row.name,
+        notes: '',
+        frozenNumber: null,
+        priority: row.priority,
+        maxParallel: row.maxParallel,
+        startNoEarlierThan: row.startNoEarlierThan,
+        serviceTeamId: row.serviceTeamId,
+        revision: 0,
+      };
+      await workItems.insert(stored, []);
+    }
+    // After the rows, so an estimate is never written against a work item that is
+    // not there yet — the fixture mirrors the foreign key.
+    for (const row of plan.rows) {
+      for (const [roleId, days] of Object.entries(row.estimates)) {
+        await estimates.set({ workItemId: row.id, roleId, ...days });
+      }
+      for (const [roleId, personId] of Object.entries(row.assignees)) {
+        await directory.assign(row.id, roleId, personId);
+      }
+      for (const predecessorId of row.dependsOn) {
+        const edge: StoredDependency = {
+          id: `${predecessorId}->${row.id}`,
+          projectId: plan.projectId,
+          predecessorId,
+          successorId: row.id,
+        };
+        await dependencies.add(edge);
+      }
+    }
+
+    const tree = await service.tree(plan.projectId);
+    if (tree === null) throw new Error(`${plan.projectId} vanished on replay`);
+    return tree;
+  }
+
+  beforeEach(() => {
+    dir = null;
+  });
+});
