@@ -49,6 +49,7 @@ const rowAt = (
   schedule: { earliestStart, earliestFinish },
   notBeforeOffset: null,
   priority: null,
+  maxParallel: 1,
   // The three facts a row is enriched with before the chart is drawn. Absent
   // by default and named by the tests that are about them, so a fixture never
   // has to state a team it is not asking about.
@@ -78,6 +79,9 @@ const sliceAt = (
   critical: false,
   boundBy: 'projectStart',
   resourcePredecessorId: null,
+  width: 1,
+  effort: earliestFinish - earliestStart,
+  capacityPredecessorIds: [],
   ...extras,
 });
 
@@ -755,6 +759,47 @@ describe('the chart is drawn in calendar days', () => {
     expect(document.querySelectorAll('[data-gantt-person-link]')).toHaveLength(2);
   });
 
+  itDom('draws a pool wait as its own line, apart from a person’s hand-off', () => {
+    // Platform's slots are full until `strip` ends, and `sand` needs two of
+    // them. Nobody is named on either: this is a wait a reader answers by
+    // hiring or by reassigning, not by asking somebody to hurry — which is why
+    // it must not be drawn as a hand-off.
+    render(
+      <GanttPanel
+        plan={planOf({
+          rows: [
+            rowAt('strip', 0, 3, { team: { state: 'named', name: 'Platform' } }),
+            rowAt('sand', 3, 5, { team: { state: 'named', name: 'Platform' }, maxParallel: 2 }),
+          ],
+          slices: [
+            sliceAt('strip-dev', 'strip', 0, 3),
+            sliceAt('sand-dev', 'sand', 3, 5, {
+              boundBy: 'capacity',
+              resourcePredecessorId: 'strip-dev',
+              capacityPredecessorIds: ['strip-dev'],
+              width: 2,
+              effort: 4,
+              duration: 2,
+            }),
+          ],
+        })}
+        startDate={null}
+        scheduleError={null}
+        generation={0}
+        heightPx={null}
+        onPickRow={() => undefined}
+      />,
+    );
+
+    // Row middles, the same arithmetic every other line on this chart is drawn
+    // with: out of `strip`'s finish at 3 on row 0, into `sand`'s start at 3 on
+    // row 1.
+    expect(markAttribute('[data-gantt-capacity-link="strip-dev->sand-dev"]', 'd')).toBe(
+      'M 3 0.5 L 3 1.5',
+    );
+    expect(document.querySelectorAll('[data-gantt-person-link]')).toHaveLength(0);
+  });
+
   itDom(
     'marks a zero-day estimate with a tick, and an unestimated one with a bar or nothing',
     () => {
@@ -881,6 +926,122 @@ describe('the chart is drawn in calendar days', () => {
     // the plan's Number column read, and a test written to a literal alone
     // would let the two drift apart while staying green.
     expect(linesOf(surface)[0]).toBe(rowWords('3.2', 'API'));
+  });
+
+  itDom('says how many people a compressed bar runs, and how long the work really is', () => {
+    // Six days of work run by three people in two: the bar is two days wide and
+    // the estimate says six, and without this line the two read as a
+    // contradiction.
+    render(
+      <GanttPanel
+        plan={planOf({
+          rows: [
+            rowAt('strip', 0, 2, { team: { state: 'named', name: 'Platform' }, maxParallel: 3 }),
+          ],
+          slices: [sliceAt('strip-dev', 'strip', 0, 2, { width: 3, effort: 6, duration: 2 })],
+        })}
+        startDate={null}
+        scheduleError={null}
+        generation={0}
+        heightPx={null}
+        onPickRow={() => undefined}
+      />,
+    );
+
+    expect(linesOf(surfaceOn('strip-dev'))).toContain('3 people in parallel — 6 days of work in 2');
+  });
+
+  itDom('says a named person is why a parallelism did not apply', () => {
+    // D3 on screen: one human cannot work beside themselves, so naming kat on a
+    // `maxParallel: 3` item collapses it to width 1 — and the number somebody
+    // typed did nothing, which is the fact this line exists to state.
+    render(
+      <GanttPanel
+        plan={planOf({
+          rows: [
+            rowAt('strip', 0, 6, { team: { state: 'named', name: 'Platform' }, maxParallel: 3 }),
+            rowAt('sand', 0, 3, { maxParallel: 1 }),
+          ],
+          slices: [
+            sliceAt('strip-dev', 'strip', 0, 6, { personId: 'kat', width: 1, effort: 6 }),
+            sliceAt('sand-dev', 'sand', 0, 3, { personId: 'kat', width: 1, effort: 3 }),
+          ],
+          personNames: new Map([['kat', 'Kat']]),
+        })}
+        startDate={null}
+        scheduleError={null}
+        generation={0}
+        heightPx={null}
+        onPickRow={() => undefined}
+      />,
+    );
+
+    expect(linesOf(surfaceOn('strip-dev'))).toContain(
+      'One person is named — 3 in parallel not applied',
+    );
+    // And nothing at all on the row that asked for one at a time, which is
+    // every row of every plan today: a line saying `1 in parallel` on all of
+    // them is furniture, exactly as `Priority —` would be.
+    expect(linesOf(surfaceOn('sand-dev')).filter((line) => line.includes('parallel'))).toEqual([]);
+  });
+
+  itDom('names the ancestor an inherited team came from', () => {
+    // The row itself names no team; its dates were scheduled against one an
+    // ancestor named. A bar saying `Team Platform` with no Platform on the row
+    // leaves "why did this move when somebody edited a team's number"
+    // unanswerable.
+    render(
+      <GanttPanel
+        plan={planOf({
+          rows: [
+            rowAt('strip', 0, 3, {
+              team: { state: 'inherited', name: 'Platform', fromRow: '010 Backend' },
+            }),
+          ],
+          slices: [sliceAt('strip-dev', 'strip', 0, 3)],
+        })}
+        startDate={null}
+        scheduleError={null}
+        generation={0}
+        heightPx={null}
+        onPickRow={() => undefined}
+      />,
+    );
+
+    expect(linesOf(surfaceOn('strip-dev'))).toContain('Team Platform — inherited from 010 Backend');
+  });
+
+  itDom('says whose people a pool-held bar is waiting for', () => {
+    render(
+      <GanttPanel
+        plan={planOf({
+          rows: [
+            rowAt('strip', 0, 3, { team: { state: 'named', name: 'Platform' } }),
+            rowAt('sand', 3, 5, { team: { state: 'named', name: 'Platform' }, maxParallel: 2 }),
+          ],
+          slices: [
+            sliceAt('strip-dev', 'strip', 0, 3),
+            sliceAt('sand-dev', 'sand', 3, 5, {
+              boundBy: 'capacity',
+              resourcePredecessorId: 'strip-dev',
+              capacityPredecessorIds: ['strip-dev'],
+              width: 2,
+              effort: 4,
+              duration: 2,
+            }),
+          ],
+        })}
+        startDate={null}
+        scheduleError={null}
+        generation={0}
+        heightPx={null}
+        onPickRow={() => undefined}
+      />,
+    );
+
+    expect(linesOf(surfaceOn('sand-dev'))).toContain(
+      'Waits for Platform to free 2 people — after strip (Dev)',
+    );
   });
 
   itDom('says no float figure at all on a bar of the critical path', () => {
@@ -1885,6 +2046,54 @@ describe('the words on the bars are HTML over the chart', () => {
     expect(box?.querySelector('[data-gantt-chart]')).not.toBeNull();
   });
 
+  itDom('writes the team and how many of them on a bar nobody is named on', () => {
+    render(
+      <GanttPanel
+        plan={planOf({
+          rows: [
+            rowAt('strip', 0, 6, { team: { state: 'named', name: 'Platform' }, maxParallel: 3 }),
+            rowAt('sand', 0, 4),
+          ],
+          slices: [
+            sliceAt('strip-dev', 'strip', 0, 6, { width: 3, effort: 18, duration: 6 }),
+            sliceAt('sand-dev', 'sand', 0, 4),
+          ],
+        })}
+        startDate={null}
+        scheduleError={null}
+        generation={0}
+        heightPx={null}
+        onPickRow={() => undefined}
+      />,
+    );
+
+    expect(labelOn('strip-dev')?.textContent).toBe('Platform ×3 · strip - strip');
+    // And a bar with no team on it writes the row's words alone, exactly as it
+    // did before this change: nothing to say about a pool it is not on.
+    expect(labelOn('sand-dev')?.textContent).toBe('sand - sand');
+  });
+
+  itDom('keeps the person’s name on a bar somebody is named on, team or no team', () => {
+    // One label, and the person is the more specific fact: `Platform ×1` over
+    // kat's own bar would replace who is doing it with who it belongs to.
+    render(
+      <GanttPanel
+        plan={planOf({
+          rows: [rowAt('strip', 0, 4, { team: { state: 'named', name: 'Platform' } })],
+          slices: [sliceAt('strip-dev', 'strip', 0, 4, { personId: 'kat' })],
+          personNames: new Map([['kat', 'Kat']]),
+        })}
+        startDate={null}
+        scheduleError={null}
+        generation={0}
+        heightPx={null}
+        onPickRow={() => undefined}
+      />,
+    );
+
+    expect(labelOn('strip-dev')?.textContent).toBe('Kat · strip - strip');
+  });
+
   itDom('writes nothing at all on a bar too narrow to hold a letter', () => {
     render(
       <GanttPanel
@@ -2189,6 +2398,7 @@ function rowOf(parts: {
     notes: '',
     frozenNumber: null,
     priority: null,
+    maxParallel: 1,
     rolledUp: parts.rolledUp ?? false,
     estimates: parts.rolledUp === true ? {} : { [DEV.id]: NO_DAYS },
     dependsOn: [],
@@ -2283,6 +2493,9 @@ const sliceOf = (workItemId: string, start: number, finish: number): SliceView =
   critical: false,
   boundBy: 'projectStart',
   resourcePredecessorId: null,
+  width: 1,
+  effort: finish - start,
+  capacityPredecessorIds: [],
 });
 
 const SLICES: SliceView[] = [
@@ -2342,6 +2555,17 @@ interface ReadSkew {
   roles?: RoleView[];
   /** What the **separate** people read says, when it disagrees with the payload. */
   people?: PersonView[];
+  /**
+   * A team label to hang on the fixture's rows, by row id, and the directory
+   * the separate read answers with.
+   *
+   * A skew option for {@link ReadSkew.waits}' reason: a label on the fixture is
+   * a pool sentence added to twenty drawings that are not about it. A slice
+   * floored by `capacity` on a row naming no team is a payload the geometry
+   * refuses outright, so the two arrive together or not at all.
+   */
+  labels?: Record<string, string>;
+  teams?: TeamView[];
 }
 
 /**
@@ -2362,6 +2586,7 @@ function fakeApi(startDate: string | null, skew: ReadSkew = {}): ProjectApi {
           ...row,
           dates: startDate === null ? null : row.dates,
           dependsOn: skew.waits?.[row.id] ?? row.dependsOn,
+          serviceTeamId: skew.labels?.[row.id] ?? row.serviceTeamId,
         })),
         seq: 0,
         scheduleError: null,
@@ -2379,7 +2604,7 @@ function fakeApi(startDate: string | null, skew: ReadSkew = {}): ProjectApi {
     // The **separate** read, which the skewed fixture below makes disagree with
     // the payload above on purpose.
     roles: () => Promise.resolve(skew.roles ?? [{ ...DEV }]),
-    listTeams: () => Promise.resolve(teams),
+    listTeams: () => Promise.resolve(skew.teams ?? teams),
     listPeople: () => Promise.resolve(skew.people ?? people),
     listProjects: () => notImplemented('listProjects'),
     createProject: () => notImplemented('createProject'),
@@ -2753,6 +2978,102 @@ const SLICES_MISSING_A_PREDECESSOR: SliceView[] = SLICES.map((slice) =>
 /** What the boundary put on screen instead of a chart, or null while it did not. */
 const faultWords = (): string | null =>
   document.querySelector('[data-gantt-fault]')?.textContent ?? null;
+
+/**
+ * {@link SLICES} with a sized, contended team holding one bar back — the plan
+ * the deploy gate is armed against.
+ *
+ * `sealing` waits for `sanding`'s slot rather than for a dependency: `boundBy`
+ * is `capacity`, the blocking set names the slice that had to end, and
+ * `resourcePredecessorId` names the one an arrow is drawn from. This is exactly
+ * what be-01 has been sending since `capacity-engine` (#48) for any plan whose
+ * team is sized and contended, and what `capacity-write-paths` (#53) made
+ * reachable in production by shipping the size write.
+ */
+const SLICES_HELD_BY_A_POOL: SliceView[] = SLICES.map((slice) =>
+  slice.workItemId === 'sealing'
+    ? {
+        ...slice,
+        boundBy: 'capacity' as const,
+        resourcePredecessorId: `sanding::${DEV.id}`,
+        capacityPredecessorIds: [`sanding::${DEV.id}`],
+      }
+    : slice,
+);
+
+/**
+ * The whole read that plan arrives on: the slices, the label the pool is keyed
+ * on, and the directory that names it.
+ *
+ * All three, because a `capacity` floor on a row naming no team is a payload
+ * `gantt-geometry` refuses — the panel would rather throw than draw a sentence
+ * about a pool it cannot name.
+ */
+const POOLED: ReadSkew = {
+  slices: SLICES_HELD_BY_A_POOL,
+  labels: { sealing: 'team-hull', sanding: 'team-hull' },
+  teams: [{ id: 'team-hull', name: 'Hull crew', size: 1 }],
+};
+
+describe('the deploy gate: a plan a sized team is holding back', () => {
+  itDom('draws the chart rather than falling into the boundary', async () => {
+    // **The watched red this whole change is gated on.** `floorWordsOf`'s
+    // `default:` arm throws `GanttDataError` by design — a payload can carry a
+    // sixth floor this build has never heard of — and `capacity` became that
+    // sixth the day #48 merged. #53 then shipped the write that makes a sized
+    // team reachable, so from that merge until this change every plan with a
+    // sized, contended team renders an error boundary where its Gantt should
+    // be. `capacity-engine/design.md`, "Batch sequencing", is where that was
+    // called; `LLM_README.md` carries the landmine.
+    //
+    // Proof: the `case 'capacity':` arm struck from `floorWordsOf` so the
+    // `default:` catches it again. Both tests here failed, on
+    // `expected 'The chart cannot be drawn: slice seal…' to be null` and
+    // `no bar on the chart for sealing`, against four uncaught
+    // `GanttDataError: slice sealing::role-dev is held by capacity, which this
+    // chart has no words for` — the whole chart replaced by the fallback on a
+    // plan be-01 schedules every day. Watched 2026-08-13.
+    await showTheChart(MONDAY, POOLED);
+
+    expect(faultWords()).toBeNull();
+    expect(document.querySelector('[data-gantt-chart]')).not.toBeNull();
+    expect(barOn('sealing')).not.toBeNull();
+  });
+
+  itDom('says what is holding the bar, in the pool’s own words', async () => {
+    // Drawing it is not enough: a bar held by a pool with a sentence about a
+    // dependency on it is a chart that is confidently wrong about why the work
+    // is late.
+    await showTheChart(MONDAY, POOLED);
+
+    fireEvent.focus(barOn('sealing'));
+    const card = screen.getByRole('tooltip');
+    expect(linesOf(card).join(' ')).toContain('Hull crew');
+  });
+
+  itDom('still draws when the directory read has not caught up with the pool', async () => {
+    // The same plan, one read behind: the label rides the tree and the team
+    // names ride the directory, so a team created between the two is
+    // `unresolved` — the skew `ServiceTeamLabel` documents as normal, and which
+    // the cards, the export and the table all degrade for.
+    //
+    // Proof: the `unresolved` arm of `poolNameOf` returning `null` again, so
+    // the capacity arm's no-team throw catches it. This test alone failed, on
+    // `expected 'The chart cannot be drawn: slice seal…' to be null` against
+    // `GanttDataError: slice sealing::role-dev is floored by a team's capacity
+    // but its row names no team` — the whole chart in the boundary for a state
+    // that self-heals on the next read. Watched 2026-08-13.
+    await showTheChart(MONDAY, { ...POOLED, teams: [] });
+
+    expect(faultWords()).toBeNull();
+    expect(barOn('sealing')).not.toBeNull();
+
+    fireEvent.focus(barOn('sealing'));
+    expect(linesOf(screen.getByRole('tooltip')).join(' ')).toContain(
+      'a team this plan has not loaded',
+    );
+  });
+});
 
 describe('a chart that cannot be drawn', () => {
   itDom('says why, and leaves the plan alone', async () => {

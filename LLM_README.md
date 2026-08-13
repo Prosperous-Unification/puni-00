@@ -107,9 +107,6 @@ contract: `docs/runbook-prod-deploy.md`.**
 - **`bun run e2e` reuses whatever holds 3100/3200/4200** (`reuseExistingServer: !isCi`), another
   checkout's `bun run dev` included — 66 tests green against code this tree never built,
   2026-08-09. Check what owns :4200 before believing a local green.
-- **Capacity C2 must not be deployed without C3.** `capacity-write-paths` first lets a client size
-  a team; be-01 then emits `boundBy: 'capacity'` and fe-01's `floorWordsOf` throws on it by design.
-  Merging is safe, deploying is the gate — `openspec/changes/capacity-write-paths/design.md`.
 - `.dockerignore` is **not recursive**: `**/*.db`, not `*.db`.
 - Server umask is `0002` — create sensitive files with their mode from birth, never chmod after
   (`configure.sh` does not yet honour this; see findings).

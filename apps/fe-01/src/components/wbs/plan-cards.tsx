@@ -4,6 +4,7 @@ import { CellInput } from './cell-input';
 import type { CellRef } from './cell-navigation';
 import { PickerList, type PickerOption } from './creatable-picker';
 import { type CellElement, cellKey } from './editable-grid';
+import type { ServiceTeamLabel } from './gantt-geometry';
 import type { CommitOutcome } from './live-editing';
 import { composeNameCell } from './name-notes';
 import type { PrintedDay } from './short-date';
@@ -77,7 +78,16 @@ export interface PlanCardsProps {
   assigneeOn: (row: TreeRow, roleId: string) => CardAssignee | null;
   /** The numbers of the work items this one waits for. */
   waitsFor: (row: TreeRow) => string[];
-  teamName: (row: TreeRow) => string | null;
+  /**
+   * Whose work this is: the row's own label, the one it inherits, or neither.
+   *
+   * The **effective** team and not the stored label, and it is the same
+   * function the table's cell and the chart's bars read
+   * (`effectiveTeamLabelOf`). A phone shown the stored label alone would say
+   * nothing at all about a leaf under a labelled parent, whose dates came out
+   * of that parent's pool — and a card is the only face some readers have.
+   */
+  teamLabel: (row: TreeRow) => ServiceTeamLabel;
   /**
    * When this work item happens: short dates on a plan with a start date, day
    * offsets without.
@@ -102,6 +112,24 @@ const cardSpanTitle = (span: { start: PrintedDay; finish: PrintedDay }): string 
   span.start.iso === null || span.finish.iso === null
     ? undefined
     : `${span.start.iso} → ${span.finish.iso}`;
+
+/**
+ * Whether a row's stored parallelism decides nothing, and the card therefore
+ * has to say so beside the number.
+ *
+ * Two ways to get there and the reasons differ, but the reading is one: a
+ * parent holds no slices of its own, so the number is inert on it (be-01
+ * refuses new ones with `has_children`, and a leaf that later gained a child
+ * keeps whatever it was given); and a row somebody is named on runs at width 1
+ * whatever the number says, because one human cannot work beside themselves.
+ *
+ * Read off the row rather than passed in, because both facts are on it: this is
+ * the same reading the table's In-parallel cell makes and it is deliberately
+ * not routed through a prop, which would be a second place for the two faces to
+ * disagree.
+ */
+const inertParallel = (row: TreeRow): boolean =>
+  row.subRows.length > 0 || row.doesEveryPhase !== null;
 
 /** A tap target big enough to hit — 44px, which is `min-h-11` in this scale. */
 const TAP = 'min-h-11';
@@ -150,7 +178,7 @@ export function PlanCards({
   mentionOptions,
   assigneeOn,
   waitsFor,
-  teamName,
+  teamLabel,
   spanOf,
   showDay,
 }: PlanCardsProps) {
@@ -170,7 +198,7 @@ export function PlanCards({
     >
       {rows.map(({ row, depth, expandable, expanded, toggleBranch }) => {
         const waits = waitsFor(row);
-        const team = teamName(row);
+        const team = teamLabel(row);
         const span = spanOf(row);
         return (
           <article
@@ -348,7 +376,48 @@ export function PlanCards({
                 {span.start.text} → {span.finish.text}
               </span>
               {waits.length > 0 && <span data-card-waits>waits for {waits.join(', ')}</span>}
-              {team !== null && <span data-card-team>{team}</span>}
+              {/*
+                The team, and `↳` where the row carries no label of its own —
+                the table's Team cell uses the same one glyph for the same one
+                fact, and the sentence naming the row it came from is in the
+                `title` on both faces. A card that printed the inherited name
+                bare would say this row is labelled when it is not.
+              */}
+              {team.state !== 'none' && (
+                <span
+                  data-card-team
+                  {...(team.state === 'inherited' ? { 'data-inherited': 'true' } : {})}
+                  title={
+                    team.state === 'inherited'
+                      ? `${team.name} — inherited from ${team.fromRow}. This row carries no team of its own.`
+                      : undefined
+                  }
+                >
+                  {team.state === 'unresolved'
+                    ? 'a team this plan has not loaded'
+                    : team.state === 'inherited'
+                      ? `↳ ${team.name}`
+                      : team.name}
+                </span>
+              )}
+              {/*
+                What the plan was asked to run this row at, where somebody asked
+                for more than one. Blank at 1, which is every row of every plan
+                nobody has widened — the column's own bargain, kept here so the
+                two faces read the same.
+
+                Muted and qualified where the number decides nothing: a parent
+                holds no slices of its own, and a row one person is named on
+                runs one at a time whatever this says (C1's D3). Both are facts
+                a reader of a bare `3` cannot get anywhere else on a phone.
+              */}
+              {row.maxParallel > 1 && (
+                <span data-card-parallel={inertParallel(row) ? 'inert' : 'live'}>
+                  {inertParallel(row)
+                    ? `${String(row.maxParallel)} at once (not applied)`
+                    : `${String(row.maxParallel)} at once`}
+                </span>
+              )}
             </p>
           </article>
         );

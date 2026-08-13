@@ -34,8 +34,21 @@ export class GanttDataError extends Error {
  * Structurally the same union as be-01's `ScheduleFloor` and deliberately
  * declared again here: this module knows nothing about fetching, and the
  * geometry's tests build slices by hand.
+ *
+ * `capacity` is the sixth and arrived with `capacity-engine`: the slice's
+ * **team** had no slot free, which is a different fact from a named person
+ * being busy (`person`) and is said in different words. be-01 has been sending
+ * it since that change merged; until this one it reached the `default:` below
+ * and threw the panel into its error boundary — the deploy gate
+ * `capacity-write-paths` recorded.
  */
-export type BindingFloor = 'projectStart' | 'predecessor' | 'roleOrder' | 'notBefore' | 'person';
+export type BindingFloor =
+  | 'projectStart'
+  | 'predecessor'
+  | 'roleOrder'
+  | 'notBefore'
+  | 'person'
+  | 'capacity';
 
 /**
  * The ten colours a person's bars are drawn in, handed out in this order.
@@ -70,6 +83,23 @@ export const PERSON_BAR_COLORS = [
  * eleventh one.
  */
 export const UNASSIGNED_BAR_COLOR = '#94a3b8';
+
+/**
+ * The colour every pool wait is drawn in — see {@link GanttCapacityLink}.
+ *
+ * **One colour for every team, deliberately.** The plan's words were "tinted
+ * from the team rather than the person", and the reading taken here is the
+ * literal one: not the assignee's colour. A palette *per team* was the other
+ * reading and is refused — it would hand teams the same ten hues people are
+ * drawn in, so a chart with kat's bars and Platform's waits on it would have
+ * two different facts in one colour, and the reader has no key to tell them
+ * apart. Which team is short of people is on the bar in words and in its hover
+ * sentence, where a name belongs.
+ *
+ * Outside {@link PERSON_BAR_COLORS} and outside {@link UNASSIGNED_BAR_COLOR}
+ * for that same reason.
+ */
+export const CAPACITY_LINK_COLOR = '#b45309';
 
 /**
  * A colour a bar can be painted: one of the ten, or the unassigned grey.
@@ -121,16 +151,25 @@ export function inkOn(barColor: BarColor): string {
 /**
  * The service team a work item is labelled with, as the chart can state it.
  *
- * Three states and not a `string | null`, because "nobody labelled this" and
+ * Four states and not a `string | null`, because "nobody labelled this" and
  * "the team read this client holds does not name that id" are different facts
  * and a blank says neither. The second is a **modeled** condition rather than a
  * broken payload: the teams come from the directory read and the label from the
  * tree read, two moments, and a team created between them is a stale lookup and
  * not a lost one.
+ *
+ * `inherited` is the fourth and is what makes the scheduler's rule readable:
+ * a leaf with no label of its own is scheduled on the **nearest ancestor's**
+ * team (`effectiveTeamOf` in `libs/domain`), so a bar can be held by a pool the
+ * row it sits on never named. It carries the ancestor it came from because
+ * every surface that shows an inherited label has to be able to say where it
+ * came from — "Platform — inherited from 010 Backend" is the sentence, and a
+ * boolean cannot say it.
  */
 export type ServiceTeamLabel =
   | { state: 'none' }
   | { state: 'named'; name: string }
+  | { state: 'inherited'; name: string; fromRow: string }
   | { state: 'unresolved' };
 
 /** The three points a role was estimated with, as the plan holds them. */
@@ -177,6 +216,17 @@ export interface GanttRow {
    * answer. Nothing here reads it as a position.
    */
   priority: number | null;
+  /**
+   * How many people this work item may have on it at once, as somebody typed
+   * it — 1 on every row nobody has told otherwise.
+   *
+   * The **stored** number, never the scheduled one: a named person collapses
+   * the width to 1 (D3) and a team's size clamps it, and the slice's own
+   * {@link GanttSlice.width} is what came out of both. The bar carries the two
+   * so it can say when they differ, which is the only way a reader learns that
+   * the number they typed did nothing.
+   */
+  maxParallel: number;
   /** The service team this work is labelled with, resolved against the directory read. */
   team: ServiceTeamLabel;
   /**
@@ -222,8 +272,47 @@ export interface GanttSlice {
   float: number;
   critical: boolean;
   boundBy: BindingFloor;
-  /** The slice this one's assignee was busy with, or null when nobody waited. */
+  /**
+   * The slice this one waited for, or null when it waited for nobody.
+   *
+   * Two floors put a slice here and the id means the same thing in both: the
+   * **display referent**, one placed slice this one had to wait on. Under
+   * `person` it is what the assignee was finishing; under `capacity` it is one
+   * of {@link GanttSlice.capacityPredecessorIds} — be-01 picks the latest
+   * finisher of the blocking set, and the whole set is carried beside it
+   * because "and 2 others" is a fact a single id cannot state.
+   */
   resourcePredecessorId: string | null;
+  /**
+   * How many of the team's slots this slice holds while it runs — 1 unless the
+   * plan says otherwise.
+   *
+   * The **effective** width be-01 scheduled with, already clamped to the
+   * team's size and already collapsed to 1 where a person is named: the number
+   * the dates were computed from, not the number somebody typed. What was
+   * typed is the work item's `maxParallel`, and the two differing is exactly
+   * what the bar's facts explain.
+   */
+  width: number;
+  /**
+   * How many days of work this slice is, before it was compressed across
+   * {@link GanttSlice.width} slots.
+   *
+   * `duration` is what the bar is drawn across — `effort / width` — and this is
+   * what was estimated. Carried rather than multiplied back out of the two:
+   * the engine divided in doubles and a chart that multiplied would print a
+   * number the plan does not hold.
+   */
+  effort: number;
+  /**
+   * Every placed slice that had to end for this one to fit its pool.
+   *
+   * Empty for every floor but `capacity`, and **never** empty under it: a
+   * slice held by a pool that nothing was holding is a payload that has lost
+   * the reason for its own date, and {@link layOutGantt} refuses it rather
+   * than drawing a sentence with a hole in it.
+   */
+  capacityPredecessorIds: readonly string[];
 }
 
 /** A stored dependency between two work items, either end of which may be a parent. */
@@ -360,6 +449,12 @@ export interface GanttBar {
   floorWords: string;
   /** The service team the work item is labelled with — see {@link GanttRow.team}. */
   team: ServiceTeamLabel;
+  /** How many of its team's slots this bar holds — see {@link GanttSlice.width}. */
+  width: number;
+  /** What the work item asks for, before the pool and the person had their say — see {@link GanttRow.maxParallel}. */
+  maxParallel: number;
+  /** The days of work this bar's `duration` is `effort / width` of — see {@link GanttSlice.effort}. */
+  effort: number;
   /**
    * The three points **this bar's own role** was estimated with, or null when
    * that role has no estimate on this work item.
@@ -435,6 +530,30 @@ export interface GanttPersonLink {
   personColor: BarColor;
 }
 
+/**
+ * One pool wait drawn: the slice whose finish freed the slots, to the slice
+ * that was waiting for them.
+ *
+ * A third kind of line and not a person link with a different colour: a person
+ * link says *this human was busy*, and this says *this team had nobody spare*.
+ * The two are drawn apart because a reader who cannot tell them apart cannot
+ * act on either — one is solved by hiring, the other by reassigning.
+ *
+ * Drawn from the **display referent** and never from the words: the sentence on
+ * the bar can name "and 2 others", and a line per blocker would be a fan of
+ * edges onto one start that no reader can follow.
+ */
+export interface GanttCapacityLink {
+  fromSliceId: string;
+  fromRowIndex: number;
+  /** Where the freeing slice begins — carried for {@link GanttDependencyArrow.fromStart}'s reason. */
+  fromStart: number;
+  fromFinish: number;
+  toSliceId: string;
+  toRowIndex: number;
+  toStart: number;
+}
+
 /** Where a row's manual start date holds, on the workday axis. */
 export interface GanttNotBeforeFlag {
   rowIndex: number;
@@ -451,6 +570,7 @@ export interface GanttGeometry {
   brackets: GanttSummaryBracket[];
   arrows: GanttDependencyArrow[];
   personLinks: GanttPersonLink[];
+  capacityLinks: GanttCapacityLink[];
   notBeforeFlags: GanttNotBeforeFlag[];
   /**
    * How far the schedule reaches, in workdays: the latest finish of anything
@@ -614,6 +734,20 @@ export interface PlacedPersonLink {
 }
 
 /**
+ * One pool wait as it is drawn. No colour of its own to carry: every capacity
+ * link on every chart is {@link CAPACITY_LINK_COLOR} — see there for why the
+ * team does not get a palette.
+ */
+export interface PlacedCapacityLink {
+  fromSliceId: string;
+  toSliceId: string;
+  fromRowIndex: number;
+  fromX: number;
+  toRowIndex: number;
+  toX: number;
+}
+
+/**
  * A not-before flag as it is drawn, and the workday it holds at.
  *
  * Both, because the mark and its words answer different questions: `x` is where
@@ -641,6 +775,7 @@ export interface PlacedGantt {
   brackets: PlacedBracket[];
   arrows: PlacedArrow[];
   personLinks: PlacedPersonLink[];
+  capacityLinks: PlacedCapacityLink[];
   notBeforeFlags: PlacedFlag[];
   /** How far the drawing reaches, in the unit the marks above are in. */
   horizon: number;
@@ -696,6 +831,14 @@ function placeGantt(chart: GanttGeometry, startOf: ReadOffset, endOf: ReadOffset
     toX: startOf(link.toStart),
     personColor: link.personColor,
   }));
+  const capacityLinks = chart.capacityLinks.map((link) => ({
+    fromSliceId: link.fromSliceId,
+    toSliceId: link.toSliceId,
+    fromRowIndex: link.fromRowIndex,
+    fromX: stopOf(link.fromStart, link.fromFinish),
+    toRowIndex: link.toRowIndex,
+    toX: startOf(link.toStart),
+  }));
   const notBeforeFlags = chart.notBeforeFlags.map((flag) => ({
     rowIndex: flag.rowIndex,
     x: startOf(flag.offset),
@@ -712,7 +855,16 @@ function placeGantt(chart: GanttGeometry, startOf: ReadOffset, endOf: ReadOffset
   for (const arrow of arrows) horizon = Math.max(horizon, arrow.fromX, arrow.toX);
   for (const flag of notBeforeFlags) horizon = Math.max(horizon, flag.x);
 
-  return { labels: chart.labels, bars, brackets, arrows, personLinks, notBeforeFlags, horizon };
+  return {
+    labels: chart.labels,
+    bars,
+    brackets,
+    arrows,
+    personLinks,
+    capacityLinks,
+    notBeforeFlags,
+    horizon,
+  };
 }
 
 /**
@@ -1005,7 +1157,7 @@ export function routeArrow(
  * itself, so it names the anchor instead, in the same shape as the sibling
  * below it.
  */
-const FLOOR_SENTENCE: Record<Exclude<BindingFloor, 'person'>, string> = {
+const FLOOR_SENTENCE: Record<Exclude<BindingFloor, 'person' | 'capacity'>, string> = {
   projectStart: 'Starts with the project',
   predecessor: 'Waits for a dependency’s first estimated role',
   roleOrder: 'Waits for an earlier role on this item',
@@ -1040,6 +1192,90 @@ function personFloorWords(
   return roleName === undefined
     ? `${person} — after ${workItemName}`
     : `${person} — after ${workItemName} (${roleName})`;
+}
+
+/**
+ * What this module calls a team the directory read does not hold yet.
+ *
+ * Word for word what `plan-cards.tsx` prints for the same state, and repeated
+ * rather than imported: the card and the bar are two surfaces of one skew and
+ * a reader who sees both should read the same sentence twice, but a value
+ * import from the geometry into the cards would tie a pure layout module to a
+ * component's copy for one string. If either moves, the other is a grep away.
+ */
+const STALE_TEAM_WORDS = 'a team this plan has not loaded';
+
+/**
+ * What a bar's pool sentence calls the team, or null where there is no team to
+ * call anything.
+ *
+ * The two nameless states are not the same fact and this is where they part.
+ * `unresolved` is the **modeled** skew {@link ServiceTeamLabel} describes — the
+ * label rides the tree read and the names ride the directory read, so a team
+ * created between the two is a stale lookup that the next read heals — and it
+ * degrades into words, the same words `plan-cards.tsx` prints and beside the
+ * export's `(unknown)`. `none` on a capacity-floored bar is a payload that has
+ * lost the label the pool was keyed on: be-01 floors on a team or not at all,
+ * so there is no team here to be short of, and the caller throws rather than
+ * inventing one.
+ *
+ * Proof: this arm returning `null` again for `unresolved`, so the caller's
+ * no-team throw catches it — `carries words for a team the directory read has
+ * not caught up with` and the panel's `still draws when the directory read has
+ * not caught up with the pool` failed, the second on `expected 'The chart
+ * cannot be drawn: slice seal…' to be null` against `GanttDataError: slice
+ * sealing::role-dev is floored by a team's capacity but its row names no team`.
+ * Watched 2026-08-13.
+ */
+function poolNameOf(team: ServiceTeamLabel): string | null {
+  switch (team.state) {
+    case 'named':
+    case 'inherited':
+      return team.name;
+    case 'unresolved':
+      return STALE_TEAM_WORDS;
+    case 'none':
+      return null;
+  }
+}
+
+/**
+ * The sentence a capacity-floored bar shows: whose people ran out, how many
+ * this slice needs, and which slice freeing them let it start.
+ *
+ * The **display referent** is named and the rest of the blocking set is
+ * counted: be-01 sends every reservation that had to end for this block to fit
+ * (`capacityPredecessorIds`) and picks the latest finisher of them as the id an
+ * arrow is drawn from. Naming one and counting the others is the honest
+ * reading of a disjunctive wait — "at least one of these had to move" — and a
+ * card listing five rows is a card nobody finishes.
+ *
+ * The referent's **row** may be collapsed away or narrowed off by a search,
+ * exactly as {@link personFloorWords}' can, and that absence is said in words
+ * rather than papered over.
+ */
+function capacityFloorWords(
+  team: string,
+  width: number,
+  referent: GanttSlice,
+  otherBlockers: number,
+  rowNames: ReadonlyMap<string, string>,
+  rolesById: ReadonlyMap<string, GanttRolePlace>,
+): string {
+  const people = width === 1 ? 'a person' : `${String(width)} people`;
+  const workItemName = rowNames.get(referent.workItemId);
+  const roleName = referent.roleId === null ? undefined : rolesById.get(referent.roleId)?.name;
+  const after =
+    workItemName === undefined
+      ? 'work that is not shown'
+      : roleName === undefined
+        ? workItemName
+        : `${workItemName} (${roleName})`;
+  // "and 2 others" and not "and 2 more blockers": the reader is being told how
+  // many other bars were holding the pool, and the count is of the set minus
+  // the one just named.
+  const others = otherBlockers === 0 ? '' : ` and ${String(otherBlockers)} others`;
+  return `Waits for ${team} to free ${people} — after ${after}${others}`;
 }
 
 /**
@@ -1223,8 +1459,15 @@ export function layOutGantt(plan: GanttPlan): GanttGeometry {
         roleName,
         personName,
         personColor: colorFor(slice.personId),
-        floorWords: floorWordsOf(slice, predecessor, personName, rowNames, rolesById),
+        floorWords: floorWordsOf(slice, predecessor, personName, row.team, rowNames, rolesById),
         team: row.team,
+        // The engine's own two numbers, carried rather than recomputed: the
+        // width the dates were placed with and the effort they were placed
+        // from. `duration` above is `effort / width` in be-01's doubles, and a
+        // division redone here would print a plan the tool does not hold.
+        width: slice.width,
+        maxParallel: row.maxParallel,
+        effort: slice.effort,
         // The bar's own role's trio. A slice under no role has no estimate to
         // look up rather than an empty one, which is the same absence said
         // once.
@@ -1257,6 +1500,35 @@ export function layOutGantt(plan: GanttPlan): GanttGeometry {
       // again: the line and the two ends it joins cannot be different colours
       // for the same person if only one of them decides.
       personColor: waiting.personColor,
+    });
+  }
+
+  /**
+   * The pool waits whose both ends are on the chart.
+   *
+   * The same shape as the loop above and the same skips, for the same reasons —
+   * a link onto a slice that is not drawn would run to a point on an empty row.
+   * What it is **not** is a second reading of the sentence: the id is
+   * `resourcePredecessorId`, which is be-01's own choice of display referent
+   * out of the blocking set, and the "and N others" on the hover is a count of
+   * a set no line is drawn for. One wait, one line.
+   */
+  const capacityLinks: GanttCapacityLink[] = [];
+  for (const slice of plan.slices) {
+    if (slice.boundBy !== 'capacity') continue;
+    const referent = predecessorOf.get(slice.id);
+    if (referent === undefined) continue;
+    const waiting = barBySliceId.get(slice.id);
+    const freeing = barBySliceId.get(referent.id);
+    if (waiting === undefined || freeing === undefined) continue;
+    capacityLinks.push({
+      fromSliceId: referent.id,
+      fromRowIndex: freeing.rowIndex,
+      fromStart: freeing.start,
+      fromFinish: freeing.finish,
+      toSliceId: slice.id,
+      toRowIndex: waiting.rowIndex,
+      toStart: waiting.start,
     });
   }
 
@@ -1366,7 +1638,7 @@ export function layOutGantt(plan: GanttPlan): GanttGeometry {
   for (const arrow of arrows) horizon = Math.max(horizon, arrow.fromFinish, arrow.toStart);
   for (const flag of notBeforeFlags) horizon = Math.max(horizon, flag.offset);
 
-  return { labels, bars, brackets, arrows, personLinks, notBeforeFlags, horizon };
+  return { labels, bars, brackets, arrows, personLinks, capacityLinks, notBeforeFlags, horizon };
 }
 
 /** One role as the drawing reads it: where it comes in the plan's order, and what it is called. */
@@ -1437,25 +1709,36 @@ function placeOf(slice: GanttSlice, rolesById: ReadonlyMap<string, GanttRolePlac
  *
  * A `switch` over the whole union rather than an index into
  * {@link FLOOR_SENTENCE}, and the difference is the `default`. `boundBy`
- * arrives on the wire: the type says five values because that is what be-01
- * sends **today**, and a sixth floor added there — a resource calendar, a
+ * arrives on the wire: the type says six values because that is what be-01
+ * sends **today**, and a seventh floor added there — a resource calendar, a
  * fixed date — reaches this module as a string the drawing has no words for.
  * Indexed, it produced `undefined`, and the bar's hover text ended on a bare
  * newline: the one thing the panel exists to say, silently missing. So an
  * unrecognised floor is malformed trusted data like every other broken promise
  * in this file, and it throws into the same error boundary.
  *
+ * The sixth — `capacity` — is the one this build learned last, and it is why
+ * `capacity-write-paths` could merge but not deploy: be-01 has been able to
+ * send it since a team could be given a size, and until this case existed the
+ * `default:` below took every such plan's chart into the error boundary.
+ *
  * @throws GanttDataError when a person-floored slice names no resource
  * predecessor. `boundBy: 'person'` means the assignee's last finish was
  * strictly the latest floor, so there is always a slice they were finishing;
  * a payload saying otherwise has lost the one fact the person link is drawn
  * from.
+ * @throws GanttDataError when a capacity-floored slice names no blocking set,
+ * no display referent, or no team. Each of the three is a fact the sentence is
+ * built from — whose pool, how full, and which finish let this in — and
+ * be-01's own invariant is that a capacity floor has all three
+ * (`schedule.ts`'s `boundBy: 'capacity'` ⟺ non-empty blocking set).
  * @throws GanttDataError on a floor this module does not know.
  */
 function floorWordsOf(
   slice: GanttSlice,
   predecessor: GanttSlice | undefined,
   personName: string | null,
+  team: ServiceTeamLabel,
   rowNames: ReadonlyMap<string, string>,
   rolesById: ReadonlyMap<string, GanttRolePlace>,
 ): string {
@@ -1465,6 +1748,61 @@ function floorWordsOf(
     case 'roleOrder':
     case 'notBefore':
       return FLOOR_SENTENCE[slice.boundBy];
+    case 'capacity': {
+      // The display referent, and the same refusal the person arm makes one
+      // case above: a bar whose date came from a wait names what it waited for,
+      // or the payload has lost the reason for its own start.
+      //
+      // Proof: this throw replaced by `return 'Waits for a team'`, `throws when
+      // a capacity floor names no display referent` alone failed, on `expected
+      // function to throw an error, but it didn't`. Watched 2026-08-13.
+      if (predecessor === undefined) {
+        throw new GanttDataError(
+          `slice ${slice.id} is floored by a team's capacity but names no display referent`,
+        );
+      }
+      // The whole blocking set, which the referent is one of. be-01 cannot
+      // produce a capacity floor with an empty set — the floor is only reached
+      // by a scan that recorded who was holding the pool — so an empty one here
+      // is malformed trusted data, and `?? 0` in its place would print "and 0
+      // others" over a sentence with no cause behind it.
+      //
+      // Proof: this throw deleted and the count clamped with `Math.max(0, …)`
+      // in its place — the shape a defensive fix would take — `throws when a
+      // capacity floor says nothing was holding the pool` alone failed, on
+      // `expected function to throw an error, but it didn't`. Watched
+      // 2026-08-13.
+      if (slice.capacityPredecessorIds.length === 0) {
+        throw new GanttDataError(
+          `slice ${slice.id} is floored by a team's capacity but nothing was holding the pool`,
+        );
+      }
+      // `null` here is `none` alone — the label the pool was keyed on is gone
+      // from a payload that could only have been floored on one, which is the
+      // wire having lost half of what it sent. The other nameless state,
+      // `unresolved`, is a skew that heals and {@link poolNameOf} gives it
+      // words instead.
+      //
+      // Proof: this throw replaced by `poolNameOf(team) ?? 'its team'`, `throws
+      // when a capacity-floored row names no team to be short of` alone failed,
+      // on `expected function to throw an error, but it didn't` — a sentence
+      // about a pool the chart cannot name, over a bar whose whole explanation
+      // is whose people it is short of. Watched 2026-08-13.
+      const poolName = poolNameOf(team);
+      if (poolName === null) {
+        throw new GanttDataError(
+          `slice ${slice.id} is floored by a team's capacity but its row names no team`,
+        );
+      }
+      return capacityFloorWords(
+        poolName,
+        slice.width,
+        predecessor,
+        slice.capacityPredecessorIds.length - 1,
+        rowNames,
+        rolesById,
+      );
+    }
     case 'person': {
       // Proof: this throw replaced by `return 'Waits for a person'`, `throws
       // when a person floor names no resource predecessor` failed; watched
@@ -1485,8 +1823,8 @@ function floorWordsOf(
       return personFloorWords(personName, predecessor, rowNames, rolesById);
     }
     default: {
-      // `never` here is the type saying the five above are all of them; the
-      // throw is for the runtime, where a payload can carry a sixth.
+      // `never` here is the type saying the six above are all of them; the
+      // throw is for the runtime, where a payload can carry a seventh.
       //
       // Proof: this `default` replaced by
       // `return FLOOR_SENTENCE[slice.boundBy as Exclude<BindingFloor, 'person'>]`

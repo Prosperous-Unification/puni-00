@@ -249,6 +249,11 @@ function fakeApi(): ProjectApi & {
             ...scheduleOf(r),
             boundBy: 'projectStart' as const,
             resourcePredecessorId: null,
+            // One at a time and nothing holding a pool, which is every plan
+            // this fake stands in for.
+            width: 1,
+            effort: scheduleOf(r).duration,
+            capacityPredecessorIds: [],
           })),
         // On the read that carried the slices, as be-01 sends them: the chart
         // reads its roles and its names from here and not from the separate
@@ -365,6 +370,9 @@ function fakeApi(): ProjectApi & {
         notes: '',
         frozenNumber: null,
         priority: null,
+        // One at a time, which is be-01's `NOT NULL DEFAULT 1` — never absent,
+        // because 1 and unset are the same fact.
+        maxParallel: 1,
         startNoEarlierThan: null,
         serviceTeamId: null,
         assignees: {},
@@ -390,7 +398,14 @@ function fakeApi(): ProjectApi & {
     },
     patch(id, patch) {
       const row = rows.find((r) => r.id === id);
-      if (row !== undefined) Object.assign(row, patch);
+      // `maxParallel: null` is a **reset to 1** and not a clear, which is
+      // be-01's own normalisation (`capacity-write-paths`, slice 1.3) rather
+      // than this fake's convenience: the column is NOT NULL, and a fake that
+      // stored the null would let the table pass a test against a row shape
+      // be-01 can never send.
+      const written =
+        'maxParallel' in patch && patch.maxParallel === null ? { ...patch, maxParallel: 1 } : patch;
+      if (row !== undefined) Object.assign(row, written);
       return Promise.resolve();
     },
     move(id, parentId, afterId) {
@@ -2027,6 +2042,275 @@ describe('the priority cell', () => {
     await waitFor(() => {
       expect(refusedDraftFor(priorityCellKey('010'))).toBeUndefined();
     });
+  });
+});
+
+describe('the In-parallel cell', () => {
+  /** Two empty root rows, and the api the table is driving. */
+  async function twoRows() {
+    const api = fakeApi();
+    render(<WbsTable projectId="p1" api={api} />);
+    click('Add work item');
+    await screen.findByLabelText('Name of 010');
+    click('Add work item');
+    await screen.findByLabelText('Name of 020');
+    return api;
+  }
+
+  /** Every PATCH the table sends, still performed. */
+  const watchPatches = (api: ProjectApi): unknown[] => {
+    const seen: unknown[] = [];
+    const perform = api.patch.bind(api);
+    api.patch = (id: string, patch: Record<string, unknown>) => {
+      seen.push(patch);
+      return perform(id, patch);
+    };
+    return seen;
+  };
+
+  const parallelCell = (number: string): HTMLInputElement =>
+    screen.getByLabelText<HTMLInputElement>(`People at once for ${number}`);
+
+  /** Types into the cell and leaves it, which is when a `CellInput` commits. */
+  const typeIntoParallel = (number: string, text: string): void => {
+    const cell = parallelCell(number);
+    fireEvent.focus(cell);
+    fireEvent.change(cell, { target: { value: text } });
+    fireEvent.blur(cell);
+  };
+
+  itDom('is blank on every row of a plan nobody has widened', async () => {
+    // Blank and not `1`, which is what the column stores for every row of every
+    // plan: a column of ones down the table is furniture, and the Prio column
+    // one place back makes the same bargain for the same reason.
+    await twoRows();
+
+    for (const number of ['010', '020']) {
+      expect(parallelCell(number).value).toBe('');
+    }
+  });
+
+  itDom('sends what was typed and shows what came back', async () => {
+    const api = await twoRows();
+    const patched = watchPatches(api);
+
+    typeIntoParallel('010', '3');
+
+    await waitFor(() => {
+      expect(patched).toEqual([{ maxParallel: 3 }]);
+    });
+    await waitFor(() => {
+      expect(parallelCell('010').value).toBe('3');
+    });
+    // And the row beside it is untouched — one cell's write is one row's.
+    expect(parallelCell('020').value).toBe('');
+  });
+
+  itDom(
+    'resets to one at a time when the cell is emptied, rather than sending a zero',
+    async () => {
+      // `Number('')` is 0, and a width of 0 is a duration of `Infinity` — the
+      // fault `capacity-write-paths` refuses 400 and `capacity-engine` throws on.
+      // An emptied box plainly means one at a time, and `null` is how be-01
+      // spells that.
+      const api = await twoRows();
+      const patched = watchPatches(api);
+
+      typeIntoParallel('010', '4');
+      await waitFor(() => {
+        expect(patched).toEqual([{ maxParallel: 4 }]);
+      });
+
+      typeIntoParallel('010', '');
+      await waitFor(() => {
+        expect(patched).toEqual([{ maxParallel: 4 }, { maxParallel: null }]);
+      });
+      // Back to blank, because 1 renders as nothing.
+      await waitFor(() => {
+        expect(parallelCell('010').value).toBe('');
+      });
+    },
+  );
+
+  itDom('sends a number be-01 will refuse rather than deciding for it', async () => {
+    // The rule about what a parallelism may be lives at be-01's boundary
+    // (`capacity-write-paths`), and a second copy here is a rule free to
+    // disagree with it — the Prio cell's own bargain, one column back.
+    const api = await twoRows();
+    const patched = watchPatches(api);
+
+    typeIntoParallel('010', '0');
+    await waitFor(() => {
+      expect(patched).toEqual([{ maxParallel: 0 }]);
+    });
+
+    typeIntoParallel('010', '1001');
+    await waitFor(() => {
+      expect(patched).toEqual([{ maxParallel: 0 }, { maxParallel: 1001 }]);
+    });
+  });
+
+  /**
+   * Two rows over an api that answers every parallelism with one of be-01's
+   * own words — the half of "send it and let be-01 answer" that nothing in this
+   * file exercised: the test above asserts only that the number was **sent**.
+   */
+  async function twoRowsRefusing(code: string): Promise<void> {
+    const api = fakeApi();
+    const perform = api.patch.bind(api);
+    api.patch = (id: string, patch: Record<string, unknown>) =>
+      'maxParallel' in patch ? Promise.reject(new Error(code)) : perform(id, patch);
+    render(<WbsTable projectId="p1" api={api} />);
+    click('Add work item');
+    await screen.findByLabelText('Name of 010');
+  }
+
+  itDom('says what a parallelism may be when be-01 refuses one', async () => {
+    // Proof: the `maxParallel_must_be_a_whole_number_from_1` entry struck from
+    // `REFUSAL_SENTENCES`, so the grammatical fallback carries the code. This
+    // failed on `expected [ 'That change could not be completed
+    // (maxParallel_must_be_a_whole_number_from_1).' ] to contain 'People at
+    // once is a whole number of 1 or more…'` — the wire code in the corner of
+    // the screen, which is the defect `not_found` and `http_500` were fixed for
+    // on 2026-08-09 and the sibling size box avoids one screen away. Watched
+    // 2026-08-13.
+    await twoRowsRefusing('maxParallel_must_be_a_whole_number_from_1');
+
+    typeIntoParallel('010', '0');
+
+    await waitFor(() => {
+      expect(toastTexts()).toContain(
+        'People at once is a whole number of 1 or more. Empty the cell for one at a time.',
+      );
+    });
+  });
+
+  itDom('reads the ceiling out of be-01’s own word for it', async () => {
+    // The limit is spelled into the code from be-01's `MOST_PEOPLE_AT_ONCE`, so
+    // the sentence is built from what arrived rather than from a second copy of
+    // 1000 here — `wbs-api.ts`'s bargain for the size box, for its reason.
+    //
+    // Proof: the prefix arm deleted. This failed on `expected [ 'That change
+    // could not be completed (maxParallel_must_be_at_most_1000).' ] to contain
+    // 'People at once is at most 1000.'`. Watched 2026-08-13.
+    await twoRowsRefusing('maxParallel_must_be_at_most_1000');
+
+    typeIntoParallel('010', '1001');
+
+    await waitFor(() => {
+      expect(toastTexts()).toContain('People at once is at most 1000.');
+    });
+  });
+
+  itDom('says why a parent’s parallelism was refused, in the tree’s words', async () => {
+    // `has_children` is be-01's, and it is only reachable through this cell:
+    // the cell is read-only on every parent, so this is the row that gained a
+    // child while the draft was open.
+    //
+    // Proof: the `has_children` entry struck. This failed on `expected [ 'That
+    // change could not be completed (has_children).' ] to contain 'A row with
+    // work under it…'`. Watched 2026-08-13.
+    await twoRowsRefusing('has_children');
+
+    typeIntoParallel('010', '3');
+
+    await waitFor(() => {
+      expect(toastTexts()).toContain(
+        'A row with work under it runs no people of its own — set People at once on the rows beneath it.',
+      );
+    });
+  });
+
+  itDom('refuses a draft JSON cannot carry, rather than silently resetting the row', async () => {
+    // `Number('1e999')` is `Infinity`, which `JSON.stringify` writes as `null`
+    // — and `null` here is the **reset to one at a time**. A typed `1e999`
+    // reaching be-01 would quietly put a widened row back to 1 while looking
+    // like a refusal.
+    //
+    // Proof: the `Number.isFinite` guard deleted, watched failing on `Unable to
+    // find an element with the text: /People at once is a whole number from 1
+    // to 1000./` — nothing refused, and the `expect(patched).toEqual([])` below
+    // it is what says where the draft went instead. Watched 2026-08-13.
+    const api = await twoRows();
+    const patched = watchPatches(api);
+
+    typeIntoParallel('010', '1e999');
+
+    await waitFor(() => {
+      expect(screen.getByText(/People at once is a whole number from 1 to 1000\./)).toBeDefined();
+    });
+    expect(patched).toEqual([]);
+
+    // Abandoning the draft keeps this test's refusal out of the next one's map.
+    typeIntoParallel('010', '');
+  });
+
+  itDom('sends on Enter, without waiting for the cell to be left', async () => {
+    const api = await twoRows();
+    const patched = watchPatches(api);
+
+    const cell = parallelCell('010');
+    cell.focus();
+    fireEvent.change(cell, { target: { value: '2' } });
+    fireEvent.keyDown(cell, { key: 'Enter' });
+
+    await waitFor(() => {
+      expect(patched).toEqual([{ maxParallel: 2 }]);
+    });
+    expect(document.activeElement).toBe(parallelCell('010'));
+  });
+
+  itDom('is printed and not editable on a row with children', async () => {
+    // A parent holds no slices of its own, so `slicesOf` skips it and a number
+    // on it schedules nothing — be-01 answers 400 `has_children`. The cell is
+    // read-only rather than offering an edit that is refused, and it still
+    // shows the inert number a leaf was given before it gained a child, which
+    // is the state `capacity-write-paths` deliberately leaves standing.
+    await twoRows();
+    typeIntoParallel('010', '3');
+    await waitFor(() => {
+      expect(parallelCell('010').value).toBe('3');
+    });
+
+    // 020 goes under 010, which makes 010 a parent.
+    pressTab('020');
+    await waitFor(() => {
+      expect(screen.queryByLabelText('Name of 010.1')).not.toBeNull();
+    });
+
+    await waitFor(() => {
+      expect(screen.queryByLabelText('People at once for 010')).toBeNull();
+    });
+    const printed = screen.getByTitle(/holds no work of its own/);
+    expect(printed.textContent).toBe('3');
+  });
+
+  itDom('says a number is not applied where one person is named on the work', async () => {
+    // C1's D3: one human cannot work beside themselves, so a named assignee
+    // collapses the item to width 1 whatever the column says. The number is
+    // still stored and applies the moment the assignment goes, so it is shown
+    // and qualified rather than hidden.
+    await twoRows();
+    typeIntoParallel('010', '3');
+    await waitFor(() => {
+      expect(parallelCell('010').value).toBe('3');
+    });
+    expect(parallelCell('010').title).toContain('effort is compressed');
+
+    // The assignee box lives in the unfolded role, which is where somebody
+    // names a person on the work.
+    unfoldRole('Dev');
+    const picker = await screen.findByLabelText('Dev assignee for 010');
+    fireEvent.focus(picker);
+    fireEvent.change(picker, { target: { value: 'Kat' } });
+    fireEvent.keyDown(picker, { key: 'Enter' });
+
+    await waitFor(() => {
+      expect(parallelCell('010').title).toContain('one at a time whatever this says');
+    });
+    // Still 3 on screen: it is what is stored, and it is what comes back the
+    // day the assignment goes.
+    expect(parallelCell('010').value).toBe('3');
   });
 });
 
@@ -5249,6 +5533,7 @@ describe('Tab moves between the fields, from every cell', () => {
       'Add a dependency to 010',
       'Priority for 010',
       'Service or team for 010',
+      'People at once for 010',
       'Dev optimistic for 010',
       'Dev realistic for 010',
       'Dev pessimistic for 010',
@@ -6699,6 +6984,9 @@ describe('dependencies in the table — cross-review findings', () => {
                   critical: false,
                   boundBy: 'projectStart' as const,
                   resourcePredecessorId: null,
+                  width: 1,
+                  effort: 7,
+                  capacityPredecessorIds: [],
                   ...schedule,
                 },
               ],
@@ -7141,6 +7429,9 @@ describe('the chart under a plan being edited', () => {
               personId: null,
               boundBy: 'projectStart' as const,
               resourcePredecessorId: null,
+              width: 1,
+              effort: 3,
+              capacityPredecessorIds: [],
               ...scheduleNow(),
             },
           ],
@@ -10992,8 +11283,10 @@ describe('the chords reach the picker cells and the date cell', () => {
     const back = await openTeam('020');
     chord(back, 'l', { ctrl: true });
 
+    // The In-parallel cell, which `capacity-ui` put between the team and the
+    // first role: the chord goes to the next cell of the row, whatever that is.
     await waitFor(() => {
-      expect(document.activeElement).toBe(screen.getByLabelText('Dev optimistic for 020'));
+      expect(document.activeElement).toBe(screen.getByLabelText('People at once for 020'));
     });
   });
 

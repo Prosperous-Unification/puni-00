@@ -153,8 +153,20 @@ export const DAY_ENVELOPE = '20 May 2027 ?';
  * `29 Sep` on two lines and `29 Sep 2027` on three. The `title` still carries
  * the full `YYYY-MM-DD`, so the shortening costs nothing and the widening buys
  * a row that is one line tall.
+ *
+ * **114 → 98 in `capacity-ui`**, and it is the re-measurement
+ * `spreadsheet-geometry` left open rather than a preference: 114 was picked in
+ * a 16px grid, that change took the body type to 13px, and the same envelope
+ * was then measured at 94.02px in Chromium on h2puni (86.02 of text and 8 of
+ * chrome) — recorded in `e2e/layout.spec.ts` beside the assertion, with the
+ * columns deliberately left over-wide because narrowing them was that change's
+ * non-goal. This change is what needs the room: the In-parallel column is 32px
+ * and the folded table has none to spare at 1280, so the 32 comes out of the
+ * 40px of measured slack across these two rather than out of a column that has
+ * none. `is as wide as the widest day the formatter can print` is the browser
+ * that judges it, and it clears the envelope by 3.98px.
  */
-const DATE_COLUMN_WIDTH = 114;
+const DATE_COLUMN_WIDTH = 98;
 
 /**
  * Every column whose width is the same on every plan, by fixed id, in px.
@@ -198,6 +210,18 @@ const COLUMN_WIDTHS = new Map<string, number>([
   // whole header row two lines tall.
   ['priority', 48],
   ['team', 120],
+  // People at once, and this is the tightest column in the table: `∥` for a
+  // heading and three digits of value, right-aligned. 32px is 24px of glyph
+  // room plus the 8px of padding the declared width includes — enough for
+  // `999` at the grid's 13px type. The ceiling is 1000, and a four-digit
+  // parallelism is a number nobody plans with: it renders clipped and its
+  // `title` says it whole, which is the same bargain the Number column makes
+  // with a deep row.
+  //
+  // It is 32 and not the 48 the plan drew because the table has 1280px to fit
+  // with two roles folded and C0 measured a 48px column overflowing it by
+  // 19px. See `openspec/changes/capacity-ui/design.md`.
+  ['in-parallel', 32],
   ['final-total', 52],
   // Both date columns at one width; see {@link DAY_ENVELOPE} for what that
   // width holds and which browser picked it.
