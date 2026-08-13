@@ -28,6 +28,16 @@ import { project, projectTeamCapacity, serviceTeam } from './schema';
  * project, `answers one project's own numbers, and never another's` failed on the
  * second project's map — it was handed the first's. Two more tests went with it.
  * Watched 2026-08-13.
+ *
+ * Proof against the **other** shape of the same mistake, which is the one a
+ * maintainer writes: the per-project read kept and `serviceTeam.size` added
+ * behind it for pairs with no row — D1's rejected "override in front of the
+ * global number". That injection left all 693 be-01 tests green until
+ * `never falls back to a globally sized team nobody stated per project` was
+ * written for it; it now fails on `Expected: false / Received: true`. Watched
+ * 2026-08-13. The difference between the two is worth holding: the replacement
+ * disagrees with the seeding on day two, the addition agrees with everything
+ * until somebody makes a project.
  */
 export class CapacityRepository implements CapacityStore {
   constructor(private readonly db: SQLiteBunDatabase) {}

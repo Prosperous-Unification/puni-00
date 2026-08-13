@@ -62,8 +62,10 @@ describe('a project’s capacity for a team', () => {
     const directory = new DirectoryRepository(db);
     // Both created unsized, because a global size is read by nothing now — and a
     // fixture that seeded one would be handing the fallback a way to look right.
-    await directory.addTeam({ id: 't-platform', name: 'Platform', size: null });
-    await directory.addTeam({ id: 't-backend', name: 'Backend', size: null });
+    // `addTeam` has no size to give them any more; the one test below that needs
+    // a number in that column writes it as SQL, on purpose.
+    await directory.addTeam({ id: 't-platform', name: 'Platform' });
+    await directory.addTeam({ id: 't-backend', name: 'Backend' });
   });
 
   afterEach(() => {
@@ -89,6 +91,42 @@ describe('a project’s capacity for a team', () => {
       ]),
     );
     expect(await capacity.slotsFor('p2')).toEqual(new Map([['t-platform', 5]]));
+  });
+
+  it('never falls back to a globally sized team nobody stated per project', async () => {
+    // **Dany's second sentence, and the one fault the rest of this file cannot
+    // see.** The test above refuses the *replacement* — `slotsFor` reading
+    // `service_team.size` instead of the per-project row. The fault a maintainer
+    // actually writes is the *addition*: keep the per-project read and fall back
+    // to the global number for a pair with no row, which is the design D1
+    // rejects by name and the first thing anybody proposes the day a new
+    // project schedules unconstrained.
+    //
+    // Every other fixture in this suite creates its teams unsized on purpose, so
+    // a fallback to a `NULL` adds nothing to the map and the whole suite stays
+    // green with it in. That care is exactly what makes the gap: the number has
+    // to be written into the retired column for the fallback to have anything to
+    // reach for, and this is the only test that writes one.
+    //
+    // Proof, and the reason this test exists: the fallback put back in
+    // `slotsFor` — the per-project rows, then `serviceTeam.size` for every pair
+    // without one — left **693 pass, 0 fail** across the whole of be-01 while
+    // this test was missing. With it the same injection is **695 pass, 1 fail**
+    // and the one is this: `expect(received).toBe(expected) / Expected: false /
+    // Received: true`, on a team `p1` never stated. Watched 2026-08-13.
+    sqlite.run("UPDATE service_team SET size = 7 WHERE id = 't-platform'");
+    await capacity.set('p1', 't-backend', 3);
+
+    const slots = await capacity.slotsFor('p1');
+
+    // Stated for nothing on this plan, so absent — not 7, and not present as a
+    // `null` either.
+    expect(slots.has('t-platform')).toBe(false);
+    expect(slots).toEqual(new Map([['t-backend', 3]]));
+    // And a project that has stated nothing at all is bounded by nothing at all,
+    // which is D1 case 2 said as a map: a plan created after the migration is
+    // unconstrained rather than quietly inheriting numbers nobody typed for it.
+    expect(await capacity.slotsFor('p2')).toEqual(new Map());
   });
 
   it('leaves a team it has stated nothing about out of the map entirely', async () => {
