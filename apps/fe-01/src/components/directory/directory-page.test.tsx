@@ -31,12 +31,13 @@ vi.mock('@/lib/project-stream', () => ({
 
 const subscribed = vi.mocked(subscribeToProject);
 
-// `size: null` is **unstated** — nobody has counted this team, and its work is
-// bound by nothing. That is the state every team on every deployment was in
-// before `capacity-engine`, and it is deliberately not the same fact as 1.
-const PLATFORM: TeamView = { id: 't1', name: 'Platform', size: null };
-const PAYMENTS: TeamView = { id: 't2', name: 'Payments', size: null };
-const DESIGN: TeamView = { id: 't3', name: 'Design', size: null };
+// A name and an id, which is the whole of a team on this page since
+// `capacity-per-project`: how many of them are at work at once is stated per
+// plan, in the plan's own `Teams` dialog, and the retired global column is not
+// sent by be-01 at all.
+const PLATFORM: TeamView = { id: 't1', name: 'Platform' };
+const PAYMENTS: TeamView = { id: 't2', name: 'Payments' };
+const DESIGN: TeamView = { id: 't3', name: 'Design' };
 
 /**
  * A `DirectoryApi` over an in-memory directory, with every call recorded.
@@ -52,12 +53,8 @@ function fakeDirectory(
   reads: number;
   patched: { id: string; patch: { name?: string; teamIds?: readonly string[] } }[];
   removals: [string, boolean][];
-  /** Every size write the page sent, in order — `[teamId, size]`, `null` for a clear. */
-  resized: [string, number | null][];
   added: string[];
   refusePatchWith: (refusal: DirectoryWrite<PersonView> | Error | null) => void;
-  /** What the next size write throws, which is how be-01's 400 arrives at this page. */
-  refuseSizeWith: (refusal: Error | null) => void;
   refuseRemovalWith: (usage: DirectoryUsage | null) => void;
   put: (next: PersonView[]) => void;
   holdWrites: () => void;
@@ -66,7 +63,6 @@ function fakeDirectory(
   let held = [...people];
   let heldTeams = [...teams];
   let patchRefusal: DirectoryWrite<PersonView> | Error | null = null;
-  let sizeRefusal: Error | null = null;
   let removalUsage: DirectoryUsage | null = null;
   /**
    * A patch left in flight until the test says otherwise.
@@ -93,13 +89,9 @@ function fakeDirectory(
     reads: 0,
     patched: [] as { id: string; patch: { name?: string; teamIds?: readonly string[] } }[],
     removals: [] as [string, boolean][],
-    resized: [] as [string, number | null][],
     added: [] as string[],
     refusePatchWith(refusal: DirectoryWrite<PersonView> | Error | null) {
       patchRefusal = refusal;
-    },
-    refuseSizeWith(refusal: Error | null) {
-      sizeRefusal = refusal;
     },
     refuseRemovalWith(usage: DirectoryUsage | null) {
       removalUsage = usage;
@@ -122,7 +114,7 @@ function fakeDirectory(
       api.added.push(name);
       // Unstated, which is `addTeam`'s own rule in be-01: a new team is not a
       // team of one, and a default of 1 would serialise every plan it labels.
-      const team = { id: `t${String(heldTeams.length + 1)}`, name, size: null };
+      const team = { id: `t${String(heldTeams.length + 1)}`, name };
       heldTeams = [...heldTeams, team];
       return Promise.resolve(team);
     },
@@ -143,14 +135,6 @@ function fakeDirectory(
       const written = held.find((person) => person.id === id);
       if (written === undefined) throw new Error('not_found');
       return { ok: true as const, entry: written };
-    },
-    resizeTeam(id: string, size: number | null) {
-      api.resized.push([id, size]);
-      if (sizeRefusal instanceof Error) return Promise.reject(sizeRefusal);
-      heldTeams = heldTeams.map((team) => (team.id === id ? { ...team, size } : team));
-      const written = heldTeams.find((team) => team.id === id);
-      if (written === undefined) return Promise.reject(new Error('not_found'));
-      return Promise.resolve({ ok: true as const, entry: written });
     },
     renameTeam(id: string, name: string) {
       heldTeams = heldTeams.map((team) => (team.id === id ? { ...team, name } : team));
@@ -435,11 +419,13 @@ describe('the directory page re-reads', () => {
    * what is on screen back on it, with nothing guaranteed to arrive afterwards
    * and repair it.
    *
-   * Worse here than on the project page it is borrowed from: `commitSize`
-   * short-circuits on `asNumber === team.size`, so typing the number a stale
-   * screen already shows sends **nothing** — the box looks committed while
-   * be-01 still holds the other value, and every date in every plan that team
-   * labels stays where it was. C3's cross-review, P2-3.
+   * C3's cross-review found it through a sharper case than a stale name:
+   * `commitSize` short-circuited on `asNumber === team.size`, so typing the
+   * number a stale screen already showed sent **nothing**. That box is on the
+   * plan now (`capacity-per-project`, D5) and the short-circuit went with it, so
+   * what is left here is the stale-name hazard — which is enough on its own, and
+   * all three call sites are still ungated without the guard. C3's cross-review,
+   * P2-3.
    */
   itDom('and only the newest read may write the screen', async () => {
     const api = fakeDirectory([KAT], [PLATFORM]);
@@ -789,164 +775,35 @@ describe('creating on the directory page', () => {
 });
 
 describe('how many of a team are at work at once', () => {
-  const sizeBox = (team: string): HTMLInputElement =>
-    screen.getByLabelText<HTMLInputElement>(`How many of ${team} at once`);
-
-  /** Types into the box and leaves it, which is when the page commits. */
-  const typeSize = (team: string, text: string): void => {
-    const box = sizeBox(team);
-    fireEvent.change(box, { target: { value: text } });
-    fireEvent.blur(box);
-  };
-
-  itDom('is empty for a team nobody has counted, and says what that means', async () => {
-    // Empty is **unstated**, not one. Every team created before capacity
-    // existed is in this state, and it constrains no schedule at all — the
-    // page says so in the box's own title rather than showing a number nobody
-    // wrote.
-    pageWith(fakeDirectory([KAT], [PLATFORM]));
-    await drawn('Kat');
-
-    expect(sizeBox('Platform').value).toBe('');
-    expect(sizeBox('Platform').title).toContain('not limited');
-  });
-
-  itDom('sends the number typed, and shows what came back', async () => {
-    const api = fakeDirectory([KAT], [PLATFORM]);
-    pageWith(api);
-    await drawn('Kat');
-
-    typeSize('Platform', '4');
-
-    await waitFor(() => {
-      expect(api.resized).toEqual([['t1', 4]]);
-    });
-    await waitFor(() => {
-      expect(sizeBox('Platform').value).toBe('4');
-    });
-    expect(sizeBox('Platform').title).toContain('At most 4 of Platform');
-  });
-
-  itDom('clears to unstated when the box is emptied, rather than sending a zero', async () => {
-    // `Number('')` is 0, and a pool of 0 slots is a schedule of infinite dates
-    // — the fault `capacity-write-paths` refuses 400 on and the engine throws
-    // on. An emptied box plainly means "nobody has counted them", and `null` is
-    // how be-01 spells that.
+  itDom('is not asked here at all, because the number is one plan’s', async () => {
+    // C3 put a size box on this page, beside each team's name, and that was right
+    // for a global number: the directory is the global page. Dany's call on
+    // 2026-08-13 — "The global number should not matter, only per project capacity
+    // configuration matters" — made the number a **plan's**, and this page has no
+    // plan. So the box is gone rather than disabled or left showing a number from
+    // somewhere: a control that writes a value no schedule reads is worse than no
+    // control at all. `capacity-per-project`'s design.md D4 and D5, and the box
+    // itself is `components/wbs/teams-dialog.tsx`.
     //
-    // Proof: the empty-box arm replaced by the plain `Number(typed)`, watched
-    // failing on `expected [ [ 't1', 4 ], [ 't1', +0 ] ] to deeply equal
-    // [ [ 't1', 4 ], [ 't1', null ] ]` — the page asking for a team of nobody.
-    // Watched 2026-08-13.
-    const api = fakeDirectory([KAT], [PLATFORM]);
-    pageWith(api);
-    await drawn('Kat');
-
-    typeSize('Platform', '4');
-    await waitFor(() => {
-      expect(api.resized).toEqual([['t1', 4]]);
-    });
-
-    typeSize('Platform', '');
-    await waitFor(() => {
-      expect(api.resized).toEqual([
-        ['t1', 4],
-        ['t1', null],
-      ]);
-    });
-    await waitFor(() => {
-      expect(sizeBox('Platform').value).toBe('');
-    });
-  });
-
-  itDom('sends nothing when an untouched empty box is left', async () => {
-    // Tabbing across the panel is not a write. An unstated team blurred still
-    // unstated has said nothing, and a `null` sent here would be a directory
-    // event and a refetch on every project the team labels, for nothing.
-    const api = fakeDirectory([KAT], [PLATFORM]);
-    pageWith(api);
-    await drawn('Kat');
-
-    fireEvent.focus(sizeBox('Platform'));
-    fireEvent.blur(sizeBox('Platform'));
-
-    expect(api.resized).toEqual([]);
-  });
-
-  itDom('sends a number be-01 will refuse rather than deciding for it', async () => {
-    // The rule about what a size may be lives at be-01's boundary
-    // (`capacity-write-paths`), and a second copy in this box is a rule free to
-    // disagree with it.
-    const api = fakeDirectory([KAT], [PLATFORM]);
-    pageWith(api);
-    await drawn('Kat');
-
-    typeSize('Platform', '0');
-    await waitFor(() => {
-      expect(api.resized).toEqual([['t1', 0]]);
-    });
-  });
-
-  itDom('refuses a draft JSON cannot carry, rather than silently unstating the team', async () => {
-    // `Number('1e999')` is `Infinity`, which `JSON.stringify` writes as `null`
-    // — and `null` here is the **clear**. A typed `1e999` reaching be-01 would
-    // quietly unstate a sized team while looking like a refusal.
-    const api = fakeDirectory([KAT], [PLATFORM]);
-    pageWith(api);
-    await drawn('Kat');
-
-    typeSize('Platform', '1e999');
-
-    await waitFor(() => {
-      expect(screen.getByRole('alert').textContent).toContain('whole number of 1 or more');
-    });
-    expect(api.resized).toEqual([]);
-  });
-
-  itDom('says what be-01 refused, in words about a team rather than a wire code', async () => {
-    const api = fakeDirectory([KAT], [PLATFORM]);
-    pageWith(api);
-    await drawn('Kat');
-
-    api.refuseSizeWith(new Error('size_must_be_at_most_1000'));
-    typeSize('Platform', '1001');
-
-    await waitFor(() => {
-      expect(screen.getByRole('alert').textContent).toBe('A team size is at most 1000.');
-    });
-  });
-
-  itDom('takes Escape as abandoning the draft, sending nothing', async () => {
-    const api = fakeDirectory([KAT], [PLATFORM]);
-    pageWith(api);
-    await drawn('Kat');
-
-    fireEvent.change(sizeBox('Platform'), { target: { value: '9' } });
-    fireEvent.keyDown(sizeBox('Platform'), { key: 'Escape' });
-
-    await waitFor(() => {
-      expect(sizeBox('Platform').value).toBe('');
-    });
-    expect(api.resized).toEqual([]);
-  });
-
-  itDom('keeps a half-typed size when the name beside it is escaped', async () => {
-    // Two boxes on one row commit to two routes, so one record each: a name's
-    // Escape throwing a size away would lose a number nobody had sent yet.
+    // The whole of C3's block about the box moved with it — 160 lines, including
+    // both of its watched negatives — and is in `teams-dialog.test.tsx`.
     //
-    // Proof: the name's Escape pointed at `forgetDraft`, which drops both —
-    // right after a commit, wrong for an abandonment — watched failing on
-    // `expected '' to be '7'`: the size draft gone with the name's Escape.
-    // Watched 2026-08-13.
-    const api = fakeDirectory([KAT], [PLATFORM]);
-    pageWith(api);
+    // Proof: the `<Input>` put back on the team row (`aria-label={`How many of
+    // ${team.name} at once`}`, wired to a local draft), and this failed on
+    // `expected null not to be null` for `How many of Platform at once`. Watched
+    // 2026-08-13.
+    pageWith(fakeDirectory([KAT], [PLATFORM, PAYMENTS]));
     await drawn('Kat');
 
-    fireEvent.change(sizeBox('Platform'), { target: { value: '7' } });
-    const name = screen.getByLabelText('Name of Platform');
-    fireEvent.change(name, { target: { value: 'Platform two' } });
-    fireEvent.keyDown(name, { key: 'Escape' });
-
-    expect(sizeBox('Platform').value).toBe('7');
+    for (const team of ['Platform', 'Payments']) {
+      expect(screen.queryByLabelText(`How many of ${team} at once`)).toBeNull();
+    }
+    // The rest of the team row is untouched: the name, the member count and the
+    // removal are all still the directory's.
+    expect(screen.getByLabelText('Name of Platform')).toBeTruthy();
+    expect(screen.getByLabelText('Remove Platform')).toBeTruthy();
+    // And nothing on this page can write a size any more.
+    expect('resizeTeam' in fakeDirectory([], [])).toBe(false);
   });
 });
 

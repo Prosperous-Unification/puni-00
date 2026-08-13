@@ -94,10 +94,11 @@ export class DirectoryService {
   async addTeam(name: string): Promise<ServiceTeam | null> {
     const clean = cleanName(name);
     if (clean === null) return null;
-    // `size: null` — unstated. A team is created by somebody typing a name
-    // into a cell, and how many of them there are is a separate statement made
-    // on the directory page. Null constrains no schedule; see `schema.ts`.
-    return this.opts.directory.addTeam({ id: this.newId(), name: clean, size: null });
+    // No size, because a team no longer has one: a new team is unstated on
+    // every plan, and how many of them are at work at once is said per project
+    // afterwards. The retired column is left at its default `NULL` by the
+    // insert, which is what `capacity-per-project` D4 leaves it as.
+    return this.opts.directory.addTeam({ id: this.newId(), name: clean });
   }
 
   /**
@@ -114,45 +115,6 @@ export class DirectoryService {
     const written = await this.opts.directory.renameTeam(teamId, clean);
     if (!written.ok) {
       if (written.reason === 'taken') return { ok: false, reason: 'taken', name: clean };
-      return { ok: false, reason: 'not_found' };
-    }
-    await this.announce(written.projectIds);
-    return { ok: true, result: written.team };
-  }
-
-  /**
-   * Sets how many of a team may be at work at once, or clears it back to
-   * unstated.
-   *
-   * **Announced to every project the team labels work in**, which is the same
-   * fan-out a rename gets and a stronger claim on it: a rename moves a word on
-   * screen, and a size moves every date in the plan. The event is
-   * `directory_changed` and the existing {@link TouchedProjects} carries the
-   * list — v1 of the plan invented a `team_capacity_set` event, and this is
-   * that finding folded in.
-   *
-   * **Inheritance is already covered by that list and needs no widening.** A
-   * leaf inherits from an ancestor in its own project — `effectiveTeamOf` walks
-   * `parentId`, which never leaves the project — so a project holding an
-   * inheriting leaf holds the labelled ancestor too, and the ancestor is what
-   * puts it in the list. `projectsLabelled` reads every row that carries the
-   * label rather than only the leaves, which is the line that makes that true.
-   *
-   * Not journalled, and therefore not undoable: the directory is not journalled
-   * today — neither a rename nor a removal is — and giving one field of it an
-   * undo stack would put a Cmd+Z on the directory page that worked for exactly
-   * one of the four things a person can do there.
-   *
-   * The size is validated at the controller, which is the only place a value
-   * that is not a whole number of 1 to 1000 can enter. A 0 here would be a pool
-   * of no slots and a plan of `Infinity` dates.
-   */
-  async resizeTeam(teamId: string, size: number | null): Promise<DirectoryOutcome<ServiceTeam>> {
-    const written = await this.opts.directory.resizeTeam(teamId, size);
-    if (!written.ok) {
-      // A size is held by no index, so `taken` cannot arrive here. The outcome
-      // type carries it because the rename shares this shape, and answering
-      // anything but `not_found` about it would be inventing a state.
       return { ok: false, reason: 'not_found' };
     }
     await this.announce(written.projectIds);

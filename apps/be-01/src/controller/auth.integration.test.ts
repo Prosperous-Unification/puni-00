@@ -3,6 +3,7 @@ import { jwtVerify, SignJWT } from 'jose';
 
 import { buildApp } from '../app';
 import { TEST_JWT_KEY, testAuthService } from '../testing/auth-fixture';
+import { testCapacityService } from '../testing/capacity-fixture';
 import { testDirectoryService } from '../testing/directory-fixture';
 import { testProjectService } from '../testing/project-fixture';
 import { testReplay } from '../testing/replay-fixture';
@@ -14,6 +15,7 @@ const TEST_SECRET = 'x'.repeat(32);
 function app() {
   return buildApp({
     directory: testDirectoryService(),
+    capacity: testCapacityService(),
     auth: testAuthService(),
     projects: testProjectService(),
     workItems: testWorkItemService(),

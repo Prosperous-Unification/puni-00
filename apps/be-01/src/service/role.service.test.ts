@@ -17,6 +17,7 @@ import { RoleRepository } from '../repository/role';
 import { UserRepository } from '../repository/user';
 import { SubtreeRepository, WorkItemRepository } from '../repository/work-item';
 import { type RecordingBroadcaster, recordingBroadcaster } from '../testing/broadcast-fixture';
+import { inMemoryCapacity } from '../testing/capacity-fixture';
 import { personAdded } from '../testing/directory-fixture';
 import type { Broadcaster } from './broadcast';
 import { EventSequencer } from './event-sequencer';
@@ -369,6 +370,7 @@ describe('a role removed between the check and the write', () => {
       projects: projectStore,
       estimates: vanishing,
       directory: vanishingToo,
+      capacity: inMemoryCapacity(),
       dependencies: new DependencyRepository(db),
       subtrees: new SubtreeRepository(db),
       journal: new CommandJournalRepository(db),
@@ -406,6 +408,7 @@ describe('a role removed between the check and the write', () => {
       projects: projectStore,
       estimates,
       directory,
+      capacity: inMemoryCapacity(),
       dependencies: new DependencyRepository(db),
       subtrees: new SubtreeRepository(db),
       journal: new CommandJournalRepository(db),

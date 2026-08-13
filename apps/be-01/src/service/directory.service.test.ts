@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import type { DirectoryStore, Person, Role, WorkItem } from '../repository';
+import { CapacityRepository } from '../repository/capacity';
 import { openDrizzle } from '../repository/db';
 import { DirectoryRepository } from '../repository/directory';
 import { runMigrations } from '../repository/migrate';
@@ -13,15 +14,8 @@ import { RoleRepository } from '../repository/role';
 import { UserRepository } from '../repository/user';
 import { WorkItemRepository } from '../repository/work-item';
 import { type RecordingBroadcaster, recordingBroadcaster } from '../testing/broadcast-fixture';
-import { inMemoryEventLog } from '../testing/replay-fixture';
-import { subscriptionFor } from './broadcast';
 import { DirectoryService } from './directory.service';
-import { EventSequencer } from './event-sequencer';
-import { GatewayBroadcaster } from './gateway-broadcaster';
 import { ProjectService } from './project.service';
-import type { PushClient } from './push-client';
-import { ReplayBuffer } from './replay-buffer';
-import { ReplayOrchestrator } from './replay-orchestrator';
 
 /**
  * The directory service, against real SQLite.
@@ -38,6 +32,8 @@ let dir: string;
 let db: ReturnType<typeof openDrizzle>;
 let directory: DirectoryService;
 let store: DirectoryRepository;
+/** Where a pool size is stated since `capacity-per-project`: per project, not per team. */
+let capacity: CapacityRepository;
 let projects: ProjectRepository;
 let workItems: WorkItemRepository;
 let roleStore: RoleRepository;
@@ -98,6 +94,7 @@ beforeEach(async () => {
 
   projects = new ProjectRepository(db);
   store = new DirectoryRepository(db);
+  capacity = new CapacityRepository(db);
   workItems = new WorkItemRepository(db);
   roleStore = new RoleRepository(db);
   broadcast = recordingBroadcaster();
@@ -131,14 +128,14 @@ describe('DirectoryService.renameTeam', () => {
 
     const outcome = await directory.renameTeam(platform.id, '  Payments  ');
 
-    // `size: null` throughout: a rename says nothing about how big a team
-    // is, and a renamed team that came back sized would be this path writing a
-    // field it never touched.
+    // An id and a name, and nothing else on the row: a team carries no size
+    // since `capacity-per-project`, and this is where a rename answering with
+    // the retired column would show up.
     expect(outcome).toEqual({
       ok: true,
-      result: { id: platform.id, name: 'Payments', size: null },
+      result: { id: platform.id, name: 'Payments' },
     });
-    expect(await store.listTeams()).toEqual([{ id: platform.id, name: 'Payments', size: null }]);
+    expect(await store.listTeams()).toEqual([{ id: platform.id, name: 'Payments' }]);
   });
 
   it('refuses a name of whitespace alone, and writes nothing', async () => {
@@ -149,7 +146,7 @@ describe('DirectoryService.renameTeam', () => {
       ok: false,
       reason: 'name_required',
     });
-    expect(await store.listTeams()).toEqual([{ id: platform.id, name: 'Platform', size: null }]);
+    expect(await store.listTeams()).toEqual([{ id: platform.id, name: 'Platform' }]);
   });
 
   it('refuses a name another team holds, naming the survivor', async () => {
@@ -174,7 +171,7 @@ describe('DirectoryService.renameTeam', () => {
 
     expect(await directory.renameTeam(platform.id, 'Platform')).toEqual({
       ok: true,
-      result: { id: platform.id, name: 'Platform', size: null },
+      result: { id: platform.id, name: 'Platform' },
     });
   });
 
@@ -182,145 +179,6 @@ describe('DirectoryService.renameTeam', () => {
     expect(await directory.renameTeam(crypto.randomUUID(), 'Payments')).toEqual({
       ok: false,
       reason: 'not_found',
-    });
-  });
-});
-
-describe('DirectoryService.resizeTeam', () => {
-  /** `Platform`, labelling `design` in this project and nothing anywhere else. */
-  async function platform(): Promise<string> {
-    const team = await directory.addTeam('Platform');
-    if (team === null) throw new Error('the fixture team was refused');
-    await workItems.patch('design', { serviceTeamId: team.id });
-    return team.id;
-  }
-
-  it('says how many of a team may be at work at once, and takes it back', async () => {
-    const platformId = await platform();
-
-    expect(await directory.resizeTeam(platformId, 3)).toEqual({
-      ok: true,
-      result: { id: platformId, name: 'Platform', size: 3 },
-    });
-    expect(await store.listTeams()).toEqual([{ id: platformId, name: 'Platform', size: 3 }]);
-
-    // Cleared goes back to **unstated**, never to 1: an unsized team constrains
-    // no schedule at all, and a team of one serialises every item it labels.
-    expect(await directory.resizeTeam(platformId, null)).toEqual({
-      ok: true,
-      result: { id: platformId, name: 'Platform', size: null },
-    });
-    expect(await store.listTeams()).toEqual([{ id: platformId, name: 'Platform', size: null }]);
-  });
-
-  it('refuses a size for a team that is not there, and tells nobody', async () => {
-    broadcast.published.length = 0;
-
-    expect(await directory.resizeTeam(crypto.randomUUID(), 3)).toEqual({
-      ok: false,
-      reason: 'not_found',
-    });
-
-    expect(broadcast.published).toEqual([]);
-  });
-
-  it('tells both projects the team labels work in, and not a third', async () => {
-    // A size moves **dates**, in every project the team labels work in — a
-    // stronger claim on the fan-out than a rename's, which moves a word. It is
-    // the same `directory_changed` and the same `TouchedProjects`: plan v1
-    // invented a second event for this and there was never anything for it to
-    // do.
-    const platformId = await platform();
-    const roof = await roofProject();
-    await workItems.patch(roof.workItemOf, { serviceTeamId: platformId });
-    const untouched = await new ProjectService({ projects }).create('Shed', ownerId);
-    broadcast.published.length = 0;
-
-    await directory.resizeTeam(platformId, 2);
-
-    expect(broadcast.published.map((each) => each.projectId).sort()).toEqual(
-      [projectId, roof.projectOf].sort(),
-    );
-    expect(broadcast.published.every((each) => each.event.type === 'directory_changed')).toBe(true);
-    expect(broadcast.published.map((each) => each.projectId)).not.toContain(untouched.project.id);
-  });
-
-  it('tells a project the team reaches only through inheritance', async () => {
-    // The labelled row here is a **parent**, which has no slices of its own —
-    // every date that moves belongs to the leaf beneath it, which carries no
-    // label at all. `projectsLabelled` reads every row that carries the team
-    // rather than only the leaves, and that is the line this pins: narrowed to
-    // leaves it answers the empty set, the project is told nothing, and every
-    // date on screen there is wrong until somebody reloads.
-    //
-    // No widening is needed for inheritance beyond that, and this says why:
-    // `effectiveTeamOf` walks `parentId`, which never leaves a project, so a
-    // project holding an inheriting leaf always holds the labelled ancestor
-    // too.
-    const platformId = await platform();
-    await workItems.patch('design', { serviceTeamId: null });
-    await workItems.insert({ ...newItem('api', 10, 'API'), parentId: 'design' }, []);
-    await workItems.patch('design', { serviceTeamId: platformId });
-    broadcast.published.length = 0;
-
-    await directory.resizeTeam(platformId, 2);
-
-    expect(broadcast.published).toEqual([{ projectId, event: { type: 'directory_changed' } }]);
-  });
-
-  it('lets the later of two sizes win, and announces each of them', async () => {
-    // A **characterisation**, not a gate, and it says so rather than being
-    // dressed as one. The directory carries no revision — teams are global
-    // rather than satellites of any project — so a size write is
-    // last-write-wins by design, and two editors typing different numbers leave
-    // the second one's. That is worth writing down because it is the first
-    // directory field whose value moves dates, and the next person will ask.
-    //
-    // The narrow write that keeps a rename landing beside it from being
-    // reverted is the repository's, argued where the statement is; and the
-    // on-screen half of codex 14 — an older *response* must not overwrite a
-    // newer number in the input — is the directory page's, and lands with the
-    // page in C3. Neither is claimed here.
-    const platformId = await platform();
-    broadcast.published.length = 0;
-
-    await Promise.all([directory.resizeTeam(platformId, 2), directory.resizeTeam(platformId, 5)]);
-
-    expect(await store.listTeams()).toEqual([{ id: platformId, name: 'Platform', size: 5 }]);
-    // One event per write, in the order the writes landed: a client that
-    // rereads on each cannot settle on the earlier number.
-    expect(broadcast.published).toEqual([
-      { projectId, event: { type: 'directory_changed' } },
-      { projectId, event: { type: 'directory_changed' } },
-    ]);
-  });
-
-  it('records the size change where a reconnecting client replays it', async () => {
-    // Through the **real** broadcaster, because the claim is about the event
-    // log and a recording fake holds none: a client that was offline while
-    // somebody sized a team has to be handed that event on resume, or it draws
-    // the old dates until something else happens to the plan.
-    const platformId = await platform();
-    const log = inMemoryEventLog();
-    const buffer = new ReplayBuffer({ maxPerSubscription: 100, maxAgeMs: 5 * 60_000 });
-    const live = new DirectoryService({
-      directory: store,
-      broadcast: new GatewayBroadcaster({
-        sequencer: new EventSequencer(log, () => 1_000),
-        buffer,
-        push: { push: () => Promise.resolve({ delivered: 1 }) } as unknown as PushClient,
-        onPushFailed: () => undefined,
-      }),
-    });
-
-    await live.resizeTeam(platformId, 4);
-
-    const outcomes = await new ReplayOrchestrator({ log, buffer }).replay({
-      [subscriptionFor(projectId)]: -1,
-    });
-    expect(outcomes[subscriptionFor(projectId)]).toEqual({
-      status: 'replaying',
-      events: [{ seq: 0, message: { type: 'directory_changed' } }],
     });
   });
 });
@@ -657,7 +515,9 @@ describe('the directory usage a removal is refused with', () => {
     if (team === null) throw new Error('the fixture team was refused');
     await workItems.insert({ ...newItem('api', 10, 'API'), parentId: 'design' }, []);
     await workItems.patch('design', { serviceTeamId: team.id });
-    await directory.resizeTeam(team.id, 2);
+    // Stated **for this project** since `capacity-per-project`: the number the
+    // confirmation prints is the number the plan the row is in was bounded by.
+    await capacity.set(projectId, team.id, 2);
 
     const outcome = await directory.removeTeam(team.id, false);
 
@@ -688,6 +548,73 @@ describe('the directory usage a removal is refused with', () => {
             // move exactly as its parent's do. `fromId` names where the label
             // it loses came from, which is what the confirmation has to say.
             effects: [{ kind: 'capacity_released', size: 2, fromId: 'design' }],
+          },
+        ],
+      },
+    ]);
+  });
+
+  it('names each project’s own capacity, and says nothing where a project stated none', async () => {
+    // The multi-project case, which is the whole of what `capacity-per-project`
+    // changed about this confirmation: the same team is stated at four on one
+    // plan and unstated on the next, so the number printed beside a row has to
+    // be that row's project's. One number for the confirmation would name a
+    // bound half the rows it printed on were never under.
+    //
+    // The two-project fixture this needs is the one `tells both projects the
+    // team labels work in, and not a third` used before that test went with
+    // `resizeTeam`; nothing on the usage side replaced it, and the single-project
+    // fixtures the other three capacity tests use cannot tell the two answers
+    // apart.
+    //
+    // Proof: `directoryUsageOfTeam`'s per-project lookup replaced by "any project
+    // stated something" (`[...rows.capacityOf.values()].at(0)`), which is the
+    // fault R5 row 9 names and which left **693 pass, 0 fail** before this test
+    // existed. The same injection is now **695 pass, 1 fail**, and the one is
+    // this: `Roof`'s `Shingle` row carries a second effect,
+    // `{ kind: 'capacity_released', size: 4, fromId: <its own id> }`, naming a
+    // pool for a plan that stated none — `Rollout`'s four, printed on somebody
+    // else's rows. Watched 2026-08-13.
+    const platform = await directory.addTeam('Platform');
+    if (platform === null) throw new Error('the fixture team was refused');
+    const roof = await roofProject();
+    await workItems.patch('design', { serviceTeamId: platform.id });
+    await workItems.patch(roof.workItemOf, { serviceTeamId: platform.id });
+    // Stated on `Rollout` and deliberately nowhere else.
+    await capacity.set(projectId, platform.id, 4);
+
+    const outcome = await directory.removeTeam(platform.id, false);
+
+    if (outcome.ok) throw new Error('expected the removal to be refused');
+    if (outcome.reason !== 'in_use') throw new Error(`refused for ${outcome.reason}`);
+    expect(outcome.usage.projects).toEqual([
+      {
+        id: projectId,
+        name: 'Rollout',
+        workItems: [
+          {
+            id: 'design',
+            number: '010',
+            name: 'Design',
+            effects: [
+              { kind: 'label_nulled' },
+              { kind: 'capacity_released', size: 4, fromId: 'design' },
+            ],
+          },
+        ],
+      },
+      {
+        id: roof.projectOf,
+        name: 'Roof',
+        workItems: [
+          {
+            id: roof.workItemOf,
+            number: '010',
+            name: 'Shingle',
+            // The label goes and nothing else does: this plan never stated how
+            // many of the team it had, so no pool leaves with the team and no
+            // date here moves.
+            effects: [{ kind: 'label_nulled' }],
           },
         ],
       },
@@ -727,7 +654,7 @@ describe('the directory usage a removal is refused with', () => {
     if (first.ok || first.reason !== 'in_use') throw new Error('expected an in-use refusal');
     expect(first.usage.projects[0]?.workItems[0]?.effects).toEqual([{ kind: 'label_nulled' }]);
 
-    await directory.resizeTeam(team.id, 3);
+    await capacity.set(projectId, team.id, 3);
 
     const second = await directory.removeTeam(team.id, false);
     if (second.ok || second.reason !== 'in_use') throw new Error('expected an in-use refusal');

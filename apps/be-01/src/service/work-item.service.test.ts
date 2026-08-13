@@ -1,7 +1,14 @@
 import { beforeEach, describe, expect, it } from 'bun:test';
 
-import type { EstimateStore, Project, ProjectStore, WorkItemStore } from '../repository';
+import type {
+  CapacityStore,
+  EstimateStore,
+  Project,
+  ProjectStore,
+  WorkItemStore,
+} from '../repository';
 import { type RecordingBroadcaster, recordingBroadcaster } from '../testing/broadcast-fixture';
+import { inMemoryCapacity } from '../testing/capacity-fixture';
 import { inMemoryCommandJournal } from '../testing/command-journal-fixture';
 import { inMemoryDependencies } from '../testing/dependency-fixture';
 import { inMemoryDirectory, personAdded } from '../testing/directory-fixture';
@@ -21,6 +28,12 @@ let projectId: string;
 let roleId: string;
 let dependencies: ReturnType<typeof inMemoryDependencies>;
 let directory: ReturnType<typeof inMemoryDirectory>;
+/**
+ * This project's capacity for each team, which is where a pool size is stated
+ * since `capacity-per-project`. `directory.addTeam({ size })` no longer bounds
+ * anything: the global number is read by nothing.
+ */
+let capacity: CapacityStore;
 let estimates: EstimateStore;
 let broadcast: RecordingBroadcaster;
 
@@ -31,12 +44,14 @@ beforeEach(async () => {
   workItems = inMemoryWorkItems(directory);
   estimates = inMemoryEstimates(workItems);
   broadcast = recordingBroadcaster();
+  capacity = inMemoryCapacity();
   service = new WorkItemService({
     workItems,
     projects,
     estimates,
     dependencies,
     directory,
+    capacity,
     subtrees: inMemorySubtrees({ workItems, estimates, dependencies, directory }),
     journal: inMemoryCommandJournal(),
     broadcast,
@@ -67,7 +82,7 @@ beforeEach(async () => {
   // inside the update's own transaction, because `work_item.service_team_id`
   // has no foreign key to do it.
   for (const name of ['team-billing', 'team-sparks']) {
-    await directory.addTeam({ id: name, name, size: null });
+    await directory.addTeam({ id: name, name });
   }
 });
 
@@ -1314,7 +1329,12 @@ describe('capacity, as the adapter resolves it', () => {
     // Proof: the `Math.min` against `slots` dropped from `widthFor` and this
     // failed with `width: 4` and `duration: 1` — a plan claiming four of a
     // team of two; watched 2026-08-12.
-    await directory.addTeam({ id: 'team-small', name: 'Small', size: 2 });
+    //
+    // The two is stated **for this project** since `capacity-per-project`. The
+    // team is added unsized on purpose: a global size is read by nothing, and
+    // seeding one here would let this pass against a build that still read it.
+    await directory.addTeam({ id: 'team-small', name: 'Small' });
+    await capacity.set(projectId, 'team-small', 2);
     const strip = await leaf('Strip', 4, 'team-small');
     await service.setEstimate(strip, OWNER, roleId, flat(4));
 
@@ -1350,7 +1370,8 @@ describe('capacity, as the adapter resolves it', () => {
     // it, and the pool those leaves spend is that team's. Nothing is copied
     // down — the rows are read back to prove the label is still only on the
     // parent.
-    await directory.addTeam({ id: 'team-one', name: 'One', size: 1 });
+    await directory.addTeam({ id: 'team-one', name: 'One' });
+    await capacity.set(projectId, 'team-one', 1);
     const phase = await leaf('Phase', 1, 'team-one');
     const first = await leaf('First', 1, null, phase);
     const second = await leaf('Second', 1, null, phase);
@@ -1595,6 +1616,7 @@ describe('the slices the schedule placed, on the wire', () => {
       estimates,
       dependencies,
       directory,
+      capacity: inMemoryCapacity(),
       subtrees: inMemorySubtrees({ workItems, estimates, dependencies, directory }),
       journal: inMemoryCommandJournal(),
       broadcast,
@@ -1629,7 +1651,9 @@ describe('the slices the schedule placed, on the wire', () => {
     // carried before is still there, and the new ones are named. `slices` was
     // this test's own; `waitingForCapacity` is `capacity-engine`'s, and it sits
     // beside `waitingForPerson` rather than inside it because a queue and a
-    // headcount are different sentences.
+    // headcount are different sentences. `teamCapacities` is
+    // `capacity-per-project`'s, and it rides here rather than on a route of its
+    // own because the dates in this payload were computed from it.
     expect(Object.keys(tree ?? {}).sort()).toEqual([
       'assignedPeople',
       'estimateMethod',
@@ -1639,6 +1663,7 @@ describe('the slices the schedule placed, on the wire', () => {
       'seq',
       'slices',
       'startDate',
+      'teamCapacities',
       'waitingForCapacity',
       'waitingForPerson',
       'workItems',

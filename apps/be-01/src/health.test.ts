@@ -9,6 +9,7 @@ import { openConnection } from './repository/db';
 import { probeSchema } from './repository/health-probe';
 import { runMigrations } from './repository/migrate';
 import { testAuthService } from './testing/auth-fixture';
+import { testCapacityService } from './testing/capacity-fixture';
 import { testDirectoryService } from './testing/directory-fixture';
 import { testProjectService } from './testing/project-fixture';
 import { testReplay } from './testing/replay-fixture';
@@ -21,6 +22,7 @@ describe('GET /health', () => {
   it('returns 200 with status:"ok" when ready', async () => {
     const app = buildApp({
       directory: testDirectoryService(),
+      capacity: testCapacityService(),
       auth: testAuthService(),
       projects: testProjectService(),
       workItems: testWorkItemService(),
@@ -39,6 +41,7 @@ describe('GET /health', () => {
   it('returns 503 while migrations still running', async () => {
     const app = buildApp({
       directory: testDirectoryService(),
+      capacity: testCapacityService(),
       auth: testAuthService(),
       projects: testProjectService(),
       workItems: testWorkItemService(),
@@ -63,6 +66,7 @@ describe('/health tells the truth about the database', () => {
       const { db, close } = openConnection(join(dir, 'empty.db'));
       const app = buildApp({
         directory: testDirectoryService(),
+        capacity: testCapacityService(),
         auth: testAuthService(),
         projects: testProjectService(),
         workItems: testWorkItemService(),
@@ -91,6 +95,7 @@ describe('/health tells the truth about the database', () => {
       const { db, close } = openConnection(path);
       const app = buildApp({
         directory: testDirectoryService(),
+        capacity: testCapacityService(),
         auth: testAuthService(),
         projects: testProjectService(),
         workItems: testWorkItemService(),
@@ -113,6 +118,7 @@ describe('/health tells the truth about the database', () => {
   it('is unhealthy when the probe itself throws', async () => {
     const app = buildApp({
       directory: testDirectoryService(),
+      capacity: testCapacityService(),
       auth: testAuthService(),
       projects: testProjectService(),
       workItems: testWorkItemService(),

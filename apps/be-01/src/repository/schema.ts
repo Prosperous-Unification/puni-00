@@ -361,20 +361,25 @@ export const serviceTeam = sqliteTable(
     id: text('id').primaryKey(),
     name: text('name').notNull(),
     /**
-     * How many people of this team may be at work at once, across the whole of
-     * one project's plan — or null for "nobody has said".
+     * **Retired by `capacity-per-project` (2026-08-13) and read by nothing.**
+     * Kept in the table and not dropped, and the two halves are separate facts.
      *
-     * Null is not 1: an unsized team constrains nothing at all, which is the
-     * state every plan written before this column was in was scheduled under.
-     * A sized team of N bounds how many of its work items' slices run at once,
-     * **including the ones somebody is named on** — the slot is keyed on the
-     * work item's team, never on the person's memberships, so a team of 4 never
-     * shows five people at work.
+     * Read by nothing: capacity is a fact about one project now, held in
+     * {@link projectTeamCapacity}, and there is deliberately **no fallback** to
+     * this number — Dany's call, quoted in that change's `design.md` D1. Every
+     * project that existed at the migration was seeded with whatever stood here,
+     * so no plan moved; what stands here now is the last global number anybody
+     * typed and it decides nothing.
      *
-     * Global, exactly as a person is: two projects labelled `Platform` each get
-     * N. The scheduler reads it through `slotsOf`, which is the seam a
-     * per-project allocation would be added behind; the argument for and
-     * against is in `openspec/changes/capacity-engine/design.md`.
+     * Not dropped: blue and green share one SQLite file mid-swap and the
+     * outgoing release still selects this column. The drop is a later change,
+     * once no running release reads it — `capacity-per-project`'s D4.
+     *
+     * The rule it used to carry, for the reader who finds a number in here and
+     * wonders what it meant: null was _unstated_ and constrained nothing, and a
+     * sized team of N bounded how many of its work items' slices ran at once
+     * across the whole of one project's plan. That rule now lives on
+     * {@link projectTeamCapacity.size}, per project.
      */
     size: integer('size'),
   },
@@ -382,6 +387,63 @@ export const serviceTeam = sqliteTable(
 );
 
 export type ServiceTeamRow = typeof serviceTeam.$inferSelect;
+
+/**
+ * How many of one team may be at work at once **on one project's plan**.
+ *
+ * Dany, 2026-08-13, and the second sentence is the one that shapes this table:
+ * _"the capacity must be configurable per project"_, and _"The global number
+ * should not matter, only per project capacity configuration matters."_ So this
+ * is not an override in front of {@link serviceTeam.size} — that column is read
+ * by nothing, and a pair with no row here is **unstated**, constraining that
+ * team's work on that plan not at all.
+ *
+ * The primary key is the pair, because the pair is the identity of the fact: one
+ * project states one number about one team, and a second row for the same pair
+ * would be a second answer to one question.
+ *
+ * `size` is `NOT NULL` and _unstated_ is the **absence of a row**, deliberately
+ * one spelling rather than two. A nullable column would let unstated arrive as
+ * either a missing row or a stored null, and every reader would then have to
+ * handle both — the shape R2 exists to prevent. It is also why the write path's
+ * `null` deletes rather than updates.
+ *
+ * Both columns cascade, and the cascade is the **only** mechanism that removes
+ * these rows: nothing in be-01 deletes them before a project or a team goes —
+ * {@link CapacityStore.set}'s clear-to-unstated is the single `DELETE` against
+ * this table. That is not an oversight. Blue and green share one SQLite file
+ * during a swap, the outgoing release knows nothing about this table, and its
+ * plain `DELETE FROM service_team` would hit a constraint it cannot see and
+ * answer 500 — so the removal has to belong to the database rather than to a
+ * release. `dependency`'s own argument, one table along.
+ *
+ * The scheduler reads it through `CapacityStore.slotsFor`, which is C1's
+ * `slotsOf` seam with the per-project lookup behind it at last. Why the map that
+ * seam hands the engine stays keyed on the team alone, and not on the pair:
+ * `openspec/changes/capacity-per-project/design.md` D3.
+ */
+export const projectTeamCapacity = sqliteTable(
+  'project_team_capacity',
+  {
+    projectId: text('project_id')
+      .notNull()
+      .references(() => project.id, { onDelete: 'cascade' }),
+    serviceTeamId: text('service_team_id')
+      .notNull()
+      .references(() => serviceTeam.id, { onDelete: 'cascade' }),
+    /**
+     * How many of the team may be at work at once on this project's plan — at
+     * least 1, and the floor is a correctness bound rather than a preference: a
+     * slice's duration is its effort divided by its width, so a pool of 0 slots
+     * is a plan of `Infinity` dates. The bound is enforced at be-01's boundary,
+     * which is the only place a number can enter.
+     */
+    size: integer('size').notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.projectId, t.serviceTeamId] })],
+);
+
+export type ProjectTeamCapacityRow = typeof projectTeamCapacity.$inferSelect;
 
 /**
  * Somebody who does work. Global, like the teams, and for the same reason.

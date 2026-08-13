@@ -1,5 +1,4 @@
-import { ThreePointEstimate } from '@wbs/domain';
-import { isIsoDate, type IsoDate } from '@wbs/domain';
+import { isIsoDate, type IsoDate, MOST_PEOPLE_AT_ONCE, ThreePointEstimate } from '@wbs/domain';
 import { parseOrThrow, ValidationError } from '@wbs/validation';
 import { Elysia } from 'elysia';
 
@@ -125,10 +124,10 @@ function asOptionalPriority(value: unknown, field: string): number | null | unde
  * anywhere could say why. This validation is the whole of what stands between
  * that and the column.
  *
- * The ceiling is a product limit and is honest about being one: above a
- * thousand people on one work item the number is not a plan. It is emphatically
- * **not** justified by floating-point — plan v1 argued from a minimum effort of
- * a sixth of a day, and `ThreePointEstimate` has no minimum at all.
+ * The ceiling is {@link MOST_PEOPLE_AT_ONCE}, and it moved into `libs/domain` in
+ * `capacity-per-project`: three boundaries state it now, this file's copy and
+ * `directory.controller.ts`'s agreed by luck, and the third would have been where
+ * they drifted. The argument for the number is on the constant.
  *
  * `Number.isSafeInteger` covers the fraction, the `NaN`, the infinity and the
  * value beyond what an integer column can hold in one question — which is why
@@ -137,8 +136,6 @@ function asOptionalPriority(value: unknown, field: string): number | null | unde
  * under a `1e999` probe would stay green. That exact vacuous check has shipped
  * here before (`T1 column-widths-drag`).
  */
-const MOST_PEOPLE_AT_ONCE = 1000;
-
 function asOptionalParallelism(value: unknown, field: string): number | null | undefined {
   if (value === undefined) return undefined;
   if (value === null) return null;

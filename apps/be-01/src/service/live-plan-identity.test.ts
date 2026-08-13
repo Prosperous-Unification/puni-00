@@ -3,6 +3,7 @@ import { describe, expect, it } from 'bun:test';
 import type { Project, Role, StoredDependency, WorkItem } from '../repository';
 import { ROLE_POSITION_STEP } from '../repository';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
+import { inMemoryCapacity } from '../testing/capacity-fixture';
 import { inMemoryCommandJournal } from '../testing/command-journal-fixture';
 import { inMemoryDependencies } from '../testing/dependency-fixture';
 import { inMemoryDirectory } from '../testing/directory-fixture';
@@ -92,6 +93,7 @@ async function replay(extraRoles: readonly string[]) {
     estimates,
     dependencies,
     directory,
+    capacity: inMemoryCapacity(),
     subtrees: inMemorySubtrees({ workItems, estimates, dependencies, directory }),
     journal: inMemoryCommandJournal(),
     broadcast: recordingBroadcaster(),

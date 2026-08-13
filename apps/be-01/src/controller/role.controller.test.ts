@@ -22,6 +22,7 @@ import { RoleService } from '../service/role.service';
 import { WorkItemService } from '../service/work-item.service';
 import { TEST_JWT_KEY } from '../testing/auth-fixture';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
+import { inMemoryCapacity, testCapacityService } from '../testing/capacity-fixture';
 import { personAdded } from '../testing/directory-fixture';
 import { testReplay } from '../testing/replay-fixture';
 
@@ -59,6 +60,7 @@ beforeEach(() => {
 
   app = buildApp({
     directory: new DirectoryService({ directory, broadcast: recordingBroadcaster() }),
+    capacity: testCapacityService(),
     auth: new AuthService({ users: new UserRepository(db), jwtKey: TEST_JWT_KEY }),
     projects: new ProjectService({ projects }),
     roles: new RoleService({ projects, roles: roleStore, broadcast: recordingBroadcaster() }),
@@ -68,6 +70,7 @@ beforeEach(() => {
       estimates,
       dependencies: new DependencyRepository(db),
       directory,
+      capacity: inMemoryCapacity(),
       subtrees: new SubtreeRepository(db),
       journal: new CommandJournalRepository(db),
       broadcast: recordingBroadcaster(),

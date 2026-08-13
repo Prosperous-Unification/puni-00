@@ -222,20 +222,41 @@ export function directoryUsageOfPerson(rows: DirectoryUsageRows, personId: strin
  * `capacity_released, size: 1` on two rows whose dates cannot move at all,
  * which is a confirmation lying in the other direction. Both watched
  * 2026-08-12.
+ *
+ * **The number is each row's own project's**, since `capacity-per-project`: the
+ * same team may be stated at four on one plan and unstated on the next, and one
+ * number for the whole confirmation would name a bound half the rows it printed
+ * on were never under.
+ *
+ * Proof: the per-project lookup replaced by "any project stated something"
+ * (`[...rows.capacityOf.values()].at(0)`), and `names each project's own
+ * capacity, and says nothing where a project stated none` failed — the second
+ * project's rows carried `capacity_released, size: 4` for a plan that has no
+ * pool at all. Watched 2026-08-13.
+ *
+ * That test was **missing** when this comment was first written, and the
+ * injection above left all 693 be-01 tests green: the three other capacity
+ * tests here use a single-project fixture, where `capacityOf` holds one entry
+ * and `.at(0)` is the per-project answer by accident. The cross-review of PR #58
+ * caught it. The proof above is the run against the test as it now stands.
  */
 export function directoryUsageOfTeam(rows: DirectoryUsageRows, teamId: string): DirectoryUsage {
-  // Null size is *unstated*, and an unstated team bounds nothing: removing it
-  // moves no date, so there is no capacity effect to name. Read off the team
-  // row rather than guessed from the work items, which cannot tell the two
-  // apart.
-  const size = rows.team?.size ?? null;
+  // A project that has stated nothing for this team is *unstated*, and an
+  // unstated pair bounds nothing: removing the team moves no date there, so there
+  // is no capacity effect to name. Read off `capacityOf` rather than guessed from
+  // the work items, which cannot tell the two apart.
+  //
+  // Computed once for every project rather than per project, because
+  // `effectiveTeamOf` walks `parentId` and a parent never leaves its project —
+  // so one pass over all the rows answers for each of them.
   const inForce: ReadonlyMap<string, EffectiveTeam> =
-    size === null ? new Map() : effectiveTeamOf(rows.workItems);
+    rows.capacityOf.size === 0 ? new Map() : effectiveTeamOf(rows.workItems);
   return usageFrom(rows, (row) => {
     const effects: DirectoryEffect[] =
       row.serviceTeamId === teamId ? [{ kind: 'label_nulled' }] : [];
+    const size = rows.capacityOf.get(row.projectId);
     const effective = inForce.get(row.id);
-    if (size !== null && effective?.teamId === teamId) {
+    if (size !== undefined && effective?.teamId === teamId) {
       effects.push({ kind: 'capacity_released', size, fromId: effective.fromId });
     }
     return effects;

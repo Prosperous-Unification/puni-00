@@ -5,6 +5,7 @@ import { ProjectService } from '../service/project.service';
 import { WorkItemService } from '../service/work-item.service';
 import { inMemoryUsers, testAuthService } from '../testing/auth-fixture';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
+import { inMemoryCapacity, testCapacityService } from '../testing/capacity-fixture';
 import { inMemoryCommandJournal } from '../testing/command-journal-fixture';
 import { inMemoryDependencies } from '../testing/dependency-fixture';
 import { inMemoryDirectory, testDirectoryService } from '../testing/directory-fixture';
@@ -27,6 +28,7 @@ function buildHarness() {
     // invisible to the assignment that names them — which is exactly what this
     // harness did until the write began reading the person it writes.
     directory: testDirectoryService(directoryStore),
+    capacity: testCapacityService(),
     auth: testAuthService(inMemoryUsers()),
     projects: new ProjectService({ projects: projectStore }),
     roles: testRoleService(projectStore),
@@ -36,6 +38,7 @@ function buildHarness() {
       estimates: estimateStore,
       dependencies: dependencyStore,
       directory: directoryStore,
+      capacity: inMemoryCapacity(),
       subtrees: inMemorySubtrees({
         workItems: workItemStore,
         estimates: estimateStore,
@@ -284,58 +287,12 @@ describe('work item routes', () => {
     expect(workItems[0]?.priority).toBe(3);
   });
 
-  it('puts a capacity floor on the wire, which nothing this change ships can draw', async () => {
-    // **The C2-before-C3 landmine, pinned rather than argued.** Two HTTP
-    // requests — size a team, label the work — are now all it takes to make
-    // be-01 emit `boundBy: 'capacity'`, and this is the first change in which
-    // any client can make them. fe-01's `ScheduleFloorView` has five members
-    // and none of them is `capacity`; `floorWordsOf`'s `default:` arm throws
-    // `GanttDataError` on the sixth **by design**, so the Gantt panel of any
-    // plan with a sized, contended team goes to its error boundary until C3
-    // teaches it the word.
-    //
-    // Nothing here is a defect of this change: the route, the fan-out and the
-    // floor are all what C2 is for. It is a **release** constraint, and it is
-    // written as a test so that deleting the constraint means deleting a test
-    // rather than forgetting a paragraph. See `design.md`, "Shipping order",
-    // and the landmine in `LLM_README.md`.
-    const { token, send, projectId, devId } = await setup();
-    const team = await send('/api/teams', token, {
-      method: 'POST',
-      body: JSON.stringify({ name: 'Platform' }),
-    });
-    const { team: platform } = (await team.json()) as { team: { id: string } };
-    const sized = await send(`/api/teams/${platform.id}/size`, token, {
-      method: 'PATCH',
-      body: JSON.stringify({ size: 1 }),
-    });
-    expect(sized.status).toBe(200);
-
-    for (const name of ['Strip', 'Sand']) {
-      const created = await send(`/api/projects/${projectId}/work-items`, token, {
-        method: 'POST',
-        body: JSON.stringify({ parentId: null, afterId: null, name }),
-      });
-      const { id } = (await created.json()) as { id: string };
-      await send(`/api/work-items/${id}`, token, {
-        method: 'PATCH',
-        body: JSON.stringify({ serviceTeamId: platform.id }),
-      });
-      await send(`/api/work-items/${id}/estimates/${devId}`, token, {
-        method: 'PUT',
-        body: JSON.stringify({ optimistic: 2, realistic: 2, pessimistic: 2 }),
-      });
-    }
-
-    const tree = await send(`/api/projects/${projectId}/work-items`, token);
-    const body = (await tree.json()) as {
-      waitingForCapacity: number;
-      slices: { boundBy: string }[];
-    };
-
-    expect(body.slices.map((one) => one.boundBy)).toContain('capacity');
-    expect(body.waitingForCapacity).toBe(1);
-  });
+  // C2's landmine test — `puts a capacity floor on the wire, which nothing this
+  // change ships can draw` — lived here, and its landmine is spent: C3 (#57)
+  // taught `floorWordsOf` the word, and `capacity-per-project` retired the
+  // `PATCH /api/teams/:id/size` it reached the floor through. Its successor is
+  // `capacity.controller.test.ts`'s `puts a capacity floor on the wire, which
+  // fe-01 has been able to draw since C3`, over the route that replaced it.
 
   it('refuses a parallelism that is not a whole number of 1 or more', async () => {
     // The floor is load-bearing rather than tidy. The engine's duration is

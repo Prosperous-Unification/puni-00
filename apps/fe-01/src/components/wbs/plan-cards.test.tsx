@@ -127,6 +127,10 @@ function fakeApi(options: { refusePatch?: boolean; dated?: boolean } = {}): Proj
         // that carried the slices: the chart is drawn from this payload alone.
         roles: roleList.map((role) => ({ ...role })),
         assignedPeople: people.map(({ id, name }) => ({ id, name })),
+        // Present and empty, never absent: be-01 always sends it, so a fake that
+        // left it out would let `teamsOnThePlan` be handed `undefined` here and
+        // never in production. A plan whose teams are unlimited is what `[]` says.
+        teamCapacities: [],
         estimateMethod: 'pert' as const,
         startDate: options.dated === true ? DATED_PLAN.startsOn : null,
         projectRevision: 0,
@@ -893,7 +897,7 @@ describe('what a card says about capacity', () => {
 
   itDom('names the team a row carries', async () => {
     await aPlan((rows, teams) => {
-      teams.push({ id: 't1', name: 'Billing', size: 4 });
+      teams.push({ id: 't1', name: 'Billing' });
       rows[0].serviceTeamId = 't1';
     });
 
@@ -911,7 +915,7 @@ describe('what a card says about capacity', () => {
     // `expected undefined to be '↳ Billing'`: the inheriting card drew no team
     // line at all. Watched 2026-08-13.
     await aPlan((rows, teams) => {
-      teams.push({ id: 't1', name: 'Billing', size: 4 });
+      teams.push({ id: 't1', name: 'Billing' });
       const [parent, child] = rows;
       parent.serviceTeamId = 't1';
       child.parentId = parent.id;

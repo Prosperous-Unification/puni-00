@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { buildApp } from '../app';
 import { CommandJournalRepository } from '../repository/command-journal';
-import { openDrizzle } from '../repository/db';
+import { openDatabase, openDrizzle } from '../repository/db';
 import { DependencyRepository } from '../repository/dependency';
 import { DirectoryRepository } from '../repository/directory';
 import { EstimateRepository } from '../repository/estimate';
@@ -22,6 +22,7 @@ import { RoleService } from '../service/role.service';
 import { WorkItemService } from '../service/work-item.service';
 import { TEST_JWT_KEY } from '../testing/auth-fixture';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
+import { inMemoryCapacity, testCapacityService } from '../testing/capacity-fixture';
 import { testReplay } from '../testing/replay-fixture';
 
 /**
@@ -36,6 +37,8 @@ const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
 
 let dir: string;
 let app: ReturnType<typeof buildApp>;
+/** The raw handle, for the one claim that is about a column rather than a row. */
+let sqlite: ReturnType<typeof openDatabase>;
 let store: DirectoryRepository;
 let workItems: WorkItemRepository;
 let projects: ProjectRepository;
@@ -47,6 +50,7 @@ beforeEach(async () => {
   const path = join(dir, 'test.db');
   runMigrations(path, FOLDER);
   const db = openDrizzle(path);
+  sqlite = openDatabase(path);
 
   projects = new ProjectRepository(db);
   store = new DirectoryRepository(db);
@@ -55,6 +59,7 @@ beforeEach(async () => {
 
   app = buildApp({
     directory: new DirectoryService({ directory: store, broadcast: recordingBroadcaster() }),
+    capacity: testCapacityService(),
     auth: new AuthService({ users: new UserRepository(db), jwtKey: TEST_JWT_KEY }),
     projects: new ProjectService({ projects }),
     roles: new RoleService({ projects, roles: roleStore, broadcast: recordingBroadcaster() }),
@@ -64,6 +69,7 @@ beforeEach(async () => {
       estimates: new EstimateRepository(db),
       dependencies: new DependencyRepository(db),
       directory: store,
+      capacity: inMemoryCapacity(),
       subtrees: new SubtreeRepository(db),
       journal: new CommandJournalRepository(db),
       broadcast: recordingBroadcaster(),
@@ -77,6 +83,7 @@ beforeEach(async () => {
 });
 
 afterEach(() => {
+  sqlite.close();
   rmSync(dir, { recursive: true, force: true });
 });
 
@@ -133,81 +140,38 @@ async function addTeam(name: string): Promise<string> {
   return team.id;
 }
 
-describe('PATCH /api/teams/:id/size', () => {
-  it('sets how many of a team may be at work at once, and clears it', async () => {
+describe('GET /api/teams', () => {
+  it('answers a team as an id and a name, and never the retired global size', async () => {
+    // The one route the retired column could still reach the wire through, and
+    // it reached it for as long as `listTeams` was a bare `select()`: drizzle
+    // reads every column it knows about, so `service_team.size` travelled into
+    // `/api/teams` without the string `serviceTeam.size` appearing anywhere for
+    // `verify.md`'s grep to find. `capacity-per-project` D4 keeps the column in
+    // the table for the release beside this one; **this release does not read
+    // it**, and that claim is only checkable here.
+    //
+    // The number is written straight into the column first, so this is not
+    // vacuous on a table whose sizes are all `NULL` — a `null` field would be
+    // dropped by `toEqual` and the shape check below is what catches it either
+    // way.
+    //
+    // Proof: `listTeams`'s projection replaced by the `select()` it used to be,
+    // and this failed with `+ "size": 7,` added to the team the body carries —
+    // the retired number on the wire, read by nobody and sent to everybody.
+    // Three more assertions in this file went red with it, each of them a shape
+    // this route answers. Watched 2026-08-13.
     const platform = await addTeam('Platform');
+    sqlite.run('UPDATE service_team SET size = 7 WHERE id = ?', [platform]);
 
-    expect(await call('PATCH', `/api/teams/${platform}/size`, { size: 4 })).toEqual({
-      status: 200,
-      body: { team: { id: platform, name: 'Platform', size: 4 } },
-    });
-    expect(await store.listTeams()).toEqual([{ id: platform, name: 'Platform', size: 4 }]);
+    const { status, body } = await call('GET', '/api/teams');
 
-    // Cleared is **unstated**, which constrains no schedule — not a team of
-    // one, which serialises every item it labels.
-    expect(await call('PATCH', `/api/teams/${platform}/size`, { size: null })).toEqual({
-      status: 200,
-      body: { team: { id: platform, name: 'Platform', size: null } },
-    });
-  });
-
-  it('refuses a size that is not a whole number of 1 or more', async () => {
-    // The floor is the load-bearing half: a team of 0 is a pool of no slots,
-    // the engine divides effort by a width clamped to that pool, and the plan
-    // comes back with every date `Infinity` and nothing on screen to say why.
-    const platform = await addTeam('Platform');
-    await call('PATCH', `/api/teams/${platform}/size`, { size: 4 });
-
-    for (const bad of [0, -1, 1.5, '3', true, 1e20]) {
-      const refused = await call('PATCH', `/api/teams/${platform}/size`, { size: bad });
-      // The value rides into the assertion so a failure names which of them got
-      // through rather than reporting the same mismatch six times.
-      expect([refused.status, String(bad)]).toEqual([400, String(bad)]);
-    }
-
-    // A body naming no size at all is a request that says nothing, and this
-    // route writes exactly one field — absent cannot mean "leave it".
-    expect(await call('PATCH', `/api/teams/${platform}/size`, {})).toEqual({
-      status: 400,
-      body: { error: 'size_required' },
-    });
-
-    expect(await store.listTeams()).toEqual([{ id: platform, name: 'Platform', size: 4 }]);
-  });
-
-  it('refuses a size above what a team can mean', async () => {
-    // Injected apart from the guard above, because neither probe can see the
-    // other's line: `1e20` is refused by `Number.isSafeInteger` whether or not
-    // a ceiling exists, and `1001` passes the integer guard cleanly. A range
-    // check probed only with a non-finite value is the vacuous check this repo
-    // has shipped before.
-    const platform = await addTeam('Platform');
-
-    expect(await call('PATCH', `/api/teams/${platform}/size`, { size: 1001 })).toEqual({
-      status: 400,
-      body: { error: 'size_must_be_at_most_1000' },
-    });
-    expect(await call('PATCH', `/api/teams/${platform}/size`, { size: 1000 })).toMatchObject({
-      status: 200,
-    });
-  });
-
-  it('answers 404 for a team that is gone, and 401 with no token', async () => {
-    expect(await call('PATCH', `/api/teams/${crypto.randomUUID()}/size`, { size: 2 })).toEqual({
-      status: 404,
-      body: { error: 'not_found' },
-    });
-
-    const platform = await addTeam('Platform');
-    const res = await app.handle(
-      new Request(`http://localhost/api/teams/${platform}/size`, {
-        method: 'PATCH',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ size: 2 }),
-      }),
-    );
-    expect(res.status).toBe(401);
-    expect(await store.listTeams()).toEqual([{ id: platform, name: 'Platform', size: null }]);
+    expect(status).toBe(200);
+    expect(body).toEqual({ teams: [{ id: platform, name: 'Platform' }] });
+    // And by key, because a column added to this table later would arrive here
+    // as `null` and `toEqual` says nothing about a field whose value is
+    // `undefined` on the side it is compared with.
+    const teams = (body as { teams: Record<string, unknown>[] }).teams;
+    expect(teams.map((each) => Object.keys(each).sort())).toEqual([['id', 'name']]);
   });
 });
 
@@ -219,9 +183,9 @@ describe('PATCH /api/teams/:id', () => {
 
     expect(renamed).toEqual({
       status: 200,
-      body: { team: { id: platform, name: 'Payments', size: null } },
+      body: { team: { id: platform, name: 'Payments' } },
     });
-    expect(await store.listTeams()).toEqual([{ id: platform, name: 'Payments', size: null }]);
+    expect(await store.listTeams()).toEqual([{ id: platform, name: 'Payments' }]);
   });
 
   it('answers 409 taken with the surviving name', async () => {
@@ -258,7 +222,7 @@ describe('PATCH /api/teams/:id', () => {
     );
 
     expect(res.status).toBe(401);
-    expect(await store.listTeams()).toEqual([{ id: platform, name: 'Platform', size: null }]);
+    expect(await store.listTeams()).toEqual([{ id: platform, name: 'Platform' }]);
   });
 });
 
@@ -364,7 +328,7 @@ describe('DELETE /api/people/:id and /api/teams/:id', () => {
     );
 
     expect(res.status).toBe(401);
-    expect(await store.listTeams()).toEqual([{ id: platform, name: 'Platform', size: null }]);
+    expect(await store.listTeams()).toEqual([{ id: platform, name: 'Platform' }]);
   });
 });
 
