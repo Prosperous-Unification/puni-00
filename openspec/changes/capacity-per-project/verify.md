@@ -16,8 +16,8 @@ box denies both (`bin/block-local-builds.sh`).
 | target                                                  | result                                                                                                                                               |
 | ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `bunx nx format:check --all`                            | clean, exit 0                                                                                                                                        |
-| be-01 unit (bun, in `apps/be-01`)                       | **696 pass, 0 fail**, 24,459 `expect()` calls, 15.59s across 57 files                                                                                |
-| fe-01 unit (`node vitest run`)                          | **1,303 pass across 50 files, 0 fail**, 49.30s                                                                                                       |
+| be-01 unit (bun, in `apps/be-01`)                       | **696 pass, 0 fail**, 24,461 `expect()` calls, 11.9s across 57 files                                                                                 |
+| fe-01 unit (`node vitest run`)                          | **1,303 pass across 50 files, 0 fail**, 56.24s                                                                                                       |
 | `bunx nx run-many -t lint typecheck --skip-nx-cache`    | pass, 21 projects                                                                                                                                    |
 | `bunx nx run-many -t build`                             | **not run here.** `tool-bootstrap` and `tool-devsync` refuse without `shellcheck`, which h2puni does not have. CI runs it and is the gate of record. |
 | `bunx @fission-ai/openspec@1.3.0 validate --all --json` | 43 items, 43 passed, 0 failed                                                                                                                        |
@@ -46,13 +46,10 @@ calls — were half a defect of their own: two runs at that same head gave **24,
 twice, at 693/0 either way. Small, and exactly the kind of number this repo prints
 because it is checkable, so it is named here rather than quietly overwritten.
 
-**And it happened again, by two, in the same direction.** The cross-review round
-first recorded **24,461** here. Three runs at this head on h2puni give **24,459**
-every time, at 696/0 each. Both overcounts are +2 on a head whose recorded and
-measured test counts agree exactly, so the drift is in the `expect()` total and
-not in the suite. The measured number is the one in the table; the recorded one is
-named here so the third occurrence is recognisable as a pattern rather than
-rediscovered as a surprise.
+The number in the table above is measured at **this** head rather than carried
+forward from the round's first run: two runs of the be-01 suite at `eeb6dc5` give
+24,461 both times, 696/0 each, within a tenth of a second of each other. The
+fe-01 line is one run at the same head.
 
 ## The identity differential, and what it does and does not cover
 
