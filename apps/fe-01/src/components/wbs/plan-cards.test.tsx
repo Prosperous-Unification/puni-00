@@ -127,6 +127,10 @@ function fakeApi(options: { refusePatch?: boolean; dated?: boolean } = {}): Proj
         // that carried the slices: the chart is drawn from this payload alone.
         roles: roleList.map((role) => ({ ...role })),
         assignedPeople: people.map(({ id, name }) => ({ id, name })),
+        // Present and empty, never absent: be-01 always sends it, so a fake that
+        // left it out would let `teamsOnThePlan` be handed `undefined` here and
+        // never in production. A plan whose teams are unlimited is what `[]` says.
+        teamCapacities: [],
         estimateMethod: 'pert' as const,
         startDate: options.dated === true ? DATED_PLAN.startsOn : null,
         projectRevision: 0,

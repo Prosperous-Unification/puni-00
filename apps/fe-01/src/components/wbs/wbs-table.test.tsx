@@ -260,6 +260,10 @@ function fakeApi(): ProjectApi & {
         // `roles`/`listPeople` calls the pickers make.
         roles: roleList.map((role) => ({ ...role })),
         assignedPeople: people.map(({ id, name }) => ({ id, name })),
+        // Present and empty, never absent: be-01 always sends it, so a fake that
+        // left it out would let `teamsOnThePlan` be handed `undefined` here and
+        // never in production. A plan whose teams are unlimited is what `[]` says.
+        teamCapacities: [],
         estimateMethod,
         startDate,
         // Never moved by anything the table does: the fake's mutations are all
@@ -6992,6 +6996,10 @@ describe('dependencies in the table — cross-review findings', () => {
               ],
         roles: [DEV],
         assignedPeople: [],
+        // Present and empty, never absent: be-01 always sends it, so a fake that
+        // left it out would let `teamsOnThePlan` be handed `undefined` here and
+        // never in production. A plan whose teams are unlimited is what `[]` says.
+        teamCapacities: [],
         estimateMethod: 'pert' as const,
         workItems: [
           {
@@ -7437,6 +7445,10 @@ describe('the chart under a plan being edited', () => {
           ],
           roles: [DEV],
           assignedPeople: [],
+          // Present and empty, never absent: be-01 always sends it, so a fake that
+          // left it out would let `teamsOnThePlan` be handed `undefined` here and
+          // never in production. A plan whose teams are unlimited is what `[]` says.
+          teamCapacities: [],
           estimateMethod: 'pert' as const,
           workItems: [
             {

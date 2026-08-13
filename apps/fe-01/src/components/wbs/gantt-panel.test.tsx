@@ -2595,6 +2595,10 @@ function fakeApi(startDate: string | null, skew: ReadSkew = {}): ProjectApi {
         // payload, which is the whole of the invariant the chart is drawn on.
         roles: [{ ...DEV }],
         assignedPeople: [{ id: 'kat', name: 'Kat' }],
+        // Present and empty, never absent: be-01 always sends it, so a fake that
+        // left it out would let `teamsOnThePlan` be handed `undefined` here and
+        // never in production. A plan whose teams are unlimited is what `[]` says.
+        teamCapacities: [],
         estimateMethod: 'pert' as const,
         startDate,
         projectRevision: 0,

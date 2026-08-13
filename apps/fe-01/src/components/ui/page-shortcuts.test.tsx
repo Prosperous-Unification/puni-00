@@ -87,6 +87,10 @@ function silentApi(): SilentApi {
           slices: [],
           roles: [],
           assignedPeople: [],
+          // Present and empty, never absent: be-01 always sends it, so a fake that
+          // left it out would let `teamsOnThePlan` be handed `undefined` here and
+          // never in production. A plan whose teams are unlimited is what `[]` says.
+          teamCapacities: [],
           estimateMethod: 'pert' as const,
           startDate: null,
           projectRevision: 1,
