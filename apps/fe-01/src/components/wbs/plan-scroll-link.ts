@@ -76,6 +76,18 @@ export interface PlanFace {
  * asks this module to align its driver, and the answer has to be "already
  * aligned" or the two would push each other for ever. Sub-pixel layout means
  * "already aligned" cannot be spelled `=== 0`.
+ *
+ * **It does two jobs under one name, and they are the same tolerance.** In
+ * {@link alignmentMove} it is how far out of step is not worth a move; in
+ * {@link firstShownIndex} it is how much of a row may be under the heading
+ * before the row below it is the one being read. A reviewer read a bug into the
+ * second (2026-08-12): two faces with different row heights can name different
+ * first rows at the same position. They can — and it is not a disagreement,
+ * because {@link alignmentMove} carries the cut as a fraction of the row, and
+ * "row 3 with all of it above the line" and "row 4 at the line" are one
+ * position. The residual the threshold leaves is `mateHeight / driverHeight`
+ * pixels, under this constant by construction. Measured, not argued: the move
+ * back from the disagreeing face is `null`.
  */
 export const SETTLED_PX = 1;
 

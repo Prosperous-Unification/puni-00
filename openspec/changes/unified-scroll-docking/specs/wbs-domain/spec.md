@@ -7,6 +7,13 @@ either one vertically SHALL bring the other to the row it is showing, whichever
 was scrolled and however it was scrolled — a wheel, a drag of a scrollbar, or a
 keyboard walk that carries the focus out of view.
 
+A face that has run out of its own scroll SHALL be left at its end rather than
+dragged past it, and SHALL come back onto its driver's row as soon as the driver
+is scrolled back within its reach. The frame carries trailing room the panel has
+no counterpart for — the picker room a dependency list on the last row opens
+into — so the last rows of a long plan are reachable in the frame and not under
+the axis, and there the two faces show different rows.
+
 The two faces SHALL be paired row for row: the row the panel draws at a position
 is the row the renderer draws at that position. Where they disagree, neither
 SHALL be moved.

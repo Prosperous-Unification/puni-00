@@ -45,19 +45,23 @@ and nothing else: prettier's markdown tables, fixed by `nx format:write`. Its
 Each injection was reverted with `git checkout -- .` before the next, and every
 line below was re-taken at this branch's head on 2026-08-12.
 
-| #   | Fault injected                                                          | Test that went red                                                      | What it said                                                                 |
-| --- | ----------------------------------------------------------------------- | ----------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
-| 1   | the id check in `alignmentMove` deleted                                 | `is nothing when the row at that index is a different row`              | `expected 168 to be null`                                                    |
-| 2   | the carry taken in pixels rather than as a fraction of the row          | `carries a fraction of the row, so a wrapped name cannot overshoot`     | `expected 40 to be close to 24.34782608695652`                               |
-| 3   | the echo not recognised — the `echo === driverPort` arm deleted         | `does not let a follower that ran out of chart drag its driver back`    | `expected 100 to be 196`                                                     |
-| 4   | an echo claimed for a write that moved nothing (`echo = followerPort`)  | `leaves a face that could not move free to drive the next gesture`      | `expected 196 to be +0`                                                      |
-| 5   | the content top measured from `<thead>` rather than from a heading cell | `refuses a frame whose heading has no cells` **and four of the link's** | `expected [Function] to throw an error`; `expected 96 to be 196`; three more |
-| 6   | the missing calendar axis defaulted to an empty face                    | `refuses a panel with no calendar axis`                                 | `expected [Function] to throw an error`                                      |
-| 7   | every `<tr>` counted as a row of the plan                               | `counts the rows of the plan and not the decoration between them`       | `expected 21 to be 20`                                                       |
-| 8   | the link also writes `scrollLeft`                                       | `never writes sideways, on either face`                                 | `expected 320 to be 140`                                                     |
+| #   | Fault injected                                                          | Test that went red                                                                   | What it said                                                                                                    |
+| --- | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------- |
+| 1   | the id check in `alignmentMove` deleted                                 | `is nothing when the row at that index is a different row`                           | `expected 168 to be null`                                                                                       |
+| 2   | the carry taken in pixels rather than as a fraction of the row          | `carries a fraction of the row, so a wrapped name cannot overshoot`                  | `expected 40 to be close to 24.34782608695652`                                                                  |
+| 3   | the echo not recognised — the `echo === driverPort` arm deleted         | `does not let a follower that ran out of chart drag its driver back`                 | `expected 100 to be 196`                                                                                        |
+| 4   | an echo claimed for a write that moved nothing (`echo = followerPort`)  | `leaves a face that could not move free to drive the next gesture`                   | `expected 196 to be +0`                                                                                         |
+| 5   | the content top measured from `<thead>` rather than from a heading cell | `refuses a frame whose heading has no cells` **and four of the link's**              | `expected [Function] to throw an error`; `expected 96 to be 196`; three more                                    |
+| 6   | the missing calendar axis defaulted to an empty face                    | `refuses a panel with no calendar axis`                                              | `expected [Function] to throw an error`                                                                         |
+| 7   | every `<tr>` counted as a row of the plan                               | `counts the rows of the plan and not the decoration between them`                    | `expected 21 to be 20`                                                                                          |
+| 8   | the link also writes `scrollLeft`                                       | `never writes sideways, on either face`                                              | `expected 320 to be 140`                                                                                        |
+| 9   | the axis guard in `wbs-table.tsx`'s effect dropped                      | `does not hold the chart to the table while the plan is a circle`                    | `expected [ 'Error: the Gantt panel has no calendar axis to measure its content top from' ] to deeply equal []` |
+| 10  | the container's own top dropped from `roomForCard`'s `Math.max`         | `gives a card no room rather than less than none when its frame has left the window` | `expected { side: 'below', maxHeight: -180 } to deeply equal { side: 'below', maxHeight: 0 }`                   |
 
 Fault 5 is the one a browser found first, and it is in the record twice on
-purpose — see "What the browser corrected" below.
+purpose — see "What the browser corrected" below. Faults 9 and 10 are the
+cross-review's, re-taken on h2puni on 2026-08-13; both tests were written red
+before either fix existed.
 
 ## The faults, watched — the browser
 
@@ -112,6 +116,39 @@ The unit fixture stubs the **cell** now, and fault 5 is what holds it.
 | `planDragged.height <= planAtRest.height - 140` (`e2e/gantt.spec.ts`, the height drag) | the plan never grows for the chart, and the page does not scroll — which is what the comment claimed | —              | `expected 320 to be less than or equal to 180`, the frame on its own 20rem floor |
 | `gives a long note the room below rather than 320px of it` measured a two-row plan     | it fills the frame first, and says why                                                               | —              | `the card is still the old 320px slot: expected 267 to be greater than 321`      |
 | `roomForCard(anchor, viewportHeight)` — the window is what clips a card                | `roomForCard(anchor, container)` — the window **and** the frame, which is what actually clips it     | E              | `the card closed on the way to it: expected 1, received 0`                       |
+
+## The cross-review, and what it changed
+
+Two CLI reviewers (`codex`, `agy`) and a reading of my own against a private
+clone at `ee92008`, adjudicated in
+`notes/wbs-cross-review-2026-08-12-unified-scroll.md`. Verdict:
+**mergeable after fixes**. Every finding and where it went:
+
+| finding                                                                              | disposition                                                                                                                                                                              |
+| ------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **P1** the chart open on a plan with a dependency cycle throws on every table scroll | **Fixed.** The effect installs nothing on a panel with no calendar axis; fault 9 holds it                                                                                                |
+| **P2** a follower clamped at its end drops row-for-row, and the spec claimed it flat | **Qualified.** The spec delta now states the exception; `design.md` carries the arithmetic                                                                                               |
+| **P3** `roomForCard` can be handed a degenerate container                            | **Fixed.** A box cannot be shorter than nothing; fault 10 holds it                                                                                                                       |
+| **P3** the echo records an element and not the position it was put at                | **Deferred**, and written down here rather than in a comment — see below                                                                                                                 |
+| **P3** `SETTLED_PX` does two jobs under one name                                     | **Documented** at the constant, including why the second is not the bug it was read as                                                                                                   |
+| **P3** `design.md`'s invariant table says the page never scrolls, flatly             | **Qualified** in the table, against `table-frame.ts`'s own wording                                                                                                                       |
+| **P3** the CI line names a run at an older head                                      | **Replaced** — see "The gate"                                                                                                                                                            |
+| `agy`'s P1: the `SETTLED_PX` visibility rule jumps the table a row                   | **Refuted** by measurement: the two faces name different first rows at heights 46 against 28, and the move back is `null`, because the carried fraction makes the two names one position |
+| `codex`'s P1: the echo swallows a racing user scroll                                 | **Demoted** to the P3 above: the window is one animation frame and it needs input on both faces at once                                                                                  |
+| `codex`'s P1: a follower clamped at its end stays misaligned                         | **Demoted** to the P2 above: the mechanism is real and is a physical limit, not a defect in the link                                                                                     |
+
+**Deferred, deliberately, with what would change the answer:**
+
+- **`{element, expectedTop}` instead of `{element}` for the echo.** A user scroll
+  of the follower coalesced into the same animation frame as the link's own
+  write is swallowed with it. One pointer cannot scroll both faces at once, and
+  a continuing gesture heals it on its next event. If it is ever _seen_ — a
+  wheel over the chart losing a notch while the table is being dragged — the
+  fix is to record the position the write asked for and compare against it.
+- **An end-of-plan browser case.** The P2 above is measured (`design.md`) and
+  stated (the spec delta) but not pinned by a case that scrolls both faces to
+  their ends on a long plan. It belongs with whichever change gives the panel
+  trailing room, since that is the state the case would then be asserting.
 
 ## What did not change, and is asserted to have not
 

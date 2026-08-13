@@ -90,6 +90,20 @@ refuse to scroll past its chart's last row. Re-reading `scrollTop` after the
 write is what separates the two: a write that moved nothing will not echo, so no
 echo is claimed for it, and a face pinned at its end is left free to drive.
 
+**What that costs, measured.** The frame's own trailing room — `paddingBottom:
+13rem`, the picker room — is scrollable extent the panel has no counterpart for,
+so the last rows of a long plan are reachable in the frame and not under the
+axis. With 60 rows at 28px, a 400px frame against a 350px panel and both at
+their own maximum, the table's first shown row is 53 and the best the chart can
+reach is 47: six rows apart, and the gap is
+`(panelH − (frameH − 208)) / rowHeight`. It only exists at the very end of a
+plan, it closes on the way back up, and on `main` the two faces were that far
+apart everywhere — but it is an exception to "scrolling either one brings the
+other to the row it is showing", and the spec delta now says so rather than
+claiming the requirement flat. Cross-review, 2026-08-12. Giving the panel the
+same trailing room is the other half of the choice and is not taken here: it is
+208px of white under every chart, for a state a reader leaves by scrolling.
+
 ## What the frame stopped guaranteeing
 
 The frame was as tall as the window whatever it held, and three things had
@@ -121,11 +135,11 @@ for a plan honest, and it stops binding at about four rows.
 
 ## Invariants this change had to hold, and how
 
-| invariant                                          | how it is held                                                                                                                                                                    |
-| -------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Row-for-row correspondence between the faces       | Used as the mechanism and checked by id before every move; asserted per case in `e2e/plan-surface.spec.ts` (`toHaveCount(rows)`)                                                  |
-| Keyboard walk and cell focus                       | The link writes `scrollTop` and never calls `focus` or `scrollIntoView`; the browser case walks fifteen cells with Ctrl+J and asserts the focus is still in the cell it walked to |
-| The frame is what scrolls, and the page never does | `flex-shrink: 1` kept; both browser cases assert `pageOverflow === 0`, and the no-shrink fault turns five of six red                                                              |
-| `unfolding-may-scroll`'s sideways scroll           | `scrollLeft` is never read or written; the browser case unfolds a role, scrolls the frame sideways and asserts both faces keep their own sideways position                        |
-| The chart's month caption                          | Follows from the same: the caption is computed from the panel's `scrollLeft`                                                                                                      |
-| The folded fit at every laptop width               | Untouched — nothing here changes a width                                                                                                                                          |
+| invariant                                        | how it is held                                                                                                                                                                                                                                                                                                                                                                 |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Row-for-row correspondence between the faces     | Used as the mechanism and checked by id before every move; asserted per case in `e2e/plan-surface.spec.ts` (`toHaveCount(rows)`)                                                                                                                                                                                                                                               |
+| Keyboard walk and cell focus                     | The link writes `scrollTop` and never calls `focus` or `scrollIntoView`; the browser case walks fifteen cells with Ctrl+J and asserts the focus is still in the cell it walked to                                                                                                                                                                                              |
+| The frame is what scrolls, and the page does not | `flex-shrink: 1` kept; both browser cases assert `pageOverflow === 0`, and the no-shrink fault turns five of six red. `table-frame.ts` carries the one exception this does not remove and does not worsen: a window too short for the 20rem floor plus the chrome scrolls the page, as it did before this change — `0 1 auto` never grows the frame past what `1 1 0%` made it |
+| `unfolding-may-scroll`'s sideways scroll         | `scrollLeft` is never read or written; the browser case unfolds a role, scrolls the frame sideways and asserts both faces keep their own sideways position                                                                                                                                                                                                                     |
+| The chart's month caption                        | Follows from the same: the caption is computed from the panel's `scrollLeft`                                                                                                                                                                                                                                                                                                   |
+| The folded fit at every laptop width             | Untouched — nothing here changes a width                                                                                                                                                                                                                                                                                                                                       |
