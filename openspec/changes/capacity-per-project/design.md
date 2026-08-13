@@ -147,7 +147,17 @@ release beside it still selects it — `resizeTeam`'s `returning()` reads the wh
 row, and so does `usageOfTeam`. So the column stays, and what changes is that
 nothing in **this** release reads it.
 
-Two consequences, both stated rather than hidden:
+**Kept in the table is not kept on the wire**, and the difference had to be made
+in code rather than in prose: `DirectoryRepository.listTeams` was an unqualified
+`select()`, which reads every column drizzle knows about, so the retired number
+was travelling into `/api/teams` and into `TeamView` while this section claimed
+nothing in the release read it. Every read of `service_team` is now projected to
+`{ id, name }`, and both boundary types carry the same two fields — which also
+makes fe-01's fallback (`?? team.size`) a compile error rather than something a
+test has to catch. Added after the 2026-08-13 cross-review; `verify.md` R5 #16
+and #11.
+
+Three consequences, all stated rather than hidden:
 
 - **A stale number stays in the table**, and the day somebody drops the column
   it will be the last thing anyone sees of the global capacity. A `-- retired by
@@ -161,6 +171,13 @@ capacity-per-project` comment goes on the schema field, naming this change and
   The stated cost: a browser holding the pre-swap fe-01 bundle and typing in the
   old directory box gets a refusal it cannot act on. It is one release's window,
   the box is gone in the bundle beside it, and the alternative is a silent lie.
+- **The swap window runs both ways**, and `verify.md`'s "Deployment" names it:
+  while green is booting and blue still serves, the outgoing release can write
+  `service_team.size` (seeded nowhere, read by nothing afterwards) and can create
+  a project that green will schedule unconstrained. Case 2 above, arriving during
+  a deploy rather than after it. Named rather than fixed — a boot-time reseed
+  would resurrect capacities somebody cleared, and seeding at create is what D1
+  rejects.
 
 ## D5 — the box moves onto the plan, because the number is now the plan's
 

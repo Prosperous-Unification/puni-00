@@ -136,7 +136,6 @@ function asOptionalPriority(value: unknown, field: string): number | null | unde
  * under a `1e999` probe would stay green. That exact vacuous check has shipped
  * here before (`T1 column-widths-drag`).
  */
-
 function asOptionalParallelism(value: unknown, field: string): number | null | undefined {
   if (value === undefined) return undefined;
   if (value === null) return null;

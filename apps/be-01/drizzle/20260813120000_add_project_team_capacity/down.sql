@@ -2,11 +2,17 @@
 --
 -- Dropping this loses every per-project capacity anybody typed. Most of it can be
 -- recomputed and the interesting part cannot: the release that comes back reads
--- `service_team.size` again, which this migration seeded these rows *from* and
--- which no release since has written, so every pair that was never edited comes
--- back at exactly the number it was seeded with. What is lost is every pair
--- somebody has edited since — a project told four where the global number says
--- one goes back to one, and its plan re-spreads.
+-- `service_team.size` again, which this migration seeded these rows *from*, so
+-- every pair that was never edited comes back at exactly the number it was
+-- seeded with. What is lost is every pair somebody has edited since — a project
+-- told four where the global number says one goes back to one, and its plan
+-- re-spreads.
+--
+-- One exception, and it is the blue/green swap window rather than an ordinary
+-- day: no release *after* this one writes `service_team.size`, but the outgoing
+-- one still serves `PATCH /api/teams/:id/size` until the routing switch, and a
+-- number typed there in that minute is seeded nowhere and read by nothing.
+-- `verify.md`'s Deployment section names the window and what it costs.
 --
 -- Nothing else in the plan goes: the teams, their names, their memberships, every
 -- label on the work and every global size all survive, which is why this runs

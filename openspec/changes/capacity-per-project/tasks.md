@@ -74,9 +74,13 @@ slots>`. **Negative:** pointed at `service_team.size` (the fallback this
       `DirectoryRepository.resizeTeam` deleted, with their tests. The grep that
       says nothing reads `serviceTeam.size` is in verify.md.
 - [x] 3.6 `directoryUsageOfTeam` reads the **project's** capacity, not the team's
-      global size. **Negative:** the per-project map replaced by the team row's
-      size, watched failing `names each project's own capacity` where one project
-      states nothing.
+      global size. **Negative:** the per-project lookup replaced by "any project
+      stated something" (`[...rows.capacityOf.values()].at(0)`), watched failing
+      `names each project's own capacity, and says nothing where a project stated
+none` — the second plan's row carrying the first plan's pool. The negative
+      first recorded here named an injection that cannot be written (it used the
+      team row this change deletes) against a test nobody had written; the
+      cross-review of 2026-08-13 caught both, and the test exists now.
 
 ## 4. The payload and the plan's own surface
 
@@ -99,10 +103,32 @@ carries`.
 
 ## 5. The gate
 
-- [x] 5.1 `bunx nx format:check --all`, `bunx nx run-many -t test lint typecheck
-build`, `openspec validate --all --json`, on h2puni. Nothing on h1claw.
+- [x] 5.1 `bunx nx format:check --all`, `bunx nx run-many -t lint typecheck`, both
+      suites run directly (bun in `apps/be-01`, vitest in `apps/fe-01`), and
+      `openspec validate --all --json`, on h2puni. Nothing on h1claw. **The
+      `build` target is not run there** — `tool-bootstrap` and `tool-devsync`
+      refuse without `shellcheck`, which h2puni does not have, and CI is the gate
+      of record for it. `verify.md`'s gate table says so; this line used to
+      disagree with it.
 - [x] 5.2 CI `pixels`. Not run on h2puni for this change: no claim here depends on
       real layout the way the In-parallel column's 32px did, so there is nothing for
       a browser to measure that jsdom cannot. `pixels` is the record.
 - [x] 5.3 `verify.md`: commands, results, the R5 table, and the grep proving no
       read path consults `serviceTeam.size`.
+
+## 6. The 2026-08-13 cross-review
+
+- [x] 6.1 The no-fallback rule gets the test Dany's second sentence never had:
+      `never falls back to a globally sized team nobody stated per project`,
+      watched red against the _addition_ fault the suite was blind to (R5 #17).
+- [x] 6.2 `directoryUsageOfTeam`'s multi-project case gets the test R5 row 9
+      named and nobody wrote (3.6 above, R5 #9).
+- [x] 6.3 The retired column leaves the wire: every `service_team` read is
+      projected, `ServiceTeam` and `TeamView` lose `size`, and `/api/teams`'
+      shape is pinned (R5 #16). The fe-01 fallback becomes a compile error, so
+      R5 #11 is a `tsc` output rather than an assertion.
+- [x] 6.4 `capacityRefusalSentence` gains the 5xx arm every other refusal helper
+      in the app has (R5 #18).
+- [x] 6.5 The record: the labelling-join claim reworded to reasoned-not-watched
+      in all three places, the blue/green swap window named in "Deployment", the
+      oracle recapture recorded, and the four false or dangling comments fixed.

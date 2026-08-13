@@ -408,12 +408,14 @@ export type ServiceTeamRow = typeof serviceTeam.$inferSelect;
  * handle both — the shape R2 exists to prevent. It is also why the write path's
  * `null` deletes rather than updates.
  *
- * Both columns cascade. The application deletes these rows before deleting a
- * project or a team, but blue and green share one SQLite file during a swap: the
- * outgoing release knows nothing about this table, and its plain
- * `DELETE FROM service_team` would hit a constraint it cannot see and answer
- * 500. The cascade is what keeps this migration safe under the release that
- * predates it — `dependency`'s own argument, one table along.
+ * Both columns cascade, and the cascade is the **only** mechanism that removes
+ * these rows: nothing in be-01 deletes them before a project or a team goes —
+ * {@link CapacityStore.set}'s clear-to-unstated is the single `DELETE` against
+ * this table. That is not an oversight. Blue and green share one SQLite file
+ * during a swap, the outgoing release knows nothing about this table, and its
+ * plain `DELETE FROM service_team` would hit a constraint it cannot see and
+ * answer 500 — so the removal has to belong to the database rather than to a
+ * release. `dependency`'s own argument, one table along.
  *
  * The scheduler reads it through `CapacityStore.slotsFor`, which is C1's
  * `slotsOf` seam with the per-project lookup behind it at last. Why the map that

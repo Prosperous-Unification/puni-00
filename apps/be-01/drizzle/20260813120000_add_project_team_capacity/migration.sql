@@ -16,11 +16,14 @@
 -- the seeding below refuse to write an unsized team as a number rather than
 -- silently inventing one.
 --
--- Both foreign keys cascade. The application deletes these rows before deleting a
--- project or a team, but blue and green share one SQLite file during a swap and
--- the outgoing release knows nothing about this table: its plain `DELETE FROM
--- service_team` would hit a constraint it cannot see and answer 500 for the
--- length of the swap.
+-- Both foreign keys cascade, and the cascade is the **only** thing that removes
+-- these rows. The application deletes none of them on its way to deleting a
+-- project or a team — `CapacityRepository.set`'s clear-to-unstated is the one
+-- `DELETE` against this table anywhere in be-01 — so this is the guard rather
+-- than a belt over a brace. It has to be, because blue and green share one
+-- SQLite file during a swap and the outgoing release knows nothing about this
+-- table: its plain `DELETE FROM service_team` would hit a constraint it cannot
+-- see and answer 500 for the length of the swap.
 --
 -- Proof: with the cascades removed, `lets the outgoing release keep writing
 -- teams and projects against the migrated schema` fails on that exact statement
