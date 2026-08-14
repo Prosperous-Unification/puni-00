@@ -1,7 +1,8 @@
 # verify — `team-sets`
 
 Branch `change/team-sets`, cut from `main` @ `f2d021b` (#58 capacity C5 merged)
-on 2026-08-14. PR #61.
+on 2026-08-14, **rebased onto `main` @ `23024cc`** the same day when #59
+(capacity C4 docs) landed under it. PR #61.
 
 be-01, fe-01, `libs/domain` and one migration. The change is **arity**: a work
 item's teams become a set, every read goes through `work_item_team`, and the
@@ -9,10 +10,34 @@ write path goes on writing at most one team and dual-writing
 `work_item.service_team_id`. Production sets stay ≤ 1, so nothing observable
 moves — and that claim is the whole of what has to be proved.
 
+## The rebase
+
+#59 merged while this branch was open, and the two diffs share three files. Both
+collisions were content conflicts in prose, and neither touched behaviour:
+
+- **`schema.ts`, `workItem.serviceTeamId`'s JSDoc.** #59 corrected its "spent
+  through {@link serviceTeam.size}" sentence to name `projectTeamCapacity.size`;
+  this branch rewrote the same paragraph to say the join is the read. Resolved by
+  keeping **both** facts in one paragraph — the set is what a capacity is spent
+  through, and the number of slots is the project's — plus #59's pointer to
+  `docs/capacity.md`.
+- **`CONTEXT.md`.** #59 added nine capacity terms into the block this branch adds
+  **Team set** and **Effective team set** to. Resolved by keeping all eleven,
+  the two new ones directly under **Service team** where they belong.
+- `plan-export.ts` merged clean, and #59's `gantt-geometry.ts` and
+  `docs/capacity.md` came through untouched — `git diff origin/main HEAD` names
+  neither.
+
+The gate below was re-run **after** the rebase and is the record. Two numbers
+move because main moved under this branch, and neither is this change's: fe-01
+1,305 → **1,306** (#59's `and 1 others` number-agreement case) and openspec
+44 → **45** (#59's own change folder).
+
 ## The gate
 
-Run on **h2puni** over plain ssh, at `a97e706`. Nothing was compiled or tested on
-h1claw; that box denies both (`bin/block-local-builds.sh`).
+Run on **h2puni** over plain ssh at the rebased head `2a4348f`, in
+`/home/puni1/wd/puni/wt-team-sets`. Nothing was compiled or tested on h1claw;
+that box denies both (`bin/block-local-builds.sh`).
 
 | target                                                  | result                                                                                                                                      |
 | ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -21,8 +46,8 @@ h1claw; that box denies both (`bin/block-local-builds.sh`).
 | be-01 unit (bun **1.3.14**, in `apps/be-01`)            | **715 pass, 0 fail**, 24,646 `expect()` calls, 12.25s across **58 files**                                                                   |
 | gw-01 unit (bun 1.3.14)                                 | **45 pass, 0 fail**, 8 files                                                                                                                |
 | `libs/domain` unit (bun 1.3.14)                         | **49 pass, 0 fail**, 3 files                                                                                                                |
-| fe-01 unit (`node vitest run`, node 22.14.0)            | **1,305 pass across 50 files, 0 fail**, 58.19s                                                                                              |
-| `bunx @fission-ai/openspec@1.3.0 validate --all --json` | **44 items, 44 passed, 0 failed**                                                                                                           |
+| fe-01 unit (`node vitest run`, node 22.14.0)            | **1,306 pass across 50 files, 0 fail**, 58.22s                                                                                              |
+| `bunx @fission-ai/openspec@1.3.0 validate --all --json` | **45 items, 45 passed, 0 failed**                                                                                                           |
 | secrets scan over every tracked file                    | exit 0                                                                                                                                      |
 | `doc-caps`                                              | exit 0                                                                                                                                      |
 | migration lint over every tracked `.sql`                | exit 0                                                                                                                                      |
@@ -35,8 +60,9 @@ The bun version is quoted beside the `expect()` count deliberately: same tree,
 be-01 goes 696 → **715**, and every one of the 19 is new here: 4 migration cases
 (the seed, capacity and membership untouched, the outgoing release's delete, the
 rollback), 8 join cases in `repository/work-item.test.ts`, 4 `poolFor` cases, and
-3 in the new `service/directory-usage.test.ts`. fe-01 goes 1,303 → **1,305**: the
-set-not-the-column read in the table, and the joined `Team` cell in the export.
+3 in the new `service/directory-usage.test.ts`. fe-01 goes 1,304 → **1,306** —
+two of this branch's own, the set-not-the-column read in the table and the joined
+`Team` cell in the export, over a base #59 had already moved to 1,304.
 `libs/domain` goes 47 → 49 — the whole-set inheritance case and the memoisation
 case, both new; the rest of that file is re-derived rather than added to.
 
@@ -46,7 +72,7 @@ are `bun test` in their own directories; fe-01 is
 `node ../../node_modules/vitest/vitest.mjs run` with node 22 on `PATH`.
 
 **One false red, named because it cost twenty minutes and will cost the next
-person the same.** The first full gate run at this head reported be-01
+person the same.** The first full gate run, at `a97e706`, reported be-01
 **545 pass / 170 fail** and a flaky `fe-01:lint`. Every failure was
 `SQLiteError: disk I/O error` (196 of them): h2puni's `/tmp` is a 3.8 GB tmpfs and
 it stood at **80% full**, mostly 25 stale `bunx` staging directories of 85 MB each
@@ -73,11 +99,18 @@ The h2puni gate above ran at `a97e706`, one commit behind this run; the only
 difference is `tasks.md` and `design.md` prose.
 
 **Run 31785348703, `conclusion: success`, gate and pixels both**, at
-`87ca8e31e344cd8dd079f1d1dfa0dab6c654d70b` — the head that carries this file, so
-the record and the run it describes are the same tree. Two runs, two greens, no
-flake and no rerun. (A third id, 31785342082, appears in `gh run list` as
+`87ca8e31e344cd8dd079f1d1dfa0dab6c654d70b` — the last head before the rebase.
+
+**Run 31786180866, `conclusion: success`, gate and pixels both**, at
+`2a4348f8f35b3759d6f7061035d916581bafcf19` — **the rebased head**, and the one
+that matters, because it is the tree this PR merges. Three runs, three greens, no
+flake and no rerun. (A fourth id, 31785342082, appears in `gh run list` as
 `cancelled` after 13s: two pushes landed inside the concurrency group's window
-and the group cancelled the older one. Nothing failed.)
+and it cancelled the older one. Nothing failed.)
+
+The only commit after `2a4348f` is the one that adds this section, which changes
+no code and which CI runs again — the same tail this repo's last three changes
+have.
 
 ## The failure-proof table
 
