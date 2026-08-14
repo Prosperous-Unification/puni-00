@@ -1,11 +1,19 @@
 # verify — `parallel-per-slice`
 
 Branch `change/capacity-c3-p3s`, cut from `main` @ `30e8c4c` (#62, #63 both
-merged) on 2026-08-14.
+merged) on 2026-08-14. PR **#66**.
 
 **Run under the PoC-mode contract of 2026-08-14** — `notes/delivery-modes.md`.
 No `design.md`, no citation table, watched reds only where a new guard was
 written, and **CI is the gate of record** rather than a full local run.
+
+## CI
+
+**Run 31831765348** on head `211e7fb` — **success**, first attempt. `gate`
+green in 3m56s (format, test/lint/typecheck/build, secrets scan, doc caps,
+compose files, migration lint, openspec — all as one job); `pixels` (the
+browser suite) green in 9m18s. The PR reads MERGEABLE / CLEAN. Not merged —
+PoC mode keeps cross-review before merge until Dany says otherwise.
 
 ## Wall clock
 
