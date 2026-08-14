@@ -59,7 +59,9 @@ run could not have. `format:write --all` applied and re-checked clean; the run
 against the branch's push after that fix is quoted below.
 
 **Run 31831841652** on head `2315f62` — **success**, both `gate` and `pixels`.
-This is the PR's current head; the branch is not merged.
+The doc-only tail after it (this file naming its own run ids) got its own
+green run too: **31832622257 at `945106e`**, the PR's current head. The
+branch is not merged.
 
 ## The lint red, watched
 
