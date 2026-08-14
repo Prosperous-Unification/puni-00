@@ -888,7 +888,6 @@ describe('the work item team migration', () => {
   });
 });
 
-
 describe('the priority band migration', () => {
   it('seeds every project that existed with the five default bands', () => {
     // **Claim A.** Reached the way the priority backfill case is: roll back to
