@@ -1,92 +1,117 @@
 import { describe, expect, it } from 'bun:test';
 
-import { effectiveTeamOf, TeamAncestryCycleError, type TeamLabelled } from './effective-team';
+import { effectiveTeamsOf, TeamAncestryCycleError, type TeamsLabelled } from './effective-team';
 
-const row = (id: string, parentId: string | null, serviceTeamId: string | null): TeamLabelled => ({
+const row = (id: string, parentId: string | null, ...teamIds: string[]): TeamsLabelled => ({
   id,
   parentId,
-  serviceTeamId,
+  teamIds,
 });
 
-describe('effectiveTeamOf', () => {
+describe('effectiveTeamsOf', () => {
   it('reaches an unlabelled leaf from the parent above it', () => {
-    const rows = [row('parent', null, 'platform'), row('leaf', 'parent', null)];
+    const rows = [row('parent', null, 'platform'), row('leaf', 'parent')];
 
-    const found = effectiveTeamOf(rows);
+    const found = effectiveTeamsOf(rows);
 
-    expect(found.get('leaf')).toEqual({ teamId: 'platform', fromId: 'parent' });
-    expect(found.get('parent')).toEqual({ teamId: 'platform', fromId: 'parent' });
+    expect(found.get('leaf')).toEqual({ teamIds: ['platform'], fromId: 'parent' });
+    expect(found.get('parent')).toEqual({ teamIds: ['platform'], fromId: 'parent' });
   });
 
-  it('lets a leaf’s own label beat its parent’s, in both directions', () => {
-    // Most-specific wins, and deliberately not the floor rule: a floor takes
+  it('inherits an ancestor’s whole set, not its first member', () => {
+    // The fault this replaces is the one that moves dates rather than failing:
+    // the adapter spends slots in whatever set it is handed, so a leaf given
+    // one team of two is scheduled against a pool the plan never narrowed to.
+    const rows = [row('parent', null, 'design', 'platform'), row('leaf', 'parent')];
+
+    const found = effectiveTeamsOf(rows);
+
+    expect(found.get('leaf')?.teamIds).toEqual(['design', 'platform']);
+  });
+
+  it('lets a leaf’s own set beat its parent’s, whole and in both directions', () => {
+    // Override, not union (Dany, 2026-08-13): the leaf states `payments` and is
+    // on `payments` **alone**, with no trace of the two teams above it. Most
+    // specific wins, and deliberately not the floor rule — a floor takes
     // `Math.max` because it is a hard constraint, and a label is a statement
     // about whose work this is.
     const rows = [
-      row('parent', null, 'platform'),
+      row('parent', null, 'design', 'platform'),
       row('leaf', 'parent', 'payments'),
       row('other-parent', null, 'payments'),
       row('other-leaf', 'other-parent', 'platform'),
     ];
 
-    const found = effectiveTeamOf(rows);
+    const found = effectiveTeamsOf(rows);
 
-    expect(found.get('leaf')?.teamId).toBe('payments');
-    expect(found.get('leaf')?.fromId).toBe('leaf');
-    expect(found.get('other-leaf')?.teamId).toBe('platform');
+    expect(found.get('leaf')).toEqual({ teamIds: ['payments'], fromId: 'leaf' });
+    expect(found.get('other-leaf')?.teamIds).toEqual(['platform']);
   });
 
-  it('gives the nearer ancestor’s label to a leaf between two', () => {
+  it('gives the nearer ancestor’s set to a leaf between two', () => {
     const rows = [
-      row('grandparent', null, 'platform'),
+      row('grandparent', null, 'platform', 'design'),
       row('parent', 'grandparent', 'payments'),
-      row('leaf', 'parent', null),
+      row('leaf', 'parent'),
     ];
 
-    const found = effectiveTeamOf(rows);
+    const found = effectiveTeamsOf(rows);
 
-    expect(found.get('leaf')).toEqual({ teamId: 'payments', fromId: 'parent' });
+    expect(found.get('leaf')).toEqual({ teamIds: ['payments'], fromId: 'parent' });
   });
 
-  it('leaves a row with no label above it absent, rather than guessing one', () => {
-    const rows = [row('parent', null, null), row('leaf', 'parent', null)];
+  it('reads an empty set as unstated, so it inherits rather than meaning none', () => {
+    // The whole of Q4's answer, in one assertion: `[]` is _unstated_ and there
+    // is no second state meaning "deliberately no team". A row whose set is
+    // empty is on its ancestor's, and a plan with nothing above it is absent
+    // from the map — one spelling of unstated, as `null` was one spelling.
+    const inherits = effectiveTeamsOf([row('parent', null, 'platform'), row('leaf', 'parent')]);
+    expect(inherits.get('leaf')?.teamIds).toEqual(['platform']);
 
-    const found = effectiveTeamOf(rows);
-
-    expect(found.size).toBe(0);
+    const nothing = effectiveTeamsOf([row('parent', null), row('leaf', 'parent')]);
+    expect(nothing.size).toBe(0);
   });
 
-  it('names the ancestor the label came from, so a reader can be told', () => {
+  it('names the ancestor the set came from, so a reader can be told', () => {
     // The `fromId` half of the reading. Without it, "Platform — inherited from
     // 010 Backend" cannot be said and every consumer showing an inherited
     // label would be showing an unexplained one.
-    const rows = [
-      row('a', null, 'platform'),
-      row('b', 'a', null),
-      row('c', 'b', null),
-      row('d', 'c', null),
-    ];
+    const rows = [row('a', null, 'platform'), row('b', 'a'), row('c', 'b'), row('d', 'c')];
 
-    const found = effectiveTeamOf(rows);
+    const found = effectiveTeamsOf(rows);
 
     for (const id of ['b', 'c', 'd']) expect(found.get(id)?.fromId).toBe('a');
   });
 
-  it('refuses a parent chain that runs in a circle', () => {
-    // R5. A cycle has no nearest ancestor, so there is no label to fall back
-    // to — and without the guard the walk does not come back at all, which is
-    // why the assertion is on the throw and the injected fault was watched
-    // under a test timeout rather than as a wrong answer.
-    const rows = [row('a', 'b', null), row('b', 'a', null)];
+  it('resolves a chain of unlabelled rows once, and hands each of them the same answer', () => {
+    // The memoisation the docstring claims, asserted the only way it is
+    // observable from outside: every row the walk passed through holds **the
+    // same object**, which a per-row re-walk cannot produce. Without it the
+    // walk is quadratic in the depth and nothing else in the suite notices.
+    const rows = [row('a', null, 'platform'), row('b', 'a'), row('c', 'b'), row('d', 'c')];
 
-    expect(() => effectiveTeamOf(rows)).toThrow(TeamAncestryCycleError);
+    const found = effectiveTeamsOf(rows);
+
+    const answer = found.get('d');
+    expect(answer).toBeDefined();
+    for (const id of ['b', 'c']) expect(found.get(id)).toBe(answer);
+  });
+
+  it('refuses a parent chain that runs in a circle', () => {
+    // R5. A cycle has no nearest ancestor, so there is no set to fall back to —
+    // and without the guard the walk does not come back at all, which is why
+    // the assertion is on the throw and the injected fault was watched under a
+    // test timeout rather than as a wrong answer.
+    const rows = [row('a', 'b'), row('b', 'a')];
+
+    expect(() => effectiveTeamsOf(rows)).toThrow(TeamAncestryCycleError);
   });
 
   it('answers for a row whose parent is not in the list', () => {
     // A parent from another project, or one that has been removed: the walk
     // runs out of rows rather than throwing, and the row is simply unlabelled.
-    const rows = [row('orphan', 'elsewhere', null)];
+    const rows = [row('orphan', 'elsewhere')];
 
-    expect(effectiveTeamOf(rows).size).toBe(0);
+    expect(effectiveTeamsOf(rows).size).toBe(0);
   });
 });

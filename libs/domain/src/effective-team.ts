@@ -1,25 +1,41 @@
 /**
- * A row of a plan, as far as the team label is concerned: its own id, its
- * parent's, and whatever team somebody wrote on it.
+ * A row of a plan, as far as the team labels are concerned: its own id, its
+ * parent's, and whatever teams somebody wrote on it.
  *
- * Structural rather than be-01's `WorkItem` or fe-01's `NumberedWorkItem`,
+ * Structural rather than be-01's `LabelledWorkItem` or fe-01's `TreeRow`,
  * because the whole point of this module is that both read the same rule. A
  * shape both already satisfy is what makes that possible without either app
  * depending on the other.
+ *
+ * `teamIds` is a **set**, and an empty one is _unstated_ — the state that
+ * inherits. There is deliberately no second spelling meaning "deliberately no
+ * team", exactly as there was no second spelling of the `null` this replaced
+ * (Dany, 2026-08-13, Q4).
  */
-export interface TeamLabelled {
+export interface TeamsLabelled {
   id: string;
   parentId: string | null;
-  serviceTeamId: string | null;
+  teamIds: readonly string[];
 }
 
-/** Which team a row's work belongs to, and which row said so. */
-export interface EffectiveTeam {
-  /** The team id in force for this row. */
-  teamId: string;
+/** Which teams a row's work belongs to, and which row said so. */
+export interface EffectiveTeams {
   /**
-   * The row that carries the label — this row itself, or the nearest ancestor
-   * above it that has one.
+   * The teams in force for this row, **whole**: the set the nearest stating row
+   * carries, never a member of it.
+   *
+   * In the order the stating row carried them, which is the store's order —
+   * `work_item_team` is read by team id, so two reads of an unchanged plan
+   * answer the same array. Ordering for display is a different question and
+   * belongs to whoever displays it.
+   *
+   * Never empty. A row with no non-empty set anywhere above it is absent from
+   * the map instead, so "unstated" has one spelling here too.
+   */
+  teamIds: readonly string[];
+  /**
+   * The row that carries the set — this row itself, or the nearest ancestor
+   * above it that states one.
    *
    * Carried rather than reduced to a boolean because every consumer that shows
    * an inherited label has to name where it came from: "Platform — inherited
@@ -37,9 +53,9 @@ export class TeamAncestryCycleError extends Error {
 }
 
 /**
- * Every row's effective team: its own label, or the nearest ancestor's.
+ * Every row's effective team set: its own, or the nearest ancestor's.
  *
- * **Most-specific wins**, in both directions — a leaf's own label beats every
+ * **Most-specific wins**, in both directions — a leaf's own set beats every
  * ancestor's, and a nearer ancestor beats a further one. That is deliberately
  * not the rule a `startNoEarlierThan` floor takes, and for the same reason
  * `priorityByLeaf` is not: a floor takes `Math.max` because it is a hard
@@ -47,28 +63,34 @@ export class TeamAncestryCycleError extends Error {
  * about **whose work this is**, and the one written closest to the work meant
  * that work.
  *
- * Rows with no label anywhere above them are simply absent from the map. That
- * is the state every plan is in today, and it is what a consumer reads as "no
+ * **Override, not union** (Dany, 2026-08-13): an ancestor stating `{A}` and a row
+ * stating `{B}` leaves the row on `{B}` alone. The row's own set replaces the
+ * inherited one whole; it does not accumulate. And what is inherited is the
+ * ancestor's **whole** set — a reader handed one member of two would report a
+ * pool the plan never narrowed to.
+ *
+ * Rows with no non-empty set anywhere above them are simply absent from the map.
+ * That is the state most rows are in, and it is what a consumer reads as "no
  * team, no pool, nothing to inherit".
  *
- * **No write ever copies a label down.** Inheritance is a reading, computed
- * here and nowhere else: a stored second copy would go out of date the moment
- * anybody moved a row, and the five consumers would then disagree about the
- * same row while each held a defensible number.
+ * **No write ever copies a set down.** Inheritance is a reading, computed here
+ * and nowhere else: a stored second copy would go out of date the moment
+ * anybody moved a row, and the six consumers would then disagree about the same
+ * row while each held a defensible answer.
  *
- * Returns a `Map` rather than answering about one row, because every consumer
- * of it draws a whole plan: a per-row call would re-walk the ancestry for each
- * of them, which is quadratic in the depth, and the four renderers would each
- * hold their own walk. One walk, memoised, five readers.
+ * Returns a `Map` rather than answering about one row, because every consumer of
+ * it draws a whole plan: a per-row call would re-walk the ancestry for each of
+ * them, which is quadratic in the depth, and the renderers would each hold their
+ * own walk. One walk, memoised, six readers.
  *
  * @throws {TeamAncestryCycleError} when the parent chain loops. Unknown is not
- * OK: a cycle has no nearest ancestor, so there is no label to fall back to and
- * a default would put a row on a pool nobody assigned it to.
+ * OK: a cycle has no nearest ancestor, so there is no set to fall back to and a
+ * default would put a row on a pool nobody assigned it to.
  */
-export function effectiveTeamOf(rows: readonly TeamLabelled[]): Map<string, EffectiveTeam> {
+export function effectiveTeamsOf(rows: readonly TeamsLabelled[]): Map<string, EffectiveTeams> {
   const parentOf = new Map(rows.map((row) => [row.id, row.parentId]));
-  const ownTeam = new Map(rows.map((row) => [row.id, row.serviceTeamId]));
-  const found = new Map<string, EffectiveTeam>();
+  const ownTeams = new Map(rows.map((row) => [row.id, row.teamIds]));
+  const found = new Map<string, EffectiveTeams>();
 
   for (const row of rows) {
     // The rows this walk passed through on the way up, in order, so every one
@@ -76,7 +98,7 @@ export function effectiveTeamOf(rows: readonly TeamLabelled[]): Map<string, Effe
     // unlabelled rows under one labelled root is walked once, not ten times.
     const walked: string[] = [];
     const seen = new Set<string>();
-    let resolved: EffectiveTeam | undefined;
+    let resolved: EffectiveTeams | undefined;
     for (
       let cursor: string | null | undefined = row.id;
       cursor !== null && cursor !== undefined;
@@ -86,15 +108,17 @@ export function effectiveTeamOf(rows: readonly TeamLabelled[]): Map<string, Effe
         resolved = already;
         break;
       }
-      // Proof: this guard removed and `refuses a parent chain that runs in a
-      // circle` hangs rather than failing — which is why the assertion is on
-      // the throw and the fault was watched under a test timeout; watched
-      // 2026-08-12.
+      // Proof: TO OBSERVE cycle guard
       if (seen.has(cursor)) throw new TeamAncestryCycleError(row.id);
       seen.add(cursor);
-      const own = ownTeam.get(cursor);
-      if (own !== undefined && own !== null) {
-        resolved = { teamId: own, fromId: cursor };
+      const own = ownTeams.get(cursor);
+      // The whole set, not `own[0]`: narrowing here is the one fault in this
+      // function that changes dates rather than failing, since the adapter
+      // spends slots in whatever it is handed.
+      //
+      // Proof: TO OBSERVE whole set
+      if (own !== undefined && own.length > 0) {
+        resolved = { teamIds: own, fromId: cursor };
         break;
       }
       walked.push(cursor);
@@ -102,6 +126,7 @@ export function effectiveTeamOf(rows: readonly TeamLabelled[]): Map<string, Effe
     }
     if (resolved === undefined) continue;
     found.set(row.id, resolved);
+    // Proof: TO OBSERVE memoisation
     for (const each of walked) found.set(each, resolved);
   }
 
