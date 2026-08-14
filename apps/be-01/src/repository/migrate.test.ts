@@ -410,7 +410,7 @@ describe('the capacity migrations', () => {
 
       const reversed = rollbackTo(db.path, FOLDER, PRIORITY);
 
-      expect(reversed).toEqual([PER_PROJECT_CAPACITY, MAX_PARALLEL, TEAM_SLOTS]);
+      expect(reversed).toEqual([WORK_ITEM_TEAM, PER_PROJECT_CAPACITY, MAX_PARALLEL, TEAM_SLOTS]);
       const back = openDatabase(db.path);
       try {
         back.run(
@@ -687,6 +687,10 @@ describe('the work item team migration', () => {
       );
       before.run("INSERT INTO service_team (id, name, size) VALUES ('t-backend', 'Backend', 2)");
       before.run("INSERT INTO service_team (id, name, size) VALUES ('t-design', 'Design', NULL)");
+      // Written the way the release before this one writes it: capacity is a
+      // fact about one project since C5, and this is the row this migration
+      // must leave exactly where it found it.
+      before.run("INSERT INTO project_team_capacity VALUES ('p1', 't-backend', 2)");
       before.run("INSERT INTO person (id, name) VALUES ('per1', 'kat')");
       before.run(
         "INSERT INTO person_team (person_id, service_team_id) VALUES ('per1', 't-backend')",
@@ -802,6 +806,17 @@ describe('the work item team migration', () => {
         );
         sqlite.run("INSERT INTO work_item_team (work_item_id, team_id) VALUES ('w', 't1')");
 
+        // The column is nulled first because that is what `removeTeam` does,
+        // and — found here on 2026-08-14 — because the database refuses the
+        // delete otherwise. `work_item.service_team_id` was added by
+        // `ALTER TABLE … ADD service_team_id text REFERENCES service_team(id)`
+        // and therefore **does** carry a foreign key, with no `ON DELETE`
+        // action, against four JSDoc claims in this repo that it deliberately
+        // carries none. Watched: this same statement without the `UPDATE`
+        // fails on `SQLiteError: FOREIGN KEY constraint failed` with no
+        // `work_item_team` row in the database at all. The join's own cascade
+        // is what the assertion below is about.
+        sqlite.run("UPDATE work_item SET service_team_id = NULL WHERE service_team_id = 't1'");
         sqlite.run("DELETE FROM service_team WHERE id = 't1'");
 
         expect(
