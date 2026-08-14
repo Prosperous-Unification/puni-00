@@ -130,13 +130,22 @@ not a design change — `markdownTableLines(plan)` already exists.
 
 ## CI
 
-Two runs, both green first attempt: **31839393261** at `5a6fd6f` (the code
-and tests alone), then **31839492715 at `67a5613`** — the head this file's
-own tail commit produces, both jobs (`gate` 4m3s, `pixels` 9m28s). `openspec
-validate --all` (run inside `gate`, and independently on h2puni: **52 passed,
-0 failed**, `mermaid-document` included) is part of that green.
+Three runs. **31839393261** at `5a6fd6f` (the code and tests alone) was
+**cancelled, not green** — the doc-tail push landed while it was still
+running and GitHub's own concurrency group superseded it; caught by re-reading
+`gh run view` rather than trusting the "in progress" status quoted a minute
+earlier, and corrected here rather than left as a false green. **31839492715
+at `67a5613`** is the first run to actually finish: green first attempt, both
+jobs (`gate` 4m3s, `pixels` 9m28s). `openspec validate --all` (run inside
+`gate`, and independently on h2puni: **52 passed, 0 failed**,
+`mermaid-document` included) is part of that green.
 
-PR #68 reads **MERGEABLE / CLEAN** at `67a5613`, base `main@fbc2263`. Both
-jobs green at the head is the condition for merge, and **this branch is not
-merged** — PoC mode still holds cross-review before merge (`delivery-modes.md`
-open question 2).
+PR #68 read **MERGEABLE / CLEAN** at `67a5613`. This file's own tail commit
+(`20f86c5`, correcting the paragraph above) triggered run **31840282197**;
+its conclusion is not folded into this paragraph for the reason `mermaid-gantt`'s
+verify.md already gives — a file cannot carry the id of the run that judges
+its own tail — and is quoted on the PR instead.
+
+Both jobs green at the head is the condition for merge, and **this branch is
+not merged** — PoC mode still holds cross-review before merge
+(`delivery-modes.md` open question 2).
