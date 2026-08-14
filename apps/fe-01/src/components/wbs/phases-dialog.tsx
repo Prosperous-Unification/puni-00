@@ -408,9 +408,19 @@ export function PhasesDialog({
               them rather than typed in here.
             */}
             <p className="text-muted-foreground text-sm">
-              {count(roles.length, 'phase')} need ≥{String(minWidth)}px of width to sit side by
-              side; a narrower window scrolls sideways, and under {String(CARDS_BELOW)}px the plan
-              is drawn as cards instead.
+              {/*
+                `needs` for one phase and `need` for several. {@link count}
+                gets the noun right and the verb was written once, plurally,
+                and never made to follow it — so a single-phase plan read
+                `1 phase need ≥1123px`. Found on 2026-08-14 while measuring
+                this very figure at 1280; it is the `and 1 others` defect #59
+                corrected in the chart's blocking-set sentence, in the sentence
+                next door. `phases-dialog.test.tsx` asserts the whole sentence
+                now rather than a prefix that swept the verb up with the noun.
+              */}
+              {count(roles.length, 'phase')} {roles.length === 1 ? 'needs' : 'need'} ≥
+              {String(minWidth)}px of width to sit side by side; a narrower window scrolls sideways,
+              and under {String(CARDS_BELOW)}px the plan is drawn as cards instead.
             </p>
           </>
         ) : (

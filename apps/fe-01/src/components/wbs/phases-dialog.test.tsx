@@ -471,10 +471,35 @@ describe('how wide the phases make the table', () => {
     expect(quoted).toBe(foldedTableMinWidth(['role-dev', 'role-qa'], UNDATED) + (140 - 96));
   });
 
-  itDom('counts one phase as one', () => {
+  itDom('counts one phase as one, and says so in the singular throughout', () => {
+    // The noun and the **verb**. This asserted `'1 phase need'` until
+    // 2026-08-14: it was written about `count`'s singular noun and swept the
+    // plural verb beside it up in the same `toContain`, so the sentence a
+    // single-phase plan really showed — `1 phase need ≥1123px` — was pinned by
+    // the test that was meant to be checking it. The whole clause is asserted
+    // now, which is the only spelling that can see the verb.
+    //
+    // Proof: the verb put back to a flat `need`, this failed on
+    // `expected 'PhasesPhasesThe phases every work ite…' to contain
+    // '1 phase needs ≥1123px of width to sit…'`. Watched on h2puni, 2026-08-14 (fault F5).
     stubbed({ roles: [DEV] });
 
-    expect(document.body.textContent).toContain('1 phase need');
+    expect(document.body.textContent).toContain('1 phase needs ≥1123px of width to sit side by');
+    expect(document.body.textContent).not.toContain('1 phase need ≥');
+  });
+
+  itDom('keeps the plural where there is more than one phase', () => {
+    // The other arm, and it is here so the fix above cannot be "never say
+    // `need`" — a singular-only expression satisfies the test above and reads
+    // `2 phases needs` on every real plan.
+    //
+    // Proof: the plural arm made to say `needs` as well, this failed on
+    // `expected 'PhasesPhasesThe phases every work ite…' to contain
+    // '2 phases need ≥1219px of width to sit…'`. Watched on h2puni, 2026-08-14 (fault F6).
+    stubbed({ roles: [DEV, QA] });
+
+    expect(document.body.textContent).toContain('2 phases need ≥1219px of width to sit side by');
+    expect(document.body.textContent).not.toContain('2 phases needs');
   });
 });
 
