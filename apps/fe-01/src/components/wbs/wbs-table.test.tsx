@@ -1513,9 +1513,12 @@ describe('teams and assignees', () => {
     click('Add work item');
     await screen.findByLabelText('Name of 020');
 
-    expect(screen.getByLabelText<HTMLInputElement>('Service or team for 010').value).toBe(
-      'Platform',
-    );
+    const box = screen.getByLabelText<HTMLInputElement>('Service or team for 010');
+    expect(box.value).toBe('Platform');
+    // And it is the row's **own** team, not one it is told it inherits: the
+    // two arms of `effectiveTeamLabelOf` read different things, and only the
+    // second one leaves a title on the cell.
+    expect(box.getAttribute('title')).toBeNull();
   });
 
   itDom('adds a team by typing a name the list does not have', async () => {
