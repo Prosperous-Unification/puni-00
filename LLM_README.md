@@ -131,16 +131,17 @@ in `AGENTS.md` under R5.
 
 ## More
 
-| Doc                                                                     | When                                           |
-| ----------------------------------------------------------------------- | ---------------------------------------------- |
-| `docs/superpowers/plans/2026-08-02-compose-blue-green-HANDOVER.md`      | before touching deploy                         |
-| `docs/superpowers/specs/2026-08-02-compose-blue-green-deploy-design.md` | why the pipeline is shaped this way            |
-| `docs/runbook-dev-deploy.md`                                            | deploying dev; what a deploy cannot carry      |
-| `docs/runbook-prod-deploy.md`                                           | deploying prod; commands and their refusals    |
-| `docs/runbook-dagger-engine-registry-dns.md`                            | engine can't resolve `registry`                |
-| `docs/local-dev.md`                                                     | running locally                                |
-| `HUMAN_README.md`                                                       | operating prod; triage runbook; openclaw path  |
-| `openspec/changes/scaffold-tech-setup/`                                 | original scaffold — **stale**, spec above wins |
+| Doc                                                                     | When                                                     |
+| ----------------------------------------------------------------------- | -------------------------------------------------------- |
+| `docs/superpowers/plans/2026-08-02-compose-blue-green-HANDOVER.md`      | before touching deploy                                   |
+| `docs/superpowers/specs/2026-08-02-compose-blue-green-deploy-design.md` | why the pipeline is shaped this way                      |
+| `docs/runbook-dev-deploy.md`                                            | deploying dev; what a deploy cannot carry                |
+| `docs/runbook-prod-deploy.md`                                           | deploying prod; commands and their refusals              |
+| `docs/runbook-dagger-engine-registry-dns.md`                            | engine can't resolve `registry`                          |
+| `docs/local-dev.md`                                                     | running locally                                          |
+| `docs/capacity.md`                                                      | why a plan's dates moved; where a team's number is typed |
+| `HUMAN_README.md`                                                       | operating prod; triage runbook; openclaw path            |
+| `openspec/changes/scaffold-tech-setup/`                                 | original scaffold — **stale**, spec above wins           |
 
 Conventions: pure planners + thin IO shell; `strictTypeChecked`; comments say **why** and state
 what was/wasn't verified; never print a secret value. Explicit return types are house style,
