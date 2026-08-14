@@ -882,8 +882,9 @@ function teamWords(team: ServiceTeamLabel): string {
  *
  * Both numbers are needed and they are different facts — `maxParallel` is what
  * was typed on the work item, `width` is what the engine could give it after
- * the team's size and the named person had their say. The override arm is the
- * one place the two are printed against each other on the chart.
+ * the team's size and the named person had their say. The **other** way the two
+ * come apart is the team being smaller than the number, and that is
+ * {@link clampWords} on the line below this one.
  */
 function parallelWords(bar: GanttBar): string | null {
   if (bar.personName !== null && bar.maxParallel > 1) {
@@ -893,6 +894,39 @@ function parallelWords(bar: GanttBar): string | null {
   return `${daysNumber(bar.width)} people in parallel — ${dayWords(bar.effort)} of work in ${daysNumber(
     bar.duration,
   )}`;
+}
+
+/**
+ * What a bar says when the team's size took the parallelism down, or null where
+ * nothing was clamped.
+ *
+ * The second reason `maxParallel` and `width` differ, and the one the chart has
+ * never said: be-01's `widthFor` is `min(maxParallel, slots)` for work nobody is
+ * named on, so a row asking for 3 people from a team of 2 runs at 2 and no
+ * sentence on the chart says why. The export's `People at once` / `Ran at` pair
+ * and the `∥` cell's `title` were the only places to learn it — neither of them
+ * on the drawing whose dates it moved. C3 recorded it (2026-08-13, P3).
+ *
+ * `width` **is** the team's size whenever this line prints: the clamp is the
+ * only thing that can put `width` under `maxParallel` once a named person is
+ * ruled out, and `min(a, b) < a` means the answer was `b`. That is what lets
+ * the sentence state a number the payload does not carry as a field.
+ *
+ * Silent on a bar somebody is named on, however small the team: D3 collapses
+ * that width to 1 on its own and {@link parallelWords} already says so. Two
+ * `not applied` lines over one bar would be the chart reporting one number as
+ * ignored twice, for two reasons, only one of which is load-bearing.
+ *
+ * The team is not named here. The line above it in {@link barFacts} is
+ * {@link teamWords}, which names it — and naming it again would need words for
+ * the two nameless label states this sentence has no business owning.
+ */
+function clampWords(bar: GanttBar): string | null {
+  if (bar.personName !== null) return null;
+  if (bar.width >= bar.maxParallel) return null;
+  return `The team may have ${daysNumber(bar.width)} at work at once — ${daysNumber(
+    bar.maxParallel,
+  )} in parallel not applied`;
 }
 
 /** A bar's own role's three points, or the absence of them, in words. */
@@ -950,6 +984,11 @@ export function barFacts(
     // override line explains a stored number the plan did not use. Both are
     // null on a plan nobody has given a parallelism, which is every plan today.
     parallelWords(bar),
+    // And the other way the stored number and the scheduled one come apart:
+    // the team was smaller than what was asked for. Its own line rather than a
+    // clause on the one above, because at width 1 there is no line above —
+    // which is exactly the case the chart said nothing about at all.
+    clampWords(bar),
     `${spanWords(startDate, bar.start, bar.finish, today)} · ${durationWords(bar)}`,
     // A line of its own rather than a word tucked into the duration: the bar is
     // drawn a width nobody gave it, and the sentence that says so has to be as

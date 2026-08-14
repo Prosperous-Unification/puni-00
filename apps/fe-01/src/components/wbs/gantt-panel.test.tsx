@@ -1028,6 +1028,84 @@ describe('the chart is drawn in calendar days', () => {
     expect(linesOf(surfaceOn('strip-dev'))).toContain('3 people in parallel — 6 days of work in 2');
   });
 
+  itDom('says the team’s size is why a parallelism did not apply, at either width', () => {
+    // `widthFor` is `min(maxParallel, slots)`, so a row asking for three from a
+    // team of two runs at two and a row asking for three from a team of one
+    // runs at one. The second is the case the chart said nothing about at all:
+    // the compressed line does not print at width 1, so before this line the
+    // only account of the clamp was in the export.
+    render(
+      <GanttPanel
+        plan={planOf({
+          rows: [
+            rowAt('strip', 0, 3, { team: { state: 'named', name: 'Platform' }, maxParallel: 3 }),
+            rowAt('sand', 0, 6, { team: { state: 'named', name: 'Platform' }, maxParallel: 3 }),
+          ],
+          slices: [
+            sliceAt('strip-dev', 'strip', 0, 3, { width: 2, effort: 6, duration: 3 }),
+            sliceAt('sand-dev', 'sand', 0, 6, { width: 1, effort: 6, duration: 6 }),
+          ],
+        })}
+        startDate={null}
+        scheduleError={null}
+        generation={0}
+        heightPx={null}
+        onPickRow={() => undefined}
+      />,
+    );
+
+    // Beside the compressed line rather than instead of it: one is how long the
+    // work is, the other is why it is not shorter still.
+    expect(linesOf(surfaceOn('strip-dev'))).toContain(
+      'The team may have 2 at work at once — 3 in parallel not applied',
+    );
+    expect(linesOf(surfaceOn('strip-dev'))).toContain('2 people in parallel — 6 days of work in 3');
+    // The team of one: this is the whole of what the card says about
+    // parallelism, and it used to say nothing.
+    expect(linesOf(surfaceOn('sand-dev')).filter((line) => line.includes('parallel'))).toEqual([
+      'The team may have 1 at work at once — 3 in parallel not applied',
+    ]);
+  });
+
+  itDom('says nothing about a clamp where nothing was clamped', () => {
+    // Three rows, three reasons for silence: the row that got what it asked
+    // for, the row that never asked, and the row whose width came down for the
+    // other reason — a named person, which the line above already explains.
+    render(
+      <GanttPanel
+        plan={planOf({
+          rows: [
+            rowAt('strip', 0, 3, { team: { state: 'named', name: 'Platform' }, maxParallel: 2 }),
+            rowAt('sand', 0, 3, { team: { state: 'named', name: 'Platform' } }),
+            rowAt('trim', 0, 6, { team: { state: 'named', name: 'Platform' }, maxParallel: 3 }),
+          ],
+          slices: [
+            sliceAt('strip-dev', 'strip', 0, 3, { width: 2, effort: 6, duration: 3 }),
+            sliceAt('sand-dev', 'sand', 0, 3),
+            sliceAt('trim-dev', 'trim', 0, 6, { personId: 'kat', width: 1, effort: 6 }),
+          ],
+          personNames: new Map([['kat', 'Kat']]),
+        })}
+        startDate={null}
+        scheduleError={null}
+        generation={0}
+        heightPx={null}
+        onPickRow={() => undefined}
+      />,
+    );
+
+    const clampLines = (sliceId: string): string[] =>
+      linesOf(surfaceOn(sliceId)).filter((line) => line.includes('at work at once'));
+    expect(clampLines('strip-dev')).toEqual([]);
+    expect(clampLines('sand-dev')).toEqual([]);
+    expect(clampLines('trim-dev')).toEqual([]);
+    // And the named person's own line is still the one that prints, so the
+    // silence above is this line taking the case rather than both going quiet.
+    expect(linesOf(surfaceOn('trim-dev'))).toContain(
+      'One person is named — 3 in parallel not applied',
+    );
+  });
+
   itDom('says a named person is why a parallelism did not apply', () => {
     // D3 on screen: one human cannot work beside themselves, so naming kat on a
     // `maxParallel: 3` item collapses it to width 1 — and the number somebody
