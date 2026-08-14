@@ -17,11 +17,12 @@ replayed the one commit with **no conflict**: #60's work is the priority ladder
 (`libs/domain/priority-band.ts`, the write path, four cell faces) and this
 branch's is the Depends on cell's hover, and they do not touch the same regions.
 
-Three numbers below move because main moved, and none of them is this change's:
+Four numbers below move because main moved, and none of them is this change's:
 be-01 715 → **739** (#60's ladder table, its seeding and its migration),
-`libs/domain` 49 → **65**, fe-01 1,308 → **1,340** across 50 → **52** files, and
-openspec 46 → **47** (#60's own change folder). fe-01's own two are still this
-branch's two.
+`libs/domain` 49 → **65**, fe-01's file count 50 → **52**, and openspec 46 →
+**47** (#60's own change folder). This branch's own contribution to the fe-01
+total is the same two cases it was before the rebase — 1,306 → 1,308 against the
+old base, 1,338 → **1,340** against this one.
 
 The gate below was re-run **after** the rebase, at `f22fb5f`, and is the record.
 
