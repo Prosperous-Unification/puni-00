@@ -200,11 +200,18 @@ export const workItem = sqliteTable(
      * The service or team this work belongs to, or null. A label on the work,
      * not a constraint on who may be assigned it.
      *
-     * It is also what {@link serviceTeam.size} is spent through: a label on a
-     * parent reaches every leaf beneath it that carries none — most-specific
-     * wins, `effectiveTeamOf` in `libs/domain/src/effective-team.ts` — and each of
-     * those leaves' slices draws a slot from that team's pool. Labelling is
-     * still not assigning: who does the work is a second and independent fact.
+     * It is also what a **capacity** is spent through: a label on a parent
+     * reaches every leaf beneath it that carries none — most-specific wins,
+     * `effectiveTeamOf` in `libs/domain/src/effective-team.ts` — and each of
+     * those leaves' slices draws a slot from that team's pool. The number of
+     * slots in that pool is {@link projectTeamCapacity.size}, stated by **this
+     * project** and no other; it was {@link serviceTeam.size} until
+     * `capacity-per-project` retired that column, and this comment went on
+     * naming the retired one after that change had corrected every other
+     * sentence in this file. Labelling is still not assigning: who does the
+     * work is a second and independent fact.
+     *
+     * What the number does to a plan's dates, in prose: `docs/capacity.md`.
      */
     serviceTeamId: text('service_team_id'),
     /**

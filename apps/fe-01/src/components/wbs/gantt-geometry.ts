@@ -1274,7 +1274,15 @@ function capacityFloorWords(
   // "and 2 others" and not "and 2 more blockers": the reader is being told how
   // many other bars were holding the pool, and the count is of the set minus
   // the one just named.
-  const others = otherBlockers === 0 ? '' : ` and ${String(otherBlockers)} others`;
+  //
+  // The singular is not a nicety. A blocking set of exactly two is the
+  // commonest non-trivial case — a pool of 2 with a width-2 block behind it —
+  // so `and 1 others` was the wording most readers met first. C3 recorded it as
+  // a P3 and `capacity-docs` is where copy gets fixed.
+  const others =
+    otherBlockers === 0
+      ? ''
+      : ` and ${String(otherBlockers)} other${otherBlockers === 1 ? '' : 's'}`;
   return `Waits for ${team} to free ${people} — after ${after}${others}`;
 }
 

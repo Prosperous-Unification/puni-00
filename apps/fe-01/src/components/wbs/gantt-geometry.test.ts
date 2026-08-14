@@ -499,8 +499,52 @@ describe('a bar held by a team’s capacity', () => {
       }),
     );
 
+    // Proof: `and ${n} other${n === 1 ? '' : 's'}` replaced by the bare
+    // `and ${n} others` this shipped with, watched failing on `expected
+    // '… and 1 others' to be '… and 1 other'` on 2026-08-14. A set of exactly
+    // two is the commonest non-trivial case, so this string is the one most
+    // readers meet.
     expect(wordsFor(chart, 'wax-dev')).toBe(
-      'Waits for Platform to free 2 people — after strip (Dev) and 1 others',
+      'Waits for Platform to free 2 people — after strip (Dev) and 1 other',
+    );
+  });
+
+  /**
+   * The plural arm, so the singular fix cannot be "always say other".
+   *
+   * Without this case, `and ${n} other` with the `s` dropped altogether passes
+   * the test above and ships a second copy defect in the fix for the first.
+   */
+  it('keeps the plural where more than one other bar was holding the pool', () => {
+    const chart = layOutGantt(
+      pooled({
+        rows: [
+          rowAt('strip', 0, 3, { team: { state: 'named', name: 'Platform' } }),
+          rowAt('sand', 0, 2, { team: { state: 'named', name: 'Platform' } }),
+          rowAt('rinse', 0, 2, { team: { state: 'named', name: 'Platform' } }),
+          rowAt('wax', 3, 5, { team: { state: 'named', name: 'Platform' } }),
+        ],
+        slices: [
+          sliceAt('strip-dev', 'strip', 0, 3),
+          sliceAt('sand-dev', 'sand', 0, 2),
+          sliceAt('rinse-dev', 'rinse', 0, 2),
+          sliceAt('wax-dev', 'wax', 3, 5, {
+            boundBy: 'capacity',
+            resourcePredecessorId: 'strip-dev',
+            capacityPredecessorIds: ['strip-dev', 'sand-dev', 'rinse-dev'],
+            width: 2,
+            effort: 4,
+            duration: 2,
+          }),
+        ],
+      }),
+    );
+
+    // Proof: the `s` dropped from the plural arm — `and ${n} other` for every
+    // count — watched failing on `expected '… and 2 other' to be '… and 2
+    // others'` on 2026-08-14.
+    expect(wordsFor(chart, 'wax-dev')).toBe(
+      'Waits for Platform to free 2 people — after strip (Dev) and 2 others',
     );
   });
 
