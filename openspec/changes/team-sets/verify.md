@@ -110,7 +110,23 @@ and it cancelled the older one. Nothing failed.)
 
 The only commit after `2a4348f` is the one that adds this section, which changes
 no code and which CI runs again — the same tail this repo's last three changes
-have.
+have. **That run, 31786930904 at `ce42f76`, flaked `pixels` twice and passed on
+the third attempt**, and it is worth its own paragraph because two different
+tests failed on a **markdown-only diff** whose code had just gone green:
+
+- attempt 1: `hover-cards.spec.ts` "opens the folded figure in the same breath as
+  the mouse arrives" — `toContain('optimistic 2')` against an empty card. 1
+  failed / 168 passed.
+- attempt 2: `dark-mode.spec.ts` "is dark before the app has mounted" —
+  `expect(locator).toBeVisible() failed, element(s) not found` on
+  `Name of 010`, amid a wall of `[WebServer] Error: write EPIPE` and
+  `write ECONNRESET`. 1 failed / 168 passed.
+- attempt 3: **169 passed**, `pixels: success`, run `conclusion: success`.
+
+The ECONNRESET/EPIPE class is on this repo's record three times already — #44's
+`f8b7d62` (also a markdown-only diff) and #57's 31682877355 (also `dark-mode`,
+also a `verify.md`-only diff, also green on `gh run rerun --failed`). Same shape,
+fourth time, and nothing in this branch's diff can reach a dev server's socket.
 
 ## The failure-proof table
 
