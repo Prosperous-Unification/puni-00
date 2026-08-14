@@ -172,7 +172,14 @@ export class WorkItemRepository implements WorkItemStore {
       // Replace rather than merge: the write path states the whole set, and it
       // states at most one member until R2-4.
       //
-      // Proof: TO OBSERVE dual write
+      // Proof, both watched 2026-08-14. The `insert` deleted: `labels the join
+      // as well as the column` and `leaves the join alone when the patch does
+      // not name the label` failed on `+ []` where the join row was owed — 14
+      // pass / 2 fail, and the second of those is the one that says the column
+      // and the join came apart while both looked written. The `delete`
+      // removed: `empties the join when the label is taken off` failed with the
+      // old row still standing — 15 pass / 1 fail, a label the scheduler still
+      // spends slots on and no screen shows.
       if (wanted !== undefined) {
         tx.delete(workItemTeam).where(eq(workItemTeam.workItemId, id)).run();
         if (wanted !== null)
@@ -311,7 +318,9 @@ export class SubtreeRepository implements SubtreeStore {
       // wrote only the column would put the rows back unpooled and move dates
       // nobody edited.
       //
-      // Proof: TO OBSERVE subtree join
+      // Proof: this write deleted and `carries the teams of every row a copy
+      // writes` failed on `Expected - 4 / Received + 0` — the copy landed with
+      // no team at all — 15 pass / 1 fail; watched 2026-08-14.
       const joined = joinRowsFor(copy.rows);
       if (joined.length > 0) tx.insert(workItemTeam).values(joined).run();
       // After the rows, because these point at them. A restored parent's

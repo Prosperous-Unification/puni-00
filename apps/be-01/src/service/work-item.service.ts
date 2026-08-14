@@ -136,7 +136,7 @@ export function poolFor(
 ): { poolId: string | null; slots: number | undefined } {
   if (teamIds.length > 1) {
     throw new Error(
-      `a work item's effective team set holds ${String(teamIds.length)} teams (${teamIds.join(', ')}), and a slice spends slots in one pool`,
+      `a work item’s effective team set holds ${String(teamIds.length)} teams (${teamIds.join(', ')}), and a slice spends slots in one pool`,
     );
   }
   const teamId = teamIds.at(0) ?? null;
