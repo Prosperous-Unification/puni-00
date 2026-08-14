@@ -1,7 +1,10 @@
 # verify — `priority-bands`
 
 Branch `change/priority-bands`, cut from `main` @ `f2d021b` (#58, capacity C5,
-merged) on 2026-08-14.
+merged) on 2026-08-14 and **rebased onto `main` @ `203a85b`** the same day, after
+#59 (capacity-docs) and #61 (team-sets) both merged. Everything below the rebase
+section was re-run at the rebased head; the numbers in it are that run and not
+the pre-rebase one.
 
 be-01 and fe-01, plus one migration. A new table, a new route, one new field on
 the plan payload, and four faces that draw a priority differently. **What it must
@@ -9,46 +12,186 @@ not have is a moved date**, and section "A ladder moves no date" below is the
 whole of that claim — including the part where the obvious differential turned
 out not to be able to make it.
 
+## The rebase
+
+#59 and #61 both merged while this branch was open, and GitHub had the PR at
+`DIRTY`. Twelve commits replayed onto `203a85b`; four collisions, one of which
+was not a text conflict at all and is the one that mattered.
+
+- **`CONTEXT.md`, the **Priority** entry.** #59 rewrote its second sentence to
+  say a priority decides which of two _eligible slices_ is **placed** first, and
+  that placed first is not started first — a narrow block can take a hole a wide
+  one of higher priority cannot use. This branch rewrote the same sentence to say
+  the number's _name_ is the project's own. Resolved by keeping **both** facts in
+  one paragraph, #59's clause first because it is about the number and this
+  branch's second because it is about the name. The four terms this branch adds
+  below it (**Priority band**, **Priority ladder**, **Rank**) came through
+  untouched.
+- **`plan-export.ts`, the import block.** #61 renamed `effectiveTeamOf` /
+  `EffectiveTeam` to the plural `effectiveTeamsOf` / `EffectiveTeams`; this
+  branch added `priorityBandOf` beside them. Both kept — main's plural pair and
+  this branch's band import. The body merged clean, so the export still prints
+  #61's joined `Team` cell and this change's `Priority band` column side by side.
+- **`repository/migrate-down.test.ts`, seven hunks, all the same shape.** Both
+  changes added a constant for "the newest migration" and put it at the head of
+  five ordered lists. Both constants kept, and the _order_ is the resolution:
+  `WORK_ITEM_TEAM` then `PRIORITY_BANDS` in the ascending lists, the reverse in
+  the two `reversed` ones, and `PRIORITY_BANDS` as the target of "does nothing
+  when the target is already the newest applied".
+- **`repository/migrate.test.ts`, three hunks and then a tangle.** The constants
+  and two ordering lists resolved the same way. The tangle is that both changes
+  appended a whole `describe` block to the end of the file, so git interleaved
+  them: resolved by taking each side's block whole — `the work item team
+migration` from main, `the priority band migration` from this branch — rather
+  than by merging hunk by hunk.
+
+**Two assertions on main had to move, and neither is a behaviour change.** #61's
+`reverses without taking the labels with it` and this branch's
+`takes the bands away on the way back…` both roll back to
+`add_project_team_capacity` and both assert the literal list `rollbackTo`
+returned. With the two migrations now stacked, that list is two names in both
+cases. They are named rather than filtered so the assertion stays the answer the
+function gave.
+
+**And one thing the rebase broke that no conflict marker showed.**
+`service/priority-band-identity.test.ts` replays C5's oracle whole, and #61 put a
+`teamIds` set on every work item the oracle predates — so the two corpus replays
+failed on `+ "teamIds": [ "team-unsized" ]` and nothing else in the diff: a
+payload that gained a field, which is not a payload that moved a date. Fixed the
+way #61 fixed its own copy of the same problem in
+`capacity-migration-identity.test.ts` — `teamIds` is lifted off every row before
+the comparison and **asserted where it comes off**
+(`teamIds === serviceTeamId === null ? [] : [serviceTeamId]`), so the lift cannot
+hide a write path that forgot the join. Watched green under its own fault: the
+assertion forced to `toEqual([])` gives **2 fail**, `Expected - 1 / Received + 3`,
+in both replays.
+
+## The migration stamp
+
+**`20260814100000_add_priority_band` had to be renumbered, and this is the
+evidence.** #61 merged `20260814100000_add_work_item_team` — the same fourteen
+characters. It is now `20260814110000_add_priority_band`.
+
+Forward, the collision is invisible: this drizzle version picks what to apply by
+**name** (`getMigrationsToRun` diffs the folder list against
+`__drizzle_migrations.name`), so both would have applied, in `localeCompare`
+order. Backward it is not invisible. The first fourteen characters become
+`created_at`, and `migrationsToRollback` selects with a **strict**
+`created_at > baseline.created_at`. Two rows holding the same instant cannot be
+separated by it. Measured on h2puni with the old stamp restored in a scratch copy
+of `drizzle/`:
+
+```
+newest three:
+  20260814100000_add_priority_band          1786701600000
+  20260814100000_add_work_item_team         1786701600000
+  20260813120000_add_project_team_capacity  1786622400000
+rollbackTo(20260814100000_add_priority_band)  -> []
+   tables still present of the two: 2
+rollbackTo(20260814100000_add_work_item_team) -> []
+   tables still present of the two: 2
+```
+
+That is the abort path printing `no migrations to roll back (already at …)` with
+both tables still in the database — a swap that reports a clean rollback and
+performed none.
+
+With `110000` the same walk, through the real CLIs against a real file:
+
+```
+$ DB_PATH=… bun run src/migrate-cli.ts        ; bun run src/migrate-status-cli.ts
+migrations applied
+20260814110000_add_priority_band
+  20260814110000_add_priority_band          1786705200000
+  20260814100000_add_work_item_team         1786701600000
+  20260813120000_add_project_team_capacity  1786622400000
+$ bun run src/migrate-down-cli.ts --to=20260814100000_add_work_item_team
+rolled back: 20260814110000_add_priority_band          # status -> …_add_work_item_team
+$ bun run src/migrate-down-cli.ts --to=20260813120000_add_project_team_capacity
+rolled back: 20260814100000_add_work_item_team         # status -> …_add_project_team_capacity
+$ bun run src/migrate-cli.ts                  ; bun run src/migrate-status-cli.ts
+migrations applied
+20260814110000_add_priority_band
+```
+
+`110000` is also the truthful order: this change is applied after the one already
+on main.
+
+**There is no `drizzle/meta/_journal.json` to update, and adding one would break
+the migrator.** This drizzle version _throws_ on the file's presence — "We
+detected that you have old drizzle-kit migration folders. You must upgrade
+drizzle-kit and run `drizzle-kit up`" — and reads the folder list off disk with
+`readdirSync().sort()` instead. `repository/migrate-down.ts` reads it the same
+way. The rename plus the one line inside `down.sql` that names its own migration
+is the whole of the change.
+
 ## The gate
 
-Run on **h2puni** over plain ssh. Nothing was compiled or tested on h1claw; that
-box denies both (`bin/block-local-builds.sh`).
+Re-run **after the rebase**, at head `8c2b2b3`, on **h2puni** over plain ssh in
+`/home/puni1/wd/puni/wt-priority-bands`. Nothing was compiled or tested on
+h1claw; that box denies both (`bin/block-local-builds.sh`). `TMPDIR=/var/tmp` is
+set in that box's `~/.bashrc` — deliberately, so test databases are off the 3.8 GB
+`/tmp` tmpfs whose exhaustion reads as `SQLiteError: disk I/O error`.
 
-| target                                                  | result                                                                                                                                               |
-| ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `bunx nx format:check --all`                            | clean, exit 0                                                                                                                                        |
-| `bunx nx run domain:test` (bun **1.3.14**)              | **63 pass, 0 fail** — the suite this change adds `priority-band.test.ts` to, and the one CI caught being skipped. See below.                         |
-| be-01 unit (bun **1.3.14**, in `apps/be-01`)            | **720 pass, 0 fail**, 24,591 `expect()` calls, 13.62s across 60 files                                                                                |
-| fe-01 unit (`node vitest run`, node 22)                 | **1,335 pass across 52 files, 0 fail**, 61.91s                                                                                                       |
-| `bunx nx run-many -t lint typecheck --skip-nx-cache`    | pass, 21 projects                                                                                                                                    |
-| `bunx nx run-many -t build`                             | **not run here.** `tool-bootstrap` and `tool-devsync` refuse without `shellcheck`, which h2puni does not have. CI runs it and is the gate of record. |
-| `bunx @fission-ai/openspec@1.3.0 validate --all --json` | 44 items, 44 passed, 0 failed                                                                                                                        |
-| fe-01 e2e (`pixels`)                                    | CI, and the record for the head — see "CI" below.                                                                                                    |
+| target                                                       | result                                                                                                                                      |
+| ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bunx nx format:check --all`                                 | clean, exit 0                                                                                                                               |
+| `bunx nx run-many -t lint typecheck --parallel=2`            | pass, **21 projects**                                                                                                                       |
+| be-01 unit (bun **1.2.20**, in `apps/be-01`)                 | **739 pass, 0 fail**, 25,076 `expect()` calls, 20.18s across **61 files**                                                                   |
+| gw-01 unit (bun 1.2.20)                                      | **45 pass, 0 fail**, 86 `expect()` calls, 8 files                                                                                           |
+| `libs/domain` unit (bun 1.2.20)                              | **65 pass, 0 fail**, 165 `expect()` calls, 4 files                                                                                          |
+| fe-01 unit (`node ../../node_modules/vitest/vitest.mjs run`) | **1,338 pass across 52 files, 0 fail**, 55.49s, node **24.18.1**                                                                            |
+| `bunx @fission-ai/openspec@1.3.0 validate --all --json`      | **46 items, 46 passed, 0 failed**                                                                                                           |
+| secrets scan over all **1,158** tracked files                | exit 0                                                                                                                                      |
+| `doc-caps`                                                   | exit 0                                                                                                                                      |
+| migration lint over all **34** tracked `.sql`                | exit 0                                                                                                                                      |
+| `bunx nx run-many -t build`                                  | **not run here** — `tool-bootstrap` and `tool-devsync` refuse without `shellcheck`, absent on h2puni. CI runs it and is the gate of record. |
+| fe-01 e2e (`pixels`)                                         | CI — see below.                                                                                                                             |
 
 `nx run be-01:test` and `nx run fe-01:test` are **not** how the suites were run:
-under bun on h2puni the fe-01 target runs zero tests and exits 0. be-01 is
-`bun test` in `apps/be-01`; fe-01 is `node ../../node_modules/vitest/vitest.mjs
-run` with node 22 on `PATH`. The bun version is named beside the `expect()` count
-because C5 measured that the count is not portable without it.
+under bun on h2puni the fe-01 target runs zero tests and exits 0. be-01, gw-01 and
+`libs/domain` are `bun test` in their own directories; fe-01 is
+`node ../../node_modules/vitest/vitest.mjs run`.
 
-be-01 goes 696 → **720** (+24: 8 store cases, 10 route cases, 3 migration cases,
-3 identity cases) and fe-01 1,303 → **1,335** (+32: 6 style cases, 14 dialog
-cases, 6 Prio-cell cases, 3 card cases, 1 export case, 2 chart cases). The
-existing suites' numbers are unchanged except where a face's own assertion moved
-— the chart's priority line now reads `Critical — priority 2`, the export's
-column list is one longer, and the Prio column joins the popover exemptions.
+**The bun version is quoted beside the `expect()` count because the count is not
+portable without it, and the rebase re-measured that.** `team-sets`' verify.md
+records main at **24,646** `expect()` calls under bun 1.3.14; the same tree, at
+`203a85b`, gives **24,644** under the 1.2.20 that is on h2puni today. Two calls,
+same source, different bun. Every baseline below was therefore re-measured on
+this box at `203a85b` rather than quoted from #61's document.
+
+**Every number that moved, and what moved it.** Baselines are `main` @ `203a85b`
+measured here, on the same bun 1.2.20 and node 24.18.1 as the head row:
+
+| suite         | main `203a85b` | rebased head   | the delta                                                                                                       |
+| ------------- | -------------- | -------------- | --------------------------------------------------------------------------------------------------------------- |
+| be-01         | 715 / 58 files | **739** / 61   | +24, **all this change's**: 8 store cases, 10 route cases, 3 migration cases, 3 identity cases, in 3 new files. |
+| gw-01         | 45 / 8 files   | **45** / 8     | none. This change does not reach the gateway.                                                                   |
+| `libs/domain` | 49 / 3 files   | **65** / 4     | +16, all this change's, in `priority-band.test.ts`.                                                             |
+| fe-01         | 1,306 / 50     | **1,338** / 52 | +32, all this change's: 6 style, 14 dialog, 6 Prio-cell, 3 card, 1 export, 2 chart.                             |
+| openspec      | 45 / 45        | **46** / 46    | +1, this change's own folder.                                                                                   |
+
+No test count moved because main moved. **`expect()` calls did**: be-01 goes
+24,644 → **25,076**, and 302 of those +432 are the rebase's own — the `teamIds`
+lift added one assertion per row per replay, 151 rows × 2 replays, in
+`priority-band-identity.test.ts`. The remaining +130 are this change's new cases.
+
+The pre-rebase gate in this document's first version read be-01 **720** / 24,591,
+fe-01 **1,335**, `domain` **63**, openspec **44** — all against `f2d021b`, which
+is four merges behind. Those numbers are superseded by the table above and are
+recorded here only so the difference is not read as a regression.
+
+**`lint typecheck` was run with `--parallel=2` and was green in one pass.** The
+pre-rebase note about serial-only runs stands as history: under parallel
+scheduling on a loaded h2puni, `be-01:lint` and `fe-01:lint` each failed once and
+nx itself labelled both "flaky". The box was quiet for this run.
 
 **`libs/domain` has a suite of its own, and running `apps/be-01` and `apps/fe-01`
 by hand does not reach it.** That is how two branches of `priorityLadderProblem`
 shipped unreachable and were found by CI rather than here: `bun test` in
 `apps/be-01` collects nothing under `libs/`, and this document's first version
-had no line for that target at all. It has one now, and it is the third suite
-this gate runs.
-
-**`lint typecheck` is run with `--parallel=1`.** Under parallel scheduling on a
-loaded h2puni (load average 11 while several agents were live) `be-01:lint` and
-`fe-01:lint` each failed once and passed on their own, and nx itself labelled
-both "flaky". Serially they are green, and that is the run this table records.
+had no line for that target at all. It has one now, and it is the third of four
+suites this gate runs.
 
 ## A ladder moves no date
 
