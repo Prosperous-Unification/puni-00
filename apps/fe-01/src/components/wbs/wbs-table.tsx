@@ -5607,8 +5607,34 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         ),
         cell: ({ row }) => {
           const own = row.original.maxParallel;
-          const named = row.original.doesEveryPhase;
           const hasChildren = row.subRows.length > 0;
+          /**
+           * Who be-01's `widthFor` reads for one role of this leaf — its own
+           * assignee, or the row's single assumed one. The same fallback
+           * `assigneeOn` reads two columns back, because `widthFor` is built
+           * from exactly this pair (`work-item.service.ts`'s `personFor`).
+           */
+          const personForRole = (roleId: string): string | null =>
+            row.original.assignees[roleId] ?? row.original.doesEveryPhase ?? null;
+          const estimatedRoles = Object.keys(row.original.estimates);
+          /**
+           * Whether **every** slice `widthFor` would cut this leaf into is
+           * pinned to width 1 by a named person — the only reading that
+           * agrees with be-01, which collapses **per slice** and not per row.
+           *
+           * `doesEveryPhase` alone used to stand in for this and is still the
+           * right answer for a leaf with one role, or with several roles and
+           * one assumed assignee — but it is `null` the moment a *second*
+           * role gets its own explicit name, because `assumedAssignee`
+           * requires exactly one named assignment project-wide on the row.
+           * Two roles on two different people each still collapse their own
+           * slice to width 1; the row-level reading just stopped being able
+           * to say so.
+           */
+          const everySliceNamed =
+            estimatedRoles.length > 0
+              ? estimatedRoles.every((roleId) => personForRole(roleId) !== null)
+              : row.original.doesEveryPhase !== null;
           // Three states the cell renders differently, and each of them is a
           // fact the reader cannot get anywhere else:
           //
@@ -5617,16 +5643,17 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
           //   `has_children`; the cell is read-only rather than offering an
           //   edit be-01 refuses. A leaf that later gained a child keeps
           //   whatever it was given, inert, and the cell says so.
-          // - a leaf somebody is **named** on runs at width 1 whatever this
-          //   says (D3): one human cannot work beside themselves. The number is
-          //   still stored and still applies the moment the assignment goes, so
-          //   it is shown muted rather than hidden.
+          // - a leaf whose **every estimated role** is named runs each of
+          //   those slices at width 1 whatever this says (D3): one human
+          //   cannot work beside themselves. The number is still stored and
+          //   still applies the moment a name comes off, so it is shown muted
+          //   rather than hidden.
           // - anything else is an ordinary editable number.
-          const inert = hasChildren || (named !== null && own > 1);
+          const inert = hasChildren || (everySliceNamed && own > 1);
           const why = hasChildren
             ? 'This row has children, so it holds no work of its own. The number is kept and does nothing.'
-            : named !== null && own > 1
-              ? 'One person is named on this work, so it runs one at a time whatever this says.'
+            : everySliceNamed && own > 1
+              ? 'Everybody on this work is named, so it runs one at a time whatever this says.'
               : own > 1
                 ? `${String(own)} people at once. The item's effort is compressed across them, up to the team's size.`
                 : 'How many people may work on this item at once. Blank means one at a time.';

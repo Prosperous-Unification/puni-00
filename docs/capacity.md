@@ -63,10 +63,14 @@ So, for a team with 2 slots:
 
 **Naming a person collapses the width to 1** — one human cannot work beside
 themselves — so an assignee on a slice makes that row's `∥` inert for it. The
-`∥` cell mutes itself when one person is assumed to do every role, but be-01
-decides this per **slice**, so a leaf with two roles on two different people
-prints an un-muted number that does nothing. The chart gets it right per bar;
-the table and the cards do not. Recorded as C3's P3 and still open.
+table's `∥` cell now reads this per **slice**, the same way be-01 does: it
+mutes wherever every one of a leaf's estimated roles has its own name, whether
+that is one person assumed to cover the lot or several people each named on
+their own role. It used to lean on the row-level "one assumed assignee" fact
+alone, which went `null` — and the cell un-muted — the moment a _second_ role
+got its own explicit name, even though that role's slice had also collapsed to
+width `1`. The chart already got this right per bar; the cards still read per
+row and are recorded as open, C3's P3 not yet taken.
 
 Naming a person does **not** exempt the work from the pool. The slot is keyed on
 the work item's team, never on the assignee's memberships: a team of four never

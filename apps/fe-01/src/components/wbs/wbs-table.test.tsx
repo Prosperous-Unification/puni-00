@@ -2490,6 +2490,57 @@ describe('the In-parallel cell', () => {
     // day the assignment goes.
     expect(parallelCell('010').value).toBe('3');
   });
+
+  itDom(
+    'says a number is not applied where two different people are named on two different roles',
+    async () => {
+      // be-01's `widthFor` collapses **per slice**: a role with its own named
+      // assignee runs at width 1 on that slice alone. Two roles, two different
+      // people, is two slices each individually collapsed — `doesEveryPhase`
+      // is `null` here (it only fires for exactly one named role project-wide
+      // on the row), so the row-level reading this cell used to lean on cannot
+      // see it, and a `3` sits there doing nothing while looking editable.
+      const api = await twoRows();
+      const [row] = api.rows;
+      const trio = { optimistic: 1, realistic: 2, pessimistic: 3 };
+      row.estimates = { [DEV.id]: trio, [QA.id]: trio };
+
+      typeIntoParallel('010', '3');
+      await waitFor(() => {
+        expect(parallelCell('010').value).toBe('3');
+      });
+      expect(parallelCell('010').title).toContain('effort is compressed');
+
+      unfoldRole('Dev');
+      const dev = await screen.findByLabelText('Dev assignee for 010');
+      fireEvent.focus(dev);
+      fireEvent.change(dev, { target: { value: 'Ada' } });
+      fireEvent.keyDown(dev, { key: 'Enter' });
+      await waitFor(() => {
+        expect(screen.getByLabelText<HTMLInputElement>('Dev assignee for 010').value).toBe('Ada');
+      });
+
+      unfoldRole('QA');
+      const qa = await screen.findByLabelText('QA assignee for 010');
+      fireEvent.focus(qa);
+      fireEvent.change(qa, { target: { value: 'Bo' } });
+      fireEvent.keyDown(qa, { key: 'Enter' });
+
+      await waitFor(() => {
+        expect(screen.getByLabelText<HTMLInputElement>('QA assignee for 010').value).toBe('Bo');
+      });
+
+      // Proof: `everySliceNamed` reverted to `doesEveryPhase !== null` alone,
+      // this failed on `expected '3 people at once…' to contain 'one at a
+      // time whatever this says'` — un-muted with both roles individually
+      // named and neither slice free to run more than one at once. Watched
+      // 2026-08-14.
+      await waitFor(() => {
+        expect(parallelCell('010').title).toContain('one at a time whatever this says');
+      });
+      expect(parallelCell('010').value).toBe('3');
+    },
+  );
 });
 
 describe('the earliest-start cell', () => {
