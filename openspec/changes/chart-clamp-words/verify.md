@@ -57,10 +57,10 @@ local gate has a hole in it: `nx format:check` was run here with
 `--base=origin/main` **before this file existed**, and CI runs it with `--all`.
 A no-code commit failed CI, at eight minutes' latency.
 
-The formatted head is `<the head of this branch>`, and its run is quoted in a
-comment on PR #63 — a file cannot carry the id of the run that judges it, and
-the alternative is a commit whose message claims a result nobody has seen yet.
-Both jobs green there is the condition for merge.
+The run against the branch's **final** head is quoted in a comment on PR #63: a
+file cannot carry the id of the run that judges it, and the alternative is a
+commit message claiming a result nobody has seen yet. Both jobs green there is
+the condition for merge, and this branch is not merged.
 
 ## The one red, watched
 
