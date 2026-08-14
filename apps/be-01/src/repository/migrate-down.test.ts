@@ -282,7 +282,7 @@ describe('rollbackTo, against a real database', () => {
     const db = tempDb();
     try {
       runMigrations(db.path, FOLDER);
-      expect(rollbackTo(db.path, FOLDER, PER_PROJECT_CAPACITY)).toEqual([]);
+      expect(rollbackTo(db.path, FOLDER, WORK_ITEM_TEAM)).toEqual([]);
       expect(tables(db.path)).toContain('users');
     } finally {
       db.cleanup();
