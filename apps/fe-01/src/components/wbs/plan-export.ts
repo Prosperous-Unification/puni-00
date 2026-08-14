@@ -1,7 +1,7 @@
 import { type EffectiveTeams, effectiveTeamsOf } from '@wbs/domain/effective-team';
 import { priorityBandOf } from '@wbs/domain/priority-band';
 
-import type { EstimateMethod, PriorityBandView } from '@/lib/wbs-api';
+import type { EstimateMethod, PriorityBandView, SliceView } from '@/lib/wbs-api';
 
 /** One estimate's three points, as a row carries them into an export. */
 export interface ExportTrio {
@@ -73,20 +73,28 @@ export interface ExportRow {
  * two-day row carrying six days of estimate and says nothing about why. `width`
  * is what the `Ran at` column reads, as a set per row.
  *
- * **`effort` and `duration` are carried and read by nothing.** C3's own
- * cross-review recorded it (2026-08-13, P3) against a docstring that claimed
- * all three did work. They are not lost information — `Total days` is the
- * effort and `Starts`/`Ends` are the span — so the honest fix was this
- * paragraph rather than deleting two fields the producer would then stop
- * filling. Deleting them is a change about the export's shape, and this is a
- * change about its words: `capacity-docs`, D6.
+ * **`effort` is carried and read by nothing.** C3's own cross-review recorded it
+ * (2026-08-13, P3) against a docstring that claimed all three did work. It is
+ * not lost information — `Total days` is the effort and `Starts`/`Ends` are the
+ * span — so the honest fix was this paragraph rather than deleting a field the
+ * producer would then stop filling: `capacity-docs`, D6. `duration` stopped
+ * being one of the unread two when `plan-mermaid.ts` began asking which slices
+ * are points rather than spans.
+ *
+ * **This is be-01's `SliceView` and not a narrowing of it, since
+ * `mermaid-gantt`.** It always was one at runtime — `planForExport` assigns
+ * `chartRead.slices` verbatim (`wbs-table.tsx`) — and the four-field interface
+ * that used to stand here only hid the rest from the type checker. A chart
+ * cannot be drawn from four fields: `planToMermaid` needs the role, the person,
+ * the offsets, the critical flag and whether anybody estimated the pair, and
+ * every one of them was already in the object. Widening was therefore a change
+ * with no new plumbing and no second request, which is the cheapest kind.
+ *
+ * The alias rather than a hand-written superset: two lists of the same fields
+ * drift, and the drift would land as an export quietly disagreeing with the
+ * chart about a slice both are reading out of the same array.
  */
-export interface ExportSlice {
-  workItemId: string;
-  width: number;
-  effort: number;
-  duration: number;
-}
+export type ExportSlice = SliceView;
 
 /** A role, team or person as the export needs it: something with a name to print. */
 export interface NamedEntry {

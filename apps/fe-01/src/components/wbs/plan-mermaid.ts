@@ -1,0 +1,354 @@
+import { addCalendarDays, addWorkdays, type IsoDate } from '@wbs/domain/workday';
+
+import { calendarScale } from './gantt-geometry';
+import type { ExportRow, ExportSlice, NamedEntry, PlanExport } from './plan-export';
+
+/**
+ * What a caller gets back: a diagram, or a sentence saying why there is none.
+ *
+ * A union rather than a string, and the refusal is the reason. The one caller
+ * is a **Copy** button, and a copy that puts `This plan is not on a calendar…`
+ * on the clipboard has handed somebody a document to paste into an issue —
+ * exactly the failure this whole export is written against, since a pasted
+ * document outlives the screen it came off. The caller has to be able to tell
+ * the two apart before it chooses between the clipboard and a toast, and a
+ * modelled refusal carrying its own sentence is how this codebase already says
+ * so — `FLOOR_SENTENCE`, `NO_SCHEDULE`, `capacityRefusalSentence`.
+ */
+export type MermaidExport =
+  | { readonly drawn: true; readonly text: string }
+  | { readonly drawn: false; readonly refusal: string };
+
+/**
+ * What a plan with no start date is told, instead of a diagram.
+ *
+ * A Mermaid gantt has one axis and it is a calendar. There is no `day 3` in the
+ * grammar — the CSV falls back to day offsets from day zero and this cannot —
+ * and the alternative, drawing the plan from an invented epoch, puts dates
+ * nobody agreed to into a document that will be read long after whoever
+ * exported it has forgotten which Monday the tool picked.
+ */
+export const NOT_ON_A_CALENDAR =
+  'This plan is not on a calendar. Set a start date — a Mermaid gantt has no way to draw a day offset.';
+
+/** What a plan be-01 could not order is told. Every bar would stand on day zero. */
+export const NO_SCHEDULE_TO_DRAW =
+  'These dependencies run in a circle, so no dates could be worked out and there is no diagram to draw.';
+
+/** What a plan nothing has been placed in is told, rather than an empty fence. */
+export const NOTHING_PLACED =
+  'Nothing in this plan has been scheduled yet, so there is no diagram to draw.';
+
+/** What a work item with no name of its own is called on a bar. Never a blank. */
+const UNNAMED_ROW = '(unnamed)';
+
+/** What a project with no name is called in the diagram's title. */
+const UNNAMED_PROJECT = 'Plan';
+
+/** What a slice under no role at all is called — reachable on a project holding no phases. */
+const NO_ROLE = 'no phase';
+
+/** What an id naming nobody prints as, in the table export's own word for it. */
+const UNKNOWN_NAME = '(unknown)';
+
+/**
+ * The character a colon in somebody's text becomes: U+2236 RATIO.
+ *
+ * Mermaid's gantt lexer reads a task line as `[^:\n]+` and then everything from
+ * the **first** colon as metadata (`gantt.jison`). A work item called
+ * `Phase 1: strip` therefore does not break the diagram — it silently moves that
+ * split, and the reader is handed a task called `Phase 1` whose id is
+ * `strip` and whose dates are gone. A homoglyph rather than ` - `, because the
+ * name is the one part of this document a person typed and it should read back
+ * the way they typed it.
+ */
+const RATIO = '∶';
+
+/**
+ * One phrase of somebody's text, safe to stand left of Mermaid's colon.
+ *
+ * Three rules and deliberately not a fourth. The colon moves the split, a line
+ * break ends the line halfway through a name, and `%%` opens a comment that
+ * eats the rest of the line — the gantt lexer's comment rule is not anchored to
+ * the start of one. A comma, a `#` and a `;` are left alone: they terminate
+ * _metadata_, and nothing anybody typed reaches the metadata position. Ids are
+ * generated (`s1`, `s2`, …) and dates are `YYYY-MM-DD` from be-01's own numbers,
+ * which is the same rule the CSV writer follows for a different reason — escape
+ * what the grammar reads, and nothing else, or the export prints names nobody
+ * wrote.
+ *
+ * **Reasoned against `gantt.jison` as quoted in the R7 brief, not watched
+ * against a parse.** A real Mermaid parse in the suite is M5 and is not in this
+ * change; until it lands, this function is an argument.
+ */
+function mermaidPhrase(value: string): string {
+  return value
+    .replaceAll(':', RATIO)
+    .replaceAll('%%', '%')
+    .replaceAll(/[\r\n]+/g, ' ')
+    .trim();
+}
+
+/** One line of comment prose, with the one thing that would end it early removed. */
+function mermaidComment(value: string): string {
+  return value.replaceAll(/[\r\n]+/g, ' ').trim();
+}
+
+/** `entries`' name for `id`, or the export's word for an id that names nobody. */
+function nameOf(entries: readonly NamedEntry[], id: string): string {
+  return entries.find((entry) => entry.id === id)?.name ?? UNKNOWN_NAME;
+}
+
+/** `010.1 Strip cables`, the way every cross reference in an export names a row. */
+function namedRow(row: ExportRow): string {
+  return `${row.number} ${row.name.trim() === '' ? UNNAMED_ROW : row.name}`;
+}
+
+/**
+ * The row a section is titled after: this row's outermost ancestor.
+ *
+ * Mermaid has exactly one grouping channel and it is flat, so it is spent on
+ * the plan's own outline — the grouping the reader already reads the plan in.
+ * The number carries the rest of the depth, which is the export's standing rule
+ * (`plan-export.ts`, "the table stays flat").
+ *
+ * The walk is bounded by a seen set rather than by trust. `plan.rows` is every
+ * row of the plan, so a chain always terminates at a root — but this file is
+ * handed a document, not a tree, and a `parentId` loop in one would hang the
+ * copy button rather than print a wrong section.
+ */
+function outermost(row: ExportRow, byId: ReadonlyMap<string, ExportRow>): ExportRow {
+  const seen = new Set<string>([row.id]);
+  let at = row;
+  for (;;) {
+    const parent = at.parentId === null ? undefined : byId.get(at.parentId);
+    if (parent === undefined || seen.has(parent.id)) return at;
+    seen.add(parent.id);
+    at = parent;
+  }
+}
+
+/** Why a slice is drawn as a point rather than as a span. */
+type PointReason = 'unestimated' | 'zero';
+
+/**
+ * What each reason is called on the task that carries it.
+ *
+ * Kept apart because they are not the same fact. Nobody having estimated a pair
+ * is a hole in the plan; somebody having estimated it at zero is an answer. The
+ * chart draws the first dashed with a `?` beside it and Mermaid has neither
+ * mark, so the difference has to survive as words or not at all.
+ */
+const POINT_WORDS: Record<PointReason, string> = {
+  unestimated: 'not estimated',
+  zero: '0 days',
+};
+
+/** One slice resolved onto the calendar, with everything its line needs. */
+interface MermaidTask {
+  section: string;
+  text: string;
+  id: string;
+  critical: boolean;
+  from: IsoDate;
+  /** The last day the work is still on — see {@link planToMermaid} on `inclusiveEndDates`. */
+  to: IsoDate;
+  point: PointReason | null;
+}
+
+/**
+ * What one bar is called: its row, its phase, and whose it is.
+ *
+ * **No team name.** Not an omission: R2 is rewriting `ServiceTeamLabel` into
+ * `teams[]` and `services[]` this week, and a team on a bar here would make this
+ * change wait for it. The person is the more useful token in the space anyway —
+ * the chart spends its colour channel on people and Mermaid has no colour to
+ * spend — and the exported table carries the team either way.
+ */
+function taskTextOf(
+  plan: PlanExport,
+  row: ExportRow,
+  slice: ExportSlice,
+  point: PointReason | null,
+) {
+  const role = slice.roleId === null ? NO_ROLE : nameOf(plan.roles, slice.roleId);
+  const person = slice.personId === null ? null : nameOf(plan.people, slice.personId);
+  const head = `${namedRow(row)} - ${role}`;
+  return mermaidPhrase(
+    [
+      person === null ? head : `${head} (${person})`,
+      ...(point === null ? [] : [POINT_WORDS[point]]),
+    ].join(' - '),
+  );
+}
+
+/**
+ * Every slice of the plan as a dated task, in the order the chart draws them:
+ * row order, then role order.
+ *
+ * **The dates are the chart's own reading, not a second one.** `calendarScale`
+ * is what the Gantt places its bars with, and its docstring records four
+ * watched faults from getting `endOf` wrong — including an origin two days
+ * early that moved every mark on the drawing. Re-deriving the same arithmetic
+ * here would be a fifth chance at those four.
+ *
+ * Then **rounded outward**: a start floors and a finish ceils, so no bar is
+ * drawn shorter than the work in it. A slice is `effort / width` workdays and
+ * can be a fraction (`3.6666666666666665` is asserted verbatim in
+ * `plan-export.test.ts`); a Mermaid day is atomic.
+ *
+ * `to` is clamped up to `from`, which is `lastWorkdayOf`'s own clamp and the
+ * only thing standing between a zero-length slice and a bar that ends the day
+ * before it starts: `endOf(f)` for a whole `f` reads the *left* limit of that
+ * workday, so at `earliestStart === earliestFinish` it lands a day behind the
+ * start.
+ */
+function tasksOf(plan: PlanExport, startDate: IsoDate): MermaidTask[] {
+  const byId = new Map(plan.rows.map((row) => [row.id, row]));
+  const rowOrder = new Map(plan.rows.map((row, at) => [row.id, at]));
+  const roleOrder = new Map(plan.roles.map((role, at) => [role.id, at]));
+  const scale = calendarScale(startDate);
+  // The same normalisation `calendarScale` makes of its own origin: a project
+  // whose start date lands on a weekend begins on the Monday. Two origins would
+  // stand every date on this diagram a day or two off the ones the table prints.
+  const origin = addWorkdays(startDate, 0);
+  const placed = plan.slices
+    .flatMap((slice) => {
+      const row = byId.get(slice.workItemId);
+      // A slice whose row is not in the document is dropped rather than drawn
+      // under a section it has no title for. `plan.rows` is *every* row of the
+      // plan, so this is unreachable from `planForExport`; it is here because a
+      // dropped bar is a smaller wrong answer than a thrown copy button.
+      return row === undefined ? [] : [{ slice, row }];
+    })
+    .sort(
+      (a, b) =>
+        (rowOrder.get(a.row.id) ?? 0) - (rowOrder.get(b.row.id) ?? 0) ||
+        (a.slice.roleId === null ? plan.roles.length : (roleOrder.get(a.slice.roleId) ?? 0)) -
+          (b.slice.roleId === null ? plan.roles.length : (roleOrder.get(b.slice.roleId) ?? 0)) ||
+        a.slice.earliestStart - b.slice.earliestStart ||
+        a.slice.id.localeCompare(b.slice.id),
+    );
+  return placed.map(({ slice, row }, at): MermaidTask => {
+    const point: PointReason | null = !slice.estimated
+      ? 'unestimated'
+      : slice.duration === 0
+        ? 'zero'
+        : null;
+    const first = Math.floor(scale.startOf(slice.earliestStart));
+    const last = Math.max(first, Math.ceil(scale.endOf(slice.earliestFinish)) - 1);
+    return {
+      section: mermaidPhrase(namedRow(outermost(row, byId))),
+      text: taskTextOf(plan, row, slice, point),
+      // Generated, and that is what keeps every user-typed character out of the
+      // metadata position: an id taken from a name would collide the moment two
+      // rows share a phase, and one taken from `slice.id` would carry be-01's
+      // opaque keys into a document a person reads.
+      id: `s${String(at + 1)}`,
+      critical: slice.critical,
+      from: addCalendarDays(origin, first),
+      to: addCalendarDays(origin, last),
+      point,
+    };
+  });
+}
+
+/**
+ * One task line: `name :tags, id, from, to`.
+ *
+ * A point carries the `milestone` tag and **still carries both dates**, equal,
+ * rather than the `0d` duration the docs use. That is the second grammar trap
+ * of this change paying for itself: `manualEndTime` is set by an end that parses
+ * as a literal `YYYY-MM-DD`, and a duration does not, so a `0d` milestone would
+ * be the one shape on the diagram that `excludes weekends` is still free to
+ * move. Equal dates make the invariant uniform — every task here has a manual
+ * end — and a `milestone` is drawn as a point whatever its span.
+ */
+function taskLine(task: MermaidTask): string {
+  const tags = [...(task.critical ? ['crit'] : []), ...(task.point === null ? [] : ['milestone'])];
+  return `    ${task.text} :${[...tags, task.id, task.from, task.to].join(', ')}`;
+}
+
+/**
+ * The comment block inside the fence: what this is, and the three things a
+ * reader has to know before believing it.
+ *
+ * Inside the fence rather than above it because a fence is what gets copied.
+ * Invisible once rendered, which is the honest limit of M1 and the whole reason
+ * the bundled document (M2) exists: this block is for whoever reads the source.
+ */
+function commentLines(plan: PlanExport): string[] {
+  return [
+    `    %% ${mermaidComment(plan.projectName)} — exported from the WBS tool at ${plan.generatedAt}.`,
+    "    %% Mermaid's gantt is a weaker drawing than the chart this came from. It has no way to",
+    '    %% draw dependency arrows, capacity or hand-off waits, slack, priority, the three-point',
+    '    %% figures, how many people a work item ran at, or one colour per assignee. Copy as',
+    '    %% Markdown puts every one of those in a table beside this picture.',
+    '    %% Dates are working days and bars are whole days — a start rounds down and a finish',
+    '    %% rounds up, so no bar is drawn shorter than the work in it.',
+    '    %% Every row of the plan is here, including any the screen had collapsed or searched away.',
+  ];
+}
+
+/**
+ * A plan as a Mermaid `gantt` fence: the chart, in something a Markdown reader
+ * draws.
+ *
+ * **Absolute dates, never `after`.** Mermaid's `after` is a layout instruction —
+ * it would recompute the schedule, knowing nothing about capacity floors, person
+ * floors, role order or not-before dates — so a diagram laid out by it would
+ * silently disagree with be-01 on exactly the plans where the disagreement
+ * matters. be-01 has already solved this schedule; the fence renders it. Same
+ * rule the CSV follows: the export computes nothing, so it cannot disagree with
+ * the table it came off.
+ *
+ * **The two grammar traps, both taken:**
+ *
+ * - `excludes weekends` normally *extends* a task past every excluded day it
+ *   spans, which would push every bar here — our dates already skip weekends.
+ *   It does not fire, because `checkTaskDates` returns early on a task whose end
+ *   parsed as a literal `YYYY-MM-DD` (`ganttDb.js`, `manualEndTime`), and every
+ *   task above has one. So the keyword is left doing the one thing we want:
+ *   painting the weekend bands.
+ * - Mermaid's end dates are **exclusive** unless `inclusiveEndDates` is
+ *   declared, and `to` above is the last day the work is still on. Without that
+ *   one line every bar in the document is a day short.
+ *
+ * Both are read off Mermaid's own source as quoted in the R7 brief and **not
+ * watched against a parse** — a real Mermaid parse in the suite is M5 and is
+ * deliberately not in this change, so the two claims are arguments about a
+ * dependency this repo does not have yet.
+ *
+ * **Deterministic.** No clock and no map iterated in object-identity order: the
+ * same plan and the same `generatedAt` produce the same bytes, which is what
+ * makes the output diffable wherever it is pasted.
+ *
+ * @throws Whatever `addWorkdays` throws when `startDate` is not a calendar
+ * date — a scale that cannot say where day zero is has no answer for any mark.
+ */
+export function planToMermaid(plan: PlanExport): MermaidExport {
+  if (plan.scheduleError !== null) return { drawn: false, refusal: NO_SCHEDULE_TO_DRAW };
+  if (plan.startDate === null) return { drawn: false, refusal: NOT_ON_A_CALENDAR };
+  const tasks = tasksOf(plan, plan.startDate);
+  if (tasks.length === 0) return { drawn: false, refusal: NOTHING_PLACED };
+  // A `title` with nothing after it is a parse error rather than an untitled
+  // diagram, so the one project state that can produce one has a word.
+  const title = mermaidPhrase(plan.projectName);
+  const lines = [
+    'gantt',
+    `    title ${title === '' ? UNNAMED_PROJECT : title}`,
+    '    dateFormat YYYY-MM-DD',
+    '    inclusiveEndDates',
+    '    excludes weekends',
+    ...commentLines(plan),
+  ];
+  let section: string | null = null;
+  for (const task of tasks) {
+    if (task.section !== section) {
+      section = task.section;
+      lines.push(`    section ${section}`);
+    }
+    lines.push(taskLine(task));
+  }
+  return { drawn: true, text: `${lines.join('\n')}\n` };
+}
