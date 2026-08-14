@@ -379,6 +379,8 @@ function fakeApi(): ProjectApi & {
         maxParallel: 1,
         startNoEarlierThan: null,
         serviceTeamId: null,
+        teamIds: [],
+        teamIds: [],
         assignees: {},
         doesEveryPhase: null,
         rolledUp: false,
@@ -410,6 +412,13 @@ function fakeApi(): ProjectApi & {
       const written =
         'maxParallel' in patch && patch.maxParallel === null ? { ...patch, maxParallel: 1 } : patch;
       if (row !== undefined) Object.assign(row, written);
+      // The dual write be-01 performs: the column and the join, in one act, and
+      // the join is what this client reads. A fake that wrote only the column
+      // would leave the table reading an empty set and every label test green
+      // against a screen with no labels on it.
+      if (row !== undefined && 'serviceTeamId' in written) {
+        row.teamIds = written.serviceTeamId === null ? [] : [written.serviceTeamId ?? ''];
+      }
       return Promise.resolve();
     },
     move(id, parentId, afterId) {
@@ -7018,6 +7027,7 @@ describe('dependencies in the table — cross-review findings', () => {
             finalTotal: 0,
             startNoEarlierThan: null,
             serviceTeamId: null,
+            teamIds: [],
             assignees: {},
             doesEveryPhase: null,
             dates: null,
@@ -7467,6 +7477,7 @@ describe('the chart under a plan being edited', () => {
               finalTotal: 0,
               startNoEarlierThan: floored ? '2026-08-10' : null,
               serviceTeamId: null,
+              teamIds: [],
               assignees: {},
               doesEveryPhase: null,
               dates: null,

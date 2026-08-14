@@ -31,6 +31,7 @@ const ROW: WorkItemView = {
   assignees: {},
   doesEveryPhase: null,
   serviceTeamId: null,
+  teamIds: [],
   startNoEarlierThan: null,
   dependsOn: [],
   schedule: {

@@ -83,7 +83,7 @@ const row = (over: Partial<ExportRow> & Pick<ExportRow, 'id' | 'number'>): Expor
   name: '',
   notes: '',
   rolledUp: false,
-  serviceTeamId: null,
+  teamIds: [],
   estimates: {},
   finalDays: {},
   finalTotal: 0,
@@ -327,8 +327,8 @@ describe('the columns', () => {
 
   it('resolves the team to its name, and says so when the id names nobody', () => {
     const rows = [
-      row({ id: 'a', number: '010', serviceTeamId: 'team-billing' }),
-      row({ id: 'b', number: '020', serviceTeamId: 'team-gone' }),
+      row({ id: 'a', number: '010', teamIds: ['team-billing'] }),
+      row({ id: 'b', number: '020', teamIds: ['team-gone'] }),
       row({ id: 'c', number: '030' }),
     ];
     const csv = planToCsv(plan({ rows }));
@@ -403,7 +403,7 @@ describe('the capacity columns', () => {
 
   it('names the team a row inherits, and the row the label was written on', () => {
     const rows = [
-      row({ id: 'a', number: '010', name: 'Backend', serviceTeamId: 'team-billing' }),
+      row({ id: 'a', number: '010', name: 'Backend', teamIds: ['team-billing'] }),
       row({ id: 'b', number: '010.1', name: 'Ship it', parentId: 'a' }),
     ];
     const csv = planToCsv(plan({ rows }));
@@ -436,7 +436,7 @@ describe('the capacity columns', () => {
     // inherits` with it — every inheriting row in the document reported
     // teamless while its dates came out of the pool. Watched 2026-08-13.
     const rows = [
-      row({ id: 'a', number: '010', name: 'Root', serviceTeamId: 'team-billing' }),
+      row({ id: 'a', number: '010', name: 'Root', teamIds: ['team-billing'] }),
       row({ id: 'b', number: '010.1', name: 'Nearer', parentId: 'a' }),
       row({ id: 'c', number: '010.1.1', name: 'Leaf', parentId: 'b' }),
     ];
@@ -603,7 +603,7 @@ describe('hostile text', () => {
       number: '010',
       name: 'a,b',
       notes: 'say "hi"',
-      serviceTeamId: 'team-billing',
+      teamIds: ['team-billing'],
     }),
     row({
       id: 'b',
