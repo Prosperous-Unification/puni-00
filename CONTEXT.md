@@ -87,8 +87,62 @@ _Avoid_: roster, address book, org chart, users
 
 **Service team**:
 A team work can be labelled with. A label on the work, never a constraint on who may be
-assigned it, and unique by name across the directory.
+assigned it, and unique by name across the directory. How many of them may be at work at
+once is a separate fact, stated per project — a Capacity, not a property of the team.
 _Avoid_: department, squad, group, service
+
+**Capacity**:
+How many of one team may be at work at once on **one project's plan**. A fact about the
+pair, never about the team: two plans labelled with the same team each state their own,
+and there is no global number behind either. Absent is _unstated_ and constrains nothing.
+_Avoid_: team size, headcount, allocation, availability
+
+**Pool**:
+The slots one team's capacity provides on one plan, and the thing work labelled with that
+team competes for. Keyed on the work item's team, never on the assignee's memberships.
+_Avoid_: bucket, resource pool, team capacity, queue
+
+**Slot**:
+One person's worth of a pool, held for the whole of a block's duration and released when
+it finishes. Counted, never named — a slot is not a person and does not decide who does
+the work.
+_Avoid_: seat, lane, place, unit
+
+**Maximum parallelism**:
+How many people may be on one work item at once — 1 or more, never absent, because 1 and
+unset are one fact. What the `∥` column carries. A ceiling on the ask; what a slice
+actually gets is its Width.
+_Avoid_: in-parallel, concurrency, people, parallelism (bare)
+
+**Width**:
+How many slots a slice actually runs at: its work item's maximum parallelism, clamped to
+the pool's slots, and 1 whenever a person is named on it. What divides effort into
+duration.
+_Avoid_: parallelism, size, slots used
+
+**Block**:
+One slice as the pool sees it — its width for its whole duration, taken indivisibly. It
+starts only where every one of its slots is free for all of it; it never starts narrow and
+widens later.
+_Avoid_: reservation, chunk, allocation
+
+**Blocking set**:
+Every reservation that had to end for a block to fit, carried whole rather than as the one
+that happened to end last. What float is computed against, so no row is reported movable
+when another row's finish is holding its slack.
+_Avoid_: blockers, predecessors, holders
+
+**Display referent**:
+The one member of a blocking set the chart names and draws an arrow from — the latest
+finisher of it. The rest are counted, because the wait is disjunctive and a card listing
+five rows is a card nobody finishes.
+_Avoid_: cause, blocker, main predecessor
+
+**Remembered capacity**:
+A capacity a project still holds for a team its work is no longer labelled with. Invisible,
+because the plan lists only the teams on it, and re-applied silently if that team labels a
+row again. A third state beside stated and unstated.
+_Avoid_: stale capacity, orphan capacity, leftover
 
 **Person**:
 Somebody who does work, named in the directory and assigned to a work item's role. Not an
@@ -173,14 +227,16 @@ _Avoid_: aggregate, summary, rollup (which is estimates, not time)
 
 **Resource leveling**:
 Placing every slice so that nobody is doing two at once. Always on, and invisible in a
-plan with nobody assigned — which is what every plan was until it arrived.
-_Avoid_: smoothing, balancing, allocation, capacity planning
+plan with nobody assigned — which is what every plan was until it arrived. Per person;
+the per-team bound beside it is a Capacity.
+_Avoid_: smoothing, balancing, allocation
 
 **Priority**:
 How important one work item's work is, as an integer from 1 upward, smaller being more
 important — or absent, which is a state of its own and not a large number. Decides which
-of two slices competing for one person is placed first; never overrides a dependency, a
-floor or a calendar.
+of two eligible slices is **placed** first; never overrides a dependency, a floor or a
+calendar, and placed first is not started first — a narrow block can take a hole a wide
+one of higher priority cannot use.
 _Avoid_: priority, importance, urgency, severity, weight
 
 **Eligible slice**:
@@ -191,8 +247,9 @@ _Avoid_: ready, available, unblocked, frontier
 
 **Binding floor**:
 The one thing a slice's start is set by, out of the day the project starts, a dependency,
-its work item's earlier role, a manual date, and its assignee's last finish. A tie is
-never the person: somebody free exactly when the dependency clears is holding nothing up.
+its work item's earlier role, a manual date, its assignee's last finish, and its team's
+capacity. A tie is never the person and never the capacity: somebody — or some slot —
+free exactly when the dependency clears is holding nothing up.
 _Avoid_: constraint, reason, blocker, driver
 
 **Resource predecessor**:
