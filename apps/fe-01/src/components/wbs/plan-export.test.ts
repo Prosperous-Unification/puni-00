@@ -406,6 +406,10 @@ describe('the capacity columns', () => {
     // the separator is the one R2-3's `Teams` column keeps and therefore the
     // one R3's import matches names by, so it is decided here rather than
     // discovered there.
+    //
+    // Proof: the cell narrowed to `nameOf(plan.teams, effective.teamIds[0])`,
+    // and this failed on `expected 'Billing, Ltd' to be 'Billing, Ltd;
+    // (unknown)'` — 1 failed / 38 passed; watched 2026-08-14.
     const rows = [row({ id: 'a', number: '010', teamIds: ['team-billing', 'team-gone'] })];
     const csv = planToCsv(plan({ rows }));
 

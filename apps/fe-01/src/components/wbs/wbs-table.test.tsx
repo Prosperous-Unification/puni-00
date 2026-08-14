@@ -1501,9 +1501,12 @@ describe('teams and assignees', () => {
     // R2-4's payload looks like once the column becomes the derived copy.
     //
     // Proof: `effectiveTeamLabelOf`'s own-set arm pointed back at
-    // `row.serviceTeamId`, and this failed on
-    // `expected '' to be 'Platform'` — the label gone from a cell whose row
-    // names a team; watched 2026-08-14.
+    // `row.serviceTeamId`, and this failed on `expected 'Platform — inherited
+    // from 010 (unname…' to be null` — the cell telling a reader it inherits
+    // its team from itself — 1 failed / 425 passed; watched 2026-08-14. The
+    // value assertion alone stays green under that fault, because the picker's
+    // value is a second read of the same set: which arm answered is the part
+    // only the title can say.
     const api = await oneRow();
     await api.addTeam('Platform');
     const [row] = api.rows;

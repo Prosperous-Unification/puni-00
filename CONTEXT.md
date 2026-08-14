@@ -91,6 +91,19 @@ assigned it, and unique by name across the directory. How many of them may be at
 once is a separate fact, stated per project — a Capacity, not a property of the team.
 _Avoid_: department, squad, group, service
 
+**Team set**:
+The teams one work item states — none, one, or several. Stated in `work_item_team` and
+read from there; the work item's own column holds the single member until it is dropped.
+Empty means _unstated_ and takes the ancestor's, never "deliberately no team".
+_Avoid_: teams field, labels, tags
+
+**Effective team set**:
+The team set in force for a row: its own if that is non-empty, else the nearest
+ancestor's, whole. Most-specific wins and the set is replaced rather than accumulated, so
+a row stating one team is on that team alone however many its parent states. A reading,
+computed in one place and never written down.
+_Avoid_: inherited teams, resolved teams, effective team
+
 **Capacity**:
 How many of one team may be at work at once on **one project's plan**. A fact about the
 pair, never about the team: two plans labelled with the same team each state their own,
