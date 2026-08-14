@@ -11,8 +11,8 @@ Only `- [ ]` checkboxes are tracked by the apply phase.
       table's own title where `row.schedule.critical`, else `{n}d slack` and
       the table's own singular/plural title off `row.schedule.float`. Tests:
       `says how many days a row can slip, in the table's own word`, `keeps the
-      singular where a row can slip exactly one workday`, `says a row on the
-      critical path has none, in the table's own word`.
+singular where a row can slip exactly one workday`, `says a row on the
+critical path has none, in the table's own word`.
 
 **No new guard.** A read of two fields already on the row into a string; the
 three tests are ordinary assertions, the lighter contract's own rule for copy.
@@ -21,12 +21,12 @@ three tests are ordinary assertions, the lighter contract's own rule for copy.
 
 - [x] 2.1 `cardTrioOf(row, roleId, showDay)`: the three points off
       `row.estimates[roleId]`, `No estimate yet` where none is set, `Final {n}
-      days` where `row.finalDays[roleId]` exists — `folded-role-card.tsx`'s own
+days` where `row.finalDays[roleId]` exists — `folded-role-card.tsx`'s own
       words, not a second vocabulary. Rendered as a `<details>`/`<summary>` per
       phase, closed at rest. Tests: `says nothing has been estimated, in the
-      words the hover card already prints`, `reads the trio and the final off
-      the row, in the same words folded-role-card.tsx prints on hover`, `opens
-      on a tap and stays shut until one`.
+words the hover card already prints`, `reads the trio and the final off
+the row, in the same words folded-role-card.tsx prints on hover`, `opens
+on a tap and stays shut until one`.
 
 ## 3. The record
 

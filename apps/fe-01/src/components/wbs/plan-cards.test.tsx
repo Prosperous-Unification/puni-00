@@ -1039,10 +1039,7 @@ describe('what a card says about capacity', () => {
 
 describe('what a card says about the schedule', () => {
   /** A plan on a phone, arranged before the first render — the capacity block’s own pattern. */
-  async function aPlan(
-    arrange: (rows: WorkItemView[]) => void,
-    howMany = 1,
-  ): Promise<void> {
+  async function aPlan(arrange: (rows: WorkItemView[]) => void, howMany = 1): Promise<void> {
     const api = fakeApi();
     for (let at = 0; at < howMany; at += 1) await api.create('p1', { parentId: null });
     arrange(api.rows);

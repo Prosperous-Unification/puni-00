@@ -31,7 +31,7 @@ needed threading through the file this branch was told not to touch.
 - **The `o·r·p` trio**, a native `<details>`/`<summary>` under each phase's box
   — "a tappable detail" is the plan's own phrase for it. Content is
   `folded-role-card.tsx`'s own words (`optimistic 2 · realistic 3 · pessimistic
-  8`, `No estimate yet`, `Final 4.2 days`), read off `row.estimates`/
+8`, `No estimate yet`, `Final 4.2 days`), read off `row.estimates`/
   `row.finalDays` rather than the box's draft — the same choice that file's own
   comments explain (a card is what the fold left behind, not what somebody is
   mid-typing).
