@@ -17,14 +17,18 @@ only, `nx affected` locally and **`nx format:check --all`** rather than
 | first `fe-01:test` run (2 red, my own) | 2026-08-14 18:44 |
 | both faults injected and watched       | 2026-08-14 18:46 |
 | green `nx affected` (2nd attempt)      | 2026-08-14 18:54 |
-| openspec, format, record               | 2026-08-14 19:01 |
-| PR open                                | see the PR       |
+| openspec, format, doc caps, secrets    | 2026-08-14 18:57 |
+| PR #65 open                            | 2026-08-14 18:58 |
+| CI green, first attempt                | 2026-08-14 19:07 |
 
-**Branch cut to PR open: see the PR's own timestamp; the table above is the
-work.** Roughly **20 minutes were code and tests** — `plan-mermaid.ts`, its 29
-tests, the `ExportSlice` widening and the fixture it broke — and roughly **10
-were record and gate**: `proposal.md`, `tasks.md`, the delta spec, this file,
-and four runs on h2puni.
+**Branch cut to PR open: 23 minutes.** Roughly **14 of them were code and
+tests** — `plan-mermaid.ts`, its 29 tests, the `ExportSlice` widening and the
+fixture it broke — and roughly **9 were record and gate**: `proposal.md`,
+`tasks.md`, the delta spec, this file, and six runs on h2puni.
+
+Against `chart-clamp-words`' 15 minutes for four lines of code, that is a
+**new module and a type change in half again the time** — which is the "fewer,
+bigger PRs" lever the trial argued for, showing up as a number.
 
 The largest single cost, again, was neither: it was **reading** `plan-export.ts`,
 `wbs-api.ts`'s `SliceView`, `calendarScale`'s docstring and `work-item.service`'s
@@ -213,6 +217,11 @@ to type. The alternative loses the punctuation but stays ASCII. One line in
 
 ## CI
 
-Quoted in a comment on the PR: a file cannot carry the id of the run that judges
-it. Both jobs green at the head is the condition for merge, and **this branch is
+**Run 31831159175 at `7fe501a` — success, first attempt**, both jobs: `gate` and
+`pixels`. That is the head this file was written against, and the PR read
+**MERGEABLE / CLEAN** at it. No flake, on a branch that touches `apps/fe-01`.
+
+The run against whatever head this document's own tail produces is quoted in a
+comment on PR #65 — a file cannot carry the id of the run that judges it. Both
+jobs green at the final head is the condition for merge, and **this branch is
 not merged**.
