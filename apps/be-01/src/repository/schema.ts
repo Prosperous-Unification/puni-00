@@ -197,19 +197,29 @@ export const workItem = sqliteTable(
      */
     priority: integer('priority'),
     /**
-     * The service or team this work belongs to, or null. A label on the work,
-     * not a constraint on who may be assigned it.
+     * The one team this work is labelled with, or null — **and no longer what
+     * anything reads.** {@link workItemTeam} holds the set, and `team-sets`
+     * (2026-08-14) switched every read to it.
      *
-     * It is also what a **capacity** is spent through: a label on a parent
-     * reaches every leaf beneath it that carries none — most-specific wins,
-     * `effectiveTeamOf` in `libs/domain/src/effective-team.ts` — and each of
-     * those leaves' slices draws a slot from that team's pool. The number of
-     * slots in that pool is {@link projectTeamCapacity.size}, stated by **this
-     * project** and no other; it was {@link serviceTeam.size} until
-     * `capacity-per-project` retired that column, and this comment went on
-     * naming the retired one after that change had corrected every other
-     * sentence in this file. Labelling is still not assigning: who does the
-     * work is a second and independent fact.
+     * Kept, and kept written, for one release. Blue and green share one SQLite
+     * file mid-swap and the outgoing release selects this column on every tree
+     * read, so it is dual-written by every write that changes a work item's
+     * team: it holds the single member of the set, or null for the empty set.
+     * The write path writes at most one team until R2-4, which is what makes
+     * that possible; R2-6 drops the column once no running release reads it.
+     *
+     * It is also the **journal's** spelling of the set until then — an undo of a
+     * label travels as this scalar, and a restored or duplicated subtree gets
+     * its join rows derived from it. See `team-sets`' design.md D2.
+     *
+     * A label on the work, not a constraint on who may be assigned it, and what
+     * a **capacity** is spent through: a set on a parent reaches every leaf
+     * beneath it whose own set is empty — most-specific wins, `effectiveTeamsOf`
+     * in `libs/domain/src/effective-team.ts` — and each of those leaves' slices
+     * draws a slot from that team's pool. The number of slots in that pool is
+     * {@link projectTeamCapacity.size}, stated by **this project** and no other.
+     * Labelling is still not assigning: who does the work is a second and
+     * independent fact.
      *
      * What the number does to a plan's dates, in prose: `docs/capacity.md`.
      */
@@ -394,6 +404,50 @@ export const serviceTeam = sqliteTable(
 );
 
 export type ServiceTeamRow = typeof serviceTeam.$inferSelect;
+
+/**
+ * Which teams one work item's work belongs to — **several**, since `team-sets`.
+ *
+ * Dany, 2026-08-13: _"can be several teams and several services per work item"_.
+ * A column holds one team and this holds the set, so this table — not
+ * {@link workItem.serviceTeamId} — is what every read of a work item's teams
+ * goes through. The column is still written beside it and is still the only
+ * thing the outgoing release can see; see its JSDoc for the window that keeps
+ * them both.
+ *
+ * The pair is the primary key because the pair is the fact: "this work item's
+ * work is Platform's" is either stated or not, and a second row saying it again
+ * would be a second answer to one question. `project_team_capacity`'s shape, one
+ * table along.
+ *
+ * Both columns cascade, and the cascade is the **only** mechanism that removes
+ * these rows — nothing in be-01 deletes them on the way to deleting a team or a
+ * work item. That is deliberate and it is the same argument
+ * {@link projectTeamCapacity} makes: blue and green share one SQLite file during
+ * a swap, the outgoing release knows nothing about this table, and its plain
+ * `DELETE FROM service_team` must not hit a constraint it cannot see.
+ *
+ * Indexed by team, because the directory asks "what would removing this team
+ * touch" of every project at once and the primary key answers only the other
+ * direction.
+ */
+export const workItemTeam = sqliteTable(
+  'work_item_team',
+  {
+    workItemId: text('work_item_id')
+      .notNull()
+      .references(() => workItem.id, { onDelete: 'cascade' }),
+    teamId: text('team_id')
+      .notNull()
+      .references(() => serviceTeam.id, { onDelete: 'cascade' }),
+  },
+  (t) => [
+    primaryKey({ columns: [t.workItemId, t.teamId] }),
+    index('work_item_team_by_team').on(t.teamId),
+  ],
+);
+
+export type WorkItemTeamRow = typeof workItemTeam.$inferSelect;
 
 /**
  * How many of one team may be at work at once **on one project's plan**.

@@ -108,7 +108,12 @@ export function effectiveTeamsOf(rows: readonly TeamsLabelled[]): Map<string, Ef
         resolved = already;
         break;
       }
-      // Proof: TO OBSERVE cycle guard
+      // Proof: this guard replaced by `seen.size;` and `refuses a parent chain
+      // that runs in a circle` never comes back — the run stops after the
+      // seventh test and is killed by the shell's own `timeout 120`, printing
+      // nothing further. Which is why the assertion is on the throw and the
+      // fault is watched as a hang rather than as a wrong answer; watched
+      // 2026-08-12 and again 2026-08-14 over the set.
       if (seen.has(cursor)) throw new TeamAncestryCycleError(row.id);
       seen.add(cursor);
       const own = ownTeams.get(cursor);
@@ -116,7 +121,10 @@ export function effectiveTeamsOf(rows: readonly TeamsLabelled[]): Map<string, Ef
       // function that changes dates rather than failing, since the adapter
       // spends slots in whatever it is handed.
       //
-      // Proof: TO OBSERVE whole set
+      // Proof: `own` replaced by `own.slice(0, 1)` and `inherits an ancestor’s
+      // whole set, not its first member` failed on `expect(received).toEqual(
+      // expected)` with `- "platform"` missing from `[ "design", "platform" ]`;
+      // watched 2026-08-14.
       if (own !== undefined && own.length > 0) {
         resolved = { teamIds: own, fromId: cursor };
         break;
@@ -126,7 +134,12 @@ export function effectiveTeamsOf(rows: readonly TeamsLabelled[]): Map<string, Ef
     }
     if (resolved === undefined) continue;
     found.set(row.id, resolved);
-    // Proof: TO OBSERVE memoisation
+    // Proof: this line replaced by `walked.length;` and `resolves a chain of
+    // unlabelled rows once, and hands each of them the same answer` failed on
+    // `expect(received).toBe(expected)` — `Received: serializes to the same
+    // string`, which is two equal objects and exactly what a re-walked chain
+    // produces. The test's rows are deepest-first for this reason; in tree
+    // order the fault is invisible. Watched 2026-08-14.
     for (const each of walked) found.set(each, resolved);
   }
 
