@@ -65,8 +65,15 @@ interface Oracle {
 const oracle = captured as unknown as Oracle;
 
 /**
- * The pre-`capacity-per-project` identity differential: **Claim B** of
- * `design.md` D7.
+ * The pre-`capacity-per-project` identity differential: **Claim B** of that
+ * change's `design.md` D7, and — since `team-sets` (2026-08-14) — of that
+ * change's D5 as well.
+ *
+ * One oracle, two changes, deliberately not two copies of a 150-line replay
+ * harness: the fixture was captured at `050fd45`, which is before either of
+ * them, so it measures both at once. What `team-sets` adds is `teamIds` on
+ * every row, lifted off below and asserted separately, since a payload that
+ * gained a field is not a payload that moved a date.
  *
  * The promise this change makes is that every plan on the deployment schedules
  * byte-identically across the migration. It decomposes into two claims, and
@@ -213,10 +220,27 @@ describe('every plan schedules identically across the migration', () => {
       const answer = oracle.answers.at(at);
       if (answer === undefined) throw new Error(`no captured answer for ${plan.projectId}`);
       const tree = await replay(plan, seeded);
-      // Compared whole rather than field by field: a projection is a minimum over
-      // slices and can hide a slice that moved under one that did not, and naming
-      // the fields here would be a list to forget to extend.
-      expect({ project: plan.projectId, ...tree }).toEqual({
+      // `teamIds` is lifted off every row before the comparison and asserted on
+      // its own below, because the oracle predates the field and a payload that
+      // gained one is not the payload that lost a date. Lifting rather than
+      // listing the fields the oracle *does* carry: a projection is a minimum
+      // over slices and can hide a slice that moved under one that did not, and
+      // a hand-written field list is a list to forget to extend.
+      //
+      // Both halves are load-bearing and each is green under the other's fault.
+      // `team-sets` design.md D5.
+      const lifted = {
+        ...tree,
+        workItems: tree.workItems.map(({ teamIds, ...row }) => {
+          // The arity claim, and the only place it is made: the set the join
+          // answered is exactly the singleton of the label the oracle recorded.
+          //
+          // Proof: TO OBSERVE oracle singleton
+          expect(teamIds).toEqual(row.serviceTeamId === null ? [] : [row.serviceTeamId]);
+          return row;
+        }),
+      };
+      expect({ project: plan.projectId, ...lifted }).toEqual({
         project: plan.projectId,
         ...answer,
         // The one key the capture could not carry, because it did not exist:
