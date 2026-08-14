@@ -24,6 +24,7 @@ import {
   role,
   serviceTeam,
   workItem,
+  workItemTeam,
 } from './schema';
 
 /**
@@ -82,7 +83,22 @@ function usageRowsIn(
   // removal touching no project has no tree to number.
   if (projectIds.length === 0) return { ...NOTHING_POINTS_AT_IT, members };
   const ids = [...projectIds];
-  const workItems = reader.select().from(workItem).where(inArray(workItem.projectId, ids)).all();
+  // The rows and the teams they are joined to, because the usage is computed
+  // through `effectiveTeamsOf` — the join is the read since `team-sets`, and
+  // rows handed over without their sets would report no effect at all.
+  const rows = reader.select().from(workItem).where(inArray(workItem.projectId, ids)).all();
+  const joined = reader
+    .select({ workItemId: workItemTeam.workItemId, teamId: workItemTeam.teamId })
+    .from(workItemTeam)
+    .innerJoin(workItem, eq(workItemTeam.workItemId, workItem.id))
+    .where(inArray(workItem.projectId, ids))
+    .orderBy(asc(workItemTeam.teamId))
+    .all();
+  const teamsOf = new Map<string, string[]>();
+  for (const each of joined) {
+    teamsOf.set(each.workItemId, [...(teamsOf.get(each.workItemId) ?? []), each.teamId]);
+  }
+  const workItems = rows.map((row) => ({ ...row, teamIds: teamsOf.get(row.id) ?? [] }));
   const projects = reader
     .select({ id: project.id, name: project.name })
     .from(project)
@@ -433,11 +449,13 @@ export class DirectoryRepository implements DirectoryStore {
   /**
    * The same for a team, and it nulls every label itself.
    *
-   * `work_item.service_team_id` has **no** foreign key — deliberately, so that
-   * a label is a label rather than a constraint — which means the database will
-   * not stop this delete and will not clean up after it. A team row deleted on
-   * its own leaves every work item that carried it pointing at an id nothing
-   * holds, and nothing anywhere would ever report it.
+   * `work_item.service_team_id` carries a foreign key with no `ON DELETE`
+   * action — measured 2026-08-14, against what this comment claimed — so the
+   * database refuses this delete outright while any work item still names the
+   * team, and cleans up nothing. The `UPDATE` below is what makes the removal
+   * possible at all; without it the team can never be deleted, which is the
+   * same bug wearing the opposite hat. The join rows need no statement: they
+   * cascade.
    *
    * Proof, both watched 2026-08-09: with the label update removed, `a cascade
    * nulls every label and moves those work items' revisions` fails on the
@@ -449,10 +467,14 @@ export class DirectoryRepository implements DirectoryStore {
   async removeTeam(teamId: string, cascade: boolean): Promise<DirectoryRemoved> {
     await Promise.resolve();
     return this.db.transaction((tx) => {
+      // Through the join, which is where a work item's teams live since
+      // `team-sets`. The `UPDATE` below still nulls the column beside it, and
+      // the join rows go by the cascade.
       const labelled = tx
         .select({ id: workItem.id, projectId: workItem.projectId })
-        .from(workItem)
-        .where(eq(workItem.serviceTeamId, teamId))
+        .from(workItemTeam)
+        .innerJoin(workItem, eq(workItemTeam.workItemId, workItem.id))
+        .where(eq(workItemTeam.teamId, teamId))
         .all();
       const members = this.membersOf(tx, teamId);
       if (!cascade && (labelled.length > 0 || members.length > 0)) {
@@ -517,8 +539,9 @@ export class DirectoryRepository implements DirectoryStore {
     return projectsOf(
       reader
         .select({ projectId: workItem.projectId })
-        .from(workItem)
-        .where(eq(workItem.serviceTeamId, teamId))
+        .from(workItemTeam)
+        .innerJoin(workItem, eq(workItemTeam.workItemId, workItem.id))
+        .where(eq(workItemTeam.teamId, teamId))
         .all(),
     );
   }

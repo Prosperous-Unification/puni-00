@@ -1,8 +1,9 @@
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, asc, eq, inArray } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
 import type {
   FrozenNumber,
+  LabelledWorkItem,
   Reparented,
   Repositioned,
   SubtreeCopy,
@@ -13,7 +14,22 @@ import type {
   WorkItemStore,
 } from './index';
 import { bumpedWorkItem, bumpedWorkItemOnReparent, bumpWorkItems } from './revision';
-import { assignment, dependency, estimate, serviceTeam, workItem } from './schema';
+import { assignment, dependency, estimate, serviceTeam, workItem, workItemTeam } from './schema';
+
+/**
+ * The join rows one write owes, derived from the column it is writing.
+ *
+ * The direction is deliberate and it is `team-sets`' design.md D2: the write
+ * path still takes one team, the column is what the journal and the outgoing
+ * release read, and the set is written from it. R2-4 turns this around — the
+ * request carries the set, and the column becomes the derived copy — and R2-6
+ * deletes the column and this function with it.
+ */
+function joinRowsFor(rows: readonly WorkItem[]): { workItemId: string; teamId: string }[] {
+  return rows.flatMap((row) =>
+    row.serviceTeamId === null ? [] : [{ workItemId: row.id, teamId: row.serviceTeamId }],
+  );
+}
 
 /**
  * Every method that writes more than one row does so in one transaction.
@@ -32,8 +48,28 @@ import { assignment, dependency, estimate, serviceTeam, workItem } from './schem
 export class WorkItemRepository implements WorkItemStore {
   constructor(private readonly db: SQLiteBunDatabase) {}
 
-  listByProject(projectId: string): Promise<WorkItem[]> {
-    return this.db.select().from(workItem).where(eq(workItem.projectId, projectId));
+  /**
+   * Two reads rather than a left join, and merged here: a join would return one
+   * row per (work item, team) pair and every unlabelled row once, so the caller
+   * would be reassembling exactly this map out of a wider result set. One
+   * indexed read each, and the second one is empty on most plans.
+   *
+   * Ordered by team id, which is what makes two reads of an unchanged plan
+   * answer the same array — design.md D6.
+   */
+  async listByProject(projectId: string): Promise<LabelledWorkItem[]> {
+    const rows = await this.db.select().from(workItem).where(eq(workItem.projectId, projectId));
+    const joined = await this.db
+      .select({ workItemId: workItemTeam.workItemId, teamId: workItemTeam.teamId })
+      .from(workItemTeam)
+      .innerJoin(workItem, eq(workItemTeam.workItemId, workItem.id))
+      .where(eq(workItem.projectId, projectId))
+      .orderBy(asc(workItemTeam.teamId));
+    const teamsOf = new Map<string, string[]>();
+    for (const each of joined) {
+      teamsOf.set(each.workItemId, [...(teamsOf.get(each.workItemId) ?? []), each.teamId]);
+    }
+    return rows.map((row) => ({ ...row, teamIds: teamsOf.get(row.id) ?? [] }));
   }
 
   async findById(id: string): Promise<WorkItem | null> {
@@ -41,6 +77,16 @@ export class WorkItemRepository implements WorkItemStore {
     return rows[0] ?? null;
   }
 
+  /**
+   * The join row goes in with the row, in the same transaction, whenever the
+   * row arrives carrying a label.
+   *
+   * `create` never does — a new work item is unlabelled — so this arm exists for
+   * the writes that hand a whole row over: a restore, and any caller seeding a
+   * plan. Leaving it out would make the column and the join disagree from the
+   * row's first instant, which is the one thing {@link joinRowsFor} exists to
+   * prevent.
+   */
   async insert(toInsert: WorkItem, respaced: readonly Repositioned[]): Promise<void> {
     await Promise.resolve();
     this.db.transaction((tx) => {
@@ -51,6 +97,8 @@ export class WorkItemRepository implements WorkItemStore {
           .run();
       }
       tx.insert(workItem).values(toInsert).run();
+      const joined = joinRowsFor([toInsert]);
+      if (joined.length > 0) tx.insert(workItemTeam).values(joined).run();
     });
   }
 
@@ -59,13 +107,16 @@ export class WorkItemRepository implements WorkItemStore {
    * transaction as the `UPDATE`**.
    *
    * The check and the write cannot be pulled apart, and that is the whole point
-   * of it living here. `work_item.service_team_id` deliberately has no foreign
-   * key — a label is a label, not a constraint — so nothing below this stops a
-   * removed team's id being written. A service-level precheck followed by
-   * today's unchecked update is two statements with a delete-sized gap between
-   * them: the check passes for a team removed inside it, and the row then
-   * carries an id the directory does not hold, for ever, with nothing anywhere
-   * to report it.
+   * of it living here. A service-level precheck followed by the update is two
+   * statements with a delete-sized gap between them: the check passes for a
+   * team removed inside it, and the update then fails on the column's own
+   * foreign key — a raw `FOREIGN KEY constraint failed`, which is a 500 for a
+   * request whose only fault is being out of date.
+   *
+   * That the column has a foreign key at all was measured on 2026-08-14 and is
+   * the opposite of what this comment claimed; see {@link WorkItemPatched}. The
+   * refusal below is the right answer under either reading, which is why the
+   * behaviour is unchanged and only the reason is.
    *
    * Proof: with the `unknown_team` read removed, `refuses a label naming a team
    * that has been removed` fails — the work item came back carrying the dead
@@ -116,6 +167,24 @@ export class WorkItemRepository implements WorkItemStore {
         .all();
       const updated = rows.at(0);
       if (updated === undefined) return { ok: false, reason: 'not_found' };
+      // The set, written in the same transaction as the column and only when
+      // the patch names the label at all — a rename must not empty the join.
+      // Replace rather than merge: the write path states the whole set, and it
+      // states at most one member until R2-4.
+      //
+      // Proof, both watched 2026-08-14. The `insert` deleted: `labels the join
+      // as well as the column` and `leaves the join alone when the patch does
+      // not name the label` failed on `+ []` where the join row was owed — 14
+      // pass / 2 fail, and the second of those is the one that says the column
+      // and the join came apart while both looked written. The `delete`
+      // removed: `empties the join when the label is taken off` failed with the
+      // old row still standing — 15 pass / 1 fail, a label the scheduler still
+      // spends slots on and no screen shows.
+      if (wanted !== undefined) {
+        tx.delete(workItemTeam).where(eq(workItemTeam.workItemId, id)).run();
+        if (wanted !== null)
+          tx.insert(workItemTeam).values({ workItemId: id, teamId: wanted }).run();
+      }
       return { ok: true, workItem: updated };
     });
   }
@@ -242,6 +311,18 @@ export class SubtreeRepository implements SubtreeStore {
       // referencing a parent in the same `VALUES` list depends on the order
       // SQLite evaluates it in, which is not a contract worth resting a tree on.
       for (const row of copy.rows) tx.insert(workItem).values(row).run();
+      // The teams the copied rows carry, in the same transaction as the rows.
+      // A duplicated branch draws from the pools the original drew from, and a
+      // restored one comes back on the pool it left — the join rows of a
+      // deleted work item went with it through the cascade, so a restore that
+      // wrote only the column would put the rows back unpooled and move dates
+      // nobody edited.
+      //
+      // Proof: this write deleted and `carries the teams of every row a copy
+      // writes` failed on `Expected - 4 / Received + 0` — the copy landed with
+      // no team at all — 15 pass / 1 fail; watched 2026-08-14.
+      const joined = joinRowsFor(copy.rows);
+      if (joined.length > 0) tx.insert(workItemTeam).values(joined).run();
       // After the rows, because these point at them. A restored parent's
       // children come home here, and a row that gained a parent gained a
       // stored field of its own — see {@link bumpedWorkItemOnReparent} for why

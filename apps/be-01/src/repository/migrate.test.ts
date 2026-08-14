@@ -34,6 +34,9 @@ const MAX_PARALLEL = '20260812100001_add_max_parallel';
 // A table of its own, referencing `project` and `service_team`, so it reverses
 // before the domain and appears in the ordering case as well as in its own.
 const PER_PROJECT_CAPACITY = '20260813120000_add_project_team_capacity';
+// A table of its own again, referencing `work_item` and `service_team`, so it
+// reverses before the domain and before the directory that holds both.
+const WORK_ITEM_TEAM = '20260814100000_add_work_item_team';
 
 const WBS_TABLES = ['project', 'work_item', 'role', 'estimate'] as const;
 // Its own migration, reversed with the domain because it references `work_item`.
@@ -45,6 +48,8 @@ const DIRECTORY_TABLES = ['service_team', 'person', 'person_team', 'assignment']
 // Its own migration, reversed with the domain: it references both `project` and
 // `service_team`, so it cannot outlive either.
 const CAPACITY_TABLES = ['project_team_capacity'] as const;
+// Its own migration, reversed with the domain: it references `work_item`.
+const TEAM_SET_TABLES = ['work_item_team'] as const;
 
 function tempDb(): { path: string; cleanup: () => void } {
   const dir = mkdtempSync(join(tmpdir(), 'wbs-migrate-'));
@@ -79,6 +84,7 @@ describe('the WBS domain migration', () => {
         ...ACCESS_TABLES,
         ...DIRECTORY_TABLES,
         ...CAPACITY_TABLES,
+        ...TEAM_SET_TABLES,
       ])
         expect(tables(db.path)).toContain(t);
     } finally {
@@ -100,6 +106,7 @@ describe('the WBS domain migration', () => {
       // ahead of the column it was seeded from, which is the only order in
       // which its foreign keys still have something to point at.
       expect(reversed).toEqual([
+        WORK_ITEM_TEAM,
         PER_PROJECT_CAPACITY,
         MAX_PARALLEL,
         TEAM_SLOTS,
@@ -120,6 +127,7 @@ describe('the WBS domain migration', () => {
         ...ACCESS_TABLES,
         ...DIRECTORY_TABLES,
         ...CAPACITY_TABLES,
+        ...TEAM_SET_TABLES,
       ])
         expect(tables(db.path)).not.toContain(t);
       // Reversing the domain must not take the accounts with it: the two
@@ -402,7 +410,7 @@ describe('the capacity migrations', () => {
 
       const reversed = rollbackTo(db.path, FOLDER, PRIORITY);
 
-      expect(reversed).toEqual([PER_PROJECT_CAPACITY, MAX_PARALLEL, TEAM_SLOTS]);
+      expect(reversed).toEqual([WORK_ITEM_TEAM, PER_PROJECT_CAPACITY, MAX_PARALLEL, TEAM_SLOTS]);
       const back = openDatabase(db.path);
       try {
         back.run(
@@ -652,6 +660,207 @@ describe('the per-project capacity migration', () => {
         }).toThrow();
       } finally {
         sqlite.close();
+      }
+    } finally {
+      db.cleanup();
+    }
+  });
+});
+
+describe('the work item team migration', () => {
+  /**
+   * The state the outgoing release leaves behind: two teams, one work item
+   * labelled with one of them, and one labelled with nothing.
+   *
+   * The unlabelled row is load-bearing — it is the case a seeding without its
+   * `WHERE` would write as a row pointing at nothing.
+   */
+  function outgoingRelease(dbPath: string): void {
+    const before = openDatabase(dbPath);
+    try {
+      before.run(
+        "INSERT INTO users (id, username, password_hash, created_at) VALUES ('u', 'owner', 'x', 1)",
+      );
+      before.run(
+        'INSERT INTO project (id, name, owner_id, restricted, estimate_method, start_date, revision, created_at)' +
+          " VALUES ('p1', 'Rewire the shed', 'u', 0, 'pert', '2026-09-01', 0, 1)",
+      );
+      before.run("INSERT INTO service_team (id, name, size) VALUES ('t-backend', 'Backend', 2)");
+      before.run("INSERT INTO service_team (id, name, size) VALUES ('t-design', 'Design', NULL)");
+      // Written the way the release before this one writes it: capacity is a
+      // fact about one project since C5, and this is the row this migration
+      // must leave exactly where it found it.
+      before.run("INSERT INTO project_team_capacity VALUES ('p1', 't-backend', 2)");
+      before.run("INSERT INTO person (id, name) VALUES ('per1', 'kat')");
+      before.run(
+        "INSERT INTO person_team (person_id, service_team_id) VALUES ('per1', 't-backend')",
+      );
+      before.run(
+        'INSERT INTO work_item (id, project_id, parent_id, position, name, notes, service_team_id, revision)' +
+          " VALUES ('w1', 'p1', NULL, 10, 'Strip', '', 't-backend', 0)",
+      );
+      before.run(
+        'INSERT INTO work_item (id, project_id, parent_id, position, name, notes, service_team_id, revision)' +
+          " VALUES ('w2', 'p1', NULL, 20, 'Rewire', '', NULL, 0)",
+      );
+    } finally {
+      before.close();
+    }
+  }
+
+  function joined(dbPath: string): { work_item_id: string; team_id: string }[] {
+    const after = openDatabase(dbPath);
+    try {
+      return after
+        .query<
+          { work_item_id: string; team_id: string },
+          []
+        >('SELECT work_item_id, team_id FROM work_item_team ORDER BY work_item_id, team_id')
+        .all();
+    } finally {
+      after.close();
+    }
+  }
+
+  it('carries every label into the join, and nothing else', () => {
+    // Claim A — design.md D5. Every label a plan carries today becomes exactly
+    // one join row, so every effective set is of one member or empty and the
+    // pool search is the single-pool search it already was. The unlabelled row
+    // gets nothing, which is what keeps _unstated_ one spelling.
+    const db = tempDb();
+    try {
+      runMigrations(db.path, FOLDER);
+      rollbackTo(db.path, FOLDER, PER_PROJECT_CAPACITY);
+      outgoingRelease(db.path);
+
+      runMigrations(db.path, FOLDER);
+
+      expect(joined(db.path)).toEqual([{ work_item_id: 'w1', team_id: 't-backend' }]);
+    } finally {
+      db.cleanup();
+    }
+  });
+
+  it('leaves capacity and membership row for row alone, so a team is still only a team', () => {
+    // The cheapest possible proof that R2's reversal was actually implemented:
+    // a service is a label with no pool and no members (Dany, 2026-08-13 23:41),
+    // so this migration must not have gone near either table. Cheap, and it is
+    // the assertion that would fail first if a later change tried to make the
+    // set of teams mean something about capacity.
+    const db = tempDb();
+    try {
+      runMigrations(db.path, FOLDER);
+      rollbackTo(db.path, FOLDER, PER_PROJECT_CAPACITY);
+      outgoingRelease(db.path);
+
+      runMigrations(db.path, FOLDER);
+
+      const after = openDatabase(db.path);
+      try {
+        expect(
+          after
+            .query<
+              { project_id: string; service_team_id: string; size: number },
+              []
+            >('SELECT project_id, service_team_id, size FROM project_team_capacity ORDER BY service_team_id')
+            .all(),
+        ).toEqual([{ project_id: 'p1', service_team_id: 't-backend', size: 2 }]);
+        expect(
+          after
+            .query<
+              { person_id: string; service_team_id: string },
+              []
+            >('SELECT person_id, service_team_id FROM person_team')
+            .all(),
+        ).toEqual([{ person_id: 'per1', service_team_id: 't-backend' }]);
+      } finally {
+        after.close();
+      }
+    } finally {
+      db.cleanup();
+    }
+  });
+
+  it('lets the outgoing release keep removing teams against the migrated schema', () => {
+    // The blue/green half. The outgoing release's `DELETE FROM service_team`
+    // names no table this migration added, and the cascade is what keeps it
+    // working against a constraint it cannot see — without it the removal
+    // answers 500 for the length of the swap. The same statement, and the same
+    // argument, as the per-project capacity table's own case above.
+    const db = tempDb();
+    try {
+      runMigrations(db.path, FOLDER);
+      const sqlite = openDatabase(db.path);
+      try {
+        sqlite.run(
+          "INSERT INTO users (id, username, password_hash, created_at) VALUES ('u', 'owner', 'x', 1)",
+        );
+        sqlite.run(
+          'INSERT INTO project (id, name, owner_id, restricted, estimate_method, start_date, revision, created_at)' +
+            " VALUES ('p', 'Rewire the shed', 'u', 0, 'pert', NULL, 0, 1)",
+        );
+        sqlite.run("INSERT INTO service_team (id, name) VALUES ('t1', 'Platform')");
+        sqlite.run(
+          'INSERT INTO work_item (id, project_id, parent_id, position, name, notes, service_team_id, revision)' +
+            " VALUES ('w', 'p', NULL, 10, 'Strip', '', 't1', 0)",
+        );
+        sqlite.run("INSERT INTO work_item_team (work_item_id, team_id) VALUES ('w', 't1')");
+
+        // The column is nulled first because that is what `removeTeam` does,
+        // and — found here on 2026-08-14 — because the database refuses the
+        // delete otherwise. `work_item.service_team_id` was added by
+        // `ALTER TABLE … ADD service_team_id text REFERENCES service_team(id)`
+        // and therefore **does** carry a foreign key, with no `ON DELETE`
+        // action, against four JSDoc claims in this repo that it deliberately
+        // carries none. Watched: this same statement without the `UPDATE`
+        // fails on `SQLiteError: FOREIGN KEY constraint failed` with no
+        // `work_item_team` row in the database at all. The join's own cascade
+        // is what the assertion below is about.
+        sqlite.run("UPDATE work_item SET service_team_id = NULL WHERE service_team_id = 't1'");
+        sqlite.run("DELETE FROM service_team WHERE id = 't1'");
+
+        expect(
+          sqlite.query<{ n: number }, []>('SELECT COUNT(*) AS n FROM work_item_team').get()?.n,
+        ).toBe(0);
+      } finally {
+        sqlite.close();
+      }
+    } finally {
+      db.cleanup();
+    }
+  });
+
+  it('reverses without taking the labels with it', () => {
+    // The rollback, and why it is safe **today**: every join row was written
+    // beside the column, so the release that comes back reads the column and
+    // finds every label where it left it. `down.sql` says where that stops
+    // being true.
+    const db = tempDb();
+    try {
+      runMigrations(db.path, FOLDER);
+      rollbackTo(db.path, FOLDER, PER_PROJECT_CAPACITY);
+      outgoingRelease(db.path);
+      runMigrations(db.path, FOLDER);
+
+      const reversed = rollbackTo(db.path, FOLDER, PER_PROJECT_CAPACITY);
+
+      expect(reversed).toEqual([WORK_ITEM_TEAM]);
+      expect(tables(db.path)).not.toContain('work_item_team');
+      const after = openDatabase(db.path);
+      try {
+        expect(
+          after
+            .query<
+              { id: string; service_team_id: string | null },
+              []
+            >('SELECT id, service_team_id FROM work_item ORDER BY id')
+            .all(),
+        ).toEqual([
+          { id: 'w1', service_team_id: 't-backend' },
+          { id: 'w2', service_team_id: null },
+        ]);
+      } finally {
+        after.close();
       }
     } finally {
       db.cleanup();

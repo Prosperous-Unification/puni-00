@@ -379,6 +379,8 @@ function fakeApi(): ProjectApi & {
         maxParallel: 1,
         startNoEarlierThan: null,
         serviceTeamId: null,
+        teamIds: [],
+        teamIds: [],
         assignees: {},
         doesEveryPhase: null,
         rolledUp: false,
@@ -410,6 +412,13 @@ function fakeApi(): ProjectApi & {
       const written =
         'maxParallel' in patch && patch.maxParallel === null ? { ...patch, maxParallel: 1 } : patch;
       if (row !== undefined) Object.assign(row, written);
+      // The dual write be-01 performs: the column and the join, in one act, and
+      // the join is what this client reads. A fake that wrote only the column
+      // would leave the table reading an empty set and every label test green
+      // against a screen with no labels on it.
+      if (row !== undefined && 'serviceTeamId' in written) {
+        row.teamIds = written.serviceTeamId === null ? [] : [written.serviceTeamId ?? ''];
+      }
       return Promise.resolve();
     },
     move(id, parentId, afterId) {
@@ -1482,6 +1491,38 @@ describe('teams and assignees', () => {
       ? []
       : [...list.querySelectorAll('[role="option"]')].map((o) => o.textContent);
   };
+
+  itDom('reads the team out of the set, not the column beside it', async () => {
+    // The switch this change is: `work_item_team` is the read, and
+    // `serviceTeamId` is a second copy be-01 keeps written for one release so
+    // that the outgoing fe-01 bundle still works mid-swap. Every other test
+    // here has both written and agreeing, so none of them can tell which one
+    // this cell is reading — this one states them apart, which is also what
+    // R2-4's payload looks like once the column becomes the derived copy.
+    //
+    // Proof: `effectiveTeamLabelOf`'s own-set arm pointed back at
+    // `row.serviceTeamId`, and this failed on `expected 'Platform — inherited
+    // from 010 (unname…' to be null` — the cell telling a reader it inherits
+    // its team from itself — 1 failed / 425 passed; watched 2026-08-14. The
+    // value assertion alone stays green under that fault, because the picker's
+    // value is a second read of the same set: which arm answered is the part
+    // only the title can say.
+    const api = await oneRow();
+    await api.addTeam('Platform');
+    const [row] = api.rows;
+    row.teamIds = ['team1'];
+    row.serviceTeamId = null;
+    // A refresh the component will take: adding a row is the cheapest.
+    click('Add work item');
+    await screen.findByLabelText('Name of 020');
+
+    const box = screen.getByLabelText<HTMLInputElement>('Service or team for 010');
+    expect(box.value).toBe('Platform');
+    // And it is the row's **own** team, not one it is told it inherits: the
+    // two arms of `effectiveTeamLabelOf` read different things, and only the
+    // second one leaves a title on the cell.
+    expect(box.getAttribute('title')).toBeNull();
+  });
 
   itDom('adds a team by typing a name the list does not have', async () => {
     const api = await oneRow();
@@ -7018,6 +7059,7 @@ describe('dependencies in the table — cross-review findings', () => {
             finalTotal: 0,
             startNoEarlierThan: null,
             serviceTeamId: null,
+            teamIds: [],
             assignees: {},
             doesEveryPhase: null,
             dates: null,
@@ -7467,6 +7509,7 @@ describe('the chart under a plan being edited', () => {
               finalTotal: 0,
               startNoEarlierThan: floored ? '2026-08-10' : null,
               serviceTeamId: null,
+              teamIds: [],
               assignees: {},
               doesEveryPhase: null,
               dates: null,

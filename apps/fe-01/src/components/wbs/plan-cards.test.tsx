@@ -163,6 +163,7 @@ function fakeApi(options: { refusePatch?: boolean; dated?: boolean } = {}): Proj
         dates: options.dated === true ? { ...DATED_PLAN } : null,
         startNoEarlierThan: null,
         serviceTeamId: null,
+        teamIds: [],
         assignees: {},
         doesEveryPhase: null,
         schedule: {
@@ -899,6 +900,7 @@ describe('what a card says about capacity', () => {
     await aPlan((rows, teams) => {
       teams.push({ id: 't1', name: 'Billing' });
       rows[0].serviceTeamId = 't1';
+      rows[0].teamIds = ['t1'];
     });
 
     expect(teamOnCard()?.textContent).toBe('Billing');
@@ -918,6 +920,7 @@ describe('what a card says about capacity', () => {
       teams.push({ id: 't1', name: 'Billing' });
       const [parent, child] = rows;
       parent.serviceTeamId = 't1';
+      parent.teamIds = ['t1'];
       child.parentId = parent.id;
       parent.rolledUp = true;
     }, 2);

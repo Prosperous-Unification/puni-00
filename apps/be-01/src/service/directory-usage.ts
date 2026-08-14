@@ -1,6 +1,6 @@
-import { type EffectiveTeam, effectiveTeamOf } from '@wbs/domain';
+import { type EffectiveTeams, effectiveTeamsOf } from '@wbs/domain';
 
-import type { Assignment, DirectoryUsageRows, WorkItem } from '../repository';
+import type { Assignment, DirectoryUsageRows, LabelledWorkItem } from '../repository';
 import { assumedAssignee } from './assumed-assignee';
 import { deriveNumbers } from './derive-numbers';
 
@@ -103,12 +103,12 @@ function byRoleOn(assignments: readonly Assignment[], workItemId: string): Recor
  */
 function usageFrom(
   rows: DirectoryUsageRows,
-  effectsOf: (row: WorkItem) => DirectoryEffect[],
+  effectsOf: (row: LabelledWorkItem) => DirectoryEffect[],
 ): DirectoryUsage {
   // Per project, never across them. `deriveNumbers` numbers one tree, and two
   // projects' roots handed to it in one array become one numbering: the second
   // project's first row reads `020`, which is a number nobody's screen shows.
-  const treeOf = new Map<string, WorkItem[]>();
+  const treeOf = new Map<string, LabelledWorkItem[]>();
   for (const row of rows.workItems) {
     treeOf.set(row.projectId, [...(treeOf.get(row.projectId) ?? []), row]);
   }
@@ -202,7 +202,7 @@ export function directoryUsageOfPerson(rows: DirectoryUsageRows, personId: strin
  *
  * What this is **not** is the set of rows whose dates move, and it drifts from
  * that set both ways. A parent labelled with the sized team whose children each
- * carry their own is named — `effectiveTeamOf` answers for parents too — and
+ * carry their own is named — `effectiveTeamsOf` answers for parents too — and
  * moves nothing, because `slicesOf` skips a row with children, so no slot of
  * that pool was ever spent on it. And releasing a pool moves the dependency
  * successors of the released rows and the rolled-up brackets of every ancestor
@@ -210,7 +210,8 @@ export function directoryUsageOfPerson(rows: DirectoryUsageRows, personId: strin
  * entry says "this row drew from a pool that is going", which is the fact
  * somebody agreeing to the removal needs and the fact the read can carry.
  *
- * Proof: the effective-team read replaced by `row.serviceTeamId === teamId`, so
+ * Proof: the effective-team read replaced by the row's own label (then
+ * `row.serviceTeamId === teamId`, now its own set), so
  * only rows carrying the label themselves are named, and `names the capacity a
  * sized team takes with it, inherited rows included` failed — the inheriting
  * leaf `API` vanished from the confirmation entirely, leaving somebody
@@ -247,16 +248,26 @@ export function directoryUsageOfTeam(rows: DirectoryUsageRows, teamId: string): 
   // the work items, which cannot tell the two apart.
   //
   // Computed once for every project rather than per project, because
-  // `effectiveTeamOf` walks `parentId` and a parent never leaves its project —
+  // `effectiveTeamsOf` walks `parentId` and a parent never leaves its project —
   // so one pass over all the rows answers for each of them.
-  const inForce: ReadonlyMap<string, EffectiveTeam> =
-    rows.capacityOf.size === 0 ? new Map() : effectiveTeamOf(rows.workItems);
+  const inForce: ReadonlyMap<string, EffectiveTeams> =
+    rows.capacityOf.size === 0 ? new Map() : effectiveTeamsOf(rows.workItems);
   return usageFrom(rows, (row) => {
-    const effects: DirectoryEffect[] =
-      row.serviceTeamId === teamId ? [{ kind: 'label_nulled' }] : [];
+    // Membership of the row's **own** set, not its first member: a work item
+    // labelled with two teams loses one label per removal, and a reader of
+    // `teamIds[0]` would report nothing at all for the second of them.
+    //
+    // Proof: both membership tests here narrowed to `teamIds.at(0) === teamId`
+    // and `names a work item labelled with the team, whichever member of its
+    // set it is` failed on `+ []` — a confirmation saying nothing points at a
+    // team it is about to unlabel — with `releases the capacity of an inherited
+    // set, on either member` failing beside it; watched 2026-08-14.
+    const effects: DirectoryEffect[] = row.teamIds.includes(teamId)
+      ? [{ kind: 'label_nulled' }]
+      : [];
     const size = rows.capacityOf.get(row.projectId);
     const effective = inForce.get(row.id);
-    if (size !== undefined && effective?.teamId === teamId) {
+    if (size !== undefined && effective?.teamIds.includes(teamId) === true) {
       effects.push({ kind: 'capacity_released', size, fromId: effective.fromId });
     }
     return effects;

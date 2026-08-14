@@ -196,7 +196,28 @@ export interface WorkItemView {
    * a parent holds no slices of its own to run in parallel.
    */
   maxParallel: number;
-  /** The team this work is labelled with, or null. Never constrains who is assigned it. */
+  /**
+   * The teams this work is labelled with — **0..n**, and the only thing this
+   * client reads. Never constrains who is assigned the work.
+   *
+   * In be-01's order (by team id), so two reads of an unchanged plan give the
+   * same array. Empty means this row states nothing and takes its ancestor's
+   * set; `effectiveTeamsOf` in `libs/domain` is the reading, shared with be-01's
+   * own scheduler so that a bar and the pool it was placed against cannot
+   * disagree.
+   *
+   * At most one member today: the write path sends one team until R2-4, and the
+   * surfaces that show a second are R2-3.
+   */
+  teamIds: string[];
+  /**
+   * The one team, or null — **written by be-01, read by nothing here.**
+   *
+   * Kept on the wire for one release because blue and green share a database
+   * and an fe-01 from the outgoing release is still served while the incoming
+   * be-01 answers it. `teamIds` above is what this client reads; R2-6 removes
+   * this field.
+   */
   serviceTeamId: string | null;
   /**
    * Who does this work, by role id.

@@ -1,0 +1,15 @@
+-- Reverses 20260814100000_add_work_item_team.
+--
+-- Nothing is lost while the write path still writes at most one team per work
+-- item: every join row here was written beside `work_item.service_team_id` and
+-- carries the same fact, so the release that comes back reads the column and
+-- finds every label exactly where it left it. That stops being true from R2-4,
+-- which is the release where a second team becomes writable — from then on,
+-- rolling this back drops every team after the first, and the rollback of *that*
+-- change is where the loss has to be argued.
+--
+-- Reversed **before** `20260813120000_add_project_team_capacity`, which is the
+-- order `migrate-down-cli.ts --to=<name>` walks the applied set in, and the only
+-- order the foreign keys allow: these rows point at `service_team`, and that
+-- table's own removal comes with the directory migration further down.
+DROP TABLE IF EXISTS `work_item_team`;

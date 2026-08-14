@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { personAdded } from '../testing/directory-fixture';
-import { openDrizzle } from './db';
+import { openDatabase, openDrizzle } from './db';
 import { DependencyRepository } from './dependency';
 import { DirectoryRepository } from './directory';
 import { EstimateRepository } from './estimate';
@@ -18,6 +18,7 @@ import { SubtreeRepository, WorkItemRepository } from './work-item';
 const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
 
 let dir: string;
+let dbPath: string;
 let repo: WorkItemRepository;
 let subtrees: SubtreeRepository;
 let estimates: EstimateRepository;
@@ -29,9 +30,9 @@ let personId: string;
 
 beforeEach(async () => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-work-item-'));
-  const path = join(dir, 'test.db');
-  runMigrations(path, FOLDER);
-  const db = openDrizzle(path);
+  dbPath = join(dir, 'test.db');
+  runMigrations(dbPath, FOLDER);
+  const db = openDrizzle(dbPath);
   repo = new WorkItemRepository(db);
   subtrees = new SubtreeRepository(db);
   estimates = new EstimateRepository(db);
@@ -87,6 +88,168 @@ function row(parentId: string | null, position: number, name: string): WorkItem 
 
 const byPosition = (items: WorkItem[]) =>
   [...items].sort((a, b) => a.position - b.position).map((w) => w.name);
+
+/** A team in the global directory, since a join row has to point at a real one. */
+async function team(name: string): Promise<string> {
+  return (await directory.addTeam({ id: crypto.randomUUID(), name })).id;
+}
+
+/**
+ * The join table as it stands, ordered, read on a connection of its own.
+ *
+ * Its own connection because the repository's writes are what is under test:
+ * reading them back through the same drizzle client would prove the object in
+ * front of the database and not the database.
+ */
+function joinedTeams(): { workItemId: string; teamId: string }[] {
+  const db = openDatabase(dbPath);
+  try {
+    return db
+      .query<
+        { workItemId: string; teamId: string },
+        []
+      >('SELECT work_item_id AS workItemId, team_id AS teamId FROM work_item_team ORDER BY work_item_id, team_id')
+      .all();
+  } finally {
+    db.close();
+  }
+}
+
+/** A join row written directly, which is the only way to state two teams until R2-4. */
+function joinTeam(workItemId: string, teamId: string): void {
+  const db = openDatabase(dbPath);
+  try {
+    db.run('INSERT INTO work_item_team (work_item_id, team_id) VALUES (?, ?)', [
+      workItemId,
+      teamId,
+    ]);
+  } finally {
+    db.close();
+  }
+}
+
+describe('the team set beside the column', () => {
+  it('reads back every team a work item is joined to, in one order', async () => {
+    // The set, and the order that makes two reads of an unchanged plan the same
+    // array — design.md D6. Written straight into the join because the write
+    // path states one team until R2-4, and the read is the thing under test.
+    const strip = row(null, 10, 'Strip');
+    await repo.insert(strip, []);
+    const backend = await team('Backend');
+    const design = await team('Design');
+    joinTeam(strip.id, design);
+    joinTeam(strip.id, backend);
+
+    const read = await repo.listByProject(projectId);
+
+    expect(read.at(0)?.teamIds).toEqual([backend, design].sort((a, b) => (a < b ? -1 : 1)));
+  });
+
+  it('leaves a work item nobody labelled with an empty set rather than a null', async () => {
+    // _Unstated_ has one spelling on this side too: the empty set inherits, and
+    // there is no second state meaning "deliberately no team".
+    await repo.insert(row(null, 10, 'Strip'), []);
+
+    expect((await repo.listByProject(projectId)).at(0)?.teamIds).toEqual([]);
+  });
+
+  it('labels the join as well as the column', async () => {
+    // The dual write, forward. The column is what the outgoing release and the
+    // journal read; the join is what everything in this release reads, and a
+    // write that moved only one of them would put a label on screen that the
+    // scheduler cannot see, or the reverse.
+    const strip = row(null, 10, 'Strip');
+    await repo.insert(strip, []);
+    const backend = await team('Backend');
+
+    const written = await repo.patch(strip.id, { serviceTeamId: backend });
+
+    expect(written.ok).toBe(true);
+    expect(written.ok ? written.workItem.serviceTeamId : null).toBe(backend);
+    expect(joinedTeams()).toEqual([{ workItemId: strip.id, teamId: backend }]);
+    expect((await repo.listByProject(projectId)).at(0)?.teamIds).toEqual([backend]);
+  });
+
+  it('empties the join when the label is taken off', async () => {
+    const strip = row(null, 10, 'Strip');
+    await repo.insert(strip, []);
+    const backend = await team('Backend');
+    await repo.patch(strip.id, { serviceTeamId: backend });
+
+    await repo.patch(strip.id, { serviceTeamId: null });
+
+    expect(joinedTeams()).toEqual([]);
+    const read = await repo.listByProject(projectId);
+    expect(read.at(0)?.serviceTeamId).toBeNull();
+    expect(read.at(0)?.teamIds).toEqual([]);
+  });
+
+  it('leaves the join alone when the patch does not name the label', async () => {
+    // A rename must not empty the set. The join is replaced only where the
+    // patch states it, exactly as the column is written only where it does.
+    const strip = row(null, 10, 'Strip');
+    await repo.insert(strip, []);
+    const backend = await team('Backend');
+    await repo.patch(strip.id, { serviceTeamId: backend });
+
+    await repo.patch(strip.id, { name: 'Strip the walls' });
+
+    expect(joinedTeams()).toEqual([{ workItemId: strip.id, teamId: backend }]);
+  });
+
+  it('joins a row that arrives already labelled', async () => {
+    // `create` never labels, so this is the parity that keeps every other way a
+    // whole row is written — a restore among them — from landing unpooled.
+    const backend = await team('Backend');
+    const strip = { ...row(null, 10, 'Strip'), serviceTeamId: backend };
+
+    await repo.insert(strip, []);
+
+    expect((await repo.listByProject(projectId)).at(0)?.teamIds).toEqual([backend]);
+  });
+
+  it('carries the teams of every row a copy writes', async () => {
+    // A duplicated branch draws from the pools the original drew from, and a
+    // restored one comes back on the pool it left: the join rows of a deleted
+    // work item went with it through the cascade, so a restore writing only the
+    // column would put the rows back unpooled and move dates nobody edited.
+    const backend = await team('Backend');
+    const strip = { ...row(null, 10, 'Strip'), serviceTeamId: backend };
+    await repo.insert(strip, []);
+    const copiedRoot = { ...row(null, 20, 'Strip (copy)'), serviceTeamId: backend };
+    const copiedLeaf = { ...row(copiedRoot.id, 10, 'Sockets'), serviceTeamId: null };
+
+    await subtrees.insertSubtree({
+      rows: [copiedRoot, copiedLeaf],
+      respaced: [],
+      reparented: [],
+      estimates: [],
+      assignments: [],
+      dependencies: [],
+      removedEstimates: [],
+    });
+
+    expect(joinedTeams()).toEqual(
+      [
+        { workItemId: strip.id, teamId: backend },
+        { workItemId: copiedRoot.id, teamId: backend },
+      ].sort((a, b) => (a.workItemId < b.workItemId ? -1 : 1)),
+    );
+  });
+
+  it('takes a work item’s join rows with it when the work item goes', async () => {
+    // The cascade, on the other column. Nothing in be-01 deletes these rows,
+    // and an undo of the deletion is what puts them back — through the copy
+    // above, from the column the journal carries.
+    const backend = await team('Backend');
+    const strip = { ...row(null, 10, 'Strip'), serviceTeamId: backend };
+    await repo.insert(strip, []);
+
+    await repo.remove([strip.id], []);
+
+    expect(joinedTeams()).toEqual([]);
+  });
+});
 
 describe('WorkItemRepository', () => {
   it('inserts and reads back a project’s work items', async () => {

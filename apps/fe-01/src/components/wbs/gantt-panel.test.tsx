@@ -2407,6 +2407,7 @@ function rowOf(parts: {
     dates: { startsOn: parts.startsOn, endsOn: parts.endsOn },
     startNoEarlierThan: parts.notBefore ?? null,
     serviceTeamId: null,
+    teamIds: [],
     assignees: {},
     doesEveryPhase: null,
     schedule: {
@@ -2578,6 +2579,9 @@ interface ReadSkew {
  */
 function fakeApi(startDate: string | null, skew: ReadSkew = {}): ProjectApi {
   const people: PersonView[] = [{ id: 'kat', name: 'Kat', teamIds: [] }];
+  /** One label as be-01 sends it now: the column, and the join beside it. */
+  const teamsOf = (serviceTeamId: string | null): string[] =>
+    serviceTeamId === null ? [] : [serviceTeamId];
   const teams: TeamView[] = [];
   return {
     tree: () =>
@@ -2587,6 +2591,9 @@ function fakeApi(startDate: string | null, skew: ReadSkew = {}): ProjectApi {
           dates: startDate === null ? null : row.dates,
           dependsOn: skew.waits?.[row.id] ?? row.dependsOn,
           serviceTeamId: skew.labels?.[row.id] ?? row.serviceTeamId,
+          // The set beside the column, because the table reads the set: a fake
+          // tree that carried only the label would take every bar's team away.
+          teamIds: teamsOf(skew.labels?.[row.id] ?? row.serviceTeamId),
         })),
         seq: 0,
         scheduleError: null,

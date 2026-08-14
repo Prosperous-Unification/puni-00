@@ -83,7 +83,7 @@ const row = (over: Partial<ExportRow> & Pick<ExportRow, 'id' | 'number'>): Expor
   name: '',
   notes: '',
   rolledUp: false,
-  serviceTeamId: null,
+  teamIds: [],
   estimates: {},
   finalDays: {},
   finalTotal: 0,
@@ -327,8 +327,8 @@ describe('the columns', () => {
 
   it('resolves the team to its name, and says so when the id names nobody', () => {
     const rows = [
-      row({ id: 'a', number: '010', serviceTeamId: 'team-billing' }),
-      row({ id: 'b', number: '020', serviceTeamId: 'team-gone' }),
+      row({ id: 'a', number: '010', teamIds: ['team-billing'] }),
+      row({ id: 'b', number: '020', teamIds: ['team-gone'] }),
       row({ id: 'c', number: '030' }),
     ];
     const csv = planToCsv(plan({ rows }));
@@ -401,9 +401,24 @@ describe('the capacity columns', () => {
     duration: effort / width,
   });
 
+  it('prints every team of a set, joined', () => {
+    // One member today, so this changes no cell in any plan that exists — but
+    // the separator is the one R2-3's `Teams` column keeps and therefore the
+    // one R3's import matches names by, so it is decided here rather than
+    // discovered there.
+    //
+    // Proof: the cell narrowed to `nameOf(plan.teams, effective.teamIds[0])`,
+    // and this failed on `expected 'Billing, Ltd' to be 'Billing, Ltd;
+    // (unknown)'` — 1 failed / 38 passed; watched 2026-08-14.
+    const rows = [row({ id: 'a', number: '010', teamIds: ['team-billing', 'team-gone'] })];
+    const csv = planToCsv(plan({ rows }));
+
+    expect(csvDataRow(csv)[columnAt(csv, 'Team')]).toBe('Billing, Ltd; (unknown)');
+  });
+
   it('names the team a row inherits, and the row the label was written on', () => {
     const rows = [
-      row({ id: 'a', number: '010', name: 'Backend', serviceTeamId: 'team-billing' }),
+      row({ id: 'a', number: '010', name: 'Backend', teamIds: ['team-billing'] }),
       row({ id: 'b', number: '010.1', name: 'Ship it', parentId: 'a' }),
     ];
     const csv = planToCsv(plan({ rows }));
@@ -436,7 +451,7 @@ describe('the capacity columns', () => {
     // inherits` with it — every inheriting row in the document reported
     // teamless while its dates came out of the pool. Watched 2026-08-13.
     const rows = [
-      row({ id: 'a', number: '010', name: 'Root', serviceTeamId: 'team-billing' }),
+      row({ id: 'a', number: '010', name: 'Root', teamIds: ['team-billing'] }),
       row({ id: 'b', number: '010.1', name: 'Nearer', parentId: 'a' }),
       row({ id: 'c', number: '010.1.1', name: 'Leaf', parentId: 'b' }),
     ];
@@ -603,7 +618,7 @@ describe('hostile text', () => {
       number: '010',
       name: 'a,b',
       notes: 'say "hi"',
-      serviceTeamId: 'team-billing',
+      teamIds: ['team-billing'],
     }),
     row({
       id: 'b',
