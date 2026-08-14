@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   type ExportRow,
+  type ExportSlice,
   type PlanExport,
   planFileName,
   planToCsv,
@@ -440,9 +441,30 @@ describe('the columns', () => {
 });
 
 describe('the capacity columns', () => {
-  /** A placed slice as the export needs one: whose row, how wide, how much work. */
-  const slice = (workItemId: string, width: number, effort: number) => ({
+  /**
+   * A placed slice as the export needs one: whose row, how wide, how much work.
+   *
+   * The rest is be-01's `SliceView` filled with a neutral placement — since
+   * `mermaid-gantt`, {@link ExportSlice} **is** that type rather than the
+   * four-field narrowing of it that used to stand in `plan-export.ts`. These
+   * columns read three of the fields and no more; the diagram writer next door
+   * reads the others.
+   */
+  const slice = (workItemId: string, width: number, effort: number): ExportSlice => ({
+    id: `${workItemId}-${String(width)}-${String(effort)}`,
     workItemId,
+    roleId: DEV.id,
+    personId: null,
+    estimated: true,
+    earliestStart: 0,
+    earliestFinish: effort / width,
+    latestStart: 0,
+    latestFinish: effort / width,
+    float: 0,
+    critical: false,
+    boundBy: 'projectStart',
+    resourcePredecessorId: null,
+    capacityPredecessorIds: [],
     width,
     effort,
     duration: effort / width,
