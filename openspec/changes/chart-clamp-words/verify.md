@@ -1,7 +1,7 @@
 # verify — `chart-clamp-words`
 
 Branch `change/chart-clamp-words`, cut from `main` @ `60172be` (#59, #61, #60 all
-merged) on 2026-08-14. PR: filled in below, with the CI run that judged it.
+merged) on 2026-08-14. PR **#63**.
 
 **Run under the PoC-mode contract of 2026-08-14** — Dany's call that delivery,
 not testing, is what has been slow. No `design.md`, no citation table, no
@@ -11,15 +11,15 @@ contract cost" at the end is the experiment's own data.
 
 ## Wall clock
 
-| moment                     | UTC                     |
-| -------------------------- | ----------------------- |
-| branch cut, first read     | 2026-08-14 12:54        |
-| code and tests written     | 2026-08-14 13:00        |
-| first `nx affected` run    | 2026-08-14 13:02 (red)  |
-| green `nx affected` run    | 2026-08-14 13:06        |
-| PR open                    | 2026-08-14 13:1x        |
+| moment                  | UTC                    |
+| ----------------------- | ---------------------- |
+| branch cut, first read  | 2026-08-14 12:54       |
+| code and tests written  | 2026-08-14 13:00       |
+| first `nx affected` run | 2026-08-14 13:02 (red) |
+| green `nx affected` run | 2026-08-14 13:06       |
+| PR open                 | 2026-08-14 13:09       |
 
-**Branch cut to PR open: 16 minutes.** Roughly 7 of them were code and tests
+**Branch cut to PR open: 15 minutes.** Roughly 7 of them were code and tests
 (the two functions, the two panel tests, the `docs/capacity.md` paragraph), and
 roughly 9 were record and gate — `proposal.md`, `tasks.md`, the delta spec, this
 file, and the two h2puni runs. The single largest cost was neither: it was
@@ -33,12 +33,12 @@ wherever the new line prints.
 `/home/puni1/wd/puni/wt-chart-clamp` (a worktree of `/home/puni1/wbs-reds`),
 bun 1.2.20. Nothing was compiled or tested on h1claw.
 
-| run                                       | result                                                     |
-| ----------------------------------------- | ---------------------------------------------------------- |
+| run                                        | result                                                     |
+| ------------------------------------------ | ---------------------------------------------------------- |
 | affected projects (`nx show projects`)     | **fe-01** alone                                            |
 | `nx affected -t test lint typecheck` (1st) | **1 failed, 1339 passed** — see the red below              |
 | `nx affected -t test lint typecheck` (2nd) | **1340 passed, 52 files**, lint and typecheck clean, 61.0s |
-| `nx format:check --base=origin/main`       | clean, exit 0                                              |
+| `nx format:check --base=origin/main`       | clean, exit 0 — **and it missed this file**, see CI        |
 | `openspec validate --all`                  | **47 items, 47 passed, 0 failed**                          |
 
 be-01 is not affected and was not run: nothing outside `apps/fe-01`, `docs/` and
@@ -47,15 +47,28 @@ was not run here by contract — CI below is the gate of record.
 
 ## CI
 
-_Written after the run; this section is the gate of record._
+**Run 31803447657** on head `8124d5d` — **failure**, and the failure is this
+document. `pixels` (the browser gate) **succeeded**; `gate` failed on one step,
+`Format`, printing one path: `openspec/changes/chart-clamp-words/verify.md`.
+Prettier realigns Markdown table pipes and the tables above were hand-aligned.
+
+Named rather than tidied away, because it is the run that proves the narrowed
+local gate has a hole in it: `nx format:check` was run here with
+`--base=origin/main` **before this file existed**, and CI runs it with `--all`.
+A no-code commit failed CI, at eight minutes' latency.
+
+The formatted head is `<the head of this branch>`, and its run is quoted in a
+comment on PR #63 — a file cannot carry the id of the run that judges it, and
+the alternative is a commit whose message claims a result nobody has seen yet.
+Both jobs green there is the condition for merge.
 
 ## The one red, watched
 
 Not injected. The first `nx affected` run caught it, and it is a real payload
 gap this change's own line exposed:
 
-| test                                                                   | what it did                                                                                                    | observed                                                                                                                       |
-| ---------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| test                                                               | what it did                                                                                                 | observed                                                                                                                                                                                                                             |
+| ------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `redraws the open chart when a not-before edit moves the schedule` | `clampWords` reached a bar whose `maxParallel` is `undefined` — the fake omits the field — and formatted it | **1 failed, 1339 passed.** `TypeError: Cannot read properties of undefined (reading 'toFixed')` at `daysNumber` ← `clampWords` ← `barFacts`, the `GanttFaultBoundary` replacing the whole chart, and `expected undefined to be '11'` |
 
 `apiWithMovableFloor` in `wbs-table.test.tsx` builds a `workItems[0]` with no
@@ -146,6 +159,11 @@ Named because the experiment asks for it, not as a complaint.
   broken a browser-level layout. It had not, and CI said so — but a red there
   would have arrived ten minutes later than a full local run would have found
   it, and on a change that touched a rendered string, that is a real bet.
+- **And the narrowing cost a CI cycle immediately.** `format:check --base` is
+  not `format:check --all`, and the file it skipped was this one: the first CI
+  run failed on Prettier realigning a table, eight minutes after a green local
+  gate. Whatever else the lighter contract keeps, `--all` on the formatter is
+  seconds and belongs back in it.
 - **The one thing I would not skip again:** the first `nx affected` run is what
   found the `undefined` payload. A contract that let a copy change go straight
   to CI on the strength of "it is only a string" would have shipped a fault
