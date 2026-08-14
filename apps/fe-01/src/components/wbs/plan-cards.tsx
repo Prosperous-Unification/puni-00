@@ -1,9 +1,12 @@
+import { Fragment } from 'react';
+
 import type { PriorityBandView, RoleView } from '@/lib/wbs-api';
 
 import { CellInput } from './cell-input';
 import type { CellRef } from './cell-navigation';
 import { PickerList, type PickerOption } from './creatable-picker';
 import { type CellElement, cellKey } from './editable-grid';
+import { POINTS } from './estimate-draft';
 import type { ServiceTeamLabel } from './gantt-geometry';
 import type { CommitOutcome } from './live-editing';
 import { composeNameCell } from './name-notes';
@@ -142,6 +145,56 @@ const cardSpanTitle = (span: { start: PrintedDay; finish: PrintedDay }): string 
 const inertParallel = (row: TreeRow): boolean =>
   row.subRows.length > 0 || row.doesEveryPhase !== null;
 
+/**
+ * What the table's Slack column says about one row, read off the row the same
+ * way the cell does — `critical` replaces the figure outright, and both
+ * `title`s are the column's own sentences, so a reader of both faces meets one
+ * vocabulary rather than a second one this card invented.
+ */
+const cardSlackOf = (
+  row: TreeRow,
+  showDay: (days: number) => string,
+): { text: string; critical: boolean; title: string } => {
+  if (row.schedule.critical) {
+    return {
+      text: 'critical',
+      critical: true,
+      title: 'On the critical path: any delay here moves the whole plan’s finish.',
+    };
+  }
+  const days = showDay(row.schedule.float);
+  return {
+    text: `${days}d slack`,
+    critical: false,
+    title: `This work item can slip ${days} workday${days === '1' ? '' : 's'} before the plan finishes later.`,
+  };
+};
+
+/**
+ * One phase's `o/r/p` breakdown, said in the words `folded-role-card.tsx`
+ * already prints on the table's hover card — this is the same read of the
+ * same fields, not a second copy of "no estimate yet".
+ */
+const cardTrioOf = (
+  row: TreeRow,
+  roleId: string,
+  showDay: (days: number) => string,
+): { line: string; final: string } => {
+  const estimate = row.estimates[roleId];
+  const points = POINTS.map((point) => ({
+    point,
+    days: estimate === undefined ? '' : String(estimate[point]),
+  }));
+  const estimated = points.some((each) => each.days !== '');
+  const finalDays = row.finalDays[roleId];
+  return {
+    line: estimated
+      ? points.map((each) => `${each.point} ${each.days === '' ? '—' : each.days}`).join(' · ')
+      : 'No estimate yet',
+    final: finalDays === undefined ? '' : showDay(finalDays),
+  };
+};
+
 /** A tap target big enough to hit — 44px, which is `min-h-11` in this scale. */
 const TAP = 'min-h-11';
 
@@ -212,6 +265,7 @@ export function PlanCards({
         const waits = waitsFor(row);
         const team = teamLabel(row);
         const span = spanOf(row);
+        const slack = cardSlackOf(row, showDay);
         return (
           <article
             key={row.id}
@@ -297,9 +351,10 @@ export function PlanCards({
               const options = mentionOptions(row, role.id);
               const listId = `card-mention-${row.id}-${role.id}`;
               const assignee = assigneeOn(row, role.id);
+              const trio = cardTrioOf(row, role.id, showDay);
               return (
+                <Fragment key={role.id}>
                 <div
-                  key={role.id}
                   data-phase={role.id}
                   // The positioned ancestor `PickerList` measures `top: 100%`
                   // from — it owns the box, the caller owns the wrapper.
@@ -393,6 +448,24 @@ export function PlanCards({
                     />
                   )}
                 </div>
+                {/*
+                  The trio behind the figure box above — folded there into one
+                  computed number the same way the table's own cell folds it —
+                  said in the words `folded-role-card.tsx` already prints on
+                  hover, since a phone has no hover to read them from. A native
+                  `<details>` rather than a positioned card: it needs no
+                  measurement, no pointer-type guard and no dismiss handler,
+                  and a tap is what opens one already.
+                */}
+                <details
+                  data-phase-detail={role.id}
+                  className="text-muted-foreground -mt-1 ml-20 text-xs"
+                >
+                  <summary className="w-fit cursor-pointer select-none py-1">o·r·p</summary>
+                  <div data-phase-trio={role.id}>{trio.line}</div>
+                  {trio.final !== '' && <div data-phase-final={role.id}>Final {trio.final} days</div>}
+                </details>
+                </Fragment>
               );
             })}
 
@@ -409,6 +482,19 @@ export function PlanCards({
               */}
               <span data-card-span title={cardSpanTitle(span)}>
                 {span.start.text} → {span.finish.text}
+              </span>
+              {/*
+                The Slack column's own word for the one figure it replaces
+                outright: `critical` where there is none to give, read off the
+                row the same way the cell reads it, not through a second
+                schedule-error prop this renderer does not hold.
+              */}
+              <span
+                data-card-slack
+                {...(slack.critical ? { 'data-critical': 'true' } : {})}
+                title={slack.title}
+              >
+                {slack.text}
               </span>
               {waits.length > 0 && <span data-card-waits>waits for {waits.join(', ')}</span>}
               {/*
