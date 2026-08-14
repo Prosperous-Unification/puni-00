@@ -337,6 +337,14 @@ one thing this document cannot claim.
 
 ## CI
 
+**The run that matters is at the rebased head.** `31799923338` at
+`c077750fbbe38b9c04c48d8d15d7a021b8bf0a52`, `conclusion: success`, **`gate` and
+`pixels` both green** — the tree this PR merges, with #59 and #61 under it and the
+migration on its new stamp. First attempt, no rerun.
+
+Everything below is the pre-rebase record, kept because two of the runs in it
+caught real defects.
+
 **PR #60, head `ff3bff1`, run 31781023217 — `gate` and `pixels` both green.**
 
 Two runs before it are on the record, and both are worth naming because of what
@@ -356,10 +364,11 @@ under "Failure proofs" above. `pixels` was green in that run too. It is the run
 that says out loud what running two apps' suites by hand and calling that the
 gate costs.
 
-The head this paragraph names and the head that merges differ by **this file and
+The head each paragraph names and the head that merges differ by **this file and
 nothing else** — the last commit on a branch cannot cite the run of its own sha.
 C5 recorded a run against the wrong head by not saying so; this is that lesson
-applied.
+applied, and it is why `8a9e305`'s own green run (31781661921) and this one are
+both named rather than one standing for the other.
 
 `gate` is also the only record of `nx run-many -t build`, which h2puni cannot run
 (no `shellcheck`), and of the secrets scan and the migration lint — the lint
