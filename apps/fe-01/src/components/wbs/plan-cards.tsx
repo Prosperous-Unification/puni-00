@@ -1,9 +1,12 @@
-import type { PriorityBandView, RoleView } from '@/lib/wbs-api';
+import { Fragment } from 'react';
+
+import type { Days, PriorityBandView, RoleView } from '@/lib/wbs-api';
 
 import { CellInput } from './cell-input';
 import type { CellRef } from './cell-navigation';
 import { PickerList, type PickerOption } from './creatable-picker';
 import { type CellElement, cellKey } from './editable-grid';
+import { POINTS } from './estimate-draft';
 import type { ServiceTeamLabel } from './gantt-geometry';
 import type { CommitOutcome } from './live-editing';
 import { composeNameCell } from './name-notes';
@@ -142,6 +145,68 @@ const cardSpanTitle = (span: { start: PrintedDay; finish: PrintedDay }): string 
 const inertParallel = (row: TreeRow): boolean =>
   row.subRows.length > 0 || row.doesEveryPhase !== null;
 
+/**
+ * What the table's Slack column says about one row, read off the row the same
+ * way the cell does — `critical` replaces the figure outright, and both
+ * `title`s are the column's own sentences, so a reader of both faces meets one
+ * vocabulary rather than a second one this card invented.
+ */
+const cardSlackOf = (
+  row: TreeRow,
+  showDay: (days: number) => string,
+): { text: string; critical: boolean; title: string } => {
+  if (row.schedule.critical) {
+    return {
+      text: 'critical',
+      critical: true,
+      title: 'On the critical path: any delay here moves the whole plan’s finish.',
+    };
+  }
+  const days = showDay(row.schedule.float);
+  return {
+    text: `${days}d slack`,
+    critical: false,
+    title: `This work item can slip ${days} workday${days === '1' ? '' : 's'} before the plan finishes later.`,
+  };
+};
+
+/**
+ * One point of one phase's trio, off the row rather than a box's draft —
+ * `wbs-table.tsx`'s own `showDays`, so a phase estimated on the table and one
+ * estimated on a phone cannot print the point differently.
+ *
+ * Takes the possibly-missing estimate as a parameter rather than reading
+ * `row.estimates[roleId]` into a local first: a bare `Record<string, Days>`
+ * index reads as always-present to the type checker once assigned to a
+ * `const`, which is not true of a role nobody has estimated.
+ */
+const trioPoint = (estimate: Days | undefined, point: (typeof POINTS)[number]): string =>
+  estimate === undefined ? '' : String(estimate[point]);
+
+/** A phase's final figure, off the row — `wbs-table.tsx`'s own `showFinal`. */
+const trioFinal = (finalDays: number | undefined, showDay: (days: number) => string): string =>
+  finalDays === undefined ? '' : showDay(finalDays);
+
+/**
+ * One phase's `o/r/p` breakdown, said in the words `folded-role-card.tsx`
+ * already prints on the table's hover card — this is the same read of the
+ * same fields, not a second copy of "no estimate yet".
+ */
+const cardTrioOf = (
+  row: TreeRow,
+  roleId: string,
+  showDay: (days: number) => string,
+): { line: string; final: string } => {
+  const points = POINTS.map((point) => ({ point, days: trioPoint(row.estimates[roleId], point) }));
+  const estimated = points.some((each) => each.days !== '');
+  return {
+    line: estimated
+      ? points.map((each) => `${each.point} ${each.days === '' ? '—' : each.days}`).join(' · ')
+      : 'No estimate yet',
+    final: trioFinal(row.finalDays[roleId], showDay),
+  };
+};
+
 /** A tap target big enough to hit — 44px, which is `min-h-11` in this scale. */
 const TAP = 'min-h-11';
 
@@ -212,6 +277,7 @@ export function PlanCards({
         const waits = waitsFor(row);
         const team = teamLabel(row);
         const span = spanOf(row);
+        const slack = cardSlackOf(row, showDay);
         return (
           <article
             key={row.id}
@@ -297,102 +363,123 @@ export function PlanCards({
               const options = mentionOptions(row, role.id);
               const listId = `card-mention-${row.id}-${role.id}`;
               const assignee = assigneeOn(row, role.id);
+              const trio = cardTrioOf(row, role.id, showDay);
               return (
-                <div
-                  key={role.id}
-                  data-phase={role.id}
-                  // The positioned ancestor `PickerList` measures `top: 100%`
-                  // from — it owns the box, the caller owns the wrapper.
-                  // The blur is the mention's, bubbling from the box inside:
-                  // leaving the cell takes a half-typed `@ka` with it.
-                  className="relative flex min-w-0 items-center gap-2"
-                  onBlur={leaveEstimate}
-                >
-                  <span className="text-muted-foreground w-20 shrink-0 truncate text-sm">
-                    {role.name}
-                  </span>
-                  {row.rolledUp ? (
-                    // A parent's figure is a sum of what is below it. Printed
-                    // rather than typed into, the same rule the table's folded
-                    // cell keeps.
-                    <span className="font-semibold">{estimateValue(row, role.id)}</span>
-                  ) : (
-                    <CellInput
-                      aria-label={`${role.name} estimate for ${row.number}`}
-                      cellKey={cellKey(row.id, `${role.id}-final`)}
-                      role="combobox"
-                      aria-expanded={options.length > 0}
-                      aria-controls={options.length > 0 ? listId : undefined}
-                      aria-autocomplete="list"
-                      aria-invalid={problem !== null}
-                      title={problem ?? undefined}
-                      placeholder="o/r/p"
-                      // `inputMode` rather than `type="number"`: the value is
-                      // `2/3/8` as often as it is `4`, and a number field
-                      // refuses the slashes. This is the keyboard a phone
-                      // offers, and nothing about what the box accepts.
-                      inputMode="decimal"
-                      className={`${TAP} box-border w-28 shrink-0 rounded-md border px-2 text-base font-semibold ${
-                        problem === null ? '' : 'border-destructive text-destructive'
-                      }`}
-                      onFocus={(event) => {
-                        enterEstimate(event.currentTarget);
-                        event.currentTarget.select();
-                      }}
-                      onTyped={(box) => {
-                        readEstimate(row.id, role.id, box);
-                      }}
-                      onKeyDown={(event) => {
-                        // The open list owns the keyboard, and Escape is how it
-                        // is given back — the same routing the table's folded
-                        // cell has, minus the chords and the alt-arrows, which
-                        // are not wired on a card at all.
-                        if (options.length === 0) return;
-                        if (event.key === 'Escape') {
-                          event.preventDefault();
-                          closeMention();
-                          return;
-                        }
-                        if (event.key === 'Enter') {
-                          // The first entry, which is `CreatablePicker`'s rule:
-                          // what is offered first is what is taken.
-                          event.preventDefault();
-                          options[0]?.take();
-                        }
-                      }}
-                      value={estimateValue(row, role.id)}
-                      commit={(typed, baseline) => commitEstimate(row, role.id, typed, baseline)}
-                    />
-                  )}
-                  {problem !== null && (
-                    <span role="status" className="text-destructive text-sm">
-                      {problem}
+                <Fragment key={role.id}>
+                  <div
+                    data-phase={role.id}
+                    // The positioned ancestor `PickerList` measures `top: 100%`
+                    // from — it owns the box, the caller owns the wrapper.
+                    // The blur is the mention's, bubbling from the box inside:
+                    // leaving the cell takes a half-typed `@ka` with it.
+                    className="relative flex min-w-0 items-center gap-2"
+                    onBlur={leaveEstimate}
+                  >
+                    <span className="text-muted-foreground w-20 shrink-0 truncate text-sm">
+                      {role.name}
                     </span>
-                  )}
-                  {assignee !== null && (
-                    <span
-                      data-card-assignee={role.id}
-                      {...(assignee.assumed ? { 'data-assumed': role.id } : {})}
-                      title={
-                        assignee.assumed
-                          ? `${assignee.name} — only one person is assigned, so they are assumed to do this phase too`
-                          : assignee.name
-                      }
-                      className={`min-w-0 truncate text-sm ${
-                        assignee.assumed ? 'text-muted-foreground' : ''
-                      }`}
-                    >
-                      {assignee.assumed ? `(${assignee.name})` : assignee.name}
-                    </span>
-                  )}
-                  {options.length > 0 && (
-                    <PickerList
-                      id={listId}
-                      label={`${role.name} assignee for ${row.number}`}
-                      options={options}
-                    />
-                  )}
-                </div>
+                    {row.rolledUp ? (
+                      // A parent's figure is a sum of what is below it. Printed
+                      // rather than typed into, the same rule the table's folded
+                      // cell keeps.
+                      <span className="font-semibold">{estimateValue(row, role.id)}</span>
+                    ) : (
+                      <CellInput
+                        aria-label={`${role.name} estimate for ${row.number}`}
+                        cellKey={cellKey(row.id, `${role.id}-final`)}
+                        role="combobox"
+                        aria-expanded={options.length > 0}
+                        aria-controls={options.length > 0 ? listId : undefined}
+                        aria-autocomplete="list"
+                        aria-invalid={problem !== null}
+                        title={problem ?? undefined}
+                        placeholder="o/r/p"
+                        // `inputMode` rather than `type="number"`: the value is
+                        // `2/3/8` as often as it is `4`, and a number field
+                        // refuses the slashes. This is the keyboard a phone
+                        // offers, and nothing about what the box accepts.
+                        inputMode="decimal"
+                        className={`${TAP} box-border w-28 shrink-0 rounded-md border px-2 text-base font-semibold ${
+                          problem === null ? '' : 'border-destructive text-destructive'
+                        }`}
+                        onFocus={(event) => {
+                          enterEstimate(event.currentTarget);
+                          event.currentTarget.select();
+                        }}
+                        onTyped={(box) => {
+                          readEstimate(row.id, role.id, box);
+                        }}
+                        onKeyDown={(event) => {
+                          // The open list owns the keyboard, and Escape is how it
+                          // is given back — the same routing the table's folded
+                          // cell has, minus the chords and the alt-arrows, which
+                          // are not wired on a card at all.
+                          if (options.length === 0) return;
+                          if (event.key === 'Escape') {
+                            event.preventDefault();
+                            closeMention();
+                            return;
+                          }
+                          if (event.key === 'Enter') {
+                            // The first entry, which is `CreatablePicker`'s rule:
+                            // what is offered first is what is taken.
+                            event.preventDefault();
+                            options[0]?.take();
+                          }
+                        }}
+                        value={estimateValue(row, role.id)}
+                        commit={(typed, baseline) => commitEstimate(row, role.id, typed, baseline)}
+                      />
+                    )}
+                    {problem !== null && (
+                      <span role="status" className="text-destructive text-sm">
+                        {problem}
+                      </span>
+                    )}
+                    {assignee !== null && (
+                      <span
+                        data-card-assignee={role.id}
+                        {...(assignee.assumed ? { 'data-assumed': role.id } : {})}
+                        title={
+                          assignee.assumed
+                            ? `${assignee.name} — only one person is assigned, so they are assumed to do this phase too`
+                            : assignee.name
+                        }
+                        className={`min-w-0 truncate text-sm ${
+                          assignee.assumed ? 'text-muted-foreground' : ''
+                        }`}
+                      >
+                        {assignee.assumed ? `(${assignee.name})` : assignee.name}
+                      </span>
+                    )}
+                    {options.length > 0 && (
+                      <PickerList
+                        id={listId}
+                        label={`${role.name} assignee for ${row.number}`}
+                        options={options}
+                      />
+                    )}
+                  </div>
+                  {/*
+                  The trio behind the figure box above — folded there into one
+                  computed number the same way the table's own cell folds it —
+                  said in the words `folded-role-card.tsx` already prints on
+                  hover, since a phone has no hover to read them from. A native
+                  `<details>` rather than a positioned card: it needs no
+                  measurement, no pointer-type guard and no dismiss handler,
+                  and a tap is what opens one already.
+                */}
+                  <details
+                    data-phase-detail={role.id}
+                    className="text-muted-foreground -mt-1 ml-20 text-xs"
+                  >
+                    <summary className="w-fit cursor-pointer py-1 select-none">o·r·p</summary>
+                    <div data-phase-trio={role.id}>{trio.line}</div>
+                    {trio.final !== '' && (
+                      <div data-phase-final={role.id}>Final {trio.final} days</div>
+                    )}
+                  </details>
+                </Fragment>
               );
             })}
 
@@ -409,6 +496,19 @@ export function PlanCards({
               */}
               <span data-card-span title={cardSpanTitle(span)}>
                 {span.start.text} → {span.finish.text}
+              </span>
+              {/*
+                The Slack column's own word for the one figure it replaces
+                outright: `critical` where there is none to give, read off the
+                row the same way the cell reads it, not through a second
+                schedule-error prop this renderer does not hold.
+              */}
+              <span
+                data-card-slack
+                {...(slack.critical ? { 'data-critical': 'true' } : {})}
+                title={slack.title}
+              >
+                {slack.text}
               </span>
               {waits.length > 0 && <span data-card-waits>waits for {waits.join(', ')}</span>}
               {/*

@@ -1036,3 +1036,113 @@ describe('what a card says about capacity', () => {
     expect(parallelOnCard()?.textContent).toBe('2 at once (not applied)');
   });
 });
+
+describe('what a card says about the schedule', () => {
+  /** A plan on a phone, arranged before the first render — the capacity block’s own pattern. */
+  async function aPlan(arrange: (rows: WorkItemView[]) => void, howMany = 1): Promise<void> {
+    const api = fakeApi();
+    for (let at = 0; at < howMany; at += 1) await api.create('p1', { parentId: null });
+    arrange(api.rows);
+    widthIs(PHONE);
+    render(<WbsTable projectId="p1" api={api} />);
+    await screen.findByLabelText('Name of 010');
+  }
+
+  const slackOnCard = (): HTMLElement | null => document.querySelector('[data-card-slack]');
+
+  itDom('says how many days a row can slip, in the table’s own word', async () => {
+    // Two fields the mobile plan named as missing from the card since
+    // `mobile-cards` shipped (2026-08-10) and `priority-column` (2026-08-11)
+    // never reached: this is Slack. Read off `row.schedule` directly, the
+    // same fields `wbs-table.tsx`'s Float column cell reads — a phone has no
+    // second computation of what can slip.
+    await aPlan((rows) => {
+      rows[0].schedule = { ...rows[0].schedule, float: 2.5, critical: false };
+    });
+
+    expect(slackOnCard()?.textContent).toBe('2.5d slack');
+    expect(slackOnCard()?.getAttribute('data-critical')).toBeNull();
+    expect(slackOnCard()?.getAttribute('title')).toBe(
+      'This work item can slip 2.5 workdays before the plan finishes later.',
+    );
+  });
+
+  itDom('keeps the singular where a row can slip exactly one workday', async () => {
+    await aPlan((rows) => {
+      rows[0].schedule = { ...rows[0].schedule, float: 1, critical: false };
+    });
+
+    expect(slackOnCard()?.getAttribute('title')).toBe(
+      'This work item can slip 1 workday before the plan finishes later.',
+    );
+  });
+
+  itDom('says a row on the critical path has none, in the table’s own word', async () => {
+    // `critical` replaces the figure outright on the table's own cell — a
+    // card printing a bare `0` here would say the opposite of what the row
+    // means.
+    await aPlan((rows) => {
+      rows[0].schedule = { ...rows[0].schedule, float: 0, critical: true };
+    });
+
+    expect(slackOnCard()?.textContent).toBe('critical');
+    expect(slackOnCard()?.getAttribute('data-critical')).toBe('true');
+    expect(slackOnCard()?.getAttribute('title')).toBe(
+      'On the critical path: any delay here moves the whole plan’s finish.',
+    );
+  });
+});
+
+describe('the trio behind a phase’s figure, on a card', () => {
+  const trioOnCard = (roleId: string): HTMLElement | null =>
+    document.querySelector(`[data-phase-trio="${roleId}"]`);
+  const finalOnCard = (roleId: string): HTMLElement | null =>
+    document.querySelector(`[data-phase-final="${roleId}"]`);
+  const detailOnCard = (roleId: string): HTMLDetailsElement | null =>
+    document.querySelector(`details[data-phase-detail="${roleId}"]`);
+
+  itDom('says nothing has been estimated, in the words the hover card already prints', async () => {
+    const api = fakeApi();
+    widthIs(PHONE);
+    render(<WbsTable projectId="p1" api={api} />);
+    await addAWorkItem();
+
+    expect(trioOnCard(DEV.id)?.textContent).toBe('No estimate yet');
+    expect(finalOnCard(DEV.id)).toBeNull();
+  });
+
+  itDom(
+    'reads the trio and the final off the row, in the same words `folded-role-card.tsx` prints on hover',
+    async () => {
+      // Read off `row.estimates` and `row.finalDays` — not the box's draft,
+      // and not `estimateValue`/`combinedValue` — the same choice
+      // `folded-role-card.tsx`'s own points make, and for the same reason:
+      // a card is what the fold left behind, not what somebody is mid-typing.
+      const api = fakeApi();
+      const created = await api.create('p1', { parentId: null });
+      await api.setEstimate(created.id, DEV.id, { optimistic: 2, realistic: 3, pessimistic: 8 });
+      widthIs(PHONE);
+      render(<WbsTable projectId="p1" api={api} />);
+      await screen.findByLabelText('Name of 010');
+
+      expect(trioOnCard(DEV.id)?.textContent).toBe('optimistic 2 · realistic 3 · pessimistic 8');
+      expect(finalOnCard(DEV.id)?.textContent).toBe('Final 3.7 days');
+    },
+  );
+
+  itDom('opens on a tap and stays shut until one', async () => {
+    const api = fakeApi();
+    widthIs(PHONE);
+    render(<WbsTable projectId="p1" api={api} />);
+    await addAWorkItem();
+
+    const detail = detailOnCard(DEV.id);
+    expect(detail?.open).toBe(false);
+
+    const summary = detail?.querySelector('summary');
+    if (summary === null || summary === undefined) throw new Error('no summary on the detail');
+    fireEvent.click(summary);
+
+    expect(detail?.open).toBe(true);
+  });
+});
