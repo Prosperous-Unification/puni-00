@@ -37,6 +37,14 @@ const PER_PROJECT_CAPACITY = '20260813120000_add_project_team_capacity';
 // A table of its own again, referencing `work_item` and `service_team`, so it
 // reverses before the domain and before the directory that holds both.
 const WORK_ITEM_TEAM = '20260814100000_add_work_item_team';
+/**
+ * A table of its own and the newest, so it is the first thing any rollback
+ * reverses. Renumbered to `110000` on the rebase — `100000` is
+ * {@link WORK_ITEM_TEAM}'s stamp on main, and one stamp shared by two folders is
+ * one `created_at` shared by two rows, which `migrationsToRollback`'s strict
+ * `created_at >` cannot separate. See verify.md.
+ */
+const PRIORITY_BANDS = '20260814110000_add_priority_band';
 
 const WBS_TABLES = ['project', 'work_item', 'role', 'estimate'] as const;
 // Its own migration, reversed with the domain because it references `work_item`.
@@ -106,6 +114,7 @@ describe('the WBS domain migration', () => {
       // ahead of the column it was seeded from, which is the only order in
       // which its foreign keys still have something to point at.
       expect(reversed).toEqual([
+        PRIORITY_BANDS,
         WORK_ITEM_TEAM,
         PER_PROJECT_CAPACITY,
         MAX_PARALLEL,
@@ -410,7 +419,13 @@ describe('the capacity migrations', () => {
 
       const reversed = rollbackTo(db.path, FOLDER, PRIORITY);
 
-      expect(reversed).toEqual([WORK_ITEM_TEAM, PER_PROJECT_CAPACITY, MAX_PARALLEL, TEAM_SLOTS]);
+      expect(reversed).toEqual([
+        PRIORITY_BANDS,
+        WORK_ITEM_TEAM,
+        PER_PROJECT_CAPACITY,
+        MAX_PARALLEL,
+        TEAM_SLOTS,
+      ]);
       const back = openDatabase(db.path);
       try {
         back.run(
@@ -844,7 +859,11 @@ describe('the work item team migration', () => {
 
       const reversed = rollbackTo(db.path, FOLDER, PER_PROJECT_CAPACITY);
 
-      expect(reversed).toEqual([WORK_ITEM_TEAM]);
+      // `PRIORITY_BANDS` rides along because it is applied after this one and
+      // the baseline is older than both — it is not this migration's business,
+      // and it is named rather than filtered out so the list stays the literal
+      // answer `rollbackTo` gave.
+      expect(reversed).toEqual([PRIORITY_BANDS, WORK_ITEM_TEAM]);
       expect(tables(db.path)).not.toContain('work_item_team');
       const after = openDatabase(db.path);
       try {
