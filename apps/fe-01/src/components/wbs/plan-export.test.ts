@@ -401,6 +401,17 @@ describe('the capacity columns', () => {
     duration: effort / width,
   });
 
+  it('prints every team of a set, joined', () => {
+    // One member today, so this changes no cell in any plan that exists — but
+    // the separator is the one R2-3's `Teams` column keeps and therefore the
+    // one R3's import matches names by, so it is decided here rather than
+    // discovered there.
+    const rows = [row({ id: 'a', number: '010', teamIds: ['team-billing', 'team-gone'] })];
+    const csv = planToCsv(plan({ rows }));
+
+    expect(csvDataRow(csv)[columnAt(csv, 'Team')]).toBe('Billing, Ltd; (unknown)');
+  });
+
   it('names the team a row inherits, and the row the label was written on', () => {
     const rows = [
       row({ id: 'a', number: '010', name: 'Backend', teamIds: ['team-billing'] }),

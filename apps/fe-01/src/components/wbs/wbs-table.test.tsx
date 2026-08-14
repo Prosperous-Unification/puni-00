@@ -1492,6 +1492,32 @@ describe('teams and assignees', () => {
       : [...list.querySelectorAll('[role="option"]')].map((o) => o.textContent);
   };
 
+  itDom('reads the team out of the set, not the column beside it', async () => {
+    // The switch this change is: `work_item_team` is the read, and
+    // `serviceTeamId` is a second copy be-01 keeps written for one release so
+    // that the outgoing fe-01 bundle still works mid-swap. Every other test
+    // here has both written and agreeing, so none of them can tell which one
+    // this cell is reading — this one states them apart, which is also what
+    // R2-4's payload looks like once the column becomes the derived copy.
+    //
+    // Proof: `effectiveTeamLabelOf`'s own-set arm pointed back at
+    // `row.serviceTeamId`, and this failed on
+    // `expected '' to be 'Platform'` — the label gone from a cell whose row
+    // names a team; watched 2026-08-14.
+    const api = await oneRow();
+    await api.addTeam('Platform');
+    const [row] = api.rows;
+    row.teamIds = ['team1'];
+    row.serviceTeamId = null;
+    // A refresh the component will take: adding a row is the cheapest.
+    click('Add work item');
+    await screen.findByLabelText('Name of 020');
+
+    expect(screen.getByLabelText<HTMLInputElement>('Service or team for 010').value).toBe(
+      'Platform',
+    );
+  });
+
   itDom('adds a team by typing a name the list does not have', async () => {
     const api = await oneRow();
     const label = 'Service or team for 010';
