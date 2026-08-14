@@ -179,7 +179,7 @@ describe('a priority ladder moves no date', () => {
     for (const [at, plan] of oracle.plans.entries()) {
       const answer = oracle.answers.at(at);
       if (answer === undefined) throw new Error(`no captured answer for ${plan.projectId}`);
-      expect({ project: plan.projectId, ...(await replay(plan, seeded)) }).toEqual(
+      expect({ project: plan.projectId, ...lifted(await replay(plan, seeded)) }).toEqual(
         expected(plan, answer, seeded),
       );
     }
@@ -194,7 +194,7 @@ describe('a priority ladder moves no date', () => {
     for (const [at, plan] of oracle.plans.entries()) {
       const answer = oracle.answers.at(at);
       if (answer === undefined) throw new Error(`no captured answer for ${plan.projectId}`);
-      expect({ project: plan.projectId, ...(await replay(plan, RECUT)) }).toEqual(
+      expect({ project: plan.projectId, ...lifted(await replay(plan, RECUT)) }).toEqual(
         expected(plan, answer, RECUT),
       );
     }
@@ -317,6 +317,36 @@ describe('a priority ladder moves no date', () => {
         schedule: row.schedule,
         dates: row.dates,
       })),
+    };
+  }
+
+  /**
+   * The payload with `teamIds` lifted off every row, and the arity claim asserted
+   * where it comes off.
+   *
+   * `team-sets` (#61) merged to main while this branch was open and put a set on
+   * every row. The oracle was captured at `050fd45`, before it, so a whole-document
+   * comparison fails on `+ "teamIds": [ "team-unsized" ]` and nothing else —
+   * a payload that gained a field, which is not a payload that moved a date. Seen
+   * exactly that way on the rebase, 2026-08-14: 2 fail, both here, diff nothing but
+   * the new key on every labelled row.
+   *
+   * Lifted rather than listing the fields the oracle *does* carry, and the set is
+   * **asserted** rather than dropped: a bare lift would let a write path that
+   * forgot the join pass this file silently. Same shape as
+   * `capacity-migration-identity.test.ts`, which is where `team-sets` makes the
+   * claim first; it is repeated here because this file compares the same oracle
+   * and a lift with nothing behind it is a hole.
+   */
+  function lifted(
+    tree: NonNullable<Awaited<ReturnType<WorkItemService['tree']>>>,
+  ): Record<string, unknown> {
+    return {
+      ...tree,
+      workItems: tree.workItems.map(({ teamIds, ...row }) => {
+        expect(teamIds).toEqual(row.serviceTeamId === null ? [] : [row.serviceTeamId]);
+        return row;
+      }),
     };
   }
 
