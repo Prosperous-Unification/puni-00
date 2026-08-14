@@ -98,11 +98,23 @@ Read it in four pieces:
 Where the referent's row is collapsed away or narrowed off by a search, the
 sentence says `after work that is not shown` rather than papering over it.
 
-**What the sentence does not say** is that the team's size clamped the width:
-a row asking for 3 people from a team of 2 runs at 2, and the chart's words are
-about the wait rather than the clamp. The export can tell you — `People at once`
-is what was asked for, `Ran at` is what be-01 placed — and the `∥` cell's
-`title` hints at it. Recorded as C3's P3 and still open.
+**What that sentence does not say** is that the team's size clamped the width —
+it is about the wait rather than the clamp. A **second line** on the same card
+says the clamp, wherever there was one:
+
+> The team may have 2 at work at once — 3 in parallel not applied
+
+A row asking for 3 people from a team of 2 runs at 2, and that is the line
+saying so. It prints only where the two numbers differ, so a plan that got what
+it asked for never sees it, and it is silent on work somebody is named on — a
+named person collapses the width to 1 on its own, and the line above it says
+that instead. At width 1 it is the only thing the card says about parallelism,
+which is the case that used to say nothing at all: the compressed line
+(`2 people in parallel — …`) does not print for one person.
+
+The export carries the same pair as columns — `People at once` is what was
+asked for, `Ran at` is what be-01 placed — and the `∥` cell's `title` hints at
+it.
 
 ## The three states, one of which has no box
 
@@ -146,6 +158,7 @@ the sake of a display promise. The argument is `capacity-engine/design.md`, D7.
 | Label inheritance, shared by both apps | `libs/domain/src/effective-team.ts`                                     |
 | The box                                | `apps/fe-01/src/components/wbs/teams-dialog.tsx`                        |
 | The chart's sentence                   | `apps/fe-01/src/components/wbs/gantt-geometry.ts`, `capacityFloorWords` |
+| The chart's clamp line                 | `apps/fe-01/src/components/wbs/gantt-panel.tsx`, `clampWords`           |
 
 The behaviour is specified in `openspec/changes/capacity-engine/`,
 `capacity-write-paths/`, `capacity-ui/`, `capacity-per-project/` and
