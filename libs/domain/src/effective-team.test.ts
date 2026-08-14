@@ -85,10 +85,18 @@ describe('effectiveTeamsOf', () => {
 
   it('resolves a chain of unlabelled rows once, and hands each of them the same answer', () => {
     // The memoisation the docstring claims, asserted the only way it is
-    // observable from outside: every row the walk passed through holds **the
-    // same object**, which a per-row re-walk cannot produce. Without it the
-    // walk is quadratic in the depth and nothing else in the suite notices.
-    const rows = [row('a', null, 'platform'), row('b', 'a'), row('c', 'b'), row('d', 'c')];
+    // observable from outside: every row the deepest walk passed through holds
+    // **the same object**, which a per-row re-walk cannot produce. Without it
+    // the walk is quadratic in the depth and nothing else in the suite notices.
+    //
+    // The order of `rows` is load-bearing and the test is vacuous without it.
+    // Deepest first, so `d`'s walk is the one that reaches the label and the
+    // rows above it are answered by that walk rather than by their own. Listed
+    // shallowest first, every row is already in the map before anything walks
+    // through it, the `already` short circuit hands out the same object anyway,
+    // and deleting the memoisation changes nothing observable — watched
+    // passing that way on 2026-08-14 before this comment was written.
+    const rows = [row('d', 'c'), row('c', 'b'), row('b', 'a'), row('a', null, 'platform')];
 
     const found = effectiveTeamsOf(rows);
 
