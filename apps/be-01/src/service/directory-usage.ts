@@ -257,7 +257,11 @@ export function directoryUsageOfTeam(rows: DirectoryUsageRows, teamId: string): 
     // labelled with two teams loses one label per removal, and a reader of
     // `teamIds[0]` would report nothing at all for the second of them.
     //
-    // Proof: TO OBSERVE label_nulled membership
+    // Proof: both membership tests here narrowed to `teamIds.at(0) === teamId`
+    // and `names a work item labelled with the team, whichever member of its
+    // set it is` failed on `+ []` — a confirmation saying nothing points at a
+    // team it is about to unlabel — with `releases the capacity of an inherited
+    // set, on either member` failing beside it; watched 2026-08-14.
     const effects: DirectoryEffect[] = row.teamIds.includes(teamId)
       ? [{ kind: 'label_nulled' }]
       : [];

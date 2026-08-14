@@ -128,7 +128,10 @@ const UNSCHEDULED: Scheduled = {
  *
  * Exported for that test alone; `slicesOf` is its only production caller.
  *
- * Proof: TO OBSERVE poolFor
+ * Proof: the arity guard made unreachable, so the body falls through to
+ * `teamIds.at(0)`, and `refuses a set the engine cannot spend` failed on
+ * `Received function did not throw` — the silent narrowing this exists to
+ * prevent, reported as a passing schedule; watched 2026-08-14.
  */
 export function poolFor(
   teamIds: readonly string[],

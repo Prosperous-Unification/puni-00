@@ -162,7 +162,10 @@ describe('the pool a row spends slots in', () => {
     // refusal. Asserted on `poolFor` directly because that is where it lives;
     // `slicesOf` is its only production caller.
     //
-    // Proof: TO OBSERVE poolFor refusal
+    // Proof: the `teamIds.length > 1` guard made unreachable, so the function
+    // falls through to `teamIds.at(0)` and schedules against Backend, and this
+    // failed on `Received function did not throw` — 82 pass / 1 fail; watched
+    // 2026-08-14.
     expect(() => poolFor(['backend', 'design'], new Map([['backend', 2]]))).toThrow(
       'a work item’s effective team set holds 2 teams',
     );

@@ -235,7 +235,16 @@ describe('every plan schedules identically across the migration', () => {
           // The arity claim, and the only place it is made: the set the join
           // answered is exactly the singleton of the label the oracle recorded.
           //
-          // Proof: TO OBSERVE oracle singleton
+          // Proof, both watched 2026-08-14 and each green under the other's
+          // fault. This assertion: the fixture's join derivation replaced by
+          // one that answers `[]` for every row, and it failed on
+          // `Expected - 3 / Received + 1` — a labelled row whose set is empty,
+          // which is the shape of a write path that forgot the join. The lift
+          // itself: before it existed, the whole-document comparison failed on
+          // the oracle's very first labelled row with `+ "teamIds": [
+          // "team-unsized" ]` and nothing else in the diff — the payload had
+          // gained a field and moved no date, which is this change's claim
+          // arriving as a red test.
           expect(teamIds).toEqual(row.serviceTeamId === null ? [] : [row.serviceTeamId]);
           return row;
         }),
