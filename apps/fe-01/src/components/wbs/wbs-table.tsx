@@ -10,6 +10,7 @@ import {
 import { effectiveTeamsOf } from '@wbs/domain/effective-team';
 import { workdaysBetween } from '@wbs/domain/workday';
 import {
+  type ComponentProps,
   type CSSProperties,
   type ReactNode,
   useCallback,
@@ -4899,51 +4900,16 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
           const waitsForId = `depends-${row.original.id}`;
           return (
             <span
-              onMouseEnter={() => {
-                // The cell-level dependency hover: every row this one waits
-                // for is lit, `pillId: null` saying the pointer is on the
-                // cell rather than on one pill. Guarded by the same "nothing
-                // to say, nothing written" rule as the card below — a cell
-                // that waits for nothing has no row to light and no reason to
-                // spend a render (codex round 3, finding 5). The functional
-                // writer returns the current object when the value is already
-                // there, which is the string-key bail-out below, spelt for an
-                // object.
-                if (waitingFor.length > 0) {
-                  live.current.setDepHover((current) =>
-                    current?.rowId === row.original.id && current.pillId === null
-                      ? current
-                      : { rowId: row.original.id, pillId: null },
-                  );
-                }
-                // Nothing to open, nothing written. `hoveredCell` lives on the
-                // table, so every boundary the pointer crosses costs one render
-                // of the whole of it — and a cell with no card to show has no
-                // reason to spend one, nor to close the card open somewhere else
-                // on the pointer's way past. codex round 3, finding 5.
-                //
-                // The key is a string, so a second enter on the same cell writes
-                // the value already there and React bails out without rendering.
-                // Proof: this guard dropped, `writes no hovered cell from a cell
-                // that has no card to show` failed on `Unable to find an
-                // accessible element with the role "tooltip"`. Watched,
-                // 2026-08-09.
-                if (!cardable) return;
-                live.current.setHoveredCell(dependsCell);
-              }}
-              onMouseLeave={() => {
-                // Leaving the cell clears the dependency hover outright — with
-                // the same-cell guard `hoveredCell`'s clear uses, because a
-                // leave lands after the next cell's enter.
-                live.current.setDepHover((current) =>
-                  current?.rowId === row.original.id ? null : current,
-                );
-                // The same-cell guard, for the reason the Name cell's marker
-                // gives: a leave lands after the next cell's enter.
-                live.current.setHoveredCell((current) =>
-                  current === dependsCell ? null : current,
-                );
-              }}
+              // **No `onMouseEnter` here, and that is this change.** The
+              // cell-level dependency hover used to be on this wrapper, which
+              // stands *inside* the `<td>`'s padding box and, at the column's
+              // own 110px, is filled edge to edge by the pills — so a reader
+              // pointing at the cell got nothing, and the only place that
+              // answered the whole-cell gesture was the 15.8px add button. It
+              // is on the `<td>` now; see `dependsCellHoverProps`, and
+              // `openspec/changes/table-width-budget/design.md` D2 for the
+              // measurement.
+              //
               // This wrapper carried `whiteSpace: 'normal'` until 2026-08-10,
               // with the rationale "an uneven row height is a cost worth
               // paying; a dependency nobody can see is not". The change
@@ -6628,6 +6594,86 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
   })();
 
   /**
+   * What one row's Depends on `<td>` does with a pointer arriving and leaving.
+   *
+   * **On the `<td>`, because the gesture is "the pointer is in this cell".**
+   * These two handlers lived on a wrapper `<span>` inside the cell until
+   * 2026-08-14, and the wrapper stands inside the cell's padding box: the
+   * cell's own 4px either side answered nothing, and at the column's resolved
+   * 110px two pills and the add button fill the strip edge to edge, so the
+   * only surface left that produced the cell's reading was the 15.8px `+`
+   * — a control whose job is "start waiting for something else". Measured
+   * in Chromium: the box the gesture names is laid out **7.7px outside its own
+   * cell** at that width, `elementFromPoint` down the cell's midline answers a
+   * pill everywhere but the padding, and the padding lit nothing.
+   * `openspec/changes/table-width-budget/design.md` D2 has the table.
+   *
+   * The pills' own narrower reading is unaffected and is the one thing this
+   * move could have cost. `mouseenter` fires on every element being entered,
+   * outermost first, so a pointer arriving straight onto a pill runs this
+   * handler (`pillId: null`, the whole set) and then the pill's
+   * (`pillId: <id>`, one row) — and the pill's write is the one that lands.
+   * jsdom cannot say so, because `fireEvent.mouseEnter` dispatches to one
+   * element and walks no chain; `e2e/deps-cell.spec.ts`'s `narrows to one pill
+   * when the pointer settles on it, from the cell` is the browser that can.
+   *
+   * Built here rather than in the column definition for landmine #1's reason:
+   * `columns` depends on `roles` alone, and anything that changes per pointer
+   * move must not enter it. The `<td>` is rendered outside that memo.
+   */
+  const dependsCellHoverProps = (
+    row: TreeRow,
+  ): Pick<ComponentProps<'td'>, 'onMouseEnter' | 'onMouseLeave'> => {
+    const dependsCell = cellKey(row.id, 'depends');
+    return {
+      onMouseEnter: () => {
+        // Every row this one waits for is lit, `pillId: null` saying the
+        // pointer is on the cell rather than on one pill. Guarded by the same
+        // "nothing to say, nothing written" rule as the card below — a cell
+        // that waits for nothing has no row to light and no reason to spend a
+        // render (codex round 3, finding 5). The functional writer returns the
+        // current object when the value is already there, which is the
+        // string-key bail-out below, spelt for an object.
+        if (dependenciesOf(row.dependsOn).length > 0) {
+          setDepHover((current) =>
+            current?.rowId === row.id && current.pillId === null
+              ? current
+              : { rowId: row.id, pillId: null },
+          );
+        }
+        // Nothing to open, nothing written. `hoveredCell` lives on the table,
+        // so every boundary the pointer crosses costs one render of the whole
+        // of it — and a cell with no card to show has no reason to spend one,
+        // nor to close the card open somewhere else on the pointer's way past.
+        // codex round 3, finding 5.
+        //
+        // The key is a string, so a second enter on the same cell writes the
+        // value already there and React bails out without rendering.
+        // Proof: this guard dropped, `writes no hovered cell from a cell
+        // that has no card to show` failed on `Unable to find an accessible
+        // element with the role "tooltip"`. Watched, 2026-08-09.
+        //
+        // `depPicker` and not the cell's local `picker`: the card and the
+        // picker are the two boxes that hang off one 110px cell, and the one
+        // somebody is typing into is the one they are looking at. Read from
+        // the state directly, because this is outside the column definitions.
+        const cardable = dependenciesOf(row.dependsOn).length > 0 && depPicker?.rowId !== row.id;
+        if (!cardable) return;
+        setHoveredCell(dependsCell);
+      },
+      onMouseLeave: () => {
+        // Leaving the cell clears the dependency hover outright — with the
+        // same-cell guard `hoveredCell`'s clear uses, because a leave lands
+        // after the next cell's enter.
+        setDepHover((current) => (current?.rowId === row.id ? null : current));
+        // The same-cell guard, for the reason the Name cell's marker gives: a
+        // leave lands after the next cell's enter.
+        setHoveredCell((current) => (current === dependsCell ? null : current));
+      },
+    };
+  };
+
+  /**
    * What the Gantt panel draws, from the rows the renderer is drawing.
    *
    * **`shownRows`, not the row model**, and that is the whole of the mirroring:
@@ -7596,6 +7642,14 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                         // See the `th` above: the layout gate measures these boxes
                         // and has to be able to name the one that moved.
                         data-column={cell.column.id}
+                        // The dependency light's own cell-level reading, on the
+                        // cell. See {@link dependsCellHoverProps}: it is the
+                        // whole `<td>` and not a wrapper inside it, because the
+                        // gesture the spec names is "the pointer is in this
+                        // cell" and a wrapper stands inside the padding.
+                        {...(cell.column.id === 'depends'
+                          ? dependsCellHoverProps(row.original)
+                          : {})}
                         style={{
                           ...CELL,
                           // The exception to the cell clip. See

@@ -7305,12 +7305,27 @@ describe('hovering a dependency lights the rows it names', () => {
     fireEvent.keyDown(input, { key: 'Enter' });
   };
 
-  /** The depends cell's wrapper, through the `<td>` — `dependsCellOf`'s reason. */
+  /**
+   * The Depends on cell itself — the `<td>`, and not the wrapper inside it.
+   *
+   * It was `cell.firstElementChild` until 2026-08-14, because that is where
+   * the cell-level enter and leave lived. They are on the cell now: a wrapper
+   * stands inside the cell's padding box, and at the column's resolved 110px
+   * the pills fill the wrapper edge to edge, so the gesture the spec names —
+   * "the pointer is in this cell" — had nowhere left to be made from.
+   * `openspec/changes/table-width-budget/design.md` D2 has the measurement.
+   *
+   * Proof: the handlers left on the wrapper with this helper already pointing
+   * at the `<td>` — which is the fault, spelt as the state before the fix —
+   * and all five cases in this block failed together, the first of them on
+   * `lights every dependency’s row from the cell, and no other row:
+   * expected [] to deeply equal [ '010', '020' ]`. Watched on h2puni,
+   * 2026-08-14 (fault F7).
+   */
   const hoverTargetOf = (number: string): HTMLElement => {
     const cell = screen.getByLabelText(`Add a dependency to ${number}`).closest('td');
-    const found = cell?.firstElementChild;
-    if (!(found instanceof HTMLElement)) throw new Error(`no depends cell for ${number}`);
-    return found;
+    if (!(cell instanceof HTMLElement)) throw new Error(`no depends cell for ${number}`);
+    return cell;
   };
 
   /** The numbers of every row the table has lit, in document order. */
@@ -7335,6 +7350,35 @@ describe('hovering a dependency lights the rows it names', () => {
     fireEvent.blur(screen.getByLabelText('Add a dependency to 030'));
     return api;
   }
+
+  itDom('takes the pointer on the cell itself, not on a wrapper inside it', async () => {
+    // The move, said outright rather than left implicit in a helper. jsdom
+    // cannot see *why* it matters — whether a pill covers the place the
+    // handler answered from is a hit-testing fact and jsdom lays nothing out
+    // (R5 #14–16) — but it can see **where** the handler is, which is the half
+    // that is a fact about the markup. `e2e/deps-cell.spec.ts`'s `lights the
+    // whole set from a crowded cell at its default width` is the other half.
+    //
+    // An enter reaches the element entered **and its ancestors**, never its
+    // descendants — which is what makes this discriminating in one direction
+    // and vacuous in the other. Entering the `<td>` cannot reach a handler on
+    // the wrapper inside it, so this assertion is exactly the move; entering
+    // the wrapper still reaches a handler on the `<td>`, so the mirror of it
+    // would pass either way and is deliberately not written.
+    await planWhere030Waits();
+    const cell = hoverTargetOf('030');
+    expect(cell.tagName).toBe('TD');
+    // And the wrapper is really a different element, or the two names above
+    // are one element and this test is about nothing.
+    expect(cell.firstElementChild).not.toBe(cell);
+    expect(cell.firstElementChild?.tagName).toBe('SPAN');
+
+    fireEvent.mouseEnter(cell);
+    expect(litNumbers()).toEqual(['010', '020']);
+
+    fireEvent.mouseLeave(cell);
+    expect(litNumbers()).toEqual([]);
+  });
 
   itDom('lights every dependency’s row from the cell, and no other row', async () => {
     await planWhere030Waits();

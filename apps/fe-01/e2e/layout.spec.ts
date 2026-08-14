@@ -7,9 +7,11 @@ import { type Box, findOverlap, findOverrun } from '../src/components/wbs/box-ge
 import { shortIsoDate } from '../src/components/wbs/short-date';
 import {
   DAY_ENVELOPE,
+  FIXED_COLUMNS,
   FLEXIBLE_CAP,
   FLEXIBLE_COLUMNS,
   FLEXIBLE_FLOOR,
+  foldedTableMinWidth,
   frameLayout,
   type FrameLayoutState,
   hierarchyIndentFor,
@@ -1514,6 +1516,158 @@ test.describe('the table, measured by a browser', () => {
       'Survey the existing warehouse racking and photograph every aisle end (copy)',
     );
     await expect(page.getByLabel('Name of 020')).toBeFocused();
+  });
+
+  test('holds the folded budget at 1280, and says where it stops', async ({ page }) => {
+    // D14's own question, and the one nothing in this repository had ever
+    // asked: at 1280, how many folded phases fit before the frame scrolls?
+    //
+    // The 2026-08-14 cloud regression answered it from the markup and got it
+    // wrong, because the `<table>` carries **two** width declarations and only
+    // one of them is a floor. `tableWidthStyle` writes
+    // `width: min(100%, maxWidth)` — every declared column plus
+    // `FLEXIBLE_CAP`, where the table stops growing — and `min-width: minWidth`
+    // — the same columns plus `FLEXIBLE_FLOOR`, where the frame starts
+    // scrolling. They differ by 220px, and reading the first as the second
+    // reports a table 220px wider than the one that has to fit. So this test
+    // reads both, names which is which, and then ignores both in favour of the
+    // only thing that answers the question: the frame's own overflow.
+    //
+    // Every figure is re-derived through `foldedTableMinWidth`, never written
+    // out — a column that changes width changes this test in the same commit,
+    // which is the whole reason that function lives in `table-frame.ts` rather
+    // than as arithmetic in the Phases dialog.
+    //
+    // Proof, twice, and neither could be reasoned:
+    //
+    // 1. `tableWidthStyle`'s `width` arm fed `layout.minWidth` instead of
+    //    `layout.maxWidth` — the shape the world would have to have for the
+    //    regression's reading to be right — and this failed on
+    //    `the declared width is the cap, not the floor: expected 'min(100%,
+    //    1219px)' to be 'min(100%, 1439px)'`, with every scroll assertion in
+    //    it still green. Watched on h2puni, 2026-08-14 (fault F1).
+    // 2. `['in-parallel', 32]` widened by 32px, which is the fault the P2
+    //    alleged — the budget really blown: this failed on `two folded phases
+    //    fit a 1280 laptop: expected 1251 to be less than or equal to 1248`.
+    //    Watched on h2puni, 2026-08-14 (fault F2).
+    //
+    //    **The injection had to be 32px and not the 16 first tried**, and that
+    //    is worth more than the row it fills in: with the column at the 48 the
+    //    capacity plan originally drew, the two-phase floor is 1235 against
+    //    1248 and **nothing scrolls** — watched passing. The folded table has
+    //    29px of slack at 1280 today, not none, and every figure in the
+    //    2026-08-14 report is inside it.
+    const roleIdsOnScreen = async (): Promise<string[]> =>
+      page.evaluate(() =>
+        [...document.querySelectorAll('thead th[data-column]')]
+          .map((header) => header.getAttribute('data-column') ?? '')
+          .filter((id) => id.endsWith('-final'))
+          .map((id) => id.slice(0, -'-final'.length)),
+      );
+    /** The table's two declarations and the frame's overflow, in one read. */
+    const budget = async (): Promise<{
+      declaredWidth: string;
+      declaredMinWidth: string;
+      frameScrollWidth: number;
+      frameClientWidth: number;
+    }> =>
+      page.evaluate(() => {
+        const table = document.querySelector('table[data-grid]');
+        const frame = document.querySelector('[data-table-frame]');
+        if (!(table instanceof HTMLElement) || frame === null) {
+          throw new Error('the plan table is not on the page');
+        }
+        return {
+          declaredWidth: table.style.width,
+          declaredMinWidth: table.style.minWidth,
+          frameScrollWidth: frame.scrollWidth,
+          frameClientWidth: frame.clientWidth,
+        };
+      });
+
+    await page.setViewportSize({ width: 1280, height: 800 });
+
+    // Two, which is what a new project has and what D14's 1219px figure is
+    // about.
+    const twoPhases = await roleIdsOnScreen();
+    expect(twoPhases).toHaveLength(2);
+    const two = await budget();
+    expect(two.declaredMinWidth).toBe(`${String(foldedTableMinWidth(twoPhases, SEEDED_PLAN))}px`);
+    expect(two.declaredWidth, 'the declared width is the cap, not the floor').toBe(
+      `min(100%, ${String(frameLayout([...FIXED_COLUMNS, ...FLEXIBLE_COLUMNS, ...twoPhases.map((id) => `${id}-final`)], SEEDED_PLAN).maxWidth)}px)`,
+    );
+    // And the two really are different numbers, or the assertion above and the
+    // one below are the same assertion written twice.
+    expect(two.declaredWidth).not.toContain(two.declaredMinWidth);
+    expect(two.frameScrollWidth, 'two folded phases fit a 1280 laptop').toBeLessThanOrEqual(
+      two.frameClientWidth,
+    );
+
+    // Three, which is the state D14 says already scrolled — and nothing had
+    // ever watched scroll.
+    await page.getByRole('button', { name: 'Phases', exact: true }).click();
+    await page.getByLabel('New phase').fill('Design');
+    await page.getByRole('button', { name: 'Add phase' }).click();
+    await expect(page.getByRole('button', { name: 'Remove Design' })).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('button', { name: 'Unfold Design estimates' })).toBeVisible();
+
+    const threePhases = await roleIdsOnScreen();
+    expect(threePhases).toHaveLength(3);
+    const three = await budget();
+    expect(three.declaredMinWidth).toBe(
+      `${String(foldedTableMinWidth(threePhases, SEEDED_PLAN))}px`,
+    );
+    expect(three.frameScrollWidth, 'three folded phases must scroll a 1280 laptop').toBeGreaterThan(
+      three.frameClientWidth,
+    );
+    // And the pins hold the edge once it does, which is what they are the
+    // backstop for. Measured at this viewport rather than at `NARROW`, because
+    // the claim is about the state a reader really reaches — and scrolled to
+    // the frame's **own** maximum, which at 1280 with three phases is 67px.
+    // `SCROLLED`'s 150 is a figure from a 900px window and would leave the
+    // frame at 67 with `scrollFrameTo` refusing it, which is that helper doing
+    // exactly its job.
+    const overhang = three.frameScrollWidth - three.frameClientWidth;
+    expect(overhang).toBeGreaterThan(0);
+    await scrollFrameTo(page, overhang);
+    expect(await measuredLefts(page, PINNED_IDS)).toEqual({
+      drag: declaredLeft('drag'),
+      number: declaredLeft('number'),
+      name: declaredLeft('name'),
+    });
+    await scrollFrameTo(page, 0);
+
+    // One, which is the case the regression said no longer fits. It has the
+    // most room of the three.
+    for (const phase of ['Design', 'QA']) {
+      await page.getByRole('button', { name: 'Phases', exact: true }).click();
+      await expect(page.getByRole('dialog')).toBeVisible();
+      // No estimate stands on either of these two — `seedPlan` estimates Dev
+      // alone — so each removal is one press with no cascade to confirm.
+      await page.getByRole('button', { name: `Remove ${phase}` }).click();
+      await expect(page.getByRole('button', { name: `Remove ${phase}` })).toHaveCount(0);
+      await page.keyboard.press('Escape');
+      await expect(page.getByRole('dialog')).toHaveCount(0);
+    }
+    const onePhase = await roleIdsOnScreen();
+    expect(onePhase).toHaveLength(1);
+    const one = await budget();
+    expect(one.declaredMinWidth).toBe(`${String(foldedTableMinWidth(onePhase, SEEDED_PLAN))}px`);
+    expect(
+      one.frameScrollWidth,
+      'one folded phase fits a 1280 laptop with room to spare',
+    ).toBeLessThanOrEqual(one.frameClientWidth);
+
+    // The boundary itself, stated as the relation rather than as three
+    // literals: each phase costs one folded column, the floors go up in that
+    // step, and the frame is between the second and the third.
+    const floors = [onePhase, twoPhases, threePhases].map((ids) =>
+      foldedTableMinWidth(ids, SEEDED_PLAN),
+    );
+    expect(floors[1] - floors[0]).toBe(floors[2] - floors[1]);
+    expect(floors[1]).toBeLessThanOrEqual(one.frameClientWidth);
+    expect(floors[2]).toBeGreaterThan(one.frameClientWidth);
   });
 
   test('fits every laptop width with the roles folded', async ({ page }) => {
