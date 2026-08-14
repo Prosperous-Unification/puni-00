@@ -47,9 +47,9 @@ CREATE INDEX `work_item_team_by_team` ON `work_item_team` (`team_id`);
 -- named. There is nothing here to reach: the set a row carries is exactly the
 -- label it carries, and a row with no label carries no set.
 --
--- Proof: this statement struck (the file cut at the second
--- `--> statement-breakpoint`, so the rest stays valid SQL), and `carries every
--- label into the join, and nothing else` failed on
+-- Proof: this statement struck — the file cut at the second statement
+-- separator, so what is left stays valid SQL — and `carries every label into
+-- the join, and nothing else` failed on
 -- `expect(received).toEqual(expected)` with `+ []` where
 -- `{ work_item_id: 'w1', team_id: 't-backend' }` was owed — the empty join
 -- above — 16 pass / 1 fail. Watched 2026-08-14.
