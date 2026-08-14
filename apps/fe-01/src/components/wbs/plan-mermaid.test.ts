@@ -1,12 +1,18 @@
 import { DEFAULT_PRIORITY_BANDS } from '@wbs/domain/priority-band';
 import { describe, expect, it } from 'vitest';
 
-import type { ExportRow, ExportSlice, PlanExport } from './plan-export';
+import {
+  type ExportRow,
+  type ExportSlice,
+  markdownTableLines,
+  type PlanExport,
+} from './plan-export';
 import {
   NO_SCHEDULE_TO_DRAW,
   NOT_ON_A_CALENDAR,
   NOTHING_PLACED,
   planToMermaid,
+  planToMermaidDocument,
 } from './plan-mermaid';
 
 const DEV = { id: 'role-dev', name: 'Dev' };
@@ -421,5 +427,76 @@ describe('what M1 deliberately does not print', () => {
 
   it('writes the same bytes twice for the same plan', () => {
     expect(drawn(plan())).toEqual(drawn(plan()));
+  });
+});
+
+describe('planToMermaidDocument — the bundled document (M2)', () => {
+  /** The document, or the failure of a test that expected one. */
+  function bundled(document: PlanExport): string {
+    const result = planToMermaidDocument(document);
+    if (!result.drawn) throw new Error(`expected a document, got a refusal: ${result.refusal}`);
+    return result.text;
+  }
+
+  it('bundles the header, the fence and the table, in that order', () => {
+    const text = bundled(plan());
+    const headerAt = text.indexOf('**Project:**');
+    const fenceOpenAt = text.indexOf('```mermaid');
+    const ganttAt = text.indexOf('\ngantt\n');
+    const fenceCloseAt = text.indexOf('```\n', fenceOpenAt + 1);
+    const tableAt = text.indexOf('| Number |');
+    expect(headerAt).toBeGreaterThanOrEqual(0);
+    expect(fenceOpenAt).toBeGreaterThan(headerAt);
+    expect(ganttAt).toBeGreaterThan(fenceOpenAt);
+    expect(fenceCloseAt).toBeGreaterThan(ganttAt);
+    expect(tableAt).toBeGreaterThan(fenceCloseAt);
+  });
+
+  it('says in its header that the document is the whole plan, not what is on screen', () => {
+    // Q6 of the R7 brief: the chart draws `shownRows`, this document draws
+    // every row, and the divergence has to be a sentence or the first bug
+    // report is "the export added rows".
+    expect(bundled(plan())).toContain('**Scope:** the whole plan, not what is on screen');
+  });
+
+  it('embeds the same table planToMarkdown writes for the same plan', () => {
+    const document = plan();
+    expect(bundled(document)).toContain(markdownTableLines(document).join('\n'));
+  });
+
+  it('refuses exactly where the diagram refuses, and says the same sentence', () => {
+    expect(planToMermaidDocument(plan({ startDate: null }))).toEqual({
+      drawn: false,
+      refusal: NOT_ON_A_CALENDAR,
+    });
+    expect(planToMermaidDocument(plan({ scheduleError: 'cycle' }))).toEqual({
+      drawn: false,
+      refusal: NO_SCHEDULE_TO_DRAW,
+    });
+    expect(planToMermaidDocument(plan({ slices: [] }))).toEqual({
+      drawn: false,
+      refusal: NOTHING_PLACED,
+    });
+  });
+
+  it('puts no document in a refusal, so a download cannot save one', () => {
+    const result = planToMermaidDocument(plan({ startDate: null }));
+    expect(result.drawn).toBe(false);
+    expect('text' in result).toBe(false);
+  });
+
+  it('widens the fence past a backtick run in a task name, so the name cannot close it early', () => {
+    // Proof: at a fixed ``` fence, a name carrying ```evil``` would close the
+    // code block right after that task's line, and the rest of the diagram
+    // plus the whole table would fall outside the fence as ordinary prose
+    // instead of inside it.
+    const text = bundled(
+      plan({ rows: [row({ id: 'a', number: '010', name: 'Strip ```evil``` cables' })] }),
+    );
+    const fenceLines = text.split('\n').filter((line) => /^`{3,}(mermaid)?$/.test(line));
+    expect(fenceLines).toEqual(['````mermaid', '````']);
+    const [open, close] = fenceLines;
+    const closeAt = text.indexOf(close, text.indexOf(open) + open.length);
+    expect(text.indexOf('| Number |')).toBeGreaterThan(closeAt);
   });
 });
