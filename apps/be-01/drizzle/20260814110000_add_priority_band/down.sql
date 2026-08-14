@@ -1,4 +1,4 @@
--- Reverses 20260814100000_add_priority_band.
+-- Reverses 20260814110000_add_priority_band.
 --
 -- Dropping this loses every band a project renamed, re-cut or re-defaulted, and
 -- it cannot be recomputed: the release that comes back reads priorities as bare
