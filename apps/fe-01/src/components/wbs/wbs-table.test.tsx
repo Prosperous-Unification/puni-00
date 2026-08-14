@@ -2502,7 +2502,6 @@ describe('the In-parallel cell', () => {
       // see it, and a `3` sits there doing nothing while looking editable.
       const api = await twoRows();
       const [row] = api.rows;
-      if (row === undefined) throw new Error('the plan has no row');
       const trio = { optimistic: 1, realistic: 2, pessimistic: 3 };
       row.estimates = { [DEV.id]: trio, [QA.id]: trio };
 
