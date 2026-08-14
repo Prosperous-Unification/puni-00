@@ -99,7 +99,10 @@ Two claims, and either one alone reads like the whole thing:
   unlabelled item, and `project_team_capacity` and `person_team` row-for-row
   untouched. The last two are one-line assertions and they are the cheapest
   proof that capacity stayed teams-only.
-- **Claim B** (`service/team-sets-identity.test.ts`): the committed oracle
+- **Claim B** (`service/capacity-migration-identity.test.ts`, which is C5's
+  Claim B file and now carries this change's too — one oracle captured before
+  both, and a copied replay harness would be the thing that drifts): the
+  committed oracle
   `fixtures/capacity-oracle-2026-08-13.json` — 16 plans, 151 rows, all six
   binding floors, 25 capacity-floored slices, captured at `050fd45` before
   either C5 or this branch existed — replayed through this branch's service,
