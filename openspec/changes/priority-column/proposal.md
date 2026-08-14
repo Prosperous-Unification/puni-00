@@ -21,7 +21,7 @@ more important; blank means none.
 **It reorders the resource-leveling queue.** `goesFirst` compares priority
 first — ascending, unset as `+Infinity` — then the rule it has today
 (critical-path start, least float, row number, role order). Where two slices
-compete for one person, the smaller number is placed first and starts earlier.
+compete for one person, the smaller number is placed first.
 
 **It never defies a constraint.** Priority decides who goes first when the
 schedule has a choice, not who defies their dependencies. A priority-1 work item

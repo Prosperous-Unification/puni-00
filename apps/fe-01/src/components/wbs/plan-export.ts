@@ -63,13 +63,21 @@ export interface ExportRow {
 }
 
 /**
- * One placed slice, as far as the export is concerned: whose row, how wide it
- * ran and how much work it was.
+ * One placed slice, as far as the export is concerned: whose row, and how wide
+ * be-01 actually ran it.
  *
- * The compression lives here and not on the row: a row's `duration` is what
- * be-01 placed it across, and it is `effort / width`. Without these three the
- * CSV shows a two-day row carrying six days of estimate and says nothing about
- * why.
+ * The compression lives here and not on the row: a row's duration is
+ * `effort / width`, and without {@link ExportSlice.width} the CSV shows a
+ * two-day row carrying six days of estimate and says nothing about why. `width`
+ * is what the `Ran at` column reads, as a set per row.
+ *
+ * **`effort` and `duration` are carried and read by nothing.** C3's own
+ * cross-review recorded it (2026-08-13, P3) against a docstring that claimed
+ * all three did work. They are not lost information — `Total days` is the
+ * effort and `Starts`/`Ends` are the span — so the honest fix was this
+ * paragraph rather than deleting two fields the producer would then stop
+ * filling. Deleting them is a change about the export's shape, and this is a
+ * change about its words: `capacity-docs`, D6.
  */
 export interface ExportSlice {
   workItemId: string;
