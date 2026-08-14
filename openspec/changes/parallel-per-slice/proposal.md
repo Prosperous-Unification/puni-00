@@ -22,7 +22,7 @@ in `db73f54`, call sites and all. Nothing to fix.
 `work-item.service.ts`'s `widthFor` reads a **role's own** assignee (falling
 back to the row's single assumed one only when exactly one role total is
 named) and pins that slice to width 1. The cell's muting leaned on
-`doesEveryPhase` alone, which is `null` the instant a *second* role gets its
+`doesEveryPhase` alone, which is `null` the instant a _second_ role gets its
 own explicit name — so a leaf with two roles on two different people showed
 an editable, un-muted number that did nothing on either slice.
 

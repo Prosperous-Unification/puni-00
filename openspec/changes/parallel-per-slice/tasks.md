@@ -14,15 +14,7 @@ absorbed it.
 
 ## 2. The `∥` cell reads per slice
 
-- [x] 2.1 `wbs-table.tsx`'s `in-parallel` cell: `everySliceNamed` replaces the
-      `doesEveryPhase`-only reading, checking each of `row.estimates`' roles
-      against its own assignee (falling back to `doesEveryPhase` only where
-      there are no estimated roles to check, matching be-01's `order.length
-      === 0`). Test: `says a number is not applied where two different people
-      are named on two different roles` — the case the old reading could not
-      see, watched red first (reverting to `doesEveryPhase !== null` alone
-      fails it). The existing one-person test is left standing as the
-      single-role case the fallback still covers.
+- [x] 2.1 `wbs-table.tsx`'s `in-parallel` cell: `everySliceNamed` replaces the `doesEveryPhase`-only reading, checking each of `row.estimates`' roles against its own assignee (falling back to `doesEveryPhase` only where there are no estimated roles to check, matching be-01's empty-`order` case). Test: `says a number is not applied where two different people are named on two different roles` — the case the old reading could not see, watched red first (reverting to `doesEveryPhase !== null` alone fails it). The existing one-person test is left standing as the single-role case the fallback still covers.
 
 ## 3. The page
 

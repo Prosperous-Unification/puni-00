@@ -67,10 +67,10 @@ table's `∥` cell now reads this per **slice**, the same way be-01 does: it
 mutes wherever every one of a leaf's estimated roles has its own name, whether
 that is one person assumed to cover the lot or several people each named on
 their own role. It used to lean on the row-level "one assumed assignee" fact
-alone, which went `null` — and the cell un-muted — the moment a *second* role
+alone, which went `null` — and the cell un-muted — the moment a _second_ role
 got its own explicit name, even though that role's slice had also collapsed to
-1. The chart already got this right per bar; the cards still read per row and
-are recorded as open, C3's P3 not yet taken.
+width `1`. The chart already got this right per bar; the cards still read per
+row and are recorded as open, C3's P3 not yet taken.
 
 Naming a person does **not** exempt the work from the pool. The slot is keyed on
 the work item's team, never on the assignee's memberships: a team of four never
