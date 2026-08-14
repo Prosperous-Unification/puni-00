@@ -77,7 +77,7 @@ and is quoted below once it lands, in the same shape as #57's and #58's.
 
 R5: every check here was watched failing with the thing it guards deliberately
 broken. Each row names the fault, the test that saw it, and what the run printed.
-All ten were watched on **2026-08-14** on h2puni.
+All fourteen were watched on **2026-08-14** on h2puni.
 
 | #   | check                                                     | fault injected                                                             | what failed, and how                                                                                                                                                                             |
 | --- | --------------------------------------------------------- | -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
