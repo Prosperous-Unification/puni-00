@@ -10,6 +10,7 @@ import { inMemoryCommandJournal } from '../testing/command-journal-fixture';
 import { inMemoryDependencies } from '../testing/dependency-fixture';
 import { inMemoryDirectory, testDirectoryService } from '../testing/directory-fixture';
 import { inMemoryEstimates } from '../testing/estimate-fixture';
+import { inMemoryPriorityBands, testPriorityBandService } from '../testing/priority-band-fixture';
 import { inMemoryProjects } from '../testing/project-fixture';
 import { testReplay } from '../testing/replay-fixture';
 import { testRoleService } from '../testing/role-fixture';
@@ -24,6 +25,7 @@ function buildWorkItemService(projectStore: ReturnType<typeof inMemoryProjects>)
     dependencies: inMemoryDependencies(),
     directory: inMemoryDirectory(),
     capacity: inMemoryCapacity(),
+    priorityBands: inMemoryPriorityBands(),
     journal: inMemoryCommandJournal(),
     broadcast: recordingBroadcaster(),
   });
@@ -52,6 +54,7 @@ function buildHarness() {
   const app = buildApp({
     directory: testDirectoryService(),
     capacity: testCapacityService(),
+    priorityBands: testPriorityBandService(),
     auth,
     projects,
     workItems: buildWorkItemService(projectStore),

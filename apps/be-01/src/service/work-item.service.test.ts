@@ -13,6 +13,7 @@ import { inMemoryCommandJournal } from '../testing/command-journal-fixture';
 import { inMemoryDependencies } from '../testing/dependency-fixture';
 import { inMemoryDirectory, personAdded } from '../testing/directory-fixture';
 import { inMemoryEstimates } from '../testing/estimate-fixture';
+import { inMemoryPriorityBands } from '../testing/priority-band-fixture';
 import { inMemoryProjects } from '../testing/project-fixture';
 import { inMemorySubtrees } from '../testing/subtree-fixture';
 import { inMemoryWorkItems } from '../testing/work-item-fixture';
@@ -46,6 +47,7 @@ beforeEach(async () => {
   broadcast = recordingBroadcaster();
   capacity = inMemoryCapacity();
   service = new WorkItemService({
+    priorityBands: inMemoryPriorityBands(),
     workItems,
     projects,
     estimates,
@@ -416,6 +418,7 @@ describe('dependencies', () => {
       listByProject: () => Promise.reject(new Error('the dependency table is on fire')),
     };
     const service2 = new WorkItemService({
+      priorityBands: inMemoryPriorityBands(),
       workItems,
       projects,
       estimates: inMemoryEstimates(workItems),
@@ -1661,6 +1664,7 @@ describe('the slices the schedule placed, on the wire', () => {
       dependencies,
       directory,
       capacity: inMemoryCapacity(),
+      priorityBands: inMemoryPriorityBands(),
       subtrees: inMemorySubtrees({ workItems, estimates, dependencies, directory }),
       journal: inMemoryCommandJournal(),
       broadcast,
@@ -1697,10 +1701,13 @@ describe('the slices the schedule placed, on the wire', () => {
     // beside `waitingForPerson` rather than inside it because a queue and a
     // headcount are different sentences. `teamCapacities` is
     // `capacity-per-project`'s, and it rides here rather than on a route of its
-    // own because the dates in this payload were computed from it.
+    // own because the dates in this payload were computed from it. `priorityBands`
+    // is `priority-bands`', and it rides here for a different reason: no date
+    // here came from it, and every face draws every priority through it.
     expect(Object.keys(tree ?? {}).sort()).toEqual([
       'assignedPeople',
       'estimateMethod',
+      'priorityBands',
       'projectRevision',
       'roles',
       'scheduleError',

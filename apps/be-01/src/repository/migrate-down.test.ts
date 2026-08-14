@@ -42,9 +42,21 @@ const MAX_PARALLEL = '20260812100001_add_max_parallel';
 // were seeded from `service_team.size`, so it has to reverse before the migration
 // that adds that column.
 const PER_PROJECT_CAPACITY = '20260813120000_add_project_team_capacity';
-// The newest, and a table of its own again: `work_item_team` references
+// Newest but one now, and a table of its own: `work_item_team` references
 // `work_item` and `service_team`, so it reverses ahead of both.
 const WORK_ITEM_TEAM = '20260814100000_add_work_item_team';
+// The newest, and a table of its own again. It references `project` alone and is
+// seeded from a constant rather than from any column, so unlike the capacity
+// table above it has no ordering constraint of its own — its place at the head
+// of the reversal is only that it was applied last.
+//
+// **`110000` and not the `100000` this branch was written with**, which was the
+// same stamp `WORK_ITEM_TEAM` carries on main. Two folders sharing one stamp
+// share one `created_at`, and `migrationsToRollback` filters on
+// `created_at > baseline.created_at` — strictly — so rolling back *to* the
+// priority-band migration would have reversed nothing, silently leaving
+// `work_item_team` applied. Renumbered on the rebase; see verify.md.
+const PRIORITY_BANDS = '20260814110000_add_priority_band';
 
 function tempDb(): { path: string; cleanup: () => void } {
   const dir = mkdtempSync(join(tmpdir(), 'wbs-migrate-down-'));
@@ -131,6 +143,7 @@ describe('readMigrationFolders', () => {
       MAX_PARALLEL,
       PER_PROJECT_CAPACITY,
       WORK_ITEM_TEAM,
+      PRIORITY_BANDS,
     ]);
     for (const f of folders) expect(f.downSql.trim()).not.toBe('');
   });
@@ -171,11 +184,13 @@ describe('rollbackTo, against a real database', () => {
         MAX_PARALLEL,
         PER_PROJECT_CAPACITY,
         WORK_ITEM_TEAM,
+        PRIORITY_BANDS,
       ]);
 
       const reversed = rollbackTo(db.path, FOLDER, INIT);
 
       expect(reversed).toEqual([
+        PRIORITY_BANDS,
         WORK_ITEM_TEAM,
         PER_PROJECT_CAPACITY,
         MAX_PARALLEL,
@@ -230,6 +245,7 @@ describe('rollbackTo, against a real database', () => {
         MAX_PARALLEL,
         PER_PROJECT_CAPACITY,
         WORK_ITEM_TEAM,
+        PRIORITY_BANDS,
       ]);
     } finally {
       db.cleanup();
@@ -243,6 +259,7 @@ describe('rollbackTo, against a real database', () => {
       const reversed = rollbackTo(db.path, FOLDER, ROLLBACK_ALL);
 
       expect(reversed).toEqual([
+        PRIORITY_BANDS,
         WORK_ITEM_TEAM,
         PER_PROJECT_CAPACITY,
         MAX_PARALLEL,
@@ -282,7 +299,7 @@ describe('rollbackTo, against a real database', () => {
     const db = tempDb();
     try {
       runMigrations(db.path, FOLDER);
-      expect(rollbackTo(db.path, FOLDER, WORK_ITEM_TEAM)).toEqual([]);
+      expect(rollbackTo(db.path, FOLDER, PRIORITY_BANDS)).toEqual([]);
       expect(tables(db.path)).toContain('users');
     } finally {
       db.cleanup();

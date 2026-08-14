@@ -1,3 +1,4 @@
+import { DEFAULT_PRIORITY_BANDS } from '@wbs/domain/priority-band';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -111,6 +112,7 @@ const plan = (over: Partial<PlanExport> = {}): PlanExport => ({
   scheduleError: null,
   roles: [DEV, QA],
   teams: [{ id: 'team-billing', name: 'Billing, Ltd' }],
+  priorityBands: DEFAULT_PRIORITY_BANDS,
   people: [
     { id: 'person-ada', name: 'ada' },
     { id: 'person-bo', name: 'Bo "Boss"' },
@@ -272,6 +274,7 @@ describe('the columns', () => {
       'Total days (PERT)',
       'Depends on',
       'Priority',
+      'Priority band',
       'Not before',
       'Starts',
       'Ends',
@@ -281,6 +284,50 @@ describe('the columns', () => {
     expect(csvColumns(planToCsv(plan({ method: 'optimistic' })))).toContain(
       'Dev final (optimistic)',
     );
+  });
+
+  it('names the band beside the number, from the plan’s own ladder', () => {
+    // The name **beside** the number and not instead of it: the number is what the
+    // plan sorts by, the name is what a reader of the export talks about, and
+    // neither substitutes for the other — two rows at 10 and 18 are both
+    // `Critical` and are not the same priority.
+    //
+    // A spreadsheet outlives the plan it came from, which is why the ladder
+    // travels with the export rather than being inferred: a CSV saying `Critical`
+    // for 10 is still readable the day somebody re-cuts the ladder.
+    //
+    // Proof: `plan.priorityBands` replaced by `DEFAULT_PRIORITY_BANDS` in the
+    // cell, and this failed on `expected 'Critical' to be 'Blocker'` — an export
+    // naming a band the plan it came from does not have. Watched 2026-08-14.
+    const rows = [
+      row({ id: 'a', number: '010', priority: 10 }),
+      row({ id: 'b', number: '020', priority: 90 }),
+      row({ id: 'c', number: '030' }),
+    ];
+    const csv = planToCsv(plan({ rows }));
+    const at = csvColumns(csv).indexOf('Priority band');
+
+    expect(csvDataRow(csv)[at]).toBe('Critical');
+    expect(csvDataRow(csv, 1)[at]).toBe('Lowest');
+    // Blank where the number is, for the reason the Priority column is: unranked
+    // is a state of its own and a spreadsheet reader sorting on it wants an empty
+    // cell.
+    expect(csvDataRow(csv, 2)[at]).toBe('');
+
+    const recut = planToCsv(
+      plan({
+        rows,
+        priorityBands: [
+          { startsAt: 1, label: 'Blocker', defaultValue: 5 },
+          { startsAt: 16, label: 'Urgent', defaultValue: 20 },
+          { startsAt: 31, label: 'Normal', defaultValue: 40 },
+          { startsAt: 71, label: 'Someday', defaultValue: 75 },
+          { startsAt: 200, label: 'Never', defaultValue: 900 },
+        ],
+      }),
+    );
+    expect(csvDataRow(recut)[at]).toBe('Blocker');
+    expect(csvDataRow(recut, 1)[at]).toBe('Someday');
   });
 
   it('writes a priority as the number somebody typed, and an unranked row blank', () => {

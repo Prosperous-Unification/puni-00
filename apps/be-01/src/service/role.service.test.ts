@@ -19,6 +19,7 @@ import { SubtreeRepository, WorkItemRepository } from '../repository/work-item';
 import { type RecordingBroadcaster, recordingBroadcaster } from '../testing/broadcast-fixture';
 import { inMemoryCapacity } from '../testing/capacity-fixture';
 import { personAdded } from '../testing/directory-fixture';
+import { inMemoryPriorityBands } from '../testing/priority-band-fixture';
 import type { Broadcaster } from './broadcast';
 import { EventSequencer } from './event-sequencer';
 import { GatewayBroadcaster } from './gateway-broadcaster';
@@ -371,6 +372,7 @@ describe('a role removed between the check and the write', () => {
       estimates: vanishing,
       directory: vanishingToo,
       capacity: inMemoryCapacity(),
+      priorityBands: inMemoryPriorityBands(),
       dependencies: new DependencyRepository(db),
       subtrees: new SubtreeRepository(db),
       journal: new CommandJournalRepository(db),
@@ -409,6 +411,7 @@ describe('a role removed between the check and the write', () => {
       estimates,
       directory,
       capacity: inMemoryCapacity(),
+      priorityBands: inMemoryPriorityBands(),
       dependencies: new DependencyRepository(db),
       subtrees: new SubtreeRepository(db),
       journal: new CommandJournalRepository(db),

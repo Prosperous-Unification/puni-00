@@ -18,6 +18,7 @@ import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { inMemoryCapacity } from '../testing/capacity-fixture';
 import { inMemoryCommandJournal } from '../testing/command-journal-fixture';
 import { personAdded } from '../testing/directory-fixture';
+import { inMemoryPriorityBands } from '../testing/priority-band-fixture';
 import { ProjectService } from './project.service';
 import { RoleService } from './role.service';
 import { WorkItemService } from './work-item.service';
@@ -92,6 +93,7 @@ beforeEach(async () => {
     estimates: estimateStore,
     directory,
     capacity: inMemoryCapacity(),
+    priorityBands: inMemoryPriorityBands(),
     dependencies,
     subtrees: new SubtreeRepository(db),
     journal: inMemoryCommandJournal(),
