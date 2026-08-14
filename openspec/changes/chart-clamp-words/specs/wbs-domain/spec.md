@@ -2,9 +2,9 @@
 
 ### Requirement: A bar says when the team's size took its parallelism down
 
-Where a work item asked for more people than its team's capacity allows, the
-chart SHALL say so on the bar, naming both numbers: how many may be at work at
-once, and the parallelism that did not apply.
+A chart SHALL say, on the bar, where a work item asked for more people than its
+team's capacity allows — naming both numbers: how many may be at work at once,
+and the parallelism that did not apply.
 
 It SHALL say it wherever the two differ, including where the width came down to
 one. A width of 1 draws no compressed line — there is nothing to compress — so
