@@ -7,7 +7,7 @@ import {
   type RowData,
   useReactTable,
 } from '@tanstack/react-table';
-import { effectiveTeamOf } from '@wbs/domain/effective-team';
+import { effectiveTeamsOf } from '@wbs/domain/effective-team';
 import { workdaysBetween } from '@wbs/domain/workday';
 import {
   type CSSProperties,
@@ -2429,7 +2429,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    * Which team's work each row is, the leaf's own label or the nearest
    * ancestor's — `libs/domain`'s reading, not a second copy of it.
    *
-   * The rule be-01's scheduler pools on: a leaf with no label of its own draws
+   * The rule be-01's scheduler pools on: a leaf whose own set is empty draws
    * its slots from the team an ancestor named, so a bar can be held by a pool
    * the row it sits on never mentions. Five surfaces read this one function —
    * the scheduler's adapter, this table's Team cell, the chart, the cards and
@@ -2440,7 +2440,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    * Over `flat` and not `shownRows`: an ancestor a search or a collapse has
    * taken off screen still labels the work under it.
    */
-  const effectiveTeams = effectiveTeamOf(flat);
+  const effectiveTeams = effectiveTeamsOf(flat);
 
   /**
    * A row's team as a cell or a bar can state it: its own label, or the one it
@@ -2452,10 +2452,15 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    * number" has no answer anywhere in the tool.
    */
   const effectiveTeamLabelOf = (row: TreeRow): ServiceTeamLabel => {
-    if (row.serviceTeamId !== null) return teamLabelOf(row.serviceTeamId);
+    // The row's own set first, and `at(0)` because a set of more than one is
+    // unwritable until R2-4 — R2-3 is the change that gives every member a
+    // chip. Empty is *unstated* and inherits, which is the whole of the rule
+    // this cell shares with the scheduler.
+    const own = row.teamIds.at(0);
+    if (own !== undefined) return teamLabelOf(own);
     const inherited = effectiveTeams.get(row.id);
     if (inherited === undefined) return { state: 'none' };
-    const named = teams.find((team) => team.id === inherited.teamId);
+    const named = teams.find((team) => team.id === inherited.teamIds.at(0));
     if (named === undefined) return { state: 'unresolved' };
     return {
       state: 'inherited',
@@ -4102,10 +4107,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
   const createPersonFor = useCallback(
     (row: TreeRow, roleId: string, name: string) => {
       void run(async () => {
-        const person = await api.addPerson(
-          name,
-          row.serviceTeamId === null ? [] : [row.serviceTeamId],
-        );
+        const person = await api.addPerson(name, row.teamIds);
         await api.assign(row.id, roleId, person.id);
       });
     },
@@ -5602,7 +5604,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                   : undefined
               }
               entries={live.current.teams}
-              value={row.original.serviceTeamId}
+              value={row.original.teamIds.at(0) ?? null}
               onChoose={(id) => {
                 live.current.setTeamOf(row.original.id, id);
               }}
@@ -6919,11 +6921,12 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         teams={teamsOnThePlan(
           teams,
           teamCapacities,
-          // Every row's **effective** team, so a team only an ancestor carries is
-          // offered a box: its pool is what the leaves below it spend. The same
-          // reading the cell, the cards, the export and the bars use — one
-          // `effectiveTeamOf` per render and never a second copy.
-          flat.map((row) => effectiveTeams.get(row.id)?.teamId ?? null),
+          // Every row's **effective** teams, so a team only an ancestor carries
+          // is offered a box: its pool is what the leaves below it spend. The
+          // same reading the cell, the cards, the export and the bars use — one
+          // `effectiveTeamsOf` per render and never a second copy. Flattened,
+          // because a row on two teams puts a box beside each of them.
+          flat.flatMap((row) => effectiveTeams.get(row.id)?.teamIds ?? []),
         )}
         setCapacity={(teamId, size) => api.setTeamCapacity(projectId, teamId, size)}
         onChanged={refreshOrMarkStale}

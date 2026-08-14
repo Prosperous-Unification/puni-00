@@ -36,6 +36,20 @@ export function inMemoryWorkItems(
   teams?: Pick<DirectoryStore, 'listTeams'>,
 ): WorkItemStore {
   const byId = new Map<string, WorkItem>();
+  /**
+   * The teams each work item is joined to, held apart from the row exactly as
+   * `work_item_team` is held apart from `work_item`.
+   *
+   * Derived on write from the label being written rather than on read from the
+   * label stored, and the difference is the whole point: a fixture that
+   * answered `[serviceTeamId]` on read could never see a write path that
+   * forgets the join, which is the fault the real repository's tests inject.
+   */
+  const teamsOf = new Map<string, readonly string[]>();
+
+  /** The join rows one write owes, as `WorkItemRepository` derives them. */
+  const joinFor = (row: WorkItem): readonly string[] =>
+    row.serviceTeamId === null ? [] : [row.serviceTeamId];
 
   function reposition(updates: readonly Repositioned[]): void {
     for (const update of updates) {
@@ -47,7 +61,11 @@ export function inMemoryWorkItems(
 
   return {
     listByProject(projectId) {
-      return Promise.resolve([...byId.values()].filter((w) => w.projectId === projectId));
+      return Promise.resolve(
+        [...byId.values()]
+          .filter((w) => w.projectId === projectId)
+          .map((row) => ({ ...row, teamIds: teamsOf.get(row.id) ?? [] })),
+      );
     },
     findById(id) {
       return Promise.resolve(byId.get(id) ?? null);
@@ -55,6 +73,7 @@ export function inMemoryWorkItems(
     insert(workItem, respaced) {
       reposition(respaced);
       byId.set(workItem.id, workItem);
+      teamsOf.set(workItem.id, joinFor(workItem));
       return Promise.resolve();
     },
     async patch(id, patch) {
@@ -84,6 +103,9 @@ export function inMemoryWorkItems(
           patch.maxParallel === undefined ? existing.maxParallel : (patch.maxParallel ?? 1),
       };
       byId.set(id, updated);
+      // Only where the patch names the label, as the repository's own
+      // transaction does: a rename must leave the join alone.
+      if (patch.serviceTeamId !== undefined) teamsOf.set(id, joinFor(updated));
       return { ok: true, workItem: updated };
     },
     move(id, parentId, position, respaced) {
@@ -111,7 +133,11 @@ export function inMemoryWorkItems(
         if (existing === undefined) throw new Error(`cannot promote unknown ${child.id}`);
         byId.set(child.id, { ...existing, parentId: child.parentId, position: child.position });
       }
-      for (const id of [...ids].reverse()) byId.delete(id);
+      // The join rows go with the row, which is the cascade doing it in SQLite.
+      for (const id of [...ids].reverse()) {
+        byId.delete(id);
+        teamsOf.delete(id);
+      }
       return Promise.resolve();
     },
   };

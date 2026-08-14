@@ -1,4 +1,4 @@
-import { type EffectiveTeam, effectiveTeamOf } from '@wbs/domain/effective-team';
+import { type EffectiveTeams, effectiveTeamsOf } from '@wbs/domain/effective-team';
 
 import type { EstimateMethod } from '@/lib/wbs-api';
 
@@ -26,7 +26,7 @@ export interface ExportRow {
   /**
    * The row above this one, or null at the root.
    *
-   * Carried for one reason: a team label reaches down. `effectiveTeamOf` walks
+   * Carried for one reason: a team label reaches down. `effectiveTeamsOf` walks
    * these to answer which team's people a row's work belongs to, and the export
    * prints both that answer and the label the row itself stores — an export
    * that showed moved dates and not the pool that moved them is the CSV
@@ -38,7 +38,8 @@ export interface ExportRow {
   notes: string;
   /** True when the figures below are sums of the rows beneath rather than typed. */
   rolledUp: boolean;
-  serviceTeamId: string | null;
+  /** The teams this row states, 0..n. Empty inherits; see `effectiveTeamsOf`. */
+  teamIds: readonly string[];
   estimates: Record<string, ExportTrio | undefined>;
   finalDays: Record<string, number | undefined>;
   finalTotal: number;
@@ -288,8 +289,8 @@ interface ExportColumn {
  * collapsed parent holds and would then print `` where a pool is what moved
  * the dates.
  */
-function teamsInForce(plan: PlanExport): ReadonlyMap<string, EffectiveTeam> {
-  return effectiveTeamOf(plan.rows);
+function teamsInForce(plan: PlanExport): ReadonlyMap<string, EffectiveTeams> {
+  return effectiveTeamsOf(plan.rows);
 }
 
 /**
@@ -303,10 +304,13 @@ function teamsInForce(plan: PlanExport): ReadonlyMap<string, EffectiveTeam> {
  * reference in this document names one — the number, which is also the Depends
  * on column's currency.
  */
-function teamCell(plan: PlanExport, inForce: ReadonlyMap<string, EffectiveTeam>, row: ExportRow) {
+function teamCell(plan: PlanExport, inForce: ReadonlyMap<string, EffectiveTeams>, row: ExportRow) {
   const effective = inForce.get(row.id);
   if (effective === undefined) return '';
-  const name = nameOf(plan.teams, effective.teamId);
+  // `; `-joined, which is the separator R2-3 settles on for the `Teams` column
+  // this one becomes and therefore the one R3's import will match names by. One
+  // member today, so the join changes no cell in any plan that exists.
+  const name = effective.teamIds.map((teamId) => nameOf(plan.teams, teamId)).join('; ');
   if (effective.fromId === row.id) return name;
   const from = plan.rows.find((each) => each.id === effective.fromId);
   return from === undefined

@@ -18,10 +18,11 @@
 -- knows nothing about this table, and its plain `DELETE FROM service_team`
 -- would hit a constraint it cannot see and answer 500 for the length of a swap.
 --
--- Proof: `ON DELETE CASCADE` struck from `team_id`, and `lets the outgoing
--- release keep removing teams against the migrated schema` failed on
--- `SQLiteError: FOREIGN KEY constraint failed` — the 500 above, in the shape it
--- would arrive in. Watched 2026-08-14.
+-- Proof: `ON DELETE CASCADE` struck from both foreign keys, and `lets the
+-- outgoing release keep removing teams against the migrated schema` failed on
+-- `SQLiteError: FOREIGN KEY constraint failed` at its `DELETE FROM
+-- service_team` — the 500 above, in the shape it would arrive in — 16 pass /
+-- 1 fail. Watched 2026-08-14.
 CREATE TABLE `work_item_team` (
 	`work_item_id` text NOT NULL,
 	`team_id` text NOT NULL,
@@ -46,8 +47,11 @@ CREATE INDEX `work_item_team_by_team` ON `work_item_team` (`team_id`);
 -- named. There is nothing here to reach: the set a row carries is exactly the
 -- label it carries, and a row with no label carries no set.
 --
--- Proof: this statement struck, and `carries every label into the join, and
--- nothing else` failed on `expected [] to equal [ { work_item_id: 'w1',
--- team_id: 't-backend' }, ... ]` — the empty join above. Watched 2026-08-14.
+-- Proof: this statement struck (the file cut at the second
+-- `--> statement-breakpoint`, so the rest stays valid SQL), and `carries every
+-- label into the join, and nothing else` failed on
+-- `expect(received).toEqual(expected)` with `+ []` where
+-- `{ work_item_id: 'w1', team_id: 't-backend' }` was owed — the empty join
+-- above — 16 pass / 1 fail. Watched 2026-08-14.
 INSERT INTO `work_item_team` (`work_item_id`, `team_id`)
 SELECT `id`, `service_team_id` FROM `work_item` WHERE `service_team_id` IS NOT NULL;

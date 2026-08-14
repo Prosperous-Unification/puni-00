@@ -215,6 +215,24 @@ export interface WorkItem {
   revision: number;
 }
 
+/**
+ * A work item as every read of a plan gives it: the stored row, plus the teams
+ * it is joined to.
+ *
+ * A second interface rather than a field on {@link WorkItem}, because
+ * {@link WorkItem} is also what a **write** takes — `insert`, the journal's
+ * `restore_subtree` rows and every fixture build one — and `work_item` has no
+ * column for a set. The two shapes are genuinely different facts about the same
+ * thing: what is stored in the row, and what is joined to it.
+ *
+ * `teamIds` is ordered by team id, so two reads of an unchanged plan answer the
+ * same array — `openspec/changes/team-sets/design.md` D6. Empty means the row
+ * states nothing and inherits; see `effectiveTeamsOf` in `libs/domain`.
+ */
+export interface LabelledWorkItem extends WorkItem {
+  teamIds: readonly string[];
+}
+
 export interface WorkItemPatch {
   name?: string;
   notes?: string;
@@ -253,9 +271,17 @@ export interface WorkItemPatch {
  *
  * `unknown_team` is a `serviceTeamId` the directory no longer holds, decided
  * **inside the transaction that performs the update**. It is not a service-level
- * precheck's answer: `work_item.service_team_id` has no foreign key, so a check
- * one statement earlier passes for a team removed in the gap and the update
- * then stores an id nothing holds, for ever, with nothing to report it.
+ * precheck's answer: a check one statement earlier passes for a team removed in
+ * the gap, and the update then fails on the column's own foreign key — a 500 for
+ * a request whose only fault is being out of date. `assignment.person_id`'s
+ * case exactly, and the same shape of answer.
+ *
+ * The column's foreign key is real, and this comment said the opposite until
+ * `team-sets` measured it (2026-08-14): `work_item.service_team_id` was added
+ * by `ALTER TABLE … ADD … REFERENCES service_team(id)` with no `ON DELETE`
+ * action, so SQLite refuses both an unknown id and the delete of a team any row
+ * still names. What has no cascade is the *delete* — which is why
+ * {@link DirectoryStore.removeTeam} nulls the labels itself.
  */
 export type WorkItemPatched =
   | { ok: true; workItem: WorkItem }
@@ -288,7 +314,14 @@ export interface FrozenNumber {
 }
 
 export interface WorkItemStore {
-  listByProject(projectId: string): Promise<WorkItem[]>;
+  /**
+   * Every work item of one project, each carrying the teams it is joined to.
+   *
+   * The join is the read since `team-sets`: `work_item.service_team_id` is
+   * still written beside it and is still what the outgoing release selects, but
+   * nothing here consults it.
+   */
+  listByProject(projectId: string): Promise<LabelledWorkItem[]>;
   findById(id: string): Promise<WorkItem | null>;
   /**
    * Inserts, and respaces the sibling group in the same transaction when the
@@ -478,7 +511,12 @@ export type PersonAdded = { ok: true; person: Person } | { ok: false; reason: 'u
  * roles.
  */
 export interface DirectoryUsageRows {
-  workItems: readonly WorkItem[];
+  /**
+   * Labelled, because the usage is computed through `effectiveTeamsOf` — which
+   * reads the join and never the column — and a row without its set would make
+   * every effect the confirmation names come out empty.
+   */
+  workItems: readonly LabelledWorkItem[];
   projects: readonly { id: string; name: string }[];
   assignments: readonly Assignment[];
   roles: readonly { id: string; name: string }[];
@@ -635,9 +673,10 @@ export interface DirectoryStore {
   removePerson(personId: string, cascade: boolean): Promise<DirectoryRemoved>;
   /**
    * The same for a team, and it **nulls the labels itself**:
-   * `work_item.service_team_id` has no foreign key, so deleting the team row on
-   * its own would leave every labelled work item pointing at an id the
-   * directory no longer holds — a dangle nothing would ever report.
+   * `work_item.service_team_id` carries a foreign key with no `ON DELETE`
+   * action, so deleting the team row while any work item still names it is
+   * refused outright by SQLite. The join rows in `work_item_team` go the other
+   * way and need no statement at all — they cascade.
    */
   removeTeam(teamId: string, cascade: boolean): Promise<DirectoryRemoved>;
   assignmentsOf(workItemIds: readonly string[]): Promise<Assignment[]>;

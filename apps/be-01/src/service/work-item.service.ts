@@ -1,6 +1,6 @@
 import {
   addWorkdays,
-  effectiveTeamOf,
+  effectiveTeamsOf,
   type EstimateMethod,
   finalDays,
   firstWorkdayOf,
@@ -16,6 +16,7 @@ import type {
   DirectoryStore,
   EstimateStore,
   JournalEntry,
+  LabelledWorkItem,
   Person,
   Project,
   ProjectStore,
@@ -100,6 +101,49 @@ const UNSCHEDULED: Scheduled = {
  *   kept, in a slice after the roles the project does hold, rather than dropped
  *   silently or thrown over the whole project's read.
  */
+/**
+ * Which pool one row's slices spend slots in, and how many slots that pool
+ * holds — read off the row's effective **team** set.
+ *
+ * Three rules, and the first two are today's, unchanged by the arity:
+ *
+ * 1. **No team, no pool.** An empty set states nothing, so the slice is
+ *    unconstrained.
+ * 2. **An unsized team labels the work and constrains nothing.** A team this
+ *    project has stated no capacity for is absent from `teamSizes`, and the
+ *    `null` pool that comes back is what keeps the engine's `no size for pool`
+ *    throw a caller-fault assertion rather than ordinary control flow.
+ * 3. **More than one team throws.** The engine takes one pool per slice
+ *    (`Slice.poolId`), so the honest answers are "refuse" and "spend in all of
+ *    them" — and the second is R2-2, the change after this one. Narrowing to
+ *    the first member instead would schedule the work against a pool the plan
+ *    never narrowed to, silently, and is exactly the trap `effectiveTeamsOf`
+ *    was renamed to prevent (design.md D3, D4).
+ *
+ * Rule 3 is an invariant assertion rather than a modelled refusal, of the same
+ * kind as `schedule.ts`'s `no size for pool`: nothing a client can send
+ * produces a second team while the write path writes at most one. R5 — unknown
+ * is not OK — and it is a throw rather than a comment because a throw can be
+ * watched, which is what the negative below does.
+ *
+ * Exported for that test alone; `slicesOf` is its only production caller.
+ *
+ * Proof: TO OBSERVE poolFor
+ */
+export function poolFor(
+  teamIds: readonly string[],
+  teamSizes: ReadonlyMap<string, number>,
+): { poolId: string | null; slots: number | undefined } {
+  if (teamIds.length > 1) {
+    throw new Error(
+      `a work item's effective team set holds ${String(teamIds.length)} teams (${teamIds.join(', ')}), and a slice spends slots in one pool`,
+    );
+  }
+  const teamId = teamIds.at(0) ?? null;
+  const slots = teamId === null ? undefined : teamSizes.get(teamId);
+  return { poolId: slots === undefined ? null : teamId, slots };
+}
+
 function slicesOf(
   rows: readonly WorkItem[],
   estimates: readonly StoredEstimate[],
@@ -117,14 +161,14 @@ function slicesOf(
    */
   assigneesOf: ReadonlyMap<string, Record<string, string>>,
   /**
-   * Each row's effective team — its own label or the nearest ancestor's, from
-   * {@link effectiveTeamOf}.
+   * Each row's effective team set — its own, or the nearest ancestor's, from
+   * {@link effectiveTeamsOf}.
    *
    * Passed in rather than resolved here, because the reading is shared: the
    * table cell, the cards, the Gantt and the export all show the same inherited
    * label, and a second walk here would be the copy that drifts.
    */
-  teamOf: ReadonlyMap<string, { teamId: string }>,
+  teamOf: ReadonlyMap<string, { teamIds: readonly string[] }>,
   /**
    * How many people each **sized** team may have at work at once. A team nobody
    * has sized is simply absent, and its work draws from no pool.
@@ -158,12 +202,7 @@ function slicesOf(
     // while its own assignee was on somebody else's `Dev`; watched 2026-08-09.
     const personFor = (roleId: string | null): string | null =>
       (roleId === null ? undefined : byRole[roleId]) ?? assumedAssignee(byRole);
-    // The pool this row's work draws from: its effective team, but only where
-    // somebody has said how big that team is. An unsized team labels the work
-    // and constrains nothing, which is the state every plan is in today.
-    const teamId = teamOf.get(row.id)?.teamId ?? null;
-    const slots = teamId === null ? undefined : teamSizes.get(teamId);
-    const poolId = slots === undefined ? null : teamId;
+    const { poolId, slots } = poolFor(teamOf.get(row.id)?.teamIds ?? [], teamSizes);
     /**
      * How many slots one of this row's slices holds while it runs.
      *
@@ -299,7 +338,7 @@ function finalsOf(
  * A work item as a reader sees it: the stored row, the number derived for it and
  * its estimates by role — its own if it is a leaf, its descendants' sums if not.
  */
-export interface NumberedWorkItem extends WorkItem {
+export interface NumberedWorkItem extends LabelledWorkItem {
   /**
    * How many times this work item has been written to, including writes to its
    * estimates, assignments and dependencies.
@@ -434,8 +473,11 @@ export type WorkItemRefusal =
   | 'unknown_person'
   /**
    * A team the directory no longer holds, decided inside the write's own
-   * transaction — see {@link WorkItemPatched}. Without it the label is stored
-   * dangling: `work_item.service_team_id` has no foreign key to refuse it.
+   * transaction — see {@link WorkItemPatched}. Without it the same out-of-date
+   * picker reaches `work_item.service_team_id` and answers 500: the column
+   * **does** carry a foreign key, against what the comment here claimed until
+   * `team-sets` measured it (2026-08-14). `unknown_team` is what turns that
+   * constraint failure into a refusal somebody can read.
    */
   | 'unknown_team';
 
@@ -840,9 +882,9 @@ export class WorkItemService {
     // is the key in the **store**. design.md D3.
     const slotsOf = await this.opts.capacity.slotsFor(projectId);
     // One reading of the label, shared with the table, the cards, the Gantt and
-    // the export — a leaf's own team, or the nearest ancestor's. No write ever
-    // copies a label down; see {@link effectiveTeamOf}.
-    const teamOf = effectiveTeamOf(rows);
+    // the export — a leaf's own team set, or the nearest ancestor's. No write
+    // ever copies a set down; see {@link effectiveTeamsOf}.
+    const teamOf = effectiveTeamsOf(rows);
     const slices = slicesOf(
       rows,
       stored,
