@@ -82,10 +82,12 @@ and the last one that changes a line of code. 12:54:37 → 13:04:22Z.
 `tool-bootstrap` and `tool-devsync` refuse it. CI is the gate of record for it,
 and it is green.
 
-**The doc tail above the code head is markdown only, and it is green too.**
-`31803406195` at `a3c090f` — this file's own correction — is `success`, gate and
-pixels, first attempt, and it is the tree this PR merges. `31802343909` at
-`f22fb5f` is the run that carries the code.
+**Every commit above `f22fb5f` is this file and nothing else, and each has its
+own green run, first attempt, gate and pixels both** — the same documentation
+tail this repository's last four changes have. `31803406195` at `a3c090f` and
+`31804208008` at `5d9a1da` are the two written before this line; the run for the
+commit that adds it is the head the PR shows, and it is a markdown-only diff over
+a tree CI has already passed three times.
 
 **Two runs are `cancelled` rather than failed.** 31803359542 at `e19e5ba` was
 cancelled by the concurrency group when `a3c090f` was pushed over it, and
