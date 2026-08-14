@@ -920,10 +920,23 @@ function parallelWords(bar: GanttBar): string | null {
  * The team is not named here. The line above it in {@link barFacts} is
  * {@link teamWords}, which names it — and naming it again would need words for
  * the two nameless label states this sentence has no business owning.
+ *
+ * **Silent on a payload carrying no `maxParallel` at all**, which the type says
+ * cannot happen and one test fake does: `apiWithMovableFloor` in
+ * `wbs-table.test.tsx` builds a work item without the field, and the row built
+ * from it reaches here with `undefined` where a number belongs. Written as this
+ * line found it — `daysNumber(undefined)` threw and the fault boundary replaced
+ * the whole chart in `redraws the open chart when a not-before edit moves the
+ * schedule`. {@link parallelWords} beside it has been quietly silent on the same
+ * payload since C3 (`undefined > 1` is false), and a missing hover line is the
+ * proportionate answer to a missing number where a whole chart is not. The fake
+ * wants `maxParallel: 1` — `wbs-table.tsx` and its test were another agent's
+ * file the day this landed, and the fix is recorded in `verify.md` rather than
+ * taken.
  */
 function clampWords(bar: GanttBar): string | null {
   if (bar.personName !== null) return null;
-  if (bar.width >= bar.maxParallel) return null;
+  if (!Number.isFinite(bar.maxParallel) || bar.width >= bar.maxParallel) return null;
   return `The team may have ${daysNumber(bar.width)} at work at once — ${daysNumber(
     bar.maxParallel,
   )} in parallel not applied`;
