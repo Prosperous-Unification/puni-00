@@ -71,7 +71,7 @@ browser suite is `playwright test` inside
 
 **Run 31802343909, `conclusion: success`, first attempt, no flake.** PR #62,
 head `f22fb5f2cc92b51560a71ad9440f0354ae9cffc9` (`f22fb5f`) — the rebased head,
-and the tree this PR merges. 12:54:37 → 13:04:22Z.
+and the last one that changes a line of code. 12:54:37 → 13:04:22Z.
 
 | job      | conclusion  | what it carried                                                                                                                                                                                                                                                                                |
 | -------- | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -82,10 +82,16 @@ and the tree this PR merges. 12:54:37 → 13:04:22Z.
 `tool-bootstrap` and `tool-devsync` refuse it. CI is the gate of record for it,
 and it is green.
 
-**One earlier run, and it is `cancelled` rather than failed.** 31802279014 at
-`98e5bb8` — this branch's pre-rebase head — was cancelled 64 seconds in by the
-workflow's concurrency group when the rebased head was force-pushed over it.
-Nothing failed in it.
+**The doc tail above the code head is markdown only, and it is green too.**
+`31803406195` at `a3c090f` — this file's own correction — is `success`, gate and
+pixels, first attempt, and it is the tree this PR merges. `31802343909` at
+`f22fb5f` is the run that carries the code.
+
+**Two runs are `cancelled` rather than failed.** 31803359542 at `e19e5ba` was
+cancelled by the concurrency group when `a3c090f` was pushed over it, and
+31802279014 at `98e5bb8` — this branch's pre-rebase head
+— was cancelled 64 seconds in the same way, when the rebased head was
+force-pushed over it. Nothing failed in either.
 
 **Worth recording because it is the base this branch was cut from:** `main`'s own
 run at `203a85b`, **31798654373, `failure`** — `gate` green, `pixels` red with
