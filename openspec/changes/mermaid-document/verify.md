@@ -130,8 +130,13 @@ not a design change — `markdownTableLines(plan)` already exists.
 
 ## CI
 
-Run **31839393261** — see the PR for the live status; both jobs (`gate` and
-`pixels`) are quoted in a comment on PR #68 once the head this document was
-written against finishes, since this file cannot carry the id of the run
-that judges its own tail. Both jobs green at the merged head is the
-condition for merge, and **this branch is not merged.**
+Two runs, both green first attempt: **31839393261** at `5a6fd6f` (the code
+and tests alone), then **31839492715 at `67a5613`** — the head this file's
+own tail commit produces, both jobs (`gate` 4m3s, `pixels` 9m28s). `openspec
+validate --all` (run inside `gate`, and independently on h2puni: **52 passed,
+0 failed**, `mermaid-document` included) is part of that green.
+
+PR #68 reads **MERGEABLE / CLEAN** at `67a5613`, base `main@fbc2263`. Both
+jobs green at the head is the condition for merge, and **this branch is not
+merged** — PoC mode still holds cross-review before merge (`delivery-modes.md`
+open question 2).
