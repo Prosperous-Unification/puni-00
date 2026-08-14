@@ -58,7 +58,8 @@ this file's last edit, and CI's `format:check --all` catches what the local
 run could not have. `format:write --all` applied and re-checked clean; the run
 against the branch's push after that fix is quoted below.
 
-**Run PLACEHOLDER** on head PLACEHOLDER — result to follow.
+**Run 31831841652** on head `2315f62` — **success**, both `gate` and `pixels`.
+This is the PR's current head; the branch is not merged.
 
 ## The lint red, watched
 
