@@ -70,8 +70,14 @@ head `a4112044227a1e0ba2606e77d54fa80fa03f3a32` (`a411204`), 08:36:59 → 08:45:
 and it is green.
 
 The h2puni gate above ran at `a97e706`, one commit behind this run; the only
-difference is `tasks.md` and `design.md` prose. A second CI run covers this file
-and is quoted below once it lands, in the same shape as #57's and #58's.
+difference is `tasks.md` and `design.md` prose.
+
+**Run 31785348703, `conclusion: success`, gate and pixels both**, at
+`87ca8e31e344cd8dd079f1d1dfa0dab6c654d70b` — the head that carries this file, so
+the record and the run it describes are the same tree. Two runs, two greens, no
+flake and no rerun. (A third id, 31785342082, appears in `gh run list` as
+`cancelled` after 13s: two pushes landed inside the concurrency group's window
+and the group cancelled the older one. Nothing failed.)
 
 ## The failure-proof table
 
