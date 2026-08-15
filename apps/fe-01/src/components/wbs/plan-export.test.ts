@@ -4,6 +4,8 @@ import { describe, expect, it } from 'vitest';
 import {
   type ExportRow,
   type ExportSlice,
+  markdownHeaderLines,
+  markdownTableLines,
   type PlanExport,
   planFileName,
   planToCsv,
@@ -769,5 +771,32 @@ describe('planFileName', () => {
 
   it('falls back to a name a file system can hold', () => {
     expect(planFileName(plan({ projectName: '???' }))).toBe('plan-2026-08-07.csv');
+  });
+
+  it('defaults to csv when no extension is asked for, so every existing caller is unchanged', () => {
+    expect(planFileName(plan())).toBe(planFileName(plan(), 'csv'));
+  });
+
+  it('names the bundled Mermaid document md instead, on the same date and slug', () => {
+    expect(planFileName(plan(), 'md')).toBe('rewire-the-shed-2026-08-07.md');
+  });
+});
+
+describe('markdownHeaderLines and markdownTableLines', () => {
+  it('join back into exactly what planToMarkdown writes, with no extra fields', () => {
+    // A guard against the refactor that split the two apart drifting from the
+    // function whose output it used to be: `plan-mermaid.ts` reuses both
+    // pieces separately, and it can only trust them if they still compose to
+    // the same document `planToMarkdown` has always written.
+    const document = plan();
+    expect(
+      [...markdownHeaderLines(document), '', ...markdownTableLines(document), ''].join('\n'),
+    ).toBe(planToMarkdown(document));
+  });
+
+  it('appends extra header fields after the ones planToMarkdown always carries', () => {
+    const lines = markdownHeaderLines(plan(), [{ key: 'Scope', value: 'the whole plan' }]);
+    expect(lines.at(-1)).toBe('**Scope:** the whole plan');
+    expect(lines.slice(0, -1)).toEqual(markdownHeaderLines(plan()));
   });
 });

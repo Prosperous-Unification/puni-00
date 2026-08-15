@@ -1,7 +1,14 @@
 import { addCalendarDays, addWorkdays, type IsoDate } from '@wbs/domain/workday';
 
 import { calendarScale } from './gantt-geometry';
-import type { ExportRow, ExportSlice, NamedEntry, PlanExport } from './plan-export';
+import {
+  type ExportRow,
+  type ExportSlice,
+  markdownHeaderLines,
+  markdownTableLines,
+  type NamedEntry,
+  type PlanExport,
+} from './plan-export';
 
 /**
  * What a caller gets back: a diagram, or a sentence saying why there is none.
@@ -351,4 +358,68 @@ export function planToMermaid(plan: PlanExport): MermaidExport {
     lines.push(taskLine(task));
   }
   return { drawn: true, text: `${lines.join('\n')}\n` };
+}
+
+/**
+ * A fence long enough that nothing inside `body` can end it early.
+ *
+ * A work item's name is free text (`ExportRow.name`), `mermaidPhrase` never
+ * touches a backtick, and there is nothing in the gantt grammar that would —
+ * so a name like `` `oops` `` sitting inside a plain triple-backtick fence
+ * would close it early and spill the rest of the diagram into the document as
+ * ordinary prose. One more backtick than the longest run already in the text
+ * is what keeps the fence unambiguous, the same rule GitHub's own renderer
+ * uses for a fenced block nested in another.
+ */
+function fenceFor(body: string): string {
+  const runs = body.match(/`+/g) ?? [];
+  const longest = runs.reduce((max, run) => Math.max(max, run.length), 0);
+  return '`'.repeat(Math.max(3, longest + 1));
+}
+
+/**
+ * The one line Q6 of the R7 brief asked for: which rows are in this document,
+ * since the chart on screen and this document do not agree. `gantt-panel.tsx`
+ * draws `shownRows` — a collapsed branch or a running search narrows it — and
+ * this document draws `plan.rows`, every row, the export's own doctrine
+ * (`plan-export.ts`, `planForExport` at `wbs-table.tsx`: "so a collapsed
+ * branch and a running search" cannot hand somebody a plan with rows
+ * missing). Without this line the first bug report is "the export added rows".
+ */
+const SCOPE_FIELD = {
+  key: 'Scope',
+  value:
+    'the whole plan, not what is on screen — every row and slice, including any a collapsed branch or a running search had hidden. The chart above may draw fewer.',
+};
+
+/**
+ * The bundled document: the header block, the Mermaid fence, then the table
+ * `planToMarkdown` already writes — the diagram with its own footnotes. The
+ * fence draws no dependency arrows, no capacity or hand-off waits, no slack
+ * and no priority; the table under it is where every one of those already
+ * lives, so the bundle is what makes the picture's losses honest rather than
+ * merely admitted.
+ *
+ * Refuses exactly where {@link planToMermaid} refuses, and for the same
+ * reason: a document is the fence plus the table beneath it, and there is
+ * nothing to bundle around a sentence. The caller — a **Download as Markdown
+ * document** action, not wired in this change (see `verify.md`) — shows the
+ * same refusal a **Copy as Mermaid** click already does.
+ */
+export function planToMermaidDocument(plan: PlanExport): MermaidExport {
+  const diagram = planToMermaid(plan);
+  if (!diagram.drawn) return diagram;
+  const body = diagram.text.replace(/\n$/, '');
+  const fence = fenceFor(body);
+  const lines = [
+    ...markdownHeaderLines(plan, [SCOPE_FIELD]),
+    '',
+    `${fence}mermaid`,
+    body,
+    fence,
+    '',
+    ...markdownTableLines(plan),
+    '',
+  ];
+  return { drawn: true, text: lines.join('\n') };
 }

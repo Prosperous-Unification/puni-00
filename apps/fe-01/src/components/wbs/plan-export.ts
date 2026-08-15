@@ -477,6 +477,38 @@ function columnsOf(plan: PlanExport, markSums: boolean): ExportColumn[] {
 }
 
 /**
+ * The header block Markdown carries, formatted as the bold `**key:** value`
+ * lines both `planToMarkdown` and the bundled Mermaid document (`plan-mermaid.ts`)
+ * open with.
+ *
+ * `extra` is appended after the header this format always carries and before
+ * nothing — a caller with one more fact to state (the bundled document's own
+ * `Scope` line) does not have to know where in the block it belongs.
+ */
+export function markdownHeaderLines(
+  plan: PlanExport,
+  extra: readonly { key: string; value: string }[] = [],
+): string[] {
+  return [
+    ...headerFields(plan),
+    { key: 'Rolled-up rows', value: 'a figure marked (sum) is the total of the rows beneath it' },
+    ...extra,
+  ].map((field) => `**${field.key}:** ${markdownCell(field.value)}`);
+}
+
+/** The table alone, as Markdown: the column headings, the rule, then one row per work item. */
+export function markdownTableLines(plan: PlanExport): string[] {
+  const columns = columnsOf(plan, true);
+  return [
+    `| ${columns.map((each) => markdownCell(each.header)).join(' | ')} |`,
+    `| ${columns.map(() => '---').join(' | ')} |`,
+    ...plan.rows.map(
+      (row) => `| ${columns.map((each) => markdownCell(each.cell(row))).join(' | ')} |`,
+    ),
+  ];
+}
+
+/**
  * The plan as Markdown: a header block, then one flat table.
  *
  * What the header says is the point of it — which method produced the finals,
@@ -485,19 +517,7 @@ function columnsOf(plan: PlanExport, markSums: boolean): ExportColumn[] {
  * document outlives the screen it came off.
  */
 export function planToMarkdown(plan: PlanExport): string {
-  const columns = columnsOf(plan, true);
-  const header = [
-    ...headerFields(plan),
-    { key: 'Rolled-up rows', value: 'a figure marked (sum) is the total of the rows beneath it' },
-  ].map((field) => `**${field.key}:** ${markdownCell(field.value)}`);
-  const table = [
-    `| ${columns.map((each) => markdownCell(each.header)).join(' | ')} |`,
-    `| ${columns.map(() => '---').join(' | ')} |`,
-    ...plan.rows.map(
-      (row) => `| ${columns.map((each) => markdownCell(each.cell(row))).join(' | ')} |`,
-    ),
-  ];
-  return [...header, '', ...table, ''].join('\n');
+  return [...markdownHeaderLines(plan), '', ...markdownTableLines(plan), ''].join('\n');
 }
 
 /**
@@ -527,18 +547,24 @@ export function planToCsv(plan: PlanExport): string {
 const UNNAMEABLE_PROJECT = 'plan';
 
 /**
- * The name the downloaded CSV lands under: the project, slugified, and the day
- * it was taken.
+ * The name the downloaded file lands under: the project, slugified, the day it
+ * was taken, and the extension the caller asked for.
  *
  * The day comes off {@link PlanExport.generatedAt}, which is UTC — two people
  * exporting the same plan an hour either side of midnight in different
  * timezones therefore agree on the filename, and may disagree with their own
  * calendars by a day.
+ *
+ * `extension` defaults to `csv` so every existing caller compiles unchanged;
+ * the bundled Mermaid document (`plan-mermaid.ts`) is the first to pass `md`.
  */
-export function planFileName(plan: Pick<PlanExport, 'projectName' | 'generatedAt'>): string {
+export function planFileName(
+  plan: Pick<PlanExport, 'projectName' | 'generatedAt'>,
+  extension: 'csv' | 'md' = 'csv',
+): string {
   const slug = plan.projectName
     .toLowerCase()
     .replaceAll(/[^a-z0-9]+/g, '-')
     .replaceAll(/^-+|-+$/g, '');
-  return `${slug === '' ? UNNAMEABLE_PROJECT : slug}-${plan.generatedAt.slice(0, 10)}.csv`;
+  return `${slug === '' ? UNNAMEABLE_PROJECT : slug}-${plan.generatedAt.slice(0, 10)}.${extension}`;
 }
