@@ -136,9 +136,14 @@ toolbar's own comment block, which this change extended rather than replaced.
 
 ## CI
 
-PR not yet opened at the time this section is written; the run id and
-conclusion for the head this file is committed against will be added as a PR
-comment per the pattern `mermaid-gantt`/`mermaid-document` both used — a file
+PR **#69**. Run **31875815810** at head `9193ca5`. First attempt: `gate`
+green (4m1s), `pixels` red on `header.spec.ts:440` "a short entry is shown
+whole" — the **sixth** occurrence of this exact flake class on this repo's
+record (LLM_README §R2-2, §#62, §#57, `f8b7d62`), same `ws proxy error: write
+EPIPE`/`ECONNRESET` noise every prior instance carries. Nothing in this diff
+touches the header or the project picker. `gh run rerun --failed` passed both
+jobs (`pixels` 9m42s, `gate` 4m1s). PR reads **MERGEABLE / CLEAN** at this
+head. Quoted on the PR as a comment rather than a further commit, since a file
 cannot carry the id of the run that judges its own tail.
 
 **This branch is not merged** — PoC mode still holds cross-review before
