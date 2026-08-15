@@ -95,6 +95,7 @@ import { PhasesDialog } from './phases-dialog';
 import { type CardAssignee, PlanCards } from './plan-cards';
 import { describeGaps, findEstimateGaps } from './plan-completeness';
 import { type PlanExport, planFileName, planToCsv, planToMarkdown } from './plan-export';
+import { planToMermaid, planToMermaidDocument } from './plan-mermaid';
 import { useRendererForViewport } from './plan-renderer';
 import { linkPlanScroll } from './plan-scroll-link';
 import { PrioritiesDialog } from './priorities-dialog';
@@ -2713,6 +2714,32 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
   }, [planForExport, pushToast]);
 
   /**
+   * Puts the plan's chart on the clipboard as a Mermaid gantt, or says why there
+   * is none. Same three clipboard outcomes as `copyAsMarkdown`, plus a fourth
+   * this one has: a plan a gantt cannot be drawn of at all.
+   */
+  const copyAsMermaid = useCallback(() => {
+    const diagram = planToMermaid(planForExport());
+    if (!diagram.drawn) {
+      pushToast({ kind: 'error', text: diagram.refusal });
+      return;
+    }
+    const clipboard = navigator.clipboard as Clipboard | undefined;
+    if (clipboard === undefined) {
+      pushToast({ kind: 'error', text: NO_CLIPBOARD });
+      return;
+    }
+    void clipboard.writeText(diagram.text).then(
+      () => {
+        pushToast({ kind: 'info', text: 'Copied as Mermaid.' });
+      },
+      () => {
+        pushToast({ kind: 'error', text: CLIPBOARD_REFUSED });
+      },
+    );
+  }, [planForExport, pushToast]);
+
+  /**
    * Downloads the plan as a CSV, without asking be-01 for anything.
    *
    * A blob and an anchor click, which is the only way a page saves a file it
@@ -2736,6 +2763,29 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     anchor.click();
     URL.revokeObjectURL(url);
   }, [planForExport]);
+
+  /**
+   * Downloads the plan as a bundled Markdown document — the Mermaid fence plus
+   * the table beneath it — or says why there is no diagram to bundle. Refuses
+   * exactly where {@link copyAsMermaid} refuses, and for the same reason: a
+   * document is the fence plus the table, and there is nothing to bundle around
+   * a sentence.
+   */
+  const downloadMermaidDocument = useCallback(() => {
+    const plan = planForExport();
+    const bundle = planToMermaidDocument(plan);
+    if (!bundle.drawn) {
+      pushToast({ kind: 'error', text: bundle.refusal });
+      return;
+    }
+    const markdown = new Blob([bundle.text], { type: 'text/markdown;charset=utf-8' });
+    const url = URL.createObjectURL(markdown);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = planFileName(plan, 'md');
+    anchor.click();
+    URL.revokeObjectURL(url);
+  }, [planForExport, pushToast]);
 
   /**
    * The work items between `rowId` and the root, nearest first.
@@ -7152,12 +7202,16 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         ⌨
       </Button>
       {/*
-        Sharing the plan, which is what most of it is written for. Both take
-        the whole plan rather than what is on screen, and neither asks be-01
-        for anything — so neither is disabled by `busy`, and both work while
-        the socket is down or the tree is stale. What they cannot do is say
-        the figures are current; the header's timestamp is what says when
-        they were true.
+        Sharing the plan, which is what most of it is written for. All four
+        take the whole plan rather than what is on screen, and none asks
+        be-01 for anything — so none is disabled by `busy`, and all four
+        work while the socket is down or the tree is stale. What they cannot
+        do is say the figures are current; the header's timestamp is what
+        says when they were true. The two Mermaid buttons add a fourth
+        clipboard/download outcome the CSV and Markdown-table pair do not
+        have: a plan a gantt cannot be drawn of at all (no start date, no
+        schedule, or nothing placed), reported the same way a refused
+        clipboard write already is.
       */}
       <Button
         variant="outline"
@@ -7172,10 +7226,28 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         variant="outline"
         size="sm"
         type="button"
+        title="Copy the chart as a Mermaid gantt, for a Markdown document that draws it"
+        onClick={copyAsMermaid}
+      >
+        Copy as Mermaid
+      </Button>
+      <Button
+        variant="outline"
+        size="sm"
+        type="button"
         title="Download the whole plan as a CSV, with a header saying how to read it"
         onClick={downloadCsv}
       >
         Download CSV
+      </Button>
+      <Button
+        variant="outline"
+        size="sm"
+        type="button"
+        title="Download the chart as a Mermaid gantt bundled with the Markdown table, with a header saying how to read it"
+        onClick={downloadMermaidDocument}
+      >
+        Download as Markdown
       </Button>
       <label className="ml-auto flex items-center gap-1 text-sm">
         Starts
