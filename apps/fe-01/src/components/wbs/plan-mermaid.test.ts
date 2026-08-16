@@ -8,11 +8,13 @@ import {
   type PlanExport,
 } from './plan-export';
 import {
+  DEFAULT_SECTION_MODE,
   NO_SCHEDULE_TO_DRAW,
   NOT_ON_A_CALENDAR,
   NOTHING_PLACED,
   planToMermaid,
   planToMermaidDocument,
+  type SectionMode,
 } from './plan-mermaid';
 
 const DEV = { id: 'role-dev', name: 'Dev' };
@@ -88,15 +90,15 @@ const plan = (over: Partial<PlanExport> = {}): PlanExport => ({
 });
 
 /** The diagram, or the failure of a test that expected one. */
-function drawn(document: PlanExport): string {
-  const result = planToMermaid(document);
+function drawn(document: PlanExport, sectionMode: SectionMode = DEFAULT_SECTION_MODE): string {
+  const result = planToMermaid(document, sectionMode);
   if (!result.drawn) throw new Error(`expected a diagram, got a refusal: ${result.refusal}`);
   return result.text;
 }
 
 /** The lines of the diagram with their indent taken off, which is what assertions read. */
-function lines(document: PlanExport): string[] {
-  return drawn(document)
+function lines(document: PlanExport, sectionMode: SectionMode = DEFAULT_SECTION_MODE): string[] {
+  return drawn(document, sectionMode)
     .split('\n')
     .map((line) => line.trim());
 }
@@ -353,6 +355,98 @@ describe('the sections', () => {
     ];
     const text = lines(plan({ rows, slices: [slice({ id: 's', workItemId: 'a' })] }));
     expect(text).toContain('section 020 Rewire');
+  });
+});
+
+describe('the section choice (M3)', () => {
+  const A = row({ id: 'a', number: '010', name: 'Strip' });
+  const B = row({ id: 'b', number: '020', name: 'Rewire' });
+
+  it('defaults to outline — a caller passing nothing draws exactly what M1 always drew', () => {
+    expect(lines(plan())).toEqual(lines(plan(), 'outline'));
+  });
+
+  it("groups by phase, gathering a role's slices into one section wherever their rows sit, unnamed last", () => {
+    const text = lines(
+      plan({
+        rows: [A, B],
+        slices: [
+          // Deliberately out of row order and out of role order in the payload —
+          // be-01's order is not the diagram's, same discipline as the M1 tests.
+          slice({ id: 's-b-none', workItemId: 'b', roleId: null, earliestStart: 3, earliestFinish: 4 }),
+          slice({ id: 's-b-qa', workItemId: 'b', roleId: QA.id, earliestStart: 4, earliestFinish: 5 }),
+          slice({ id: 's-a-qa', workItemId: 'a', roleId: QA.id, earliestStart: 3, earliestFinish: 4 }),
+          slice({ id: 's-a-dev', workItemId: 'a', roleId: DEV.id }),
+        ],
+      }),
+      'phase',
+    );
+    expect(text.filter((line) => line.startsWith('section'))).toEqual([
+      'section Dev',
+      'section QA',
+      'section no phase',
+    ]);
+    // Inside the shared QA section, row a's slice still sorts ahead of row b's —
+    // the fallback to row order the docstring on `tasksOf` promises.
+    expect(text.filter((line) => line.includes(', 2026-'))).toEqual([
+      '010 Strip - Dev :s1, 2026-09-01, 2026-09-03',
+      '010 Strip - QA :s2, 2026-09-04, 2026-09-04',
+      '020 Rewire - QA :s3, 2026-09-07, 2026-09-07',
+      '020 Rewire - no phase :s4, 2026-09-04, 2026-09-04',
+    ]);
+  });
+
+  it('groups by assignee, in the roster order the app already lists people in, unassigned last', () => {
+    const text = lines(
+      plan({
+        rows: [A, B],
+        slices: [
+          slice({ id: 's-b-none', workItemId: 'b', personId: null, earliestStart: 3, earliestFinish: 4 }),
+          slice({ id: 's-a-bo', workItemId: 'a', personId: 'person-bo' }),
+          slice({ id: 's-b-ada', workItemId: 'b', personId: 'person-ada', earliestStart: 4, earliestFinish: 5 }),
+        ],
+      }),
+      'assignee',
+    );
+    expect(text.filter((line) => line.startsWith('section'))).toEqual([
+      'section Ada',
+      'section Bo',
+      'section unassigned',
+    ]);
+    expect(text.filter((line) => line.includes(', 2026-'))).toEqual([
+      '020 Rewire - Dev (Ada) :s1, 2026-09-07, 2026-09-07',
+      '010 Strip - Dev (Bo) :s2, 2026-09-01, 2026-09-03',
+      '020 Rewire - Dev :s3, 2026-09-04, 2026-09-04',
+    ]);
+  });
+
+  it("escapes a phase's or a person's own name the same way a row's is escaped", () => {
+    const text = lines(
+      plan({
+        roles: [{ id: 'role-x', name: 'QA: final' }],
+        people: [{ id: 'person-x', name: 'Grace: on call' }],
+        slices: [slice({ id: 's', workItemId: 'a', roleId: 'role-x', personId: 'person-x' })],
+      }),
+      'phase',
+    );
+    expect(text).toContain('section QA∶ final');
+    expect(
+      lines(
+        plan({
+          roles: [{ id: 'role-x', name: 'QA' }],
+          people: [{ id: 'person-x', name: 'Grace: on call' }],
+          slices: [slice({ id: 's', workItemId: 'a', roleId: 'role-x', personId: 'person-x' })],
+        }),
+        'assignee',
+      ),
+    ).toContain('section Grace∶ on call');
+  });
+
+  it('passes the choice through to the bundled document (M2), same fence either way', () => {
+    const result = planToMermaidDocument(plan(), 'phase');
+    if (!result.drawn) throw new Error('expected a document');
+    expect(result.text).toContain('section Dev');
+    expect(result.text).not.toContain('section 010 Strip');
   });
 });
 
