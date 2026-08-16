@@ -10,16 +10,16 @@ record**.
 
 ## Wall clock (UTC)
 
-| moment                                                                      | time  |
-| ---------------------------------------------------------------------------- | ----- |
-| branch cut (`git worktree add … origin/main`)                                | ~18:40 |
-| `plan-mermaid.ts`/`plan-mermaid.test.ts` written, proposal/tasks/spec delta drafted | 18:46 (commit `a36f083`) |
-| gate run on h2puni: **format:check flagged two files, not the tests**        | 18:47–18:52 |
-| `prettier --write`, committed                                                | 18:52 (commit `ee3bc40`) |
-| real fences generated (`bun` against the module directly) and watched drawn in mermaid.live, all three modes | 18:52–18:55 |
+| moment                                                                                                                                                                               | time                           |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------ |
+| branch cut (`git worktree add … origin/main`)                                                                                                                                        | ~18:40                         |
+| `plan-mermaid.ts`/`plan-mermaid.test.ts` written, proposal/tasks/spec delta drafted                                                                                                  | 18:46 (commit `a36f083`)       |
+| gate run on h2puni: **format:check flagged two files, not the tests**                                                                                                                | 18:47–18:52                    |
+| `prettier --write`, committed                                                                                                                                                        | 18:52 (commit `ee3bc40`)       |
+| real fences generated (`bun` against the module directly) and watched drawn in mermaid.live, all three modes                                                                         | 18:52–18:55                    |
 | test review found the first two M3 tests could pass on a coincidence (see below); fixtures sharpened to a genuine 3-row interleave, watched red on the fault, watched green restored | 18:55–18:56 (commit `83e4cb7`) |
-| final gate green, format clean                                               | 18:57 |
-| this file written, PR opened                                                 | ~19:05 |
+| final gate green, format clean                                                                                                                                                       | 18:57                          |
+| this file written, PR opened                                                                                                                                                         | ~19:05                         |
 
 **Branch cut to PR open: about 25 minutes.** Split: roughly 6 minutes code and
 tests (the sort/grouping logic and its docstrings), roughly 6 minutes record
@@ -35,11 +35,11 @@ diff rather than by trusting the test names.
 `~/wd/puni/wt-mermaid-lanes` (a worktree of `~/wbs-reds`), bun 1.2.20, `/tmp`
 at 15%.
 
-| run                                   | result                                                       |
-| -------------------------------------- | -------------------------------------------------------------- |
-| affected projects                      | **fe-01** alone                                                |
-| `nx affected -t test lint typecheck`   | **1,397 passed, 53 files**, lint and typecheck clean, ~63s, green |
-| `nx format:check --all`                | clean, exit 0 (after one `prettier --write` round on my own diff) |
+| run                                  | result                                                            |
+| ------------------------------------ | ----------------------------------------------------------------- |
+| affected projects                    | **fe-01** alone                                                   |
+| `nx affected -t test lint typecheck` | **1,397 passed, 53 files**, lint and typecheck clean, ~63s, green |
+| `nx format:check --all`              | clean, exit 0 (after one `prettier --write` round on my own diff) |
 
 be-01, gw-01 and `libs/domain` are not affected and were not run: nothing
 outside `apps/fe-01` and `openspec/` is touched. `openspec` CLI is not
@@ -58,7 +58,7 @@ one file.
 PoC mode keeps injected faults for **new guards**. This change adds exactly
 one piece of real branching logic: `tasksOf`'s sort gaining the section's own
 position as its **primary** key, ahead of row order. Without it, `phase` and
-`assignee` grouping would still *compute* the right label per task, but two
+`assignee` grouping would still _compute_ the right label per task, but two
 rows sharing a role or a person that are not adjacent in the row list would
 draw as two separately-headed `section` bands of the same name — not a
 section at all, just two.
@@ -66,13 +66,13 @@ section at all, just two.
 **First attempt at a test for this was too weak, and the injection caught it,
 not a code review.** The original two-row fixtures happened to keep same-role
 and same-person slices adjacent by coincidence of only having two rows, so
-striking the guard only changed *ordering*, not *contiguity*, and one of the
+striking the guard only changed _ordering_, not _contiguity_, and one of the
 two tests (`groups by phase…`) passed against the faulted code. Rewritten to
 three rows — the shared group's two rows with a different group's row
 between them — so the fault, if reintroduced, cannot hide.
 
-| #   | fault injected                                                                 | observed                                                                                                                                          |
-| --- | -------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| #   | fault injected                                                                                                                      | observed                                                                                                                                                                                                                                                    |
+| --- | ----------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 1   | the three lines computing `sectionOf(...).order` struck from `tasksOf`'s `.sort`, leaving only the M1-era row/role/date/id tiebreak | **2 failed, 38 passed** in `plan-mermaid.test.ts`: both `groups by phase…` and `groups by assignee…` now draw `Dev`/`Ada` as **two separate, non-contiguous sections** — observed section order `[Dev, no phase, QA, Dev]` and `[Ada, unassigned, Bo, Ada]` |
 
 `plan-mermaid.ts` was restored from a copy (`/tmp/plan-mermaid.ts.orig` on
