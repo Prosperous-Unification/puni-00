@@ -25,7 +25,7 @@ second implementation of it.
 - Each card's header gets the same ⋯ button, opening the same three items the
   table offers today: **Duplicate** (always), **Unfreeze** (frozen rows only),
   **Delete** (refused on a frozen row with the table's own sentence, `Frozen —
-  unfreeze this row before deleting it`). No **Freeze** item — the table has
+unfreeze this row before deleting it`). No **Freeze** item — the table has
   none either; freezing is plan-wide, a toolbar action (`api.freeze`), not a
   per-row one, so a card inventing one would be a fourth item the desktop does
   not have.

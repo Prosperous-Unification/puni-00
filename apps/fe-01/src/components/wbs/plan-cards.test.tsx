@@ -1269,27 +1269,21 @@ describe('the ⋯ row-actions menu on a card', () => {
     ]);
   });
 
-  itDom(
-    'adds Unfreeze, and refuses Delete with the table’s own sentence, on a frozen row',
-    () => {
-      renderCards([aTreeRow({ frozenNumber: '010' })], doNothingActions());
-      fireEvent.click(screen.getByRole('button', { name: 'Actions for 010' }));
-      const items = screen.getAllByRole('menuitem');
-      expect(items.map((item) => item.textContent)).toEqual(['Duplicate', 'Unfreeze', 'Delete']);
-      expect(items[2]).toHaveAttribute(
-        'title',
-        'Frozen — unfreeze this row before deleting it',
-      );
-      expect(items[2]).toHaveAttribute('aria-disabled', 'true');
-    },
-  );
+  itDom('adds Unfreeze, and refuses Delete with the table’s own sentence, on a frozen row', () => {
+    renderCards([aTreeRow({ frozenNumber: '010' })], doNothingActions());
+    fireEvent.click(screen.getByRole('button', { name: 'Actions for 010' }));
+    const items = screen.getAllByRole('menuitem');
+    expect(items.map((item) => item.textContent)).toEqual(['Duplicate', 'Unfreeze', 'Delete']);
+    expect(items[2]).toHaveAttribute('title', 'Frozen — unfreeze this row before deleting it');
+    expect(items[2]).toHaveAttribute('aria-disabled', 'true');
+  });
 
   itDom('does not delete a frozen row through the menu — the refusal actually refuses', () => {
     const taken: string[] = [];
-    renderCards(
-      [aTreeRow({ frozenNumber: '010' })],
-      { ...doNothingActions(), remove: () => taken.push('delete') },
-    );
+    renderCards([aTreeRow({ frozenNumber: '010' })], {
+      ...doNothingActions(),
+      remove: () => taken.push('delete'),
+    });
     fireEvent.click(screen.getByRole('button', { name: 'Actions for 010' }));
     fireEvent.click(screen.getByRole('menuitem', { name: 'Delete' }));
     expect(taken).toEqual([]);
