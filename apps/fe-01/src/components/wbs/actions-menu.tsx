@@ -38,6 +38,14 @@ export interface ActionsMenuProps {
    * taken — rather than being removed from a menu somebody is reading.
    */
   busy: boolean;
+  /**
+   * Grows the ⋯ button to a 44px tap target, every other pixel unchanged.
+   *
+   * Optional and off by default, so the table's 40px `actions` column — sized
+   * for a mouse, not a finger — keeps the button it has always had. Cards are
+   * the one caller that turns this on.
+   */
+  touchSized?: boolean;
 }
 
 /**
@@ -112,6 +120,7 @@ export function ActionsMenu({
   onOpen,
   onClose,
   busy,
+  touchSized = false,
 }: ActionsMenuProps): React.JSX.Element {
   // A menu owns the keyboard while it is open — `CONTEXT.md` says so, and this
   // is where that sentence is true. Cmd+Z fired through an open menu and undid
@@ -218,7 +227,20 @@ export function ActionsMenu({
         aria-haspopup="menu"
         aria-expanded={open}
         title="Row actions"
-        style={{ font: 'inherit', lineHeight: 1, padding: '0 4px' }}
+        style={
+          touchSized
+            ? {
+                font: 'inherit',
+                lineHeight: 1,
+                padding: '0 4px',
+                minWidth: 44,
+                minHeight: 44,
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }
+            : { font: 'inherit', lineHeight: 1, padding: '0 4px' }
+        }
         onClick={() => {
           if (open) {
             onClose();

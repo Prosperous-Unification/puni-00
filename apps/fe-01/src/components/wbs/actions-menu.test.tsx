@@ -309,4 +309,33 @@ describe('the row actions menu', () => {
       ),
     ).toThrow(/no item/);
   });
+
+  itDom('grows the ⋯ button to a 44px tap target only when asked to', () => {
+    const { rerender } = render(
+      <ActionsMenu
+        number="020"
+        actions={[]}
+        busy={false}
+        open={false}
+        onOpen={() => undefined}
+        onClose={() => undefined}
+      />,
+    );
+    const button = () => screen.getByRole('button', { name: 'Actions for 020' });
+    expect(button().style.minHeight).toBe('');
+
+    rerender(
+      <ActionsMenu
+        number="020"
+        actions={[]}
+        busy={false}
+        open={false}
+        onOpen={() => undefined}
+        onClose={() => undefined}
+        touchSized
+      />,
+    );
+    expect(button().style.minHeight).toBe('44px');
+    expect(button().style.minWidth).toBe('44px');
+  });
 });
