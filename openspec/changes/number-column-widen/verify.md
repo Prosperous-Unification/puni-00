@@ -100,6 +100,47 @@ per new guard and this run has one gap:
   for the depth-5/6 pair is CI's `wbs-table-screenshot` artifact on the
   `pixels` run, not a session recording.
 
+## CI, and the one thing the local gate could not have caught
+
+The `pixels` job is the gate of record here, and it earned that on the first
+run.
+
+| run               | head      | gate    | pixels                      |
+| ----------------- | --------- | ------- | --------------------------- |
+| [31966615755][r1] | `7be1d5a` | ✅ pass | ❌ **1 failed, 173 passed** |
+| [31967230462][r2] | `a2ea8bd` | ✅ pass | ✅ **174 passed**           |
+
+[r1]: https://github.com/Prosperous-Unification/wbs-tool-v1/actions/runs/31966615755
+[r2]: https://github.com/Prosperous-Unification/wbs-tool-v1/actions/runs/31967230462
+
+**The red was not one of the two new guards — both passed first time.** It was
+`clips a number past the envelope and keeps it whole in the title`, an existing
+test, at `expect(overrun.clipped).toBe(true)`. Its fixture
+`PAST_ENVELOPE_NUMBER = '030.1.1'` was chosen in 2026-08-09 as _the nearest
+number the 93px column could not draw_. At 105px it fits, so nothing clipped and
+the assertion was correct to fail. This is precisely the class of fallout
+`tasks.md` 3.1 set out to sweep — a value derived from the column width — and it
+was missed because it is a **string fixture**, not one of the numeric literals
+the grep for `93`/`1219`/`117`/… was built to find.
+
+`a2ea8bd` retargets it to `030.1.1.1.1.1.1` (depth 7). That depth is provably
+clipped rather than guessed: guard 2 has depth 6 and depth 7 showing the same
+string, and depth 7's number is two characters longer, so depth 7 cannot be
+whole. It is **not** the nearest overrun any more — the true boundary is depth 6
+or 7 and this branch cannot tell which. The weakening is written into the
+constant's JSDoc rather than left for a reader to discover.
+
+**Why the fix was not verified locally before pushing:** h2puni's Playwright
+chromium cannot launch — `libatk-1.0.so.0: cannot open shared object file`. The
+system libs `playwright install --with-deps` would add are missing, and adding
+them is a `sudo apt` on the prod host, which is not a change to make in passing
+for a test run. So `a2ea8bd` was reasoned from CI's own passing guards, then
+confirmed by CI. Lint, typecheck and `prettier --check` on the edited spec were
+run on h2puni and are clean.
+
+**Worth fixing separately: h2puni cannot run e2e at all.** Every e2e claim on
+this box currently has to round-trip through CI at ~9 minutes a cycle.
+
 ## Reversibility
 
 Single constant, one line. Reverting `['number', 105]` to `93` and running
