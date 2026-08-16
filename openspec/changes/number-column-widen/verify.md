@@ -37,30 +37,30 @@ plus every literal across the repo derived from it, +12px each.
 
 Diff against `main`, 10 files, +402 / −94:
 
-| area   | files                                                                                                                                         |
-| ------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| source | `table-frame.ts` (the constant), `wbs-table.tsx`                                                                                              |
+| area   | files                                                                                                                                      |
+| ------ | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| source | `table-frame.ts` (the constant), `wbs-table.tsx`                                                                                           |
 | tests  | `table-frame.test.ts`, `wbs-table.test.tsx`, `phases-dialog.test.tsx`, `e2e/layout.spec.ts` (**the two new guards**), `e2e/phases.spec.ts` |
-| record | `proposal.md`, `tasks.md`, `specs/wbs-domain/spec.md`                                                                                         |
+| record | `proposal.md`, `tasks.md`, `specs/wbs-domain/spec.md`                                                                                      |
 
 ## The gate
 
 `bunx nx affected -t test lint typecheck --base=origin/main` on **h2puni**, in
 `~/wd/puni/wt-number-column-widen` (a worktree of `~/wbs-reds`), at `f3de24e`.
 
-| run                                     | result                                                       |
-| --------------------------------------- | ------------------------------------------------------------ |
-| affected projects                       | **fe-01** alone                                              |
-| `nx affected -t test lint typecheck`    | **1,392 passed, 53 files**, lint and typecheck clean, ~61s   |
-| `nx format:check --all`                 | clean, exit 0                                                |
-| `openspec validate --all` (v1.3.0)      | **54/54 change items pass**, 0 failed                        |
+| run                                  | result                                                     |
+| ------------------------------------ | ---------------------------------------------------------- |
+| affected projects                    | **fe-01** alone                                            |
+| `nx affected -t test lint typecheck` | **1,392 passed, 53 files**, lint and typecheck clean, ~61s |
+| `nx format:check --all`              | clean, exit 0                                              |
+| `openspec validate --all` (v1.3.0)   | **54/54 change items pass**, 0 failed                      |
 
 be-01, gw-01 and `libs/domain` are not affected and were not run — nothing
 outside `apps/fe-01` and `openspec/` is touched.
 
 Nx served all three fe-01 targets from cache on the main session's re-run,
 matching the sub-agent's own earlier run at identical content. The 1,392 figure
-is the *unit* suite; it is unchanged in count because this change adds no unit
+is the _unit_ suite; it is unchanged in count because this change adds no unit
 test — both new tests are e2e, which `nx affected -t test` does not run.
 
 ## The two new guards, and where they actually run
@@ -71,7 +71,7 @@ Both live in `apps/fe-01/e2e/layout.spec.ts` and are Playwright, not vitest:
    `DEEPER_CLIPPED_PAIR` (`030.1.1.1.1` / `030.1.1.1.1.1`). This is the guard
    the change exists to satisfy.
 2. `the break moves to depth 6 and 7, and this change does not claim to have
-   closed it` — `DEEPEST_CLIPPED_PAIR` (`030.1.1.1.1.1` / `030.1.1.1.1.1.1`),
+closed it` — `DEEPEST_CLIPPED_PAIR` (`030.1.1.1.1.1` / `030.1.1.1.1.1.1`),
    asserting the two still **do** read alike. It exists so guard 1 cannot be
    misread as "the clipping is fixed": `deriveNumbers` has no depth bound, so a
    fixed-width column always has a next depth that overruns it. Widening buys
@@ -81,7 +81,7 @@ Neither executes in the local gate. They execute in **CI's `pixels` job**
 (`bun run e2e`, chromium, `layout.spec.ts` among them). CI is therefore the
 gate of record for this change's only new behaviour, which is the PoC-mode
 contract working as intended — but it does mean a green local gate here proves
-the *refit* of the 100-odd derived literals, not the fix itself.
+the _refit_ of the 100-odd derived literals, not the fix itself.
 
 ## What was not watched
 
@@ -91,11 +91,11 @@ per new guard and this run has one gap:
 - **Guard 1 has no separately re-watched red.** `tasks.md` 2.1 reasons the
   negative from `table-width-budget`'s own character-by-character measurement of
   this exact pair at `['number', 93]` (2026-08-14), on the ground that the
-  geometry it measured *is* this pair's geometry. That is a defensible
+  geometry it measured _is_ this pair's geometry. That is a defensible
   inference, not an observation. If it is wrong, guard 1 passes vacuously and
   nothing in this run would have caught it.
 - **Guard 2 is an anti-regression assertion**, not a check with a fault to
-  inject — its failure mode is the codebase becoming *better* than claimed.
+  inject — its failure mode is the codebase becoming _better_ than claimed.
 - No browser was driven from h1claw for this change. The screenshot evidence
   for the depth-5/6 pair is CI's `wbs-table-screenshot` artifact on the
   `pixels` run, not a session recording.
