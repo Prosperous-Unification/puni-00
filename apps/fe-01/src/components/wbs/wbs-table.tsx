@@ -4615,7 +4615,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
       column.display({
         id: 'number',
         // `#`, which is what a column of work item numbers is called on every
-        // spreadsheet a reader of this table has ever used — and 93px of a
+        // spreadsheet a reader of this table has ever used — and 105px of a
         // 1280px laptop is not where the word `Number` earns its eight
         // characters. The accessible name is the word, on the glyph itself:
         // `#` is punctuation a screen reader announces as "number sign" or
