@@ -9933,11 +9933,13 @@ describe('sharing the plan', () => {
     return api;
   };
 
-  itDom('offers both ways of taking the plan out of the tool', async () => {
+  itDom('offers all four ways of taking the plan out of the tool', async () => {
     const api = fakeApi();
     render(<WbsTable projectId="p1" api={api} projectName="Rewire the shed" />);
     expect(await screen.findByRole('button', { name: 'Copy as Markdown' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Copy as Mermaid' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Download CSV' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Download as Markdown' })).toBeInTheDocument();
   });
 
   itDom('copies the whole plan, header first, and says it did', async () => {
@@ -9985,6 +9987,49 @@ describe('sharing the plan', () => {
     expect(screen.getAllByRole('alert')).toHaveLength(1);
   });
 
+  itDom('copies the chart as a Mermaid gantt, and says it did', async () => {
+    const copied: string[] = [];
+    stubClipboard((text) => {
+      copied.push(text);
+      return Promise.resolve();
+    });
+    await onePlannedRow();
+    typeIntoDate('Project start date', '2026-08-03');
+    await waitFor(() => {
+      expect(screen.getByLabelText<HTMLInputElement>('Earliest start for 010').disabled).toBe(
+        false,
+      );
+    });
+
+    click('Copy as Mermaid');
+
+    await waitFor(() => {
+      expect(toastTexts()).toEqual(['Copied as Mermaid.']);
+    });
+    const [diagram] = copied;
+    expect(diagram).toContain('gantt');
+    expect(diagram).toContain('dateFormat');
+    // An info toast, so no alert role: nothing was refused.
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  itDom('says so when there is no diagram to draw, and copies nothing', async () => {
+    const copied: string[] = [];
+    stubClipboard((text) => {
+      copied.push(text);
+      return Promise.resolve();
+    });
+    await onePlannedRow();
+
+    click('Copy as Mermaid');
+
+    await waitFor(() => {
+      expect(toastTexts()).toEqual([expect.stringContaining('not on a calendar')]);
+    });
+    expect(copied).toHaveLength(0);
+    expect(screen.getAllByRole('alert')).toHaveLength(1);
+  });
+
   itDom('downloads a CSV named after the project and the day, and lets the URL go', async () => {
     const downloads = captureDownloads();
     await onePlannedRow();
@@ -10008,6 +10053,46 @@ describe('sharing the plan', () => {
     // The name holds a comma, so it is quoted rather than splitting the row.
     expect(text).toContain('"Strip, sand & paint"');
     expect(text).toContain('\r\n');
+  });
+
+  itDom('downloads the bundled Markdown document, the fence and the table together', async () => {
+    const downloads = captureDownloads();
+    await onePlannedRow();
+    typeIntoDate('Project start date', '2026-08-03');
+    await waitFor(() => {
+      expect(screen.getByLabelText<HTMLInputElement>('Earliest start for 010').disabled).toBe(
+        false,
+      );
+    });
+
+    click('Download as Markdown');
+
+    expect(downloads.names).toHaveLength(1);
+    expect(downloads.names[0]).toMatch(/^rewire-the-shed-\d{4}-\d{2}-\d{2}\.md$/);
+    expect(downloads.revoked).toEqual(['blob:plan-1']);
+    const file = downloads.blobs.at(0);
+    if (file === undefined) throw new Error('nothing was handed to createObjectURL');
+    expect(file.type).toBe('text/markdown;charset=utf-8');
+    const text = new TextDecoder().decode(await readBlobBytes(file));
+    expect(text).toContain('```mermaid');
+    expect(text).toContain('gantt');
+    expect(text).toContain('| Strip, sand & paint |');
+    // Q6 of the R7 brief: which rows are in this document, since the chart on
+    // screen and this document do not agree.
+    expect(text).toContain('the whole plan, not what is on screen');
+  });
+
+  itDom('says so when there is nothing to bundle, and downloads nothing', async () => {
+    const downloads = captureDownloads();
+    await onePlannedRow();
+
+    click('Download as Markdown');
+
+    await waitFor(() => {
+      expect(toastTexts()).toEqual([expect.stringContaining('not on a calendar')]);
+    });
+    expect(downloads.names).toHaveLength(0);
+    expect(screen.getAllByRole('alert')).toHaveLength(1);
   });
 });
 
