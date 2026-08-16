@@ -257,14 +257,35 @@ async function openEarliestStart(page: Page): Promise<void> {
 const ENVELOPE_NUMBER = '030.1';
 
 /**
- * And the nearest number past it: one level deeper, which is the tightest case
- * the clip has to hold for — anything deeper only overruns further.
+ * And the nearest number the column cannot draw whole: the tightest case the
+ * clip has to hold for — anything deeper only overruns further.
  *
  * Depth is only one of the three ways be-01 grows a number past the envelope —
  * a group past nine siblings and an insertion against a frozen anchor are the
  * others — and it is the one a browser can build in five keystrokes.
+ *
+ * **`030.1.1` → `030.1.1.1.1.1.1` in `number-column-widen`, 2026-08-16.** The
+ * declared envelope ({@link NUMBER_ENVELOPE}, two levels) did not move, but
+ * 93 → 105 in `COLUMN_WIDTHS` means the column draws three levels past it
+ * whole — so `030.1.1` no longer clips, and the test below failed in CI on
+ * `expect(overrun.clipped).toBe(true)` (run 31966615755, `pixels`, the only
+ * red in 174). That the envelope is a floor rather than a ceiling is the
+ * point: drawing *more* than the two guaranteed levels was never a violation,
+ * and this fixture was only ever the nearest overrun at the width of the day.
+ *
+ * **This is no longer the *nearest* overrun, and that is a real weakening.**
+ * The nearest is one of depth 6 or depth 7 and the two guards below do not
+ * separate them: `two rows a level apart … at depth 5 and 6` proves depth 5
+ * draws whole and depth 6 draws strictly more than depth 5, which leaves depth
+ * 6 either whole or clipped by one character. What *is* proven is depth 7:
+ * `the break moves to depth 6 and 7` has depth 6 and depth 7 showing the same
+ * string, and depth 7's number is two characters longer than depth 6's, so
+ * depth 7 cannot be whole. Depth 7 is therefore the deepest fixture
+ * {@link seedDeepBranch} builds and the shallowest one this branch can assert
+ * is clipped without a browser run it did not get. Narrowing it to the true
+ * boundary wants one watched run and is left undone deliberately.
  */
-const PAST_ENVELOPE_NUMBER = '030.1.1';
+const PAST_ENVELOPE_NUMBER = '030.1.1.1.1.1.1';
 
 /**
  * Builds a branch five levels deep under the third root.
