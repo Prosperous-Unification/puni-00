@@ -16,7 +16,7 @@ Only `- [ ]` checkboxes are tracked by the apply phase.
 ## 1. The column
 
 - [x] 1.1 `table-frame.ts`'s `COLUMN_WIDTHS`: `['number', 93]` → `['number',
-      105]`. Comment states the reversible/non-reversible split design.md D4
+105]`. Comment states the reversible/non-reversible split design.md D4
       offered and why this is the one taken. No other constant moves —
       `NUMBER_ENVELOPE_LEVELS`, `DEEPEST_INDENT`, `INDENT_STEP`, `CARET_GUTTER_PX`
       are untouched, and their own JSDoc paragraphs that quoted the old figure
@@ -25,7 +25,7 @@ Only `- [ ]` checkboxes are tracked by the apply phase.
 ## 2. The two new guards
 
 - [x] 2.1 `e2e/layout.spec.ts` grows `two rows a level apart read as two
-      different numbers, at depth 5 and 6` — `DEEPER_CLIPPED_PAIR`
+different numbers, at depth 5 and 6` — `DEEPER_CLIPPED_PAIR`
       (`030.1.1.1.1` / `030.1.1.1.1.1`, both built by the existing
       `seedDeepBranch`), mirroring the depth-4 case `table-mechanics` already
       proved. **Negative:** at `['number', 93]` this fails the same way the
@@ -34,7 +34,7 @@ Only `- [ ]` checkboxes are tracked by the apply phase.
       measurement of this exact pair rather than separately re-watched, since
       the geometry it measured at 2026-08-14 is this pair's.
 - [x] 2.2 `e2e/layout.spec.ts` grows `the break moves to depth 6 and 7, and
-      this change does not claim to have closed it` — `DEEPEST_CLIPPED_PAIR`
+this change does not claim to have closed it` — `DEEPEST_CLIPPED_PAIR`
       (`030.1.1.1.1.1` / `030.1.1.1.1.1.1`), asserting the two **do** still
       read alike. Keeps 2.1 from being read as "the fault is gone": design.md
       D4 states widening buys exactly one level, and `deriveNumbers` has no
