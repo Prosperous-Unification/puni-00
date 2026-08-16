@@ -361,38 +361,43 @@ describe('the sections', () => {
 describe('the section choice (M3)', () => {
   const A = row({ id: 'a', number: '010', name: 'Strip' });
   const B = row({ id: 'b', number: '020', name: 'Rewire' });
+  const C = row({ id: 'c', number: '030', name: 'Test' });
 
   it('defaults to outline — a caller passing nothing draws exactly what M1 always drew', () => {
     expect(lines(plan())).toEqual(lines(plan(), 'outline'));
   });
 
   it("groups by phase, gathering a role's slices into one section wherever their rows sit, unnamed last", () => {
+    // Dev sits on rows a and c with a QA row (b) between them in row order —
+    // the shape a row-order-only sort cannot keep as one section. See fault 1,
+    // verify.md: with the section's own order struck from the sort, this draws
+    // `section Dev` twice with `section QA` between the two halves.
     const text = lines(
       plan({
-        rows: [A, B],
+        rows: [A, B, C],
         slices: [
           // Deliberately out of row order and out of role order in the payload —
           // be-01's order is not the diagram's, same discipline as the M1 tests.
           slice({
-            id: 's-b-none',
-            workItemId: 'b',
+            id: 's-a-none',
+            workItemId: 'a',
             roleId: null,
-            earliestStart: 3,
-            earliestFinish: 4,
+            earliestStart: 4,
+            earliestFinish: 5,
           }),
           slice({
             id: 's-b-qa',
             workItemId: 'b',
             roleId: QA.id,
-            earliestStart: 4,
-            earliestFinish: 5,
-          }),
-          slice({
-            id: 's-a-qa',
-            workItemId: 'a',
-            roleId: QA.id,
             earliestStart: 3,
             earliestFinish: 4,
+          }),
+          slice({
+            id: 's-c-dev',
+            workItemId: 'c',
+            roleId: DEV.id,
+            earliestStart: 4,
+            earliestFinish: 5,
           }),
           slice({ id: 's-a-dev', workItemId: 'a', roleId: DEV.id }),
         ],
@@ -404,36 +409,45 @@ describe('the section choice (M3)', () => {
       'section QA',
       'section no phase',
     ]);
-    // Inside the shared QA section, row a's slice still sorts ahead of row b's —
-    // the fallback to row order the docstring on `tasksOf` promises.
+    // Both Dev slices — row a and row c — sit under the one `section Dev`,
+    // row a's ahead of row c's, before QA's row-b slice appears at all.
     expect(text.filter((line) => line.includes(', 2026-'))).toEqual([
       '010 Strip - Dev :s1, 2026-09-01, 2026-09-03',
-      '010 Strip - QA :s2, 2026-09-04, 2026-09-04',
-      '020 Rewire - QA :s3, 2026-09-07, 2026-09-07',
-      '020 Rewire - no phase :s4, 2026-09-04, 2026-09-04',
+      '030 Test - Dev :s2, 2026-09-07, 2026-09-07',
+      '020 Rewire - QA :s3, 2026-09-04, 2026-09-04',
+      '010 Strip - no phase :s4, 2026-09-07, 2026-09-07',
     ]);
   });
 
   it('groups by assignee, in the roster order the app already lists people in, unassigned last', () => {
+    // Same shape as the phase test, one level over: Ada on rows a and c, Bo's
+    // row (b) between them.
     const text = lines(
       plan({
-        rows: [A, B],
+        rows: [A, B, C],
         slices: [
           slice({
-            id: 's-b-none',
-            workItemId: 'b',
+            id: 's-a-none',
+            workItemId: 'a',
             personId: null,
+            earliestStart: 4,
+            earliestFinish: 5,
+          }),
+          slice({
+            id: 's-b-bo',
+            workItemId: 'b',
+            personId: 'person-bo',
             earliestStart: 3,
             earliestFinish: 4,
           }),
-          slice({ id: 's-a-bo', workItemId: 'a', personId: 'person-bo' }),
           slice({
-            id: 's-b-ada',
-            workItemId: 'b',
+            id: 's-c-ada',
+            workItemId: 'c',
             personId: 'person-ada',
             earliestStart: 4,
             earliestFinish: 5,
           }),
+          slice({ id: 's-a-ada', workItemId: 'a', personId: 'person-ada' }),
         ],
       }),
       'assignee',
@@ -444,9 +458,10 @@ describe('the section choice (M3)', () => {
       'section unassigned',
     ]);
     expect(text.filter((line) => line.includes(', 2026-'))).toEqual([
-      '020 Rewire - Dev (Ada) :s1, 2026-09-07, 2026-09-07',
-      '010 Strip - Dev (Bo) :s2, 2026-09-01, 2026-09-03',
-      '020 Rewire - Dev :s3, 2026-09-04, 2026-09-04',
+      '010 Strip - Dev (Ada) :s1, 2026-09-01, 2026-09-03',
+      '030 Test - Dev (Ada) :s2, 2026-09-07, 2026-09-07',
+      '020 Rewire - Dev (Bo) :s3, 2026-09-04, 2026-09-04',
+      '010 Strip - Dev :s4, 2026-09-07, 2026-09-07',
     ]);
   });
 
