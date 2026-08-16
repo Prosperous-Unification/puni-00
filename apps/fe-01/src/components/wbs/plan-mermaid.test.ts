@@ -373,9 +373,27 @@ describe('the section choice (M3)', () => {
         slices: [
           // Deliberately out of row order and out of role order in the payload —
           // be-01's order is not the diagram's, same discipline as the M1 tests.
-          slice({ id: 's-b-none', workItemId: 'b', roleId: null, earliestStart: 3, earliestFinish: 4 }),
-          slice({ id: 's-b-qa', workItemId: 'b', roleId: QA.id, earliestStart: 4, earliestFinish: 5 }),
-          slice({ id: 's-a-qa', workItemId: 'a', roleId: QA.id, earliestStart: 3, earliestFinish: 4 }),
+          slice({
+            id: 's-b-none',
+            workItemId: 'b',
+            roleId: null,
+            earliestStart: 3,
+            earliestFinish: 4,
+          }),
+          slice({
+            id: 's-b-qa',
+            workItemId: 'b',
+            roleId: QA.id,
+            earliestStart: 4,
+            earliestFinish: 5,
+          }),
+          slice({
+            id: 's-a-qa',
+            workItemId: 'a',
+            roleId: QA.id,
+            earliestStart: 3,
+            earliestFinish: 4,
+          }),
           slice({ id: 's-a-dev', workItemId: 'a', roleId: DEV.id }),
         ],
       }),
@@ -401,9 +419,21 @@ describe('the section choice (M3)', () => {
       plan({
         rows: [A, B],
         slices: [
-          slice({ id: 's-b-none', workItemId: 'b', personId: null, earliestStart: 3, earliestFinish: 4 }),
+          slice({
+            id: 's-b-none',
+            workItemId: 'b',
+            personId: null,
+            earliestStart: 3,
+            earliestFinish: 4,
+          }),
           slice({ id: 's-a-bo', workItemId: 'a', personId: 'person-bo' }),
-          slice({ id: 's-b-ada', workItemId: 'b', personId: 'person-ada', earliestStart: 4, earliestFinish: 5 }),
+          slice({
+            id: 's-b-ada',
+            workItemId: 'b',
+            personId: 'person-ada',
+            earliestStart: 4,
+            earliestFinish: 5,
+          }),
         ],
       }),
       'assignee',

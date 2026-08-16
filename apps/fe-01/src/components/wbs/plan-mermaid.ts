@@ -313,8 +313,7 @@ function tasksOf(plan: PlanExport, startDate: IsoDate, sectionMode: SectionMode)
     })
     .sort(
       (a, b) =>
-        sectionOf(sectionMode, plan, a.row, a.slice, byId, rowOrder, roleOrder, personOrder)
-          .order -
+        sectionOf(sectionMode, plan, a.row, a.slice, byId, rowOrder, roleOrder, personOrder).order -
           sectionOf(sectionMode, plan, b.row, b.slice, byId, rowOrder, roleOrder, personOrder)
             .order ||
         (rowOrder.get(a.row.id) ?? 0) - (rowOrder.get(b.row.id) ?? 0) ||
