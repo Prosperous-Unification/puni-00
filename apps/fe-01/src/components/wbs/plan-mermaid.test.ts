@@ -1,5 +1,6 @@
 import { DEFAULT_PRIORITY_BANDS } from '@wbs/domain/priority-band';
-import { describe, expect, it } from 'vitest';
+import type { Mermaid } from 'mermaid';
+import { beforeAll, describe, expect, it } from 'vitest';
 
 import {
   type ExportRow,
@@ -637,5 +638,220 @@ describe('planToMermaidDocument — the bundled document (M2)', () => {
     const [open, close] = fenceLines;
     const closeAt = text.indexOf(close, text.indexOf(open) + open.length);
     expect(text.indexOf('| Number |')).toBeGreaterThan(closeAt);
+  });
+});
+
+/**
+ * A real Mermaid parse (M5 of the R7 brief) — pinning §3.2's `manualEndTime`
+ * trap, §3.3's inclusivity and §3.4's escaping against Mermaid's own grammar
+ * rather than against `gantt.jison`/`ganttDb.js` read by eye.
+ *
+ * Every test above this point asserts a **string** — that the writer emitted
+ * the bytes it meant to. None of them prove Mermaid *reads* those bytes the
+ * way the writer's docstrings argue it does. The `excludes weekends` /
+ * `manualEndTime` interaction in particular rests on one hardcoded literal
+ * inside Mermaid's own source (`ganttDb.js:490`, quoted in the brief) — an
+ * upstream tidy-up there would move our dates with no string assertion able
+ * to notice. `mermaid.mermaidAPI.getDiagramFromText` is the one place this
+ * suite can ask the real parser what it believes: it runs the actual
+ * `gantt.jison` grammar and the actual `ganttDb.js` date arithmetic, and hands
+ * back the same task objects `ganttRenderer.js` draws from — a `startTime`/
+ * `endTime` pair already adjusted for `excludes`/`includes`/inclusivity, and
+ * the `manualEndTime` flag that arithmetic keyed off.
+ *
+ * `mermaidAPI` is `@internal`/`@deprecated` on Mermaid's own public surface
+ * (the documented API is `parse`/`render`, and `render` demands a live SVG
+ * container this suite has no reason to build) — the one way to reach parsed
+ * task data instead of pixels. `mermaid` is a **devDependency only**: nothing
+ * under `src/` imports it, and this file is the sole caller.
+ */
+describe('a real Mermaid parse (M5)', () => {
+  let mermaid: Mermaid;
+
+  /**
+   * What this suite reads off `diagram.db` — a narrow slice of Mermaid's own
+   * `ganttDb.js` surface, typed by hand because `Diagram.db` is `unknown` on
+   * Mermaid's public types (the gantt-specific shape lives in an internal
+   * module this file deliberately does not import from).
+   */
+  interface RealGanttTask {
+    readonly id: string;
+    readonly task: string;
+    readonly section: string;
+    readonly manualEndTime: boolean;
+    readonly milestone?: boolean;
+    readonly crit?: boolean;
+    readonly startTime: Date;
+    readonly endTime: Date;
+  }
+  interface RealGanttDb {
+    getTasks(): RealGanttTask[];
+    getSections(): string[];
+    endDatesAreInclusive(): boolean;
+  }
+
+  beforeAll(async () => {
+    // Dynamic and once for the whole file: `mermaid` pulls in d3, cytoscape
+    // and friends, so paying for the module graph 60 times (once per `it`)
+    // would be the whole cost of this change and none of its evidence.
+    mermaid = (await import('mermaid')).default;
+    mermaid.initialize({ startOnLoad: false });
+  });
+
+  /** The real diagram Mermaid itself builds from `text` — parse, not string. */
+  async function realGantt(text: string): Promise<{ type: string; db: RealGanttDb }> {
+    // `mermaidAPI` is deprecated in favour of the documented `parse`/`render`
+    // pair — but `render` demands a live SVG container to draw into, and
+    // `parse` only validates syntax, returning nothing about dates or ids.
+    // `getDiagramFromText` is the one path Mermaid ships to a parsed
+    // diagram's task data without asking this suite to build pixels.
+    // eslint-disable-next-line @typescript-eslint/no-deprecated
+    const diagram = await mermaid.mermaidAPI.getDiagramFromText(text);
+    return { type: diagram.type, db: diagram.db as unknown as RealGanttDb };
+  }
+
+  describe('the excludes-weekends trap, watched rather than argued', () => {
+    it('leaves a bar crossing a weekend exactly where it was told, manualEndTime true', async () => {
+      // The same span the string-assertion test above already covers —
+      // workdays 3 to 6, Friday the 4th through Tuesday the 8th — now read
+      // back through the real parser instead of asserted as a substring.
+      const text = drawn(
+        plan({
+          slices: [slice({ id: 's', workItemId: 'a', earliestStart: 3, earliestFinish: 6 })],
+        }),
+      );
+      const { type, db } = await realGantt(text);
+      expect(type).toBe('gantt');
+      const [task] = db.getTasks();
+      // `checkTaskDates` returns early on a `manualEndTime` task and never
+      // reaches the branch that would push these dates past the weekend —
+      // if it did not, `endTime` would land on a later workday than this.
+      expect(task.manualEndTime).toBe(true);
+      expect(task.startTime.toISOString()).toBe('2026-09-04T00:00:00.000Z');
+      // Mermaid's own end is exclusive internally; `inclusiveEndDates` is what
+      // makes the *declared* 2026-09-08 the last day drawn, so the internal
+      // value one day past it is the proof the declaration was believed, not
+      // a bug in this assertion.
+      expect(task.endTime.toISOString()).toBe('2026-09-09T00:00:00.000Z');
+    });
+
+    it('declares inclusiveEndDates, and Mermaid reports believing it', async () => {
+      const { db } = await realGantt(drawn(plan()));
+      expect(db.endDatesAreInclusive()).toBe(true);
+    });
+
+    it('still parses a point (unestimated/zero) as a real milestone with equal dates', async () => {
+      const text = drawn(
+        plan({
+          slices: [
+            slice({
+              id: 's',
+              workItemId: 'a',
+              earliestStart: 2,
+              earliestFinish: 2,
+              duration: 0,
+              effort: 0,
+            }),
+          ],
+        }),
+      );
+      const { db } = await realGantt(text);
+      const [task] = db.getTasks();
+      expect(task.milestone).toBe(true);
+      expect(task.manualEndTime).toBe(true);
+      expect(task.startTime.toISOString()).toBe('2026-09-03T00:00:00.000Z');
+    });
+  });
+
+  describe('the colon escape, watched against the real lexer', () => {
+    it('keeps a colon in a name from moving the split, once escaped', async () => {
+      const text = drawn(plan({ rows: [row({ id: 'a', number: '010', name: 'Phase 1: strip' })] }));
+      const { type, db } = await realGantt(text);
+      expect(type).toBe('gantt');
+      const [task] = db.getTasks();
+      // The id the writer generated, not a word torn out of the name — which
+      // is exactly what an unescaped colon would produce, proven next.
+      expect(task.id).toBe('s1');
+      expect(task.task).toContain('Phase 1∶ strip');
+    });
+
+    it('— and unescaped, the real lexer does silently move the split', async () => {
+      // Not `planToMermaid`'s output: hand-built text standing in for what
+      // `mermaidPhrase` refuses to emit, so this test watches the failure
+      // mode the escaping exists to prevent rather than taking the brief's
+      // reading of `gantt.jison` on faith.
+      const text = [
+        'gantt',
+        'dateFormat YYYY-MM-DD',
+        'inclusiveEndDates',
+        'excludes weekends',
+        'section S',
+        'Phase 1: strip :s1, 2026-09-01, 2026-09-03',
+      ].join('\n');
+      const { db } = await realGantt(text);
+      const [task] = db.getTasks();
+      // The colon split the line at "Phase 1", not where the writer's own
+      // `s1` id was typed — id and dates alike are dragged out of the
+      // metadata position and mangled, silently, with no parse error at all.
+      expect(task.task).toBe('Phase 1');
+      expect(task.id).not.toBe('s1');
+    });
+  });
+
+  describe('all three section modes #71 added, each a real, error-free gantt', () => {
+    const A = row({ id: 'a', number: '010', name: 'Strip' });
+    const B = row({ id: 'b', number: '020', name: 'Rewire' });
+    const twoByTwo = plan({
+      rows: [A, B],
+      slices: [
+        slice({
+          id: 's-a-dev',
+          workItemId: 'a',
+          roleId: DEV.id,
+          personId: 'person-ada',
+        }),
+        slice({
+          id: 's-a-qa',
+          workItemId: 'a',
+          roleId: QA.id,
+          personId: 'person-bo',
+          earliestStart: 3,
+          earliestFinish: 4,
+        }),
+        slice({
+          id: 's-b-dev',
+          workItemId: 'b',
+          roleId: DEV.id,
+          personId: 'person-ada',
+          earliestStart: 4,
+          earliestFinish: 5,
+        }),
+        slice({
+          id: 's-b-qa',
+          workItemId: 'b',
+          roleId: QA.id,
+          personId: 'person-bo',
+          earliestStart: 5,
+          earliestFinish: 6,
+        }),
+      ],
+    });
+
+    const cases: { mode: SectionMode; sections: string[] }[] = [
+      { mode: 'outline', sections: ['010 Strip', '020 Rewire'] },
+      { mode: 'phase', sections: ['Dev', 'QA'] },
+      { mode: 'assignee', sections: ['Ada', 'Bo'] },
+    ];
+
+    it.each(cases)(
+      '$mode draws four tasks under $sections, and Mermaid parses it clean',
+      async ({ mode, sections }) => {
+        const text = drawn(twoByTwo, mode);
+        const { type, db } = await realGantt(text);
+        expect(type).toBe('gantt');
+        expect(db.getSections()).toEqual(sections);
+        expect(db.getTasks()).toHaveLength(4);
+      },
+    );
   });
 });
