@@ -70,6 +70,18 @@ const PRIORITY_BANDS = '20260814110000_add_priority_band';
  * 2026-08-14 collision would have broken.
  */
 const PLAN_EVENT = '20260817120000_add_plan_event';
+/**
+ * The newest. A table of its own referencing `work_item` and `role`, so it
+ * reverses ahead of the domain that holds both — `JOURNAL`'s place for
+ * `JOURNAL`'s reason.
+ *
+ * Stamped `130000`, an hour past `PLAN_EVENT` and later than all eighteen
+ * folders that were on disk when it was written. The check is
+ * `refuses a folder set that shares one stamp between two migrations` below, and
+ * `does nothing when the target is already the newest applied` — which now names
+ * this* migration — is the case a collision breaks.
+ */
+const ACTUAL = '20260817130000_add_actual';
 
 function tempDb(): { path: string; cleanup: () => void } {
   const dir = mkdtempSync(join(tmpdir(), 'wbs-migrate-down-'));
@@ -158,6 +170,7 @@ describe('readMigrationFolders', () => {
       WORK_ITEM_TEAM,
       PRIORITY_BANDS,
       PLAN_EVENT,
+      ACTUAL,
     ]);
     for (const f of folders) expect(f.downSql.trim()).not.toBe('');
   });
@@ -249,11 +262,13 @@ describe('rollbackTo, against a real database', () => {
         WORK_ITEM_TEAM,
         PRIORITY_BANDS,
         PLAN_EVENT,
+        ACTUAL,
       ]);
 
       const reversed = rollbackTo(db.path, FOLDER, INIT);
 
       expect(reversed).toEqual([
+        ACTUAL,
         PLAN_EVENT,
         PRIORITY_BANDS,
         WORK_ITEM_TEAM,
@@ -312,6 +327,7 @@ describe('rollbackTo, against a real database', () => {
         WORK_ITEM_TEAM,
         PRIORITY_BANDS,
         PLAN_EVENT,
+        ACTUAL,
       ]);
     } finally {
       db.cleanup();
@@ -325,6 +341,7 @@ describe('rollbackTo, against a real database', () => {
       const reversed = rollbackTo(db.path, FOLDER, ROLLBACK_ALL);
 
       expect(reversed).toEqual([
+        ACTUAL,
         PLAN_EVENT,
         PRIORITY_BANDS,
         WORK_ITEM_TEAM,
@@ -372,7 +389,7 @@ describe('rollbackTo, against a real database', () => {
       // *and* answers `[]` when there is genuinely something to reverse. Reading
       // `[]` as correct is only safe while every stamp is unique, which
       // `readMigrationFolders` now enforces.
-      expect(rollbackTo(db.path, FOLDER, PLAN_EVENT)).toEqual([]);
+      expect(rollbackTo(db.path, FOLDER, ACTUAL)).toEqual([]);
       expect(tables(db.path)).toContain('users');
     } finally {
       db.cleanup();

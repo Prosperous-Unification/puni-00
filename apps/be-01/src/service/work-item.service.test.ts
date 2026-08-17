@@ -1,12 +1,14 @@
 import { beforeEach, describe, expect, it } from 'bun:test';
 
 import type {
+  ActualStore,
   CapacityStore,
   EstimateStore,
   Project,
   ProjectStore,
   WorkItemStore,
 } from '../repository';
+import { inMemoryActuals } from '../testing/actual-fixture';
 import { type RecordingBroadcaster, recordingBroadcaster } from '../testing/broadcast-fixture';
 import { inMemoryCapacity } from '../testing/capacity-fixture';
 import { inMemoryCommandJournal } from '../testing/command-journal-fixture';
@@ -36,6 +38,7 @@ let directory: ReturnType<typeof inMemoryDirectory>;
  */
 let capacity: CapacityStore;
 let estimates: EstimateStore;
+let actuals: ActualStore;
 let broadcast: RecordingBroadcaster;
 
 beforeEach(async () => {
@@ -44,6 +47,7 @@ beforeEach(async () => {
   directory = inMemoryDirectory();
   workItems = inMemoryWorkItems(directory);
   estimates = inMemoryEstimates(workItems);
+  actuals = inMemoryActuals(workItems);
   broadcast = recordingBroadcaster();
   capacity = inMemoryCapacity();
   service = new WorkItemService({
@@ -51,10 +55,11 @@ beforeEach(async () => {
     workItems,
     projects,
     estimates,
+    actuals,
     dependencies,
     directory,
     capacity,
-    subtrees: inMemorySubtrees({ workItems, estimates, dependencies, directory }),
+    subtrees: inMemorySubtrees({ workItems, estimates, actuals, dependencies, directory }),
     journal: inMemoryCommandJournal(),
     broadcast,
   });
@@ -422,6 +427,7 @@ describe('dependencies', () => {
       workItems,
       projects,
       estimates: inMemoryEstimates(workItems),
+      actuals: inMemoryActuals(workItems),
       dependencies: broken,
       journal: inMemoryCommandJournal(),
       broadcast: recordingBroadcaster(),
@@ -1661,11 +1667,12 @@ describe('the slices the schedule placed, on the wire', () => {
       workItems,
       projects: shifting,
       estimates,
+      actuals,
       dependencies,
       directory,
       capacity: inMemoryCapacity(),
       priorityBands: inMemoryPriorityBands(),
-      subtrees: inMemorySubtrees({ workItems, estimates, dependencies, directory }),
+      subtrees: inMemorySubtrees({ workItems, estimates, actuals, dependencies, directory }),
       journal: inMemoryCommandJournal(),
       broadcast,
     });

@@ -1,8 +1,10 @@
 import type {
+  ActualKey,
   Assignment,
   EstimateKey,
   FrozenNumber,
   Reparented,
+  StoredActual,
   StoredDependency,
   StoredEstimate,
   WorkItem,
@@ -30,6 +32,18 @@ export type CompensatingCommand =
   | { do: 'patch'; workItemId: string; patch: WorkItemPatch }
   | { do: 'set_estimate'; workItemId: string; roleId: string; days: Days }
   | { do: 'clear_estimate'; workItemId: string; roleId: string }
+  /**
+   * The days actually spent, as a plain number rather than a trio: an estimate
+   * is a guess about a range and an actual is a fact about what happened.
+   *
+   * `recordedAt` is **not** carried. Re-applying this command stamps the write
+   * with the moment it is re-applied, because that column says when the number
+   * was typed and an undo is somebody typing it again now. Carrying the original
+   * stamp would let a redo write a row that claims to predate the command that
+   * wrote it.
+   */
+  | { do: 'set_actual'; workItemId: string; roleId: string; days: number }
+  | { do: 'clear_actual'; workItemId: string; roleId: string }
   | { do: 'assign'; workItemId: string; roleId: string; personId: string | null }
   | { do: 'add_dependency'; successorId: string; predecessorId: string }
   | { do: 'remove_dependency'; successorId: string; predecessorId: string }
@@ -60,6 +74,16 @@ export interface DeleteSubtree {
   reparented: Reparented[];
   /** Estimates handed **up** to the surviving parent, exactly as the original delete wrote them. */
   setEstimates: StoredEstimate[];
+  /**
+   * Actuals handed **up** to the surviving parent, the same way and at the same
+   * moment as {@link DeleteSubtree.setEstimates}.
+   *
+   * Carried with their `recordedAt` from the rows they were summed out of — the
+   * newest of them, since the parent's number is now the whole branch's — so a
+   * re-applied delete leaves the same stamp the original left rather than
+   * claiming the days were recorded at the moment somebody pressed redo.
+   */
+  setActuals: StoredActual[];
 }
 
 /**
@@ -81,6 +105,16 @@ export interface RestoreSubtree {
   /** Rows to put back under the restored branch, at the positions they had before. */
   reparented: Reparented[];
   estimates: StoredEstimate[];
+  /**
+   * The days recorded against the rows being restored, put back with them.
+   *
+   * Empty for the restore a **create** is the inverse of, except in one case: a
+   * leaf that gains its first child hands its figures down, actuals with
+   * estimates, so undoing that create has to hand them back up. Empty for a
+   * **duplicate**, whose copies were never worked on — see
+   * {@link SubtreeCopy.actuals}.
+   */
+  actuals: StoredActual[];
   assignments: Assignment[];
   /** Edges with both ends inside the branch: restored with it, in the same write. */
   internalDependencies: StoredDependency[];
@@ -100,6 +134,8 @@ export interface RestoreSubtree {
   externalDependencies: StoredDependency[];
   /** Estimates to take off the surviving parent, undoing the hand-up a delete did. */
   removedEstimates: EstimateKey[];
+  /** Actuals to take off the surviving parent, for {@link RestoreSubtree.removedEstimates}' reason. */
+  removedActuals: ActualKey[];
 }
 
 /** What a journalled command did, in the words an undo says back. */
@@ -144,6 +180,8 @@ const COMMANDS = [
   'patch',
   'set_estimate',
   'clear_estimate',
+  'set_actual',
+  'clear_actual',
   'assign',
   'add_dependency',
   'remove_dependency',
@@ -227,6 +265,8 @@ export function touchedBy(command: CompensatingCommand): string[] {
     case 'patch':
     case 'set_estimate':
     case 'clear_estimate':
+    case 'set_actual':
+    case 'clear_actual':
     case 'assign':
       return [command.workItemId];
     case 'add_dependency':
@@ -241,12 +281,14 @@ export function touchedBy(command: CompensatingCommand): string[] {
         ...command.remove,
         ...command.reparented.map((each) => each.id),
         ...command.setEstimates.map((each) => each.workItemId),
+        ...command.setActuals.map((each) => each.workItemId),
       ];
     case 'restore_subtree':
       return [
         ...command.rows.map((row) => row.id),
         ...command.reparented.map((each) => each.id),
         ...command.removedEstimates.map((each) => each.workItemId),
+        ...command.removedActuals.map((each) => each.workItemId),
         ...command.externalDependencies.flatMap((edge) => [edge.predecessorId, edge.successorId]),
       ];
   }
@@ -277,6 +319,8 @@ export function subjectOf(command: CompensatingCommand): CommandSubject {
   switch (command.do) {
     case 'set_estimate':
     case 'clear_estimate':
+    case 'set_actual':
+    case 'clear_actual':
     case 'assign':
       return { workItemId: command.workItemId, roleId: command.roleId };
     case 'patch':

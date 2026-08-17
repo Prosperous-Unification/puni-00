@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import type { DirectoryStore, EstimateStore, Role, RoleStore, WorkItem } from '../repository';
+import { ActualRepository } from '../repository/actual';
 import { CommandJournalRepository } from '../repository/command-journal';
 import { openDrizzle } from '../repository/db';
 import { DependencyRepository } from '../repository/dependency';
@@ -46,6 +47,7 @@ let roles: RoleService;
 let roleStore: RoleRepository;
 let projectStore: ProjectRepository;
 let estimates: EstimateRepository;
+let actuals: ActualRepository;
 let directory: DirectoryRepository;
 let broadcast: RecordingBroadcaster;
 let projectId: string;
@@ -86,6 +88,7 @@ beforeEach(async () => {
   projectStore = new ProjectRepository(db);
   roleStore = new RoleRepository(db);
   estimates = new EstimateRepository(db);
+  actuals = new ActualRepository(db);
   directory = new DirectoryRepository(db);
   broadcast = recordingBroadcaster();
   roles = new RoleService({ projects: projectStore, roles: roleStore, broadcast });
@@ -245,6 +248,7 @@ describe('RoleService.remove', () => {
       reason: 'in_use',
       inUse: {
         estimates: 2,
+        actuals: 0,
         assignments: 1,
         assumedAssignees: [{ workItemId: 'strip', assumedNow: null, assumedAfter: ada.id }],
       },
@@ -370,6 +374,7 @@ describe('a role removed between the check and the write', () => {
       workItems: new WorkItemRepository(db),
       projects: projectStore,
       estimates: vanishing,
+      actuals: new ActualRepository(db),
       directory: vanishingToo,
       capacity: inMemoryCapacity(),
       priorityBands: inMemoryPriorityBands(),
@@ -409,6 +414,7 @@ describe('a role removed between the check and the write', () => {
       workItems: new WorkItemRepository(db),
       projects: projectStore,
       estimates,
+      actuals,
       directory,
       capacity: inMemoryCapacity(),
       priorityBands: inMemoryPriorityBands(),

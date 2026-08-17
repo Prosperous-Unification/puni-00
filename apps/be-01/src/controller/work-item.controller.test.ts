@@ -3,6 +3,7 @@ import { describe, expect, it } from 'bun:test';
 import { buildApp } from '../app';
 import { ProjectService } from '../service/project.service';
 import { WorkItemService } from '../service/work-item.service';
+import { inMemoryActuals } from '../testing/actual-fixture';
 import { inMemoryUsers, testAuthService } from '../testing/auth-fixture';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { inMemoryCapacity, testCapacityService } from '../testing/capacity-fixture';
@@ -23,6 +24,7 @@ function buildHarness() {
   const directoryStore = inMemoryDirectory();
   const workItemStore = inMemoryWorkItems(directoryStore);
   const estimateStore = inMemoryEstimates(workItemStore);
+  const actualStore = inMemoryActuals(workItemStore);
   const dependencyStore = inMemoryDependencies();
   const app = buildApp({
     // **One** directory, shared with the work item service below. Two would
@@ -40,6 +42,7 @@ function buildHarness() {
       workItems: workItemStore,
       projects: projectStore,
       estimates: estimateStore,
+      actuals: actualStore,
       dependencies: dependencyStore,
       directory: directoryStore,
       capacity: inMemoryCapacity(),
@@ -47,6 +50,7 @@ function buildHarness() {
       subtrees: inMemorySubtrees({
         workItems: workItemStore,
         estimates: estimateStore,
+        actuals: actualStore,
         dependencies: dependencyStore,
         directory: directoryStore,
       }),
@@ -936,5 +940,154 @@ describe('dependency routes', () => {
       earliestStart: 0,
       estimated: false,
     });
+  });
+});
+
+describe('recording the days a role actually spent', () => {
+  const make = async (
+    send: (p: string, t: string, i?: { method?: string; body?: string }) => Promise<Response>,
+    token: string,
+    projectId: string,
+    name: string,
+    parentId: string | null,
+  ): Promise<string> => {
+    const res = await send(`/api/projects/${projectId}/work-items`, token, {
+      method: 'POST',
+      body: JSON.stringify({ parentId, afterId: null, name }),
+    });
+    return ((await res.json()) as { id: string }).id;
+  };
+
+  const actualsOf = async (
+    send: (p: string, t: string, i?: { method?: string; body?: string }) => Promise<Response>,
+    token: string,
+    projectId: string,
+    name: string,
+  ) => {
+    const tree = await send(`/api/projects/${projectId}/work-items`, token);
+    const body = (await tree.json()) as {
+      workItems: { name: string; actuals: Record<string, number> }[];
+    };
+    return body.workItems.find((w) => w.name === name)?.actuals;
+  };
+
+  it('records the days and carries them on the tree, rolled into the parent', async () => {
+    const { token, send, projectId, devId } = await setup();
+    const strip = await make(send, token, projectId, 'Strip', null);
+    const sockets = await make(send, token, projectId, 'Sockets', strip);
+
+    const res = await send(`/api/work-items/${sockets}/actuals/${devId}`, token, {
+      method: 'PUT',
+      body: JSON.stringify({ days: 8 }),
+    });
+
+    expect(res.status).toBe(200);
+    expect((await res.json()) as { recorded: boolean }).toEqual({ recorded: true });
+    expect(await actualsOf(send, token, projectId, 'Sockets')).toEqual({ [devId]: 8 });
+    // Summed on the parent, never stored there.
+    expect(await actualsOf(send, token, projectId, 'Strip')).toEqual({ [devId]: 8 });
+  });
+
+  it('refuses a body that is not a finite number of days, and one below zero', async () => {
+    // `days: 0` is deliberately **not** here: recording zero is a person saying
+    // the work took no days, and the route accepts it. Absence is `DELETE`.
+    const { token, send, projectId, devId } = await setup();
+    const strip = await make(send, token, projectId, 'Strip', null);
+
+    for (const body of ['{}', '{"days":"8"}', '{"days":-1}', '{"days":null}']) {
+      const res = await send(`/api/work-items/${strip}/actuals/${devId}`, token, {
+        method: 'PUT',
+        body,
+      });
+      expect([body, res.status]).toEqual([body, 400]);
+      expect((await res.json()) as { error: string }).toEqual({ error: 'invalid_actual' });
+    }
+
+    const zero = await send(`/api/work-items/${strip}/actuals/${devId}`, token, {
+      method: 'PUT',
+      body: JSON.stringify({ days: 0 }),
+    });
+    expect(zero.status).toBe(200);
+    expect(await actualsOf(send, token, projectId, 'Strip')).toEqual({ [devId]: 0 });
+  });
+
+  it('refuses a row that has children with 409, and a role that is not there with 404', async () => {
+    const { token, send, projectId, devId } = await setup();
+    const strip = await make(send, token, projectId, 'Strip', null);
+    const sockets = await make(send, token, projectId, 'Sockets', strip);
+
+    const rolled = await send(`/api/work-items/${strip}/actuals/${devId}`, token, {
+      method: 'PUT',
+      body: JSON.stringify({ days: 4 }),
+    });
+    // On the **leaf**: the parent would answer `rolled_up` first, which is the
+    // order `setEstimate` guards in, and a case that read 409 twice would say
+    // nothing about the role check at all.
+    const unknown = await send(`/api/work-items/${sockets}/actuals/${crypto.randomUUID()}`, token, {
+      method: 'PUT',
+      body: JSON.stringify({ days: 4 }),
+    });
+
+    expect([rolled.status, unknown.status]).toEqual([409, 404]);
+    expect((await rolled.json()) as { error: string }).toEqual({ error: 'rolled_up' });
+    expect((await unknown.json()) as { error: string }).toEqual({ error: 'unknown_role' });
+  });
+
+  it('refuses an unauthenticated caller on both verbs, and leaves the figure alone', async () => {
+    // Without the read afterwards this passes against a route that answers 401
+    // *after* having already written or cleared the row.
+    const { token, send, projectId, devId } = await setup();
+    const strip = await make(send, token, projectId, 'Strip', null);
+    await send(`/api/work-items/${strip}/actuals/${devId}`, token, {
+      method: 'PUT',
+      body: JSON.stringify({ days: 8 }),
+    });
+
+    const written = await send(`/api/work-items/${strip}/actuals/${devId}`, 'not-a-token', {
+      method: 'PUT',
+      body: JSON.stringify({ days: 99 }),
+    });
+    const cleared = await send(`/api/work-items/${strip}/actuals/${devId}`, 'not-a-token', {
+      method: 'DELETE',
+    });
+
+    expect([written.status, cleared.status]).toEqual([401, 401]);
+    expect(await actualsOf(send, token, projectId, 'Strip')).toEqual({ [devId]: 8 });
+  });
+
+  it('clears back to absence, and clearing again is still a success', async () => {
+    const { token, send, projectId, devId, qaId } = await setup();
+    const strip = await make(send, token, projectId, 'Strip', null);
+    for (const roleId of [devId, qaId]) {
+      await send(`/api/work-items/${strip}/actuals/${roleId}`, token, {
+        method: 'PUT',
+        body: JSON.stringify({ days: 5 }),
+      });
+    }
+
+    const first = await send(`/api/work-items/${strip}/actuals/${devId}`, token, {
+      method: 'DELETE',
+    });
+    const again = await send(`/api/work-items/${strip}/actuals/${devId}`, token, {
+      method: 'DELETE',
+    });
+
+    expect([first.status, again.status]).toEqual([200, 200]);
+    expect((await first.json()) as { cleared: boolean }).toEqual({ cleared: true });
+    // The other role is untouched, and the cleared one is **absent** rather
+    // than zero.
+    expect(await actualsOf(send, token, projectId, 'Strip')).toEqual({ [qaId]: 5 });
+  });
+
+  it('answers this route’s own 404 for a work item that is not there', async () => {
+    // The body, not just the status: Elysia answers an unmatched route with a
+    // 404 of its own, so a status-only assertion passes with the route deleted.
+    const { token, send, devId } = await setup();
+    const res = await send(`/api/work-items/${crypto.randomUUID()}/actuals/${devId}`, token, {
+      method: 'DELETE',
+    });
+
+    expect(res.status).toBe(404);
+    expect((await res.json()) as { error: string }).toEqual({ error: 'not_found' });
   });
 });

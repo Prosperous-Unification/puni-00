@@ -24,6 +24,18 @@ export type RoleOutcome = { ok: true; result: Role } | { ok: false; reason: Role
 /** What a removal would take with it, as the refusal reports it. */
 export interface RoleInUse {
   estimates: number;
+  /**
+   * Days already recorded against this role — a count of rows, not a sum of
+   * days.
+   *
+   * Reported separately from the estimates because the two are different losses:
+   * an estimate is a guess that can be made again, and an actual is a record of
+   * work that happened and cannot. A client that only knows how to say
+   * "N estimates" is not wrong about this number, it is silent about it, which is
+   * why the count travels even before a face reads it — H3's row in
+   * `notes/wbs-brief-2026-08-14-r5-r6-history.md` §6.
+   */
+  actuals: number;
   /** Explicit assignments on this role. The assumed ones are in `assumedAssignees`. */
   assignments: number;
   /**
@@ -56,6 +68,7 @@ function cleanName(name: string): string | null {
 function inUseFrom(usage: RoleUsageRows, roleId: string): RoleInUse {
   return {
     estimates: usage.estimates,
+    actuals: usage.actuals,
     assignments: usage.assignments.filter((each) => each.roleId === roleId).length,
     assumedAssignees: assumedAssigneeFlips(usage.assignments, roleId),
   };

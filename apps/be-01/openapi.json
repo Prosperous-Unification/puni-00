@@ -936,6 +936,73 @@
         "operationId": "deleteApiWork-itemsByIdEstimatesByRoleId"
       }
     },
+    "/api/work-items/{id}/actuals/{roleId}": {
+      "put": {
+        "summary": "Record the days one role actually spent on one work item",
+        "description": "**Reporting only. This moves no date.** The plan's dates come from the\nthree-point estimates through the scheduler, and no part of the engine reads this\nnumber: an item recorded as having taken 8 days against an estimate of 5 leaves\nevery successor exactly where it was. The reason is that the model has no\ncompletion state — there is no started, finished or percent-done anywhere — so\n\"took 8 days\" and \"8 days so far\" are the same row, and they mean opposite things\nfor whatever comes next. The tool reports the drift; a person decides whether to\nre-estimate.\n\n**One number, per role, on a leaf.** An actual on a row that has children is\n`rolled_up`, 409 — a parent's recorded days are the sum of its descendants'.\nA `roleId` that is not a role of this project is `unknown_role`, 404.\nA body without a finite `days` of 0 or more is `invalid_actual`, 400.\n\n**Zero is a statement and absence is not.** Recording 0 says the work took no\ndays. Saying nobody has recorded anything is `DELETE` on this path — never a\nzero, which is the rule every figure in this API follows.",
+        "requestBody": {
+          "required": true,
+          "description": "The days this role spent on this work item.\n\nThe schema here is documentation, not validation. This route parses its own body so that a field this API derives is refused rather than quietly dropped, which is what an Elysia body schema would do to it. Fields not named here are ignored; the ones named are checked, and a bad one answers 400 with a code from the list above.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "days"
+                ],
+                "properties": {
+                  "days": {
+                    "type": "number",
+                    "minimum": 0,
+                    "description": "Days actually spent. Fractions are real, as they are for an estimate. 0 means the work took no days, which is not the same as never having said."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "roleId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "operationId": "putApiWork-itemsByIdActualsByRoleId"
+      },
+      "delete": {
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "roleId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "operationId": "deleteApiWork-itemsByIdActualsByRoleId"
+      }
+    },
     "/api/teams": {
       "get": {
         "operationId": "getApiTeams"

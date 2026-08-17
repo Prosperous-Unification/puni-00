@@ -11,6 +11,7 @@ import {
 } from '@wbs/domain';
 
 import type {
+  ActualStore,
   CapacityStore,
   CommandJournalStore,
   DependencyStore,
@@ -24,6 +25,7 @@ import type {
   ProjectStore,
   Reparented,
   Role,
+  StoredActual,
   StoredEstimate,
   SubtreeStore,
   TeamCapacity,
@@ -50,7 +52,7 @@ import { canDepend } from './dependency';
 import { deriveNumbers } from './derive-numbers';
 import { placeAfter, POSITION_STEP, type Sibling } from './place-sibling';
 import { canEdit } from './project.service';
-import { type Days, rollUp } from './roll-up';
+import { type Days, rollUp, rollUpActuals } from './roll-up';
 import {
   schedule,
   ScheduleCycleError,
@@ -505,6 +507,16 @@ export interface WorkItemServiceOptions {
   workItems: WorkItemStore;
   projects: ProjectStore;
   estimates: EstimateStore;
+  /**
+   * Where the days actually spent are kept.
+   *
+   * Required rather than optional, for {@link WorkItemServiceOptions.journal}'s
+   * reason turned around: a service built without one would answer every read
+   * with no actuals at all, which is indistinguishable from a plan nobody has
+   * recorded anything against — and that is the true answer for every plan on
+   * the day this ships, so the mistake would be invisible for a week.
+   */
+  actuals: ActualStore;
   directory: DirectoryStore;
   /**
    * How many of each team this project may have at work at once — C1's `slotsOf`
@@ -869,6 +881,11 @@ export class WorkItemService {
     const seq = await this.opts.broadcast.latestSeq(projectId);
     const rows = await this.opts.workItems.listByProject(projectId);
     const stored = await this.opts.estimates.listByProject(projectId);
+    // Read beside the estimates and used for nothing but the payload. It is
+    // handed to no scheduling function — not `slicesOf`, not `schedule` — and
+    // that absence is this change's whole claim about itself: R6 reports, it
+    // does not plan. See `openspec/changes/actual-days/design.md` D3.
+    const recorded = await this.opts.actuals.listByProject(projectId);
     const edges = await this.opts.dependencies.listByProject(projectId);
     const assigned = await this.opts.directory.assignmentsOf(rows.map((row) => row.id));
     // The names for the ids just read, on this read rather than on a client's
@@ -887,6 +904,7 @@ export class WorkItemService {
     }
     const numbers = deriveNumbers(rows);
     const totals = rollUp(rows, stored);
+    const recordedTotals = rollUpActuals(rows, recorded);
     const hasChildren = new Set(rows.map((row) => row.parentId).filter((id) => id !== null));
     // The write path refuses an edge that would close a cycle, but two clients
     // drawing conflicting edges at the same instant are each checked against the
@@ -1007,6 +1025,15 @@ export class WorkItemService {
         ...row,
         number: numbers.get(row.id) ?? '',
         estimates: Object.fromEntries(totals.get(row.id) ?? []),
+        // The days recorded against this row: its own if it is a leaf, the sum
+        // of its descendants' if it is not — the same fold, one table over.
+        //
+        // A role nobody has recorded days for is **absent from this object**,
+        // and an empty object means nobody has recorded anything on this row.
+        // Neither is a zero, and a face that renders a missing key as `0` is
+        // saying somebody stated the work took no time. See `actual` in
+        // `schema.ts`.
+        actuals: Object.fromEntries(recordedTotals.get(row.id) ?? []),
         // A parent's final figure is its rolled-up totals put through the same
         // method, not the sum of its children's finals. For PERT the two agree
         // (the weighting is linear); for the others they agree too, since each
@@ -1109,8 +1136,21 @@ export class WorkItemService {
         : (await this.opts.estimates.listByProject(projectId)).filter(
             (each) => each.workItemId === gainsFirstChild,
           );
+    // The actuals go down with them, and for a sharper reason than the
+    // estimates do. A parent's figures are the sum of its children's, so an
+    // actual left behind on a row that has just gained a child is a row no
+    // reader can see and no writer can reach — invisible rather than zero, and
+    // back on screen the day somebody deletes the child. Read before the move,
+    // like the estimates, because afterwards they are the child's.
+    const recordedHandedDown =
+      gainsFirstChild === null
+        ? []
+        : (await this.opts.actuals.listByProject(projectId)).filter(
+            (each) => each.workItemId === gainsFirstChild,
+          );
     if (gainsFirstChild !== null) {
       await this.opts.estimates.moveAll(gainsFirstChild, workItem.id);
+      await this.opts.actuals.moveAll(gainsFirstChild, workItem.id);
     }
     await this.announceTree(projectId);
     await this.record(projectId, actorId, 'create', `add ${quoteName(workItem.name)}`, {
@@ -1120,10 +1160,15 @@ export class WorkItemService {
         rootPosition: workItem.position,
         reparented: [],
         estimates: handedDown.map((each) => ({ ...each, workItemId: workItem.id })),
+        actuals: recordedHandedDown.map((each) => ({ ...each, workItemId: workItem.id })),
         assignments: [],
         internalDependencies: [],
         externalDependencies: [],
         removedEstimates: handedDown.map((each) => ({
+          workItemId: each.workItemId,
+          roleId: each.roleId,
+        })),
+        removedActuals: recordedHandedDown.map((each) => ({
           workItemId: each.workItemId,
           roleId: each.roleId,
         })),
@@ -1138,6 +1183,9 @@ export class WorkItemService {
         remove: [workItem.id],
         reparented: [],
         setEstimates: handedDown,
+        // Back to the row they came from, exactly as they were. Re-applying
+        // this create's own undo is what runs it.
+        setActuals: recordedHandedDown,
       },
       touched: gainsFirstChild === null ? [workItem.id] : [workItem.id, gainsFirstChild],
       before: rows,
@@ -1400,9 +1448,17 @@ export class WorkItemService {
       respaced: placed.renumbered,
       reparented: [],
       estimates: copiedEstimates,
+      // **Deliberately empty.** A duplicate is work that has not been done:
+      // copying the original's actuals would tell the plan a fortnight nobody
+      // has worked was already spent, and the copy would appear with a variance
+      // as though it were finished. Estimates copy because an estimate
+      // describes work; actuals do not because an actual records a week. See
+      // `openspec/changes/actual-days/design.md` D5.
+      actuals: [],
       assignments: copiedAssignments,
       dependencies: copiedEdges,
       removedEstimates: [],
+      removedActuals: [],
     });
     // Once, at the end. The copy renumbers rows it never touched — every later
     // sibling of the original, at every level — so it is the whole tree rather
@@ -1421,10 +1477,14 @@ export class WorkItemService {
           rootPosition: placed.position,
           reparented: [],
           estimates: copiedEstimates,
+          // Empty for the write's reason above: a redo of a duplication puts
+          // back the copy that was made, and no days were ever recorded on it.
+          actuals: [],
           assignments: copiedAssignments,
           internalDependencies: copiedEdges,
           externalDependencies: [],
           removedEstimates: [],
+          removedActuals: [],
         },
         inverse: {
           do: 'delete_subtree',
@@ -1433,6 +1493,7 @@ export class WorkItemService {
           remove: copyIds,
           reparented: [],
           setEstimates: [],
+          setActuals: [],
         },
         // Every copied row, all of them at 0. Anything typed into the copy
         // moves one of these and the undo refuses rather than throwing away
@@ -1462,6 +1523,11 @@ export class WorkItemService {
 
     const label = `delete ${quoteName(workItem.name)}`;
     const storedEstimates = await this.opts.estimates.listByProject(workItem.projectId);
+    // Read before anything is deleted, exactly like the estimates and the
+    // assignments: `actual.work_item_id` cascades, so a moment later there is
+    // nothing left to read and the restore would put the branch back with the
+    // days nobody recorded again.
+    const storedActuals = await this.opts.actuals.listByProject(workItem.projectId);
     const allEdges = await this.opts.dependencies.listByProject(workItem.projectId);
 
     if (children.length === 0 || strategy === 'cascade') {
@@ -1476,13 +1542,36 @@ export class WorkItemService {
       const doomed = subtreeOf(rows, id);
       const inside = new Set(doomed);
       const handedUp: StoredEstimate[] = [];
+      // The same rule, one table over: the parent is about to become a leaf
+      // again, and a leaf reports what it holds. Without this the days the
+      // branch recorded are simply gone the moment its last child is deleted —
+      // the estimates would survive on the parent and the actuals beside them
+      // would not, which is the drift this whole change is written not to have.
+      //
+      // The **totals**, not the rows, for the reason the estimates' comment
+      // above gives: a deleted child that is itself a parent holds no rows of
+      // its own, so moving rows would move nothing and the branch's figures
+      // would go with it.
+      //
+      // `recordedAt` is the newest stamp in the branch — the parent's number is
+      // now the whole branch's, and the day it was last added to is the honest
+      // answer to "when was this recorded".
+      const recordedHandedUp: StoredActual[] = [];
       if (parentId !== null && rows.filter((row) => row.parentId === parentId).length === 1) {
         const totals = rollUp(rows, storedEstimates);
         for (const [roleId, days] of totals.get(id) ?? []) {
           handedUp.push({ workItemId: parentId, roleId, ...days });
         }
+        const recordedInside = storedActuals.filter((each) => inside.has(each.workItemId));
+        for (const [roleId, days] of rollUpActuals(rows, storedActuals).get(id) ?? []) {
+          const latest = recordedInside
+            .filter((each) => each.roleId === roleId)
+            .reduce((newest, each) => Math.max(newest, each.recordedAt), 0);
+          recordedHandedUp.push({ workItemId: parentId, roleId, days, recordedAt: latest });
+        }
       }
       for (const each of handedUp) await this.opts.estimates.set(each);
+      for (const each of recordedHandedUp) await this.opts.actuals.set(each);
       const cut = allEdges.filter(
         (edge) => inside.has(edge.predecessorId) || inside.has(edge.successorId),
       );
@@ -1505,6 +1594,7 @@ export class WorkItemService {
           remove: doomed,
           reparented: [],
           setEstimates: handedUp,
+          setActuals: recordedHandedUp,
         },
         inverse: {
           do: 'restore_subtree',
@@ -1512,6 +1602,11 @@ export class WorkItemService {
           rootPosition: workItem.position,
           reparented: [],
           estimates: storedEstimates.filter((each) => inside.has(each.workItemId)),
+          // Every day recorded anywhere in the branch, put back where it was
+          // recorded. Without this an undo of a delete answers `ok` and returns
+          // the branch with its estimates and none of its actuals — the plan
+          // looks whole and a week of somebody's record is gone.
+          actuals: storedActuals.filter((each) => inside.has(each.workItemId)),
           assignments: doomedAssignments,
           internalDependencies: cut.filter(
             (edge) => inside.has(edge.predecessorId) && inside.has(edge.successorId),
@@ -1520,6 +1615,10 @@ export class WorkItemService {
             (edge) => !inside.has(edge.predecessorId) || !inside.has(edge.successorId),
           ),
           removedEstimates: handedUp.map((each) => ({
+            workItemId: each.workItemId,
+            roleId: each.roleId,
+          })),
+          removedActuals: recordedHandedUp.map((each) => ({
             workItemId: each.workItemId,
             roleId: each.roleId,
           })),
@@ -1564,6 +1663,9 @@ export class WorkItemService {
         remove: [id],
         reparented: promoted,
         setEstimates: [],
+        // A promotion deletes one row and keeps its children, so the parent
+        // below is not becoming a leaf and nothing is handed anywhere.
+        setActuals: [],
       },
       inverse: {
         do: 'restore_subtree',
@@ -1578,10 +1680,17 @@ export class WorkItemService {
           return { id: was.id, parentId: was.parentId, position: was.position };
         }),
         estimates: storedEstimates.filter((each) => each.workItemId === id),
+        // The promoted row's own recorded days — it had children, so it holds
+        // none, and this is the empty list every time until a promotion of a
+        // leaf becomes representable. Written from the same source as the
+        // estimates beside it rather than hard-coded, so it stays true if that
+        // ever changes.
+        actuals: storedActuals.filter((each) => each.workItemId === id),
         assignments: deletedAssignments,
         internalDependencies: [],
         externalDependencies: cut,
         removedEstimates: [],
+        removedActuals: [],
       },
       // The promoted rows are preconditions because putting them back under the
       // restored parent is part of the undo. The ends of the edges that left
@@ -1767,6 +1876,104 @@ export class WorkItemService {
         {
           forward: { do: 'clear_estimate', workItemId: id, roleId },
           inverse: { do: 'set_estimate', workItemId: id, roleId, days: before },
+          touched: [id],
+          before: context.result.rows,
+        },
+      );
+    }
+    return { ok: true, result: null };
+  }
+
+  /**
+   * Writes the days one role actually spent on one work item.
+   *
+   * Guarded exactly as {@link WorkItemService.setEstimate} is, and the two
+   * refusals are the same two for the same reasons: a row with children is
+   * `rolled_up`, because its figures are the sum of what is below it and a
+   * stored number there would be ignored or double-counted; a `roleId` this
+   * project does not hold is `unknown_role`.
+   *
+   * **Nothing about this reaches the schedule.** The engine's input map is built
+   * from estimates in `slicesOf` and this number is not in it, so recording an
+   * actual moves no date, no bar and no critical path. That is not a saving, it
+   * is the only honest reading available: the model has no completion state, so
+   * it cannot tell "took 8 days, finished" from "8 days so far", and the two
+   * mean opposite things for every successor. See `design.md` D3.
+   *
+   * Journalled through the same {@link WorkItemService.record} seam as every
+   * other command, which is what makes it undoable and what puts it in the
+   * plan's history without a second write path — the ordering H1 called
+   * non-negotiable.
+   */
+  async setActual(
+    id: string,
+    actorId: string,
+    roleId: string,
+    days: number,
+  ): Promise<WorkItemOutcome<null>> {
+    const context = await this.contextFor(id, actorId);
+    if (!context.ok) return context;
+    const { rows, workItem } = context.result;
+    if (rows.some((row) => row.parentId === id)) return { ok: false, reason: 'rolled_up' };
+    if (!(await this.holdsRole(workItem.projectId, roleId)))
+      return { ok: false, reason: 'unknown_role' };
+    const before = await this.storedActual(workItem.projectId, id, roleId);
+    const written = await this.writeNamingRole(workItem.projectId, roleId, () =>
+      this.opts.actuals.set({ workItemId: id, roleId, days, recordedAt: this.now() }),
+    );
+    if (written === null) return { ok: false, reason: 'unknown_role' };
+    await this.announceWorkItem(workItem.projectId, id);
+    await this.record(
+      workItem.projectId,
+      actorId,
+      'actual',
+      `record days on ${quoteName(workItem.name)}`,
+      {
+        forward: { do: 'set_actual', workItemId: id, roleId, days },
+        // The number that was there, or its absence. A `clear_actual` inverse
+        // is what makes undoing the first recording take the row away rather
+        // than write a zero — the one thing this table must never hold as a
+        // stand-in for "nobody said".
+        inverse:
+          before === null
+            ? { do: 'clear_actual', workItemId: id, roleId }
+            : { do: 'set_actual', workItemId: id, roleId, days: before },
+        touched: [id],
+        before: context.result.rows,
+      },
+    );
+    return { ok: true, result: null };
+  }
+
+  /**
+   * Takes the recorded days back off one work item for one role.
+   *
+   * Idempotent, and not refused on a rolled-up row, for exactly the reasons
+   * {@link WorkItemService.clearEstimate} gives: clearing what is not stored is
+   * the state the caller asked for, and a parent cannot hold a row to begin
+   * with, so refusing there would make "clear what is not there" an error in
+   * one place and a success everywhere else. A missing **work item** is still
+   * `not_found`.
+   */
+  async clearActual(id: string, actorId: string, roleId: string): Promise<WorkItemOutcome<null>> {
+    const context = await this.contextFor(id, actorId);
+    if (!context.ok) return context;
+    const { workItem } = context.result;
+    const before = await this.storedActual(workItem.projectId, id, roleId);
+    await this.opts.actuals.remove(id, roleId);
+    await this.announceWorkItem(workItem.projectId, id);
+    // Nothing was stored, so nothing changed and there is nothing to put back —
+    // the same skip `clearEstimate` makes, and the reason a plan does not gain
+    // a history row every time somebody empties an empty box.
+    if (before !== null) {
+      await this.record(
+        workItem.projectId,
+        actorId,
+        'clear_actual',
+        `clear the recorded days on ${quoteName(workItem.name)}`,
+        {
+          forward: { do: 'clear_actual', workItemId: id, roleId },
+          inverse: { do: 'set_actual', workItemId: id, roleId, days: before },
           touched: [id],
           before: context.result.rows,
         },
@@ -2106,6 +2313,35 @@ export class WorkItemService {
       case 'clear_estimate':
         await this.opts.estimates.remove(command.workItemId, command.roleId);
         return { ok: true, detail: null };
+      case 'set_actual': {
+        const rows = await this.opts.workItems.listByProject(projectId);
+        if (rows.some((row) => row.parentId === command.workItemId)) {
+          return { ok: false, detail: 'that work item has children now, so its figures are sums.' };
+        }
+        // The phase the days were recorded against has been removed since.
+        // `actual.role_id` is a foreign key, so putting the number back would be
+        // a constraint error on a key somebody pressed to be safe.
+        if (!(await this.holdsRole(projectId, command.roleId))) {
+          return { ok: false, detail: 'that phase is no longer in this project.' };
+        }
+        const restored = await this.writeNamingRole(projectId, command.roleId, () =>
+          this.opts.actuals.set({
+            workItemId: command.workItemId,
+            roleId: command.roleId,
+            days: command.days,
+            // Now, not the stamp the row carried. An undo is somebody recording
+            // the number again, and this column says when it was recorded — see
+            // the `set_actual` command in `compensating.ts`.
+            recordedAt: this.now(),
+          }),
+        );
+        if (restored === null)
+          return { ok: false, detail: 'that phase is no longer in this project.' };
+        return { ok: true, detail: null };
+      }
+      case 'clear_actual':
+        await this.opts.actuals.remove(command.workItemId, command.roleId);
+        return { ok: true, detail: null };
       case 'assign':
         if (command.personId !== null && !(await this.holdsRole(projectId, command.roleId))) {
           return { ok: false, detail: 'that phase is no longer in this project.' };
@@ -2211,6 +2447,10 @@ export class WorkItemService {
     for (const gone of command.remove) await this.opts.dependencies.removeAllFor(gone);
     await this.opts.workItems.remove(command.remove, command.reparented);
     for (const each of command.setEstimates) await this.opts.estimates.set(each);
+    // The hand-up again, actuals with estimates. A re-applied delete that put
+    // back only half of what the original handed to the surviving parent would
+    // leave the plan reporting an estimate with no record beside it.
+    for (const each of command.setActuals) await this.opts.actuals.set(each);
     return { ok: true, detail: null };
   }
 
@@ -2266,9 +2506,11 @@ export class WorkItemService {
       respaced: placed.renumbered,
       reparented: command.reparented,
       estimates: command.estimates,
+      actuals: command.actuals,
       assignments: command.assignments,
       dependencies: command.internalDependencies,
       removedEstimates: command.removedEstimates,
+      removedActuals: command.removedActuals,
     });
 
     // The edges that leave the branch, one at a time and through the same
@@ -2454,6 +2696,25 @@ export class WorkItemService {
       realistic: found.realistic,
       pessimistic: found.pessimistic,
     };
+  }
+
+  /**
+   * One work item's recorded days for one role, or null when it holds none.
+   *
+   * Null rather than 0, and every caller of this treats the two as different
+   * answers: 0 is a person saying the work took no time, and null is nobody
+   * having said anything. The absence is what an undo of the first recording
+   * puts back.
+   */
+  private async storedActual(
+    projectId: string,
+    workItemId: string,
+    roleId: string,
+  ): Promise<number | null> {
+    const found = (await this.opts.actuals.listByProject(projectId)).find(
+      (each) => each.workItemId === workItemId && each.roleId === roleId,
+    );
+    return found?.days ?? null;
   }
 
   private async announceTree(projectId: string): Promise<void> {

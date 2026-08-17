@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { buildApp } from '../app';
+import { ActualRepository } from '../repository/actual';
 import { CommandJournalRepository } from '../repository/command-journal';
 import { openDrizzle } from '../repository/db';
 import { DependencyRepository } from '../repository/dependency';
@@ -56,6 +57,7 @@ beforeEach(() => {
   const projects = new ProjectRepository(db);
   const workItems = new WorkItemRepository(db);
   const estimates = new EstimateRepository(db);
+  const actuals = new ActualRepository(db);
   const dependencies = new DependencyRepository(db);
   const directory = new DirectoryRepository(db);
 
@@ -75,6 +77,7 @@ beforeEach(() => {
       workItems,
       projects,
       estimates,
+      actuals,
       dependencies,
       directory,
       capacity: inMemoryCapacity(),

@@ -99,14 +99,25 @@ export type RoleWritten = { ok: true; role: Role } | { ok: false; reason: RoleWr
  */
 export interface RoleUsageRows {
   estimates: number;
+  /**
+   * How many actuals this role holds — a count, for {@link RoleUsageRows.estimates}'
+   * reason.
+   *
+   * Counted separately rather than added to the estimates, and counted **at
+   * all**, because an actual is somebody's typing about work that has already
+   * happened: a role removal that took one silently would delete the only record
+   * of a week somebody spent. A role with no estimate and one actual is `in_use`.
+   */
+  actuals: number;
   assignments: readonly Assignment[];
 }
 
 /** What one confirmed removal took with it. */
 export interface RoleRemoval {
   estimates: number;
+  actuals: number;
   assignments: number;
-  /** Every work item that lost an estimate or an assignment, and whose revision therefore moved. */
+  /** Every work item that lost an estimate, an actual or an assignment, and whose revision therefore moved. */
   workItemIds: readonly string[];
 }
 
@@ -164,7 +175,9 @@ export interface RoleStore {
    * deleted by it.
    *
    * The estimates are deleted explicitly because `estimate.role_id` has no
-   * cascade: a bare delete of the row hits the foreign key and answers 500.
+   * cascade: a bare delete of the row hits the foreign key and answers 500. The
+   * **actuals** are deleted explicitly for exactly the same reason, and counted
+   * for a stronger one — see {@link RoleUsageRows.actuals}.
    */
   remove(projectId: string, roleId: string, cascade: boolean): Promise<RoleRemoved>;
 }
@@ -382,6 +395,63 @@ export interface EstimateStore {
    * its first child hands the estimate down, and a work item whose last child is
    * deleted takes it back. Neither is a merge — a parent never holds estimates of
    * its own while it has children.
+   */
+  moveAll(fromWorkItemId: string, toWorkItemId: string): Promise<void>;
+}
+
+/**
+ * The days one role spent on one work item, and when somebody said so.
+ *
+ * One number rather than a trio: an estimate is a guess about a range and an
+ * actual is a fact about what happened.
+ */
+export interface StoredActual {
+  workItemId: string;
+  roleId: string;
+  days: number;
+  /** When the number was typed, in epoch milliseconds. */
+  recordedAt: number;
+}
+
+/** One actual row's whole identity: the pair its primary key is. */
+export interface ActualKey {
+  workItemId: string;
+  roleId: string;
+}
+
+/**
+ * Reading and writing the days actually spent.
+ *
+ * Deliberately the same five methods as {@link EstimateStore}, in the same
+ * order, doing the same things to a table with the same key. Actuals follow
+ * estimates through every structural change — the hand-down when a leaf gains
+ * its first child, the hand-up when a parent loses its last, the copy a
+ * duplication makes, the restore an undo runs — and the way to keep those two
+ * sets of rules from drifting is for the second store to have no shape of its
+ * own to drift into.
+ */
+export interface ActualStore {
+  /** Every actual in the project, in role order within each work item. */
+  listByProject(projectId: string): Promise<StoredActual[]>;
+  /** Writes one work item's actual for one role, replacing any earlier one. */
+  set(actual: StoredActual): Promise<void>;
+  /**
+   * Takes away one work item's actual for one role, leaving every other role on
+   * that work item and that role on every other work item alone.
+   *
+   * Removing one that is not stored is not an error, for
+   * {@link EstimateStore.remove}'s reason: the state asked for is the state
+   * left.
+   */
+  remove(workItemId: string, roleId: string): Promise<void>;
+  /**
+   * Moves every actual from one work item to another, exactly as
+   * {@link EstimateStore.moveAll} does and at the same call sites.
+   *
+   * A leaf that gains its first child stops holding figures of its own — its
+   * numbers become the sum of what is below it — so an actual left behind would
+   * be a row no reader can see and no writer can reach: invisible, not zero, and
+   * back on screen if the child is ever deleted.
    */
   moveAll(fromWorkItemId: string, toWorkItemId: string): Promise<void>;
 }
@@ -761,6 +831,20 @@ export interface SubtreeCopy {
    */
   reparented: readonly Reparented[];
   estimates: readonly StoredEstimate[];
+  /**
+   * The days already recorded against the rows being written.
+   *
+   * **Empty for a duplication, and that is a decision rather than an
+   * omission.** A duplicate is work that has not been done yet: copying the
+   * original's actuals would tell the plan that a fortnight nobody has worked
+   * was already spent, and the copy's variance would read as finished work the
+   * moment it appeared. Estimates copy because an estimate is a description of
+   * work; actuals do not because an actual is a record of a week.
+   *
+   * Non-empty for a **restore**, which is the other caller: an undo of a delete
+   * has to put back what the delete took, and the actuals went with the rows.
+   */
+  actuals: readonly StoredActual[];
   assignments: readonly Assignment[];
   /** Only the edges with both ends inside the subtree, remapped to the copies. */
   dependencies: readonly StoredDependency[];
@@ -774,6 +858,8 @@ export interface SubtreeCopy {
    * once on the parent that is no longer a leaf.
    */
   removedEstimates: readonly EstimateKey[];
+  /** Actuals to take off a work item **outside** `rows`, for {@link SubtreeCopy.removedEstimates}' reason. */
+  removedActuals: readonly ActualKey[];
 }
 
 /** One estimate row's whole identity: the pair its primary key is. */

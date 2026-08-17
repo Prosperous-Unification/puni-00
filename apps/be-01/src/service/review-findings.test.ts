@@ -1,6 +1,13 @@
 import { beforeEach, describe, expect, it } from 'bun:test';
 
-import type { EstimateStore, Project, ProjectStore, WorkItemStore } from '../repository';
+import type {
+  ActualStore,
+  EstimateStore,
+  Project,
+  ProjectStore,
+  WorkItemStore,
+} from '../repository';
+import { inMemoryActuals } from '../testing/actual-fixture';
 import { type RecordingBroadcaster, recordingBroadcaster } from '../testing/broadcast-fixture';
 import { inMemoryCapacity } from '../testing/capacity-fixture';
 import { inMemoryCommandJournal } from '../testing/command-journal-fixture';
@@ -18,6 +25,7 @@ const OWNER = 'owner-account';
 let projects: ProjectStore;
 let workItems: WorkItemStore;
 let estimates: EstimateStore;
+let actuals: ActualStore;
 let broadcast: RecordingBroadcaster;
 let service: WorkItemService;
 let projectId: string;
@@ -45,11 +53,13 @@ beforeEach(async () => {
   projects = inMemoryProjects();
   workItems = inMemoryWorkItems();
   estimates = inMemoryEstimates(workItems);
+  actuals = inMemoryActuals(workItems);
   broadcast = recordingBroadcaster();
   service = new WorkItemService({
     workItems,
     projects,
     estimates,
+    actuals,
     dependencies: inMemoryDependencies(),
     directory: inMemoryDirectory(),
     capacity: inMemoryCapacity(),

@@ -3,6 +3,7 @@ import { describe, expect, it } from 'bun:test';
 import { buildApp } from '../app';
 import { ProjectService } from '../service/project.service';
 import { WorkItemService } from '../service/work-item.service';
+import { inMemoryActuals } from '../testing/actual-fixture';
 import { inMemoryUsers, testAuthService } from '../testing/auth-fixture';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { inMemoryCapacity, testCapacityService } from '../testing/capacity-fixture';
@@ -23,6 +24,7 @@ function buildWorkItemService(projectStore: ReturnType<typeof inMemoryProjects>)
     workItems: workItemStore,
     projects: projectStore,
     estimates: inMemoryEstimates(workItemStore),
+    actuals: inMemoryActuals(workItemStore),
     dependencies: inMemoryDependencies(),
     directory: inMemoryDirectory(),
     capacity: inMemoryCapacity(),

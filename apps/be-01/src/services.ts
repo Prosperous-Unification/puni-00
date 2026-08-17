@@ -1,6 +1,7 @@
 import type { Logger } from '@wbs/observability';
 
 import { PLAN_EVENT_RETENTION_DAYS } from './repository';
+import { ActualRepository } from './repository/actual';
 import { CapacityRepository } from './repository/capacity';
 import { CommandJournalRepository } from './repository/command-journal';
 import type { Drizzle } from './repository/db';
@@ -145,6 +146,11 @@ export function buildServices(opts: ServicesOptions): BeServices {
       workItems: new WorkItemRepository(opts.db),
       projects: projectStore,
       estimates: new EstimateRepository(opts.db),
+      // Its own store beside the estimates rather than more methods on that one:
+      // the two tables answer different questions, and the day one of them grows
+      // a rule the other must not have is the day a shared class becomes a
+      // conditional. See `actual` in `schema.ts`.
+      actuals: new ActualRepository(opts.db),
       dependencies: new DependencyRepository(opts.db),
       directory: directoryStore,
       capacity: capacityStore,

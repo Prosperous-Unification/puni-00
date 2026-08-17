@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import type { JournalEntry, Role, WorkItem } from '../repository';
+import { ActualRepository } from '../repository/actual';
 import { CommandJournalRepository } from '../repository/command-journal';
 import { openDrizzle } from '../repository/db';
 import { DependencyRepository } from '../repository/dependency';
@@ -46,6 +47,7 @@ let workItems: WorkItemService;
 let projects: ProjectService;
 let workItemStore: WorkItemRepository;
 let estimateStore: EstimateRepository;
+let actualStore: ActualRepository;
 let dependencyStore: DependencyRepository;
 let directoryStore: DirectoryRepository;
 let journalStore: CommandJournalRepository;
@@ -73,6 +75,7 @@ beforeEach(async () => {
   const projectStore = new ProjectRepository(db);
   workItemStore = new WorkItemRepository(db);
   estimateStore = new EstimateRepository(db);
+  actualStore = new ActualRepository(db);
   dependencyStore = new DependencyRepository(db);
   directoryStore = new DirectoryRepository(db);
   journalStore = new CommandJournalRepository(db);
@@ -90,6 +93,7 @@ beforeEach(async () => {
     workItems: workItemStore,
     projects: projectStore,
     estimates: estimateStore,
+    actuals: actualStore,
     directory: directoryStore,
     capacity: inMemoryCapacity(),
     priorityBands: inMemoryPriorityBands(),
@@ -468,6 +472,90 @@ describe('undoing each kind of change', () => {
       { workItemId: switches, roleId: dev(), personId: alice },
     ]);
     expect(await edges()).toEqual([[sockets, switches]]);
+  });
+
+  it('restores every day recorded in a deleted branch, against the real cascade', async () => {
+    // Against real SQLite, and that is the point of putting this here rather
+    // than beside the other actual cases: `actual.work_item_id` cascades, so the
+    // rows are genuinely gone after the delete and can only come back from the
+    // command. The in-memory store cannot model that — its rows survive the
+    // deletion in an array and reappear with the row — and a case written there
+    // passes with the restore's `actuals` replaced by `[]`. See verify.md F9a.
+    const strip = await root('Strip');
+    const sockets = await child(strip, 'Sockets');
+    const switches = await child(strip, 'Switches', sockets);
+    await workItems.setActual(sockets, ownerId, dev(), 8);
+    await workItems.setActual(switches, ownerId, dev(), 3);
+
+    expect((await workItems.remove(strip, ownerId, 'cascade')).ok).toBe(true);
+    expect(await actualStore.listByProject(projectId)).toEqual([]);
+
+    expect(expectDone(await undone())).toBe('delete “Strip”');
+
+    // By work item rather than as a list, and the size asserted beside it.
+    // `listByProject` orders by `work_item_id` — a **UUID** across a project —
+    // so a two-row list assertion here is a coin toss on which name sorts
+    // first: it passed five times on h2puni and on CI at `db3e121`, and failed
+    // on the doc-only commit after it. See verify.md.
+    const back = await actualStore.listByProject(projectId);
+    const byItem = new Map(back.map((each) => [each.workItemId, each.days]));
+    expect(byItem.get(sockets)).toBe(8);
+    expect(byItem.get(switches)).toBe(3);
+    expect(back).toHaveLength(2);
+    expect(back.every((each) => each.roleId === dev())).toBe(true);
+  });
+
+  it('takes back the recorded days a deletion handed up to the parent', async () => {
+    // The mirror of the estimate case below it. The parent has no children left
+    // after the delete, so it took the branch's recorded days; undoing has to
+    // take them off it again, or the same week is counted twice — once on the
+    // restored leaf and once on a parent that is no longer one.
+    const strip = await root('Strip');
+    const sockets = await child(strip, 'Sockets');
+    await workItems.setActual(sockets, ownerId, dev(), 5);
+
+    expect((await workItems.remove(sockets, ownerId, null)).ok).toBe(true);
+    expect(
+      (await actualStore.listByProject(projectId)).map(({ workItemId, days }) => ({
+        workItemId,
+        days,
+      })),
+    ).toEqual([{ workItemId: strip, days: 5 }]);
+
+    expect(expectDone(await undone())).toBe('delete “Sockets”');
+
+    expect(
+      (await actualStore.listByProject(projectId)).map(({ workItemId, days }) => ({
+        workItemId,
+        days,
+      })),
+    ).toEqual([{ workItemId: sockets, days: 5 }]);
+  });
+
+  it('hands the recorded days back up when it undoes the first child that took them', async () => {
+    // The create moved them down, because a work item with children reports
+    // sums and a row left on it would be unreadable. The undo deletes that
+    // child — taking its rows with it, through the cascade — so the days can
+    // only come back from the command's own `setActuals`.
+    const strip = await root('Strip');
+    await workItems.setActual(strip, ownerId, dev(), 6);
+
+    const sockets = await child(strip, 'Sockets');
+    expect(
+      (await actualStore.listByProject(projectId)).map(({ workItemId, days }) => ({
+        workItemId,
+        days,
+      })),
+    ).toEqual([{ workItemId: sockets, days: 6 }]);
+
+    expect(expectDone(await undone())).toBe('add “Sockets”');
+
+    expect(
+      (await actualStore.listByProject(projectId)).map(({ workItemId, days }) => ({
+        workItemId,
+        days,
+      })),
+    ).toEqual([{ workItemId: strip, days: 6 }]);
   });
 
   it('takes back the estimates a deletion handed up to the parent', async () => {
