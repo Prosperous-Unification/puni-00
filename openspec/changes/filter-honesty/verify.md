@@ -32,7 +32,9 @@ Branch `change/filter-honesty`, cut from `origin/main` @ `6a83863` (#76 and #77 
 | `nx format:check --all`                          | **clean, exit 0**                    |
 | `bunx @fission-ai/openspec@1.3.0 validate --all` | **62 items, 62 passed, 0 failed**    |
 
-**CI is the gate of record**: run [`32063236214`](https://github.com/Prosperous-Unification/wbs-tool-v1/actions/runs/32063236214) at head `66f2ec0` — `gate` **success**, `pixels` **success**, first attempt, 9m37s. PR #78, open and not merged.
+**CI is the gate of record**: run [`32063236214`](https://github.com/Prosperous-Unification/wbs-tool-v1/actions/runs/32063236214) at head `66f2ec0` — `gate` **success**, `pixels` **success**, first attempt, 9m24s. PR #78, open and not merged.
+
+The doc-only tail commit (`c2d6c0b`, this paragraph) ran as [`32064134959`](https://github.com/Prosperous-Unification/wbs-tool-v1/actions/runs/32064134959): `gate` green, `pixels` red on `header.spec.ts:413` and `hover-cards.spec.ts:85` amid the same flood of ws-proxy `ECONNRESET`/`EPIPE` #73 recorded, on a commit whose diff is one markdown line. `gh run rerun --failed` passed clean. **Third sighting of that flake class on this repo** — worth its own look, and it is not this change's.
 
 F1 left 1451 tests; this change adds 27. **be-01, gw-01 and `libs/domain` are not affected** — no migration, no route, no wire field, and `schedule.ts` has an empty diff. `openspec validate` was run locally on purpose: CI's `gate` job runs it unconditionally and refuses a change with zero deltas (#73's finding).
 
