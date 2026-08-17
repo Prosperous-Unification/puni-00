@@ -84,7 +84,9 @@ affected, because `package.json` moved.
 | `openspec validate --all`                  | **57 passed, 0 failed**, `change/openapi-document` among them                                                                                                  |
 
 fe-01 is untouched by this change and its suite reported **1405 pass / 53 files**
-in the first run. be-01 rose from main's 739 to **742** — the three new tests.
+in the first run. be-01 is **742**, of which **three are new here**; main's own
+number at `1a17190` was not re-measured, so 739 is arithmetic rather than a
+reading.
 
 **The first run's two failures are h2puni's, not this branch's**, and both are on
 the record already: `fe-01:lint` flakiness under load is in `LLM_README.md`'s
