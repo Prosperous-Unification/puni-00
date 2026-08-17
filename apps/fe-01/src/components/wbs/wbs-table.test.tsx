@@ -12423,7 +12423,7 @@ describe('what the filter says it dropped, and what it exports', () => {
     openFilters();
     tick('Team Wiring');
 
-    click("Download what's on screen");
+    click('Download what’s on screen');
 
     expect(downloads.names).toHaveLength(1);
     // `-on-screen`, off the scope itself: two documents of one plan taken on

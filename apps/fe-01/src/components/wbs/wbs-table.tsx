@@ -7690,7 +7690,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         title="Download the rows on screen as a Markdown table, with a header saying what was filtered out and what is missing"
         onClick={downloadOnScreen}
       >
-        Download what's on screen
+        Download what’s on screen
       </Button>
       <label className="ml-auto flex items-center gap-1 text-sm">
         Starts
