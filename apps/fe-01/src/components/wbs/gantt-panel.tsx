@@ -1104,7 +1104,7 @@ interface GanttSvgTheme {
  * `matchMedia`). Values are `styles.css`'s own `:root` numbers, not a
  * second palette invented for this file.
  */
-const FALLBACK_GANTT_THEME: GanttSvgTheme = {
+export const FALLBACK_GANTT_THEME: GanttSvgTheme = {
   background: 'oklch(1 0 0)',
   foreground: 'oklch(0.129 0.042 264.695)',
   muted: 'oklch(0.968 0.007 247.896)',
