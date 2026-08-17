@@ -4284,31 +4284,39 @@ describe('downloading the chart as a standalone .svg', () => {
     expect(text).toContain('Aug 2026');
 
     // The geometry itself is a style-inlined clone: the mark survives with its
-    // own data attribute, and its class-driven colour is now a literal.
+    // own data attribute and the class is gone -- jsdom loads no stylesheet,
+    // so getComputedStyle on the live weekend band answers nothing to inline
+    // in its place. That the empty answer becomes a literal colour in a real
+    // browser is that browser's own proof (Playwright on h2puni, verify.md),
+    // not this one's.
     const weekendBand = doc.querySelector('[data-gantt-weekend]');
     expect(weekendBand).not.toBeNull();
     expect(weekendBand?.getAttribute('class')).toBeNull();
-    expect(weekendBand?.getAttribute('fill')).toBe(FALLBACK_GANTT_THEME.mutedForeground);
 
-    // A bar's own colour is already literal in the live app and travels
-    // untouched — never overwritten by the class-driven inlining pass.
+    // A bar's own colour is already literal in the live app -- a JSX
+    // fill={bar.personColor} attribute, never a class -- and travels
+    // untouched, which jsdom resolves exactly as a real browser does because
+    // nothing here depends on a stylesheet.
     const bar = doc.querySelector('[data-gantt-bar="hull-dev"]');
     expect(bar).not.toBeNull();
     expect(bar?.getAttribute('fill')).toBe(PERSON_BAR_COLORS[0]);
 
-    // The bar's own overlay text — HTML on screen, `<text>` here — carries the
+    // The theme actually resolved -- the background and the two hand-built
+    // text layers read it directly, never through a class, so jsdom's empty
+    // getComputedStyle answer falls back to FALLBACK_GANTT_THEME here and the
+    // exact literal is checkable without a browser.
+    expect(doc.querySelector('rect')?.getAttribute('fill')).toBe(FALLBACK_GANTT_THEME.background);
+    const monthText = [...doc.querySelectorAll('text')].find((t) => t.textContent === 'Aug 2026');
+    expect(monthText?.getAttribute('fill')).toBe(FALLBACK_GANTT_THEME.mutedForeground);
+
+    // The bar's own overlay text -- HTML on screen, <text> here -- carries the
     // same words the live label span shows, read off the same pure helpers.
     const liveLabel = document.querySelector('[data-gantt-bar-label="hull-dev"]');
     expect(liveLabel?.textContent).not.toBeNull();
-    expect(text).toContain(liveLabel?.textContent ?? ' ');
+    expect(text).toContain(liveLabel?.textContent ?? ' ');
   });
 
-  itDom('bakes the fallback theme into every class-driven mark under jsdom', async () => {
-    // jsdom loads no stylesheet, so every custom property `getComputedStyle`
-    // is asked for comes back empty — the fallback in `resolvedGanttTheme` is
-    // what stands in its place, and it is what this test can prove without a
-    // browser. Colour fidelity against a real palette is a browser's own
-    // proof (Playwright on h2puni, `verify.md`), not this one's.
+  itDom('strips the class from every class-driven mark, even where jsdom cannot resolve a literal to replace it with', async () => {
     render(
       <GanttPanel
         plan={twoRolePlan()}
@@ -4323,13 +4331,18 @@ describe('downloading the chart as a standalone .svg', () => {
     clickDownload();
     const text = await readBlobText(blobs[0] as Blob);
     const doc = new DOMParser().parseFromString(text, 'image/svg+xml');
-    // Every gridline is class-driven (`stroke-border`/`stroke-border/40`) —
-    // none is left without a literal `stroke` once the class is dropped.
+    // Every gridline is class-driven (stroke-border / stroke-border/40) in
+    // the live app -- none may reach the file still carrying that class,
+    // which would mean nothing outside the app it was drawn in.
     const gridlines = [...doc.querySelectorAll('[data-gantt-gridline]')];
     expect(gridlines.length).toBeGreaterThan(0);
     for (const line of gridlines) {
       expect(line.getAttribute('class')).toBeNull();
-      expect(line.getAttribute('stroke')).toBe(FALLBACK_GANTT_THEME.border);
     }
+    // Nor may role/tabindex -- a keyboard control in the app the file has
+    // nothing behind, in a document with no reason to claim one.
+    const anyBar = doc.querySelector('[data-gantt-bar]');
+    expect(anyBar?.getAttribute('role')).toBeNull();
+    expect(anyBar?.getAttribute('tabindex')).toBeNull();
   });
 });
