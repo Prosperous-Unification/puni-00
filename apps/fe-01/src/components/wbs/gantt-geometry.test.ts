@@ -1435,6 +1435,7 @@ describe('the shapes a real schedule makes', () => {
       personLinks: [],
       capacityLinks: [],
       notBeforeFlags: [],
+      droppedLinks: { dependencies: 0, personLinks: 0, capacityLinks: 0 },
       horizon: 1,
     });
   });
