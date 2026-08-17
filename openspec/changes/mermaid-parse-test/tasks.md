@@ -73,7 +73,14 @@ added, each a real, error-free gantt`.
 ## 6. The record
 
 - [x] 6.1 `proposal.md`, this file, `verify.md`. **No `design.md`**, no
-      citation table, no spec delta: PoC-mode contract
-      (`notes/delivery-modes.md`) — this change adds no requirement and
-      changes no runtime behaviour, only test evidence for requirements
-      M1–M3 already stated.
+      citation table: PoC-mode contract (`notes/delivery-modes.md`) — this
+      change adds no requirement and changes no runtime behaviour.
+- [x] 6.2 **The spec delta CI turned out to require, added after the first
+      red.** `openspec validate --all` in CI's `gate` job refuses any change
+      with zero deltas, unconditionally — the PoC-mode contract's own local
+      gate (`nx affected` + `format:check`) does not run `openspec validate`
+      at all, so this was invisible until CI. Five new scenarios under the
+      two requirements M1/M3 already own, naming the three parser-observable
+      guarantees M5 tests: inclusivity believed, a weekend crossing left
+      alone, an escaped id recovered intact. No existing `SHALL` changed
+      meaning.

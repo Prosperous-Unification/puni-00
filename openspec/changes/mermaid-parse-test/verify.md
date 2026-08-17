@@ -6,9 +6,19 @@ Branch `change/mermaid-parse-test`, cut from `main` @ `1a17190` (#72 merged) on
 **Run under the PoC-mode contract** (`notes/delivery-modes.md`): no
 `design.md`, no citation table, watched reds for new guards only, `nx
 affected` locally plus **`nx format:check --all`**, and **CI is the gate of
-record**. No spec delta either — this change adds no requirement and changes
-no runtime behaviour; it adds test evidence for requirements M1–M3 already
-stated.
+record**.
+
+**One gap in the PoC-mode contract, found by CI rather than avoided: it does
+carry a spec delta, and the local gate cannot tell you that.** `openspec
+validate --all` runs unconditionally inside CI's `gate` job — it is not part
+of the PoC-mode local contract (`nx affected` + `format:check`), so the first
+CI run of this branch failed on it (`OpenSpec` step, "Change must have at
+least one delta"). Fixed by adding five scenarios to the two requirements
+M1/M3 already own, naming the parser-observable guarantees M5 tests as formal
+scenarios rather than as docstring argument. No existing `SHALL` changes
+meaning — see §6.2 of `tasks.md`. Worth carrying into `delivery-modes.md`
+itself: **every change needs at least one delta, always, and the local
+contract has no step that would catch a change with none.**
 
 ## Wall clock (UTC)
 
@@ -157,9 +167,9 @@ notice the day `ganttDb.js`'s hardcoded `'YYYY-MM-DD'` moves.
 
 - **No production code.** The real parser disagreed with nothing in
   `plan-mermaid.ts`; there is no generator bug to report.
-- **No spec delta.** This change states no new requirement; M1's and M3's
-  spec deltas already describe the behaviour this file now watches with a
-  real parser instead of a string.
+- **No new requirement, no behaviour change.** The spec delta this change
+  does carry (added after CI's first red, above) is additive scenarios under
+  M1's and M3's existing requirements, not a new `SHALL`.
 - **No `mermaid.render()`, no SVG, no app-visible surface.** Only
   `mermaidAPI.getDiagramFromText`'s parsed diagram data is read.
 

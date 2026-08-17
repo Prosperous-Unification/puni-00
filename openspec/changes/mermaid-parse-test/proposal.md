@@ -45,6 +45,14 @@ Pinned against the real parser:
   each produce a real, error-free `gantt` diagram with the sections and task
   count `sectionOf`'s docstring claims.
 
+**The spec delta is additive, not behavioural.** `openspec validate` requires
+every change to carry at least one delta with a scenario; this one names, as
+formal scenarios, three guarantees the base spec's prose already implied but
+never stated as parser-observable facts — inclusivity believed, a weekend
+crossing left alone, an escaped id recovered intact. No `SHALL` in the base
+requirement changes meaning; the new scenarios describe what M5's tests now
+watch for the first time.
+
 ## Non-goals
 
 **No production code changes.** If the real parser had disagreed with any
