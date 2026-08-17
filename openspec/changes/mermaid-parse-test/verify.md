@@ -175,9 +175,19 @@ notice the day `ganttDb.js`'s hardcoded `'YYYY-MM-DD'` moves.
 
 ## CI
 
-PR **(opened after this file)**. Run id and conclusion recorded on the PR as a
-comment once the head is final — a file cannot carry the id of the run that
-judges its own tail, same rule #65/#68/#69/#71 followed.
+PR **#73**. Run **32024218173** at head `0358b8c` — **success on both jobs**,
+recorded as a comment on the PR rather than here, since a file cannot carry
+the id of the run that judges its own tail (same rule #65/#68/#69/#71
+followed).
+
+**One flake, on the record.** `pixels`' first attempt failed
+`dark-mode.spec.ts` ("is dark at the first paint", `element(s) not found`)
+amid a flood of `[WebServer] Error: write/read ECONNRESET`/`EPIPE` — 173
+passed / 1 failed. This branch touches no UI, CSS or dark-mode code; it is
+the **same ws-proxy `ECONNRESET` class already on this repo's record** (#44
+`f8b7d62`, #57 `31682877355`, #61 twice, #67 `31836315688`) and the same
+`dark-mode.spec.ts` test the earlier occurrences named. `gh run rerun
+--failed` passed clean, same as every prior occurrence.
 
 **This branch is not merged** — PoC mode still holds cross-review before
 merge (`delivery-modes.md` open question 2).
