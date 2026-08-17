@@ -12088,17 +12088,37 @@ describe('narrowing the plan by facet', () => {
 
   itDom('does not bring the subtree a typed name would bring', async () => {
     // R10 §4 and §9's Q2, Dany 2026-08-17: `Strip` means the branch, and
-    // `team = Billing` means the rows that are Billing's. The same row matched
-    // both ways, and only one of them is a request for the work underneath.
+    // `assignee = Ada` means the rows Ada is on. The same row matched both
+    // ways, and only one of them is a request for the work underneath.
+    //
+    // Ada and not `Team Billing`, which is what this was first written with and
+    // is the wrong facet to ask the question through: the team facet reads the
+    // **effective** team, so `010.1` and `010.2` carry Billing on their own
+    // account by inheritance and stay on screen for a reason that has nothing
+    // to do with rule 3. An assignee does not inherit — `row.assignees` is the
+    // row's own — so what is left when Ada is ticked is rule 3 and nothing else.
     await aFacetedPlan();
     find('strip');
     expect(numbersOnScreen()).toEqual(['010', '010.1', '010.1.1', '010.2']);
 
     find('');
     openFilters();
-    tick('Team Billing');
+    tick('Assignee Ada');
 
     expect(numbersOnScreen()).toEqual(['010']);
+  });
+
+  itDom('keeps the rows that inherit a ticked team, which is not rule 3', async () => {
+    // The other half of the pair above, and the trap §8.5 names: a leaf drawing
+    // its slots from an ancestor's pool is that team's work, so it answers the
+    // facet itself. `010.1.1` is out because it carries a team of its own —
+    // most-specific-wins, `effectiveTeamsOf`'s rule, not the filter's.
+    await aFacetedPlan();
+    openFilters();
+
+    tick('Team Billing');
+
+    expect(numbersOnScreen()).toEqual(['010', '010.1', '010.2']);
   });
 
   itDom('drops the subtree the moment a facet joins a name that was bringing one', async () => {
@@ -12186,7 +12206,10 @@ describe('narrowing the plan by facet', () => {
     click('Clear filters');
 
     expect(screen.getByLabelText<HTMLInputElement>('Find').value).toBe('paint');
-    expect(numbersOnScreen()).toEqual(['020']);
+    // `020.1 Undercoat` back with it, and that is the second thing this proves:
+    // with the ticks gone the filter is a typed name again, so rule 3 is in
+    // force again and `Paint` brings the work it is a heading for.
+    expect(numbersOnScreen()).toEqual(['020', '020.1']);
   });
 
   itDom('stands the expansion controls down while a facet is on with nothing typed', async () => {
