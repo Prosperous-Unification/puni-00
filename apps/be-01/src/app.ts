@@ -11,6 +11,7 @@ import { projectController } from './controller/project.controller';
 import { roleController } from './controller/role.controller';
 import { smokeController } from './controller/smoke.controller';
 import { workItemController } from './controller/work-item.controller';
+import { openApiPlugin } from './openapi/openapi-plugin';
 import type { DatabaseHealth } from './repository/health-probe';
 import type { AuthService } from './service/auth.service';
 import type { CapacityService } from './service/capacity.service';
@@ -89,6 +90,13 @@ export function buildApp(opts: AppOptions) {
     new Elysia()
       .use(observabilityPlugin({ service: 'be-01' }))
       .decorate('logger', logger)
+      // Before every controller, and that is the order the plugin needs: it
+      // answers from the route table of the instance it is mounted on, so a
+      // route registered after it is seen and a route registered on an instance
+      // it never joined is not. The document is committed and diffed against
+      // this app by `openapi-document.test.ts`, so a route that goes missing
+      // here is a red rather than a silent omission.
+      .use(openApiPlugin())
       .use(smokeController)
       .use(authController(opts.auth))
       .use(projectController(opts.auth, opts.projects))
