@@ -3,8 +3,8 @@ import { describe, expect, it } from 'vitest';
 import {
   type FilterCriteria,
   isFiltering,
-  narrowTree,
   type NarrowableRow,
+  narrowTree,
   NO_FILTER,
   type RowFacets,
 } from './tree-search';

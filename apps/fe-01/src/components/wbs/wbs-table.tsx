@@ -2762,10 +2762,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    * and `12 unestimated` on the button beside it are the same claim, and two
    * readings of it would be two plans.
    */
-  const unestimatedIds = useMemo(
-    () => new Set(gaps.leaves.map((leaf) => leaf.rowId)),
-    [gaps],
-  );
+  const unestimatedIds = useMemo(() => new Set(gaps.leaves.map((leaf) => leaf.rowId)), [gaps]);
 
   /**
    * Everything the filter is allowed to ask about, one entry per row.
@@ -2792,9 +2789,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
           // by, and `includes` over a list with them in it three times is the
           // same answer paid for three times on every keystroke.
           assigneeIds: [
-            ...new Set(
-              Object.values(row.assignees).filter((id): id is string => id !== undefined),
-            ),
+            ...new Set(Object.values(row.assignees).filter((id): id is string => id !== undefined)),
           ],
           // Null and not a band: a row nobody has prioritised carries no rung,
           // and `priorityBandOf` is asked about numbers only.
@@ -2870,7 +2865,9 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
   /** In the ladder's order, which is the order the bands mean something in. */
   const facetBands = useMemo(() => {
     const present = new Set(
-      narrowable.flatMap((row) => (row.facets.priorityBand === null ? [] : [row.facets.priorityBand])),
+      narrowable.flatMap((row) =>
+        row.facets.priorityBand === null ? [] : [row.facets.priorityBand],
+      ),
     );
     return priorityBands
       .filter((band) => present.has(band.label) || facets.priorityBands.includes(band.label))

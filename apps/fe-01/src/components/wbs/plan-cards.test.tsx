@@ -1374,22 +1374,23 @@ describe('a filter on a phone', () => {
    */
   async function aFilterablePlan(): Promise<void> {
     const api = fakeApi();
-    await api.create('p1', { parentId: null, name: 'Strip the hull' });
+    const { id } = await api.create('p1', { parentId: null, name: 'Strip the hull' });
     await api.create('p1', { parentId: null, name: 'Paint' });
     api.teams.push({ id: 't1', name: 'Billing' });
-    const [first] = api.rows;
-    if (first === undefined) throw new Error('the fake created no rows');
-    first.serviceTeamId = 't1';
-    first.teamIds = ['t1'];
+    // By the id `create` answered with rather than by position: a fake whose
+    // first row is not the row this labels is a fixture quietly filtering on
+    // something else, and the label is the whole of what these two tests ask.
+    const strip = api.rows.find((row) => row.id === id);
+    if (strip === undefined) throw new Error('the fake lost the row it just created');
+    strip.serviceTeamId = 't1';
+    strip.teamIds = ['t1'];
     widthIs(PHONE);
     render(<WbsTable projectId="p1" api={api} />);
     await screen.findByLabelText('Name of 010');
   }
 
   const cardNumbers = (): string[] =>
-    [...document.querySelectorAll('[data-card] [data-number]')].map(
-      (node) => node.textContent ?? '',
-    );
+    [...document.querySelectorAll('[data-card] [data-number]')].map((node) => node.textContent);
 
   itDom('narrows the cards, because they are the rows the table kept', async () => {
     // R10 §0: the cards read `shownRows`, the one list the table and the chart

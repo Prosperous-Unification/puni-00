@@ -12029,7 +12029,11 @@ describe('narrowing the plan by facet', () => {
    */
   async function aFacetedPlan(): Promise<ProjectApi & { rows: WorkItemView[] }> {
     const api = fakeApi();
-    const strip = await api.create('p1', { parentId: null, afterId: null, name: 'Strip the walls' });
+    const strip = await api.create('p1', {
+      parentId: null,
+      afterId: null,
+      name: 'Strip the walls',
+    });
     const sockets = await api.create('p1', { parentId: strip.id, afterId: null, name: 'Sockets' });
     const back = await api.create('p1', {
       parentId: sockets.id,

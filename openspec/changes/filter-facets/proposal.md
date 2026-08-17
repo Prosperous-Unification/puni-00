@@ -10,8 +10,8 @@ Alternatives go in an ADR. Approach detail goes in design.md, if at all.
 
 ## Why
 
-R10 F1, the literal request: *"must filter by different fields in the table,
-also must affect the gantt chart to only show what matches"*
+R10 F1, the literal request: _"must filter by different fields in the table,
+also must affect the gantt chart to only show what matches"_
 (`notes/wbs-scope-2026-08-13-wave6.md:176-178`). All eight of the brief's open
 questions were settled by Dany on 2026-08-17
 (`notes/wbs-brief-2026-08-17-r10-filtering.md` §9, `notes/decisions.md`).
