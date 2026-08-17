@@ -13,6 +13,7 @@ import type { Project, Role, WorkItem } from './index';
 import { runMigrations } from './migrate';
 import { ProjectRepository } from './project';
 import { RoleRepository } from './role';
+import { RoleProgressRepository } from './role-progress';
 import { UserRepository } from './user';
 import { WorkItemRepository } from './work-item';
 
@@ -31,6 +32,7 @@ let roles: RoleRepository;
 let projects: ProjectRepository;
 let estimates: EstimateRepository;
 let actuals: ActualRepository;
+let progress: RoleProgressRepository;
 let directory: DirectoryRepository;
 let workItems: WorkItemRepository;
 let projectId: string;
@@ -87,6 +89,7 @@ beforeEach(async () => {
   projects = new ProjectRepository(db);
   estimates = new EstimateRepository(db);
   actuals = new ActualRepository(db);
+  progress = new RoleProgressRepository(db);
   directory = new DirectoryRepository(db);
   workItems = new WorkItemRepository(db);
 
@@ -306,6 +309,7 @@ describe('RoleRepository', () => {
         // refusal that reported only estimates would be silent about the one
         // number nobody can retype from memory.
         actuals: 0,
+        progress: 0,
         assignments: [{ workItemId: 'strip', roleId: qaId, personId: ada.id }],
       },
     });
@@ -373,16 +377,78 @@ describe('RoleRepository', () => {
     const counted = await roles.usageOf(projectId, qaId);
     const refused = await roles.remove(projectId, qaId, false);
 
-    expect(counted).toEqual({ estimates: 0, actuals: 1, assignments: [] });
+    expect(counted).toEqual({ estimates: 0, actuals: 1, progress: 0, assignments: [] });
     expect(refused).toEqual({
       ok: false,
       reason: 'in_use',
-      usage: { estimates: 0, actuals: 1, assignments: [] },
+      usage: { estimates: 0, actuals: 1, progress: 0, assignments: [] },
     });
     expect(await roles.findById(qaId)).not.toBeNull();
     expect(await actuals.listByProject(projectId)).toHaveLength(1);
     // A refusal writes nothing at all, the project's revision included.
     expect(await revisionOf(projectId)).toBe(before);
+  });
+
+  it('counts the stated progress, and refuses an unconfirmed removal of a role that holds only that', async () => {
+    // The third loss, and the one that makes this count load-bearing rather than
+    // decorative: this role has no estimate, no recorded day and nobody
+    // assigned, so a removal that counted only those three would sail through
+    // and turn finished work back into work nobody has started.
+    // `role_progress.role_id` has no cascade precisely so this cannot happen
+    // quietly.
+    //
+    // Proof: `spoken.length > 0` dropped from the `in_use` condition, and this
+    // fails with the removal proceeding against a role whose only usage is the
+    // statement that its work is done; watched 2026-08-18.
+    await progress.set({ workItemId: 'strip', roleId: qaId, state: 'done', statedAt: 1000 });
+    const before = await revisionOf(projectId);
+
+    const counted = await roles.usageOf(projectId, qaId);
+    const refused = await roles.remove(projectId, qaId, false);
+
+    expect(counted).toEqual({ estimates: 0, actuals: 0, progress: 1, assignments: [] });
+    expect(refused).toEqual({
+      ok: false,
+      reason: 'in_use',
+      usage: { estimates: 0, actuals: 0, progress: 1, assignments: [] },
+    });
+    expect(await roles.findById(qaId)).not.toBeNull();
+    expect(await progress.listByProject(projectId)).toHaveLength(1);
+    // A refusal writes nothing at all, the project's revision included.
+    expect(await revisionOf(projectId)).toBe(before);
+  });
+
+  it('deletes the stated progress with the role it confirmed, moving the work items that lost one', async () => {
+    // The other half, and the one the missing cascade forces: without an
+    // explicit delete here the role row cannot go at all — SQLite refuses it —
+    // so this is what turns a 500 into a removal that says what it took.
+    //
+    // Proof: `tx.delete(roleProgress)` struck from `RoleRepository.remove`, and
+    // this fails with `SQLITE_CONSTRAINT_FOREIGNKEY` thrown out of the
+    // transaction; watched 2026-08-18.
+    await progress.set({ workItemId: 'strip', roleId: qaId, state: 'done', statedAt: 1000 });
+    await progress.set({ workItemId: 'sand', roleId: devId, state: 'in_progress', statedAt: 1000 });
+    const stripBefore = await workItemRevisionOf('strip');
+
+    const removed = await roles.remove(projectId, qaId, true);
+
+    expect(removed).toEqual({
+      ok: true,
+      removal: {
+        estimates: 0,
+        actuals: 0,
+        progress: 1,
+        assignments: 0,
+        workItemIds: ['strip'],
+      },
+    });
+    expect(await roles.findById(qaId)).toBeNull();
+    // The other role's row on another work item survives, which is what makes
+    // the delete's `WHERE` provable.
+    expect(await progress.listByProject(projectId)).toEqual([
+      { workItemId: 'sand', roleId: devId, state: 'in_progress', statedAt: 1000 },
+    ]);
+    expect(await workItemRevisionOf('strip')).toBe(stripBefore + 1);
   });
 
   it('deletes the recorded days with the role it confirmed, moving the work items that lost one', async () => {
@@ -397,7 +463,7 @@ describe('RoleRepository', () => {
 
     expect(removed).toEqual({
       ok: true,
-      removal: { estimates: 0, actuals: 1, assignments: 0, workItemIds: ['strip'] },
+      removal: { estimates: 0, actuals: 1, progress: 0, assignments: 0, workItemIds: ['strip'] },
     });
     expect(await roles.findById(qaId)).toBeNull();
     // The other role's row on another work item survives, which is what makes

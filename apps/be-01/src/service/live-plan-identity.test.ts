@@ -10,6 +10,7 @@ import { inMemoryDependencies } from '../testing/dependency-fixture';
 import { inMemoryDirectory } from '../testing/directory-fixture';
 import { inMemoryEstimates } from '../testing/estimate-fixture';
 import { inMemoryPriorityBands } from '../testing/priority-band-fixture';
+import { inMemoryProgress } from '../testing/progress-fixture';
 import { inMemoryProjects } from '../testing/project-fixture';
 import { inMemorySubtrees } from '../testing/subtree-fixture';
 import { inMemoryWorkItems } from '../testing/work-item-fixture';
@@ -88,6 +89,7 @@ async function replay(extraRoles: readonly string[]) {
   const workItems = inMemoryWorkItems();
   const estimates = inMemoryEstimates(workItems);
   const actuals = inMemoryActuals(workItems);
+  const progress = inMemoryProgress(workItems);
   const dependencies = inMemoryDependencies();
   const directory = inMemoryDirectory();
   const service = new WorkItemService({
@@ -95,11 +97,19 @@ async function replay(extraRoles: readonly string[]) {
     projects,
     estimates,
     actuals,
+    progress,
     dependencies,
     directory,
     capacity: inMemoryCapacity(),
     priorityBands: inMemoryPriorityBands(),
-    subtrees: inMemorySubtrees({ workItems, estimates, actuals, dependencies, directory }),
+    subtrees: inMemorySubtrees({
+      workItems,
+      estimates,
+      actuals,
+      progress,
+      dependencies,
+      directory,
+    }),
     journal: inMemoryCommandJournal(),
     broadcast: recordingBroadcaster(),
   });

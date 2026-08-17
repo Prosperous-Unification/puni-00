@@ -14,6 +14,7 @@ import { EstimateRepository } from '../repository/estimate';
 import { runMigrations } from '../repository/migrate';
 import { ProjectRepository } from '../repository/project';
 import { RoleRepository } from '../repository/role';
+import { RoleProgressRepository } from '../repository/role-progress';
 import { UserRepository } from '../repository/user';
 import { SubtreeRepository, WorkItemRepository } from '../repository/work-item';
 import { AuthService } from '../service/auth.service';
@@ -58,6 +59,7 @@ beforeEach(() => {
   const workItems = new WorkItemRepository(db);
   const estimates = new EstimateRepository(db);
   const actuals = new ActualRepository(db);
+  const progressStore = new RoleProgressRepository(db);
   const dependencies = new DependencyRepository(db);
   const directory = new DirectoryRepository(db);
 
@@ -78,6 +80,7 @@ beforeEach(() => {
       projects,
       estimates,
       actuals,
+      progress: progressStore,
       dependencies,
       directory,
       capacity: inMemoryCapacity(),

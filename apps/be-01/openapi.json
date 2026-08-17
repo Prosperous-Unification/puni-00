@@ -1003,6 +1003,76 @@
         "operationId": "deleteApiWork-itemsByIdActualsByRoleId"
       }
     },
+    "/api/work-items/{id}/progress/{roleId}": {
+      "put": {
+        "summary": "Say where one role's work on one work item has got to",
+        "description": "**Reporting only. This moves no date.** Marking a role `done` changes no\nbar, no successor and no critical path: the plan's dates still come from the\nthree-point estimates through the scheduler, and nothing in the engine reads this.\nWhat it changes is whether the figure beside it can be read at all — 8 days spent\nagainst 5 estimated is *\"overran by 3\"* when the role is done and *\"is 3 over so\nfar\"* when it is not, and those are different sentences about the same two\nnumbers.\n\n**Three states, and only two of them are written here.** `in_progress` and\n`done` are rows; **not started is the absence of a row**, so the way to say it\nis `DELETE` on this path. A body whose `state` is anything else — including\n`not_started` — is `invalid_progress`, 400. There is no `blocked` and no\n`cancelled`.\n\n**Per role, on a leaf.** A statement about a row that has children is\n`rolled_up`, 409 — a parent's state is folded from its descendants'. A\n`roleId` that is not a role of this project is `unknown_role`, 404.\n\n**A work item's own state is derived and never stored.** It is `done` when every\nrole with work on the row says so, `not_started` when none of them has said\nanything, and `in_progress` for every disagreement in between — including one\nrole finished while another has said nothing, which is an unfinished item.\n\n**What `done` makes true:** an actual on a role marked done is **final** — the\nwhole of what that role spent, not a running count.",
+        "requestBody": {
+          "required": true,
+          "description": "Where this role has got to on this work item.\n\nThe schema here is documentation, not validation. This route parses its own body so that a field this API derives is refused rather than quietly dropped, which is what an Elysia body schema would do to it. Fields not named here are ignored; the ones named are checked, and a bad one answers 400 with a code from the list above.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "state"
+                ],
+                "properties": {
+                  "state": {
+                    "type": "string",
+                    "enum": [
+                      "in_progress",
+                      "done"
+                    ],
+                    "description": "Where the work has got to. Not started is the absence of a statement — DELETE this path rather than sending it."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "roleId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "operationId": "putApiWork-itemsByIdProgressByRoleId"
+      },
+      "delete": {
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "roleId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "operationId": "deleteApiWork-itemsByIdProgressByRoleId"
+      }
+    },
     "/api/teams": {
       "get": {
         "operationId": "getApiTeams"

@@ -1,5 +1,7 @@
+import { sql } from 'drizzle-orm';
 import {
   type AnySQLiteColumn,
+  check,
   index,
   integer,
   primaryKey,
@@ -432,6 +434,82 @@ export const actual = sqliteTable(
 );
 
 export type ActualRow = typeof actual.$inferSelect;
+
+/**
+ * Where one role's work on one work item has got to.
+ *
+ * Dany, 2026-08-18: _"maybe we should augment actual days by completion
+ * status?"_ — and the reason he is right is written in {@link actual} and in
+ * `openspec/changes/actual-days/design.md` D3: with no completion state
+ * anywhere, an actual cannot tell "took 8 days, finished" from "8 days so far",
+ * and those are opposite claims about every successor. This table is the
+ * sentence that disambiguates the number beside it.
+ *
+ * **Three states, two of them stored.** `in_progress` and `done` are rows;
+ * **"not started" is the absence of one**, never a stored value — the rule
+ * {@link projectTeamCapacity} and {@link actual} both follow. A stored
+ * `not_started` would be a second spelling of "nobody has said" and every reader
+ * would then have to handle both. There is no `blocked` and no `cancelled`:
+ * each is a question the engine must answer the day it reads this, and it does
+ * not read this yet.
+ *
+ * **Per (work item, role), the same grain as {@link estimate} and
+ * {@link actual}.** Actuals are per role, so a per-item state would be a second
+ * source of truth about the same subject and the disagreement it produces is
+ * exactly "the item says done and a role has no actual". **A work item's own
+ * state is derived from its roles on every read and never stored** — `agree` and
+ * `stateOf` in `@wbs/domain`, where `done` is unanimous across the roles that
+ * have work on the row, and any disagreement reads as `in_progress`.
+ *
+ * **Rows exist only for leaves**, exactly as estimates and actuals do: a
+ * parent's state is folded from its descendants', computed on read.
+ *
+ * **What `done` makes true**, stated here because the change that consumes it
+ * must not have to re-litigate it: an actual on a role marked `done` is
+ * **final** — the whole of what that role spent, not a running count. The next
+ * change is the one where the engine reads this (finished roles freeze,
+ * in-progress roles get `remaining = max(0, estimate − actual)`), and that
+ * reading is only available because this rule was fixed before any row was
+ * written under it.
+ *
+ * **Nothing here reaches the schedule.** The engine's input is built from
+ * estimates in `slicesOf` and this table is read nowhere below it — R6 is still
+ * reporting only, and this change moves no date in either direction.
+ *
+ * `role_id` gets **no** `onDelete` cascade, matching {@link actual.roleId} and
+ * {@link estimate.roleId}: a state is somebody's statement and a role removal
+ * must count it before taking it. `work_item_id` **does** cascade, for the
+ * blue/green swap window {@link actual.workItemId} explains.
+ *
+ * `stated_at` is when somebody said it — a fact about the tool, not about the
+ * world. It is deliberately the only date this table has: an actual start or
+ * finish **date** is a separate change, because a stored date that disagrees
+ * with the scheduled one needs a decision about which of the two a chart draws.
+ *
+ * The `CHECK` is the closed set the whole design rests on, enforced rather than
+ * trusted: Drizzle's enum is compile-time only, and a fourth value written by a
+ * hand-edit or a future mistake would be dispatched on by every reader and
+ * folded by none of them.
+ */
+export const roleProgress = sqliteTable(
+  'role_progress',
+  {
+    workItemId: text('work_item_id')
+      .notNull()
+      .references(() => workItem.id, { onDelete: 'cascade' }),
+    roleId: text('role_id')
+      .notNull()
+      .references(() => role.id),
+    state: text('state', { enum: ['in_progress', 'done'] }).notNull(),
+    statedAt: integer('stated_at').notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.workItemId, t.roleId] }),
+    check('role_progress_state', sql`${t.state} IN ('in_progress', 'done')`),
+  ],
+);
+
+export type RoleProgressRow = typeof roleProgress.$inferSelect;
 
 /**
  * A service or team that work can be labelled with — global, not per project.

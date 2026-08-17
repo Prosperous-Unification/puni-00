@@ -19,6 +19,7 @@ import { inMemoryDependencies } from '../testing/dependency-fixture';
 import { inMemoryDirectory } from '../testing/directory-fixture';
 import { inMemoryEstimates } from '../testing/estimate-fixture';
 import { inMemoryPriorityBands } from '../testing/priority-band-fixture';
+import { inMemoryProgress } from '../testing/progress-fixture';
 import { inMemoryProjects } from '../testing/project-fixture';
 import { inMemorySubtrees } from '../testing/subtree-fixture';
 import { inMemoryWorkItems } from '../testing/work-item-fixture';
@@ -251,17 +252,26 @@ describe('a priority ladder moves no date', () => {
     const workItems = inMemoryWorkItems(directory);
     const estimates = inMemoryEstimates(workItems);
     const actuals = inMemoryActuals(workItems);
+    const progress = inMemoryProgress(workItems);
     const dependencies = inMemoryDependencies();
     const service = new WorkItemService({
       workItems,
       projects,
       estimates,
       actuals,
+      progress,
       dependencies,
       directory,
       capacity: inMemoryCapacity(),
       priorityBands: inMemoryPriorityBands({ contended: bands }),
-      subtrees: inMemorySubtrees({ workItems, estimates, actuals, dependencies, directory }),
+      subtrees: inMemorySubtrees({
+        workItems,
+        estimates,
+        actuals,
+        progress,
+        dependencies,
+        directory,
+      }),
       journal: inMemoryCommandJournal(),
       broadcast: recordingBroadcaster(),
     });
@@ -354,9 +364,16 @@ describe('a priority ladder moves no date', () => {
   ): Record<string, unknown> {
     return {
       ...tree,
-      workItems: tree.workItems.map(({ teamIds, actuals, ...row }) => {
+      workItems: tree.workItems.map(({ teamIds, actuals, progress, state, ...row }) => {
         expect(teamIds).toEqual(row.serviceTeamId === null ? [] : [row.serviceTeamId]);
         expect(actuals).toEqual({});
+        // `progress` and `state` are lifted the same way by `role-progress`
+        // (R6 H2b), and asserted for `actuals`' reason: an empty object and
+        // `not_started` on every row of sixteen replayed plans is that change's
+        // own claim — nobody has said anything, and a fold that invented a state
+        // would otherwise pass here silently.
+        expect(progress).toEqual({});
+        expect(state).toBe('not_started');
         return row;
       }),
     };
@@ -448,19 +465,28 @@ describe('a priority ladder moves no date', () => {
     const workItems = inMemoryWorkItems(directory);
     const estimates = inMemoryEstimates(workItems);
     const actuals = inMemoryActuals(workItems);
+    const progress = inMemoryProgress(workItems);
     const dependencies = inMemoryDependencies();
     const service = new WorkItemService({
       workItems,
       projects,
       estimates,
       actuals,
+      progress,
       dependencies,
       directory,
       // The pools the capture was taken under — see {@link CAPACITIES}. Identical
       // across both replays, so the ladder is the only thing that differs.
       capacity: inMemoryCapacity({ [plan.projectId]: CAPACITIES }),
       priorityBands: inMemoryPriorityBands({ [plan.projectId]: bands }),
-      subtrees: inMemorySubtrees({ workItems, estimates, actuals, dependencies, directory }),
+      subtrees: inMemorySubtrees({
+        workItems,
+        estimates,
+        actuals,
+        progress,
+        dependencies,
+        directory,
+      }),
       journal: inMemoryCommandJournal(),
       broadcast: recordingBroadcaster(),
     });
