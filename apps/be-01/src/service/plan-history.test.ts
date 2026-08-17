@@ -30,6 +30,7 @@ beforeEach(async () => {
     workItems,
     projects,
     estimates: inMemoryEstimates(workItems),
+    actuals: inMemoryActuals(workItems),
     dependencies: inMemoryDependencies(),
     directory: inMemoryDirectory(),
     capacity: inMemoryCapacity(),

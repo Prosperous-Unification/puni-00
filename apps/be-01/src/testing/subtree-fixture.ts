@@ -1,4 +1,5 @@
 import type {
+  ActualStore,
   DependencyStore,
   DirectoryStore,
   EstimateStore,
@@ -23,6 +24,7 @@ import type {
 export function inMemorySubtrees(stores: {
   workItems: WorkItemStore;
   estimates: EstimateStore;
+  actuals: ActualStore;
   dependencies: DependencyStore;
   directory: DirectoryStore;
 }): SubtreeStore {
@@ -40,12 +42,16 @@ export function inMemorySubtrees(stores: {
         await stores.workItems.move(child.id, child.parentId, child.position, []);
       }
       for (const estimate of copy.estimates) await stores.estimates.set(estimate);
+      for (const recorded of copy.actuals) await stores.actuals.set(recorded);
       for (const assigned of copy.assignments) {
         await stores.directory.assign(assigned.workItemId, assigned.roleId, assigned.personId);
       }
       for (const edge of copy.dependencies) await stores.dependencies.add(edge);
       for (const taken of copy.removedEstimates) {
         await stores.estimates.remove(taken.workItemId, taken.roleId);
+      }
+      for (const taken of copy.removedActuals) {
+        await stores.actuals.remove(taken.workItemId, taken.roleId);
       }
     },
   };

@@ -6,6 +6,7 @@ import { CommandJournalRepository } from './repository/command-journal';
 import type { Drizzle } from './repository/db';
 import { DependencyRepository } from './repository/dependency';
 import { DirectoryRepository } from './repository/directory';
+import { ActualRepository } from './repository/actual';
 import { EstimateRepository } from './repository/estimate';
 import { DrizzleEventLogRepo } from './repository/event-log';
 import { PlanEventRepository } from './repository/plan-event';
@@ -145,6 +146,11 @@ export function buildServices(opts: ServicesOptions): BeServices {
       workItems: new WorkItemRepository(opts.db),
       projects: projectStore,
       estimates: new EstimateRepository(opts.db),
+      // Its own store beside the estimates rather than more methods on that one:
+      // the two tables answer different questions, and the day one of them grows
+      // a rule the other must not have is the day a shared class becomes a
+      // conditional. See `actual` in `schema.ts`.
+      actuals: new ActualRepository(opts.db),
       dependencies: new DependencyRepository(opts.db),
       directory: directoryStore,
       capacity: capacityStore,

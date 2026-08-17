@@ -23,6 +23,7 @@ function buildWorkItemService(projectStore: ReturnType<typeof inMemoryProjects>)
     workItems: workItemStore,
     projects: projectStore,
     estimates: inMemoryEstimates(workItemStore),
+    actuals: inMemoryActuals(workItemStore),
     dependencies: inMemoryDependencies(),
     directory: inMemoryDirectory(),
     capacity: inMemoryCapacity(),

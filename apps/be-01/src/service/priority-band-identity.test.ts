@@ -258,7 +258,7 @@ describe('a priority ladder moves no date', () => {
       directory,
       capacity: inMemoryCapacity(),
       priorityBands: inMemoryPriorityBands({ contended: bands }),
-      subtrees: inMemorySubtrees({ workItems, estimates, dependencies, directory }),
+      subtrees: inMemorySubtrees({ workItems, estimates, actuals, dependencies, directory }),
       journal: inMemoryCommandJournal(),
       broadcast: recordingBroadcaster(),
     });
@@ -446,7 +446,7 @@ describe('a priority ladder moves no date', () => {
       // across both replays, so the ladder is the only thing that differs.
       capacity: inMemoryCapacity({ [plan.projectId]: CAPACITIES }),
       priorityBands: inMemoryPriorityBands({ [plan.projectId]: bands }),
-      subtrees: inMemorySubtrees({ workItems, estimates, dependencies, directory }),
+      subtrees: inMemorySubtrees({ workItems, estimates, actuals, dependencies, directory }),
       journal: inMemoryCommandJournal(),
       broadcast: recordingBroadcaster(),
     });

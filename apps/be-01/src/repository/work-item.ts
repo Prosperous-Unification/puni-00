@@ -14,7 +14,15 @@ import type {
   WorkItemStore,
 } from './index';
 import { bumpedWorkItem, bumpedWorkItemOnReparent, bumpWorkItems } from './revision';
-import { assignment, dependency, estimate, serviceTeam, workItem, workItemTeam } from './schema';
+import {
+  actual,
+  assignment,
+  dependency,
+  estimate,
+  serviceTeam,
+  workItem,
+  workItemTeam,
+} from './schema';
 
 /**
  * The join rows one write owes, derived from the column it is writing.
@@ -341,6 +349,14 @@ export class SubtreeRepository implements SubtreeStore {
         tx.insert(estimate)
           .values([...copy.estimates])
           .run();
+      // Beside the estimates and written the same way. Empty for a duplication
+      // — a copy is work nobody has done — and non-empty for the restore an
+      // undo of a delete runs, which has to put back the days the delete took
+      // with the rows. See {@link SubtreeCopy.actuals}.
+      if (copy.actuals.length > 0)
+        tx.insert(actual)
+          .values([...copy.actuals])
+          .run();
       if (copy.assignments.length > 0)
         tx.insert(assignment)
           .values([...copy.assignments])
@@ -360,10 +376,18 @@ export class SubtreeRepository implements SubtreeStore {
           .where(and(eq(estimate.workItemId, taken.workItemId), eq(estimate.roleId, taken.roleId)))
           .run();
       }
-      bumpWorkItems(
-        tx,
-        copy.removedEstimates.map((taken) => taken.workItemId),
-      );
+      // The same statement for the same reason, one table over: a restored leaf
+      // and the parent still holding that leaf's recorded days would count the
+      // same week twice.
+      for (const taken of copy.removedActuals) {
+        tx.delete(actual)
+          .where(and(eq(actual.workItemId, taken.workItemId), eq(actual.roleId, taken.roleId)))
+          .run();
+      }
+      bumpWorkItems(tx, [
+        ...copy.removedEstimates.map((taken) => taken.workItemId),
+        ...copy.removedActuals.map((taken) => taken.workItemId),
+      ]);
     });
   }
 }

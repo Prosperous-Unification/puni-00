@@ -71,6 +71,7 @@ beforeEach(async () => {
       workItems,
       projects,
       estimates: new EstimateRepository(db),
+        actuals: new ActualRepository(db),
       dependencies: new DependencyRepository(db),
       directory: store,
       capacity: inMemoryCapacity(),

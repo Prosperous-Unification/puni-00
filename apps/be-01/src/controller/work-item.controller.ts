@@ -51,6 +51,30 @@ function asOptionalText(value: unknown, field: string): string | undefined {
   return value;
 }
 
+/**
+ * The one number a recorded actual is, checked by hand for the reason at the top
+ * of this file and for one of its own.
+ *
+ * **`0` is accepted and is not the same as absence.** A person typing zero is
+ * saying the work took no days, which is a statement they made; the absence of a
+ * row is nobody having said anything, and the way to express it is `DELETE`, not
+ * this route with a zero in it. Every reading surface follows the same rule —
+ * see `actual` in `schema.ts`.
+ *
+ * Negative days are refused: nobody spends minus a day, and the number would
+ * subtract from a parent's roll-up and quietly shrink a branch's recorded total.
+ * A non-finite one is refused because `NaN` stored as a real comes back as a
+ * number that fails every comparison it is in, including its own.
+ */
+function parseActual(body: unknown): number {
+  const raw = asRecord(body);
+  const days: unknown = raw['days'];
+  if (typeof days !== 'number' || !Number.isFinite(days) || days < 0) {
+    throw new BadRequest('invalid_actual');
+  }
+  return days;
+}
+
 function parseCreate(body: unknown): CreateWorkItem {
   const raw = asRecord(body);
   refuseDerivedFields(raw);
@@ -695,6 +719,74 @@ the one body-carrying route whose refusal is a shared-schema refusal.`,
         return { error: 'unauthenticated' };
       }
       const outcome = await workItems.clearEstimate(params.id, user.id, params.roleId);
+      if (!outcome.ok) {
+        set.status = statusFor(outcome.reason);
+        return { error: outcome.reason };
+      }
+      return { cleared: true };
+    })
+    .put(
+      '/work-items/:id/actuals/:roleId',
+      async ({ params, body, headers, set }) => {
+        const user = await userFromHeaders(auth, headers);
+        if (user === null) {
+          set.status = 401;
+          return { error: 'unauthenticated' };
+        }
+        const days = parseActual(body);
+        const outcome = await workItems.setActual(params.id, user.id, params.roleId, days);
+        if (!outcome.ok) {
+          set.status = statusFor(outcome.reason);
+          return { error: outcome.reason };
+        }
+        return { recorded: true };
+      },
+      {
+        detail: {
+          summary: 'Record the days one role actually spent on one work item',
+          description: `**Reporting only. This moves no date.** The plan's dates come from the
+three-point estimates through the scheduler, and no part of the engine reads this
+number: an item recorded as having taken 8 days against an estimate of 5 leaves
+every successor exactly where it was. The reason is that the model has no
+completion state — there is no started, finished or percent-done anywhere — so
+"took 8 days" and "8 days so far" are the same row, and they mean opposite things
+for whatever comes next. The tool reports the drift; a person decides whether to
+re-estimate.
+
+**One number, per role, on a leaf.** An actual on a row that has children is
+\`rolled_up\`, 409 — a parent's recorded days are the sum of its descendants'.
+A \`roleId\` that is not a role of this project is \`unknown_role\`, 404.
+A body without a finite \`days\` of 0 or more is \`invalid_actual\`, 400.
+
+**Zero is a statement and absence is not.** Recording 0 says the work took no
+days. Saying nobody has recorded anything is \`DELETE\` on this path — never a
+zero, which is the rule every figure in this API follows.`,
+          requestBody: handParsedBody('The days this role spent on this work item.', {
+            type: 'object',
+            required: ['days'],
+            properties: {
+              days: {
+                type: 'number',
+                minimum: 0,
+                description:
+                  'Days actually spent. Fractions are real, as they are for an estimate. 0 means the work took no days, which is not the same as never having said.',
+              },
+            },
+          }),
+        },
+      },
+    )
+    .delete('/work-items/:id/actuals/:roleId', async ({ params, headers, set }) => {
+      // Guarded exactly as the PUT above. Clearing days that were never
+      // recorded answers 200 rather than 404, for the reason the estimate's
+      // DELETE gives: the record is what the request addresses and its absence
+      // is the outcome asked for. A missing work item is still 404.
+      const user = await userFromHeaders(auth, headers);
+      if (user === null) {
+        set.status = 401;
+        return { error: 'unauthenticated' };
+      }
+      const outcome = await workItems.clearActual(params.id, user.id, params.roleId);
       if (!outcome.ok) {
         set.status = statusFor(outcome.reason);
         return { error: outcome.reason };

@@ -54,7 +54,7 @@ beforeEach(async () => {
     dependencies,
     directory,
     capacity,
-    subtrees: inMemorySubtrees({ workItems, estimates, dependencies, directory }),
+    subtrees: inMemorySubtrees({ workItems, estimates, actuals, dependencies, directory }),
     journal: inMemoryCommandJournal(),
     broadcast,
   });
@@ -422,6 +422,7 @@ describe('dependencies', () => {
       workItems,
       projects,
       estimates: inMemoryEstimates(workItems),
+    actuals: inMemoryActuals(workItems),
       dependencies: broken,
       journal: inMemoryCommandJournal(),
       broadcast: recordingBroadcaster(),
@@ -1665,7 +1666,7 @@ describe('the slices the schedule placed, on the wire', () => {
       directory,
       capacity: inMemoryCapacity(),
       priorityBands: inMemoryPriorityBands(),
-      subtrees: inMemorySubtrees({ workItems, estimates, dependencies, directory }),
+      subtrees: inMemorySubtrees({ workItems, estimates, actuals, dependencies, directory }),
       journal: inMemoryCommandJournal(),
       broadcast,
     });

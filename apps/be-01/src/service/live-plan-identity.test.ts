@@ -96,7 +96,7 @@ async function replay(extraRoles: readonly string[]) {
     directory,
     capacity: inMemoryCapacity(),
     priorityBands: inMemoryPriorityBands(),
-    subtrees: inMemorySubtrees({ workItems, estimates, dependencies, directory }),
+    subtrees: inMemorySubtrees({ workItems, estimates, actuals, dependencies, directory }),
     journal: inMemoryCommandJournal(),
     broadcast: recordingBroadcaster(),
   });

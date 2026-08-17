@@ -84,6 +84,7 @@ describe('PUT /api/projects/:id/teams/:teamId/capacity', () => {
         workItems,
         projects: projectStore,
         estimates: new EstimateRepository(db),
+        actuals: new ActualRepository(db),
         dependencies: new DependencyRepository(db),
         directory: directoryStore,
         capacity: capacityStore,

@@ -367,7 +367,7 @@ describe('every plan schedules identically across the migration', () => {
         [plan.projectId]: Object.fromEntries(seeded.get(plan.projectId) ?? []),
       }),
       priorityBands: inMemoryPriorityBands(),
-      subtrees: inMemorySubtrees({ workItems, estimates, dependencies, directory }),
+      subtrees: inMemorySubtrees({ workItems, estimates, actuals, dependencies, directory }),
       journal: inMemoryCommandJournal(),
       broadcast: recordingBroadcaster(),
     });

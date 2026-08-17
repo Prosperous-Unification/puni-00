@@ -366,6 +366,74 @@ export const estimate = sqliteTable(
 export type EstimateRow = typeof estimate.$inferSelect;
 
 /**
+ * The days one role actually spent on one work item.
+ *
+ * Dany, 2026-08-13: _"I want to be able to track fact days near the estimate of
+ * completion"_. `notes/wbs-brief-2026-08-14-r5-r6-history.md` §3.2.
+ *
+ * **Its own table rather than a fourth column on {@link estimate}.** Work nobody
+ * estimated still takes days, and `estimate`'s three columns are `NOT NULL`, so a
+ * column there would force a made-up trio to record a real actual. The two are
+ * also written by different people at different times — an estimate before the
+ * work, an actual after it — and one row holding both makes each write a
+ * read-modify-write of the other's numbers.
+ *
+ * **The absence of a row is what "nobody has said" looks like, never a zero.**
+ * The same rule {@link projectTeamCapacity} follows, and the same one the export
+ * has carried since it was written: an empty cell means nobody typed it. A zero
+ * here is a person saying the work took no days, which is a different sentence
+ * and a rarer one. Clearing an actual deletes the row rather than writing 0.
+ *
+ * **Per (work item, role), matching the estimate's grain exactly.** Every read
+ * path in the tool already groups by that pair — the estimate's own key, the
+ * schedule's slice key, the export's per-role column group, the roll-up — and a
+ * per-item actual would be a second spelling of a total that then has to agree
+ * with per-role estimates and would not. "Who overran, Dev or QA?" is the
+ * question actuals exist to answer.
+ *
+ * **Rows exist only for leaves**, exactly as estimates do: a parent's actual is
+ * the sum of its descendants', computed on read and never stored.
+ *
+ * **Nothing here reaches the schedule.** The engine's input is built from
+ * estimates in `slicesOf`, and this table is not read there or anywhere below it
+ * — R6 is reporting only. The reason is not economy: the model has no completion
+ * state anywhere, so it cannot tell "took 8 days, finished" from "8 days so far,
+ * still running", and substituting the first reading for the second moves every
+ * successor's dates on a claim nobody made. See
+ * `openspec/changes/actual-days/design.md` D3.
+ *
+ * `role_id` gets **no** `onDelete` cascade, matching {@link estimate.roleId} and
+ * for the identical reason spelled out on {@link role}: an actual is somebody's
+ * typing and a role removal must count it before taking it.
+ * `RoleRepository.remove` deletes them explicitly, inside the transaction that
+ * removes the role.
+ *
+ * `work_item_id` **does** cascade, and that is about the blue/green swap window
+ * rather than tidiness: two be-01 processes share one SQLite file while green
+ * migrates, and the outgoing release's plain `DELETE FROM work_item` would hit a
+ * constraint it cannot see. The same argument `dependency` makes.
+ *
+ * `recorded_at` is when the number was typed. It costs one column and it is what
+ * a history row about an actual is dated against.
+ */
+export const actual = sqliteTable(
+  'actual',
+  {
+    workItemId: text('work_item_id')
+      .notNull()
+      .references(() => workItem.id, { onDelete: 'cascade' }),
+    roleId: text('role_id')
+      .notNull()
+      .references(() => role.id),
+    days: real('days').notNull(),
+    recordedAt: integer('recorded_at').notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.workItemId, t.roleId] })],
+);
+
+export type ActualRow = typeof actual.$inferSelect;
+
+/**
  * A service or team that work can be labelled with — global, not per project.
  *
  * Dany's ask, 2026-08-06: it behaves like a Jira label. Anyone may add one by
