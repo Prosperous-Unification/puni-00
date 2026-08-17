@@ -4267,7 +4267,7 @@ describe('downloading the chart as a standalone .svg', () => {
     expect(blobs).toHaveLength(1);
     expect(blobs[0]?.type).toBe('image/svg+xml;charset=utf-8');
 
-    const text = await readBlobText(blobs[0] as Blob);
+    const text = await readBlobText(blobs[0]);
     expect(text.startsWith('<?xml version="1.0" encoding="UTF-8"?>')).toBe(true);
 
     const doc = new DOMParser().parseFromString(text, 'image/svg+xml');
@@ -4329,7 +4329,7 @@ describe('downloading the chart as a standalone .svg', () => {
     );
     const { blobs } = captureDownloads();
     clickDownload();
-    const text = await readBlobText(blobs[0] as Blob);
+    const text = await readBlobText(blobs[0]);
     const doc = new DOMParser().parseFromString(text, 'image/svg+xml');
     // Every gridline is class-driven (stroke-border / stroke-border/40) in
     // the live app -- none may reach the file still carrying that class,
