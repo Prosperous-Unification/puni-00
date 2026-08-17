@@ -4316,33 +4316,36 @@ describe('downloading the chart as a standalone .svg', () => {
     expect(text).toContain(liveLabel?.textContent ?? ' ');
   });
 
-  itDom('strips the class from every class-driven mark, even where jsdom cannot resolve a literal to replace it with', async () => {
-    render(
-      <GanttPanel
-        plan={twoRolePlan()}
-        startDate={MONDAY_START}
-        scheduleError={null}
-        generation={0}
-        heightPx={null}
-        onPickRow={() => undefined}
-      />,
-    );
-    const { blobs } = captureDownloads();
-    clickDownload();
-    const text = await readBlobText(blobs[0]);
-    const doc = new DOMParser().parseFromString(text, 'image/svg+xml');
-    // Every gridline is class-driven (stroke-border / stroke-border/40) in
-    // the live app -- none may reach the file still carrying that class,
-    // which would mean nothing outside the app it was drawn in.
-    const gridlines = [...doc.querySelectorAll('[data-gantt-gridline]')];
-    expect(gridlines.length).toBeGreaterThan(0);
-    for (const line of gridlines) {
-      expect(line.getAttribute('class')).toBeNull();
-    }
-    // Nor may role/tabindex -- a keyboard control in the app the file has
-    // nothing behind, in a document with no reason to claim one.
-    const anyBar = doc.querySelector('[data-gantt-bar]');
-    expect(anyBar?.getAttribute('role')).toBeNull();
-    expect(anyBar?.getAttribute('tabindex')).toBeNull();
-  });
+  itDom(
+    'strips the class from every class-driven mark, even where jsdom cannot resolve a literal to replace it with',
+    async () => {
+      render(
+        <GanttPanel
+          plan={twoRolePlan()}
+          startDate={MONDAY_START}
+          scheduleError={null}
+          generation={0}
+          heightPx={null}
+          onPickRow={() => undefined}
+        />,
+      );
+      const { blobs } = captureDownloads();
+      clickDownload();
+      const text = await readBlobText(blobs[0]);
+      const doc = new DOMParser().parseFromString(text, 'image/svg+xml');
+      // Every gridline is class-driven (stroke-border / stroke-border/40) in
+      // the live app -- none may reach the file still carrying that class,
+      // which would mean nothing outside the app it was drawn in.
+      const gridlines = [...doc.querySelectorAll('[data-gantt-gridline]')];
+      expect(gridlines.length).toBeGreaterThan(0);
+      for (const line of gridlines) {
+        expect(line.getAttribute('class')).toBeNull();
+      }
+      // Nor may role/tabindex -- a keyboard control in the app the file has
+      // nothing behind, in a document with no reason to claim one.
+      const anyBar = doc.querySelector('[data-gantt-bar]');
+      expect(anyBar?.getAttribute('role')).toBeNull();
+      expect(anyBar?.getAttribute('tabindex')).toBeNull();
+    },
+  );
 });

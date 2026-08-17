@@ -1174,12 +1174,20 @@ function withInlineComputedStyle(original: Element): Element {
   clone.removeAttribute('role');
   clone.removeAttribute('tabindex');
   for (const child of Array.from(original.childNodes)) {
-    clone.appendChild(child instanceof Element ? withInlineComputedStyle(child) : child.cloneNode(true));
+    clone.appendChild(
+      child instanceof Element ? withInlineComputedStyle(child) : child.cloneNode(true),
+    );
   }
   return clone;
 }
 
-function svgRect(x: number, y: number, width: number, height: number, fill: string): SVGRectElement {
+function svgRect(
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  fill: string,
+): SVGRectElement {
   const rect = document.createElementNS(SVG_NS, 'rect');
   rect.setAttribute('x', String(x));
   rect.setAttribute('y', String(y));
