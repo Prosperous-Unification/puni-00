@@ -331,23 +331,12 @@ describe('actuals through the structural commands', () => {
     expect((await shown()).get('Strip')).toEqual({ [DEV]: 5 });
   });
 
-  it('puts every recorded day back when a deleted branch is restored', async () => {
-    const strip = await add('Strip');
-    const sockets = await add('Sockets', strip);
-    const switches = await add('Switches', strip);
-    await service.setActual(sockets, OWNER, DEV, 2);
-    await service.setActual(switches, OWNER, QA, 3);
-
-    await service.remove(strip, OWNER, 'cascade');
-    expect(await actuals.listByProject(projectId)).toEqual([]);
-
-    const undone = await service.undo(projectId, OWNER);
-
-    expect(undone.ok).toBe(true);
-    const back = await shown();
-    expect(back.get('Sockets')).toEqual({ [DEV]: 2 });
-    expect(back.get('Switches')).toEqual({ [QA]: 3 });
-  });
+  // **The restore is not tested here, deliberately.** The in-memory store cannot
+  // model `actual.work_item_id`'s cascade — a deleted work item's rows sit in its
+  // array untouched and reappear the moment the row is restored — so a case
+  // written here passes with the restore's `actuals` replaced by `[]`. Watched
+  // exactly that way (F9a in verify.md) and moved to `undo.test.ts`, which runs
+  // against real SQLite.
 
   it('copies the estimate into a duplicate and leaves the recorded days behind', async () => {
     // A duplicate is work nobody has done. Copying the actuals would tell the
