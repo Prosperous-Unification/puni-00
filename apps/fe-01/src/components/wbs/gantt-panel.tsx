@@ -16,6 +16,7 @@ import type { PriorityBandView } from '@/lib/wbs-api';
 import {
   ASSUMED_UNESTIMATED_WORKDAYS,
   CAPACITY_LINK_COLOR,
+  droppedLinkWords,
   type EstimateTrio,
   type GanttBar,
   type GanttPlan,
@@ -1562,6 +1563,12 @@ function GanttChart({
   useEffect(() => cancelOpening, [cancelOpening]);
 
   const chart = layOutGantt(plan);
+  /**
+   * The sentence about the waits this chart could not draw, or null where it
+   * drew every one — {@link droppedLinkWords}, whose count comes from the three
+   * loops that drop them rather than from a second walk of the rows here.
+   */
+  const droppedWords = droppedLinkWords(chart.droppedLinks);
 
   // The chart read has been replaced, **whether or not the anchor survived**.
   // A slice keeping its id across a refetch keeps its `<rect>` — React reuses
@@ -1797,7 +1804,8 @@ function GanttChart({
   };
 
   return (
-    <section
+    <>
+      <section
       data-gantt-panel
       aria-label="Gantt chart"
       // Its own scroll area, in both directions: the plan above keeps its frame
@@ -2613,6 +2621,24 @@ function GanttChart({
             </HoverCard>
           );
         })()}
-    </section>
+      </section>
+      {/*
+        What the chart did not draw, under the chart it did not draw it on.
+
+        **Outside the scroll box on purpose.** Inside it the sentence would sit
+        at the bottom of a canvas a 60-row plan scrolls, which is the one place
+        a reader who has not noticed a missing arrow will never look. A `<p>` in
+        the ordinary flow under the panel is on screen whenever the panel is.
+
+        `role="status"` and not an alert: nothing is wrong. The filter is doing
+        what it was asked and this is the part of the answer the drawing cannot
+        carry — the same voice the `N of M rows` count beside the Find box uses.
+      */}
+      {plan.narrowedByFilter && droppedWords !== null && (
+        <p data-gantt-dropped-links role="status" className="text-muted-foreground px-3 py-1 text-sm">
+          {droppedWords}
+        </p>
+      )}
+    </>
   );
 }

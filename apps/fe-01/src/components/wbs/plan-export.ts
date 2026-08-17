@@ -96,6 +96,49 @@ export interface ExportRow {
  */
 export type ExportSlice = SliceView;
 
+/**
+ * What a document that is **not** the whole plan is a document of.
+ *
+ * Present only on an export of the rows one reader had on screen (R10 F5), and
+ * absent — not empty, absent — on every other, which is what keeps the four
+ * existing exports byte-for-byte what they were: they take `flat`, they say so
+ * in the bundled document's `Scope` line, and that doctrine is settled (§9's
+ * Q3).
+ *
+ * `criteria` is `filterWords`' list (`tree-search.ts`), so the document's
+ * account of what was filtered is the filter's own account of itself rather
+ * than a second one written here. Empty means the rows were narrowed by a
+ * collapsed branch alone, which is a real way to have fewer rows on screen and
+ * has to read differently from a filter that kept them out.
+ */
+export interface FilteredScope {
+  /** How many rows the whole plan holds — how many are in the document is `rows.length`. */
+  totalRows: number;
+  criteria: readonly string[];
+}
+
+/**
+ * How many `depends on` references in this document point at a work item the
+ * document does not hold.
+ *
+ * The document's own count of its own holes, taken from `plan.rows` and nothing
+ * else: a filtered export drops rows, the Depends on column resolves a
+ * predecessor by looking it up among the rows it has, and an unresolvable one
+ * prints as nothing at all. Silent on screen is one thing — the chart says what
+ * it did not draw (F3) — and silent in a file somebody was **sent** is the bug
+ * this whole scope line exists to close.
+ *
+ * Zero on a whole-plan export by construction, which is why nothing reads it
+ * there.
+ */
+function danglingDependencies(plan: PlanExport): number {
+  const held = new Set(plan.rows.map((row) => row.id));
+  return plan.rows.reduce(
+    (missing, row) => missing + row.dependsOn.filter((id) => !held.has(id)).length,
+    0,
+  );
+}
+
 /** A role, team or person as the export needs it: something with a name to print. */
 export interface NamedEntry {
   id: string;
@@ -136,8 +179,26 @@ export interface PlanExport {
    */
   priorityBands: readonly PriorityBandView[];
   people: readonly NamedEntry[];
-  /** Every work item, in tree order. Collapsed branches and searches are the screen's business. */
+  /**
+   * The work items this document holds, in tree order.
+   *
+   * **Every one of them** for the four exports that have always existed —
+   * collapsed branches and running filters are the screen's business, not a
+   * document's. The one export that takes the rows on screen instead says so in
+   * {@link PlanExport.scope}, and a document with rows missing and no scope is
+   * the thing Q3 refused.
+   */
   rows: readonly ExportRow[];
+  /**
+   * What this document is of, when it is not the whole plan — see
+   * {@link FilteredScope}.
+   *
+   * Optional so every caller that takes the whole plan stays exactly what it
+   * was, and so the absence itself carries the claim: no scope line means no
+   * narrowing, and there is no way to write one down without also writing down
+   * what it kept.
+   */
+  scope?: FilteredScope;
   /**
    * Every slice be-01 placed, in its own order.
    *
@@ -259,7 +320,43 @@ function headerFields(plan: PlanExport): { key: string; value: string }[] {
       value: `these dependencies run in a circle, so no dates could be worked out — every date and slack reads ${NO_SCHEDULE}`,
     });
   }
+  // Last, and in **both** formats: a document that is not the whole plan says
+  // so wherever it is read, and the CSV is the copy that ends up in a
+  // spreadsheet with the header scrolled off — which is why the sentence names
+  // the narrowing rather than merely admitting to one.
+  if (plan.scope !== undefined) fields.push(scopeField(plan, plan.scope));
   return fields;
+}
+
+/**
+ * The `Scope` line of a document that holds some of a plan: how much of it is
+ * here, what kept these rows, and what the absent ones took with them.
+ *
+ * Three claims, and the third is the one a reader cannot recover for
+ * themselves: **the figures were not recomputed.** Every date, every slack and
+ * every total in a filtered export is be-01's answer for the whole plan, because
+ * the schedule is computed over the whole plan whatever the screen is showing
+ * (`notes/wbs-scope-2026-08-13-wave6.md:188-189`). A reader who assumed
+ * otherwise would read these dates as a plan of this work alone, which would be
+ * a shorter and entirely fictional project.
+ */
+function scopeField(plan: PlanExport, scope: FilteredScope): { key: string; value: string } {
+  const kept =
+    scope.criteria.length === 0
+      ? 'no filter was on, so a collapsed branch is what left the rest out'
+      : `kept by: ${scope.criteria.join('; ')}`;
+  const dangling = danglingDependencies(plan);
+  const holes =
+    dangling === 0
+      ? ''
+      : ` ${String(dangling)} Depends on ${dangling === 1 ? 'reference points' : 'references point'} at a work item this document does not hold, and ${dangling === 1 ? 'it is' : 'they are'} blank in the table below.`;
+  return {
+    key: 'Scope',
+    value:
+      `what one reader had on screen, not the whole plan — ${String(plan.rows.length)} of ` +
+      `${String(scope.totalRows)} rows, ${kept}. The figures are the whole plan's schedule ` +
+      `unchanged: nothing here was recalculated from the rows that were kept.${holes}`,
+  };
 }
 
 /** What a row's Starts cell says: a date, a day offset, or nothing knowable. */
@@ -557,14 +654,21 @@ const UNNAMEABLE_PROJECT = 'plan';
  *
  * `extension` defaults to `csv` so every existing caller compiles unchanged;
  * the bundled Mermaid document (`plan-mermaid.ts`) is the first to pass `md`.
+ *
+ * **A filtered export files itself under `-on-screen`**, off
+ * {@link PlanExport.scope} and not off a flag the caller could forget to pass:
+ * two documents of one plan taken on one day would otherwise land in the same
+ * folder under the same name, and the one with rows missing is the one nobody
+ * can tell apart afterwards.
  */
 export function planFileName(
-  plan: Pick<PlanExport, 'projectName' | 'generatedAt'>,
+  plan: Pick<PlanExport, 'projectName' | 'generatedAt' | 'scope'>,
   extension: 'csv' | 'md' = 'csv',
 ): string {
   const slug = plan.projectName
     .toLowerCase()
     .replaceAll(/[^a-z0-9]+/g, '-')
     .replaceAll(/^-+|-+$/g, '');
-  return `${slug === '' ? UNNAMEABLE_PROJECT : slug}-${plan.generatedAt.slice(0, 10)}.${extension}`;
+  const narrowed = plan.scope === undefined ? '' : '-on-screen';
+  return `${slug === '' ? UNNAMEABLE_PROJECT : slug}-${plan.generatedAt.slice(0, 10)}${narrowed}.${extension}`;
 }

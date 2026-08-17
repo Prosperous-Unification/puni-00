@@ -12286,3 +12286,180 @@ describe('narrowing the plan by facet', () => {
     expect(screen.getByLabelText('Team Wiring')).not.toBeChecked();
   });
 });
+
+describe('what the filter says it dropped, and what it exports', () => {
+  /**
+   * Two roots with a dependency between them, both leaves so both are placed:
+   *
+   * ```
+   * 010  Strip the walls   Billing
+   * 020  Paint             Wiring, waits for 010
+   * ```
+   *
+   * A team on each, so one tick keeps one row and hides the other end of the
+   * only stored edge on the plan — which is the whole state F3 is about.
+   */
+  async function twoTeamsOneEdge(): Promise<ProjectApi> {
+    const api = fakeApi();
+    const strip = await api.create('p1', {
+      parentId: null,
+      afterId: null,
+      name: 'Strip the walls',
+    });
+    const paint = await api.create('p1', { parentId: null, afterId: strip.id, name: 'Paint' });
+    const billing = await api.addTeam('Billing');
+    const wiring = await api.addTeam('Wiring');
+    await api.patch(strip.id, { serviceTeamId: billing.id });
+    await api.patch(paint.id, { serviceTeamId: wiring.id });
+    await api.setEstimate(strip.id, DEV.id, { optimistic: 1, realistic: 2, pessimistic: 3 });
+    await api.setEstimate(paint.id, DEV.id, { optimistic: 1, realistic: 2, pessimistic: 3 });
+    await api.addDependency(paint.id, strip.id);
+
+    render(<WbsTable projectId="p1" api={api} projectName="Rewire the shed" />);
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '020']);
+    });
+    return api;
+  }
+
+  const openFilters = () => {
+    fireEvent.click(screen.getByText(/^Filters/));
+  };
+  const tick = (label: string) => {
+    fireEvent.click(screen.getByLabelText(label));
+  };
+
+  /**
+   * What a download was handed and what it was filed as — jsdom implements
+   * neither the object URL nor a click that saves, so both are replaced for the
+   * length of a test. The same shape `sharing the plan` uses above, written
+   * again rather than hoisted: that block's copy is scoped to its own
+   * `afterEach`, and one shared stub restored in two places is how a test that
+   * passes alone fails in a suite.
+   */
+  const captureDownloads = (): { blobs: Blob[]; names: string[] } => {
+    const blobs: Blob[] = [];
+    const names: string[] = [];
+    const urls = URL as unknown as {
+      createObjectURL: (blob: Blob) => string;
+      revokeObjectURL: (url: string) => void;
+    };
+    urls.createObjectURL = (blob: Blob) => {
+      blobs.push(blob);
+      return `blob:on-screen-${String(blobs.length)}`;
+    };
+    urls.revokeObjectURL = () => undefined;
+    HTMLAnchorElement.prototype.click = function capture(this: HTMLAnchorElement) {
+      names.push(this.download);
+    };
+    return { blobs, names };
+  };
+
+  /** The bytes of a downloaded blob, through `FileReader` — jsdom's Blob has no `text()`. */
+  const readBlobText = (blob: Blob): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const read = reader.result;
+        if (typeof read === 'string') resolve(read);
+        else reject(new Error('the downloaded blob read back as something else'));
+      };
+      reader.onerror = () => {
+        reject(new Error('the downloaded blob could not be read'));
+      };
+      reader.readAsText(blob);
+    });
+
+  afterEach(() => {
+    Reflect.deleteProperty(URL, 'createObjectURL');
+    Reflect.deleteProperty(URL, 'revokeObjectURL');
+    Reflect.deleteProperty(HTMLAnchorElement.prototype, 'click');
+  });
+
+  /** The chart's sentence about the waits it did not draw, or null. */
+  const droppedSentence = (): string | null =>
+    document.querySelector('[data-gantt-dropped-links]')?.textContent ?? null;
+
+  itDom('says under the chart that a wait went undrawn, and says it only while filtering', async () => {
+    await twoTeamsOneEdge();
+    fireEvent.click(screen.getByRole('button', { name: 'Gantt' }));
+    await screen.findByLabelText('Gantt chart');
+    expect(droppedSentence()).toBeNull();
+
+    openFilters();
+    tick('Team Wiring');
+
+    // `020` is drawn and the row it waits for is not, so the bar sits at a date
+    // with nothing on the chart holding it there. R10 §9's Q7: the edge is not
+    // pulled back — one edge can drag a whole plan in — it is counted and said.
+    expect(numbersOnScreen()).toEqual(['020']);
+    expect(droppedSentence()).toBe(
+      'Not drawn: 1 wait whose other end this filter is hiding — 1 stored dependency. ' +
+        'Clear the filter to see it.',
+    );
+
+    tick('Team Wiring');
+
+    expect(droppedSentence()).toBeNull();
+  });
+
+  itDom('counts the wait that leaves a shown row for a hidden one', async () => {
+    // The direction the chart could not see before F3: `010` is on screen and
+    // its **successor** is not, so its bar loses the arrow that left it.
+    await twoTeamsOneEdge();
+    fireEvent.click(screen.getByRole('button', { name: 'Gantt' }));
+    await screen.findByLabelText('Gantt chart');
+
+    openFilters();
+    tick('Team Billing');
+
+    expect(numbersOnScreen()).toEqual(['010']);
+    expect(droppedSentence()).toContain('1 stored dependency');
+  });
+
+  itDom('downloads what is on screen, with a header saying what was filtered out', async () => {
+    const downloads = captureDownloads();
+    await twoTeamsOneEdge();
+    openFilters();
+    tick('Team Wiring');
+
+    click("Download what's on screen");
+
+    expect(downloads.names).toHaveLength(1);
+    // `-on-screen`, off the scope itself: two documents of one plan taken on
+    // one day would otherwise land in a folder under the same name, and the
+    // one with rows missing is the one nobody can tell apart afterwards.
+    expect(downloads.names[0]).toMatch(/^rewire-the-shed-\d{4}-\d{2}-\d{2}-on-screen\.md$/);
+    const file = downloads.blobs.at(0);
+    if (file === undefined) throw new Error('nothing was handed to createObjectURL');
+    const text = await readBlobText(file);
+    // What it holds, what kept it, and the two things a reader of a partial
+    // document cannot work out for themselves: that the figures were not
+    // recomputed, and that a Depends on points somewhere this file has not got.
+    expect(text).toContain('**Scope:** what one reader had on screen, not the whole plan — 1 of 2 rows, kept by: team Wiring.');
+    expect(text).toContain("The figures are the whole plan's schedule unchanged");
+    expect(text).toContain('1 Depends on reference points at a work item this document does not hold');
+    expect(text).toContain('| Paint |');
+    expect(text).not.toContain('| Strip the walls |');
+  });
+
+  itDom('leaves the four whole-plan exports claiming the whole plan', async () => {
+    // R10 §9's Q3, settled 2026-08-17: the export does not follow the filter,
+    // and the second action is why it does not have to. A filtered plan
+    // downloaded through the old button is still every row, and still says so.
+    const downloads = captureDownloads();
+    await twoTeamsOneEdge();
+    openFilters();
+    tick('Team Wiring');
+    expect(numbersOnScreen()).toEqual(['020']);
+
+    click('Download CSV');
+
+    const file = downloads.blobs.at(0);
+    if (file === undefined) throw new Error('nothing was handed to createObjectURL');
+    const text = await readBlobText(file);
+    expect(text).toContain('Strip the walls');
+    expect(text).toContain('Paint');
+    expect(text).not.toContain('Scope');
+  });
+});

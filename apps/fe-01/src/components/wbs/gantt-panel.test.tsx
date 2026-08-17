@@ -107,6 +107,8 @@ const planOf = (parts: Partial<GanttPlan>): GanttPlan => ({
   slices: [],
   dependencies: [],
   tree: treeFrom(parts.rows ?? []),
+  // Off unless a test is about the sentence a filter's dropped waits earn.
+  narrowedByFilter: false,
   roles: [{ id: 'dev', name: 'Dev' }],
   personNames: new Map(),
   priorityBands: DEFAULT_PRIORITY_BANDS,
@@ -4348,4 +4350,107 @@ describe('downloading the chart as a standalone .svg', () => {
       expect(anyBar?.getAttribute('tabindex')).toBeNull();
     },
   );
+});
+
+describe('the waits the filter left undrawn', () => {
+  /**
+   * `strip` → `sand`, with `strip` off screen: the state a filter leaves the
+   * chart in — the slices are all still in the payload, because be-01 schedules
+   * the whole plan and the screen chooses what to draw.
+   */
+  const narrowedPast = (parts: Partial<GanttPlan> = {}): GanttPlan =>
+    planOf({
+      rows: [rowAt('sand', 3, 5)],
+      slices: [sliceAt('strip-dev', 'strip', 0, 3), sliceAt('sand-dev', 'sand', 3, 5)],
+      dependencies: [{ predecessorId: 'strip', successorId: 'sand' }],
+      narrowedByFilter: true,
+      ...parts,
+    });
+
+  /** The sentence under the chart, or null while there is none. */
+  const droppedSentence = (): string | null =>
+    document.querySelector('[data-gantt-dropped-links]')?.textContent ?? null;
+
+  itDom('says under the chart how many waits it could not draw', () => {
+    render(
+      <GanttPanel
+        plan={narrowedPast()}
+        startDate={MONDAY_START}
+        scheduleError={null}
+        generation={0}
+        heightPx={null}
+        onPickRow={() => undefined}
+      />,
+    );
+
+    // The detail switch pressed, so the arrows that *can* be drawn are: the
+    // sentence is about the one that cannot, not about a switch at rest.
+    // `askForTheDetail` is not the helper for this — it throws when nothing
+    // arrives, which is exactly the state under test.
+    const detail = document.querySelector('[data-gantt-detail-toggle]');
+    if (!(detail instanceof HTMLElement)) throw new Error('the detail switch is not on the panel');
+    fireEvent.click(detail);
+
+    expect(document.querySelectorAll('[data-gantt-arrow]')).toHaveLength(0);
+    expect(droppedSentence()).toBe(
+      'Not drawn: 1 wait whose other end this filter is hiding — 1 stored dependency. ' +
+        'Clear the filter to see it.',
+    );
+  });
+
+  /**
+   * Outside the panel's scroll box, which is the whole of where it is: inside
+   * it the sentence sits at the bottom of a canvas a 60-row plan scrolls, and a
+   * reader who has not noticed a missing arrow never scrolls there.
+   */
+  itDom('puts the sentence outside the chart that scrolls', () => {
+    render(
+      <GanttPanel
+        plan={narrowedPast()}
+        startDate={MONDAY_START}
+        scheduleError={null}
+        generation={0}
+        heightPx={null}
+        onPickRow={() => undefined}
+      />,
+    );
+
+    const said = document.querySelector('[data-gantt-dropped-links]');
+    expect(said?.closest('[data-gantt-panel]')).toBeNull();
+  });
+
+  itDom('says nothing while the filter is off, however the rows were narrowed', () => {
+    render(
+      <GanttPanel
+        plan={narrowedPast({ narrowedByFilter: false })}
+        startDate={MONDAY_START}
+        scheduleError={null}
+        generation={0}
+        heightPx={null}
+        onPickRow={() => undefined}
+      />,
+    );
+
+    expect(droppedSentence()).toBeNull();
+  });
+
+  itDom('says nothing when a filter drew every wait it has', () => {
+    render(
+      <GanttPanel
+        plan={narrowedPast({
+          rows: [rowAt('strip', 0, 3), rowAt('sand', 3, 5)],
+        })}
+        startDate={MONDAY_START}
+        scheduleError={null}
+        generation={0}
+        heightPx={null}
+        onPickRow={() => undefined}
+      />,
+    );
+
+    askForTheDetail();
+
+    expect(document.querySelectorAll('[data-gantt-arrow]').length).toBeGreaterThan(0);
+    expect(droppedSentence()).toBeNull();
+  });
 });

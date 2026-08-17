@@ -5,6 +5,7 @@ import {
   type BarColor,
   type BindingFloor,
   calendarScale,
+  droppedLinkWords,
   GanttDataError,
   type GanttPlan,
   type GanttRow,
@@ -102,6 +103,8 @@ const planOf = (parts: Partial<GanttPlan>): GanttPlan => ({
   slices: [],
   dependencies: [],
   tree: treeFrom(parts.rows ?? []),
+  // Off unless a test is about the sentence a filter's dropped waits earn.
+  narrowedByFilter: false,
   roles: [
     { id: 'dev', name: 'Dev' },
     { id: 'qa', name: 'QA' },
@@ -2225,5 +2228,112 @@ describe('the invariant over a sweep of generated plans', () => {
     expect(control.crossings.length).toBeGreaterThan(20);
     expect(swept.crossings).toEqual([]);
     expect(swept.arrows).toBeGreaterThan(400);
+  });
+});
+
+describe('the waits that were not drawn', () => {
+  /**
+   * `strip` → `sand`, with a hand-off and a pool wait beside it, so one fixture
+   * can lose each kind of link in turn by taking a row off screen.
+   *
+   * The slices stay in the payload whatever the rows do: that is the shape a
+   * narrowed plan actually arrives in — be-01 schedules the whole plan and the
+   * screen decides which rows of it to draw (`wbs-table.tsx`).
+   */
+  const threeKinds = (parts: Partial<GanttPlan> = {}): GanttPlan =>
+    planOf({
+      rows: [rowAt('strip', 0, 3), rowAt('sand', 3, 5), rowAt('wax', 5, 7)],
+      slices: [
+        sliceAt('strip-dev', 'strip', 0, 3, { personId: 'kat' }),
+        sliceAt('sand-dev', 'sand', 3, 5, {
+          personId: 'kat',
+          boundBy: 'person',
+          resourcePredecessorId: 'strip-dev',
+        }),
+        sliceAt('wax-dev', 'wax', 5, 7, {
+          boundBy: 'capacity',
+          resourcePredecessorId: 'sand-dev',
+          capacityPredecessorIds: ['sand-dev'],
+        }),
+      ],
+      dependencies: [{ predecessorId: 'strip', successorId: 'wax' }],
+      ...parts,
+    });
+
+  it('counts nothing while every row is on screen', () => {
+    const chart = layOutGantt(threeKinds());
+
+    expect(chart.droppedLinks).toEqual({ dependencies: 0, personLinks: 0, capacityLinks: 0 });
+    expect(droppedLinkWords(chart.droppedLinks)).toBeNull();
+  });
+
+  it('counts each kind of wait whose other end the screen is not showing', () => {
+    // `strip` is off screen: the dependency onto `wax` loses its predecessor
+    // and Kat's hand-off onto `sand` loses the work she was finishing.
+    const chart = layOutGantt(threeKinds({ rows: [rowAt('sand', 3, 5), rowAt('wax', 5, 7)] }));
+
+    expect(chart.arrows).toEqual([]);
+    expect(chart.personLinks).toEqual([]);
+    expect(chart.droppedLinks).toEqual({ dependencies: 1, personLinks: 1, capacityLinks: 0 });
+  });
+
+  it('counts a pool wait onto a row that is not drawn', () => {
+    const chart = layOutGantt(threeKinds({ rows: [rowAt('strip', 0, 3), rowAt('wax', 5, 7)] }));
+
+    expect(chart.capacityLinks).toEqual([]);
+    expect(chart.droppedLinks.capacityLinks).toBe(1);
+  });
+
+  /**
+   * The count is about what a reader can see missing, which is why neither end
+   * being drawn is not counted: no bar on this chart lost a mark, and a number
+   * for a wait between two rows nobody is looking at is a number nobody can act
+   * on.
+   */
+  it('counts nothing for a link with neither end on screen', () => {
+    // Both ends of Kat's hand-off and of the stored edge are off screen; the
+    // one row drawn has no wait of its own.
+    const chart = layOutGantt(
+      planOf({
+        rows: [rowAt('wax', 5, 7)],
+        slices: [
+          sliceAt('strip-dev', 'strip', 0, 3, { personId: 'kat' }),
+          sliceAt('sand-dev', 'sand', 3, 5, {
+            personId: 'kat',
+            boundBy: 'person',
+            resourcePredecessorId: 'strip-dev',
+          }),
+          sliceAt('wax-dev', 'wax', 5, 7),
+        ],
+        dependencies: [{ predecessorId: 'strip', successorId: 'sand' }],
+      }),
+    );
+
+    expect(chart.droppedLinks).toEqual({ dependencies: 0, personLinks: 0, capacityLinks: 0 });
+  });
+
+  it('counts the edge that leaves a shown row for a hidden successor', () => {
+    // The direction the old `dependencies` list could not even carry: `strip`
+    // is drawn and its successor is not, so its bar loses an arrow.
+    const chart = layOutGantt(
+      threeKinds({ rows: [rowAt('strip', 0, 3), rowAt('sand', 3, 5)] }),
+    );
+
+    expect(chart.arrows).toEqual([]);
+    expect(chart.droppedLinks.dependencies).toBe(1);
+  });
+
+  it('says what was dropped, kind by kind, and how to see it', () => {
+    expect(droppedLinkWords({ dependencies: 2, personLinks: 1, capacityLinks: 3 })).toBe(
+      'Not drawn: 6 waits whose other end this filter is hiding — 2 stored dependencies, ' +
+        '1 person hand-off, 3 waits for a team to free somebody. Clear the filter to see them.',
+    );
+  });
+
+  it('says one wait in the singular, and names only the kind it has', () => {
+    expect(droppedLinkWords({ dependencies: 1, personLinks: 0, capacityLinks: 0 })).toBe(
+      'Not drawn: 1 wait whose other end this filter is hiding — 1 stored dependency. ' +
+        'Clear the filter to see it.',
+    );
   });
 });

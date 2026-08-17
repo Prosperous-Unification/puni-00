@@ -380,7 +380,14 @@ function commentLines(plan: PlanExport): string[] {
     '    %% Markdown puts every one of those in a table beside this picture.',
     '    %% Dates are working days and bars are whole days — a start rounds down and a finish',
     '    %% rounds up, so no bar is drawn shorter than the work in it.',
-    '    %% Every row of the plan is here, including any the screen had collapsed or searched away.',
+    // The claim the fence makes about its own completeness, and it is only true
+    // of a whole-plan export. A filtered one says which rows it holds instead —
+    // the same sentence its `Scope` header line carries, said again here
+    // because a fence is what gets copied out of the document and pasted
+    // somewhere the header is not.
+    plan.scope === undefined
+      ? '    %% Every row of the plan is here, including any the screen had collapsed or searched away.'
+      : `    %% Only what one reader had on screen is here — ${String(plan.rows.length)} of ${String(plan.scope.totalRows)} rows. The rest of the plan is not drawn.`,
   ];
 }
 
@@ -513,7 +520,11 @@ export function planToMermaidDocument(
   const body = diagram.text.replace(/\n$/, '');
   const fence = fenceFor(body);
   const lines = [
-    ...markdownHeaderLines(plan, [SCOPE_FIELD]),
+    // The whole-plan sentence only where it is true. A document carrying a
+    // {@link PlanExport.scope} already prints a `Scope` line of its own saying
+    // which rows it holds, and two `Scope` lines — one of them claiming every
+    // row — is precisely the export Q3 refused to let anybody send.
+    ...markdownHeaderLines(plan, plan.scope === undefined ? [SCOPE_FIELD] : []),
     '',
     `${fence}mermaid`,
     body,

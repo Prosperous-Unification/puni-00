@@ -127,6 +127,7 @@ import { type Toast, toastKey, ToastStack, useToasts } from './toasts';
 import {
   type FacetCriteria,
   type FilterCriteria,
+  filterWords,
   isFiltering,
   type NarrowableRow,
   narrowTree,
@@ -7148,11 +7149,19 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     // the predecessor's leaves' slices, and a collapsed branch's leaves are
     // exactly the rows the shown set has dropped (design.md D6).
     tree: flat.map((row) => ({ id: row.id, parentId: row.parentId })),
-    // The stored dependencies of the rows on screen. An edge whose other end is
-    // collapsed away or narrowed off is dropped by `layOutGantt`, which is a
-    // modeled absence there rather than a filter here.
-    dependencies: shownRows.flatMap((row) =>
-      row.original.dependsOn.map((predecessorId) => ({ predecessorId, successorId: row.id })),
+    // Why the rows above are the length they are, which the list itself cannot
+    // say: `isFiltering`'s one answer, the same one the count beside the Find
+    // box and the empty-answer sentence read, so the chart's account of what it
+    // did not draw cannot disagree with the table's account of what it kept.
+    narrowedByFilter: filtering,
+    // **Every** stored dependency of the plan, `flat` and not `shownRows` since
+    // F3. An edge whose ends are not both on screen is dropped by `layOutGantt`
+    // and counted there, so the arrows drawn are the same ones as before — what
+    // the widening adds is the edge that leaves a shown row for a hidden one,
+    // which never reached the loop while this list was built from the
+    // successors on screen, and so could not be counted or said.
+    dependencies: flat.flatMap((row) =>
+      row.dependsOn.map((predecessorId) => ({ predecessorId, successorId: row.id })),
     ),
     // All three off {@link chartRead}, which is one payload. **Not** `roles`
     // and `people`: those are the separate reads the pickers and the phases
@@ -7163,6 +7172,69 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     // The ladder the chart names its priorities with. Off the same state the
     // table's cells read, so a bar's cap and its row's digits are one colour.
     priorityBands,
+  };
+
+  /**
+   * The plan as one reader has it on screen: the rows the filter and the
+   * collapse left, and a {@link FilteredScope} saying so.
+   *
+   * **A second export action and never a mode on the four above** — R10 §9's
+   * Q3, settled 2026-08-17. Those four keep taking `flat` and keep claiming the
+   * whole plan, because a button whose header says "the whole plan" is how
+   * somebody hands a client a plan with rows missing. This one says what it is
+   * in its own `Scope` line, in its file name, and in the fence's comment if it
+   * ever grows one.
+   *
+   * Down here rather than beside {@link planForExport} because this is the one
+   * export that needs `shownRows`, which is the table's own row model narrowed
+   * — the same list the chart and the cards draw, so what this writes out is
+   * what all three are showing and not a fourth answer.
+   *
+   * The figures are untouched: `slices` is the whole chart read and every date
+   * is be-01's, computed over the whole plan whatever is on screen. The `Scope`
+   * line says that out loud, because a reader holding a document of six rows
+   * has no way to tell whether the dates were re-planned for them.
+   */
+  const planOnScreen = (): PlanExport => ({
+    ...planForExport(),
+    rows: shownRows.map((row) => row.original),
+    scope: {
+      totalRows: flat.length,
+      // The filter's own account of itself — `filterWords`, the same criteria
+      // object `narrowTree` was asked with, so the document cannot describe a
+      // narrowing other than the one that produced its rows. The names are
+      // resolved with the lists the facet control offers, down to the same
+      // words for a value whose row is loaded and whose name is not.
+      criteria: filterWords(criteria, {
+        teamName: (teamId) =>
+          teams.find((team) => team.id === teamId)?.name ?? 'a team this plan has not loaded',
+        personName: (personId) =>
+          chartRead.people.find((person) => person.id === personId)?.name ??
+          'somebody this plan has not loaded',
+        phaseName: (roleId) => roles.find((role) => role.id === roleId)?.name ?? '(unknown)',
+      }),
+    },
+  });
+
+  /**
+   * Downloads what is on screen as a Markdown table with a `Scope` header.
+   *
+   * The **table** and not the bundled Mermaid document, which is the one thing
+   * this action deliberately gives up: a document refuses when there is no
+   * chart to draw (no start date, no schedule, nothing placed), and a filter
+   * narrowed to parent rows alone places nothing — so the bundle would refuse
+   * exactly where a reader most wants the rows they are looking at. A table
+   * always writes.
+   */
+  const downloadOnScreen = (): void => {
+    const plan = planOnScreen();
+    const markdown = new Blob([planToMarkdown(plan)], { type: 'text/markdown;charset=utf-8' });
+    const url = URL.createObjectURL(markdown);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = planFileName(plan, 'md');
+    anchor.click();
+    URL.revokeObjectURL(url);
   };
 
   /**
@@ -7602,6 +7674,23 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         onClick={downloadMermaidDocument}
       >
         Download as Markdown
+      </Button>
+      {/*
+        The fifth action, and the only one that takes the rows on screen. Its
+        own button rather than a switch on the four beside it: a mode on a
+        button whose header claims the whole plan is how a partial plan gets
+        sent as a whole one, which is what §9's Q3 refused. Always offered, not
+        only while a filter is on — a collapsed branch narrows the screen too,
+        and the `Scope` line it writes says which of the two did it.
+      */}
+      <Button
+        variant="outline"
+        size="sm"
+        type="button"
+        title="Download the rows on screen as a Markdown table, with a header saying what was filtered out and what is missing"
+        onClick={downloadOnScreen}
+      >
+        Download what's on screen
       </Button>
       <label className="ml-auto flex items-center gap-1 text-sm">
         Starts

@@ -800,3 +800,84 @@ describe('markdownHeaderLines and markdownTableLines', () => {
     expect(lines.slice(0, -1)).toEqual(markdownHeaderLines(plan()));
   });
 });
+
+describe('a document of what was on screen', () => {
+  /** Three rows of a six-row plan, kept by a team facet and a typed name. */
+  const narrowed = (over: Partial<PlanExport> = {}): PlanExport =>
+    plan({
+      rows: [
+        row({ id: 'a', number: '010', name: 'Strip the walls' }),
+        row({ id: 'a1', number: '010.1', name: 'Sockets', parentId: 'a', dependsOn: ['gone'] }),
+      ],
+      scope: { totalRows: 6, criteria: ['name contains “strip”', 'team Billing, Ltd'] },
+      ...over,
+    });
+
+  it('says whose screen it is, how much of the plan is here, and what kept it', () => {
+    const text = planToMarkdown(narrowed());
+
+    expect(text).toContain(
+      '**Scope:** what one reader had on screen, not the whole plan — 2 of 6 rows, ' +
+        'kept by: name contains “strip”; team Billing, Ltd.',
+    );
+  });
+
+  /**
+   * The claim a reader cannot recover for themselves. Every date in a filtered
+   * document is be-01's answer for the whole plan — the schedule is computed
+   * over every row whatever the screen shows — and a reader who assumed the
+   * dates had been re-planned around these rows would be reading a shorter,
+   * entirely fictional project.
+   */
+  it('says the figures were not recomputed for the rows it kept', () => {
+    expect(planToMarkdown(narrowed())).toContain(
+      "The figures are the whole plan's schedule unchanged",
+    );
+  });
+
+  it('counts the Depends on references pointing at rows it does not hold', () => {
+    expect(planToMarkdown(narrowed())).toContain(
+      '1 Depends on reference points at a work item this document does not hold',
+    );
+  });
+
+  it('says nothing about holes where there are none', () => {
+    const whole = narrowed({
+      rows: [row({ id: 'a', number: '010', name: 'Strip the walls' })],
+    });
+
+    expect(planToMarkdown(whole)).toContain('1 of 6 rows');
+    expect(planToMarkdown(whole)).not.toContain('Depends on reference');
+  });
+
+  it('names a collapsed branch as the narrowing when no filter was on', () => {
+    const collapsed = narrowed({ scope: { totalRows: 6, criteria: [] } });
+
+    expect(planToMarkdown(collapsed)).toContain(
+      'no filter was on, so a collapsed branch is what left the rest out',
+    );
+  });
+
+  it('carries the same sentence into the CSV, where a header scrolls off', () => {
+    const records = parseCsv(planToCsv(narrowed()));
+    const scope = records.find((record) => record[0] === 'Scope');
+
+    expect(scope?.[1]).toContain('what one reader had on screen, not the whole plan — 2 of 6 rows');
+  });
+
+  /**
+   * The doctrine this change must not quietly reverse (R10 §9's Q3): the four
+   * exports that have always existed take every row and say nothing about a
+   * scope, because there is nothing to say.
+   */
+  it('leaves a whole-plan export with no Scope line at all', () => {
+    expect(planToMarkdown(plan({ rows: [row({ id: 'a', number: '010' })] }))).not.toContain(
+      '**Scope:**',
+    );
+  });
+
+  it('files itself under a name nobody can confuse with the whole plan', () => {
+    expect(planFileName(narrowed(), 'md')).toBe('rewire-the-shed-2026-08-07-on-screen.md');
+    expect(planFileName(plan(), 'md')).toBe('rewire-the-shed-2026-08-07.md');
+  });
+});
