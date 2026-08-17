@@ -153,7 +153,14 @@ target passed here.
 
 ## CI
 
-**Run `<id>` at `<head>`** — filled in from the push; see the PR.
+**Run `32064203635` at `db3e121` — `success`, both jobs, first attempt.** `gate`
+and `pixels` each green; no flake, and none of the `ECONNRESET` class this repo
+has hit four times. `gate` is the record for the two shellcheck build targets
+h2puni could not run.
+
+`db3e121` is the head every number above was measured at. The commit after it
+touches **this file and nothing else** — this section — which is why it is not
+re-measured; its own run is quoted in the PR.
 
 ## Failure-proof table (R5)
 
