@@ -13,7 +13,7 @@
       that still holds recorded days cannot be deleted, a second row for one pair
       is refused, and the rollback takes the actuals and leaves every estimate.
       **Negatives:** the cascade struck from `work_item_id`, and a cascade
-      *added* to `role_id` — verify.md F1 and F2.
+      _added_ to `role_id` — verify.md F1 and F2.
 - [x] 1.4 The rollback ordering lists in `migrate.test.ts` and
       `migrate-down.test.ts` gain the new stamp, newest first, and
       `does nothing when the target is already the newest applied` now names it.

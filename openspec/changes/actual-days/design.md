@@ -95,12 +95,12 @@ mean different things is how a plan comes to assert something nobody said.
 
 The three structural moves and what each owes:
 
-| move                             | estimates                     | actuals                                            |
-| -------------------------------- | ----------------------------- | -------------------------------------------------- |
-| leaf gains its first child       | handed **down** to the child  | the same, or the row is invisible — see below      |
-| parent loses its last child      | handed **up** from the totals | the same, or the days are gone with the cascade    |
-| branch deleted, then undone      | restored with the branch      | restored with the branch                            |
-| branch duplicated                | copied                        | **not** copied — D5                                 |
+| move                        | estimates                     | actuals                                         |
+| --------------------------- | ----------------------------- | ----------------------------------------------- |
+| leaf gains its first child  | handed **down** to the child  | the same, or the row is invisible — see below   |
+| parent loses its last child | handed **up** from the totals | the same, or the days are gone with the cascade |
+| branch deleted, then undone | restored with the branch      | restored with the branch                        |
+| branch duplicated           | copied                        | **not** copied — D5                             |
 
 The hand-down is not tidiness. A parent's figures are the sum of its
 descendants', so a row left on a work item that has just gained a child is
@@ -122,7 +122,7 @@ Copied deliberately from `estimate`, and the asymmetry is argued on `role` in
 `schema.ts:274-281`.
 
 **`role_id`, no cascade.** An actual is somebody's typing about work that has
-already happened, so a role removal must *count* it before taking it. The missing
+already happened, so a role removal must _count_ it before taking it. The missing
 cascade is what makes a role delete that forgot to say so fail loudly instead of
 quietly emptying the plan. `RoleRepository.remove` deletes actuals explicitly
 inside its transaction, and `RoleUsageRows` gains an `actuals` count so an
