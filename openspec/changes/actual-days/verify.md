@@ -151,16 +151,34 @@ SQL and markdown — and CI's `gate` job asserts `shellcheck --version` before i
 runs anything, so **CI is the record for those two targets**. Every other build
 target passed here.
 
-## CI
+## CI, and the one real thing it caught
 
 **Run `32064203635` at `db3e121` — `success`, both jobs, first attempt.** `gate`
-and `pixels` each green; no flake, and none of the `ECONNRESET` class this repo
-has hit four times. `gate` is the record for the two shellcheck build targets
-h2puni could not run.
+and `pixels` each green. `gate` is the record for the two shellcheck build
+targets h2puni could not run.
 
-`db3e121` is the head every number above was measured at. The commit after it
-touches **this file and nothing else** — this section — which is why it is not
-re-measured; its own run is quoted in the PR.
+**Then the doc-only commit after it went red, and it was mine.** Run
+`32065457387` at `decc195` — a commit touching this file and nothing else —
+failed `gate` on **one** be-01 case: `restores every day recorded in a deleted
+branch, against the real cascade`, 828 pass / 1 fail, with the two restored rows
+in the other order.
+
+The case asserted a **two-row list** against `actualStore.listByProject`, which
+orders by `work_item_id` — and across a project those are UUIDs, so which of
+`Sockets` and `Switches` comes back first is a coin toss. It won five times on
+h2puni and once on CI before it lost. That is the same class of mistake
+`EstimateRepository.listByProject`'s own ordering comment is about, made in the
+assertion rather than in the query.
+
+Fixed by keying the answer by work item and asserting the length beside it, so
+the case cannot depend on an order the repository never promised across work
+items. Re-run five times on h2puni, and F9 re-watched against the new form:
+`Expected: 8 / Received: undefined`, still 2 fail. **Head `<final>`, run
+`<final-id>` — quoted in the PR.**
+
+Worth saying plainly: the code was not wrong, the check was, and it was a check
+that could pass for the wrong reason — the same failure mode as F9a two sections
+down, found by CI rather than by the injection pass.
 
 ## Failure-proof table (R5)
 

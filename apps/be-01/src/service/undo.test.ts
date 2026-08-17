@@ -492,16 +492,17 @@ describe('undoing each kind of change', () => {
 
     expect(expectDone(await undone())).toBe('delete “Strip”');
 
-    expect(
-      (await actualStore.listByProject(projectId)).map(({ workItemId, roleId, days }) => ({
-        workItemId,
-        roleId,
-        days,
-      })),
-    ).toEqual([
-      { workItemId: sockets, roleId: dev(), days: 8 },
-      { workItemId: switches, roleId: dev(), days: 3 },
-    ]);
+    // By work item rather than as a list, and the size asserted beside it.
+    // `listByProject` orders by `work_item_id` — a **UUID** across a project —
+    // so a two-row list assertion here is a coin toss on which name sorts
+    // first: it passed five times on h2puni and on CI at `db3e121`, and failed
+    // on the doc-only commit after it. See verify.md.
+    const back = await actualStore.listByProject(projectId);
+    const byItem = new Map(back.map((each) => [each.workItemId, each.days]));
+    expect(byItem.get(sockets)).toBe(8);
+    expect(byItem.get(switches)).toBe(3);
+    expect(back).toHaveLength(2);
+    expect(back.every((each) => each.roleId === dev())).toBe(true);
   });
 
   it('takes back the recorded days a deletion handed up to the parent', async () => {
