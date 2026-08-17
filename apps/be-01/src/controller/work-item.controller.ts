@@ -3,6 +3,7 @@ import { parseOrThrow, ValidationError } from '@wbs/validation';
 import { Elysia } from 'elysia';
 
 import { userFromHeaders } from '../middleware/authenticated';
+import { handParsedBody } from '../openapi/hand-parsed-body';
 import type { AuthService } from '../service/auth.service';
 import type {
   CreateWorkItem,
@@ -285,63 +286,210 @@ export function workItemController(auth: AuthService, workItems: WorkItemService
       // read and has nobody to answer for.
       return { ...tree, ...(await workItems.undoState(params.id, user.id)) };
     })
-    .post('/projects/:id/work-items', async ({ params, body, headers, set }) => {
-      const user = await userFromHeaders(auth, headers);
-      if (user === null) {
-        set.status = 401;
-        return { error: 'unauthenticated' };
-      }
-      const outcome = await workItems.create(params.id, user.id, parseCreate(body));
-      if (!outcome.ok) {
-        set.status = statusFor(outcome.reason);
-        return { error: outcome.reason };
-      }
-      return outcome.result;
-    })
-    .patch('/work-items/:id', async ({ params, body, headers, set }) => {
-      const user = await userFromHeaders(auth, headers);
-      if (user === null) {
-        set.status = 401;
-        return { error: 'unauthenticated' };
-      }
-      const outcome = await workItems.patch(params.id, user.id, parsePatch(body));
-      if (!outcome.ok) {
-        set.status = statusFor(outcome.reason);
-        return { error: outcome.reason };
-      }
-      return outcome.result;
-    })
-    .put('/work-items/:id/assignees/:roleId', async ({ params, body, headers, set }) => {
-      const user = await userFromHeaders(auth, headers);
-      if (user === null) {
-        set.status = 401;
-        return { error: 'unauthenticated' };
-      }
-      // `null` clears the assignment; anything else must be an id. A person
-      // who is not in the directory is refused by the foreign key rather than
-      // by a lookup here, which two concurrent requests could both pass.
-      const raw = asRecord(body);
-      const personId = asIdOrNull(raw['personId'], 'personId');
-      const outcome = await workItems.assign(params.id, user.id, params.roleId, personId);
-      if (!outcome.ok) {
-        set.status = statusFor(outcome.reason);
-        return { error: outcome.reason };
-      }
-      return { assigned: true };
-    })
-    .post('/work-items/:id/move', async ({ params, body, headers, set }) => {
-      const user = await userFromHeaders(auth, headers);
-      if (user === null) {
-        set.status = 401;
-        return { error: 'unauthenticated' };
-      }
-      const outcome = await workItems.move(params.id, user.id, parseMove(body));
-      if (!outcome.ok) {
-        set.status = statusFor(outcome.reason);
-        return { error: outcome.reason };
-      }
-      return { moved: true };
-    })
+    .post(
+      '/projects/:id/work-items',
+      async ({ params, body, headers, set }) => {
+        const user = await userFromHeaders(auth, headers);
+        if (user === null) {
+          set.status = 401;
+          return { error: 'unauthenticated' };
+        }
+        const outcome = await workItems.create(params.id, user.id, parseCreate(body));
+        if (!outcome.ok) {
+          set.status = statusFor(outcome.reason);
+          return { error: outcome.reason };
+        }
+        return outcome.result;
+      },
+      {
+        detail: {
+          summary: 'Add a work item to a project',
+          description: `Its number is **not** part of the request: numbers are derived from the tree and
+re-derived on every read, so a body naming \`number\` or \`frozenNumber\` is refused
+rather than ignored.
+
+Body refusals, all 400 and each carried as \`{ "error": "<code>" }\`:
+\`expected_object\`, \`number_is_derived\`, \`parentId_must_be_id_or_null\`,
+\`afterId_must_be_id_or_null\`, \`name_must_be_text\`, \`notes_must_be_text\`.`,
+          requestBody: handParsedBody(
+            'Where the row goes and what it is called. Every field may be absent.',
+            {
+              type: 'object',
+              properties: {
+                parentId: {
+                  type: 'string',
+                  nullable: true,
+                  description:
+                    'The work item it goes under. Null or absent puts it at the top level.',
+                },
+                afterId: {
+                  type: 'string',
+                  nullable: true,
+                  description:
+                    'The sibling it is placed after; it must already sit under `parentId`. Null or absent puts it first in that group.',
+                },
+                name: { type: 'string', description: 'Its name. Absent leaves it unnamed.' },
+                notes: { type: 'string', description: 'Free text shown on the row.' },
+              },
+            },
+          ),
+        },
+      },
+    )
+    .patch(
+      '/work-items/:id',
+      async ({ params, body, headers, set }) => {
+        const user = await userFromHeaders(auth, headers);
+        if (user === null) {
+          set.status = 401;
+          return { error: 'unauthenticated' };
+        }
+        const outcome = await workItems.patch(params.id, user.id, parsePatch(body));
+        if (!outcome.ok) {
+          set.status = statusFor(outcome.reason);
+          return { error: outcome.reason };
+        }
+        return outcome.result;
+      },
+      {
+        detail: {
+          summary: "Change a work item's own fields",
+          description: `Every field is optional and an absent one is left alone; \`null\` where the field
+allows it is the clear. Dates, floats and slices are **not** here — they are
+computed from the tree, which is why \`number\` and \`frozenNumber\` are refused
+rather than ignored. Re-read \`GET /api/projects/{id}/work-items\` afterwards: one
+patch can move every date in the plan.
+
+Body refusals, all 400: \`expected_object\`, \`number_is_derived\`,
+\`name_must_be_text\`, \`notes_must_be_text\`, \`startNoEarlierThan_must_be_a_date\`,
+\`priority_must_be_a_whole_number_from_1\`, \`serviceTeamId_must_be_id_or_null\`,
+\`maxParallel_must_be_a_whole_number_from_1\`,
+\`maxParallel_must_be_at_most_1000\`. A parallelism on a row that has children is
+\`has_children\`, also 400 — the cell is read-only on every parent.`,
+          requestBody: handParsedBody('The fields to change. Send only the ones you mean.', {
+            type: 'object',
+            properties: {
+              name: { type: 'string', description: 'What the work item is called.' },
+              notes: { type: 'string', description: 'Free text shown on the row.' },
+              startNoEarlierThan: {
+                type: 'string',
+                nullable: true,
+                description:
+                  'A calendar day, `YYYY-MM-DD`, before which this work may not start. Null lifts the constraint. A shape-valid non-day like `2026-02-31` is refused.',
+              },
+              priority: {
+                type: 'integer',
+                nullable: true,
+                minimum: 1,
+                description:
+                  'A whole number from 1, lower being more important. There is no ceiling — how far a planner’s own scale runs is not this API’s to decide. Null leaves the work unprioritised.',
+              },
+              serviceTeamId: {
+                type: 'string',
+                nullable: true,
+                description:
+                  'The team whose people do this work, by id from `GET /api/teams`. Null clears the label.',
+              },
+              maxParallel: {
+                type: 'integer',
+                nullable: true,
+                minimum: 1,
+                maximum: 1000,
+                description:
+                  'How many people may be on this work item at once, 1 to 1000. Null puts it back to one at a time. The floor is correctness, not taste: duration is effort ÷ width, so a 0 would make every date in the plan `Infinity`.',
+              },
+            },
+          }),
+        },
+      },
+    )
+    .put(
+      '/work-items/:id/assignees/:roleId',
+      async ({ params, body, headers, set }) => {
+        const user = await userFromHeaders(auth, headers);
+        if (user === null) {
+          set.status = 401;
+          return { error: 'unauthenticated' };
+        }
+        // `null` clears the assignment; anything else must be an id. A person
+        // who is not in the directory is refused by the foreign key rather than
+        // by a lookup here, which two concurrent requests could both pass.
+        const raw = asRecord(body);
+        const personId = asIdOrNull(raw['personId'], 'personId');
+        const outcome = await workItems.assign(params.id, user.id, params.roleId, personId);
+        if (!outcome.ok) {
+          set.status = statusFor(outcome.reason);
+          return { error: outcome.reason };
+        }
+        return { assigned: true };
+      },
+      {
+        detail: {
+          summary: 'Assign a person to one role on one work item, or clear the assignment',
+          description: `\`roleId\` must be a role of the project this work item belongs to; one that is not
+is \`unknown_role\`, 404. An id the directory no longer holds is refused by the
+foreign key rather than by a lookup here, because two concurrent requests could
+both pass a lookup.
+
+Body refusals, both 400: \`expected_object\`, \`personId_must_be_id_or_null\`.`,
+          requestBody: handParsedBody('Who does this role here.', {
+            type: 'object',
+            properties: {
+              personId: {
+                type: 'string',
+                nullable: true,
+                description:
+                  'The person, by id from `GET /api/people`. Null — or an absent field — clears the assignment.',
+              },
+            },
+          }),
+        },
+      },
+    )
+    .post(
+      '/work-items/:id/move',
+      async ({ params, body, headers, set }) => {
+        const user = await userFromHeaders(auth, headers);
+        if (user === null) {
+          set.status = 401;
+          return { error: 'unauthenticated' };
+        }
+        const outcome = await workItems.move(params.id, user.id, parseMove(body));
+        if (!outcome.ok) {
+          set.status = statusFor(outcome.reason);
+          return { error: outcome.reason };
+        }
+        return { moved: true };
+      },
+      {
+        detail: {
+          summary: 'Move a work item under a new parent, or to a new position among its siblings',
+          description: `A move that would put a row inside its own subtree is \`cycle\`, 409 — the request is
+well formed and would have worked against a different tree. A frozen work item is
+\`frozen\`, also 409. Numbers are re-derived afterwards, so every row's number may
+change.
+
+Body refusals, all 400: \`expected_object\`, \`parentId_must_be_id_or_null\`,
+\`afterId_must_be_id_or_null\`.`,
+          requestBody: handParsedBody('Where the work item goes.', {
+            type: 'object',
+            properties: {
+              parentId: {
+                type: 'string',
+                nullable: true,
+                description: 'The work item it goes under. Null moves it to the top level.',
+              },
+              afterId: {
+                type: 'string',
+                nullable: true,
+                description:
+                  'The sibling it goes after; it must already sit under `parentId`. Null puts it first in that group.',
+              },
+            },
+          }),
+        },
+      },
+    )
     .post('/work-items/:id/duplicate', async ({ params, headers, set }) => {
       // No body is read: what is copied and where it lands are the rule, not
       // the caller's to choose. A body would be options nobody has asked for
@@ -400,32 +548,56 @@ export function workItemController(auth: AuthService, workItems: WorkItemService
       }
       return { unfrozen: true };
     })
-    .post('/work-items/:id/dependencies', async ({ params, body, headers, set }) => {
-      const user = await userFromHeaders(auth, headers);
-      if (user === null) {
-        set.status = 401;
-        return { error: 'unauthenticated' };
-      }
-      // Parsed by hand rather than through Elysia's `body` schema: Elysia strips
-      // unknown properties before the handler, so a typo'd field name would
-      // arrive as an absent one and the route would answer 200 having done
-      // nothing. The same reason the create route parses its own body.
-      const parsed: unknown = body;
-      const predecessorId =
-        typeof parsed === 'object' && parsed !== null && 'predecessorId' in parsed
-          ? parsed.predecessorId
-          : undefined;
-      if (typeof predecessorId !== 'string' || predecessorId === '') {
-        set.status = 400;
-        return { error: 'predecessor_required' };
-      }
-      const outcome = await workItems.addDependency(params.id, user.id, predecessorId);
-      if (!outcome.ok) {
-        set.status = statusFor(outcome.reason);
-        return { error: outcome.reason };
-      }
-      return { ok: true };
-    })
+    .post(
+      '/work-items/:id/dependencies',
+      async ({ params, body, headers, set }) => {
+        const user = await userFromHeaders(auth, headers);
+        if (user === null) {
+          set.status = 401;
+          return { error: 'unauthenticated' };
+        }
+        // Parsed by hand rather than through Elysia's `body` schema: Elysia strips
+        // unknown properties before the handler, so a typo'd field name would
+        // arrive as an absent one and the route would answer 200 having done
+        // nothing. The same reason the create route parses its own body.
+        const parsed: unknown = body;
+        const predecessorId =
+          typeof parsed === 'object' && parsed !== null && 'predecessorId' in parsed
+            ? parsed.predecessorId
+            : undefined;
+        if (typeof predecessorId !== 'string' || predecessorId === '') {
+          set.status = 400;
+          return { error: 'predecessor_required' };
+        }
+        const outcome = await workItems.addDependency(params.id, user.id, predecessorId);
+        if (!outcome.ok) {
+          set.status = statusFor(outcome.reason);
+          return { error: outcome.reason };
+        }
+        return { ok: true };
+      },
+      {
+        detail: {
+          summary: 'Make this work item wait for another',
+          description: `What the wait means: this work starts no earlier than the predecessor's **first
+estimated role** — its anchor — not its finish. A blank leading role is stepped
+over, and a wholly unestimated predecessor falls back to its own finish.
+
+An edge that would close a loop is \`cycle\`, 409. A missing, empty or non-string
+\`predecessorId\` is \`predecessor_required\`, 400.`,
+          requestBody: handParsedBody('The work item this one waits for.', {
+            type: 'object',
+            required: ['predecessorId'],
+            properties: {
+              predecessorId: {
+                type: 'string',
+                description: 'The predecessor, by work item id. Must not be empty.',
+              },
+            },
+          }),
+        },
+      },
+    )
     .delete('/work-items/:id/dependencies/:predecessorId', async ({ params, headers, set }) => {
       const user = await userFromHeaders(auth, headers);
       if (user === null) {
@@ -452,20 +624,65 @@ export function workItemController(auth: AuthService, workItems: WorkItemService
       }
       return { unfrozen: true };
     })
-    .put('/work-items/:id/estimates/:roleId', async ({ params, body, headers, set }) => {
-      const user = await userFromHeaders(auth, headers);
-      if (user === null) {
-        set.status = 401;
-        return { error: 'unauthenticated' };
-      }
-      const days = parseOrThrow(ThreePointEstimate, body);
-      const outcome = await workItems.setEstimate(params.id, user.id, params.roleId, days);
-      if (!outcome.ok) {
-        set.status = statusFor(outcome.reason);
-        return { error: outcome.reason };
-      }
-      return { estimated: true };
-    })
+    .put(
+      '/work-items/:id/estimates/:roleId',
+      async ({ params, body, headers, set }) => {
+        const user = await userFromHeaders(auth, headers);
+        if (user === null) {
+          set.status = 401;
+          return { error: 'unauthenticated' };
+        }
+        const days = parseOrThrow(ThreePointEstimate, body);
+        const outcome = await workItems.setEstimate(params.id, user.id, params.roleId, days);
+        if (!outcome.ok) {
+          set.status = statusFor(outcome.reason);
+          return { error: outcome.reason };
+        }
+        return { estimated: true };
+      },
+      {
+        detail: {
+          summary: 'Set one role’s three-point estimate on one work item',
+          description: `**Days, and fractions are real** — half a day is an estimate, and rounding it up is
+a lie the plan then carries. The project turns the three into the one number it
+plans with, by default PERT: \`(optimistic + 4 × realistic + pessimistic) / 6\`,
+weighted four times on the figure somebody actually thought about, and fractional
+on purpose. A \`2 / 3 / 10\` estimate expects 4 days, not 6.
+
+An estimate on a row that has children is \`rolled_up\`, 409 — a parent's figures
+are sums. A \`roleId\` that is not a role of this project is \`unknown_role\`, 404.
+A body that is not three ordered non-negative numbers is \`invalid_estimate\`, 400.
+
+Validated by the same shared schema fe-01 uses rather than by hand, so this is
+the one body-carrying route whose refusal is a shared-schema refusal.`,
+          requestBody: handParsedBody(
+            'Three durations in days for this role on this work item, ordered `optimistic ≤ realistic ≤ pessimistic`.',
+            {
+              type: 'object',
+              required: ['optimistic', 'realistic', 'pessimistic'],
+              properties: {
+                optimistic: {
+                  type: 'number',
+                  minimum: 0,
+                  description: 'Days, if no unknown unknowns appear.',
+                },
+                realistic: {
+                  type: 'number',
+                  minimum: 0,
+                  description:
+                    'Days, the best guess — not the midpoint of the other two, which is why it is checked to sit between them.',
+                },
+                pessimistic: {
+                  type: 'number',
+                  minimum: 0,
+                  description: 'Days, if every unknown you can sense does appear.',
+                },
+              },
+            },
+          ),
+        },
+      },
+    )
     .delete('/work-items/:id/estimates/:roleId', async ({ params, headers, set }) => {
       // Guarded exactly as the PUT above, and for the same reason: taking a
       // trio away changes the plan as much as writing one does. Clearing an
