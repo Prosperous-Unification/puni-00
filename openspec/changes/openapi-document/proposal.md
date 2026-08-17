@@ -27,7 +27,7 @@ test; there is no version of this change without that check.
 with `provider: null`, so it adds exactly **one** route,
 `GET /api/openapi.json`, and no CDN-loading HTML page.
 
-`apps/be-01/openapi.json` is committed: 41 operations over 32 paths, rewritten by
+`apps/be-01/openapi.json` is committed: 42 operations over 32 paths, rewritten by
 `bun apps/be-01/src/openapi/emit-openapi-cli.ts`. `openapi-document.test.ts` fails when the
 routes move and the file does not.
 
