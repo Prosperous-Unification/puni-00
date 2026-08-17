@@ -12380,28 +12380,31 @@ describe('what the filter says it dropped, and what it exports', () => {
   const droppedSentence = (): string | null =>
     document.querySelector('[data-gantt-dropped-links]')?.textContent ?? null;
 
-  itDom('says under the chart that a wait went undrawn, and says it only while filtering', async () => {
-    await twoTeamsOneEdge();
-    fireEvent.click(screen.getByRole('button', { name: 'Gantt' }));
-    await screen.findByLabelText('Gantt chart');
-    expect(droppedSentence()).toBeNull();
+  itDom(
+    'says under the chart that a wait went undrawn, and says it only while filtering',
+    async () => {
+      await twoTeamsOneEdge();
+      fireEvent.click(screen.getByRole('button', { name: 'Gantt' }));
+      await screen.findByLabelText('Gantt chart');
+      expect(droppedSentence()).toBeNull();
 
-    openFilters();
-    tick('Team Wiring');
+      openFilters();
+      tick('Team Wiring');
 
-    // `020` is drawn and the row it waits for is not, so the bar sits at a date
-    // with nothing on the chart holding it there. R10 §9's Q7: the edge is not
-    // pulled back — one edge can drag a whole plan in — it is counted and said.
-    expect(numbersOnScreen()).toEqual(['020']);
-    expect(droppedSentence()).toBe(
-      'Not drawn: 1 wait whose other end this filter is hiding — 1 stored dependency. ' +
-        'Clear the filter to see it.',
-    );
+      // `020` is drawn and the row it waits for is not, so the bar sits at a date
+      // with nothing on the chart holding it there. R10 §9's Q7: the edge is not
+      // pulled back — one edge can drag a whole plan in — it is counted and said.
+      expect(numbersOnScreen()).toEqual(['020']);
+      expect(droppedSentence()).toBe(
+        'Not drawn: 1 wait whose other end this filter is hiding — 1 stored dependency. ' +
+          'Clear the filter to see it.',
+      );
 
-    tick('Team Wiring');
+      tick('Team Wiring');
 
-    expect(droppedSentence()).toBeNull();
-  });
+      expect(droppedSentence()).toBeNull();
+    },
+  );
 
   itDom('counts the wait that leaves a shown row for a hidden one', async () => {
     // The direction the chart could not see before F3: `010` is on screen and
@@ -12436,9 +12439,13 @@ describe('what the filter says it dropped, and what it exports', () => {
     // What it holds, what kept it, and the two things a reader of a partial
     // document cannot work out for themselves: that the figures were not
     // recomputed, and that a Depends on points somewhere this file has not got.
-    expect(text).toContain('**Scope:** what one reader had on screen, not the whole plan — 1 of 2 rows, kept by: team Wiring.');
+    expect(text).toContain(
+      '**Scope:** what one reader had on screen, not the whole plan — 1 of 2 rows, kept by: team Wiring.',
+    );
     expect(text).toContain("The figures are the whole plan's schedule unchanged");
-    expect(text).toContain('1 Depends on reference points at a work item this document does not hold');
+    expect(text).toContain(
+      '1 Depends on reference points at a work item this document does not hold',
+    );
     expect(text).toContain('| Paint |');
     expect(text).not.toContain('| Strip the walls |');
   });

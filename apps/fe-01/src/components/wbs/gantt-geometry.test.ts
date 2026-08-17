@@ -2278,7 +2278,9 @@ describe('the waits that were not drawn', () => {
   it('counts each kind of wait whose other end the screen is not showing', () => {
     // `strip` is off screen: the dependency onto `wax` loses its predecessor
     // and Kat's hand-off onto `sand` loses the work she was finishing.
-    const chart = layOutGantt(threeKinds({ rows: [rowAt('sand', 3, 5, onPlatform), rowAt('wax', 5, 7, onPlatform)] }));
+    const chart = layOutGantt(
+      threeKinds({ rows: [rowAt('sand', 3, 5, onPlatform), rowAt('wax', 5, 7, onPlatform)] }),
+    );
 
     expect(chart.arrows).toEqual([]);
     expect(chart.personLinks).toEqual([]);
@@ -2286,7 +2288,9 @@ describe('the waits that were not drawn', () => {
   });
 
   it('counts a pool wait onto a row that is not drawn', () => {
-    const chart = layOutGantt(threeKinds({ rows: [rowAt('strip', 0, 3, onPlatform), rowAt('wax', 5, 7, onPlatform)] }));
+    const chart = layOutGantt(
+      threeKinds({ rows: [rowAt('strip', 0, 3, onPlatform), rowAt('wax', 5, 7, onPlatform)] }),
+    );
 
     expect(chart.capacityLinks).toEqual([]);
     expect(chart.droppedLinks.capacityLinks).toBe(1);
