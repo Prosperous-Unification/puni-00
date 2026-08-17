@@ -1071,6 +1071,276 @@ function notBeforeWords(startDate: IsoDate | null, offset: number): string {
   return `No earlier than ${addWorkdays(startDate, offset)}`;
 }
 
+const SVG_NS = 'http://www.w3.org/2000/svg';
+
+/**
+ * The five theme tokens the standalone export paints with — every colour the
+ * live chart's marks read off a class rather than a literal attribute (§2 of
+ * the enumeration this answers: weekend bands, row bands, gridlines,
+ * brackets, the not-before caret and the arrow paths all resolve one of
+ * these through Tailwind's `bg-*`/`fill-*`/`stroke-*` utilities and
+ * `styles.css`'s custom properties).
+ *
+ * A bar's own colour, the critical outline and the capacity link are never
+ * in this set: they are literal hex already ({@link PERSON_BAR_COLORS},
+ * {@link CAPACITY_LINK_COLOR}), so a file opened with no stylesheet at all
+ * paints them correctly with nothing read here.
+ */
+interface GanttSvgTheme {
+  background: string;
+  foreground: string;
+  muted: string;
+  mutedForeground: string;
+  border: string;
+}
+
+/**
+ * What jsdom hands back for every custom property: nothing, because no
+ * stylesheet is loaded into a component test. A real browser resolves the
+ * five reads below to `styles.css`'s tokens for whichever palette is
+ * painted; jsdom's empty string falls back to this literal light palette
+ * instead, which is what makes the exporter's structure testable at all
+ * without a browser (`vitest.setup.ts` carries the same bargain for
+ * `matchMedia`). Values are `styles.css`'s own `:root` numbers, not a
+ * second palette invented for this file.
+ */
+const FALLBACK_GANTT_THEME: GanttSvgTheme = {
+  background: 'oklch(1 0 0)',
+  foreground: 'oklch(0.129 0.042 264.695)',
+  muted: 'oklch(0.968 0.007 247.896)',
+  mutedForeground: 'oklch(0.554 0.046 257.417)',
+  border: 'oklch(0.929 0.013 255.508)',
+};
+
+/**
+ * The palette actually painted right now, read off the document rather than
+ * duplicated from `styles.css` — which is what lets a reader who chose dark
+ * download a file that looks like their own screen instead of always the
+ * light one. {@link paintPalette} is the one line that ever puts `.dark` on
+ * `documentElement`, and a custom property's computed value is the raw
+ * `oklch(...)` token stream `styles.css` wrote, valid SVG paint on its own.
+ */
+function resolvedGanttTheme(): GanttSvgTheme {
+  const computed = window.getComputedStyle(document.documentElement);
+  const read = (name: string, fallback: string): string => {
+    const value = computed.getPropertyValue(name).trim();
+    return value === '' ? fallback : value;
+  };
+  return {
+    background: read('--background', FALLBACK_GANTT_THEME.background),
+    foreground: read('--foreground', FALLBACK_GANTT_THEME.foreground),
+    muted: read('--muted', FALLBACK_GANTT_THEME.muted),
+    mutedForeground: read('--muted-foreground', FALLBACK_GANTT_THEME.mutedForeground),
+    border: read('--border', FALLBACK_GANTT_THEME.border),
+  };
+}
+
+/** The presentation properties a class can carry that a standalone file needs literally. */
+const INLINE_STYLE_PROPS = [
+  'fill',
+  'stroke',
+  'stroke-width',
+  'stroke-dasharray',
+  'fill-opacity',
+  'stroke-opacity',
+  'opacity',
+] as const;
+
+/**
+ * A deep clone of the live chart `<svg>`, with every class-carried colour
+ * baked into a literal attribute and the class dropped.
+ *
+ * `getComputedStyle` is read on the **original**, live node — the one thing
+ * a browser has actually resolved `fill-muted-foreground/10` and
+ * `stroke-border` against — never on the clone, which is not attached to
+ * anything a cascade could reach. An element with no `class` is left alone:
+ * a bar's `fill={bar.personColor}` and a priority cap's `fill={paint.ink}`
+ * are already literal, and this pass would only restate them.
+ *
+ * `role`/`tabindex` are dropped with the class: they make a mark a keyboard
+ * control in the app, and a static file has nothing behind either.
+ */
+function withInlineComputedStyle(original: Element): Element {
+  const clone = original.cloneNode(false) as Element;
+  if (original.hasAttribute('class')) {
+    const computed = window.getComputedStyle(original);
+    for (const prop of INLINE_STYLE_PROPS) {
+      if (clone.hasAttribute(prop)) continue;
+      const value = computed.getPropertyValue(prop).trim();
+      if (value !== '') clone.setAttribute(prop, value);
+    }
+    clone.removeAttribute('class');
+  }
+  clone.removeAttribute('role');
+  clone.removeAttribute('tabindex');
+  for (const child of Array.from(original.childNodes)) {
+    clone.appendChild(child instanceof Element ? withInlineComputedStyle(child) : child.cloneNode(true));
+  }
+  return clone;
+}
+
+function svgRect(x: number, y: number, width: number, height: number, fill: string): SVGRectElement {
+  const rect = document.createElementNS(SVG_NS, 'rect');
+  rect.setAttribute('x', String(x));
+  rect.setAttribute('y', String(y));
+  rect.setAttribute('width', String(width));
+  rect.setAttribute('height', String(height));
+  rect.setAttribute('fill', fill);
+  return rect;
+}
+
+function svgLine(x1: number, y1: number, x2: number, y2: number, stroke: string): SVGLineElement {
+  const line = document.createElementNS(SVG_NS, 'line');
+  line.setAttribute('x1', String(x1));
+  line.setAttribute('y1', String(y1));
+  line.setAttribute('x2', String(x2));
+  line.setAttribute('y2', String(y2));
+  line.setAttribute('stroke', stroke);
+  return line;
+}
+
+function svgText(
+  x: number,
+  y: number,
+  content: string,
+  opts: { fontSize: number; fill: string; fontWeight?: string; anchor?: string },
+): SVGTextElement {
+  const text = document.createElementNS(SVG_NS, 'text');
+  text.setAttribute('x', String(x));
+  text.setAttribute('y', String(y));
+  text.setAttribute('font-size', String(opts.fontSize));
+  text.setAttribute('fill', opts.fill);
+  if (opts.fontWeight !== undefined) text.setAttribute('font-weight', opts.fontWeight);
+  if (opts.anchor !== undefined) text.setAttribute('text-anchor', opts.anchor);
+  text.textContent = content;
+  return text;
+}
+
+/** The corner's own month caption, read off the plan's first day rather than the scroll position a static file has none of. */
+function monthCaptionFor(axis: readonly AxisDay[], startDate: IsoDate | null): string {
+  if (startDate === null) return 'Workday';
+  const first = axis[0]?.date ?? null;
+  return first === null ? 'Workday' : monthWords(first);
+}
+
+/** What {@link buildStandaloneGanttSvg} needs — every input already computed for the live render, nothing re-derived. */
+interface StandaloneGanttSvgInput {
+  chartSvg: SVGSVGElement;
+  labels: readonly GanttRowLabel[];
+  axis: readonly AxisDay[];
+  drawnBars: readonly PlacedBar[];
+  monthCaption: string;
+  theme: GanttSvgTheme;
+}
+
+/**
+ * The whole standalone document: the label column and the calendar axis,
+ * both built fresh as `<text>` because neither exists inside the live `<svg>`
+ * (design §1 — "every word is HTML around it"), and the chart's own geometry,
+ * reused rather than re-derived by nesting a style-inlined clone of the live
+ * `<svg>` at the label column's own width. A nested `<svg>` keeps its own
+ * `viewBox`/`preserveAspectRatio`, so the geometry's non-uniform scale — a
+ * calendar day wide, a row tall — travels with it unchanged.
+ *
+ * The bar text (who is on it) is the one word that has to be rebuilt rather
+ * than reused: it is HTML overlaid on the live page for the same reason the
+ * labels and axis are (design §1), so it is drawn here from the same
+ * {@link barLabelFor}/{@link poolLabelFor}/{@link assumedLabelFor}/
+ * {@link barText} pure functions the live overlay calls, at the same pixel
+ * arithmetic.
+ */
+function buildStandaloneGanttSvg(input: StandaloneGanttSvgInput): SVGSVGElement {
+  const { chartSvg, labels, axis, drawnBars, monthCaption, theme } = input;
+  const innerWidth = Number(chartSvg.getAttribute('width') ?? '0');
+  const innerHeight = Number(chartSvg.getAttribute('height') ?? '0');
+  const totalWidth = LABEL_COLUMN_PX + innerWidth;
+  const totalHeight = ROW_PX + innerHeight;
+
+  const root = document.createElementNS(SVG_NS, 'svg');
+  root.setAttribute('xmlns', SVG_NS);
+  root.setAttribute('viewBox', `0 0 ${String(totalWidth)} ${String(totalHeight)}`);
+  root.setAttribute('width', String(totalWidth));
+  root.setAttribute('height', String(totalHeight));
+  root.setAttribute('font-family', 'ui-sans-serif, system-ui, sans-serif');
+
+  const title = document.createElementNS(SVG_NS, 'title');
+  title.textContent = 'Gantt chart';
+  root.appendChild(title);
+
+  root.appendChild(svgRect(0, 0, totalWidth, totalHeight, theme.background));
+  root.appendChild(
+    svgText(8, ROW_PX / 2 + 3, monthCaption, {
+      fontSize: 10,
+      fontWeight: '600',
+      fill: theme.mutedForeground,
+    }),
+  );
+
+  for (const label of labels) {
+    const y = ROW_PX + label.rowIndex * ROW_PX + ROW_PX / 2 + 3;
+    const x = 8 + hierarchyIndentFor(label.depth);
+    root.appendChild(
+      svgText(x, y, rowWords(label.number, label.name), { fontSize: 10, fill: theme.foreground }),
+    );
+  }
+
+  root.appendChild(svgLine(LABEL_COLUMN_PX, 0, LABEL_COLUMN_PX, totalHeight, theme.border));
+  root.appendChild(svgLine(0, ROW_PX, totalWidth, ROW_PX, theme.border));
+
+  for (const day of axis) {
+    const cellX = LABEL_COLUMN_PX + CHART_PAD_PX + day.offset * DAY_PX;
+    if (day.weekend) {
+      const band = svgRect(cellX, 0, DAY_PX, ROW_PX, theme.mutedForeground);
+      band.setAttribute('fill-opacity', '0.1');
+      root.appendChild(band);
+    }
+    root.appendChild(
+      svgText(cellX + DAY_PX / 2, ROW_PX / 2 + 3, day.shown, {
+        fontSize: 9,
+        fontWeight: day.heavy ? '600' : undefined,
+        fill: day.heavy ? theme.foreground : theme.mutedForeground,
+        anchor: 'middle',
+      }),
+    );
+  }
+
+  const nestedChart = withInlineComputedStyle(chartSvg) as SVGSVGElement;
+  nestedChart.setAttribute('x', String(LABEL_COLUMN_PX));
+  nestedChart.setAttribute('y', String(ROW_PX));
+  root.appendChild(nestedChart);
+
+  for (const { bar, x, width } of drawnBars) {
+    const who = bar.estimated
+      ? bar.personName === null
+        ? poolLabelFor(bar.team, bar.width, width)
+        : barLabelFor(bar.personName, width)
+      : assumedLabelFor(bar.personName, width);
+    const shown = barText(who, rowWords(bar.workItemNumber, bar.workItemName), width);
+    if (shown === null) continue;
+    const left = LABEL_COLUMN_PX + x * DAY_PX + CHART_PAD_PX + LABEL_PAD_PX;
+    const top = ROW_PX + (bar.rowIndex + BAR_INSET) * ROW_PX + (BAR_HEIGHT * ROW_PX) / 2 + 3;
+    root.appendChild(
+      svgText(left, top, shown, {
+        fontSize: 9,
+        fontWeight: '600',
+        fill: bar.estimated ? inkOn(bar.personColor) : theme.foreground,
+      }),
+    );
+  }
+
+  return root;
+}
+
+/** The bytes a browser downloads: an XML declaration ahead of the serialized tree, so a file opened by extension alone still declares its own encoding. */
+function serializeStandaloneGanttSvg(svg: SVGSVGElement): string {
+  return `<?xml version="1.0" encoding="UTF-8"?>\n${new XMLSerializer().serializeToString(svg)}\n`;
+}
+
+/** One name per day, so two downloads on the same afternoon do not silently overwrite each other in a Downloads folder that dedupes on nothing but the name. */
+function ganttSvgFileName(now: Date): string {
+  return `gantt-chart-${now.toISOString().slice(0, 10)}.svg`;
+}
+
 /**
  * The Gantt panel: the placed schedule drawn, in the units it was placed in.
  *
@@ -1255,6 +1525,8 @@ function GanttChart({
   const [openDay, setOpenDay] = useState<{ offset: number; anchor: AnchorRect } | null>(null);
   /** The opening that has been asked for and not yet happened. */
   const opening = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** The live geometry `<svg>`, read by {@link downloadGanttSvg} and nothing else. */
+  const chartSvgRef = useRef<SVGSVGElement | null>(null);
 
   const cancelOpening = useCallback(() => {
     if (opening.current !== null) clearTimeout(opening.current);
@@ -1477,6 +1749,35 @@ function GanttChart({
     setOpenDay({ offset, anchor: { left: box.left, top: box.top, bottom: box.bottom } });
   };
 
+  /**
+   * Blob and an anchor click, exactly `wbs-table.tsx`'s `downloadCsv` — the
+   * only way a page saves a file it generated itself, and the same reason the
+   * object URL is revoked right after the click. Nothing to refuse here: a
+   * cycle draws no `<svg>` at all ({@link GanttPanel}'s early return), so
+   * this branch is only ever reached with one to serialize.
+   */
+  const downloadGanttSvg = (): void => {
+    const svgEl = chartSvgRef.current;
+    if (svgEl === null) return;
+    const standalone = buildStandaloneGanttSvg({
+      chartSvg: svgEl,
+      labels: chart.labels,
+      axis,
+      drawnBars,
+      monthCaption: monthCaptionFor(axis, startDate),
+      theme: resolvedGanttTheme(),
+    });
+    const blob = new Blob([serializeStandaloneGanttSvg(standalone)], {
+      type: 'image/svg+xml;charset=utf-8',
+    });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = ganttSvgFileName(new Date());
+    anchor.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <section
       data-gantt-panel
@@ -1600,6 +1901,25 @@ function GanttChart({
             >
               Detail
             </button>
+            {/*
+              The whole capability M4 owes: a standalone `.svg` of the chart
+              as drawn — every bar, arrow, hand-off and colour, in a file that
+              renders correctly with no app around it (`buildStandaloneGanttSvg`).
+              It sits here, in the panel's own corner, rather than beside
+              **Copy as Mermaid** / **Download CSV** / **Download .md** in
+              `wbs-table.tsx`'s toolbar, because this file may not touch that
+              one — see the PR proposal for the control still owed there.
+            */}
+            <button
+              type="button"
+              data-gantt-svg-download
+              aria-label="Download this chart as a standalone SVG"
+              title="Download this chart as a standalone .svg — every bar, arrow, hand-off and colour, openable with no app around it"
+              className="border-border hover:bg-accent ml-1 rounded border px-1 normal-case"
+              onClick={downloadGanttSvg}
+            >
+              ⇩
+            </button>
           </div>
           {chart.labels.map((label: GanttRowLabel) => (
             <button
@@ -1703,6 +2023,7 @@ function GanttChart({
           */}
           <div className="relative">
             <svg
+              ref={chartSvgRef}
               data-gantt-chart
               // The contract, in three attributes: the user space is days by
               // rows, and the CSS size is the only place either becomes a pixel.
