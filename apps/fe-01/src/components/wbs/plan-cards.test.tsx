@@ -2,9 +2,19 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import { DEFAULT_PRIORITY_BANDS } from '@wbs/domain/priority-band';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import type { Days, PersonView, ProjectApi, RoleView, TeamView, WorkItemView } from '@/lib/wbs-api';
+import type {
+  Days,
+  PersonView,
+  ProjectApi,
+  RoleView,
+  ScheduleView,
+  TeamView,
+  WorkItemView,
+} from '@/lib/wbs-api';
 
-import { refusedDraftFor } from './live-editing';
+import { refusedDraftFor, unsent } from './live-editing';
+import { type CardRowActionHandlers, PlanCards } from './plan-cards';
+import type { TreeRow } from './wbs-rows';
 import { WbsTable } from './wbs-table';
 
 // fe-01 tests require jsdom; only Vitest provides it. Skip under plain `bun test`.
@@ -1144,5 +1154,180 @@ describe('the trio behind a phase’s figure, on a card', () => {
     fireEvent.click(summary);
 
     expect(detail?.open).toBe(true);
+  });
+});
+
+/**
+ * The row-actions menu tests render `<PlanCards>` directly rather than
+ * through `<WbsTable>`, unlike every describe block above.
+ *
+ * `wbs-table.tsx` is two other agents' file tonight
+ * (`notes/wbs-plan-2026-08-14-mobile-parity.md` M2's file split) and its
+ * `<PlanCards>` call site does not pass `rowActions` — wiring real
+ * `duplicateRow`/`unfreeze`/`deleteRow` callbacks in is a follow-up left for
+ * when the file frees up. These tests prove the menu and its wiring in
+ * isolation; they cannot prove it is reachable from a running plan, which is
+ * `verify.md`'s open question for Dany.
+ */
+const EMPTY_SCHEDULE: ScheduleView = {
+  duration: 0,
+  estimated: false,
+  earliestStart: 0,
+  earliestFinish: 0,
+  latestStart: 0,
+  latestFinish: 0,
+  float: 0,
+  critical: false,
+};
+
+function aTreeRow(overrides: Partial<TreeRow> = {}): TreeRow {
+  return {
+    id: 'w1',
+    parentId: null,
+    revision: 0,
+    number: '010',
+    name: 'Strip the hull',
+    notes: '',
+    frozenNumber: null,
+    rolledUp: false,
+    estimates: {},
+    dependsOn: [],
+    finalDays: {},
+    finalTotal: 0,
+    dates: null,
+    startNoEarlierThan: null,
+    priority: null,
+    maxParallel: 1,
+    teamIds: [],
+    serviceTeamId: null,
+    assignees: {},
+    doesEveryPhase: null,
+    schedule: EMPTY_SCHEDULE,
+    subRows: [],
+    ...overrides,
+  };
+}
+
+/**
+ * Every prop `<PlanCards>` needs, stubbed to do nothing — this suite's own
+ * rows carry no roles, no dependencies and no team, so the phase loop and the
+ * fact line render nothing to stub wrong. `rowActions` is each test's own.
+ */
+function renderCards(rows: readonly TreeRow[], rowActions?: CardRowActionHandlers) {
+  return render(
+    <PlanCards
+      rows={rows.map((row) => ({
+        row,
+        depth: 0,
+        expandable: false,
+        expanded: false,
+        toggleBranch: () => undefined,
+      }))}
+      roles={[]}
+      priorityBands={DEFAULT_PRIORITY_BANDS}
+      gridRef={() => undefined}
+      commitName={() => unsent()}
+      claimFocus={() => undefined}
+      estimateValue={() => ''}
+      estimateProblem={() => null}
+      commitEstimate={() => unsent()}
+      enterEstimate={() => undefined}
+      readEstimate={() => undefined}
+      closeMention={() => undefined}
+      leaveEstimate={() => undefined}
+      mentionOptions={() => []}
+      assigneeOn={() => null}
+      waitsFor={() => []}
+      teamLabel={() => ({ state: 'none' })}
+      spanOf={() => ({ start: { text: '', iso: null }, finish: { text: '', iso: null } })}
+      showDay={(days) => String(days)}
+      rowActions={rowActions}
+    />,
+  );
+}
+
+const doNothingActions = (): CardRowActionHandlers => ({
+  duplicate: () => undefined,
+  unfreeze: () => undefined,
+  remove: () => undefined,
+});
+
+describe('the ⋯ row-actions menu on a card', () => {
+  afterEach(cleanup);
+
+  itDom('prints no ⋯ button at all when the caller has not wired row actions', () => {
+    renderCards([aTreeRow()]);
+    expect(screen.queryByRole('button', { name: 'Actions for 010' })).toBeNull();
+  });
+
+  itDom('offers Duplicate and Delete on a row that is not frozen — the table’s own two', () => {
+    renderCards([aTreeRow()], doNothingActions());
+    fireEvent.click(screen.getByRole('button', { name: 'Actions for 010' }));
+    expect(screen.getAllByRole('menuitem').map((item) => item.textContent)).toEqual([
+      'Duplicate',
+      'Delete',
+    ]);
+  });
+
+  itDom('adds Unfreeze, and refuses Delete with the table’s own sentence, on a frozen row', () => {
+    renderCards([aTreeRow({ frozenNumber: '010' })], doNothingActions());
+    fireEvent.click(screen.getByRole('button', { name: 'Actions for 010' }));
+    const items = screen.getAllByRole('menuitem');
+    expect(items.map((item) => item.textContent)).toEqual(['Duplicate', 'Unfreeze', 'Delete']);
+    expect(items[2]).toHaveAttribute('title', 'Frozen — unfreeze this row before deleting it');
+    expect(items[2]).toHaveAttribute('aria-disabled', 'true');
+  });
+
+  itDom('does not delete a frozen row through the menu — the refusal actually refuses', () => {
+    const taken: string[] = [];
+    renderCards([aTreeRow({ frozenNumber: '010' })], {
+      ...doNothingActions(),
+      remove: () => taken.push('delete'),
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Actions for 010' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Delete' }));
+    expect(taken).toEqual([]);
+  });
+
+  itDom('duplicates and unfreezes by the row id, and deletes by the row itself', () => {
+    const taken: string[] = [];
+    let removed: TreeRow | null = null;
+    const row = aTreeRow({ frozenNumber: '010' });
+    renderCards([row], {
+      duplicate: (id) => taken.push(`duplicate:${id}`),
+      unfreeze: (id) => taken.push(`unfreeze:${id}`),
+      remove: (deleted) => {
+        removed = deleted;
+      },
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Actions for 010' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Unfreeze' }));
+    expect(taken).toEqual(['unfreeze:w1']);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Actions for 010' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Duplicate' }));
+    expect(taken).toEqual(['unfreeze:w1', 'duplicate:w1']);
+    expect(removed).toBeNull();
+  });
+
+  itDom('grows the ⋯ button to a 44px tap target, the phone floor every card control keeps', () => {
+    renderCards([aTreeRow()], doNothingActions());
+    const button = screen.getByRole('button', { name: 'Actions for 010' });
+    expect(button.style.minHeight).toBe('44px');
+    expect(button.style.minWidth).toBe('44px');
+  });
+
+  itDom('keeps at most one card’s menu open at a time — the table’s own rule', () => {
+    const rowA = aTreeRow({ id: 'a', number: '010' });
+    const rowB = aTreeRow({ id: 'b', number: '020' });
+    renderCards([rowA, rowB], doNothingActions());
+
+    fireEvent.click(screen.getByRole('button', { name: 'Actions for 010' }));
+    expect(screen.getByRole('menu', { name: 'Actions for 010' })).toBeDefined();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Actions for 020' }));
+    expect(screen.queryByRole('menu', { name: 'Actions for 010' })).toBeNull();
+    expect(screen.getByRole('menu', { name: 'Actions for 020' })).toBeDefined();
   });
 });

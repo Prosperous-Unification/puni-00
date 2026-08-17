@@ -1,7 +1,8 @@
-import { Fragment } from 'react';
+import { Fragment, useState } from 'react';
 
 import type { Days, PriorityBandView, RoleView } from '@/lib/wbs-api';
 
+import { ActionsMenu, type RowAction } from './actions-menu';
 import { CellInput } from './cell-input';
 import type { CellRef } from './cell-navigation';
 import { PickerList, type PickerOption } from './creatable-picker';
@@ -112,7 +113,66 @@ export interface PlanCardsProps {
   spanOf: (row: TreeRow) => { start: PrintedDay; finish: PrintedDay };
   /** A figure as the table prints one, so two renderers cannot round differently. */
   showDay: (days: number) => string;
+  /**
+   * The row actions a phone could not reach until now — Duplicate, Unfreeze
+   * (frozen rows only) and Delete, in the table's own `ActionsMenu` and the
+   * table's own words, refusing Delete on a frozen row with the table's own
+   * sentence (`wbs-table.tsx`'s `actions` column). One vocabulary, not two.
+   *
+   * Optional and additive: `wbs-table.tsx` is two other agents' file tonight
+   * (`notes/wbs-plan-2026-08-14-mobile-parity.md` M2's file split), so wiring
+   * real callbacks into its `<PlanCards>` call site is a follow-up left for
+   * when the file frees up. Absent, a card prints no ⋯ button at all rather
+   * than one that opens onto nothing.
+   */
+  rowActions?: CardRowActionHandlers;
 }
+
+/** What the ⋯ menu needs to act on a row — nothing about which menu is open, which this component holds itself, since cards and the table never show at once. */
+export interface CardRowActionHandlers {
+  /** A request from any row's menu is in flight, the table's own `busy`. */
+  busy?: boolean;
+  duplicate: (rowId: string) => void;
+  unfreeze: (rowId: string) => void;
+  remove: (row: TreeRow) => void;
+}
+
+/**
+ * The ⋯ menu's items for one row, built the same way `wbs-table.tsx`'s own
+ * `ActionsMenu` usage builds them — same three ids, same labels, same order,
+ * same refusal sentence on a frozen row — so a phone and a laptop read one
+ * menu rather than a card inventing a second one.
+ */
+const cardRowActions = (row: TreeRow, handlers: CardRowActionHandlers): RowAction[] => [
+  {
+    id: 'duplicate',
+    label: 'Duplicate',
+    run: () => {
+      handlers.duplicate(row.id);
+    },
+  },
+  ...(row.frozenNumber === null
+    ? []
+    : [
+        {
+          id: 'unfreeze',
+          label: 'Unfreeze',
+          run: () => {
+            handlers.unfreeze(row.id);
+          },
+        },
+      ]),
+  {
+    id: 'delete',
+    label: 'Delete',
+    ...(row.frozenNumber === null
+      ? {}
+      : { refusedBecause: 'Frozen — unfreeze this row before deleting it' }),
+    run: () => {
+      handlers.remove(row);
+    },
+  },
+];
 
 /**
  * What a card's span says in full, or nothing where there is nothing fuller to
@@ -237,6 +297,13 @@ const TAP = 'min-h-11';
  * `onCommandKey` or `onAltMove` is wired here. The list is still marked as the
  * grid — the focus a create asks for has to be able to find a card — but
  * nothing on a card claims a key for moving between cells.
+ *
+ * **Structure moves through a menu, not a gesture.** Duplicate, Unfreeze and
+ * Delete were reachable only from the table's `actions` column; each card now
+ * carries the same `ActionsMenu` behind its own ⋯, one per row rather than one
+ * for the table. Indent, outdent and reordering are a later slice
+ * (`mobile-structure-menu`) — this one is the three actions the table already
+ * had, not a fourth.
  */
 export function PlanCards({
   rows,
@@ -258,7 +325,14 @@ export function PlanCards({
   teamLabel,
   spanOf,
   showDay,
+  rowActions,
 }: PlanCardsProps) {
+  /**
+   * Which row's ⋯ menu is open, held here rather than threaded through a prop:
+   * cards and the table are never both on screen (`plan-renderer.ts`), so
+   * there is no second menu anywhere to keep this one in step with.
+   */
+  const [openActionsRowId, setOpenActionsRowId] = useState<string | null>(null);
   return (
     /*
       `data-grid` for the same two reasons the `<table>` carries it: it scopes
@@ -335,6 +409,21 @@ export function PlanCards({
               <span data-final-total className="text-muted-foreground ml-auto text-sm">
                 {showDay(row.finalTotal)} d
               </span>
+              {rowActions !== undefined && (
+                <ActionsMenu
+                  number={row.number}
+                  open={openActionsRowId === row.id}
+                  busy={rowActions.busy ?? false}
+                  touchSized
+                  onOpen={() => {
+                    setOpenActionsRowId(row.id);
+                  }}
+                  onClose={() => {
+                    setOpenActionsRowId((current) => (current === row.id ? null : current));
+                  }}
+                  actions={cardRowActions(row, rowActions)}
+                />
+              )}
             </header>
 
             {/*
