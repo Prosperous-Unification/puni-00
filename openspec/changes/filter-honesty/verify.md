@@ -6,16 +6,16 @@ Branch `change/filter-honesty`, cut from `origin/main` @ `6a83863` (#76 and #77 
 
 ## Wall clock
 
-| moment                                                         | UTC (2026-08-17) |
-| -------------------------------------------------------------- | ---------------- |
-| brief, decisions, delivery modes and F1's own record read       | 19:32            |
-| branch cut from `origin/main` @ `6a83863`                       | 19:32            |
-| F3 written (geometry counts, panel sentence, widened edges)     | 19:38            |
-| F5 written (`filterWords`, `scope`, the fifth button)           | 19:41            |
-| tests written across five files, first h2puni run — 4 failed    | 19:43            |
-| all suites green (1478 tests)                                   | 19:45            |
-| five watched reds run and reverted                              | 19:52            |
-| record written, gate and `openspec validate` green, PR open     | 19:58            |
+| moment                                                       | UTC (2026-08-17) |
+| ------------------------------------------------------------ | ---------------- |
+| brief, decisions, delivery modes and F1's own record read    | 19:32            |
+| branch cut from `origin/main` @ `6a83863`                    | 19:32            |
+| F3 written (geometry counts, panel sentence, widened edges)  | 19:38            |
+| F5 written (`filterWords`, `scope`, the fifth button)        | 19:41            |
+| tests written across five files, first h2puni run — 4 failed | 19:43            |
+| all suites green (1478 tests)                                | 19:45            |
+| five watched reds run and reverted                           | 19:52            |
+| record written, gate and `openspec validate` green, PR open  | 19:58            |
 
 **Split: ~9 minutes code, ~12 minutes tests, ~7 minutes watched reds, ~10 minutes record.** The largest single cost was again the reading — about 20 minutes before the first edit, across `tree-search.ts`, three seams of `wbs-table.tsx`, `gantt-geometry.ts`'s three drop sites and both writers. `delivery-modes.md` predicts exactly this ("understanding is the rest"), and F1's own record says the same thing from the other side.
 
@@ -25,12 +25,12 @@ Branch `change/filter-honesty`, cut from `origin/main` @ `6a83863` (#76 and #77 
 
 `bunx nx affected -t test lint typecheck --base=origin/main` plus `bunx nx format:check --all`, on **h2puni**, bun **1.3.14** (the version CI pins), in `/home/puni1/wd/puni/wt-filter-honesty` — a worktree of `/home/puni1/wbs-reds`. Nothing was built or run on h1claw (`bin/block-local-builds.sh`).
 
-| run                                                     | result                               |
-| ------------------------------------------------------- | ------------------------------------ |
-| `nx affected -t test` (fe-01)                           | **53 files, 1478 tests, all passed** |
-| `nx affected -t lint typecheck`                         | **Successfully ran** for fe-01       |
-| `nx format:check --all`                                 | **clean, exit 0**                    |
-| `bunx @fission-ai/openspec@1.3.0 validate --all`        | **62 items, 62 passed, 0 failed**    |
+| run                                              | result                               |
+| ------------------------------------------------ | ------------------------------------ |
+| `nx affected -t test` (fe-01)                    | **53 files, 1478 tests, all passed** |
+| `nx affected -t lint typecheck`                  | **Successfully ran** for fe-01       |
+| `nx format:check --all`                          | **clean, exit 0**                    |
+| `bunx @fission-ai/openspec@1.3.0 validate --all` | **62 items, 62 passed, 0 failed**    |
 
 F1 left 1451 tests; this change adds 27. **be-01, gw-01 and `libs/domain` are not affected** — no migration, no route, no wire field, and `schedule.ts` has an empty diff. `openspec validate` was run locally on purpose: CI's `gate` job runs it unconditionally and refuses a change with zero deltas (#73's finding).
 
@@ -38,13 +38,13 @@ F1 left 1451 tests; this change adds 27. **be-01, gw-01 and `libs/domain` are no
 
 Each fault was struck on h2puni, the affected suites run, and the strike reverted with `git checkout --`. Counts are the exact run totals.
 
-| #   | struck                                                                       | where                       | red                                             |
-| --- | ---------------------------------------------------------------------------- | --------------------------- | ----------------------------------------------- |
-| 1   | the one-end guard at all three drop sites → an unconditional `+= 1`          | `gantt-geometry.ts`         | **1 failed \| 214 passed** (`counts nothing for a link with neither end on screen`, alone) |
-| 2   | `plan.narrowedByFilter &&` dropped, so the sentence renders whenever it can  | `gantt-panel.tsx`           | **1 failed \| 569 passed** (`says nothing while the filter is off…`) |
-| 3   | `dependencies` back to `shownRows`' own edges                               | `wbs-table.tsx`             | **1 failed \| 454 passed** (`counts the wait that leaves a shown row for a hidden one`) |
-| 4   | `planToMermaidDocument`'s scope guard → the whole-plan `Scope` line always   | `plan-mermaid.ts`           | **1 failed \| 48 passed** (`expected … not to contain '**Scope:** the whole plan…'`) |
-| 5   | the `Scope` field never pushed into the header block                        | `plan-export.ts`            | **8 failed \| 548 passed** across three files   |
+| #   | struck                                                                      | where               | red                                                                                        |
+| --- | --------------------------------------------------------------------------- | ------------------- | ------------------------------------------------------------------------------------------ |
+| 1   | the one-end guard at all three drop sites → an unconditional `+= 1`         | `gantt-geometry.ts` | **1 failed \| 214 passed** (`counts nothing for a link with neither end on screen`, alone) |
+| 2   | `plan.narrowedByFilter &&` dropped, so the sentence renders whenever it can | `gantt-panel.tsx`   | **1 failed \| 569 passed** (`says nothing while the filter is off…`)                       |
+| 3   | `dependencies` back to `shownRows`' own edges                               | `wbs-table.tsx`     | **1 failed \| 454 passed** (`counts the wait that leaves a shown row for a hidden one`)    |
+| 4   | `planToMermaidDocument`'s scope guard → the whole-plan `Scope` line always  | `plan-mermaid.ts`   | **1 failed \| 48 passed** (`expected … not to contain '**Scope:** the whole plan…'`)       |
+| 5   | the `Scope` field never pushed into the header block                        | `plan-export.ts`    | **8 failed \| 548 passed** across three files                                              |
 
 Three of them earn their place by being **narrow**:
 
