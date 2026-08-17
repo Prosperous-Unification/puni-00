@@ -1,7 +1,7 @@
 # verify — `gantt-svg-download`
 
 Branch `change/gantt-svg-download`, cut from `origin/main` @ `1a17190` (#65,
-#68, #69, #71, #72 all merged) on 2026-08-17. PR **#73**, head `<head-sha>`.
+#68, #69, #71, #72 all merged) on 2026-08-17. PR **#75**, head `dfa7226`.
 
 **Run under the PoC-mode contract of 2026-08-14** (`notes/delivery-modes.md`)
 — Dany's call that delivery, not testing, is what has been slow. No
@@ -20,7 +20,7 @@ see the note there).
 | watched standalone in real Chromium — red        | 11:24            |
 | the NUL fix, watched standalone — green          | 11:29            |
 | full PoC gate green (test/lint/typecheck/format) | 11:33            |
-| record written, PR open                          | <fill-in>        |
+| record written, PR open                          | 11:34             |
 
 **Branch cut to unit-green: ~23 minutes.** The single largest cost was neither
 code nor record: it was the composite-document design (rebuilding the label
@@ -140,7 +140,9 @@ on the download button, the real downloaded bytes opened standalone.
 
 ## CI
 
-<CI run id and conclusion, added once the PR is open and the run finishes>
+Run **32025575114** on head `dfa7226` — **green first attempt**, both jobs:
+`gate` (test/lint/typecheck/format/secrets/doc-caps/migration-lint/OpenSpec)
+and `pixels` (the browser suite). No rerun needed.
 
 ## The control owed
 
