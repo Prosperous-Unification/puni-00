@@ -79,7 +79,7 @@ const PLAN_EVENT = '20260817120000_add_plan_event';
  * folders that were on disk when it was written. The check is
  * `refuses a folder set that shares one stamp between two migrations` below, and
  * `does nothing when the target is already the newest applied` — which now names
- * *this* migration — is the case a collision breaks.
+ * this* migration — is the case a collision breaks.
  */
 const ACTUAL = '20260817130000_add_actual';
 

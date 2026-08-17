@@ -112,6 +112,7 @@ describe('the WBS domain migration', () => {
         ...DIRECTORY_TABLES,
         ...CAPACITY_TABLES,
         ...TEAM_SET_TABLES,
+        ...ACTUAL_TABLES,
       ])
         expect(tables(db.path)).toContain(t);
     } finally {
@@ -158,6 +159,7 @@ describe('the WBS domain migration', () => {
         ...DIRECTORY_TABLES,
         ...CAPACITY_TABLES,
         ...TEAM_SET_TABLES,
+        ...ACTUAL_TABLES,
       ])
         expect(tables(db.path)).not.toContain(t);
       // Reversing the domain must not take the accounts with it: the two

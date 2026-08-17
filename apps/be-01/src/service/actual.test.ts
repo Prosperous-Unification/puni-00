@@ -6,6 +6,7 @@ import type {
   EstimateStore,
   Project,
   ProjectStore,
+  StoredActual,
   WorkItemStore,
 } from '../repository';
 import { inMemoryActuals } from '../testing/actual-fixture';
@@ -90,6 +91,17 @@ const days = (optimistic: number, realistic: number, pessimistic: number): Days 
   realistic,
   pessimistic,
 });
+
+/**
+ * The stored rows without their stamps, for the cases that assert *where* a row
+ * is rather than when it was typed. `recordedAt` is the wall clock, so a case
+ * naming it would be asserting against `Date.now()`.
+ */
+function stored(
+  rows: readonly StoredActual[],
+): { workItemId: string; roleId: string; days: number }[] {
+  return rows.map(({ workItemId, roleId, days }) => ({ workItemId, roleId, days }));
+}
 
 async function add(name: string, parentId: string | null = null): Promise<string> {
   const outcome = await service.create(projectId, OWNER, { parentId, afterId: null, name });
@@ -189,7 +201,7 @@ describe('recording actual days', () => {
     const strip = await add('Strip');
     const sockets = await add('Sockets', strip);
     const switches = await add('Switches', strip);
-    const sand = await add('Sand');
+    await add('Sand');
 
     await service.setActual(sockets, OWNER, DEV, 2);
     await service.setActual(switches, OWNER, DEV, 3);
@@ -292,15 +304,15 @@ describe('actuals through the structural commands', () => {
     // The parent still reports 8 — as a sum now rather than as its own row,
     // which is what makes the move invisible to whoever typed it.
     expect(moved.get('Strip')).toEqual({ [DEV]: 8 });
-    expect(await actuals.listByProject(projectId)).toEqual([
-      expect.objectContaining({ workItemId: sockets, roleId: DEV, days: 8 }),
+    expect(stored(await actuals.listByProject(projectId))).toEqual([
+      { workItemId: sockets, roleId: DEV, days: 8 },
     ]);
 
     await service.undo(projectId, OWNER);
 
     expect((await shown()).get('Strip')).toEqual({ [DEV]: 8 });
-    expect(await actuals.listByProject(projectId)).toEqual([
-      expect.objectContaining({ workItemId: strip, roleId: DEV, days: 8 }),
+    expect(stored(await actuals.listByProject(projectId))).toEqual([
+      { workItemId: strip, roleId: DEV, days: 8 },
     ]);
   });
 
@@ -376,7 +388,9 @@ describe('what recording days does not do', () => {
     await service.setActual(strip, OWNER, DEV, 40);
 
     const after = await service.tree(projectId);
-    expect(after?.workItems.map((w) => ({ name: w.name, schedule: w.schedule, dates: w.dates }))).toEqual(
+    expect(
+      after?.workItems.map((w) => ({ name: w.name, schedule: w.schedule, dates: w.dates })),
+    ).toEqual(
       before?.workItems.map((w) => ({ name: w.name, schedule: w.schedule, dates: w.dates })),
     );
     expect(after?.slices).toEqual(before?.slices ?? []);

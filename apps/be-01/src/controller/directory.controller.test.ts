@@ -5,11 +5,11 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { buildApp } from '../app';
+import { ActualRepository } from '../repository/actual';
 import { CommandJournalRepository } from '../repository/command-journal';
 import { openDatabase, openDrizzle } from '../repository/db';
 import { DependencyRepository } from '../repository/dependency';
 import { DirectoryRepository } from '../repository/directory';
-import { ActualRepository } from '../repository/actual';
 import { EstimateRepository } from '../repository/estimate';
 import { runMigrations } from '../repository/migrate';
 import { ProjectRepository } from '../repository/project';
@@ -72,7 +72,7 @@ beforeEach(async () => {
       workItems,
       projects,
       estimates: new EstimateRepository(db),
-        actuals: new ActualRepository(db),
+      actuals: new ActualRepository(db),
       dependencies: new DependencyRepository(db),
       directory: store,
       capacity: inMemoryCapacity(),

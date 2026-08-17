@@ -1,12 +1,12 @@
 import type { Logger } from '@wbs/observability';
 
 import { PLAN_EVENT_RETENTION_DAYS } from './repository';
+import { ActualRepository } from './repository/actual';
 import { CapacityRepository } from './repository/capacity';
 import { CommandJournalRepository } from './repository/command-journal';
 import type { Drizzle } from './repository/db';
 import { DependencyRepository } from './repository/dependency';
 import { DirectoryRepository } from './repository/directory';
-import { ActualRepository } from './repository/actual';
 import { EstimateRepository } from './repository/estimate';
 import { DrizzleEventLogRepo } from './repository/event-log';
 import { PlanEventRepository } from './repository/plan-event';

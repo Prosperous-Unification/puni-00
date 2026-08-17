@@ -2,12 +2,12 @@ import { describe, expect, it } from 'bun:test';
 
 import type { Project, Role, StoredDependency, WorkItem } from '../repository';
 import { ROLE_POSITION_STEP } from '../repository';
+import { inMemoryActuals } from '../testing/actual-fixture';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { inMemoryCapacity } from '../testing/capacity-fixture';
 import { inMemoryCommandJournal } from '../testing/command-journal-fixture';
 import { inMemoryDependencies } from '../testing/dependency-fixture';
 import { inMemoryDirectory } from '../testing/directory-fixture';
-import { inMemoryActuals } from '../testing/actual-fixture';
 import { inMemoryEstimates } from '../testing/estimate-fixture';
 import { inMemoryPriorityBands } from '../testing/priority-band-fixture';
 import { inMemoryProjects } from '../testing/project-fixture';
@@ -87,7 +87,7 @@ async function replay(extraRoles: readonly string[]) {
   const projects = inMemoryProjects();
   const workItems = inMemoryWorkItems();
   const estimates = inMemoryEstimates(workItems);
-    const actuals = inMemoryActuals(workItems);
+  const actuals = inMemoryActuals(workItems);
   const dependencies = inMemoryDependencies();
   const directory = inMemoryDirectory();
   const service = new WorkItemService({
