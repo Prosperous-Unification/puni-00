@@ -12,15 +12,15 @@ see the note there).
 
 ## Wall clock
 
-| moment                                    | UTC (2026-08-17) |
-| ------------------------------------------ | ----------------- |
-| branch cut, first read                    | 10:57              |
-| code + unit tests written                 | 11:00              |
-| unit gate green on h2puni                 | 11:20              |
-| watched standalone in real Chromium — red | 11:24              |
-| the NUL fix, watched standalone — green   | 11:29              |
-| full PoC gate green (test/lint/typecheck/format) | 11:33       |
-| record written, PR open                   | <fill-in>          |
+| moment                                           | UTC (2026-08-17) |
+| ------------------------------------------------ | ---------------- |
+| branch cut, first read                           | 10:57            |
+| code + unit tests written                        | 11:00            |
+| unit gate green on h2puni                        | 11:20            |
+| watched standalone in real Chromium — red        | 11:24            |
+| the NUL fix, watched standalone — green          | 11:29            |
+| full PoC gate green (test/lint/typecheck/format) | 11:33            |
+| record written, PR open                          | <fill-in>        |
 
 **Branch cut to unit-green: ~23 minutes.** The single largest cost was neither
 code nor record: it was the composite-document design (rebuilding the label
@@ -42,11 +42,11 @@ well-formedness a real browser's does.
 `/home/puni1/wbs-reds`). Nothing was compiled or tested on h1claw
 (`bin/block-local-builds.sh`).
 
-| run                                        | result                                                    |
-| ------------------------------------------ | ---------------------------------------------------------- |
-| affected projects (only `apps/fe-01` touched) | **fe-01** alone                                          |
-| `nx affected -t test lint typecheck`       | **1,408 passed, 53 files**, lint clean, typecheck clean, 63.6s |
-| `nx format:check --all`                    | clean, exit 0, 15.2s                                        |
+| run                                           | result                                                         |
+| --------------------------------------------- | -------------------------------------------------------------- |
+| affected projects (only `apps/fe-01` touched) | **fe-01** alone                                                |
+| `nx affected -t test lint typecheck`          | **1,408 passed, 53 files**, lint clean, typecheck clean, 63.6s |
+| `nx format:check --all`                       | clean, exit 0, 15.2s                                           |
 
 One `nx affected` run mid-session reported `fe-01:lint` failed with **no
 printed error** and Nx's own "flaky task" notice; `nx run fe-01:lint` alone,
