@@ -3,6 +3,7 @@ import {
   JOURNAL_DEPTH,
   type JournalEntry,
   type NewJournalEntry,
+  type PlanEvent,
 } from '../repository';
 
 /**
@@ -23,17 +24,29 @@ import {
  *
  * The JSON columns are held as the values they were given rather than as text.
  * Callers that care about the round trip run against the real store.
+ *
+ * `events` is the plan's history as this fixture received it — every append's
+ * second argument, in the order they arrived, **never pruned**. The real store
+ * writes both rows in one transaction and prunes only the stack, and holding the
+ * events in a list that the depth rule cannot reach is how a test can see that
+ * an evicted undo entry still has its history row. That the two are written
+ * atomically is the one claim this fixture cannot make, so it is asserted against
+ * real SQLite in `repository/command-journal.test.ts` and nowhere else.
  */
 export function inMemoryCommandJournal(): CommandJournalStore & {
   readonly entries: JournalEntry[];
+  readonly events: PlanEvent[];
 } {
   const entries: JournalEntry[] = [];
+  const events: PlanEvent[] = [];
   const mine = (projectId: string, userId: string): JournalEntry[] =>
     entries.filter((each) => each.projectId === projectId && each.userId === userId);
 
   return {
     entries,
-    append(entry: NewJournalEntry) {
+    events,
+    append(entry: NewJournalEntry, event: PlanEvent) {
+      events.push(event);
       for (const undone of mine(entry.projectId, entry.userId).filter((each) => each.undone)) {
         entries.splice(entries.indexOf(undone), 1);
       }

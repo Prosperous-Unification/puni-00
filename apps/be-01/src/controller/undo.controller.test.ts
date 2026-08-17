@@ -23,6 +23,7 @@ import { TEST_JWT_KEY } from '../testing/auth-fixture';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { inMemoryCapacity, testCapacityService } from '../testing/capacity-fixture';
 import { testDirectoryService } from '../testing/directory-fixture';
+import { testHistoryService } from '../testing/history-fixture';
 import { inMemoryPriorityBands, testPriorityBandService } from '../testing/priority-band-fixture';
 import { testReplay } from '../testing/replay-fixture';
 
@@ -62,6 +63,7 @@ beforeEach(() => {
     directory: testDirectoryService(),
     capacity: testCapacityService(),
     priorityBands: testPriorityBandService(),
+    history: testHistoryService(),
     auth: new AuthService({ users: new UserRepository(db), jwtKey: TEST_JWT_KEY }),
     projects: new ProjectService({ projects }),
     roles: new RoleService({

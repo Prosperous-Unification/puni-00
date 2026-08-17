@@ -5,6 +5,7 @@ import { buildApp } from '../app';
 import { TEST_JWT_KEY, testAuthService } from '../testing/auth-fixture';
 import { testCapacityService } from '../testing/capacity-fixture';
 import { testDirectoryService } from '../testing/directory-fixture';
+import { testHistoryService } from '../testing/history-fixture';
 import { testPriorityBandService } from '../testing/priority-band-fixture';
 import { testProjectService } from '../testing/project-fixture';
 import { testReplay } from '../testing/replay-fixture';
@@ -18,6 +19,7 @@ function app() {
     directory: testDirectoryService(),
     capacity: testCapacityService(),
     priorityBands: testPriorityBandService(),
+    history: testHistoryService(),
     auth: testAuthService(),
     projects: testProjectService(),
     workItems: testWorkItemService(),

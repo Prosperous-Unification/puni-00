@@ -17,6 +17,7 @@ import { ProjectService } from '../service/project.service';
 import { type RecordingBroadcaster, recordingBroadcaster } from '../testing/broadcast-fixture';
 import { testCapacityService } from '../testing/capacity-fixture';
 import { testDirectoryService } from '../testing/directory-fixture';
+import { testHistoryService } from '../testing/history-fixture';
 import { testReplay } from '../testing/replay-fixture';
 import { testRoleService } from '../testing/role-fixture';
 import { testWorkItemService } from '../testing/work-item-fixture';
@@ -77,6 +78,7 @@ describe('PUT /api/projects/:id/priority-bands', () => {
       directory: testDirectoryService(),
       capacity: testCapacityService(),
       priorityBands: new PriorityBandService({ projects: projectStore, bands, broadcast }),
+      history: testHistoryService(projectStore),
       roles: testRoleService(),
       workItems: testWorkItemService(),
       replay: testReplay().replay,

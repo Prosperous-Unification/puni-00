@@ -6,12 +6,15 @@ import {
   JOURNAL_DEPTH,
   type JournalEntry,
   type NewJournalEntry,
+  type PlanEvent,
   type UndoState,
 } from './index';
-import { commandJournal, type CommandJournalRow } from './schema';
+import { commandJournal, type CommandJournalRow, planEvent } from './schema';
 
 /**
- * The undo stack, one per (project, account), on the server.
+ * The undo stack, one per (project, account), on the server — and the one
+ * statement that writes the plan's history, because a command is journalled and
+ * recorded in the same transaction. See {@link CommandJournalRepository.append}.
  *
  * `seq` is assigned by SQLite inside the `INSERT`, from the pair's current
  * maximum — `(select coalesce(max(seq), 0) + 1 …)`. It is the same rule the
@@ -30,15 +33,34 @@ export class CommandJournalRepository implements CommandJournalStore {
   constructor(private readonly db: Drizzle) {}
 
   /**
-   * Appends, clears this account's redo branch and prunes the stack — in one
-   * transaction, because all three describe the same act.
+   * Appends, clears this account's redo branch, prunes the stack and writes the
+   * history row — in one transaction, because all four describe the same act.
    *
    * The order matters. The redo branch goes **first**: those entries hold the
    * highest `seq` values for the pair, and leaving them would make the new
    * entry look older than commands that are no longer reachable. Pruning goes
    * last, against the maximum the insert has just written.
+   *
+   * **Why the `plan_event` insert is here and not in `PlanEventRepository`.** The
+   * two rows record one act, and a history row written by a second call is a
+   * history row that can fail on its own — leaving a plan with an undo entry for
+   * a change its history does not contain. The store interfaces are async, so a
+   * transaction cannot be handed across one; the alternative is this statement,
+   * in the transaction that already exists, in the class that owns it. Reads and
+   * retention live in `PlanEventRepository`, which has no `append` at all so that
+   * a second write path cannot be added by accident.
+   *
+   * The prune deliberately does **not** reach `plan_event`: the journal is fifty
+   * deep per account and the history is kept by age. Pruning the history here
+   * would make it a second undo stack.
+   *
+   * Proof: with the `planEvent` insert moved out of the transaction and run after
+   * it, `writes neither when the history row is refused` in
+   * `command-journal.test.ts` fails on a `toEqual` diff — the stack holding a
+   * command the history never received, which is the shape of the failure this
+   * refuses to be able to have. 4 pass, 1 fail; watched 2026-08-17.
    */
-  async append(entry: NewJournalEntry): Promise<void> {
+  async append(entry: NewJournalEntry, event: PlanEvent): Promise<void> {
     await Promise.resolve();
     const mine = and(
       eq(commandJournal.projectId, entry.projectId),
@@ -76,6 +98,23 @@ export class CommandJournalRepository implements CommandJournalStore {
             ),
           ),
         )
+        .run();
+      // The history, in the same transaction and after the prune, so that a
+      // journal write which fails for any reason takes this with it. Never
+      // pruned here: the plan's history is kept by age, by the retention timer.
+      tx.insert(planEvent)
+        .values({
+          id: event.id,
+          projectId: event.projectId,
+          userId: event.userId,
+          kind: event.kind,
+          label: event.label,
+          workItemId: event.workItemId,
+          roleId: event.roleId,
+          before: JSON.stringify(event.before),
+          after: JSON.stringify(event.after),
+          createdAt: event.createdAt,
+        })
         .run();
     });
   }

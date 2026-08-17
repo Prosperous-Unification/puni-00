@@ -11,6 +11,7 @@ import { DependencyRepository } from '../repository/dependency';
 import { DirectoryRepository } from '../repository/directory';
 import { EstimateRepository } from '../repository/estimate';
 import { runMigrations } from '../repository/migrate';
+import { PlanEventRepository } from '../repository/plan-event';
 import { ProjectRepository } from '../repository/project';
 import { commandJournal } from '../repository/schema';
 import { UserRepository } from '../repository/user';
@@ -999,3 +1000,46 @@ async function person(name: string): Promise<string> {
   const added = await personAdded(directoryStore.addPerson({ id: crypto.randomUUID(), name }, []));
   return added.id;
 }
+
+describe('what an undo leaves in the plan’s history', () => {
+  /** The project's history, read straight out of the table the route reads. */
+  const history = () => new PlanEventRepository(openDrizzle(path)).listFor(projectId, {});
+
+  it('records the command, and records nothing at all for undoing it', async () => {
+    // The one thing a reader of the history will be surprised by, asserted rather
+    // than only written down. Undo and redo flip a journal entry in place and
+    // append nothing — deliberately, `schema.ts` argues why — so an estimate set
+    // and then taken back leaves the event that set it and no event undoing it.
+    // Every event is true about its own moment; the sequence is incomplete.
+    //
+    // Closing it means writing from the undo path as well, which is a second write
+    // site and R5's H5 question rather than this change's. See
+    // `openspec/changes/plan-history/design.md` D4 — if this case ever goes red
+    // because somebody closed the gap, that is the change and not a regression.
+    const id = await root('Strip the roof');
+    const set = await workItems.setEstimate(id, ownerId, roles[0].id, DAYS);
+    expect(set.ok).toBe(true);
+    expect((await history()).map((each) => each.kind)).toEqual(['estimate', 'create']);
+
+    const undone = await workItems.undo(projectId, ownerId);
+    expect(undone.ok).toBe(true);
+
+    // Two events still, and the estimate really is gone from the plan — so the
+    // history says 1/2/3 was set while the plan says nothing is estimated.
+    expect((await history()).map((each) => each.kind)).toEqual(['estimate', 'create']);
+    expect(await estimateStore.listByProject(projectId)).toEqual([]);
+  });
+
+  it('keeps the event of a command whose journal entry a later write threw away', async () => {
+    // The redo branch is deleted on every append, so the undone command leaves the
+    // stack entirely the moment anything else is written. Its event stays, which is
+    // the difference between the plan's history and one account's undo stack.
+    const id = await root('Strip the roof');
+    await workItems.setEstimate(id, ownerId, roles[0].id, DAYS);
+    await workItems.undo(projectId, ownerId);
+    await workItems.setEstimate(id, ownerId, roles[0].id, OTHER_DAYS);
+
+    expect((await allEntries()).map((each) => each.kind)).toEqual(['create', 'estimate']);
+    expect((await history()).map((each) => each.kind)).toEqual(['estimate', 'estimate', 'create']);
+  });
+});

@@ -8,6 +8,7 @@ import { openDatabase } from './db';
 import { runMigrations } from './migrate';
 import {
   type AppliedMigration,
+  duplicateMigrationStamps,
   migrationsToRollback,
   readMigrationFolders,
   ROLLBACK_ALL,
@@ -57,6 +58,18 @@ const WORK_ITEM_TEAM = '20260814100000_add_work_item_team';
 // priority-band migration would have reversed nothing, silently leaving
 // `work_item_team` applied. Renumbered on the rebase; see verify.md.
 const PRIORITY_BANDS = '20260814110000_add_priority_band';
+/**
+ * The newest, and a table of its own again. It references `project` and `users`,
+ * so it reverses ahead of both — the same place `JOURNAL` sits for the same
+ * reason.
+ *
+ * Stamped three days past `PRIORITY_BANDS` and checked against every folder on
+ * disk before it was written; `refuses a folder set that shares one stamp between
+ * two migrations` below is the mechanical half of that check, and
+ * `does nothing when the target is already the newest applied` is the case the
+ * 2026-08-14 collision would have broken.
+ */
+const PLAN_EVENT = '20260817120000_add_plan_event';
 
 function tempDb(): { path: string; cleanup: () => void } {
   const dir = mkdtempSync(join(tmpdir(), 'wbs-migrate-down-'));
@@ -144,6 +157,7 @@ describe('readMigrationFolders', () => {
       PER_PROJECT_CAPACITY,
       WORK_ITEM_TEAM,
       PRIORITY_BANDS,
+      PLAN_EVENT,
     ]);
     for (const f of folders) expect(f.downSql.trim()).not.toBe('');
   });
@@ -158,6 +172,55 @@ describe('readMigrationFolders', () => {
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
+  });
+
+  it('refuses a folder set that shares one stamp between two migrations', () => {
+    // The fault that shipped on 2026-08-14 and was found by hand: two folders
+    // stamped `20260814100000`. Drizzle records that prefix as the migration's
+    // `created_at`, `migrationsToRollback` filters on `created_at >` strictly,
+    // and so a rollback whose baseline is either of them reverses **nothing** and
+    // reports success — with both tables still standing and both bookkeeping rows
+    // still claiming to be applied.
+    //
+    // Written against a folder set rather than against `FOLDER`, because the
+    // healthy assertion is the one above and a test cannot inject a collision into
+    // a directory the repository ships.
+    //
+    // Proof: with the `duplicateMigrationStamps` check removed from
+    // `readMigrationFolders`, this fails on `expected function to throw` — and the
+    // two `rollbackTo` calls below it come back `[]` against a database holding
+    // both tables, which is the silent half of the same fault. Watched 2026-08-17.
+    const dir = mkdtempSync(join(tmpdir(), 'wbs-shared-stamp-'));
+    try {
+      for (const name of ['20260814100000_first', '20260814100000_second']) {
+        const mig = join(dir, name);
+        mkdirSync(mig);
+        writeFileSync(join(mig, 'migration.sql'), `CREATE TABLE ${name.slice(15)} (id text);`);
+        writeFileSync(join(mig, 'down.sql'), `DROP TABLE ${name.slice(15)};`);
+      }
+      expect(() => readMigrationFolders(dir)).toThrow(/stamps are shared/);
+      // And the rollback that would have run against them refuses too, rather
+      // than reporting a reversal it did not perform.
+      const db = tempDb();
+      try {
+        expect(() => rollbackTo(db.path, dir, ROLLBACK_ALL)).toThrow(/stamps are shared/);
+      } finally {
+        db.cleanup();
+      }
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('names every stamp shared by more than one folder, and nothing else', () => {
+    expect(duplicateMigrationStamps(['20260101000000_a', '20260102000000_b'])).toEqual([]);
+    expect(
+      duplicateMigrationStamps(['20260101000000_a', '20260101000000_b', '20260102000000_c']),
+    ).toEqual([20260101000000]);
+    // A folder whose prefix is not a number would be recorded with
+    // `created_at = NaN`, every comparison against it would be false, and the
+    // rollback would order it before everything. Refused rather than sorted.
+    expect(() => duplicateMigrationStamps(['not-a-stamp_a'])).toThrow(/numeric stamp/);
   });
 });
 
@@ -185,11 +248,13 @@ describe('rollbackTo, against a real database', () => {
         PER_PROJECT_CAPACITY,
         WORK_ITEM_TEAM,
         PRIORITY_BANDS,
+        PLAN_EVENT,
       ]);
 
       const reversed = rollbackTo(db.path, FOLDER, INIT);
 
       expect(reversed).toEqual([
+        PLAN_EVENT,
         PRIORITY_BANDS,
         WORK_ITEM_TEAM,
         PER_PROJECT_CAPACITY,
@@ -246,6 +311,7 @@ describe('rollbackTo, against a real database', () => {
         PER_PROJECT_CAPACITY,
         WORK_ITEM_TEAM,
         PRIORITY_BANDS,
+        PLAN_EVENT,
       ]);
     } finally {
       db.cleanup();
@@ -259,6 +325,7 @@ describe('rollbackTo, against a real database', () => {
       const reversed = rollbackTo(db.path, FOLDER, ROLLBACK_ALL);
 
       expect(reversed).toEqual([
+        PLAN_EVENT,
         PRIORITY_BANDS,
         WORK_ITEM_TEAM,
         PER_PROJECT_CAPACITY,
@@ -299,7 +366,13 @@ describe('rollbackTo, against a real database', () => {
     const db = tempDb();
     try {
       runMigrations(db.path, FOLDER);
-      expect(rollbackTo(db.path, FOLDER, PRIORITY_BANDS)).toEqual([]);
+      // The newest applied migration, which is what makes this the case a shared
+      // stamp breaks: `migrationsToRollback` filters on `created_at >` strictly,
+      // so a baseline that shares its stamp with another folder answers `[]` here
+      // *and* answers `[]` when there is genuinely something to reverse. Reading
+      // `[]` as correct is only safe while every stamp is unique, which
+      // `readMigrationFolders` now enforces.
+      expect(rollbackTo(db.path, FOLDER, PLAN_EVENT)).toEqual([]);
       expect(tables(db.path)).toContain('users');
     } finally {
       db.cleanup();

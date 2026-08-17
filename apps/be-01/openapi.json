@@ -1322,6 +1322,41 @@
         "operationId": "putApiProjectsByIdPriority-bands"
       }
     },
+    "/api/projects/{id}/history": {
+      "get": {
+        "summary": "One plan’s history — every command run on it, newest first",
+        "description": "The plan's own record, per **project** and not per account: two people editing one\nplan produce two undo stacks and one history. It is append-only, it is not pruned\nby anybody's undo, and events older than 365 days are removed by the retention\nsweep. Snapshots, when they exist, are the permanent record; this is the recent one.\n\n`?workItemId=` narrows to one row's own events. `?kind=` takes a comma-separated\nlist — `?kind=estimate,clear_estimate` is \"the history of estimate changes\".\nBoth absent is everything. A kind nothing was recorded under answers nothing\nrather than 400: the column is a string so that later kinds need no migration.\n\n`before` and `after` are the compensating and forward commands as they were\njournalled, so an `estimate` event carries the trio that was stored and the trio\nthat replaced it. **Undo and redo record nothing**: they flip a journal entry in\nplace, so an estimate set and then undone leaves the event that set it and no\nevent taking it back. Every event is true about its own moment; the sequence is\nincomplete, deliberately, until that is decided.\n\nA project this account cannot see does not exist to it — `not_found`, 404. An\nempty `events` array is a plan nobody has edited, which is not the same answer.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "workItemId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "description": "One work item’s own events. Absent is every item’s, and the plan-wide events with them.",
+              "type": "string"
+            }
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "description": "Comma-separated kinds to keep — `estimate,clear_estimate` is the history of estimate changes. Absent, or naming nothing, is every kind. An unrecognised kind answers nothing rather than 400.",
+              "type": "string"
+            }
+          }
+        ],
+        "operationId": "getApiProjectsByIdHistory"
+      }
+    },
     "/internal/forward": {
       "post": {
         "operationId": "postInternalForward"
