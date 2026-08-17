@@ -9,6 +9,7 @@ import { CommandJournalRepository } from '../repository/command-journal';
 import { openDrizzle } from '../repository/db';
 import { DependencyRepository } from '../repository/dependency';
 import { DirectoryRepository } from '../repository/directory';
+import { ActualRepository } from '../repository/actual';
 import { EstimateRepository } from '../repository/estimate';
 import { runMigrations } from '../repository/migrate';
 import { ProjectRepository } from '../repository/project';
@@ -56,6 +57,7 @@ beforeEach(() => {
   const projects = new ProjectRepository(db);
   const workItems = new WorkItemRepository(db);
   const estimates = new EstimateRepository(db);
+  const actuals = new ActualRepository(db);
   const dependencies = new DependencyRepository(db);
   const directory = new DirectoryRepository(db);
 
@@ -75,6 +77,7 @@ beforeEach(() => {
       workItems,
       projects,
       estimates,
+      actuals,
       dependencies,
       directory,
       capacity: inMemoryCapacity(),

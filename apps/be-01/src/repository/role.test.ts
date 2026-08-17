@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { personAdded } from '../testing/directory-fixture';
+import { ActualRepository } from './actual';
 import { openDrizzle } from './db';
 import { DirectoryRepository } from './directory';
 import { EstimateRepository } from './estimate';
@@ -29,6 +30,7 @@ let dir: string;
 let roles: RoleRepository;
 let projects: ProjectRepository;
 let estimates: EstimateRepository;
+let actuals: ActualRepository;
 let directory: DirectoryRepository;
 let workItems: WorkItemRepository;
 let projectId: string;
@@ -84,6 +86,7 @@ beforeEach(async () => {
   roles = new RoleRepository(db);
   projects = new ProjectRepository(db);
   estimates = new EstimateRepository(db);
+  actuals = new ActualRepository(db);
   directory = new DirectoryRepository(db);
   workItems = new WorkItemRepository(db);
 
@@ -299,6 +302,10 @@ describe('RoleRepository', () => {
       // holds it, and this is what the reading is made from.
       usage: {
         estimates: 1,
+        // Nothing recorded against this role, and the count travels anyway: a
+        // refusal that reported only estimates would be silent about the one
+        // number nobody can retype from memory.
+        actuals: 0,
         assignments: [{ workItemId: 'strip', roleId: qaId, personId: ada.id }],
       },
     });
@@ -352,5 +359,52 @@ describe('RoleRepository', () => {
     expect(await estimates.listByProject(projectId)).toEqual([]);
     expect(await workItemRevisionOf('paint')).toBe(paintBefore + 1);
     expect(await roles.findById(qaId)).toBeNull();
+  });
+
+  it('counts the recorded days, and refuses an unconfirmed removal of a role that holds only those', async () => {
+    // The case that makes the count load-bearing rather than decorative: this
+    // role has no estimate and nobody assigned, so a removal that counted only
+    // those two would sail through and take the record of somebody's week with
+    // it. `actual.role_id` has no cascade precisely so this cannot happen
+    // quietly.
+    await actuals.set({ workItemId: 'strip', roleId: qaId, days: 8, recordedAt: 1000 });
+    const before = await revisionOf(projectId);
+
+    const counted = await roles.usageOf(projectId, qaId);
+    const refused = await roles.remove(projectId, qaId, false);
+
+    expect(counted).toEqual({ estimates: 0, actuals: 1, assignments: [] });
+    expect(refused).toEqual({
+      ok: false,
+      reason: 'in_use',
+      usage: { estimates: 0, actuals: 1, assignments: [] },
+    });
+    expect(await roles.findById(qaId)).not.toBeNull();
+    expect(await actuals.listByProject(projectId)).toHaveLength(1);
+    // A refusal writes nothing at all, the project's revision included.
+    expect(await revisionOf(projectId)).toBe(before);
+  });
+
+  it('deletes the recorded days with the role it confirmed, moving the work items that lost one', async () => {
+    // The other half, and the one the missing cascade forces: without an
+    // explicit delete here the role row cannot go at all — SQLite refuses it —
+    // so this is what turns a 500 into a removal that says what it took.
+    await actuals.set({ workItemId: 'strip', roleId: qaId, days: 8, recordedAt: 1000 });
+    await actuals.set({ workItemId: 'sand', roleId: devId, days: 2, recordedAt: 1000 });
+    const stripBefore = await workItemRevisionOf('strip');
+
+    const removed = await roles.remove(projectId, qaId, true);
+
+    expect(removed).toEqual({
+      ok: true,
+      removal: { estimates: 0, actuals: 1, assignments: 0, workItemIds: ['strip'] },
+    });
+    expect(await roles.findById(qaId)).toBeNull();
+    // The other role's row on another work item survives, which is what makes
+    // the delete's `WHERE` provable.
+    expect(await actuals.listByProject(projectId)).toEqual([
+      { workItemId: 'sand', roleId: devId, days: 2, recordedAt: 1000 },
+    ]);
+    expect(await workItemRevisionOf('strip')).toBe(stripBefore + 1);
   });
 });

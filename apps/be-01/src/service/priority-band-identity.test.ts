@@ -16,6 +16,7 @@ import { inMemoryCapacity } from '../testing/capacity-fixture';
 import { inMemoryCommandJournal } from '../testing/command-journal-fixture';
 import { inMemoryDependencies } from '../testing/dependency-fixture';
 import { inMemoryDirectory } from '../testing/directory-fixture';
+import { inMemoryActuals } from '../testing/actual-fixture';
 import { inMemoryEstimates } from '../testing/estimate-fixture';
 import { inMemoryPriorityBands } from '../testing/priority-band-fixture';
 import { inMemoryProjects } from '../testing/project-fixture';
@@ -249,11 +250,13 @@ describe('a priority ladder moves no date', () => {
     const directory = inMemoryDirectory();
     const workItems = inMemoryWorkItems(directory);
     const estimates = inMemoryEstimates(workItems);
+    const actuals = inMemoryActuals(workItems);
     const dependencies = inMemoryDependencies();
     const service = new WorkItemService({
       workItems,
       projects,
       estimates,
+      actuals,
       dependencies,
       directory,
       capacity: inMemoryCapacity(),
@@ -337,14 +340,23 @@ describe('a priority ladder moves no date', () => {
    * `capacity-migration-identity.test.ts`, which is where `team-sets` makes the
    * claim first; it is repeated here because this file compares the same oracle
    * and a lift with nothing behind it is a hole.
+   *
+   * **`actuals` is lifted the same way, by `actual-days` (R6 H2).** The oracle
+   * predates the table entirely, so every row of the payload now carries an
+   * `actuals: {}` the capture cannot have. It is **asserted empty** rather than
+   * dropped: an empty object on every row of sixteen replayed plans is this
+   * change's own claim — a plan nobody has recorded a day against reads as
+   * nobody having recorded a day, never as zero days spent — and a bare lift
+   * would let a roll-up that invented figures pass here silently.
    */
   function lifted(
     tree: NonNullable<Awaited<ReturnType<WorkItemService['tree']>>>,
   ): Record<string, unknown> {
     return {
       ...tree,
-      workItems: tree.workItems.map(({ teamIds, ...row }) => {
+      workItems: tree.workItems.map(({ teamIds, actuals, ...row }) => {
         expect(teamIds).toEqual(row.serviceTeamId === null ? [] : [row.serviceTeamId]);
+        expect(actuals).toEqual({});
         return row;
       }),
     };
@@ -435,11 +447,13 @@ describe('a priority ladder moves no date', () => {
     const directory = inMemoryDirectory();
     const workItems = inMemoryWorkItems(directory);
     const estimates = inMemoryEstimates(workItems);
+    const actuals = inMemoryActuals(workItems);
     const dependencies = inMemoryDependencies();
     const service = new WorkItemService({
       workItems,
       projects,
       estimates,
+      actuals,
       dependencies,
       directory,
       // The pools the capture was taken under — see {@link CAPACITIES}. Identical

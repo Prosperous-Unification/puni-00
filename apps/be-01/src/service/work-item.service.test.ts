@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'bun:test';
 
 import type {
   CapacityStore,
+  ActualStore,
   EstimateStore,
   Project,
   ProjectStore,
@@ -12,6 +13,7 @@ import { inMemoryCapacity } from '../testing/capacity-fixture';
 import { inMemoryCommandJournal } from '../testing/command-journal-fixture';
 import { inMemoryDependencies } from '../testing/dependency-fixture';
 import { inMemoryDirectory, personAdded } from '../testing/directory-fixture';
+import { inMemoryActuals } from '../testing/actual-fixture';
 import { inMemoryEstimates } from '../testing/estimate-fixture';
 import { inMemoryPriorityBands } from '../testing/priority-band-fixture';
 import { inMemoryProjects } from '../testing/project-fixture';
@@ -36,6 +38,7 @@ let directory: ReturnType<typeof inMemoryDirectory>;
  */
 let capacity: CapacityStore;
 let estimates: EstimateStore;
+let actuals: ActualStore;
 let broadcast: RecordingBroadcaster;
 
 beforeEach(async () => {
@@ -44,6 +47,7 @@ beforeEach(async () => {
   directory = inMemoryDirectory();
   workItems = inMemoryWorkItems(directory);
   estimates = inMemoryEstimates(workItems);
+  actuals = inMemoryActuals(workItems);
   broadcast = recordingBroadcaster();
   capacity = inMemoryCapacity();
   service = new WorkItemService({
@@ -51,6 +55,7 @@ beforeEach(async () => {
     workItems,
     projects,
     estimates,
+    actuals,
     dependencies,
     directory,
     capacity,
@@ -1662,6 +1667,7 @@ describe('the slices the schedule placed, on the wire', () => {
       workItems,
       projects: shifting,
       estimates,
+      actuals,
       dependencies,
       directory,
       capacity: inMemoryCapacity(),

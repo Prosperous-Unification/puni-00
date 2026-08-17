@@ -8,6 +8,7 @@ import type { Role, WorkItem } from '../repository';
 import { openDrizzle } from '../repository/db';
 import { DependencyRepository } from '../repository/dependency';
 import { DirectoryRepository } from '../repository/directory';
+import { ActualRepository } from '../repository/actual';
 import { EstimateRepository } from '../repository/estimate';
 import { runMigrations } from '../repository/migrate';
 import { ProjectRepository } from '../repository/project';
@@ -48,6 +49,7 @@ let roleService: RoleService;
 let projectStore: ProjectRepository;
 let workItemStore: WorkItemRepository;
 let estimateStore: EstimateRepository;
+let actualStore: ActualRepository;
 let projectId: string;
 let ownerId: string;
 let roles: Role[];
@@ -70,6 +72,7 @@ beforeEach(async () => {
   projectStore = new ProjectRepository(db);
   workItemStore = new WorkItemRepository(db);
   estimateStore = new EstimateRepository(db);
+  actualStore = new ActualRepository(db);
   const dependencies = new DependencyRepository(db);
   const directory = new DirectoryRepository(db);
 
@@ -91,6 +94,7 @@ beforeEach(async () => {
     workItems: workItemStore,
     projects: projectStore,
     estimates: estimateStore,
+    actuals: actualStore,
     directory,
     capacity: inMemoryCapacity(),
     priorityBands: inMemoryPriorityBands(),

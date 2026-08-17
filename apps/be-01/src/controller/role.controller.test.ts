@@ -9,6 +9,7 @@ import { CommandJournalRepository } from '../repository/command-journal';
 import { openDrizzle } from '../repository/db';
 import { DependencyRepository } from '../repository/dependency';
 import { DirectoryRepository } from '../repository/directory';
+import { ActualRepository } from '../repository/actual';
 import { EstimateRepository } from '../repository/estimate';
 import { runMigrations } from '../repository/migrate';
 import { ProjectRepository } from '../repository/project';
@@ -42,6 +43,7 @@ let dir: string;
 let app: ReturnType<typeof buildApp>;
 let roleStore: RoleRepository;
 let estimates: EstimateRepository;
+let actuals: ActualRepository;
 let directory: DirectoryRepository;
 let workItems: WorkItemRepository;
 let projects: ProjectRepository;
@@ -57,6 +59,7 @@ beforeEach(() => {
   projects = new ProjectRepository(db);
   roleStore = new RoleRepository(db);
   estimates = new EstimateRepository(db);
+  actuals = new ActualRepository(db);
   directory = new DirectoryRepository(db);
   workItems = new WorkItemRepository(db);
 
@@ -72,6 +75,7 @@ beforeEach(() => {
       workItems,
       projects,
       estimates,
+      actuals,
       dependencies: new DependencyRepository(db),
       directory,
       capacity: inMemoryCapacity(),
@@ -269,6 +273,7 @@ describe('DELETE /api/projects/:id/roles/:roleId', () => {
       error: 'in_use',
       inUse: {
         estimates: 1,
+        actuals: 0,
         assignments: 1,
         assumedAssignees: [{ workItemId: 'strip', assumedNow: ada.id, assumedAfter: null }],
       },

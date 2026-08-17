@@ -1,4 +1,4 @@
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray, sql } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
 import type { ActualStore, StoredActual } from './index';
@@ -99,9 +99,26 @@ export class ActualRepository implements ActualStore {
   }
 
   /**
-   * Both work items move, for `EstimateRepository.moveAll`'s reason: one lost
-   * every actual it held and the other gained them, and a reader of either sees
-   * different figures afterwards.
+   * Both work items move when anything moved, for `EstimateRepository.moveAll`'s
+   * reason: one lost every actual it held and the other gained them, and a
+   * reader of either sees different figures afterwards.
+   *
+   * **The bump is conditional here and unconditional there**, which is the one
+   * place these two classes deliberately differ. This runs on **every** create
+   * that gives a leaf its first child, beside the estimate move, and almost
+   * every plan has no actuals at all: an unconditional bump would move two
+   * revisions on a write that touched no row of this table, and every reader's
+   * precondition on that parent would go stale for a change that did not happen.
+   *
+   * The conditional is not a read-then-write — the argument `EstimateRepository`
+   * makes against those still stands. `changes()` reports what the statement in
+   * this transaction just did, so a row written by somebody else a moment
+   * earlier is inside the `UPDATE` and inside the count.
+   *
+   * Proof: bumped unconditionally, `hands the estimate down to a first child,
+   * moving both` in `service/revision.test.ts` fails with the child at revision
+   * 2 where 1 is owed — a work item reporting two writes for one create;
+   * watched 2026-08-17.
    */
   async moveAll(fromWorkItemId: string, toWorkItemId: string): Promise<void> {
     await Promise.resolve();
@@ -110,6 +127,11 @@ export class ActualRepository implements ActualStore {
         .set({ workItemId: toWorkItemId })
         .where(eq(actual.workItemId, fromWorkItemId))
         .run();
+      const changed = tx.all<{ n: number }>(sql`SELECT changes() AS n`).at(0);
+      if (changed === undefined) {
+        throw new Error('SELECT changes() answered no row after moving actuals');
+      }
+      if (changed.n === 0) return;
       bumpWorkItems(tx, [fromWorkItemId, toWorkItemId]);
     });
   }

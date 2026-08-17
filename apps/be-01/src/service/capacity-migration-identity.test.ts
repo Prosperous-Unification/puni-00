@@ -16,6 +16,7 @@ import { inMemoryCapacity } from '../testing/capacity-fixture';
 import { inMemoryCommandJournal } from '../testing/command-journal-fixture';
 import { inMemoryDependencies } from '../testing/dependency-fixture';
 import { inMemoryDirectory } from '../testing/directory-fixture';
+import { inMemoryActuals } from '../testing/actual-fixture';
 import { inMemoryEstimates } from '../testing/estimate-fixture';
 import { inMemoryPriorityBands } from '../testing/priority-band-fixture';
 import { inMemoryProjects } from '../testing/project-fixture';
@@ -233,7 +234,7 @@ describe('every plan schedules identically across the migration', () => {
       // `team-sets` design.md D5.
       const lifted = {
         ...tree,
-        workItems: tree.workItems.map(({ teamIds, ...row }) => {
+        workItems: tree.workItems.map(({ teamIds, actuals, ...row }) => {
           // The arity claim, and the only place it is made: the set the join
           // answered is exactly the singleton of the label the oracle recorded.
           //
@@ -248,6 +249,12 @@ describe('every plan schedules identically across the migration', () => {
           // gained a field and moved no date, which is this change's claim
           // arriving as a red test.
           expect(teamIds).toEqual(row.serviceTeamId === null ? [] : [row.serviceTeamId]);
+          // Lifted for `teamIds`' reason and asserted for the same one:
+          // `actual-days` (R6 H2) put this key on every row and the oracle
+          // predates the table. Empty on all sixteen replayed plans is the
+          // claim — nothing recorded reads as nothing recorded, never as zero —
+          // and a bare lift would hide a roll-up that invented a figure.
+          expect(actuals).toEqual({});
           return row;
         }),
       };
@@ -356,11 +363,13 @@ describe('every plan schedules identically across the migration', () => {
     const directory = inMemoryDirectory();
     const workItems = inMemoryWorkItems(directory);
     const estimates = inMemoryEstimates(workItems);
+    const actuals = inMemoryActuals(workItems);
     const dependencies = inMemoryDependencies();
     const service = new WorkItemService({
       workItems,
       projects,
       estimates,
+      actuals,
       dependencies,
       directory,
       capacity: inMemoryCapacity({

@@ -9,6 +9,7 @@ import { inMemoryCapacity, testCapacityService } from '../testing/capacity-fixtu
 import { inMemoryCommandJournal } from '../testing/command-journal-fixture';
 import { inMemoryDependencies } from '../testing/dependency-fixture';
 import { inMemoryDirectory, testDirectoryService } from '../testing/directory-fixture';
+import { inMemoryActuals } from '../testing/actual-fixture';
 import { inMemoryEstimates } from '../testing/estimate-fixture';
 import { testHistoryService } from '../testing/history-fixture';
 import { inMemoryPriorityBands, testPriorityBandService } from '../testing/priority-band-fixture';

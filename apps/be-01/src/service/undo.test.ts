@@ -9,6 +9,7 @@ import { CommandJournalRepository } from '../repository/command-journal';
 import { openDrizzle } from '../repository/db';
 import { DependencyRepository } from '../repository/dependency';
 import { DirectoryRepository } from '../repository/directory';
+import { ActualRepository } from '../repository/actual';
 import { EstimateRepository } from '../repository/estimate';
 import { runMigrations } from '../repository/migrate';
 import { PlanEventRepository } from '../repository/plan-event';
@@ -46,6 +47,7 @@ let workItems: WorkItemService;
 let projects: ProjectService;
 let workItemStore: WorkItemRepository;
 let estimateStore: EstimateRepository;
+let actualStore: ActualRepository;
 let dependencyStore: DependencyRepository;
 let directoryStore: DirectoryRepository;
 let journalStore: CommandJournalRepository;
@@ -73,6 +75,7 @@ beforeEach(async () => {
   const projectStore = new ProjectRepository(db);
   workItemStore = new WorkItemRepository(db);
   estimateStore = new EstimateRepository(db);
+  actualStore = new ActualRepository(db);
   dependencyStore = new DependencyRepository(db);
   directoryStore = new DirectoryRepository(db);
   journalStore = new CommandJournalRepository(db);
@@ -90,6 +93,7 @@ beforeEach(async () => {
     workItems: workItemStore,
     projects: projectStore,
     estimates: estimateStore,
+    actuals: actualStore,
     directory: directoryStore,
     capacity: inMemoryCapacity(),
     priorityBands: inMemoryPriorityBands(),
