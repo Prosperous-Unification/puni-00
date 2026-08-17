@@ -20,7 +20,7 @@ see the note there).
 | watched standalone in real Chromium — red        | 11:24            |
 | the NUL fix, watched standalone — green          | 11:29            |
 | full PoC gate green (test/lint/typecheck/format) | 11:33            |
-| record written, PR open                          | 11:34             |
+| record written, PR open                          | 11:34            |
 
 **Branch cut to unit-green: ~23 minutes.** The single largest cost was neither
 code nor record: it was the composite-document design (rebuilding the label
