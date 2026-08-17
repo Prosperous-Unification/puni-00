@@ -1147,19 +1147,20 @@ const INLINE_STYLE_PROPS = [
 ] as const;
 
 /**
- * A deep clone of the live chart `<svg>`, with every class-carried colour
- * baked into a literal attribute and the class dropped.
+ * The C0 control range XML 1.0 refuses outright (tab/LF/CR excepted).
  *
- * `getComputedStyle` is read on the **original**, live node — the one thing
- * a browser has actually resolved `fill-muted-foreground/10` and
- * `stroke-border` against — never on the clone, which is not attached to
- * anything a cascade could reach. An element with no `class` is left alone:
- * a bar's `fill={bar.personColor}` and a priority cap's `fill={paint.ink}`
- * are already literal, and this pass would only restate them.
- *
- * `role`/`tabindex` are dropped with the class: they make a mark a keyboard
- * control in the app, and a static file has nothing behind either.
+ * `schedule.ts` builds a slice id as `${workItemId}\u0000${roleId}` -- a
+ * separator nobody can type, deliberately -- and that id reaches
+ * `data-gantt-bar` verbatim. A browser paints a NUL in an HTML/SVG attribute
+ * without complaint, which is exactly why this went unnoticed until the file
+ * was opened standalone: XMLSerializer writes the byte through and a strict
+ * XML parser refuses it, so every mark after the first bar was silently
+ * unparsed ("invalid character in attribute value", Chromium, watched
+ * 2026-08-17). Replaced rather than dropped, so two ids that only differed
+ * in the separator do not become the same string.
  */
+const XML_INVALID_ATTR_CHARS = /[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g;
+
 function withInlineComputedStyle(original: Element): Element {
   const clone = original.cloneNode(false) as Element;
   if (original.hasAttribute('class')) {
@@ -1173,6 +1174,11 @@ function withInlineComputedStyle(original: Element): Element {
   }
   clone.removeAttribute('role');
   clone.removeAttribute('tabindex');
+  for (const name of Array.from(clone.getAttributeNames())) {
+    const value = clone.getAttribute(name) ?? '';
+    const safe = value.replace(XML_INVALID_ATTR_CHARS, '-');
+    if (safe !== value) clone.setAttribute(name, safe);
+  }
   for (const child of Array.from(original.childNodes)) {
     clone.appendChild(
       child instanceof Element ? withInlineComputedStyle(child) : child.cloneNode(true),
