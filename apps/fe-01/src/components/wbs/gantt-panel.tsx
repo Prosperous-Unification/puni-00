@@ -1256,8 +1256,11 @@ function buildStandaloneGanttSvg(input: StandaloneGanttSvgInput): SVGSVGElement 
   const totalWidth = LABEL_COLUMN_PX + innerWidth;
   const totalHeight = ROW_PX + innerHeight;
 
+  // No explicit `xmlns` attribute: `createElementNS` already puts the SVG
+  // namespace on the element itself, and `XMLSerializer` writes it out on
+  // serialization — a second one set here is the same declaration twice,
+  // which a strict XML parser refuses as a duplicate attribute.
   const root = document.createElementNS(SVG_NS, 'svg');
-  root.setAttribute('xmlns', SVG_NS);
   root.setAttribute('viewBox', `0 0 ${String(totalWidth)} ${String(totalHeight)}`);
   root.setAttribute('width', String(totalWidth));
   root.setAttribute('height', String(totalHeight));
