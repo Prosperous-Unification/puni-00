@@ -1643,9 +1643,10 @@ export function layOutGantt(plan: GanttPlan): GanttGeometry {
     if (waiting === undefined || busy === undefined) {
       // One end drawn and the other not: a bar on screen is waiting on work the
       // reader cannot see. Neither end drawn is not counted — nothing on screen
-      // lost a mark. Proof: the `!==` pair struck for an unconditional `+= 1`,
-      // `counts nothing for a link with neither end on screen` failed on
-      // `expected 1 to be +0`. Watched, 2026-08-17.
+      // lost a mark. Proof: all three `!==` pairs struck for an unconditional
+      // `+= 1`, `counts nothing for a link with neither end on screen` failed
+      // alone across the two chart files — `1 failed | 214 passed`. Watched,
+      // 2026-08-17.
       if (waiting !== undefined || busy !== undefined) droppedLinks.personLinks += 1;
       continue;
     }
