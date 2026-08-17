@@ -1159,6 +1159,7 @@ const INLINE_STYLE_PROPS = [
  * 2026-08-17). Replaced rather than dropped, so two ids that only differed
  * in the separator do not become the same string.
  */
+// eslint-disable-next-line no-control-regex -- the control characters are exactly what this strips
 const XML_INVALID_ATTR_CHARS = /[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g;
 
 function withInlineComputedStyle(original: Element): Element {
