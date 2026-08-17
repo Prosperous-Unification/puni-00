@@ -5,11 +5,11 @@
       Tests: each kind counted, every kind drawn counts nothing, the words per
       kind and in the singular. **Watched red 1** — the one-end guard struck for
       an unconditional count, `counts nothing for a link with neither end on
-      screen` fails.
+  screen` fails.
 - [x] 1.2 `GanttPlan.dependencies` widens to every stored edge (`wbs-table.tsx`,
       `flat` not `shownRows`). Test: `counts the edge that leaves a shown row
-      for a hidden successor`, and in the table `counts the wait that leaves a
-      shown row for a hidden one`. **Watched red 3.**
+  for a hidden successor`, and in the table `counts the wait that leaves a
+  shown row for a hidden one`. **Watched red 3.**
 
 ## 2. Saying it
 

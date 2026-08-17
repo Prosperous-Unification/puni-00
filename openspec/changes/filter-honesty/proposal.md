@@ -17,7 +17,7 @@ to, because the four exports deliberately take `flat` (Q3).
 
 **F3 — the chart counts what it could not draw and says it.** `layOutGantt`
 returns `droppedLinks` — dependencies, person hand-offs, waits for a team —
-counted at the three places that already drop them, and only where one end *is*
+counted at the three places that already drop them, and only where one end _is_
 drawn: a wait between two hidden rows costs the reader no mark. The panel prints
 one sentence under the chart, outside its scroll box, while `narrowedByFilter`.
 The plan's `dependencies` widen from the shown rows' own edges to every edge
