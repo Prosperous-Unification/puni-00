@@ -4271,6 +4271,8 @@ describe('downloading the chart as a standalone .svg', () => {
     expect(text.startsWith('<?xml version="1.0" encoding="UTF-8"?>')).toBe(true);
 
     const doc = new DOMParser().parseFromString(text, 'image/svg+xml');
+    console.log('PARSERERROR:', doc.querySelector('parsererror')?.textContent);
+    console.log('SVGTEXT:', text.slice(0, 800));
     expect(doc.querySelector('parsererror')).toBeNull();
     const root = doc.documentElement;
     expect(root.tagName).toBe('svg');
