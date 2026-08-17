@@ -55,8 +55,35 @@ const UNNAMED_PROJECT = 'Plan';
 /** What a slice under no role at all is called — reachable on a project holding no phases. */
 const NO_ROLE = 'no phase';
 
+/** What a slice nobody is named on is called, under `assignee` sectioning. */
+const UNASSIGNED = 'unassigned';
+
 /** What an id naming nobody prints as, in the table export's own word for it. */
 const UNKNOWN_NAME = '(unknown)';
+
+/**
+ * What a `section` line groups tasks by — M3 of the R7 brief.
+ *
+ * Mermaid has exactly one grouping channel and it is flat (§2 row 4 of the
+ * brief), so every mode spends it on a different one of the three things a
+ * reader might want bars grouped by:
+ *
+ * - `outline` (the default, M1's own choice) — the plan's own outline, this
+ *   row's outermost ancestor. Needs no new concept and matches the order the
+ *   plan is already read in.
+ * - `phase` — the role a bar is estimated under (`Dev`, `QA`, …), this
+ *   codebase's own word for it (`phases-dialog.tsx`).
+ * - `assignee` — who is on the bar. The brief's argument for this one: our
+ *   chart spends its colour channel on people (`PERSON_BAR_COLORS`) and
+ *   Mermaid has no per-task colour at all, only a `section0..3` class cycling
+ *   by section index — grouping by assignee is the one way this document can
+ *   partially recover that lane structure, the same one
+ *   `refs/gantt/gantt_chart_v2.py` was built around.
+ */
+export type SectionMode = 'outline' | 'phase' | 'assignee';
+
+/** What a caller gets who does not ask — M1's own behaviour, unchanged. */
+export const DEFAULT_SECTION_MODE: SectionMode = 'outline';
 
 /**
  * The character a colon in somebody's text becomes: U+2236 RATIO.
@@ -151,6 +178,51 @@ const POINT_WORDS: Record<PointReason, string> = {
   zero: '0 days',
 };
 
+/**
+ * Where one slice's bar sits in the grouping `sectionMode` asked for, and what
+ * its section is called.
+ *
+ * `order` is a sort key, not a display value: `outline` reuses the row's own
+ * position (subtrees are already contiguous in `plan.rows`, which is what let
+ * M1's original sort work with no separate grouping key at all), while `phase`
+ * and `assignee` group by the role's or the person's position in the plan's
+ * own list — the same order the chart and the pickers already show them in —
+ * with the ungrouped case (no role, nobody named) sorted **last**, after every
+ * named group, rather than interleaved among them.
+ */
+function sectionOf(
+  mode: SectionMode,
+  plan: PlanExport,
+  row: ExportRow,
+  slice: ExportSlice,
+  byId: ReadonlyMap<string, ExportRow>,
+  rowOrder: ReadonlyMap<string, number>,
+  roleOrder: ReadonlyMap<string, number>,
+  personOrder: ReadonlyMap<string, number>,
+): { order: number; label: string } {
+  switch (mode) {
+    case 'outline':
+      return {
+        order: rowOrder.get(row.id) ?? 0,
+        label: mermaidPhrase(namedRow(outermost(row, byId))),
+      };
+    case 'phase':
+      return slice.roleId === null
+        ? { order: plan.roles.length, label: NO_ROLE }
+        : {
+            order: roleOrder.get(slice.roleId) ?? plan.roles.length,
+            label: mermaidPhrase(nameOf(plan.roles, slice.roleId)),
+          };
+    case 'assignee':
+      return slice.personId === null
+        ? { order: plan.people.length, label: UNASSIGNED }
+        : {
+            order: personOrder.get(slice.personId) ?? plan.people.length,
+            label: mermaidPhrase(nameOf(plan.people, slice.personId)),
+          };
+  }
+}
+
 /** One slice resolved onto the calendar, with everything its line needs. */
 interface MermaidTask {
   section: string;
@@ -190,8 +262,8 @@ function taskTextOf(
 }
 
 /**
- * Every slice of the plan as a dated task, in the order the chart draws them:
- * row order, then role order.
+ * Every slice of the plan as a dated task, grouped and ordered by
+ * `sectionMode` — row order then role order within each group.
  *
  * **The dates are the chart's own reading, not a second one.** `calendarScale`
  * is what the Gantt places its bars with, and its docstring records four
@@ -209,11 +281,22 @@ function taskTextOf(
  * before it starts: `endOf(f)` for a whole `f` reads the *left* limit of that
  * workday, so at `earliestStart === earliestFinish` it lands a day behind the
  * start.
+ *
+ * **The sort's primary key is the section's own order, not the row's.** Under
+ * `outline` those coincide — `plan.rows` is already a depth-first walk, so a
+ * subtree is contiguous and sorting by the row's own position groups it for
+ * free, which is why M1 needed no separate grouping key. `phase` and
+ * `assignee` scatter a section's slices across the row list (a `Dev` slice on
+ * row 3 and another on row 40 belong to the same section), so those two sort
+ * by the section's position first and fall back to row order, then role
+ * order, only inside it — otherwise Mermaid would see the same section name
+ * repeated non-contiguously and draw it as separate bands.
  */
-function tasksOf(plan: PlanExport, startDate: IsoDate): MermaidTask[] {
+function tasksOf(plan: PlanExport, startDate: IsoDate, sectionMode: SectionMode): MermaidTask[] {
   const byId = new Map(plan.rows.map((row) => [row.id, row]));
   const rowOrder = new Map(plan.rows.map((row, at) => [row.id, at]));
   const roleOrder = new Map(plan.roles.map((role, at) => [role.id, at]));
+  const personOrder = new Map(plan.people.map((person, at) => [person.id, at]));
   const scale = calendarScale(startDate);
   // The same normalisation `calendarScale` makes of its own origin: a project
   // whose start date lands on a weekend begins on the Monday. Two origins would
@@ -230,6 +313,9 @@ function tasksOf(plan: PlanExport, startDate: IsoDate): MermaidTask[] {
     })
     .sort(
       (a, b) =>
+        sectionOf(sectionMode, plan, a.row, a.slice, byId, rowOrder, roleOrder, personOrder).order -
+          sectionOf(sectionMode, plan, b.row, b.slice, byId, rowOrder, roleOrder, personOrder)
+            .order ||
         (rowOrder.get(a.row.id) ?? 0) - (rowOrder.get(b.row.id) ?? 0) ||
         (a.slice.roleId === null ? plan.roles.length : (roleOrder.get(a.slice.roleId) ?? 0)) -
           (b.slice.roleId === null ? plan.roles.length : (roleOrder.get(b.slice.roleId) ?? 0)) ||
@@ -245,7 +331,8 @@ function tasksOf(plan: PlanExport, startDate: IsoDate): MermaidTask[] {
     const first = Math.floor(scale.startOf(slice.earliestStart));
     const last = Math.max(first, Math.ceil(scale.endOf(slice.earliestFinish)) - 1);
     return {
-      section: mermaidPhrase(namedRow(outermost(row, byId))),
+      section: sectionOf(sectionMode, plan, row, slice, byId, rowOrder, roleOrder, personOrder)
+        .label,
       text: taskTextOf(plan, row, slice, point),
       // Generated, and that is what keeps every user-typed character out of the
       // metadata position: an id taken from a name would collide the moment two
@@ -330,13 +417,20 @@ function commentLines(plan: PlanExport): string[] {
  * same plan and the same `generatedAt` produce the same bytes, which is what
  * makes the output diffable wherever it is pasted.
  *
+ * `sectionMode` picks what a `section` line groups tasks by — see
+ * {@link SectionMode}. Defaults to `outline`, M1's own behaviour, so every
+ * existing caller draws exactly what it always did.
+ *
  * @throws Whatever `addWorkdays` throws when `startDate` is not a calendar
  * date — a scale that cannot say where day zero is has no answer for any mark.
  */
-export function planToMermaid(plan: PlanExport): MermaidExport {
+export function planToMermaid(
+  plan: PlanExport,
+  sectionMode: SectionMode = DEFAULT_SECTION_MODE,
+): MermaidExport {
   if (plan.scheduleError !== null) return { drawn: false, refusal: NO_SCHEDULE_TO_DRAW };
   if (plan.startDate === null) return { drawn: false, refusal: NOT_ON_A_CALENDAR };
-  const tasks = tasksOf(plan, plan.startDate);
+  const tasks = tasksOf(plan, plan.startDate, sectionMode);
   if (tasks.length === 0) return { drawn: false, refusal: NOTHING_PLACED };
   // A `title` with nothing after it is a parse error rather than an untitled
   // diagram, so the one project state that can produce one has a word.
@@ -405,9 +499,16 @@ const SCOPE_FIELD = {
  * nothing to bundle around a sentence. The caller — a **Download as Markdown
  * document** action, not wired in this change (see `verify.md`) — shows the
  * same refusal a **Copy as Mermaid** click already does.
+ *
+ * `sectionMode` passes straight through to {@link planToMermaid}; the table
+ * beneath the fence is unaffected either way, since `markdownTableLines` reads
+ * `plan.rows` directly and has no `section` concept of its own.
  */
-export function planToMermaidDocument(plan: PlanExport): MermaidExport {
-  const diagram = planToMermaid(plan);
+export function planToMermaidDocument(
+  plan: PlanExport,
+  sectionMode: SectionMode = DEFAULT_SECTION_MODE,
+): MermaidExport {
+  const diagram = planToMermaid(plan, sectionMode);
   if (!diagram.drawn) return diagram;
   const body = diagram.text.replace(/\n$/, '');
   const fence = fenceFor(body);
