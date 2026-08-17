@@ -1,0 +1,32 @@
+<!--
+Ordered TDD slices. There is no separate plan.md in this schema — this file
+absorbed it.
+
+A slice is a coherent unit of behavior with a test that proves it, not a
+two-minute keystroke. "Add a failing test for X, then make it pass" is ONE
+slice.
+
+Any slice that adds a safety check must also name the negative test proving the
+check fails when the guarded thing is broken. See AGENTS.md, "Non-vacuous
+checks". A check with no negative test is not done.
+
+Only `- [ ]` checkboxes are tracked by the apply phase.
+-->
+
+## 1. The standalone document
+
+- [x] 1.1 `buildStandaloneGanttSvg` + `svgRect`/`svgLine`/`svgText` helpers in `gantt-panel.tsx`: background, month caption, row labels (own `<text>`, not in the live `<svg>`), the calendar axis (own `<text>` + weekend shading), a nested clone of the live `<svg>`, and the bar overlay text. Test: "downloads a well-formed, self-contained .svg carrying the chart's own marks" — parses with `DOMParser`, carries the row label and the axis month as text nothing but this build could have put there, and the bar's own literal `fill` (never a class) travels untouched.
+- [x] 1.2 `withInlineComputedStyle`: deep clone of the live `<svg>`, every class-carrying element's `fill`/`stroke`/`stroke-width`/`stroke-dasharray`/`fill-opacity`/`stroke-opacity`/`opacity` baked from `getComputedStyle` on the **original**, `class`/`role`/`tabindex` dropped. Test: "strips the class from every class-driven mark, even where jsdom cannot resolve a literal to replace it with" — jsdom loads no stylesheet, so the literal itself is a real browser's own proof (§"Watched, standalone" below); what a unit test can hold jsdom to is that the class is gone regardless.
+- [x] 1.3 `resolvedGanttTheme`: five custom properties read off `document.documentElement`'s current palette, with `FALLBACK_GANTT_THEME` (styles.css's own light literals) standing in wherever jsdom's empty `getComputedStyle` answer would otherwise leave the background or the hand-built text unpainted. Test: the background rect and the month caption's `fill` equal `FALLBACK_GANTT_THEME`'s literals under jsdom — checkable without a browser because this path never depends on a stylesheet either.
+
+## 2. The real-browser fault §1 could not see
+
+- [x] 2.1 **`data-gantt-bar`'s NUL, watched standalone, not injected.** Opening a real downloaded file in Chromium (§"Watched, standalone" below) drew the row labels and the axis and stopped: "invalid character in attribute value". `schedule.ts`'s slice id joins the work item and role with a NUL separator — a browser paints it without complaint and `XMLSerializer`'s own output a strict XML parser refuses. Fixed: `XML_INVALID_ATTR_CHARS` strips XML's forbidden C0 control range from every cloned attribute (not only `data-gantt-bar`), replaced with `-` rather than dropped so two ids differing only in the separator do not collide. No unit test reproduces this — jsdom's `DOMParser` never refused the byte the way Chromium's did; the negative case is the "before" screenshot in §"Watched, standalone".
+
+## 3. The entry point
+
+- [x] 3.1 A button in the panel's own sticky corner, beside `Detail` — `data-gantt-svg-download`, `aria-label="Download this chart as a standalone SVG"`. Test: "puts a download control in the panel corner, without a toolbar button". **The control this repo actually wants — beside `Copy as Mermaid` / `Download CSV` / `Download as Markdown` in `wbs-table.tsx`'s toolbar — is not added here**: this file may not touch that one. Named loudly in `proposal.md` and the PR description so it is not the P1 #65/#68 were.
+
+## 4. The record
+
+- [x] 4.1 `proposal.md`, this file, the delta spec, `verify.md`. **No `design.md`** and no citation table: PoC-mode contract, `notes/delivery-modes.md`.

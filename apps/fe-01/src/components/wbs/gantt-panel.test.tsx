@@ -21,6 +21,7 @@ import {
   CHART_PAD_PX,
   clampedGanttHeight,
   DAY_PX,
+  FALLBACK_GANTT_THEME,
   GANTT_CEILING_PX,
   GANTT_MIN_PX,
   GanttPanel,
@@ -4164,4 +4165,187 @@ describe('the height the panel is drawn at', () => {
     expect(panel.style.maxHeight).toBe('80vh');
     expect(panel.classList.contains('max-h-[40vh]')).toBe(false);
   });
+});
+
+describe('downloading the chart as a standalone .svg', () => {
+  /**
+   * What `URL.createObjectURL` was handed, and what an anchor was told to
+   * download — `wbs-table.test.tsx`'s `captureDownloads`, copied rather than
+   * imported: jsdom implements neither the object URL nor a download, so both
+   * are replaced for the length of a test and put back after.
+   */
+  const captureDownloads = (): { blobs: Blob[]; names: string[] } => {
+    const blobs: Blob[] = [];
+    const names: string[] = [];
+    const urls = URL as unknown as {
+      createObjectURL: (blob: Blob) => string;
+      revokeObjectURL: (url: string) => void;
+    };
+    urls.createObjectURL = (blob: Blob) => {
+      blobs.push(blob);
+      return `blob:gantt-${String(blobs.length)}`;
+    };
+    urls.revokeObjectURL = () => undefined;
+    HTMLAnchorElement.prototype.click = function capture(this: HTMLAnchorElement) {
+      names.push(this.download);
+    };
+    return { blobs, names };
+  };
+
+  afterEach(() => {
+    Reflect.deleteProperty(URL, 'createObjectURL');
+    Reflect.deleteProperty(URL, 'revokeObjectURL');
+    Reflect.deleteProperty(HTMLAnchorElement.prototype, 'click');
+  });
+
+  /** A blob's text, through `FileReader` — jsdom's `Blob` has no `text()`. */
+  const readBlobText = (blob: Blob): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const read = reader.result;
+        if (typeof read === 'string') resolve(read);
+        else reject(new Error('the downloaded blob read back as something other than text'));
+      };
+      reader.onerror = () => {
+        reject(new Error('the downloaded blob could not be read'));
+      };
+      reader.readAsText(blob);
+    });
+
+  const twoRolePlan = (): GanttPlan =>
+    planOf({
+      rows: [rowAt('hull', 0, 7, { number: '010', name: 'Hull' })],
+      slices: [
+        sliceAt('hull-dev', 'hull', 0, 7, { personId: 'kat' }),
+        sliceAt('hull-qa', 'hull', 7, 8, { roleId: 'qa' }),
+      ],
+      roles: [
+        { id: 'dev', name: 'Dev' },
+        { id: 'qa', name: 'QA' },
+      ],
+      personNames: new Map([['kat', 'Kat']]),
+    });
+
+  const clickDownload = (): void => {
+    const button = document.querySelector('[data-gantt-svg-download]');
+    if (!(button instanceof HTMLElement)) throw new Error('no download control on the panel');
+    fireEvent.click(button);
+  };
+
+  itDom('puts a download control in the panel corner, without a toolbar button', () => {
+    render(
+      <GanttPanel
+        plan={twoRolePlan()}
+        startDate={MONDAY_START}
+        scheduleError={null}
+        generation={0}
+        heightPx={null}
+        onPickRow={() => undefined}
+      />,
+    );
+    const button = document.querySelector('[data-gantt-svg-download]');
+    expect(button).not.toBeNull();
+    expect(button?.getAttribute('aria-label')).toBe('Download this chart as a standalone SVG');
+  });
+
+  itDom('downloads a well-formed, self-contained .svg carrying the chart’s own marks', async () => {
+    render(
+      <GanttPanel
+        plan={twoRolePlan()}
+        startDate={MONDAY_START}
+        scheduleError={null}
+        generation={0}
+        heightPx={null}
+        onPickRow={() => undefined}
+      />,
+    );
+    const { blobs, names } = captureDownloads();
+    clickDownload();
+
+    expect(names).toEqual([expect.stringMatching(/^gantt-chart-\d{4}-\d{2}-\d{2}\.svg$/)]);
+    expect(blobs).toHaveLength(1);
+    expect(blobs[0]?.type).toBe('image/svg+xml;charset=utf-8');
+
+    const text = await readBlobText(blobs[0]);
+    expect(text.startsWith('<?xml version="1.0" encoding="UTF-8"?>')).toBe(true);
+
+    const doc = new DOMParser().parseFromString(text, 'image/svg+xml');
+    expect(doc.querySelector('parsererror')).toBeNull();
+    const root = doc.documentElement;
+    expect(root.tagName).toBe('svg');
+    expect(root.getAttribute('xmlns')).toBe('http://www.w3.org/2000/svg');
+
+    // The row label and the axis's month caption — neither exists inside the
+    // live `<svg>` at all (design §1, "every word is HTML around it"), so
+    // their presence here is the one thing that cannot be a clone of
+    // anything.
+    expect(text).toContain('010 - Hull');
+    expect(text).toContain('Aug 2026');
+
+    // The geometry itself is a style-inlined clone: the mark survives with its
+    // own data attribute and the class is gone -- jsdom loads no stylesheet,
+    // so getComputedStyle on the live weekend band answers nothing to inline
+    // in its place. That the empty answer becomes a literal colour in a real
+    // browser is that browser's own proof (Playwright on h2puni, verify.md),
+    // not this one's.
+    const weekendBand = doc.querySelector('[data-gantt-weekend]');
+    expect(weekendBand).not.toBeNull();
+    expect(weekendBand?.getAttribute('class')).toBeNull();
+
+    // A bar's own colour is already literal in the live app -- a JSX
+    // fill={bar.personColor} attribute, never a class -- and travels
+    // untouched, which jsdom resolves exactly as a real browser does because
+    // nothing here depends on a stylesheet.
+    const bar = doc.querySelector('[data-gantt-bar="hull-dev"]');
+    expect(bar).not.toBeNull();
+    expect(bar?.getAttribute('fill')).toBe(PERSON_BAR_COLORS[0]);
+
+    // The theme actually resolved -- the background and the two hand-built
+    // text layers read it directly, never through a class, so jsdom's empty
+    // getComputedStyle answer falls back to FALLBACK_GANTT_THEME here and the
+    // exact literal is checkable without a browser.
+    expect(doc.querySelector('rect')?.getAttribute('fill')).toBe(FALLBACK_GANTT_THEME.background);
+    const monthText = [...doc.querySelectorAll('text')].find((t) => t.textContent === 'Aug 2026');
+    expect(monthText?.getAttribute('fill')).toBe(FALLBACK_GANTT_THEME.mutedForeground);
+
+    // The bar's own overlay text -- HTML on screen, <text> here -- carries the
+    // same words the live label span shows, read off the same pure helpers.
+    const liveLabel = document.querySelector('[data-gantt-bar-label="hull-dev"]');
+    expect(liveLabel?.textContent).not.toBeNull();
+    expect(text).toContain(liveLabel?.textContent ?? ' ');
+  });
+
+  itDom(
+    'strips the class from every class-driven mark, even where jsdom cannot resolve a literal to replace it with',
+    async () => {
+      render(
+        <GanttPanel
+          plan={twoRolePlan()}
+          startDate={MONDAY_START}
+          scheduleError={null}
+          generation={0}
+          heightPx={null}
+          onPickRow={() => undefined}
+        />,
+      );
+      const { blobs } = captureDownloads();
+      clickDownload();
+      const text = await readBlobText(blobs[0]);
+      const doc = new DOMParser().parseFromString(text, 'image/svg+xml');
+      // Every gridline is class-driven (stroke-border / stroke-border/40) in
+      // the live app -- none may reach the file still carrying that class,
+      // which would mean nothing outside the app it was drawn in.
+      const gridlines = [...doc.querySelectorAll('[data-gantt-gridline]')];
+      expect(gridlines.length).toBeGreaterThan(0);
+      for (const line of gridlines) {
+        expect(line.getAttribute('class')).toBeNull();
+      }
+      // Nor may role/tabindex -- a keyboard control in the app the file has
+      // nothing behind, in a document with no reason to claim one.
+      const anyBar = doc.querySelector('[data-gantt-bar]');
+      expect(anyBar?.getAttribute('role')).toBeNull();
+      expect(anyBar?.getAttribute('tabindex')).toBeNull();
+    },
+  );
 });
