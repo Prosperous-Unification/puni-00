@@ -173,8 +173,9 @@ assertion rather than in the query.
 Fixed by keying the answer by work item and asserting the length beside it, so
 the case cannot depend on an order the repository never promised across work
 items. Re-run five times on h2puni, and F9 re-watched against the new form:
-`Expected: 8 / Received: undefined`, still 2 fail. **Head `<final>`, run
-`<final-id>` — quoted in the PR.**
+`Expected: 8 / Received: undefined`, still 2 fail. **Head `d03e450`, run
+`32066617736` — `success`, both jobs, first attempt.** be-01 is 829 pass / 0 fail
+there and every number in the table above holds at that head.
 
 Worth saying plainly: the code was not wrong, the check was, and it was a check
 that could pass for the wrong reason — the same failure mode as F9a two sections
