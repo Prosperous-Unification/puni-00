@@ -12009,3 +12009,280 @@ describe('a phase changing, and what the table does about it', () => {
     expect(refusedDraftFor('w1::role-qa-final')).toBeUndefined();
   });
 });
+
+describe('narrowing the plan by facet', () => {
+  /**
+   * The `finding a work item in the tree` plan, with facts on it:
+   *
+   * ```
+   * 010     Strip the walls   Billing, Ada on Dev, priority 10 (Critical)
+   *  010.1   Sockets
+   *   010.1.1 Back boxes      Wiring
+   *  010.2   Skirting
+   * 020     Paint             Dev and QA estimated
+   *  020.1   Undercoat
+   * ```
+   *
+   * Two teams and two people in the directory rather than one each, because the
+   * question a facet control gets wrong is which of them it offers: the
+   * directory holds every team in the deployment and this is one plan.
+   */
+  async function aFacetedPlan(): Promise<ProjectApi & { rows: WorkItemView[] }> {
+    const api = fakeApi();
+    const strip = await api.create('p1', {
+      parentId: null,
+      afterId: null,
+      name: 'Strip the walls',
+    });
+    const sockets = await api.create('p1', { parentId: strip.id, afterId: null, name: 'Sockets' });
+    const back = await api.create('p1', {
+      parentId: sockets.id,
+      afterId: null,
+      name: 'Back boxes',
+    });
+    await api.create('p1', { parentId: strip.id, afterId: sockets.id, name: 'Skirting' });
+    const paint = await api.create('p1', { parentId: null, afterId: strip.id, name: 'Paint' });
+    await api.create('p1', { parentId: paint.id, afterId: null, name: 'Undercoat' });
+
+    const billing = await api.addTeam('Billing');
+    const wiring = await api.addTeam('Wiring');
+    // Only one of the two is on the plan, which is what the control must offer.
+    await api.patch(strip.id, { serviceTeamId: billing.id });
+    await api.patch(back.id, { serviceTeamId: wiring.id });
+    const ada = await api.addPerson('Ada', []);
+    await api.addPerson('Bo', []);
+    await api.assign(strip.id, DEV.id, ada.id);
+    await api.patch(strip.id, { priority: 10 });
+    await api.setEstimate(paint.id, DEV.id, { optimistic: 1, realistic: 2, pessimistic: 3 });
+    await api.setEstimate(paint.id, QA.id, { optimistic: 1, realistic: 2, pessimistic: 3 });
+
+    render(<WbsTable projectId="p1" api={api} />);
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '010.1', '010.1.1', '010.2', '020', '020.1']);
+    });
+    return api;
+  }
+
+  const openFilters = () => {
+    fireEvent.click(screen.getByText(/^Filters/));
+  };
+
+  const tick = (label: string) => {
+    fireEvent.click(screen.getByLabelText(label));
+  };
+
+  const find = (typed: string) => {
+    fireEvent.change(screen.getByLabelText<HTMLInputElement>('Find'), {
+      target: { value: typed },
+    });
+  };
+
+  itDom('narrows to the rows carrying a team, and keeps the rows that place them', async () => {
+    await aFacetedPlan();
+    openFilters();
+
+    tick('Team Wiring');
+
+    // `010` and `010.1` are context, exactly as they are under a typed name:
+    // a hit three levels down with no ancestry is a tree lying about itself.
+    expect(numbersOnScreen()).toEqual(['010', '010.1', '010.1.1']);
+    expect(screen.getByLabelText('Name of 010.1.1').dataset['match']).toBe('true');
+    expect(screen.getByLabelText('Name of 010.1').dataset['match']).toBeUndefined();
+  });
+
+  itDom('does not bring the subtree a typed name would bring', async () => {
+    // R10 §4 and §9's Q2, Dany 2026-08-17: `Strip` means the branch, and
+    // `assignee = Ada` means the rows Ada is on. The same row matched both
+    // ways, and only one of them is a request for the work underneath.
+    //
+    // Ada and not `Team Billing`, which is what this was first written with and
+    // is the wrong facet to ask the question through: the team facet reads the
+    // **effective** team, so `010.1` and `010.2` carry Billing on their own
+    // account by inheritance and stay on screen for a reason that has nothing
+    // to do with rule 3. An assignee does not inherit — `row.assignees` is the
+    // row's own — so what is left when Ada is ticked is rule 3 and nothing else.
+    await aFacetedPlan();
+    find('strip');
+    expect(numbersOnScreen()).toEqual(['010', '010.1', '010.1.1', '010.2']);
+
+    find('');
+    openFilters();
+    tick('Assignee Ada');
+
+    expect(numbersOnScreen()).toEqual(['010']);
+  });
+
+  itDom('keeps the rows that inherit a ticked team, which is not rule 3', async () => {
+    // The other half of the pair above, and the trap §8.5 names: a leaf drawing
+    // its slots from an ancestor's pool is that team's work, so it answers the
+    // facet itself. `010.1.1` is out because it carries a team of its own —
+    // most-specific-wins, `effectiveTeamsOf`'s rule, not the filter's.
+    await aFacetedPlan();
+    openFilters();
+
+    tick('Team Billing');
+
+    expect(numbersOnScreen()).toEqual(['010', '010.1', '010.2']);
+  });
+
+  itDom('drops the subtree the moment a facet joins a name that was bringing one', async () => {
+    await aFacetedPlan();
+    find('strip');
+    expect(numbersOnScreen()).toEqual(['010', '010.1', '010.1.1', '010.2']);
+
+    openFilters();
+    tick('Team Billing');
+
+    expect(numbersOnScreen()).toEqual(['010']);
+  });
+
+  itDom('takes a person on any phase, a band by its name, and a phase’s estimate', async () => {
+    await aFacetedPlan();
+    openFilters();
+
+    tick('Assignee Ada');
+    expect(numbersOnScreen()).toEqual(['010']);
+    tick('Assignee Ada');
+
+    tick('Priority Critical');
+    expect(numbersOnScreen()).toEqual(['010']);
+    tick('Priority Critical');
+
+    tick('Estimated for QA');
+    expect(numbersOnScreen()).toEqual(['020']);
+  });
+
+  itDom('takes only the rows answering every facet ticked', async () => {
+    await aFacetedPlan();
+    openFilters();
+
+    tick('Team Billing');
+    tick('Estimated for Dev');
+
+    // `010` is Billing's and has no estimate; `020` has both estimates and no
+    // team. Nothing answers both, and the table says so rather than showing a
+    // plan that looks emptied.
+    expect(numbersOnScreen()).toEqual([]);
+    expect(screen.getByText('0 of 6 rows')).toBeInTheDocument();
+    expect(screen.getByText('No rows match these filters')).toBeInTheDocument();
+  });
+
+  itDom('offers only the teams and the people this plan carries', async () => {
+    // The directory holds `Wiring` **and** `Billing`, `Ada` **and** `Bo`; a
+    // checkbox for a value no row has is a filter whose only answer is an
+    // empty table.
+    await aFacetedPlan();
+    openFilters();
+
+    expect(screen.getByLabelText('Team Billing')).toBeInTheDocument();
+    expect(screen.getByLabelText('Team Wiring')).toBeInTheDocument();
+    expect(screen.getByLabelText('Assignee Ada')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Assignee Bo')).toBeNull();
+    // Nobody has been given `Low`, so the ladder's other four rungs are not
+    // offered either.
+    expect(screen.getByLabelText('Priority Critical')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Priority Low')).toBeNull();
+  });
+
+  itDom('says how many facets are ticked, and clears them all in one', async () => {
+    await aFacetedPlan();
+    openFilters();
+    tick('Team Billing');
+    tick('Priority Critical');
+    expect(screen.getByText('Filters (2)')).toBeInTheDocument();
+
+    click('Clear filters');
+
+    expect(numbersOnScreen()).toEqual(['010', '010.1', '010.1.1', '010.2', '020', '020.1']);
+    expect(screen.getByText('Filters')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Clear filters' })).toBeNull();
+  });
+
+  itDom('leaves the Find box alone when the ticks are cleared', async () => {
+    // Two gestures, and each undoes its own half: Escape empties the box, and
+    // this unticks the boxes. One control undoing the other's work is how a
+    // reader loses a query they were still using.
+    await aFacetedPlan();
+    find('paint');
+    openFilters();
+    tick('Estimated for QA');
+
+    click('Clear filters');
+
+    expect(screen.getByLabelText<HTMLInputElement>('Find').value).toBe('paint');
+    // `020.1 Undercoat` back with it, and that is the second thing this proves:
+    // with the ticks gone the filter is a typed name again, so rule 3 is in
+    // force again and `Paint` brings the work it is a heading for.
+    expect(numbersOnScreen()).toEqual(['020', '020.1']);
+  });
+
+  itDom('stands the expansion controls down while a facet is on with nothing typed', async () => {
+    // The controls read one flag, and until R10 that flag was the query alone:
+    // a facet-only filter would have left `Collapse all` live over an
+    // expansion the filter owns, and the triangles on rows the filter opened.
+    await aFacetedPlan();
+    openFilters();
+
+    tick('Team Wiring');
+
+    expect(screen.getByRole('button', { name: 'Collapse all' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Expand all' })).toBeDisabled();
+    expect(screen.queryByRole('button', { name: 'Collapse 010' })).toBeNull();
+  });
+
+  itDom('narrows the chart with the table, because they are one list', async () => {
+    // The half of Dany's sentence that reads like the hard part — "must affect
+    // the gantt chart to only show what matches with the filter" — and it costs
+    // nothing, because `shownRows` is what the panel is drawn from and a facet
+    // narrows the same list a name already did (`gantt-panel.test.tsx`'s
+    // `draws exactly the rows a search narrowed the plan to`, watched
+    // 2026-08-09). Asserted here anyway: "for free" is a claim about a seam,
+    // and a seam nothing holds is how the next change quietly re-routes it.
+    await aFacetedPlan();
+    fireEvent.click(screen.getByRole('button', { name: 'Gantt' }));
+    await screen.findByLabelText('Gantt chart');
+
+    openFilters();
+    tick('Team Wiring');
+
+    expect(
+      [...document.querySelectorAll('[data-gantt-label]')].map((label) => label.textContent),
+    ).toEqual(['010 - Strip the walls', '010.1 - Sockets', '010.1.1 - Back boxes']);
+  });
+
+  itDom('keeps offering a ticked team after the last row carrying it has gone', async () => {
+    // The tree refetches on everybody's edit, so the row a tick is aimed at can
+    // leave while the tick is still in force. Dropping the box then would
+    // narrow the plan to nothing with nothing on screen to untick.
+    await aFacetedPlan();
+    openFilters();
+    tick('Team Wiring');
+    expect(numbersOnScreen()).toEqual(['010', '010.1', '010.1.1']);
+
+    takeRowAction('010.1.1', 'Delete');
+
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual([]);
+    });
+    expect(screen.getByLabelText('Team Wiring')).toBeChecked();
+  });
+
+  itDom('is empty on the next load, because an ad-hoc filter is not remembered', async () => {
+    // R10 §9's Q6, Dany 2026-08-17: the plan you open is the whole plan. A
+    // filter restored from a session nobody remembers setting is the "my rows
+    // are gone" report, and it is the likeliest thing this change could break.
+    const api = await aFacetedPlan();
+    openFilters();
+    tick('Team Wiring');
+    expect(numbersOnScreen()).toEqual(['010', '010.1', '010.1.1']);
+
+    cleanup();
+    render(<WbsTable projectId="p1" api={api} />);
+
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '010.1', '010.1.1', '010.2', '020', '020.1']);
+    });
+    openFilters();
+    expect(screen.getByLabelText('Team Wiring')).not.toBeChecked();
+  });
+});

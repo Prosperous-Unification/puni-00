@@ -8,6 +8,7 @@ import {
   useReactTable,
 } from '@tanstack/react-table';
 import { effectiveTeamsOf } from '@wbs/domain/effective-team';
+import { priorityBandOf } from '@wbs/domain/priority-band';
 import { workdaysBetween } from '@wbs/domain/workday';
 import {
   type ComponentProps,
@@ -123,7 +124,14 @@ import {
 } from './table-frame';
 import { TeamsDialog, teamsOnThePlan } from './teams-dialog';
 import { type Toast, toastKey, ToastStack, useToasts } from './toasts';
-import { searchTree } from './tree-search';
+import {
+  type FacetCriteria,
+  type FilterCriteria,
+  isFiltering,
+  type NarrowableRow,
+  narrowTree,
+  NO_FACETS,
+} from './tree-search';
 import { toTree, type TreeRow } from './wbs-rows';
 
 export interface WbsTableProps {
@@ -1360,6 +1368,205 @@ declare module '@tanstack/react-table' {
   }
 }
 
+/** One tickable value of one facet: what to filter by, and what to call it. */
+interface FacetOption {
+  id: string;
+  label: string;
+}
+
+/** How many facet values are ticked, which is what the control says on itself. */
+function facetsChosen(facets: FacetCriteria): number {
+  return (
+    facets.teamIds.length +
+    facets.assigneeIds.length +
+    facets.priorityBands.length +
+    facets.estimatedRoleIds.length +
+    (facets.unestimated ? 1 : 0) +
+    (facets.critical ? 1 : 0)
+  );
+}
+
+/** A value ticked or unticked, as a new list — the state here is never mutated in place. */
+const toggledIn = (chosen: readonly string[], id: string): string[] =>
+  chosen.includes(id) ? chosen.filter((each) => each !== id) : [...chosen, id];
+
+/**
+ * What one facet offers, for the two facets whose values have no order of their
+ * own: the teams and the people on this plan.
+ *
+ * **The plan's values, plus whatever is still ticked.** `present` is what the
+ * rows on screen actually carry, so a facet never offers a value whose only
+ * possible answer is an empty table. But the tree refetches on everybody's
+ * edit, so the row a tick was aimed at can leave while the tick is still in
+ * force — and dropping the box then would narrow the plan to nothing with
+ * nothing on screen to untick. So a ticked value is offered whether the plan
+ * still carries it or not.
+ *
+ * By label, because neither teams nor people have a meaning in the order be-01
+ * happens to return them in — unlike the bands, which are a ladder, and the
+ * phases, which are the order of the columns they estimate. Those two keep
+ * their own order and do not come through here.
+ */
+function optionsFor(
+  present: ReadonlySet<string>,
+  picked: readonly string[],
+  labelOf: (id: string) => string,
+): FacetOption[] {
+  return [...new Set([...present, ...picked])]
+    .map((id) => ({ id, label: labelOf(id) }))
+    .sort((left, right) => left.label.localeCompare(right.label));
+}
+
+/**
+ * The six facets a reader can narrow the plan by, beside the Find box.
+ *
+ * **A `<details>` and not a positioned popover**, for the reason
+ * `plan-cards.tsx`'s phase breakdown is one: it needs no measurement, no
+ * pointer-type guard and no dismiss handler, and a tap is what opens one
+ * already — which is what makes this control work unchanged inside the phone's
+ * `Plan actions` sheet, where a `<summary>` and a checkbox are not the
+ * `<button>` that closes it (`closingControlIn`).
+ *
+ * **Every list is the plan's own.** The teams are the effective teams somebody
+ * on this plan carries, the people are the ones be-01 says are assigned on it,
+ * the bands are this project's ladder and the phases are its roles. A facet
+ * offering a value no row has is a filter whose only possible answer is an
+ * empty table.
+ *
+ * The narrowing itself is not here and must not be: this writes criteria, and
+ * `narrowTree` is the one thing that reads them.
+ */
+function FilterFacets({
+  facets,
+  setFacets,
+  teams,
+  people,
+  bands,
+  phases,
+}: {
+  facets: FacetCriteria;
+  setFacets: (next: FacetCriteria) => void;
+  teams: readonly FacetOption[];
+  people: readonly FacetOption[];
+  bands: readonly FacetOption[];
+  phases: readonly FacetOption[];
+}) {
+  const chosen = facetsChosen(facets);
+  /** One group of tick boxes, or nothing at all where the plan offers none. */
+  const group = (
+    title: string,
+    kind: string,
+    options: readonly FacetOption[],
+    picked: readonly string[],
+    take: (next: string[]) => FacetCriteria,
+  ): ReactNode =>
+    options.length === 0 ? null : (
+      <fieldset data-facet-group={kind} className="mb-2 border-0 p-0">
+        <legend className="text-muted-foreground mb-1 text-xs font-semibold">{title}</legend>
+        {options.map((option) => (
+          <label key={option.id} className="flex min-h-6 items-center gap-1.5">
+            <input
+              type="checkbox"
+              // Named by its facet as well as its value: a team and a person
+              // may share a name, and two boxes with one label is a control
+              // neither a reader nor a test can aim at.
+              aria-label={`${title} ${option.label}`}
+              checked={picked.includes(option.id)}
+              onChange={() => {
+                setFacets(take(toggledIn(picked, option.id)));
+              }}
+            />
+            <span className="truncate">{option.label}</span>
+          </label>
+        ))}
+      </fieldset>
+    );
+
+  return (
+    <details data-facets className="relative">
+      <summary
+        className="border-input h-8 cursor-pointer rounded-md border px-2 py-1 text-xs select-none"
+        title="Narrow the plan to the rows carrying these — the table, the chart and the cards together"
+      >
+        Filters{chosen > 0 ? ` (${String(chosen)})` : ''}
+      </summary>
+      {/*
+        Over the plan rather than in the toolbar's flow: this row already wraps
+        at 1245px of controls, and a panel opening inside it would push the
+        table down the page every time somebody looked at what was ticked.
+      */}
+      <div
+        data-facet-panel
+        className="bg-popover absolute z-50 mt-1 max-h-80 w-56 overflow-y-auto rounded-md border p-3 text-sm shadow-md"
+      >
+        {group('Team', 'team', teams, facets.teamIds, (teamIds) => ({ ...facets, teamIds }))}
+        {group('Assignee', 'assignee', people, facets.assigneeIds, (assigneeIds) => ({
+          ...facets,
+          assigneeIds,
+        }))}
+        {group('Priority', 'priority', bands, facets.priorityBands, (priorityBands) => ({
+          ...facets,
+          priorityBands,
+        }))}
+        {group('Estimated for', 'phase', phases, facets.estimatedRoleIds, (estimatedRoleIds) => ({
+          ...facets,
+          estimatedRoleIds,
+        }))}
+        <fieldset data-facet-group="state" className="mb-2 border-0 p-0">
+          <legend className="text-muted-foreground mb-1 text-xs font-semibold">State</legend>
+          <label className="flex min-h-6 items-center gap-1.5">
+            <input
+              type="checkbox"
+              aria-label="Unestimated only"
+              checked={facets.unestimated}
+              onChange={() => {
+                setFacets({ ...facets, unestimated: !facets.unestimated });
+              }}
+            />
+            {/*
+              The readiness badge's own count, said as a filter: the same
+              `gaps.leaves` the button beside it reports, so the two cannot
+              describe two different plans.
+            */}
+            <span>Unestimated</span>
+          </label>
+          <label className="flex min-h-6 items-center gap-1.5">
+            <input
+              type="checkbox"
+              aria-label="Critical path only"
+              checked={facets.critical}
+              onChange={() => {
+                setFacets({ ...facets, critical: !facets.critical });
+              }}
+            />
+            <span>On the critical path</span>
+          </label>
+        </fieldset>
+        {/*
+          Offered only while there is something to forget, the same bargain
+          `Reset layout` makes: a control that provably does nothing reads as a
+          broken one. It clears the ticks and not the Find box — Escape in the
+          box is how the typed half is left, and one control undoing the other's
+          work is how a reader loses a query they were still using.
+        */}
+        {chosen > 0 && (
+          <Button
+            variant="outline"
+            size="sm"
+            type="button"
+            title="Untick every filter. The Find box is left as it is."
+            onClick={() => {
+              setFacets(NO_FACETS);
+            }}
+          >
+            Clear filters
+          </Button>
+        )}
+      </div>
+    </details>
+  );
+}
+
 /**
  * The work breakdown: one grid that is a table and a nested list at once.
  *
@@ -1475,12 +1682,28 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
   /**
    * What has been typed into the Find box.
    *
-   * The narrowing itself is not state: it is {@link searchTree} of the rows on
+   * The narrowing itself is not state: it is {@link narrowTree} of the rows on
    * screen and this string, re-derived every render. A remembered answer would
    * narrow to a plan that no longer exists — every edit by anybody refetches
    * the whole tree.
    */
   const [query, setQuery] = useState('');
+  /**
+   * Which facets are ticked beside the Find box — the other six of R10's seven
+   * fields.
+   *
+   * `useState` and nothing else, deliberately: **an ad-hoc filter is not
+   * remembered across a reload** (R10 §9's Q6, Dany 2026-08-17). The plan you
+   * open is the whole plan; a filter restored from a session you do not
+   * remember setting is the "my rows are gone" report, and it is the single
+   * most likely support question this change could create. Named, deliberate
+   * criteria you come back to are saved views — F4, and the opposite gesture.
+   *
+   * Not the URL either: which project is open lives in localStorage
+   * (`project-page.tsx`) and `/` names none of it, so there is nothing here a
+   * link could carry to somebody else yet.
+   */
+  const [facets, setFacets] = useState<Omit<FilterCriteria, 'query'>>(NO_FACETS);
   /**
    * What happened, in the corner, one message per event.
    *
@@ -2466,8 +2689,13 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    *
    * Over `flat` and not `shownRows`: an ancestor a search or a collapse has
    * taken off screen still labels the work under it.
+   *
+   * Memoised on the tree since R10: it is one of the seven facts the filter
+   * narrows on, so a fresh `Map` on every render would rebuild the narrowed
+   * tree on every keystroke in any cell of the table, not only on a change to
+   * the filter.
    */
-  const effectiveTeams = effectiveTeamsOf(flat);
+  const effectiveTeams = useMemo(() => effectiveTeamsOf(flat), [flat]);
 
   /**
    * A row's team as a cell or a bar can state it: its own label, or the one it
@@ -2519,31 +2747,6 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
   }, [flat]);
 
   /**
-   * What the Find box is asking for: which rows stay, which of them are hits,
-   * and what has to be open to show them.
-   *
-   * A pure function of the rows on screen and the query, memoised only so the
-   * table's own row model is not rebuilt on every unrelated render — never
-   * cached across a change to either. A structural edit refetches the tree and
-   * this narrows the tree that came back, which is why a row moved out of the
-   * match set disappears from the narrowed view.
-   */
-  const search = useMemo(() => searchTree(flat, query), [flat, query]);
-  /**
-   * Whether a search is on — which is the query having something in it other
-   * than spaces, and is exactly when {@link searchTree} hands back an overlay.
-   *
-   * One source of truth rather than a second trim beside it, which is how two
-   * answers to one question start to disagree.
-   */
-  const searching = search.expandedOverlay !== null;
-
-  const siblingsOf = useCallback(
-    (parentId: string | null) => flat.filter((row) => row.parentId === parentId),
-    [flat],
-  );
-
-  /**
    * What this plan is still short of, per leaf and per role.
    *
    * Recomputed from the tree on screen rather than tracked, for the reason
@@ -2552,6 +2755,136 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    * one.
    */
   const gaps = useMemo(() => findEstimateGaps(flat, roles), [flat, roles]);
+  /**
+   * The rows the readiness badge counts, as a set the filter can ask.
+   *
+   * The badge's own answer and not a second one: "unestimated" on a checkbox
+   * and `12 unestimated` on the button beside it are the same claim, and two
+   * readings of it would be two plans.
+   */
+  const unestimatedIds = useMemo(() => new Set(gaps.leaves.map((leaf) => leaf.rowId)), [gaps]);
+
+  /**
+   * Everything the filter is allowed to ask about, one entry per row.
+   *
+   * Built here rather than inside {@link narrowTree} because every one of the
+   * seven facts is already in scope on this component and none of them is the
+   * tree walker's business: the walker's job is ancestors, descendants and
+   * termination, and a walker that also knew what a priority band was would be
+   * two things.
+   *
+   * **The effective team and not `row.teamIds`** — see {@link RowFacets}. The
+   * unestimated set is the readiness badge's own `gaps`, so the facet and the
+   * badge beside it cannot report two different plans.
+   */
+  const narrowable = useMemo<NarrowableRow[]>(
+    () =>
+      flat.map((row) => ({
+        id: row.id,
+        name: row.name,
+        parentId: row.parentId,
+        facets: {
+          teamIds: effectiveTeams.get(row.id)?.teamIds ?? [],
+          // Deduplicated: one person on three phases is one person to filter
+          // by, and `includes` over a list with them in it three times is the
+          // same answer paid for three times on every keystroke.
+          assigneeIds: [
+            ...new Set(Object.values(row.assignees).filter((id): id is string => id !== undefined)),
+          ],
+          // Null and not a band: a row nobody has prioritised carries no rung,
+          // and `priorityBandOf` is asked about numbers only.
+          priorityBand:
+            row.priority === null
+              ? null
+              : (priorityBandOf(priorityBands, row.priority)?.label ?? null),
+          // `Object.hasOwn` and not a truthy test, which is `findEstimateGaps`'
+          // own rule: a stored `0 / 0 / 0` is somebody saying this costs
+          // nothing, which is an answer and not an absence.
+          estimatedRoleIds: roles
+            .filter((role) => Object.hasOwn(row.estimates, role.id))
+            .map((role) => role.id),
+          unestimated: unestimatedIds.has(row.id),
+          // be-01's own answer for the row, not a second reading of the
+          // slices: a row is on the critical path when its work is, and the
+          // Slack cell and the card both already print this field.
+          critical: row.schedule.critical,
+        },
+      })),
+    [flat, effectiveTeams, priorityBands, roles, unestimatedIds],
+  );
+
+  /**
+   * What the filter is asking for: which rows stay, which of them are hits,
+   * and what has to be open to show them.
+   *
+   * A pure function of the rows on screen and the criteria, memoised only so
+   * the table's own row model is not rebuilt on every unrelated render — never
+   * cached across a change to either. A structural edit refetches the tree and
+   * this narrows the tree that came back, which is why a row moved out of the
+   * match set disappears from the narrowed view.
+   */
+  const criteria = useMemo<FilterCriteria>(() => ({ query, ...facets }), [query, facets]);
+  const search = useMemo(() => narrowTree(narrowable, criteria), [narrowable, criteria]);
+  /**
+   * Whether a filter is on — a query with something in it other than spaces,
+   * or any facet ticked, and exactly when {@link narrowTree} hands back an
+   * overlay.
+   *
+   * One source of truth rather than a second trim beside it, which is how two
+   * answers to one question start to disagree. Read through {@link isFiltering}
+   * rather than off the overlay so the controls that stand down while a filter
+   * is on do not have to hold a narrowed tree to ask.
+   */
+  const filtering = isFiltering(criteria);
+
+  const facetTeams = useMemo(
+    () =>
+      optionsFor(
+        new Set(narrowable.flatMap((row) => row.facets.teamIds)),
+        facets.teamIds,
+        (id) =>
+          // The Team cell's own sentence for a label the directory read has
+          // not caught up with, rather than a blank box.
+          teams.find((team) => team.id === id)?.name ?? 'a team this plan has not loaded',
+      ),
+    [narrowable, facets.teamIds, teams],
+  );
+  const facetPeople = useMemo(
+    () =>
+      optionsFor(
+        new Set(narrowable.flatMap((row) => row.facets.assigneeIds)),
+        facets.assigneeIds,
+        // The names that came with the tree, which is be-01's own list of who
+        // is assigned on this plan — not the directory's list of everybody.
+        (id) =>
+          chartRead.people.find((person) => person.id === id)?.name ??
+          'somebody this plan has not loaded',
+      ),
+    [narrowable, facets.assigneeIds, chartRead.people],
+  );
+  /** In the ladder's order, which is the order the bands mean something in. */
+  const facetBands = useMemo(() => {
+    const present = new Set(
+      narrowable.flatMap((row) =>
+        row.facets.priorityBand === null ? [] : [row.facets.priorityBand],
+      ),
+    );
+    return priorityBands
+      .filter((band) => present.has(band.label) || facets.priorityBands.includes(band.label))
+      .map((band) => ({ id: band.label, label: band.label }));
+  }, [narrowable, priorityBands, facets.priorityBands]);
+  /** In the phase list's order, which is the order of the columns they estimate. */
+  const facetPhases = useMemo(() => {
+    const present = new Set(narrowable.flatMap((row) => row.facets.estimatedRoleIds));
+    return roles
+      .filter((role) => present.has(role.id) || facets.estimatedRoleIds.includes(role.id))
+      .map((role) => ({ id: role.id, label: role.name }));
+  }, [narrowable, roles, facets.estimatedRoleIds]);
+
+  const siblingsOf = useCallback(
+    (parentId: string | null) => flat.filter((row) => row.parentId === parentId),
+    [flat],
+  );
 
   /**
    * Every fact about this plan that a column's width is allowed to depend on.
@@ -4505,7 +4838,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     assigneeOn,
     waitsFor,
     matchIds: search.matchIds,
-    searching,
+    filtering,
   });
   live.current = {
     api,
@@ -4573,7 +4906,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     assigneeOn,
     waitsFor,
     matchIds: search.matchIds,
-    searching,
+    filtering,
   };
 
   const columns = useMemo(
@@ -4646,7 +4979,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
               touch, so a click here would appear to do nothing.
             */}
             <span data-caret-gutter style={{ display: 'inline-block', width: CARET_GUTTER_PX }}>
-              {row.getCanExpand() && !live.current.searching ? (
+              {row.getCanExpand() && !live.current.filtering ? (
                 <button
                   type="button"
                   aria-label={`${row.getIsExpanded() ? 'Collapse' : 'Expand'} ${row.original.number}`}
@@ -6966,10 +7299,10 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         variant="outline"
         size="sm"
         type="button"
-        disabled={searching}
+        disabled={filtering}
         title={
-          searching
-            ? 'Clear the Find box first — a search opens whatever it has to.'
+          filtering
+            ? 'Clear the filter first — a filter opens whatever it has to.'
             : 'Close every branch'
         }
         onClick={() => {
@@ -6982,10 +7315,10 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         variant="outline"
         size="sm"
         type="button"
-        disabled={searching}
+        disabled={filtering}
         title={
-          searching
-            ? 'Clear the Find box first — a search opens whatever it has to.'
+          filtering
+            ? 'Clear the filter first — a filter opens whatever it has to.'
             : 'Open every branch'
         }
         onClick={() => {
@@ -7104,19 +7437,40 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
           setQuery('');
         }}
       />
-      {searching && (
+      {/*
+        The other six of R10's seven fields. Beside the Find box because they
+        are the same act — narrowing the plan — and the count below counts what
+        all seven left, not what each one did.
+      */}
+      <FilterFacets
+        facets={facets}
+        setFacets={setFacets}
+        teams={facetTeams}
+        people={facetPeople}
+        bands={facetBands}
+        phases={facetPhases}
+      />
+      {filtering && (
         <span role="status" className="text-muted-foreground text-sm">
           {shownRows.length} of {flat.length} rows
         </span>
       )}
       {/*
         Said out loud rather than left to an empty table, which reads as a
-        plan that has been lost rather than a search that found nothing. The
+        plan that has been lost rather than a filter that found nothing. The
         count beside it stays, so `0 of 12 rows` says the twelve are still
         there.
+
+        Two sentences, because a filter with nothing typed into it has no
+        query to quote: `No matches for “”` would be a question mark where the
+        reason should be.
       */}
-      {searching && search.matchIds.size === 0 && (
-        <span className="text-sm">No matches for “{query}”</span>
+      {filtering && search.matchIds.size === 0 && (
+        <span className="text-sm">
+          {query.trim() === ''
+            ? 'No rows match these filters'
+            : `No matches for “${query}”${facetsChosen(facets) > 0 ? ' with these filters' : ''}`}
+        </span>
       )}
       {/*
         How ready this plan is to be read, and the way to the rows that make
@@ -7515,9 +7869,14 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
             // No triangle while a search is on, for the reason the Number
             // column gives: what is open during a search is the search's own
             // answer, and a control that appeared to do nothing reads as broken.
-            expandable: row.getCanExpand() && !searching,
+            expandable: row.getCanExpand() && !filtering,
             expanded: row.getIsExpanded(),
             toggleBranch: row.getToggleExpandedHandler(),
+            // The same set the table's Name cell marks from, so a plan read on
+            // a phone and on a laptop marks the same rows. Read straight here
+            // rather than through `live`: the cards are not a memoised column
+            // definition, and there is no per-keystroke remount to protect.
+            matched: search.matchIds.has(row.id),
           }))}
           roles={roles}
           priorityBands={priorityBands}

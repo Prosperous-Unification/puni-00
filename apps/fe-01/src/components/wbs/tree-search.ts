@@ -1,47 +1,179 @@
 import type { ExpandedState } from '@tanstack/react-table';
 
-/** A work item as the search reads it: what it is called, and where it hangs. */
-export interface SearchableRow {
+/**
+ * The facts about one work item a filter is allowed to ask about — the seven
+ * of R10 §9's Q8, and nothing else.
+ *
+ * **Every one of them is already on the wire**, and that is why this interface
+ * is a description rather than a fetch: the whole tree is client-side, so
+ * `wbs-table.tsx` reads each field off the row it already holds and hands the
+ * answers over. `status` is deliberately absent — there is no such field in
+ * `work_item` or in `WorkItemView`, and deriving one from "has dates" or
+ * "fully estimated" would put a word on screen the data does not support
+ * (`notes/wbs-brief-2026-08-17-r10-filtering.md` §1, §8.8).
+ *
+ * The grain is a **row**, never a slice. Assignee, phase and critical are facts
+ * about a slice; a row carries the union of its slices' answers, so a row
+ * matches when *any* of its work does and every one of its bars is then drawn.
+ * Filtering at slice grain would draw a row with some of its bars removed,
+ * which under-reports the row's span and makes the summary bracket a lie (§4).
+ */
+export interface RowFacets {
+  /**
+   * The teams whose work this is — the **effective**, inherited reading
+   * (`effectiveTeamsOf`), never the row's own stored label.
+   *
+   * A leaf that draws its slots from an ancestor's pool would otherwise vanish
+   * from a filter for the team whose people are doing its work. The
+   * stored-versus-effective distinction has already caused that class of bug
+   * twice in this repo (§8.5).
+   */
+  teamIds: readonly string[];
+  /** Everybody named on any of this row's phases, deduplicated. */
+  assigneeIds: readonly string[];
+  /** What this plan's ladder calls this row's priority, or null where nobody has said. */
+  priorityBand: string | null;
+  /** The phases this row carries an estimate for — `Object.hasOwn`, the same reading `findEstimateGaps` makes. */
+  estimatedRoleIds: readonly string[];
+  /** Whether this row is one of the leaves the readiness badge counts. */
+  unestimated: boolean;
+  /** Whether any of this row's work is on the critical path. */
+  critical: boolean;
+}
+
+/** A work item as the filter reads it: what it is called, where it hangs, and what it is. */
+export interface NarrowableRow {
   id: string;
   name: string;
   parentId: string | null;
+  facets: RowFacets;
 }
 
 /**
- * What one query does to the tree.
+ * What is being asked of the plan: a typed name, and any of six facets.
+ *
+ * **Within one facet the chosen values are OR** — two teams ticked is "either
+ * of these teams", which is what a list of checkboxes means anywhere else.
+ * **Across facets, and against the name, it is AND**: every active criterion
+ * has to hold, because each tick a reader adds is a narrowing they asked for,
+ * and a filter that widened as you ticked would be unusable.
+ *
+ * An empty list, an empty string and `false` each mean **that criterion is not
+ * being asked about at all** — not "nothing matches it". There is deliberately
+ * no separate "is this facet on" flag: two ways to say the same thing is how
+ * the control and the predicate start to disagree.
+ */
+export interface FilterCriteria {
+  query: string;
+  teamIds: readonly string[];
+  assigneeIds: readonly string[];
+  /** Band **labels**, not start values — what the ladder calls the rung, which is what the control offers. */
+  priorityBands: readonly string[];
+  estimatedRoleIds: readonly string[];
+  unestimated: boolean;
+  critical: boolean;
+}
+
+/** The six criteria that are not the typed name, which have one control between them. */
+export type FacetCriteria = Omit<FilterCriteria, 'query'>;
+
+/**
+ * No facet ticked — the six that are not the typed name.
+ *
+ * Its own constant because the Find box is its own state in `wbs-table.tsx`
+ * (Escape empties it, and it is the one criterion with a control of its own),
+ * so "clear the facets" and "clear everything" are two gestures and each needs
+ * a starting point to be stated against.
+ */
+export const NO_FACETS: FacetCriteria = {
+  teamIds: [],
+  assigneeIds: [],
+  priorityBands: [],
+  estimatedRoleIds: [],
+  unestimated: false,
+  critical: false,
+};
+
+/** Nothing asked of the plan, which is what every reader starts with on every load. */
+export const NO_FILTER: FilterCriteria = { query: '', ...NO_FACETS };
+
+/**
+ * What one filter does to the tree.
  *
  * `visibleIds` is every row that stays on screen — the matches, the ancestors
- * that place them and the descendants beneath them. `matchIds` is only the rows
- * whose own name matched, so the table can mark them: the rest are context, and
- * marking them too would make the mark mean nothing.
+ * that place them and (for a typed name alone) the descendants beneath them.
+ * `matchIds` is only the rows that answered the filter themselves, so the table
+ * and the cards can mark them: the rest are context, and marking them too would
+ * make the mark mean nothing.
  *
- * `expandedOverlay` is the expansion the table must render **while the query is
- * on**, in place of the reader's own. Null means there is no query and the
- * reader's own expansion stands — the overlay is never merged into it, which is
- * what lets clearing the box put the plan back exactly as it was left.
+ * `expandedOverlay` is the expansion the table must render **while the filter
+ * is on**, in place of the reader's own. Null means nothing is being asked and
+ * the reader's own expansion stands — the overlay is never merged into it,
+ * which is what lets clearing the filter put the plan back exactly as it was
+ * left.
  */
-export interface TreeSearch {
+export interface TreeNarrowing {
   visibleIds: ReadonlySet<string>;
   matchIds: ReadonlySet<string>;
   expandedOverlay: ExpandedState | null;
 }
 
+/** Whether any facet is being asked about — the name is asked separately. */
+function anyFacetChosen(criteria: FilterCriteria): boolean {
+  return (
+    criteria.teamIds.length > 0 ||
+    criteria.assigneeIds.length > 0 ||
+    criteria.priorityBands.length > 0 ||
+    criteria.estimatedRoleIds.length > 0 ||
+    criteria.unestimated ||
+    criteria.critical
+  );
+}
+
 /**
- * Narrows a flat list of rows to what a query is asking about, and says what
+ * Whether this filter is asking anything at all.
+ *
+ * The one answer to "is a filter on", shared by the narrowing below and by
+ * every control that stands down while one is (the triangles, Collapse all,
+ * Expand all). A second trim or a second count beside it is how two answers to
+ * one question start to disagree.
+ */
+export function isFiltering(criteria: FilterCriteria): boolean {
+  return criteria.query.trim() !== '' || anyFacetChosen(criteria);
+}
+
+/** Whether a row carries any of the values chosen — and true where none were. */
+function carriesAnyChosen(chosen: readonly string[], carried: readonly string[]): boolean {
+  if (chosen.length === 0) return true;
+  return carried.some((each) => chosen.includes(each));
+}
+
+/**
+ * Narrows a flat list of rows to what a filter is asking about, and says what
  * has to be open for the answer to be on screen.
  *
  * Three rules make one narrowed tree, and the second and third are what stop it
  * lying:
  *
- * 1. A row **matches** when its name contains the query, case-insensitively —
- *    the same `trim().toLowerCase()` substring every other filter in this repo
- *    uses ({@link matchingProjects}, {@link pickerEntries}).
- * 2. Every **ancestor** of a match is kept. A match shown without the rows above
- *    it is a work item torn out of the plan that gives it its meaning, and its
- *    indent and its number would then describe a tree that is not on screen.
- * 3. Every **descendant** of a match is kept. Matching a parent is how a person
- *    asks for a whole branch, and answering with the parent alone would hide the
- *    work it is a heading for.
+ * 1. A row **matches** when it answers **every** active criterion: its name
+ *    contains the query, case-insensitively — the same `trim().toLowerCase()`
+ *    substring every other filter in this repo uses ({@link matchingProjects},
+ *    {@link pickerEntries}) — *and* it carries one of each chosen facet's
+ *    values. See {@link FilterCriteria} for why within-facet is OR and
+ *    across-facet is AND.
+ * 2. Every **ancestor** of a match is kept, under every criterion. A match
+ *    shown without the rows above it is a work item torn out of the plan that
+ *    gives it its meaning, and its indent and its number would then describe a
+ *    tree that is not on screen.
+ * 3. Every **descendant** of a match is kept **only while a typed name is the
+ *    whole of the filter**. Typing `Kitchen` is how a person asks for a whole
+ *    branch, and answering with the parent alone would hide the work it is a
+ *    heading for. Ticking `assignee = Ada` is not: a parent row that happens to
+ *    name Ada on one phase would drag in forty rows nobody assigned to her, and
+ *    the count beside the box would read `47 of 60` for a filter with three
+ *    real hits. So the moment any facet is ticked — with or without a name
+ *    beside it — this rule stands down and the filter is a per-row question.
+ *    R10 §4 and §9's Q2, Dany 2026-08-17.
  *
  * Anything else is hidden — including, when nothing matches at all, everything.
  * A filter that falls back to the whole table on no match reads as broken: the
@@ -63,9 +195,12 @@ export interface TreeSearch {
  * so the table cannot hand one over today — but a hang here would be a frozen
  * tab, which is worse than any wrong answer this could give.
  */
-export function searchTree(rows: readonly SearchableRow[], query: string): TreeSearch {
-  const wanted = query.trim().toLowerCase();
-  if (wanted === '') {
+export function narrowTree(
+  rows: readonly NarrowableRow[],
+  criteria: FilterCriteria,
+): TreeNarrowing {
+  const wanted = criteria.query.trim().toLowerCase();
+  if (!isFiltering(criteria)) {
     return {
       visibleIds: new Set(rows.map((row) => row.id)),
       matchIds: new Set(),
@@ -82,9 +217,19 @@ export function searchTree(rows: readonly SearchableRow[], query: string): TreeS
     else siblings.push(row.id);
   }
 
-  const matchIds = new Set(
-    rows.filter((row) => row.name.toLowerCase().includes(wanted)).map((row) => row.id),
-  );
+  const matches = (row: NarrowableRow): boolean =>
+    (wanted === '' || row.name.toLowerCase().includes(wanted)) &&
+    carriesAnyChosen(criteria.teamIds, row.facets.teamIds) &&
+    carriesAnyChosen(criteria.assigneeIds, row.facets.assigneeIds) &&
+    carriesAnyChosen(
+      criteria.priorityBands,
+      row.facets.priorityBand === null ? [] : [row.facets.priorityBand],
+    ) &&
+    carriesAnyChosen(criteria.estimatedRoleIds, row.facets.estimatedRoleIds) &&
+    (!criteria.unestimated || row.facets.unestimated) &&
+    (!criteria.critical || row.facets.critical);
+
+  const matchIds = new Set(rows.filter(matches).map((row) => row.id));
   const visibleIds = new Set<string>(matchIds);
 
   // Proof: this walk removed, `keeps the rows that place a match deep in the
@@ -108,19 +253,30 @@ export function searchTree(rows: readonly SearchableRow[], query: string): TreeS
     }
   }
 
+  // Rule 3, and the whole of what a facet changes about the tree: a ticked
+  // facet is a question about each row, so nothing is seeded and no subtree
+  // comes with a match.
+  //
+  // Proof: the guard removed, `a facet does not bring the subtree under a row
+  // that matched it` failed with all four rows of the branch visible, and
+  // `a name beside a facet stops bringing its subtree` failed on the same
+  // count. Watched, 2026-08-17.
+  //
   // Queued rather than recursive, and each row queued once: `walked` is what
   // keeps a row that is both a match's ancestor and another match's descendant
   // from being walked twice, and a cycle from being walked forever.
-  const queue = [...matchIds];
-  const walked = new Set(matchIds);
-  while (queue.length > 0) {
-    const under = queue.pop();
-    if (under === undefined) break;
-    for (const child of childrenOf.get(under) ?? []) {
-      visibleIds.add(child);
-      if (walked.has(child)) continue;
-      walked.add(child);
-      queue.push(child);
+  if (!anyFacetChosen(criteria)) {
+    const queue = [...matchIds];
+    const walked = new Set(matchIds);
+    while (queue.length > 0) {
+      const under = queue.pop();
+      if (under === undefined) break;
+      for (const child of childrenOf.get(under) ?? []) {
+        visibleIds.add(child);
+        if (walked.has(child)) continue;
+        walked.add(child);
+        queue.push(child);
+      }
     }
   }
 

@@ -21,10 +21,21 @@ export interface CardRow {
   row: TreeRow;
   /** How deep in the outline it is, which is the card's indent. */
   depth: number;
-  /** Whether it has children this list can hide. False while a search is on. */
+  /** Whether it has children this list can hide. False while a filter is on. */
   expandable: boolean;
   expanded: boolean;
   toggleBranch: () => void;
+  /**
+   * Whether this row answered the filter itself, rather than being one of the
+   * rows kept to place it.
+   *
+   * The table's Name cell has carried this since `find-in-the-tree`
+   * (`data-match`), and until R10 the mark was table-only — so a phone, which
+   * is the only face some readers have, showed a narrowed list with no way to
+   * tell a hit from the ancestors around it. False for every card while no
+   * filter is on, when marking anything would make the mark mean nothing.
+   */
+  matched: boolean;
 }
 
 /**
@@ -271,6 +282,17 @@ const cardTrioOf = (
 const TAP = 'min-h-11';
 
 /**
+ * What a card that answered the filter is tinted.
+ *
+ * The **same custom property** `wbs-table.tsx`'s Name cell paints a match with
+ * (`--grid-match`, `styles.css`), read here rather than imported: `wbs-table`
+ * imports this file, so a constant taken from it would be a cycle. One colour
+ * defined once in the stylesheet, two faces reading it — not two colours that
+ * agree today.
+ */
+const MATCH_TINT = 'var(--grid-match)';
+
+/**
  * The plan as a list of outline cards: what a phone gets instead of the table.
  *
  * **The same plan, not a summary of it.** Every card is a work item of the same
@@ -347,7 +369,7 @@ export function PlanCards({
       ref={gridRef}
       className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto pb-2"
     >
-      {rows.map(({ row, depth, expandable, expanded, toggleBranch }) => {
+      {rows.map(({ row, depth, expandable, expanded, toggleBranch, matched }) => {
         const waits = waitsFor(row);
         const team = teamLabel(row);
         const span = spanOf(row);
@@ -357,6 +379,11 @@ export function PlanCards({
             key={row.id}
             data-card={row.id}
             data-frozen={row.frozenNumber !== null ? 'true' : 'false'}
+            // The table's own attribute and the table's own reading: present
+            // only on a row that answered the filter itself, absent — not
+            // `false` — on the rows kept around it, so `[data-match]` selects
+            // the hits on either face.
+            data-match={matched ? 'true' : undefined}
             aria-label={`Work item ${row.number}`}
             // The outline, kept: a card list with no indent is a flat list of
             // rows whose numbers are the only thing saying what is under what.
@@ -365,7 +392,14 @@ export function PlanCards({
             // and no further, because the margin comes out of a 390px phone.
             // The `min-w-0` chain still keeps a card from shrinking under its
             // own content.
-            style={{ marginLeft: cardIndentFor(depth) }}
+            style={{
+              marginLeft: cardIndentFor(depth),
+              // The whole card and not one field of it: a card has no Name
+              // column to tint, and the name is one of seven things a filter
+              // can have matched on — tinting the name box for a row that
+              // matched on its team would point at the wrong fact.
+              ...(matched ? { background: MATCH_TINT } : {}),
+            }}
             className="border-border bg-card flex min-w-0 flex-col gap-2 rounded-lg border p-3"
           >
             <header className="flex items-center gap-2">
