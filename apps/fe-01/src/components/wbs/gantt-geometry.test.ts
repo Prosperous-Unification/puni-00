@@ -2240,9 +2240,16 @@ describe('the waits that were not drawn', () => {
    * narrowed plan actually arrives in — be-01 schedules the whole plan and the
    * screen decides which rows of it to draw (`wbs-table.tsx`).
    */
+  const onPlatform = { team: { state: 'named', name: 'Platform' } as const };
   const threeKinds = (parts: Partial<GanttPlan> = {}): GanttPlan =>
     planOf({
-      rows: [rowAt('strip', 0, 3), rowAt('sand', 3, 5), rowAt('wax', 5, 7)],
+      // Every row on a named pool, because the capacity-floored slice below
+      // asks its row which team is holding it up and refuses a row with none.
+      rows: [
+        rowAt('strip', 0, 3, onPlatform),
+        rowAt('sand', 3, 5, onPlatform),
+        rowAt('wax', 5, 7, onPlatform),
+      ],
       slices: [
         sliceAt('strip-dev', 'strip', 0, 3, { personId: 'kat' }),
         sliceAt('sand-dev', 'sand', 3, 5, {
@@ -2270,7 +2277,7 @@ describe('the waits that were not drawn', () => {
   it('counts each kind of wait whose other end the screen is not showing', () => {
     // `strip` is off screen: the dependency onto `wax` loses its predecessor
     // and Kat's hand-off onto `sand` loses the work she was finishing.
-    const chart = layOutGantt(threeKinds({ rows: [rowAt('sand', 3, 5), rowAt('wax', 5, 7)] }));
+    const chart = layOutGantt(threeKinds({ rows: [rowAt('sand', 3, 5, onPlatform), rowAt('wax', 5, 7, onPlatform)] }));
 
     expect(chart.arrows).toEqual([]);
     expect(chart.personLinks).toEqual([]);
@@ -2278,7 +2285,7 @@ describe('the waits that were not drawn', () => {
   });
 
   it('counts a pool wait onto a row that is not drawn', () => {
-    const chart = layOutGantt(threeKinds({ rows: [rowAt('strip', 0, 3), rowAt('wax', 5, 7)] }));
+    const chart = layOutGantt(threeKinds({ rows: [rowAt('strip', 0, 3, onPlatform), rowAt('wax', 5, 7, onPlatform)] }));
 
     expect(chart.capacityLinks).toEqual([]);
     expect(chart.droppedLinks.capacityLinks).toBe(1);
@@ -2316,7 +2323,7 @@ describe('the waits that were not drawn', () => {
     // The direction the old `dependencies` list could not even carry: `strip`
     // is drawn and its successor is not, so its bar loses an arrow.
     const chart = layOutGantt(
-      threeKinds({ rows: [rowAt('strip', 0, 3), rowAt('sand', 3, 5)] }),
+      threeKinds({ rows: [rowAt('strip', 0, 3, onPlatform), rowAt('sand', 3, 5, onPlatform)] }),
     );
 
     expect(chart.arrows).toEqual([]);
