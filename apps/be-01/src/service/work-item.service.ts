@@ -43,6 +43,7 @@ import {
   readPayload,
   readPreconditions,
   type Revisions,
+  subjectOf,
   touchedBy,
 } from './compensating';
 import { canDepend } from './dependency';
@@ -2300,7 +2301,8 @@ export class WorkItemService {
   }
 
   /**
-   * Writes one command down, after it has been applied and announced.
+   * Writes one command down — to the account's undo stack and to the project's
+   * history — after it has been applied and announced.
    *
    * **Ordering, and what it costs.** The change is applied and broadcast
    * first, then journalled. A journal write that throws therefore fails the
@@ -2315,6 +2317,24 @@ export class WorkItemService {
    * The preconditions are read **after** the mutation, and are the revisions
    * it left behind. Recording the revisions from before it would make an undo
    * of somebody's own second edit pass when it must refuse.
+   *
+   * **The history row is written from here and from nowhere else.** Every
+   * journalled command — all fifteen kinds — becomes one `plan_event` row, per
+   * project rather than per account and never pruned by anybody's undo, which is
+   * the whole of R5's "examine the history of estimates changes". It is one extra
+   * `INSERT` in the transaction the journal append already opens rather than a
+   * second call, so a command cannot be undoable without also being recorded; see
+   * {@link CommandJournalStore.append}. Adding a sixteenth journalled kind
+   * therefore adds it to the history for free, which is why H2's actuals must go
+   * through this seam and not around it.
+   *
+   * **What the history does not hold, stated because it will be asked.** Undo and
+   * redo append nothing here — they flip an entry in place, by design — so an
+   * estimate set to 8 and then undone leaves one event reading "set to 8" and no
+   * event saying it was taken back. Every event is true about the moment it
+   * records; the sequence is incomplete. Closing it means logging from the undo
+   * path too, which is a second write site and R5's H5 question, not this change's.
+   * See `openspec/changes/plan-history/design.md` D4.
    */
   private async record(
     projectId: string,
@@ -2323,23 +2343,45 @@ export class WorkItemService {
     label: string,
     recording: Recording,
   ): Promise<void> {
-    await this.opts.journal.append({
-      id: this.newId(),
-      projectId,
-      userId: actorId,
-      kind,
-      payload: { label, forward: recording.forward },
-      inverse: recording.inverse,
-      preconditions: {
-        expected: await this.revisionsOf(projectId, recording.touched),
-        // The same entities as they were before the mutation, read off the row
-        // list the mutation's own guard produced. Nothing is checked against
-        // it — it is what tells a later undo whether the entry beneath this
-        // one is still describing an unbroken chain. See `Preconditions`.
-        from: revisionsIn(recording.before, recording.touched),
+    const at = this.now();
+    const subject = subjectOf(recording.forward);
+    await this.opts.journal.append(
+      {
+        id: this.newId(),
+        projectId,
+        userId: actorId,
+        kind,
+        payload: { label, forward: recording.forward },
+        inverse: recording.inverse,
+        preconditions: {
+          expected: await this.revisionsOf(projectId, recording.touched),
+          // The same entities as they were before the mutation, read off the row
+          // list the mutation's own guard produced. Nothing is checked against
+          // it — it is what tells a later undo whether the entry beneath this
+          // one is still describing an unbroken chain. See `Preconditions`.
+          from: revisionsIn(recording.before, recording.touched),
+        },
+        createdAt: at,
       },
-      createdAt: this.now(),
-    });
+      {
+        id: this.newId(),
+        projectId,
+        userId: actorId,
+        kind,
+        label,
+        workItemId: subject.workItemId,
+        roleId: subject.roleId,
+        // The compensating command, which is where the before-state lives: for
+        // the estimate kinds it carries the trio that was stored, and for the
+        // rest it is the only before-state that exists. See `plan_event`.
+        before: recording.inverse,
+        after: recording.forward,
+        // The same instant as the journal entry, read once. Two `now()` calls
+        // would let one act carry two timestamps, and the history is ordered by
+        // this column.
+        createdAt: at,
+      },
+    );
   }
 
   /**

@@ -1,5 +1,6 @@
 import type { Logger } from '@wbs/observability';
 
+import { PLAN_EVENT_RETENTION_DAYS } from './repository';
 import { CapacityRepository } from './repository/capacity';
 import { CommandJournalRepository } from './repository/command-journal';
 import type { Drizzle } from './repository/db';
@@ -7,6 +8,7 @@ import { DependencyRepository } from './repository/dependency';
 import { DirectoryRepository } from './repository/directory';
 import { EstimateRepository } from './repository/estimate';
 import { DrizzleEventLogRepo } from './repository/event-log';
+import { PlanEventRepository } from './repository/plan-event';
 import { PriorityBandRepository } from './repository/priority-band';
 import { ProjectRepository } from './repository/project';
 import { RoleRepository } from './repository/role';
@@ -17,6 +19,7 @@ import { CapacityService } from './service/capacity.service';
 import { DirectoryService } from './service/directory.service';
 import { EventSequencer } from './service/event-sequencer';
 import { GatewayBroadcaster } from './service/gateway-broadcaster';
+import { HistoryService } from './service/history.service';
 import { PriorityBandService } from './service/priority-band.service';
 import { ProjectService } from './service/project.service';
 import { PushClient } from './service/push-client';
@@ -35,6 +38,8 @@ import { WorkItemService } from './service/work-item.service';
  * longer absence falls back to.
  */
 const EVENT_LOG_MAX_PER_SUBSCRIPTION = 1_000;
+// The history's own window is `PLAN_EVENT_RETENTION_DAYS`, argued where it is
+// declared, and it is swept on the same tick as the log.
 const RETENTION_INTERVAL_MS = 10 * 60_000;
 const REPLAY_BUFFER_MAX_AGE_MS = 5 * 60_000;
 
@@ -54,6 +59,7 @@ export interface BeServices {
   roles: RoleService;
   directory: DirectoryService;
   workItems: WorkItemService;
+  history: HistoryService;
   replay: ReplayOrchestrator;
   retention: RetentionTimer;
 }
@@ -75,6 +81,8 @@ export function buildServices(opts: ServicesOptions): BeServices {
   const capacityStore = new CapacityRepository(opts.db);
   const priorityBandStore = new PriorityBandRepository(opts.db);
   const eventLog = new DrizzleEventLogRepo(opts.db);
+  // One store for the route that reads the history and the timer that prunes it.
+  const planEventStore = new PlanEventRepository(opts.db);
 
   // One buffer, shared by the two halves of resume: the broadcaster fills it as
   // it publishes, the orchestrator serves reconnects from it. Two buffers would
@@ -148,22 +156,38 @@ export function buildServices(opts: ServicesOptions): BeServices {
       // a duplicated subtree is one act — see {@link SubtreeRepository}.
       subtrees: new SubtreeRepository(opts.db),
       // The undo stack, on the server so it survives a reload — one per
-      // account per project. See `command_journal` in `schema.ts`.
+      // account per project. See `command_journal` in `schema.ts`. It is also
+      // what writes the plan's history, in the same transaction, because a
+      // journalled command and a recorded one are the same act.
       journal: new CommandJournalRepository(opts.db),
       broadcast,
     }),
+    history: new HistoryService({ projects: projectStore, events: planEventStore }),
     replay: new ReplayOrchestrator({ log: eventLog, buffer: replayBuffer }),
     retention: new RetentionTimer({
       repo: eventLog,
       maxPerSubscription: EVENT_LOG_MAX_PER_SUBSCRIPTION,
+      // The same store the history route reads, so the table pruned is the table
+      // served. Two stores would both look healthy and one of them would be
+      // pruning a file nobody reads.
+      planEvents: planEventStore,
+      planEventRetentionDays: PLAN_EVENT_RETENTION_DAYS,
       intervalMs: RETENTION_INTERVAL_MS,
       onSweep: (removed) => {
-        if (removed > 0) opts.logger.info({ removed }, 'event log pruned');
+        if (removed.eventLog > 0) {
+          opts.logger.info({ removed: removed.eventLog }, 'event log pruned');
+        }
+        // Logged even though the log line above is conditional on the same
+        // shape: history rows go a year after they were written, so a sweep that
+        // removes any is worth one line somebody can correlate with a gap.
+        if (removed.planEvents > 0) {
+          opts.logger.info({ removed: removed.planEvents }, 'plan history pruned');
+        }
       },
       // Reported, not swallowed: the log growing without bound is the failure
       // the timer exists to prevent, and a dead sweep looks healthy from outside.
       onError: (err) => {
-        opts.logger.error({ err }, 'event log retention sweep failed');
+        opts.logger.error({ err }, 'retention sweep failed');
       },
     }),
   };

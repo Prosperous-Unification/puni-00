@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'bun:test';
 
+import type { PlanEvent } from '../repository';
+import { inMemoryPlanEvents } from '../testing/history-fixture';
 import { inMemoryEventLog } from '../testing/replay-fixture';
-import { RetentionTimer } from './retention-timer';
+import { RetentionTimer, type Swept } from './retention-timer';
 
 /**
  * A schedule a test advances by hand.
@@ -42,6 +44,28 @@ async function seed(count: number) {
   return log;
 }
 
+/** A fixed moment, so a cutoff a year back is a number a reader can check. */
+const NOW = Date.UTC(2026, 7, 17);
+const DAY_MS = 24 * 60 * 60_000;
+
+function event(id: string, daysAgo: number): PlanEvent {
+  return {
+    id,
+    projectId: 'p',
+    userId: 'u',
+    kind: 'estimate',
+    label: `estimate ${id}`,
+    workItemId: 'w1',
+    roleId: 'r1',
+    before: { do: 'clear_estimate' },
+    after: { do: 'set_estimate' },
+    createdAt: NOW - daysAgo * DAY_MS,
+  };
+}
+
+/** The options every case shares beyond what it varies. Written out so a new required one lands here once. */
+const history = () => inMemoryPlanEvents();
+
 describe('RetentionTimer', () => {
   it('prunes the log on every tick', async () => {
     const log = await seed(5);
@@ -50,8 +74,11 @@ describe('RetentionTimer', () => {
     const timer = new RetentionTimer({
       repo: log,
       maxPerSubscription: 2,
+      planEvents: history(),
+      planEventRetentionDays: 365,
+      now: () => NOW,
       intervalMs: 1_000,
-      onSweep: (removed) => swept.push(removed),
+      onSweep: (removed) => swept.push(removed.eventLog),
       onError: (err) => {
         throw err;
       },
@@ -88,8 +115,11 @@ describe('RetentionTimer', () => {
     const timer = new RetentionTimer({
       repo: failing,
       maxPerSubscription: 2,
+      planEvents: history(),
+      planEventRetentionDays: 365,
+      now: () => NOW,
       intervalMs: 1_000,
-      onSweep: (removed) => swept.push(removed),
+      onSweep: (removed) => swept.push(removed.eventLog),
       onError: (err) => errors.push(err),
       ...schedule,
     });
@@ -124,6 +154,9 @@ describe('RetentionTimer', () => {
     const timer = new RetentionTimer({
       repo: slow,
       maxPerSubscription: 2,
+      planEvents: history(),
+      planEventRetentionDays: 365,
+      now: () => NOW,
       intervalMs: 1_000,
       onSweep: () => {
         finished = true;
@@ -154,6 +187,9 @@ describe('RetentionTimer', () => {
     const timer = new RetentionTimer({
       repo: log,
       maxPerSubscription: 2,
+      planEvents: history(),
+      planEventRetentionDays: 365,
+      now: () => NOW,
       intervalMs: 1_000,
       onError: rethrow,
       ...schedule,
@@ -190,6 +226,9 @@ describe('RetentionTimer', () => {
     const timer = new RetentionTimer({
       repo: slow,
       maxPerSubscription: 2,
+      planEvents: history(),
+      planEventRetentionDays: 365,
+      now: () => NOW,
       intervalMs: 1_000,
       onError: rethrow,
       ...schedule,
@@ -208,5 +247,103 @@ describe('RetentionTimer', () => {
 
     // And the next tick after it finished would have swept again, had one come.
     expect(started).toBe(1);
+  });
+});
+
+describe('RetentionTimer, on the plan’s history', () => {
+  it('prunes the history by age on every tick, and the log by count on the same one', async () => {
+    // The two tables and the two rules, on one sweep. A year and a day old goes;
+    // a day short of a year stays; the event log is pruned by count beside it, so
+    // this also says the history sweep did not replace the log sweep.
+    //
+    // Proof: the `runPlanEventRetention` call in `RetentionTimer.sweep` replaced
+    // by `const planEvents = 0`, and this fails on a `toEqual` diff —
+    // `{eventLog: 3, planEvents: 0}` where `{eventLog: 3, planEvents: 2}` was
+    // owed — with both stale events still held. 6 pass, 2 fail; watched
+    // 2026-08-17.
+    const log = await seed(5);
+    const events = inMemoryPlanEvents([event('old', 366), event('older', 730), event('kept', 364)]);
+    const schedule = fakeSchedule();
+    const swept: Swept[] = [];
+    const timer = new RetentionTimer({
+      repo: log,
+      maxPerSubscription: 2,
+      planEvents: events,
+      planEventRetentionDays: 365,
+      now: () => NOW,
+      intervalMs: 1_000,
+      onSweep: (removed) => swept.push(removed),
+      onError: rethrow,
+      ...schedule,
+    });
+
+    timer.start();
+    schedule.advance();
+    await timer.stop();
+
+    expect(swept).toEqual([{ eventLog: 3, planEvents: 2 }]);
+    expect(events.held.map((each) => each.id)).toEqual(['kept']);
+  });
+
+  it('keeps an event a day short of the window, so the boundary is not off by one', async () => {
+    // 365 days exactly is inside the window: the cutoff is `now - 365 days` and the
+    // delete is strictly older than it. Asserted because a boundary nobody probed
+    // is a boundary nobody knows, and this one silently deletes a year of history
+    // in the wrong direction.
+    const events = inMemoryPlanEvents([event('exactly', 365)]);
+    const schedule = fakeSchedule();
+    const timer = new RetentionTimer({
+      repo: await seed(1),
+      maxPerSubscription: 2,
+      planEvents: events,
+      planEventRetentionDays: 365,
+      now: () => NOW,
+      intervalMs: 1_000,
+      onError: rethrow,
+      ...schedule,
+    });
+
+    timer.start();
+    schedule.advance();
+    await timer.stop();
+
+    expect(events.held.map((each) => each.id)).toEqual(['exactly']);
+  });
+
+  it('keeps sweeping after a history sweep fails', async () => {
+    // The log's own rule, asserted for the second table: a locked database is
+    // transient, and stopping would turn a blip into permanent unbounded growth in
+    // the file the domain lives in.
+    const events = inMemoryPlanEvents([event('old', 400)]);
+    let calls = 0;
+    const failing = {
+      ...events,
+      pruneOlderThan: (cutoff: number) => {
+        calls += 1;
+        if (calls === 1) return Promise.reject(new Error('database is locked'));
+        return events.pruneOlderThan(cutoff);
+      },
+    };
+    const schedule = fakeSchedule();
+    const errors: unknown[] = [];
+    const timer = new RetentionTimer({
+      repo: await seed(1),
+      maxPerSubscription: 2,
+      planEvents: failing,
+      planEventRetentionDays: 365,
+      now: () => NOW,
+      intervalMs: 1_000,
+      onError: (err) => errors.push(err),
+      ...schedule,
+    });
+
+    timer.start();
+    schedule.advance();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    schedule.advance();
+    await timer.stop();
+
+    expect(errors).toHaveLength(1);
+    expect(events.held).toEqual([]);
   });
 });

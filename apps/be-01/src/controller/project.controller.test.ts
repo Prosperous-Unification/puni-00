@@ -10,6 +10,7 @@ import { inMemoryCommandJournal } from '../testing/command-journal-fixture';
 import { inMemoryDependencies } from '../testing/dependency-fixture';
 import { inMemoryDirectory, testDirectoryService } from '../testing/directory-fixture';
 import { inMemoryEstimates } from '../testing/estimate-fixture';
+import { testHistoryService } from '../testing/history-fixture';
 import { inMemoryPriorityBands, testPriorityBandService } from '../testing/priority-band-fixture';
 import { inMemoryProjects } from '../testing/project-fixture';
 import { testReplay } from '../testing/replay-fixture';
@@ -55,6 +56,7 @@ function buildHarness() {
     directory: testDirectoryService(),
     capacity: testCapacityService(),
     priorityBands: testPriorityBandService(),
+    history: testHistoryService(),
     auth,
     projects,
     workItems: buildWorkItemService(projectStore),

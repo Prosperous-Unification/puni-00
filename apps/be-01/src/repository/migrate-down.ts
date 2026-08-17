@@ -59,18 +59,84 @@ export function migrationsToRollback(
 }
 
 /**
+ * The numeric prefix drizzle's migrator reads a folder's `created_at` from —
+ * `parseInt(folder.split('_')[0])` in `readMigrationFiles`.
+ *
+ * Throws on a folder whose prefix is not a number. That folder would be recorded
+ * with `created_at = NaN`, every comparison against it would be false, and
+ * {@link migrationsToRollback} would silently place it before everything.
+ */
+function stampOf(name: string): number {
+  const stamp = Number(name.split('_')[0]);
+  if (!Number.isInteger(stamp)) {
+    throw new Error(
+      `migration folder ${name} does not begin with a numeric stamp, so the order ` +
+        'a rollback reverses it in cannot be decided',
+    );
+  }
+  return stamp;
+}
+
+/**
+ * Stamps shared by more than one migration folder, in the order they first
+ * appear. Empty is the healthy answer.
+ *
+ * **This is the check for a fault that has already shipped here.** On 2026-08-14
+ * `20260814100000_add_work_item_team` and `20260814110000_add_priority_band` were
+ * both stamped `100000`. Drizzle records a folder's `created_at` as that prefix,
+ * {@link migrationsToRollback} filters on a **strict** `created_at >`, and so a
+ * rollback whose baseline was either of the pair returned `[]` and reversed
+ * nothing — silently, with both tables still standing and both bookkeeping rows
+ * still claiming to be applied. The forward migration was unaffected and looked
+ * perfect, which is why nothing caught it until the rollback was tried by hand.
+ *
+ * Pure and exported so the negative can be run against a list rather than
+ * against a directory somebody has to build.
+ */
+export function duplicateMigrationStamps(names: readonly string[]): number[] {
+  const seen = new Set<number>();
+  const shared = new Set<number>();
+  for (const name of names) {
+    const stamp = stampOf(name);
+    if (seen.has(stamp)) shared.add(stamp);
+    seen.add(stamp);
+  }
+  return [...shared];
+}
+
+/**
  * Reads the migration folders the same way drizzle's migrator does — a
  * subdirectory containing `migration.sql`, hashed over the whole file — and
  * pairs each with its `down.sql`.
  *
  * A missing or empty `down.sql` throws here rather than at rollback time, so
- * `migrate-lint` and this runner agree on what a complete migration is.
+ * `migrate-lint` and this runner agree on what a complete migration is. Two
+ * folders sharing one stamp throw here for a harder reason: the rollback that
+ * would follow cannot decide which of them a baseline names, and its way of not
+ * deciding is to reverse nothing and report success. See
+ * {@link duplicateMigrationStamps}.
+ *
+ * Proof: with the `duplicateMigrationStamps` check removed, `refuses a folder set
+ * that shares one stamp between two migrations` in `migrate-down.test.ts` fails —
+ * `rollbackTo` returns `[]` against a database with both tables present and
+ * reports it as a completed rollback. Watched 2026-08-17.
  */
 export function readMigrationFolders(migrationsFolder: string): MigrationFolder[] {
   const out: MigrationFolder[] = [];
-  for (const name of readdirSync(migrationsFolder).sort()) {
+  const names = readdirSync(migrationsFolder)
+    .sort()
+    .filter((name) => existsSync(join(migrationsFolder, name, 'migration.sql')));
+  const shared = duplicateMigrationStamps(names);
+  if (shared.length > 0) {
+    throw new Error(
+      `migration stamps are shared by more than one folder: ${shared.join(', ')}. ` +
+        'Drizzle records the stamp as a migration’s created_at and a rollback ' +
+        'filters on it strictly, so a baseline naming either of a colliding pair ' +
+        'would reverse nothing and report success.',
+    );
+  }
+  for (const name of names) {
     const up = join(migrationsFolder, name, 'migration.sql');
-    if (!existsSync(up)) continue;
     const down = join(migrationsFolder, name, 'down.sql');
     if (!existsSync(down)) {
       throw new Error(`${name} has no down.sql, so it cannot be rolled back`);

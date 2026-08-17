@@ -573,8 +573,23 @@ _Avoid_: child row, detail, related record
 **Command journal**:
 The last fifty reversible commands one account ran on one project, held on the server in
 the order they happened. One stack per account per project — undo is personal, and
-reversing somebody else's change because it happened to be the newest is not undo.
+reversing somebody else's change because it happened to be the newest is not undo. Not
+the plan history: see that term for the five ways they differ.
 _Avoid_: history, audit log, activity, event log
+
+**Plan history**:
+Every command anybody ran on one project, kept — the plan's own record, per project
+rather than per account, added to and never edited, and thinned only by age. It is not
+the command journal, which is one account's fifty-deep undo stack and drops what it must
+to stay one; and it is not the event log, which is the websocket's resume buffer.
+_Avoid_: audit log, activity feed, changelog, journal
+
+**Plan event**:
+One row of the plan history: a command that happened, the sentence describing it, the
+work item and role it was aimed at where it had one, and the two commands the journal
+holds — what it did, and what would undo it. It names its work item without depending on
+it, so it survives the row's deletion.
+_Avoid_: history entry, audit record, revision
 
 **Compensating command**:
 The command that reverses another one, carrying the before-state it needs — the old field

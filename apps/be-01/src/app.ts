@@ -5,6 +5,7 @@ import { Elysia } from 'elysia';
 import { authController } from './controller/auth.controller';
 import { capacityController } from './controller/capacity.controller';
 import { directoryController } from './controller/directory.controller';
+import { historyController } from './controller/history.controller';
 import { internalController } from './controller/internal.controller';
 import { priorityBandController } from './controller/priority-band.controller';
 import { projectController } from './controller/project.controller';
@@ -16,6 +17,7 @@ import type { DatabaseHealth } from './repository/health-probe';
 import type { AuthService } from './service/auth.service';
 import type { CapacityService } from './service/capacity.service';
 import type { DirectoryService } from './service/directory.service';
+import type { HistoryService } from './service/history.service';
 import type { PriorityBandService } from './service/priority-band.service';
 import type { ProjectService } from './service/project.service';
 import type { ReplayOrchestrator } from './service/replay-orchestrator';
@@ -57,6 +59,13 @@ export interface AppOptions {
    * did nothing reads as a plan whose configuration does not matter.
    */
   priorityBands: PriorityBandService;
+  /**
+   * Required for the same reason as `priorityBands`: a process built without it
+   * would answer 404 on the history route, which a client cannot tell from a
+   * plan whose history is empty — and "empty" is the answer for every plan the
+   * day the table ships, so the mistake would be invisible for a week.
+   */
+  history: HistoryService;
   /**
    * Shared secret gw-01 presents on /internal/*. Required — a default here
    * would silently diverge from the value gw-01 loads from the environment,
@@ -113,6 +122,10 @@ export function buildApp(opts: AppOptions) {
       // anything that route declares, and adjacency is what makes that checkable
       // at a glance.
       .use(priorityBandController(opts.auth, opts.priorityBands))
+      // Beside the two above for their reason: it shares `projectController`'s
+      // prefix, `/:id/history` cannot be shadowed by anything that route
+      // declares, and adjacency is what makes that checkable at a glance.
+      .use(historyController(opts.auth, opts.history))
       .use(
         internalController({
           secret: opts.internalAuthSecret,

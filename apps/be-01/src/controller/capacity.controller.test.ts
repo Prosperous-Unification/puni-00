@@ -23,6 +23,7 @@ import { ProjectService } from '../service/project.service';
 import { RoleService } from '../service/role.service';
 import { WorkItemService } from '../service/work-item.service';
 import { type RecordingBroadcaster, recordingBroadcaster } from '../testing/broadcast-fixture';
+import { testHistoryService } from '../testing/history-fixture';
 import { inMemoryPriorityBands, testPriorityBandService } from '../testing/priority-band-fixture';
 import { testReplay } from '../testing/replay-fixture';
 
@@ -73,6 +74,7 @@ describe('PUT /api/projects/:id/teams/:teamId/capacity', () => {
         broadcast,
       }),
       priorityBands: testPriorityBandService(),
+      history: testHistoryService(),
       roles: new RoleService({
         projects: projectStore,
         roles: new RoleRepository(db),

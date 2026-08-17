@@ -252,6 +252,54 @@ export function touchedBy(command: CompensatingCommand): string[] {
   }
 }
 
+/** The one work item and role a command was aimed at, either of them absent. */
+export interface CommandSubject {
+  workItemId: string | null;
+  roleId: string | null;
+}
+
+/**
+ * What a command was aimed at, for the plan's history to be filtered by.
+ *
+ * Deliberately **not** {@link touchedBy}. That answers "every row whose revision
+ * becomes a precondition" and is a set; this answers "the row somebody was
+ * looking at when they did this", which is what "how did *this* estimate move"
+ * filters on. A dependency touches two work items and is aimed at the successor —
+ * the row the request named, and the subject of the label `record` writes. A
+ * freeze is aimed at the plan and has no single row, which is what `null` is for:
+ * a project's whole history still holds it, and no item's history claims it.
+ *
+ * A subtree command names its root. The rows beneath it are gone or restored with
+ * it, and an event per row would turn one act into forty entries in a reader
+ * nobody could use.
+ */
+export function subjectOf(command: CompensatingCommand): CommandSubject {
+  switch (command.do) {
+    case 'set_estimate':
+    case 'clear_estimate':
+    case 'assign':
+      return { workItemId: command.workItemId, roleId: command.roleId };
+    case 'patch':
+    case 'move':
+      return { workItemId: command.workItemId, roleId: null };
+    case 'add_dependency':
+    case 'remove_dependency':
+      return { workItemId: command.successorId, roleId: null };
+    case 'delete_subtree':
+      return { workItemId: command.rootId, roleId: null };
+    case 'restore_subtree':
+      // Ancestors first, so the first row is the branch's root. An empty `rows`
+      // is refused by `applyRestore` before it can be journalled, and would be a
+      // restore of nothing.
+      return { workItemId: command.rows.at(0)?.id ?? null, roleId: null };
+    case 'set_frozen':
+      // The whole plan, even when one row's number moved: freezing is a project
+      // act and the label says so. Naming `updates[0]` would make a plan-wide
+      // event read as one item's.
+      return { workItemId: null, roleId: null };
+  }
+}
+
 /**
  * A work item's name as a sentence can carry it, shortened and quoted.
  *

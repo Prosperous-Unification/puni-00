@@ -742,3 +742,80 @@ export const commandJournal = sqliteTable(
 );
 
 export type CommandJournalRow = typeof commandJournal.$inferSelect;
+
+/**
+ * One command somebody ran on one project, kept — the plan's history.
+ *
+ * **This is the third log in this file and it is not either of the other two.**
+ * `event_log` is the websocket resume buffer, keyed by subscription and pruned
+ * by count. `command_journal` is an undo stack: one per (project, **account**),
+ * fifty deep, and its `append` deletes that account's redo branch every time it
+ * writes. Neither can answer "how did this estimate move" — the first never
+ * held it, and the second is per-person, evicted after an afternoon's editing,
+ * and loses anything undone. Dany, 2026-08-13: *"so that later I can examine
+ * the history of estimates changes"*. `notes/wbs-brief-2026-08-14-r5-r6-history.md`
+ * §1.1 lists all five properties that rule the journal out.
+ *
+ * **Per project, not per account.** Two people editing one plan produce two
+ * disjoint undo stacks and one history, because the history is the plan's and
+ * not anybody's. `user_id` is who did it, which the sentence in `label` names.
+ *
+ * **Append-only.** Every row is written by one `INSERT` from
+ * `WorkItemService.record`, inside the transaction that appends to the journal —
+ * so a command cannot become undoable without also becoming history. Nothing
+ * updates a row. The only `DELETE` is retention, by **age** and never by count:
+ * pruning a history table by count is deletion of exactly the thing being asked
+ * for. See {@link PLAN_EVENT_RETENTION_DAYS}.
+ *
+ * `work_item_id` and `role_id` are **not** foreign keys, and that is the whole
+ * point of a history. A cascade would delete the record of an item when the item
+ * went — losing the estimate changes of the very row somebody is asking about —
+ * and a restricting reference would refuse the delete instead. The same argument
+ * `frozenNumber` makes for a number that has left the tool. They are nullable
+ * because not every command has one subject: a freeze touches the whole plan.
+ *
+ * `before` and `after` hold the two commands `record` already builds: `after` is
+ * the forward command a redo would re-apply, `before` the compensating command
+ * an undo would, which is where the before-state lives — `set_estimate` carries
+ * the trio that was there. For the estimate kinds that pair *is* the before and
+ * after of the figure, which is what R5 asks for; for a structural command it is
+ * the two commands, because that is the only before-state that exists. Both are
+ * `NOT NULL`: every row comes from `record`, which always holds both, so a
+ * nullable column would be a state nothing can write.
+ *
+ * The project reference cascades, and it has to. Blue and green share one SQLite
+ * file during a swap and the outgoing release knows nothing about this table, so
+ * its plain `DELETE FROM project` would hit a constraint it cannot see and answer
+ * 500 — the argument `dependency` and `project_priority_band` both make.
+ * `user_id` cascades for the same reason and no other: nothing in the product
+ * deletes an account today, and a history row outliving its `users` row would be
+ * a foreign key nothing could satisfy.
+ */
+export const planEvent = sqliteTable(
+  'plan_event',
+  {
+    id: text('id').primaryKey(),
+    projectId: text('project_id')
+      .notNull()
+      .references(() => project.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    kind: text('kind').notNull(),
+    /** The sentence `record` already built — `estimate “Strip the roof”`. */
+    label: text('label').notNull(),
+    /** The one work item the command was aimed at, or null when it named many. */
+    workItemId: text('work_item_id'),
+    /** The role, for the kinds that carry one: the estimate kinds and `assign`. */
+    roleId: text('role_id'),
+    before: text('before').notNull(),
+    after: text('after').notNull(),
+    createdAt: integer('created_at').notNull(),
+  },
+  (t) => [
+    index('plan_event_project_time').on(t.projectId, t.createdAt),
+    index('plan_event_item').on(t.workItemId, t.createdAt),
+  ],
+);
+
+export type PlanEventRow = typeof planEvent.$inferSelect;

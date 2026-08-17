@@ -46,6 +46,13 @@ const WORK_ITEM_TEAM = '20260814100000_add_work_item_team';
  * `created_at >` cannot separate. See verify.md.
  */
 const PRIORITY_BANDS = '20260814110000_add_priority_band';
+/**
+ * The newest: a table of its own referencing `project` and `users`, so it
+ * reverses ahead of both. Stamped three days past `PRIORITY_BANDS`, checked
+ * against every folder on disk first — `readMigrationFolders` now refuses a
+ * shared stamp outright, which is what the 2026-08-14 collision cost.
+ */
+const PLAN_EVENT = '20260817120000_add_plan_event';
 
 const WBS_TABLES = ['project', 'work_item', 'role', 'estimate'] as const;
 // Its own migration, reversed with the domain because it references `work_item`.
@@ -115,6 +122,7 @@ describe('the WBS domain migration', () => {
       // ahead of the column it was seeded from, which is the only order in
       // which its foreign keys still have something to point at.
       expect(reversed).toEqual([
+        PLAN_EVENT,
         PRIORITY_BANDS,
         WORK_ITEM_TEAM,
         PER_PROJECT_CAPACITY,
@@ -421,6 +429,7 @@ describe('the capacity migrations', () => {
       const reversed = rollbackTo(db.path, FOLDER, PRIORITY);
 
       expect(reversed).toEqual([
+        PLAN_EVENT,
         PRIORITY_BANDS,
         WORK_ITEM_TEAM,
         PER_PROJECT_CAPACITY,
@@ -860,11 +869,11 @@ describe('the work item team migration', () => {
 
       const reversed = rollbackTo(db.path, FOLDER, PER_PROJECT_CAPACITY);
 
-      // `PRIORITY_BANDS` rides along because it is applied after this one and
-      // the baseline is older than both — it is not this migration's business,
-      // and it is named rather than filtered out so the list stays the literal
-      // answer `rollbackTo` gave.
-      expect(reversed).toEqual([PRIORITY_BANDS, WORK_ITEM_TEAM]);
+      // `PRIORITY_BANDS` and `PLAN_EVENT` ride along because both are applied
+      // after this one and the baseline is older than all three — not this
+      // migration's business, and named rather than filtered out so the list stays
+      // the literal answer `rollbackTo` gave.
+      expect(reversed).toEqual([PLAN_EVENT, PRIORITY_BANDS, WORK_ITEM_TEAM]);
       expect(tables(db.path)).not.toContain('work_item_team');
       const after = openDatabase(db.path);
       try {
@@ -1075,11 +1084,13 @@ describe('the priority band migration', () => {
         before.close();
       }
 
-      // `WORK_ITEM_TEAM` comes off in the same walk: it is applied between the
-      // baseline and this migration, so a rollback to `PER_PROJECT_CAPACITY`
-      // reverses both. Named rather than filtered, so the list is the literal
-      // answer `rollbackTo` gave and not a subset somebody chose.
+      // `WORK_ITEM_TEAM` and `PLAN_EVENT` come off in the same walk: both are
+      // applied outside the span between the baseline and this migration, so a
+      // rollback to `PER_PROJECT_CAPACITY` reverses all three. Named rather than
+      // filtered, so the list is the literal answer `rollbackTo` gave and not a
+      // subset somebody chose.
       expect(rollbackTo(db.path, FOLDER, PER_PROJECT_CAPACITY)).toEqual([
+        PLAN_EVENT,
         PRIORITY_BANDS,
         WORK_ITEM_TEAM,
       ]);
@@ -1104,6 +1115,289 @@ describe('the priority band migration', () => {
             >("SELECT priority FROM work_item WHERE id = 'w1'")
             .get()?.priority,
         ).toBe(25);
+      } finally {
+        after.close();
+      }
+    } finally {
+      db.cleanup();
+    }
+  });
+});
+
+describe('the plan event migration', () => {
+  /**
+   * A user, a project and one recorded event, written the way the release that
+   * adds this table writes them.
+   *
+   * The event is written by hand rather than through a service because what is
+   * being tested here is the *schema* — what the outgoing release can still do to
+   * a database with this table in it, and what a rollback takes away.
+   *
+   * **No work item, unless `withWorkItem` asks for one.** `work_item.project_id`
+   * references `project` with no cascade of its own, so a row there would make
+   * `DELETE FROM project` fail on a foreign key that is not this migration's and
+   * the two blue/green cases below would be testing the wrong constraint. That
+   * the event still names `w1` with no such row is not an oversight: it is the
+   * property `keeps an event whose work item has been deleted` exists for.
+   */
+  function seeded(dbPath: string, withWorkItem = false): void {
+    const db = openDatabase(dbPath);
+    try {
+      db.run(
+        "INSERT INTO users (id, username, password_hash, created_at) VALUES ('u', 'owner', 'x', 1)",
+      );
+      db.run(
+        'INSERT INTO project (id, name, owner_id, restricted, estimate_method, start_date, revision, created_at)' +
+          " VALUES ('p', 'Rewire the shed', 'u', 0, 'pert', NULL, 0, 1)",
+      );
+      if (withWorkItem) {
+        db.run(
+          'INSERT INTO work_item (id, project_id, parent_id, position, name, notes, priority, max_parallel, revision)' +
+            " VALUES ('w1', 'p', NULL, 10, 'Strip', '', 25, 1, 0)",
+        );
+      }
+      db.run(
+        'INSERT INTO plan_event (id, project_id, user_id, kind, label, work_item_id, role_id, before, after, created_at)' +
+          " VALUES ('e1', 'p', 'u', 'estimate', 'estimate “Strip”', 'w1', 'r1'," +
+          ' \'{"do":"clear_estimate"}\', \'{"do":"set_estimate"}\', 1000)',
+      );
+    } finally {
+      db.close();
+    }
+  }
+
+  it('creates the table with no rows, because a history begins when it begins', () => {
+    // There is nowhere to seed this from — nothing in the database records what an
+    // estimate was before it was changed, which is the whole reason this table
+    // exists. Every plan on the server starts empty, and that reads as "nothing
+    // has been recorded yet" rather than as "nothing has changed". Asserted rather
+    // than assumed, because a migration that quietly invented history would be
+    // worse than one that seeded none.
+    const db = tempDb();
+    try {
+      runMigrations(db.path, FOLDER);
+      expect(tables(db.path)).toContain('plan_event');
+      const sqlite = openDatabase(db.path);
+      try {
+        expect(
+          sqlite.query<{ n: number }, []>('SELECT COUNT(*) AS n FROM plan_event').get()?.n,
+        ).toBe(0);
+      } finally {
+        sqlite.close();
+      }
+    } finally {
+      db.cleanup();
+    }
+  });
+
+  it('lets the outgoing release keep deleting projects against the migrated schema', () => {
+    // The blue/green half. Green migrates while blue is still serving, and blue
+    // knows nothing about this table — so its plain `DELETE FROM project` must
+    // still work, and the recorded events must go with the project rather than
+    // refusing the delete.
+    //
+    // Proof: `ON DELETE CASCADE` removed from `project_id` in the migration, and
+    // this fails on the delete with `SQLiteError: FOREIGN KEY constraint failed` —
+    // the outgoing release answering 500 for the length of the swap on a statement
+    // it has always been able to run. 23 pass, 2 fail; watched 2026-08-17.
+    const db = tempDb();
+    try {
+      runMigrations(db.path, FOLDER);
+      seeded(db.path);
+
+      const sqlite = openDatabase(db.path);
+      try {
+        sqlite.run('PRAGMA foreign_keys = ON');
+        // One row to cascade, which is what the delete below has to take with it.
+        // Asserted first, because a delete against no child rows is the vacuous
+        // version of this test — the mistake `priority-band` made and caught.
+        expect(
+          sqlite
+            .query<{ n: number }, []>("SELECT COUNT(*) AS n FROM plan_event WHERE project_id = 'p'")
+            .get()?.n,
+        ).toBe(1);
+
+        sqlite.run("DELETE FROM project WHERE id = 'p'");
+
+        expect(
+          sqlite.query<{ n: number }, []>('SELECT COUNT(*) AS n FROM plan_event').get()?.n,
+        ).toBe(0);
+      } finally {
+        sqlite.close();
+      }
+    } finally {
+      db.cleanup();
+    }
+  });
+
+  it('lets the outgoing release keep deleting accounts against the migrated schema', () => {
+    // The other foreign key, and the same window. Nothing in the product deletes
+    // an account today, which is exactly why this is asserted rather than assumed:
+    // the day something does, it will be a release that knows nothing about this
+    // table.
+    //
+    // **The account deleted is a second one, who edited somebody else's plan.**
+    // The first version of this case deleted the owner — and had to delete the
+    // project first, because `project.owner_id` references `users` too, which
+    // cascaded every event away before the `DELETE FROM users` was reached. It
+    // passed with `ON DELETE CASCADE` struck from `user_id`: **25 pass, 0 fail**,
+    // a check that could not fail, watched 2026-08-17. A stranger's event is the
+    // only shape in which this constraint is reachable at all.
+    //
+    // Proof, after that rewrite: `ON DELETE CASCADE` removed from `user_id` in the
+    // migration, and this fails on the delete with `FOREIGN KEY constraint failed`.
+    // Watched 2026-08-17.
+    const db = tempDb();
+    try {
+      runMigrations(db.path, FOLDER);
+      seeded(db.path);
+      const before = openDatabase(db.path);
+      try {
+        before.run(
+          "INSERT INTO users (id, username, password_hash, created_at) VALUES ('stranger', 'stranger', 'x', 2)",
+        );
+        // Somebody who edited this plan and owns none of their own, which is what
+        // makes their account deletable while the project stands.
+        before.run(
+          'INSERT INTO plan_event (id, project_id, user_id, kind, label, work_item_id, role_id, before, after, created_at)' +
+            " VALUES ('e2', 'p', 'stranger', 'patch', 'rename “Strip”', 'w1', NULL, '{}', '{}', 2000)",
+        );
+      } finally {
+        before.close();
+      }
+
+      const sqlite = openDatabase(db.path);
+      try {
+        sqlite.run('PRAGMA foreign_keys = ON');
+        // Their one event, which is what the delete below has to take with it.
+        // Asserted first, because a delete against no child rows is the vacuous
+        // version of this test — and was, once.
+        expect(
+          sqlite
+            .query<
+              { n: number },
+              []
+            >("SELECT COUNT(*) AS n FROM plan_event WHERE user_id = 'stranger'")
+            .get()?.n,
+        ).toBe(1);
+
+        sqlite.run("DELETE FROM users WHERE id = 'stranger'");
+
+        expect(
+          sqlite
+            .query<
+              { n: number },
+              []
+            >("SELECT COUNT(*) AS n FROM plan_event WHERE user_id = 'stranger'")
+            .get()?.n,
+        ).toBe(0);
+        // And the owner's own event is untouched: one account leaving does not
+        // take the plan's history with it.
+        expect(
+          sqlite.query<{ n: number }, []>('SELECT COUNT(*) AS n FROM plan_event').get()?.n,
+        ).toBe(1);
+      } finally {
+        sqlite.close();
+      }
+    } finally {
+      db.cleanup();
+    }
+  });
+
+  it('keeps an event whose work item has been deleted, which is the point of a history', () => {
+    // `work_item_id` carries no foreign key, deliberately. A cascade would delete
+    // the record of the row somebody is asking about at the moment it is deleted,
+    // and a restricting reference would refuse the delete instead. This is the
+    // assertion that says which of the three this table chose.
+    //
+    // Proof: `REFERENCES work_item(id) ON DELETE CASCADE` added to `work_item_id`
+    // in the migration, and this fails on `Expected: "w1" / Received: undefined` —
+    // one deleted row taking its whole estimate history with it. The two blue/green
+    // cases above go red with it, because the seeded event names a work item that
+    // does not exist and the reference refuses the insert: an event about a row
+    // that has gone becomes unwritable, which is the same fault seen from the
+    // other end. 22 pass, 3 fail; watched 2026-08-17.
+    const db = tempDb();
+    try {
+      runMigrations(db.path, FOLDER);
+      seeded(db.path, true);
+
+      const sqlite = openDatabase(db.path);
+      try {
+        sqlite.run('PRAGMA foreign_keys = ON');
+        sqlite.run("DELETE FROM work_item WHERE id = 'w1'");
+
+        const row = sqlite
+          .query<
+            { work_item_id: string | null; label: string },
+            []
+          >("SELECT work_item_id, label FROM plan_event WHERE id = 'e1'")
+          .get();
+        expect(row?.work_item_id).toBe('w1');
+        // And the sentence still reads, which is why the label is stored rather
+        // than re-derived from a row that is gone.
+        expect(row?.label).toBe('estimate “Strip”');
+      } finally {
+        sqlite.close();
+      }
+    } finally {
+      db.cleanup();
+    }
+  });
+
+  it('takes the history away on the way back, and leaves the plan where it was', () => {
+    // The rollback, asserted by reading the result. What is lost is the record of
+    // what happened; what survives is the plan — every row, its priority, and the
+    // undo stack, which lives in `command_journal` and is not touched.
+    const db = tempDb();
+    try {
+      runMigrations(db.path, FOLDER);
+      seeded(db.path, true);
+      const before = openDatabase(db.path);
+      try {
+        before.run(
+          'INSERT INTO command_journal (id, project_id, user_id, seq, kind, payload, inverse, preconditions, undone, created_at)' +
+            " VALUES ('j1', 'p', 'u', 1, 'estimate', '{}', '{}', '{}', 0, 1000)",
+        );
+      } finally {
+        before.close();
+      }
+
+      expect(rollbackTo(db.path, FOLDER, PRIORITY_BANDS)).toEqual([PLAN_EVENT]);
+
+      const after = openDatabase(db.path);
+      try {
+        expect(
+          after
+            .query<
+              { n: number },
+              []
+            >("SELECT COUNT(*) AS n FROM sqlite_master WHERE type='table' AND name='plan_event'")
+            .get()?.n,
+        ).toBe(0);
+        // The two indexes go with it rather than being left behind pointing at a
+        // table that is gone.
+        expect(
+          after
+            .query<
+              { n: number },
+              []
+            >("SELECT COUNT(*) AS n FROM sqlite_master WHERE type='index' AND name LIKE 'plan_event%'")
+            .get()?.n,
+        ).toBe(0);
+        // Untouched: the work item, and the undo entry for the very command whose
+        // history row has just gone. Nobody loses a key press to this rollback.
+        expect(
+          after
+            .query<
+              { priority: number | null },
+              []
+            >("SELECT priority FROM work_item WHERE id = 'w1'")
+            .get()?.priority,
+        ).toBe(25);
+        expect(
+          after.query<{ n: number }, []>('SELECT COUNT(*) AS n FROM command_journal').get()?.n,
+        ).toBe(1);
       } finally {
         after.close();
       }
