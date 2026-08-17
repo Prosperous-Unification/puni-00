@@ -127,6 +127,16 @@ TypeScript, SQL and markdown — and CI's `gate` job asserts `shellcheck --versi
 before it runs anything, so **CI is the record for those two targets**. Every
 other build target passed here.
 
+## CI
+
+**Run `32052472805` at `5fc4bbe` — `success`, both jobs, first attempt.** `gate`
+and `pixels` (169 e2e) each green; no flake, and none of the `ECONNRESET` class
+this repo has hit four times. `gate` is the record for the two shellcheck build
+targets h2puni could not run.
+
+The commit after `5fc4bbe` adds this section and nothing else; its own run is
+quoted in the PR.
+
 ## Failure-proof table (R5)
 
 Thirteen faults, each injected into the branch as it stands, watched, and
