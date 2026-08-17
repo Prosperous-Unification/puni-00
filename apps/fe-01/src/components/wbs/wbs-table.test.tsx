@@ -12226,6 +12226,26 @@ describe('narrowing the plan by facet', () => {
     expect(screen.queryByRole('button', { name: 'Collapse 010' })).toBeNull();
   });
 
+  itDom('narrows the chart with the table, because they are one list', async () => {
+    // The half of Dany's sentence that reads like the hard part — "must affect
+    // the gantt chart to only show what matches with the filter" — and it costs
+    // nothing, because `shownRows` is what the panel is drawn from and a facet
+    // narrows the same list a name already did (`gantt-panel.test.tsx`'s
+    // `draws exactly the rows a search narrowed the plan to`, watched
+    // 2026-08-09). Asserted here anyway: "for free" is a claim about a seam,
+    // and a seam nothing holds is how the next change quietly re-routes it.
+    await aFacetedPlan();
+    fireEvent.click(screen.getByRole('button', { name: 'Gantt' }));
+    await screen.findByLabelText('Gantt chart');
+
+    openFilters();
+    tick('Team Wiring');
+
+    expect(
+      [...document.querySelectorAll('[data-gantt-label]')].map((label) => label.textContent),
+    ).toEqual(['010 - Strip the walls', '010.1 - Sockets', '010.1.1 - Back boxes']);
+  });
+
   itDom('keeps offering a ticked team after the last row carrying it has gone', async () => {
     // The tree refetches on everybody's edit, so the row a tick is aimed at can
     // leave while the tick is still in force. Dropping the box then would
