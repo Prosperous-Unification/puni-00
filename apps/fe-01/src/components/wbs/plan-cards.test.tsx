@@ -1213,7 +1213,12 @@ function aTreeRow(overrides: Partial<TreeRow> = {}): TreeRow {
  * rows carry no roles, no dependencies and no team, so the phase loop and the
  * fact line render nothing to stub wrong. `rowActions` is each test's own.
  */
-function renderCards(rows: readonly TreeRow[], rowActions?: CardRowActionHandlers) {
+function renderCards(
+  rows: readonly TreeRow[],
+  rowActions?: CardRowActionHandlers,
+  /** The rows that answered a filter themselves, which is what the tint marks. */
+  matchedIds: readonly string[] = [],
+) {
   return render(
     <PlanCards
       rows={rows.map((row) => ({
@@ -1222,6 +1227,7 @@ function renderCards(rows: readonly TreeRow[], rowActions?: CardRowActionHandler
         expandable: false,
         expanded: false,
         toggleBranch: () => undefined,
+        matched: matchedIds.includes(row.id),
       }))}
       roles={[]}
       priorityBands={DEFAULT_PRIORITY_BANDS}
@@ -1329,5 +1335,99 @@ describe('the ⋯ row-actions menu on a card', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Actions for 020' }));
     expect(screen.queryByRole('menu', { name: 'Actions for 010' })).toBeNull();
     expect(screen.getByRole('menu', { name: 'Actions for 020' })).toBeDefined();
+  });
+});
+
+describe('the mark a filter leaves on a card', () => {
+  afterEach(cleanup);
+
+  itDom('marks the card that answered the filter, and not the rows kept around it', () => {
+    // The table's Name cell has carried `data-match` since `find-in-the-tree`,
+    // and a phone had nothing: a narrowed list with a hit three levels down
+    // read as four rows that all matched. `R10 F1`.
+    const parent = aTreeRow({ id: 'a', number: '010' });
+    const hit = aTreeRow({ id: 'a1', parentId: 'a', number: '010.1' });
+    renderCards([parent, hit], undefined, ['a1']);
+
+    const hitCard = screen.getByLabelText('Work item 010.1');
+    expect(hitCard.dataset['match']).toBe('true');
+    expect(hitCard.style.background).not.toBe('');
+    // Absent, not `false`: `[data-match]` selects the hits on either face.
+    const context = screen.getByLabelText('Work item 010');
+    expect(context.dataset['match']).toBeUndefined();
+    expect(context.style.background).toBe('');
+  });
+
+  itDom('marks nothing while no filter is on', () => {
+    renderCards([aTreeRow()]);
+
+    const card = screen.getByLabelText('Work item 010');
+    expect(card.dataset['match']).toBeUndefined();
+    expect(card.style.background).toBe('');
+  });
+});
+
+describe('a filter on a phone', () => {
+  /**
+   * The plan the sheet is opened over: two roots, one of them Billing's, so a
+   * facet has something to keep and something to drop.
+   */
+  async function aFilterablePlan(): Promise<void> {
+    const api = fakeApi();
+    await api.create('p1', { parentId: null, name: 'Strip the hull' });
+    await api.create('p1', { parentId: null, name: 'Paint' });
+    api.teams.push({ id: 't1', name: 'Billing' });
+    const [first] = api.rows;
+    if (first === undefined) throw new Error('the fake created no rows');
+    first.serviceTeamId = 't1';
+    first.teamIds = ['t1'];
+    widthIs(PHONE);
+    render(<WbsTable projectId="p1" api={api} />);
+    await screen.findByLabelText('Name of 010');
+  }
+
+  const cardNumbers = (): string[] =>
+    [...document.querySelectorAll('[data-card] [data-number]')].map(
+      (node) => node.textContent ?? '',
+    );
+
+  itDom('narrows the cards, because they are the rows the table kept', async () => {
+    // R10 §0: the cards read `shownRows`, the one list the table and the chart
+    // read, so a facet reaches a phone by construction. Asserted rather than
+    // assumed — a second narrowing path on either face is exactly what this
+    // change must not have added.
+    await aFilterablePlan();
+    expect(cardNumbers()).toEqual(['010', '020']);
+
+    openTheSheet();
+    fireEvent.click(await screen.findByText(/^Filters/));
+    fireEvent.click(screen.getByLabelText('Team Billing'));
+
+    expect(cardNumbers()).toEqual(['010']);
+    expect(document.querySelector('[data-card="w1"]')?.getAttribute('data-match')).toBe('true');
+  });
+
+  itDom('keeps the sheet open while the facets are being ticked', async () => {
+    // `closingControlIn` closes the sheet on a `<button>`, which is right for
+    // `Add work item` — the plan is what wants looking at next — and wrong for
+    // a checkbox somebody is about to tick a second one of. A `<summary>` and
+    // an `<input>` are neither.
+    await aFilterablePlan();
+    openTheSheet();
+
+    fireEvent.click(await screen.findByText(/^Filters/));
+    fireEvent.click(screen.getByLabelText('Team Billing'));
+
+    expect(screen.getByLabelText('Team Billing')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Add work item' })).toBeInTheDocument();
+  });
+
+  itDom('says how much of the plan a facet left, on the sheet', async () => {
+    await aFilterablePlan();
+    openTheSheet();
+    fireEvent.click(await screen.findByText(/^Filters/));
+    fireEvent.click(screen.getByLabelText('Team Billing'));
+
+    expect(screen.getByText('1 of 2 rows')).toBeInTheDocument();
   });
 });
