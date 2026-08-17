@@ -172,7 +172,19 @@ target passed here. The same gap `actual-days` recorded one change ago.
 
 ## CI
 
-_(filled in below at the head this file is written against.)_
+**Run `32080942490` at `197566f` — `success`, both jobs, first attempt.** `gate`
+and `pixels` each green. `gate` is the record for the two shellcheck build
+targets h2puni could not run.
+
+`pixels` ran despite this branch touching no `apps/fe-01` file, which is the
+condition `notes/delivery-modes.md` recorded as adopted on 2026-08-17 but which
+the workflow does not yet implement — 8m50s of a 12m round, on a diff of
+TypeScript, SQL and markdown. Worth doing, and it is not this change's to do.
+
+The commit that adds this paragraph is a **doc-only tail commit**, which is the
+exact shape that has reddened `pixels` on a ws-proxy `ECONNRESET`/`EPIPE` flood
+three times on this repo (#73, #78, and #79's own). Its run is recorded below if
+it needed one.
 
 ## Failure-proof table (R5)
 
