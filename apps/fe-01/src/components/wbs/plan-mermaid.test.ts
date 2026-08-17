@@ -599,6 +599,22 @@ describe('planToMermaidDocument — the bundled document (M2)', () => {
     expect(bundled(plan())).toContain('**Scope:** the whole plan, not what is on screen');
   });
 
+  it('says which rows it holds, and says it once, when it is not the whole plan', () => {
+    // The doctrine Q3 settled, in the one place it could be broken quietly: a
+    // document carrying a scope already says what it holds, and the whole-plan
+    // sentence beside it would be a second `Scope` line claiming the opposite.
+    const text = bundled(plan({ scope: { totalRows: 6, criteria: ['team Billing, Ltd'] } }));
+
+    expect(text).not.toContain('**Scope:** the whole plan, not what is on screen');
+    expect(text.match(/\*\*Scope:\*\*/g)).toHaveLength(1);
+    expect(text).toContain('what one reader had on screen, not the whole plan — 1 of 6 rows');
+    // And inside the fence, which is the part that gets pasted somewhere the
+    // header is not.
+    expect(text).toContain(
+      '%% Only what one reader had on screen is here — 1 of 6 rows. The rest of the plan is not drawn.',
+    );
+  });
+
   it('embeds the same table planToMarkdown writes for the same plan', () => {
     const document = plan();
     expect(bundled(document)).toContain(markdownTableLines(document).join('\n'));

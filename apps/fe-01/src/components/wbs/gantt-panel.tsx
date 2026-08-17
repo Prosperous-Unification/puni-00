@@ -16,6 +16,7 @@ import type { PriorityBandView } from '@/lib/wbs-api';
 import {
   ASSUMED_UNESTIMATED_WORKDAYS,
   CAPACITY_LINK_COLOR,
+  droppedLinkWords,
   type EstimateTrio,
   type GanttBar,
   type GanttPlan,
@@ -1562,6 +1563,12 @@ function GanttChart({
   useEffect(() => cancelOpening, [cancelOpening]);
 
   const chart = layOutGantt(plan);
+  /**
+   * The sentence about the waits this chart could not draw, or null where it
+   * drew every one — {@link droppedLinkWords}, whose count comes from the three
+   * loops that drop them rather than from a second walk of the rows here.
+   */
+  const droppedWords = droppedLinkWords(chart.droppedLinks);
 
   // The chart read has been replaced, **whether or not the anchor survived**.
   // A slice keeping its id across a refetch keeps its `<rect>` — React reuses
@@ -1797,80 +1804,81 @@ function GanttChart({
   };
 
   return (
-    <section
-      data-gantt-panel
-      aria-label="Gantt chart"
-      // Its own scroll area, in both directions: the plan above keeps its frame
-      // and this takes a bounded share of what is left, so neither the page nor
-      // the section it sits in ever scrolls sideways. `shrink-0` with a max
-      // height rather than a flex basis — the table stays the editor and the
-      // chart takes what it needs up to the cap. A dragged height replaces the
-      // bounded share with its own number, under the live cap that keeps a
-      // height dragged on a tall monitor sane on a laptop.
-      //
-      // `isolate` is what keeps the chart's own layering inside the chart. The
-      // sticky label column, its corner and the calendar axis stack against
-      // each other at `z-10`/`z-20`, and `overflow` makes no stacking context
-      // to hold them: without this they stack against the page, and the height
-      // handle sitting over this box at `z-index: 1` loses every pixel the
-      // chart's content reaches — the strip is unpressable exactly where there
-      // is a chart to resize.
-      //
-      // The invariant is a pair, and this keyword is only half of it: the
-      // section makes the stacking context, and the handle's own `z-index: 1`
-      // (`wbs-table.tsx`, on the 6px grab strip) paints above it. Either half
-      // alone is not enough.
-      //
-      // Proof: two faults, each injected on its own — `isolate` deleted from
-      // this class list, and `zIndex: 1` deleted from the handle. Both turned
-      // `e2e/gantt.spec.ts`'s `owns every point on its strip, rather than the
-      // chart sliding under it` red the same way: all 18 sampled points across
-      // the strip came back as the chart's own boxes (15 × `div in the chart`,
-      // 3 × `span in the chart`) instead of the handle. Watched in Chromium
-      // 2026-08-12.
-      className={cn(
-        'border-border isolate shrink-0 overflow-auto border-t',
-        heightPx === null && 'max-h-[40vh]',
-      )}
-      style={
-        heightPx === null
-          ? undefined
-          : { height: heightPx, maxHeight: `${String(GANTT_VIEWPORT_SHARE * 100)}vh` }
-      }
-      onScroll={(scrollEvent) => {
-        setScrolledPx(scrollEvent.currentTarget.scrollLeft);
-        // The surface is a fixed layer and is not in this scroll box, so the
-        // bar moves out from under it and the card stays where it was put. A
-        // surface pointing at the wrong bar is worse than none.
-        dismiss();
-      }}
-    >
-      <div className="flex w-max">
-        {/*
+    <>
+      <section
+        data-gantt-panel
+        aria-label="Gantt chart"
+        // Its own scroll area, in both directions: the plan above keeps its frame
+        // and this takes a bounded share of what is left, so neither the page nor
+        // the section it sits in ever scrolls sideways. `shrink-0` with a max
+        // height rather than a flex basis — the table stays the editor and the
+        // chart takes what it needs up to the cap. A dragged height replaces the
+        // bounded share with its own number, under the live cap that keeps a
+        // height dragged on a tall monitor sane on a laptop.
+        //
+        // `isolate` is what keeps the chart's own layering inside the chart. The
+        // sticky label column, its corner and the calendar axis stack against
+        // each other at `z-10`/`z-20`, and `overflow` makes no stacking context
+        // to hold them: without this they stack against the page, and the height
+        // handle sitting over this box at `z-index: 1` loses every pixel the
+        // chart's content reaches — the strip is unpressable exactly where there
+        // is a chart to resize.
+        //
+        // The invariant is a pair, and this keyword is only half of it: the
+        // section makes the stacking context, and the handle's own `z-index: 1`
+        // (`wbs-table.tsx`, on the 6px grab strip) paints above it. Either half
+        // alone is not enough.
+        //
+        // Proof: two faults, each injected on its own — `isolate` deleted from
+        // this class list, and `zIndex: 1` deleted from the handle. Both turned
+        // `e2e/gantt.spec.ts`'s `owns every point on its strip, rather than the
+        // chart sliding under it` red the same way: all 18 sampled points across
+        // the strip came back as the chart's own boxes (15 × `div in the chart`,
+        // 3 × `span in the chart`) instead of the handle. Watched in Chromium
+        // 2026-08-12.
+        className={cn(
+          'border-border isolate shrink-0 overflow-auto border-t',
+          heightPx === null && 'max-h-[40vh]',
+        )}
+        style={
+          heightPx === null
+            ? undefined
+            : { height: heightPx, maxHeight: `${String(GANTT_VIEWPORT_SHARE * 100)}vh` }
+        }
+        onScroll={(scrollEvent) => {
+          setScrolledPx(scrollEvent.currentTarget.scrollLeft);
+          // The surface is a fixed layer and is not in this scroll box, so the
+          // bar moves out from under it and the card stays where it was put. A
+          // surface pointing at the wrong bar is worse than none.
+          dismiss();
+        }}
+      >
+        <div className="flex w-max">
+          {/*
           Holds the left edge while the chart scrolls under it. `sticky left-0`
           inside this scroll container, with a background of its own — a
           transparent one would have the bars painted through the names.
         */}
-        <div
-          data-gantt-labels
-          className="bg-background border-border sticky left-0 z-10 shrink-0 border-r"
-          style={{ width: LABEL_COLUMN_PX }}
-        >
           <div
-            className="text-muted-foreground border-border bg-background sticky top-0 z-20 flex items-center justify-between border-b px-2 text-[10px] font-semibold tracking-wide uppercase"
-            style={{ height: ROW_PX }}
+            data-gantt-labels
+            className="bg-background border-border sticky left-0 z-10 shrink-0 border-r"
+            style={{ width: LABEL_COLUMN_PX }}
           >
-            <span>
-              {(() => {
-                if (startDate === null) return 'Workday';
-                // The nullish arm is the workday axis's cells, which a dated
-                // plan never builds — but the index above is clamped, not
-                // proven, and 'Workday' is the honest fallback either way.
-                const visibleDate = axis[firstVisibleCell]?.date ?? null;
-                return visibleDate === null ? 'Workday' : monthWords(visibleDate);
-              })()}
-            </span>
-            {/*
+            <div
+              className="text-muted-foreground border-border bg-background sticky top-0 z-20 flex items-center justify-between border-b px-2 text-[10px] font-semibold tracking-wide uppercase"
+              style={{ height: ROW_PX }}
+            >
+              <span>
+                {(() => {
+                  if (startDate === null) return 'Workday';
+                  // The nullish arm is the workday axis's cells, which a dated
+                  // plan never builds — but the index above is clamped, not
+                  // proven, and 'Workday' is the honest fallback either way.
+                  const visibleDate = axis[firstVisibleCell]?.date ?? null;
+                  return visibleDate === null ? 'Workday' : monthWords(visibleDate);
+                })()}
+              </span>
+              {/*
               The detail switch, in the one corner that is sticky both ways —
               `left-0` from the label column, `top-0` of its own, like the axis
               beside it: it has to stay reachable however far a 60-row chart
@@ -1882,44 +1890,44 @@ function GanttChart({
               Six characters, which is what the corner beside the month caption
               has room for — the `title` is where the three are named.
             */}
-            <button
-              type="button"
-              data-gantt-detail-toggle
-              aria-pressed={detailShown}
-              title={
-                detailShown
-                  ? 'Hide the arrows, the parent bars and the unestimated slices'
-                  : 'Show the arrows, the parent bars and the unestimated slices'
-              }
-              className={
-                detailShown
-                  ? 'border-border hover:bg-accent rounded border px-1 normal-case'
-                  : 'border-border hover:bg-accent text-muted-foreground/60 rounded border border-dashed px-1 normal-case line-through'
-              }
-              onClick={() => {
-                // The next answer worked out here, beside the write, and the
-                // setter given a value rather than a function: a state updater
-                // React may call twice is no place for a side effect, and the
-                // rendered `detailShown` is the only answer a click on this
-                // switch can be flipping.
-                const asked = !detailShown;
-                // Written here and nowhere else, so opening a chart never
-                // changes what is remembered about it — the same bargain
-                // `rememberGanttHeight` makes with a drag that is let go of.
-                //
-                // Proof: this line deleted, so the answer lived in the hook
-                // alone. `opens with the detail a fresh panel is remounted
-                // onto` alone failed, `1 failed | 90 passed`, on `expected
-                // 'false' to be 'true'` — the switch back off on the next
-                // mount. Watched 2026-08-11 over the arrows key, and again
-                // 2026-08-12 over this one.
-                localStorage.setItem(DETAIL_KEY, JSON.stringify(asked));
-                setDetailShown(asked);
-              }}
-            >
-              Detail
-            </button>
-            {/*
+              <button
+                type="button"
+                data-gantt-detail-toggle
+                aria-pressed={detailShown}
+                title={
+                  detailShown
+                    ? 'Hide the arrows, the parent bars and the unestimated slices'
+                    : 'Show the arrows, the parent bars and the unestimated slices'
+                }
+                className={
+                  detailShown
+                    ? 'border-border hover:bg-accent rounded border px-1 normal-case'
+                    : 'border-border hover:bg-accent text-muted-foreground/60 rounded border border-dashed px-1 normal-case line-through'
+                }
+                onClick={() => {
+                  // The next answer worked out here, beside the write, and the
+                  // setter given a value rather than a function: a state updater
+                  // React may call twice is no place for a side effect, and the
+                  // rendered `detailShown` is the only answer a click on this
+                  // switch can be flipping.
+                  const asked = !detailShown;
+                  // Written here and nowhere else, so opening a chart never
+                  // changes what is remembered about it — the same bargain
+                  // `rememberGanttHeight` makes with a drag that is let go of.
+                  //
+                  // Proof: this line deleted, so the answer lived in the hook
+                  // alone. `opens with the detail a fresh panel is remounted
+                  // onto` alone failed, `1 failed | 90 passed`, on `expected
+                  // 'false' to be 'true'` — the switch back off on the next
+                  // mount. Watched 2026-08-11 over the arrows key, and again
+                  // 2026-08-12 over this one.
+                  localStorage.setItem(DETAIL_KEY, JSON.stringify(asked));
+                  setDetailShown(asked);
+                }}
+              >
+                Detail
+              </button>
+              {/*
               The whole capability M4 owes: a standalone `.svg` of the chart
               as drawn — every bar, arrow, hand-off and colour, in a file that
               renders correctly with no app around it (`buildStandaloneGanttSvg`).
@@ -1928,190 +1936,190 @@ function GanttChart({
               `wbs-table.tsx`'s toolbar, because this file may not touch that
               one — see the PR proposal for the control still owed there.
             */}
-            <button
-              type="button"
-              data-gantt-svg-download
-              aria-label="Download this chart as a standalone SVG"
-              title="Download this chart as a standalone .svg — every bar, arrow, hand-off and colour, openable with no app around it"
-              className="border-border hover:bg-accent ml-1 rounded border px-1 normal-case"
-              onClick={downloadGanttSvg}
-            >
-              ⇩
-            </button>
+              <button
+                type="button"
+                data-gantt-svg-download
+                aria-label="Download this chart as a standalone SVG"
+                title="Download this chart as a standalone .svg — every bar, arrow, hand-off and colour, openable with no app around it"
+                className="border-border hover:bg-accent ml-1 rounded border px-1 normal-case"
+                onClick={downloadGanttSvg}
+              >
+                ⇩
+              </button>
+            </div>
+            {chart.labels.map((label: GanttRowLabel) => (
+              <button
+                key={label.id}
+                type="button"
+                data-gantt-label={label.id}
+                // The same words the button shows, so a label the column has
+                // truncated can still be read whole on hover.
+                //
+                // Proof: the button's text put back to `label.name === '' ?
+                // '(unnamed)' : label.name` — the chart labelled by name alone.
+                // **Four** tests failed, `4 failed | 39 passed`: `leaves a
+                // collapsed branch's children off the chart`, `draws exactly the
+                // rows a search narrowed the plan to` and `draws under the roles
+                // the payload carried…` on `expected [ 'Hull', 'Sanding',
+                // 'Sealing', …(1) ] to deeply equal [ '010 - Hull', '011 -
+                // Sanding', …(2) ]`, and `takes the plan to a row when its label
+                // is clicked` on the button no longer being findable by its
+                // number. Watched, 2026-08-09.
+                title={rowWords(label.number, label.name)}
+                // The house indent, so the chart's outline is the plan's outline
+                // — `hierarchyIndentFor`, the uncapped half of the pair: this
+                // rail has no declared column width to protect, so a depth-6
+                // label stands two steps deeper than a depth-4 one, where the
+                // Number cell's capped indent would draw them flush.
+                style={{ height: ROW_PX, paddingLeft: hierarchyIndentFor(label.depth) + 8 }}
+                className="hover:bg-accent block w-full truncate pr-2 text-left text-xs"
+                onClick={() => {
+                  onPickRow(label.id);
+                }}
+              >
+                {rowWords(label.number, label.name)}
+              </button>
+            ))}
           </div>
-          {chart.labels.map((label: GanttRowLabel) => (
-            <button
-              key={label.id}
-              type="button"
-              data-gantt-label={label.id}
-              // The same words the button shows, so a label the column has
-              // truncated can still be read whole on hover.
-              //
-              // Proof: the button's text put back to `label.name === '' ?
-              // '(unnamed)' : label.name` — the chart labelled by name alone.
-              // **Four** tests failed, `4 failed | 39 passed`: `leaves a
-              // collapsed branch's children off the chart`, `draws exactly the
-              // rows a search narrowed the plan to` and `draws under the roles
-              // the payload carried…` on `expected [ 'Hull', 'Sanding',
-              // 'Sealing', …(1) ] to deeply equal [ '010 - Hull', '011 -
-              // Sanding', …(2) ]`, and `takes the plan to a row when its label
-              // is clicked` on the button no longer being findable by its
-              // number. Watched, 2026-08-09.
-              title={rowWords(label.number, label.name)}
-              // The house indent, so the chart's outline is the plan's outline
-              // — `hierarchyIndentFor`, the uncapped half of the pair: this
-              // rail has no declared column width to protect, so a depth-6
-              // label stands two steps deeper than a depth-4 one, where the
-              // Number cell's capped indent would draw them flush.
-              style={{ height: ROW_PX, paddingLeft: hierarchyIndentFor(label.depth) + 8 }}
-              className="hover:bg-accent block w-full truncate pr-2 text-left text-xs"
-              onClick={() => {
-                onPickRow(label.id);
-              }}
-            >
-              {rowWords(label.number, label.name)}
-            </button>
-          ))}
-        </div>
 
-        <div className="shrink-0" style={{ width: chartWidth }}>
-          {/*
+          <div className="shrink-0" style={{ width: chartWidth }}>
+            {/*
             The calendar, in HTML and positioned by the same {@link DAY_PX} the
             SVG is sized by — which is what lets a browser check that a bar's
             left edge is under its own date. Inside the SVG it would be text in
             a stretched user space.
           */}
-          <div
-            data-gantt-axis
-            className="border-border bg-background sticky top-0 z-10 flex border-b"
-            // The same band the SVG keeps at its left, so workday 0's cell
-            // starts where the SVG's user x=0 does. Without it the whole
-            // calendar sits {@link CHART_PAD_PX} left of the bars it labels.
-            style={{ height: ROW_PX, paddingLeft: CHART_PAD_PX }}
-          >
-            {axis.map((day) => (
-              <span
-                key={day.offset}
-                // Where the cell stands, which is the same number every mark
-                // under it is placed at. The workday it **is** rides beside it
-                // — a weekend cell is nobody's workday, and a bar's
-                // `data-start` is a workday, so the two attributes are how a
-                // test says the conversion happened.
-                data-axis-day={day.offset}
-                {...(day.date === null ? {} : { 'data-axis-date': day.date })}
-                {...(day.workday === null ? {} : { 'data-axis-workday': day.workday })}
-                {...(day.weekend ? { 'data-axis-weekend': 'true' } : {})}
-                // No native `title`: one hint, and it is the card the pointer
-                // opens below — the browser's own tooltip would race it after
-                // a delay nobody chose (`instant-hovers`' rule, and Dany's
-                // ask: knowing the month must not take a second and a half).
-                onPointerOver={(pointer) => {
-                  // The bars' touch seam, on the axis: a tap synthesizes mouse
-                  // events, and only the pointer events say which they came
-                  // from.
-                  if (pointer.pointerType !== 'mouse') return;
-                  const cell = pointer.currentTarget;
-                  cancelOpening();
-                  opening.current = setTimeout(() => {
-                    showDaySurface(day.offset, cell);
-                  }, HOVER_OPEN_MS);
-                }}
-                onPointerOut={dismiss}
-                // The first day of each week reads as the heading it is, over
-                // the heavier gridline under it; a weekend cell is greyed back,
-                // like the column beneath it.
-                className={[
-                  'shrink-0 text-center text-[10px] leading-7',
-                  day.heavy ? 'text-foreground font-semibold' : 'text-muted-foreground',
-                  day.weekend ? 'bg-muted-foreground/10' : '',
-                ]
-                  .filter((part) => part !== '')
-                  .join(' ')}
-                style={{ width: DAY_PX }}
-              >
-                {day.shown}
-              </span>
-            ))}
-          </div>
-          {/*
+            <div
+              data-gantt-axis
+              className="border-border bg-background sticky top-0 z-10 flex border-b"
+              // The same band the SVG keeps at its left, so workday 0's cell
+              // starts where the SVG's user x=0 does. Without it the whole
+              // calendar sits {@link CHART_PAD_PX} left of the bars it labels.
+              style={{ height: ROW_PX, paddingLeft: CHART_PAD_PX }}
+            >
+              {axis.map((day) => (
+                <span
+                  key={day.offset}
+                  // Where the cell stands, which is the same number every mark
+                  // under it is placed at. The workday it **is** rides beside it
+                  // — a weekend cell is nobody's workday, and a bar's
+                  // `data-start` is a workday, so the two attributes are how a
+                  // test says the conversion happened.
+                  data-axis-day={day.offset}
+                  {...(day.date === null ? {} : { 'data-axis-date': day.date })}
+                  {...(day.workday === null ? {} : { 'data-axis-workday': day.workday })}
+                  {...(day.weekend ? { 'data-axis-weekend': 'true' } : {})}
+                  // No native `title`: one hint, and it is the card the pointer
+                  // opens below — the browser's own tooltip would race it after
+                  // a delay nobody chose (`instant-hovers`' rule, and Dany's
+                  // ask: knowing the month must not take a second and a half).
+                  onPointerOver={(pointer) => {
+                    // The bars' touch seam, on the axis: a tap synthesizes mouse
+                    // events, and only the pointer events say which they came
+                    // from.
+                    if (pointer.pointerType !== 'mouse') return;
+                    const cell = pointer.currentTarget;
+                    cancelOpening();
+                    opening.current = setTimeout(() => {
+                      showDaySurface(day.offset, cell);
+                    }, HOVER_OPEN_MS);
+                  }}
+                  onPointerOut={dismiss}
+                  // The first day of each week reads as the heading it is, over
+                  // the heavier gridline under it; a weekend cell is greyed back,
+                  // like the column beneath it.
+                  className={[
+                    'shrink-0 text-center text-[10px] leading-7',
+                    day.heavy ? 'text-foreground font-semibold' : 'text-muted-foreground',
+                    day.weekend ? 'bg-muted-foreground/10' : '',
+                  ]
+                    .filter((part) => part !== '')
+                    .join(' ')}
+                  style={{ width: DAY_PX }}
+                >
+                  {day.shown}
+                </span>
+              ))}
+            </div>
+            {/*
             The chart and the words on it, stacked: the SVG lays the geometry
             out and the spans below sit on top of it, positioned by the same
             {@link DAY_PX} and {@link ROW_PX} the SVG is sized by. `relative` is
             what they are absolute against.
           */}
-          <div className="relative">
-            <svg
-              ref={chartSvgRef}
-              data-gantt-chart
-              // The contract, in three attributes: the user space is days by
-              // rows, and the CSS size is the only place either becomes a pixel.
-              // The schedule band is the **horizon** the marks were placed
-              // against, so one user unit is exactly {@link DAY_PX} however
-              // fractional the last day is.
-              viewBox={`${String(-pad)} 0 ${String(placed.horizon + 2 * pad)} ${String(rowCount)}`}
-              preserveAspectRatio="none"
-              width={placed.horizon * DAY_PX + 2 * CHART_PAD_PX}
-              height={rowCount * ROW_PX}
-              style={{ display: 'block' }}
-            >
-              {/*
+            <div className="relative">
+              <svg
+                ref={chartSvgRef}
+                data-gantt-chart
+                // The contract, in three attributes: the user space is days by
+                // rows, and the CSS size is the only place either becomes a pixel.
+                // The schedule band is the **horizon** the marks were placed
+                // against, so one user unit is exactly {@link DAY_PX} however
+                // fractional the last day is.
+                viewBox={`${String(-pad)} 0 ${String(placed.horizon + 2 * pad)} ${String(rowCount)}`}
+                preserveAspectRatio="none"
+                width={placed.horizon * DAY_PX + 2 * CHART_PAD_PX}
+                height={rowCount * ROW_PX}
+                style={{ display: 'block' }}
+              >
+                {/*
                 The weekends, as columns. Drawn first and so **under** the row
                 bands and every mark: this is the change's whole point on
                 screen, and it is a column of the chart rather than a seam
                 between two days. A plan with no start date has none — there is
                 no calendar to have a Saturday on.
               */}
-              {axis
-                .filter((day) => day.weekend)
-                .map((day) => (
-                  <rect
-                    key={`${String(day.offset)}-weekend`}
-                    data-gantt-weekend={day.offset}
-                    x={day.offset}
-                    y={0}
-                    width={1}
-                    height={rowCount}
-                    className="fill-muted-foreground/10"
-                  />
-                ))}
+                {axis
+                  .filter((day) => day.weekend)
+                  .map((day) => (
+                    <rect
+                      key={`${String(day.offset)}-weekend`}
+                      data-gantt-weekend={day.offset}
+                      x={day.offset}
+                      y={0}
+                      width={1}
+                      height={rowCount}
+                      className="fill-muted-foreground/10"
+                    />
+                  ))}
 
-              {/*
+                {/*
                 A band behind every other row, so an eye tracking one row across
                 a chart wider than the window does not land a row out. Over the
                 weekend columns and under everything else, in the user space's
                 own units — a row is 1.
               */}
-              {chart.labels
-                .filter((label) => label.rowIndex % 2 === 1)
-                .map((label) => (
-                  <rect
-                    key={`${label.id}-band`}
-                    data-gantt-band={label.rowIndex}
-                    x={0}
-                    y={label.rowIndex}
-                    width={days}
-                    height={1}
-                    className="fill-muted/40"
+                {chart.labels
+                  .filter((label) => label.rowIndex % 2 === 1)
+                  .map((label) => (
+                    <rect
+                      key={`${label.id}-band`}
+                      data-gantt-band={label.rowIndex}
+                      x={0}
+                      y={label.rowIndex}
+                      width={days}
+                      height={1}
+                      className="fill-muted/40"
+                    />
+                  ))}
+
+                {axis.map((day) => (
+                  <line
+                    key={day.offset}
+                    x1={day.offset}
+                    y1={0}
+                    x2={day.offset}
+                    y2={rowCount}
+                    data-gantt-gridline={day.offset}
+                    // The week boundary heavier: a Monday on a calendar, and every
+                    // fifth workday on an axis that holds no weekends to count
+                    // from. See {@link WEEK_DAYS} and {@link calendarAxis}.
+                    className={day.heavy ? 'stroke-border' : 'stroke-border/40'}
+                    vectorEffect="non-scaling-stroke"
                   />
                 ))}
 
-              {axis.map((day) => (
-                <line
-                  key={day.offset}
-                  x1={day.offset}
-                  y1={0}
-                  x2={day.offset}
-                  y2={rowCount}
-                  data-gantt-gridline={day.offset}
-                  // The week boundary heavier: a Monday on a calendar, and every
-                  // fifth workday on an axis that holds no weekends to count
-                  // from. See {@link WEEK_DAYS} and {@link calendarAxis}.
-                  className={day.heavy ? 'stroke-border' : 'stroke-border/40'}
-                  vectorEffect="non-scaling-stroke"
-                />
-              ))}
-
-              {/*
+                {/*
                 A summary row's span, drawn as the **ghost of a bar**: the same
                 rounded shape a leaf gets, in the page's own ink at low opacity
                 and unstroked, so it reads as the projection of the rows
@@ -2163,24 +2171,24 @@ function GanttChart({
                 `the chart mirrors the plan`'s cases with them on lists missing
                 `010 - Hull`. Watched 2026-08-11.
               */}
-              {detailShown &&
-                placed.brackets
-                  .filter((bracket) => bracket.to > bracket.from)
-                  .map((bracket) => (
-                    <rect
-                      key={bracket.rowId}
-                      data-gantt-bracket={bracket.rowId}
-                      x={bracket.from}
-                      width={bracket.to - bracket.from}
-                      y={bracket.rowIndex + BAR_INSET}
-                      height={BAR_HEIGHT}
-                      rx={BAR_RADIUS_PX / DAY_PX}
-                      ry={BAR_RADIUS_PX / ROW_PX}
-                      className="fill-foreground/15"
-                    />
-                  ))}
+                {detailShown &&
+                  placed.brackets
+                    .filter((bracket) => bracket.to > bracket.from)
+                    .map((bracket) => (
+                      <rect
+                        key={bracket.rowId}
+                        data-gantt-bracket={bracket.rowId}
+                        x={bracket.from}
+                        width={bracket.to - bracket.from}
+                        y={bracket.rowIndex + BAR_INSET}
+                        height={BAR_HEIGHT}
+                        rx={BAR_RADIUS_PX / DAY_PX}
+                        ry={BAR_RADIUS_PX / ROW_PX}
+                        className="fill-foreground/15"
+                      />
+                    ))}
 
-              {/*
+                {/*
                 A parent whose projection has no days — every child unestimated
                 — is a modeled state, not a missing row, and a zero-width rect
                 is no mark at all. The same answer the leaves give a zero-day
@@ -2199,29 +2207,29 @@ function GanttChart({
                 has no days` alone failed, `1 failed | 52 passed`, on the mark
                 not being there. Watched 2026-08-09.
               */}
-              {detailShown &&
-                placed.brackets
-                  .filter((bracket) => bracket.to <= bracket.from)
-                  .map((bracket) => (
-                    <line
-                      key={bracket.rowId}
-                      data-gantt-bracket={bracket.rowId}
-                      x1={bracket.from}
-                      y1={bracket.rowIndex + BAR_INSET}
-                      x2={bracket.from}
-                      y2={bracket.rowIndex + BAR_INSET + BAR_HEIGHT}
-                      className="stroke-foreground/40"
-                      vectorEffect="non-scaling-stroke"
-                    />
-                  ))}
+                {detailShown &&
+                  placed.brackets
+                    .filter((bracket) => bracket.to <= bracket.from)
+                    .map((bracket) => (
+                      <line
+                        key={bracket.rowId}
+                        data-gantt-bracket={bracket.rowId}
+                        x1={bracket.from}
+                        y1={bracket.rowIndex + BAR_INSET}
+                        x2={bracket.from}
+                        y2={bracket.rowIndex + BAR_INSET + BAR_HEIGHT}
+                        className="stroke-foreground/40"
+                        vectorEffect="non-scaling-stroke"
+                      />
+                    ))}
 
-              {/*
+                {/*
                 A stored dependency: an elbow that always arrives horizontally at
                 the successor's left edge, and a filled head on the end of it.
                 See {@link arrowRoute} — the head is a path rather than a
                 `<marker>`, and the route jogs when the two bars touch.
               */}
-              {/*
+                {/*
                 Behind the switch as a whole: the elbow and the head are two
                 paths of one mark, and hiding one alone leaves a floating
                 triangle pointing at nothing.
@@ -2232,48 +2240,52 @@ function GanttChart({
                 be +0` for the head count at rest. Watched 2026-08-09 as
                 `arrowsShown`, and again 2026-08-12 over this gate.
               */}
-              {detailShown &&
-                placed.arrows.map((arrow) => {
-                  const route = arrowRoute(arrow, drawnBars);
-                  const id = `${arrow.predecessorId}->${arrow.successorId}`;
-                  return (
-                    <g key={id}>
-                      <path
-                        data-gantt-arrow={id}
-                        d={route.elbow}
-                        className="stroke-foreground fill-none [stroke-width:1.5]"
-                        vectorEffect="non-scaling-stroke"
-                      />
-                      {/*
+                {detailShown &&
+                  placed.arrows.map((arrow) => {
+                    const route = arrowRoute(arrow, drawnBars);
+                    const id = `${arrow.predecessorId}->${arrow.successorId}`;
+                    return (
+                      <g key={id}>
+                        <path
+                          data-gantt-arrow={id}
+                          d={route.elbow}
+                          className="stroke-foreground fill-none [stroke-width:1.5]"
+                          vectorEffect="non-scaling-stroke"
+                        />
+                        {/*
                       No `vector-effect` and no stroke: the head is filled, so
                       nothing about it is a stroke width to hold steady.
                     */}
-                      <path data-gantt-arrow-head={id} d={route.head} className="fill-foreground" />
-                    </g>
-                  );
-                })}
+                        <path
+                          data-gantt-arrow-head={id}
+                          d={route.head}
+                          className="fill-foreground"
+                        />
+                      </g>
+                    );
+                  })}
 
-              {/*
+                {/*
               Drawn unlike a dependency, because it is not one: nobody wrote this
               down. It is where one person's queue put a slice behind another.
             */}
-              {drawnLinks.map((link) => (
-                <path
-                  key={`${link.fromSliceId}->${link.toSliceId}`}
-                  data-gantt-person-link={`${link.fromSliceId}->${link.toSliceId}`}
-                  d={
-                    `M ${String(link.fromX)} ${String(link.fromRowIndex + ROW_MIDDLE)} ` +
-                    `L ${String(link.toX)} ${String(link.toRowIndex + ROW_MIDDLE)}`
-                  }
-                  // The person's own colour, so the line and the two bars it
-                  // joins read as one queue rather than as a third kind of edge.
-                  stroke={link.personColor}
-                  className="fill-none [stroke-dasharray:4_3]"
-                  vectorEffect="non-scaling-stroke"
-                />
-              ))}
+                {drawnLinks.map((link) => (
+                  <path
+                    key={`${link.fromSliceId}->${link.toSliceId}`}
+                    data-gantt-person-link={`${link.fromSliceId}->${link.toSliceId}`}
+                    d={
+                      `M ${String(link.fromX)} ${String(link.fromRowIndex + ROW_MIDDLE)} ` +
+                      `L ${String(link.toX)} ${String(link.toRowIndex + ROW_MIDDLE)}`
+                    }
+                    // The person's own colour, so the line and the two bars it
+                    // joins read as one queue rather than as a third kind of edge.
+                    stroke={link.personColor}
+                    className="fill-none [stroke-dasharray:4_3]"
+                    vectorEffect="non-scaling-stroke"
+                  />
+                ))}
 
-              {/*
+                {/*
                 Where a team had nobody spare: the slice whose finish freed the
                 slots, to the slice that was waiting for them. One line per
                 wait, drawn from be-01's display referent — the hover sentence
@@ -2283,21 +2295,21 @@ function GanttChart({
                 A longer dash and one colour for every team, so it cannot be
                 read as somebody's hand-off — see {@link CAPACITY_LINK_COLOR}.
               */}
-              {drawnPoolWaits.map((link) => (
-                <path
-                  key={`${link.fromSliceId}~>${link.toSliceId}`}
-                  data-gantt-capacity-link={`${link.fromSliceId}->${link.toSliceId}`}
-                  d={
-                    `M ${String(link.fromX)} ${String(link.fromRowIndex + ROW_MIDDLE)} ` +
-                    `L ${String(link.toX)} ${String(link.toRowIndex + ROW_MIDDLE)}`
-                  }
-                  stroke={CAPACITY_LINK_COLOR}
-                  className="fill-none [stroke-dasharray:8_4]"
-                  vectorEffect="non-scaling-stroke"
-                />
-              ))}
+                {drawnPoolWaits.map((link) => (
+                  <path
+                    key={`${link.fromSliceId}~>${link.toSliceId}`}
+                    data-gantt-capacity-link={`${link.fromSliceId}->${link.toSliceId}`}
+                    d={
+                      `M ${String(link.fromX)} ${String(link.fromRowIndex + ROW_MIDDLE)} ` +
+                      `L ${String(link.toX)} ${String(link.toRowIndex + ROW_MIDDLE)}`
+                    }
+                    stroke={CAPACITY_LINK_COLOR}
+                    className="fill-none [stroke-dasharray:8_4]"
+                    vectorEffect="non-scaling-stroke"
+                  />
+                ))}
 
-              {/*
+                {/*
                 Where a row's own start date holds it: a caret in the clear band
                 above the bar, pointing at the day. Above and not on, because on
                 is where it was and where nothing could see it — see
@@ -2305,141 +2317,141 @@ function GanttChart({
                 which is the one thing the mark's position cannot say. From
                 {@link drawnFlags}: a row with no bar has nothing to stand over.
               */}
-              {drawnFlags.map((flag) => (
-                <path
-                  key={`${String(flag.rowIndex)}@${String(flag.workday)}`}
-                  data-gantt-not-before={flag.rowIndex}
-                  d={
-                    `M ${String(flag.x)} ${String(flag.rowIndex + NOT_BEFORE_CLEARANCE)} ` +
-                    `L ${String(flag.x + NOT_BEFORE_LENGTH_PX / DAY_PX)} ` +
-                    `${String(flag.rowIndex + BAR_INSET / 2)} ` +
-                    `L ${String(flag.x)} ` +
-                    `${String(flag.rowIndex + BAR_INSET - NOT_BEFORE_CLEARANCE)} Z`
-                  }
-                  className="fill-foreground"
-                >
-                  {/*
+                {drawnFlags.map((flag) => (
+                  <path
+                    key={`${String(flag.rowIndex)}@${String(flag.workday)}`}
+                    data-gantt-not-before={flag.rowIndex}
+                    d={
+                      `M ${String(flag.x)} ${String(flag.rowIndex + NOT_BEFORE_CLEARANCE)} ` +
+                      `L ${String(flag.x + NOT_BEFORE_LENGTH_PX / DAY_PX)} ` +
+                      `${String(flag.rowIndex + BAR_INSET / 2)} ` +
+                      `L ${String(flag.x)} ` +
+                      `${String(flag.rowIndex + BAR_INSET - NOT_BEFORE_CLEARANCE)} Z`
+                    }
+                    className="fill-foreground"
+                  >
+                    {/*
                     The **workday**, not the coordinate: the caret stands where
                     the calendar puts it and says the date the row was held at,
                     and `x` is a position on a canvas rather than an index into
                     the working days.
                   */}
-                  <title>{notBeforeWords(startDate, flag.workday)}</title>
-                </path>
-              ))}
+                    <title>{notBeforeWords(startDate, flag.workday)}</title>
+                  </path>
+                ))}
 
-              {drawnBars.map(({ bar, x, width }) => (
-                <rect
-                  key={bar.sliceId}
-                  data-gantt-bar={bar.sliceId}
-                  // The engine's own **workday** numbers, and the geometry
-                  // beside them is the calendar's: the two are allowed to
-                  // disagree, and the difference between them is exactly what a
-                  // test reads to say the conversion happened. A bar at workday
-                  // 5 on a Monday-start plan carries `data-start="5"` and stands
-                  // at `x="7"`.
-                  data-start={bar.start}
-                  data-finish={bar.finish}
-                  // The last workday this bar is still on, which is the axis cell
-                  // its right edge stops inside rather than the one it stops at.
-                  // See {@link lastWorkdayOf} — it is the one number about a bar
-                  // that cannot be read off `x` and `width` without repeating the
-                  // nudge, and the browser gate has to know it to say which label
-                  // the edge should line up with.
-                  data-last-day={lastWorkdayOf(bar.start, bar.finish)}
-                  {...(bar.critical ? { 'data-critical': 'true' } : {})}
-                  // The bar whose width is an assumption, findable as such. The
-                  // styling below is what a reader sees; this is what the
-                  // browser gate selects on, and it has to tell a drawn span
-                  // from a measured one before it measures anything. Only ever
-                  // in the document with the detail switch on.
-                  //
-                  // Proof: this hook dropped. `7 failed | 84 passed` —
-                  // four on {@link askForTheDetail}'s own throw, `the detail
-                  // switch was pressed and nothing arrived at [data-assumed]`,
-                  // and three on `expected null to be 'true'` /
-                  // `expected +0 to be 1`. Watched 2026-08-12.
-                  {...(bar.estimated ? {} : { 'data-assumed': 'true' })}
-                  x={x}
-                  // The **drawn** span in calendar days — the end reading of
-                  // the drawn finish less the start reading of the start, so a
-                  // bar working through a weekend is drawn across it and one
-                  // stopping on the Friday stops at the Saturday. Never a span
-                  // from the engine's `finish`: an unestimated slice finishes
-                  // where it starts, and that width is no bar at all.
-                  width={width}
-                  y={bar.rowIndex + BAR_INSET}
-                  height={BAR_HEIGHT}
-                  rx={BAR_RADIUS_PX / DAY_PX}
-                  ry={BAR_RADIUS_PX / ROW_PX}
-                  // Who is on it — an unestimated slice included, at 35% through
-                  // {@link ASSUMED_BAR_CLASSES}. It used to be hollow, which was
-                  // honest about the length and cost the reader the assignee;
-                  // now it keeps the person and says "guessed" in how it is
-                  // painted rather than by having no paint.
-                  fill={bar.personColor}
-                  // The critical path is the **outline**, because the fill is
-                  // already saying who. A ring in the foreground colour rather
-                  // than the destructive one: `#d62728` is the fourth person's
-                  // colour, and a red ring on a red bar is no ring at all.
-                  stroke={bar.critical ? undefined : bar.personColor}
-                  className={barClasses(bar.critical, bar.estimated)}
-                  vectorEffect="non-scaling-stroke"
-                  // A control, because it is one: it takes the keyboard, it has
-                  // a name, and Enter and Space act on it. The role is what
-                  // makes the `aria-label` below a name a screen reader reads —
-                  // a bare `<rect>` is presentational whatever it is labelled.
-                  role="button"
-                  tabIndex={0}
-                  // **The bar's only accessible name**, and the reason it is
-                  // here rather than in the `<title>` this change took off the
-                  // bars: two tooltips on one mark is a bug, and the browser's
-                  // is the one nothing can place or style. The same facts the
-                  // surface shows, from the same derivation.
-                  aria-label={barFacts(bar, startDate, today, plan.priorityBands).join('. ')}
-                  onClick={() => {
-                    const rowId = rowIdAt(bar.rowIndex);
-                    // A bar with no row is not a state this can be in — the bar
-                    // was placed on that row by {@link layOutGantt} — so there is
-                    // nothing to do about it but leave the click alone.
-                    if (rowId !== undefined) onPickRow(rowId);
-                  }}
-                  onKeyDown={(key) => {
-                    if (key.key !== 'Enter' && key.key !== ' ') return;
-                    // Before anything else: Space's own default is to scroll
-                    // the panel, and a reader who asked to go to a row and got
-                    // the chart scrolled out from under them is R5 #14's fault
-                    // wearing another hat. jsdom performs no default action, so
-                    // this line is guarded in a browser (`e2e/gantt.spec.ts`).
-                    key.preventDefault();
-                    const rowId = rowIdAt(bar.rowIndex);
-                    if (rowId !== undefined) onPickRow(rowId);
-                  }}
-                  onPointerOver={(pointer) => {
-                    // **The touch seam.** Chromium synthesizes a whole mouse
-                    // sequence from a tap — `mouseover` included — so a surface
-                    // opened on a mouse event opens on every tap as well, over
-                    // the row the tap was taking the reader to. The pointer
-                    // events are the only ones that say which they came from.
-                    if (pointer.pointerType !== 'mouse') return;
-                    const mark = pointer.currentTarget;
-                    cancelOpening();
-                    opening.current = setTimeout(() => {
-                      showSurface(bar.sliceId, mark);
-                    }, HOVER_OPEN_MS);
-                  }}
-                  onPointerOut={dismiss}
-                  // No delay on the keyboard: focus is deliberate, and there is
-                  // no crossing of the chart to protect a reader from.
-                  onFocus={(focus) => {
-                    cancelOpening();
-                    showSurface(bar.sliceId, focus.currentTarget);
-                  }}
-                  onBlur={dismiss}
-                />
-              ))}
+                {drawnBars.map(({ bar, x, width }) => (
+                  <rect
+                    key={bar.sliceId}
+                    data-gantt-bar={bar.sliceId}
+                    // The engine's own **workday** numbers, and the geometry
+                    // beside them is the calendar's: the two are allowed to
+                    // disagree, and the difference between them is exactly what a
+                    // test reads to say the conversion happened. A bar at workday
+                    // 5 on a Monday-start plan carries `data-start="5"` and stands
+                    // at `x="7"`.
+                    data-start={bar.start}
+                    data-finish={bar.finish}
+                    // The last workday this bar is still on, which is the axis cell
+                    // its right edge stops inside rather than the one it stops at.
+                    // See {@link lastWorkdayOf} — it is the one number about a bar
+                    // that cannot be read off `x` and `width` without repeating the
+                    // nudge, and the browser gate has to know it to say which label
+                    // the edge should line up with.
+                    data-last-day={lastWorkdayOf(bar.start, bar.finish)}
+                    {...(bar.critical ? { 'data-critical': 'true' } : {})}
+                    // The bar whose width is an assumption, findable as such. The
+                    // styling below is what a reader sees; this is what the
+                    // browser gate selects on, and it has to tell a drawn span
+                    // from a measured one before it measures anything. Only ever
+                    // in the document with the detail switch on.
+                    //
+                    // Proof: this hook dropped. `7 failed | 84 passed` —
+                    // four on {@link askForTheDetail}'s own throw, `the detail
+                    // switch was pressed and nothing arrived at [data-assumed]`,
+                    // and three on `expected null to be 'true'` /
+                    // `expected +0 to be 1`. Watched 2026-08-12.
+                    {...(bar.estimated ? {} : { 'data-assumed': 'true' })}
+                    x={x}
+                    // The **drawn** span in calendar days — the end reading of
+                    // the drawn finish less the start reading of the start, so a
+                    // bar working through a weekend is drawn across it and one
+                    // stopping on the Friday stops at the Saturday. Never a span
+                    // from the engine's `finish`: an unestimated slice finishes
+                    // where it starts, and that width is no bar at all.
+                    width={width}
+                    y={bar.rowIndex + BAR_INSET}
+                    height={BAR_HEIGHT}
+                    rx={BAR_RADIUS_PX / DAY_PX}
+                    ry={BAR_RADIUS_PX / ROW_PX}
+                    // Who is on it — an unestimated slice included, at 35% through
+                    // {@link ASSUMED_BAR_CLASSES}. It used to be hollow, which was
+                    // honest about the length and cost the reader the assignee;
+                    // now it keeps the person and says "guessed" in how it is
+                    // painted rather than by having no paint.
+                    fill={bar.personColor}
+                    // The critical path is the **outline**, because the fill is
+                    // already saying who. A ring in the foreground colour rather
+                    // than the destructive one: `#d62728` is the fourth person's
+                    // colour, and a red ring on a red bar is no ring at all.
+                    stroke={bar.critical ? undefined : bar.personColor}
+                    className={barClasses(bar.critical, bar.estimated)}
+                    vectorEffect="non-scaling-stroke"
+                    // A control, because it is one: it takes the keyboard, it has
+                    // a name, and Enter and Space act on it. The role is what
+                    // makes the `aria-label` below a name a screen reader reads —
+                    // a bare `<rect>` is presentational whatever it is labelled.
+                    role="button"
+                    tabIndex={0}
+                    // **The bar's only accessible name**, and the reason it is
+                    // here rather than in the `<title>` this change took off the
+                    // bars: two tooltips on one mark is a bug, and the browser's
+                    // is the one nothing can place or style. The same facts the
+                    // surface shows, from the same derivation.
+                    aria-label={barFacts(bar, startDate, today, plan.priorityBands).join('. ')}
+                    onClick={() => {
+                      const rowId = rowIdAt(bar.rowIndex);
+                      // A bar with no row is not a state this can be in — the bar
+                      // was placed on that row by {@link layOutGantt} — so there is
+                      // nothing to do about it but leave the click alone.
+                      if (rowId !== undefined) onPickRow(rowId);
+                    }}
+                    onKeyDown={(key) => {
+                      if (key.key !== 'Enter' && key.key !== ' ') return;
+                      // Before anything else: Space's own default is to scroll
+                      // the panel, and a reader who asked to go to a row and got
+                      // the chart scrolled out from under them is R5 #14's fault
+                      // wearing another hat. jsdom performs no default action, so
+                      // this line is guarded in a browser (`e2e/gantt.spec.ts`).
+                      key.preventDefault();
+                      const rowId = rowIdAt(bar.rowIndex);
+                      if (rowId !== undefined) onPickRow(rowId);
+                    }}
+                    onPointerOver={(pointer) => {
+                      // **The touch seam.** Chromium synthesizes a whole mouse
+                      // sequence from a tap — `mouseover` included — so a surface
+                      // opened on a mouse event opens on every tap as well, over
+                      // the row the tap was taking the reader to. The pointer
+                      // events are the only ones that say which they came from.
+                      if (pointer.pointerType !== 'mouse') return;
+                      const mark = pointer.currentTarget;
+                      cancelOpening();
+                      opening.current = setTimeout(() => {
+                        showSurface(bar.sliceId, mark);
+                      }, HOVER_OPEN_MS);
+                    }}
+                    onPointerOut={dismiss}
+                    // No delay on the keyboard: focus is deliberate, and there is
+                    // no crossing of the chart to protect a reader from.
+                    onFocus={(focus) => {
+                      cancelOpening();
+                      showSurface(bar.sliceId, focus.currentTarget);
+                    }}
+                    onBlur={dismiss}
+                  />
+                ))}
 
-              {/*
+                {/*
               The band, as a cap at the bar's left edge — the third channel, and
               the only one this mark had spare. Its colour is
               `priorityBandStyleOf`'s and nothing here decides it: the same
@@ -2457,25 +2469,25 @@ function GanttChart({
               front of the control the bar is. The bar keeps the hover, the focus
               and the accessible name; this is paint.
             */}
-              {drawnBars.flatMap(({ bar, x, width }) => {
-                const paint = priorityBandStyleOf(plan.priorityBands, bar.priority);
-                if (paint === null) return [];
-                return [
-                  <rect
-                    key={`${bar.sliceId}-band`}
-                    data-priority-cap={bar.sliceId}
-                    data-priority-rank={paint.rank}
-                    x={x}
-                    y={bar.rowIndex + BAR_INSET}
-                    width={Math.min(PRIORITY_CAP_PX / DAY_PX, width)}
-                    height={BAR_HEIGHT}
-                    fill={paint.ink}
-                    pointerEvents="none"
-                  />,
-                ];
-              })}
+                {drawnBars.flatMap(({ bar, x, width }) => {
+                  const paint = priorityBandStyleOf(plan.priorityBands, bar.priority);
+                  if (paint === null) return [];
+                  return [
+                    <rect
+                      key={`${bar.sliceId}-band`}
+                      data-priority-cap={bar.sliceId}
+                      data-priority-rank={paint.rank}
+                      x={x}
+                      y={bar.rowIndex + BAR_INSET}
+                      width={Math.min(PRIORITY_CAP_PX / DAY_PX, width)}
+                      height={BAR_HEIGHT}
+                      fill={paint.ink}
+                      pointerEvents="none"
+                    />,
+                  ];
+                })}
 
-              {/*
+                {/*
               A slice **estimated** at no days is a real answer — somebody
               costed this work at nothing — and a zero-width rect draws nothing
               at all, so the tick is where it starts and the row does not read as
@@ -2491,24 +2503,24 @@ function GanttChart({
               (`expectedDays({0,0,0})` is 0, and
               `libs/domain/src/estimate.test.ts` says so).
             */}
-              {drawnBars
-                .filter(({ bar }) => bar.drawnSpan === 0)
-                .map(({ bar, x }) => (
-                  <line
-                    key={`${bar.sliceId}-tick`}
-                    x1={x}
-                    y1={bar.rowIndex + BAR_INSET}
-                    x2={x}
-                    y2={bar.rowIndex + BAR_INSET + BAR_HEIGHT}
-                    data-gantt-tick={bar.sliceId}
-                    stroke={bar.critical ? undefined : bar.personColor}
-                    className={bar.critical ? 'stroke-foreground [stroke-width:2]' : ''}
-                    vectorEffect="non-scaling-stroke"
-                  />
-                ))}
-            </svg>
+                {drawnBars
+                  .filter(({ bar }) => bar.drawnSpan === 0)
+                  .map(({ bar, x }) => (
+                    <line
+                      key={`${bar.sliceId}-tick`}
+                      x1={x}
+                      y1={bar.rowIndex + BAR_INSET}
+                      x2={x}
+                      y2={bar.rowIndex + BAR_INSET + BAR_HEIGHT}
+                      data-gantt-tick={bar.sliceId}
+                      stroke={bar.critical ? undefined : bar.personColor}
+                      className={bar.critical ? 'stroke-foreground [stroke-width:2]' : ''}
+                      vectorEffect="non-scaling-stroke"
+                    />
+                  ))}
+              </svg>
 
-            {/*
+              {/*
               Who is on each bar, written **in HTML over the SVG** and never in
               it: the user space is non-uniformly scaled and would stretch every
               glyph (design §1). The position is the same arithmetic the axis
@@ -2520,99 +2532,121 @@ function GanttChart({
               click that takes the plan to a row belongs to the rect underneath,
               and a span on top would swallow it in its middle.
             */}
-            {drawnBars.map(({ bar, x, width }) => {
-              // An unestimated bar writes the `?` its width is a guess about —
-              // see {@link assumedLabelFor} — and an estimated one writes who is
-              // on it. The room is the **drawn** width, weekend cells included:
-              // a bar stretched over a Saturday has those pixels to write in.
-              // The row's own words follow either answer and are cropped by
-              // the box, not the string — see {@link barText}.
-              // Nobody named and a team on the row: the bar says whose people
-              // are on it and how many — see {@link poolLabelFor}. Never over a
-              // name: one label, and the person is the more specific fact.
-              const who = bar.estimated
-                ? bar.personName === null
-                  ? poolLabelFor(bar.team, bar.width, width)
-                  : barLabelFor(bar.personName, width)
-                : assumedLabelFor(bar.personName, width);
-              const shown = barText(who, rowWords(bar.workItemNumber, bar.workItemName), width);
-              if (shown === null) return null;
-              return (
-                <span
-                  key={`${bar.sliceId}-label`}
-                  data-gantt-bar-label={bar.sliceId}
-                  aria-hidden="true"
-                  className={
-                    bar.estimated
-                      ? 'pointer-events-none absolute overflow-hidden text-[9px] font-semibold text-ellipsis whitespace-nowrap'
-                      : // The page's own ink on an assumed bar: `inkOn` picks a
-                        // colour to be read on a **solid** fill, and this one is
-                        // 35% of that colour over whatever the page is.
-                        'text-foreground pointer-events-none absolute overflow-hidden text-[9px] font-semibold text-ellipsis whitespace-nowrap'
-                  }
-                  style={{
-                    // Dark ink on the three light entries of the palette and
-                    // white on the other seven, never one white for all ten.
-                    // See {@link inkOn}.
-                    ...(bar.estimated ? { color: inkOn(bar.personColor) } : {}),
-                    // Over the SVG, which now begins one band left of the
-                    // schedule: the label's pixel is the bar's pixel only with
-                    // the same band added. See {@link CHART_PAD_PX}.
-                    left: x * DAY_PX + CHART_PAD_PX,
-                    top: (bar.rowIndex + BAR_INSET) * ROW_PX,
-                    width: width * DAY_PX,
-                    height: BAR_HEIGHT * ROW_PX,
-                    lineHeight: `${String(BAR_HEIGHT * ROW_PX)}px`,
-                    paddingLeft: LABEL_PAD_PX,
-                    paddingRight: LABEL_PAD_PX,
-                  }}
-                >
-                  {shown}
-                </span>
-              );
-            })}
+              {drawnBars.map(({ bar, x, width }) => {
+                // An unestimated bar writes the `?` its width is a guess about —
+                // see {@link assumedLabelFor} — and an estimated one writes who is
+                // on it. The room is the **drawn** width, weekend cells included:
+                // a bar stretched over a Saturday has those pixels to write in.
+                // The row's own words follow either answer and are cropped by
+                // the box, not the string — see {@link barText}.
+                // Nobody named and a team on the row: the bar says whose people
+                // are on it and how many — see {@link poolLabelFor}. Never over a
+                // name: one label, and the person is the more specific fact.
+                const who = bar.estimated
+                  ? bar.personName === null
+                    ? poolLabelFor(bar.team, bar.width, width)
+                    : barLabelFor(bar.personName, width)
+                  : assumedLabelFor(bar.personName, width);
+                const shown = barText(who, rowWords(bar.workItemNumber, bar.workItemName), width);
+                if (shown === null) return null;
+                return (
+                  <span
+                    key={`${bar.sliceId}-label`}
+                    data-gantt-bar-label={bar.sliceId}
+                    aria-hidden="true"
+                    className={
+                      bar.estimated
+                        ? 'pointer-events-none absolute overflow-hidden text-[9px] font-semibold text-ellipsis whitespace-nowrap'
+                        : // The page's own ink on an assumed bar: `inkOn` picks a
+                          // colour to be read on a **solid** fill, and this one is
+                          // 35% of that colour over whatever the page is.
+                          'text-foreground pointer-events-none absolute overflow-hidden text-[9px] font-semibold text-ellipsis whitespace-nowrap'
+                    }
+                    style={{
+                      // Dark ink on the three light entries of the palette and
+                      // white on the other seven, never one white for all ten.
+                      // See {@link inkOn}.
+                      ...(bar.estimated ? { color: inkOn(bar.personColor) } : {}),
+                      // Over the SVG, which now begins one band left of the
+                      // schedule: the label's pixel is the bar's pixel only with
+                      // the same band added. See {@link CHART_PAD_PX}.
+                      left: x * DAY_PX + CHART_PAD_PX,
+                      top: (bar.rowIndex + BAR_INSET) * ROW_PX,
+                      width: width * DAY_PX,
+                      height: BAR_HEIGHT * ROW_PX,
+                      lineHeight: `${String(BAR_HEIGHT * ROW_PX)}px`,
+                      paddingLeft: LABEL_PAD_PX,
+                      paddingRight: LABEL_PAD_PX,
+                    }}
+                  >
+                    {shown}
+                  </span>
+                );
+              })}
+            </div>
           </div>
         </div>
-      </div>
 
-      {/*
+        {/*
         The one surface, and one at a time by construction: there is a single
         piece of state for it, so a second bar's opening replaces the first's
         rather than adding to it. Notes are deliberately absent — they belong
         to the Name cell's preview, which is the same {@link HoverCard} with a
         different body.
       */}
-      {openBar !== null && open !== null && (
-        <HoverCard label={`Facts for ${openBar.workItemNumber}`} anchor={open.anchor}>
-          {barFacts(openBar, startDate, today, plan.priorityBands).map((line) => (
-            <p key={line} className="text-xs">
-              {line}
-            </p>
-          ))}
-        </HoverCard>
-      )}
-      {/*
+        {openBar !== null && open !== null && (
+          <HoverCard label={`Facts for ${openBar.workItemNumber}`} anchor={open.anchor}>
+            {barFacts(openBar, startDate, today, plan.priorityBands).map((line) => (
+              <p key={line} className="text-xs">
+                {line}
+              </p>
+            ))}
+          </HoverCard>
+        )}
+        {/*
         The axis cell's card: the date in words, because the cell itself has
         room for two digits and the corner names only the month on screen. The
         cell is found through the axis again rather than carried in the state —
         an axis rebuilt under an open card (start date edited) answers with
         the new cell or with nothing, never with a stale date.
       */}
-      {openDay !== null &&
-        (() => {
-          const day = axis.find((cell) => cell.offset === openDay.offset);
-          if (day === undefined) return null;
-          const lines = axisDayWords(day);
-          return (
-            <HoverCard label={lines[0] ?? 'this day'} anchor={openDay.anchor}>
-              {lines.map((line) => (
-                <p key={line} className="text-xs">
-                  {line}
-                </p>
-              ))}
-            </HoverCard>
-          );
-        })()}
-    </section>
+        {openDay !== null &&
+          (() => {
+            const day = axis.find((cell) => cell.offset === openDay.offset);
+            if (day === undefined) return null;
+            const lines = axisDayWords(day);
+            return (
+              <HoverCard label={lines[0] ?? 'this day'} anchor={openDay.anchor}>
+                {lines.map((line) => (
+                  <p key={line} className="text-xs">
+                    {line}
+                  </p>
+                ))}
+              </HoverCard>
+            );
+          })()}
+      </section>
+      {/*
+        What the chart did not draw, under the chart it did not draw it on.
+
+        **Outside the scroll box on purpose.** Inside it the sentence would sit
+        at the bottom of a canvas a 60-row plan scrolls, which is the one place
+        a reader who has not noticed a missing arrow will never look. A `<p>` in
+        the ordinary flow under the panel is on screen whenever the panel is.
+
+        `role="status"` and not an alert: nothing is wrong. The filter is doing
+        what it was asked and this is the part of the answer the drawing cannot
+        carry — the same voice the `N of M rows` count beside the Find box uses.
+      */}
+      {plan.narrowedByFilter && droppedWords !== null && (
+        <p
+          data-gantt-dropped-links
+          role="status"
+          className="text-muted-foreground px-3 py-1 text-sm"
+        >
+          {droppedWords}
+        </p>
+      )}
+    </>
   );
 }

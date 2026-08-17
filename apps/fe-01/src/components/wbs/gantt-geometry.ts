@@ -346,6 +346,17 @@ export interface GanttRole {
 export interface GanttPlan {
   rows: readonly GanttRow[];
   slices: readonly GanttSlice[];
+  /**
+   * **Every** stored dependency the plan holds, not only the shown rows' own.
+   *
+   * An edge with either end off screen is dropped by {@link layOutGantt} and
+   * counted into {@link GanttGeometry.droppedLinks}, so what is drawn is
+   * unchanged by the widening: an edge is drawn when both its ends are on the
+   * chart, which is exactly the set the shown rows' own edges used to give.
+   * What the widening buys is the *other* direction — a bar on screen whose
+   * **successor** is hidden used to lose its arrow without the loop ever seeing
+   * the edge, and so without anything to count (F3).
+   */
   dependencies: readonly DependencyEdge[];
   /**
    * Every work item of the plan with its parent — the full tree the shown
@@ -358,6 +369,25 @@ export interface GanttPlan {
    * fact about a hidden row the drawing needs.
    */
   tree: readonly GanttTreeRow[];
+  /**
+   * Whether a filter is why {@link GanttPlan.rows} is the length it is.
+   *
+   * A list of rows cannot say why it is short, and the panel must not guess:
+   * the same three rows arrive under a filter somebody has been sitting in for
+   * an hour and under a branch they collapsed with their own hand a moment ago.
+   * The one thing this decides is whether the panel says what it could not draw
+   * ({@link GanttGeometry.droppedLinks}) — under a persistent filter a silently
+   * missing arrow is a schedule diagram that looks complete and is not
+   * (`notes/wbs-brief-2026-08-17-r10-filtering.md` §8.2); a collapse is the
+   * momentary act this repo has always treated it as, and the triangle that
+   * caused it is on the row.
+   *
+   * On the plan and not a prop of the panel for {@link GanttPlan.priorityBands}'
+   * reason: it arrives with the rows it is a fact about, so the list drawn and
+   * the account of why it is that list cannot be answers to two moments. Like
+   * the bands, `layOutGantt` does not read it — no geometry depends on it.
+   */
+  narrowedByFilter: boolean;
   roles: readonly GanttRole[];
   personNames: ReadonlyMap<string, string>;
   /**
@@ -577,6 +607,89 @@ export interface GanttNotBeforeFlag {
 }
 
 /**
+ * How many waits this chart knows about and did not draw, because one end of
+ * each is a row the screen is not showing.
+ *
+ * The three numbers are the three kinds of line the chart has, counted at the
+ * three places that already drop them — a stored dependency, a person's
+ * hand-off from their own last piece of work, and a wait for a team to free
+ * somebody up. Kept apart rather than summed here because they are answered
+ * differently: a dropped dependency is a wait somebody typed, and the other two
+ * are waits the engine worked out.
+ *
+ * **Counted, never redrawn.** Pulling the other end back onto the chart is what
+ * R10 §9's Q7 refused — one edge can drag a whole plan back through the closure
+ * — so what F3 buys is the sentence, not the arrow.
+ *
+ * A link with **neither** end drawn is not counted: nothing on screen lost a
+ * mark, and a number counting waits between two rows the reader cannot see is a
+ * number nobody can act on. See {@link droppedLinkWords}.
+ */
+export interface DroppedLinks {
+  /** Stored `depends on` edges with one end on screen and the other off it. */
+  dependencies: number;
+  /** Hand-offs where one person's next piece of work waits on their last. */
+  personLinks: number;
+  /** Waits for a team to have somebody free. */
+  capacityLinks: number;
+}
+
+/** No wait went undrawn, which is what a chart of the whole plan hands back. */
+const NO_DROPPED_LINKS: DroppedLinks = { dependencies: 0, personLinks: 0, capacityLinks: 0 };
+
+/** Every undrawn wait, whatever kind — what the sentence counts and the panel asks about. */
+export function droppedLinkCount(dropped: DroppedLinks): number {
+  return dropped.dependencies + dropped.personLinks + dropped.capacityLinks;
+}
+
+/**
+ * What the chart says about the waits it did not draw, or null when it drew
+ * every one it has.
+ *
+ * The sentence exists because the alternative is silence: the three loops in
+ * {@link layOutGantt} skip a link whose other end is not on screen, and under a
+ * filter somebody has been sitting in for an hour that is a bar drawn with
+ * nothing holding it back — a schedule diagram that looks complete and is not
+ * (`notes/wbs-brief-2026-08-17-r10-filtering.md` §8.2). Under a momentary name
+ * search it was tolerable; under a filter it is the bug.
+ *
+ * It says **what** was dropped and not only how many, because the three kinds
+ * are three different reasons a bar starts where it does, and a reader deciding
+ * whether to clear the filter needs to know which one they are missing.
+ *
+ * Null and not an empty string: nothing to say is not something to say quietly,
+ * and a caller rendering an empty `<p>` would leave a blank line under the chart
+ * on every unfiltered plan.
+ */
+export function droppedLinkWords(dropped: DroppedLinks): string | null {
+  /** `2 things`, `1 thing` — the count and its noun, which is never a bare number here. */
+  const counted = (howMany: number, one: string, many: string): string =>
+    `${String(howMany)} ${howMany === 1 ? one : many}`;
+  const kinds: string[] = [];
+  if (dropped.dependencies > 0) {
+    kinds.push(counted(dropped.dependencies, 'stored dependency', 'stored dependencies'));
+  }
+  if (dropped.personLinks > 0) {
+    kinds.push(counted(dropped.personLinks, 'person hand-off', 'person hand-offs'));
+  }
+  if (dropped.capacityLinks > 0) {
+    kinds.push(
+      counted(
+        dropped.capacityLinks,
+        'wait for a team to free somebody',
+        'waits for a team to free somebody',
+      ),
+    );
+  }
+  if (kinds.length === 0) return null;
+  const total = droppedLinkCount(dropped);
+  return (
+    `Not drawn: ${counted(total, 'wait', 'waits')} whose other end this filter is hiding — ` +
+    `${kinds.join(', ')}. Clear the filter to see ${total === 1 ? 'it' : 'them'}.`
+  );
+}
+
+/**
  * The whole chart as plain data: workdays on x, row indices on y, and not one
  * pixel anywhere.
  */
@@ -588,6 +701,8 @@ export interface GanttGeometry {
   personLinks: GanttPersonLink[];
   capacityLinks: GanttCapacityLink[];
   notBeforeFlags: GanttNotBeforeFlag[];
+  /** The waits this chart did not draw because the screen is not showing both ends. */
+  droppedLinks: DroppedLinks;
   /**
    * How far the schedule reaches, in workdays: the latest finish of anything
    * drawn. At least 1, so an empty plan still has a viewBox with a width.
@@ -1340,8 +1455,11 @@ function personNameOf(slice: GanttSlice, personNames: ReadonlyMap<string, string
  *
  * What is missing and what is broken are different answers. A slice whose
  * work item is not among {@link GanttPlan.rows} is on a collapsed branch or
- * behind a search: its bar is skipped, and so are the person link and the
- * dependency arrow that would have ended on it. A `resourcePredecessorId`
+ * behind a filter: its bar is skipped, and so are the person link and the
+ * dependency arrow that would have ended on it — **and each of those skips is
+ * counted** into {@link GanttGeometry.droppedLinks}, so the panel can say what
+ * it did not draw instead of leaving a bar with nothing visibly holding it back
+ * (F3). A `resourcePredecessorId`
  * that names no slice **in the payload** is a broken promise and throws —
  * the row it belongs to may well be on screen, and a chart quietly short one
  * hand-off is the chart lying about who is waiting for whom.
@@ -1504,6 +1622,17 @@ export function layOutGantt(plan: GanttPlan): GanttGeometry {
     }
   });
 
+  /**
+   * The waits skipped below because one of their ends is not on this chart —
+   * counted here and said out loud by the panel, never redrawn (F3, §9's Q7).
+   *
+   * Mutated by the three loops that already `continue` past those links, which
+   * is the whole of why the count cannot drift from the drawing: it is taken at
+   * the moment the link is dropped rather than worked out a second time from
+   * the rows.
+   */
+  const droppedLinks: DroppedLinks = { ...NO_DROPPED_LINKS };
+
   const personLinks: GanttPersonLink[] = [];
   for (const slice of plan.slices) {
     if (slice.boundBy !== 'person') continue;
@@ -1511,7 +1640,16 @@ export function layOutGantt(plan: GanttPlan): GanttGeometry {
     if (predecessor === undefined) continue;
     const waiting = barBySliceId.get(slice.id);
     const busy = barBySliceId.get(predecessor.id);
-    if (waiting === undefined || busy === undefined) continue;
+    if (waiting === undefined || busy === undefined) {
+      // One end drawn and the other not: a bar on screen is waiting on work the
+      // reader cannot see. Neither end drawn is not counted — nothing on screen
+      // lost a mark. Proof: all three `!==` pairs struck for an unconditional
+      // `+= 1`, `counts nothing for a link with neither end on screen` failed
+      // alone across the two chart files — `1 failed | 214 passed`. Watched,
+      // 2026-08-17.
+      if (waiting !== undefined || busy !== undefined) droppedLinks.personLinks += 1;
+      continue;
+    }
     personLinks.push({
       fromSliceId: predecessor.id,
       fromRowIndex: busy.rowIndex,
@@ -1544,7 +1682,11 @@ export function layOutGantt(plan: GanttPlan): GanttGeometry {
     if (referent === undefined) continue;
     const waiting = barBySliceId.get(slice.id);
     const freeing = barBySliceId.get(referent.id);
-    if (waiting === undefined || freeing === undefined) continue;
+    if (waiting === undefined || freeing === undefined) {
+      // Counted exactly as the hand-off above is, and for the same reason.
+      if (waiting !== undefined || freeing !== undefined) droppedLinks.capacityLinks += 1;
+      continue;
+    }
     capacityLinks.push({
       fromSliceId: referent.id,
       fromRowIndex: freeing.rowIndex,
@@ -1637,7 +1779,15 @@ export function layOutGantt(plan: GanttPlan): GanttGeometry {
   for (const edge of plan.dependencies) {
     const from = placedRows.get(edge.predecessorId);
     const to = placedRows.get(edge.successorId);
-    if (from === undefined || to === undefined) continue;
+    if (from === undefined || to === undefined) {
+      // The stored half of the same count. `dependencies` is now **every** edge
+      // the plan holds rather than the shown rows' own (`wbs-table.tsx`), so an
+      // arrow leaving a bar on screen for a hidden successor is counted here
+      // too — before F3 that edge never reached this loop at all, and the bar
+      // it left lost its arrow with nothing anywhere saying so.
+      if (from !== undefined || to !== undefined) droppedLinks.dependencies += 1;
+      continue;
+    }
     const anchor = anchorSpanOf(edge.predecessorId, edge.successorId);
     arrows.push({
       predecessorId: edge.predecessorId,
@@ -1662,7 +1812,17 @@ export function layOutGantt(plan: GanttPlan): GanttGeometry {
   for (const arrow of arrows) horizon = Math.max(horizon, arrow.fromFinish, arrow.toStart);
   for (const flag of notBeforeFlags) horizon = Math.max(horizon, flag.offset);
 
-  return { labels, bars, brackets, arrows, personLinks, capacityLinks, notBeforeFlags, horizon };
+  return {
+    labels,
+    bars,
+    brackets,
+    arrows,
+    personLinks,
+    capacityLinks,
+    notBeforeFlags,
+    droppedLinks,
+    horizon,
+  };
 }
 
 /** One role as the drawing reads it: where it comes in the plan's order, and what it is called. */

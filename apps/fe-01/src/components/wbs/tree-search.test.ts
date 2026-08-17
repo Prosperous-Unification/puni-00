@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   type FilterCriteria,
+  filterWords,
   isFiltering,
   type NarrowableRow,
   narrowTree,
@@ -315,5 +316,49 @@ describe('narrowTree — a name and a facet together', () => {
 
     expect(ids(narrowed.visibleIds)).toEqual(['a', 'a1', 'a11']);
     expect(ids(narrowed.matchIds)).toEqual(['a11']);
+  });
+});
+
+describe('what the filter says it is asking', () => {
+  /** The names the ids stand for, as the table resolves them for an export. */
+  const LABELS = {
+    teamName: (id: string) => (id === 'platform' ? 'Platform' : 'Payments'),
+    personName: (id: string) => (id === 'ada' ? 'Ada' : 'Kat'),
+    phaseName: (id: string) => (id === 'dev' ? 'Dev' : 'QA'),
+  };
+
+  it('says nothing while nothing is being asked', () => {
+    expect(filterWords(NO_FILTER, LABELS)).toEqual([]);
+  });
+
+  it('names every criterion that is asking, in the words the control uses', () => {
+    const words = filterWords(
+      asking({
+        query: '  kitchen  ',
+        teamIds: ['platform', 'payments'],
+        assigneeIds: ['ada'],
+        priorityBands: ['Critical'],
+        estimatedRoleIds: ['qa'],
+        unestimated: true,
+        critical: true,
+      }),
+      LABELS,
+    );
+
+    // `or` inside a facet and one phrase per facet, which is the predicate's
+    // own OR-within, AND-across reading rather than a friendlier wrong one.
+    expect(words).toEqual([
+      'name contains “kitchen”',
+      'team Platform or Payments',
+      'assignee Ada',
+      'priority band Critical',
+      'estimated for QA',
+      'unestimated only',
+      'on the critical path only',
+    ]);
+  });
+
+  it('leaves out a facet nothing was chosen from', () => {
+    expect(filterWords(asking({ assigneeIds: ['kat'] }), LABELS)).toEqual(['assignee Kat']);
   });
 });

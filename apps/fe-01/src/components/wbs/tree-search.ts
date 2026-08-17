@@ -142,6 +142,55 @@ export function isFiltering(criteria: FilterCriteria): boolean {
   return criteria.query.trim() !== '' || anyFacetChosen(criteria);
 }
 
+/**
+ * The names the ids in a {@link FilterCriteria} stand for, as the surface that
+ * holds them can say them.
+ *
+ * Handed in rather than looked up here for {@link RowFacets}' reason: this
+ * module knows about trees and predicates, and a walker that also knew what a
+ * team was called would be two things. The lists it would have to hold are the
+ * directory's, the chart read's and the project's ladder — three separate
+ * moments, none of them a fact about a tree.
+ */
+export interface FilterLabels {
+  teamName: (teamId: string) => string;
+  personName: (personId: string) => string;
+  phaseName: (roleId: string) => string;
+}
+
+/**
+ * What is being asked of the plan, in words — one phrase per criterion that is
+ * asking anything, and an empty list when nothing is.
+ *
+ * Written for a **document**: the filtered export's header line has to say what
+ * was filtered, or it is a plan with rows missing and nothing admitting it,
+ * which is exactly what R10 §9's Q3 refused. The screen has the control itself
+ * to look at; a Markdown file somebody was sent has only this sentence.
+ *
+ * Values inside one phrase are joined with `or` and the phrases are a list, so
+ * the words carry the same OR-within, AND-across reading the predicate has
+ * ({@link FilterCriteria}) rather than a second, friendlier, wrong one.
+ */
+export function filterWords(criteria: FilterCriteria, labels: FilterLabels): string[] {
+  const words: string[] = [];
+  const wanted = criteria.query.trim();
+  if (wanted !== '') words.push(`name contains “${wanted}”`);
+  /** One facet's chosen values, named and joined — nothing at all where none were. */
+  const chosen = (title: string, ids: readonly string[], nameOf: (id: string) => string): void => {
+    if (ids.length === 0) return;
+    words.push(`${title} ${ids.map(nameOf).join(' or ')}`);
+  };
+  chosen('team', criteria.teamIds, labels.teamName);
+  chosen('assignee', criteria.assigneeIds, labels.personName);
+  // The bands travel as their labels rather than as ids — what the ladder calls
+  // the rung is what the control offers and what a reader recognises.
+  chosen('priority band', criteria.priorityBands, (band) => band);
+  chosen('estimated for', criteria.estimatedRoleIds, labels.phaseName);
+  if (criteria.unestimated) words.push('unestimated only');
+  if (criteria.critical) words.push('on the critical path only');
+  return words;
+}
+
 /** Whether a row carries any of the values chosen — and true where none were. */
 function carriesAnyChosen(chosen: readonly string[], carried: readonly string[]): boolean {
   if (chosen.length === 0) return true;
