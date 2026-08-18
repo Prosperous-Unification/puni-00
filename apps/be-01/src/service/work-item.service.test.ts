@@ -1819,6 +1819,26 @@ describe('what a not-before reason does not do', () => {
     expect(after?.slices).toEqual(before?.slices ?? []);
   });
 
+  it('refuses words on a row with no date, through the service', async () => {
+    // The refusal as the service hands it up, which is what the controller turns
+    // into a 400. Asserted here as well as against the real store because this
+    // suite runs on `inMemoryWorkItems`, and a fixture laxer than the store it
+    // stands for is how a test passes here and fails against SQLite.
+    //
+    // Proof: the pair rule deleted from `inMemoryWorkItems.patch`, and this
+    // failed on `Expected: false, Received: true` — the fixture accepting a row
+    // the database refuses, which is the whole class of fault that mirror
+    // exists to prevent. Watched 2026-08-18.
+    const strip = await add('Strip');
+
+    const outcome = await service.patch(strip, OWNER, {
+      startNoEarlierThanReason: 'waiting on client sign-off',
+    });
+
+    expect(outcome.ok).toBe(false);
+    expect(outcome.ok ? null : outcome.reason).toBe('not_before_reason_needs_a_date');
+  });
+
   it('carries the words to every reader of the tree, beside the date', async () => {
     // The wire. Nothing derives it, nothing folds it and no parent rolls it up —
     // it rides the row it was written on, which is the whole of its plumbing.

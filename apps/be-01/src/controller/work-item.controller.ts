@@ -170,7 +170,9 @@ function asOptionalReason(value: unknown, field: string): string | null | undefi
   // Received: 200` — 5,000 characters stored, and every hover card on the chart
   // covered by a bar's own explanation. Watched 2026-08-18.
   if (trimmed.length > LONGEST_NOT_BEFORE_REASON) {
-    throw new BadRequest(`${field}_must_be_at_most_${String(LONGEST_NOT_BEFORE_REASON)}_characters`);
+    throw new BadRequest(
+      `${field}_must_be_at_most_${String(LONGEST_NOT_BEFORE_REASON)}_characters`,
+    );
   }
   // Proof: this normalisation replaced by `return trimmed`, and `stores a blank
   // reason as no reason at all` failed on `Expected: null, Received: ""` — two

@@ -21,7 +21,7 @@ Accepted: so cannot the date.
 
 ## P2 — The pair rule lives at the write boundary, not in the schema
 
-The invariant is *a reason may not be held without a date*. There are three
+The invariant is _a reason may not be held without a date_. There are three
 places it could live: a `CHECK` on the table, the service, or the store's own
 transaction. It is in the store's transaction, and the `CHECK` is refused.
 

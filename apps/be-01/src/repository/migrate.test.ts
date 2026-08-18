@@ -2034,10 +2034,7 @@ describe('the not-before reason migration', () => {
           .query<
             { start_no_earlier_than: string | null; start_no_earlier_than_reason: string | null },
             []
-          >(
-            'SELECT start_no_earlier_than, start_no_earlier_than_reason FROM work_item' +
-              " WHERE id = 'w1'",
-          )
+          >('SELECT start_no_earlier_than, start_no_earlier_than_reason FROM work_item' + " WHERE id = 'w1'")
           .get();
         expect(row?.start_no_earlier_than).toBeNull();
         // The words survive blue's write, orphaned and invisible, which is the

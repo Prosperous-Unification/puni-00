@@ -6,20 +6,20 @@ do blocked"_, 2026-08-18. The argument is recorded in the workspace's
 shapes this change rather than a reason this change has to work around.
 
 `blocked` is **orthogonal** to the three completion states `role-progress` (#80)
-shipped, not a fourth sibling: a role can be in progress *and* blocked. The
+shipped, not a fourth sibling: a role can be in progress _and_ blocked. The
 engine already models being held back four ways — a dependency anchor, an
 assignee's queue, a team's pool, and a not-before floor — and the chart already
 names which of them binds each bar, so a manual `blocked` would be a second
 vocabulary for one picture. It only moves a date if it carries an until-date, and
 **blocked-with-a-date is `startNoEarlierThan`, which has existed since
 2026-08-06**. And nothing clears it: work does not un-block itself in a database,
-so the flag goes stale and a plan reads *stopped* about something that shipped
+so the flag goes stale and a plan reads _stopped_ about something that shipped
 last week.
 
 What survives all of that is the half nobody could say: **the date carries the
 when, and nothing carries the why.** A row held until the 12th is a bar with a
 caret on it and a sentence saying it is held, and no way at all to write down
-*waiting on client sign-off*. That is what this change adds, and it is the whole
+_waiting on client sign-off_. That is what this change adds, and it is the whole
 of what it adds.
 
 ## What Changes
@@ -53,8 +53,8 @@ module over. A blank is stored as `null`, trimmed, so there is one spelling of
 "nobody has said".
 
 **Two surfaces, both where the date's effect is already explained.** The bar's
-floor sentence when the not-before is the **binding** floor — *"Held by its
-start-no-earlier-than date — waiting on client sign-off"*, in
+floor sentence when the not-before is the **binding** floor — _"Held by its
+start-no-earlier-than date — waiting on client sign-off"_, in
 `capacityFloorWords`' and `personFloorWords`' voice rather than a third register
 — and the row's Not before cell. It survives export as a column of its own,
 `Not before because`, beside the date and escaped exactly as `Notes` is.
@@ -92,8 +92,7 @@ drawn on no bar:
 2. `planForExport`'s row literal: `startNoEarlierThanReason: row.original.startNoEarlierThanReason`.
 3. The Not before cell: show the reason, let somebody type one, and send
    `{ startNoEarlierThan: null, startNoEarlierThanReason: null }` when the date is
-   cleared — a bare `{ startNoEarlierThan: null }` on an explained row is now a
-   400.
+   cleared — a bare `{ startNoEarlierThan: null }` on an explained row is now a 400.
 
 The two row fields are optional on `GanttRow` and `ExportRow` for exactly this
 reason: a missing line should be a feature nobody can see, not a build nobody can

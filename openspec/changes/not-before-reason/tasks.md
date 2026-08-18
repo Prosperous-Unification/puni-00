@@ -24,11 +24,13 @@
 - [x] 2.3 `migrate.test.ts`, four cases: the outgoing release can still insert a
       work item, **the outgoing release can still clear a not-before on a row the
       new one explained**, a row that predates the column gets no reason, and the
-      rollback takes the words and leaves the date. **Negatives:** a `NOT NULL
-      DEFAULT ''` on the column and the refused `CHECK` — verify.md F1, F3.
+      rollback takes the words and leaves the date. **Negatives:** a
+      `NOT NULL DEFAULT ''` on the column, and the refused `CHECK` — verify.md
+      F1, F3.
 - [x] 2.4 The rollback ordering lists in `migrate.test.ts` and
-      `migrate-down.test.ts`, and `does nothing when the target is already the
-      newest applied` now names this migration.
+      `migrate-down.test.ts`, and the case named
+      `does nothing when the target is already the newest applied` now names
+      this migration.
 
 ## 3. The write path
 
@@ -63,8 +65,9 @@
 
 ## 5. What it must not do
 
-- [x] 5.1 `work-item.service.test.ts`: `moves no date: the plan schedules
-      identically with and without a reason`, over a dependency chain, asserting
+- [x] 5.1 `work-item.service.test.ts`: the case
+      `moves no date: the plan schedules identically with and without a reason`,
+      over a dependency chain, asserting
       the rows' schedules, their dates **and** the slices the chart is drawn
       from. **Negative:** the engine wired to read the reason — verify.md F9.
       `git diff --stat origin/main -- apps/be-01/src/service/schedule.ts` is the
@@ -74,8 +77,8 @@
       covers a reason undone alone and a pair undone together. **Negatives:** the
       `fieldsOf` line and the `revertTo` line — verify.md F8, F10.
 - [x] 5.3 The duplicate carries the pair (the copy is under the same constraint),
-      asserted in the existing `copies notes, estimates, assignees, the team
-      label and the date` case.
+      asserted in the existing case
+      `copies notes, estimates, assignees, the team label and the date`.
 
 ## 6. The two faces
 

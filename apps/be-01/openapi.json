@@ -553,7 +553,7 @@
     "/api/work-items/{id}": {
       "patch": {
         "summary": "Change a work item's own fields",
-        "description": "Every field is optional and an absent one is left alone; `null` where the field\nallows it is the clear. Dates, floats and slices are **not** here — they are\ncomputed from the tree, which is why `number` and `frozenNumber` are refused\nrather than ignored. Re-read `GET /api/projects/{id}/work-items` afterwards: one\npatch can move every date in the plan.\n\nBody refusals, all 400: `expected_object`, `number_is_derived`,\n`name_must_be_text`, `notes_must_be_text`, `startNoEarlierThan_must_be_a_date`,\n`priority_must_be_a_whole_number_from_1`, `serviceTeamId_must_be_id_or_null`,\n`maxParallel_must_be_a_whole_number_from_1`,\n`maxParallel_must_be_at_most_1000`. A parallelism on a row that has children is\n`has_children`, also 400 — the cell is read-only on every parent.",
+        "description": "Every field is optional and an absent one is left alone; `null` where the field\nallows it is the clear. Dates, floats and slices are **not** here — they are\ncomputed from the tree, which is why `number` and `frozenNumber` are refused\nrather than ignored. Re-read `GET /api/projects/{id}/work-items` afterwards: one\npatch can move every date in the plan.\n\nBody refusals, all 400: `expected_object`, `number_is_derived`,\n`name_must_be_text`, `notes_must_be_text`, `startNoEarlierThan_must_be_a_date`,\n`startNoEarlierThanReason_must_be_text`,\n`startNoEarlierThanReason_must_be_at_most_200_characters`,\n`priority_must_be_a_whole_number_from_1`, `serviceTeamId_must_be_id_or_null`,\n`maxParallel_must_be_a_whole_number_from_1`,\n`maxParallel_must_be_at_most_1000`. A parallelism on a row that has children is\n`has_children`, also 400 — the cell is read-only on every parent. A patch that\nwould leave the row holding a reason with no `startNoEarlierThan` for it to be\nabout is `not_before_reason_needs_a_date`, also 400: **clearing the date clears\nneither the words nor itself**, so send both as `null` in the one request.",
         "requestBody": {
           "required": true,
           "description": "The fields to change. Send only the ones you mean.\n\nThe schema here is documentation, not validation. This route parses its own body so that a field this API derives is refused rather than quietly dropped, which is what an Elysia body schema would do to it. Fields not named here are ignored; the ones named are checked, and a bad one answers 400 with a code from the list above.",
@@ -574,6 +574,12 @@
                     "type": "string",
                     "nullable": true,
                     "description": "A calendar day, `YYYY-MM-DD`, before which this work may not start. Null lifts the constraint. A shape-valid non-day like `2026-02-31` is refused."
+                  },
+                  "startNoEarlierThanReason": {
+                    "type": "string",
+                    "nullable": true,
+                    "maxLength": 200,
+                    "description": "Why the work may not start yet, in the planner’s own words — *“waiting on client sign-off”*. Words about `startNoEarlierThan` and nothing else: it is not a status, it holds nothing back on its own, and no date moves because of it. Meaningless without a date and refused without one, so clearing `startNoEarlierThan` means sending this as null in the same request. A blank is stored as null; whitespace is trimmed."
                   },
                   "priority": {
                     "type": "integer",

@@ -404,9 +404,7 @@ describe('the columns', () => {
     expect(column).toBeGreaterThan(-1);
     // The pipe escaped so it cannot open a column nobody asked for, and the line
     // break flattened so it cannot end the row halfway through.
-    expect(markdownRow(markdown, '010')[column]).toBe(
-      '=SUM(A1), "urgent" \\| held until sign-off',
-    );
+    expect(markdownRow(markdown, '010')[column]).toBe('=SUM(A1), "urgent" \\| held until sign-off');
   });
 
   it('writes a priority as the number somebody typed, and an unranked row blank', () => {

@@ -43,9 +43,7 @@ function mergedNotBefore(
 ): { date: string | null; reason: string | null } {
   return {
     date:
-      patch.startNoEarlierThan === undefined
-        ? stored.startNoEarlierThan
-        : patch.startNoEarlierThan,
+      patch.startNoEarlierThan === undefined ? stored.startNoEarlierThan : patch.startNoEarlierThan,
     reason:
       patch.startNoEarlierThanReason === undefined
         ? stored.startNoEarlierThanReason
