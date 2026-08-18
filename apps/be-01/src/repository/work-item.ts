@@ -19,6 +19,7 @@ import {
   assignment,
   dependency,
   estimate,
+  roleProgress,
   serviceTeam,
   workItem,
   workItemTeam,
@@ -357,6 +358,15 @@ export class SubtreeRepository implements SubtreeStore {
         tx.insert(actual)
           .values([...copy.actuals])
           .run();
+      // Beside the actuals and for the same two reasons: empty for a
+      // duplication, because a copy is work nobody has done *or spoken about*,
+      // and non-empty for the restore an undo of a delete runs, which has to put
+      // back the reading the delete took with the rows. See
+      // {@link SubtreeCopy.progress}.
+      if (copy.progress.length > 0)
+        tx.insert(roleProgress)
+          .values([...copy.progress])
+          .run();
       if (copy.assignments.length > 0)
         tx.insert(assignment)
           .values([...copy.assignments])
@@ -384,9 +394,24 @@ export class SubtreeRepository implements SubtreeStore {
           .where(and(eq(actual.workItemId, taken.workItemId), eq(actual.roleId, taken.roleId)))
           .run();
       }
+      // And the statements, for the reason above in the tense this table is
+      // about: a restored leaf and the parent still saying that leaf's work is
+      // finished would report the same branch as done twice, on two rows, one of
+      // which is now a parent whose reading is supposed to be folded.
+      for (const taken of copy.removedProgress) {
+        tx.delete(roleProgress)
+          .where(
+            and(
+              eq(roleProgress.workItemId, taken.workItemId),
+              eq(roleProgress.roleId, taken.roleId),
+            ),
+          )
+          .run();
+      }
       bumpWorkItems(tx, [
         ...copy.removedEstimates.map((taken) => taken.workItemId),
         ...copy.removedActuals.map((taken) => taken.workItemId),
+        ...copy.removedProgress.map((taken) => taken.workItemId),
       ]);
     });
   }

@@ -1,4 +1,4 @@
-import type { EstimateMethod, IsoDate, PriorityBand } from '@wbs/domain';
+import type { EstimateMethod, IsoDate, PriorityBand, RoleState } from '@wbs/domain';
 
 export interface Example {
   id: string;
@@ -109,6 +109,17 @@ export interface RoleUsageRows {
    * of a week somebody spent. A role with no estimate and one actual is `in_use`.
    */
   actuals: number;
+  /**
+   * How many work items have said where this role's work has got to — a count,
+   * for {@link RoleUsageRows.estimates}' reason.
+   *
+   * Counted separately and counted **at all** for {@link RoleUsageRows.actuals}'
+   * reason, one table over: a statement is somebody's, and a role removal that
+   * took one silently would turn finished work back into work nobody has
+   * started, on a plan somebody is reading. A role with no estimate, no actual
+   * and one stated row is `in_use`.
+   */
+  progress: number;
   assignments: readonly Assignment[];
 }
 
@@ -116,8 +127,9 @@ export interface RoleUsageRows {
 export interface RoleRemoval {
   estimates: number;
   actuals: number;
+  progress: number;
   assignments: number;
-  /** Every work item that lost an estimate, an actual or an assignment, and whose revision therefore moved. */
+  /** Every work item that lost an estimate, an actual, a state or an assignment, and whose revision therefore moved. */
   workItemIds: readonly string[];
 }
 
@@ -177,7 +189,9 @@ export interface RoleStore {
    * The estimates are deleted explicitly because `estimate.role_id` has no
    * cascade: a bare delete of the row hits the foreign key and answers 500. The
    * **actuals** are deleted explicitly for exactly the same reason, and counted
-   * for a stronger one — see {@link RoleUsageRows.actuals}.
+   * for a stronger one — see {@link RoleUsageRows.actuals}. The **stated
+   * progress** goes the same way and is counted the same way, see
+   * {@link RoleUsageRows.progress}.
    */
   remove(projectId: string, roleId: string, cascade: boolean): Promise<RoleRemoved>;
 }
@@ -452,6 +466,66 @@ export interface ActualStore {
    * numbers become the sum of what is below it — so an actual left behind would
    * be a row no reader can see and no writer can reach: invisible, not zero, and
    * back on screen if the child is ever deleted.
+   */
+  moveAll(fromWorkItemId: string, toWorkItemId: string): Promise<void>;
+}
+
+/**
+ * Where one role's work on one work item has got to, and when somebody said so.
+ *
+ * `state` is one of the two a role may be **stored** in. The third state — not
+ * started — is the absence of this row, so it has no spelling here and cannot
+ * be written by anybody: see {@link RoleState} in `@wbs/domain`.
+ */
+export interface StoredProgress {
+  workItemId: string;
+  roleId: string;
+  state: RoleState;
+  /** When somebody said so, in epoch milliseconds. */
+  statedAt: number;
+}
+
+/** One progress row's whole identity: the pair its primary key is. */
+export interface ProgressKey {
+  workItemId: string;
+  roleId: string;
+}
+
+/**
+ * Reading and writing where the work has got to.
+ *
+ * Deliberately the same four methods as {@link ActualStore}, in the same order,
+ * doing the same things to a table with the same key — and for the reason that
+ * store gives for being a copy of {@link EstimateStore}. A state follows its
+ * work item through every structural change: the hand-down when a leaf gains its
+ * first child, the hand-up when a parent loses its last, the restore an undo
+ * runs. The failure this shape prevents is the one where estimates and actuals
+ * follow a subtree and the statement about them quietly does not — a branch that
+ * comes back from an undo reading "not started" over work somebody finished.
+ */
+export interface RoleProgressStore {
+  /** Every stated role on every work item in the project, in role order within each. */
+  listByProject(projectId: string): Promise<StoredProgress[]>;
+  /** States one work item's role, replacing whatever it said before. */
+  set(progress: StoredProgress): Promise<void>;
+  /**
+   * Takes the statement back, leaving every other role on that work item and
+   * that role on every other work item alone.
+   *
+   * Removing one that is not stored is not an error, for
+   * {@link EstimateStore.remove}'s reason: the state asked for is the state
+   * left. What it leaves behind is "not started", which is the absence of a row
+   * and never a row saying so.
+   */
+  remove(workItemId: string, roleId: string): Promise<void>;
+  /**
+   * Moves every statement from one work item to another, exactly as
+   * {@link ActualStore.moveAll} does and at the same call sites.
+   *
+   * A leaf that gains its first child stops holding a state of its own — its
+   * reading is folded from what is below it — so a row left behind would be
+   * invisible to every reader and back on screen the day the child is deleted,
+   * claiming work is finished that the plan has since moved on from.
    */
   moveAll(fromWorkItemId: string, toWorkItemId: string): Promise<void>;
 }
@@ -845,6 +919,20 @@ export interface SubtreeCopy {
    * has to put back what the delete took, and the actuals went with the rows.
    */
   actuals: readonly StoredActual[];
+  /**
+   * Where the work on the rows being written had got to, put back with them.
+   *
+   * **Empty for a duplication, for {@link SubtreeCopy.actuals}' reason and one
+   * of its own.** A duplicate is work that has not been done, so copying a
+   * `done` would hand the plan a branch that reports itself finished the moment
+   * it appears — the same lie the copied actual would tell, in a stronger
+   * tense. Estimates copy because an estimate describes work; neither of these
+   * does, because both are records of what happened to it.
+   *
+   * Non-empty for a **restore**: an undo of a delete has to put back what the
+   * delete took, and the statements went with the rows.
+   */
+  progress: readonly StoredProgress[];
   assignments: readonly Assignment[];
   /** Only the edges with both ends inside the subtree, remapped to the copies. */
   dependencies: readonly StoredDependency[];
@@ -860,6 +948,8 @@ export interface SubtreeCopy {
   removedEstimates: readonly EstimateKey[];
   /** Actuals to take off a work item **outside** `rows`, for {@link SubtreeCopy.removedEstimates}' reason. */
   removedActuals: readonly ActualKey[];
+  /** Statements to take off a work item **outside** `rows`, for {@link SubtreeCopy.removedEstimates}' reason. */
+  removedProgress: readonly ProgressKey[];
 }
 
 /** One estimate row's whole identity: the pair its primary key is. */

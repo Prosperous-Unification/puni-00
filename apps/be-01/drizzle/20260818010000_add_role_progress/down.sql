@@ -1,0 +1,42 @@
+-- Reverses 20260818010000_add_role_progress.
+--
+-- Dropping this loses every statement anybody made about where their work had
+-- got to, and the loss is total: a state is typed by a person and is derived
+-- from nothing. `plan_event` holds the `progress` and `clear_progress` commands
+-- that wrote them — H1's history — so a plan's states could in principle be read
+-- back out of its events by hand, but only for as long as retention keeps them
+-- (365 days) and only for events written after H1 shipped. Nothing replays them,
+-- and this rollback does not try.
+--
+-- **What survives is the ambiguity this table was added to remove.** Actuals are
+-- untouched: every day anybody recorded is still there, and after this rollback
+-- an actual of 8 against an estimate of 5 goes back to being a number nobody can
+-- read the tense of — "took 8 days, finished" and "8 days so far" are the same
+-- row again. That is the state the tool was in before this migration and it is
+-- the state it returns to, which is the whole reason this reversal is safe: it
+-- takes away an answer, never a figure.
+--
+-- **No date moves, either way.** The scheduler reads work items, estimates,
+-- dependencies, capacity and the calendar; it does not read this table, and
+-- nothing writes to those tables on its behalf. A plan scheduled against a
+-- database with this table and the same plan after this rollback come out
+-- identical — asserted by replaying the identity corpus in
+-- `service/live-plan-identity.test.ts` rather than claimed here.
+--
+-- Estimates and actuals are untouched in the stronger sense too: no write to
+-- `role_progress` has ever written to either, so a plan that loses its states
+-- still holds every trio and every recorded day anybody typed.
+--
+-- Undo and redo are unaffected in shape and lossy in one arm, which is worth
+-- saying plainly: `command_journal` is not touched, so every entry stays
+-- pressable, but an entry whose command is `set_progress` or `clear_progress`
+-- names a table that is no longer there and fails when applied. That is the same
+-- position every rollback of an additive migration leaves its own kinds in.
+--
+-- The index goes with the table it is on. Both statements run solely when the
+-- release that added them is being taken away — a forward migration in this repo
+-- is additive so blue and green can share one file mid-swap, and reversing an
+-- additive change is destructive by definition, which is why it lives here and
+-- not there.
+DROP INDEX IF EXISTS `role_progress_by_role`;--> statement-breakpoint
+DROP TABLE IF EXISTS `role_progress`;

@@ -82,6 +82,18 @@ const PLAN_EVENT = '20260817120000_add_plan_event';
  * this* migration — is the case a collision breaks.
  */
 const ACTUAL = '20260817130000_add_actual';
+/**
+ * The newest. A table of its own referencing `work_item` and `role` again, so it
+ * reverses ahead of the domain that holds both — `ACTUAL`'s place for `ACTUAL`'s
+ * reason, and it comes off before `ACTUAL` only because it was applied after it.
+ *
+ * Stamped `20260818010000`, later than all nineteen folders that were on disk
+ * when it was written. The stamps were listed and checked for a duplicate before
+ * the folder existed — verify.md quotes the run — and `refuses a folder set that
+ * shares one stamp between two migrations` is the mechanical half of the same
+ * check.
+ */
+const ROLE_PROGRESS = '20260818010000_add_role_progress';
 
 function tempDb(): { path: string; cleanup: () => void } {
   const dir = mkdtempSync(join(tmpdir(), 'wbs-migrate-down-'));
@@ -171,6 +183,7 @@ describe('readMigrationFolders', () => {
       PRIORITY_BANDS,
       PLAN_EVENT,
       ACTUAL,
+      ROLE_PROGRESS,
     ]);
     for (const f of folders) expect(f.downSql.trim()).not.toBe('');
   });
@@ -263,11 +276,13 @@ describe('rollbackTo, against a real database', () => {
         PRIORITY_BANDS,
         PLAN_EVENT,
         ACTUAL,
+        ROLE_PROGRESS,
       ]);
 
       const reversed = rollbackTo(db.path, FOLDER, INIT);
 
       expect(reversed).toEqual([
+        ROLE_PROGRESS,
         ACTUAL,
         PLAN_EVENT,
         PRIORITY_BANDS,
@@ -328,6 +343,7 @@ describe('rollbackTo, against a real database', () => {
         PRIORITY_BANDS,
         PLAN_EVENT,
         ACTUAL,
+        ROLE_PROGRESS,
       ]);
     } finally {
       db.cleanup();
@@ -341,6 +357,7 @@ describe('rollbackTo, against a real database', () => {
       const reversed = rollbackTo(db.path, FOLDER, ROLLBACK_ALL);
 
       expect(reversed).toEqual([
+        ROLE_PROGRESS,
         ACTUAL,
         PLAN_EVENT,
         PRIORITY_BANDS,
@@ -389,7 +406,7 @@ describe('rollbackTo, against a real database', () => {
       // *and* answers `[]` when there is genuinely something to reverse. Reading
       // `[]` as correct is only safe while every stamp is unique, which
       // `readMigrationFolders` now enforces.
-      expect(rollbackTo(db.path, FOLDER, ACTUAL)).toEqual([]);
+      expect(rollbackTo(db.path, FOLDER, ROLE_PROGRESS)).toEqual([]);
       expect(tables(db.path)).toContain('users');
     } finally {
       db.cleanup();

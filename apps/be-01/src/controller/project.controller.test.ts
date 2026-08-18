@@ -13,6 +13,7 @@ import { inMemoryDirectory, testDirectoryService } from '../testing/directory-fi
 import { inMemoryEstimates } from '../testing/estimate-fixture';
 import { testHistoryService } from '../testing/history-fixture';
 import { inMemoryPriorityBands, testPriorityBandService } from '../testing/priority-band-fixture';
+import { inMemoryProgress } from '../testing/progress-fixture';
 import { inMemoryProjects } from '../testing/project-fixture';
 import { testReplay } from '../testing/replay-fixture';
 import { testRoleService } from '../testing/role-fixture';
@@ -25,6 +26,7 @@ function buildWorkItemService(projectStore: ReturnType<typeof inMemoryProjects>)
     projects: projectStore,
     estimates: inMemoryEstimates(workItemStore),
     actuals: inMemoryActuals(workItemStore),
+    progress: inMemoryProgress(workItemStore),
     dependencies: inMemoryDependencies(),
     directory: inMemoryDirectory(),
     capacity: inMemoryCapacity(),

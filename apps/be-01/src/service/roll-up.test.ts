@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'bun:test';
 
-import type { StoredActual, StoredEstimate, WorkItem } from '../repository';
-import { rollUp, rollUpActuals } from './roll-up';
+import type { StoredActual, StoredEstimate, StoredProgress, WorkItem } from '../repository';
+import { rollUp, rollUpActuals, rollUpItemStates, rollUpProgress, workedRolesOf } from './roll-up';
 
 const item = (id: string, parentId: string | null): WorkItem => ({
   id,
@@ -177,5 +177,132 @@ describe('rollUpActuals', () => {
     const totals = rollUpActuals(rows, [recorded('parent', 'dev', 99), recorded('one', 'dev', 2)]);
 
     expect(totals.get('parent')?.get('dev')).toBe(2);
+  });
+});
+
+const said = (
+  workItemId: string,
+  roleId: string,
+  state: 'in_progress' | 'done',
+): StoredProgress => ({
+  workItemId,
+  roleId,
+  state,
+  statedAt: 1,
+});
+
+/** The fold and the reading in one call, as `tree()` runs them. */
+function fold(
+  rows: readonly WorkItem[],
+  estimates: readonly StoredEstimate[],
+  actuals: readonly StoredActual[],
+  stated: readonly StoredProgress[],
+) {
+  const byRole = rollUpProgress(rows, stated, workedRolesOf(estimates, actuals, stated));
+  return { byRole, states: rollUpItemStates(rows, byRole) };
+}
+
+describe('rollUpProgress', () => {
+  it('gives a leaf its own state, and fills in the roles that have work and no statement', () => {
+    const rows = [item('a', null)];
+
+    const { byRole, states } = fold(
+      rows,
+      [held('a', 'qa', 1, 1, 1)],
+      [],
+      [said('a', 'dev', 'done')],
+    );
+
+    expect(byRole.get('a')?.get('dev')).toBe('done');
+    // The role with an estimate and no statement: present in the fold as
+    // `not_started`, which is what keeps the item off `done`.
+    expect(byRole.get('a')?.get('qa')).toBe('not_started');
+    expect(states.get('a')).toBe('in_progress');
+  });
+
+  it('reads a role nobody has spoken about and holds no work for as absent', () => {
+    const rows = [item('a', null)];
+
+    const { byRole, states } = fold(rows, [], [], []);
+
+    expect(byRole.get('a')?.size).toBe(0);
+    expect(states.get('a')).toBe('not_started');
+  });
+
+  it('counts a role with only a recorded day as work still to be spoken about', () => {
+    const rows = [item('a', null)];
+
+    const { states } = fold(
+      rows,
+      [],
+      [{ workItemId: 'a', roleId: 'qa', days: 2, recordedAt: 1 }],
+      [said('a', 'dev', 'done')],
+    );
+
+    expect(states.get('a')).toBe('in_progress');
+  });
+
+  it('agrees two children into their parent, per role', () => {
+    const rows = [item('parent', null), item('one', 'parent'), item('two', 'parent')];
+
+    const { byRole, states } = fold(
+      rows,
+      [],
+      [],
+      [said('one', 'dev', 'done'), said('two', 'dev', 'done')],
+    );
+
+    expect(byRole.get('parent')?.get('dev')).toBe('done');
+    expect(states.get('parent')).toBe('done');
+  });
+
+  it('reads a branch whose children disagree as in progress', () => {
+    const rows = [item('parent', null), item('one', 'parent'), item('two', 'parent')];
+
+    const { byRole, states } = fold(
+      rows,
+      [held('two', 'dev', 1, 1, 1)],
+      [],
+      [said('one', 'dev', 'done')],
+    );
+
+    expect(byRole.get('parent')?.get('dev')).toBe('in_progress');
+    expect(states.get('parent')).toBe('in_progress');
+  });
+
+  it('folds through more than one level', () => {
+    const rows = [item('root', null), item('mid', 'root'), item('leaf', 'mid')];
+
+    const { states } = fold(rows, [], [], [said('leaf', 'dev', 'done')]);
+
+    expect(states.get('root')).toBe('done');
+    expect(states.get('mid')).toBe('done');
+  });
+
+  it('keeps a branch off done while one of its rows has never been spoken about', () => {
+    // The empty sibling holds no role at all, so the per-role fold cannot see
+    // it — `{dev: done}` is all it answers. The item state is folded over the
+    // children instead, and that is where the silence is counted.
+    //
+    // Proof: `rollUpItemStates` folded from the parent's own role map, and this
+    // fails with `done` — a finished branch over an untouched row; watched
+    // 2026-08-18.
+    const rows = [item('parent', null), item('one', 'parent'), item('empty', 'parent')];
+
+    const { byRole, states } = fold(rows, [], [], [said('one', 'dev', 'done')]);
+
+    expect(byRole.get('parent')?.get('dev')).toBe('done');
+    expect(states.get('parent')).toBe('in_progress');
+  });
+
+  it('ignores a statement naming a work item that is not in the rows', () => {
+    // What a stale read looks like: the rows come from one query and the
+    // statements from another, and a row deleted between the two must not throw.
+    const rows = [item('a', null)];
+
+    const { states } = fold(rows, [], [], [said('gone', 'dev', 'done')]);
+
+    expect(states.get('a')).toBe('not_started');
+    expect(states.has('gone')).toBe(false);
   });
 });

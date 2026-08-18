@@ -36,6 +36,16 @@ export interface RoleInUse {
    * `notes/wbs-brief-2026-08-14-r5-r6-history.md` §6.
    */
   actuals: number;
+  /**
+   * Work items that have said where this role's work has got to — a count of
+   * rows, for {@link RoleInUse.actuals}' reason and in its tense.
+   *
+   * Reported separately again because it is a third kind of loss: an estimate is
+   * a guess that can be made again, an actual is a record of a week, and a state
+   * is somebody's statement that the work is finished. A removal that took one
+   * silently would turn done work back into work nobody has started.
+   */
+  progress: number;
   /** Explicit assignments on this role. The assumed ones are in `assumedAssignees`. */
   assignments: number;
   /**
@@ -69,6 +79,7 @@ function inUseFrom(usage: RoleUsageRows, roleId: string): RoleInUse {
   return {
     estimates: usage.estimates,
     actuals: usage.actuals,
+    progress: usage.progress,
     assignments: usage.assignments.filter((each) => each.roleId === roleId).length,
     assumedAssignees: assumedAssigneeFlips(usage.assignments, roleId),
   };

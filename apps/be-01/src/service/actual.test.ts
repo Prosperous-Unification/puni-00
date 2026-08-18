@@ -6,6 +6,7 @@ import type {
   EstimateStore,
   Project,
   ProjectStore,
+  RoleProgressStore,
   StoredActual,
   WorkItemStore,
 } from '../repository';
@@ -17,6 +18,7 @@ import { inMemoryDependencies } from '../testing/dependency-fixture';
 import { inMemoryDirectory } from '../testing/directory-fixture';
 import { inMemoryEstimates } from '../testing/estimate-fixture';
 import { inMemoryPriorityBands } from '../testing/priority-band-fixture';
+import { inMemoryProgress } from '../testing/progress-fixture';
 import { inMemoryProjects } from '../testing/project-fixture';
 import { inMemorySubtrees } from '../testing/subtree-fixture';
 import { inMemoryWorkItems } from '../testing/work-item-fixture';
@@ -32,6 +34,7 @@ let projects: ProjectStore;
 let workItems: WorkItemStore;
 let estimates: EstimateStore;
 let actuals: ActualStore;
+let progress: RoleProgressStore;
 let journal: CommandJournalStore & { events: { kind: string; roleId: string | null }[] };
 let service: WorkItemService;
 let projectId: string;
@@ -42,6 +45,7 @@ beforeEach(async () => {
   workItems = inMemoryWorkItems(directory);
   estimates = inMemoryEstimates(workItems);
   actuals = inMemoryActuals(workItems);
+  progress = inMemoryProgress(workItems);
   const dependencies = inMemoryDependencies();
   const store = inMemoryCommandJournal();
   const recorded: { kind: string; roleId: string | null }[] = [];
@@ -61,11 +65,19 @@ beforeEach(async () => {
     projects,
     estimates,
     actuals,
+    progress,
     dependencies,
     directory,
     capacity: inMemoryCapacity(),
     priorityBands: inMemoryPriorityBands(),
-    subtrees: inMemorySubtrees({ workItems, estimates, actuals, dependencies, directory }),
+    subtrees: inMemorySubtrees({
+      workItems,
+      estimates,
+      actuals,
+      progress,
+      dependencies,
+      directory,
+    }),
     journal,
     broadcast: recordingBroadcaster(),
   });

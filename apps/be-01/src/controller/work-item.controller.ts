@@ -1,4 +1,11 @@
-import { isIsoDate, type IsoDate, MOST_PEOPLE_AT_ONCE, ThreePointEstimate } from '@wbs/domain';
+import {
+  isIsoDate,
+  type IsoDate,
+  isRoleState,
+  MOST_PEOPLE_AT_ONCE,
+  type RoleState,
+  ThreePointEstimate,
+} from '@wbs/domain';
 import { parseOrThrow, ValidationError } from '@wbs/validation';
 import { Elysia } from 'elysia';
 
@@ -73,6 +80,29 @@ function parseActual(body: unknown): number {
     throw new BadRequest('invalid_actual');
   }
   return days;
+}
+
+/**
+ * The one state a statement is, checked by hand for the reason at the top of
+ * this file and for one of its own.
+ *
+ * **`not_started` is refused, and that is the point.** The absence of a
+ * statement is the absence of a row: the way to say it is `DELETE` on this
+ * path, never a third value in the column. Accepting it here would give two
+ * spellings of "nobody has said" — one of which every reader would then have to
+ * fold — and the whole design rests on there being one.
+ *
+ * `blocked` and `cancelled` are refused for the reason in `design.md` P2: each
+ * is a question the engine must answer the day it reads this table, and it does
+ * not read it yet. The `CHECK` on the column refuses them again, in the
+ * database, so a body this function ever came to let through does not become a
+ * row nothing folds.
+ */
+function parseProgress(body: unknown): RoleState {
+  const raw = asRecord(body);
+  const state: unknown = raw['state'];
+  if (!isRoleState(state)) throw new BadRequest('invalid_progress');
+  return state;
 }
 
 function parseCreate(body: unknown): CreateWorkItem {
@@ -776,6 +806,83 @@ zero, which is the rule every figure in this API follows.`,
         },
       },
     )
+    .put(
+      '/work-items/:id/progress/:roleId',
+      async ({ params, body, headers, set }) => {
+        const user = await userFromHeaders(auth, headers);
+        if (user === null) {
+          set.status = 401;
+          return { error: 'unauthenticated' };
+        }
+        const state = parseProgress(body);
+        const outcome = await workItems.setProgress(params.id, user.id, params.roleId, state);
+        if (!outcome.ok) {
+          set.status = statusFor(outcome.reason);
+          return { error: outcome.reason };
+        }
+        return { stated: true };
+      },
+      {
+        detail: {
+          summary: "Say where one role's work on one work item has got to",
+          description: `**Reporting only. This moves no date.** Marking a role \`done\` changes no
+bar, no successor and no critical path: the plan's dates still come from the
+three-point estimates through the scheduler, and nothing in the engine reads this.
+What it changes is whether the figure beside it can be read at all — 8 days spent
+against 5 estimated is *"overran by 3"* when the role is done and *"is 3 over so
+far"* when it is not, and those are different sentences about the same two
+numbers.
+
+**Three states, and only two of them are written here.** \`in_progress\` and
+\`done\` are rows; **not started is the absence of a row**, so the way to say it
+is \`DELETE\` on this path. A body whose \`state\` is anything else — including
+\`not_started\` — is \`invalid_progress\`, 400. There is no \`blocked\` and no
+\`cancelled\`.
+
+**Per role, on a leaf.** A statement about a row that has children is
+\`rolled_up\`, 409 — a parent's state is folded from its descendants'. A
+\`roleId\` that is not a role of this project is \`unknown_role\`, 404.
+
+**A work item's own state is derived and never stored.** It is \`done\` when every
+role with work on the row says so, \`not_started\` when none of them has said
+anything, and \`in_progress\` for every disagreement in between — including one
+role finished while another has said nothing, which is an unfinished item.
+
+**What \`done\` makes true:** an actual on a role marked done is **final** — the
+whole of what that role spent, not a running count.`,
+          requestBody: handParsedBody('Where this role has got to on this work item.', {
+            type: 'object',
+            required: ['state'],
+            properties: {
+              state: {
+                type: 'string',
+                enum: ['in_progress', 'done'],
+                description:
+                  'Where the work has got to. Not started is the absence of a statement — DELETE this path rather than sending it.',
+              },
+            },
+          }),
+        },
+      },
+    )
+    .delete('/work-items/:id/progress/:roleId', async ({ params, headers, set }) => {
+      // Guarded exactly as the PUT above. Clearing a statement nobody made
+      // answers 200 rather than 404, for the reason the estimate's DELETE
+      // gives. Worth being plain about what it means: this does not say the
+      // work was undone, it says nobody has spoken about it — which is the
+      // third state, spelled the only way it is ever spelled.
+      const user = await userFromHeaders(auth, headers);
+      if (user === null) {
+        set.status = 401;
+        return { error: 'unauthenticated' };
+      }
+      const outcome = await workItems.clearProgress(params.id, user.id, params.roleId);
+      if (!outcome.ok) {
+        set.status = statusFor(outcome.reason);
+        return { error: outcome.reason };
+      }
+      return { cleared: true };
+    })
     .delete('/work-items/:id/actuals/:roleId', async ({ params, headers, set }) => {
       // Guarded exactly as the PUT above. Clearing days that were never
       // recorded answers 200 rather than 404, for the reason the estimate's

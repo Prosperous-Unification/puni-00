@@ -12,7 +12,7 @@ import type {
 } from './index';
 import { ROLE_POSITION_STEP } from './index';
 import { bumpProject, bumpWorkItems } from './revision';
-import { actual, assignment, estimate, role, workItem } from './schema';
+import { actual, assignment, estimate, role, roleProgress, workItem } from './schema';
 
 /**
  * Whether a thrown error is SQLite refusing a second role of the same name in
@@ -178,6 +178,12 @@ export class RoleRepository implements RoleStore {
       .select({ workItemId: actual.workItemId })
       .from(actual)
       .where(eq(actual.roleId, roleId));
+    // Read through `role_progress_by_role`, which exists for this question for
+    // `actual_by_role`'s reason.
+    const spoken = await this.db
+      .select({ workItemId: roleProgress.workItemId })
+      .from(roleProgress)
+      .where(eq(roleProgress.roleId, roleId));
     const ids = await this.db
       .select({ id: workItem.id })
       .from(workItem)
@@ -185,7 +191,12 @@ export class RoleRepository implements RoleStore {
     // `inArray` with an empty list becomes `IN ()`, which SQLite refuses — and
     // a project with no work items has no assignments by definition.
     if (ids.length === 0)
-      return { estimates: held.length, actuals: recorded.length, assignments: [] };
+      return {
+        estimates: held.length,
+        actuals: recorded.length,
+        progress: spoken.length,
+        assignments: [],
+      };
     const assignments = await this.db
       .select()
       .from(assignment)
@@ -195,7 +206,12 @@ export class RoleRepository implements RoleStore {
           ids.map((row) => row.id),
         ),
       );
-    return { estimates: held.length, actuals: recorded.length, assignments };
+    return {
+      estimates: held.length,
+      actuals: recorded.length,
+      progress: spoken.length,
+      assignments,
+    };
   }
 
   /**
@@ -261,18 +277,31 @@ export class RoleRepository implements RoleStore {
         .from(actual)
         .where(inArray(actual.roleId, roleInProject))
         .all();
+      // And the statements, counted here for the recorded days' reason: a role
+      // that holds no estimate and no actual but has been said to be **done** on
+      // a work item is `in_use`, and an unconfirmed removal of it would turn
+      // finished work back into work nobody has started, silently.
+      const spoken = tx
+        .select({ workItemId: roleProgress.workItemId })
+        .from(roleProgress)
+        .where(inArray(roleProgress.roleId, roleInProject))
+        .all();
       const assigned = tx
         .select({ workItemId: assignment.workItemId })
         .from(assignment)
         .where(inArray(assignment.roleId, roleInProject))
         .all();
-      if (!cascade && (estimated.length > 0 || recorded.length > 0 || assigned.length > 0)) {
+      if (
+        !cascade &&
+        (estimated.length > 0 || recorded.length > 0 || spoken.length > 0 || assigned.length > 0)
+      ) {
         return {
           ok: false,
           reason: 'in_use',
           usage: {
             estimates: estimated.length,
             actuals: recorded.length,
+            progress: spoken.length,
             assignments: assignmentsIn(tx, projectId),
           },
         };
@@ -282,6 +311,9 @@ export class RoleRepository implements RoleStore {
       // carries no cascade here, so the role delete below hits the foreign key
       // and answers 500 without this statement.
       tx.delete(actual).where(inArray(actual.roleId, roleInProject)).run();
+      // Explicit for the same reason once more: `role_progress.role_id` carries
+      // no cascade either, deliberately.
+      tx.delete(roleProgress).where(inArray(roleProgress.roleId, roleInProject)).run();
       tx.delete(assignment).where(inArray(assignment.roleId, roleInProject)).run();
       const removed = tx
         .delete(role)
@@ -294,7 +326,9 @@ export class RoleRepository implements RoleStore {
       // revision — the two deletes above touched nothing for the same reason.
       if (removed.length === 0) return { ok: false, reason: 'not_found' };
       const workItemIds = [
-        ...new Set([...estimated, ...recorded, ...assigned].map((row) => row.workItemId)),
+        ...new Set(
+          [...estimated, ...recorded, ...spoken, ...assigned].map((row) => row.workItemId),
+        ),
       ];
       bumpWorkItems(tx, workItemIds);
       bumpProject(tx, projectId);
@@ -303,6 +337,7 @@ export class RoleRepository implements RoleStore {
         removal: {
           estimates: estimated.length,
           actuals: recorded.length,
+          progress: spoken.length,
           assignments: assigned.length,
           workItemIds,
         },

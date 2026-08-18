@@ -13,6 +13,7 @@ import { EstimateRepository } from '../repository/estimate';
 import { runMigrations } from '../repository/migrate';
 import { ProjectRepository } from '../repository/project';
 import { RoleRepository } from '../repository/role';
+import { RoleProgressRepository } from '../repository/role-progress';
 import { UserRepository } from '../repository/user';
 import { SubtreeRepository, WorkItemRepository } from '../repository/work-item';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
@@ -50,6 +51,7 @@ let projectStore: ProjectRepository;
 let workItemStore: WorkItemRepository;
 let estimateStore: EstimateRepository;
 let actualStore: ActualRepository;
+let progressStore: RoleProgressRepository;
 let projectId: string;
 let ownerId: string;
 let roles: Role[];
@@ -73,6 +75,7 @@ beforeEach(async () => {
   workItemStore = new WorkItemRepository(db);
   estimateStore = new EstimateRepository(db);
   actualStore = new ActualRepository(db);
+  progressStore = new RoleProgressRepository(db);
   const dependencies = new DependencyRepository(db);
   const directory = new DirectoryRepository(db);
 
@@ -95,6 +98,7 @@ beforeEach(async () => {
     projects: projectStore,
     estimates: estimateStore,
     actuals: actualStore,
+    progress: progressStore,
     directory,
     capacity: inMemoryCapacity(),
     priorityBands: inMemoryPriorityBands(),

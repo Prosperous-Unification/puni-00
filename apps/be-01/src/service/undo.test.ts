@@ -14,6 +14,7 @@ import { EstimateRepository } from '../repository/estimate';
 import { runMigrations } from '../repository/migrate';
 import { PlanEventRepository } from '../repository/plan-event';
 import { ProjectRepository } from '../repository/project';
+import { RoleProgressRepository } from '../repository/role-progress';
 import { commandJournal } from '../repository/schema';
 import { UserRepository } from '../repository/user';
 import { SubtreeRepository, WorkItemRepository } from '../repository/work-item';
@@ -48,6 +49,7 @@ let projects: ProjectService;
 let workItemStore: WorkItemRepository;
 let estimateStore: EstimateRepository;
 let actualStore: ActualRepository;
+let progressStore: RoleProgressRepository;
 let dependencyStore: DependencyRepository;
 let directoryStore: DirectoryRepository;
 let journalStore: CommandJournalRepository;
@@ -76,6 +78,7 @@ beforeEach(async () => {
   workItemStore = new WorkItemRepository(db);
   estimateStore = new EstimateRepository(db);
   actualStore = new ActualRepository(db);
+  progressStore = new RoleProgressRepository(db);
   dependencyStore = new DependencyRepository(db);
   directoryStore = new DirectoryRepository(db);
   journalStore = new CommandJournalRepository(db);
@@ -94,6 +97,7 @@ beforeEach(async () => {
     projects: projectStore,
     estimates: estimateStore,
     actuals: actualStore,
+    progress: progressStore,
     directory: directoryStore,
     capacity: inMemoryCapacity(),
     priorityBands: inMemoryPriorityBands(),
@@ -503,6 +507,70 @@ describe('undoing each kind of change', () => {
     expect(byItem.get(switches)).toBe(3);
     expect(back).toHaveLength(2);
     expect(back.every((each) => each.roleId === dev())).toBe(true);
+  });
+
+  it('restores every statement made in a deleted branch, against the real cascade', async () => {
+    // Against real SQLite, and that is the point of putting this here rather
+    // than beside the other progress cases: `role_progress.work_item_id`
+    // cascades, so the rows are genuinely gone after the delete and can only
+    // come back from the command. The in-memory store cannot model that — its
+    // rows survive the deletion in an array and reappear with the row — so a
+    // case written there passes with the restore's `progress` replaced by `[]`.
+    // That is `actual-days`' F9a, and the lesson is being applied rather than
+    // rediscovered.
+    //
+    // Proof: the restore's `progress` replaced by `[]`, and this fails with an
+    // empty list where two statements are owed — a branch that comes back from
+    // an undo reading as work nobody has started; watched 2026-08-18.
+    const strip = await root('Strip');
+    const sockets = await child(strip, 'Sockets');
+    const switches = await child(strip, 'Switches', sockets);
+    await workItems.setProgress(sockets, ownerId, dev(), 'done');
+    await workItems.setProgress(switches, ownerId, dev(), 'in_progress');
+
+    expect((await workItems.remove(strip, ownerId, 'cascade')).ok).toBe(true);
+    expect(await progressStore.listByProject(projectId)).toEqual([]);
+
+    expect(expectDone(await undone())).toBe('delete “Strip”');
+
+    // By work item rather than as a list, and the size asserted beside it, for
+    // the reason the actual case above gives: `listByProject` orders by
+    // `work_item_id`, a UUID across a project, so a two-row list assertion is a
+    // coin toss on which name sorts first. That mistake cost a CI cycle on #79
+    // and it is not being made twice.
+    const back = await progressStore.listByProject(projectId);
+    const byItem = new Map(back.map((each) => [each.workItemId, each.state]));
+    expect(byItem.get(sockets)).toBe('done');
+    expect(byItem.get(switches)).toBe('in_progress');
+    expect(back).toHaveLength(2);
+    expect(back.every((each) => each.roleId === dev())).toBe(true);
+  });
+
+  it('takes back the statement a deletion handed up to the parent', async () => {
+    // The mirror of the recorded-days case below it. The parent has no children
+    // left after the delete, so it took the branch's reading; undoing has to
+    // take it off again, or the plan says the parent's own work is finished
+    // while the leaf that was actually finished is back beside it.
+    const strip = await root('Strip');
+    const sockets = await child(strip, 'Sockets');
+    await workItems.setProgress(sockets, ownerId, dev(), 'done');
+
+    expect((await workItems.remove(sockets, ownerId, null)).ok).toBe(true);
+    expect(
+      (await progressStore.listByProject(projectId)).map(({ workItemId, state }) => ({
+        workItemId,
+        state,
+      })),
+    ).toEqual([{ workItemId: strip, state: 'done' }]);
+
+    expect(expectDone(await undone())).toBe('delete “Sockets”');
+
+    expect(
+      (await progressStore.listByProject(projectId)).map(({ workItemId, state }) => ({
+        workItemId,
+        state,
+      })),
+    ).toEqual([{ workItemId: sockets, state: 'done' }]);
   });
 
   it('takes back the recorded days a deletion handed up to the parent', async () => {

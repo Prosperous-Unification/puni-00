@@ -19,6 +19,7 @@ import { inMemoryDependencies } from '../testing/dependency-fixture';
 import { inMemoryDirectory } from '../testing/directory-fixture';
 import { inMemoryEstimates } from '../testing/estimate-fixture';
 import { inMemoryPriorityBands } from '../testing/priority-band-fixture';
+import { inMemoryProgress } from '../testing/progress-fixture';
 import { inMemoryProjects } from '../testing/project-fixture';
 import { inMemorySubtrees } from '../testing/subtree-fixture';
 import { inMemoryWorkItems } from '../testing/work-item-fixture';
@@ -234,7 +235,7 @@ describe('every plan schedules identically across the migration', () => {
       // `team-sets` design.md D5.
       const lifted = {
         ...tree,
-        workItems: tree.workItems.map(({ teamIds, actuals, ...row }) => {
+        workItems: tree.workItems.map(({ teamIds, actuals, progress, state, ...row }) => {
           // The arity claim, and the only place it is made: the set the join
           // answered is exactly the singleton of the label the oracle recorded.
           //
@@ -255,6 +256,14 @@ describe('every plan schedules identically across the migration', () => {
           // claim — nothing recorded reads as nothing recorded, never as zero —
           // and a bare lift would hide a roll-up that invented a figure.
           expect(actuals).toEqual({});
+          // Lifted for `actuals`' reason and asserted for the same one:
+          // `role-progress` (R6 H2b) put two more keys on every row and the
+          // oracle predates the table. `{}` and `not_started` on all sixteen
+          // replayed plans is the claim — nobody having said anything reads as
+          // nobody having said anything, never as untouched-therefore-done — and
+          // a bare lift would hide a fold that invented a state.
+          expect(progress).toEqual({});
+          expect(state).toBe('not_started');
           return row;
         }),
       };
@@ -364,19 +373,28 @@ describe('every plan schedules identically across the migration', () => {
     const workItems = inMemoryWorkItems(directory);
     const estimates = inMemoryEstimates(workItems);
     const actuals = inMemoryActuals(workItems);
+    const progress = inMemoryProgress(workItems);
     const dependencies = inMemoryDependencies();
     const service = new WorkItemService({
       workItems,
       projects,
       estimates,
       actuals,
+      progress,
       dependencies,
       directory,
       capacity: inMemoryCapacity({
         [plan.projectId]: Object.fromEntries(seeded.get(plan.projectId) ?? []),
       }),
       priorityBands: inMemoryPriorityBands(),
-      subtrees: inMemorySubtrees({ workItems, estimates, actuals, dependencies, directory }),
+      subtrees: inMemorySubtrees({
+        workItems,
+        estimates,
+        actuals,
+        progress,
+        dependencies,
+        directory,
+      }),
       journal: inMemoryCommandJournal(),
       broadcast: recordingBroadcaster(),
     });

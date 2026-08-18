@@ -13,6 +13,7 @@ import { inMemoryDirectory, testDirectoryService } from '../testing/directory-fi
 import { inMemoryEstimates } from '../testing/estimate-fixture';
 import { testHistoryService } from '../testing/history-fixture';
 import { inMemoryPriorityBands, testPriorityBandService } from '../testing/priority-band-fixture';
+import { inMemoryProgress } from '../testing/progress-fixture';
 import { inMemoryProjects } from '../testing/project-fixture';
 import { testReplay } from '../testing/replay-fixture';
 import { testRoleService } from '../testing/role-fixture';
@@ -25,6 +26,7 @@ function buildHarness() {
   const workItemStore = inMemoryWorkItems(directoryStore);
   const estimateStore = inMemoryEstimates(workItemStore);
   const actualStore = inMemoryActuals(workItemStore);
+  const progressStore = inMemoryProgress(workItemStore);
   const dependencyStore = inMemoryDependencies();
   const app = buildApp({
     // **One** directory, shared with the work item service below. Two would
@@ -43,6 +45,7 @@ function buildHarness() {
       projects: projectStore,
       estimates: estimateStore,
       actuals: actualStore,
+      progress: progressStore,
       dependencies: dependencyStore,
       directory: directoryStore,
       capacity: inMemoryCapacity(),
@@ -51,6 +54,7 @@ function buildHarness() {
         workItems: workItemStore,
         estimates: estimateStore,
         actuals: actualStore,
+        progress: progressStore,
         dependencies: dependencyStore,
         directory: directoryStore,
       }),
@@ -1084,6 +1088,187 @@ describe('recording the days a role actually spent', () => {
     // 404 of its own, so a status-only assertion passes with the route deleted.
     const { token, send, devId } = await setup();
     const res = await send(`/api/work-items/${crypto.randomUUID()}/actuals/${devId}`, token, {
+      method: 'DELETE',
+    });
+
+    expect(res.status).toBe(404);
+    expect((await res.json()) as { error: string }).toEqual({ error: 'not_found' });
+  });
+});
+
+describe('saying where a role’s work has got to', () => {
+  const make = async (
+    send: (p: string, t: string, i?: { method?: string; body?: string }) => Promise<Response>,
+    token: string,
+    projectId: string,
+    name: string,
+    parentId: string | null,
+  ): Promise<string> => {
+    const res = await send(`/api/projects/${projectId}/work-items`, token, {
+      method: 'POST',
+      body: JSON.stringify({ parentId, afterId: null, name }),
+    });
+    return ((await res.json()) as { id: string }).id;
+  };
+
+  const rowOf = async (
+    send: (p: string, t: string, i?: { method?: string; body?: string }) => Promise<Response>,
+    token: string,
+    projectId: string,
+    name: string,
+  ) => {
+    const tree = await send(`/api/projects/${projectId}/work-items`, token);
+    const body = (await tree.json()) as {
+      workItems: { name: string; progress: Record<string, string>; state: string }[];
+    };
+    return body.workItems.find((w) => w.name === name);
+  };
+
+  it('states the role and carries it on the tree, folded into the parent', async () => {
+    const { token, send, projectId, devId } = await setup();
+    const strip = await make(send, token, projectId, 'Strip', null);
+    const sockets = await make(send, token, projectId, 'Sockets', strip);
+
+    const res = await send(`/api/work-items/${sockets}/progress/${devId}`, token, {
+      method: 'PUT',
+      body: JSON.stringify({ state: 'done' }),
+    });
+
+    expect(res.status).toBe(200);
+    expect((await res.json()) as { stated: boolean }).toEqual({ stated: true });
+    expect(await rowOf(send, token, projectId, 'Sockets')).toMatchObject({
+      progress: { [devId]: 'done' },
+      state: 'done',
+    });
+    // Folded on the parent, never stored there.
+    expect(await rowOf(send, token, projectId, 'Strip')).toMatchObject({
+      progress: { [devId]: 'done' },
+      state: 'done',
+    });
+  });
+
+  it('refuses a state outside the two a role may be put in, not_started included', async () => {
+    // `not_started` is refused with the nonsense, and that is the point: the way
+    // to say it is `DELETE`, because the absence of a row is how it is spelled
+    // everywhere else in this tool.
+    //
+    // Proof: `isRoleState` replaced by a `typeof state === 'string'` check in
+    // `parseProgress`, and this fails with 200 for `{"state":"not_started"}` —
+    // a value written into a column whose `CHECK` would then refuse it, turning
+    // a 400 into a 500; watched 2026-08-18.
+    const { token, send, projectId, devId } = await setup();
+    const strip = await make(send, token, projectId, 'Strip', null);
+
+    for (const body of [
+      '{}',
+      '{"state":"not_started"}',
+      '{"state":"blocked"}',
+      '{"state":true}',
+      '{"state":null}',
+    ]) {
+      const res = await send(`/api/work-items/${strip}/progress/${devId}`, token, {
+        method: 'PUT',
+        body,
+      });
+      expect([body, res.status]).toEqual([body, 400]);
+      expect((await res.json()) as { error: string }).toEqual({ error: 'invalid_progress' });
+    }
+
+    expect(await rowOf(send, token, projectId, 'Strip')).toMatchObject({
+      progress: {},
+      state: 'not_started',
+    });
+  });
+
+  it('refuses a row that has children with 409, and a role that is not there with 404', async () => {
+    const { token, send, projectId, devId } = await setup();
+    const strip = await make(send, token, projectId, 'Strip', null);
+    const sockets = await make(send, token, projectId, 'Sockets', strip);
+
+    const rolled = await send(`/api/work-items/${strip}/progress/${devId}`, token, {
+      method: 'PUT',
+      body: JSON.stringify({ state: 'done' }),
+    });
+    // On the **leaf**, for the actuals' reason: the parent answers `rolled_up`
+    // first, and a case that read 409 twice would say nothing about the role
+    // check at all.
+    const unknown = await send(
+      `/api/work-items/${sockets}/progress/${crypto.randomUUID()}`,
+      token,
+      {
+        method: 'PUT',
+        body: JSON.stringify({ state: 'done' }),
+      },
+    );
+
+    expect([rolled.status, unknown.status]).toEqual([409, 404]);
+    expect((await rolled.json()) as { error: string }).toEqual({ error: 'rolled_up' });
+    expect((await unknown.json()) as { error: string }).toEqual({ error: 'unknown_role' });
+  });
+
+  it('refuses an unauthenticated caller on both verbs, and leaves the statement alone', async () => {
+    // Without the read afterwards this passes against a route that answers 401
+    // *after* having already written or cleared the row.
+    const { token, send, projectId, devId } = await setup();
+    const strip = await make(send, token, projectId, 'Strip', null);
+    await send(`/api/work-items/${strip}/progress/${devId}`, token, {
+      method: 'PUT',
+      body: JSON.stringify({ state: 'done' }),
+    });
+
+    const written = await send(`/api/work-items/${strip}/progress/${devId}`, 'not-a-token', {
+      method: 'PUT',
+      body: JSON.stringify({ state: 'in_progress' }),
+    });
+    const cleared = await send(`/api/work-items/${strip}/progress/${devId}`, 'not-a-token', {
+      method: 'DELETE',
+    });
+
+    expect([written.status, cleared.status]).toEqual([401, 401]);
+    expect(await rowOf(send, token, projectId, 'Strip')).toMatchObject({
+      progress: { [devId]: 'done' },
+    });
+  });
+
+  it('clears back to absence, and clearing again is still a success', async () => {
+    const { token, send, projectId, devId, qaId } = await setup();
+    const strip = await make(send, token, projectId, 'Strip', null);
+    for (const roleId of [devId, qaId]) {
+      await send(`/api/work-items/${strip}/progress/${roleId}`, token, {
+        method: 'PUT',
+        body: JSON.stringify({ state: 'done' }),
+      });
+    }
+
+    const first = await send(`/api/work-items/${strip}/progress/${devId}`, token, {
+      method: 'DELETE',
+    });
+    const again = await send(`/api/work-items/${strip}/progress/${devId}`, token, {
+      method: 'DELETE',
+    });
+
+    expect([first.status, again.status]).toEqual([200, 200]);
+    expect((await first.json()) as { cleared: boolean }).toEqual({ cleared: true });
+    // The other role is untouched and the cleared one is **absent** rather than
+    // `not_started`.
+    //
+    // The row still reads `done`, and that is the rule rather than a leak: Dev
+    // has no estimate and no recorded day on this row, so retracting the only
+    // thing anybody ever said about it leaves Dev with no work here at all — and
+    // `done` is unanimous across the roles that *have* work. A Dev estimate on
+    // the row makes the same clear read `in_progress`, which is the case in
+    // `service/progress.test.ts`.
+    expect(await rowOf(send, token, projectId, 'Strip')).toMatchObject({
+      progress: { [qaId]: 'done' },
+      state: 'done',
+    });
+  });
+
+  it('answers this route’s own 404 for a work item that is not there', async () => {
+    // The body, not just the status: Elysia answers an unmatched route with a
+    // 404 of its own, so a status-only assertion passes with the route deleted.
+    const { token, send, devId } = await setup();
+    const res = await send(`/api/work-items/${crypto.randomUUID()}/progress/${devId}`, token, {
       method: 'DELETE',
     });
 

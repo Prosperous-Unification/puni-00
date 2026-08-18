@@ -1,0 +1,95 @@
+/**
+ * Where the work has got to: three states, per role, and the one rule that
+ * turns a row's roles into a reading of the row.
+ *
+ * Dany, 2026-08-18: _"maybe we should augment actual days by completion
+ * status?"_ — asked the day after actuals shipped, and the reason it is the
+ * right question is in `openspec/changes/actual-days/design.md` D3: an actual
+ * with no completion state beside it cannot tell **"took 8 days, finished"**
+ * from **"8 days so far"**, and those two mean opposite things for every
+ * successor. This module is the vocabulary that tells them apart.
+ *
+ * It lives in `@wbs/domain` rather than in be-01 because it is a **rule both
+ * apps share**, in the sense `effectiveTeamsOf` is: the API derives an item's
+ * state for its payload, and a face that folds a subset of rows — a filtered
+ * table, a collapsed branch, a card — has to derive the same answer from the
+ * same fold or the two disagree on screen about a plan neither of them changed.
+ */
+
+/**
+ * What one role has said about its own work on one work item.
+ *
+ * **Two values, because the third is the absence of a row.** "Not started" is
+ * never stored: it is what a work item with no `role_progress` row for that role
+ * reads as, exactly as an unstated capacity and an unrecorded actual are
+ * absences rather than zeroes (`project_team_capacity` and `actual` in be-01's
+ * `schema.ts`). Storing it would give two spellings of "nobody has said" — no
+ * row, and a row saying nothing — and every reader would have to handle both.
+ *
+ * **No `blocked` and no `cancelled`**, and that is a refusal rather than an
+ * omission: each extra state is a question the engine must answer the day it
+ * starts reading this — what a blocked predecessor does to its successors'
+ * floor, whether a cancelled role's estimate leaves the plan's totals — and the
+ * engine is not reading this yet. Three states can be added to; a fourth shipped
+ * now would be a meaning nobody has agreed, stored on real plans, in rows the
+ * next change has to interpret.
+ */
+export type RoleState = 'in_progress' | 'done';
+
+/**
+ * What a **work item** reads as. Derived from its roles on every read and never
+ * stored, for the reason every derived figure in this tool is: two spellings of
+ * one fact is how "the item says done and a role has no actual" happens.
+ */
+export type ItemState = 'not_started' | RoleState;
+
+/** The two states a role may be stored in, in the order a face should offer them. */
+export const ROLE_STATES: readonly RoleState[] = ['in_progress', 'done'];
+
+/** Nothing has been said about this work, by anybody, for any role. */
+export const NOT_STARTED = 'not_started';
+
+/** Whether a value off the wire is one of the two states a role may be put in. */
+export function isRoleState(value: unknown): value is RoleState {
+  return value === 'in_progress' || value === 'done';
+}
+
+/**
+ * Two readings of one thing, combined: **they agree, or the thing is in
+ * progress.**
+ *
+ * That is the whole rule, and it is the answer to "what is an item whose roles
+ * disagree". Dev finished and QA has not started is not a finished item and it
+ * is not an untouched one — it is an item somebody is part-way through, which is
+ * the only reading that is true of every plan it can arise on.
+ *
+ * **`done` is therefore unanimous.** An item is finished when every role with
+ * work on it says so, and one silent role is enough to keep it in progress. The
+ * alternative — done as soon as any role says done — would let a plan report
+ * finished work that nobody has tested, which is precisely the claim a
+ * completion state exists to stop somebody making by accident.
+ *
+ * Associative, commutative and idempotent, which is what lets a parent be
+ * folded from its children's states rather than from every leaf role beneath it:
+ * both routes reach the same answer, so there is no ordering of the tree that
+ * changes what a branch reads as.
+ */
+export function agree(a: ItemState, b: ItemState): ItemState {
+  return a === b ? a : 'in_progress';
+}
+
+/**
+ * The state a collection reads as: {@link agree} across all of it, and
+ * {@link NOT_STARTED} when there is nothing in it.
+ *
+ * Empty means nobody has said anything — an item with no roles, a branch with no
+ * leaves, a plan on its first day. Reading that as "not started" rather than as
+ * "done vacuously" is the same choice `rollUp` makes when it leaves an
+ * unestimated role absent instead of zero: an empty statement is not a
+ * statement.
+ */
+export function stateOf(states: Iterable<ItemState>): ItemState {
+  let answer: ItemState | null = null;
+  for (const state of states) answer = answer === null ? state : agree(answer, state);
+  return answer ?? NOT_STARTED;
+}

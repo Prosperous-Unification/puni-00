@@ -14,6 +14,7 @@ import { recordingBroadcaster } from './broadcast-fixture';
 import { inMemoryCommandJournal } from './command-journal-fixture';
 import { inMemoryDependencies } from './dependency-fixture';
 import { inMemoryEstimates } from './estimate-fixture';
+import { inMemoryProgress } from './progress-fixture';
 import { inMemoryProjects } from './project-fixture';
 import { inMemorySubtrees } from './subtree-fixture';
 
@@ -151,17 +152,26 @@ export function testWorkItemService(): WorkItemService {
   const workItems = inMemoryWorkItems(directory);
   const estimates = inMemoryEstimates(workItems);
   const actuals = inMemoryActuals(workItems);
+  const progress = inMemoryProgress(workItems);
   const dependencies = inMemoryDependencies();
   return new WorkItemService({
     workItems,
     projects: inMemoryProjects(),
     estimates,
     actuals,
+    progress,
     dependencies,
     directory,
     capacity: inMemoryCapacity(),
     priorityBands: inMemoryPriorityBands(),
-    subtrees: inMemorySubtrees({ workItems, estimates, actuals, dependencies, directory }),
+    subtrees: inMemorySubtrees({
+      workItems,
+      estimates,
+      actuals,
+      progress,
+      dependencies,
+      directory,
+    }),
     journal: inMemoryCommandJournal(),
     broadcast: recordingBroadcaster(),
   });

@@ -15,6 +15,7 @@ import { EstimateRepository } from '../repository/estimate';
 import { runMigrations } from '../repository/migrate';
 import { ProjectRepository } from '../repository/project';
 import { RoleRepository } from '../repository/role';
+import { RoleProgressRepository } from '../repository/role-progress';
 import { UserRepository } from '../repository/user';
 import { SubtreeRepository, WorkItemRepository } from '../repository/work-item';
 import { AuthService } from '../service/auth.service';
@@ -86,6 +87,7 @@ describe('PUT /api/projects/:id/teams/:teamId/capacity', () => {
         projects: projectStore,
         estimates: new EstimateRepository(db),
         actuals: new ActualRepository(db),
+        progress: new RoleProgressRepository(db),
         dependencies: new DependencyRepository(db),
         directory: directoryStore,
         capacity: capacityStore,

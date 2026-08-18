@@ -61,6 +61,18 @@ const PLAN_EVENT = '20260817120000_add_plan_event';
  * is the first migration written under that guard rather than beside it.
  */
 const ACTUAL = '20260817130000_add_actual';
+/**
+ * The newest. A table of its own referencing `work_item` and `role` again, so it
+ * reverses ahead of the domain that holds both — `ACTUAL`'s place for `ACTUAL`'s
+ * reason, and it comes off before `ACTUAL` only because it was applied after it.
+ *
+ * Stamped `20260818010000`, later than all nineteen folders that were on disk
+ * when it was written. The stamps were listed and checked for a duplicate before
+ * the folder existed — verify.md quotes the run — and `refuses a folder set that
+ * shares one stamp between two migrations` is the mechanical half of the same
+ * check.
+ */
+const ROLE_PROGRESS = '20260818010000_add_role_progress';
 
 const WBS_TABLES = ['project', 'work_item', 'role', 'estimate'] as const;
 // Its own migration, reversed with the domain because it references `work_item`.
@@ -77,6 +89,9 @@ const TEAM_SET_TABLES = ['work_item_team'] as const;
 // Its own migration, reversed with the domain: it references `work_item` and
 // `role`, so it cannot outlive either.
 const ACTUAL_TABLES = ['actual'] as const;
+// Its own migration, reversed with the domain for `ACTUAL_TABLES`' reason: it
+// references `work_item` and `role` too.
+const ROLE_PROGRESS_TABLES = ['role_progress'] as const;
 
 function tempDb(): { path: string; cleanup: () => void } {
   const dir = mkdtempSync(join(tmpdir(), 'wbs-migrate-'));
@@ -113,6 +128,7 @@ describe('the WBS domain migration', () => {
         ...CAPACITY_TABLES,
         ...TEAM_SET_TABLES,
         ...ACTUAL_TABLES,
+        ...ROLE_PROGRESS_TABLES,
       ])
         expect(tables(db.path)).toContain(t);
     } finally {
@@ -134,6 +150,7 @@ describe('the WBS domain migration', () => {
       // ahead of the column it was seeded from, which is the only order in
       // which its foreign keys still have something to point at.
       expect(reversed).toEqual([
+        ROLE_PROGRESS,
         ACTUAL,
         PLAN_EVENT,
         PRIORITY_BANDS,
@@ -160,6 +177,7 @@ describe('the WBS domain migration', () => {
         ...CAPACITY_TABLES,
         ...TEAM_SET_TABLES,
         ...ACTUAL_TABLES,
+        ...ROLE_PROGRESS_TABLES,
       ])
         expect(tables(db.path)).not.toContain(t);
       // Reversing the domain must not take the accounts with it: the two
@@ -443,6 +461,7 @@ describe('the capacity migrations', () => {
       const reversed = rollbackTo(db.path, FOLDER, PRIORITY);
 
       expect(reversed).toEqual([
+        ROLE_PROGRESS,
         ACTUAL,
         PLAN_EVENT,
         PRIORITY_BANDS,
@@ -888,7 +907,7 @@ describe('the work item team migration', () => {
       // applied after this one and the baseline is older than all four — not this
       // migration's business, and named rather than filtered out so the list stays
       // the literal answer `rollbackTo` gave.
-      expect(reversed).toEqual([ACTUAL, PLAN_EVENT, PRIORITY_BANDS, WORK_ITEM_TEAM]);
+      expect(reversed).toEqual([ROLE_PROGRESS, ACTUAL, PLAN_EVENT, PRIORITY_BANDS, WORK_ITEM_TEAM]);
       expect(tables(db.path)).not.toContain('work_item_team');
       const after = openDatabase(db.path);
       try {
@@ -1105,6 +1124,7 @@ describe('the priority band migration', () => {
       // filtered, so the list is the literal answer `rollbackTo` gave and not a
       // subset somebody chose.
       expect(rollbackTo(db.path, FOLDER, PER_PROJECT_CAPACITY)).toEqual([
+        ROLE_PROGRESS,
         ACTUAL,
         PLAN_EVENT,
         PRIORITY_BANDS,
@@ -1379,7 +1399,11 @@ describe('the plan event migration', () => {
         before.close();
       }
 
-      expect(rollbackTo(db.path, FOLDER, PRIORITY_BANDS)).toEqual([ACTUAL, PLAN_EVENT]);
+      expect(rollbackTo(db.path, FOLDER, PRIORITY_BANDS)).toEqual([
+        ROLE_PROGRESS,
+        ACTUAL,
+        PLAN_EVENT,
+      ]);
 
       const after = openDatabase(db.path);
       try {
@@ -1587,7 +1611,7 @@ describe('the actual migration', () => {
       runMigrations(db.path, FOLDER);
       seeded(db.path);
 
-      expect(rollbackTo(db.path, FOLDER, PLAN_EVENT)).toEqual([ACTUAL]);
+      expect(rollbackTo(db.path, FOLDER, PLAN_EVENT)).toEqual([ROLE_PROGRESS, ACTUAL]);
 
       const after = openDatabase(db.path);
       try {
@@ -1627,6 +1651,259 @@ describe('the actual migration', () => {
             >("SELECT priority FROM work_item WHERE id = 'w1'")
             .get()?.priority,
         ).toBe(25);
+      } finally {
+        after.close();
+      }
+    } finally {
+      db.cleanup();
+    }
+  });
+});
+
+describe('the role progress migration', () => {
+  /**
+   * A plan with one estimate, one recorded actual and one role said to be done,
+   * written the way the release that adds this table writes them.
+   *
+   * By hand rather than through a service, for the reason the actual fixture
+   * gives: what is under test is the *schema* — what the outgoing release can
+   * still do to a database with this table in it, which constraint refuses what,
+   * and what a rollback takes away.
+   */
+  function seeded(dbPath: string): void {
+    const db = openDatabase(dbPath);
+    try {
+      db.run(
+        "INSERT INTO users (id, username, password_hash, created_at) VALUES ('u', 'owner', 'x', 1)",
+      );
+      db.run(
+        'INSERT INTO project (id, name, owner_id, restricted, estimate_method, start_date, revision, created_at)' +
+          " VALUES ('p', 'Rewire the shed', 'u', 0, 'pert', NULL, 0, 1)",
+      );
+      db.run("INSERT INTO role (id, project_id, name, position) VALUES ('r1', 'p', 'Dev', 10)");
+      db.run(
+        'INSERT INTO work_item (id, project_id, parent_id, position, name, notes, priority, max_parallel, revision)' +
+          " VALUES ('w1', 'p', NULL, 10, 'Strip', '', 25, 1, 0)",
+      );
+      db.run(
+        'INSERT INTO estimate (work_item_id, role_id, optimistic, realistic, pessimistic)' +
+          " VALUES ('w1', 'r1', 1, 2, 3)",
+      );
+      db.run(
+        "INSERT INTO actual (work_item_id, role_id, days, recorded_at) VALUES ('w1', 'r1', 8, 1000)",
+      );
+      db.run(
+        "INSERT INTO role_progress (work_item_id, role_id, state, stated_at) VALUES ('w1', 'r1', 'done', 2000)",
+      );
+      // A second row with nothing said about it, so the `CHECK` case can insert
+      // a fourth state without the primary key refusing it first — a UNIQUE
+      // failure would look like a pass and prove nothing about the constraint
+      // under test.
+      db.run(
+        'INSERT INTO work_item (id, project_id, parent_id, position, name, notes, priority, max_parallel, revision)' +
+          " VALUES ('w2', 'p', NULL, 20, 'Sand', '', 25, 1, 0)",
+      );
+    } finally {
+      db.close();
+    }
+  }
+
+  it('creates the table with no rows, because nobody has said where anything has got to', () => {
+    // Nothing to seed it from and nothing that would be true if there were: no
+    // plan on the server holds a statement about its own progress, and inventing
+    // one would be the tool asserting somebody else's. Empty reads as "nobody
+    // has said", never as "nothing has been started".
+    const db = tempDb();
+    try {
+      runMigrations(db.path, FOLDER);
+      expect(tables(db.path)).toContain('role_progress');
+      const sqlite = openDatabase(db.path);
+      try {
+        expect(
+          sqlite.query<{ n: number }, []>('SELECT COUNT(*) AS n FROM role_progress').get()?.n,
+        ).toBe(0);
+      } finally {
+        sqlite.close();
+      }
+    } finally {
+      db.cleanup();
+    }
+  });
+
+  it('refuses a state outside the three the design has', () => {
+    // The `CHECK`, which is the closed set the whole design rests on. Three
+    // states and no more: `blocked` and `cancelled` are each a question the
+    // engine must answer the day it reads this table, and `not_started` is the
+    // absence of a row rather than a value.
+    //
+    // Proof: the constraint widened to include `'blocked'` in the migration, and
+    // this fails with the row written instead of rejected — a state stored on a
+    // real plan that nothing folds. Watched 2026-08-18; see verify.md.
+    const db = tempDb();
+    try {
+      runMigrations(db.path, FOLDER);
+      seeded(db.path);
+
+      const sqlite = openDatabase(db.path);
+      try {
+        for (const state of ['not_started', 'blocked', 'cancelled']) {
+          expect(() => {
+            sqlite.run(
+              `INSERT INTO role_progress (work_item_id, role_id, state, stated_at) VALUES ('w2', 'r1', '${state}', 1)`,
+            );
+          }).toThrow(/CHECK constraint failed/);
+        }
+      } finally {
+        sqlite.close();
+      }
+    } finally {
+      db.cleanup();
+    }
+  });
+
+  it('lets the outgoing release keep deleting work items against the migrated schema', () => {
+    // The blue/green half, one table over from `actual`'s. Green migrates while
+    // blue is still serving, and blue knows nothing about this table — so its
+    // plain `DELETE FROM work_item` must still work, and the statement must go
+    // with the row rather than refusing the delete.
+    //
+    // Proof: `ON DELETE CASCADE` struck from `work_item_id` in the migration,
+    // and this fails on that exact statement with `SQLiteError: FOREIGN KEY
+    // constraint failed` — the outgoing release answering 500 for the length of
+    // the swap on a statement it has always been able to run. Watched
+    // 2026-08-18; see verify.md.
+    const db = tempDb();
+    try {
+      runMigrations(db.path, FOLDER);
+      seeded(db.path);
+
+      const sqlite = openDatabase(db.path);
+      try {
+        sqlite.run('PRAGMA foreign_keys = ON');
+        sqlite.run("DELETE FROM estimate WHERE work_item_id = 'w1'");
+        sqlite.run("DELETE FROM work_item WHERE id = 'w1'");
+
+        expect(
+          sqlite.query<{ n: number }, []>('SELECT COUNT(*) AS n FROM role_progress').get()?.n,
+        ).toBe(0);
+      } finally {
+        sqlite.close();
+      }
+    } finally {
+      db.cleanup();
+    }
+  });
+
+  it('keeps a role that has been said to be done undeletable behind the repository that counts them', () => {
+    // `role_id` deliberately carries **no** cascade: a statement is somebody's,
+    // and a role removal must count it before taking it. The missing cascade is
+    // what makes a role delete that forgot to say so fail loudly instead of
+    // quietly turning finished work back into work nobody has started.
+    //
+    // Proof: `ON DELETE CASCADE` **added** to `role_id` in the migration, and
+    // this fails with `Received function did not throw` and the statement
+    // silently gone. Watched 2026-08-18; see verify.md.
+    const db = tempDb();
+    try {
+      runMigrations(db.path, FOLDER);
+      seeded(db.path);
+
+      const sqlite = openDatabase(db.path);
+      try {
+        sqlite.run('PRAGMA foreign_keys = ON');
+        // The estimate and the actual out of the way first, so what refuses the
+        // role delete is this migration's foreign key rather than one of theirs.
+        sqlite.run("DELETE FROM estimate WHERE role_id = 'r1'");
+        sqlite.run("DELETE FROM actual WHERE role_id = 'r1'");
+        expect(() => {
+          sqlite.run("DELETE FROM role WHERE id = 'r1'");
+        }).toThrow(/FOREIGN KEY constraint failed/);
+        expect(
+          sqlite.query<{ n: number }, []>('SELECT COUNT(*) AS n FROM role_progress').get()?.n,
+        ).toBe(1);
+      } finally {
+        sqlite.close();
+      }
+    } finally {
+      db.cleanup();
+    }
+  });
+
+  it('refuses a second statement for one pair, so a role has exactly one state', () => {
+    // The composite primary key. Two rows for one (work item, role) would make a
+    // reader choose between `in_progress` and `done`, and the choice would decide
+    // what the row says on screen. A change of state replaces; it does not
+    // accumulate.
+    const db = tempDb();
+    try {
+      runMigrations(db.path, FOLDER);
+      seeded(db.path);
+
+      const sqlite = openDatabase(db.path);
+      try {
+        expect(() => {
+          sqlite.run(
+            "INSERT INTO role_progress (work_item_id, role_id, state, stated_at) VALUES ('w1', 'r1', 'in_progress', 3000)",
+          );
+        }).toThrow(/UNIQUE constraint failed/);
+      } finally {
+        sqlite.close();
+      }
+    } finally {
+      db.cleanup();
+    }
+  });
+
+  it('takes the statements away on the way back, and leaves every figure where it was', () => {
+    // The rollback, asserted by reading the result. What is lost is the answer to
+    // "which of the two sentences is this?"; what survives is both figures — so
+    // after this reversal an actual of 8 against an estimate of 5 is a number
+    // nobody can read the tense of again, which is exactly the state the tool was
+    // in before this migration.
+    const db = tempDb();
+    try {
+      runMigrations(db.path, FOLDER);
+      seeded(db.path);
+
+      expect(rollbackTo(db.path, FOLDER, ACTUAL)).toEqual([ROLE_PROGRESS]);
+
+      const after = openDatabase(db.path);
+      try {
+        expect(
+          after
+            .query<
+              { n: number },
+              []
+            >("SELECT COUNT(*) AS n FROM sqlite_master WHERE type='table' AND name='role_progress'")
+            .get()?.n,
+        ).toBe(0);
+        // The index goes with it rather than being left behind pointing at a
+        // table that is gone.
+        expect(
+          after
+            .query<
+              { n: number },
+              []
+            >("SELECT COUNT(*) AS n FROM sqlite_master WHERE type='index' AND name LIKE 'role_progress%'")
+            .get()?.n,
+        ).toBe(0);
+        // Untouched: the recorded day, the estimate and the work item.
+        expect(
+          after
+            .query<
+              { days: number },
+              []
+            >("SELECT days FROM actual WHERE work_item_id = 'w1' AND role_id = 'r1'")
+            .get()?.days,
+        ).toBe(8);
+        expect(
+          after
+            .query<
+              { realistic: number },
+              []
+            >("SELECT realistic FROM estimate WHERE work_item_id = 'w1' AND role_id = 'r1'")
+            .get()?.realistic,
+        ).toBe(2);
       } finally {
         after.close();
       }

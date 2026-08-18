@@ -1,12 +1,16 @@
+import type { RoleState } from '@wbs/domain';
+
 import type {
   ActualKey,
   Assignment,
   EstimateKey,
   FrozenNumber,
+  ProgressKey,
   Reparented,
   StoredActual,
   StoredDependency,
   StoredEstimate,
+  StoredProgress,
   WorkItem,
   WorkItemPatch,
 } from '../repository';
@@ -44,6 +48,17 @@ export type CompensatingCommand =
    */
   | { do: 'set_actual'; workItemId: string; roleId: string; days: number }
   | { do: 'clear_actual'; workItemId: string; roleId: string }
+  /**
+   * Where the work has got to, as one of the two states a role may be **stored**
+   * in. There is no `set_progress` carrying `not_started`: the way to say that
+   * is `clear_progress`, because the absence of a row is how it is spelled in
+   * the table and a command that could write it would be a second spelling.
+   *
+   * `statedAt` is **not** carried, for the reason `set_actual` does not carry
+   * `recordedAt`: re-applying this is somebody saying it again, now.
+   */
+  | { do: 'set_progress'; workItemId: string; roleId: string; state: RoleState }
+  | { do: 'clear_progress'; workItemId: string; roleId: string }
   | { do: 'assign'; workItemId: string; roleId: string; personId: string | null }
   | { do: 'add_dependency'; successorId: string; predecessorId: string }
   | { do: 'remove_dependency'; successorId: string; predecessorId: string }
@@ -84,6 +99,17 @@ export interface DeleteSubtree {
    * claiming the days were recorded at the moment somebody pressed redo.
    */
   setActuals: StoredActual[];
+  /**
+   * Statements handed **up** to the surviving parent, at the same moment and by
+   * the same rule as {@link DeleteSubtree.setActuals}.
+   *
+   * The branch's folded reading rather than its rows — a deleted child that is
+   * itself a parent holds no rows of its own — and `not_started` is never in
+   * here, because that is the absence of a row. Carried with the newest
+   * `statedAt` in the branch, since the parent's reading is now the whole
+   * branch's.
+   */
+  setProgress: StoredProgress[];
 }
 
 /**
@@ -115,6 +141,15 @@ export interface RestoreSubtree {
    * {@link SubtreeCopy.actuals}.
    */
   actuals: StoredActual[];
+  /**
+   * What the rows being restored said about themselves, put back with them.
+   *
+   * Empty for the restore a **create** is the inverse of, except in one case: a
+   * leaf that gains its first child hands its statements down with its figures,
+   * so undoing that create has to hand them back up. Empty for a **duplicate**,
+   * whose copies nobody has ever worked on or spoken about.
+   */
+  progress: StoredProgress[];
   assignments: Assignment[];
   /** Edges with both ends inside the branch: restored with it, in the same write. */
   internalDependencies: StoredDependency[];
@@ -136,6 +171,8 @@ export interface RestoreSubtree {
   removedEstimates: EstimateKey[];
   /** Actuals to take off the surviving parent, for {@link RestoreSubtree.removedEstimates}' reason. */
   removedActuals: ActualKey[];
+  /** Statements to take off the surviving parent, for {@link RestoreSubtree.removedEstimates}' reason. */
+  removedProgress: ProgressKey[];
 }
 
 /** What a journalled command did, in the words an undo says back. */
@@ -182,6 +219,8 @@ const COMMANDS = [
   'clear_estimate',
   'set_actual',
   'clear_actual',
+  'set_progress',
+  'clear_progress',
   'assign',
   'add_dependency',
   'remove_dependency',
@@ -267,6 +306,8 @@ export function touchedBy(command: CompensatingCommand): string[] {
     case 'clear_estimate':
     case 'set_actual':
     case 'clear_actual':
+    case 'set_progress':
+    case 'clear_progress':
     case 'assign':
       return [command.workItemId];
     case 'add_dependency':
@@ -282,6 +323,7 @@ export function touchedBy(command: CompensatingCommand): string[] {
         ...command.reparented.map((each) => each.id),
         ...command.setEstimates.map((each) => each.workItemId),
         ...command.setActuals.map((each) => each.workItemId),
+        ...command.setProgress.map((each) => each.workItemId),
       ];
     case 'restore_subtree':
       return [
@@ -289,6 +331,7 @@ export function touchedBy(command: CompensatingCommand): string[] {
         ...command.reparented.map((each) => each.id),
         ...command.removedEstimates.map((each) => each.workItemId),
         ...command.removedActuals.map((each) => each.workItemId),
+        ...command.removedProgress.map((each) => each.workItemId),
         ...command.externalDependencies.flatMap((edge) => [edge.predecessorId, edge.successorId]),
       ];
   }
@@ -321,6 +364,8 @@ export function subjectOf(command: CompensatingCommand): CommandSubject {
     case 'clear_estimate':
     case 'set_actual':
     case 'clear_actual':
+    case 'set_progress':
+    case 'clear_progress':
     case 'assign':
       return { workItemId: command.workItemId, roleId: command.roleId };
     case 'patch':

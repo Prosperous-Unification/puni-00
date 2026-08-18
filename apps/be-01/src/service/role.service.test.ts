@@ -15,6 +15,7 @@ import { DrizzleEventLogRepo } from '../repository/event-log';
 import { runMigrations } from '../repository/migrate';
 import { ProjectRepository } from '../repository/project';
 import { RoleRepository } from '../repository/role';
+import { RoleProgressRepository } from '../repository/role-progress';
 import { UserRepository } from '../repository/user';
 import { SubtreeRepository, WorkItemRepository } from '../repository/work-item';
 import { type RecordingBroadcaster, recordingBroadcaster } from '../testing/broadcast-fixture';
@@ -48,6 +49,7 @@ let roleStore: RoleRepository;
 let projectStore: ProjectRepository;
 let estimates: EstimateRepository;
 let actuals: ActualRepository;
+let progressStore: RoleProgressRepository;
 let directory: DirectoryRepository;
 let broadcast: RecordingBroadcaster;
 let projectId: string;
@@ -89,6 +91,7 @@ beforeEach(async () => {
   roleStore = new RoleRepository(db);
   estimates = new EstimateRepository(db);
   actuals = new ActualRepository(db);
+  progressStore = new RoleProgressRepository(db);
   directory = new DirectoryRepository(db);
   broadcast = recordingBroadcaster();
   roles = new RoleService({ projects: projectStore, roles: roleStore, broadcast });
@@ -249,6 +252,7 @@ describe('RoleService.remove', () => {
       inUse: {
         estimates: 2,
         actuals: 0,
+        progress: 0,
         assignments: 1,
         assumedAssignees: [{ workItemId: 'strip', assumedNow: null, assumedAfter: ada.id }],
       },
@@ -375,6 +379,7 @@ describe('a role removed between the check and the write', () => {
       projects: projectStore,
       estimates: vanishing,
       actuals: new ActualRepository(db),
+      progress: new RoleProgressRepository(db),
       directory: vanishingToo,
       capacity: inMemoryCapacity(),
       priorityBands: inMemoryPriorityBands(),
@@ -415,6 +420,7 @@ describe('a role removed between the check and the write', () => {
       projects: projectStore,
       estimates,
       actuals,
+      progress: progressStore,
       directory,
       capacity: inMemoryCapacity(),
       priorityBands: inMemoryPriorityBands(),

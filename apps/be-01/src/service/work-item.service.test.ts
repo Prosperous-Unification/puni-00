@@ -6,6 +6,7 @@ import type {
   EstimateStore,
   Project,
   ProjectStore,
+  RoleProgressStore,
   WorkItemStore,
 } from '../repository';
 import { inMemoryActuals } from '../testing/actual-fixture';
@@ -16,6 +17,7 @@ import { inMemoryDependencies } from '../testing/dependency-fixture';
 import { inMemoryDirectory, personAdded } from '../testing/directory-fixture';
 import { inMemoryEstimates } from '../testing/estimate-fixture';
 import { inMemoryPriorityBands } from '../testing/priority-band-fixture';
+import { inMemoryProgress } from '../testing/progress-fixture';
 import { inMemoryProjects } from '../testing/project-fixture';
 import { inMemorySubtrees } from '../testing/subtree-fixture';
 import { inMemoryWorkItems } from '../testing/work-item-fixture';
@@ -39,6 +41,7 @@ let directory: ReturnType<typeof inMemoryDirectory>;
 let capacity: CapacityStore;
 let estimates: EstimateStore;
 let actuals: ActualStore;
+let progress: RoleProgressStore;
 let broadcast: RecordingBroadcaster;
 
 beforeEach(async () => {
@@ -48,6 +51,7 @@ beforeEach(async () => {
   workItems = inMemoryWorkItems(directory);
   estimates = inMemoryEstimates(workItems);
   actuals = inMemoryActuals(workItems);
+  progress = inMemoryProgress(workItems);
   broadcast = recordingBroadcaster();
   capacity = inMemoryCapacity();
   service = new WorkItemService({
@@ -56,10 +60,18 @@ beforeEach(async () => {
     projects,
     estimates,
     actuals,
+    progress,
     dependencies,
     directory,
     capacity,
-    subtrees: inMemorySubtrees({ workItems, estimates, actuals, dependencies, directory }),
+    subtrees: inMemorySubtrees({
+      workItems,
+      estimates,
+      actuals,
+      progress,
+      dependencies,
+      directory,
+    }),
     journal: inMemoryCommandJournal(),
     broadcast,
   });
@@ -428,6 +440,7 @@ describe('dependencies', () => {
       projects,
       estimates: inMemoryEstimates(workItems),
       actuals: inMemoryActuals(workItems),
+      progress: inMemoryProgress(workItems),
       dependencies: broken,
       journal: inMemoryCommandJournal(),
       broadcast: recordingBroadcaster(),
@@ -1668,11 +1681,19 @@ describe('the slices the schedule placed, on the wire', () => {
       projects: shifting,
       estimates,
       actuals,
+      progress,
       dependencies,
       directory,
       capacity: inMemoryCapacity(),
       priorityBands: inMemoryPriorityBands(),
-      subtrees: inMemorySubtrees({ workItems, estimates, actuals, dependencies, directory }),
+      subtrees: inMemorySubtrees({
+        workItems,
+        estimates,
+        actuals,
+        progress,
+        dependencies,
+        directory,
+      }),
       journal: inMemoryCommandJournal(),
       broadcast,
     });

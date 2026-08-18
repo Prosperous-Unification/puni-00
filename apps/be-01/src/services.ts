@@ -13,6 +13,7 @@ import { PlanEventRepository } from './repository/plan-event';
 import { PriorityBandRepository } from './repository/priority-band';
 import { ProjectRepository } from './repository/project';
 import { RoleRepository } from './repository/role';
+import { RoleProgressRepository } from './repository/role-progress';
 import { UserRepository } from './repository/user';
 import { SubtreeRepository, WorkItemRepository } from './repository/work-item';
 import { AuthService } from './service/auth.service';
@@ -151,6 +152,11 @@ export function buildServices(opts: ServicesOptions): BeServices {
       // a rule the other must not have is the day a shared class becomes a
       // conditional. See `actual` in `schema.ts`.
       actuals: new ActualRepository(opts.db),
+      // And its own store again, for the same reason once more: a state is a
+      // sentence about work and an actual is a number about it, and the table
+      // that holds one must not grow a rule the other has to carry. See
+      // `role_progress` in `schema.ts`.
+      progress: new RoleProgressRepository(opts.db),
       dependencies: new DependencyRepository(opts.db),
       directory: directoryStore,
       capacity: capacityStore,
