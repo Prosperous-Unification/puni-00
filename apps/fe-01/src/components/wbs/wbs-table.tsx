@@ -6727,9 +6727,9 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
            * and then blurs would otherwise send the same sentence twice.
            */
           const commitReason = (box: HTMLInputElement): void => {
-            const agreed = box.dataset.agreed ?? reason ?? '';
+            const agreed = box.dataset['agreed'] ?? reason ?? '';
             if (box.value === agreed) return;
-            box.dataset.agreed = box.value;
+            box.dataset['agreed'] = box.value;
             live.current.setNotBeforeReason(row.original.id, box.value);
           };
           return (
