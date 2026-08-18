@@ -131,6 +131,7 @@ async function fill(parentId: string, count: number): Promise<void> {
         frozenNumber: null,
         priority: null,
         startNoEarlierThan: null,
+        startNoEarlierThanReason: null,
         serviceTeamId: null,
         maxParallel: 1,
         revision: 0,
@@ -816,6 +817,7 @@ describe('duplicating a subtree', () => {
       notes: 'Two gang, chased in',
       serviceTeamId: 'team-sparks',
       startNoEarlierThan: '2026-09-01',
+      startNoEarlierThanReason: 'waiting on client sign-off',
     });
     await service.setEstimate(socket, OWNER, roleId, {
       optimistic: 1,
@@ -831,6 +833,12 @@ describe('duplicating a subtree', () => {
     expect(copied?.notes).toBe('Two gang, chased in');
     expect(copied?.serviceTeamId).toBe('team-sparks');
     expect(copied?.startNoEarlierThan).toBe('2026-09-01');
+    // The pair travels together, which is what stops a duplicate from being the
+    // one way to make the row the pair rule refuses. The date is a constraint on
+    // work the copy also has, so the words about it are still true of the copy —
+    // unlike a recorded actual or a stated progress, which are claims about work
+    // that was done on the original alone.
+    expect(copied?.startNoEarlierThanReason).toBe('waiting on client sign-off');
     expect(copied?.estimates[roleId]).toEqual({ optimistic: 1, realistic: 2, pessimistic: 6 });
     expect(copied?.assignees[roleId]).toBe('ada');
   });
@@ -1756,5 +1764,75 @@ describe('the slices the schedule placed, on the wire', () => {
     });
     expect(tree?.waitingForPerson).toBe(0);
     expect(tree?.scheduleError).toBeNull();
+  });
+});
+
+describe('what a not-before reason does not do', () => {
+  it('moves no date: the plan schedules identically with and without a reason', async () => {
+    // This change's whole product decision as an assertion. The engine reads
+    // `start_no_earlier_than` and builds a floor from it (`work-item.service.ts`,
+    // `notBefore.set(row.id, workdaysBetween(…))`); the column beside it is in
+    // no map the engine is handed, so writing words on a floor moves nothing at
+    // all — not the row they are written on, and not the successor waiting for
+    // it.
+    //
+    // That is what makes this a substitute for a `blocked` state rather than a
+    // small version of one: a state that moved dates would need a rule for what
+    // a blocked predecessor does to its successors, and this deliberately has
+    // none, because the date already has one.
+    //
+    // Proof: the engine wired to read the reason — `notBefore` set from
+    // `row.startNoEarlierThanReason !== null ? …` so an explained row is pushed
+    // a day — and this fails with every date downstream moved; watched
+    // 2026-08-18. `service/schedule.ts` has an empty diff on this branch and
+    // this is the behavioural half of that claim.
+    const strip = await add('Strip');
+    const sand = await add('Sand');
+    await service.setEstimate(strip, OWNER, roleId, {
+      optimistic: 4,
+      realistic: 5,
+      pessimistic: 6,
+    });
+    await service.setEstimate(sand, OWNER, roleId, {
+      optimistic: 1,
+      realistic: 2,
+      pessimistic: 3,
+    });
+    await service.addDependency(sand, OWNER, strip);
+    await service.patch(strip, OWNER, { startNoEarlierThan: '2026-09-01' });
+    const before = await service.tree(projectId);
+
+    await service.patch(strip, OWNER, {
+      startNoEarlierThanReason: 'waiting on client sign-off',
+    });
+
+    const after = await service.tree(projectId);
+    const schedules = (tree: Awaited<ReturnType<WorkItemService['tree']>>) =>
+      (tree?.workItems ?? []).map((row) => ({
+        name: row.name,
+        schedule: row.schedule,
+        dates: row.dates,
+      }));
+    expect(schedules(after)).toEqual(schedules(before));
+    // And the slices the chart is drawn from, which is where a floor is
+    // actually spelled: same count, same `boundBy`, same offsets.
+    expect(after?.slices).toEqual(before?.slices ?? []);
+  });
+
+  it('carries the words to every reader of the tree, beside the date', async () => {
+    // The wire. Nothing derives it, nothing folds it and no parent rolls it up —
+    // it rides the row it was written on, which is the whole of its plumbing.
+    const strip = await add('Strip');
+    await service.patch(strip, OWNER, {
+      startNoEarlierThan: '2026-09-12',
+      startNoEarlierThanReason: 'waiting on client sign-off',
+    });
+
+    const tree = await service.tree(projectId);
+
+    expect(tree?.workItems.find((row) => row.id === strip)).toMatchObject({
+      startNoEarlierThan: '2026-09-12',
+      startNoEarlierThanReason: 'waiting on client sign-off',
+    });
   });
 });

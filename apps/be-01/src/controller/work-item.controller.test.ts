@@ -261,6 +261,166 @@ describe('work item routes', () => {
     });
   });
 
+  it('takes the words beside the date, and gives them back', async () => {
+    // The sentence this whole change exists to make sayable: *"blocked until the
+    // 12th, waiting on client sign-off"*, as one date and one reason and no new
+    // state anywhere.
+    const { token, send, projectId } = await setup();
+    const created = await send(`/api/projects/${projectId}/work-items`, token, {
+      method: 'POST',
+      body: JSON.stringify({ parentId: null, afterId: null, name: 'Strip' }),
+    });
+    const { id } = (await created.json()) as { id: string };
+
+    const set = await send(`/api/work-items/${id}`, token, {
+      method: 'PATCH',
+      body: JSON.stringify({
+        startNoEarlierThan: '2026-09-12',
+        startNoEarlierThanReason: 'waiting on client sign-off',
+      }),
+    });
+
+    expect(set.status).toBe(200);
+    expect(
+      (await set.json()) as { startNoEarlierThan: string; startNoEarlierThanReason: string },
+    ).toMatchObject({
+      startNoEarlierThan: '2026-09-12',
+      startNoEarlierThanReason: 'waiting on client sign-off',
+    });
+  });
+
+  it('refuses a reason with no date, and takes the pair away together', async () => {
+    // Both halves of the pair rule through the route, because the status is half
+    // the answer: 400 and not 409 — there is no state of the plan in which words
+    // about a floor that is not there mean anything, so the request is malformed
+    // rather than out of date.
+    const { token, send, projectId } = await setup();
+    const created = await send(`/api/projects/${projectId}/work-items`, token, {
+      method: 'POST',
+      body: JSON.stringify({ parentId: null, afterId: null, name: 'Strip' }),
+    });
+    const { id } = (await created.json()) as { id: string };
+
+    const orphan = await send(`/api/work-items/${id}`, token, {
+      method: 'PATCH',
+      body: JSON.stringify({ startNoEarlierThanReason: 'waiting on client sign-off' }),
+    });
+    expect(orphan.status).toBe(400);
+    expect((await orphan.json()) as { error: string }).toEqual({
+      error: 'not_before_reason_needs_a_date',
+    });
+
+    await send(`/api/work-items/${id}`, token, {
+      method: 'PATCH',
+      body: JSON.stringify({
+        startNoEarlierThan: '2026-09-12',
+        startNoEarlierThanReason: 'waiting on client sign-off',
+      }),
+    });
+
+    // The date pulled out from under the words: the request a client makes by
+    // forgetting, and the one the Not before cell has to get right.
+    const halfCleared = await send(`/api/work-items/${id}`, token, {
+      method: 'PATCH',
+      body: JSON.stringify({ startNoEarlierThan: null }),
+    });
+    expect(halfCleared.status).toBe(400);
+    expect((await halfCleared.json()) as { error: string }).toEqual({
+      error: 'not_before_reason_needs_a_date',
+    });
+
+    const cleared = await send(`/api/work-items/${id}`, token, {
+      method: 'PATCH',
+      body: JSON.stringify({ startNoEarlierThan: null, startNoEarlierThanReason: null }),
+    });
+    expect(cleared.status).toBe(200);
+    expect(
+      (await cleared.json()) as {
+        startNoEarlierThan: string | null;
+        startNoEarlierThanReason: string | null;
+      },
+    ).toMatchObject({ startNoEarlierThan: null, startNoEarlierThanReason: null });
+  });
+
+  it('refuses a reason that is not text, and one longer than a sentence', async () => {
+    // The boundary checks, which are the only ones there are: the column is
+    // `text` and SQLite counts no characters, so a paragraph pasted here would
+    // be stored whole and cover the chart it was meant to explain.
+    const { token, send, projectId } = await setup();
+    const created = await send(`/api/projects/${projectId}/work-items`, token, {
+      method: 'POST',
+      body: JSON.stringify({ parentId: null, afterId: null, name: 'Strip' }),
+    });
+    const { id } = (await created.json()) as { id: string };
+    await send(`/api/work-items/${id}`, token, {
+      method: 'PATCH',
+      body: JSON.stringify({ startNoEarlierThan: '2026-09-12' }),
+    });
+
+    for (const bad of [7, true, { text: 'waiting' }, ['waiting']]) {
+      const res = await send(`/api/work-items/${id}`, token, {
+        method: 'PATCH',
+        body: JSON.stringify({ startNoEarlierThanReason: bad }),
+      });
+      expect([res.status, JSON.stringify(bad)]).toEqual([400, JSON.stringify(bad)]);
+    }
+
+    const tooLong = await send(`/api/work-items/${id}`, token, {
+      method: 'PATCH',
+      body: JSON.stringify({ startNoEarlierThanReason: 'x'.repeat(201) }),
+    });
+    expect(tooLong.status).toBe(400);
+    expect((await tooLong.json()) as { error: string }).toEqual({
+      error: 'startNoEarlierThanReason_must_be_at_most_200_characters',
+    });
+
+    const atTheEdge = await send(`/api/work-items/${id}`, token, {
+      method: 'PATCH',
+      body: JSON.stringify({ startNoEarlierThanReason: 'x'.repeat(200) }),
+    });
+    expect(atTheEdge.status).toBe(200);
+  });
+
+  it('stores a blank reason as no reason at all, and trims the rest', async () => {
+    // One spelling per fact. Emptying the field is how a reader takes the words
+    // off, and a stored `''` would be a second spelling of "nobody has said"
+    // that every reader would have to fold — and that the pair rule would then
+    // refuse to let anybody clear the date beside.
+    //
+    // The blank arrives on a row that has a date, so what is being tested is the
+    // normalisation and not the pair rule: `''` becoming `null` is legal here
+    // either way.
+    const { token, send, projectId } = await setup();
+    const created = await send(`/api/projects/${projectId}/work-items`, token, {
+      method: 'POST',
+      body: JSON.stringify({ parentId: null, afterId: null, name: 'Strip' }),
+    });
+    const { id } = (await created.json()) as { id: string };
+    await send(`/api/work-items/${id}`, token, {
+      method: 'PATCH',
+      body: JSON.stringify({ startNoEarlierThan: '2026-09-12' }),
+    });
+
+    const trimmed = await send(`/api/work-items/${id}`, token, {
+      method: 'PATCH',
+      body: JSON.stringify({ startNoEarlierThanReason: '  waiting on client sign-off  ' }),
+    });
+    expect((await trimmed.json()) as { startNoEarlierThanReason: string }).toMatchObject({
+      startNoEarlierThanReason: 'waiting on client sign-off',
+    });
+
+    for (const blank of ['', '   ', '\n\t']) {
+      const res = await send(`/api/work-items/${id}`, token, {
+        method: 'PATCH',
+        body: JSON.stringify({ startNoEarlierThanReason: blank }),
+      });
+      expect(res.status).toBe(200);
+      expect((await res.json()) as { startNoEarlierThanReason: string | null }).toMatchObject({
+        startNoEarlierThanReason: null,
+      });
+    }
+  });
+
   it('refuses a priority that is not a whole number of 1 or more', async () => {
     // The column is an integer and the leveller reads it as a priority, so a 0, a
     // negative or a fraction is a number nobody could have meant — and a priority

@@ -200,6 +200,92 @@ describe('bars', () => {
       'Held by its start-no-earlier-than date',
     ]);
   });
+
+  it('says why a not-before is there, where somebody has written it down', () => {
+    // *"blocked until the 12th, waiting on client sign-off"* — the sentence this
+    // change exists to make sayable, and the whole of what it adds to the chart.
+    // Appended to the floor sentence rather than replacing it: the date is still
+    // what holds the bar, and the words are an aside on a floor that reads
+    // identically without them.
+    //
+    // The em-dash is the person and capacity floors' own shape, so a reader
+    // moving between bars does not have to notice which kind they are hovering.
+    const chart = layOutGantt(
+      planOf({
+        rows: [rowAt('sand', 3, 4, { notBeforeReason: 'waiting on client sign-off' })],
+        slices: [sliceAt('sand-dev', 'sand', 3, 4, { boundBy: 'notBefore' })],
+      }),
+    );
+
+    expect(chart.bars[0].floorWords).toBe(
+      'Held by its start-no-earlier-than date — waiting on client sign-off',
+    );
+  });
+
+  it('says only the floor for a not-before nobody has explained', () => {
+    // Every dated row in every plan today, and every one nobody bothers to
+    // explain tomorrow. A reason is an optional aside, so its absence has to
+    // read exactly as this bar read before the column existed — not as an empty
+    // dash and not as the word `null`.
+    const chart = layOutGantt(
+      planOf({
+        rows: [rowAt('sand', 3, 4, { notBeforeReason: null })],
+        slices: [sliceAt('sand-dev', 'sand', 3, 4, { boundBy: 'notBefore' })],
+      }),
+    );
+
+    expect(chart.bars[0].floorWords).toBe('Held by its start-no-earlier-than date');
+  });
+
+  it('leaves the words off a bar something else is holding', () => {
+    // The row's date is set and explained, and a dependency is what actually
+    // binds this bar. The reason belongs to the floor, not to the row: a
+    // sentence about a not-before printed on a bar that is waiting for a
+    // predecessor would be the chart naming one cause and explaining another.
+    //
+    // Proof: the reason appended to every sentence rather than to the
+    // `notBefore` arm alone, and this failed on `expected 'Waits for a
+    // dependency’s first estimated role — waiting on client sign-off' to be
+    // 'Waits for a dependency’s first estimated role'`. Watched 2026-08-18.
+    const chart = layOutGantt(
+      planOf({
+        rows: [
+          rowAt('strip', 0, 3),
+          rowAt('sand', 3, 4, {
+            notBeforeOffset: 1,
+            notBeforeReason: 'waiting on client sign-off',
+          }),
+        ],
+        slices: [
+          sliceAt('strip-dev', 'strip', 0, 3),
+          sliceAt('sand-dev', 'sand', 3, 4, { boundBy: 'predecessor' }),
+        ],
+      }),
+    );
+
+    expect(chart.bars[1].floorWords).toBe('Waits for a dependency’s first estimated role');
+  });
+
+  it('says the same words on every bar of a row the not-before holds', () => {
+    // The reason is the **row's**, and a work item's not-before holds every one
+    // of its roles — so a row estimated for two phases draws two bars and both
+    // are floored by the same date for the same reason. One sentence, said
+    // wherever it is true.
+    const chart = layOutGantt(
+      planOf({
+        rows: [rowAt('sand', 3, 5, { notBeforeReason: 'waiting on client sign-off' })],
+        slices: [
+          sliceAt('sand-dev', 'sand', 3, 4, { boundBy: 'notBefore' }),
+          sliceAt('sand-qa', 'sand', 3, 5, { boundBy: 'notBefore', roleId: 'qa' }),
+        ],
+      }),
+    );
+
+    expect(chart.bars.map((bar) => bar.floorWords)).toEqual([
+      'Held by its start-no-earlier-than date — waiting on client sign-off',
+      'Held by its start-no-earlier-than date — waiting on client sign-off',
+    ]);
+  });
 });
 
 describe('summary brackets', () => {

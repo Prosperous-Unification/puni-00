@@ -231,6 +231,47 @@ describe('undoing each kind of change', () => {
     expect((await found(strip))?.priority).toBeNull();
   });
 
+  it('undoes a reason written beside a date that was already there', async () => {
+    // Words added to an existing floor, taken off again. The forward patch names
+    // only the reason, so the journal has to hear a patch that names only the
+    // reason — and its inverse must put `null` back rather than nothing, because
+    // "nobody has explained this" is a state of its own.
+    const strip = await root('Strip');
+    await workItems.patch(strip, ownerId, { startNoEarlierThan: '2026-09-12' });
+    await workItems.patch(strip, ownerId, {
+      startNoEarlierThanReason: 'waiting on client sign-off',
+    });
+
+    expectDone(await undone());
+
+    const after = await found(strip);
+    expect(after?.startNoEarlierThanReason).toBeNull();
+    // The floor is not what was undone and does not move.
+    expect(after?.startNoEarlierThan).toBe('2026-09-12');
+  });
+
+  it('puts the words back with the date they explain', async () => {
+    // The pair cleared in one request, undone in one press. The inverse names
+    // **both** halves the forward named, which is also what keeps it legal: an
+    // inverse that restored the date alone would be refused by the very rule
+    // that made the forward patch send both.
+    const strip = await root('Strip');
+    await workItems.patch(strip, ownerId, {
+      startNoEarlierThan: '2026-09-12',
+      startNoEarlierThanReason: 'waiting on client sign-off',
+    });
+    await workItems.patch(strip, ownerId, {
+      startNoEarlierThan: null,
+      startNoEarlierThanReason: null,
+    });
+
+    expectDone(await undone());
+
+    const after = await found(strip);
+    expect(after?.startNoEarlierThan).toBe('2026-09-12');
+    expect(after?.startNoEarlierThanReason).toBe('waiting on client sign-off');
+  });
+
   it('puts a replaced parallelism back, and leaves one a rename did not name', async () => {
     const strip = await root('Strip');
     await workItems.patch(strip, ownerId, { maxParallel: 3 });

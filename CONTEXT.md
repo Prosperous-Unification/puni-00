@@ -365,6 +365,13 @@ The mark standing on the day a row's manual start date holds it at, on rows that
 Where it stands is that date's place on the axis; what it says on hover is the date itself.
 _Avoid_: constraint marker, lock, milestone
 
+**Not-before reason**:
+Why a row's manual start date is there, in the planner's own words. Words about that date
+and nothing else: it holds nothing back on its own, moves no date, reaches no other row,
+and cannot exist without the date it explains. Said where that date's effect is already
+said — the floor sentence of a bar the date binds, and the Not before cell.
+_Avoid_: blocked, blocker, status, hold reason, note
+
 **Refused dependency**:
 A dependency be-01 will not write: onto the work item itself, onto an ancestor or a
 descendant of it, or one that closes a loop once every dependency is expanded to the

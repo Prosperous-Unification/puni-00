@@ -47,6 +47,26 @@ export interface ExportRow {
   /** By id — resolved to work item numbers here, because an id is not readable. */
   dependsOn: readonly string[];
   startNoEarlierThan: string | null;
+  /**
+   * Why that date is there, in the planner's own words, or null where nobody
+   * has said.
+   *
+   * Its own column rather than a suffix on the date, which is how every other
+   * piece of row text is carried here: a spreadsheet reader sorts and filters
+   * on `Not before` as a date, and a cell reading `2026-09-12 — waiting on
+   * client sign-off` is a date column that has stopped being one. `Notes`'
+   * shape exactly, and it goes through the same `csvField` and `markdownCell`
+   * escaping — a reason may hold commas, quotes and pipes like any sentence.
+   *
+   * **Optional, and nothing fills it yet.** `planForExport` in `wbs-table.tsx`
+   * builds these rows and was another agent's file to edit while this was
+   * written — the one line it owes is
+   * `startNoEarlierThanReason: row.original.startNoEarlierThanReason`, beside
+   * the `startNoEarlierThan` above it. Until that lands the column is exported
+   * empty on every row, which is what it will read on every plan nobody has
+   * explained anyway.
+   */
+  startNoEarlierThanReason?: string | null;
   /** The priority somebody gave this work — 1 upward, smaller first — or null. */
   priority: number | null;
   /**
@@ -560,6 +580,13 @@ function columnsOf(plan: PlanExport, markSums: boolean): ExportColumn[] {
           : (priorityBandOf(plan.priorityBands, row.priority)?.label ?? ''),
     },
     { header: 'Not before', cell: (row) => row.startNoEarlierThan ?? '' },
+    // Beside the date it explains rather than inside it, so the column above
+    // stays a date column. Empty where nobody has written one — and empty on
+    // every row where there is no date at all, because be-01 refuses the pair.
+    {
+      header: 'Not before because',
+      cell: (row) => row.startNoEarlierThanReason ?? '',
+    },
     { header: 'Starts', cell: (row) => startsCell(plan, row) },
     { header: 'Ends', cell: (row) => endsCell(plan, row) },
     {

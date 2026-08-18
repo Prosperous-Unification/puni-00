@@ -183,6 +183,40 @@ export const workItem = sqliteTable(
      */
     startNoEarlierThan: text('start_no_earlier_than'),
     /**
+     * Why this work item may not start before {@link workItem.startNoEarlierThan},
+     * in the planner's own words, or null where nobody has said.
+     *
+     * **Words about the floor beside it, and nothing else.** Not a state, not a
+     * flag, and not a second thing that holds a row back: the date is the whole
+     * of the constraint and this is the whole of the explanation. It is what was
+     * built instead of a `blocked` state — Dany, 2026-08-18, *"Yeah let's not do
+     * blocked"* — because the engine already models being held back four ways
+     * and the chart already names which of them binds, so the one thing missing
+     * was why. `blocked until the 12th` is this column and the one above it.
+     *
+     * **Meaningless without a date, and refused without one.** The pair may be
+     * neither, the date alone, or both; a reason with no date is
+     * `isOrphanedNotBeforeReason` in `@wbs/domain` and
+     * {@link WorkItemStore.patch} refuses it inside the transaction that would
+     * have written it. Deliberately not a `CHECK` — the argument, which turns on
+     * the outgoing release writing this table where it does not write
+     * `role_progress`, is on the migration.
+     *
+     * Nullable with no default, because null is a real state and not a missing
+     * empty string: the absence of a reason is how "nobody has said" is spelled
+     * here, exactly as the absence of a row is in {@link actual} and
+     * {@link roleProgress}. A blank typed into the field is normalised to null
+     * at the controller rather than stored, so there is one spelling.
+     *
+     * At most `LONGEST_NOT_BEFORE_REASON` (200) characters, checked at the
+     * controller — the width of the hover card and the cell that read it.
+     *
+     * **Read by no scheduling code.** `service/schedule.ts` does not select it,
+     * has an empty diff in the change that added it, and schedules a plan
+     * identically with and without it.
+     */
+    startNoEarlierThanReason: text('start_no_earlier_than_reason'),
+    /**
      * How important this work is, or null for "nobody has said" — an integer of
      * 1 or more, smaller being more important.
      *
