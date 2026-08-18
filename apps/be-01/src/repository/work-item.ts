@@ -163,10 +163,12 @@ export class WorkItemRepository implements WorkItemStore {
       patch.notes === undefined &&
       patch.startNoEarlierThan === undefined &&
       // Proof: this line deleted, so a patch naming only the reason is taken as
-      // naming nothing, and `writes a reason beside the date it explains` failed
-      // — the row came back with `startNoEarlierThanReason: null` and a 200
-      // beside it, which is the write path silently doing nothing while every
-      // face reports success. Watched 2026-08-18.
+      // naming nothing — **19 pass, 2 fail**. `writes a reason beside the date
+      // it explains` failed on `Expected: "waiting on client sign-off" /
+      // Received: null`, which is the write path silently doing nothing while
+      // every face reports success; and `refuses a reason with no date to be
+      // about` failed with it, because the branch this line guards returns
+      // before the transaction the pair rule lives in. Watched 2026-08-18.
       patch.startNoEarlierThanReason === undefined &&
       patch.priority === undefined &&
       patch.serviceTeamId === undefined &&
@@ -216,10 +218,12 @@ export class WorkItemRepository implements WorkItemStore {
         // about.
         if (stored !== undefined) {
           const willStand = mergedNotBefore(stored, patch);
-          // Proof: this refusal deleted and `refuses a reason with no date to be
-          // about` failed on `Expected: false, Received: true` — the row stored
-          // and returned carrying words about a floor it does not have, which no
-          // face can show and nothing can clear. Watched 2026-08-18.
+          // Proof: this refusal deleted — **19 pass, 2 fail** — and both
+          // `refuses a reason with no date to be about` and `refuses a date
+          // cleared out from under the words beside it` failed on
+          // `Expected: false, Received: true`: the row stored and returned
+          // carrying words about a floor it does not have, which no face can
+          // show and nothing can clear. Watched 2026-08-18.
           if (isOrphanedNotBeforeReason(willStand.date, willStand.reason)) {
             return { ok: false, reason: 'not_before_reason_needs_a_date' };
           }

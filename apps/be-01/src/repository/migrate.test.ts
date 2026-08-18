@@ -1948,10 +1948,12 @@ describe('the not-before reason migration', () => {
     // drizzle, because drizzle is the new release and the point is what the old
     // one sends.
     //
-    // Proof: `NOT NULL DEFAULT ''` added to the column and this failed on that
-    // exact statement with `Cannot add a NOT NULL column with default value
-    // NULL` from the migration itself, before any insert ran — the whole
-    // migration refused, so green never starts. Watched 2026-08-18.
+    // Proof: `NOT NULL DEFAULT ''` added to the column — **38 pass, 2 fail** in
+    // this file — and this failed on `expect(received).toBeNull()` /
+    // `Received: ""`, with `leaves work items that existed before the column
+    // with no reason` beside it. A default turns every row blue writes, and
+    // every row that predates the column, into a work item carrying a blank
+    // sentence nobody typed. Watched 2026-08-18.
     const db = tempDb();
     try {
       runMigrations(db.path, FOLDER);

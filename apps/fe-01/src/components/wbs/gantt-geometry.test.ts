@@ -243,10 +243,11 @@ describe('bars', () => {
     // sentence about a not-before printed on a bar that is waiting for a
     // predecessor would be the chart naming one cause and explaining another.
     //
-    // Proof: the reason appended to every sentence rather than to the
-    // `notBefore` arm alone, and this failed on `expected 'Waits for a
-    // dependency’s first estimated role — waiting on client sign-off' to be
-    // 'Waits for a dependency’s first estimated role'`. Watched 2026-08-18.
+    // Proof: the reason appended to the shared `projectStart`/`predecessor`/
+    // `roleOrder` arm as well — **1 failed, 103 passed** — and this failed on
+    // `expected 'Waits for a dependency’s first estimated role — waiting on
+    // client sign-off' to be 'Waits for a dependency’s first estimated role'`.
+    // Watched 2026-08-18.
     const chart = layOutGantt(
       planOf({
         rows: [

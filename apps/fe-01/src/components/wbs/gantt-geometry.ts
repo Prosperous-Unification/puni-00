@@ -1344,11 +1344,15 @@ const FLOOR_SENTENCE: Record<Exclude<BindingFloor, 'person' | 'capacity'>, strin
  */
 function notBeforeFloorWords(reason: string | null): string {
   // Proof: this arm replaced by an unconditional
-  // `${FLOOR_SENTENCE.notBefore} — ${String(reason)}`, and `says only the floor
-  // for a not-before nobody has explained` failed on `expected 'Held by its
-  // start-no-earlier-than date — null' to be 'Held by its
-  // start-no-earlier-than date'` — the word `null` on the hover card of every
-  // dated row in every plan, which is every such row today. Watched 2026-08-18.
+  // `${FLOOR_SENTENCE.notBefore} — ${String(reason)}` — **3 failed, 101
+  // passed** — `says only the floor for a not-before nobody has explained`, the
+  // four-floor case `says in words what a start is held by`, and the panel's
+  // own `holds a not-before flag at its exact offset`, each on `expected 'Held
+  // by its start-no-earlier-than date — null' to be 'Held by its
+  // start-no-earlier-than date'`. That is the word `null` on the hover card of
+  // every dated row in every plan, which is every such row today — and the
+  // spread of the failure is the point: nothing about this feature is what
+  // three of those cases are about. Watched 2026-08-18.
   if (reason === null) return FLOOR_SENTENCE.notBefore;
   return `${FLOOR_SENTENCE.notBefore} — ${reason}`;
 }

@@ -21,10 +21,11 @@ describe('isOrphanedNotBeforeReason', () => {
     // is complete without a reason, and always has been — every row on the live
     // server has one of those and none has the other.
     //
-    // Proof: the predicate written as `reason === null !== (date === null)` —
+    // Proof: the predicate written as `(reason === null) !== (date === null)` —
     // the symmetric reading, which is what "these two go together" turns into
-    // if nobody writes down which one leads. This case fails on `expected true
-    // to be false` for a date with no reason: every not-before on every plan
+    // if nobody writes down which one leads. **76 pass, 2 fail**: this case and
+    // `holds the three pairs that are real states`, both on `Expected: false /
+    // Received: true` for a date with no reason — every not-before on every plan
     // that existed before this change, refused at its next edit. Watched
     // 2026-08-18.
     expect(isOrphanedNotBeforeReason('2026-09-12', null)).toBe(false);

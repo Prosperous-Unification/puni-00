@@ -692,10 +692,12 @@ function fieldsOf(patch: WorkItemPatch): (keyof WorkItemPatch)[] {
   if (patch.notes !== undefined) named.push('notes');
   if (patch.startNoEarlierThan !== undefined) named.push('startNoEarlierThan');
   // Proof: this line deleted, so a patch naming only the reason journals
-  // nothing, and `undoes a reason written beside a date that was already there`
-  // failed at its `expectDone` on `refused: empty` — the words written, on
-  // screen, and no entry on the stack to take them off again. Watched
-  // 2026-08-18.
+  // nothing — **62 pass, 1 fail** — and `undoes a reason written beside a date
+  // that was already there` failed at its `expectDone` on `refused: stale_undo
+  // — “Strip” has changed since then`: the undo reached past the unjournalled
+  // write to an entry that write had already made stale, so the words stay on
+  // screen and the press is refused. The parallelism line's own red, one field
+  // over. Watched 2026-08-18.
   if (patch.startNoEarlierThanReason !== undefined) named.push('startNoEarlierThanReason');
   // Proof: this line and the matching one in {@link revertTo} each deleted in
   // turn, and both `puts a replaced priority back, and leaves a priority a rename
@@ -740,10 +742,12 @@ function revertTo(before: WorkItem, patch: WorkItemPatch): WorkItemPatch {
   // already in, and there is no undo this store refuses.
   //
   // Proof: this line deleted, so the inverse of `{ date: null, reason: null }`
-  // names the date alone. `puts the words back with the date they explain`
-  // failed on `Expected: "waiting on client sign-off", Received: null` — a
-  // pressable undo that reports done, restores the floor, and drops the
-  // sentence that says why it is there. Watched 2026-08-18.
+  // names the date alone — **61 pass, 2 fail**. `puts the words back with the
+  // date they explain` failed on `Expected: "waiting on client sign-off" /
+  // Received: null`: a pressable undo that reports done, restores the floor and
+  // drops the sentence saying why it is there. `undoes a reason written beside
+  // a date that was already there` failed with it, on the words never coming
+  // off. Watched 2026-08-18.
   if (patch.startNoEarlierThanReason !== undefined) {
     out.startNoEarlierThanReason = before.startNoEarlierThanReason;
   }

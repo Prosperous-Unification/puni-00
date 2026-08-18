@@ -117,6 +117,12 @@ export function inMemoryWorkItems(
       // the merged row, which `updated` already is — and asked after the merge
       // rather than off the patch, because a patch naming only the reason is
       // legal on a row that has a date and illegal on one that does not.
+      //
+      // Proof: this refusal deleted — **85 pass, 1 fail** in
+      // `work-item.service.test.ts` — and `refuses words on a row with no date,
+      // through the service` failed on `Expected: false, Received: true`: the
+      // fixture accepting a row the database refuses, which is the whole class
+      // of fault this mirror exists to prevent. Watched 2026-08-18.
       if (isOrphanedNotBeforeReason(updated.startNoEarlierThan, updated.startNoEarlierThanReason)) {
         return { ok: false, reason: 'not_before_reason_needs_a_date' };
       }

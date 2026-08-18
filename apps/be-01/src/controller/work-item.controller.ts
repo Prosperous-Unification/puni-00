@@ -165,18 +165,20 @@ function asOptionalReason(value: unknown, field: string): string | null | undefi
   if (value === null) return null;
   if (typeof value !== 'string') throw new BadRequest(`${field}_must_be_text`);
   const trimmed = value.trim();
-  // Proof: this throw deleted, so the value is taken as it arrives, and
-  // `refuses a reason longer than a sentence` failed on `Expected: 400,
-  // Received: 200` — 5,000 characters stored, and every hover card on the chart
-  // covered by a bar's own explanation. Watched 2026-08-18.
+  // Proof: this throw deleted, so the value is taken as it arrives — **48 pass,
+  // 1 fail** — and `refuses a reason that is not text, and one longer than a
+  // sentence` failed on `Expected: 400, Received: 200`: 201 characters taken,
+  // and nothing anywhere between a pasted paragraph and a hover card that
+  // covers the chart it is explaining. Watched 2026-08-18.
   if (trimmed.length > LONGEST_NOT_BEFORE_REASON) {
     throw new BadRequest(
       `${field}_must_be_at_most_${String(LONGEST_NOT_BEFORE_REASON)}_characters`,
     );
   }
-  // Proof: this normalisation replaced by `return trimmed`, and `stores a blank
-  // reason as no reason at all` failed on `Expected: null, Received: ""` — two
-  // spellings of "nobody has said" in one column, one of which the pair rule
+  // Proof: this normalisation replaced by `return trimmed` — **48 pass, 1
+  // fail** — and `stores a blank reason as no reason at all, and trims the
+  // rest` failed with `"startNoEarlierThanReason": ""` where `null` was owed:
+  // two spellings of "nobody has said" in one column, one of which the pair rule
   // then refuses to let a reader clear the date beside. Watched 2026-08-18.
   return trimmed === '' ? null : trimmed;
 }
