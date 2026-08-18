@@ -191,20 +191,32 @@ the previous head**, whatever it was doing.
 | ------------- | --------- | --------------------------------------------------------------------------------------- |
 | `32121602067` | `659b675` | `gate` success, `pixels` cancelled; **rerun of the cancelled job: both jobs `success`** |
 | `32123853462` | `d43c034` | cancelled by the next push, mid-flight                                                  |
-| `32123925221` | `7db69d3` | **`success`, both jobs, first attempt** — the head this PR stands at                    |
+| `32123925221` | `7db69d3` | **`success`, both jobs, first attempt**                                                 |
+| `32124927649` | `5c4b0dc` | cancelled by the next push, mid-flight                                                 |
+| `32124993206` | `db60f98` | `gate` success, `pixels` red on the ws-proxy flood; **rerun clean, both jobs `success`** — the head this PR stands at |
 
 `659b675` is the head every number in the gate table above was measured at, and
-it is green on CI at that exact sha. The two commits after it are this file and
-prettier's pass over it; `7db69d3` is green too, so the record holds at the head
-as well as at the measured sha.
+it is green on CI at that exact sha. Every commit after it is this file and
+prettier's passes over it; the head `db60f98` is green too, so the record holds
+at the head as well as at the measured sha.
 
-Worth one line for the next agent, because it looks like a red the first time
-you meet it: **a `cancelled` job on this repo usually means you pushed again**,
-and the fix is to let the last push settle rather than to re-diagnose the
-`pixels` ws-proxy flood #73/#78/#79/#80 each recorded. That flood is a different
-failure — it reddens, it does not cancel — and running `pixels` only when
-`apps/fe-01/**` changed, adopted 2026-08-17 and still not implemented, would not
-have helped here either way: this branch does touch `apps/fe-01`.
+Worth one line for the next agent, because it looks like a red the first time you
+meet it: **a `cancelled` job on this repo usually means you pushed again.** Let
+the last push settle rather than re-diagnosing it.
+
+**And the `pixels` ws-proxy flake, fifth sighting** — run `32124993206` at
+`db60f98`, a commit touching this markdown file and nothing else, failed `pixels`
+amid a flood of `[vite] ws proxy error: Error: write EPIPE` and `write
+ECONNRESET`, with `gate` green beside it. Same class as #73, #78, #79 and #80: a
+doc-only tail commit, no UI or CSS code within reach, and a proxy the layout
+gate's web server cannot keep up with. `gh run rerun --failed` passed clean.
+
+Four sightings was already "no longer a flake anybody should be re-diagnosing per
+PR" in #80's verify.md; this is the fifth, and both of the fixes named there are
+still the fixes. One of them would not have helped here — this branch does touch
+`apps/fe-01`, so running `pixels` only on `apps/fe-01/**` changes still runs it —
+which leaves the ws-proxy floods themselves as the one that would. Neither is
+this change's, and both are now well past overdue.
 
 ## Failure-proof table (R5)
 
