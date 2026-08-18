@@ -6901,9 +6901,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                       : [
                           day === null ? null : `${day}.`,
                           'This work item may not start before this day. Its dependencies can still push it later.',
-                          reason === null || reason.trim() === ''
-                            ? null
-                            : `Why: ${reason.trim()}`,
+                          reason === null || reason.trim() === '' ? null : `Why: ${reason.trim()}`,
                         ]
                           .filter((part) => part !== null)
                           .join(' ')
