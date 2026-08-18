@@ -2,6 +2,7 @@ import {
   isIsoDate,
   type IsoDate,
   isRoleState,
+  LONGEST_NOT_BEFORE_REASON,
   MOST_PEOPLE_AT_ONCE,
   type RoleState,
   ThreePointEstimate,
@@ -139,6 +140,50 @@ function asOptionalDate(value: unknown, field: string): IsoDate | null | undefin
 }
 
 /**
+ * Why the work is held back, `null` to take the words off, or absent to leave
+ * them.
+ *
+ * **A blank is `null`, not `''`.** Emptying the field is how a reader takes a
+ * reason off, and a stored empty string would be a second spelling of "nobody
+ * has said" that every reader would then have to fold — the doctrine `actual`
+ * and `role_progress` both state as "the absence of a row". Trimmed for the
+ * same reason a band label is: a reason of three spaces is a reason of none,
+ * and the difference between them is invisible on every surface that shows it.
+ *
+ * Bounded at {@link LONGEST_NOT_BEFORE_REASON}, and this is the only boundary
+ * a value can enter through: the column is `text`, SQLite counts no characters,
+ * and the migration argues why a `CHECK` on this table would answer 500 to the
+ * outgoing release mid-swap. The bound is measured **after** the trim, so
+ * trailing whitespace cannot spend it.
+ *
+ * The pair rule — a reason needs a date — is deliberately not here. It is a
+ * question about the row as it will stand, and this function has only the
+ * request; `WorkItemStore.patch` asks it inside the transaction that writes.
+ */
+function asOptionalReason(value: unknown, field: string): string | null | undefined {
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+  if (typeof value !== 'string') throw new BadRequest(`${field}_must_be_text`);
+  const trimmed = value.trim();
+  // Proof: this throw deleted, so the value is taken as it arrives — **48 pass,
+  // 1 fail** — and `refuses a reason that is not text, and one longer than a
+  // sentence` failed on `Expected: 400, Received: 200`: 201 characters taken,
+  // and nothing anywhere between a pasted paragraph and a hover card that
+  // covers the chart it is explaining. Watched 2026-08-18.
+  if (trimmed.length > LONGEST_NOT_BEFORE_REASON) {
+    throw new BadRequest(
+      `${field}_must_be_at_most_${String(LONGEST_NOT_BEFORE_REASON)}_characters`,
+    );
+  }
+  // Proof: this normalisation replaced by `return trimmed` — **48 pass, 1
+  // fail** — and `stores a blank reason as no reason at all, and trims the
+  // rest` failed with `"startNoEarlierThanReason": ""` where `null` was owed:
+  // two spellings of "nobody has said" in one column, one of which the pair rule
+  // then refuses to let a reader clear the date beside. Watched 2026-08-18.
+  return trimmed === '' ? null : trimmed;
+}
+
+/**
  * A priority of 1 or more, `null` to leave the work with no priority, or absent to leave it
  * as it is.
  *
@@ -219,6 +264,7 @@ function parsePatch(body: unknown): {
   name?: string;
   notes?: string;
   startNoEarlierThan?: IsoDate | null;
+  startNoEarlierThanReason?: string | null;
   priority?: number | null;
   serviceTeamId?: string | null;
   maxParallel?: number | null;
@@ -229,6 +275,10 @@ function parsePatch(body: unknown): {
     name: asOptionalText(raw['name'], 'name'),
     notes: asOptionalText(raw['notes'], 'notes'),
     startNoEarlierThan: asOptionalDate(raw['startNoEarlierThan'], 'startNoEarlierThan'),
+    startNoEarlierThanReason: asOptionalReason(
+      raw['startNoEarlierThanReason'],
+      'startNoEarlierThanReason',
+    ),
     priority: asOptionalPriority(raw['priority'], 'priority'),
     serviceTeamId:
       'serviceTeamId' in raw ? asIdOrNull(raw['serviceTeamId'], 'serviceTeamId') : undefined,
@@ -416,10 +466,15 @@ patch can move every date in the plan.
 
 Body refusals, all 400: \`expected_object\`, \`number_is_derived\`,
 \`name_must_be_text\`, \`notes_must_be_text\`, \`startNoEarlierThan_must_be_a_date\`,
+\`startNoEarlierThanReason_must_be_text\`,
+\`startNoEarlierThanReason_must_be_at_most_200_characters\`,
 \`priority_must_be_a_whole_number_from_1\`, \`serviceTeamId_must_be_id_or_null\`,
 \`maxParallel_must_be_a_whole_number_from_1\`,
 \`maxParallel_must_be_at_most_1000\`. A parallelism on a row that has children is
-\`has_children\`, also 400 — the cell is read-only on every parent.`,
+\`has_children\`, also 400 — the cell is read-only on every parent. A patch that
+would leave the row holding a reason with no \`startNoEarlierThan\` for it to be
+about is \`not_before_reason_needs_a_date\`, also 400: **clearing the date clears
+neither the words nor itself**, so send both as \`null\` in the one request.`,
           requestBody: handParsedBody('The fields to change. Send only the ones you mean.', {
             type: 'object',
             properties: {
@@ -430,6 +485,13 @@ Body refusals, all 400: \`expected_object\`, \`number_is_derived\`,
                 nullable: true,
                 description:
                   'A calendar day, `YYYY-MM-DD`, before which this work may not start. Null lifts the constraint. A shape-valid non-day like `2026-02-31` is refused.',
+              },
+              startNoEarlierThanReason: {
+                type: 'string',
+                nullable: true,
+                maxLength: LONGEST_NOT_BEFORE_REASON,
+                description:
+                  'Why the work may not start yet, in the planner’s own words — *“waiting on client sign-off”*. Words about `startNoEarlierThan` and nothing else: it is not a status, it holds nothing back on its own, and no date moves because of it. Meaningless without a date and refused without one, so clearing `startNoEarlierThan` means sending this as null in the same request. A blank is stored as null; whitespace is trimmed.',
               },
               priority: {
                 type: 'integer',

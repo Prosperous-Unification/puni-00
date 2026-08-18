@@ -80,6 +80,7 @@ function row(parentId: string | null, position: number, name: string): WorkItem 
     frozenNumber: null,
     priority: null,
     startNoEarlierThan: null,
+    startNoEarlierThanReason: null,
     serviceTeamId: null,
     maxParallel: 1,
     revision: 0,
@@ -182,6 +183,106 @@ describe('the team set beside the column', () => {
     const read = await repo.listByProject(projectId);
     expect(read.at(0)?.serviceTeamId).toBeNull();
     expect(read.at(0)?.teamIds).toEqual([]);
+  });
+
+  it('writes a reason beside the date it explains', async () => {
+    // The ordinary case, and the only pair this feature adds: a floor, and words
+    // about it. One patch or two makes no difference — the rule is about the row
+    // as it stands, not about how it got there.
+    const strip = row(null, 10, 'Strip');
+    await repo.insert(strip, []);
+    await repo.patch(strip.id, { startNoEarlierThan: '2026-09-12' });
+
+    const written = await repo.patch(strip.id, {
+      startNoEarlierThanReason: 'waiting on client sign-off',
+    });
+
+    expect(written.ok).toBe(true);
+    expect(written.ok ? written.workItem.startNoEarlierThanReason : null).toBe(
+      'waiting on client sign-off',
+    );
+    const read = await repo.listByProject(projectId);
+    expect(read.at(0)?.startNoEarlierThan).toBe('2026-09-12');
+    expect(read.at(0)?.startNoEarlierThanReason).toBe('waiting on client sign-off');
+  });
+
+  it('refuses a reason with no date to be about', async () => {
+    // The pair rule, on the row that has never had a floor. Words about a floor
+    // that is not there appear on no surface — the chart says them only where
+    // the not-before is the *binding* floor — and nothing clears them, which is
+    // the `blocked`-with-no-date shape this feature exists instead of.
+    const strip = row(null, 10, 'Strip');
+    await repo.insert(strip, []);
+
+    const written = await repo.patch(strip.id, {
+      startNoEarlierThanReason: 'waiting on client sign-off',
+    });
+
+    expect(written.ok).toBe(false);
+    expect(written.ok ? null : written.reason).toBe('not_before_reason_needs_a_date');
+    // Refused rather than half-applied: the transaction that would have written
+    // it is where the check lives, so the row is untouched.
+    expect((await repo.listByProject(projectId)).at(0)?.startNoEarlierThanReason).toBeNull();
+  });
+
+  it('refuses a date cleared out from under the words beside it', async () => {
+    // The commoner half of the same rule, and the one a client meets by
+    // accident: the reader takes the date off and the sentence explaining it is
+    // still there. This is the request the Not before cell has to get right —
+    // `{ startNoEarlierThan: null }` is refused and
+    // `{ startNoEarlierThan: null, startNoEarlierThanReason: null }` is what it
+    // means.
+    //
+    // Refused rather than cascaded: clearing the date does not delete somebody's
+    // sentence on their behalf.
+    const strip = row(null, 10, 'Strip');
+    await repo.insert(strip, []);
+    await repo.patch(strip.id, {
+      startNoEarlierThan: '2026-09-12',
+      startNoEarlierThanReason: 'waiting on client sign-off',
+    });
+
+    const written = await repo.patch(strip.id, { startNoEarlierThan: null });
+
+    expect(written.ok).toBe(false);
+    expect(written.ok ? null : written.reason).toBe('not_before_reason_needs_a_date');
+    const read = await repo.listByProject(projectId);
+    expect(read.at(0)?.startNoEarlierThan).toBe('2026-09-12');
+    expect(read.at(0)?.startNoEarlierThanReason).toBe('waiting on client sign-off');
+  });
+
+  it('takes the date and the words off together', async () => {
+    const strip = row(null, 10, 'Strip');
+    await repo.insert(strip, []);
+    await repo.patch(strip.id, {
+      startNoEarlierThan: '2026-09-12',
+      startNoEarlierThanReason: 'waiting on client sign-off',
+    });
+
+    const written = await repo.patch(strip.id, {
+      startNoEarlierThan: null,
+      startNoEarlierThanReason: null,
+    });
+
+    expect(written.ok).toBe(true);
+    const read = await repo.listByProject(projectId);
+    expect(read.at(0)?.startNoEarlierThan).toBeNull();
+    expect(read.at(0)?.startNoEarlierThanReason).toBeNull();
+  });
+
+  it('lets a patch that names neither half of the pair through a dateless row', async () => {
+    // Every write that existed before this column: a rename on a row with no
+    // date and no reason. The rule is asked only where the patch names one of
+    // the two, so nothing that used to be legal has become a 400 — which is the
+    // whole of this change's compatibility claim, made against the store rather
+    // than assumed from the shape of the `if`.
+    const strip = row(null, 10, 'Strip');
+    await repo.insert(strip, []);
+
+    const written = await repo.patch(strip.id, { name: 'Strip the walls' });
+
+    expect(written.ok).toBe(true);
+    expect(written.ok ? written.workItem.name : null).toBe('Strip the walls');
   });
 
   it('leaves the join alone when the patch does not name the label', async () => {

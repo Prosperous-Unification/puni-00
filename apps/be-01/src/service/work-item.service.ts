@@ -498,7 +498,24 @@ export type WorkItemRefusal =
    * `team-sets` measured it (2026-08-14). `unknown_team` is what turns that
    * constraint failure into a refusal somebody can read.
    */
-  | 'unknown_team';
+  | 'unknown_team'
+  /**
+   * A patch that would leave a work item holding a reason with no not-before
+   * date for it to be a reason about, decided inside the write's own
+   * transaction — see {@link WorkItemPatched}.
+   *
+   * 400 and not 409: the request is malformed against **any** tree, because
+   * there is no state of the plan in which words about a floor that is not
+   * there mean anything. The two ways to meet it are a reason sent on a row with
+   * no date, and — much the commoner — a date cleared without clearing the words
+   * beside it, which is `{ startNoEarlierThan: null }` where
+   * `{ startNoEarlierThan: null, startNoEarlierThanReason: null }` was meant.
+   *
+   * Refused rather than tidied on the caller's behalf: the words are somebody's
+   * sentence, and a write that silently deletes them is the worse of the two
+   * answers.
+   */
+  | 'not_before_reason_needs_a_date';
 
 export type WorkItemOutcome<T> = { ok: true; result: T } | { ok: false; reason: WorkItemRefusal };
 
@@ -674,6 +691,14 @@ function fieldsOf(patch: WorkItemPatch): (keyof WorkItemPatch)[] {
   if (patch.name !== undefined) named.push('name');
   if (patch.notes !== undefined) named.push('notes');
   if (patch.startNoEarlierThan !== undefined) named.push('startNoEarlierThan');
+  // Proof: this line deleted, so a patch naming only the reason journals
+  // nothing — **62 pass, 1 fail** — and `undoes a reason written beside a date
+  // that was already there` failed at its `expectDone` on `refused: stale_undo
+  // — “Strip” has changed since then`: the undo reached past the unjournalled
+  // write to an entry that write had already made stale, so the words stay on
+  // screen and the press is refused. The parallelism line's own red, one field
+  // over. Watched 2026-08-18.
+  if (patch.startNoEarlierThanReason !== undefined) named.push('startNoEarlierThanReason');
   // Proof: this line and the matching one in {@link revertTo} each deleted in
   // turn, and both `puts a replaced priority back, and leaves a priority a rename
   // did not name` and `takes a first priority away again, rather than leaving a
@@ -708,6 +733,24 @@ function revertTo(before: WorkItem, patch: WorkItemPatch): WorkItemPatch {
   if (patch.name !== undefined) out.name = before.name;
   if (patch.notes !== undefined) out.notes = before.notes;
   if (patch.startNoEarlierThan !== undefined) out.startNoEarlierThan = before.startNoEarlierThan;
+  // The inverse of a pair patch names **both** halves of the pair the forward
+  // patch named, which is what keeps every inverse legal against the rule that
+  // refuses a reason with no date: naming only the fields the forward named
+  // reconstructs `before`'s own pair for those fields and leaves the rest as
+  // they are — and the rest are `before`'s too, because the forward did not
+  // touch them. So an inverse can only ever land the row back on a pair it was
+  // already in, and there is no undo this store refuses.
+  //
+  // Proof: this line deleted, so the inverse of `{ date: null, reason: null }`
+  // names the date alone — **61 pass, 2 fail**. `puts the words back with the
+  // date they explain` failed on `Expected: "waiting on client sign-off" /
+  // Received: null`: a pressable undo that reports done, restores the floor and
+  // drops the sentence saying why it is there. `undoes a reason written beside
+  // a date that was already there` failed with it, on the words never coming
+  // off. Watched 2026-08-18.
+  if (patch.startNoEarlierThanReason !== undefined) {
+    out.startNoEarlierThanReason = before.startNoEarlierThanReason;
+  }
   if (patch.priority !== undefined) out.priority = before.priority;
   if (patch.serviceTeamId !== undefined) out.serviceTeamId = before.serviceTeamId;
   // `before.maxParallel` is a number and never null — the column is `NOT NULL`
@@ -1166,6 +1209,8 @@ export class WorkItemService {
       notes: input.notes ?? '',
       frozenNumber: null,
       startNoEarlierThan: null,
+      // No floor, so no words about one — the only pair a new row can be in.
+      startNoEarlierThanReason: null,
       priority: null,
       serviceTeamId: null,
       // One at a time, which is what every work item has always done and what

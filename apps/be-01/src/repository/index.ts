@@ -215,6 +215,15 @@ export interface WorkItem {
   /** A day this item may not start before — a floor, never a pin. */
   startNoEarlierThan: IsoDate | null;
   /**
+   * Why, in the planner's own words, or null where nobody has said.
+   *
+   * Words about {@link WorkItem.startNoEarlierThan} and nothing else — no state
+   * and no second constraint. Null unless there is a date for it to be about:
+   * `isOrphanedNotBeforeReason` in `@wbs/domain` is the rule and
+   * {@link WorkItemStore.patch} is where it is refused. See `schema.ts`.
+   */
+  startNoEarlierThanReason: string | null;
+  /**
    * How important this work is — an integer of 1 or more, smaller being more
    * important — or null for "nobody has said".
    *
@@ -266,6 +275,24 @@ export interface WorkItemPatch {
   /** `null` removes the constraint and lets the dependencies alone decide. */
   startNoEarlierThan?: IsoDate | null;
   /**
+   * Why the work is held back, or `null` to take the words off and leave the
+   * date.
+   *
+   * **A patch that leaves this row with a reason and no date is refused** —
+   * `not_before_reason_needs_a_date`, decided against the row as it will stand
+   * rather than against this patch, because a patch naming only the reason is
+   * legal on a row that already has a date and illegal on one that does not.
+   * The commonest way to meet it is taking the date off and forgetting the
+   * words: `{ startNoEarlierThan: null }` on a row that has a reason is refused,
+   * and `{ startNoEarlierThan: null, startNoEarlierThanReason: null }` is the
+   * request that means it. Nothing is cleared on the caller's behalf — the words
+   * are somebody's sentence, and deleting them quietly is worse than a 400.
+   *
+   * Length is the controller's (`LONGEST_NOT_BEFORE_REASON`), which is also
+   * where a blank becomes this `null`, so `''` never reaches the column.
+   */
+  startNoEarlierThanReason?: string | null;
+  /**
    * An integer of 1 or more, or `null` to leave this work with no priority.
    *
    * Validated at the controller, which is the only place a value that is not a
@@ -309,10 +336,19 @@ export interface WorkItemPatch {
  * action, so SQLite refuses both an unknown id and the delete of a team any row
  * still names. What has no cascade is the *delete* — which is why
  * {@link DirectoryStore.removeTeam} nulls the labels itself.
+ *
+ * `not_before_reason_needs_a_date` is decided in the same transaction and for a
+ * version of the same reason: the rule is about the row **as it will stand**, so
+ * it has to be asked against the stored date and the patch's together, and a
+ * service-level precheck followed by an update is two statements with a
+ * concurrent write's worth of gap between them — another patch clearing the date
+ * in that gap leaves exactly the pair this refuses. There is no constraint
+ * behind it to catch that (the migration argues why a `CHECK` here would 500 the
+ * outgoing release mid-swap), so this transaction is the whole of the guarantee.
  */
 export type WorkItemPatched =
   | { ok: true; workItem: WorkItem }
-  | { ok: false; reason: 'not_found' | 'unknown_team' };
+  | { ok: false; reason: 'not_found' | 'unknown_team' | 'not_before_reason_needs_a_date' };
 
 /**
  * What an assignment write answered.

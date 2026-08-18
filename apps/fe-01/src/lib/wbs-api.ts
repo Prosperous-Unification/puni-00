@@ -183,6 +183,21 @@ export interface WorkItemView {
   /** A day this item may not start before — a floor the dependencies can push past. */
   startNoEarlierThan: string | null;
   /**
+   * Why, in the planner's own words, or null where nobody has said.
+   *
+   * Words about {@link WorkItemView.startNoEarlierThan} and nothing else — not a
+   * status, not a second thing holding the row back, and nothing any date is
+   * computed from. Null unless there is a date beside it: be-01 refuses the
+   * pair, so a client clearing the date sends both fields as null in the one
+   * patch.
+   *
+   * Shown where the date's effect is already explained — the bar's floor
+   * sentence when the not-before is the **binding** floor, and the Not before
+   * cell — and nowhere else, which is what keeps it from reading as a state of
+   * its own.
+   */
+  startNoEarlierThanReason: string | null;
+  /**
    * How important this work is — 1 upward, smaller first — or null where
    * nobody has said.
    *
@@ -744,6 +759,16 @@ export interface ProjectApi {
       name?: string;
       notes?: string;
       startNoEarlierThan?: string | null;
+      /**
+       * Why the work is held back, `null` to take the words off, or absent to
+       * leave them.
+       *
+       * Refused with a 400 (`not_before_reason_needs_a_date`) when the row would
+       * be left holding words with no date for them to be about — so **clearing
+       * the date means clearing this in the same request**. A blank is stored as
+       * no reason; at most 200 characters.
+       */
+      startNoEarlierThanReason?: string | null;
       /** An integer of 1 or more, or `null` to leave the work with no priority. */
       priority?: number | null;
       /**

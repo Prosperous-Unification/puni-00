@@ -93,6 +93,9 @@ const row = (over: Partial<ExportRow> & Pick<ExportRow, 'id' | 'number'>): Expor
   finalTotal: 0,
   dependsOn: [],
   startNoEarlierThan: null,
+  // No floor, so no words about one — the pair be-01 refuses is the only one
+  // this fixture cannot build by accident.
+  startNoEarlierThanReason: null,
   dates: null,
   schedule: { earliestStart: 0, earliestFinish: 0, float: 0, critical: false },
   assignees: {},
@@ -279,6 +282,7 @@ describe('the columns', () => {
       'Priority',
       'Priority band',
       'Not before',
+      'Not before because',
       'Starts',
       'Ends',
       'Slack',
@@ -331,6 +335,76 @@ describe('the columns', () => {
     );
     expect(csvDataRow(recut)[at]).toBe('Blocker');
     expect(csvDataRow(recut, 1)[at]).toBe('Someday');
+  });
+
+  it('writes the words about a not-before beside the date, in a column of their own', () => {
+    // A column rather than a suffix on the date, which is how every other piece
+    // of row text is carried here: a spreadsheet reader sorts and filters `Not
+    // before` as a date, and `2026-09-12 — waiting on client sign-off` is a date
+    // column that has stopped being one.
+    //
+    // The index is read off the header rather than typed, so a column inserted
+    // to the left moves this assertion with it instead of silently pointing it
+    // at Starts.
+    const rows = [
+      row({
+        id: 'a',
+        number: '010',
+        startNoEarlierThan: '2026-09-12',
+        startNoEarlierThanReason: 'waiting on client sign-off',
+      }),
+      // A date nobody explained: blank, exactly as the Priority column is for
+      // an unranked row, and not a dash or the word `null`.
+      row({ id: 'b', number: '020', startNoEarlierThan: '2026-09-12' }),
+      row({ id: 'c', number: '030' }),
+    ];
+    const csv = planToCsv(plan({ rows }));
+    const at = columnAt(csv, 'Not before because');
+    const date = columnAt(csv, 'Not before');
+
+    expect(csvDataRow(csv)[at]).toBe('waiting on client sign-off');
+    expect(csvDataRow(csv)[date]).toBe('2026-09-12');
+    expect(csvDataRow(csv, 1)[at]).toBe('');
+    expect(csvDataRow(csv, 2)[at]).toBe('');
+  });
+
+  it('escapes a reason like any other row text, in both formats', () => {
+    // A reason is a sentence somebody typed, so it holds commas, quotes, pipes
+    // and line breaks like a note does — and it goes through the same
+    // `csvField` and `markdownCell` those are escaped by rather than a second
+    // path written for it.
+    //
+    // The leading `=` is the formula guard: a spreadsheet opening this file
+    // would otherwise evaluate the cell. `Notes` has been guarded since the
+    // export was written and a second free-text column that was not would be a
+    // hole in one place.
+    const reason = '=SUM(A1), "urgent" | held\nuntil sign-off';
+    const rows = [
+      row({
+        id: 'a',
+        number: '010',
+        startNoEarlierThan: '2026-09-12',
+        startNoEarlierThanReason: reason,
+      }),
+    ];
+
+    const csv = planToCsv(plan({ rows }));
+    // Parsed back out of the CSV rather than matched against the raw text: what
+    // matters is that a reader recovers the sentence, quotes and commas and all.
+    expect(csvDataRow(csv)[columnAt(csv, 'Not before because')]).toBe(`'${reason}`);
+
+    const markdown = planToMarkdown(plan({ rows }));
+    const heading = markdown
+      .split('\n')
+      .find((each) => each.startsWith('| Number |'))
+      ?.slice(1, -1)
+      .split(' | ')
+      .map((cell) => cell.trim());
+    const column = heading?.indexOf('Not before because') ?? -1;
+    expect(column).toBeGreaterThan(-1);
+    // The pipe escaped so it cannot open a column nobody asked for, and the line
+    // break flattened so it cannot end the row halfway through.
+    expect(markdownRow(markdown, '010')[column]).toBe('=SUM(A1), "urgent" \\| held until sign-off');
   });
 
   it('writes a priority as the number somebody typed, and an unranked row blank', () => {

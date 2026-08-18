@@ -1,0 +1,43 @@
+-- Reverses 20260818090000_add_not_before_reason.
+--
+-- **What is lost is words, and only words.** Every not-before date survives
+-- this rollback untouched — the column beside this one is not named here — so
+-- every floor that was holding a row back is still holding it back, on the same
+-- day, and every date in the plan is the date it was. What goes is the sentence
+-- somebody wrote about why: a plan comes back reading *"held until the 12th"*
+-- where it read *"held until the 12th, waiting on client sign-off"*, which is
+-- the state the tool was in before this migration and the state every plan on
+-- the server is in today.
+--
+-- That is the whole reason this reversal is safe, and it is the same shape
+-- `20260818010000_add_role_progress`'s is: it takes away an explanation, never
+-- a figure and never a date. Nothing recomputes from it, because nothing
+-- computes from it at all — `service/schedule.ts` does not read this column,
+-- has an empty diff in the change that added it, and schedules a plan
+-- identically on either side of this statement.
+--
+-- The words cannot be recovered from anywhere else, and that is worth saying
+-- plainly rather than implying a safety net: `plan_event` holds the `patch`
+-- commands that wrote them — H1's history — so a reason could in principle be
+-- read back out of a plan's events by hand, for as long as retention keeps them
+-- (365 days) and only for events written after H1 shipped. Nothing replays
+-- them, and this rollback does not try.
+--
+-- Undo and redo are unaffected in shape and lossy in one arm, the same position
+-- every rollback of an additive column leaves its own kind in:
+-- `command_journal` is not touched, so every entry stays pressable, but a
+-- `patch` entry whose forward or inverse names `startNoEarlierThanReason`
+-- names a column that is no longer there and fails when applied.
+--
+-- Reversed **before** `20260818010000_add_role_progress`: rollback order is the
+-- reverse of application order, which is what `migrate-down-cli.ts --to=<name>`
+-- does with the applied set, and `migrate.test.ts` walks it rather than
+-- trusting the CLI's exit code.
+--
+-- `DROP COLUMN` and not a table rebuild: SQLite has supported it since 3.35 and
+-- `20260812100001_add_max_parallel`'s down script is the precedent one column
+-- over. It runs solely when the release that added the column is being taken
+-- away — a forward migration in this repo is additive so blue and green can
+-- share one file mid-swap, and reversing an additive change is destructive by
+-- definition, which is why it lives here and not there.
+ALTER TABLE `work_item` DROP COLUMN `start_no_earlier_than_reason`;

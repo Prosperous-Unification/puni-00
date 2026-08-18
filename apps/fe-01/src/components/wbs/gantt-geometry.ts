@@ -210,6 +210,29 @@ export interface GanttRow {
   /** The workday its manual start date holds at, or null when it has none. */
   notBeforeOffset: number | null;
   /**
+   * Why that date is there, in the planner's own words, or null where nobody
+   * has said.
+   *
+   * Read on one line of one surface: the floor sentence of a bar whose
+   * **binding** floor is the not-before. Not on a bar held by something else,
+   * because the sentence there is about the something else and this row's date
+   * is not what is holding it; not on the flag, which says the date; and not as
+   * a state anywhere, because it is not one — see `notes/decisions.md`,
+   * 2026-08-18, for what it was built instead of.
+   *
+   * **Optional, and nothing on screen fills it yet.** The `ganttPlan` literal in
+   * `wbs-table.tsx` builds these rows and was another agent's file to edit while
+   * this was written — the one line it owes is
+   * `notBeforeReason: row.original.startNoEarlierThanReason`, beside the
+   * `notBeforeOffset` it already computes from the same field. Until that lands
+   * be-01 stores and serves the words, this module prints them for any row that
+   * carries one, and the chart on screen draws exactly what it drew before:
+   * a feature that is invisible rather than one that is wrong. Optional and not
+   * required so that the missing line is a feature nobody can see rather than a
+   * build nobody can run.
+   */
+  notBeforeReason?: string | null;
+  /**
    * How important this work is — 1 upward, smaller first — or null where
    * nobody has said.
    *
@@ -1296,6 +1319,45 @@ const FLOOR_SENTENCE: Record<Exclude<BindingFloor, 'person' | 'capacity'>, strin
 };
 
 /**
+ * The sentence a not-before-floored bar shows: the floor, and — where somebody
+ * wrote one — why it is there.
+ *
+ * Reads: _"Held by its start-no-earlier-than date — waiting on client
+ * sign-off"_. The em-dash and the lower-case continuation are
+ * {@link personFloorWords}' and
+ * {@link capacityFloorWords}' shape, deliberately: three floors that explain
+ * themselves should explain themselves in one voice, and a reader moving
+ * between bars should not have to notice which kind they are hovering.
+ *
+ * **The reason is appended, never substituted.** The date is still what holds
+ * the bar and the sentence still says so; the words are an aside on a floor
+ * that reads identically without them. That is the whole of what this feature
+ * is — `notes/decisions.md`, 2026-08-18: the engine already models being held
+ * back, so nothing new holds anything back, and a second sentence would be a
+ * second vocabulary for one bar.
+ *
+ * Printed verbatim, punctuation and capitals as typed: it is somebody's own
+ * sentence, and be-01 has already trimmed it and bounded it at 200 characters.
+ * A row with no reason reads exactly what every not-before bar read before this
+ * existed, which is what makes this change invisible on every plan nobody has
+ * explained.
+ */
+function notBeforeFloorWords(reason: string | null): string {
+  // Proof: this arm replaced by an unconditional
+  // `${FLOOR_SENTENCE.notBefore} — ${String(reason)}` — **3 failed, 101
+  // passed** — `says only the floor for a not-before nobody has explained`, the
+  // four-floor case `says in words what a start is held by`, and the panel's
+  // own `holds a not-before flag at its exact offset`, each on `expected 'Held
+  // by its start-no-earlier-than date — null' to be 'Held by its
+  // start-no-earlier-than date'`. That is the word `null` on the hover card of
+  // every dated row in every plan, which is every such row today — and the
+  // spread of the failure is the point: nothing about this feature is what
+  // three of those cases are about. Watched 2026-08-18.
+  if (reason === null) return FLOOR_SENTENCE.notBefore;
+  return `${FLOOR_SENTENCE.notBefore} — ${reason}`;
+}
+
+/**
  * The sentence a person-floored bar shows: who was in the way, and what they
  * were finishing.
  *
@@ -1601,7 +1663,18 @@ export function layOutGantt(plan: GanttPlan): GanttGeometry {
         roleName,
         personName,
         personColor: colorFor(slice.personId),
-        floorWords: floorWordsOf(slice, predecessor, personName, row.team, rowNames, rolesById),
+        floorWords: floorWordsOf(
+          slice,
+          predecessor,
+          personName,
+          row.team,
+          // `?? null` and not a required field: the row that carries this is
+          // built in `wbs-table.tsx`, which owes the one line that fills it —
+          // see {@link GanttRow.notBeforeReason}.
+          row.notBeforeReason ?? null,
+          rowNames,
+          rolesById,
+        ),
         team: row.team,
         // The engine's own two numbers, carried rather than recomputed: the
         // width the dates were placed with and the effort they were placed
@@ -1923,6 +1996,7 @@ function floorWordsOf(
   predecessor: GanttSlice | undefined,
   personName: string | null,
   team: ServiceTeamLabel,
+  notBeforeReason: string | null,
   rowNames: ReadonlyMap<string, string>,
   rolesById: ReadonlyMap<string, GanttRolePlace>,
 ): string {
@@ -1930,8 +2004,13 @@ function floorWordsOf(
     case 'projectStart':
     case 'predecessor':
     case 'roleOrder':
-    case 'notBefore':
       return FLOOR_SENTENCE[slice.boundBy];
+    // The one floor of the four that has words of its own. It is here and not
+    // beside the other three because the reason belongs to the **row** rather
+    // than to the slice: a work item's not-before holds every one of its roles,
+    // so each bar of that row that is floored by it says the same sentence.
+    case 'notBefore':
+      return notBeforeFloorWords(notBeforeReason);
     case 'capacity': {
       // The display referent, and the same refusal the person arm makes one
       // case above: a bar whose date came from a wait names what it waited for,

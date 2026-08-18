@@ -73,6 +73,18 @@ const ACTUAL = '20260817130000_add_actual';
  * check.
  */
 const ROLE_PROGRESS = '20260818010000_add_role_progress';
+/**
+ * The newest, and a **column** on `work_item` rather than a table — so it
+ * appears in the ordering here, in the two cases of its own at the bottom of
+ * this file, and in no table list anywhere.
+ *
+ * Stamped `20260818090000`, later than all twenty folders that were on disk when
+ * it was written. The stamps were listed and checked for a duplicate before the
+ * folder existed — verify.md quotes the run — and `refuses a folder set that
+ * shares one stamp between two migrations` is the mechanical half of the same
+ * check.
+ */
+const NOT_BEFORE_REASON = '20260818090000_add_not_before_reason';
 
 const WBS_TABLES = ['project', 'work_item', 'role', 'estimate'] as const;
 // Its own migration, reversed with the domain because it references `work_item`.
@@ -150,6 +162,7 @@ describe('the WBS domain migration', () => {
       // ahead of the column it was seeded from, which is the only order in
       // which its foreign keys still have something to point at.
       expect(reversed).toEqual([
+        NOT_BEFORE_REASON,
         ROLE_PROGRESS,
         ACTUAL,
         PLAN_EVENT,
@@ -461,6 +474,7 @@ describe('the capacity migrations', () => {
       const reversed = rollbackTo(db.path, FOLDER, PRIORITY);
 
       expect(reversed).toEqual([
+        NOT_BEFORE_REASON,
         ROLE_PROGRESS,
         ACTUAL,
         PLAN_EVENT,
@@ -907,7 +921,14 @@ describe('the work item team migration', () => {
       // applied after this one and the baseline is older than all four — not this
       // migration's business, and named rather than filtered out so the list stays
       // the literal answer `rollbackTo` gave.
-      expect(reversed).toEqual([ROLE_PROGRESS, ACTUAL, PLAN_EVENT, PRIORITY_BANDS, WORK_ITEM_TEAM]);
+      expect(reversed).toEqual([
+        NOT_BEFORE_REASON,
+        ROLE_PROGRESS,
+        ACTUAL,
+        PLAN_EVENT,
+        PRIORITY_BANDS,
+        WORK_ITEM_TEAM,
+      ]);
       expect(tables(db.path)).not.toContain('work_item_team');
       const after = openDatabase(db.path);
       try {
@@ -1124,6 +1145,7 @@ describe('the priority band migration', () => {
       // filtered, so the list is the literal answer `rollbackTo` gave and not a
       // subset somebody chose.
       expect(rollbackTo(db.path, FOLDER, PER_PROJECT_CAPACITY)).toEqual([
+        NOT_BEFORE_REASON,
         ROLE_PROGRESS,
         ACTUAL,
         PLAN_EVENT,
@@ -1400,6 +1422,7 @@ describe('the plan event migration', () => {
       }
 
       expect(rollbackTo(db.path, FOLDER, PRIORITY_BANDS)).toEqual([
+        NOT_BEFORE_REASON,
         ROLE_PROGRESS,
         ACTUAL,
         PLAN_EVENT,
@@ -1611,7 +1634,11 @@ describe('the actual migration', () => {
       runMigrations(db.path, FOLDER);
       seeded(db.path);
 
-      expect(rollbackTo(db.path, FOLDER, PLAN_EVENT)).toEqual([ROLE_PROGRESS, ACTUAL]);
+      expect(rollbackTo(db.path, FOLDER, PLAN_EVENT)).toEqual([
+        NOT_BEFORE_REASON,
+        ROLE_PROGRESS,
+        ACTUAL,
+      ]);
 
       const after = openDatabase(db.path);
       try {
@@ -1865,7 +1892,7 @@ describe('the role progress migration', () => {
       runMigrations(db.path, FOLDER);
       seeded(db.path);
 
-      expect(rollbackTo(db.path, FOLDER, ACTUAL)).toEqual([ROLE_PROGRESS]);
+      expect(rollbackTo(db.path, FOLDER, ACTUAL)).toEqual([NOT_BEFORE_REASON, ROLE_PROGRESS]);
 
       const after = openDatabase(db.path);
       try {
@@ -1904,6 +1931,225 @@ describe('the role progress migration', () => {
             >("SELECT realistic FROM estimate WHERE work_item_id = 'w1' AND role_id = 'r1'")
             .get()?.realistic,
         ).toBe(2);
+      } finally {
+        after.close();
+      }
+    } finally {
+      db.cleanup();
+    }
+  });
+});
+
+describe('the not-before reason migration', () => {
+  it('lets the outgoing release keep inserting work items against the migrated schema', () => {
+    // The blue/green half, the same shape every column migration on this table
+    // has: green migrates while blue is still serving, and blue's `INSERT` names
+    // the columns it was compiled against. Written out rather than built through
+    // drizzle, because drizzle is the new release and the point is what the old
+    // one sends.
+    //
+    // Proof: `NOT NULL DEFAULT ''` added to the column — **38 pass, 2 fail** in
+    // this file — and this failed on `expect(received).toBeNull()` /
+    // `Received: ""`, with `leaves work items that existed before the column
+    // with no reason` beside it. A default turns every row blue writes, and
+    // every row that predates the column, into a work item carrying a blank
+    // sentence nobody typed. Watched 2026-08-18.
+    const db = tempDb();
+    try {
+      runMigrations(db.path, FOLDER);
+      const sqlite = openDatabase(db.path);
+      try {
+        sqlite.run(
+          "INSERT INTO users (id, username, password_hash, created_at) VALUES ('u', 'owner', 'x', 1)",
+        );
+        sqlite.run(
+          'INSERT INTO project (id, name, owner_id, restricted, estimate_method, start_date, revision, created_at)' +
+            " VALUES ('p', 'Rewire the shed', 'u', 0, 'pert', NULL, 0, 1)",
+        );
+
+        sqlite.run(
+          'INSERT INTO work_item (id, project_id, parent_id, position, name, notes, revision)' +
+            " VALUES ('w1', 'p', NULL, 10, 'Strip', '', 0)",
+        );
+
+        const written = sqlite
+          .query<
+            { start_no_earlier_than_reason: string | null },
+            []
+          >("SELECT start_no_earlier_than_reason FROM work_item WHERE id = 'w1'")
+          .get();
+        expect(written?.start_no_earlier_than_reason).toBeNull();
+      } finally {
+        sqlite.close();
+      }
+    } finally {
+      db.cleanup();
+    }
+  });
+
+  it('lets the outgoing release keep clearing a not-before date the new one has explained', () => {
+    // **This is the case that decided there is no `CHECK` on this column.**
+    //
+    // The obvious way to hold "a reason needs a date" is a table constraint —
+    // `CHECK (start_no_earlier_than_reason IS NULL OR start_no_earlier_than IS
+    // NOT NULL)` — and that is exactly what `role_progress_state` does one
+    // migration over. It is safe there because blue has never heard of that
+    // table and never writes to it. It is not safe here: `work_item` is a table
+    // blue `UPDATE`s on every edit, and clearing a not-before is a statement
+    // blue runs today. Against a row green has given a reason, that statement
+    // would fail a constraint blue cannot see and answer 500 — for the length of
+    // the swap window, on a request whose only fault is being served by the old
+    // colour.
+    //
+    // So the pair rule lives at the write boundary (`WorkItemStore.patch`), and
+    // this case is what says the database still lets the old colour work. The
+    // row it leaves behind — words with no date — is the cost, stated on the
+    // migration: it is invisible rather than wrong, because no bar is floored by
+    // a date that is not there and no surface prints the words without one.
+    //
+    // Proof: that `CHECK` added to `migration.sql` and this failed on blue's own
+    // `UPDATE` with `CHECK constraint failed: work_item`; watched 2026-08-18.
+    const db = tempDb();
+    try {
+      runMigrations(db.path, FOLDER);
+      const sqlite = openDatabase(db.path);
+      try {
+        sqlite.run(
+          "INSERT INTO users (id, username, password_hash, created_at) VALUES ('u', 'owner', 'x', 1)",
+        );
+        sqlite.run(
+          'INSERT INTO project (id, name, owner_id, restricted, estimate_method, start_date, revision, created_at)' +
+            " VALUES ('p', 'Rewire the shed', 'u', 0, 'pert', NULL, 0, 1)",
+        );
+        // The incoming release's row: a floor, and words about it.
+        sqlite.run(
+          'INSERT INTO work_item (id, project_id, parent_id, position, name, notes, revision,' +
+            ' start_no_earlier_than, start_no_earlier_than_reason)' +
+            " VALUES ('w1', 'p', NULL, 10, 'Strip', '', 0, '2026-09-12', 'waiting on client sign-off')",
+        );
+
+        // The outgoing release's own statement, which names the columns it was
+        // compiled against and knows nothing about the one beside them.
+        sqlite.run("UPDATE work_item SET start_no_earlier_than = NULL WHERE id = 'w1'");
+
+        const row = sqlite
+          .query<
+            { start_no_earlier_than: string | null; start_no_earlier_than_reason: string | null },
+            []
+          >('SELECT start_no_earlier_than, start_no_earlier_than_reason FROM work_item' + " WHERE id = 'w1'")
+          .get();
+        expect(row?.start_no_earlier_than).toBeNull();
+        // The words survive blue's write, orphaned and invisible, which is the
+        // trade this migration takes rather than 500ing the outgoing release.
+        expect(row?.start_no_earlier_than_reason).toBe('waiting on client sign-off');
+      } finally {
+        sqlite.close();
+      }
+    } finally {
+      db.cleanup();
+    }
+  });
+
+  it('leaves work items that existed before the column with no reason', () => {
+    // The other half of "nullable, no default". Every plan on the live server
+    // was written before this column existed and nobody has explained any of
+    // them, so the only honest value for those rows is the absence of one — and
+    // a default of `''` would be the tool putting a blank sentence in a
+    // planner's mouth on every row of every plan.
+    //
+    // Reached the way the priority backfill case is: roll back to the migration
+    // before this one, write a work item the way the previous release wrote one,
+    // and migrate forward again.
+    const db = tempDb();
+    try {
+      runMigrations(db.path, FOLDER);
+      rollbackTo(db.path, FOLDER, ROLE_PROGRESS);
+      const before = openDatabase(db.path);
+      try {
+        before.run(
+          "INSERT INTO users (id, username, password_hash, created_at) VALUES ('u', 'owner', 'x', 1)",
+        );
+        before.run(
+          'INSERT INTO project (id, name, owner_id, restricted, estimate_method, start_date, revision, created_at)' +
+            " VALUES ('p', 'Rewire the shed', 'u', 0, 'pert', NULL, 0, 1)",
+        );
+        before.run(
+          'INSERT INTO work_item (id, project_id, parent_id, position, name, notes, revision, start_no_earlier_than)' +
+            " VALUES ('w1', 'p', NULL, 10, 'Strip', '', 0, '2026-09-12')",
+        );
+      } finally {
+        before.close();
+      }
+
+      runMigrations(db.path, FOLDER);
+
+      const after = openDatabase(db.path);
+      try {
+        const row = after
+          .query<
+            { start_no_earlier_than: string | null; start_no_earlier_than_reason: string | null },
+            []
+          >('SELECT start_no_earlier_than, start_no_earlier_than_reason FROM work_item')
+          .get();
+        // The floor it already had, untouched, and no words invented for it.
+        expect(row?.start_no_earlier_than).toBe('2026-09-12');
+        expect(row?.start_no_earlier_than_reason).toBeNull();
+      } finally {
+        after.close();
+      }
+    } finally {
+      db.cleanup();
+    }
+  });
+
+  it('takes the words away on the way back, and leaves every date where it was', () => {
+    // The rollback, asserted by reading the result rather than by trusting an
+    // exit code. What is lost is the explanation; what survives is the floor —
+    // so after this reversal a plan reads "held until the 12th" where it read
+    // "held until the 12th, waiting on client sign-off", which is the state
+    // every plan on the server is in today.
+    const db = tempDb();
+    try {
+      runMigrations(db.path, FOLDER);
+      const sqlite = openDatabase(db.path);
+      try {
+        sqlite.run(
+          "INSERT INTO users (id, username, password_hash, created_at) VALUES ('u', 'owner', 'x', 1)",
+        );
+        sqlite.run(
+          'INSERT INTO project (id, name, owner_id, restricted, estimate_method, start_date, revision, created_at)' +
+            " VALUES ('p', 'Rewire the shed', 'u', 0, 'pert', NULL, 0, 1)",
+        );
+        sqlite.run(
+          'INSERT INTO work_item (id, project_id, parent_id, position, name, notes, revision,' +
+            ' start_no_earlier_than, start_no_earlier_than_reason)' +
+            " VALUES ('w1', 'p', NULL, 10, 'Strip', '', 0, '2026-09-12', 'waiting on client sign-off')",
+        );
+      } finally {
+        sqlite.close();
+      }
+
+      expect(rollbackTo(db.path, FOLDER, ROLE_PROGRESS)).toEqual([NOT_BEFORE_REASON]);
+
+      const after = openDatabase(db.path);
+      try {
+        expect(
+          after
+            .query<
+              { n: number },
+              []
+            >("SELECT COUNT(*) AS n FROM pragma_table_info('work_item') WHERE name = 'start_no_earlier_than_reason'")
+            .get()?.n,
+        ).toBe(0);
+        // The date the words were about, still holding the row back.
+        expect(
+          after
+            .query<
+              { start_no_earlier_than: string | null },
+              []
+            >("SELECT start_no_earlier_than FROM work_item WHERE id = 'w1'")
+            .get()?.start_no_earlier_than,
+        ).toBe('2026-09-12');
       } finally {
         after.close();
       }
