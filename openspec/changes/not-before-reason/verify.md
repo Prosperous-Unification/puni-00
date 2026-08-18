@@ -187,18 +187,20 @@ with `cancel-in-progress: true`, and for a `pull_request` event that ref is the
 PR's merge ref — so **every push to the branch cancels the run still going for
 the previous head**, whatever it was doing.
 
-| run           | head      | result                                                                                                                |
-| ------------- | --------- | --------------------------------------------------------------------------------------------------------------------- |
-| `32121602067` | `659b675` | `gate` success, `pixels` cancelled; **rerun of the cancelled job: both jobs `success`**                               |
-| `32123853462` | `d43c034` | cancelled by the next push, mid-flight                                                                                |
-| `32123925221` | `7db69d3` | **`success`, both jobs, first attempt**                                                                               |
-| `32124927649` | `5c4b0dc` | cancelled by the next push, mid-flight                                                                                |
-| `32124993206` | `db60f98` | `gate` success, `pixels` red on the ws-proxy flood; **rerun clean, both jobs `success`** — the head this PR stands at |
+| run           | head      | result                                                                                   |
+| ------------- | --------- | ---------------------------------------------------------------------------------------- |
+| `32121602067` | `659b675` | `gate` success, `pixels` cancelled; **rerun of the cancelled job: both jobs `success`**  |
+| `32123853462` | `d43c034` | cancelled by the next push, mid-flight                                                   |
+| `32123925221` | `7db69d3` | **`success`, both jobs, first attempt**                                                  |
+| `32124927649` | `5c4b0dc` | cancelled by the next push, mid-flight                                                   |
+| `32124993206` | `db60f98` | `gate` success, `pixels` red on the ws-proxy flood; **rerun clean, both jobs `success`** |
+| `32126970167` | `b2b75c4` | **`success`, both jobs, first attempt** — the head this PR stands at                     |
 
 `659b675` is the head every number in the gate table above was measured at, and
 it is green on CI at that exact sha. Every commit after it is this file and
-prettier's passes over it; the head `db60f98` is green too, so the record holds
-at the head as well as at the measured sha.
+prettier's passes over it; the head `b2b75c4` is green too, so the record holds
+at the head as well as at the measured sha. Any commit later than `b2b75c4` is
+this paragraph and nothing else.
 
 Worth one line for the next agent, because it looks like a red the first time you
 meet it: **a `cancelled` job on this repo usually means you pushed again.** Let
