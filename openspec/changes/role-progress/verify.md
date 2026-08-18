@@ -190,6 +190,9 @@ reach of the branch, and a proxy the layout gate's web server cannot keep up.
 `gh run rerun --failed` passed clean — **`32081652671`, both jobs `success` on the
 rerun**.
 
+**Head `5a10b0e`, run `32083072390` — `success`, both jobs, first attempt.** Every
+number in the gate table above holds at that head.
+
 Four sightings is no longer a flake anybody should be re-diagnosing per PR. Two
 things would each have prevented this one: running `pixels` only when
 `apps/fe-01/**` changed, which was adopted on 2026-08-17 and not implemented; and
