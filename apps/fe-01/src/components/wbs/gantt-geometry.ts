@@ -1322,8 +1322,9 @@ const FLOOR_SENTENCE: Record<Exclude<BindingFloor, 'person' | 'capacity'>, strin
  * The sentence a not-before-floored bar shows: the floor, and — where somebody
  * wrote one — why it is there.
  *
- * *"Held by its start-no-earlier-than date — waiting on client sign-off"*. The
- * em-dash and the lower-case continuation are {@link personFloorWords}' and
+ * Reads: _"Held by its start-no-earlier-than date — waiting on client
+ * sign-off"_. The em-dash and the lower-case continuation are
+ * {@link personFloorWords}' and
  * {@link capacityFloorWords}' shape, deliberately: three floors that explain
  * themselves should explain themselves in one voice, and a reader moving
  * between bars should not have to notice which kind they are hovering.
