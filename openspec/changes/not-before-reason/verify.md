@@ -187,11 +187,11 @@ with `cancel-in-progress: true`, and for a `pull_request` event that ref is the
 PR's merge ref — so **every push to the branch cancels the run still going for
 the previous head**, whatever it was doing.
 
-| run           | head      | result                                         |
-| ------------- | --------- | ---------------------------------------------- |
+| run           | head      | result                                                                                  |
+| ------------- | --------- | --------------------------------------------------------------------------------------- |
 | `32121602067` | `659b675` | `gate` success, `pixels` cancelled; **rerun of the cancelled job: both jobs `success`** |
-| `32123853462` | `d43c034` | cancelled by the next push, mid-flight          |
-| `32123925221` | `7db69d3` | **`success`, both jobs, first attempt** — the head this PR stands at |
+| `32123853462` | `d43c034` | cancelled by the next push, mid-flight                                                  |
+| `32123925221` | `7db69d3` | **`success`, both jobs, first attempt** — the head this PR stands at                    |
 
 `659b675` is the head every number in the gate table above was measured at, and
 it is green on CI at that exact sha. The two commits after it are this file and
