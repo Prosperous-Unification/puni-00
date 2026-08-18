@@ -181,21 +181,30 @@ target passed here. The same gap `actual-days` and `role-progress` each recorded
 **Run `32121602067` at `659b675` — `success`, both jobs.** `gate` is the record
 for the two shellcheck build targets h2puni could not run.
 
-**It took a rerun, and not for a flake.** On the first attempt `gate` passed and
-`pixels` was **`cancelled`** — with no newer run to have cancelled it, which is
-the one thing the workflow's own `concurrency: cancel-in-progress` on
-`ci-${{ github.ref }}` can produce. `gh run list` shows a single run on this
-branch, so nothing superseded it. `gh run rerun --failed` then passed both jobs
-clean.
+**Three runs on this branch, and the two cancellations are the workflow's own
+`concurrency` rather than a flake.** `ci.yml` sets `group: ci-${{ github.ref }}`
+with `cancel-in-progress: true`, and for a `pull_request` event that ref is the
+PR's merge ref — so **every push to the branch cancels the run still going for
+the previous head**, whatever it was doing.
 
-Recorded rather than shrugged at, because it is adjacent to a class this repo has
-now seen five times: **a gate that reports something other than the state of the
-code.** A `cancelled` job is at least loud — it is not a green — and the two
-things that would each have avoided the round trip are the two already overdue:
-running `pixels` only when `apps/fe-01/**` changed (adopted 2026-08-17, still not
-implemented — and this branch _does_ touch `apps/fe-01`, so that would not have
-helped here), and whatever the ws-proxy floods in #73/#78/#79/#80 actually need.
-Neither is this change's.
+| run           | head      | result                                         |
+| ------------- | --------- | ---------------------------------------------- |
+| `32121602067` | `659b675` | `gate` success, `pixels` cancelled; **rerun of the cancelled job: both jobs `success`** |
+| `32123853462` | `d43c034` | cancelled by the next push, mid-flight          |
+| `32123925221` | `7db69d3` | **`success`, both jobs, first attempt** — the head this PR stands at |
+
+`659b675` is the head every number in the gate table above was measured at, and
+it is green on CI at that exact sha. The two commits after it are this file and
+prettier's pass over it; `7db69d3` is green too, so the record holds at the head
+as well as at the measured sha.
+
+Worth one line for the next agent, because it looks like a red the first time
+you meet it: **a `cancelled` job on this repo usually means you pushed again**,
+and the fix is to let the last push settle rather than to re-diagnose the
+`pixels` ws-proxy flood #73/#78/#79/#80 each recorded. That flood is a different
+failure — it reddens, it does not cancel — and running `pixels` only when
+`apps/fe-01/**` changed, adopted 2026-08-17 and still not implemented, would not
+have helped here either way: this branch does touch `apps/fe-01`.
 
 ## Failure-proof table (R5)
 
