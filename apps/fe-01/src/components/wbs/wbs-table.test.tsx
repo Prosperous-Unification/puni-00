@@ -8429,6 +8429,17 @@ describe('the widths the table is laid out by', () => {
         expect(control.style.width).toBe(`${String(DATE_EDITOR_WIDTH)}px`);
         continue;
       }
+      // The reason box is the second half of that same editor, not a second
+      // exception: absolutely positioned under the date, at the date's width
+      // because a box narrower than the day it explains reads as a different
+      // control. It is out of the flow, so it moves no cell and grows no
+      // column — the thing the rule is actually about. In the flow it would
+      // have to be `100%` like everything else.
+      if (control.hasAttribute('data-not-before-reason')) {
+        expect(control.style.width).toBe(`${String(DATE_EDITOR_WIDTH)}px`);
+        expect(control.style.position).toBe('absolute');
+        continue;
+      }
       // A control that asks for `22em` is a second opinion about how wide its
       // column is, and the one the browser takes when it is the wider of the
       // two.
