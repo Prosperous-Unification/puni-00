@@ -2564,6 +2564,7 @@ function rowOf(parts: {
     finalTotal: parts.finish - parts.start,
     dates: { startsOn: parts.startsOn, endsOn: parts.endsOn },
     startNoEarlierThan: parts.notBefore ?? null,
+    startNoEarlierThanReason: null,
     serviceTeamId: null,
     teamIds: [],
     assignees: {},

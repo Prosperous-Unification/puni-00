@@ -380,6 +380,7 @@ function fakeApi(): ProjectApi & {
         // because 1 and unset are the same fact.
         maxParallel: 1,
         startNoEarlierThan: null,
+        startNoEarlierThanReason: null,
         // Beside the date it explains, and null for the same reason: nobody has
         // said. A duplicate `teamIds` sat here until 2026-08-18 — harmless, and
         // only because nothing typechecks this file (`fe-01:typecheck` builds
@@ -7410,6 +7411,7 @@ describe('dependencies in the table — cross-review findings', () => {
             finalDays: {},
             finalTotal: 0,
             startNoEarlierThan: null,
+            startNoEarlierThanReason: null,
             serviceTeamId: null,
             teamIds: [],
             assignees: {},
@@ -7909,6 +7911,7 @@ describe('the chart under a plan being edited', () => {
               finalDays: {},
               finalTotal: 0,
               startNoEarlierThan: floored ? '2026-08-10' : null,
+              startNoEarlierThanReason: null,
               startNoEarlierThanReason: floored ? 'waiting on client sign-off' : null,
               serviceTeamId: null,
               teamIds: [],
