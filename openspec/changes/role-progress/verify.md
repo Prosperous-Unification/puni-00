@@ -190,8 +190,10 @@ reach of the branch, and a proxy the layout gate's web server cannot keep up.
 `gh run rerun --failed` passed clean — **`32081652671`, both jobs `success` on the
 rerun**.
 
-**Head `5a10b0e`, run `32083072390` — `success`, both jobs, first attempt.** Every
-number in the gate table above holds at that head.
+**Head `5a10b0e`, run `32083072390` — `success`, both jobs, first attempt.** The
+one commit after it, adding this paragraph, is `b1795c5`: run `32083772108`,
+`success`, both jobs, first attempt. Every number in the gate table above holds
+at that head — be-01 re-run there is 884 pass, 0 fail.
 
 Four sightings is no longer a flake anybody should be re-diagnosing per PR. Two
 things would each have prevented this one: running `pixels` only when
