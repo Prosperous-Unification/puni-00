@@ -181,10 +181,20 @@ condition `notes/delivery-modes.md` recorded as adopted on 2026-08-17 but which
 the workflow does not yet implement — 8m50s of a 12m round, on a diff of
 TypeScript, SQL and markdown. Worth doing, and it is not this change's to do.
 
-The commit that adds this paragraph is a **doc-only tail commit**, which is the
-exact shape that has reddened `pixels` on a ws-proxy `ECONNRESET`/`EPIPE` flood
-three times on this repo (#73, #78, and #79's own). Its run is recorded below if
-it needed one.
+**And the doc-only tail commit reddened `pixels`, for the fourth time on this
+repo.** Run `32081652671` at `0723ecc` — a commit touching this file and nothing
+else — failed `pixels` amid a flood of `[vite] ws proxy error: Error: write
+EPIPE` and `read ECONNRESET`, with `gate` green beside it. That is the same class
+#73, #78 and #79 each recorded: a markdown-only diff, no UI or CSS code within
+reach of the branch, and a proxy the layout gate's web server cannot keep up.
+`gh run rerun --failed` passed clean — **`32081652671`, both jobs `success` on the
+rerun**.
+
+Four sightings is no longer a flake anybody should be re-diagnosing per PR. Two
+things would each have prevented this one: running `pixels` only when
+`apps/fe-01/**` changed, which was adopted on 2026-08-17 and not implemented; and
+whatever fix the ws-proxy floods actually need. Neither is this change's, and both
+are now overdue.
 
 ## Failure-proof table (R5)
 
