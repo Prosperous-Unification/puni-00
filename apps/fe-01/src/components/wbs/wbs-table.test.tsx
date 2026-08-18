@@ -380,8 +380,12 @@ function fakeApi(): ProjectApi & {
         // because 1 and unset are the same fact.
         maxParallel: 1,
         startNoEarlierThan: null,
+        // Beside the date it explains, and null for the same reason: nobody has
+        // said. A duplicate `teamIds` sat here until 2026-08-18 — harmless, and
+        // only because nothing typechecks this file (`fe-01:typecheck` builds
+        // `tsconfig.app.json` and `tsconfig.e2e.json`, not `.spec`).
+        startNoEarlierThanReason: null,
         serviceTeamId: null,
-        teamIds: [],
         teamIds: [],
         assignees: {},
         doesEveryPhase: null,
@@ -1839,12 +1843,173 @@ describe('the plan on a calendar', () => {
     });
 
     // Cleared reads as '' from a date input, and means "no constraint" rather
-    // than "an empty date".
+    // than "an empty date" — and it takes the words about that date with it,
+    // because be-01 refuses the pair the other way round. See the test below.
     typeIntoNotBefore('010', '');
 
     await waitFor(() => {
-      expect(patched).toEqual([{ startNoEarlierThan: '2026-08-12' }, { startNoEarlierThan: null }]);
+      expect(patched).toEqual([
+        { startNoEarlierThan: '2026-08-12' },
+        { startNoEarlierThan: null, startNoEarlierThanReason: null },
+      ]);
     });
+  });
+
+  itDom('clears the words with the day, in the one request', async () => {
+    // The pair rule is be-01's, since `not-before-reason` (#81): a reason with
+    // no date to be about is `not_before_reason_needs_a_date`, **400**. So a
+    // bare `{ startNoEarlierThan: null }` stops clearing the date on exactly
+    // the rows somebody has taken the trouble to explain, and it fails in their
+    // face rather than quietly.
+    //
+    // Proof: `startNoEarlierThanReason: null` dropped from the null arm of
+    // `setNotBefore`, this fails on `expected [ { startNoEarlierThan: null } ]
+    // to deeply equal [ { startNoEarlierThan: null, startNoEarlierThanReason:
+    // null } ]`. Watched, 2026-08-18.
+    const api = await oneRow();
+    typeIntoDate('Project start date', '2026-08-06');
+    await waitFor(() => {
+      expect(screen.getByLabelText<HTMLInputElement>('Earliest start for 010').disabled).toBe(
+        false,
+      );
+    });
+    const explained = api.rows.at(0);
+    if (explained === undefined) throw new Error('the plan has no row');
+    explained.startNoEarlierThan = '2026-09-12';
+    explained.startNoEarlierThanReason = 'waiting on client sign-off';
+    // A refetch, so the table is showing the explained row rather than the
+    // blank one it created.
+    click('Add work item');
+    await waitFor(() => {
+      expect(screen.getByLabelText<HTMLInputElement>('Earliest start for 010').value).toBe(
+        '12 Sep',
+      );
+    });
+
+    const patched: unknown[] = [];
+    const realPatch = api.patch.bind(api);
+    api.patch = (id: string, patch: Record<string, unknown>) => {
+      patched.push(patch);
+      return realPatch(id, patch);
+    };
+
+    typeIntoNotBefore('010', '');
+
+    await waitFor(() => {
+      expect(patched).toEqual([{ startNoEarlierThan: null, startNoEarlierThanReason: null }]);
+    });
+  });
+
+  itDom('takes the words about the date, and does not shut on the way to them', async () => {
+    // Two boxes, one editor. `DateField`'s `onExit` reports the blur and not
+    // where the focus went, so the cell's wrapper is what asks — `focusout`
+    // bubbles and carries `relatedTarget`.
+    //
+    // Proof: the wrapper's `contains(relatedTarget)` guard replaced by a bare
+    // `close()`, this fails on `expected null not to be null` — the panel shuts
+    // on the way to the reason box and there is nothing left to type into.
+    // Watched, 2026-08-18.
+    const api = await oneRow();
+    typeIntoDate('Project start date', '2026-08-06');
+    await waitFor(() => {
+      expect(screen.getByLabelText<HTMLInputElement>('Earliest start for 010').disabled).toBe(
+        false,
+      );
+    });
+    const patched: unknown[] = [];
+    const realPatch = api.patch.bind(api);
+    api.patch = (id: string, patch: Record<string, unknown>) => {
+      patched.push(patch);
+      return realPatch(id, patch);
+    };
+
+    const editor = openNotBefore('010');
+    const reason = screen.getByLabelText<HTMLInputElement>('Why 010 may not start earlier');
+
+    fireEvent.blur(editor, { relatedTarget: reason });
+
+    expect(screen.queryByLabelText('Why 010 may not start earlier')).not.toBeNull();
+
+    // Trimmed on the way out, so there is one spelling of every sentence.
+    fireEvent.change(reason, { target: { value: '  waiting on client sign-off  ' } });
+    fireEvent.blur(reason);
+
+    await waitFor(() => {
+      expect(patched).toEqual([{ startNoEarlierThanReason: 'waiting on client sign-off' }]);
+    });
+    // And that blur had nowhere inside the editor to go, so it closed it.
+    expect(screen.queryByLabelText('Why 010 may not start earlier')).toBeNull();
+  });
+
+  itDom('spells an emptied reason box as “nobody has said”', async () => {
+    // `null`, not `''`: one spelling of the absence, which is the same call the
+    // Prio cell makes about an emptied number and the one thing be-01 cannot
+    // see from a request that omits the field.
+    const api = await oneRow();
+    typeIntoDate('Project start date', '2026-08-06');
+    await waitFor(() => {
+      expect(screen.getByLabelText<HTMLInputElement>('Earliest start for 010').disabled).toBe(
+        false,
+      );
+    });
+    const explained = api.rows.at(0);
+    if (explained === undefined) throw new Error('the plan has no row');
+    explained.startNoEarlierThan = '2026-09-12';
+    explained.startNoEarlierThanReason = 'waiting on client sign-off';
+    click('Add work item');
+    await waitFor(() => {
+      expect(screen.getByLabelText<HTMLInputElement>('Earliest start for 010').value).toBe(
+        '12 Sep',
+      );
+    });
+
+    const patched: unknown[] = [];
+    const realPatch = api.patch.bind(api);
+    api.patch = (id: string, patch: Record<string, unknown>) => {
+      patched.push(patch);
+      return realPatch(id, patch);
+    };
+
+    openNotBefore('010');
+    const reason = screen.getByLabelText<HTMLInputElement>('Why 010 may not start earlier');
+    // The box opens holding what the server said, which is the other half of
+    // this: a reader edits the sentence rather than retyping it.
+    expect(reason.value).toBe('waiting on client sign-off');
+    fireEvent.change(reason, { target: { value: '' } });
+    fireEvent.blur(reason);
+
+    await waitFor(() => {
+      expect(patched).toEqual([{ startNoEarlierThanReason: null }]);
+    });
+  });
+
+  itDom('says why the date is there, on the cell at rest', async () => {
+    // Appended, never substituted — the same bargain `floorWordsOf` strikes on
+    // the bar. What the constraint *does* is the part a reader cannot work out;
+    // what it is *for* is the part only a planner can say.
+    const api = await oneRow();
+    typeIntoDate('Project start date', '2026-08-06');
+    await waitFor(() => {
+      expect(screen.getByLabelText<HTMLInputElement>('Earliest start for 010').disabled).toBe(
+        false,
+      );
+    });
+    const explained = api.rows.at(0);
+    if (explained === undefined) throw new Error('the plan has no row');
+    explained.startNoEarlierThan = '2026-09-12';
+    explained.startNoEarlierThanReason = 'waiting on client sign-off';
+    click('Add work item');
+
+    await waitFor(() => {
+      const cell = screen.getByLabelText<HTMLInputElement>('Earliest start for 010');
+      expect(cell.title).toBe(
+        '2026-09-12. This work item may not start before this day. Its dependencies can still push it later. Why: waiting on client sign-off',
+      );
+    });
+    // And a row nobody has explained says exactly what it said before.
+    expect(screen.getByLabelText<HTMLInputElement>('Earliest start for 020').title).toBe(
+      'This work item may not start before this day. Its dependencies can still push it later.',
+    );
   });
 });
 
@@ -7708,7 +7873,11 @@ describe('the chart under a plan being edited', () => {
               workItemId: 'w1',
               roleId: DEV.id,
               personId: null,
-              boundBy: 'projectStart' as const,
+              // Which floor binds moves with the edit, the way be-01's does: a
+              // row with a not-before that pushed it is a slice bound by that
+              // date, and it is the one floor whose sentence has words of its
+              // own to carry.
+              boundBy: floored ? ('notBefore' as const) : ('projectStart' as const),
               resourcePredecessorId: null,
               width: 1,
               effort: 3,
@@ -7740,6 +7909,7 @@ describe('the chart under a plan being edited', () => {
               finalDays: {},
               finalTotal: 0,
               startNoEarlierThan: floored ? '2026-08-10' : null,
+              startNoEarlierThanReason: floored ? 'waiting on client sign-off' : null,
               serviceTeamId: null,
               teamIds: [],
               assignees: {},
@@ -7787,6 +7957,30 @@ describe('the chart under a plan being edited', () => {
       expect(bar()?.getAttribute('data-start')).toBe('16');
     });
     expect(rowFor('010').querySelector('[data-start]')?.textContent).toBe('16');
+  });
+
+  itDom('says on the bar why the date that holds it is there', async () => {
+    // The wiring `not-before-reason` (#81) could not do from its own side: the
+    // chart row is built in this file, and a `GanttRow` that carried no reason
+    // left `floorWordsOf` appending nothing to a sentence it was already
+    // printing. The words themselves are `gantt-geometry`'s and tested there.
+    //
+    // Proof: `notBeforeReason` dropped from `ganttPlan`'s row literal, this
+    // fails on `expected 'Strip. 1 person. Held by its start-no-earlier-than
+    // date' to contain 'Held by its start-no-earlier-than date — waiting on
+    // client sign-off'`. Watched, 2026-08-18.
+    render(<WbsTable projectId="p1" api={apiWithMovableFloor()} />);
+    await waitFor(() => rowFor('010'));
+    fireEvent.click(screen.getByRole('button', { name: 'Gantt' }));
+    const bar = () => document.querySelector('[data-gantt-bar]');
+
+    typeIntoNotBefore('010', '2026-08-10');
+
+    await waitFor(() => {
+      expect(bar()?.getAttribute('aria-label')).toContain(
+        'Held by its start-no-earlier-than date — waiting on client sign-off',
+      );
+    });
   });
 });
 
