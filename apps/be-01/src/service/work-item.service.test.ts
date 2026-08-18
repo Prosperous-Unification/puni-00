@@ -1,3 +1,4 @@
+import { workdaysBetween } from '@wbs/domain';
 import { beforeEach, describe, expect, it } from 'bun:test';
 
 import type {
@@ -1786,6 +1787,14 @@ describe('what a not-before reason does not do', () => {
     // a day — and this fails with every date downstream moved; watched
     // 2026-08-18. `service/schedule.ts` has an empty diff on this branch and
     // this is the behavioural half of that claim.
+    // **The project needs a start date and the floor has to bind.** Without a
+    // start date the engine never builds the not-before map at all — the
+    // `if (project.startDate !== null)` in `tree` — so a plan with no calendar
+    // would schedule identically whatever this column said, and the assertion
+    // below would hold for a reason that has nothing to do with this change.
+    // That vacuity was real: the first version of this case ran on the default
+    // project (`startDate: null`) and passed under its own injected fault.
+    await projects.update(projectId, { startDate: '2026-08-06' });
     const strip = await add('Strip');
     const sand = await add('Sand');
     await service.setEstimate(strip, OWNER, roleId, {
@@ -1801,6 +1810,11 @@ describe('what a not-before reason does not do', () => {
     await service.addDependency(sand, OWNER, strip);
     await service.patch(strip, OWNER, { startNoEarlierThan: '2026-09-01' });
     const before = await service.tree(projectId);
+    // The floor is the thing being held still, so it has to be holding
+    // something first: `010` starts on its date rather than on day zero.
+    expect(before?.workItems.find((row) => row.name === 'Strip')?.schedule.earliestStart).toBe(
+      workdaysBetween('2026-08-06', '2026-09-01'),
+    );
 
     await service.patch(strip, OWNER, {
       startNoEarlierThanReason: 'waiting on client sign-off',
