@@ -187,12 +187,12 @@ with `cancel-in-progress: true`, and for a `pull_request` event that ref is the
 PR's merge ref — so **every push to the branch cancels the run still going for
 the previous head**, whatever it was doing.
 
-| run           | head      | result                                                                                  |
-| ------------- | --------- | --------------------------------------------------------------------------------------- |
-| `32121602067` | `659b675` | `gate` success, `pixels` cancelled; **rerun of the cancelled job: both jobs `success`** |
-| `32123853462` | `d43c034` | cancelled by the next push, mid-flight                                                  |
-| `32123925221` | `7db69d3` | **`success`, both jobs, first attempt**                                                 |
-| `32124927649` | `5c4b0dc` | cancelled by the next push, mid-flight                                                 |
+| run           | head      | result                                                                                                                |
+| ------------- | --------- | --------------------------------------------------------------------------------------------------------------------- |
+| `32121602067` | `659b675` | `gate` success, `pixels` cancelled; **rerun of the cancelled job: both jobs `success`**                               |
+| `32123853462` | `d43c034` | cancelled by the next push, mid-flight                                                                                |
+| `32123925221` | `7db69d3` | **`success`, both jobs, first attempt**                                                                               |
+| `32124927649` | `5c4b0dc` | cancelled by the next push, mid-flight                                                                                |
 | `32124993206` | `db60f98` | `gate` success, `pixels` red on the ws-proxy flood; **rerun clean, both jobs `success`** — the head this PR stands at |
 
 `659b675` is the head every number in the gate table above was measured at, and
