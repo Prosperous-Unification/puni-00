@@ -636,6 +636,100 @@ export const workItemTeam = sqliteTable(
 export type WorkItemTeamRow = typeof workItemTeam.$inferSelect;
 
 /**
+ * What kind of thing a work item is — `regulatory`, `tech-debt`, `q3-must-have`.
+ *
+ * Dany, 2026-08-19: _"Ok let's add tags - might be useful."_ R2-5 designed this
+ * dimension already, under the name `service`, and `notes/decisions.md:85`
+ * dropped it pointing at R10; this is that design built, `service` renamed to
+ * `tag` and nothing else about it changed.
+ *
+ * **What this table is not, and the absences are the design.** Not a pool: there
+ * is no `size` here and no per-project table beside it, so nothing anywhere can
+ * ask how many of a tag may be at work at once. Not a size. **Not anything a
+ * date reads** — {@link serviceTeam} answers _who does the work_ and the
+ * scheduler spends its capacity; a tag answers _what kind of thing this is_ and
+ * `service/schedule.ts` has an empty diff in the change that adds it, watched by
+ * a test that wires the scheduler to a tag and shows every downstream date
+ * moving. The directory page renders these with no capacity column and no
+ * membership chips for the same reason: a reader who sees no capacity column
+ * learns the model rule without being told it.
+ *
+ * **Global — no project column**, mirroring {@link serviceTeam} exactly. A label
+ * that meant one thing on one plan and another on the next would make the
+ * directory a per-project screen and the filter a per-project vocabulary, and
+ * neither is what a tag is for.
+ *
+ * `name` is `NOT NULL` with a unique index on it, and the index is what lets a
+ * rename answer `taken` with the surviving name rather than writing a second row
+ * that reads identically. Two tags spelled the same are two answers to one
+ * question — {@link serviceTeam}'s `service_team_name`, one table up.
+ */
+export const tag = sqliteTable(
+  'tag',
+  {
+    id: text('id').primaryKey(),
+    name: text('name').notNull(),
+  },
+  (t) => [uniqueIndex('tag_name').on(t.name)],
+);
+
+export type TagRow = typeof tag.$inferSelect;
+
+/**
+ * Which tags one work item carries — **several**, and independently of its teams.
+ *
+ * The pair is the primary key because the pair is the fact: "this work item is
+ * regulatory" is either stated or not, and a second row saying it again would be
+ * a second answer to one question. {@link workItemTeam}'s shape, one table up,
+ * and the deliberate sameness is the point — an item answers _who_ and _what
+ * kind_ at once, through two tables of identical shape that nothing joins to
+ * each other.
+ *
+ * **Both sides cascade, and this is where the tag differs from
+ * {@link roleProgress}.** There, `role_id` deliberately does not cascade, because
+ * a state is somebody's statement about their own work and a role removal must
+ * count it before taking it. A tag is a label: deleting the label should take the
+ * labelling with it, and there is nothing to count that the label itself was not.
+ * The cascade on `work_item_id` carries {@link workItemTeam}'s argument
+ * unchanged — blue and green share one SQLite file during a swap, the outgoing
+ * release knows nothing about this table, and its plain `DELETE FROM work_item`
+ * must not hit a constraint it cannot see.
+ *
+ * The cascade on `tag_id` is also the whole of what `DELETE /api/tags/:id`
+ * does to plans: the route counts what it would unlabel, refuses with 409 unless
+ * `?cascade=1`, and then deletes the tag and lets the database remove the
+ * labelling. Nothing in be-01 deletes rows from this table on its own.
+ *
+ * **Inheritance is not stored here.** A row with no rows in this table inherits
+ * its ancestor's tags, and one with rows overrides them — override, per
+ * dimension, independently, R2's Q4. That is computed by `effectiveTagsOf` on
+ * every read, exactly as `effectiveTeamsOf` computes the other dimension, and
+ * nothing denormalised is ever written. Blank means inherit; there is no third
+ * "deliberately none" state, exactly as there is none for teams.
+ *
+ * Indexed by tag, because the directory asks "what would removing this tag
+ * touch" of every project at once and the primary key answers only the other
+ * direction — {@link workItemTeam}'s `work_item_team_by_team`.
+ */
+export const workItemTag = sqliteTable(
+  'work_item_tag',
+  {
+    workItemId: text('work_item_id')
+      .notNull()
+      .references(() => workItem.id, { onDelete: 'cascade' }),
+    tagId: text('tag_id')
+      .notNull()
+      .references(() => tag.id, { onDelete: 'cascade' }),
+  },
+  (t) => [
+    primaryKey({ columns: [t.workItemId, t.tagId] }),
+    index('work_item_tag_by_tag').on(t.tagId),
+  ],
+);
+
+export type WorkItemTagRow = typeof workItemTag.$inferSelect;
+
+/**
  * How many of one team may be at work at once **on one project's plan**.
  *
  * Dany, 2026-08-13, and the second sentence is the one that shapes this table:

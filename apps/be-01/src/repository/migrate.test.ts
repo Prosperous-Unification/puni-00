@@ -85,6 +85,16 @@ const ROLE_PROGRESS = '20260818010000_add_role_progress';
  * check.
  */
 const NOT_BEFORE_REASON = '20260818090000_add_not_before_reason';
+/**
+ * The newest, and **two** tables in one folder — the directory and its join.
+ *
+ * Stamped `20260819120000`, later than all twenty-one folders that were on disk
+ * when it was written. The stamps were listed and checked for a duplicate before
+ * the folder existed — verify.md quotes the run — and `refuses a folder set that
+ * shares one stamp between two migrations` in `migrate-down.test.ts` is the
+ * mechanical half of the same check.
+ */
+const TAG = '20260819120000_add_tag';
 
 const WBS_TABLES = ['project', 'work_item', 'role', 'estimate'] as const;
 // Its own migration, reversed with the domain because it references `work_item`.
@@ -104,6 +114,10 @@ const ACTUAL_TABLES = ['actual'] as const;
 // Its own migration, reversed with the domain for `ACTUAL_TABLES`' reason: it
 // references `work_item` and `role` too.
 const ROLE_PROGRESS_TABLES = ['role_progress'] as const;
+// Its own migration, and the only one that adds two tables. `work_item_tag`
+// references `work_item`, so both reverse with the domain; `tag` itself
+// references nothing and reverses with them only because they arrived together.
+const TAG_TABLES = ['tag', 'work_item_tag'] as const;
 
 function tempDb(): { path: string; cleanup: () => void } {
   const dir = mkdtempSync(join(tmpdir(), 'wbs-migrate-'));
@@ -141,6 +155,7 @@ describe('the WBS domain migration', () => {
         ...TEAM_SET_TABLES,
         ...ACTUAL_TABLES,
         ...ROLE_PROGRESS_TABLES,
+        ...TAG_TABLES,
       ])
         expect(tables(db.path)).toContain(t);
     } finally {
@@ -162,6 +177,7 @@ describe('the WBS domain migration', () => {
       // ahead of the column it was seeded from, which is the only order in
       // which its foreign keys still have something to point at.
       expect(reversed).toEqual([
+        TAG,
         NOT_BEFORE_REASON,
         ROLE_PROGRESS,
         ACTUAL,
@@ -191,6 +207,7 @@ describe('the WBS domain migration', () => {
         ...TEAM_SET_TABLES,
         ...ACTUAL_TABLES,
         ...ROLE_PROGRESS_TABLES,
+        ...TAG_TABLES,
       ])
         expect(tables(db.path)).not.toContain(t);
       // Reversing the domain must not take the accounts with it: the two
@@ -474,6 +491,7 @@ describe('the capacity migrations', () => {
       const reversed = rollbackTo(db.path, FOLDER, PRIORITY);
 
       expect(reversed).toEqual([
+        TAG,
         NOT_BEFORE_REASON,
         ROLE_PROGRESS,
         ACTUAL,
@@ -922,6 +940,7 @@ describe('the work item team migration', () => {
       // migration's business, and named rather than filtered out so the list stays
       // the literal answer `rollbackTo` gave.
       expect(reversed).toEqual([
+        TAG,
         NOT_BEFORE_REASON,
         ROLE_PROGRESS,
         ACTUAL,
@@ -1145,6 +1164,7 @@ describe('the priority band migration', () => {
       // filtered, so the list is the literal answer `rollbackTo` gave and not a
       // subset somebody chose.
       expect(rollbackTo(db.path, FOLDER, PER_PROJECT_CAPACITY)).toEqual([
+        TAG,
         NOT_BEFORE_REASON,
         ROLE_PROGRESS,
         ACTUAL,
@@ -1422,6 +1442,7 @@ describe('the plan event migration', () => {
       }
 
       expect(rollbackTo(db.path, FOLDER, PRIORITY_BANDS)).toEqual([
+        TAG,
         NOT_BEFORE_REASON,
         ROLE_PROGRESS,
         ACTUAL,
@@ -1635,6 +1656,7 @@ describe('the actual migration', () => {
       seeded(db.path);
 
       expect(rollbackTo(db.path, FOLDER, PLAN_EVENT)).toEqual([
+        TAG,
         NOT_BEFORE_REASON,
         ROLE_PROGRESS,
         ACTUAL,
@@ -1892,7 +1914,7 @@ describe('the role progress migration', () => {
       runMigrations(db.path, FOLDER);
       seeded(db.path);
 
-      expect(rollbackTo(db.path, FOLDER, ACTUAL)).toEqual([NOT_BEFORE_REASON, ROLE_PROGRESS]);
+      expect(rollbackTo(db.path, FOLDER, ACTUAL)).toEqual([TAG, NOT_BEFORE_REASON, ROLE_PROGRESS]);
 
       const after = openDatabase(db.path);
       try {
@@ -2129,7 +2151,7 @@ describe('the not-before reason migration', () => {
         sqlite.close();
       }
 
-      expect(rollbackTo(db.path, FOLDER, ROLE_PROGRESS)).toEqual([NOT_BEFORE_REASON]);
+      expect(rollbackTo(db.path, FOLDER, ROLE_PROGRESS)).toEqual([TAG, NOT_BEFORE_REASON]);
 
       const after = openDatabase(db.path);
       try {
@@ -2153,6 +2175,242 @@ describe('the not-before reason migration', () => {
       } finally {
         after.close();
       }
+    } finally {
+      db.cleanup();
+    }
+  });
+});
+
+describe('the tag migration', () => {
+  /**
+   * A plan with one labelled work item: a project, an item, two tags, and the
+   * item carrying both. Enough to watch a cascade take rows, and enough to watch
+   * a rollback leave the figures alone.
+   */
+  function seeded(dbPath: string): void {
+    const sqlite = openDatabase(dbPath);
+    try {
+      sqlite.run(
+        "INSERT INTO users (id, username, password_hash, created_at) VALUES ('u', 'owner', 'x', 1)",
+      );
+      sqlite.run(
+        'INSERT INTO project (id, name, owner_id, restricted, estimate_method, start_date, revision, created_at)' +
+          " VALUES ('p', 'Rewire the shed', 'u', 0, 'pert', NULL, 0, 1)",
+      );
+      sqlite.run(
+        'INSERT INTO work_item (id, project_id, parent_id, position, name, notes, revision)' +
+          " VALUES ('w1', 'p', NULL, 10, 'Strip the roof', '', 0)",
+      );
+      sqlite.run("INSERT INTO tag (id, name) VALUES ('g1', 'regulatory')");
+      sqlite.run("INSERT INTO tag (id, name) VALUES ('g2', 'tech-debt')");
+      sqlite.run("INSERT INTO work_item_tag (work_item_id, tag_id) VALUES ('w1', 'g1')");
+      sqlite.run("INSERT INTO work_item_tag (work_item_id, tag_id) VALUES ('w1', 'g2')");
+    } finally {
+      sqlite.close();
+    }
+  }
+
+  function labelCount(dbPath: string): number {
+    const sqlite = openDatabase(dbPath);
+    try {
+      return (
+        sqlite
+          .query<{ n: number }, []>('SELECT COUNT(*) AS n FROM work_item_tag')
+          .get()?.n ?? -1
+      );
+    } finally {
+      sqlite.close();
+    }
+  }
+
+  it('creates the directory and its join, and the directory carries no size', () => {
+    // The defining absence, asserted rather than described: a tag has no pool
+    // and no size, so there is no column here for one and no per-project table
+    // beside it. If a later change adds capacity to a tag it has to delete this
+    // assertion to do it, and deleting it is the conversation.
+    const db = tempDb();
+    try {
+      runMigrations(db.path, FOLDER);
+      for (const t of TAG_TABLES) expect(tables(db.path)).toContain(t);
+
+      const sqlite = openDatabase(db.path);
+      try {
+        const columns = sqlite
+          .query<{ name: string }, []>("SELECT name FROM pragma_table_info('tag')")
+          .all()
+          .map((c) => c.name);
+        expect(columns).toEqual(['id', 'name']);
+        // No project column: a tag means the same thing on every plan, which is
+        // what makes the directory one screen and the filter one vocabulary.
+        expect(columns).not.toContain('project_id');
+        expect(columns).not.toContain('size');
+        expect(tables(db.path)).not.toContain('project_tag_capacity');
+      } finally {
+        sqlite.close();
+      }
+    } finally {
+      db.cleanup();
+    }
+  });
+
+  it('refuses a second tag spelled exactly like the first', () => {
+    // What the unique index buys: a rename can answer `taken` with the surviving
+    // name instead of writing a second row that reads identically. Two tags
+    // spelled the same are two answers to one question.
+    //
+    // Proof: `CREATE UNIQUE INDEX` weakened to `CREATE INDEX` in migration.sql
+    // and this fails with the second row written instead of rejected — a
+    // directory with two `regulatory` tags, and a filter facet that has to pick
+    // one of them. Watched 2026-08-19, see verify.md.
+    const db = tempDb();
+    try {
+      runMigrations(db.path, FOLDER);
+      const sqlite = openDatabase(db.path);
+      try {
+        sqlite.run("INSERT INTO tag (id, name) VALUES ('g1', 'regulatory')");
+        expect(() =>
+          sqlite.run("INSERT INTO tag (id, name) VALUES ('g2', 'regulatory')"),
+        ).toThrow(/UNIQUE/i);
+      } finally {
+        sqlite.close();
+      }
+    } finally {
+      db.cleanup();
+    }
+  });
+
+  it('lets the outgoing release keep deleting work items against the migrated schema', () => {
+    // The blue/green half. Two be-01 processes share one SQLite file while green
+    // migrates, the outgoing release knows nothing about `work_item_tag`, and
+    // its plain `DELETE FROM work_item` must not hit a constraint it cannot see.
+    //
+    // Proof: `ON DELETE CASCADE` struck from `work_item_id` in migration.sql and
+    // this fails on that exact statement with `FOREIGN KEY constraint failed` —
+    // every delete of a labelled work item answering 500 for the length of a
+    // swap. Watched 2026-08-19, see verify.md.
+    const db = tempDb();
+    try {
+      runMigrations(db.path, FOLDER);
+      seeded(db.path);
+      expect(labelCount(db.path)).toBe(2);
+
+      const sqlite = openDatabase(db.path);
+      try {
+        sqlite.run("DELETE FROM work_item WHERE id = 'w1'");
+      } finally {
+        sqlite.close();
+      }
+
+      expect(labelCount(db.path)).toBe(0);
+    } finally {
+      db.cleanup();
+    }
+  });
+
+  it('takes the labelling with the label, which is where a tag differs from a progress state', () => {
+    // `role_progress.role_id` deliberately does not cascade: a state is
+    // somebody's statement about their own work, so a role removal must count it
+    // before taking it. A tag is a label — deleting the label should take the
+    // labelling with it, and there is nothing to count that the label itself was
+    // not. `DELETE /api/tags/:id` still counts first and still refuses with 409
+    // unless `?cascade=1`; the count is for the person pressing the button.
+    //
+    // Proof: `ON DELETE CASCADE` struck from `tag_id` in migration.sql and this
+    // fails with `FOREIGN KEY constraint failed` on the delete — the cascade
+    // route answering 500 for every tag anybody has ever used. Watched
+    // 2026-08-19, see verify.md.
+    const db = tempDb();
+    try {
+      runMigrations(db.path, FOLDER);
+      seeded(db.path);
+
+      const sqlite = openDatabase(db.path);
+      try {
+        sqlite.run("DELETE FROM tag WHERE id = 'g1'");
+        // Only the removed label's rows go. The other tag still labels the item,
+        // which is the difference between a cascade and a clear.
+        expect(
+          sqlite
+            .query<
+              { tag_id: string },
+              []
+            >("SELECT tag_id FROM work_item_tag WHERE work_item_id = 'w1'")
+            .all()
+            .map((r) => r.tag_id),
+        ).toEqual(['g2']);
+        // And the work item itself is untouched: the cascade runs one way.
+        expect(
+          sqlite
+            .query<{ n: number }, []>("SELECT COUNT(*) AS n FROM work_item WHERE id = 'w1'")
+            .get()?.n,
+        ).toBe(1);
+      } finally {
+        sqlite.close();
+      }
+    } finally {
+      db.cleanup();
+    }
+  });
+
+  it('takes both tables away on the way back, and the plan survives the round trip', () => {
+    // The rollback, and then forward again — down, up, and the row that was never
+    // this migration's to hold is still there. What is lost is the labelling;
+    // what survives is the plan, because the two dimensions share no row.
+    //
+    // The re-apply is the half that catches the bookkeeping: if `down.sql`
+    // dropped the rows and left the tables, or dropped the tables and left the
+    // `__drizzle_migrations` entry, this second `runMigrations` would either skip
+    // a table it believes is there or fail on `table tag already exists`.
+    //
+    // Proof: `DROP TABLE IF EXISTS work_item_tag` struck from down.sql and this
+    // fails on the re-apply with `table work_item_tag already exists` — a
+    // rollback that reports success while leaving half the migration standing,
+    // which is the exact shape of the 2026-08-14 collision. Watched 2026-08-19,
+    // see verify.md.
+    const db = tempDb();
+    try {
+      runMigrations(db.path, FOLDER);
+      seeded(db.path);
+
+      expect(rollbackTo(db.path, FOLDER, NOT_BEFORE_REASON)).toEqual([TAG]);
+      for (const t of TAG_TABLES) expect(tables(db.path)).not.toContain(t);
+
+      const after = openDatabase(db.path);
+      try {
+        // The indexes go with the tables rather than being left behind pointing
+        // at something that is gone.
+        expect(
+          after
+            .query<
+              { n: number },
+              []
+            >("SELECT COUNT(*) AS n FROM sqlite_master WHERE type='index' AND (name LIKE 'tag%' OR name LIKE 'work_item_tag%')")
+            .get()?.n,
+        ).toBe(0);
+        // Untouched, and this is the whole claim of the down script: a plan that
+        // loses its labels keeps every work item anybody typed.
+        expect(
+          after
+            .query<{ name: string }, []>("SELECT name FROM work_item WHERE id = 'w1'")
+            .get()?.name,
+        ).toBe('Strip the roof');
+      } finally {
+        after.close();
+      }
+
+      runMigrations(db.path, FOLDER);
+      for (const t of TAG_TABLES) expect(tables(db.path)).toContain(t);
+      // Empty rather than restored: the rollback took the labelling and nothing
+      // replays it. The tables come back usable, which is what re-applying means.
+      expect(labelCount(db.path)).toBe(0);
+      const again = openDatabase(db.path);
+      try {
+        again.run("INSERT INTO tag (id, name) VALUES ('g3', 'q3-must-have')");
+        again.run("INSERT INTO work_item_tag (work_item_id, tag_id) VALUES ('w1', 'g3')");
+      } finally {
+        again.close();
+      }
+      expect(labelCount(db.path)).toBe(1);
     } finally {
       db.cleanup();
     }
