@@ -786,10 +786,12 @@ function revertTo(before: LabelledWorkItem, patch: WorkItemPatch): WorkItemPatch
   // patch.
   //
   // Proof: written as `out.tagIds = before.tagIds.slice(0, 1)` — the scalar
-  // habit, keeping "the tag" — and `puts a replaced tag set back, whole` failed
-  // on `expected [ "regulatory" ] to deeply equal [ "regulatory", "tech-debt" ]`:
-  // a pressable undo that reports done and leaves the row carrying one of the
-  // two labels it had. Watched 2026-08-19, see verify.md.
+  // habit, keeping "the tag" — and **68 pass, 1 fail**: `puts a replaced tag
+  // set back, whole` failed on `expect(received).toEqual(expected)` with one of
+  // the two restored ids missing from the array. A pressable undo that reports
+  // **done** and leaves the row carrying one of the two labels it had, which is
+  // the whole failure mode this field's design is about — nothing else in the
+  // suite notices. Watched 2026-08-19, see verify.md.
   if (patch.tagIds !== undefined) out.tagIds = before.tagIds;
   // `before.maxParallel` is a number and never null — the column is `NOT NULL`
   // — so the inverse of a reset to 1 is the stored number itself rather than a
