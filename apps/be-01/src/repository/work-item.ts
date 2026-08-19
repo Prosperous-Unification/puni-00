@@ -222,7 +222,9 @@ export class WorkItemRepository implements WorkItemStore {
     // column for it. Spread into the `SET` it would reach drizzle as a field
     // `work_item` does not have — the set lives in `work_item_tag` and is
     // written below, in this same transaction.
-    const { maxParallel, tagIds: _tagIds, ...fields } = patch;
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars -- destructured to
+    // keep `tagIds` out of the `SET`; see above.
+    const { maxParallel, tagIds, ...fields } = patch;
     const written =
       maxParallel === undefined ? fields : { ...fields, maxParallel: maxParallel ?? 1 };
     return this.db.transaction((tx) => {

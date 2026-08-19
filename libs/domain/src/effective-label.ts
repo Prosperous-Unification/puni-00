@@ -77,6 +77,8 @@ export interface EffectiveLabels {
  * it draws a whole plan: a per-row call would re-walk the ancestry for each of
  * them, which is quadratic in the depth.
  *
+ * @param rows every row of the plan, in any order — the walk memoises, so a
+ * deepest-first list costs no more than a shallowest-first one.
  * @param labelsOf the row's **own** stored set, empty meaning unstated.
  * @param wrap builds the dimension's answer from the set and the row that
  * states it. Called once per stating row, so every row that inherits holds the
