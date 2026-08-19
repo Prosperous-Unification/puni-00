@@ -194,7 +194,15 @@ export class WorkItemRepository implements WorkItemStore {
       patch.startNoEarlierThanReason === undefined &&
       patch.priority === undefined &&
       patch.serviceTeamId === undefined &&
-      patch.maxParallel === undefined
+      patch.maxParallel === undefined &&
+      // Proof: this line missing is how the tag write path was first written,
+      // and all six cases in `a tag set is undone whole, which a scalar habit
+      // would not do` failed — the first read is `expected [ "…" ] to deeply
+      // equal []`. A patch naming only the tags took this branch, wrote
+      // nothing, and answered `ok` with the row it had found: every face
+      // reporting a successful write that never happened. Found by the tests
+      // rather than by reading, 2026-08-19.
+      patch.tagIds === undefined
     ) {
       const found = await this.findById(id);
       return found === null ? { ok: false, reason: 'not_found' } : { ok: true, workItem: found };
@@ -209,7 +217,12 @@ export class WorkItemRepository implements WorkItemStore {
     // `puts a reset to one at a time back to the number it replaced` failed on
     // `SQLiteError: NOT NULL constraint failed: work_item.max_parallel` —
     // a 500 for a request that means "one at a time"; watched 2026-08-12.
-    const { maxParallel, ...fields } = patch;
+    //
+    // `tagIds` comes off the same way and for a blunter reason: there is no
+    // column for it. Spread into the `SET` it would reach drizzle as a field
+    // `work_item` does not have — the set lives in `work_item_tag` and is
+    // written below, in this same transaction.
+    const { maxParallel, tagIds: _tagIds, ...fields } = patch;
     const written =
       maxParallel === undefined ? fields : { ...fields, maxParallel: maxParallel ?? 1 };
     return this.db.transaction((tx) => {
