@@ -2214,9 +2214,7 @@ describe('the tag migration', () => {
     const sqlite = openDatabase(dbPath);
     try {
       return (
-        sqlite
-          .query<{ n: number }, []>('SELECT COUNT(*) AS n FROM work_item_tag')
-          .get()?.n ?? -1
+        sqlite.query<{ n: number }, []>('SELECT COUNT(*) AS n FROM work_item_tag').get()?.n ?? -1
       );
     } finally {
       sqlite.close();
@@ -2269,9 +2267,9 @@ describe('the tag migration', () => {
       const sqlite = openDatabase(db.path);
       try {
         sqlite.run("INSERT INTO tag (id, name) VALUES ('g1', 'regulatory')");
-        expect(() =>
-          sqlite.run("INSERT INTO tag (id, name) VALUES ('g2', 'regulatory')"),
-        ).toThrow(/UNIQUE/i);
+        expect(() => sqlite.run("INSERT INTO tag (id, name) VALUES ('g2', 'regulatory')")).toThrow(
+          /UNIQUE/i,
+        );
       } finally {
         sqlite.close();
       }
@@ -2334,10 +2332,9 @@ describe('the tag migration', () => {
         // which is the difference between a cascade and a clear.
         expect(
           sqlite
-            .query<
-              { tag_id: string },
-              []
-            >("SELECT tag_id FROM work_item_tag WHERE work_item_id = 'w1'")
+            .query<{ tag_id: string }, []>(
+              "SELECT tag_id FROM work_item_tag WHERE work_item_id = 'w1'",
+            )
             .all()
             .map((r) => r.tag_id),
         ).toEqual(['g2']);
@@ -2397,9 +2394,8 @@ describe('the tag migration', () => {
         // Untouched, and this is the whole claim of the down script: a plan that
         // loses its labels keeps every work item anybody typed.
         expect(
-          after
-            .query<{ name: string }, []>("SELECT name FROM work_item WHERE id = 'w1'")
-            .get()?.name,
+          after.query<{ name: string }, []>("SELECT name FROM work_item WHERE id = 'w1'").get()
+            ?.name,
         ).toBe('Strip the roof');
       } finally {
         after.close();
