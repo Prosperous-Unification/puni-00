@@ -500,6 +500,14 @@ export type WorkItemRefusal =
    */
   | 'unknown_team'
   /**
+   * A tag the directory no longer holds, decided inside the write's own
+   * transaction — see {@link WorkItemPatch.tagIds}. The same out-of-date picker
+   * as `unknown_team`, and a separate reason from it deliberately: a reader
+   * told a label is gone has to know **which** of the two pickers to reopen,
+   * and the dimensions are independent everywhere else in this model.
+   */
+  | 'unknown_tag'
+  /**
    * A patch that would leave a work item holding a reason with no not-before
    * date for it to be a reason about, decided inside the write's own
    * transaction — see {@link WorkItemPatched}.
