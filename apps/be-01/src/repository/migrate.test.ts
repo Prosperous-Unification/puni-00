@@ -2259,9 +2259,10 @@ describe('the tag migration', () => {
     // spelled the same are two answers to one question.
     //
     // Proof: `CREATE UNIQUE INDEX` weakened to `CREATE INDEX` in migration.sql
-    // and this fails with the second row written instead of rejected — a
-    // directory with two `regulatory` tags, and a filter facet that has to pick
-    // one of them. Watched 2026-08-19, see verify.md.
+    // — **44 pass, 1 fail** in this file — and this failed with the second row
+    // written instead of rejected: a directory holding two `regulatory` tags,
+    // and a filter facet that has to pick one of them. Watched 2026-08-19, see
+    // verify.md.
     const db = tempDb();
     try {
       runMigrations(db.path, FOLDER);
@@ -2284,10 +2285,11 @@ describe('the tag migration', () => {
     // migrates, the outgoing release knows nothing about `work_item_tag`, and
     // its plain `DELETE FROM work_item` must not hit a constraint it cannot see.
     //
-    // Proof: `ON DELETE CASCADE` struck from `work_item_id` in migration.sql and
-    // this fails on that exact statement with `FOREIGN KEY constraint failed` —
-    // every delete of a labelled work item answering 500 for the length of a
-    // swap. Watched 2026-08-19, see verify.md.
+    // Proof: `ON DELETE CASCADE` struck from `work_item_id` in migration.sql —
+    // **44 pass, 1 fail** in this file — and this failed on that exact statement
+    // with `SQLiteError: FOREIGN KEY constraint failed`: every delete of a
+    // labelled work item answering 500 for the length of a swap. Watched
+    // 2026-08-19, see verify.md.
     const db = tempDb();
     try {
       runMigrations(db.path, FOLDER);
@@ -2315,10 +2317,11 @@ describe('the tag migration', () => {
     // not. `DELETE /api/tags/:id` still counts first and still refuses with 409
     // unless `?cascade=1`; the count is for the person pressing the button.
     //
-    // Proof: `ON DELETE CASCADE` struck from `tag_id` in migration.sql and this
-    // fails with `FOREIGN KEY constraint failed` on the delete — the cascade
-    // route answering 500 for every tag anybody has ever used. Watched
-    // 2026-08-19, see verify.md.
+    // Proof: `ON DELETE CASCADE` struck from `tag_id` in migration.sql —
+    // **44 pass, 1 fail** in this file — and this failed on the delete with
+    // `SQLiteError: FOREIGN KEY constraint failed`: `DELETE /api/tags/:id`
+    // answering 500 for every tag anybody has ever used, `?cascade=1` included.
+    // Watched 2026-08-19, see verify.md.
     const db = tempDb();
     try {
       runMigrations(db.path, FOLDER);
@@ -2362,11 +2365,15 @@ describe('the tag migration', () => {
     // `__drizzle_migrations` entry, this second `runMigrations` would either skip
     // a table it believes is there or fail on `table tag already exists`.
     //
-    // Proof: `DROP TABLE IF EXISTS work_item_tag` struck from down.sql and this
-    // fails on the re-apply with `table work_item_tag already exists` — a
-    // rollback that reports success while leaving half the migration standing,
-    // which is the exact shape of the 2026-08-14 collision. Watched 2026-08-19,
-    // see verify.md.
+    // Proof: `DROP TABLE IF EXISTS work_item_tag` struck from down.sql —
+    // **32 pass, 13 fail** in this file — and this failed on
+    // `expect(received).not.toContain(expected)` with the table still standing
+    // after a rollback that reported success. The other twelve are the blast
+    // radius and worth naming: every rollback case in the file then failed with
+    // `rolling back 20260805154500_add_wbs_domain failed: no such table:
+    // main.tag`, because an orphan join whose foreign key points at a dropped
+    // directory blocks the reversal of every migration under it. Watched
+    // 2026-08-19, see verify.md.
     const db = tempDb();
     try {
       runMigrations(db.path, FOLDER);
