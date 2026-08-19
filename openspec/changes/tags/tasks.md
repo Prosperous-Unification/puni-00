@@ -1,6 +1,6 @@
 ## 1. The tables, and the migration that adds them
 
-- [ ] 1.1 `tag` and `workItemTag` in `schema.ts`. `tag` global — **no project
+- [x] 1.1 `tag` and `workItemTag` in `schema.ts`. `tag` global — **no project
       column**, mirroring `service_team`, with `name` `NOT NULL` and a unique
       index on it so a rename can answer `taken`. `work_item_tag` keyed on
       `(work_item_id, tag_id)`, **both sides cascading** — unlike
@@ -8,22 +8,23 @@
       label and deleting the label should take the labelling with it. JSDoc says
       what the table is **not**: not a pool, not a size, not anything a date
       reads.
-- [ ] 1.2 `drizzle/<stamp>_add_tag/{migration,down}.sql`. **Check the stamp
+- [x] 1.2 `drizzle/20260819120000_add_tag/{migration,down}.sql`. **Check the stamp
       against every existing directory before writing it** — #60 and #61 both
       stamped `20260814100000`, `migrationsToRollback` filters on a strict
       `created_at >`, and `rollbackTo` therefore reversed nothing, silently, with
       both tables still present.
-- [ ] 1.3 The rollback test: down, then up, then a row survives the round trip.
+- [x] 1.3 The rollback test: down, then up, then a row survives the round trip.
       **Watched red** — revert the `down.sql` `DROP` and it must fail.
 
 ## 2. The read path
 
 - [ ] 2.1 `repository/work-item.ts`: join `work_item_tag`, return `tagIds` per
       row beside `teamIds`. One query, not N.
-- [ ] 2.2 `effectiveTagsOf` beside `effectiveTeamsOf`. Override, per dimension,
+- [x] 2.2 `effectiveTagsOf` beside `effectiveTeamsOf`, both over one shared walk
+      in `effective-label.ts`. Override, per dimension,
       independently; blank means inherit. **Watched red** — make it union
       instead of override and the inheritance case must fail.
-- [ ] 2.3 A row with tags and no teams inherits the ancestor's teams and
+- [x] 2.3 A row with tags and no teams inherits the ancestor's teams and
       overrides the ancestor's tags, and the mirror case. Both asserted.
 
 ## 3. The write path, and the undo journal
@@ -76,7 +77,11 @@
 
 - [ ] 7.1 `service/schedule.ts` — empty diff. **Watched red:** wire the scheduler
       to read a tag, every downstream date moves, revert.
-- [ ] 7.2 `libs/domain/**` — empty diff. Nothing about a tag is a shared rule.
+- [x] 7.2 `libs/domain` — **the scheduling surface** has an empty diff, not the
+      whole library. Corrected 2026-08-19: `effectiveTeamsOf` lives here and both
+      apps import it, so the tag reading has to live beside it; what a tag is not
+      is anything below `slicesOf`. Asserted by 7.1's fault rather than by a
+      second test.
 - [ ] 7.3 `gantt-geometry.ts` — tags reach the hover text and nothing that
       computes a position. `barColorOf` unchanged.
 

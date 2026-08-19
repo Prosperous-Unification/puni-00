@@ -29,8 +29,9 @@ file, so nothing is renamed and nothing is dropped.
 
 **A tag has no pool, no size and no effect on any date.** This is the defining
 absence and it is load-bearing in three places: `service/schedule.ts` has an
-empty diff, `libs/domain` has an empty diff, and the directory page renders tags
-in a section with **no capacity column and no membership chips**. That visible
+empty diff, nothing the scheduler reads in `libs/domain` is touched, and the
+directory page renders tags in a section with **no capacity column and no
+membership chips**. That visible
 absence is why tags are a sibling section rather than a second tab of the Teams
 one — a reader who sees no capacity column learns the model rule without being
 told it.
@@ -41,6 +42,20 @@ teams and overrides its ancestor's tags. Blank means inherit; there is no third
 "deliberately none" state, exactly as there is none for teams. Inheritance is a
 **reading, never a write**: `effectiveTagsOf` computes it over the tree the way
 `effectiveTeamsOf` already does, and nothing is stored denormalised.
+
+**Corrected 2026-08-19, mid-build:** this document originally claimed
+`libs/domain/**` had an empty diff, and that was wrong. `effectiveTeamsOf` lives
+in `libs/domain/src/effective-team.ts` and **both apps import it** — `fe-01`'s
+`wbs-table.tsx` and `plan-export.ts` among them — so the tag reading has to live
+beside it or fe-01 cannot render an inherited tag at all. The inheritance rule
+_is_ a rule the two apps share; what a tag is not is anything the **scheduler**
+reads. So the empty-diff assertion is narrowed to what it was always really
+about: `service/schedule.ts`, and nothing under `slicesOf`. F7.2 below is
+rewritten to assert that instead, and the walk itself is now shared —
+`effective-label.ts` holds it once and the two dimensions are a row shape, a
+result shape and a cycle error over it. Two copies of an inheritance rule is how
+it drifts, and this repo has shipped the stored-versus-effective form of that bug
+twice.
 
 **The filter gains one facet.** `FilterCriteria` (`tree-search.ts:66`) grows
 `tagIds: readonly string[]` beside the seven `filter-facets` shipped, `NO_FACETS`
@@ -61,10 +76,12 @@ data, and it is why the write path gets its own watched red.
 - **Affected specs:** `wbs-domain` (the tag dimension and its inheritance),
   `wbs-api` (the directory routes and the patch payload).
 - **Affected code:** `apps/be-01` schema, repository, controller, service,
-  directory-usage; `apps/fe-01` `wbs-table.tsx`, `plan-cards.tsx`,
-  `plan-export.ts`, `directory-page.tsx`, `tree-search.ts`, `lib/wbs-api.ts`.
-- **Deliberately untouched:** `apps/be-01/src/service/schedule.ts`,
-  `libs/domain/**`, `gantt-geometry.ts`'s geometry (tags reach the hover text and
+  directory-usage; `libs/domain` `effective-tag.ts` and the shared
+  `effective-label.ts` the team reading now delegates to; `apps/fe-01`
+  `wbs-table.tsx`, `plan-cards.tsx`, `plan-export.ts`, `directory-page.tsx`,
+  `tree-search.ts`, `lib/wbs-api.ts`.
+- **Deliberately untouched:** `apps/be-01/src/service/schedule.ts`, everything
+  in `libs/domain` the scheduler reads, `gantt-geometry.ts`'s geometry (tags reach the hover text and
   nothing that computes a position), `person_team`, and every capacity route.
   Each of those empty diffs is an assertion, and F-numbers below watch them.
 
