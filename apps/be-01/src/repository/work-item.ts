@@ -222,9 +222,9 @@ export class WorkItemRepository implements WorkItemStore {
     // column for it. Spread into the `SET` it would reach drizzle as a field
     // `work_item` does not have — the set lives in `work_item_tag` and is
     // written below, in this same transaction.
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars -- destructured to
-    // keep `tagIds` out of the `SET`; see above.
-    const { maxParallel, tagIds, ...fields } = patch;
+    // It is bound rather than discarded because the transaction below writes it:
+    // one destructure both keeps it out of the `SET` and names the set to write.
+    const { maxParallel, tagIds: wantedTags, ...fields } = patch;
     const written =
       maxParallel === undefined ? fields : { ...fields, maxParallel: maxParallel ?? 1 };
     return this.db.transaction((tx) => {
@@ -288,7 +288,6 @@ export class WorkItemRepository implements WorkItemStore {
       // why the read is skipped for it rather than run against `IN ()` —
       // SQLite refuses that, and `directory.ts` has the same guard for the same
       // reason.
-      const wantedTags = patch.tagIds;
       if (wantedTags !== undefined && wantedTags.length > 0) {
         const held = tx
           .select({ id: tag.id })
