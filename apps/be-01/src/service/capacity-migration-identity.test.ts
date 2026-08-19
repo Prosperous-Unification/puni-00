@@ -235,7 +235,7 @@ describe('every plan schedules identically across the migration', () => {
       // `team-sets` design.md D5.
       const lifted = {
         ...tree,
-        workItems: tree.workItems.map(({ teamIds, actuals, progress, state, ...row }) => {
+        workItems: tree.workItems.map(({ teamIds, tagIds, actuals, progress, state, ...row }) => {
           // The arity claim, and the only place it is made: the set the join
           // answered is exactly the singleton of the label the oracle recorded.
           //
@@ -250,6 +250,12 @@ describe('every plan schedules identically across the migration', () => {
           // gained a field and moved no date, which is this change's claim
           // arriving as a red test.
           expect(teamIds).toEqual(row.serviceTeamId === null ? [] : [row.serviceTeamId]);
+        // `tagIds` is lifted the same way by `tags` (R10-B) and asserted **empty**
+        // for `actuals`' reason: the oracle predates the dimension, nothing in
+        // sixteen replayed plans is labelled, and an empty set on every row is
+        // this change's own claim — a plan nobody has tagged reads as untagged.
+        // A bare lift would let a read path that invented a label pass silently.
+        expect(tagIds).toEqual([]);
           // Lifted for `teamIds`' reason and asserted for the same one:
           // `actual-days` (R6 H2) put this key on every row and the oracle
           // predates the table. Empty on all sixteen replayed plans is the
