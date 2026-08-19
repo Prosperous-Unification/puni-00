@@ -53,6 +53,49 @@ function asIdOrNull(value: unknown, field: string): string | null {
   return value;
 }
 
+/**
+ * How many tags one work item may carry.
+ *
+ * A bound rather than none, and a generous one: the set is written whole on
+ * every patch and read on every plan read, so an unbounded array is a request
+ * body a client can make arbitrarily large and a join this row's every read
+ * pays for. Fifty is far past what a taxonomy anybody maintains by hand looks
+ * like — the directory itself is a typed list — and it is small enough that the
+ * refusal is about a mistake rather than about a limit somebody hit honestly.
+ *
+ * Not in `libs/domain`: nothing about the number is a rule the two apps share,
+ * and the engine never sees a tag at all.
+ */
+export const MOST_TAGS_ON_ONE_ITEM = 50;
+
+/**
+ * The tag set a patch names, whole, or `undefined` where it names none.
+ *
+ * **`[]` is a value and means "no tags"** — the one spelling of taking them all
+ * off, and deliberately not `null`: there is no column to reset and no third
+ * state, so a null arm would be a second spelling of the same fact.
+ *
+ * Every member must be a string, and the array must be an array: an object or a
+ * bare string here is a client sending one id where the field takes a set, and
+ * accepting it would write a row per character.
+ *
+ * Duplicates are **not** refused. The store deduplicates on the way in and the
+ * primary key would refuse the pair anyway, so a payload naming one tag twice
+ * is a client being untidy rather than a request that means something else —
+ * and a 400 for it would be this route inventing a rule the model does not have.
+ */
+function asOptionalTagIds(value: unknown, field: string): readonly string[] | undefined {
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value)) throw new BadRequest(`${field}_must_be_a_list_of_ids`);
+  if (value.length > MOST_TAGS_ON_ONE_ITEM) {
+    throw new BadRequest(`${field}_must_be_at_most_${String(MOST_TAGS_ON_ONE_ITEM)}`);
+  }
+  for (const each of value) {
+    if (typeof each !== 'string') throw new BadRequest(`${field}_must_be_a_list_of_ids`);
+  }
+  return value as readonly string[];
+}
+
 function asOptionalText(value: unknown, field: string): string | undefined {
   if (value === undefined) return undefined;
   if (typeof value !== 'string') throw new BadRequest(`${field}_must_be_text`);
@@ -268,6 +311,7 @@ function parsePatch(body: unknown): {
   priority?: number | null;
   serviceTeamId?: string | null;
   maxParallel?: number | null;
+  tagIds?: readonly string[];
 } {
   const raw = asRecord(body);
   refuseDerivedFields(raw);
@@ -283,6 +327,7 @@ function parsePatch(body: unknown): {
     serviceTeamId:
       'serviceTeamId' in raw ? asIdOrNull(raw['serviceTeamId'], 'serviceTeamId') : undefined,
     maxParallel: asOptionalParallelism(raw['maxParallel'], 'maxParallel'),
+    tagIds: asOptionalTagIds(raw['tagIds'], 'tagIds'),
   };
 }
 
@@ -296,9 +341,9 @@ function parsePatch(body: unknown): {
  * and the request itself is fine. It is not 413 — nothing about the request
  * body is too big.
  *
- * `unknown_person` and `unknown_team` join `unknown_role` on 404: an id the
- * directory no longer holds is a thing that is not there, whichever of the
- * request's ids named it.
+ * `unknown_person`, `unknown_team` and `unknown_tag` join `unknown_role` on
+ * 404: an id the directory no longer holds is a thing that is not there,
+ * whichever of the request's ids named it.
  *
  * `has_children` falls through to **400**, which is the capacity plan's own
  * table (§5.1) and is a deliberate split from `rolled_up`'s 409 beside it. The
@@ -316,7 +361,8 @@ const statusFor = (reason: WorkItemRefusal): number =>
     : reason === 'not_found' ||
         reason === 'unknown_role' ||
         reason === 'unknown_person' ||
-        reason === 'unknown_team'
+        reason === 'unknown_team' ||
+        reason === 'unknown_tag'
       ? 404
       : reason === 'cycle' ||
           reason === 'frozen' ||

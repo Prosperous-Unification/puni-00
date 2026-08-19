@@ -332,6 +332,31 @@ export interface WorkItemPatch {
    * `effort / 0` is a plan of `Infinity` dates.
    */
   maxParallel?: number | null;
+  /**
+   * What kind of thing this work item is, **whole**: the set as it will stand,
+   * never a member to add or remove.
+   *
+   * `[]` takes every tag off, and there is no `null` arm because there is
+   * nothing else `[]` could mean — a tag has no column to reset to a default,
+   * unlike {@link maxParallel}, and no third "deliberately untagged" state,
+   * unlike nothing at all in this model. Absent leaves the row's tags alone,
+   * which is the same reading every other field here takes.
+   *
+   * Whole rather than a delta because the undo journal has to carry a
+   * before-value that restores what was there: a patch of "add `regulatory`"
+   * has no inverse that a second patch can express, and the compensating
+   * command for a set is the prior set. That is the seam a scalar habit loses
+   * data at, and it has its own watched red in the service.
+   *
+   * An id the directory no longer holds is refused with `unknown_tag`, decided
+   * **inside the transaction that performs the update** — `serviceTeamId`'s
+   * argument exactly, and for a stronger reason: `work_item_tag.tag_id`
+   * cascades, so an id removed in the gap between a precheck and the write
+   * would not fail on a foreign key at all. It would insert against a `tag` row
+   * that is gone, and SQLite would refuse it — but the refusal a reader gets
+   * must name the tag rather than be a 500, and only the transaction can.
+   */
+  tagIds?: readonly string[];
 }
 
 /**
@@ -351,6 +376,12 @@ export interface WorkItemPatch {
  * still names. What has no cascade is the *delete* — which is why
  * {@link DirectoryStore.removeTeam} nulls the labels itself.
  *
+ * `unknown_tag` is the same answer for the other label dimension, decided in
+ * the same transaction and argued in {@link WorkItemPatch.tagIds}. The two are
+ * deliberately separate reasons rather than one `unknown_label`: a reader told
+ * a label is gone has to know **which** picker to reopen, and the two
+ * dimensions are independent everywhere else in this model.
+ *
  * `not_before_reason_needs_a_date` is decided in the same transaction and for a
  * version of the same reason: the rule is about the row **as it will stand**, so
  * it has to be asked against the stored date and the patch's together, and a
@@ -362,7 +393,10 @@ export interface WorkItemPatch {
  */
 export type WorkItemPatched =
   | { ok: true; workItem: WorkItem }
-  | { ok: false; reason: 'not_found' | 'unknown_team' | 'not_before_reason_needs_a_date' };
+  | {
+      ok: false;
+      reason: 'not_found' | 'unknown_team' | 'unknown_tag' | 'not_before_reason_needs_a_date';
+    };
 
 /**
  * What an assignment write answered.

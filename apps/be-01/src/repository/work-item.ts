@@ -22,6 +22,7 @@ import {
   estimate,
   roleProgress,
   serviceTeam,
+  tag,
   workItem,
   workItemTag,
   workItemTeam,
@@ -261,6 +262,29 @@ export class WorkItemRepository implements WorkItemStore {
           .all();
         if (held.length === 0) return { ok: false, reason: 'unknown_team' };
       }
+      // The other dimension's refusal, read in this transaction for
+      // `unknown_team`'s reason and one of its own: `work_item_tag.tag_id`
+      // cascades, so a tag removed between a precheck and this write leaves
+      // nothing for a foreign key to catch on the way in — the insert simply
+      // refuses against a `tag` row that is gone, and a reader would get a 500
+      // where the honest answer names the tag.
+      //
+      // An empty set names nothing and so can name nothing missing, which is
+      // why the read is skipped for it rather than run against `IN ()` —
+      // SQLite refuses that, and `directory.ts` has the same guard for the same
+      // reason.
+      const wantedTags = patch.tagIds;
+      if (wantedTags !== undefined && wantedTags.length > 0) {
+        const held = tx
+          .select({ id: tag.id })
+          .from(tag)
+          .where(inArray(tag.id, [...wantedTags]))
+          .all();
+        // Counted against the **distinct** ids asked for: a payload naming one
+        // tag twice is one tag, and comparing against the raw length would
+        // refuse a request whose only fault is repetition.
+        if (held.length < new Set(wantedTags).size) return { ok: false, reason: 'unknown_tag' };
+      }
       const rows = tx
         .update(workItem)
         .set({ ...written, revision: bumpedWorkItem })
@@ -286,6 +310,27 @@ export class WorkItemRepository implements WorkItemStore {
         tx.delete(workItemTeam).where(eq(workItemTeam.workItemId, id)).run();
         if (wanted !== null)
           tx.insert(workItemTeam).values({ workItemId: id, teamId: wanted }).run();
+      }
+      // The tag set, in the same transaction and only when the patch names the
+      // dimension at all — an edit to the name must not empty the tags.
+      //
+      // Replace rather than merge, because the patch states the **whole** set:
+      // `[]` is "no tags" and is written by the delete alone, which is the one
+      // spelling of taking them off. Deduplicated on the way in: the primary
+      // key would refuse a repeated pair, and a payload naming one tag twice is
+      // a client being untidy rather than a request that means anything else.
+      //
+      // Unlike the team above there is no column beside this to keep in step —
+      // `work_item_tag` is the whole of the fact — so this write has no second
+      // half that can silently disagree with it.
+      if (wantedTags !== undefined) {
+        tx.delete(workItemTag).where(eq(workItemTag.workItemId, id)).run();
+        const distinct = [...new Set(wantedTags)];
+        if (distinct.length > 0) {
+          tx.insert(workItemTag)
+            .values(distinct.map((tagId) => ({ workItemId: id, tagId })))
+            .run();
+        }
       }
       return { ok: true, workItem: updated };
     });
