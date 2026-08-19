@@ -18,7 +18,7 @@
 
 ## 2. The read path
 
-- [ ] 2.1 `repository/work-item.ts`: join `work_item_tag`, return `tagIds` per
+- [x] 2.1 `repository/work-item.ts`: join `work_item_tag`, return `tagIds` per
       row beside `teamIds`. One query, not N.
 - [x] 2.2 `effectiveTagsOf` beside `effectiveTeamsOf`, both over one shared walk
       in `effective-label.ts`. Override, per dimension,
@@ -29,14 +29,14 @@
 
 ## 3. The write path, and the undo journal
 
-- [ ] 3.1 `controller/work-item.controller.ts`: `tagIds?: string[]` on the patch
+- [x] 3.1 `controller/work-item.controller.ts`: `tagIds?: string[]` on the patch
       payload. Unknown tag id → `unknown_tag`, the refusal shape the team write
       already makes.
-- [ ] 3.2 `service/work-item.service.ts`: the journalled before-value is **the
+- [x] 3.2 `service/work-item.service.ts`: the journalled before-value is **the
       whole prior set**, not a scalar. **Watched red** — write it as a scalar and
       the two-tag undo must fail. This is the seam a scalar habit silently loses
       data at.
-- [ ] 3.3 Undo and redo of a tag change, over real SQLite rather than the
+- [x] 3.3 Undo and redo of a tag change, over real SQLite rather than the
       in-memory store — the store cannot model a cascade, which is how a restore
       case passed under the very fault it was written for in #79.
 
