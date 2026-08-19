@@ -267,6 +267,20 @@ export interface WorkItem {
  */
 export interface LabelledWorkItem extends WorkItem {
   teamIds: readonly string[];
+  /**
+   * What kind of thing the row is, 0..n, and **independent of `teamIds` in every
+   * respect** — a row states either, both or neither, and inheriting one says
+   * nothing about the other.
+   *
+   * Ordered by tag id, for `teamIds`' reason. Empty means the row states nothing
+   * and inherits; see `effectiveTagsOf` in `libs/domain`.
+   *
+   * Unlike `teamIds` this has no column behind it and never had one: there is no
+   * `work_item.tagId` to be the outgoing release's copy, because the dimension
+   * arrived after the set was already the shape. `work_item_tag` is the whole of
+   * the fact.
+   */
+  tagIds: readonly string[];
 }
 
 export interface WorkItemPatch {

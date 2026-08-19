@@ -23,6 +23,7 @@ import {
   roleProgress,
   serviceTeam,
   workItem,
+  workItemTag,
   workItemTeam,
 } from './schema';
 
@@ -84,13 +85,19 @@ export class WorkItemRepository implements WorkItemStore {
   constructor(private readonly db: SQLiteBunDatabase) {}
 
   /**
-   * Two reads rather than a left join, and merged here: a join would return one
-   * row per (work item, team) pair and every unlabelled row once, so the caller
-   * would be reassembling exactly this map out of a wider result set. One
-   * indexed read each, and the second one is empty on most plans.
+   * Three reads rather than a left join, and merged here: a join would return
+   * one row per (work item, team) pair times one per (work item, tag) pair, so
+   * the caller would be reassembling exactly these maps out of a result set that
+   * multiplies. One indexed read each, and both label reads are empty on most
+   * plans.
    *
-   * Ordered by team id, which is what makes two reads of an unchanged plan
-   * answer the same array — design.md D6.
+   * **Three, and not one more per dimension the model ever gains**: the shape is
+   * a read plus a `setOf` per dimension, which is linear in the dimensions and
+   * flat in the rows. What it must never become is a read per row.
+   *
+   * Ordered by label id in both dimensions, which is what makes two reads of an
+   * unchanged plan answer the same arrays — design.md D6, and the property
+   * `EffectiveTeams.teamIds` and `EffectiveTags.tagIds` both document.
    */
   async listByProject(projectId: string): Promise<LabelledWorkItem[]> {
     const rows = await this.db.select().from(workItem).where(eq(workItem.projectId, projectId));
@@ -100,11 +107,25 @@ export class WorkItemRepository implements WorkItemStore {
       .innerJoin(workItem, eq(workItemTeam.workItemId, workItem.id))
       .where(eq(workItem.projectId, projectId))
       .orderBy(asc(workItemTeam.teamId));
+    const tagged = await this.db
+      .select({ workItemId: workItemTag.workItemId, tagId: workItemTag.tagId })
+      .from(workItemTag)
+      .innerJoin(workItem, eq(workItemTag.workItemId, workItem.id))
+      .where(eq(workItem.projectId, projectId))
+      .orderBy(asc(workItemTag.tagId));
     const teamsOf = new Map<string, string[]>();
     for (const each of joined) {
       teamsOf.set(each.workItemId, [...(teamsOf.get(each.workItemId) ?? []), each.teamId]);
     }
-    return rows.map((row) => ({ ...row, teamIds: teamsOf.get(row.id) ?? [] }));
+    const tagsOf = new Map<string, string[]>();
+    for (const each of tagged) {
+      tagsOf.set(each.workItemId, [...(tagsOf.get(each.workItemId) ?? []), each.tagId]);
+    }
+    return rows.map((row) => ({
+      ...row,
+      teamIds: teamsOf.get(row.id) ?? [],
+      tagIds: tagsOf.get(row.id) ?? [],
+    }));
   }
 
   async findById(id: string): Promise<WorkItem | null> {
