@@ -6,6 +6,7 @@ import type {
   PersonAdded,
   PersonWithTeams,
   ServiceTeam,
+  Tag,
 } from '../repository';
 import type { Broadcaster } from '../service/broadcast';
 import { DirectoryService } from '../service/directory.service';
@@ -32,6 +33,7 @@ const NOTHING_POINTS_AT_IT: DirectoryUsageRows = {
  */
 export function inMemoryDirectory(): DirectoryStore {
   const teams = new Map<string, ServiceTeam>();
+  const tags = new Map<string, Tag>();
   const people = new Map<string, Person>();
   const memberships = new Map<string, Set<string>>();
   const assignments = new Map<string, Assignment>();
@@ -40,6 +42,18 @@ export function inMemoryDirectory(): DirectoryStore {
   return {
     listTeams: () =>
       Promise.resolve([...teams.values()].sort((a, b) => a.name.localeCompare(b.name))),
+    listTags: () =>
+      Promise.resolve([...tags.values()].sort((a, b) => a.name.localeCompare(b.name))),
+    // Idempotent by name, as the repository is at its unique index. The
+    // dimension has no cascade here and cannot: an in-memory store models no
+    // foreign keys, which is exactly why the tag write path's own tests run
+    // against real SQLite instead of this.
+    addTag(toAdd) {
+      const already = [...tags.values()].find((each) => each.name === toAdd.name);
+      if (already !== undefined) return Promise.resolve(already);
+      tags.set(toAdd.id, toAdd);
+      return Promise.resolve(toAdd);
+    },
     addTeam(team) {
       const already = [...teams.values()].find((each) => each.name === team.name);
       if (already !== undefined) return Promise.resolve(already);
