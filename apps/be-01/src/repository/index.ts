@@ -283,6 +283,21 @@ export interface LabelledWorkItem extends WorkItem {
   tagIds: readonly string[];
 }
 
+/**
+ * One tag in the global directory: an id and a name, and deliberately nothing
+ * else.
+ *
+ * **No size and no capacity**, unlike {@link ServiceTeam}, which still carries
+ * a retired `size`. That absence is the model rule — a tag says what kind of
+ * thing a work item is, and nothing about a tag is ever spent — and it is
+ * visible here, in the table, and on the directory page, which renders tags
+ * with no capacity column.
+ */
+export interface Tag {
+  id: string;
+  name: string;
+}
+
 export interface WorkItemPatch {
   name?: string;
   notes?: string;
@@ -887,6 +902,13 @@ export interface PriorityBandStore {
 }
 
 export interface DirectoryStore {
+  /** Every tag in the global directory, by name. */
+  listTags(): Promise<Tag[]>;
+  /**
+   * Adds a tag idempotently **by name**, answering the row that is there — which
+   * is the earlier one when two callers added the same name at once.
+   */
+  addTag(toAdd: Tag): Promise<Tag>;
   listTeams(): Promise<ServiceTeam[]>;
   /**
    * Adds a team, or returns the one that already has that name.

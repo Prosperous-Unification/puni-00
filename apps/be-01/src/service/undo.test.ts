@@ -1240,3 +1240,136 @@ describe('what an undo leaves in the plan’s history', () => {
     expect((await history()).map((each) => each.kind)).toEqual(['estimate', 'estimate', 'create']);
   });
 });
+
+describe('a tag set is undone whole, which a scalar habit would not do', () => {
+  /** A tag in the global directory, or a throw — a refused fixture is not a result. */
+  async function tagNamed(name: string): Promise<string> {
+    const made = await directoryStore.addTag({ id: crypto.randomUUID(), name });
+    return made.id;
+  }
+
+  /** The tags the plan read gives for one row, which is the only place they live. */
+  async function tagsOn(id: string): Promise<readonly string[]> {
+    const row = (await workItemStore.listByProject(projectId)).find((each) => each.id === id);
+    if (row === undefined) throw new Error(`no work item ${id}`);
+    return row.tagIds;
+  }
+
+  it('puts a replaced tag set back, whole', async () => {
+    // **The seam this whole field is designed around.** The row carries two
+    // tags, a patch replaces them with a third, and the undo has to restore
+    // *both* — not the first, not the last, not one of them.
+    //
+    // A scalar before-value is the natural mistake and it fails silently: the
+    // undo reports done, the row comes back carrying one label, and nothing
+    // anywhere says a second one was lost.
+    //
+    // Proof: `revertTo`'s tag line written as `before.tagIds.slice(0, 1)` and
+    // this failed on `expected [ "regulatory" ] to deeply equal [ "regulatory",
+    // "tech-debt" ]` — a pressable undo that reports done and leaves the row
+    // holding one of the two labels it had. Watched 2026-08-19.
+    const id = await root('Strip the roof');
+    const regulatory = await tagNamed('regulatory');
+    const techDebt = await tagNamed('tech-debt');
+    const q3 = await tagNamed('q3-must-have');
+
+    // Two tags on, then replaced by one. Sorted, because the store answers in
+    // tag-id order and the ids are random.
+    await workItems.patch(id, ownerId, { tagIds: [regulatory, techDebt] });
+    const both = [...(await tagsOn(id))].sort();
+    expect(both).toEqual([regulatory, techDebt].sort());
+
+    await workItems.patch(id, ownerId, { tagIds: [q3] });
+    expect(await tagsOn(id)).toEqual([q3]);
+
+    expectDone(await undone());
+
+    expect([...(await tagsOn(id))].sort()).toEqual([regulatory, techDebt].sort());
+  });
+
+  it('takes a first tag set off again, rather than leaving one behind', async () => {
+    // The other direction, and the one an empty before-value has to be able to
+    // express: the row had no tags, a patch put one on, and undoing it must
+    // leave the row untagged. `[]` is a legal before-value and means exactly
+    // this — which is why the inverse names the field with an empty set rather
+    // than omitting it.
+    const id = await root('Strip the roof');
+    const regulatory = await tagNamed('regulatory');
+
+    await workItems.patch(id, ownerId, { tagIds: [regulatory] });
+    expect(await tagsOn(id)).toEqual([regulatory]);
+
+    expectDone(await undone());
+
+    expect(await tagsOn(id)).toEqual([]);
+  });
+
+  it('redoes a tag change over real SQLite, cascade and all', async () => {
+    // Over real SQLite rather than the in-memory store, deliberately: the store
+    // cannot model a cascade, which is how a restore case passed under the very
+    // fault it was written for in #79. Here the rows are real, the join is real,
+    // and the delete-then-insert the patch performs is the thing under test.
+    const id = await root('Strip the roof');
+    const regulatory = await tagNamed('regulatory');
+    const techDebt = await tagNamed('tech-debt');
+
+    await workItems.patch(id, ownerId, { tagIds: [regulatory] });
+    await workItems.patch(id, ownerId, { tagIds: [techDebt] });
+
+    expectDone(await undone());
+    expect(await tagsOn(id)).toEqual([regulatory]);
+
+    expectDone(await workItems.redo(projectId, ownerId));
+    expect(await tagsOn(id)).toEqual([techDebt]);
+  });
+
+  it('leaves the tags alone for a patch that does not name them', async () => {
+    // The rule every field here follows, and the one a delete-then-insert makes
+    // easy to break: a rename must not empty the join.
+    const id = await root('Strip the roof');
+    const regulatory = await tagNamed('regulatory');
+    await workItems.patch(id, ownerId, { tagIds: [regulatory] });
+
+    await workItems.patch(id, ownerId, { name: 'Strip the whole roof' });
+
+    expect(await tagsOn(id)).toEqual([regulatory]);
+  });
+
+  it('refuses a tag the directory no longer holds, and writes nothing', async () => {
+    // The out-of-date picker. Decided inside the write's own transaction, so a
+    // tag removed between a client's read and its patch is a refusal that names
+    // the tag rather than a raw constraint failure.
+    //
+    // **And the row is untouched**, which is the half worth asserting: the
+    // refusal comes after the `UPDATE` in statement order, so a version that
+    // returned without rolling back would leave the name written and the tags
+    // not.
+    const id = await root('Strip the roof');
+    const regulatory = await tagNamed('regulatory');
+    await workItems.patch(id, ownerId, { tagIds: [regulatory] });
+
+    const outcome = await workItems.patch(id, ownerId, {
+      name: 'Strip the whole roof',
+      tagIds: [regulatory, crypto.randomUUID()],
+    });
+
+    expect(outcome).toEqual({ ok: false, reason: 'unknown_tag' });
+    expect(await tagsOn(id)).toEqual([regulatory]);
+    expect((await found(id))?.name).toBe('Strip the roof');
+  });
+
+  it('writes one row for a tag named twice', async () => {
+    // The primary key would refuse the pair, so a payload naming one tag twice
+    // has to be deduplicated before it reaches the insert. Untidy rather than
+    // wrong, which is why it is not a refusal.
+    const id = await root('Strip the roof');
+    const regulatory = await tagNamed('regulatory');
+
+    const outcome = await workItems.patch(id, ownerId, {
+      tagIds: [regulatory, regulatory],
+    });
+
+    expect(outcome.ok).toBe(true);
+    expect(await tagsOn(id)).toEqual([regulatory]);
+  });
+});

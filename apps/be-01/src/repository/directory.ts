@@ -13,6 +13,7 @@ import type {
   PersonWritten,
   ServiceTeam,
   ServiceTeamWritten,
+  Tag,
 } from './index';
 import { bumpedWorkItem, bumpWorkItems } from './revision';
 import {
@@ -23,6 +24,7 @@ import {
   projectTeamCapacity,
   role,
   serviceTeam,
+  tag,
   workItem,
   workItemTag,
   workItemTeam,
@@ -225,6 +227,36 @@ export class DirectoryRepository implements DirectoryStore {
       .limit(1);
     const found = rows.at(0);
     if (found === undefined) throw new Error(`team vanished after insert: ${toAdd.name}`);
+    return found;
+  }
+
+  /** Every tag in the global directory, by name — {@link DirectoryStore.listTeams}' shape. */
+  async listTags(): Promise<Tag[]> {
+    return this.db.select({ id: tag.id, name: tag.name }).from(tag).orderBy(asc(tag.name));
+  }
+
+  /**
+   * Adds a tag, idempotently **by name**, and answers the row that is there.
+   *
+   * `addTeam`'s shape and `addTeam`'s argument: this list is typed into by
+   * everybody, two people adding `regulatory` at the same moment both pass a
+   * check-then-insert, and only the unique index stops the second one. What
+   * comes back is the row the table holds — the *earlier* one when two arrived
+   * at once — because returning `toAdd` would hand a caller an id nothing has.
+   *
+   * The projection is written out for `listTeams`' reason: a bare `select()`
+   * would carry whatever columns this table grows, and a tag is deliberately
+   * two of them.
+   */
+  async addTag(toAdd: Tag): Promise<Tag> {
+    await this.db.insert(tag).values(toAdd).onConflictDoNothing();
+    const rows = await this.db
+      .select({ id: tag.id, name: tag.name })
+      .from(tag)
+      .where(eq(tag.name, toAdd.name))
+      .limit(1);
+    const found = rows.at(0);
+    if (found === undefined) throw new Error(`tag vanished after insert: ${toAdd.name}`);
     return found;
   }
 
