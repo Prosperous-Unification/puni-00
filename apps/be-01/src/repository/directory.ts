@@ -24,6 +24,7 @@ import {
   role,
   serviceTeam,
   workItem,
+  workItemTag,
   workItemTeam,
 } from './schema';
 
@@ -94,11 +95,30 @@ function usageRowsIn(
     .where(inArray(workItem.projectId, ids))
     .orderBy(asc(workItemTeam.teamId))
     .all();
+  const tagged = reader
+    .select({ workItemId: workItemTag.workItemId, tagId: workItemTag.tagId })
+    .from(workItemTag)
+    .innerJoin(workItem, eq(workItemTag.workItemId, workItem.id))
+    .where(inArray(workItem.projectId, ids))
+    .orderBy(asc(workItemTag.tagId))
+    .all();
   const teamsOf = new Map<string, string[]>();
   for (const each of joined) {
     teamsOf.set(each.workItemId, [...(teamsOf.get(each.workItemId) ?? []), each.teamId]);
   }
-  const workItems = rows.map((row) => ({ ...row, teamIds: teamsOf.get(row.id) ?? [] }));
+  // Read in the same transaction for the reason every other read here is: a
+  // removal's confirmation must count what is there now. Both dimensions come
+  // back on the row because `DirectoryUsageRows` is what both usage functions
+  // read — `directoryUsageOfTag` asks the same question of the other one.
+  const tagsOf = new Map<string, string[]>();
+  for (const each of tagged) {
+    tagsOf.set(each.workItemId, [...(tagsOf.get(each.workItemId) ?? []), each.tagId]);
+  }
+  const workItems = rows.map((row) => ({
+    ...row,
+    teamIds: teamsOf.get(row.id) ?? [],
+    tagIds: tagsOf.get(row.id) ?? [],
+  }));
   const projects = reader
     .select({ id: project.id, name: project.name })
     .from(project)
