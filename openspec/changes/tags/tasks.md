@@ -87,12 +87,15 @@
       apps import it, so the tag reading has to live beside it; what a tag is not
       is anything below `slicesOf`. Asserted by 7.1's fault rather than by a
       second test.
-- [ ] 7.3 `gantt-geometry.ts` — tags reach the hover text and nothing that
+- [x] 7.3 `gantt-geometry.ts` — tags reach the hover text and nothing that
       computes a position. `barColorOf` unchanged.
 
 ## 8. The gate and the record
 
-- [ ] 8.1 Full gate on h2puni, with the bun version beside every count.
+- [x] 8.1 Full gate on h2puni, with the bun version beside every count.
+      bun 1.3.14, 2026-08-20: fe-01 **1,532 / 0** (53 files), be-01 **924 / 0**,
+      domain **89 / 0**, lint + typecheck green over 21 projects,
+      `format:check` exit 0. Re-run at the head before the PR.
 - [ ] 8.2 `design.md` — the decisions above with their alternatives.
 - [ ] 8.3 Spec deltas: `wbs-domain` (the dimension, its inheritance) and
       `wbs-api` (the routes, the payload). **Lead every requirement body with its
