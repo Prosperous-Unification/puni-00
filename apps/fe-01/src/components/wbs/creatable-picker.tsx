@@ -317,8 +317,8 @@ export function CreatablePicker({
             setTyped(null);
             return;
           }
-          if (canCreate && onCreate !== undefined) {
-            onCreate(typed.trim());
+          if (canCreate) {
+            onCreate?.(typed.trim());
             setTyped(null);
           }
         }}
