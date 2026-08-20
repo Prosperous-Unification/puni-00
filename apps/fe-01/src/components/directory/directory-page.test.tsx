@@ -124,7 +124,11 @@ function fakeDirectory(
     removeTag(id: string, cascade: boolean) {
       api.removals.push([id, cascade]);
       if (removalUsage !== null && !cascade) {
-        return Promise.resolve({ ok: false as const, reason: 'in_use' as const, usage: removalUsage });
+        return Promise.resolve({
+          ok: false as const,
+          reason: 'in_use' as const,
+          usage: removalUsage,
+        });
       }
       heldTags = heldTags.filter((tag) => tag.id !== id);
       return Promise.resolve({ ok: true as const });
@@ -898,7 +902,10 @@ describe('the Tags section, and what it deliberately has not got', () => {
     // row above it and this fails on the `member` query finding two nodes where
     // one was owed — a directory quietly claiming somebody belongs to
     // `regulatory`. Watched 2026-08-20.
-    const api = fakeDirectory([{ id: 'p1', name: 'Ada', teamIds: ['t1'] }], [{ id: 't1', name: 'Platform' }]);
+    const api = fakeDirectory(
+      [{ id: 'p1', name: 'Ada', teamIds: ['t1'] }],
+      [{ id: 't1', name: 'Platform' }],
+    );
     api.putTags([{ id: 'g1', name: 'regulatory' }]);
     render(<DirectoryPage token="t" api={api} nav={null} account={null} />);
 

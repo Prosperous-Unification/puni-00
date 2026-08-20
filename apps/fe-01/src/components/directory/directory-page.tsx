@@ -487,10 +487,7 @@ export function DirectoryPage({ token, api: apiOverride, nav, account }: Directo
    * `expected [ [ 't2', true ] ] to deeply equal [ [ 't2', false ] ]`. The
    * fault `phases-dialog` already knows. Watched 2026-08-09.
    */
-  function askToRemove(
-    kind: 'person' | 'team' | 'tag',
-    entry: { id: string; name: string },
-  ): void {
+  function askToRemove(kind: 'person' | 'team' | 'tag', entry: { id: string; name: string }): void {
     void attempt(async () => {
       const outcome =
         kind === 'person'
