@@ -46,7 +46,7 @@ export interface DirectoryPageProps {
 
 /** A removal be-01 refused, and the decision the reader has not made yet. */
 interface Confirming {
-  kind: 'person' | 'team';
+  kind: 'person' | 'team' | 'tag';
   id: string;
   name: string;
   usage: DirectoryUsage;

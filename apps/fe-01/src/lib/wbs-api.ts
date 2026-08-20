@@ -422,6 +422,16 @@ export interface PersonView {
 export type DirectoryEffect =
   | { kind: 'assignment_dropped'; role: { id: string; name: string } }
   | { kind: 'label_nulled' }
+  /**
+   * The row carries the **tag** being removed, and will stop carrying it.
+   *
+   * Its own kind rather than `label_nulled`, because nothing is nulled: a tag
+   * has no column on the work item to clear, and what goes is the labelling
+   * row. It never appears beside a `capacity_released` — a tag has no pool —
+   * and it is never named on a row that merely *inherits* the tag, because
+   * losing an inherited tag moves no date and there is nothing to confirm.
+   */
+  | { kind: 'label_removed' }
   | {
       /**
        * The pool bounding this work item goes with the team, so its dates may
