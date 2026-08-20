@@ -245,6 +245,25 @@ export interface WorkItemView {
    */
   serviceTeamId: string | null;
   /**
+   * What kind of thing this work item is, by tag id — `regulatory`,
+   * `tech-debt`, `q3-must-have`.
+   *
+   * In be-01's order (by tag id), so two reads of an unchanged plan give the
+   * same array. Empty means this row states nothing and takes its ancestor's
+   * set; `effectiveTagsOf` in `libs/domain` is the reading, and it is literally
+   * the same walk `teamIds` above uses.
+   *
+   * **Independent of `teamIds` in every respect.** A row states either, both or
+   * neither, and inheriting one says nothing about the other. There is no
+   * column behind this and never was — unlike `serviceTeamId` above, which is
+   * `teamIds`' outgoing copy, a tag's whole existence is the join table.
+   *
+   * **Nothing that computes a date reads this.** A team is a pool the scheduler
+   * spends; a tag is a label, and be-01 asserts the empty diff on a plan where a
+   * sized team really does decide dates.
+   */
+  tagIds: string[];
+  /**
    * Who does this work, by role id.
    *
    * `string | undefined` rather than `string`: a role nobody is assigned to is
@@ -331,6 +350,20 @@ export type RoleRemoval = { ok: true } | { ok: false; reason: 'in_use'; inUse: R
  * plan is {@link TeamCapacityView}.
  */
 export interface TeamView {
+  id: string;
+  name: string;
+}
+
+/**
+ * A tag, global to this deployment. A name and nothing else, and the absence is
+ * bigger than {@link TeamView}'s.
+ *
+ * A team has no `size` **any more**; a tag has never had one and has no
+ * per-project table beside it either, so there is no `TagCapacityView` under
+ * this and nothing to write one from. A reader who notices that the directory
+ * page renders tags with no capacity column has learned the model rule.
+ */
+export interface TagView {
   id: string;
   name: string;
 }
@@ -493,6 +526,16 @@ export interface PersonPatch {
 export interface DirectoryApi {
   listPeople(): Promise<PersonView[]>;
   listTeams(): Promise<TeamView[]>;
+  /** Every tag in the global directory, by name. */
+  listTags(): Promise<TagView[]>;
+  addTag(name: string): Promise<TagView>;
+  renameTag(tagId: string, name: string): Promise<TagView>;
+  /**
+   * Removes a tag. Without `cascade` a tag anything carries is refused with the
+   * usage naming what would be unlabelled — `removeTeam`'s shape, and the same
+   * 409-then-confirm gesture.
+   */
+  removeTag(tagId: string, cascade: boolean): Promise<DirectoryRemoval>;
   /** Adds a person; no teams means a **free agent**. Idempotent by name at be-01. */
   addPerson(name: string, teamIds: readonly string[]): Promise<PersonView>;
   addTeam(name: string): Promise<TeamView>;
@@ -784,6 +827,16 @@ export interface ProjectApi {
   ): Promise<void>;
   /** The global team list, and adding to it — idempotent by name at be-01. */
   listTeams(): Promise<TeamView[]>;
+  /** Every tag in the global directory, by name. */
+  listTags(): Promise<TagView[]>;
+  addTag(name: string): Promise<TagView>;
+  renameTag(tagId: string, name: string): Promise<TagView>;
+  /**
+   * Removes a tag. Without `cascade` a tag anything carries is refused with the
+   * usage naming what would be unlabelled — `removeTeam`'s shape, and the same
+   * 409-then-confirm gesture.
+   */
+  removeTag(tagId: string, cascade: boolean): Promise<DirectoryRemoval>;
   addTeam(name: string): Promise<TeamView>;
   listPeople(): Promise<PersonView[]>;
   /** Adds a person; no teams means a free agent. */
@@ -1324,6 +1377,30 @@ export function httpDirectoryApi(token: string): DirectoryApi {
         { method: 'PATCH', body: JSON.stringify({ name }) },
         'team',
       );
+    },
+    // The tag half, and it is the team half with the word changed. Global —
+    // no project in any of these paths, exactly as the teams are.
+    async listTags() {
+      const body = await send<{ tags: TagView[] }>('/api/tags', token);
+      return body.tags;
+    },
+    async addTag(name) {
+      const body = await send<{ tag: TagView }>('/api/tags', token, {
+        method: 'POST',
+        body: JSON.stringify({ name }),
+      });
+      return body.tag;
+    },
+    renameTag(id, name) {
+      return writeDirectoryAt<TagView>(
+        `/api/tags/${id}`,
+        token,
+        { method: 'PATCH', body: JSON.stringify({ name }) },
+        'tag',
+      );
+    },
+    removeTag(id, cascade) {
+      return removeDirectoryAt(`/api/tags/${id}${cascade ? '?cascade=true' : ''}`, token);
     },
     // `?cascade=true` and nothing else — `directoryController`'s own rule, and
     // `roleController`'s before it: the flag is the second, explicit call
