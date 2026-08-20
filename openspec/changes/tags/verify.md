@@ -141,10 +141,10 @@ claim is made where the reading is computed (#5, #6).
 
 **Run 32404008038** at `310de48`, PR #87.
 
-| job      | conclusion  | what it carried                                                                                                                            |
-| -------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| `gate`   | **success** | 4m6s. format, the whole run-many target, secrets scan, doc caps, compose files, migration lint, and `build` — which h2puni cannot run.     |
-| `pixels` | **fail**    | `1 failed / 179 passed`, 9.6m. Reran `--failed`: **the same one test, the same numbers**, 9.7m.                                            |
+| job      | conclusion  | what it carried                                                                                                                        |
+| -------- | ----------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `gate`   | **success** | 4m6s. format, the whole run-many target, secrets scan, doc caps, compose files, migration lint, and `build` — which h2puni cannot run. |
+| `pixels` | **fail**    | `1 failed / 179 passed`, 9.6m. Reran `--failed`: **the same one test, the same numbers**, 9.7m.                                        |
 
 The failure is `dark-mode.spec.ts:263`, `follows the machine while nothing has
 been chosen, and stops when something is`, failing inside its `settled()` helper
