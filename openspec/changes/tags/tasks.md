@@ -66,9 +66,10 @@
 - [x] 6.1 The tag cell in `wbs-table.tsx` — chips with a ✕ each, plus a picker that adds one. No inline create: the proposal's non-goal, and the reason the column can be conditional at all.
 - [x] 6.2 `plan-cards.tsx`: the `↳` inherited chip, per dimension.
 - [x] 6.3 `plan-export.ts`: a `Tags` column, `; `-joined, RFC4180-quoted.
-- [ ] 6.4 `directory-page.tsx`: a Tags section beside Teams, **with no capacity
+- [x] 6.4 `directory-page.tsx`: a Tags section beside Teams, **with no capacity
       column and no membership chips**. That absence is the model rule made
-      visible.
+      visible, and it is asserted rather than left to be noticed — the tag row's
+      own test reads for `member` and for a number box and finds neither.
 - [x] 6.5 `lib/wbs-api.ts`: `tagIds` on the wire types.
 - [x] 6.6 The table-width budget rule — **exempted, and the exemption names
       what it exempts**: `CONDITIONAL_COLUMNS` in `table-frame.ts` keeps `tag`
