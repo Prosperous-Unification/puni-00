@@ -160,3 +160,30 @@ button up off the row it is hovered on` — fail on **both** trees.
 
 Not fixed here: those pre-existing failures are `main`'s to fix, and this change
 does not make them worse. Nothing was papered over and no retry was used.
+
+## CI at `0150eda` (PR #86)
+
+`gate` **passed** — run 32358146091. So the two `plan-mermaid.test.ts` failures
+above are local to this machine and do not reproduce on CI's runner.
+
+`pixels` **failed, 2 of 180**: `dark-mode.spec.ts:239 is dark at the first paint,
+before the app has mounted` and `header.spec.ts:413 the entry is clipped and its
+full text is still readable`. All six of this change's browser tests are among
+the 178 that passed.
+
+**The ws-proxy flake, sixth sighting.** `main`'s own run at this branch's merge
+base (`9639a39`, run 32281560107) failed `pixels` the same way: 2 failed / 172
+passed, one `dark-mode.spec.ts` case and one `header.spec.ts` project-picker
+case. The _files_ match and the individual cases do not — `dark-mode:263` and
+`header:440` there against `:239` and `:413` here — which is what a flake looks
+like and what a regression does not. Both logs are full of `[WebServer] Error:
+write EPIPE` / `ECONNRESET`.
+
+Not re-run to get green, deliberately: `playwright.config.ts` sets `retries: 0`
+and says why — "a layout check people re-run until it is green is a check that
+cannot fail wearing a different hat". Recorded and merged over, which is what
+the four previous sightings did (`#80`, `#82`, `#83`'s tails).
+
+Owed, and not this change's to pay: `dark-mode.spec.ts` and `header.spec.ts`
+need the flake fixed at its cause, or the ws-proxy noise silenced so the real
+signal is readable.
