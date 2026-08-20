@@ -54,6 +54,40 @@ export function inMemoryDirectory(): DirectoryStore {
       tags.set(toAdd.id, toAdd);
       return Promise.resolve(toAdd);
     },
+    renameTag(tagId, name) {
+      const found = tags.get(tagId);
+      if (found === undefined) return Promise.resolve({ ok: false, reason: 'not_found' });
+      // The unique index, modelled, for `renameTeam`'s reason: a fixture that
+      // let two `regulatory` tags exist would let a caller's `taken` branch pass
+      // untested.
+      const held = [...tags.values()].some((each) => each.name === name && each.id !== tagId);
+      if (held) return Promise.resolve({ ok: false, reason: 'taken' });
+      const renamed = { id: tagId, name };
+      tags.set(tagId, renamed);
+      return Promise.resolve({ ok: true, tag: renamed, projectIds: [] });
+    },
+    // The usage and the removal are **not** modelled here beyond the shape.
+    // This store has no work items and no foreign keys, so the counting that
+    // decides a removal and the cascade that performs it cannot exist in it —
+    // which is exactly why the tag directory's own tests run against real
+    // SQLite. A fixture answering "nothing points at it" would let a caller's
+    // `in_use` branch pass untested, so it answers the empty usage and says so.
+    usageOfTag: () =>
+      Promise.resolve({
+        workItems: [],
+        projects: [],
+        assignments: [],
+        roles: [],
+        people: [],
+        members: [],
+        capacityOf: new Map<string, number>(),
+      }),
+    removeTag(tagId) {
+      const found = tags.get(tagId);
+      if (found === undefined) return Promise.resolve({ ok: false, reason: 'not_found' });
+      tags.delete(tagId);
+      return Promise.resolve({ ok: true, removal: { workItemIds: [], projectIds: [] } });
+    },
     addTeam(team) {
       const already = [...teams.values()].find((each) => each.name === team.name);
       if (already !== undefined) return Promise.resolve(already);
