@@ -1373,3 +1373,56 @@ describe('a tag set is undone whole, which a scalar habit would not do', () => {
     expect(await tagsOn(id)).toEqual([regulatory]);
   });
 });
+
+describe('a tag decides no date, asserted rather than claimed', () => {
+  it('moves nothing in the plan when a tag is deleted with its labelling', async () => {
+    // **The central claim of the whole change, and the only way to state it that
+    // a reader can check.** A tag has no pool, no size and nothing the engine
+    // reads, so a plan scheduled with a tag on it and the same plan after that
+    // tag is deleted — cascade and all — must come out identical in every
+    // schedule number and every date.
+    //
+    // Over real SQLite, because the deletion under test *is* the foreign key's
+    // cascade: an in-memory store models no cascade at all, so this test would
+    // pass there against a version that never removed the labelling.
+    //
+    // The plan is built so a scheduling input would be visible: a start date, a
+    // dependency, and estimates on both sides of it. If a tag ever reached the
+    // engine, the successor's dates are where it would show.
+    await projects.update(projectId, { startDate: '2026-09-01' });
+    const strip = await root('Strip the roof');
+    const cable = await root('Cable it', strip);
+    await workItems.setEstimate(strip, ownerId, dev(), DAYS);
+    await workItems.setEstimate(cable, ownerId, dev(), OTHER_DAYS);
+    await workItems.addDependency(cable, ownerId, strip);
+
+    const regulatory = await directoryStore.addTag({ id: crypto.randomUUID(), name: 'regulatory' });
+    await workItems.patch(strip, ownerId, { tagIds: [regulatory.id] });
+
+    const before = await workItems.tree(projectId);
+
+    const removed = await directoryStore.removeTag(regulatory.id, true);
+    expect(removed.ok).toBe(true);
+
+    const after = await workItems.tree(projectId);
+
+    // Non-vacuity first: the labelling really did go, so this is comparing two
+    // plans that differ, rather than two reads of an unchanged one.
+    expect(after?.workItems.map((row) => row.tagIds)).toEqual(
+      before?.workItems.map(() => []) ?? [],
+    );
+    expect(before?.workItems.some((row) => row.tagIds.length > 0)).toBe(true);
+
+    // And every number and every date is where it was.
+    expect(
+      after?.workItems.map((row) => ({ name: row.name, schedule: row.schedule, dates: row.dates })),
+    ).toEqual(
+      before?.workItems.map((row) => ({
+        name: row.name,
+        schedule: row.schedule,
+        dates: row.dates,
+      })),
+    );
+    expect(after?.slices).toEqual(before?.slices ?? []);
+  });
+});
