@@ -318,7 +318,11 @@ export function CreatablePicker({
             return;
           }
           if (canCreate) {
-            onCreate?.(typed.trim());
+            // No `?.`: `canCreate` is `onCreate !== undefined && …`, and
+            // TypeScript narrows through an aliased condition — so an optional
+            // chain here is not defensive, it is dead syntax the linter is
+            // right to refuse.
+            onCreate(typed.trim());
             setTyped(null);
           }
         }}
@@ -355,7 +359,7 @@ export function CreatablePicker({
                     label: `Add “${typed.trim()}”`,
                     selected: false,
                     take: () => {
-                      onCreate?.(typed.trim());
+                      onCreate(typed.trim());
                       setTyped(null);
                     },
                   },
