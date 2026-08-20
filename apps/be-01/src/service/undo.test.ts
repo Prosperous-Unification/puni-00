@@ -1389,7 +1389,7 @@ describe('a tag decides no date, asserted rather than claimed', () => {
     // The plan is built so a scheduling input would be visible: a start date, a
     // dependency, and estimates on both sides of it. If a tag ever reached the
     // engine, the successor's dates are where it would show.
-    await projects.update(projectId, { startDate: '2026-09-01' });
+    await projects.update(projectId, ownerId, { startDate: '2026-09-01' });
     const strip = await root('Strip the roof');
     const cable = await root('Cable it', strip);
     await workItems.setEstimate(strip, ownerId, dev(), DAYS);
