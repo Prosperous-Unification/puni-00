@@ -1667,3 +1667,214 @@ test.describe('the chart edge the reader drags', () => {
     expect(Math.abs(inFlight.height - (before.height + 120))).toBeLessThanOrEqual(1.5);
   });
 });
+
+/**
+ * The **pointed row**, measured by the engine that paints it.
+ *
+ * Every assertion here is one jsdom cannot make, and that is the whole reason
+ * the file is this one. `wbs-table.test.tsx` and `gantt-panel.test.tsx` assert
+ * the attributes — `data-row-lit`, `data-gantt-label-lit`, `data-gantt-row-lit`
+ * — and an attribute arriving proves only that it arrived. Whether any pixel
+ * changes colour is the cascade's doing, and the cascade runs here.
+ *
+ * This is R5 tally #17's own fault class, and the repo has already paid for it
+ * once at this exact spot: `dep-hover-highlights`' `--cell-bg` rule was
+ * withheld from PR #38's first head, the attribute set, jsdom green throughout,
+ * and only the `pixels` job saw it. So the rule that paints a pointed row has
+ * its negative in here rather than upstairs.
+ *
+ * Two claims are load-bearing beyond "it turns a colour":
+ *
+ * 1. **Both stripes, one colour.** The banded-hover rule holds the lit rules up
+ *    by predicate rather than by source order, so a `data-row-lit` missing from
+ *    its `:not()` chain gives an even row a different colour from an odd one.
+ *    A pointed row written from a **bar** is as likely to be even as odd, and
+ *    the pointer is not over the table at all when it is.
+ * 2. **Nothing moves.** No face scrolls to a pointed row, which is a promise
+ *    about a `scrollTop` only a browser has.
+ */
+test.describe('the pointed row, across both faces', () => {
+  /**
+   * The painted colour of a row's pinned Name cell, once its cross-fade is done.
+   *
+   * The **pinned** cell on purpose: it paints an opaque inline background, so a
+   * tint reaches it only through the `--cell-bg` join, which is the wiring under
+   * test. Settled first, because a colour captured mid-fade is a value no frame
+   * will show again and an assertion against it fails on a timing nobody chose.
+   */
+  async function settledRowBg(row: Locator): Promise<string> {
+    const cell = row.locator('td[data-column="name"]');
+    await expect.poll(() => cell.evaluate((td) => td.getAnimations().length)).toBe(0);
+    return cell.evaluate((td) => getComputedStyle(td).backgroundColor);
+  }
+
+  /** The same colour, read now, mid-fade or not — for polling "has it moved". */
+  const rowBg = (row: Locator): Promise<string> =>
+    row
+      .locator('td[data-column="name"]')
+      .evaluate((cell) => getComputedStyle(cell).backgroundColor);
+
+  test('lights the table row, the row label and a band from a bar', async ({ page }) => {
+    await seedPlan(page, `pointed-from-bar-${String(Date.now())}`);
+    await openTheChart(page);
+
+    const rest = await settledRowBg(rowOf(page, '010.1'));
+
+    await barOf(page, '010.1', 'Dev').hover();
+
+    // The attributes first, so a colour assertion that failed for want of a
+    // hover would fail as itself rather than as a missing tint.
+    await expect(rowOf(page, '010.1')).toHaveAttribute('data-row-lit', 'true');
+    await expect(page.locator('[data-gantt-label-lit]')).toHaveCount(1);
+    await expect(page.locator('[data-gantt-row-lit]')).toHaveCount(1);
+
+    // And the paint, which is the half only this file can see.
+    await expect.poll(() => rowBg(rowOf(page, '010.1'))).not.toBe(rest);
+
+    const lit = await settledRowBg(rowOf(page, '010.1'));
+    const label = await page
+      .locator('[data-gantt-label-lit]')
+      .evaluate((node) => getComputedStyle(node).backgroundColor);
+    const band = await page
+      .locator('[data-gantt-row-lit]')
+      .evaluate((node) => getComputedStyle(node).fill);
+
+    // One ink in three places. Read as colours rather than as "not rest", so a
+    // build that tinted the table and left the chart grey cannot pass.
+    expect(lit, 'the table row is not painted the row light').toBe(label);
+    expect(band, 'the chart band is not painted the row light').toBe(label);
+  });
+
+  test('lights the same colour on an even row as on an odd one', async ({ page }) => {
+    // The `:not()` chain's negative, and finding the case it is really about
+    // took two wrong tries worth recording.
+    //
+    // The chain matters only where `data-row-lit` and `:hover` land on **one**
+    // row, because `nth-child(even):hover` needs the pointer on the `<tr>`. That
+    // rules out both obvious readings: pointing from a bar never matches
+    // `:hover` at all (watched passing with the chain removed — a check that
+    // could not fail), and the pointer on a table row no longer writes
+    // `data-row-lit` on it, precisely so the banded hover keeps working.
+    //
+    // What is left is the one combination that does both: a **bar holding the
+    // keyboard focus** lights its row while the **pointer** rests on that same
+    // row in the table. `depFocus` reaches the identical arrangement, which is
+    // why the rule above this one was already written for it.
+    //
+    // Both stripes asserted to the *same* colour rather than each to "not rest":
+    // a build where only one works would pass a pair of not-rest checks, and a
+    // highlight that behaves differently on alternate stripes is the defect
+    // `dep-hover-highlights` existed to remove.
+    await seedPlan(page, `pointed-stripes-${String(Date.now())}`, {
+      extraRows: 2,
+      costedExtras: true,
+    });
+    await openTheChart(page);
+
+    // `010` is the parent and draws no bar, so the pair is `010.1` and `010.2` —
+    // and their stripes are read from the DOM rather than assumed, because a
+    // fixture that renumbered would otherwise quietly test one phase twice.
+    const stripes = await page.evaluate(() =>
+      [...document.querySelectorAll('[data-grid] tbody tr')].map((tr, index) => ({
+        number: tr.querySelector('[data-number]')?.textContent ?? '(none)',
+        even: index % 2 === 1,
+      })),
+    );
+    const parityOf = (number: string): boolean => {
+      const found = stripes.find((row) => row.number === number);
+      if (found === undefined) throw new Error(`${number} is not a row of this plan`);
+      return found.even;
+    };
+    expect(parityOf('010.1'), '010.1 is not on the even stripe').toBe(true);
+    expect(parityOf('010.2'), '010.2 is not on the odd stripe').toBe(false);
+
+    /** Lights `number` from a bar's focus, with the pointer on its table row. */
+    const litWithBothOn = async (number: string): Promise<string> => {
+      await barOf(page, number, 'Dev').focus();
+      const row = rowOf(page, number);
+      await row.locator('td[data-column="name"]').hover();
+      await expect(row).toHaveAttribute('data-row-lit', 'true');
+      return settledRowBg(row);
+    };
+
+    const litOdd = await litWithBothOn('010.2');
+    const litEven = await litWithBothOn('010.1');
+
+    expect(litEven, 'the even row is lit differently from the odd row').toBe(litOdd);
+  });
+
+  test('lights the chart from a table row', async ({ page }) => {
+    await seedPlan(page, `pointed-from-table-${String(Date.now())}`);
+    await openTheChart(page);
+
+    await rowOf(page, '010.2').locator('td[data-column="name"]').hover();
+
+    await expect(page.locator('[data-gantt-label-lit]')).toHaveCount(1);
+    await expect(page.locator('[data-gantt-row-lit]')).toHaveCount(1);
+    await expect(page.locator('[data-gantt-label-lit]')).toHaveAttribute('title', /^010\.2 - /);
+
+    // And the row the pointer is on does **not** light itself: `tr:hover` is
+    // already tinting it, and `data-row-lit` on every hovered row makes
+    // `tr:not([data-row-lit])…:nth-child(even):hover` unmatchable — which
+    // stopped the stripe moving under the pointer at all and failed four of
+    // `hover-cards.spec.ts`'s assertions. Watched, 2026-08-14.
+    await expect(page.locator('[data-row-lit]')).toHaveCount(0);
+  });
+
+  test('clears when the pointer leaves both faces', async ({ page }) => {
+    await seedPlan(page, `pointed-cleared-${String(Date.now())}`);
+    await openTheChart(page);
+
+    await barOf(page, '010.1', 'Dev').hover();
+    await expect(page.locator('[data-gantt-row-lit]')).toHaveCount(1);
+
+    // Onto the panel's own heading, which is on neither face's rows.
+    await page.getByRole('button', { name: 'Detail' }).hover();
+
+    await expect(page.locator('[data-gantt-row-lit]')).toHaveCount(0);
+    await expect(page.locator('[data-row-lit]')).toHaveCount(0);
+    await expect(page.locator('[data-gantt-label-lit]')).toHaveCount(0);
+  });
+
+  test('moves neither face', async ({ page }) => {
+    await seedPlan(page, `pointed-still-${String(Date.now())}`, {
+      extraRows: 12,
+      costedExtras: true,
+    });
+    await openTheChart(page);
+
+    const before = await panelScroll(page);
+    const pageBefore = await page.evaluate(() => window.scrollY);
+
+    await barOf(page, '010.1', 'Dev').hover();
+    await expect(page.locator('[data-gantt-row-lit]')).toHaveCount(1);
+
+    expect(await panelScroll(page)).toEqual(before);
+    expect(await page.evaluate(() => window.scrollY)).toBe(pageBefore);
+  });
+
+  test('keeps an open editor and its half-typed value', async ({ page }) => {
+    // 1.4's jsdom negative sees the `columns` memo dep; this sees what a real
+    // pointer sequence does to a real focus — R5 #14/#15's fault class, where
+    // jsdom performs no default action and cannot watch a guard be left
+    // half-done.
+    await seedPlan(page, `pointed-editor-${String(Date.now())}`, {
+      extraRows: 3,
+      costedExtras: true,
+    });
+    await openTheChart(page);
+
+    const name = page.getByLabel('Name of 010.1');
+    await name.click();
+    await name.fill('Survey the racking bef');
+    await expect(name).toBeFocused();
+
+    for (const number of ['010.1', '010.2', '020', '030']) {
+      await barOf(page, number, 'Dev').hover();
+    }
+
+    await expect(page.locator('[data-gantt-row-lit]')).toHaveCount(1);
+    await expect(name).toBeFocused();
+    await expect(name).toHaveValue('Survey the racking bef');
+  });
+});

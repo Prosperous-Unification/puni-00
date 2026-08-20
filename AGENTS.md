@@ -123,7 +123,7 @@ Checks that cannot fail have shipped here six times. This is the rule that stops
 
 ## Checks that cannot fail
 
-R5 exists because this failure keeps recurring — seventeen times so far. Fixed: `assertPragmas` with no runtime
+R5 exists because this failure keeps recurring — eighteen times so far. Fixed: `assertPragmas` with no runtime
 caller, the migration lint's unreachable `ALTER TABLE ... RENAME COLUMN` branch, `readRemoteState`
 reading an unreadable file as never-deployed, `shellcheck … || echo`, the secrets scanner's
 `.catch(() => '')` (an unreadable file scanned as clean — in a CI gate), and `dev:setup` skipping a
@@ -257,6 +257,23 @@ JSON can express, it parses to `Infinity`, and `Infinity` is above every ceiling
 about. The range check beside it already refused both. The line is deleted and both storage
 cases watch the range check instead, watched failing on `expected '' to be '56px'`. Write the
 negative before you believe the line — `P phases-ui`, one change later.
+
+One more on 2026-08-14 in `linked-row-hover`, and it **did not ship**. The pointed row's tint had
+to outrank the alternating band's hover, so `data-row-lit` joined that rule's `:not()` chain — and
+the negative written for it, pointing a row from a **Gantt bar**, was watched **passing** with the
+attribute taken back out. `nth-child(even):hover` needs the pointer on the `<tr>`: point from the
+chart and `:hover` never matches at all, so the banded rule cannot compete and there is nothing
+for the `:not()` to hold up. The collision needs both conditions on **one** row, which after the
+fix below is only a bar holding the focus while the pointer rests on that same row in the table —
+`depFocus`'s own arrangement. Rewritten that way it failed on `Expected "oklab(0.96448 …)"
+Received "oklab(0.917255 …)"`. **A negative about `:hover` has to hover the thing.**
+
+And the fault that made the rewrite necessary is the shape worth remembering: the first cut wrote
+`data-row-lit` on **every** hovered row, which made the banded rule unmatchable and stopped the
+stripe moving under the pointer at all. All **1319** jsdom tests passed through it; four
+assertions in `e2e/hover-cards.spec.ts` failed, in both palettes. It was found by running the
+**whole** browser gate rather than the new tests in it — a change that edits a shared CSS rule has
+no business believing a filtered run.
 
 Prove your check fails when the thing is broken, and say so in the comment. A check whose
 failure mode has never been observed is a claim, not a gate.
