@@ -3415,7 +3415,6 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
       scheduleError,
       roles,
       teams,
-    tags,
       tags,
       people,
       priorityBands,
@@ -3442,7 +3441,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
       scheduleError,
       roles,
       teams,
-    tags,
+      tags,
       people,
       priorityBands,
       flat,
@@ -8202,7 +8201,6 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
       <TeamsDialog
         teams={teamsOnThePlan(
           teams,
-    tags,
           teamCapacities,
           // Every row's **effective** teams, so a team only an ancestor carries
           // is offered a box: its pool is what the leaves below it spend. The
