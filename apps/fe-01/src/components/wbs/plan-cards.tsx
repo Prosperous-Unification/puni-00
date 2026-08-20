@@ -360,6 +360,7 @@ export function PlanCards({
   assigneeOn,
   waitsFor,
   teamLabel,
+  tagLabel,
   spanOf,
   showDay,
   rowActions,

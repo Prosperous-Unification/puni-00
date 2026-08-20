@@ -3415,6 +3415,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
       scheduleError,
       roles,
       teams,
+      tags,
       people,
       priorityBands,
       // Every tree row as it came off the wire, not a literal built from one.
