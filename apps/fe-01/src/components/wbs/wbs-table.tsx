@@ -73,7 +73,7 @@ import {
 } from './estimate-draft';
 import { FoldedRoleCard } from './folded-role-card';
 import { GanttFaultBoundary } from './gantt-fault';
-import type { GanttPlan, ServiceTeamLabel } from './gantt-geometry';
+import type { GanttPlan, ServiceTeamLabel, TagLabel } from './gantt-geometry';
 import { clampedGanttHeight, GANTT_CEILING_PX, GANTT_MIN_PX, GanttPanel } from './gantt-panel';
 import { HoverPreview } from './hover-preview';
 import { initialsOf } from './initials';
@@ -3080,6 +3080,36 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     return {
       state: 'inherited',
       name: named.name,
+      fromRow: namedInTheTree.get(inherited.fromId) ?? 'a row that is not shown',
+    };
+  };
+
+  /**
+   * A row's tags as a cell or a card can state them: its own set, or the one it
+   * inherits and the row that carries it.
+   *
+   * {@link effectiveTeamLabelOf}'s shape, one dimension over, and the whole set
+   * rather than `at(0)`: there is no single-member stage in this dimension to
+   * grow out of. A name the directory read has not caught up with is simply
+   * left out — see {@link TagLabel} for why there is no `unresolved` arm.
+   */
+  const effectiveTagLabelOf = (row: TreeRow): TagLabel => {
+    const namesFor = (ids: readonly string[]): string[] =>
+      ids.flatMap((id) => {
+        const found = tags.find((each) => each.id === id);
+        return found === undefined ? [] : [found.name];
+      });
+    if (row.tagIds.length > 0) {
+      const names = namesFor(row.tagIds);
+      return names.length === 0 ? { state: 'none' } : { state: 'named', names };
+    }
+    const inherited = effectiveTags.get(row.id);
+    if (inherited === undefined) return { state: 'none' };
+    const names = namesFor(inherited.tagIds);
+    if (names.length === 0) return { state: 'none' };
+    return {
+      state: 'inherited',
+      names,
       fromRow: namedInTheTree.get(inherited.fromId) ?? 'a row that is not shown',
     };
   };
@@ -8622,6 +8652,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
           assigneeOn={assigneeOn}
           waitsFor={waitsFor}
           teamLabel={effectiveTeamLabelOf}
+          tagLabel={effectiveTagLabelOf}
           spanOf={spanOf}
           showDay={showDay}
         />

@@ -174,6 +174,27 @@ export type ServiceTeamLabel =
   | { state: 'inherited'; name: string; fromRow: string }
   | { state: 'unresolved' };
 
+/**
+ * What kind of thing a row is, as any face can state it — {@link
+ * ServiceTeamLabel}'s shape for the other dimension, with two differences that
+ * are both the model rather than the surface.
+ *
+ * **`names` is a list**, because a work item carries as many tags as somebody
+ * put on it. The team's is a single `name` because the write path still sends
+ * one team; there is no such stage here and never was.
+ *
+ * **There is no `unresolved` arm.** A team can go missing between the tree read
+ * and the directory read, and the chart has to say so rather than draw a blank
+ * pool. A tag that the directory has not caught up with narrows nothing and
+ * decides nothing — no date depends on it — so a face that simply does not
+ * name it is telling the truth, and a fourth state would be a word on screen
+ * about a race nobody can act on.
+ */
+export type TagLabel =
+  | { state: 'none' }
+  | { state: 'named'; names: readonly string[] }
+  | { state: 'inherited'; names: readonly string[]; fromRow: string };
+
 /** The three points a role was estimated with, as the plan holds them. */
 export interface EstimateTrio {
   optimistic: number;

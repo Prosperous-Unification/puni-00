@@ -8,7 +8,7 @@ import type { CellRef } from './cell-navigation';
 import { PickerList, type PickerOption } from './creatable-picker';
 import { type CellElement, cellKey } from './editable-grid';
 import { POINTS } from './estimate-draft';
-import type { ServiceTeamLabel } from './gantt-geometry';
+import type { ServiceTeamLabel, TagLabel } from './gantt-geometry';
 import type { CommitOutcome } from './live-editing';
 import { composeNameCell } from './name-notes';
 import { priorityBandStyleOf } from './priority-band-style';
@@ -114,6 +114,21 @@ export interface PlanCardsProps {
    * of that parent's pool — and a card is the only face some readers have.
    */
   teamLabel: (row: TreeRow) => ServiceTeamLabel;
+  /**
+   * What kind of thing this row is: its own tags, the ones it inherits, or
+   * neither.
+   *
+   * Its own prop beside {@link teamLabel} rather than folded into it, because
+   * the two dimensions are independent — a row states either, both or neither —
+   * and a phone is the only face some readers have. A card showing a team and
+   * silently dropping the tags would be the one surface that cannot answer
+   * "what sort of work is this".
+   *
+   * A **set**, unlike the team's, and that is not a temporary difference: a
+   * work item carries as many tags as somebody put on it, and there is no
+   * `at(0)` anywhere in this dimension to grow out of later.
+   */
+  tagLabel: (row: TreeRow) => TagLabel;
   /**
    * When this work item happens: short dates on a plan with a start date, day
    * offsets without.
@@ -372,6 +387,7 @@ export function PlanCards({
       {rows.map(({ row, depth, expandable, expanded, toggleBranch, matched }) => {
         const waits = waitsFor(row);
         const team = teamLabel(row);
+        const tags = tagLabel(row);
         const span = spanOf(row);
         const slack = cardSlackOf(row, showDay);
         return (
@@ -656,6 +672,31 @@ export function PlanCards({
                     : team.state === 'inherited'
                       ? `↳ ${team.name}`
                       : team.name}
+                </span>
+              )}
+              {/*
+                The tags, and `↳` where the row carries none of its own — the
+                team chip's one glyph for the same one fact, one dimension over,
+                with the row it came from in the `title`.
+
+                A separate chip and not a second line inside the team's: they
+                answer different questions, and a reader scanning a phone for
+                "what is regulatory here" should not have to read past a team
+                name to find out.
+              */}
+              {tags.state !== 'none' && (
+                <span
+                  data-card-tags
+                  {...(tags.state === 'inherited' ? { 'data-inherited': 'true' } : {})}
+                  title={
+                    tags.state === 'inherited'
+                      ? `${tags.names.join(', ')} — inherited from ${tags.fromRow}. This row carries no tag of its own.`
+                      : undefined
+                  }
+                >
+                  {tags.state === 'inherited'
+                    ? `↳ ${tags.names.join(', ')}`
+                    : tags.names.join(', ')}
                 </span>
               )}
               {/*
