@@ -178,9 +178,13 @@ describe('a tag decides no date, on a plan where a label does', () => {
     // Proof: `effectiveTeamsOf(rows)` in `work-item.service.ts` replaced by
     // `effectiveTeamsOf(rows.map((r) => (r.tagIds.length > 0 ? { ...r, teamIds:
     // r.tagIds } : r)))` — the scheduler reading a tag as if it were a team —
-    // and this fails on the dates, because the two rows then sit in a pool
-    // keyed on a tag id that has no capacity stated for it, so they stop being
-    // serialised. Watched 2026-08-20, see verify.md.
+    // and **1 pass, 2 fail**: this one on the dates, because the two rows then
+    // sit in a pool keyed on a tag id nothing has stated a capacity for, so they
+    // stop being serialised — and `serialises the two leaves while the team is
+    // sized` beside it, because taking the *team* label off a row the scheduler
+    // is reading tags from moves nothing. That the control fails too is the
+    // clearest statement of the fault: the plan's dates stop answering to the
+    // team at all. Watched 2026-08-20, see verify.md.
     const { tagId } = await pooledPlan();
 
     const before = await datesNow();
