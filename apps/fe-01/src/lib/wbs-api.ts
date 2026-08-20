@@ -831,6 +831,19 @@ export interface ProjectApi {
        */
       maxParallel?: number | null;
       serviceTeamId?: string | null;
+      /**
+       * The tags this row will carry, **whole** — the set as it will stand,
+       * never a member to add or a delta to apply.
+       *
+       * `[]` takes every tag off and is the one spelling of that; absent leaves
+       * them alone. There is no `null` arm, because there is no column to reset
+       * and no third "deliberately untagged" state.
+       *
+       * Refused with a 404 (`unknown_tag`) for an id the directory no longer
+       * holds — the out-of-date picker, decided inside be-01's own write
+       * transaction. At most 50 ids.
+       */
+      tagIds?: readonly string[];
     },
   ): Promise<void>;
   /** The global team list, and adding to it — idempotent by name at be-01. */
