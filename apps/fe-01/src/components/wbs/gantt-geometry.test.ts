@@ -1281,10 +1281,10 @@ describe('tags reach the bar and nothing that computes a position', () => {
       dependencies: [{ predecessorId: 'strip', successorId: 'sand' }],
     });
 
-  /** The whole chart with the field under test taken back out of it. */
+  /** The whole chart with the field under test flattened to one constant. */
   const everythingElse = (chart: GanttGeometry): unknown => ({
     ...chart,
-    bars: chart.bars.map(({ tags: _tags, ...rest }) => rest),
+    bars: chart.bars.map((bar) => ({ ...bar, tags: 'not compared here' })),
   });
 
   it('carries the row’s tags onto every bar drawn for that row', () => {
