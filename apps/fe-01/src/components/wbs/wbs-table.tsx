@@ -5419,6 +5419,12 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     filtering,
   };
 
+  /**
+   * Whether this deployment has a tag vocabulary at all, which is what decides
+   * the Tags column's existence — see the filter at the end of `columns`.
+   */
+  const tagsExist = tags.length > 0;
+
   const columns = useMemo(
     () => [
       column.display({
@@ -7638,7 +7644,21 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
           />
         ),
       }),
-    ],
+    ]
+      // **The Tags column exists only where the deployment has a tag.**
+      //
+      // Not a preference and not a toggle: it is what pays for the column. The
+      // folded table has 29px of slack at 1280 and this column costs 120, so
+      // one on screen in every state would put a scrollbar under every
+      // two-phase plan on a laptop — see `CONDITIONAL_COLUMNS` in
+      // `table-frame.ts` for the exemption and what it names.
+      //
+      // Keyed on the **directory** rather than on this plan's rows, and that is
+      // the difference that makes it usable: a plan that has never been tagged
+      // still needs the cell to put a first tag in. What it is keyed on is
+      // somebody having made a tag at all, on the page the proposal says tags
+      // are made on.
+      .filter((each) => each.id !== 'tag' || tagsExist),
     // `roles` because a role's name is rendered in a header, and
     // `unfoldedRoles` because it decides which columns exist at all.
     // `flexRender` renders each `cell` function as a component type, so
@@ -7650,7 +7670,11 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     // the inputs, so a fold cannot swallow one. Everything else the cells need
     // is read through `live`, which is why `api`, `run` and `onKeyDown` are
     // absent rather than forgotten.
-    [roles, unfoldedRoles],
+    //
+    // `tagsExist` joins them because it decides whether a column exists at all,
+    // exactly as `unfoldedRoles` does — a boolean, so the remount it costs
+    // happens once per deployment rather than once per render.
+    [roles, unfoldedRoles, tagsExist],
   );
 
   const table = useReactTable({
