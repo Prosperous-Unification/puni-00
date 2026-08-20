@@ -3,6 +3,13 @@ import type { WorkItemView } from '@/lib/wbs-api';
 /** A work item with its children attached, which is the shape a table row model wants. */
 export interface TreeRow extends WorkItemView {
   subRows: TreeRow[];
+  /**
+   * Required here where {@link WorkItemView} has it optional: `toTree` fills it,
+   * so every surface above this one reads a set rather than checking for one.
+   * The swap window that makes it optional on the wire is argued there and at
+   * {@link toTree}.
+   */
+  tagIds: string[];
 }
 
 /**

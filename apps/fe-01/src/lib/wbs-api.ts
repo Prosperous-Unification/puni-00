@@ -261,8 +261,16 @@ export interface WorkItemView {
    * **Nothing that computes a date reads this.** A team is a pool the scheduler
    * spends; a tag is a label, and be-01 asserts the empty diff on a plan where a
    * sized team really does decide dates.
+   *
+   * **Optional on the wire, and required on a `TreeRow`.** Blue and green run
+   * together during a swap, so an fe-01 carrying this change can be served a
+   * tree by the outgoing be-01, which has never heard of the field. `toTree` is
+   * the one place that absence is turned into an empty set; every surface above
+   * it reads a `string[]` and is right to. Typing it as always-present here
+   * would be this file asserting something about a release that does not exist
+   * yet.
    */
-  tagIds: string[];
+  tagIds?: string[];
   /**
    * Who does this work, by role id.
    *
