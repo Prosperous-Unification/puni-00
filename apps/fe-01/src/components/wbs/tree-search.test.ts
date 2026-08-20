@@ -364,29 +364,28 @@ describe('what the filter says it is asking', () => {
   });
 });
 
-describe('the tag facet reads the effective tags, never the stored ones', () => {
+describe('the tag facet narrows like every other facet', () => {
   /**
-   * A parent that is `regulatory` and two rows under it that state nothing.
+   * A tree whose rows already carry the **effective** reading, because that is
+   * what {@link RowFacets} is: `wbs-table.tsx` runs `effectiveTagsOf` and hands
+   * the answers over, and this module never sees a stored label.
    *
-   * This shape **is** the test: the children carry no tag of their own and are
-   * regulatory all the same, because a tag reaches down exactly as a team does.
-   * A tree where every row stated its own tags could not tell a correct filter
-   * from one reading stored labels.
+   * So the inheritance itself is **not** asserted here — it cannot be, at this
+   * layer. `a1` and `a11` carry `regulatory` below because the row builder one
+   * level up put it there, and the test that the builder really does that is in
+   * `wbs-table.test.tsx`, where `effectiveTagsOf` actually runs. Writing it here
+   * first was a mistake worth leaving a note about: the fixture stated the
+   * children's tags itself, so it would have passed against a build that read
+   * stored labels everywhere.
    */
   const INHERITED: NarrowableRow[] = [
     row('a', null, 'Rewire the consumer unit', { tagIds: ['regulatory'] }),
-    row('a1', 'a', 'Sockets', {}),
-    row('a11', 'a1', 'Back boxes', {}),
+    row('a1', 'a', 'Sockets', { tagIds: ['regulatory'] }),
+    row('a11', 'a1', 'Back boxes', { tagIds: ['regulatory'] }),
     row('b', null, 'Paint', { tagIds: ['tech-debt'] }),
   ];
 
-  it('finds a row that inherits the tag, not only the row that states it', () => {
-    // Proof: `narrowTree`'s tag predicate pointed at a row's own stored labels
-    // instead of `row.facets.tagIds` — which in this module means building the
-    // facets from the stored set — and this fails with only `a` matching: a
-    // reader filtering by `regulatory` is shown the parent and none of the work
-    // under it, which is the whole of the plan that is actually regulatory.
-    // This is the class of bug this repo has shipped twice. Watched 2026-08-20.
+  it('keeps every row in force for the tag, and the rows that place them', () => {
     const narrowed = narrowTree(INHERITED, asking({ tagIds: ['regulatory'] }));
 
     expect(ids(narrowed.matchIds)).toEqual(['a', 'a1', 'a11']);
@@ -397,8 +396,9 @@ describe('the tag facet reads the effective tags, never the stored ones', () => 
     // The reading every other facet has, asserted for this one rather than
     // assumed: two tags ticked is either of them, and a tag beside a team is
     // both.
-    expect(ids(narrowTree(INHERITED, asking({ tagIds: ['regulatory', 'tech-debt'] })).matchIds))
-      .toEqual(['a', 'a1', 'a11', 'b']);
+    expect(
+      ids(narrowTree(INHERITED, asking({ tagIds: ['regulatory', 'tech-debt'] })).matchIds),
+    ).toEqual(['a', 'a1', 'a11', 'b']);
     expect(
       ids(narrowTree(INHERITED, asking({ tagIds: ['regulatory'], teamIds: ['platform'] })).matchIds),
     ).toEqual([]);
