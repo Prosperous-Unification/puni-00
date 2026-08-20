@@ -30,6 +30,7 @@ import {
   type DirectoryUsage,
   httpDirectoryApi,
   type PersonView,
+  type TagView,
   type TeamView,
 } from '@/lib/wbs-api';
 
@@ -96,6 +97,13 @@ export function effectSentence(effect: DirectoryEffect, on: EffectContext): stri
       return `The ${effect.role.name} assignment goes.`;
     case 'label_nulled':
       return 'The service team label is cleared.';
+    case 'label_removed':
+      // Its own sentence and not the team's, because nothing is *cleared*: a
+      // tag has no column to null, so what goes is the labelling row itself.
+      // And it says what a tag removal cannot do — no dates move — because the
+      // sentence beside it for a team says they may, and a reader comparing the
+      // two confirmations is entitled to the difference.
+      return 'The tag comes off this item. No dates move.';
     case 'capacity_released':
       // Two sentences from one arm, and the split is `fromId` against the row
       // it is listed under — be-01's own way of saying "inherited" without a
@@ -159,6 +167,8 @@ export function DirectoryPage({ token, api: apiOverride, nav, account }: Directo
 
   const [people, setPeople] = useState<PersonView[]>([]);
   const [teams, setTeams] = useState<TeamView[]>([]);
+  const [tags, setTags] = useState<TagView[]>([]);
+  const [newTag, setNewTag] = useState('');
   const [problem, setProblem] = useState<DirectoryRefusal | null>(null);
   const [confirming, setConfirming] = useState<Confirming | null>(null);
   const [busy, setBusy] = useState(false);
@@ -210,9 +220,10 @@ export function DirectoryPage({ token, api: apiOverride, nav, account }: Directo
   const read = useCallback(async () => {
     const generation = latestRead.current + 1;
     latestRead.current = generation;
-    const [foundPeople, foundTeams] = await Promise.all([
+    const [foundPeople, foundTeams, foundTags] = await Promise.all([
       directory.listPeople(),
       directory.listTeams(),
+      directory.listTags(),
     ]);
     // Proof: this line deleted, `and only the newest read may write the screen`
     // alone failed, on `expected null not to be null` — a superseded read
@@ -221,6 +232,7 @@ export function DirectoryPage({ token, api: apiOverride, nav, account }: Directo
     if (generation !== latestRead.current) return;
     setPeople(foundPeople);
     setTeams(foundTeams);
+    setTags(foundTags);
   }, [directory]);
 
   const reportFailedRead = useCallback((thrown: unknown) => {
@@ -342,7 +354,10 @@ export function DirectoryPage({ token, api: apiOverride, nav, account }: Directo
    * alone, and says so` failed on `Unable to find role="alert"`, with
    * `patchPerson` having been called `{ name: '' }`. Watched 2026-08-09.
    */
-  function commitRename(kind: 'person' | 'team', entry: { id: string; name: string }): void {
+  function commitRename(
+    kind: 'person' | 'team' | 'tag',
+    entry: { id: string; name: string },
+  ): void {
     const clean = nameShown(entry).trim();
     if (clean === '') {
       setProblem({ reason: 'refused', code: 'name_required' });
@@ -356,7 +371,9 @@ export function DirectoryPage({ token, api: apiOverride, nav, account }: Directo
       const written =
         kind === 'person'
           ? await directory.patchPerson(entry.id, { name: clean })
-          : await directory.renameTeam(entry.id, clean);
+          : kind === 'team'
+            ? await directory.renameTeam(entry.id, clean)
+            : await directory.renameTag(entry.id, clean);
       forgetDraft(entry.id);
       if (!written.ok) {
         setProblem({ reason: 'taken', survivingName: written.survivingName });
@@ -436,6 +453,28 @@ export function DirectoryPage({ token, api: apiOverride, nav, account }: Directo
   }
 
   /**
+   * Adds a tag — {@link submitNewTeam}'s shape, and the surface tags are made
+   * on at all.
+   *
+   * The plan's own tag cell deliberately cannot create one (`tags`' non-goal):
+   * a typo made in a cell becomes a second spelling of something that already
+   * exists, and this page is where a reader can see the whole vocabulary and
+   * rename the mistake.
+   */
+  function submitNewTag(event: FormEvent): void {
+    event.preventDefault();
+    const clean = newTag.trim();
+    if (clean === '') {
+      setProblem({ reason: 'refused', code: 'name_required' });
+      return;
+    }
+    void attempt(async () => {
+      await directory.addTag(clean);
+      setNewTag('');
+    });
+  }
+
+  /**
    * Asks for a removal **without** a cascade, which is always the first ask.
    *
    * be-01 removes an entry nothing points at outright and refuses one that is
@@ -448,12 +487,17 @@ export function DirectoryPage({ token, api: apiOverride, nav, account }: Directo
    * `expected [ [ 't2', true ] ] to deeply equal [ [ 't2', false ] ]`. The
    * fault `phases-dialog` already knows. Watched 2026-08-09.
    */
-  function askToRemove(kind: 'person' | 'team', entry: { id: string; name: string }): void {
+  function askToRemove(
+    kind: 'person' | 'team' | 'tag',
+    entry: { id: string; name: string },
+  ): void {
     void attempt(async () => {
       const outcome =
         kind === 'person'
           ? await directory.removePerson(entry.id, false)
-          : await directory.removeTeam(entry.id, false);
+          : kind === 'team'
+            ? await directory.removeTeam(entry.id, false)
+            : await directory.removeTag(entry.id, false);
       if (outcome.ok) return;
       setConfirming({ kind, id: entry.id, name: entry.name, usage: outcome.usage });
     });
@@ -466,7 +510,9 @@ export function DirectoryPage({ token, api: apiOverride, nav, account }: Directo
       const outcome =
         asked.kind === 'person'
           ? await directory.removePerson(asked.id, true)
-          : await directory.removeTeam(asked.id, true);
+          : asked.kind === 'team'
+            ? await directory.removeTeam(asked.id, true)
+            : await directory.removeTag(asked.id, true);
       // A second `in_use` against a confirmed cascade is be-01 refusing what it
       // just described; there is nothing left to confirm against, so it is
       // raised rather than turned into a second dialog.
@@ -710,6 +756,90 @@ export function DirectoryPage({ token, api: apiOverride, nav, account }: Directo
                 />
                 <Button type="submit" className={TAP} disabled={busy}>
                   Add team
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
+
+          {/*
+            Tags: a **sibling** section beside Service teams rather than a second
+            tab of it, and what makes that the right shape is what is missing
+            from every row below.
+
+            **No capacity column and no membership chips.** A team row carries a
+            member count because people belong to teams and a removal takes those
+            memberships with it; nobody belongs to a tag. A team's *size* is a
+            fact about one plan and lives in that plan's own dialog; a tag has no
+            size anywhere, in this page or in the schema, and never had one.
+
+            That visible absence is the model rule taught rather than stated: a
+            reader who notices this section has one fewer column than the one
+            above it has learned that a tag says what kind of thing the work is
+            and nothing about who does it or how fast.
+          */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Tags</CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-3 pt-4">
+              {tags.length === 0 ? (
+                <p className="text-muted-foreground text-sm">
+                  No tags yet. Add the first one below — the plan&rsquo;s Tags column appears once
+                  one exists.
+                </p>
+              ) : (
+                <ul className="flex flex-col gap-3">
+                  {tags.map((tag) => (
+                    <li key={tag.id} className="flex items-center gap-2">
+                      <Input
+                        className={`${TAP} min-w-0 flex-1`}
+                        aria-label={`Name of ${tag.name}`}
+                        value={nameShown(tag)}
+                        disabled={busy}
+                        onChange={(event) => {
+                          const typed = event.currentTarget.value;
+                          setRenamed((current) => ({ ...current, [tag.id]: typed }));
+                        }}
+                        onBlur={() => {
+                          commitRename('tag', tag);
+                        }}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter') {
+                            event.preventDefault();
+                            commitRename('tag', tag);
+                          }
+                          if (event.key === 'Escape') forgetNameDraft(tag.id);
+                        }}
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className={TAP_SQUARE}
+                        aria-label={`Remove ${tag.name}`}
+                        disabled={busy}
+                        onClick={() => {
+                          askToRemove('tag', tag);
+                        }}
+                      >
+                        <span aria-hidden="true">✕</span>
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <form className="flex items-center gap-2" onSubmit={submitNewTag}>
+                <Input
+                  className={`${TAP} min-w-0 flex-1`}
+                  aria-label="New tag"
+                  placeholder="Name"
+                  value={newTag}
+                  disabled={busy}
+                  onChange={(event) => {
+                    setNewTag(event.currentTarget.value);
+                  }}
+                />
+                <Button type="submit" className={TAP} disabled={busy}>
+                  Add tag
                 </Button>
               </form>
             </CardContent>
