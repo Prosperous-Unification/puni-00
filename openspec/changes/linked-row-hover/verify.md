@@ -121,3 +121,42 @@ was never going to exist.
   value is unchanged, so a pointer crossing the chart costs one render per row
   crossed. That is `dep-hover-highlights`' own accepted cost and no profile was
   taken here.
+
+## After merging main (2026-08-20)
+
+`main` moved 159 commits under this change, several of them in the same files:
+`not-before-cell`, two Gantt changes (today's marker, the SVG download), the
+Depends on hover moving from a `<span>` to its `<td>`, and `chart-clamp-words`.
+Merged at `9639a39` → `d8c1534`; three files conflicted and the commit message
+records each resolution.
+
+Two things the merge broke and the gate caught:
+
+- Main added **twelve** `GanttPanel` render sites with no `onPointRow`, so
+  `onFocus` threw before `showSurface` and two of `chart-clamp-words`' tests
+  could not find their tooltip. All 63 sites now pass both new props.
+- The conflict resolution ate two closing braces in `gantt-panel.test.tsx`,
+  which vitest reported as `Unexpected end of file` at 4916 rather than as a
+  failing assertion — 9 of this change's 15 jsdom tests silently did not run.
+  **A collected-test count is part of reading a green suite.**
+
+| Gate at `d8c1534`                                       | Result                                                                     |
+| ------------------------------------------------------- | -------------------------------------------------------------------------- |
+| `bunx nx format:check --all`                            | green                                                                      |
+| `bunx nx run-many -t lint typecheck build --parallel=2` | green — 21 projects                                                        |
+| `bunx nx test fe-01 -- --run`                           | **1518 passed, 2 failed** — both `plan-mermaid.test.ts`, red on `main` too |
+| `CI=1 bunx playwright test …` (whole suite)             | **174 passed, 6 failed** — all six red on `main` too                       |
+| `CI=1 bunx playwright test … -g 'the pointed row'`      | green — 6/6                                                                |
+
+**The failures are `main`'s, measured rather than assumed.** A worktree at
+`9639a39` was built and run: fe-01 there is **2 failed / 1503 passed**, the same
+two `plan-mermaid` cases. For the browser suite the two specs holding every
+failure were run on both trees — `main` **9 failed / 12 passed**, this head
+**8 failed / 13 passed**, and the sets differ between runs of the _same_ tree,
+so `dark-mode.spec.ts` is flaky on this machine (`prefers-color-scheme`
+emulation). The two that read what this change touches —
+`the Gantt's row labels stand off the column they are in` and `picks the add
+button up off the row it is hovered on` — fail on **both** trees.
+
+Not fixed here: those pre-existing failures are `main`'s to fix, and this change
+does not make them worse. Nothing was papered over and no retry was used.
