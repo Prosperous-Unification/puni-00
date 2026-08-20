@@ -57,6 +57,8 @@ function fakeDirectory(
   refusePatchWith: (refusal: DirectoryWrite<PersonView> | Error | null) => void;
   refuseRemovalWith: (usage: DirectoryUsage | null) => void;
   put: (next: PersonView[]) => void;
+  /** Seeds the tag vocabulary, which decides whether the plan has a Tags column. */
+  putTags: (next: { id: string; name: string }[]) => void;
   holdWrites: () => void;
   releaseWrites: () => void;
 } {
