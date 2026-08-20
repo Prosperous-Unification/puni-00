@@ -853,3 +853,128 @@ describe('the directory usage a removal is refused with', () => {
     expect(await store.listPeople()).toEqual([]);
   });
 });
+
+describe('removing a tag: what it names, and what it cannot move', () => {
+  /** A tag in the global directory, or a throw — a refused fixture is not a result. */
+  const tagged = async (name: string) => {
+    const made = await directory.addTag(name);
+    if (made === null) throw new Error(`the fixture tag ${name} was refused`);
+    return made;
+  };
+
+  it('removes a tag nothing carries on the first press', async () => {
+    // One clause fewer than a team's refusal: there are no members to count,
+    // because nobody belongs to a tag. So an unused tag goes without a
+    // confirmation, where an unused team with people in it does not.
+    const regulatory = await tagged('regulatory');
+
+    expect(await directory.removeTag(regulatory.id, false)).toEqual({ ok: true });
+    expect(await store.listTags()).toEqual([]);
+  });
+
+  it('refuses an unconfirmed removal, naming the rows that would be unlabelled', async () => {
+    const regulatory = await tagged('regulatory');
+    await workItems.patch('design', { tagIds: [regulatory.id] });
+
+    const outcome = await directory.removeTag(regulatory.id, false);
+
+    // `label_removed` and **nothing beside it**. This assertion is the model
+    // rule written as a payload: no `capacity_released` arm, no size, and no
+    // second effect of any kind. A tag with a pool would have to change this
+    // test to ship.
+    expect(outcome).toEqual({
+      ok: false,
+      reason: 'in_use',
+      usage: {
+        projects: [
+          {
+            id: projectId,
+            name: 'Rollout',
+            workItems: [
+              { id: 'design', number: '010', name: 'Design', effects: [{ kind: 'label_removed' }] },
+            ],
+          },
+        ],
+        members: [],
+      },
+    });
+    expect(await store.listTags()).toEqual([{ id: regulatory.id, name: 'regulatory' }]);
+  });
+
+  it('names a row that carries the tag among others, whichever member it is', async () => {
+    // The `teamIds.at(0)` fault, one dimension over: a work item carrying two
+    // tags loses one label per removal, and a reader of the first member would
+    // report nothing at all for the second of them.
+    const regulatory = await tagged('regulatory');
+    const techDebt = await tagged('tech-debt');
+    await workItems.patch('design', { tagIds: [regulatory.id, techDebt.id] });
+
+    const outcome = await directory.removeTag(techDebt.id, false);
+
+    if (outcome.ok || outcome.reason !== 'in_use') throw new Error('the removal was not refused');
+    expect(outcome.usage.projects[0]?.workItems[0]?.effects).toEqual([{ kind: 'label_removed' }]);
+  });
+
+  it('does not name a row that only inherits the tag, because nothing of its moves', async () => {
+    // **The one place this deliberately differs from a team removal.** A team's
+    // usage names rows carrying no label of their own, because an inherited pool
+    // moves their dates and a confirmation listing one row while twenty move
+    // would be a confirmation of nothing. Losing an inherited *tag* moves
+    // nothing: the row stops being findable under that facet and every date it
+    // has stays where it was. So the confirmation names the row that carries the
+    // label, and no others.
+    const regulatory = await tagged('regulatory');
+    await workItems.insert(
+      { ...newItem('cladding', 30, 'Cladding'), parentId: 'design' },
+      [],
+    );
+    await workItems.patch('design', { tagIds: [regulatory.id] });
+
+    const outcome = await directory.removeTag(regulatory.id, false);
+
+    if (outcome.ok || outcome.reason !== 'in_use') throw new Error('the removal was not refused');
+    expect(outcome.usage.projects[0]?.workItems.map((each) => each.id)).toEqual(['design']);
+  });
+
+  it('takes the labelling with the tag on ?cascade=1, and moves every row’s revision', async () => {
+    // The cascade does the deleting — `work_item_tag.tag_id` carries it — but a
+    // cascade moves no revision, so the removal bumps the rows itself. Without
+    // that a journal entry holding the old number would undo against a plan
+    // whose labelling had changed under it, which is the stale-undo failure this
+    // repo has already shipped once for people.
+    const regulatory = await tagged('regulatory');
+    await workItems.patch('design', { tagIds: [regulatory.id] });
+    const before = (await workItems.listByProject(projectId)).find((row) => row.id === 'design');
+
+    expect(await directory.removeTag(regulatory.id, true)).toEqual({ ok: true });
+
+    const after = (await workItems.listByProject(projectId)).find((row) => row.id === 'design');
+    expect(after?.tagIds).toEqual([]);
+    expect(after?.revision).toBeGreaterThan(before?.revision ?? 0);
+    expect(await store.listTags()).toEqual([]);
+  });
+
+  it('refuses a rename onto a name another tag holds, and writes nothing', async () => {
+    await tagged('regulatory');
+    const techDebt = await tagged('tech-debt');
+
+    const outcome = await directory.renameTag(techDebt.id, 'regulatory');
+
+    expect(outcome).toEqual({ ok: false, reason: 'taken', name: 'regulatory' });
+    expect((await store.listTags()).map((each) => each.name)).toEqual([
+      'regulatory',
+      'tech-debt',
+    ]);
+  });
+
+  it('adds a tag idempotently by name, trimming what it is given', async () => {
+    const first = await tagged('regulatory');
+    const again = await tagged('  regulatory  ');
+
+    // The row that is there, not a second one: two people typing `regulatory`
+    // at the same moment both pass a check-then-insert, and the unique index is
+    // what stops the second.
+    expect(again).toEqual(first);
+    expect(await store.listTags()).toEqual([{ id: first.id, name: 'regulatory' }]);
+  });
+});
