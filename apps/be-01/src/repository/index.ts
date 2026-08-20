@@ -298,6 +298,21 @@ export interface Tag {
   name: string;
 }
 
+/**
+ * What a tag rename answered.
+ *
+ * `taken` carries no surviving name here — the caller has it, because it typed
+ * it — and the controller turns this into the 409 the directory page shows.
+ * {@link ServiceTeamWritten}'s shape, one dimension over.
+ *
+ * `projectIds` is every project holding a row that carries the tag, read in the
+ * rename's own transaction so the events published after it name the plans that
+ * were labelled when it happened.
+ */
+export type TagWritten =
+  | { ok: true; tag: Tag; projectIds: readonly string[] }
+  | { ok: false; reason: 'taken' | 'not_found' };
+
 export interface WorkItemPatch {
   name?: string;
   notes?: string;
@@ -909,6 +924,19 @@ export interface DirectoryStore {
    * is the earlier one when two callers added the same name at once.
    */
   addTag(toAdd: Tag): Promise<Tag>;
+  /** Renames one tag, refusing a name another tag holds. */
+  renameTag(tagId: string, name: string): Promise<TagWritten>;
+  /**
+   * What points at one tag right now — a fast path for the confirmation, never
+   * the authority for it. {@link DirectoryStore.removeTag} decides.
+   */
+  usageOfTag(tagId: string): Promise<DirectoryUsageRows>;
+  /**
+   * Counts what carries the tag, refuses an unconfirmed removal that would
+   * unlabel anything, and otherwise deletes the tag — letting the cascade take
+   * the labelling — all in one transaction, bumping every row that lost one.
+   */
+  removeTag(tagId: string, cascade: boolean): Promise<DirectoryRemoved>;
   listTeams(): Promise<ServiceTeam[]>;
   /**
    * Adds a team, or returns the one that already has that name.
