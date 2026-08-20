@@ -8,6 +8,7 @@
       "@/*": ["src/*"],
       "@wbs/domain/workday": ["../../libs/domain/src/workday.ts"],
       "@wbs/domain/effective-team": ["../../libs/domain/src/effective-team.ts"],
+      "@wbs/domain/effective-tag": ["../../libs/domain/src/effective-tag.ts"],
       "@wbs/domain/priority-band": ["../../libs/domain/src/priority-band.ts"]
     }
   },

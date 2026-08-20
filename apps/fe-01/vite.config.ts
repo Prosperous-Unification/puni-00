@@ -117,6 +117,7 @@ export default defineConfig(({ command, mode }) => ({
       // A second copy of it here is a table that disagrees with the dates it
       // is printing.
       '@wbs/domain/effective-team': resolve(__dirname, '../../libs/domain/src/effective-team.ts'),
+      '@wbs/domain/effective-tag': resolve(__dirname, '../../libs/domain/src/effective-tag.ts'),
       // The same bargain a third time: `priority-band.ts` is four pure functions
       // and a constant, and the rule it holds — which band a number falls in —
       // is what be-01 validates a ladder against. A second copy here is a table

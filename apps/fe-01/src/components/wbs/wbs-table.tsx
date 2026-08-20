@@ -31,6 +31,7 @@ import type {
   PersonView,
   PriorityBandView,
   TeamCapacityView,
+  TagView,
   TeamView,
 } from '@/lib/wbs-api';
 import {
