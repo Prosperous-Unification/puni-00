@@ -78,7 +78,7 @@ The proposal originally asserted an empty diff across `libs/domain/**`. That was
 wrong, and it is corrected in the proposal rather than quietly narrowed here:
 `effectiveTeamsOf` lives in `libs/domain/src/effective-team.ts` and **both apps
 import it**, so the tag reading has to live beside it or fe-01 cannot render an
-inherited tag at all. The inheritance rule *is* a rule the two apps share.
+inherited tag at all. The inheritance rule _is_ a rule the two apps share.
 
 What a tag is not is anything the **scheduler** reads. So the assertion is
 narrowed to what it was always about — `service/schedule.ts` and everything under
@@ -97,7 +97,7 @@ label at all. A green fault injection means the test is not measuring.
 `revertTo`'s `before` had to become a `LabelledWorkItem`: `work_item` has no
 column for a tag, so a patch's prior set exists only on the row the plan read gave
 back. A scalar `before.tagId` is representable and wrong, and it is wrong
-*silently* — the undo reports done and leaves one of the two labels standing.
+_silently_ — the undo reports done and leaves one of the two labels standing.
 That is the one seam where a scalar habit loses data without a refusal, so it gets
 its own watched red (F5).
 
@@ -126,7 +126,7 @@ this change can be served a tree by the **outgoing** be-01, which has never hear
 of the field. Every card threw `Cannot read properties of undefined`.
 
 Lint is what forced the honest version — it rejected the `?? []` as unnecessary
-*because the type claimed the field was always there*. The type was lying and the
+_because the type claimed the field was always there_. The type was lying and the
 defaulting was the tell.
 
 The same shape appeared one layer up, in storage rather than on the wire: a saved

@@ -96,9 +96,16 @@
       bun 1.3.14, 2026-08-20: fe-01 **1,532 / 0** (53 files), be-01 **924 / 0**,
       domain **89 / 0**, lint + typecheck green over 21 projects,
       `format:check` exit 0. Re-run at the head before the PR.
-- [ ] 8.2 `design.md` — the decisions above with their alternatives.
-- [ ] 8.3 Spec deltas: `wbs-domain` (the dimension, its inheritance) and
-      `wbs-api` (the routes, the payload). **Lead every requirement body with its
-      `SHALL`** — `openspec validate` reads only the first line.
-- [ ] 8.4 `verify.md` with the R5 fault table and citations.
+- [x] 8.2 `design.md` — ten decisions with their alternatives, including the
+      three the build corrected mid-flight (the `libs/domain` empty diff, the
+      wrap-per-row memoisation, the wire's optional set).
+- [x] 8.3 Spec delta: **`wbs-domain` only**, carrying both halves. There is no
+      `wbs-api` capability in this repo — 66 of 68 change folders state route
+      behaviour in `wbs-domain`, `directory-crud` (which shipped the directory
+      routes and their 409 shapes) included. Creating a second capability for
+      one change would split the directory's rules by release. Deviation named
+      in design D10 and in verify.md. Every requirement body leads with its
+      `SHALL`; `openspec validate --all` **69 items, 69 passed, 0 failed**.
+- [x] 8.4 `verify.md` with the R5 fault table — sixteen rows, each sourced from
+      the `Proof:` comment beside the line it guards.
 - [ ] 8.5 CI green at the head.
