@@ -4977,6 +4977,21 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     [api, run],
   );
 
+  /**
+   * Sets a work item's tags, **whole**.
+   *
+   * The patch states the set as it will stand, so adding one sends the old set
+   * plus it and removing one sends the old set minus it. That is not a detail
+   * of this function — it is what makes the undo journal able to carry a
+   * before-value, and be-01 refuses to guess at a delta.
+   */
+  const setTagsOf = useCallback(
+    (id: string, tagIds: readonly string[]) => {
+      void run(() => api.patch(id, { tagIds: [...tagIds] }));
+    },
+    [api, run],
+  );
+
   /** Adds a team nobody had yet and labels the work item with it, in one go. */
   const createTeamFor = useCallback(
     (id: string, name: string) => {
@@ -5317,6 +5332,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     teams,
     people,
     setTeamOf,
+    setTagsOf,
     createTeamFor,
     assignTo,
     createPersonFor,
@@ -5386,6 +5402,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     teams,
     people,
     setTeamOf,
+    setTagsOf,
     createTeamFor,
     assignTo,
     createPersonFor,
@@ -6461,6 +6478,98 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                 },
               }}
             />
+          );
+        },
+      }),
+      column.display({
+        id: 'tag',
+        header: 'Tags',
+        cell: ({ row }) => {
+          // The same reading the Team cell makes, one dimension over: a row
+          // with no tags of its own still *is* whatever an ancestor said it
+          // was, and the placeholder says so in the box's own muted ink with
+          // `↳` for the inheritance.
+          const inherited = live.current.effectiveTagLabelOf(row.original);
+          const own = row.original.tagIds;
+          const named = (id: string): string =>
+            live.current.tags.find((each) => each.id === id)?.name ?? id;
+          return (
+            <span style={{ display: 'flex', flexWrap: 'wrap', gap: 2, minWidth: 0 }}>
+              {/*
+                One chip per tag the row states, each with its own ✕. A set is
+                edited a member at a time on screen and written whole on the
+                wire — `setTagsOf` sends the set as it will stand, because a
+                delta has no inverse the journal could carry.
+              */}
+              {own.map((tagId) => (
+                <button
+                  key={tagId}
+                  type="button"
+                  data-tag-chip={tagId}
+                  className="bg-muted flex max-w-full items-center gap-0.5 rounded px-1 text-xs"
+                  aria-label={`Remove ${named(tagId)} from ${row.original.number}`}
+                  onClick={() => {
+                    live.current.setTagsOf(
+                      row.original.id,
+                      own.filter((each) => each !== tagId),
+                    );
+                  }}
+                >
+                  <span className="truncate">{named(tagId)}</span>
+                  <span aria-hidden>✕</span>
+                </button>
+              ))}
+              <CreatablePicker
+                label={`Tags for ${row.original.number}`}
+                placeholder={
+                  own.length > 0
+                    ? 'add'
+                    : inherited.state === 'inherited'
+                      ? `↳ ${inherited.names.join(', ')}`
+                      : 'search'
+                }
+                title={
+                  own.length === 0 && inherited.state === 'inherited'
+                    ? `${inherited.names.join(', ')} — inherited from ${inherited.fromRow}. This row carries no tag of its own.`
+                    : undefined
+                }
+                // Only the tags this row does not already carry: a picker
+                // offering one that is already a chip beside it can only mean
+                // "add it twice", which the store deduplicates and the primary
+                // key refuses.
+                entries={live.current.tags.filter((each) => !own.includes(each.id))}
+                // Always null: this box adds a member, it does not show the
+                // set. What the row carries is the chips to its left.
+                value={null}
+                onChoose={(id) => {
+                  live.current.setTagsOf(row.original.id, [...own, id]);
+                }}
+                // **No `onCreate`.** The proposal's own non-goal: a tag is made
+                // on the directory page, where a typo can be seen and renamed,
+                // rather than in a cell where it becomes a second spelling of
+                // something that already exists. It is also why this column
+                // only exists once a tag does — see `CONDITIONAL_COLUMNS`.
+                onClear={
+                  own.length === 0
+                    ? undefined
+                    : () => {
+                        live.current.setTagsOf(row.original.id, []);
+                      }
+                }
+                gridCell={{
+                  dataCell: cellKey(row.original.id, 'tag'),
+                  onTabKey: (e) => {
+                    live.current.onTabKey(e, row.original.id, 'tag');
+                  },
+                  onCommandKey: (e) => {
+                    live.current.onCommandKey(e, row.original, 'tag');
+                  },
+                  onAltMove: (e) => {
+                    live.current.onAltMove(e, row.original, 'tag');
+                  },
+                }}
+              />
+            </span>
           );
         },
       }),
