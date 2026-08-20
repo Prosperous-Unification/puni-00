@@ -42,13 +42,13 @@
 
 ## 4. The directory
 
-- [ ] 4.1 `GET/POST /api/tags`, `PATCH /api/tags/:id` (rename, 409 `taken`
+- [x] 4.1 `GET/POST /api/tags`, `PATCH /api/tags/:id` (rename, 409 `taken`
       carrying the surviving name), `DELETE /api/tags/:id[?cascade=1]`. Global —
       no project in the path or the query.
-- [ ] 4.2 `directoryUsageOfTag`: `label_removed` per item, **no
+- [x] 4.2 `directoryUsageOfTag`: `label_removed` per item, **no
       `capacity_released` arm and no date effect**. Same 409-then-`?cascade=1`
       shape as `removeTeam`.
-- [ ] 4.3 **Watched red on the empty diff:** a test that fails if deleting a tag
+- [x] 4.3 **Watched red on the empty diff:** a test that fails if deleting a tag
       moves any date in the plan.
 
 ## 5. The filter
@@ -75,7 +75,7 @@
 
 ## 7. The empty diffs, asserted
 
-- [ ] 7.1 `service/schedule.ts` — empty diff. **Watched red:** wire the scheduler
+- [x] 7.1 `service/schedule.ts` — empty diff, asserted in `tag-empty-diff.test.ts` on a plan where a sized team really does decide dates. **Watched red:** wire the scheduler
       to read a tag, every downstream date moves, revert.
 - [x] 7.2 `libs/domain` — **the scheduling surface** has an empty diff, not the
       whole library. Corrected 2026-08-19: `effectiveTeamsOf` lives here and both
