@@ -64,8 +64,8 @@
 ## 6. The rest of fe-01
 
 - [ ] 6.1 The tag cell in `wbs-table.tsx` — a multi-select, independent of Teams.
-- [ ] 6.2 `plan-cards.tsx`: the `↳` inherited chip, per dimension.
-- [ ] 6.3 `plan-export.ts`: a `Tags` column, `; `-joined, RFC4180-quoted.
+- [x] 6.2 `plan-cards.tsx`: the `↳` inherited chip, per dimension.
+- [x] 6.3 `plan-export.ts`: a `Tags` column, `; `-joined, RFC4180-quoted.
 - [ ] 6.4 `directory-page.tsx`: a Tags section beside Teams, **with no capacity
       column and no membership chips**. That absence is the model rule made
       visible.
