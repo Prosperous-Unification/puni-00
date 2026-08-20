@@ -7936,6 +7936,11 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
       // all. A chart drawn from the stored label alone cannot say whose people
       // a bar is waiting for.
       team: effectiveTeamLabelOf(row.original),
+      // The **effective** tags, for the team's reason one line up and for none
+      // of its consequences: an inherited tag has to be sayable on the bar of a
+      // row that names no tag, and that is the whole of what this field does.
+      // Nothing on the chart is placed from it — see {@link GanttRow.tags}.
+      tags: effectiveTagLabelOf(row.original),
       // The trio the plan holds for each role on this row, straight off the
       // tree read — the drafts a reader is half-way through typing are not
       // facts about the schedule the chart was drawn from.

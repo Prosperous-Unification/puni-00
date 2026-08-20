@@ -276,6 +276,20 @@ export interface GanttRow {
   /** The service team this work is labelled with, resolved against the directory read. */
   team: ServiceTeamLabel;
   /**
+   * What kind of thing this work is, resolved against the directory read — the
+   * **effective** set, so an inherited tag reaches the chart the same way an
+   * inherited team does.
+   *
+   * Carried so a bar can say it, and for nothing else. The team beside it is
+   * read by {@link floorWordsOf} because a pool decides dates; **no coordinate
+   * on this chart reads this field**, and nothing here may start to — a tag
+   * narrows a view and names a kind, and neither of those is a day. The
+   * assertion is a test rather than a comment: `layOutGantt` over the same plan
+   * tagged and untagged places every bar, bracket, arrow and link at the same
+   * numbers.
+   */
+  tags: TagLabel;
+  /**
    * The three points each role was estimated with on this work item, by role id.
    *
    * A role absent from this map is a role nobody has estimated here, which is
@@ -539,6 +553,14 @@ export interface GanttBar {
   floorWords: string;
   /** The service team the work item is labelled with — see {@link GanttRow.team}. */
   team: ServiceTeamLabel;
+  /**
+   * The tags the work item is labelled with — see {@link GanttRow.tags}.
+   *
+   * On the bar and not on the row alone because the hover surface is built per
+   * bar, and a second lookup from bar to row is a second place for the two to
+   * disagree. Read by words only.
+   */
+  tags: TagLabel;
   /** How many of its team's slots this bar holds — see {@link GanttSlice.width}. */
   width: number;
   /** What the work item asks for, before the pool and the person had their say — see {@link GanttRow.maxParallel}. */
@@ -1697,6 +1719,10 @@ export function layOutGantt(plan: GanttPlan): GanttGeometry {
           rolesById,
         ),
         team: row.team,
+        // Straight off the row and into words. Deliberately **not** passed to
+        // `floorWordsOf` above: that sentence says what is holding this bar up,
+        // and a tag has never held anything up.
+        tags: row.tags,
         // The engine's own two numbers, carried rather than recomputed: the
         // width the dates were placed with and the effort they were placed
         // from. `duration` above is `effort / width` in be-01's doubles, and a

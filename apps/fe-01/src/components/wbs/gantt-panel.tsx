@@ -30,6 +30,7 @@ import {
   routeArrow,
   ROW_MIDDLE,
   type ServiceTeamLabel,
+  type TagLabel,
 } from './gantt-geometry';
 import { type AnchorRect, HoverCard } from './hover-card';
 import { priorityBandStyleOf } from './priority-band-style';
@@ -926,6 +927,31 @@ function teamWords(team: ServiceTeamLabel): string {
 }
 
 /**
+ * What kind of thing a bar's work is, in words, or null where nobody has said.
+ *
+ * **Null on an untagged row, where the team's line prints `No team`.** Not an
+ * inconsistency: a team is the pool the dates were computed against, so its
+ * absence is a fact about the schedule this surface exists to explain, and
+ * `No team` is why nothing is holding the bar up. A tag decides nothing, so
+ * `No tags` on every bar of every plan nobody has tagged is furniture — the
+ * bargain the priority line already strikes two lines down.
+ *
+ * The **inherited** arm names its ancestor for {@link teamWords}'s reason, and
+ * it is the weaker of the two: a reader looking at a row that names no tag has
+ * nowhere else to learn where the words came from.
+ */
+function tagWords(tags: TagLabel): string | null {
+  switch (tags.state) {
+    case 'named':
+      return `Tags ${tags.names.join(', ')}`;
+    case 'inherited':
+      return `Tags ${tags.names.join(', ')} — inherited from ${tags.fromRow}`;
+    case 'none':
+      return null;
+  }
+}
+
+/**
  * What a bar says about running several people at once, or null where there is
  * nothing to say.
  *
@@ -1066,6 +1092,11 @@ export function barFacts(
     // clause on the one above, because at width 1 there is no line above —
     // which is exactly the case the chart said nothing about at all.
     clampWords(bar),
+    // After the team and its two people-lines rather than beside the team,
+    // because those three are one subject — whose people this bar is waiting
+    // for — and the tags are a different one. Before the dates, because it is a
+    // fact about *what this work is* and those are facts about when it runs.
+    tagWords(bar.tags),
     `${spanWords(startDate, bar.start, bar.finish, today)} · ${durationWords(bar)}`,
     // A line of its own rather than a word tucked into the duration: the bar is
     // drawn a width nobody gave it, and the sentence that says so has to be as
