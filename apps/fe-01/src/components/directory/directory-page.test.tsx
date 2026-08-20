@@ -62,6 +62,8 @@ function fakeDirectory(
 } {
   let held = [...people];
   let heldTeams = [...teams];
+  /** The tag vocabulary this deployment holds. Empty unless a case puts one in. */
+  let heldTags: { id: string; name: string }[] = [];
   let patchRefusal: DirectoryWrite<PersonView> | Error | null = null;
   let removalUsage: DirectoryUsage | null = null;
   /**
@@ -104,7 +106,30 @@ function fakeDirectory(
       return Promise.resolve(held.map((person) => ({ ...person })));
     },
     listTeams: () => Promise.resolve(heldTeams.map((team) => ({ ...team }))),
-    listTags: () => Promise.resolve([]),
+    listTags: () => Promise.resolve(heldTags.map((tag) => ({ ...tag }))),
+    addTag(name: string) {
+      api.added.push(name);
+      const tag = { id: `g${String(heldTags.length + 1)}`, name };
+      heldTags = [...heldTags, tag];
+      return Promise.resolve(tag);
+    },
+    renameTag(id: string, name: string) {
+      heldTags = heldTags.map((tag) => (tag.id === id ? { ...tag, name } : tag));
+      const written = heldTags.find((tag) => tag.id === id);
+      if (written === undefined) throw new Error('not_found');
+      return Promise.resolve({ ok: true as const, entry: written });
+    },
+    removeTag(id: string, cascade: boolean) {
+      api.removals.push([id, cascade]);
+      if (removalUsage !== null && !cascade) {
+        return Promise.resolve({ ok: false as const, reason: 'in_use' as const, usage: removalUsage });
+      }
+      heldTags = heldTags.filter((tag) => tag.id !== id);
+      return Promise.resolve({ ok: true as const });
+    },
+    putTags(next: { id: string; name: string }[]) {
+      heldTags = [...next];
+    },
     addPerson(name: string, teamIds: readonly string[]) {
       api.added.push(name);
       const person = { id: `p${String(held.length + 1)}`, name, teamIds: [...teamIds] };
@@ -854,5 +879,56 @@ describe('what removing a sized team says it takes', () => {
     // limit it is losing was written.
     expect(dialog.textContent).toContain('No longer limited to 4 at a time. Dates may move');
     expect(dialog.textContent).toContain('the limit it inherits from 010 Backend');
+  });
+});
+
+describe('the Tags section, and what it deliberately has not got', () => {
+  itDom('offers a tag no capacity box and no member count', async () => {
+    // **The model rule taught by absence, asserted so it cannot drift back.**
+    // A team row carries a member count because people belong to teams; nobody
+    // belongs to a tag. A team's size is a fact about one plan and lives in
+    // that plan's dialog; a tag has no size anywhere. A reader who notices this
+    // section has one fewer control than the one above it has learned that a
+    // tag says what kind of thing the work is and nothing about who does it or
+    // how fast.
+    //
+    // Proof: a `count(…, 'member')` span copied into the tag row from the team
+    // row above it and this fails on the `member` query finding two nodes where
+    // one was owed — a directory quietly claiming somebody belongs to
+    // `regulatory`. Watched 2026-08-20.
+    const api = fakeDirectory([{ id: 'p1', name: 'Ada', teamIds: ['t1'] }], [{ id: 't1', name: 'Platform' }]);
+    api.putTags([{ id: 'g1', name: 'regulatory' }]);
+    render(<DirectoryPage token="t" api={api} nav={null} account={null} />);
+
+    const box = await screen.findByLabelText('Name of regulatory');
+    const row = box.closest('li');
+    if (row === null) throw new Error('the tag is not in a row');
+
+    // What it has: a name to rename, and a ✕ to remove.
+    expect(within(row).getByLabelText('Remove regulatory')).toBeTruthy();
+    // What it has not: any number at all beside the name. The team row's
+    // member count is the thing this is asserting the absence of.
+    expect(row.textContent).not.toMatch(/member/i);
+    expect(within(row).queryByRole('spinbutton')).toBeNull();
+  });
+
+  itDom('adds a tag, and says why the plan had no column until now', async () => {
+    const api = fakeDirectory([], []);
+    render(<DirectoryPage token="t" api={api} nav={null} account={null} />);
+
+    // The empty state names the consequence rather than just the emptiness: the
+    // table's Tags column does not exist until a tag does, so a reader looking
+    // for it needs to be told where it comes from.
+    expect(await screen.findByText(/No tags yet/)).toBeTruthy();
+
+    fireEvent.change(screen.getByLabelText('New tag'), { target: { value: '  regulatory  ' } });
+    fireEvent.click(screen.getByText('Add tag'));
+
+    // Trimmed at be-01, and this page sends what was typed minus the edges —
+    // the same bargain `Add team` makes one card up.
+    await waitFor(() => {
+      expect(api.added).toContain('regulatory');
+    });
+    expect(await screen.findByLabelText('Name of regulatory')).toBeTruthy();
   });
 });
