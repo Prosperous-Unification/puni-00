@@ -7,6 +7,7 @@ import {
   type RowData,
   useReactTable,
 } from '@tanstack/react-table';
+import { effectiveTagsOf } from '@wbs/domain/effective-tag';
 import { effectiveTeamsOf } from '@wbs/domain/effective-team';
 import { priorityBandOf } from '@wbs/domain/priority-band';
 import { workdaysBetween } from '@wbs/domain/workday';
@@ -1540,6 +1541,7 @@ function FilterFacets({
   facets,
   setFacets,
   teams,
+  tags,
   people,
   bands,
   phases,
@@ -1547,6 +1549,7 @@ function FilterFacets({
   facets: FacetCriteria;
   setFacets: (next: FacetCriteria) => void;
   teams: readonly FacetOption[];
+  tags: readonly FacetOption[];
   people: readonly FacetOption[];
   bands: readonly FacetOption[];
   phases: readonly FacetOption[];
@@ -1600,6 +1603,12 @@ function FilterFacets({
         className="bg-popover absolute z-50 mt-1 max-h-80 w-56 overflow-y-auto rounded-md border p-3 text-sm shadow-md"
       >
         {group('Team', 'team', teams, facets.teamIds, (teamIds) => ({ ...facets, teamIds }))}
+        {/*
+          Directly under Team, because the two answer the neighbouring questions
+          — who does the work, and what kind of thing it is — and a reader
+          narrowing by one usually wants the other in view.
+        */}
+        {group('Tag', 'tag', tags, facets.tagIds, (tagIds) => ({ ...facets, tagIds }))}
         {group('Assignee', 'assignee', people, facets.assigneeIds, (assigneeIds) => ({
           ...facets,
           assigneeIds,
@@ -2103,6 +2112,8 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    * the tree rather than filtered by anything.
    */
   const [teams, setTeams] = useState<TeamView[]>([]);
+  /** The global tag vocabulary, for the facet's labels and the cell's picker. */
+  const [tags, setTags] = useState<TagView[]>([]);
   /**
    * How many of each team this plan may have at work at once, as be-01 sent it
    * with the tree.
@@ -2492,10 +2503,14 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     // arrive afterwards and repair it. Only the newest request may write.
     const generation = latestRefresh.current + 1;
     latestRefresh.current = generation;
-    const [tree, loadedRoles, loadedTeams, loadedPeople] = await Promise.all([
+    const [tree, loadedRoles, loadedTeams, loadedTags, loadedPeople] = await Promise.all([
       api.tree(projectId),
       api.roles(projectId),
       api.listTeams(),
+      // Beside the teams rather than behind them: both are global lists the
+      // pickers need before a reader can tick anything, and a second round trip
+      // would put the tag facet a frame behind the team one.
+      api.listTags(),
       api.listPeople(),
     ]);
     if (generation !== latestRefresh.current) return;
@@ -2509,6 +2524,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     // Watched, 2026-08-06.
     setTreeMayBeStale(false);
     setTeams(loadedTeams);
+    setTags(loadedTags);
     setPeople(loadedPeople);
     const drawn = toTree(tree.workItems);
     setWorkItems(drawn);
@@ -2984,6 +3000,11 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    * the filter.
    */
   const effectiveTeams = useMemo(() => effectiveTeamsOf(flat), [flat]);
+  /**
+   * The other dimension's reading, computed the same way and over the same
+   * rows — one walk each, memoised, never a second copy per surface.
+   */
+  const effectiveTags = useMemo(() => effectiveTagsOf(flat), [flat]);
 
   /**
    * A row's team as a cell or a bar can state it: its own label, or the one it
@@ -3073,6 +3094,10 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         parentId: row.parentId,
         facets: {
           teamIds: effectiveTeams.get(row.id)?.teamIds ?? [],
+          // The **effective** tags, for the effective team's reason one line
+          // up: a leaf under a `regulatory` parent is regulatory, and a filter
+          // reading stored labels would not find it.
+          tagIds: effectiveTags.get(row.id)?.tagIds ?? [],
           // Deduplicated: one person on three phases is one person to filter
           // by, and `includes` over a list with them in it three times is the
           // same answer paid for three times on every keystroke.
@@ -3138,6 +3163,8 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
       chartRead.people.find((person) => person.id === personId)?.name ??
       'somebody this plan has not loaded',
     phaseName: (roleId) => roles.find((role) => role.id === roleId)?.name ?? '(unknown)',
+    tagName: (tagId) =>
+      tags.find((each) => each.id === tagId)?.name ?? 'a tag this plan has not loaded',
   };
 
   const facetTeams = useMemo(
@@ -3151,6 +3178,22 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
           teams.find((team) => team.id === id)?.name ?? 'a team this plan has not loaded',
       ),
     [narrowable, facets.teamIds, teams],
+  );
+  /**
+   * The tags any row on this plan carries, plus whatever is already ticked.
+   *
+   * The plan's own vocabulary rather than the whole directory, for
+   * `facetTeams`' reason: a facet offering a value no row has is a filter whose
+   * only possible answer is an empty table.
+   */
+  const facetTags = useMemo(
+    () =>
+      optionsFor(
+        new Set(narrowable.flatMap((row) => row.facets.tagIds)),
+        facets.tagIds,
+        (id) => tags.find((each) => each.id === id)?.name ?? 'a tag this plan has not loaded',
+      ),
+    [narrowable, facets.tagIds, tags],
   );
   const facetPeople = useMemo(
     () =>
@@ -8032,6 +8075,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         facets={facets}
         setFacets={setFacets}
         teams={facetTeams}
+        tags={facetTags}
         people={facetPeople}
         bands={facetBands}
         phases={facetPhases}

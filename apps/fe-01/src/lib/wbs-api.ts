@@ -529,7 +529,7 @@ export interface DirectoryApi {
   /** Every tag in the global directory, by name. */
   listTags(): Promise<TagView[]>;
   addTag(name: string): Promise<TagView>;
-  renameTag(tagId: string, name: string): Promise<TagView>;
+  renameTag(tagId: string, name: string): Promise<DirectoryWrite<TagView>>;
   /**
    * Removes a tag. Without `cascade` a tag anything carries is refused with the
    * usage naming what would be unlabelled — `removeTeam`'s shape, and the same
@@ -830,7 +830,7 @@ export interface ProjectApi {
   /** Every tag in the global directory, by name. */
   listTags(): Promise<TagView[]>;
   addTag(name: string): Promise<TagView>;
-  renameTag(tagId: string, name: string): Promise<TagView>;
+  renameTag(tagId: string, name: string): Promise<DirectoryWrite<TagView>>;
   /**
    * Removes a tag. Without `cascade` a tag anything carries is refused with the
    * usage naming what would be unlabelled — `removeTeam`'s shape, and the same
@@ -1134,7 +1134,7 @@ async function writeDirectoryAt<T>(
   path: string,
   token: string,
   init: RequestInit,
-  key: 'person' | 'team',
+  key: 'person' | 'team' | 'tag',
 ): Promise<DirectoryWrite<T>> {
   const res = await fetch(path, { ...init, headers: auth(token) });
   const text = await res.text();
@@ -1145,7 +1145,7 @@ async function writeDirectoryAt<T>(
     }
   }
   if (!res.ok) throw new Error(refusalCodeIn(text, res.status));
-  const body = JSON.parse(text) as Partial<Record<'person' | 'team', T>>;
+  const body = JSON.parse(text) as Partial<Record<'person' | 'team' | 'tag', T>>;
   const entry = body[key];
   if (entry === undefined) throw new Error('unexpected_response');
   return { ok: true, entry };
@@ -1468,6 +1468,10 @@ export function httpProjectApi(token: string): ProjectApi {
     // about what a person is.
     listTeams: () => directory.listTeams(),
     addTeam: (name) => directory.addTeam(name),
+    listTags: () => directory.listTags(),
+    addTag: (name) => directory.addTag(name),
+    renameTag: (tagId, name) => directory.renameTag(tagId, name),
+    removeTag: (tagId, cascade) => directory.removeTag(tagId, cascade),
     listPeople: () => directory.listPeople(),
     addPerson: (name, teamIds) => directory.addPerson(name, teamIds),
     async assign(workItemId, roleId, personId) {
