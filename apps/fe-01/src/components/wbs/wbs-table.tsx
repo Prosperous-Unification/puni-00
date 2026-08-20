@@ -5426,67 +5426,68 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
   const tagsExist = tags.length > 0;
 
   const columns = useMemo(
-    () => [
-      column.display({
-        id: 'drag',
-        header: () => <span aria-label="Reorder" />,
-        cell: ({ row }) => {
-          // A frozen row keeps its handle, and says on it why the handle will
-          // not help. Hiding it was the first attempt, and it made the refusal
-          // unreachable: nothing could explain the freeze to someone who tried,
-          // and the test that claimed to prove the refusal was proving only that
-          // the handle was gone. Both reviewers found that test.
-          const frozen = row.original.frozenNumber !== null;
-          return (
+    () =>
+      [
+        column.display({
+          id: 'drag',
+          header: () => <span aria-label="Reorder" />,
+          cell: ({ row }) => {
+            // A frozen row keeps its handle, and says on it why the handle will
+            // not help. Hiding it was the first attempt, and it made the refusal
+            // unreachable: nothing could explain the freeze to someone who tried,
+            // and the test that claimed to prove the refusal was proving only that
+            // the handle was gone. Both reviewers found that test.
+            const frozen = row.original.frozenNumber !== null;
+            return (
+              <span
+                draggable
+                role="button"
+                tabIndex={-1}
+                aria-disabled={frozen}
+                aria-label={`Reorder ${row.original.number}`}
+                title={
+                  frozen ? 'Frozen — unfreeze this row before moving it' : 'Drag to move this row'
+                }
+                style={{ cursor: frozen ? 'not-allowed' : 'grab' }}
+                onDragStart={() => {
+                  live.current.setDragging(row.original.id);
+                }}
+                onDragEnd={() => {
+                  live.current.setDragging(null);
+                  live.current.setDropHint(null);
+                }}
+              >
+                ⠿
+              </span>
+            );
+          },
+        }),
+        column.display({
+          id: 'number',
+          // `#`, which is what a column of work item numbers is called on every
+          // spreadsheet a reader of this table has ever used — and 105px of a
+          // 1280px laptop is not where the word `Number` earns its eight
+          // characters. The accessible name is the word, on the glyph itself:
+          // `#` is punctuation a screen reader announces as "number sign" or
+          // skips outright, and the column header is read once per cell by
+          // anything walking the table.
+          meta: { spokenHeading: 'Number' },
+          header: () => <span>#</span>,
+          cell: ({ row }) => (
             <span
-              draggable
-              role="button"
-              tabIndex={-1}
-              aria-disabled={frozen}
-              aria-label={`Reorder ${row.original.number}`}
-              title={
-                frozen ? 'Frozen — unfreeze this row before moving it' : 'Drag to move this row'
-              }
-              style={{ cursor: frozen ? 'not-allowed' : 'grab' }}
-              onDragStart={() => {
-                live.current.setDragging(row.original.id);
-              }}
-              onDragEnd={() => {
-                live.current.setDragging(null);
-                live.current.setDropHint(null);
-              }}
+              // The whole number, because the cell may not be showing all of it:
+              // the column is sized to `NUMBER_ENVELOPE` and there is no longest
+              // number to size it to instead, so a number past the envelope is
+              // clipped by {@link CELL}'s `overflow: hidden` and read here. The
+              // same bargain the short dates make.
+              // `numberIndentFor`, the capped half of the indent pair: this
+              // column's declared width is what the cap protects, and the share
+              // it withholds past `DEEPEST_INDENT` is carried by the Name cell
+              // beside it.
+              title={row.original.number}
+              style={{ paddingLeft: numberIndentFor(row.depth), whiteSpace: 'nowrap' }}
             >
-              ⠿
-            </span>
-          );
-        },
-      }),
-      column.display({
-        id: 'number',
-        // `#`, which is what a column of work item numbers is called on every
-        // spreadsheet a reader of this table has ever used — and 105px of a
-        // 1280px laptop is not where the word `Number` earns its eight
-        // characters. The accessible name is the word, on the glyph itself:
-        // `#` is punctuation a screen reader announces as "number sign" or
-        // skips outright, and the column header is read once per cell by
-        // anything walking the table.
-        meta: { spokenHeading: 'Number' },
-        header: () => <span>#</span>,
-        cell: ({ row }) => (
-          <span
-            // The whole number, because the cell may not be showing all of it:
-            // the column is sized to `NUMBER_ENVELOPE` and there is no longest
-            // number to size it to instead, so a number past the envelope is
-            // clipped by {@link CELL}'s `overflow: hidden` and read here. The
-            // same bargain the short dates make.
-            // `numberIndentFor`, the capped half of the indent pair: this
-            // column's declared width is what the cap protects, and the share
-            // it withholds past `DEEPEST_INDENT` is carried by the Name cell
-            // beside it.
-            title={row.original.number}
-            style={{ paddingLeft: numberIndentFor(row.depth), whiteSpace: 'nowrap' }}
-          >
-            {/*
+              {/*
               No triangles while a search is on. What is open during a search
               is the search's answer — every kept row, so no match can be
               hidden — and this control would have to either lie about that or
@@ -5494,349 +5495,349 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
               reader's own expansion, which the search deliberately does not
               touch, so a click here would appear to do nothing.
             */}
-            <span data-caret-gutter style={{ display: 'inline-block', width: CARET_GUTTER_PX }}>
-              {row.getCanExpand() && !live.current.filtering ? (
-                <button
-                  type="button"
-                  aria-label={`${row.getIsExpanded() ? 'Collapse' : 'Expand'} ${row.original.number}`}
-                  onClick={row.getToggleExpandedHandler()}
-                >
-                  {row.getIsExpanded() ? '▾' : '▸'}
-                </button>
-              ) : null}
-            </span>
-            <span data-number>{row.original.number}</span>
-            {/*
+              <span data-caret-gutter style={{ display: 'inline-block', width: CARET_GUTTER_PX }}>
+                {row.getCanExpand() && !live.current.filtering ? (
+                  <button
+                    type="button"
+                    aria-label={`${row.getIsExpanded() ? 'Collapse' : 'Expand'} ${row.original.number}`}
+                    onClick={row.getToggleExpandedHandler()}
+                  >
+                    {row.getIsExpanded() ? '▾' : '▸'}
+                  </button>
+                ) : null}
+              </span>
+              <span data-number>{row.original.number}</span>
+              {/*
               After the number, not before it. A marker in front shifts the
               number right on the rows that have one, which is the same fault
               the gutter above exists to fix — and this one moves a row against
               its own siblings rather than against a whole depth.
             */}
-            {row.original.frozenNumber !== null && <span aria-label="Number is frozen">🔒</span>}
-          </span>
-        ),
-      }),
-      column.display({
-        id: 'name',
-        header: 'Name',
-        cell: ({ row }) => {
-          // Why this row is on screen, at a glance: a hit is tinted, and every
-          // other row in a narrowed table is context — an ancestor placing a
-          // hit, or work underneath one. Read through `live` rather than closed
-          // over, for the reason the dependency list below gives: `columns`
-          // must not depend on anything that changes per keystroke.
-          // Proof: hard-coded to false, `marks the row that matched, so the
-          // rows around it read as context` and `shows the whole subtree under
-          // a matched parent` failed — the second because it is the mark that
-          // says the parent is the hit and the subtree is not. Watched,
-          // 2026-08-06.
-          const matched = live.current.matchIds.has(row.original.id);
-          const nameCell = cellKey(row.original.id, 'name');
-          const hovered = live.current.openCard === nameCell;
-          return (
-            <span
-              // `block`, not `inline-block`: a shrink-to-fit wrapper and a
-              // `width: 100%` textarea inside it define each other in a circle.
-              // It is also the positioned ancestor the preview below is placed
-              // against — which decides where the preview opens, not whether it
-              // is clipped. The clipper is the `<td>`, and it is what
-              // {@link POPOVER_COLUMNS} exempts.
-              //
-              // And it is what **closes** the preview, while the marker alone
-              // opens it. The two halves are deliberately different elements:
-              // the preview is the one card that scrolls, so reaching it means
-              // putting the pointer on it, and the trip from a 7px glyph at the
-              // top right of this cell down to a card hanging off its bottom
-              // edge crosses the name box in between. With the leave on the
-              // marker that trip unmounted the card before the pointer arrived
-              // and a note taller than 320px could never be scrolled (codex
-              // round 3, finding 1). This span contains the marker *and* the
-              // card, so `mouseleave` on it fires only once the pointer is
-              // outside both — no timer, no grace period, and the preview's
-              // placement is untouched.
-              // Proof: the handler put back on the marker, `keeps the preview
-              // open while the pointer crosses the cell to reach it` failed on
-              // `expected null not to be null`, and the browser's `scrolls a
-              // note taller than the preview once the pointer is on it` on the
-              // card being gone. Watched, 2026-08-09.
-              onMouseLeave={() => {
-                // The same-cell guard every surface clears with: a leave fires
-                // after the enter of whatever the pointer moved on to, so an
-                // unconditional clear would close the card the next cell had
-                // just opened.
-                live.current.setHoveredCell((current) => (current === nameCell ? null : current));
-              }}
-              style={{
-                position: 'relative',
-                display: 'block',
-                maxWidth: '100%',
-                // The share of the indent the Number cell's cap withheld: zero
-                // until `DEEPEST_INDENT`, one step per level past it, so the
-                // outline the reader's eye adds up across the two cells —
-                // `hierarchyIndentFor` — keeps stepping right at every depth.
-                // On this cell and not the Number cell because Name is the
-                // flexible column: it has no declared width to outgrow and no
-                // pinned neighbour to be painted over.
-                // Proof: this line put back to `paddingLeft: 0` (the shipped
-                // state the cap flattened) — `hands the Name cell the share of
-                // the indent the Number cap withheld` failed on `expected
-                // { number: '48px', name: '0px' } to deeply equal { number:
-                // '48px', name: '12px' }`. Watched, 2026-08-10.
-                paddingLeft: hierarchyIndentFor(row.depth) - numberIndentFor(row.depth),
-              }}
-            >
-              <CellInput
-                aria-label={`Name of ${row.original.number}`}
-                data-name-input={row.original.id}
-                data-match={matched ? 'true' : undefined}
-                cellKey={cellKey(row.original.id, 'name')}
-                // A work item's name is a sentence, not a word, and an input
-                // scrolls it out of sight one character at a time. A textarea
-                // wraps, and `autoSize` is what stops it wrapping into a line
-                // nobody can see: the box is as tall as its name, focused or
-                // not. It holds the notes under the name as well, and at rest
-                // they take no height at all — `restShowsFirstLineOnly` — so a
-                // plan reads as its names. The notes are read by writing in
-                // the cell or in the hover preview below; `maxRestRows` does
-                // not bind this cell, because a name is shown whole however
-                // many lines it wraps onto.
-                // Enter is still "new work item" — the table preventDefaults it.
-                multiline
-                autoSize
-                restShowsFirstLineOnly
-                rows={1}
+              {row.original.frozenNumber !== null && <span aria-label="Number is frozen">🔒</span>}
+            </span>
+          ),
+        }),
+        column.display({
+          id: 'name',
+          header: 'Name',
+          cell: ({ row }) => {
+            // Why this row is on screen, at a glance: a hit is tinted, and every
+            // other row in a narrowed table is context — an ancestor placing a
+            // hit, or work underneath one. Read through `live` rather than closed
+            // over, for the reason the dependency list below gives: `columns`
+            // must not depend on anything that changes per keystroke.
+            // Proof: hard-coded to false, `marks the row that matched, so the
+            // rows around it read as context` and `shows the whole subtree under
+            // a matched parent` failed — the second because it is the mark that
+            // says the parent is the hit and the subtree is not. Watched,
+            // 2026-08-06.
+            const matched = live.current.matchIds.has(row.original.id);
+            const nameCell = cellKey(row.original.id, 'name');
+            const hovered = live.current.openCard === nameCell;
+            return (
+              <span
+                // `block`, not `inline-block`: a shrink-to-fit wrapper and a
+                // `width: 100%` textarea inside it define each other in a circle.
+                // It is also the positioned ancestor the preview below is placed
+                // against — which decides where the preview opens, not whether it
+                // is clipped. The clipper is the `<td>`, and it is what
+                // {@link POPOVER_COLUMNS} exempts.
+                //
+                // And it is what **closes** the preview, while the marker alone
+                // opens it. The two halves are deliberately different elements:
+                // the preview is the one card that scrolls, so reaching it means
+                // putting the pointer on it, and the trip from a 7px glyph at the
+                // top right of this cell down to a card hanging off its bottom
+                // edge crosses the name box in between. With the leave on the
+                // marker that trip unmounted the card before the pointer arrived
+                // and a note taller than 320px could never be scrolled (codex
+                // round 3, finding 1). This span contains the marker *and* the
+                // card, so `mouseleave` on it fires only once the pointer is
+                // outside both — no timer, no grace period, and the preview's
+                // placement is untouched.
+                // Proof: the handler put back on the marker, `keeps the preview
+                // open while the pointer crosses the cell to reach it` failed on
+                // `expected null not to be null`, and the browser's `scrolls a
+                // note taller than the preview once the pointer is on it` on the
+                // card being gone. Watched, 2026-08-09.
+                onMouseLeave={() => {
+                  // The same-cell guard every surface clears with: a leave fires
+                  // after the enter of whatever the pointer moved on to, so an
+                  // unconditional clear would close the card the next cell had
+                  // just opened.
+                  live.current.setHoveredCell((current) => (current === nameCell ? null : current));
+                }}
                 style={{
-                  // The cell's width, not a width of its own: `22em` was one of
-                  // the three opinions that produced the overlap, and it is the
-                  // colgroup's job now.
-                  width: '100%',
-                  boxSizing: 'border-box',
-                  // No `resize` here. It said `vertical` until
-                  // `table-mechanics`, and an inline property outranks every
-                  // stylesheet: the grip that put a row out of line with its
-                  // chart row was written from *this* object, not from
-                  // Tailwind's preflight, and a rule in `styles.css` could not
-                  // reach it. `[data-grid] textarea { resize: none }` is where
-                  // the answer lives now, for this box and any other the grid
-                  // grows — and it is load-bearing rather than a belt: with
-                  // this line gone the browser's own default is `both`.
-                  font: 'inherit',
-                  ...(matched ? { background: MATCH_TINT } : {}),
+                  position: 'relative',
+                  display: 'block',
+                  maxWidth: '100%',
+                  // The share of the indent the Number cell's cap withheld: zero
+                  // until `DEEPEST_INDENT`, one step per level past it, so the
+                  // outline the reader's eye adds up across the two cells —
+                  // `hierarchyIndentFor` — keeps stepping right at every depth.
+                  // On this cell and not the Number cell because Name is the
+                  // flexible column: it has no declared width to outgrow and no
+                  // pinned neighbour to be painted over.
+                  // Proof: this line put back to `paddingLeft: 0` (the shipped
+                  // state the cap flattened) — `hands the Name cell the share of
+                  // the indent the Number cap withheld` failed on `expected
+                  // { number: '48px', name: '0px' } to deeply equal { number:
+                  // '48px', name: '12px' }`. Watched, 2026-08-10.
+                  paddingLeft: hierarchyIndentFor(row.depth) - numberIndentFor(row.depth),
                 }}
-                // A callback ref rather than an effect: it fires exactly when
-                // this node is attached, so the focus cannot be lost to a later
-                // render arriving before the row does. That race is what
-                // Enter-Enter-Enter depends on not losing. It fires on every
-                // render rather than only the first, which the id check already
-                // tolerated.
-                onAttach={(element) => {
-                  // The Name column only: any other column is a cell this one
-                  // has no business focusing, and it is landed on from the
-                  // committed DOM by the effect after a refresh.
-                  focusIntent.current.landOnAttached(
-                    element,
-                    { rowId: row.original.id, columnId: 'name' },
-                    gridElement.current,
-                  );
-                }}
-                // Both fields, as one text: the name, and the notes under it.
-                // The reverse trip and the rule that a peer's edit is diffed
-                // against the baseline rather than against this value are in
-                // {@link commitNameCell}.
-                value={composeNameCell(row.original.name, row.original.notes)}
-                // Returned rather than dropped: what be-01 did with the edit is
-                // what tells the box whether the text in it has been saved.
-                commit={(typed, baseline) =>
-                  live.current.commitNameCell(row.original.id, typed, baseline)
-                }
-                onKeyDown={(e) => {
-                  live.current.onAltMove(e, row.original, 'name');
-                  // Before the Name cell's own keys, and before the arrows:
-                  // Ctrl+Enter is a command here and a plain Enter is a
-                  // newline the browser writes, and only one handler may
-                  // answer for the pair.
-                  live.current.onCommandKey(e, row.original, 'name');
-                  live.current.onKeyDown(e, row.original);
-                  live.current.onArrowKey(e, row.original.id, 'name');
-                }}
-              />
-              {row.original.notes.trim() !== '' && (
-                // The notes marker: the mark that says this row has notes, and
-                // the only thing that opens the preview.
-                //
-                // The cell itself opened it until 2026-08-09, and Dany's
-                // reading of the result is why it does not any more: the Name
-                // column is the widest thing on the way to anywhere in this
-                // table, and a rendered document over the rows below on every
-                // pass of the mouse is disruptive rather than helpful. The
-                // compact cards keep the whole cell — see the folded role
-                // cell — because a card three lines tall over a 96px cell
-                // costs a passing mouse nothing.
-                //
-                // It is also the "this row has notes" affordance
-                // `name-title-body` deliberately left out. That non-goal is
-                // superseded and not forgotten: with the notes clipped at rest
-                // *and* the trigger no longer the whole cell, an unmarked row
-                // would keep its notes from anybody who did not already know
-                // they were there.
-                //
-                // Not a control: no `tabIndex`, no `data-cell`, no click. The
-                // keyboard grid is a matrix of cells and a stop inside the Name
-                // cell would put a Tab between a name and the next column. Its
-                // hover area is its own 12px box and nothing wider, so a click
-                // aimed at the box under it lands there everywhere else.
-                //
-                // It opens the preview and does not close it: the leave belongs
-                // to the cell around it, for the reason that span gives.
-                //
-                // The a11y rule below is right that a non-interactive element
-                // should not act; this one does not — its `onMouseDown`
-                // forwards the press to the interactive box it sits on, which
-                // is the opposite of trapping it.
-                // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions
-                <span
-                  role="img"
-                  aria-label={`Notes on ${row.original.number}`}
-                  data-notes-marker={row.original.id}
-                  onMouseEnter={() => {
-                    live.current.setHoveredCell(nameCell);
-                  }}
-                  // At 15px the glyph reads as clickable, and a click that
-                  // did nothing would eat the caret aimed at the name under
-                  // it. The name box takes it; the marker stays no control —
-                  // no focus of its own, no tab stop.
-                  onMouseDown={(pressed) => {
-                    pressed.preventDefault();
-                    pressed.currentTarget.parentElement?.querySelector('textarea')?.focus();
-                  }}
+              >
+                <CellInput
+                  aria-label={`Name of ${row.original.number}`}
+                  data-name-input={row.original.id}
+                  data-match={matched ? 'true' : undefined}
+                  cellKey={cellKey(row.original.id, 'name')}
+                  // A work item's name is a sentence, not a word, and an input
+                  // scrolls it out of sight one character at a time. A textarea
+                  // wraps, and `autoSize` is what stops it wrapping into a line
+                  // nobody can see: the box is as tall as its name, focused or
+                  // not. It holds the notes under the name as well, and at rest
+                  // they take no height at all — `restShowsFirstLineOnly` — so a
+                  // plan reads as its names. The notes are read by writing in
+                  // the cell or in the hover preview below; `maxRestRows` does
+                  // not bind this cell, because a name is shown whole however
+                  // many lines it wraps onto.
+                  // Enter is still "new work item" — the table preventDefaults it.
+                  multiline
+                  autoSize
+                  restShowsFirstLineOnly
+                  rows={1}
                   style={{
-                    position: 'absolute',
-                    top: 0,
-                    right: 1,
-                    // Ink, not furniture: at 11px muted this was invisible at
-                    // arm's length, and an affordance nobody sees marks
-                    // nothing (Dany, 2026-08-09). The padding is hit area —
-                    // the glyph is the hover target.
-                    fontSize: 15,
-                    fontWeight: 700,
-                    padding: '1px 3px',
-                    lineHeight: 1,
-                    color: 'var(--foreground)',
-                    cursor: 'default',
+                    // The cell's width, not a width of its own: `22em` was one of
+                    // the three opinions that produced the overlap, and it is the
+                    // colgroup's job now.
+                    width: '100%',
+                    boxSizing: 'border-box',
+                    // No `resize` here. It said `vertical` until
+                    // `table-mechanics`, and an inline property outranks every
+                    // stylesheet: the grip that put a row out of line with its
+                    // chart row was written from *this* object, not from
+                    // Tailwind's preflight, and a rule in `styles.css` could not
+                    // reach it. `[data-grid] textarea { resize: none }` is where
+                    // the answer lives now, for this box and any other the grid
+                    // grows — and it is load-bearing rather than a belt: with
+                    // this line gone the browser's own default is `both`.
+                    font: 'inherit',
+                    ...(matched ? { background: MATCH_TINT } : {}),
                   }}
-                >
-                  ≡
-                </span>
-              )}
-              {/*
+                  // A callback ref rather than an effect: it fires exactly when
+                  // this node is attached, so the focus cannot be lost to a later
+                  // render arriving before the row does. That race is what
+                  // Enter-Enter-Enter depends on not losing. It fires on every
+                  // render rather than only the first, which the id check already
+                  // tolerated.
+                  onAttach={(element) => {
+                    // The Name column only: any other column is a cell this one
+                    // has no business focusing, and it is landed on from the
+                    // committed DOM by the effect after a refresh.
+                    focusIntent.current.landOnAttached(
+                      element,
+                      { rowId: row.original.id, columnId: 'name' },
+                      gridElement.current,
+                    );
+                  }}
+                  // Both fields, as one text: the name, and the notes under it.
+                  // The reverse trip and the rule that a peer's edit is diffed
+                  // against the baseline rather than against this value are in
+                  // {@link commitNameCell}.
+                  value={composeNameCell(row.original.name, row.original.notes)}
+                  // Returned rather than dropped: what be-01 did with the edit is
+                  // what tells the box whether the text in it has been saved.
+                  commit={(typed, baseline) =>
+                    live.current.commitNameCell(row.original.id, typed, baseline)
+                  }
+                  onKeyDown={(e) => {
+                    live.current.onAltMove(e, row.original, 'name');
+                    // Before the Name cell's own keys, and before the arrows:
+                    // Ctrl+Enter is a command here and a plain Enter is a
+                    // newline the browser writes, and only one handler may
+                    // answer for the pair.
+                    live.current.onCommandKey(e, row.original, 'name');
+                    live.current.onKeyDown(e, row.original);
+                    live.current.onArrowKey(e, row.original.id, 'name');
+                  }}
+                />
+                {row.original.notes.trim() !== '' && (
+                  // The notes marker: the mark that says this row has notes, and
+                  // the only thing that opens the preview.
+                  //
+                  // The cell itself opened it until 2026-08-09, and Dany's
+                  // reading of the result is why it does not any more: the Name
+                  // column is the widest thing on the way to anywhere in this
+                  // table, and a rendered document over the rows below on every
+                  // pass of the mouse is disruptive rather than helpful. The
+                  // compact cards keep the whole cell — see the folded role
+                  // cell — because a card three lines tall over a 96px cell
+                  // costs a passing mouse nothing.
+                  //
+                  // It is also the "this row has notes" affordance
+                  // `name-title-body` deliberately left out. That non-goal is
+                  // superseded and not forgotten: with the notes clipped at rest
+                  // *and* the trigger no longer the whole cell, an unmarked row
+                  // would keep its notes from anybody who did not already know
+                  // they were there.
+                  //
+                  // Not a control: no `tabIndex`, no `data-cell`, no click. The
+                  // keyboard grid is a matrix of cells and a stop inside the Name
+                  // cell would put a Tab between a name and the next column. Its
+                  // hover area is its own 12px box and nothing wider, so a click
+                  // aimed at the box under it lands there everywhere else.
+                  //
+                  // It opens the preview and does not close it: the leave belongs
+                  // to the cell around it, for the reason that span gives.
+                  //
+                  // The a11y rule below is right that a non-interactive element
+                  // should not act; this one does not — its `onMouseDown`
+                  // forwards the press to the interactive box it sits on, which
+                  // is the opposite of trapping it.
+                  // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions
+                  <span
+                    role="img"
+                    aria-label={`Notes on ${row.original.number}`}
+                    data-notes-marker={row.original.id}
+                    onMouseEnter={() => {
+                      live.current.setHoveredCell(nameCell);
+                    }}
+                    // At 15px the glyph reads as clickable, and a click that
+                    // did nothing would eat the caret aimed at the name under
+                    // it. The name box takes it; the marker stays no control —
+                    // no focus of its own, no tab stop.
+                    onMouseDown={(pressed) => {
+                      pressed.preventDefault();
+                      pressed.currentTarget.parentElement?.querySelector('textarea')?.focus();
+                    }}
+                    style={{
+                      position: 'absolute',
+                      top: 0,
+                      right: 1,
+                      // Ink, not furniture: at 11px muted this was invisible at
+                      // arm's length, and an affordance nobody sees marks
+                      // nothing (Dany, 2026-08-09). The padding is hit area —
+                      // the glyph is the hover target.
+                      fontSize: 15,
+                      fontWeight: 700,
+                      padding: '1px 3px',
+                      lineHeight: 1,
+                      color: 'var(--foreground)',
+                      cursor: 'default',
+                    }}
+                  >
+                    ≡
+                  </span>
+                )}
+                {/*
                 The rendered reading of this work item, on hover over the marker
                 above. A work item with no notes has nothing to reveal — its
                 name is shown whole in the cell already, and it has no marker to
                 hover. It hangs off the Name cell because that is where the note
                 is written; the Notes column it used to hang off does not exist.
               */}
-              {hovered && row.original.notes.trim() !== '' && (
-                <HoverPreview
-                  name={row.original.name}
-                  notes={row.original.notes}
-                  number={row.original.number}
-                />
-              )}
-            </span>
-          );
-        },
-      }),
-      column.display({
-        id: 'depends',
-        header: 'Depends on',
-        cell: ({ row }) => {
-          // From the tree (`dependenciesOf` walks `flat`), never from the
-          // rows on screen: a collapsed or filtered-out dependency has no row
-          // to light, and the card naming it is then the only place it is
-          // said at all.
-          // Proof: narrowed to entries with a rendered `<tr>`, `a collapsed
-          // dependency has no row to light, and the card still names it`
-          // failed on `Unable to find an accessible element with the role
-          // "tooltip"` — the hidden dependency dropped, the cell left with
-          // nothing to say. Watched, 2026-08-10.
-          const waitingFor = live.current.dependenciesOf(row.original.dependsOn);
-          const dependsCell = cellKey(row.original.id, 'depends');
-          // This cell's picker, or null while it is closed or under another row.
-          const picker =
-            live.current.depPicker?.rowId === row.original.id ? live.current.depPicker : null;
-          const entries =
-            picker === null ? [] : live.current.depEntriesFor(row.original, picker.typed);
-          // The entries a click or an Enter may actually take. A marked entry
-          // is on screen to be read, not to be picked: be-01 would refuse it,
-          // and the mark is this cell saying so before the click rather than
-          // after it.
-          const pickable = entries.filter((entry) => entry.refusal === undefined);
-          // Resolved by id at render, so a highlight whose row has left the
-          // list — or has since become one be-01 would refuse — is simply
-          // nothing rather than somebody else's row.
-          const activeOption =
-            picker?.highlightId == null
-              ? undefined
-              : pickable.find((entry) => entry.id === picker.highlightId);
-          const open = picker !== null && entries.length > 0;
-          // Nothing to expand where nothing is waited for, and the picker owns
-          // the cell while it is open: both boxes hang off the bottom edge of
-          // one 110px cell, and the one somebody is typing into is the one they
-          // are looking at. `picker`, not `open`: a picker with nothing to
-          // offer is still a cell being typed in.
-          const cardable = waitingFor.length > 0 && picker === null;
-          const carded = cardable && live.current.openCard === dependsCell;
-          // What the card says, for a reader with no pointer. This cell cannot
-          // answer a focus with the card the way the folded role cell does —
-          // the focus here already belongs to the picker, which opens on it and
-          // offers the rows this one could *start* waiting for, and stacking
-          // two boxes over one 110px cell is what the design ruled out. So the
-          // names are a description of the box instead, off the same
-          // `waitingFor` list the card is built from. codex round 3, finding 2.
-          // Proof: the `aria-describedby` dropped from the input, `describes the
-          // box with what the row waits for, pointer or no pointer` failed on
-          // `expected null to be 'depends-w3'`. Watched, 2026-08-09.
-          const waitsForId = `depends-${row.original.id}`;
-          return (
-            <span
-              // **No `onMouseEnter` here, and that is this change.** The
-              // cell-level dependency hover used to be on this wrapper, which
-              // stands *inside* the `<td>`'s padding box and, at the column's
-              // own 110px, is filled edge to edge by the pills — so a reader
-              // pointing at the cell got nothing, and the only place that
-              // answered the whole-cell gesture was the 15.8px add button. It
-              // is on the `<td>` now; see `dependsCellHoverProps`, and
-              // `openspec/changes/table-width-budget/design.md` D2 for the
-              // measurement.
-              //
-              // This wrapper carried `whiteSpace: 'normal'` until 2026-08-10,
-              // with the rationale "an uneven row height is a cost worth
-              // paying; a dependency nobody can see is not". The change
-              // `deps-single-line` reverses that decision by name — and
-              // `table-geometry-and-tab-order`'s "wraps its chips onto a
-              // second line rather than clipping them" with it (archived at
-              // openspec/changes/archive/2026-08-10-table-geometry-and-tab-order/)
-              // — because the full list now lives in the DependsCard hover
-              // and the box's sr-only description, so the cell no longer has
-              // to be several lines tall to say it. At rest the strip below
-              // clamps to one clipped line; the fade on it is the cue.
-              //
-              // The positioned ancestor the listbox below is placed against —
-              // which is what decides *where* the list opens, not whether it
-              // is clipped. The clipper is the `<td>`, and it is what
-              // {@link POPOVER_COLUMNS} exempts.
-              style={{
-                position: 'relative',
-                display: 'block',
-                maxWidth: '100%',
-              }}
-            >
-              {waitingFor.length > 0 && (
-                <span id={waitsForId} className="sr-only">
-                  {`Waiting for ${waitingFor.map(dependsLine).join(', ')}`}
-                </span>
-              )}
-              {/*
+                {hovered && row.original.notes.trim() !== '' && (
+                  <HoverPreview
+                    name={row.original.name}
+                    notes={row.original.notes}
+                    number={row.original.number}
+                  />
+                )}
+              </span>
+            );
+          },
+        }),
+        column.display({
+          id: 'depends',
+          header: 'Depends on',
+          cell: ({ row }) => {
+            // From the tree (`dependenciesOf` walks `flat`), never from the
+            // rows on screen: a collapsed or filtered-out dependency has no row
+            // to light, and the card naming it is then the only place it is
+            // said at all.
+            // Proof: narrowed to entries with a rendered `<tr>`, `a collapsed
+            // dependency has no row to light, and the card still names it`
+            // failed on `Unable to find an accessible element with the role
+            // "tooltip"` — the hidden dependency dropped, the cell left with
+            // nothing to say. Watched, 2026-08-10.
+            const waitingFor = live.current.dependenciesOf(row.original.dependsOn);
+            const dependsCell = cellKey(row.original.id, 'depends');
+            // This cell's picker, or null while it is closed or under another row.
+            const picker =
+              live.current.depPicker?.rowId === row.original.id ? live.current.depPicker : null;
+            const entries =
+              picker === null ? [] : live.current.depEntriesFor(row.original, picker.typed);
+            // The entries a click or an Enter may actually take. A marked entry
+            // is on screen to be read, not to be picked: be-01 would refuse it,
+            // and the mark is this cell saying so before the click rather than
+            // after it.
+            const pickable = entries.filter((entry) => entry.refusal === undefined);
+            // Resolved by id at render, so a highlight whose row has left the
+            // list — or has since become one be-01 would refuse — is simply
+            // nothing rather than somebody else's row.
+            const activeOption =
+              picker?.highlightId == null
+                ? undefined
+                : pickable.find((entry) => entry.id === picker.highlightId);
+            const open = picker !== null && entries.length > 0;
+            // Nothing to expand where nothing is waited for, and the picker owns
+            // the cell while it is open: both boxes hang off the bottom edge of
+            // one 110px cell, and the one somebody is typing into is the one they
+            // are looking at. `picker`, not `open`: a picker with nothing to
+            // offer is still a cell being typed in.
+            const cardable = waitingFor.length > 0 && picker === null;
+            const carded = cardable && live.current.openCard === dependsCell;
+            // What the card says, for a reader with no pointer. This cell cannot
+            // answer a focus with the card the way the folded role cell does —
+            // the focus here already belongs to the picker, which opens on it and
+            // offers the rows this one could *start* waiting for, and stacking
+            // two boxes over one 110px cell is what the design ruled out. So the
+            // names are a description of the box instead, off the same
+            // `waitingFor` list the card is built from. codex round 3, finding 2.
+            // Proof: the `aria-describedby` dropped from the input, `describes the
+            // box with what the row waits for, pointer or no pointer` failed on
+            // `expected null to be 'depends-w3'`. Watched, 2026-08-09.
+            const waitsForId = `depends-${row.original.id}`;
+            return (
+              <span
+                // **No `onMouseEnter` here, and that is this change.** The
+                // cell-level dependency hover used to be on this wrapper, which
+                // stands *inside* the `<td>`'s padding box and, at the column's
+                // own 110px, is filled edge to edge by the pills — so a reader
+                // pointing at the cell got nothing, and the only place that
+                // answered the whole-cell gesture was the 15.8px add button. It
+                // is on the `<td>` now; see `dependsCellHoverProps`, and
+                // `openspec/changes/table-width-budget/design.md` D2 for the
+                // measurement.
+                //
+                // This wrapper carried `whiteSpace: 'normal'` until 2026-08-10,
+                // with the rationale "an uneven row height is a cost worth
+                // paying; a dependency nobody can see is not". The change
+                // `deps-single-line` reverses that decision by name — and
+                // `table-geometry-and-tab-order`'s "wraps its chips onto a
+                // second line rather than clipping them" with it (archived at
+                // openspec/changes/archive/2026-08-10-table-geometry-and-tab-order/)
+                // — because the full list now lives in the DependsCard hover
+                // and the box's sr-only description, so the cell no longer has
+                // to be several lines tall to say it. At rest the strip below
+                // clamps to one clipped line; the fade on it is the cue.
+                //
+                // The positioned ancestor the listbox below is placed against —
+                // which is what decides *where* the list opens, not whether it
+                // is clipped. The clipper is the `<td>`, and it is what
+                // {@link POPOVER_COLUMNS} exempts.
+                style={{
+                  position: 'relative',
+                  display: 'block',
+                  maxWidth: '100%',
+                }}
+              >
+                {waitingFor.length > 0 && (
+                  <span id={waitsForId} className="sr-only">
+                    {`Waiting for ${waitingFor.map(dependsLine).join(', ')}`}
+                  </span>
+                )}
+                {/*
                 The strip: the chips and the box, and nothing else — the
                 popovers below hang from the wrapper, because this box clips
                 and they must not be inside the clipper. At rest it is one
@@ -5884,29 +5885,29 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                 clipped chip invisible, an empty cell no taller open than
                 shut — is Chromium's proof, in `e2e/deps-cell.spec.ts`.
               */}
-              <span
-                data-depends-strip={row.original.id}
-                style={{
-                  display: 'flex',
-                  // Wrapping is for the chips, and only for them. See the
-                  // block above: an empty cell has nothing to wrap, and the
-                  // wrap is what made it two lines tall the moment it was
-                  // clicked into.
-                  flexWrap: picker !== null && waitingFor.length > 0 ? 'wrap' : 'nowrap',
-                  alignItems: 'center',
-                  gap: 2,
-                  whiteSpace: 'nowrap',
-                  overflow: 'hidden',
-                  // Pinned, in one line: the mask above fades the *physical*
-                  // right edge — the app is LTR-only today, and a
-                  // logical-direction gradient is not portable syntax.
-                  direction: 'ltr',
-                  ...(picker === null
-                    ? { WebkitMaskImage: DEP_EDGE_FADE, maskImage: DEP_EDGE_FADE }
-                    : {}),
-                }}
-              >
-                {/*
+                <span
+                  data-depends-strip={row.original.id}
+                  style={{
+                    display: 'flex',
+                    // Wrapping is for the chips, and only for them. See the
+                    // block above: an empty cell has nothing to wrap, and the
+                    // wrap is what made it two lines tall the moment it was
+                    // clicked into.
+                    flexWrap: picker !== null && waitingFor.length > 0 ? 'wrap' : 'nowrap',
+                    alignItems: 'center',
+                    gap: 2,
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    // Pinned, in one line: the mask above fades the *physical*
+                    // right edge — the app is LTR-only today, and a
+                    // logical-direction gradient is not portable syntax.
+                    direction: 'ltr',
+                    ...(picker === null
+                      ? { WebkitMaskImage: DEP_EDGE_FADE, maskImage: DEP_EDGE_FADE }
+                      : {}),
+                  }}
+                >
+                  {/*
                   The add affordance, first on the strip's line and always on
                   it. Adding a dependency has only ever been discoverable by
                   knowing that the cell's box is a box — a rested cell full of
@@ -5934,473 +5935,476 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                   because a squeezed cell must clip chips rather than crush
                   this.
                 */}
-                <button
-                  type="button"
-                  data-dep-add={row.original.id}
-                  // Not `Add a dependency to 020` — that is the box's own
-                  // label, and two controls in one cell answering to one name
-                  // is a reader told the same thing twice with no way to tell
-                  // which is which. The chips' voice instead: they say `Stop
-                  // 020 waiting for 030`, so this says what it starts.
-                  //
-                  // No `title` beside it. `Add a dependency` was one, and a
-                  // tooltip reading one thing while the accessible name reads
-                  // another is the control answering to two names — the exact
-                  // fault the name above was chosen to avoid, reintroduced by
-                  // the attribute that was meant to explain it (codex review,
-                  // 2026-08-11). The sighted reader has the `+`; anyone who
-                  // needs words has the name.
-                  aria-label={`Make ${row.original.number} wait for something`}
-                  // Deliberately not a tab stop, at rest and with the picker
-                  // open alike — where the chips flip (`deps-single-line`).
-                  // The keyboard already has this exact path and reaches it
-                  // first: Tab into the cell lands on the box, and the box's
-                  // focus is what opens the picker. A stop here would add one
-                  // Tab per row to every walk through the plan and offer
-                  // nothing at the end of it that the next Tab does not
-                  // already do. It stays a `<button>` with a name, so a
-                  // reader's element walk still finds it; what it does not do
-                  // is stand in the sequential order.
-                  tabIndex={-1}
-                  onMouseDown={(pressed) => {
-                    // The press must not move the focus. Without this the
-                    // button takes it, and a button taking the focus from this
-                    // cell's *own* box is a blur — which closes the picker and
-                    // drops what was typed into it (the box's `onBlur`, this
-                    // cell's contract since it was written). Somebody who
-                    // types `03` and then reaches for the affordance beside it
-                    // would lose the search to the control that means "search".
-                    // The precedent is the Name cell's notes marker, which
-                    // forwards its press to the box under it the same way.
-                    //
-                    // The click below still fires — `preventDefault` on
-                    // `mousedown` suppresses the focus, not the click (R5 #14's
-                    // lesson, read the other way round). And the action lives
-                    // there rather than here for two reasons: a `mousedown`
-                    // that re-renders before the browser performs its default
-                    // action is R5 #12's fault class, and an assistive
-                    // technology's activation dispatches a click with no
-                    // `mousedown` at all.
-                    pressed.preventDefault();
-                  }}
-                  onClick={(pressed) => {
-                    // The box is this button's sibling on the strip — the same
-                    // reach the notes marker makes, scoped by the row's own id
-                    // so a stale query can never focus another row's cell.
-                    pressed.currentTarget.parentElement
-                      ?.querySelector<HTMLInputElement>(`[data-depends-input="${row.original.id}"]`)
-                      ?.focus();
-                  }}
-                  style={{ flexShrink: 0 }}
-                >
-                  +
-                </button>
-                {waitingFor.map(({ id, number }) => (
                   <button
-                    key={id}
                     type="button"
-                    aria-label={`Stop ${row.original.number} waiting for ${number}`}
-                    title="Remove this dependency"
-                    // Out of the tab order while the strip is clipped: a
-                    // clipped chip is a native button a sequential Tab could
-                    // still reach, invisible, and the browser may scroll the
-                    // `overflow: hidden` strip to show what it focused —
-                    // shifting the rested layout. With the picker open the
-                    // strip wraps, every chip is on screen, and the ✕ is
-                    // focusable the way a visible button should be. Keyboard
-                    // removal is unchanged: Tab enters the cell at the box,
-                    // the picker opens on the focus, the chips are back.
-                    // Proof: the condition dropped (chips always focusable),
-                    // `keeps clipped chips out of the tab order at rest`
-                    // failed on `expected +0 to be -1`. Watched, 2026-08-10.
-                    tabIndex={picker === null ? -1 : undefined}
-                    // The pill-level hover: this one dependency's row alone,
-                    // and the card's emphasis with it. A chip the strip has
-                    // clipped simply has no hover target — the cell-level
-                    // enter above still lights every dependency's row, which
-                    // is the U3→U4 case named in the plan rather than
-                    // discovered.
-                    onMouseEnter={() => {
-                      live.current.setDepHover((current) =>
-                        current?.rowId === row.original.id && current.pillId === id
-                          ? current
-                          : { rowId: row.original.id, pillId: id },
-                      );
-                    }}
-                    onMouseLeave={() => {
-                      // Off the pill but still in the cell: back to the whole
-                      // waited-for set, not cleared — the wrapper's own leave
-                      // is what clears. Guarded on this pill's id so a leave
-                      // that lands after the next pill's enter cannot widen
-                      // the hover that enter just narrowed.
-                      // Proof: the restore dropped (leave returning
-                      // `current`), `narrows to the pill's row, and widens
-                      // again when the pill is left` failed on `expected
-                      // ['010'] to deeply equal ['010', '020']`. Watched,
-                      // 2026-08-10.
-                      live.current.setDepHover((current) =>
-                        current?.rowId === row.original.id && current.pillId === id
-                          ? { rowId: row.original.id, pillId: null }
-                          : current,
-                      );
-                    }}
-                    // The keyboard's reading of the same pill — see
-                    // {@link depFocus}. The enter/leave pair above, with focus
-                    // in place of the pointer, and one difference: the blur
-                    // *clears* where the leave widens. A leave means the
-                    // pointer is still in the cell (the wrapper's own leave is
-                    // what clears); a blur means nothing of the sort, and
-                    // widening on it would leave the cell lit forever once the
-                    // focus walked out of the plan from a chip. Focus moving
-                    // chip → box relights the cell from the box's own focus,
-                    // which fires after this blur.
-                    onFocus={() => {
-                      live.current.setDepFocus((current) =>
-                        current?.rowId === row.original.id && current.pillId === id
-                          ? current
-                          : { rowId: row.original.id, pillId: id },
-                      );
-                    }}
-                    onBlur={() => {
-                      live.current.setDepFocus((current) =>
-                        current?.rowId === row.original.id && current.pillId === id
-                          ? null
-                          : current,
-                      );
-                    }}
-                    onClick={() => {
-                      // This button *is* the pill, so the click unmounts it and
-                      // no `mouseleave` or `blur` of its own ever arrives: the
-                      // hover would stay on an id the cell no longer names and
-                      // keep the cut edge's row lit under a pointer that had
-                      // not moved. The pointer *is* still in the cell, so this
-                      // widens to the cell itself — exactly what the leave that
-                      // cannot fire would have done, which is why the light
-                      // goes to the remaining dependencies rather than out.
-                      // Focus is cleared instead, for the reason `onBlur` above
-                      // gives. `depLit` refuses a `pillId` the cell no longer
-                      // names as well: this end is the pointer's truth, that
-                      // end is the paint's.
+                    data-dep-add={row.original.id}
+                    // Not `Add a dependency to 020` — that is the box's own
+                    // label, and two controls in one cell answering to one name
+                    // is a reader told the same thing twice with no way to tell
+                    // which is which. The chips' voice instead: they say `Stop
+                    // 020 waiting for 030`, so this says what it starts.
+                    //
+                    // No `title` beside it. `Add a dependency` was one, and a
+                    // tooltip reading one thing while the accessible name reads
+                    // another is the control answering to two names — the exact
+                    // fault the name above was chosen to avoid, reintroduced by
+                    // the attribute that was meant to explain it (codex review,
+                    // 2026-08-11). The sighted reader has the `+`; anyone who
+                    // needs words has the name.
+                    aria-label={`Make ${row.original.number} wait for something`}
+                    // Deliberately not a tab stop, at rest and with the picker
+                    // open alike — where the chips flip (`deps-single-line`).
+                    // The keyboard already has this exact path and reaches it
+                    // first: Tab into the cell lands on the box, and the box's
+                    // focus is what opens the picker. A stop here would add one
+                    // Tab per row to every walk through the plan and offer
+                    // nothing at the end of it that the next Tab does not
+                    // already do. It stays a `<button>` with a name, so a
+                    // reader's element walk still finds it; what it does not do
+                    // is stand in the sequential order.
+                    tabIndex={-1}
+                    onMouseDown={(pressed) => {
+                      // The press must not move the focus. Without this the
+                      // button takes it, and a button taking the focus from this
+                      // cell's *own* box is a blur — which closes the picker and
+                      // drops what was typed into it (the box's `onBlur`, this
+                      // cell's contract since it was written). Somebody who
+                      // types `03` and then reaches for the affordance beside it
+                      // would lose the search to the control that means "search".
+                      // The precedent is the Name cell's notes marker, which
+                      // forwards its press to the box under it the same way.
                       //
-                      // Proof: this widen dropped, `widens back to the
-                      // remaining dependencies when a pill is deleted under the
-                      // pointer` failed on `expected [] to deeply equal
-                      // ['020']` — the light gone from a cell the pointer was
-                      // still in. Watched, 2026-08-11.
-                      live.current.setDepHover((current) =>
-                        current?.rowId === row.original.id && current.pillId === id
-                          ? { rowId: row.original.id, pillId: null }
-                          : current,
-                      );
-                      live.current.setDepFocus((current) =>
-                        current?.rowId === row.original.id && current.pillId === id
-                          ? null
-                          : current,
-                      );
-                      void live.current.run(() =>
-                        live.current.api.removeDependency(row.original.id, id),
-                      );
+                      // The click below still fires — `preventDefault` on
+                      // `mousedown` suppresses the focus, not the click (R5 #14's
+                      // lesson, read the other way round). And the action lives
+                      // there rather than here for two reasons: a `mousedown`
+                      // that re-renders before the browser performs its default
+                      // action is R5 #12's fault class, and an assistive
+                      // technology's activation dispatches a click with no
+                      // `mousedown` at all.
+                      pressed.preventDefault();
                     }}
+                    onClick={(pressed) => {
+                      // The box is this button's sibling on the strip — the same
+                      // reach the notes marker makes, scoped by the row's own id
+                      // so a stale query can never focus another row's cell.
+                      pressed.currentTarget.parentElement
+                        ?.querySelector<HTMLInputElement>(
+                          `[data-depends-input="${row.original.id}"]`,
+                        )
+                        ?.focus();
+                    }}
+                    style={{ flexShrink: 0 }}
                   >
-                    {number} ✕
+                    +
                   </button>
-                ))}
-                <input
-                  aria-label={`Add a dependency to ${row.original.number}`}
-                  role="combobox"
-                  aria-expanded={open}
-                  aria-controls={open ? `dep-options-${row.original.id}` : undefined}
-                  aria-activedescendant={
-                    activeOption === undefined ? undefined : `dep-option-${activeOption.id}`
-                  }
-                  aria-autocomplete="list"
-                  aria-describedby={waitingFor.length > 0 ? waitsForId : undefined}
-                  placeholder="search, or 010, 020"
-                  title="Type to search by number or name, or a list of numbers separated by commas or spaces"
-                  // `minWidth: 0` is what lets the box shrink behind the chips
-                  // on the strip's one rested line: a flex item's automatic
-                  // minimum would hold an `<input>` at its intrinsic width and
-                  // push its rect out past the cell. `100%` is still its claim
-                  // — the whole cell where it has the line to itself, the
-                  // remainder where it does not.
-                  style={{ width: '100%', minWidth: 0, boxSizing: 'border-box' }}
-                  data-depends-input={row.original.id}
-                  // A cell of the keyboard grid, so Tab reaches this box and
-                  // leaves it again rather than walking the chips' ✕ buttons.
-                  data-cell={cellKey(row.original.id, 'depends')}
-                  value={picker?.typed ?? ''}
-                  onFocus={() => {
-                    live.current.setDepPicker({
-                      rowId: row.original.id,
-                      typed: '',
-                      highlightId: null,
-                    });
-                    // The keyboard's cell-level light — see {@link depFocus}.
-                    // This is the reachable half: Tab through the plan lands on
-                    // this box, and the rows the row waits for light while it
-                    // is here. Guarded on having something to say by the same
-                    // rule the wrapper's `mouseenter` uses.
-                    if (waitingFor.length > 0) {
-                      live.current.setDepFocus({ rowId: row.original.id, pillId: null });
-                    }
-                  }}
-                  onBlur={() => {
-                    live.current.setDepPicker((current) =>
-                      current?.rowId === row.original.id ? null : current,
-                    );
-                    // Only the cell-level focus this box owns. `pillId === null`
-                    // in the guard and not just the row: focus moving box → chip
-                    // fires this blur *before* the chip's focus, and without the
-                    // field in the guard a later blur could not tell its own
-                    // reading from the chip's.
-                    live.current.setDepFocus((current) =>
-                      current?.rowId === row.original.id && current.pillId === null
-                        ? null
-                        : current,
-                    );
-                  }}
-                  onChange={(e) => {
-                    const typed = e.currentTarget.value;
-                    // Typing is aiming at the narrowed-to entry; emptying the
-                    // cell aims at nothing again.
-                    const first =
-                      typed.trim() === ''
-                        ? undefined
-                        : live.current
-                            .depEntriesFor(row.original, typed)
-                            .find((entry) => entry.refusal === undefined);
-                    live.current.setDepPicker({
-                      rowId: row.original.id,
-                      typed,
-                      highlightId: first?.id ?? null,
-                    });
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Tab') {
-                      // The move blurs this input, which closes the list and
-                      // drops what was typed into it — this cell's blur contract
-                      // since it was written, now reached by Tab on purpose. The
-                      // typed text is a *search*: committing it on the way out
-                      // would add dependencies nobody confirmed.
-                      //
-                      // Proof: the call dropped, leaving only the `return`, both
-                      // `Tab from the depends input closes the picker…` and
-                      // `Shift+Tab from the depends input lands in the name…`
-                      // failed with the key left to the browser. Watched,
-                      // 2026-08-07.
-                      live.current.onTabKey(e, row.original.id, 'depends');
-                      return;
-                    }
-                    if (escapesAnOpenList(e)) {
-                      // The eight keys the list may not swallow: the four
-                      // motion chords out of this cell and the four row moves
-                      // under it. This box opens its list on **focus**, so
-                      // without this branch Ctrl+L into it had no documented
-                      // way out — see {@link escapesAnOpenList}, which is where
-                      // the split between these and the chords that make or
-                      // destroy a row is argued.
-                      //
-                      // Before the ArrowUp/ArrowDown branch below on purpose:
-                      // that one reads no modifiers, so an Alt+↑ aimed at the
-                      // row would have moved the list's highlight instead.
-                      live.current.onAltMove(e, row.original, 'depends');
-                      live.current.onCommandKey(e, row.original, 'depends');
-                      return;
-                    }
-                    if (open && commandChordIn(e) !== null) {
-                      // Inert means consumed. Skipping `onCommandKey` was not
-                      // enough on its own: Cmd/⌘+Enter fell through to the Enter
-                      // branch below, which reads no modifiers, and added the
-                      // highlighted dependency — codex round 2, finding 2.
-                      // Proof: this guard removed, `Cmd+Enter in the open
-                      // depends list adds no dependency` failed on `expected
-                      // <button type="button" …(2)></button> to be null` — the
-                      // chip for an edge nobody confirmed. Watched, 2026-08-08.
-                      e.preventDefault();
-                      return;
-                    }
-                    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-                      e.preventDefault();
-                      live.current.moveDepHighlight(
-                        row.original.id,
-                        e.key === 'ArrowDown' ? 1 : -1,
-                        // The refused entries are not in this list, so the
-                        // highlight steps over them: a highlight that could stop
-                        // on one would be an Enter that does nothing, which is
-                        // the click this change exists to prevent.
-                        pickable.map((entry) => entry.id),
-                      );
-                      return;
-                    }
-                    if (e.key === 'Escape') {
-                      live.current.setDepPicker(null);
-                      return;
-                    }
-                    if (!open) {
-                      // Closed, this is a cell like any other and the chords
-                      // that make and destroy a row reach it. Open, the list
-                      // owns those — the routing matrix's inert row, narrowed
-                      // by the branch above to the chords that act on a row
-                      // rather than merely leaving the cell.
-                      // Proof: the condition forced true, `every chord is inert
-                      // while the depends list is open` failed on `expected
-                      // <input …(11)></input> to be <input …(10)></input>` — the
-                      // focus taken out of a list somebody was reading. Watched,
-                      // 2026-08-08.
-                      live.current.onCommandKey(e, row.original, 'depends');
-                    }
-                    if (e.key !== 'Enter') return;
-                    e.preventDefault();
-                    if (activeOption !== undefined) {
-                      live.current.pickDependency(row.original.id, activeOption.id);
-                      return;
-                    }
-                    // No highlight to take — the typed flow: one number or a
-                    // separated list of them, exactly as this cell always worked.
-                    const typed = picker?.typed ?? e.currentTarget.value;
-                    if (typed.trim() === '') return;
-                    live.current.dependOn(row.original.id, typed);
-                    live.current.setDepPicker((current) =>
-                      current === null ? null : { ...current, typed: '', highlightId: null },
-                    );
-                  }}
-                />
-              </span>
-              {picker !== null && entries.length > 0 && (
-                <ul
-                  role="listbox"
-                  id={`dep-options-${row.original.id}`}
-                  aria-label={`Work items ${row.original.number} can depend on`}
-                  // One preventDefault for the whole list — options included,
-                  // by bubbling. A mousedown anywhere here must not take the
-                  // input's focus: on an option, blur would close the list
-                  // before the click could pick; on the scrollbar, the list
-                  // unmounted under the pointer and everything past the fold
-                  // was unpickable by mouse (cross review #6).
-                  onMouseDown={(e) => {
-                    e.preventDefault();
-                  }}
-                  style={{
-                    position: 'absolute',
-                    top: '100%',
-                    left: 0,
-                    margin: 0,
-                    padding: 0,
-                    listStyle: 'none',
-                    // Tokens and not `#fff`/`#ccc`: this list is the one
-                    // popover in the app that never took the palette, so on a
-                    // dark page it stayed a white card with near-white text on
-                    // it — 1.05:1, measured. `CreatablePicker`'s `PickerList`
-                    // has read `--popover` since it was written; this is the
-                    // same surface saying the same thing.
-                    background: 'var(--popover)',
-                    color: 'var(--popover-foreground)',
-                    border: '1px solid var(--border)',
-                    maxHeight: 200,
-                    overflowY: 'auto',
-                    zIndex: 10,
-                    // Wider than its own column on purpose, since that column
-                    // is 110px: an entry is a work item's number and its name,
-                    // and a list as narrow as the box it drops from would show
-                    // the number and about four letters. It escapes the cell
-                    // either way — see `opensAPopover`.
-                    minWidth: DEP_LIST_WIDTH,
-                  }}
-                >
-                  {entries.map((entry) => (
-                    // The ARIA combobox pattern is the boundary that makes this
-                    // safe: options are not focusable, and the keyboard drives
-                    // them from the input above through aria-activedescendant
-                    // (ArrowUp/ArrowDown/Enter there).
-                    // eslint-disable-next-line jsx-a11y/click-events-have-key-events
-                    <li
-                      key={entry.id}
-                      id={`dep-option-${entry.id}`}
-                      role="option"
-                      aria-selected={entry.id === activeOption?.id}
-                      // Shown and refused, rather than quietly absent: a row
-                      // that vanishes from the list reads as a bug in the tool,
-                      // and one that says why it cannot be picked teaches the
-                      // shape of the plan.
-                      aria-disabled={entry.refusal !== undefined}
-                      // The list scrolls; the highlighted entry must be where
-                      // the eye is. jsdom has no scrollIntoView, hence the
-                      // typeof — that boundary is the test environment, not a
-                      // browser this will meet.
-                      ref={(element) => {
-                        if (
-                          entry.id === activeOption?.id &&
-                          element !== null &&
-                          typeof element.scrollIntoView === 'function'
-                        ) {
-                          element.scrollIntoView({ block: 'nearest' });
-                        }
+                  {waitingFor.map(({ id, number }) => (
+                    <button
+                      key={id}
+                      type="button"
+                      aria-label={`Stop ${row.original.number} waiting for ${number}`}
+                      title="Remove this dependency"
+                      // Out of the tab order while the strip is clipped: a
+                      // clipped chip is a native button a sequential Tab could
+                      // still reach, invisible, and the browser may scroll the
+                      // `overflow: hidden` strip to show what it focused —
+                      // shifting the rested layout. With the picker open the
+                      // strip wraps, every chip is on screen, and the ✕ is
+                      // focusable the way a visible button should be. Keyboard
+                      // removal is unchanged: Tab enters the cell at the box,
+                      // the picker opens on the focus, the chips are back.
+                      // Proof: the condition dropped (chips always focusable),
+                      // `keeps clipped chips out of the tab order at rest`
+                      // failed on `expected +0 to be -1`. Watched, 2026-08-10.
+                      tabIndex={picker === null ? -1 : undefined}
+                      // The pill-level hover: this one dependency's row alone,
+                      // and the card's emphasis with it. A chip the strip has
+                      // clipped simply has no hover target — the cell-level
+                      // enter above still lights every dependency's row, which
+                      // is the U3→U4 case named in the plan rather than
+                      // discovered.
+                      onMouseEnter={() => {
+                        live.current.setDepHover((current) =>
+                          current?.rowId === row.original.id && current.pillId === id
+                            ? current
+                            : { rowId: row.original.id, pillId: id },
+                        );
                       }}
-                      style={{
-                        padding: '2px 6px',
-                        cursor: entry.refusal === undefined ? 'pointer' : 'default',
-                        whiteSpace: 'nowrap',
-                        color: entry.refusal === undefined ? undefined : 'var(--muted-foreground)',
-                        // No `background` here at all any more. `#e8f0fe` was
-                        // an inline style that outranked the stylesheet's own
-                        // `[data-grid] [role='option'][aria-selected='true']`
-                        // rule — which paints `var(--accent)` and has been
-                        // there all along — so the keyboard's highlight was a
-                        // fixed pale blue while the pointer's followed the
-                        // palette. One rule now answers for both.
+                      onMouseLeave={() => {
+                        // Off the pill but still in the cell: back to the whole
+                        // waited-for set, not cleared — the wrapper's own leave
+                        // is what clears. Guarded on this pill's id so a leave
+                        // that lands after the next pill's enter cannot widen
+                        // the hover that enter just narrowed.
+                        // Proof: the restore dropped (leave returning
+                        // `current`), `narrows to the pill's row, and widens
+                        // again when the pill is left` failed on `expected
+                        // ['010'] to deeply equal ['010', '020']`. Watched,
+                        // 2026-08-10.
+                        live.current.setDepHover((current) =>
+                          current?.rowId === row.original.id && current.pillId === id
+                            ? { rowId: row.original.id, pillId: null }
+                            : current,
+                        );
+                      }}
+                      // The keyboard's reading of the same pill — see
+                      // {@link depFocus}. The enter/leave pair above, with focus
+                      // in place of the pointer, and one difference: the blur
+                      // *clears* where the leave widens. A leave means the
+                      // pointer is still in the cell (the wrapper's own leave is
+                      // what clears); a blur means nothing of the sort, and
+                      // widening on it would leave the cell lit forever once the
+                      // focus walked out of the plan from a chip. Focus moving
+                      // chip → box relights the cell from the box's own focus,
+                      // which fires after this blur.
+                      onFocus={() => {
+                        live.current.setDepFocus((current) =>
+                          current?.rowId === row.original.id && current.pillId === id
+                            ? current
+                            : { rowId: row.original.id, pillId: id },
+                        );
+                      }}
+                      onBlur={() => {
+                        live.current.setDepFocus((current) =>
+                          current?.rowId === row.original.id && current.pillId === id
+                            ? null
+                            : current,
+                        );
                       }}
                       onClick={() => {
-                        if (entry.refusal !== undefined) return;
-                        live.current.pickDependency(row.original.id, entry.id);
+                        // This button *is* the pill, so the click unmounts it and
+                        // no `mouseleave` or `blur` of its own ever arrives: the
+                        // hover would stay on an id the cell no longer names and
+                        // keep the cut edge's row lit under a pointer that had
+                        // not moved. The pointer *is* still in the cell, so this
+                        // widens to the cell itself — exactly what the leave that
+                        // cannot fire would have done, which is why the light
+                        // goes to the remaining dependencies rather than out.
+                        // Focus is cleared instead, for the reason `onBlur` above
+                        // gives. `depLit` refuses a `pillId` the cell no longer
+                        // names as well: this end is the pointer's truth, that
+                        // end is the paint's.
+                        //
+                        // Proof: this widen dropped, `widens back to the
+                        // remaining dependencies when a pill is deleted under the
+                        // pointer` failed on `expected [] to deeply equal
+                        // ['020']` — the light gone from a cell the pointer was
+                        // still in. Watched, 2026-08-11.
+                        live.current.setDepHover((current) =>
+                          current?.rowId === row.original.id && current.pillId === id
+                            ? { rowId: row.original.id, pillId: null }
+                            : current,
+                        );
+                        live.current.setDepFocus((current) =>
+                          current?.rowId === row.original.id && current.pillId === id
+                            ? null
+                            : current,
+                        );
+                        void live.current.run(() =>
+                          live.current.api.removeDependency(row.original.id, id),
+                        );
                       }}
                     >
-                      {/*
+                      {number} ✕
+                    </button>
+                  ))}
+                  <input
+                    aria-label={`Add a dependency to ${row.original.number}`}
+                    role="combobox"
+                    aria-expanded={open}
+                    aria-controls={open ? `dep-options-${row.original.id}` : undefined}
+                    aria-activedescendant={
+                      activeOption === undefined ? undefined : `dep-option-${activeOption.id}`
+                    }
+                    aria-autocomplete="list"
+                    aria-describedby={waitingFor.length > 0 ? waitsForId : undefined}
+                    placeholder="search, or 010, 020"
+                    title="Type to search by number or name, or a list of numbers separated by commas or spaces"
+                    // `minWidth: 0` is what lets the box shrink behind the chips
+                    // on the strip's one rested line: a flex item's automatic
+                    // minimum would hold an `<input>` at its intrinsic width and
+                    // push its rect out past the cell. `100%` is still its claim
+                    // — the whole cell where it has the line to itself, the
+                    // remainder where it does not.
+                    style={{ width: '100%', minWidth: 0, boxSizing: 'border-box' }}
+                    data-depends-input={row.original.id}
+                    // A cell of the keyboard grid, so Tab reaches this box and
+                    // leaves it again rather than walking the chips' ✕ buttons.
+                    data-cell={cellKey(row.original.id, 'depends')}
+                    value={picker?.typed ?? ''}
+                    onFocus={() => {
+                      live.current.setDepPicker({
+                        rowId: row.original.id,
+                        typed: '',
+                        highlightId: null,
+                      });
+                      // The keyboard's cell-level light — see {@link depFocus}.
+                      // This is the reachable half: Tab through the plan lands on
+                      // this box, and the rows the row waits for light while it
+                      // is here. Guarded on having something to say by the same
+                      // rule the wrapper's `mouseenter` uses.
+                      if (waitingFor.length > 0) {
+                        live.current.setDepFocus({ rowId: row.original.id, pillId: null });
+                      }
+                    }}
+                    onBlur={() => {
+                      live.current.setDepPicker((current) =>
+                        current?.rowId === row.original.id ? null : current,
+                      );
+                      // Only the cell-level focus this box owns. `pillId === null`
+                      // in the guard and not just the row: focus moving box → chip
+                      // fires this blur *before* the chip's focus, and without the
+                      // field in the guard a later blur could not tell its own
+                      // reading from the chip's.
+                      live.current.setDepFocus((current) =>
+                        current?.rowId === row.original.id && current.pillId === null
+                          ? null
+                          : current,
+                      );
+                    }}
+                    onChange={(e) => {
+                      const typed = e.currentTarget.value;
+                      // Typing is aiming at the narrowed-to entry; emptying the
+                      // cell aims at nothing again.
+                      const first =
+                        typed.trim() === ''
+                          ? undefined
+                          : live.current
+                              .depEntriesFor(row.original, typed)
+                              .find((entry) => entry.refusal === undefined);
+                      live.current.setDepPicker({
+                        rowId: row.original.id,
+                        typed,
+                        highlightId: first?.id ?? null,
+                      });
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Tab') {
+                        // The move blurs this input, which closes the list and
+                        // drops what was typed into it — this cell's blur contract
+                        // since it was written, now reached by Tab on purpose. The
+                        // typed text is a *search*: committing it on the way out
+                        // would add dependencies nobody confirmed.
+                        //
+                        // Proof: the call dropped, leaving only the `return`, both
+                        // `Tab from the depends input closes the picker…` and
+                        // `Shift+Tab from the depends input lands in the name…`
+                        // failed with the key left to the browser. Watched,
+                        // 2026-08-07.
+                        live.current.onTabKey(e, row.original.id, 'depends');
+                        return;
+                      }
+                      if (escapesAnOpenList(e)) {
+                        // The eight keys the list may not swallow: the four
+                        // motion chords out of this cell and the four row moves
+                        // under it. This box opens its list on **focus**, so
+                        // without this branch Ctrl+L into it had no documented
+                        // way out — see {@link escapesAnOpenList}, which is where
+                        // the split between these and the chords that make or
+                        // destroy a row is argued.
+                        //
+                        // Before the ArrowUp/ArrowDown branch below on purpose:
+                        // that one reads no modifiers, so an Alt+↑ aimed at the
+                        // row would have moved the list's highlight instead.
+                        live.current.onAltMove(e, row.original, 'depends');
+                        live.current.onCommandKey(e, row.original, 'depends');
+                        return;
+                      }
+                      if (open && commandChordIn(e) !== null) {
+                        // Inert means consumed. Skipping `onCommandKey` was not
+                        // enough on its own: Cmd/⌘+Enter fell through to the Enter
+                        // branch below, which reads no modifiers, and added the
+                        // highlighted dependency — codex round 2, finding 2.
+                        // Proof: this guard removed, `Cmd+Enter in the open
+                        // depends list adds no dependency` failed on `expected
+                        // <button type="button" …(2)></button> to be null` — the
+                        // chip for an edge nobody confirmed. Watched, 2026-08-08.
+                        e.preventDefault();
+                        return;
+                      }
+                      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                        e.preventDefault();
+                        live.current.moveDepHighlight(
+                          row.original.id,
+                          e.key === 'ArrowDown' ? 1 : -1,
+                          // The refused entries are not in this list, so the
+                          // highlight steps over them: a highlight that could stop
+                          // on one would be an Enter that does nothing, which is
+                          // the click this change exists to prevent.
+                          pickable.map((entry) => entry.id),
+                        );
+                        return;
+                      }
+                      if (e.key === 'Escape') {
+                        live.current.setDepPicker(null);
+                        return;
+                      }
+                      if (!open) {
+                        // Closed, this is a cell like any other and the chords
+                        // that make and destroy a row reach it. Open, the list
+                        // owns those — the routing matrix's inert row, narrowed
+                        // by the branch above to the chords that act on a row
+                        // rather than merely leaving the cell.
+                        // Proof: the condition forced true, `every chord is inert
+                        // while the depends list is open` failed on `expected
+                        // <input …(11)></input> to be <input …(10)></input>` — the
+                        // focus taken out of a list somebody was reading. Watched,
+                        // 2026-08-08.
+                        live.current.onCommandKey(e, row.original, 'depends');
+                      }
+                      if (e.key !== 'Enter') return;
+                      e.preventDefault();
+                      if (activeOption !== undefined) {
+                        live.current.pickDependency(row.original.id, activeOption.id);
+                        return;
+                      }
+                      // No highlight to take — the typed flow: one number or a
+                      // separated list of them, exactly as this cell always worked.
+                      const typed = picker?.typed ?? e.currentTarget.value;
+                      if (typed.trim() === '') return;
+                      live.current.dependOn(row.original.id, typed);
+                      live.current.setDepPicker((current) =>
+                        current === null ? null : { ...current, typed: '', highlightId: null },
+                      );
+                    }}
+                  />
+                </span>
+                {picker !== null && entries.length > 0 && (
+                  <ul
+                    role="listbox"
+                    id={`dep-options-${row.original.id}`}
+                    aria-label={`Work items ${row.original.number} can depend on`}
+                    // One preventDefault for the whole list — options included,
+                    // by bubbling. A mousedown anywhere here must not take the
+                    // input's focus: on an option, blur would close the list
+                    // before the click could pick; on the scrollbar, the list
+                    // unmounted under the pointer and everything past the fold
+                    // was unpickable by mouse (cross review #6).
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                    }}
+                    style={{
+                      position: 'absolute',
+                      top: '100%',
+                      left: 0,
+                      margin: 0,
+                      padding: 0,
+                      listStyle: 'none',
+                      // Tokens and not `#fff`/`#ccc`: this list is the one
+                      // popover in the app that never took the palette, so on a
+                      // dark page it stayed a white card with near-white text on
+                      // it — 1.05:1, measured. `CreatablePicker`'s `PickerList`
+                      // has read `--popover` since it was written; this is the
+                      // same surface saying the same thing.
+                      background: 'var(--popover)',
+                      color: 'var(--popover-foreground)',
+                      border: '1px solid var(--border)',
+                      maxHeight: 200,
+                      overflowY: 'auto',
+                      zIndex: 10,
+                      // Wider than its own column on purpose, since that column
+                      // is 110px: an entry is a work item's number and its name,
+                      // and a list as narrow as the box it drops from would show
+                      // the number and about four letters. It escapes the cell
+                      // either way — see `opensAPopover`.
+                      minWidth: DEP_LIST_WIDTH,
+                    }}
+                  >
+                    {entries.map((entry) => (
+                      // The ARIA combobox pattern is the boundary that makes this
+                      // safe: options are not focusable, and the keyboard drives
+                      // them from the input above through aria-activedescendant
+                      // (ArrowUp/ArrowDown/Enter there).
+                      // eslint-disable-next-line jsx-a11y/click-events-have-key-events
+                      <li
+                        key={entry.id}
+                        id={`dep-option-${entry.id}`}
+                        role="option"
+                        aria-selected={entry.id === activeOption?.id}
+                        // Shown and refused, rather than quietly absent: a row
+                        // that vanishes from the list reads as a bug in the tool,
+                        // and one that says why it cannot be picked teaches the
+                        // shape of the plan.
+                        aria-disabled={entry.refusal !== undefined}
+                        // The list scrolls; the highlighted entry must be where
+                        // the eye is. jsdom has no scrollIntoView, hence the
+                        // typeof — that boundary is the test environment, not a
+                        // browser this will meet.
+                        ref={(element) => {
+                          if (
+                            entry.id === activeOption?.id &&
+                            element !== null &&
+                            typeof element.scrollIntoView === 'function'
+                          ) {
+                            element.scrollIntoView({ block: 'nearest' });
+                          }
+                        }}
+                        style={{
+                          padding: '2px 6px',
+                          cursor: entry.refusal === undefined ? 'pointer' : 'default',
+                          whiteSpace: 'nowrap',
+                          color:
+                            entry.refusal === undefined ? undefined : 'var(--muted-foreground)',
+                          // No `background` here at all any more. `#e8f0fe` was
+                          // an inline style that outranked the stylesheet's own
+                          // `[data-grid] [role='option'][aria-selected='true']`
+                          // rule — which paints `var(--accent)` and has been
+                          // there all along — so the keyboard's highlight was a
+                          // fixed pale blue while the pointer's followed the
+                          // palette. One rule now answers for both.
+                        }}
+                        onClick={() => {
+                          if (entry.refusal !== undefined) return;
+                          live.current.pickDependency(row.original.id, entry.id);
+                        }}
+                      >
+                        {/*
                         `010 - Strip the hull`, the way the plan is spoken
                         about: a space alone let a number and a name that starts
                         with a digit run together. The filter behind the list
                         already matches either half (`pickerEntries`).
                       */}
-                      {entry.number} - {entry.name}
-                      {entry.refusal === undefined ? '' : ` — ${REFUSAL_SUFFIX[entry.refusal]}`}
-                    </li>
-                  ))}
-                </ul>
-              )}
-              {carded && (
-                <DependsCard
-                  number={row.original.number}
-                  entries={waitingFor}
-                  // This cell's pill hover and no other's: a card is only on
-                  // screen for the hovered cell, but the guard keeps a stale
-                  // `depHover` from another row emphasising an entry here.
-                  // Proof: hardcoded to null, `emphasises the pill's entry in
-                  // the card as a background, not bold` failed on `expected
-                  // '' to be 'var(--card-dep-lit)'`. Watched, 2026-08-11.
-                  emphasisedId={
-                    live.current.depHover?.rowId === row.original.id
-                      ? live.current.depHover.pillId
-                      : null
-                  }
-                />
-              )}
+                        {entry.number} - {entry.name}
+                        {entry.refusal === undefined ? '' : ` — ${REFUSAL_SUFFIX[entry.refusal]}`}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {carded && (
+                  <DependsCard
+                    number={row.original.number}
+                    entries={waitingFor}
+                    // This cell's pill hover and no other's: a card is only on
+                    // screen for the hovered cell, but the guard keeps a stale
+                    // `depHover` from another row emphasising an entry here.
+                    // Proof: hardcoded to null, `emphasises the pill's entry in
+                    // the card as a background, not bold` failed on `expected
+                    // '' to be 'var(--card-dep-lit)'`. Watched, 2026-08-11.
+                    emphasisedId={
+                      live.current.depHover?.rowId === row.original.id
+                        ? live.current.depHover.pillId
+                        : null
+                    }
+                  />
+                )}
+              </span>
+            );
+          },
+        }),
+        column.display({
+          id: 'priority',
+          // `Prio`, not `Priority` and not `PRIORITY`: the column is 48px and the
+          // header row is 10px all-caps, in which the full word wraps to two
+          // lines and takes the whole header row with it. The sentence moves into
+          // the `title`, which is the bargain Days, Not bef., Start, End and
+          // Slack already make.
+          header: () => (
+            <span title="How important this work is: 1 upward, smaller first. It decides who gets a shared person first — never who skips their dependencies.">
+              Prio
             </span>
-          );
-        },
-      }),
-      column.display({
-        id: 'priority',
-        // `Prio`, not `Priority` and not `PRIORITY`: the column is 48px and the
-        // header row is 10px all-caps, in which the full word wraps to two
-        // lines and takes the whole header row with it. The sentence moves into
-        // the `title`, which is the bargain Days, Not bef., Start, End and
-        // Slack already make.
-        header: () => (
-          <span title="How important this work is: 1 upward, smaller first. It decides who gets a shared person first — never who skips their dependencies.">
-            Prio
-          </span>
-        ),
-        cell: ({ row }) => (
-          /*
+          ),
+          cell: ({ row }) => (
+            /*
             The box, the band list under it, and the colour the number is drawn
             in — all three in `priority-cell.tsx`, so the one place a band becomes
             a colour is `priority-band-style.ts` and this column has no opinion of
@@ -6412,875 +6416,882 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
             focus somebody is typing in. A re-cut ladder redraws because the rows
             redraw.
           */
-          <PriorityCell
-            cellKey={cellKey(row.original.id, 'priority')}
-            rowNumber={row.original.number}
-            rowId={row.original.id}
-            bands={live.current.priorityBands}
-            priority={row.original.priority}
-            commit={(typed) => live.current.setPriority(row.original.id, typed)}
-            // A picked line is the same write a typed number is — one `patch`,
-            // one journal entry, one undo — which is what makes the two languages
-            // round-trip into each other rather than into two histories.
-            choose={(value) => {
-              void live.current.setPriority(row.original.id, String(value));
-            }}
-            onEnter={(box) => {
-              void flushCell(box);
-            }}
-            onGridKey={(e) => {
-              live.current.onAltMove(e, row.original, 'priority');
-              live.current.onCommandKey(e, row.original, 'priority');
-              live.current.onTabKey(e, row.original.id, 'priority');
-              live.current.onArrowKey(e, row.original.id, 'priority');
-            }}
-          />
-        ),
-      }),
-      column.display({
-        id: 'team',
-        header: 'Service/team',
-        cell: ({ row }) => {
-          // A row with no label of its own still belongs to a team, wherever an
-          // ancestor named one — and the plan's dates were computed against
-          // that team's people. The cell says so in the box's own muted
-          // placeholder ink, which is exactly the "shown but not stored"
-          // distinction a placeholder already means: it is gone the moment
-          // somebody types a label of this row's own, and nothing about it is
-          // sent anywhere. `↳` is the inheritance, in one glyph the 120px
-          // column can afford.
-          //
-          // No write copies a label down. This is a reading of the tree and it
-          // is recomputed from the tree every render; the day somebody moves
-          // the row, its answer changes with it.
-          const inherited = live.current.effectiveTeamLabelOf(row.original);
-          return (
-            <CreatablePicker
-              label={`Service or team for ${row.original.number}`}
-              placeholder={
-                inherited.state === 'inherited' ? `↳ ${inherited.name}` : 'search or add'
-              }
-              title={
-                inherited.state === 'inherited'
-                  ? `${inherited.name} — inherited from ${inherited.fromRow}. This row carries no team of its own.`
-                  : undefined
-              }
-              entries={live.current.teams}
-              value={row.original.teamIds.at(0) ?? null}
-              onChoose={(id) => {
-                live.current.setTeamOf(row.original.id, id);
+            <PriorityCell
+              cellKey={cellKey(row.original.id, 'priority')}
+              rowNumber={row.original.number}
+              rowId={row.original.id}
+              bands={live.current.priorityBands}
+              priority={row.original.priority}
+              commit={(typed) => live.current.setPriority(row.original.id, typed)}
+              // A picked line is the same write a typed number is — one `patch`,
+              // one journal entry, one undo — which is what makes the two languages
+              // round-trip into each other rather than into two histories.
+              choose={(value) => {
+                void live.current.setPriority(row.original.id, String(value));
               }}
-              onCreate={(name) => {
-                live.current.createTeamFor(row.original.id, name);
+              onEnter={(box) => {
+                void flushCell(box);
               }}
-              onClear={() => {
-                live.current.setTeamOf(row.original.id, null);
-              }}
-              gridCell={{
-                dataCell: cellKey(row.original.id, 'team'),
-                onTabKey: (e) => {
-                  live.current.onTabKey(e, row.original.id, 'team');
-                },
-                onCommandKey: (e) => {
-                  live.current.onCommandKey(e, row.original, 'team');
-                },
-                onAltMove: (e) => {
-                  live.current.onAltMove(e, row.original, 'team');
-                },
+              onGridKey={(e) => {
+                live.current.onAltMove(e, row.original, 'priority');
+                live.current.onCommandKey(e, row.original, 'priority');
+                live.current.onTabKey(e, row.original.id, 'priority');
+                live.current.onArrowKey(e, row.original.id, 'priority');
               }}
             />
-          );
-        },
-      }),
-      column.display({
-        id: 'tag',
-        header: 'Tags',
-        cell: ({ row }) => {
-          // The same reading the Team cell makes, one dimension over: a row
-          // with no tags of its own still *is* whatever an ancestor said it
-          // was, and the placeholder says so in the box's own muted ink with
-          // `↳` for the inheritance.
-          const inherited = live.current.effectiveTagLabelOf(row.original);
-          const own = row.original.tagIds;
-          const named = (id: string): string =>
-            live.current.tags.find((each) => each.id === id)?.name ?? id;
-          return (
-            <span style={{ display: 'flex', flexWrap: 'wrap', gap: 2, minWidth: 0 }}>
-              {/*
+          ),
+        }),
+        column.display({
+          id: 'team',
+          header: 'Service/team',
+          cell: ({ row }) => {
+            // A row with no label of its own still belongs to a team, wherever an
+            // ancestor named one — and the plan's dates were computed against
+            // that team's people. The cell says so in the box's own muted
+            // placeholder ink, which is exactly the "shown but not stored"
+            // distinction a placeholder already means: it is gone the moment
+            // somebody types a label of this row's own, and nothing about it is
+            // sent anywhere. `↳` is the inheritance, in one glyph the 120px
+            // column can afford.
+            //
+            // No write copies a label down. This is a reading of the tree and it
+            // is recomputed from the tree every render; the day somebody moves
+            // the row, its answer changes with it.
+            const inherited = live.current.effectiveTeamLabelOf(row.original);
+            return (
+              <CreatablePicker
+                label={`Service or team for ${row.original.number}`}
+                placeholder={
+                  inherited.state === 'inherited' ? `↳ ${inherited.name}` : 'search or add'
+                }
+                title={
+                  inherited.state === 'inherited'
+                    ? `${inherited.name} — inherited from ${inherited.fromRow}. This row carries no team of its own.`
+                    : undefined
+                }
+                entries={live.current.teams}
+                value={row.original.teamIds.at(0) ?? null}
+                onChoose={(id) => {
+                  live.current.setTeamOf(row.original.id, id);
+                }}
+                onCreate={(name) => {
+                  live.current.createTeamFor(row.original.id, name);
+                }}
+                onClear={() => {
+                  live.current.setTeamOf(row.original.id, null);
+                }}
+                gridCell={{
+                  dataCell: cellKey(row.original.id, 'team'),
+                  onTabKey: (e) => {
+                    live.current.onTabKey(e, row.original.id, 'team');
+                  },
+                  onCommandKey: (e) => {
+                    live.current.onCommandKey(e, row.original, 'team');
+                  },
+                  onAltMove: (e) => {
+                    live.current.onAltMove(e, row.original, 'team');
+                  },
+                }}
+              />
+            );
+          },
+        }),
+        column.display({
+          id: 'tag',
+          header: 'Tags',
+          cell: ({ row }) => {
+            // The same reading the Team cell makes, one dimension over: a row
+            // with no tags of its own still *is* whatever an ancestor said it
+            // was, and the placeholder says so in the box's own muted ink with
+            // `↳` for the inheritance.
+            const inherited = live.current.effectiveTagLabelOf(row.original);
+            const own = row.original.tagIds;
+            const named = (id: string): string =>
+              live.current.tags.find((each) => each.id === id)?.name ?? id;
+            return (
+              <span style={{ display: 'flex', flexWrap: 'wrap', gap: 2, minWidth: 0 }}>
+                {/*
                 One chip per tag the row states, each with its own ✕. A set is
                 edited a member at a time on screen and written whole on the
                 wire — `setTagsOf` sends the set as it will stand, because a
                 delta has no inverse the journal could carry.
               */}
-              {own.map((tagId) => (
-                <button
-                  key={tagId}
-                  type="button"
-                  data-tag-chip={tagId}
-                  className="bg-muted flex max-w-full items-center gap-0.5 rounded px-1 text-xs"
-                  aria-label={`Remove ${named(tagId)} from ${row.original.number}`}
-                  onClick={() => {
-                    live.current.setTagsOf(
-                      row.original.id,
-                      own.filter((each) => each !== tagId),
-                    );
+                {own.map((tagId) => (
+                  <button
+                    key={tagId}
+                    type="button"
+                    data-tag-chip={tagId}
+                    className="bg-muted flex max-w-full items-center gap-0.5 rounded px-1 text-xs"
+                    aria-label={`Remove ${named(tagId)} from ${row.original.number}`}
+                    onClick={() => {
+                      live.current.setTagsOf(
+                        row.original.id,
+                        own.filter((each) => each !== tagId),
+                      );
+                    }}
+                  >
+                    <span className="truncate">{named(tagId)}</span>
+                    <span aria-hidden>✕</span>
+                  </button>
+                ))}
+                <CreatablePicker
+                  label={`Tags for ${row.original.number}`}
+                  placeholder={
+                    own.length > 0
+                      ? 'add'
+                      : inherited.state === 'inherited'
+                        ? `↳ ${inherited.names.join(', ')}`
+                        : 'search'
+                  }
+                  title={
+                    own.length === 0 && inherited.state === 'inherited'
+                      ? `${inherited.names.join(', ')} — inherited from ${inherited.fromRow}. This row carries no tag of its own.`
+                      : undefined
+                  }
+                  // Only the tags this row does not already carry: a picker
+                  // offering one that is already a chip beside it can only mean
+                  // "add it twice", which the store deduplicates and the primary
+                  // key refuses.
+                  entries={live.current.tags.filter((each) => !own.includes(each.id))}
+                  // Always null: this box adds a member, it does not show the
+                  // set. What the row carries is the chips to its left.
+                  value={null}
+                  onChoose={(id) => {
+                    live.current.setTagsOf(row.original.id, [...own, id]);
                   }}
-                >
-                  <span className="truncate">{named(tagId)}</span>
-                  <span aria-hidden>✕</span>
-                </button>
-              ))}
-              <CreatablePicker
-                label={`Tags for ${row.original.number}`}
-                placeholder={
-                  own.length > 0
-                    ? 'add'
-                    : inherited.state === 'inherited'
-                      ? `↳ ${inherited.names.join(', ')}`
-                      : 'search'
-                }
-                title={
-                  own.length === 0 && inherited.state === 'inherited'
-                    ? `${inherited.names.join(', ')} — inherited from ${inherited.fromRow}. This row carries no tag of its own.`
-                    : undefined
-                }
-                // Only the tags this row does not already carry: a picker
-                // offering one that is already a chip beside it can only mean
-                // "add it twice", which the store deduplicates and the primary
-                // key refuses.
-                entries={live.current.tags.filter((each) => !own.includes(each.id))}
-                // Always null: this box adds a member, it does not show the
-                // set. What the row carries is the chips to its left.
-                value={null}
-                onChoose={(id) => {
-                  live.current.setTagsOf(row.original.id, [...own, id]);
-                }}
-                // **No `onCreate`.** The proposal's own non-goal: a tag is made
-                // on the directory page, where a typo can be seen and renamed,
-                // rather than in a cell where it becomes a second spelling of
-                // something that already exists. It is also why this column
-                // only exists once a tag does — see `CONDITIONAL_COLUMNS`.
-                onClear={
-                  own.length === 0
-                    ? undefined
-                    : () => {
-                        live.current.setTagsOf(row.original.id, []);
-                      }
-                }
-                gridCell={{
-                  dataCell: cellKey(row.original.id, 'tag'),
-                  onTabKey: (e) => {
-                    live.current.onTabKey(e, row.original.id, 'tag');
-                  },
-                  onCommandKey: (e) => {
-                    live.current.onCommandKey(e, row.original, 'tag');
-                  },
-                  onAltMove: (e) => {
-                    live.current.onAltMove(e, row.original, 'tag');
-                  },
-                }}
-              />
-            </span>
-          );
-        },
-      }),
-      column.display({
-        id: 'in-parallel',
-        // `∥`, not `In parallel` and not `PAR`: the column is 32px at a 10px
-        // all-caps header, in which even three letters wrap. The mathematical
-        // parallel-to sign is the shortest thing that reads as "at once", and
-        // the sentence moves into the `title` — the bargain Prio, Days, Not
-        // bef., Start, End and Slack already make.
-        header: () => (
-          <span title="How many people may work on this item at once. Blank means one at a time. It compresses the item's own effort across that many of its team's people — never past the team's size, and never where somebody is named on the work.">
-            ∥
-          </span>
-        ),
-        cell: ({ row }) => {
-          const own = row.original.maxParallel;
-          const hasChildren = row.subRows.length > 0;
-          /**
-           * Who be-01's `widthFor` reads for one role of this leaf — its own
-           * assignee, or the row's single assumed one. The same fallback
-           * `assigneeOn` reads two columns back, because `widthFor` is built
-           * from exactly this pair (`work-item.service.ts`'s `personFor`).
-           */
-          const personForRole = (roleId: string): string | null =>
-            row.original.assignees[roleId] ?? row.original.doesEveryPhase ?? null;
-          const estimatedRoles = Object.keys(row.original.estimates);
-          /**
-           * Whether **every** slice `widthFor` would cut this leaf into is
-           * pinned to width 1 by a named person — the only reading that
-           * agrees with be-01, which collapses **per slice** and not per row.
-           *
-           * `doesEveryPhase` alone used to stand in for this and is still the
-           * right answer for a leaf with one role, or with several roles and
-           * one assumed assignee — but it is `null` the moment a *second*
-           * role gets its own explicit name, because `assumedAssignee`
-           * requires exactly one named assignment project-wide on the row.
-           * Two roles on two different people each still collapse their own
-           * slice to width 1; the row-level reading just stopped being able
-           * to say so.
-           */
-          const everySliceNamed =
-            estimatedRoles.length > 0
-              ? estimatedRoles.every((roleId) => personForRole(roleId) !== null)
-              : row.original.doesEveryPhase !== null;
-          // Three states the cell renders differently, and each of them is a
-          // fact the reader cannot get anywhere else:
-          //
-          // - a **parent** holds no slices of its own, so `slicesOf` skips it
-          //   and a number on it schedules nothing. The write path answers 400
-          //   `has_children`; the cell is read-only rather than offering an
-          //   edit be-01 refuses. A leaf that later gained a child keeps
-          //   whatever it was given, inert, and the cell says so.
-          // - a leaf whose **every estimated role** is named runs each of
-          //   those slices at width 1 whatever this says (D3): one human
-          //   cannot work beside themselves. The number is still stored and
-          //   still applies the moment a name comes off, so it is shown muted
-          //   rather than hidden.
-          // - anything else is an ordinary editable number.
-          const inert = hasChildren || (everySliceNamed && own > 1);
-          const why = hasChildren
-            ? 'This row has children, so it holds no work of its own. The number is kept and does nothing.'
-            : everySliceNamed && own > 1
-              ? 'Everybody on this work is named, so it runs one at a time whatever this says.'
-              : own > 1
-                ? `${String(own)} people at once. The item's effort is compressed across them, up to the team's size.`
-                : 'How many people may work on this item at once. Blank means one at a time.';
-          if (hasChildren) {
-            return (
-              <span
-                data-in-parallel={row.original.id}
-                title={why}
-                className="text-muted-foreground block text-right"
-              >
-                {own > 1 ? String(own) : ''}
+                  // **No `onCreate`.** The proposal's own non-goal: a tag is made
+                  // on the directory page, where a typo can be seen and renamed,
+                  // rather than in a cell where it becomes a second spelling of
+                  // something that already exists. It is also why this column
+                  // only exists once a tag does — see `CONDITIONAL_COLUMNS`.
+                  onClear={
+                    own.length === 0
+                      ? undefined
+                      : () => {
+                          live.current.setTagsOf(row.original.id, []);
+                        }
+                  }
+                  gridCell={{
+                    dataCell: cellKey(row.original.id, 'tag'),
+                    onTabKey: (e) => {
+                      live.current.onTabKey(e, row.original.id, 'tag');
+                    },
+                    onCommandKey: (e) => {
+                      live.current.onCommandKey(e, row.original, 'tag');
+                    },
+                    onAltMove: (e) => {
+                      live.current.onAltMove(e, row.original, 'tag');
+                    },
+                  }}
+                />
               </span>
             );
-          }
-          return (
-            <CellInput
-              aria-label={`People at once for ${row.original.number}`}
-              cellKey={cellKey(row.original.id, 'in-parallel')}
-              data-in-parallel={row.original.id}
-              inputMode="numeric"
-              title={why}
-              style={{
-                width: '100%',
-                boxSizing: 'border-box',
-                font: 'inherit',
-                background: 'transparent',
-                border: 'none',
-                textAlign: 'right',
-                // Muted where the number is stored and not applied, which is
-                // the one thing a reader of a `3` beside a named person cannot
-                // work out. `opacity` rather than a colour token so the value
-                // stays the cell's own ink in either theme.
-                opacity: inert ? 0.55 : undefined,
-              }}
-              onKeyDown={(e) => {
-                // Enter saves, exactly as the Prio cell one column back does
-                // and for its reason — see the comment there.
-                if (e.key === 'Enter' && !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey) {
-                  e.preventDefault();
-                  void flushCell(e.currentTarget);
-                  return;
-                }
-                live.current.onAltMove(e, row.original, 'in-parallel');
-                live.current.onCommandKey(e, row.original, 'in-parallel');
-                live.current.onTabKey(e, row.original.id, 'in-parallel');
-                live.current.onArrowKey(e, row.original.id, 'in-parallel');
-              }}
-              // Blank at 1, which is every row of every plan nobody has widened
-              // — the Prio column's bargain, for the same reason: a column of
-              // `1`s down a plan that runs one at a time is furniture.
-              value={own > 1 ? String(own) : ''}
-              commit={(typed) => live.current.setParallelism(row.original.id, typed)}
-            />
-          );
-        },
-      }),
-      ...roles.flatMap((role) => {
-        const unfolded = unfoldedRoles.includes(role.id);
-        return [
-          column.display({
-            id: `${role.id}-final`,
-            // The toggle lives on the column that never goes away, so nothing
-            // jumps when the group opens: it extends to the right of this one.
-            header: () => (
-              <button
-                type="button"
-                aria-expanded={unfolded}
-                aria-label={`${unfolded ? 'Fold' : 'Unfold'} ${role.name} estimates`}
-                // The role's own name, in full, because the button now shows as
-                // much of it as the column has room for and no more. A role
-                // called "Infrastructure and platform" used to set the width of
-                // everything under it instead.
-                // The assignee no longer folds away — it is beside the figure
-                // in this very cell, and `@` assigns from there — so the
-                // button is about the three points and nothing else. It said
-                // "any other role folds" until `unfolding-may-scroll`, and no
-                // other role folds now; what the reader is owed instead is
-                // that the table may become wider than the window, which is
-                // the one thing unfolding can do that it could not before.
-                title={`${role.name} — ${
-                  unfolded
-                    ? 'fold the three points back into the figure'
-                    : 'show the three points behind the figure; the table may scroll sideways'
-                }`}
-                onClick={() => {
-                  live.current.toggleRole(role.id);
-                }}
-                style={{
-                  font: 'inherit',
-                  fontWeight: 'inherit',
-                  maxWidth: '100%',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                {role.name} {unfolded ? '▾' : '▸'}
-              </button>
-            ),
-            cell: ({ row }) => {
-              // A folded role must not be able to hide a complaint: a typed
-              // trio that saves nothing stays visible as a mark on the figure
-              // the fold leaves behind.
-              const problem = unfolded ? null : live.current.combinedProblem(row.original, role.id);
-              // The whole trio in one cell, but only where both halves of that
-              // sentence hold: a folded role, so the three boxes are not on
-              // screen to disagree with it, and a leaf, because a parent's
-              // figure is a sum of what is below it and nothing to type into.
-              const shorthand = !unfolded && !row.original.rolledUp;
-              // Nobody on this role and exactly one person on another: they are
-              // assumed to be doing this phase too. The same rule the unfolded
-              // column has, in the cell that is always on screen — which is the
-              // whole reason the assignee stopped folding away. Read through
-              // {@link assigneeOn}, which is where a card reads it too.
-              const doing = live.current.assigneeOn(row.original, role.id);
-              // Only while this role is folded: unfolded, the assignee has a
-              // column of its own with a picker in it, and two ways to assign
-              // one person side by side is two things to keep in step.
-              const options = unfolded ? [] : live.current.mentionOptions(row.original, role.id);
-              const listId = `mention-${row.original.id}-${role.id}`;
-              const finalCell = cellKey(row.original.id, `${role.id}-final`);
-              // The card opens on the cell itself — not on a marker, the way
-              // the Name cell's preview does. The difference is size: this one
-              // is four lines over a 96px cell, so a mouse crossing the column
-              // is told something rather than interrupted.
-              //
-              // Not while a mention is being typed in this cell, because the
-              // list and the card open from the bottom edge of this same
-              // wrapper and the one somebody is typing into owns the cell.
-              //
-              // The **mention**, not its entries. Reading `options.length === 0`
-              // was the same rule for every case but one, and that one is
-              // reachable: a deployment with nobody on it yet answers a bare `@`
-              // with no entries at all — nobody to match, and no `Add "…"` until
-              // something follows the `@` — so the card opened over a box being
-              // typed into. agy round 3, finding 7.
-              // Proof: put back to `options.length === 0`, `keeps the cell to a
-              // mention that has nobody to offer` failed on `expected 'Dev…' to
-              // contain 'QA'`. Watched, 2026-08-09.
-              const openMention = live.current.mention;
-              const mentioning =
-                openMention?.rowId === row.original.id && openMention.roleId === role.id;
-              const cardable = !unfolded && !mentioning;
-              const carded = cardable && live.current.openCard === finalCell;
-              // The card's own id, which the box below points
-              // `aria-describedby` at while it is open — this cell's answer to
-              // "a card only a pointer can open is data withheld from anybody
-              // who does not use one" (codex round 3, finding 2). The box is
-              // the cell's only focusable thing, so it is the one that can
-              // carry it; a parent's rolled-up figure has no box and no
-              // keyboard route, which is its own entry in `design.md`.
-              const cardId = `folded-${row.original.id}-${role.id}`;
+          },
+        }),
+        column.display({
+          id: 'in-parallel',
+          // `∥`, not `In parallel` and not `PAR`: the column is 32px at a 10px
+          // all-caps header, in which even three letters wrap. The mathematical
+          // parallel-to sign is the shortest thing that reads as "at once", and
+          // the sentence moves into the `title` — the bargain Prio, Days, Not
+          // bef., Start, End and Slack already make.
+          header: () => (
+            <span title="How many people may work on this item at once. Blank means one at a time. It compresses the item's own effort across that many of its team's people — never past the team's size, and never where somebody is named on the work.">
+              ∥
+            </span>
+          ),
+          cell: ({ row }) => {
+            const own = row.original.maxParallel;
+            const hasChildren = row.subRows.length > 0;
+            /**
+             * Who be-01's `widthFor` reads for one role of this leaf — its own
+             * assignee, or the row's single assumed one. The same fallback
+             * `assigneeOn` reads two columns back, because `widthFor` is built
+             * from exactly this pair (`work-item.service.ts`'s `personFor`).
+             */
+            const personForRole = (roleId: string): string | null =>
+              row.original.assignees[roleId] ?? row.original.doesEveryPhase ?? null;
+            const estimatedRoles = Object.keys(row.original.estimates);
+            /**
+             * Whether **every** slice `widthFor` would cut this leaf into is
+             * pinned to width 1 by a named person — the only reading that
+             * agrees with be-01, which collapses **per slice** and not per row.
+             *
+             * `doesEveryPhase` alone used to stand in for this and is still the
+             * right answer for a leaf with one role, or with several roles and
+             * one assumed assignee — but it is `null` the moment a *second*
+             * role gets its own explicit name, because `assumedAssignee`
+             * requires exactly one named assignment project-wide on the row.
+             * Two roles on two different people each still collapse their own
+             * slice to width 1; the row-level reading just stopped being able
+             * to say so.
+             */
+            const everySliceNamed =
+              estimatedRoles.length > 0
+                ? estimatedRoles.every((roleId) => personForRole(roleId) !== null)
+                : row.original.doesEveryPhase !== null;
+            // Three states the cell renders differently, and each of them is a
+            // fact the reader cannot get anywhere else:
+            //
+            // - a **parent** holds no slices of its own, so `slicesOf` skips it
+            //   and a number on it schedules nothing. The write path answers 400
+            //   `has_children`; the cell is read-only rather than offering an
+            //   edit be-01 refuses. A leaf that later gained a child keeps
+            //   whatever it was given, inert, and the cell says so.
+            // - a leaf whose **every estimated role** is named runs each of
+            //   those slices at width 1 whatever this says (D3): one human
+            //   cannot work beside themselves. The number is still stored and
+            //   still applies the moment a name comes off, so it is shown muted
+            //   rather than hidden.
+            // - anything else is an ordinary editable number.
+            const inert = hasChildren || (everySliceNamed && own > 1);
+            const why = hasChildren
+              ? 'This row has children, so it holds no work of its own. The number is kept and does nothing.'
+              : everySliceNamed && own > 1
+                ? 'Everybody on this work is named, so it runs one at a time whatever this says.'
+                : own > 1
+                  ? `${String(own)} people at once. The item's effort is compressed across them, up to the team's size.`
+                  : 'How many people may work on this item at once. Blank means one at a time.';
+            if (hasChildren) {
               return (
                 <span
-                  data-final={role.id}
-                  onMouseEnter={() => {
-                    // No card to show, no state written: {@link hoveredCell}
-                    // lives on the table and a write of it renders all of it.
-                    // See the depends cell's own enter for the whole of it.
-                    if (!cardable) return;
-                    live.current.setHoveredCell(finalCell);
-                  }}
-                  onMouseLeave={() => {
-                    // The same-cell guard the Name cell's marker gives its
-                    // reason for: a leave lands after the enter of whatever the
-                    // pointer moved on to.
-                    live.current.setHoveredCell((current) =>
-                      current === finalCell ? null : current,
-                    );
-                  }}
-                  // No native `title` here or on the input below: the card is
-                  // this cell's one hint (CONTEXT.md, "Hover preview"), and a
-                  // browser tooltip raced it over the same pixels. The
-                  // complaint still marks the figure (the `!` and the colour)
-                  // and rides the card.
-                  // A flex row, because this cell holds two things now: the
-                  // figure (or the box it is typed into) and who is doing it.
-                  // `relative` makes it the positioned ancestor the `@` list
-                  // opens against — the clip that would cut the list to 96px is
-                  // the `<td>`'s, which {@link opensAPopover} lifts.
-                  // The blur is the mention's: it bubbles from the box inside,
-                  // and leaving the cell has to take a half-typed `@ka` with
-                  // it. Nothing else in here can hold the focus.
-                  onBlur={() => {
-                    live.current.leaveFoldedCell();
-                    // The focus-opened card goes with the focus. Guarded like
-                    // every other clear: a blur can land after the next cell has
-                    // already taken the focus.
-                    live.current.setFocusedCell((current) =>
-                      current === finalCell ? null : current,
-                    );
-                  }}
-                  style={{
-                    position: 'relative',
-                    display: 'flex',
-                    alignItems: 'baseline',
-                    maxWidth: '100%',
-                    minWidth: 0,
-                    fontWeight: 600,
-                    color: problem === null ? undefined : 'var(--destructive)',
-                  }}
+                  data-in-parallel={row.original.id}
+                  title={why}
+                  className="text-muted-foreground block text-right"
                 >
-                  {shorthand ? (
-                    <CellInput
-                      aria-label={`${role.name} estimate for ${row.original.number}`}
-                      // In the keyboard grid, which is what makes Down-type-
-                      // Down-type work down a role's column. Proof: dropped,
-                      // `is a cell of the keyboard grid, so a column can be
-                      // typed down` fails. Watched, 2026-08-06.
-                      cellKey={cellKey(row.original.id, `${role.id}-final`)}
-                      role="combobox"
-                      aria-expanded={options.length > 0}
-                      aria-controls={options.length > 0 ? listId : undefined}
-                      aria-autocomplete="list"
-                      placeholder="o/r/p"
-                      aria-invalid={problem !== null}
-                      // Every keystroke, so an `@` opens the people picker as
-                      // it is typed. The estimate half is not read here and no
-                      // draft is written — that is still the blur's job.
-                      onTyped={(box) => {
-                        live.current.readFoldedCell(row.original.id, role.id, box);
-                      }}
-                      onKeyDown={(e) => {
-                        // `mentioning`, not `options.length > 0`, and the two
-                        // are not the same thing: a deployment with nobody in it
-                        // answers a bare `@` with no entries at all, and this
-                        // branch then handed the keyboard back to a cell a
-                        // mention owned — Alt+ArrowDown moved the row and
-                        // Cmd+Enter made one, under a half-typed mention. The
-                        // card's guard was corrected in round 3 and this one was
-                        // left counting entries; round 4 caught the divergence.
-                        // The hole itself predates the change: the same branch
-                        // counts entries on the merge-base at `75d01a8`.
-                        // Proof: put back to `options.length > 0`, `every chord
-                        // is inert on a mention that has nobody to offer` failed
-                        // on `expected [ 'Strip', 'Paint', 'Sand', '' ] to deeply
-                        // equal [ 'Strip', 'Sand', 'Paint' ]` — the row moved and
-                        // a row created. Watched, 2026-08-09.
-                        if (mentioning) {
-                          // Inert means consumed, and this is the one open list
-                          // that had two ways out of it. Cmd/⌘+Enter fell
-                          // through to the bare Enter below and assigned the
-                          // first person offered; every Alt+arrow went on to
-                          // `onAltMove` underneath and moved the row while its
-                          // list was open — codex round 2, finding 2.
-                          //
-                          // Proof, two faults, both watched 2026-08-08. This
-                          // guard removed: `Cmd+Enter in the folded cell’s open
-                          // @ list assigns nobody` failed on `expected
-                          // [ 'assign w2 role-dev person1' ] to deeply equal []`,
-                          // and `Alt+arrows in the folded cell’s open @ list
-                          // move no row` on `expected [ 'Strip', 'Paint',
-                          // 'Sand' ] to deeply equal [ 'Strip', 'Sand',
-                          // 'Paint' ]`.
-                          if (commandChordIn(e) !== null || altMoveIn(e) !== null) {
-                            e.preventDefault();
-                            return;
-                          }
-                          if (e.key === 'Escape') {
-                            // Closes the list and strips nothing: what was
-                            // typed is still on screen to be corrected, and the
-                            // blur that follows is what takes it back out.
-                            e.preventDefault();
-                            live.current.closeMention();
-                            return;
-                          }
-                          if (e.key === 'Enter') {
-                            // The first entry, which is `CreatablePicker`'s
-                            // rule: what is offered first is what is taken —
-                            // and where there is nothing on offer, Enter is
-                            // consumed and takes nothing rather than falling
-                            // through to "new work item" under a live mention.
-                            e.preventDefault();
-                            options[0]?.take();
-                            return;
-                          }
-                        } else {
-                          // The routing matrix's inert row is this `else` and
-                          // nothing more: while the `@` list is open it owns
-                          // the keyboard, and Escape above is how it is given
-                          // back. A chord that fired through an open list
-                          // would create a row under a half-typed name search.
-                          live.current.onCommandKey(e, row.original, `${role.id}-final`);
-                        }
-                        live.current.onAltMove(e, row.original, `${role.id}-final`);
-                        live.current.onTabKey(e, row.original.id, `${role.id}-final`);
-                        live.current.onArrowKey(e, row.original.id, `${role.id}-final`);
-                      }}
-                      // Selected on arrival, because the value at rest is a
-                      // computed figure and the syntax is a trio: there is no
-                      // sensible edit to make *inside* `4`, and a caret dropped
-                      // into it turns `2/3/8` into `2/3/84`. What the selection
-                      // replaces is remembered first — see `enterFoldedCell`.
-                      aria-describedby={carded ? cardId : undefined}
-                      onFocus={(e) => {
-                        live.current.enterFoldedCell(e.currentTarget);
-                        // The focus opens the card the pointer opens — through
-                        // its own state, so a mouse crossing the table cannot
-                        // take it away from a box somebody is still typing in
-                        // (round 4, finding 9). Cleared by the wrapper's
-                        // `onBlur`, which this bubbles to.
-                        // Proof, both watched 2026-08-09. This line dropped:
-                        // `opens the card on the focus too, and points the box
-                        // at it` failed on `Unable to find an accessible element
-                        // with the role "tooltip"`. Written back to
-                        // `setHoveredCell`, with `openCard` folded back to the
-                        // hover: `keeps the focused cell's card when the pointer
-                        // visits another and leaves` failed the same way.
-                        live.current.setFocusedCell(finalCell);
-                        e.currentTarget.select();
-                      }}
-                      style={{
-                        width: '100%',
-                        boxSizing: 'border-box',
-                        font: 'inherit',
-                        fontWeight: 600,
-                        flex: 1,
-                        minWidth: 0,
-                        ...(problem === null
-                          ? {}
-                          : {
-                              background: 'var(--grid-invalid)',
-                              borderColor: 'var(--destructive)',
-                            }),
-                      }}
-                      value={live.current.combinedValue(row.original, role.id)}
-                      commit={(typed, baseline) =>
-                        live.current.commitCombinedEstimate(row.original, role.id, typed, baseline)
-                      }
-                    />
-                  ) : (
-                    showFinal(row.original.finalDays[role.id])
-                  )}
-                  {problem !== null && ' !'}
-                  {doing !== null && (
-                    // `4.8 · VA`, and the whole name in the tooltip. 96px holds
-                    // a figure and about four characters of a person, which is
-                    // how this printed `vad…` and `kuc…` — two people who read
-                    // identically. {@link initialsOf} is the same length every
-                    // time, so the column lines up and nothing needs an
-                    // ellipsis. Grey and in brackets where nobody is assigned
-                    // and somebody is assumed, exactly as the unfolded column
-                    // reads it.
-                    <span
-                      data-folded-assignee={role.id}
-                      {...(doing.assumed ? { 'data-assumed': role.id } : {})}
-                      // No `title`, still. One was written here for the
-                      // initials and taken back out: `leaves the assignee no
-                      // title of its own to say it twice` is a decision from
-                      // 2026-08-09 — a native tooltip is one line, a second
-                      // late, and the hover card already names them in full
-                      // (`folded-role-card.tsx`). Initials make the card more
-                      // load-bearing, not the tooltip more welcome.
-                      style={{
-                        marginLeft: 4,
-                        flex: 'none',
-                        whiteSpace: 'nowrap',
-                        fontWeight: 'normal',
-                        color: doing.assumed ? 'var(--muted-foreground)' : undefined,
-                      }}
-                    >
-                      · {doing.assumed ? `(${initialsOf(doing.name)})` : initialsOf(doing.name)}
-                    </span>
-                  )}
-                  {options.length > 0 && (
-                    <PickerList
-                      id={listId}
-                      label={`${role.name} assignee for ${row.original.number}`}
-                      options={options}
-                    />
-                  )}
-                  {carded && (
-                    <FoldedRoleCard
-                      roleName={role.name}
-                      number={row.original.number}
-                      id={cardId}
-                      points={POINTS.map((point) => ({
-                        point,
-                        // The row's own trio, off the row — **not** through
-                        // `estimateValue`, and not through `combinedValue`
-                        // below it. Those two answer with the draft where there
-                        // is one, which is right for a box somebody is typing
-                        // in and wrong for this: a card is what the fold left
-                        // behind, and what the fold hid is the estimate be-01
-                        // holds — the one the figure beside it is computed
-                        // from, and the one every other reader of the plan
-                        // sees. Reading the draft made a card say
-                        // `realistic —` beside `Final 3.7 days`, and
-                        // `Final 8/3/2 days` where a number of days belongs.
-                        // The draft is not lost: unfolding the role puts it
-                        // back in the box it was typed into, with its
-                        // complaint, which is the only place it can be
-                        // corrected. codex round 3, finding 4.
-                        // Proof, two faults watched 2026-08-09. Points read
-                        // through `estimateValue`: `reads the trio off the row,
-                        // not out of the boxes it was typed into` failed on
-                        // `expected 'Devoptimistic 2 · realistic — · pessi…' to
-                        // contain 'realistic 3'`. `final` read through
-                        // `combinedValue`: `says Final in days, whatever
-                        // half-typed shorthand the cell is holding` failed on
-                        // `expected 'Dev…Final 8/3/2 days' to contain 'Final
-                        // 3.7 days'`.
-                        days: showDays(row.original.estimates[role.id], point),
-                      }))}
-                      final={showFinal(row.original.finalDays[role.id])}
-                      doing={doing}
-                      problem={problem}
-                    />
-                  )}
+                  {own > 1 ? String(own) : ''}
                 </span>
               );
-            },
-          }),
-          ...(!unfolded
-            ? []
-            : [
-                ...POINTS.map((point) =>
-                  column.display({
-                    id: `${role.id}-${point}`,
-                    // The role's name is on the group column; repeating it three
-                    // times over is how the headers came to set the table's width.
-                    //
-                    // The word itself in a `title`, because the column is 44px
-                    // and the word is not: measured on 2026-08-09, `optimistic`
-                    // wants 84px and reads `optimi`, `pessimistic` wants 95px
-                    // and reads `pessin`. There is no ellipsis to hint at it
-                    // either — the same answer the `Days` header takes, where
-                    // the sentence that would not fit moved into the `title`.
-                    //
-                    // One letter since `spreadsheet-geometry`, which is the
-                    // shorthand these cells already teach: the folded column's
-                    // box takes `o/r/p` as its placeholder and reads a trio
-                    // typed as `2/3/8`. A clipped word said less than its own
-                    // first letter does — `optimi` is not a word — and the
-                    // letter is what let the column drop to 44px. The word is
-                    // still the heading's accessible name and its `title`.
-                    meta: { spokenHeading: point },
-                    header: () => <span title={point}>{point.slice(0, 1)}</span>,
-                    cell: ({ row }) => {
-                      const problem = live.current.trioProblemFor(row.original, role.id);
-                      const wrong = problem?.points.includes(point) ?? false;
-                      return (
-                        <CellInput
-                          aria-label={`${role.name} ${point} for ${row.original.number}`}
-                          cellKey={cellKey(row.original.id, `${role.id}-${point}`)}
-                          // Narrow on purpose: these hold a number of days, and a box
-                          // sized for a sentence reads as if it wants one. Which is
-                          // the column's width to say now, not this box's.
-                          aria-invalid={wrong}
-                          title={problem?.message}
-                          onKeyDown={(e) => {
-                            live.current.onAltMove(e, row.original, `${role.id}-${point}`);
-                            live.current.onCommandKey(e, row.original, `${role.id}-${point}`);
-                            live.current.onTabKey(e, row.original.id, `${role.id}-${point}`);
-                            live.current.onArrowKey(e, row.original.id, `${role.id}-${point}`);
-                          }}
-                          // A parent's figures are sums of what is below it, so the cell is
-                          // shown and not editable — greyed rather than blank, because the
-                          // number is real and worth reading.
-                          readOnly={row.original.rolledUp}
-                          style={{
-                            width: '100%',
-                            boxSizing: 'border-box',
-                            ...(row.original.rolledUp
-                              ? { color: 'var(--muted-foreground)', background: 'var(--muted)' }
-                              : wrong
-                                ? {
-                                    background: 'var(--grid-invalid)',
-                                    borderColor: 'var(--destructive)',
-                                  }
-                                : {}),
-                          }}
-                          value={live.current.estimateValue(row.original, role.id, point)}
-                          commit={(typed) =>
-                            // A rolled-up figure is a sum of the rows below it:
-                            // the box is read-only and there is nothing to send.
-                            row.original.rolledUp
-                              ? unsent()
-                              : live.current.commitEstimate(row.original, role.id, point, typed)
+            }
+            return (
+              <CellInput
+                aria-label={`People at once for ${row.original.number}`}
+                cellKey={cellKey(row.original.id, 'in-parallel')}
+                data-in-parallel={row.original.id}
+                inputMode="numeric"
+                title={why}
+                style={{
+                  width: '100%',
+                  boxSizing: 'border-box',
+                  font: 'inherit',
+                  background: 'transparent',
+                  border: 'none',
+                  textAlign: 'right',
+                  // Muted where the number is stored and not applied, which is
+                  // the one thing a reader of a `3` beside a named person cannot
+                  // work out. `opacity` rather than a colour token so the value
+                  // stays the cell's own ink in either theme.
+                  opacity: inert ? 0.55 : undefined,
+                }}
+                onKeyDown={(e) => {
+                  // Enter saves, exactly as the Prio cell one column back does
+                  // and for its reason — see the comment there.
+                  if (e.key === 'Enter' && !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey) {
+                    e.preventDefault();
+                    void flushCell(e.currentTarget);
+                    return;
+                  }
+                  live.current.onAltMove(e, row.original, 'in-parallel');
+                  live.current.onCommandKey(e, row.original, 'in-parallel');
+                  live.current.onTabKey(e, row.original.id, 'in-parallel');
+                  live.current.onArrowKey(e, row.original.id, 'in-parallel');
+                }}
+                // Blank at 1, which is every row of every plan nobody has widened
+                // — the Prio column's bargain, for the same reason: a column of
+                // `1`s down a plan that runs one at a time is furniture.
+                value={own > 1 ? String(own) : ''}
+                commit={(typed) => live.current.setParallelism(row.original.id, typed)}
+              />
+            );
+          },
+        }),
+        ...roles.flatMap((role) => {
+          const unfolded = unfoldedRoles.includes(role.id);
+          return [
+            column.display({
+              id: `${role.id}-final`,
+              // The toggle lives on the column that never goes away, so nothing
+              // jumps when the group opens: it extends to the right of this one.
+              header: () => (
+                <button
+                  type="button"
+                  aria-expanded={unfolded}
+                  aria-label={`${unfolded ? 'Fold' : 'Unfold'} ${role.name} estimates`}
+                  // The role's own name, in full, because the button now shows as
+                  // much of it as the column has room for and no more. A role
+                  // called "Infrastructure and platform" used to set the width of
+                  // everything under it instead.
+                  // The assignee no longer folds away — it is beside the figure
+                  // in this very cell, and `@` assigns from there — so the
+                  // button is about the three points and nothing else. It said
+                  // "any other role folds" until `unfolding-may-scroll`, and no
+                  // other role folds now; what the reader is owed instead is
+                  // that the table may become wider than the window, which is
+                  // the one thing unfolding can do that it could not before.
+                  title={`${role.name} — ${
+                    unfolded
+                      ? 'fold the three points back into the figure'
+                      : 'show the three points behind the figure; the table may scroll sideways'
+                  }`}
+                  onClick={() => {
+                    live.current.toggleRole(role.id);
+                  }}
+                  style={{
+                    font: 'inherit',
+                    fontWeight: 'inherit',
+                    maxWidth: '100%',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {role.name} {unfolded ? '▾' : '▸'}
+                </button>
+              ),
+              cell: ({ row }) => {
+                // A folded role must not be able to hide a complaint: a typed
+                // trio that saves nothing stays visible as a mark on the figure
+                // the fold leaves behind.
+                const problem = unfolded
+                  ? null
+                  : live.current.combinedProblem(row.original, role.id);
+                // The whole trio in one cell, but only where both halves of that
+                // sentence hold: a folded role, so the three boxes are not on
+                // screen to disagree with it, and a leaf, because a parent's
+                // figure is a sum of what is below it and nothing to type into.
+                const shorthand = !unfolded && !row.original.rolledUp;
+                // Nobody on this role and exactly one person on another: they are
+                // assumed to be doing this phase too. The same rule the unfolded
+                // column has, in the cell that is always on screen — which is the
+                // whole reason the assignee stopped folding away. Read through
+                // {@link assigneeOn}, which is where a card reads it too.
+                const doing = live.current.assigneeOn(row.original, role.id);
+                // Only while this role is folded: unfolded, the assignee has a
+                // column of its own with a picker in it, and two ways to assign
+                // one person side by side is two things to keep in step.
+                const options = unfolded ? [] : live.current.mentionOptions(row.original, role.id);
+                const listId = `mention-${row.original.id}-${role.id}`;
+                const finalCell = cellKey(row.original.id, `${role.id}-final`);
+                // The card opens on the cell itself — not on a marker, the way
+                // the Name cell's preview does. The difference is size: this one
+                // is four lines over a 96px cell, so a mouse crossing the column
+                // is told something rather than interrupted.
+                //
+                // Not while a mention is being typed in this cell, because the
+                // list and the card open from the bottom edge of this same
+                // wrapper and the one somebody is typing into owns the cell.
+                //
+                // The **mention**, not its entries. Reading `options.length === 0`
+                // was the same rule for every case but one, and that one is
+                // reachable: a deployment with nobody on it yet answers a bare `@`
+                // with no entries at all — nobody to match, and no `Add "…"` until
+                // something follows the `@` — so the card opened over a box being
+                // typed into. agy round 3, finding 7.
+                // Proof: put back to `options.length === 0`, `keeps the cell to a
+                // mention that has nobody to offer` failed on `expected 'Dev…' to
+                // contain 'QA'`. Watched, 2026-08-09.
+                const openMention = live.current.mention;
+                const mentioning =
+                  openMention?.rowId === row.original.id && openMention.roleId === role.id;
+                const cardable = !unfolded && !mentioning;
+                const carded = cardable && live.current.openCard === finalCell;
+                // The card's own id, which the box below points
+                // `aria-describedby` at while it is open — this cell's answer to
+                // "a card only a pointer can open is data withheld from anybody
+                // who does not use one" (codex round 3, finding 2). The box is
+                // the cell's only focusable thing, so it is the one that can
+                // carry it; a parent's rolled-up figure has no box and no
+                // keyboard route, which is its own entry in `design.md`.
+                const cardId = `folded-${row.original.id}-${role.id}`;
+                return (
+                  <span
+                    data-final={role.id}
+                    onMouseEnter={() => {
+                      // No card to show, no state written: {@link hoveredCell}
+                      // lives on the table and a write of it renders all of it.
+                      // See the depends cell's own enter for the whole of it.
+                      if (!cardable) return;
+                      live.current.setHoveredCell(finalCell);
+                    }}
+                    onMouseLeave={() => {
+                      // The same-cell guard the Name cell's marker gives its
+                      // reason for: a leave lands after the enter of whatever the
+                      // pointer moved on to.
+                      live.current.setHoveredCell((current) =>
+                        current === finalCell ? null : current,
+                      );
+                    }}
+                    // No native `title` here or on the input below: the card is
+                    // this cell's one hint (CONTEXT.md, "Hover preview"), and a
+                    // browser tooltip raced it over the same pixels. The
+                    // complaint still marks the figure (the `!` and the colour)
+                    // and rides the card.
+                    // A flex row, because this cell holds two things now: the
+                    // figure (or the box it is typed into) and who is doing it.
+                    // `relative` makes it the positioned ancestor the `@` list
+                    // opens against — the clip that would cut the list to 96px is
+                    // the `<td>`'s, which {@link opensAPopover} lifts.
+                    // The blur is the mention's: it bubbles from the box inside,
+                    // and leaving the cell has to take a half-typed `@ka` with
+                    // it. Nothing else in here can hold the focus.
+                    onBlur={() => {
+                      live.current.leaveFoldedCell();
+                      // The focus-opened card goes with the focus. Guarded like
+                      // every other clear: a blur can land after the next cell has
+                      // already taken the focus.
+                      live.current.setFocusedCell((current) =>
+                        current === finalCell ? null : current,
+                      );
+                    }}
+                    style={{
+                      position: 'relative',
+                      display: 'flex',
+                      alignItems: 'baseline',
+                      maxWidth: '100%',
+                      minWidth: 0,
+                      fontWeight: 600,
+                      color: problem === null ? undefined : 'var(--destructive)',
+                    }}
+                  >
+                    {shorthand ? (
+                      <CellInput
+                        aria-label={`${role.name} estimate for ${row.original.number}`}
+                        // In the keyboard grid, which is what makes Down-type-
+                        // Down-type work down a role's column. Proof: dropped,
+                        // `is a cell of the keyboard grid, so a column can be
+                        // typed down` fails. Watched, 2026-08-06.
+                        cellKey={cellKey(row.original.id, `${role.id}-final`)}
+                        role="combobox"
+                        aria-expanded={options.length > 0}
+                        aria-controls={options.length > 0 ? listId : undefined}
+                        aria-autocomplete="list"
+                        placeholder="o/r/p"
+                        aria-invalid={problem !== null}
+                        // Every keystroke, so an `@` opens the people picker as
+                        // it is typed. The estimate half is not read here and no
+                        // draft is written — that is still the blur's job.
+                        onTyped={(box) => {
+                          live.current.readFoldedCell(row.original.id, role.id, box);
+                        }}
+                        onKeyDown={(e) => {
+                          // `mentioning`, not `options.length > 0`, and the two
+                          // are not the same thing: a deployment with nobody in it
+                          // answers a bare `@` with no entries at all, and this
+                          // branch then handed the keyboard back to a cell a
+                          // mention owned — Alt+ArrowDown moved the row and
+                          // Cmd+Enter made one, under a half-typed mention. The
+                          // card's guard was corrected in round 3 and this one was
+                          // left counting entries; round 4 caught the divergence.
+                          // The hole itself predates the change: the same branch
+                          // counts entries on the merge-base at `75d01a8`.
+                          // Proof: put back to `options.length > 0`, `every chord
+                          // is inert on a mention that has nobody to offer` failed
+                          // on `expected [ 'Strip', 'Paint', 'Sand', '' ] to deeply
+                          // equal [ 'Strip', 'Sand', 'Paint' ]` — the row moved and
+                          // a row created. Watched, 2026-08-09.
+                          if (mentioning) {
+                            // Inert means consumed, and this is the one open list
+                            // that had two ways out of it. Cmd/⌘+Enter fell
+                            // through to the bare Enter below and assigned the
+                            // first person offered; every Alt+arrow went on to
+                            // `onAltMove` underneath and moved the row while its
+                            // list was open — codex round 2, finding 2.
+                            //
+                            // Proof, two faults, both watched 2026-08-08. This
+                            // guard removed: `Cmd+Enter in the folded cell’s open
+                            // @ list assigns nobody` failed on `expected
+                            // [ 'assign w2 role-dev person1' ] to deeply equal []`,
+                            // and `Alt+arrows in the folded cell’s open @ list
+                            // move no row` on `expected [ 'Strip', 'Paint',
+                            // 'Sand' ] to deeply equal [ 'Strip', 'Sand',
+                            // 'Paint' ]`.
+                            if (commandChordIn(e) !== null || altMoveIn(e) !== null) {
+                              e.preventDefault();
+                              return;
+                            }
+                            if (e.key === 'Escape') {
+                              // Closes the list and strips nothing: what was
+                              // typed is still on screen to be corrected, and the
+                              // blur that follows is what takes it back out.
+                              e.preventDefault();
+                              live.current.closeMention();
+                              return;
+                            }
+                            if (e.key === 'Enter') {
+                              // The first entry, which is `CreatablePicker`'s
+                              // rule: what is offered first is what is taken —
+                              // and where there is nothing on offer, Enter is
+                              // consumed and takes nothing rather than falling
+                              // through to "new work item" under a live mention.
+                              e.preventDefault();
+                              options[0]?.take();
+                              return;
+                            }
+                          } else {
+                            // The routing matrix's inert row is this `else` and
+                            // nothing more: while the `@` list is open it owns
+                            // the keyboard, and Escape above is how it is given
+                            // back. A chord that fired through an open list
+                            // would create a row under a half-typed name search.
+                            live.current.onCommandKey(e, row.original, `${role.id}-final`);
                           }
-                        />
+                          live.current.onAltMove(e, row.original, `${role.id}-final`);
+                          live.current.onTabKey(e, row.original.id, `${role.id}-final`);
+                          live.current.onArrowKey(e, row.original.id, `${role.id}-final`);
+                        }}
+                        // Selected on arrival, because the value at rest is a
+                        // computed figure and the syntax is a trio: there is no
+                        // sensible edit to make *inside* `4`, and a caret dropped
+                        // into it turns `2/3/8` into `2/3/84`. What the selection
+                        // replaces is remembered first — see `enterFoldedCell`.
+                        aria-describedby={carded ? cardId : undefined}
+                        onFocus={(e) => {
+                          live.current.enterFoldedCell(e.currentTarget);
+                          // The focus opens the card the pointer opens — through
+                          // its own state, so a mouse crossing the table cannot
+                          // take it away from a box somebody is still typing in
+                          // (round 4, finding 9). Cleared by the wrapper's
+                          // `onBlur`, which this bubbles to.
+                          // Proof, both watched 2026-08-09. This line dropped:
+                          // `opens the card on the focus too, and points the box
+                          // at it` failed on `Unable to find an accessible element
+                          // with the role "tooltip"`. Written back to
+                          // `setHoveredCell`, with `openCard` folded back to the
+                          // hover: `keeps the focused cell's card when the pointer
+                          // visits another and leaves` failed the same way.
+                          live.current.setFocusedCell(finalCell);
+                          e.currentTarget.select();
+                        }}
+                        style={{
+                          width: '100%',
+                          boxSizing: 'border-box',
+                          font: 'inherit',
+                          fontWeight: 600,
+                          flex: 1,
+                          minWidth: 0,
+                          ...(problem === null
+                            ? {}
+                            : {
+                                background: 'var(--grid-invalid)',
+                                borderColor: 'var(--destructive)',
+                              }),
+                        }}
+                        value={live.current.combinedValue(row.original, role.id)}
+                        commit={(typed, baseline) =>
+                          live.current.commitCombinedEstimate(
+                            row.original,
+                            role.id,
+                            typed,
+                            baseline,
+                          )
+                        }
+                      />
+                    ) : (
+                      showFinal(row.original.finalDays[role.id])
+                    )}
+                    {problem !== null && ' !'}
+                    {doing !== null && (
+                      // `4.8 · VA`, and the whole name in the tooltip. 96px holds
+                      // a figure and about four characters of a person, which is
+                      // how this printed `vad…` and `kuc…` — two people who read
+                      // identically. {@link initialsOf} is the same length every
+                      // time, so the column lines up and nothing needs an
+                      // ellipsis. Grey and in brackets where nobody is assigned
+                      // and somebody is assumed, exactly as the unfolded column
+                      // reads it.
+                      <span
+                        data-folded-assignee={role.id}
+                        {...(doing.assumed ? { 'data-assumed': role.id } : {})}
+                        // No `title`, still. One was written here for the
+                        // initials and taken back out: `leaves the assignee no
+                        // title of its own to say it twice` is a decision from
+                        // 2026-08-09 — a native tooltip is one line, a second
+                        // late, and the hover card already names them in full
+                        // (`folded-role-card.tsx`). Initials make the card more
+                        // load-bearing, not the tooltip more welcome.
+                        style={{
+                          marginLeft: 4,
+                          flex: 'none',
+                          whiteSpace: 'nowrap',
+                          fontWeight: 'normal',
+                          color: doing.assumed ? 'var(--muted-foreground)' : undefined,
+                        }}
+                      >
+                        · {doing.assumed ? `(${initialsOf(doing.name)})` : initialsOf(doing.name)}
+                      </span>
+                    )}
+                    {options.length > 0 && (
+                      <PickerList
+                        id={listId}
+                        label={`${role.name} assignee for ${row.original.number}`}
+                        options={options}
+                      />
+                    )}
+                    {carded && (
+                      <FoldedRoleCard
+                        roleName={role.name}
+                        number={row.original.number}
+                        id={cardId}
+                        points={POINTS.map((point) => ({
+                          point,
+                          // The row's own trio, off the row — **not** through
+                          // `estimateValue`, and not through `combinedValue`
+                          // below it. Those two answer with the draft where there
+                          // is one, which is right for a box somebody is typing
+                          // in and wrong for this: a card is what the fold left
+                          // behind, and what the fold hid is the estimate be-01
+                          // holds — the one the figure beside it is computed
+                          // from, and the one every other reader of the plan
+                          // sees. Reading the draft made a card say
+                          // `realistic —` beside `Final 3.7 days`, and
+                          // `Final 8/3/2 days` where a number of days belongs.
+                          // The draft is not lost: unfolding the role puts it
+                          // back in the box it was typed into, with its
+                          // complaint, which is the only place it can be
+                          // corrected. codex round 3, finding 4.
+                          // Proof, two faults watched 2026-08-09. Points read
+                          // through `estimateValue`: `reads the trio off the row,
+                          // not out of the boxes it was typed into` failed on
+                          // `expected 'Devoptimistic 2 · realistic — · pessi…' to
+                          // contain 'realistic 3'`. `final` read through
+                          // `combinedValue`: `says Final in days, whatever
+                          // half-typed shorthand the cell is holding` failed on
+                          // `expected 'Dev…Final 8/3/2 days' to contain 'Final
+                          // 3.7 days'`.
+                          days: showDays(row.original.estimates[role.id], point),
+                        }))}
+                        final={showFinal(row.original.finalDays[role.id])}
+                        doing={doing}
+                        problem={problem}
+                      />
+                    )}
+                  </span>
+                );
+              },
+            }),
+            ...(!unfolded
+              ? []
+              : [
+                  ...POINTS.map((point) =>
+                    column.display({
+                      id: `${role.id}-${point}`,
+                      // The role's name is on the group column; repeating it three
+                      // times over is how the headers came to set the table's width.
+                      //
+                      // The word itself in a `title`, because the column is 44px
+                      // and the word is not: measured on 2026-08-09, `optimistic`
+                      // wants 84px and reads `optimi`, `pessimistic` wants 95px
+                      // and reads `pessin`. There is no ellipsis to hint at it
+                      // either — the same answer the `Days` header takes, where
+                      // the sentence that would not fit moved into the `title`.
+                      //
+                      // One letter since `spreadsheet-geometry`, which is the
+                      // shorthand these cells already teach: the folded column's
+                      // box takes `o/r/p` as its placeholder and reads a trio
+                      // typed as `2/3/8`. A clipped word said less than its own
+                      // first letter does — `optimi` is not a word — and the
+                      // letter is what let the column drop to 44px. The word is
+                      // still the heading's accessible name and its `title`.
+                      meta: { spokenHeading: point },
+                      header: () => <span title={point}>{point.slice(0, 1)}</span>,
+                      cell: ({ row }) => {
+                        const problem = live.current.trioProblemFor(row.original, role.id);
+                        const wrong = problem?.points.includes(point) ?? false;
+                        return (
+                          <CellInput
+                            aria-label={`${role.name} ${point} for ${row.original.number}`}
+                            cellKey={cellKey(row.original.id, `${role.id}-${point}`)}
+                            // Narrow on purpose: these hold a number of days, and a box
+                            // sized for a sentence reads as if it wants one. Which is
+                            // the column's width to say now, not this box's.
+                            aria-invalid={wrong}
+                            title={problem?.message}
+                            onKeyDown={(e) => {
+                              live.current.onAltMove(e, row.original, `${role.id}-${point}`);
+                              live.current.onCommandKey(e, row.original, `${role.id}-${point}`);
+                              live.current.onTabKey(e, row.original.id, `${role.id}-${point}`);
+                              live.current.onArrowKey(e, row.original.id, `${role.id}-${point}`);
+                            }}
+                            // A parent's figures are sums of what is below it, so the cell is
+                            // shown and not editable — greyed rather than blank, because the
+                            // number is real and worth reading.
+                            readOnly={row.original.rolledUp}
+                            style={{
+                              width: '100%',
+                              boxSizing: 'border-box',
+                              ...(row.original.rolledUp
+                                ? { color: 'var(--muted-foreground)', background: 'var(--muted)' }
+                                : wrong
+                                  ? {
+                                      background: 'var(--grid-invalid)',
+                                      borderColor: 'var(--destructive)',
+                                    }
+                                  : {}),
+                            }}
+                            value={live.current.estimateValue(row.original, role.id, point)}
+                            commit={(typed) =>
+                              // A rolled-up figure is a sum of the rows below it:
+                              // the box is read-only and there is nothing to send.
+                              row.original.rolledUp
+                                ? unsent()
+                                : live.current.commitEstimate(row.original, role.id, point, typed)
+                            }
+                          />
+                        );
+                      },
+                    }),
+                  ),
+                  column.display({
+                    id: `${role.id}-assignee`,
+                    header: 'by',
+                    cell: ({ row }) => {
+                      const assigned = row.original.assignees[role.id];
+                      // Nobody on this role, and exactly one person on another: they are
+                      // assumed to be doing this phase too, so the cell says so rather
+                      // than reading as unassigned. Assigning anyone here ends the
+                      // assumption by itself.
+                      const assumed = assigned === undefined ? row.original.doesEveryPhase : null;
+                      const nameOf = (id: string) =>
+                        live.current.people.find((each) => each.id === id)?.name ?? '(unknown)';
+                      return (
+                        // A flex row because the picker inside it is one now: the
+                        // assumed name has to sit beside the box and shrink with
+                        // it, rather than being pushed onto a line of its own.
+                        <span
+                          style={{
+                            display: 'flex',
+                            alignItems: 'baseline',
+                            maxWidth: '100%',
+                            minWidth: 0,
+                          }}
+                        >
+                          <CreatablePicker
+                            label={`${role.name} assignee for ${row.original.number}`}
+                            placeholder="search or add"
+                            entries={live.current.people.map((each) => ({
+                              id: each.id,
+                              name: each.name,
+                              detail:
+                                each.teamIds.length === 0
+                                  ? 'free agent'
+                                  : each.teamIds
+                                      .map(
+                                        (id) =>
+                                          live.current.teams.find((team) => team.id === id)?.name ??
+                                          '?',
+                                      )
+                                      .join(', '),
+                            }))}
+                            value={assigned ?? null}
+                            onChoose={(id) => {
+                              live.current.assignTo(row.original.id, role.id, id);
+                            }}
+                            onCreate={(name) => {
+                              live.current.createPersonFor(row.original, role.id, name);
+                            }}
+                            onClear={() => {
+                              live.current.assignTo(row.original.id, role.id, null);
+                            }}
+                            gridCell={{
+                              dataCell: cellKey(row.original.id, `${role.id}-assignee`),
+                              onTabKey: (e) => {
+                                live.current.onTabKey(e, row.original.id, `${role.id}-assignee`);
+                              },
+                              onCommandKey: (e) => {
+                                live.current.onCommandKey(e, row.original, `${role.id}-assignee`);
+                              },
+                              onAltMove: (e) => {
+                                live.current.onAltMove(e, row.original, `${role.id}-assignee`);
+                              },
+                            }}
+                          />
+                          {assumed !== null && (
+                            <span
+                              data-assumed={role.id}
+                              title="Only one person is assigned, so they are assumed to do this phase too"
+                              style={{
+                                color: 'var(--muted-foreground)',
+                                marginLeft: 4,
+                                minWidth: 0,
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
+                              }}
+                            >
+                              ({nameOf(assumed)})
+                            </span>
+                          )}
+                        </span>
                       );
                     },
                   }),
-                ),
-                column.display({
-                  id: `${role.id}-assignee`,
-                  header: 'by',
-                  cell: ({ row }) => {
-                    const assigned = row.original.assignees[role.id];
-                    // Nobody on this role, and exactly one person on another: they are
-                    // assumed to be doing this phase too, so the cell says so rather
-                    // than reading as unassigned. Assigning anyone here ends the
-                    // assumption by itself.
-                    const assumed = assigned === undefined ? row.original.doesEveryPhase : null;
-                    const nameOf = (id: string) =>
-                      live.current.people.find((each) => each.id === id)?.name ?? '(unknown)';
-                    return (
-                      // A flex row because the picker inside it is one now: the
-                      // assumed name has to sit beside the box and shrink with
-                      // it, rather than being pushed onto a line of its own.
-                      <span
-                        style={{
-                          display: 'flex',
-                          alignItems: 'baseline',
-                          maxWidth: '100%',
-                          minWidth: 0,
-                        }}
-                      >
-                        <CreatablePicker
-                          label={`${role.name} assignee for ${row.original.number}`}
-                          placeholder="search or add"
-                          entries={live.current.people.map((each) => ({
-                            id: each.id,
-                            name: each.name,
-                            detail:
-                              each.teamIds.length === 0
-                                ? 'free agent'
-                                : each.teamIds
-                                    .map(
-                                      (id) =>
-                                        live.current.teams.find((team) => team.id === id)?.name ??
-                                        '?',
-                                    )
-                                    .join(', '),
-                          }))}
-                          value={assigned ?? null}
-                          onChoose={(id) => {
-                            live.current.assignTo(row.original.id, role.id, id);
-                          }}
-                          onCreate={(name) => {
-                            live.current.createPersonFor(row.original, role.id, name);
-                          }}
-                          onClear={() => {
-                            live.current.assignTo(row.original.id, role.id, null);
-                          }}
-                          gridCell={{
-                            dataCell: cellKey(row.original.id, `${role.id}-assignee`),
-                            onTabKey: (e) => {
-                              live.current.onTabKey(e, row.original.id, `${role.id}-assignee`);
-                            },
-                            onCommandKey: (e) => {
-                              live.current.onCommandKey(e, row.original, `${role.id}-assignee`);
-                            },
-                            onAltMove: (e) => {
-                              live.current.onAltMove(e, row.original, `${role.id}-assignee`);
-                            },
-                          }}
-                        />
-                        {assumed !== null && (
-                          <span
-                            data-assumed={role.id}
-                            title="Only one person is assigned, so they are assumed to do this phase too"
-                            style={{
-                              color: 'var(--muted-foreground)',
-                              marginLeft: 4,
-                              minWidth: 0,
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis',
-                              whiteSpace: 'nowrap',
-                            }}
-                          >
-                            ({nameOf(assumed)})
-                          </span>
-                        )}
-                      </span>
-                    );
-                  },
-                }),
-              ]),
-        ];
-      }),
-      column.display({
-        id: 'final-total',
-        // One word, because the column is 52px wide: it holds a number of days
-        // and the roles beside it hold days too. The sentence it used to be
-        // moved into the `title`, where a reader who wants it can still get it.
-        header: () => (
-          <span title="Every role's final figure for this work item, added up">Days</span>
-        ),
-        cell: ({ row }) => (
-          <span data-final-total style={{ fontWeight: 600 }}>
-            {showDay(row.original.finalTotal)}
-          </span>
-        ),
-      }),
-      column.display({
-        id: 'not-before',
-        // Abbreviated, because the column is 84px at its widest and 56 at its
-        // narrowest. The sentence it used to be is in the `title`, where the
-        // one reader who wants it can still get it — the same bargain Days,
-        // Start, End and Slack already make.
-        header: () => (
-          <span title="The earliest day this work item may start. Its dependencies can still push it later.">
-            Not bef.
-          </span>
-        ),
-        cell: ({ row }) => {
-          const day = row.original.startNoEarlierThan;
-          // The words about that day, or null where nobody has said. Straight
-          // off the tree read like the date above it — a draft somebody is
-          // half-way through typing is not yet a fact about the plan.
-          const reason = row.original.startNoEarlierThanReason;
-          // Without a project start date there is no day zero to count from and
-          // be-01 ignores the constraint entirely. A rendered disabled state
-          // rather than an editor that opens onto nothing: a date that saves
-          // and does nothing is worse than a field that will not take one.
-          const noCalendar = live.current.startDate === null;
-          const editing = live.current.editingNotBefore === row.original.id;
-          const open = (): void => {
-            if (noCalendar) return;
-            live.current.openNotBefore(row.original.id);
-          };
-          const close = (): void => {
-            live.current.closeNotBefore(row.original.id);
-          };
-          /**
-           * Sends the words in the box, and only when they differ from the ones
-           * this box last agreed about.
-           *
-           * `DateField`'s rule, in the one place it cannot be borrowed from: a
-           * focus and a blur with nothing typed is not an edit, and sending
-           * anyway writes what was on screen when the focus arrived over
-           * whatever a peer has done since. What "agreed" means is kept on the
-           * node rather than in a ref because this box is rendered by a cell
-           * function, not by a component with a lifetime — an Enter that sends
-           * and then blurs would otherwise send the same sentence twice.
-           */
-          const commitReason = (box: HTMLInputElement): void => {
-            const agreed = box.dataset['agreed'] ?? reason ?? '';
-            if (box.value === agreed) return;
-            box.dataset['agreed'] = box.value;
-            live.current.setNotBeforeReason(row.original.id, box.value);
-          };
-          return (
-            /*
+                ]),
+          ];
+        }),
+        column.display({
+          id: 'final-total',
+          // One word, because the column is 52px wide: it holds a number of days
+          // and the roles beside it hold days too. The sentence it used to be
+          // moved into the `title`, where a reader who wants it can still get it.
+          header: () => (
+            <span title="Every role's final figure for this work item, added up">Days</span>
+          ),
+          cell: ({ row }) => (
+            <span data-final-total style={{ fontWeight: 600 }}>
+              {showDay(row.original.finalTotal)}
+            </span>
+          ),
+        }),
+        column.display({
+          id: 'not-before',
+          // Abbreviated, because the column is 84px at its widest and 56 at its
+          // narrowest. The sentence it used to be is in the `title`, where the
+          // one reader who wants it can still get it — the same bargain Days,
+          // Start, End and Slack already make.
+          header: () => (
+            <span title="The earliest day this work item may start. Its dependencies can still push it later.">
+              Not bef.
+            </span>
+          ),
+          cell: ({ row }) => {
+            const day = row.original.startNoEarlierThan;
+            // The words about that day, or null where nobody has said. Straight
+            // off the tree read like the date above it — a draft somebody is
+            // half-way through typing is not yet a fact about the plan.
+            const reason = row.original.startNoEarlierThanReason;
+            // Without a project start date there is no day zero to count from and
+            // be-01 ignores the constraint entirely. A rendered disabled state
+            // rather than an editor that opens onto nothing: a date that saves
+            // and does nothing is worse than a field that will not take one.
+            const noCalendar = live.current.startDate === null;
+            const editing = live.current.editingNotBefore === row.original.id;
+            const open = (): void => {
+              if (noCalendar) return;
+              live.current.openNotBefore(row.original.id);
+            };
+            const close = (): void => {
+              live.current.closeNotBefore(row.original.id);
+            };
+            /**
+             * Sends the words in the box, and only when they differ from the ones
+             * this box last agreed about.
+             *
+             * `DateField`'s rule, in the one place it cannot be borrowed from: a
+             * focus and a blur with nothing typed is not an edit, and sending
+             * anyway writes what was on screen when the focus arrived over
+             * whatever a peer has done since. What "agreed" means is kept on the
+             * node rather than in a ref because this box is rendered by a cell
+             * function, not by a component with a lifetime — an Enter that sends
+             * and then blurs would otherwise send the same sentence twice.
+             */
+            const commitReason = (box: HTMLInputElement): void => {
+              const agreed = box.dataset['agreed'] ?? reason ?? '';
+              if (box.value === agreed) return;
+              box.dataset['agreed'] = box.value;
+              live.current.setNotBeforeReason(row.original.id, box.value);
+            };
+            return (
+              /*
               The wrapper the editor escapes through. It is `position: relative`
               and **inside** the `<td>`, which is why `opensAPopover` has to
               lift this column's clip for the editor to be visible at all — see
@@ -7297,70 +7308,70 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
               null to not be null` — the panel shuts on the way to the box.
               Watched, 2026-08-18.
             */
-            <span
-              style={{ position: 'relative', display: 'block' }}
-              onBlur={(event) => {
-                if (!editing) return;
-                const going = event.relatedTarget;
-                if (going instanceof Node && event.currentTarget.contains(going)) return;
-                close();
-              }}
-            >
-              {editing ? (
-                <>
-                  <DateField
-                    aria-label={`Earliest start for ${row.original.number}`}
-                    data-not-before={row.original.id}
-                    data-cell={cellKey(row.original.id, 'not-before')}
-                    title="This work item may not start before this day. Its dependencies can still push it later."
-                    onKeyDown={(e) => {
-                      // Enter closes the editor, and it is this cell's job now
-                      // rather than `onExit`'s: `onExit` reports a blur as well
-                      // as an Enter, and a blur may be somebody reaching for the
-                      // reason box under this one. By the time this runs
-                      // `DateField` has already sent the day — its own handler
-                      // is first, deliberately, so a `Ctrl/⌘ + Enter` that moves
-                      // to the next row has saved this one on the way out.
-                      if (e.key === 'Enter') close();
-                      // The chords and the row moves, and nothing else this cell
-                      // does not already own: a native date input keeps its own
-                      // arrows for the segment under the caret, which is why
-                      // {@link onArrowKey} is absent here. Alt+arrow is not one
-                      // of those — {@link altMoveIn} takes it before the segment
-                      // stepper sees it, exactly as it does in every other cell.
-                      live.current.onAltMove(e, row.original, 'not-before');
-                      live.current.onCommandKey(e, row.original, 'not-before');
-                      live.current.onTabKey(e, row.original.id, 'not-before');
-                    }}
-                    onExit={(how) => {
-                      // Escape only. It is the one exit that has already put the
-                      // box back to the day the server agreed, so there is
-                      // nothing left to send and nowhere else the focus is
-                      // going. Every other way out of this panel is the
-                      // wrapper's `focusout`, which is the one place that can
-                      // see the two boxes as one editor.
-                      if (how === 'cancel') close();
-                    }}
-                    // Wider than its column, on purpose: {@link DATE_EDITOR_WIDTH}
-                    // is what this browser lays an unconstrained date input out
-                    // at, and a column that grew to fit one would move every cell
-                    // under the person typing. It leaves the cell instead, over
-                    // the columns beside it, which is what the `z-index` is for.
-                    style={{
-                      position: 'relative',
-                      zIndex: 10,
-                      width: DATE_EDITOR_WIDTH,
-                      boxSizing: 'border-box',
-                      font: 'inherit',
-                    }}
-                    value={day ?? ''}
-                    commit={(typed) => {
-                      // A date input reports '' when cleared, which is the caller
-                      // saying "no constraint" rather than "an empty date".
-                      live.current.setNotBefore(row.original.id, typed === '' ? null : typed);
-                    }}
-                  />
-                  {/*
+              <span
+                style={{ position: 'relative', display: 'block' }}
+                onBlur={(event) => {
+                  if (!editing) return;
+                  const going = event.relatedTarget;
+                  if (going instanceof Node && event.currentTarget.contains(going)) return;
+                  close();
+                }}
+              >
+                {editing ? (
+                  <>
+                    <DateField
+                      aria-label={`Earliest start for ${row.original.number}`}
+                      data-not-before={row.original.id}
+                      data-cell={cellKey(row.original.id, 'not-before')}
+                      title="This work item may not start before this day. Its dependencies can still push it later."
+                      onKeyDown={(e) => {
+                        // Enter closes the editor, and it is this cell's job now
+                        // rather than `onExit`'s: `onExit` reports a blur as well
+                        // as an Enter, and a blur may be somebody reaching for the
+                        // reason box under this one. By the time this runs
+                        // `DateField` has already sent the day — its own handler
+                        // is first, deliberately, so a `Ctrl/⌘ + Enter` that moves
+                        // to the next row has saved this one on the way out.
+                        if (e.key === 'Enter') close();
+                        // The chords and the row moves, and nothing else this cell
+                        // does not already own: a native date input keeps its own
+                        // arrows for the segment under the caret, which is why
+                        // {@link onArrowKey} is absent here. Alt+arrow is not one
+                        // of those — {@link altMoveIn} takes it before the segment
+                        // stepper sees it, exactly as it does in every other cell.
+                        live.current.onAltMove(e, row.original, 'not-before');
+                        live.current.onCommandKey(e, row.original, 'not-before');
+                        live.current.onTabKey(e, row.original.id, 'not-before');
+                      }}
+                      onExit={(how) => {
+                        // Escape only. It is the one exit that has already put the
+                        // box back to the day the server agreed, so there is
+                        // nothing left to send and nowhere else the focus is
+                        // going. Every other way out of this panel is the
+                        // wrapper's `focusout`, which is the one place that can
+                        // see the two boxes as one editor.
+                        if (how === 'cancel') close();
+                      }}
+                      // Wider than its column, on purpose: {@link DATE_EDITOR_WIDTH}
+                      // is what this browser lays an unconstrained date input out
+                      // at, and a column that grew to fit one would move every cell
+                      // under the person typing. It leaves the cell instead, over
+                      // the columns beside it, which is what the `z-index` is for.
+                      style={{
+                        position: 'relative',
+                        zIndex: 10,
+                        width: DATE_EDITOR_WIDTH,
+                        boxSizing: 'border-box',
+                        font: 'inherit',
+                      }}
+                      value={day ?? ''}
+                      commit={(typed) => {
+                        // A date input reports '' when cleared, which is the caller
+                        // saying "no constraint" rather than "an empty date".
+                        live.current.setNotBefore(row.original.id, typed === '' ? null : typed);
+                      }}
+                    />
+                    {/*
                     Why the date is there, under the date itself.
 
                     **Absolutely positioned, so the row does not grow.** A second
@@ -7377,52 +7388,52 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                     are talking about — `CellInput`'s note says it, one column
                     over.
                   */}
-                  <input
-                    aria-label={`Why ${row.original.number} may not start earlier`}
-                    data-not-before-reason={row.original.id}
-                    placeholder="Why? (optional)"
-                    title="Words about the date beside this, in your own words — a date with no words is still a date. Clearing the date clears these too."
-                    // No `maxLength`, deliberately. be-01 bounds this at 200
-                    // (`LONGEST_NOT_BEFORE_REASON`) and refuses a longer one,
-                    // and a box that quietly stopped taking characters would be
-                    // this client keeping a rule the server also keeps — two
-                    // copies of one number, which is how the two come to
-                    // disagree. {@link setPriority} writes the doctrine down.
-                    defaultValue={reason ?? ''}
-                    style={{
-                      position: 'absolute',
-                      top: '100%',
-                      left: 0,
-                      zIndex: 10,
-                      width: DATE_EDITOR_WIDTH,
-                      boxSizing: 'border-box',
-                      font: 'inherit',
-                      background: 'var(--popover)',
-                      color: 'var(--popover-foreground)',
-                      border: '1px solid var(--border)',
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Escape') {
-                        // Back to what the server agreed, which is what makes
-                        // the blur after an Escape harmless — the same rule
-                        // {@link DateField} keeps, for the same reason: a box
-                        // holding the agreed value has nothing left to commit.
-                        e.currentTarget.value = reason ?? '';
-                        close();
-                        return;
-                      }
-                      if (e.key === 'Enter') {
+                    <input
+                      aria-label={`Why ${row.original.number} may not start earlier`}
+                      data-not-before-reason={row.original.id}
+                      placeholder="Why? (optional)"
+                      title="Words about the date beside this, in your own words — a date with no words is still a date. Clearing the date clears these too."
+                      // No `maxLength`, deliberately. be-01 bounds this at 200
+                      // (`LONGEST_NOT_BEFORE_REASON`) and refuses a longer one,
+                      // and a box that quietly stopped taking characters would be
+                      // this client keeping a rule the server also keeps — two
+                      // copies of one number, which is how the two come to
+                      // disagree. {@link setPriority} writes the doctrine down.
+                      defaultValue={reason ?? ''}
+                      style={{
+                        position: 'absolute',
+                        top: '100%',
+                        left: 0,
+                        zIndex: 10,
+                        width: DATE_EDITOR_WIDTH,
+                        boxSizing: 'border-box',
+                        font: 'inherit',
+                        background: 'var(--popover)',
+                        color: 'var(--popover-foreground)',
+                        border: '1px solid var(--border)',
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Escape') {
+                          // Back to what the server agreed, which is what makes
+                          // the blur after an Escape harmless — the same rule
+                          // {@link DateField} keeps, for the same reason: a box
+                          // holding the agreed value has nothing left to commit.
+                          e.currentTarget.value = reason ?? '';
+                          close();
+                          return;
+                        }
+                        if (e.key === 'Enter') {
+                          commitReason(e.currentTarget);
+                          close();
+                        }
+                      }}
+                      onBlur={(e) => {
                         commitReason(e.currentTarget);
-                        close();
-                      }
-                    }}
-                    onBlur={(e) => {
-                      commitReason(e.currentTarget);
-                    }}
-                  />
-                </>
-              ) : (
-                /*
+                      }}
+                    />
+                  </>
+                ) : (
+                  /*
                   The day at rest, and still a cell of the keyboard grid: Tab
                   lands here, the arrows land here, and `editableGrid` finds it
                   because it is an `<input>` carrying `data-cell` — which is
@@ -7431,234 +7442,242 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                   keystroke opens the editor instead, which is what `onChange`
                   is doing here.
                 */
-                <input
-                  aria-label={`Earliest start for ${row.original.number}`}
-                  disabled={noCalendar}
-                  data-not-before={row.original.id}
-                  data-cell={cellKey(row.original.id, 'not-before')}
-                  // The reason is **appended** where there is one, never
-                  // substituted — the same bargain `floorWordsOf` strikes on
-                  // the bar. What the constraint does is the part a reader
-                  // cannot work out for themselves; what it is *for* is the
-                  // part only a planner can say. A cell 84px wide has one
-                  // `title` and both belong in it.
-                  title={
-                    noCalendar
-                      ? 'Set the project start date first — without one there are no dates to constrain.'
-                      : [
-                          day === null ? null : `${day}.`,
-                          'This work item may not start before this day. Its dependencies can still push it later.',
-                          reason === null || reason.trim() === '' ? null : `Why: ${reason.trim()}`,
-                        ]
-                          .filter((part) => part !== null)
-                          .join(' ')
-                  }
-                  style={{
-                    width: '100%',
-                    boxSizing: 'border-box',
-                    font: 'inherit',
-                    background: 'transparent',
-                    border: 'none',
-                    cursor: noCalendar ? 'not-allowed' : 'text',
-                  }}
-                  // An em-dash for a row that sets no day, which reads as "none"
-                  // rather than as a cell that failed to load.
-                  value={day === null ? '—' : shortIsoDate(day, new Date())}
-                  onChange={open}
-                  // `click`, not `mousedown`, and a browser is the only thing
-                  // that can say why. React flushes a discrete update inside
-                  // the `mousedown` dispatch, so the editor mounted and the at
-                  // rest input was gone before Chromium performed that event's
-                  // **default action** — focusing the node it had hit-tested.
-                  // Focusing a detached node moves the focus to `<body>`, which
-                  // blurred the editor, which is an exit, which closed it: a
-                  // click on the cell did nothing at all. jsdom performs no
-                  // default action and could not see it; found in Chromium by
-                  // counting `input[type=date]` after a click and getting none.
-                  // R5 #14/#15, the same fault class. `click` fires after the
-                  // focus has already moved, so there is nothing left to undo
-                  // the mount.
-                  onClick={open}
-                  onKeyDown={(e) => {
-                    // A bare Enter opens the editor; a chord is the table's and
-                    // is left to it, which is why the modifiers are asked about
-                    // before anything else happens.
-                    if (e.key === 'Enter' && !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey) {
-                      e.preventDefault();
-                      open();
-                      return;
+                  <input
+                    aria-label={`Earliest start for ${row.original.number}`}
+                    disabled={noCalendar}
+                    data-not-before={row.original.id}
+                    data-cell={cellKey(row.original.id, 'not-before')}
+                    // The reason is **appended** where there is one, never
+                    // substituted — the same bargain `floorWordsOf` strikes on
+                    // the bar. What the constraint does is the part a reader
+                    // cannot work out for themselves; what it is *for* is the
+                    // part only a planner can say. A cell 84px wide has one
+                    // `title` and both belong in it.
+                    title={
+                      noCalendar
+                        ? 'Set the project start date first — without one there are no dates to constrain.'
+                        : [
+                            day === null ? null : `${day}.`,
+                            'This work item may not start before this day. Its dependencies can still push it later.',
+                            reason === null || reason.trim() === ''
+                              ? null
+                              : `Why: ${reason.trim()}`,
+                          ]
+                            .filter((part) => part !== null)
+                            .join(' ')
                     }
-                    live.current.onAltMove(e, row.original, 'not-before');
-                    live.current.onCommandKey(e, row.original, 'not-before');
-                    live.current.onTabKey(e, row.original.id, 'not-before');
-                  }}
-                />
-              )}
-            </span>
-          );
-        },
-      }),
-      column.display({
-        id: 'start',
-        // A bare `2.5` under "Start" reads as a date that failed to load, and
-        // the header used to say which of the two it was — in 52px it cannot,
-        // so the distinction moved into the `title`. The column is a figure
-        // either way and the cell shows which kind it is.
-        header: () => <span title={live.current.startDateHint('earliest start')}>Start</span>,
-        cell: ({ row }) => {
-          const start = live.current.spanOf(row.original).start;
-          // The whole day in the `title`, so the shortening costs nothing: a
-          // cell reading `1 Jun` still answers "which 1 Jun" on hover.
-          return (
-            <span data-start title={start.iso ?? undefined}>
-              {start.text}
-            </span>
-          );
-        },
-      }),
-      column.display({
-        id: 'finish',
-        header: () => <span title={live.current.startDateHint('earliest finish')}>End</span>,
-        cell: ({ row }) => {
-          const finish = live.current.spanOf(row.original).finish;
-          // Both facts in one `title`, because a cell has one: the day in full,
-          // and — where the figure is a guess — what the marker beside it means.
-          const said = [finish.iso, row.original.schedule.estimated ? null : 'No estimate yet']
-            .filter((part) => part !== null)
-            .join(' — ');
-          return (
-            <span data-finish title={said === '' ? undefined : said}>
-              {finish.text}
-              {live.current.hasSchedule() && !row.original.schedule.estimated ? ' ?' : ''}
-            </span>
-          );
-        },
-      }),
-      column.display({
-        id: 'float',
-        header: () => (
-          <span title="Days this work item can slip before the plan's end moves. A row marked critical has none: it is what sets the plan's finish.">
-            Slack
-          </span>
-        ),
-        cell: ({ row }) => {
-          // A critical row has no slack to print, and the word that replaces
-          // the figure is not a figure: the attribute is what lets `styles.css`
-          // set it as a tag rather than as a number in the column's own type.
-          // One word, not the `— critical` it was: the column is 56px and the
-          // tag has to fit inside it, which the dash and the space did not.
-          // `plan-export.ts` has printed the bare word since it was written.
-          if (!live.current.hasSchedule()) {
-            return (
-              <span
-                data-float
-                title="No schedule could be worked out, so there is no slack to show."
-              >
-                —
+                    style={{
+                      width: '100%',
+                      boxSizing: 'border-box',
+                      font: 'inherit',
+                      background: 'transparent',
+                      border: 'none',
+                      cursor: noCalendar ? 'not-allowed' : 'text',
+                    }}
+                    // An em-dash for a row that sets no day, which reads as "none"
+                    // rather than as a cell that failed to load.
+                    value={day === null ? '—' : shortIsoDate(day, new Date())}
+                    onChange={open}
+                    // `click`, not `mousedown`, and a browser is the only thing
+                    // that can say why. React flushes a discrete update inside
+                    // the `mousedown` dispatch, so the editor mounted and the at
+                    // rest input was gone before Chromium performed that event's
+                    // **default action** — focusing the node it had hit-tested.
+                    // Focusing a detached node moves the focus to `<body>`, which
+                    // blurred the editor, which is an exit, which closed it: a
+                    // click on the cell did nothing at all. jsdom performs no
+                    // default action and could not see it; found in Chromium by
+                    // counting `input[type=date]` after a click and getting none.
+                    // R5 #14/#15, the same fault class. `click` fires after the
+                    // focus has already moved, so there is nothing left to undo
+                    // the mount.
+                    onClick={open}
+                    onKeyDown={(e) => {
+                      // A bare Enter opens the editor; a chord is the table's and
+                      // is left to it, which is why the modifiers are asked about
+                      // before anything else happens.
+                      if (
+                        e.key === 'Enter' &&
+                        !e.metaKey &&
+                        !e.ctrlKey &&
+                        !e.altKey &&
+                        !e.shiftKey
+                      ) {
+                        e.preventDefault();
+                        open();
+                        return;
+                      }
+                      live.current.onAltMove(e, row.original, 'not-before');
+                      live.current.onCommandKey(e, row.original, 'not-before');
+                      live.current.onTabKey(e, row.original.id, 'not-before');
+                    }}
+                  />
+                )}
               </span>
             );
-          }
-          if (row.original.schedule.critical) {
+          },
+        }),
+        column.display({
+          id: 'start',
+          // A bare `2.5` under "Start" reads as a date that failed to load, and
+          // the header used to say which of the two it was — in 52px it cannot,
+          // so the distinction moved into the `title`. The column is a figure
+          // either way and the cell shows which kind it is.
+          header: () => <span title={live.current.startDateHint('earliest start')}>Start</span>,
+          cell: ({ row }) => {
+            const start = live.current.spanOf(row.original).start;
+            // The whole day in the `title`, so the shortening costs nothing: a
+            // cell reading `1 Jun` still answers "which 1 Jun" on hover.
             return (
-              <span
-                data-float
-                data-critical="true"
-                title="On the critical path: any delay here moves the whole plan’s finish."
-              >
-                critical
+              <span data-start title={start.iso ?? undefined}>
+                {start.text}
               </span>
             );
-          }
-          const days = showDay(row.original.schedule.float);
-          return (
-            <span
-              data-float
-              title={`This work item can slip ${days} workday${days === '1' ? '' : 's'} before the plan finishes later.`}
-            >
-              {days}
+          },
+        }),
+        column.display({
+          id: 'finish',
+          header: () => <span title={live.current.startDateHint('earliest finish')}>End</span>,
+          cell: ({ row }) => {
+            const finish = live.current.spanOf(row.original).finish;
+            // Both facts in one `title`, because a cell has one: the day in full,
+            // and — where the figure is a guess — what the marker beside it means.
+            const said = [finish.iso, row.original.schedule.estimated ? null : 'No estimate yet']
+              .filter((part) => part !== null)
+              .join(' — ');
+            return (
+              <span data-finish title={said === '' ? undefined : said}>
+                {finish.text}
+                {live.current.hasSchedule() && !row.original.schedule.estimated ? ' ?' : ''}
+              </span>
+            );
+          },
+        }),
+        column.display({
+          id: 'float',
+          header: () => (
+            <span title="Days this work item can slip before the plan's end moves. A row marked critical has none: it is what sets the plan's finish.">
+              Slack
             </span>
-          );
-        },
-      }),
-      column.display({
-        id: 'actions',
-        header: () => <span aria-label="Row actions" />,
-        cell: ({ row }) => (
-          <ActionsMenu
-            number={row.original.number}
-            // Read through `live`, both of them, for the reason every other
-            // cell here reads its state that way: `columns` may depend on
-            // `roles` and `unfoldedRoles` and nothing else, or a click on one
-            // menu remounts every cell in the table.
-            open={live.current.openMenuRowId === row.original.id}
-            busy={live.current.busy}
-            onOpen={() => {
-              live.current.setOpenMenuRowId(row.original.id);
-            }}
-            onClose={() => {
-              // Only this row's own menu, so a menu that has already been
-              // replaced by another row's cannot close the new one on its way
-              // out.
-              live.current.setOpenMenuRowId((current) =>
-                current === row.original.id ? null : current,
+          ),
+          cell: ({ row }) => {
+            // A critical row has no slack to print, and the word that replaces
+            // the figure is not a figure: the attribute is what lets `styles.css`
+            // set it as a tag rather than as a number in the column's own type.
+            // One word, not the `— critical` it was: the column is 56px and the
+            // tag has to fit inside it, which the dash and the space did not.
+            // `plan-export.ts` has printed the bare word since it was written.
+            if (!live.current.hasSchedule()) {
+              return (
+                <span
+                  data-float
+                  title="No schedule could be worked out, so there is no slack to show."
+                >
+                  —
+                </span>
               );
-            }}
-            actions={[
-              {
-                id: 'duplicate',
-                // Offered on a frozen row as well, unlike Delete and unlike
-                // moving one: a freeze pins the number a row left the tool
-                // under, and the copy is given none. Copying is not moving.
-                label: 'Duplicate',
-                run: () => {
-                  void live.current.duplicateRow(row.original.id);
+            }
+            if (row.original.schedule.critical) {
+              return (
+                <span
+                  data-float
+                  data-critical="true"
+                  title="On the critical path: any delay here moves the whole plan’s finish."
+                >
+                  critical
+                </span>
+              );
+            }
+            const days = showDay(row.original.schedule.float);
+            return (
+              <span
+                data-float
+                title={`This work item can slip ${days} workday${days === '1' ? '' : 's'} before the plan finishes later.`}
+              >
+                {days}
+              </span>
+            );
+          },
+        }),
+        column.display({
+          id: 'actions',
+          header: () => <span aria-label="Row actions" />,
+          cell: ({ row }) => (
+            <ActionsMenu
+              number={row.original.number}
+              // Read through `live`, both of them, for the reason every other
+              // cell here reads its state that way: `columns` may depend on
+              // `roles` and `unfoldedRoles` and nothing else, or a click on one
+              // menu remounts every cell in the table.
+              open={live.current.openMenuRowId === row.original.id}
+              busy={live.current.busy}
+              onOpen={() => {
+                live.current.setOpenMenuRowId(row.original.id);
+              }}
+              onClose={() => {
+                // Only this row's own menu, so a menu that has already been
+                // replaced by another row's cannot close the new one on its way
+                // out.
+                live.current.setOpenMenuRowId((current) =>
+                  current === row.original.id ? null : current,
+                );
+              }}
+              actions={[
+                {
+                  id: 'duplicate',
+                  // Offered on a frozen row as well, unlike Delete and unlike
+                  // moving one: a freeze pins the number a row left the tool
+                  // under, and the copy is given none. Copying is not moving.
+                  label: 'Duplicate',
+                  run: () => {
+                    void live.current.duplicateRow(row.original.id);
+                  },
                 },
-              },
-              ...(row.original.frozenNumber === null
-                ? []
-                : [
-                    {
-                      id: 'unfreeze',
-                      label: 'Unfreeze',
-                      run: () => {
-                        void live.current.run(() => live.current.api.unfreeze(row.original.id));
-                      },
-                    },
-                  ]),
-              {
-                id: 'delete',
-                label: 'Delete',
-                // Present and refused on a frozen row rather than absent, and
-                // it carries the real `run` deliberately: an item whose action
-                // was stubbed out could not tell a working guard from a
-                // missing one. {@link RowAction.refusedBecause} is what stops
-                // it, and the test that watches it stop is the proof.
                 ...(row.original.frozenNumber === null
-                  ? {}
-                  : { refusedBecause: 'Frozen — unfreeze this row before deleting it' }),
-                run: () => {
-                  void live.current.deleteRow(row.original);
+                  ? []
+                  : [
+                      {
+                        id: 'unfreeze',
+                        label: 'Unfreeze',
+                        run: () => {
+                          void live.current.run(() => live.current.api.unfreeze(row.original.id));
+                        },
+                      },
+                    ]),
+                {
+                  id: 'delete',
+                  label: 'Delete',
+                  // Present and refused on a frozen row rather than absent, and
+                  // it carries the real `run` deliberately: an item whose action
+                  // was stubbed out could not tell a working guard from a
+                  // missing one. {@link RowAction.refusedBecause} is what stops
+                  // it, and the test that watches it stop is the proof.
+                  ...(row.original.frozenNumber === null
+                    ? {}
+                    : { refusedBecause: 'Frozen — unfreeze this row before deleting it' }),
+                  run: () => {
+                    void live.current.deleteRow(row.original);
+                  },
                 },
-              },
-            ]}
-          />
-        ),
-      }),
-    ]
-      // **The Tags column exists only where the deployment has a tag.**
-      //
-      // Not a preference and not a toggle: it is what pays for the column. The
-      // folded table has 29px of slack at 1280 and this column costs 120, so
-      // one on screen in every state would put a scrollbar under every
-      // two-phase plan on a laptop — see `CONDITIONAL_COLUMNS` in
-      // `table-frame.ts` for the exemption and what it names.
-      //
-      // Keyed on the **directory** rather than on this plan's rows, and that is
-      // the difference that makes it usable: a plan that has never been tagged
-      // still needs the cell to put a first tag in. What it is keyed on is
-      // somebody having made a tag at all, on the page the proposal says tags
-      // are made on.
-      .filter((each) => each.id !== 'tag' || tagsExist),
+              ]}
+            />
+          ),
+        }),
+      ]
+        // **The Tags column exists only where the deployment has a tag.**
+        //
+        // Not a preference and not a toggle: it is what pays for the column. The
+        // folded table has 29px of slack at 1280 and this column costs 120, so
+        // one on screen in every state would put a scrollbar under every
+        // two-phase plan on a laptop — see `CONDITIONAL_COLUMNS` in
+        // `table-frame.ts` for the exemption and what it names.
+        //
+        // Keyed on the **directory** rather than on this plan's rows, and that is
+        // the difference that makes it usable: a plan that has never been tagged
+        // still needs the cell to put a first tag in. What it is keyed on is
+        // somebody having made a tag at all, on the page the proposal says tags
+        // are made on.
+        .filter((each) => each.id !== 'tag' || tagsExist),
     // `roles` because a role's name is rendered in a header, and
     // `unfoldedRoles` because it decides which columns exist at all.
     // `flexRender` renders each `cell` function as a component type, so
