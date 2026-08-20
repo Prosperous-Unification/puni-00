@@ -1096,6 +1096,12 @@ export function barFacts(
     // because those three are one subject — whose people this bar is waiting
     // for — and the tags are a different one. Before the dates, because it is a
     // fact about *what this work is* and those are facts about when it runs.
+    //
+    // Proof: this line deleted, so the chart held the tags and said them
+    // nowhere — a dimension that exists everywhere else in the tool and not on
+    // the one surface a reader hovers to ask what a bar is. `1 failed | 132
+    // passed` in `gantt-panel.test.tsx`, on `expected [ '010 - Strip', …(6) ]
+    // to include 'Tags Compliance, Rework'`. Watched on h2puni, 2026-08-20.
     tagWords(bar.tags),
     `${spanWords(startDate, bar.start, bar.finish, today)} · ${durationWords(bar)}`,
     // A line of its own rather than a word tucked into the duration: the bar is

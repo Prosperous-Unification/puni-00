@@ -1722,6 +1722,12 @@ export function layOutGantt(plan: GanttPlan): GanttGeometry {
         // Straight off the row and into words. Deliberately **not** passed to
         // `floorWordsOf` above: that sentence says what is holding this bar up,
         // and a tag has never held anything up.
+        //
+        // Proof: this line replaced by `tags: { state: 'none' }` — the bar
+        // built, drawn and placed identically, saying only that the work is of
+        // no particular kind. `2 failed | 106 passed` in
+        // `gantt-geometry.test.ts`, on `expected { state: 'none' } to deeply
+        // equal { state: 'inherited', …(2) }`. Watched on h2puni, 2026-08-20.
         tags: row.tags,
         // The engine's own two numbers, carried rather than recomputed: the
         // width the dates were placed with and the effort they were placed
