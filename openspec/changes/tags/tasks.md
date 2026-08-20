@@ -63,15 +63,19 @@
 
 ## 6. The rest of fe-01
 
-- [ ] 6.1 The tag cell in `wbs-table.tsx` — a multi-select, independent of Teams.
+- [x] 6.1 The tag cell in `wbs-table.tsx` — chips with a ✕ each, plus a picker that adds one. No inline create: the proposal's non-goal, and the reason the column can be conditional at all.
 - [x] 6.2 `plan-cards.tsx`: the `↳` inherited chip, per dimension.
 - [x] 6.3 `plan-export.ts`: a `Tags` column, `; `-joined, RFC4180-quoted.
 - [ ] 6.4 `directory-page.tsx`: a Tags section beside Teams, **with no capacity
       column and no membership chips**. That absence is the model rule made
       visible.
 - [x] 6.5 `lib/wbs-api.ts`: `tagIds` on the wire types.
-- [ ] 6.6 The table-width budget rule — a new column has to be paid for or
-      exempted, and the exemption must name what it exempts.
+- [x] 6.6 The table-width budget rule — **exempted, and the exemption names
+      what it exempts**: `CONDITIONAL_COLUMNS` in `table-frame.ts` keeps `tag`
+      out of `FIXED_COLUMNS`, so `foldedTableMinWidth` answers exactly what it
+      did before this change. The column is rendered only where the deployment
+      has a tag vocabulary. Paying for it was not available: the folded table
+      has 29px of slack at 1280 and the column costs 120.
 
 ## 7. The empty diffs, asserted
 
