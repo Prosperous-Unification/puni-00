@@ -1248,6 +1248,7 @@ function renderCards(
       assigneeOn={() => null}
       waitsFor={() => []}
       teamLabel={() => ({ state: 'none' })}
+      tagLabel={() => ({ state: 'none' })}
       spanOf={() => ({ start: { text: '', iso: null }, finish: { text: '', iso: null } })}
       showDay={(days) => String(days)}
       rowActions={rowActions}
