@@ -190,7 +190,13 @@ h2puni cannot run.
   the column renders only where the deployment has a tag vocabulary. Design D7.
 - **`libs/domain` does not have an empty diff and the proposal was corrected
   rather than the claim quietly narrowed.** The scheduling surface does. Design
-  D3.
+  D3. **The migration comment was the one artifact that kept the retracted
+  claim** — `20260819120000_add_tag/migration.sql` still read "`libs/domain/**`
+  has an empty diff … nothing about a tag is a rule the two apps share" while the
+  same change added `effective-tag.ts` and `effective-label.ts` to that
+  directory. Caught in the main session's prod-mode review, 2026-08-20, and
+  corrected in place. A migration comment is the artifact that outlives every
+  other one here, so a claim it carries is the one worst placed to be stale.
 
 ## What this change deliberately does not prove
 

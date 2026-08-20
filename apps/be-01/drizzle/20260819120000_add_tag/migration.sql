@@ -16,8 +16,11 @@
 -- nothing anywhere can ask how many of a tag may run at once. `service/schedule.ts`
 -- has an empty diff in the change that adds these tables, and that is asserted
 -- rather than claimed — a test wires the scheduler to read a tag, watches every
--- downstream date move, and reverts. `libs/domain/**` has an empty diff for the
--- same reason: nothing about a tag is a rule the two apps share.
+-- downstream date move, and reverts. `libs/domain/**` does **not** have an empty
+-- diff and an earlier draft of this comment said it did: the inheritance rule is
+-- a rule the two apps share, so `effective-tag.ts` and the walk it and
+-- `effective-team.ts` now read live there. What a tag is absent from is the
+-- **scheduler**, not the shared library — design.md D3.
 --
 -- **Global, no project column** — `service_team`'s shape exactly. A label that
 -- meant one thing on one plan and another on the next would make the directory a
