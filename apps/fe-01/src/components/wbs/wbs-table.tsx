@@ -30,8 +30,8 @@ import type {
   AssignedPersonView,
   PersonView,
   PriorityBandView,
-  TeamCapacityView,
   TagView,
+  TeamCapacityView,
   TeamView,
 } from '@/lib/wbs-api';
 import {

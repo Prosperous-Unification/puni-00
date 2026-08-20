@@ -400,7 +400,9 @@ describe('the tag facet narrows like every other facet', () => {
       ids(narrowTree(INHERITED, asking({ tagIds: ['regulatory', 'tech-debt'] })).matchIds),
     ).toEqual(['a', 'a1', 'a11', 'b']);
     expect(
-      ids(narrowTree(INHERITED, asking({ tagIds: ['regulatory'], teamIds: ['platform'] })).matchIds),
+      ids(
+        narrowTree(INHERITED, asking({ tagIds: ['regulatory'], teamIds: ['platform'] })).matchIds,
+      ),
     ).toEqual([]);
   });
 
