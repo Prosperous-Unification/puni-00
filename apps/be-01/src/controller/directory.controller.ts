@@ -79,136 +79,137 @@ function answerRemoval(outcome: RemoveDirectoryOutcome, set: { status?: number |
  * list" cannot make two `Platform`s.
  */
 export function directoryController(auth: AuthService, directory: DirectoryService) {
-  return new Elysia({ prefix: '/api' })
-    .get('/teams', async ({ headers, set }) => {
-      const user = await userFromHeaders(auth, headers);
-      if (user === null) {
-        set.status = 401;
-        return { error: 'unauthenticated' };
-      }
-      return { teams: await directory.listTeams() };
-    })
-    .post(
-      '/teams',
-      async ({ body, headers, set }) => {
+  return (
+    new Elysia({ prefix: '/api' })
+      .get('/teams', async ({ headers, set }) => {
         const user = await userFromHeaders(auth, headers);
         if (user === null) {
           set.status = 401;
           return { error: 'unauthenticated' };
         }
-        const team = await directory.addTeam(body.name);
-        if (team === null) {
-          // A team called nothing helps nobody find anything, and it would sit
-          // in every picker for ever.
-          set.status = 422;
-          return { error: 'name_required' };
-        }
-        return { team };
-      },
-      { body: named },
-    )
-    .patch(
-      '/teams/:id',
-      async ({ params, body, headers, set }) => {
-        const user = await userFromHeaders(auth, headers);
-        if (user === null) {
-          set.status = 401;
-          return { error: 'unauthenticated' };
-        }
-        const outcome = await directory.renameTeam(params.id, body.name);
-        if (!outcome.ok) {
-          if (outcome.reason === 'taken') {
-            // The surviving name rides along because the caller has to say
-            // which `Platform` is on screen now, and a bare 409 cannot.
-            set.status = 409;
-            return { error: outcome.reason, name: outcome.name };
+        return { teams: await directory.listTeams() };
+      })
+      .post(
+        '/teams',
+        async ({ body, headers, set }) => {
+          const user = await userFromHeaders(auth, headers);
+          if (user === null) {
+            set.status = 401;
+            return { error: 'unauthenticated' };
           }
-          set.status = statusFor(outcome.reason);
-          return { error: outcome.reason };
-        }
-        return { team: outcome.result };
-      },
-      { body: named },
-    )
-    .get('/people', async ({ headers, set }) => {
-      const user = await userFromHeaders(auth, headers);
-      if (user === null) {
-        set.status = 401;
-        return { error: 'unauthenticated' };
-      }
-      return { people: await directory.listPeople() };
-    })
-    .post(
-      '/people',
-      async ({ body, headers, set }) => {
+          const team = await directory.addTeam(body.name);
+          if (team === null) {
+            // A team called nothing helps nobody find anything, and it would sit
+            // in every picker for ever.
+            set.status = 422;
+            return { error: 'name_required' };
+          }
+          return { team };
+        },
+        { body: named },
+      )
+      .patch(
+        '/teams/:id',
+        async ({ params, body, headers, set }) => {
+          const user = await userFromHeaders(auth, headers);
+          if (user === null) {
+            set.status = 401;
+            return { error: 'unauthenticated' };
+          }
+          const outcome = await directory.renameTeam(params.id, body.name);
+          if (!outcome.ok) {
+            if (outcome.reason === 'taken') {
+              // The surviving name rides along because the caller has to say
+              // which `Platform` is on screen now, and a bare 409 cannot.
+              set.status = 409;
+              return { error: outcome.reason, name: outcome.name };
+            }
+            set.status = statusFor(outcome.reason);
+            return { error: outcome.reason };
+          }
+          return { team: outcome.result };
+        },
+        { body: named },
+      )
+      .get('/people', async ({ headers, set }) => {
         const user = await userFromHeaders(auth, headers);
         if (user === null) {
           set.status = 401;
           return { error: 'unauthenticated' };
         }
-        // No teams is a free agent, which is the absence of memberships rather
-        // than membership of a magic row.
-        const outcome = await directory.addPerson(body.name, body.teamIds ?? []);
-        if (!outcome.ok) {
-          // `taken` cannot arrive here — adding is idempotent by name — but the
-          // outcome type carries it, and answering the same 409 the patch does
-          // is the only honest thing to do with it.
-          if (outcome.reason === 'taken') {
-            set.status = 409;
-            return { error: outcome.reason, name: outcome.name };
+        return { people: await directory.listPeople() };
+      })
+      .post(
+        '/people',
+        async ({ body, headers, set }) => {
+          const user = await userFromHeaders(auth, headers);
+          if (user === null) {
+            set.status = 401;
+            return { error: 'unauthenticated' };
           }
-          set.status = statusFor(outcome.reason);
-          return { error: outcome.reason };
-        }
-        return { person: outcome.result };
-      },
-      { body: newPerson },
-    )
-    .patch(
-      '/people/:id',
-      async ({ params, body, headers, set }) => {
+          // No teams is a free agent, which is the absence of memberships rather
+          // than membership of a magic row.
+          const outcome = await directory.addPerson(body.name, body.teamIds ?? []);
+          if (!outcome.ok) {
+            // `taken` cannot arrive here — adding is idempotent by name — but the
+            // outcome type carries it, and answering the same 409 the patch does
+            // is the only honest thing to do with it.
+            if (outcome.reason === 'taken') {
+              set.status = 409;
+              return { error: outcome.reason, name: outcome.name };
+            }
+            set.status = statusFor(outcome.reason);
+            return { error: outcome.reason };
+          }
+          return { person: outcome.result };
+        },
+        { body: newPerson },
+      )
+      .patch(
+        '/people/:id',
+        async ({ params, body, headers, set }) => {
+          const user = await userFromHeaders(auth, headers);
+          if (user === null) {
+            set.status = 401;
+            return { error: 'unauthenticated' };
+          }
+          // Spread rather than passed whole: an absent `teamIds` leaves the
+          // memberships alone and an empty one makes a free agent, and
+          // `{ teamIds: undefined }` would have to be told apart from the
+          // absence by every layer below.
+          const outcome = await directory.patchPerson(params.id, {
+            ...(body.name === undefined ? {} : { name: body.name }),
+            ...(body.teamIds === undefined ? {} : { teamIds: body.teamIds }),
+          });
+          if (!outcome.ok) {
+            if (outcome.reason === 'taken') {
+              set.status = 409;
+              return { error: outcome.reason, name: outcome.name };
+            }
+            set.status = statusFor(outcome.reason);
+            return { error: outcome.reason };
+          }
+          return { person: outcome.result };
+        },
+        { body: personPatch },
+      )
+      .delete('/people/:id', async ({ params, query, headers, set }) => {
         const user = await userFromHeaders(auth, headers);
         if (user === null) {
           set.status = 401;
           return { error: 'unauthenticated' };
         }
-        // Spread rather than passed whole: an absent `teamIds` leaves the
-        // memberships alone and an empty one makes a free agent, and
-        // `{ teamIds: undefined }` would have to be told apart from the
-        // absence by every layer below.
-        const outcome = await directory.patchPerson(params.id, {
-          ...(body.name === undefined ? {} : { name: body.name }),
-          ...(body.teamIds === undefined ? {} : { teamIds: body.teamIds }),
-        });
-        if (!outcome.ok) {
-          if (outcome.reason === 'taken') {
-            set.status = 409;
-            return { error: outcome.reason, name: outcome.name };
-          }
-          set.status = statusFor(outcome.reason);
-          return { error: outcome.reason };
+        return answerRemoval(await directory.removePerson(params.id, isCascade(query)), set);
+      })
+      .delete('/teams/:id', async ({ params, query, headers, set }) => {
+        const user = await userFromHeaders(auth, headers);
+        if (user === null) {
+          set.status = 401;
+          return { error: 'unauthenticated' };
         }
-        return { person: outcome.result };
-      },
-      { body: personPatch },
-    )
-    .delete('/people/:id', async ({ params, query, headers, set }) => {
-      const user = await userFromHeaders(auth, headers);
-      if (user === null) {
-        set.status = 401;
-        return { error: 'unauthenticated' };
-      }
-      return answerRemoval(await directory.removePerson(params.id, isCascade(query)), set);
-    })
-    .delete('/teams/:id', async ({ params, query, headers, set }) => {
-      const user = await userFromHeaders(auth, headers);
-      if (user === null) {
-        set.status = 401;
-        return { error: 'unauthenticated' };
-      }
-      return answerRemoval(await directory.removeTeam(params.id, isCascade(query)), set);
-    })
-    /*
+        return answerRemoval(await directory.removeTeam(params.id, isCascade(query)), set);
+      })
+      /*
       The tag routes, and they are the team routes with the capacity taken out.
       **Global — no project in the path and none in the query**, exactly as the
       teams are: a label that meant one thing on one plan and another on the next
@@ -218,67 +219,68 @@ export function directoryController(auth: AuthService, directory: DirectoryServi
       There is deliberately no membership route beside them. Nobody belongs to a
       tag, and the absence is the model rule rather than a gap to fill later.
     */
-    .get('/tags', async ({ headers, set }) => {
-      const user = await userFromHeaders(auth, headers);
-      if (user === null) {
-        set.status = 401;
-        return { error: 'unauthenticated' };
-      }
-      return { tags: await directory.listTags() };
-    })
-    .post(
-      '/tags',
-      async ({ body, headers, set }) => {
+      .get('/tags', async ({ headers, set }) => {
         const user = await userFromHeaders(auth, headers);
         if (user === null) {
           set.status = 401;
           return { error: 'unauthenticated' };
         }
-        const tag = await directory.addTag(body.name);
-        if (tag === null) {
-          // A tag called nothing helps nobody find anything, and it would sit in
-          // every picker for ever — `/teams`' 422, one dimension over.
-          set.status = 422;
-          return { error: 'name_required' };
-        }
-        return { tag };
-      },
-      { body: named },
-    )
-    .patch(
-      '/tags/:id',
-      async ({ params, body, headers, set }) => {
-        const user = await userFromHeaders(auth, headers);
-        if (user === null) {
-          set.status = 401;
-          return { error: 'unauthenticated' };
-        }
-        const outcome = await directory.renameTag(params.id, body.name);
-        if (!outcome.ok) {
-          if (outcome.reason === 'taken') {
-            // The surviving name rides along for `/teams/:id`'s reason: the
-            // caller has to say which `regulatory` is on screen now, and a bare
-            // 409 cannot.
-            set.status = 409;
-            return { error: outcome.reason, name: outcome.name };
+        return { tags: await directory.listTags() };
+      })
+      .post(
+        '/tags',
+        async ({ body, headers, set }) => {
+          const user = await userFromHeaders(auth, headers);
+          if (user === null) {
+            set.status = 401;
+            return { error: 'unauthenticated' };
           }
-          set.status = statusFor(outcome.reason);
-          return { error: outcome.reason };
+          const tag = await directory.addTag(body.name);
+          if (tag === null) {
+            // A tag called nothing helps nobody find anything, and it would sit in
+            // every picker for ever — `/teams`' 422, one dimension over.
+            set.status = 422;
+            return { error: 'name_required' };
+          }
+          return { tag };
+        },
+        { body: named },
+      )
+      .patch(
+        '/tags/:id',
+        async ({ params, body, headers, set }) => {
+          const user = await userFromHeaders(auth, headers);
+          if (user === null) {
+            set.status = 401;
+            return { error: 'unauthenticated' };
+          }
+          const outcome = await directory.renameTag(params.id, body.name);
+          if (!outcome.ok) {
+            if (outcome.reason === 'taken') {
+              // The surviving name rides along for `/teams/:id`'s reason: the
+              // caller has to say which `regulatory` is on screen now, and a bare
+              // 409 cannot.
+              set.status = 409;
+              return { error: outcome.reason, name: outcome.name };
+            }
+            set.status = statusFor(outcome.reason);
+            return { error: outcome.reason };
+          }
+          return { tag: outcome.result };
+        },
+        { body: named },
+      )
+      .delete('/tags/:id', async ({ params, query, headers, set }) => {
+        const user = await userFromHeaders(auth, headers);
+        if (user === null) {
+          set.status = 401;
+          return { error: 'unauthenticated' };
         }
-        return { tag: outcome.result };
-      },
-      { body: named },
-    )
-    .delete('/tags/:id', async ({ params, query, headers, set }) => {
-      const user = await userFromHeaders(auth, headers);
-      if (user === null) {
-        set.status = 401;
-        return { error: 'unauthenticated' };
-      }
-      // The same 409-then-`?cascade=1` shape every directory removal has. What
-      // the confirmation lists is `label_removed` per work item and nothing
-      // else: no capacity is released and no date moves, which is asserted in
-      // `tags`' verify.md rather than claimed here.
-      return answerRemoval(await directory.removeTag(params.id, isCascade(query)), set);
-    });
+        // The same 409-then-`?cascade=1` shape every directory removal has. What
+        // the confirmation lists is `label_removed` per work item and nothing
+        // else: no capacity is released and no date moves, which is asserted in
+        // `tags`' verify.md rather than claimed here.
+        return answerRemoval(await directory.removeTag(params.id, isCascade(query)), set);
+      })
+  );
 }

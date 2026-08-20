@@ -924,10 +924,7 @@ describe('removing a tag: what it names, and what it cannot move', () => {
     // has stays where it was. So the confirmation names the row that carries the
     // label, and no others.
     const regulatory = await tagged('regulatory');
-    await workItems.insert(
-      { ...newItem('cladding', 30, 'Cladding'), parentId: 'design' },
-      [],
-    );
+    await workItems.insert({ ...newItem('cladding', 30, 'Cladding'), parentId: 'design' }, []);
     await workItems.patch('design', { tagIds: [regulatory.id] });
 
     const outcome = await directory.removeTag(regulatory.id, false);
@@ -961,10 +958,7 @@ describe('removing a tag: what it names, and what it cannot move', () => {
     const outcome = await directory.renameTag(techDebt.id, 'regulatory');
 
     expect(outcome).toEqual({ ok: false, reason: 'taken', name: 'regulatory' });
-    expect((await store.listTags()).map((each) => each.name)).toEqual([
-      'regulatory',
-      'tech-debt',
-    ]);
+    expect((await store.listTags()).map((each) => each.name)).toEqual(['regulatory', 'tech-debt']);
   });
 
   it('adds a tag idempotently by name, trimming what it is given', async () => {

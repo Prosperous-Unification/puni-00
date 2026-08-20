@@ -219,9 +219,7 @@ export function directoryUsageOfPerson(rows: DirectoryUsageRows, personId: strin
  * reader of `tagIds[0]` would report nothing at all for the second of them.
  */
 export function directoryUsageOfTag(rows: DirectoryUsageRows, tagId: string): DirectoryUsage {
-  return usageFrom(rows, (row) =>
-    row.tagIds.includes(tagId) ? [{ kind: 'label_removed' }] : [],
-  );
+  return usageFrom(rows, (row) => (row.tagIds.includes(tagId) ? [{ kind: 'label_removed' }] : []));
 }
 
 /**
