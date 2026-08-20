@@ -1,12 +1,22 @@
 import { beforeEach, describe, expect, it } from 'bun:test';
 
-import type { EstimateStore, Project, ProjectStore, WorkItemStore } from '../repository';
+import type {
+  ActualStore,
+  EstimateStore,
+  Project,
+  ProjectStore,
+  RoleProgressStore,
+  WorkItemStore,
+} from '../repository';
+import { inMemoryActuals } from '../testing/actual-fixture';
 import { type RecordingBroadcaster, recordingBroadcaster } from '../testing/broadcast-fixture';
 import { inMemoryCapacity } from '../testing/capacity-fixture';
 import { inMemoryCommandJournal } from '../testing/command-journal-fixture';
 import { inMemoryDependencies } from '../testing/dependency-fixture';
 import { inMemoryDirectory } from '../testing/directory-fixture';
 import { inMemoryEstimates } from '../testing/estimate-fixture';
+import { inMemoryPriorityBands } from '../testing/priority-band-fixture';
+import { inMemoryProgress } from '../testing/progress-fixture';
 import { inMemoryProjects } from '../testing/project-fixture';
 import { inMemoryWorkItems } from '../testing/work-item-fixture';
 import { deriveNumbers } from './derive-numbers';
@@ -17,6 +27,8 @@ const OWNER = 'owner-account';
 let projects: ProjectStore;
 let workItems: WorkItemStore;
 let estimates: EstimateStore;
+let actuals: ActualStore;
+let progress: RoleProgressStore;
 let broadcast: RecordingBroadcaster;
 let service: WorkItemService;
 let projectId: string;
@@ -44,14 +56,19 @@ beforeEach(async () => {
   projects = inMemoryProjects();
   workItems = inMemoryWorkItems();
   estimates = inMemoryEstimates(workItems);
+  actuals = inMemoryActuals(workItems);
+  progress = inMemoryProgress(workItems);
   broadcast = recordingBroadcaster();
   service = new WorkItemService({
     workItems,
     projects,
     estimates,
+    actuals,
+    progress,
     dependencies: inMemoryDependencies(),
     directory: inMemoryDirectory(),
     capacity: inMemoryCapacity(),
+    priorityBands: inMemoryPriorityBands(),
     journal: inMemoryCommandJournal(),
     broadcast,
   });

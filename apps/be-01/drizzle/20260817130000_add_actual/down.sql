@@ -1,0 +1,35 @@
+-- Reverses 20260817130000_add_actual.
+--
+-- Dropping this loses every day anybody recorded as spent, and the loss is
+-- total: an actual is typed by a person after the work happened and is derived
+-- from nothing. `plan_event` holds the `actual` and `clear_actual` commands that
+-- wrote them — H1's history — so a plan's actuals could in principle be read
+-- back out of its events by hand, but only for as long as retention keeps them
+-- (365 days) and only for events written after H1 shipped. Nothing replays them,
+-- and this rollback does not try.
+--
+-- **No date moves, either way.** The scheduler reads work items, estimates,
+-- dependencies, capacity and the calendar; it does not read this table, and
+-- nothing writes to those tables on its behalf. A plan scheduled against a
+-- database with this table and the same plan after this rollback come out
+-- identical — asserted by replaying the identity corpus in
+-- `service/live-plan-identity.test.ts` rather than claimed here.
+--
+-- Estimates are untouched. The two tables share a key shape and nothing else:
+-- no write to `actual` has ever written to `estimate`, so a plan that loses its
+-- actuals still holds every trio anybody typed, and every figure the plan is
+-- committed against survives this.
+--
+-- Undo and redo are unaffected in shape and lossy in one arm, which is worth
+-- saying plainly: `command_journal` is not touched, so every entry stays
+-- pressable, but an entry whose command is `set_actual` or `clear_actual` names
+-- a table that is no longer there and fails when applied. That is the same
+-- position every rollback of an additive migration leaves its own kinds in.
+--
+-- The index goes with the table it is on. Both statements run solely when the
+-- release that added them is being taken away — a forward migration in this repo
+-- is additive so blue and green can share one file mid-swap, and reversing an
+-- additive change is destructive by definition, which is why it lives here and
+-- not there.
+DROP INDEX IF EXISTS `actual_by_role`;--> statement-breakpoint
+DROP TABLE IF EXISTS `actual`;

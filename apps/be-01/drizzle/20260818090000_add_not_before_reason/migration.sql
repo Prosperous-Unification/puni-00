@@ -1,0 +1,85 @@
+-- Why a work item is held back, beside the date that holds it.
+--
+-- `start_no_earlier_than` has carried the **when** since 2026-08-06. This
+-- column carries the **why**, and it carries nothing else: no state, no flag,
+-- no propagation, and no date of its own. A row reading *"2026-09-12, waiting
+-- on client sign-off"* is one floor with a sentence attached, not two facts
+-- about being held.
+--
+-- **This is what was built instead of a `blocked` state.** Dany, 2026-08-18:
+-- *"Yeah let's not do blocked."* The argument is recorded in the workspace's
+-- `notes/decisions.md` and it is the argument that shaped this column. The
+-- engine already models being held back four ways — a dependency anchor, an
+-- assignee's queue, a team's pool and this floor — and the chart already names
+-- which of them binds each bar, so a manual `blocked` would be a second
+-- vocabulary for one picture. It only moves a date if it carries an until-date,
+-- and blocked-with-a-date **is** this column. The one thing missing was why, so
+-- that is the only thing added.
+--
+-- Nothing clears a state, which is the other half of why `blocked` was refused:
+-- work does not un-block itself in a database, so a flag goes stale and a plan
+-- reads *stopped* about something that shipped last week. This column cannot go
+-- stale on its own terms, because it is only ever read where its date is: the
+-- bar says it when the not-before is the **binding** floor, and the cell prints
+-- it beside the date. A date that has passed stops binding anything, and its
+-- words stop being shown with it.
+--
+-- **No date moves, in either direction.** `service/schedule.ts` has an empty
+-- diff in the change that adds this — checked, and stated as a checked claim in
+-- verify.md — and F1 is the watched red for it: the engine wired to read this
+-- column, every downstream date moving, reverted. What the scheduler reads is
+-- the date one column over, exactly as it did before this existed.
+--
+-- **Nullable, no default, and that is what makes it additive.** Blue and green
+-- share one SQLite file mid-swap and the outgoing release's `INSERT INTO
+-- work_item (...)` does not name this column, so every row it writes gets NULL
+-- — which reads as "nobody gave a reason", the same thing every row on the
+-- server means today. `role.position`'s argument and `role.position`'s watched
+-- proof, one table over. There is nothing to seed and nothing that could be
+-- seeded: a reason is somebody's sentence, and inventing one would be the tool
+-- putting words in a planner's mouth.
+--
+-- **A reason with no date is refused — and deliberately NOT by a CHECK.** The
+-- invariant is real (`isOrphanedNotBeforeReason` in `@wbs/domain`: words with
+-- no floor to be words about are words no surface shows and nothing clears,
+-- which is the `blocked`-with-no-date shape this feature exists instead of),
+-- and the obvious place for it is a `CHECK (start_no_earlier_than_reason IS
+-- NULL OR start_no_earlier_than IS NOT NULL)` beside `role_progress_state`,
+-- which is exactly what `role_progress` did one migration ago.
+--
+-- It is refused here because the argument that made it safe there does not hold
+-- here, and the difference is one sentence: **the outgoing release writes this
+-- table.** `role_progress` is a table blue has never heard of and never writes
+-- to, so a `CHECK` on it cannot be reached by blue. `work_item` is a table blue
+-- `UPDATE`s on every edit, and `UPDATE work_item SET start_no_earlier_than =
+-- NULL` — clearing a not-before, a statement blue runs today — against a row
+-- green has given a reason would fail a constraint blue cannot see and answer
+-- 500, for the length of the swap window, on a request whose only fault is
+-- being served by the old colour. The invariant lives at the write boundary
+-- instead (`WorkItemStore.patch`, inside the same transaction as the `UPDATE`,
+-- so the check and the write cannot be pulled apart), and F5 is its watched
+-- red.
+--
+-- What that costs, stated rather than glossed: a hand-edit or a future writer
+-- that bypasses the repository can put a reason on a row with no date. What it
+-- would do is nothing visible — no bar is floored by a date that is not there,
+-- so no floor sentence carries it, and the cell prints it beside an empty date.
+-- Invisible text is a smaller fault than a 500 mid-swap, and that is the trade
+-- this column takes.
+--
+-- **Length is bounded at the boundary, not here.** `LONGEST_NOT_BEFORE_REASON`
+-- (200) is checked in `work-item.controller.ts`, which is the only way a value
+-- enters. SQLite's `text` has no length and a `CHECK (length(...) <= 200)` would
+-- be reachable by blue for the same reason above — and unlike the pair rule, it
+-- would fire on a value blue never wrote.
+--
+-- **Stamped 20260818090000, later than every folder on main.** Checked against
+-- all twenty before this folder was created — `ls apps/be-01/drizzle | sed
+-- 's/_.*//' | sort | uniq -d` was silent — and checked mechanically by
+-- `duplicateMigrationStamps` in `migrate-down.ts`, which throws where the
+-- folders are read. Two migrations shared `20260814100000` on 2026-08-14;
+-- `migrationsToRollback` filters on a strict `created_at >`, so rolling back
+-- *to* either of a colliding pair reversed nothing at all, silently, with both
+-- tables still standing. There is deliberately no `drizzle/meta/_journal.json`
+-- in this repo and none was added.
+ALTER TABLE `work_item` ADD `start_no_earlier_than_reason` text;

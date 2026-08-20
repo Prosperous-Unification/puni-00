@@ -7,9 +7,11 @@ import { type Box, findOverlap, findOverrun } from '../src/components/wbs/box-ge
 import { shortIsoDate } from '../src/components/wbs/short-date';
 import {
   DAY_ENVELOPE,
+  FIXED_COLUMNS,
   FLEXIBLE_CAP,
   FLEXIBLE_COLUMNS,
   FLEXIBLE_FLOOR,
+  foldedTableMinWidth,
   frameLayout,
   type FrameLayoutState,
   hierarchyIndentFor,
@@ -255,14 +257,35 @@ async function openEarliestStart(page: Page): Promise<void> {
 const ENVELOPE_NUMBER = '030.1';
 
 /**
- * And the nearest number past it: one level deeper, which is the tightest case
- * the clip has to hold for — anything deeper only overruns further.
+ * And the nearest number the column cannot draw whole: the tightest case the
+ * clip has to hold for — anything deeper only overruns further.
  *
  * Depth is only one of the three ways be-01 grows a number past the envelope —
  * a group past nine siblings and an insertion against a frozen anchor are the
  * others — and it is the one a browser can build in five keystrokes.
+ *
+ * **`030.1.1` → `030.1.1.1.1.1.1` in `number-column-widen`, 2026-08-16.** The
+ * declared envelope ({@link NUMBER_ENVELOPE}, two levels) did not move, but
+ * 93 → 105 in `COLUMN_WIDTHS` means the column draws three levels past it
+ * whole — so `030.1.1` no longer clips, and the test below failed in CI on
+ * `expect(overrun.clipped).toBe(true)` (run 31966615755, `pixels`, the only
+ * red in 174). That the envelope is a floor rather than a ceiling is the
+ * point: drawing *more* than the two guaranteed levels was never a violation,
+ * and this fixture was only ever the nearest overrun at the width of the day.
+ *
+ * **This is no longer the *nearest* overrun, and that is a real weakening.**
+ * The nearest is one of depth 6 or depth 7 and the two guards below do not
+ * separate them: `two rows a level apart … at depth 5 and 6` proves depth 5
+ * draws whole and depth 6 draws strictly more than depth 5, which leaves depth
+ * 6 either whole or clipped by one character. What *is* proven is depth 7:
+ * `the break moves to depth 6 and 7` has depth 6 and depth 7 showing the same
+ * string, and depth 7's number is two characters longer than depth 6's, so
+ * depth 7 cannot be whole. Depth 7 is therefore the deepest fixture
+ * {@link seedDeepBranch} builds and the shallowest one this branch can assert
+ * is clipped without a browser run it did not get. Narrowing it to the true
+ * boundary wants one watched run and is left undone deliberately.
  */
-const PAST_ENVELOPE_NUMBER = '030.1.1';
+const PAST_ENVELOPE_NUMBER = '030.1.1.1.1.1.1';
 
 /**
  * Builds a branch five levels deep under the third root.
@@ -359,6 +382,25 @@ function numberCellNeeds(page: Page, number: string): Promise<NumberCell> {
  * {@link seedDeepBranch}.
  */
 const CLIPPED_PAIR = ['030.1.1.1', '030.1.1.1.1'] as const;
+
+/**
+ * The pair one level along, at the depth `table-width-budget` (#62) found
+ * still reading identically after `table-mechanics` fixed {@link CLIPPED_PAIR}:
+ * `030.1.1.1.1` and `030.1.1.1.1.1` both drew `030.1.1.1.` inside the 93px
+ * column. `number-column-widen` (93 → 105 in `COLUMN_WIDTHS`) buys this pair
+ * back the same way `table-mechanics` bought the shallower one. Both are
+ * built by {@link seedDeepBranch}.
+ */
+const DEEPER_CLIPPED_PAIR = ['030.1.1.1.1', '030.1.1.1.1.1'] as const;
+
+/**
+ * And the pair past *that* — design.md D4's stated cost of widening one
+ * `INDENT_STEP` rather than eliding from the head: it buys exactly one level,
+ * so the break returns here. Not a defect this change owes a fix for; the
+ * test below watches it stay broken on purpose, so a future widening cannot
+ * silently assume it closed the fault instead of moving it.
+ */
+const DEEPEST_CLIPPED_PAIR = ['030.1.1.1.1.1', '030.1.1.1.1.1.1'] as const;
 
 /** What a Number cell actually shows of its number, and what it keeps back. */
 interface VisibleNumber {
@@ -1516,10 +1558,163 @@ test.describe('the table, measured by a browser', () => {
     await expect(page.getByLabel('Name of 020')).toBeFocused();
   });
 
+  test('holds the folded budget at 1280, and says where it stops', async ({ page }) => {
+    // D14's own question, and the one nothing in this repository had ever
+    // asked: at 1280, how many folded phases fit before the frame scrolls?
+    //
+    // The 2026-08-14 cloud regression answered it from the markup and got it
+    // wrong, because the `<table>` carries **two** width declarations and only
+    // one of them is a floor. `tableWidthStyle` writes
+    // `width: min(100%, maxWidth)` — every declared column plus
+    // `FLEXIBLE_CAP`, where the table stops growing — and `min-width: minWidth`
+    // — the same columns plus `FLEXIBLE_FLOOR`, where the frame starts
+    // scrolling. They differ by 220px, and reading the first as the second
+    // reports a table 220px wider than the one that has to fit. So this test
+    // reads both, names which is which, and then ignores both in favour of the
+    // only thing that answers the question: the frame's own overflow.
+    //
+    // Every figure is re-derived through `foldedTableMinWidth`, never written
+    // out — a column that changes width changes this test in the same commit,
+    // which is the whole reason that function lives in `table-frame.ts` rather
+    // than as arithmetic in the Phases dialog.
+    //
+    // Proof, twice, and neither could be reasoned:
+    //
+    // 1. `tableWidthStyle`'s `width` arm fed `layout.minWidth` instead of
+    //    `layout.maxWidth` — the shape the world would have to have for the
+    //    regression's reading to be right — and this failed on
+    //    `the declared width is the cap, not the floor: expected 'min(100%,
+    //    1219px)' to be 'min(100%, 1439px)'`, with every scroll assertion in
+    //    it still green. Watched on h2puni, 2026-08-14 (fault F1).
+    // 2. `['in-parallel', 32]` widened by 32px, which is the fault the P2
+    //    alleged — the budget really blown: this failed on `two folded phases
+    //    fit a 1280 laptop: expected 1251 to be less than or equal to 1248`.
+    //    Watched on h2puni, 2026-08-14 (fault F2).
+    //
+    //    **The injection had to be 32px and not the 16 first tried**, and that
+    //    is worth more than the row it fills in: with the column at the 48 the
+    //    capacity plan originally drew, the two-phase floor is 1235 against
+    //    1248 and **nothing scrolls** — watched passing. The folded table has
+    //    29px of slack at 1280 today, not none, and every figure in the
+    //    2026-08-14 report is inside it.
+    const roleIdsOnScreen = async (): Promise<string[]> =>
+      page.evaluate(() =>
+        [...document.querySelectorAll('thead th[data-column]')]
+          .map((header) => header.getAttribute('data-column') ?? '')
+          .filter((id) => id.endsWith('-final'))
+          .map((id) => id.slice(0, -'-final'.length)),
+      );
+    /** The table's two declarations and the frame's overflow, in one read. */
+    const budget = async (): Promise<{
+      declaredWidth: string;
+      declaredMinWidth: string;
+      frameScrollWidth: number;
+      frameClientWidth: number;
+    }> =>
+      page.evaluate(() => {
+        const table = document.querySelector('table[data-grid]');
+        const frame = document.querySelector('[data-table-frame]');
+        if (!(table instanceof HTMLElement) || frame === null) {
+          throw new Error('the plan table is not on the page');
+        }
+        return {
+          declaredWidth: table.style.width,
+          declaredMinWidth: table.style.minWidth,
+          frameScrollWidth: frame.scrollWidth,
+          frameClientWidth: frame.clientWidth,
+        };
+      });
+
+    await page.setViewportSize({ width: 1280, height: 800 });
+
+    // Two, which is what a new project has and what D14's 1219px figure is
+    // about.
+    const twoPhases = await roleIdsOnScreen();
+    expect(twoPhases).toHaveLength(2);
+    const two = await budget();
+    expect(two.declaredMinWidth).toBe(`${String(foldedTableMinWidth(twoPhases, SEEDED_PLAN))}px`);
+    expect(two.declaredWidth, 'the declared width is the cap, not the floor').toBe(
+      `min(100%, ${String(frameLayout([...FIXED_COLUMNS, ...FLEXIBLE_COLUMNS, ...twoPhases.map((id) => `${id}-final`)], SEEDED_PLAN).maxWidth)}px)`,
+    );
+    // And the two really are different numbers, or the assertion above and the
+    // one below are the same assertion written twice.
+    expect(two.declaredWidth).not.toContain(two.declaredMinWidth);
+    expect(two.frameScrollWidth, 'two folded phases fit a 1280 laptop').toBeLessThanOrEqual(
+      two.frameClientWidth,
+    );
+
+    // Three, which is the state D14 says already scrolled — and nothing had
+    // ever watched scroll.
+    await page.getByRole('button', { name: 'Phases', exact: true }).click();
+    await page.getByLabel('New phase').fill('Design');
+    await page.getByRole('button', { name: 'Add phase' }).click();
+    await expect(page.getByRole('button', { name: 'Remove Design' })).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('button', { name: 'Unfold Design estimates' })).toBeVisible();
+
+    const threePhases = await roleIdsOnScreen();
+    expect(threePhases).toHaveLength(3);
+    const three = await budget();
+    expect(three.declaredMinWidth).toBe(
+      `${String(foldedTableMinWidth(threePhases, SEEDED_PLAN))}px`,
+    );
+    expect(three.frameScrollWidth, 'three folded phases must scroll a 1280 laptop').toBeGreaterThan(
+      three.frameClientWidth,
+    );
+    // And the pins hold the edge once it does, which is what they are the
+    // backstop for. Measured at this viewport rather than at `NARROW`, because
+    // the claim is about the state a reader really reaches — and scrolled to
+    // the frame's **own** maximum, which at 1280 with three phases is 67px.
+    // `SCROLLED`'s 150 is a figure from a 900px window and would leave the
+    // frame at 67 with `scrollFrameTo` refusing it, which is that helper doing
+    // exactly its job.
+    const overhang = three.frameScrollWidth - three.frameClientWidth;
+    expect(overhang).toBeGreaterThan(0);
+    await scrollFrameTo(page, overhang);
+    expect(await measuredLefts(page, PINNED_IDS)).toEqual({
+      drag: declaredLeft('drag'),
+      number: declaredLeft('number'),
+      name: declaredLeft('name'),
+    });
+    await scrollFrameTo(page, 0);
+
+    // One, which is the case the regression said no longer fits. It has the
+    // most room of the three.
+    for (const phase of ['Design', 'QA']) {
+      await page.getByRole('button', { name: 'Phases', exact: true }).click();
+      await expect(page.getByRole('dialog')).toBeVisible();
+      // No estimate stands on either of these two — `seedPlan` estimates Dev
+      // alone — so each removal is one press with no cascade to confirm.
+      await page.getByRole('button', { name: `Remove ${phase}` }).click();
+      await expect(page.getByRole('button', { name: `Remove ${phase}` })).toHaveCount(0);
+      await page.keyboard.press('Escape');
+      await expect(page.getByRole('dialog')).toHaveCount(0);
+    }
+    const onePhase = await roleIdsOnScreen();
+    expect(onePhase).toHaveLength(1);
+    const one = await budget();
+    expect(one.declaredMinWidth).toBe(`${String(foldedTableMinWidth(onePhase, SEEDED_PLAN))}px`);
+    expect(
+      one.frameScrollWidth,
+      'one folded phase fits a 1280 laptop with room to spare',
+    ).toBeLessThanOrEqual(one.frameClientWidth);
+
+    // The boundary itself, stated as the relation rather than as three
+    // literals: each phase costs one folded column, the floors go up in that
+    // step, and the frame is between the second and the third.
+    const floors = [onePhase, twoPhases, threePhases].map((ids) =>
+      foldedTableMinWidth(ids, SEEDED_PLAN),
+    );
+    expect(floors[1] - floors[0]).toBe(floors[2] - floors[1]);
+    expect(floors[1]).toBeLessThanOrEqual(one.frameClientWidth);
+    expect(floors[2]).toBeGreaterThan(one.frameClientWidth);
+  });
+
   test('fits every laptop width with the roles folded', async ({ page }) => {
     // The state a plan is read in, and the one R6 is actually about: two roles
-    // folded is 827px of fixed columns plus two 96px roles plus Name's 200
-    // floor — 1219px — so both of these have room to spare.
+    // folded is 839px of fixed columns (827 → 839 in `number-column-widen`,
+    // 93 → 105 in `COLUMN_WIDTHS`) plus two 96px roles plus Name's 200
+    // floor — 1231px — so both of these have room to spare.
     for (const viewport of VIEWPORTS) {
       await page.setViewportSize({ width: viewport.width, height: viewport.height });
       const measured = await measure(page);
@@ -1728,8 +1923,10 @@ test.describe('the table, measured by a browser', () => {
   test('opens every role at once, scrolls the frame for it, and holds the pinned block', async ({
     page,
   }) => {
-    // `unfolding-may-scroll`, measured: two roles open is 1723px of table, and
-    // there is no laptop in the matrix it fits. The accordion existed to make
+    // `unfolding-may-scroll`, measured: two roles open is 1735px of table
+    // (1723 → 1735 in `number-column-widen`, 93 → 105 in `COLUMN_WIDTHS`),
+    // and there is no laptop in the matrix it fits. The accordion existed to
+    // make
     // that state unreachable; Dany's U3 accepts it instead, and what has to
     // hold is that the frame — never the page — is what scrolls, and that the
     // three pinned columns still stand at their declared offsets once it has.
@@ -1948,10 +2145,11 @@ test.describe('the table, measured by a browser', () => {
   test('scrolls the frame below the table’s minimum, with the name still pinned', async ({
     page,
   }) => {
-    // The backstop, at a width no laptop has: the table cannot be 1219px wide
+    // The backstop, at a width no laptop has: the table cannot be 1231px wide
     // in a 900px window, so the frame scrolls and the three identity columns
-    // hold the left edge — Name at 117, the sum of the two fixed columns in
-    // front of it, while it is scrolling.
+    // hold the left edge — Name at 129, the sum of the two fixed columns in
+    // front of it, while it is scrolling. 1219 → 1231 and 117 → 129 in
+    // `number-column-widen` (93 → 105 in `COLUMN_WIDTHS`).
     await page.setViewportSize(NARROW);
     const measured = await measure(page);
     expect(equationFor(measured)).toBeGreaterThan(measured.frame.clientWidth);
@@ -1968,10 +2166,10 @@ test.describe('the table, measured by a browser', () => {
       number: declaredLeft('number'),
       name: declaredLeft('name'),
     });
-    // Written out as well as derived, because 117 is the number the change is
+    // Written out as well as derived, because 129 is the number the change is
     // judged by and a geometry that agreed with itself about 0 would satisfy
     // the comparison above.
-    expect(declaredLeft('name')).toBe(117);
+    expect(declaredLeft('name')).toBe(129);
   });
 
   test('keeps the page from scrolling sideways at 125% zoom', async ({ page }) => {
@@ -2276,11 +2474,15 @@ test.describe('the table, measured by a browser', () => {
     // The 92.5625 above is a **2026-08-10** figure, taken while the grid body
     // was the page's 16px. At this change's 13px the same cell needs 75.53
     // (measured in Chromium on h2puni, 2026-08-12), so what this assertion
-    // pins today is `93 >= 75.53` and it would still pass with the column at
-    // 76. That slack is the type change and nothing else, and narrowing the
-    // column is a stated non-goal — but the guard against a *future*
-    // accidental narrowing is 17px looser than the proof line reads, which is
-    // the reason this paragraph exists.
+    // pinned then was `93 >= 75.53`.
+    //
+    // **93 → 105 in `number-column-widen`, 2026-08-16.** The envelope's
+    // *contract* (`NUMBER_ENVELOPE_LEVELS`, two levels) did not move; the
+    // declared width did, to buy back the room `table-width-budget` (#62)
+    // found spent at depth 5 — see `two rows a level apart read as two
+    // different numbers, at depth 5 and 6` below. What this assertion pins
+    // today is `105 >= 75.53`, looser again — narrowing the column is still a
+    // stated non-goal, not a guard this test enforces.
     await seedDeepBranch(page);
     const envelope = page.getByLabel(`Name of ${ENVELOPE_NUMBER}`, { exact: true });
     await expect(envelope).toBeVisible();
@@ -2397,6 +2599,81 @@ test.describe('the table, measured by a browser', () => {
     // clip bargain owes and the half this fix must not have spent.
     expect(shallow.title).toBe(CLIPPED_PAIR[0]);
     expect(deep.title).toBe(CLIPPED_PAIR[1]);
+  });
+
+  test('two rows a level apart read as two different numbers, at depth 5 and 6', async ({
+    page,
+  }) => {
+    // `table-width-budget` (#62), 2026-08-14: reading the visible prefix
+    // character by character found the depth-4 fix's own guarantee bought by
+    // a single `.` — `030.1.1.1.1` and `030.1.1.1.1.1` both drew
+    // `030.1.1.1.` inside the 93px column, one level past where
+    // `table-mechanics` had already fixed the same fault. `number-column-widen`
+    // widens `['number', 93]` to 105 — one `INDENT_STEP` — which design.md D4
+    // states buys exactly one level.
+    //
+    // Proof: at `COLUMN_WIDTHS`'s `['number', 93]`, this fails the way the
+    // test above already watches at depth 4 — `DEEPER_CLIPPED_PAIR`'s two
+    // rows both draw `030.1.1.1.` and the assertion below reads `expected
+    // '030.1.1.1.' to not be '030.1.1.1.'` — reasoned from #62's own
+    // character-by-character measurement rather than separately re-run,
+    // because the geometry it measured is exactly this pair's.
+    await seedDeepBranch(page);
+    const deeper = page.getByLabel(`Name of ${DEEPER_CLIPPED_PAIR[1]}`, { exact: true });
+    await expect(deeper).toBeVisible();
+    expect(DEEPER_CLIPPED_PAIR[1].startsWith(`${DEEPER_CLIPPED_PAIR[0]}.`)).toBe(true);
+    expect(DEEPER_CLIPPED_PAIR[0].split('.').length).toBe(5);
+
+    await page.getByRole('button', { name: 'Freeze numbering' }).click();
+    await expect(page.getByLabel('Number is frozen').first()).toBeVisible();
+
+    const [shallow, deep] = await Promise.all(
+      DEEPER_CLIPPED_PAIR.map((n) => visibleNumberIn(page, n)),
+    );
+
+    expect(shallow.visible, 'the number at depth 5 is not shown whole').toBe(
+      DEEPER_CLIPPED_PAIR[0],
+    );
+    expect(deep.visible, 'a row and its child read as the same number').not.toBe(shallow.visible);
+    expect(
+      deep.visible.startsWith(shallow.visible) && deep.visible.length > shallow.visible.length,
+      `the deeper row shows ${deep.visible}, which is no more of its number than its parent's`,
+    ).toBe(true);
+    expect(shallow.title).toBe(DEEPER_CLIPPED_PAIR[0]);
+    expect(deep.title).toBe(DEEPER_CLIPPED_PAIR[1]);
+  });
+
+  test('the break moves to depth 6 and 7, and this change does not claim to have closed it', async ({
+    page,
+  }) => {
+    // The negative that keeps the test above from being read as "the fault is
+    // gone": design.md D4 states widening buys exactly one level, not every
+    // level — `deriveNumbers` grows a number by depth, by sibling-group size
+    // and by insertion against a frozen anchor with no bound at all, so a
+    // fixed-width column always has a next depth that overruns it. This
+    // watches that the boundary really moved rather than merely widened past
+    // where `seedDeepBranch` happens to stop.
+    await seedDeepBranch(page);
+    const deepest = page.getByLabel(`Name of ${DEEPEST_CLIPPED_PAIR[1]}`, { exact: true });
+    await expect(deepest).toBeVisible();
+    expect(DEEPEST_CLIPPED_PAIR[1].startsWith(`${DEEPEST_CLIPPED_PAIR[0]}.`)).toBe(true);
+
+    await page.getByRole('button', { name: 'Freeze numbering' }).click();
+    await expect(page.getByLabel('Number is frozen').first()).toBeVisible();
+
+    const [shallow, deep] = await Promise.all(
+      DEEPEST_CLIPPED_PAIR.map((n) => visibleNumberIn(page, n)),
+    );
+
+    expect(
+      deep.visible,
+      'the break was expected to have moved to depth 6/7 — if this now differs, ' +
+        'design.md D4’s "buys exactly one level" no longer holds and is worth revisiting',
+    ).toBe(shallow.visible);
+    // The whole number is still one hover away on both — the clip bargain
+    // this change does not spend either.
+    expect(shallow.title).toBe(DEEPEST_CLIPPED_PAIR[0]);
+    expect(deep.title).toBe(DEEPEST_CLIPPED_PAIR[1]);
   });
 
   test('sets the Number column’s type below the row’s own, at the size the cap was bought with', async ({

@@ -6,10 +6,14 @@ import {
   firstWorkdayOf,
   type IsoDate,
   lastWorkdayOf,
+  NOT_STARTED,
+  type PriorityBand,
+  type RoleState,
   workdaysBetween,
 } from '@wbs/domain';
 
 import type {
+  ActualStore,
   CapacityStore,
   CommandJournalStore,
   DependencyStore,
@@ -18,11 +22,15 @@ import type {
   JournalEntry,
   LabelledWorkItem,
   Person,
+  PriorityBandStore,
   Project,
   ProjectStore,
   Reparented,
   Role,
+  RoleProgressStore,
+  StoredActual,
   StoredEstimate,
+  StoredProgress,
   SubtreeStore,
   TeamCapacity,
   UndoState,
@@ -41,13 +49,21 @@ import {
   readPayload,
   readPreconditions,
   type Revisions,
+  subjectOf,
   touchedBy,
 } from './compensating';
 import { canDepend } from './dependency';
 import { deriveNumbers } from './derive-numbers';
 import { placeAfter, POSITION_STEP, type Sibling } from './place-sibling';
 import { canEdit } from './project.service';
-import { type Days, rollUp } from './roll-up';
+import {
+  type Days,
+  rollUp,
+  rollUpActuals,
+  rollUpItemStates,
+  rollUpProgress,
+  workedRolesOf,
+} from './roll-up';
 import {
   schedule,
   ScheduleCycleError,
@@ -482,7 +498,24 @@ export type WorkItemRefusal =
    * `team-sets` measured it (2026-08-14). `unknown_team` is what turns that
    * constraint failure into a refusal somebody can read.
    */
-  | 'unknown_team';
+  | 'unknown_team'
+  /**
+   * A patch that would leave a work item holding a reason with no not-before
+   * date for it to be a reason about, decided inside the write's own
+   * transaction — see {@link WorkItemPatched}.
+   *
+   * 400 and not 409: the request is malformed against **any** tree, because
+   * there is no state of the plan in which words about a floor that is not
+   * there mean anything. The two ways to meet it are a reason sent on a row with
+   * no date, and — much the commoner — a date cleared without clearing the words
+   * beside it, which is `{ startNoEarlierThan: null }` where
+   * `{ startNoEarlierThan: null, startNoEarlierThanReason: null }` was meant.
+   *
+   * Refused rather than tidied on the caller's behalf: the words are somebody's
+   * sentence, and a write that silently deletes them is the worse of the two
+   * answers.
+   */
+  | 'not_before_reason_needs_a_date';
 
 export type WorkItemOutcome<T> = { ok: true; result: T } | { ok: false; reason: WorkItemRefusal };
 
@@ -502,6 +535,25 @@ export interface WorkItemServiceOptions {
   workItems: WorkItemStore;
   projects: ProjectStore;
   estimates: EstimateStore;
+  /**
+   * Where the days actually spent are kept.
+   *
+   * Required rather than optional, for {@link WorkItemServiceOptions.journal}'s
+   * reason turned around: a service built without one would answer every read
+   * with no actuals at all, which is indistinguishable from a plan nobody has
+   * recorded anything against — and that is the true answer for every plan on
+   * the day this ships, so the mistake would be invisible for a week.
+   */
+  actuals: ActualStore;
+  /**
+   * Where each role says its work on a work item has got to.
+   *
+   * Required rather than optional, for {@link WorkItemServiceOptions.actuals}'
+   * reason exactly: a service built without one would answer every read with
+   * nothing stated anywhere, which is the true answer for every plan on the day
+   * this ships and therefore an invisible mistake for a week.
+   */
+  progress: RoleProgressStore;
   directory: DirectoryStore;
   /**
    * How many of each team this project may have at work at once — C1's `slotsOf`
@@ -512,6 +564,15 @@ export interface WorkItemServiceOptions {
    * through. `capacity-per-project`'s design.md D3.
    */
   capacity: CapacityStore;
+  /**
+   * What this project calls its priority numbers, read on the plan's own payload.
+   *
+   * A read and never a write from here, and read by nothing that computes a date:
+   * the leveller orders on `work_item.priority` alone. It is on this service
+   * because a ladder has to arrive in the same payload as the numbers it names —
+   * see {@link WorkItemService.tree}'s `priorityBands`.
+   */
+  priorityBands: PriorityBandStore;
   dependencies: DependencyStore;
   subtrees: SubtreeStore;
   /**
@@ -630,6 +691,14 @@ function fieldsOf(patch: WorkItemPatch): (keyof WorkItemPatch)[] {
   if (patch.name !== undefined) named.push('name');
   if (patch.notes !== undefined) named.push('notes');
   if (patch.startNoEarlierThan !== undefined) named.push('startNoEarlierThan');
+  // Proof: this line deleted, so a patch naming only the reason journals
+  // nothing — **62 pass, 1 fail** — and `undoes a reason written beside a date
+  // that was already there` failed at its `expectDone` on `refused: stale_undo
+  // — “Strip” has changed since then`: the undo reached past the unjournalled
+  // write to an entry that write had already made stale, so the words stay on
+  // screen and the press is refused. The parallelism line's own red, one field
+  // over. Watched 2026-08-18.
+  if (patch.startNoEarlierThanReason !== undefined) named.push('startNoEarlierThanReason');
   // Proof: this line and the matching one in {@link revertTo} each deleted in
   // turn, and both `puts a replaced priority back, and leaves a priority a rename
   // did not name` and `takes a first priority away again, rather than leaving a
@@ -664,6 +733,24 @@ function revertTo(before: WorkItem, patch: WorkItemPatch): WorkItemPatch {
   if (patch.name !== undefined) out.name = before.name;
   if (patch.notes !== undefined) out.notes = before.notes;
   if (patch.startNoEarlierThan !== undefined) out.startNoEarlierThan = before.startNoEarlierThan;
+  // The inverse of a pair patch names **both** halves of the pair the forward
+  // patch named, which is what keeps every inverse legal against the rule that
+  // refuses a reason with no date: naming only the fields the forward named
+  // reconstructs `before`'s own pair for those fields and leaves the rest as
+  // they are — and the rest are `before`'s too, because the forward did not
+  // touch them. So an inverse can only ever land the row back on a pair it was
+  // already in, and there is no undo this store refuses.
+  //
+  // Proof: this line deleted, so the inverse of `{ date: null, reason: null }`
+  // names the date alone — **61 pass, 2 fail**. `puts the words back with the
+  // date they explain` failed on `Expected: "waiting on client sign-off" /
+  // Received: null`: a pressable undo that reports done, restores the floor and
+  // drops the sentence saying why it is there. `undoes a reason written beside
+  // a date that was already there` failed with it, on the words never coming
+  // off. Watched 2026-08-18.
+  if (patch.startNoEarlierThanReason !== undefined) {
+    out.startNoEarlierThanReason = before.startNoEarlierThanReason;
+  }
   if (patch.priority !== undefined) out.priority = before.priority;
   if (patch.serviceTeamId !== undefined) out.serviceTeamId = before.serviceTeamId;
   // `before.maxParallel` is a number and never null — the column is `NOT NULL`
@@ -825,6 +912,24 @@ export class WorkItemService {
      * plan bounds.
      */
     teamCapacities: TeamCapacity[];
+    /**
+     * What this project calls its priority numbers — five bands in rank order.
+     *
+     * Carried on the read that produced the rows rather than left to a route of
+     * its own, which is the argument {@link roles} and {@link teamCapacities}
+     * make. The reason is weaker here in one way and stronger in another: no date
+     * in this payload was computed from the ladder, so a stale one cannot
+     * contradict a bar the way a stale capacity can — but *every* face draws
+     * every priority through it, so a client holding a ladder from one moment
+     * over numbers from another paints the wrong label on every row of the plan
+     * rather than on one.
+     *
+     * Never absent and never empty: a project holding no rows reads as
+     * {@link DEFAULT_PRIORITY_BANDS}, so a client can resolve every priority
+     * without a fallback of its own.
+     * `openspec/changes/priority-bands/design.md` D2.
+     */
+    priorityBands: PriorityBand[];
     estimateMethod: EstimateMethod;
     startDate: IsoDate | null;
     /**
@@ -839,6 +944,16 @@ export class WorkItemService {
     const seq = await this.opts.broadcast.latestSeq(projectId);
     const rows = await this.opts.workItems.listByProject(projectId);
     const stored = await this.opts.estimates.listByProject(projectId);
+    // Read beside the estimates and used for nothing but the payload. It is
+    // handed to no scheduling function — not `slicesOf`, not `schedule` — and
+    // that absence is this change's whole claim about itself: R6 reports, it
+    // does not plan. See `openspec/changes/actual-days/design.md` D3.
+    const recorded = await this.opts.actuals.listByProject(projectId);
+    // Read beside the actuals and, like them, handed to nothing that schedules.
+    // What it is for is the tense of the number above it: 8 days against an
+    // estimate of 5 is "overran by 3" or "is 3 over so far", and until this row
+    // says which, a variance is a figure nobody can act on.
+    const stated = await this.opts.progress.listByProject(projectId);
     const edges = await this.opts.dependencies.listByProject(projectId);
     const assigned = await this.opts.directory.assignmentsOf(rows.map((row) => row.id));
     // The names for the ids just read, on this read rather than on a client's
@@ -857,7 +972,20 @@ export class WorkItemService {
     }
     const numbers = deriveNumbers(rows);
     const totals = rollUp(rows, stored);
+    const recordedTotals = rollUpActuals(rows, recorded);
     const hasChildren = new Set(rows.map((row) => row.parentId).filter((id) => id !== null));
+    // Which roles have work on each leaf: the ones with an estimate, the ones
+    // with a recorded day, and the ones somebody has already spoken about.
+    //
+    // This set is what makes `done` mean anything. A leaf where Dev says done
+    // and QA holds an estimate nobody has spoken about is **in progress**, not
+    // finished — and the only way the fold can know QA exists on that row is for
+    // the estimate to put it here. See `rollUpProgress`.
+    const statedTotals = rollUpProgress(rows, stated, workedRolesOf(stored, recorded, stated));
+    // The row's own reading, folded over its **children** rather than over its
+    // rolled-up roles — see `rollUpItemStates` for why the two differ and which
+    // one is true.
+    const itemStates = rollUpItemStates(rows, statedTotals);
     // The write path refuses an edge that would close a cycle, but two clients
     // drawing conflicting edges at the same instant are each checked against the
     // graph as they read it. If one ever lands, every read of this project must
@@ -884,6 +1012,10 @@ export class WorkItemService {
     // for the whole call and every engine test would have to spell it. The pair
     // is the key in the **store**. design.md D3.
     const slotsOf = await this.opts.capacity.slotsFor(projectId);
+    // The ladder, read here and handed straight to the payload. It is passed to
+    // nothing — not `slicesOf`, not `schedule` — and that is the change's whole
+    // claim about itself: `git diff` on this file shows one read and one field.
+    const priorityBands = await this.opts.priorityBands.listFor(projectId);
     // One reading of the label, shared with the table, the cards, the Gantt and
     // the export — a leaf's own team set, or the nearest ancestor's. No write
     // ever copies a set down; see {@link effectiveTeamsOf}.
@@ -973,6 +1105,35 @@ export class WorkItemService {
         ...row,
         number: numbers.get(row.id) ?? '',
         estimates: Object.fromEntries(totals.get(row.id) ?? []),
+        // The days recorded against this row: its own if it is a leaf, the sum
+        // of its descendants' if it is not — the same fold, one table over.
+        //
+        // A role nobody has recorded days for is **absent from this object**,
+        // and an empty object means nobody has recorded anything on this row.
+        // Neither is a zero, and a face that renders a missing key as `0` is
+        // saying somebody stated the work took no time. See `actual` in
+        // `schema.ts`.
+        actuals: Object.fromEntries(recordedTotals.get(row.id) ?? []),
+        // Where each role's work on this row has got to: its own if it is a
+        // leaf, `agree` across its descendants' if it is not.
+        //
+        // **A role reading `not_started` is absent from this object**, exactly
+        // as an unestimated role is absent from `estimates` — the absence of a
+        // statement is how "nobody has said" is spelled everywhere in this tool,
+        // including on the wire. So an empty object means nobody has said
+        // anything about this row, and a role that is not a key has not been
+        // spoken about.
+        progress: Object.fromEntries(
+          [...(statedTotals.get(row.id) ?? [])].filter(
+            (entry): entry is [string, RoleState] => entry[1] !== NOT_STARTED,
+          ),
+        ),
+        // The row's own reading, **derived from its roles and never stored**:
+        // `done` when every role with work on it says so, `not_started` when
+        // none of them has said anything, and `in_progress` for every
+        // disagreement in between — including the one that matters most, one
+        // role finished and another silent. `@wbs/domain`'s `agree`.
+        state: itemStates.get(row.id) ?? NOT_STARTED,
         // A parent's final figure is its rolled-up totals put through the same
         // method, not the sum of its children's finals. For PERT the two agree
         // (the weighting is linear); for the others they agree too, since each
@@ -1013,6 +1174,7 @@ export class WorkItemService {
       teamCapacities: [...slotsOf]
         .map(([serviceTeamId, size]) => ({ serviceTeamId, size }))
         .sort((a, b) => a.serviceTeamId.localeCompare(b.serviceTeamId)),
+      priorityBands,
       estimateMethod: project.estimateMethod,
       startDate: project.startDate,
       projectRevision: project.revision,
@@ -1047,6 +1209,8 @@ export class WorkItemService {
       notes: input.notes ?? '',
       frozenNumber: null,
       startNoEarlierThan: null,
+      // No floor, so no words about one — the only pair a new row can be in.
+      startNoEarlierThanReason: null,
       priority: null,
       serviceTeamId: null,
       // One at a time, which is what every work item has always done and what
@@ -1074,8 +1238,33 @@ export class WorkItemService {
         : (await this.opts.estimates.listByProject(projectId)).filter(
             (each) => each.workItemId === gainsFirstChild,
           );
+    // The actuals go down with them, and for a sharper reason than the
+    // estimates do. A parent's figures are the sum of its children's, so an
+    // actual left behind on a row that has just gained a child is a row no
+    // reader can see and no writer can reach — invisible rather than zero, and
+    // back on screen the day somebody deletes the child. Read before the move,
+    // like the estimates, because afterwards they are the child's.
+    const recordedHandedDown =
+      gainsFirstChild === null
+        ? []
+        : (await this.opts.actuals.listByProject(projectId)).filter(
+            (each) => each.workItemId === gainsFirstChild,
+          );
+    // The statements go down with the figures, and the reason is the sharpest of
+    // the three. A row that has just gained a child folds its state from below,
+    // so a `done` left behind is not merely invisible — it is a claim that
+    // reappears the day somebody deletes the child, over work the plan has since
+    // moved on from. Read before the move, like the other two.
+    const statedHandedDown =
+      gainsFirstChild === null
+        ? []
+        : (await this.opts.progress.listByProject(projectId)).filter(
+            (each) => each.workItemId === gainsFirstChild,
+          );
     if (gainsFirstChild !== null) {
       await this.opts.estimates.moveAll(gainsFirstChild, workItem.id);
+      await this.opts.actuals.moveAll(gainsFirstChild, workItem.id);
+      await this.opts.progress.moveAll(gainsFirstChild, workItem.id);
     }
     await this.announceTree(projectId);
     await this.record(projectId, actorId, 'create', `add ${quoteName(workItem.name)}`, {
@@ -1085,10 +1274,20 @@ export class WorkItemService {
         rootPosition: workItem.position,
         reparented: [],
         estimates: handedDown.map((each) => ({ ...each, workItemId: workItem.id })),
+        actuals: recordedHandedDown.map((each) => ({ ...each, workItemId: workItem.id })),
+        progress: statedHandedDown.map((each) => ({ ...each, workItemId: workItem.id })),
         assignments: [],
         internalDependencies: [],
         externalDependencies: [],
         removedEstimates: handedDown.map((each) => ({
+          workItemId: each.workItemId,
+          roleId: each.roleId,
+        })),
+        removedActuals: recordedHandedDown.map((each) => ({
+          workItemId: each.workItemId,
+          roleId: each.roleId,
+        })),
+        removedProgress: statedHandedDown.map((each) => ({
           workItemId: each.workItemId,
           roleId: each.roleId,
         })),
@@ -1103,6 +1302,13 @@ export class WorkItemService {
         remove: [workItem.id],
         reparented: [],
         setEstimates: handedDown,
+        // Back to the row they came from, exactly as they were. Re-applying
+        // this create's own undo is what runs it.
+        setActuals: recordedHandedDown,
+        // And the statements, back on the row they came from. Undoing this
+        // create makes the parent a leaf again, and a leaf reports what it
+        // holds — including whether its work is finished.
+        setProgress: statedHandedDown,
       },
       touched: gainsFirstChild === null ? [workItem.id] : [workItem.id, gainsFirstChild],
       before: rows,
@@ -1365,9 +1571,23 @@ export class WorkItemService {
       respaced: placed.renumbered,
       reparented: [],
       estimates: copiedEstimates,
+      // **Deliberately empty.** A duplicate is work that has not been done:
+      // copying the original's actuals would tell the plan a fortnight nobody
+      // has worked was already spent, and the copy would appear with a variance
+      // as though it were finished. Estimates copy because an estimate
+      // describes work; actuals do not because an actual records a week. See
+      // `openspec/changes/actual-days/design.md` D5.
+      actuals: [],
+      // **Deliberately empty, and for a stronger reason than the actuals.** A
+      // copied `done` would hand the plan a branch that reports itself finished
+      // the moment it appears — work nobody has started, drawn as work nobody
+      // needs to do. See `design.md` P4.
+      progress: [],
       assignments: copiedAssignments,
       dependencies: copiedEdges,
       removedEstimates: [],
+      removedActuals: [],
+      removedProgress: [],
     });
     // Once, at the end. The copy renumbers rows it never touched — every later
     // sibling of the original, at every level — so it is the whole tree rather
@@ -1386,10 +1606,18 @@ export class WorkItemService {
           rootPosition: placed.position,
           reparented: [],
           estimates: copiedEstimates,
+          // Empty for the write's reason above: a redo of a duplication puts
+          // back the copy that was made, and no days were ever recorded on it.
+          actuals: [],
+          // Empty for the write's reason above: a redo of a duplication puts
+          // back the copy that was made, and nobody ever said a word about it.
+          progress: [],
           assignments: copiedAssignments,
           internalDependencies: copiedEdges,
           externalDependencies: [],
           removedEstimates: [],
+          removedActuals: [],
+          removedProgress: [],
         },
         inverse: {
           do: 'delete_subtree',
@@ -1398,6 +1626,8 @@ export class WorkItemService {
           remove: copyIds,
           reparented: [],
           setEstimates: [],
+          setActuals: [],
+          setProgress: [],
         },
         // Every copied row, all of them at 0. Anything typed into the copy
         // moves one of these and the undo refuses rather than throwing away
@@ -1427,6 +1657,16 @@ export class WorkItemService {
 
     const label = `delete ${quoteName(workItem.name)}`;
     const storedEstimates = await this.opts.estimates.listByProject(workItem.projectId);
+    // Read before anything is deleted, exactly like the estimates and the
+    // assignments: `actual.work_item_id` cascades, so a moment later there is
+    // nothing left to read and the restore would put the branch back with the
+    // days nobody recorded again.
+    const storedActuals = await this.opts.actuals.listByProject(workItem.projectId);
+    // Read before anything is deleted, for the actuals' reason:
+    // `role_progress.work_item_id` cascades, so a moment later there is nothing
+    // left to read and the restore would put the branch back reading as work
+    // nobody had started.
+    const storedProgress = await this.opts.progress.listByProject(workItem.projectId);
     const allEdges = await this.opts.dependencies.listByProject(workItem.projectId);
 
     if (children.length === 0 || strategy === 'cascade') {
@@ -1441,13 +1681,64 @@ export class WorkItemService {
       const doomed = subtreeOf(rows, id);
       const inside = new Set(doomed);
       const handedUp: StoredEstimate[] = [];
+      // The same rule, one table over: the parent is about to become a leaf
+      // again, and a leaf reports what it holds. Without this the days the
+      // branch recorded are simply gone the moment its last child is deleted —
+      // the estimates would survive on the parent and the actuals beside them
+      // would not, which is the drift this whole change is written not to have.
+      //
+      // The **totals**, not the rows, for the reason the estimates' comment
+      // above gives: a deleted child that is itself a parent holds no rows of
+      // its own, so moving rows would move nothing and the branch's figures
+      // would go with it.
+      //
+      // `recordedAt` is the newest stamp in the branch — the parent's number is
+      // now the whole branch's, and the day it was last added to is the honest
+      // answer to "when was this recorded".
+      const recordedHandedUp: StoredActual[] = [];
+      // And the statements, folded rather than moved — the same argument the two
+      // figures make, in the tense this change is about. The parent is becoming a
+      // leaf, and a leaf that has just absorbed a finished branch's work reads as
+      // not started unless the statement comes up with it.
+      //
+      // The **fold**, not the rows: a deleted child that is itself a parent holds
+      // no rows of its own, so moving rows would move nothing and the branch's
+      // reading would go with it. `not_started` is skipped rather than written,
+      // because the absence of a row is how it is spelled everywhere.
+      //
+      // `statedAt` is the newest stamp in the branch, for `recordedAt`'s reason:
+      // the parent's reading is now the whole branch's, and the day it was last
+      // spoken about is the honest answer to "when was this said".
+      const statedHandedUp: StoredProgress[] = [];
       if (parentId !== null && rows.filter((row) => row.parentId === parentId).length === 1) {
         const totals = rollUp(rows, storedEstimates);
         for (const [roleId, days] of totals.get(id) ?? []) {
           handedUp.push({ workItemId: parentId, roleId, ...days });
         }
+        const recordedInside = storedActuals.filter((each) => inside.has(each.workItemId));
+        for (const [roleId, days] of rollUpActuals(rows, storedActuals).get(id) ?? []) {
+          const latest = recordedInside
+            .filter((each) => each.roleId === roleId)
+            .reduce((newest, each) => Math.max(newest, each.recordedAt), 0);
+          recordedHandedUp.push({ workItemId: parentId, roleId, days, recordedAt: latest });
+        }
+        const statedInside = storedProgress.filter((each) => inside.has(each.workItemId));
+        const branchStates = rollUpProgress(
+          rows,
+          storedProgress,
+          workedRolesOf(storedEstimates, storedActuals, storedProgress),
+        ).get(id);
+        for (const [roleId, state] of branchStates ?? []) {
+          if (state === NOT_STARTED) continue;
+          const latest = statedInside
+            .filter((each) => each.roleId === roleId)
+            .reduce((newest, each) => Math.max(newest, each.statedAt), 0);
+          statedHandedUp.push({ workItemId: parentId, roleId, state, statedAt: latest });
+        }
       }
       for (const each of handedUp) await this.opts.estimates.set(each);
+      for (const each of recordedHandedUp) await this.opts.actuals.set(each);
+      for (const each of statedHandedUp) await this.opts.progress.set(each);
       const cut = allEdges.filter(
         (edge) => inside.has(edge.predecessorId) || inside.has(edge.successorId),
       );
@@ -1470,6 +1761,8 @@ export class WorkItemService {
           remove: doomed,
           reparented: [],
           setEstimates: handedUp,
+          setActuals: recordedHandedUp,
+          setProgress: statedHandedUp,
         },
         inverse: {
           do: 'restore_subtree',
@@ -1477,6 +1770,16 @@ export class WorkItemService {
           rootPosition: workItem.position,
           reparented: [],
           estimates: storedEstimates.filter((each) => inside.has(each.workItemId)),
+          // Every day recorded anywhere in the branch, put back where it was
+          // recorded. Without this an undo of a delete answers `ok` and returns
+          // the branch with its estimates and none of its actuals — the plan
+          // looks whole and a week of somebody's record is gone.
+          actuals: storedActuals.filter((each) => inside.has(each.workItemId)),
+          // Every statement made anywhere in the branch, put back where it was
+          // made. Without this an undo of a delete answers `ok` and returns the
+          // branch reading as work nobody has started — the plan looks whole and
+          // a fortnight of finished work is unfinished again.
+          progress: storedProgress.filter((each) => inside.has(each.workItemId)),
           assignments: doomedAssignments,
           internalDependencies: cut.filter(
             (edge) => inside.has(edge.predecessorId) && inside.has(edge.successorId),
@@ -1485,6 +1788,14 @@ export class WorkItemService {
             (edge) => !inside.has(edge.predecessorId) || !inside.has(edge.successorId),
           ),
           removedEstimates: handedUp.map((each) => ({
+            workItemId: each.workItemId,
+            roleId: each.roleId,
+          })),
+          removedActuals: recordedHandedUp.map((each) => ({
+            workItemId: each.workItemId,
+            roleId: each.roleId,
+          })),
+          removedProgress: statedHandedUp.map((each) => ({
             workItemId: each.workItemId,
             roleId: each.roleId,
           })),
@@ -1529,6 +1840,10 @@ export class WorkItemService {
         remove: [id],
         reparented: promoted,
         setEstimates: [],
+        // A promotion deletes one row and keeps its children, so the parent
+        // below is not becoming a leaf and nothing is handed anywhere.
+        setActuals: [],
+        setProgress: [],
       },
       inverse: {
         do: 'restore_subtree',
@@ -1543,10 +1858,23 @@ export class WorkItemService {
           return { id: was.id, parentId: was.parentId, position: was.position };
         }),
         estimates: storedEstimates.filter((each) => each.workItemId === id),
+        // The promoted row's own recorded days — it had children, so it holds
+        // none, and this is the empty list every time until a promotion of a
+        // leaf becomes representable. Written from the same source as the
+        // estimates beside it rather than hard-coded, so it stays true if that
+        // ever changes.
+        actuals: storedActuals.filter((each) => each.workItemId === id),
+        // The promoted row's own statements — it had children, so it holds none,
+        // and this is the empty list every time until a promotion of a leaf
+        // becomes representable. Written from the same source as the two figures
+        // beside it rather than hard-coded, so it stays true if that ever changes.
+        progress: storedProgress.filter((each) => each.workItemId === id),
         assignments: deletedAssignments,
         internalDependencies: [],
         externalDependencies: cut,
         removedEstimates: [],
+        removedActuals: [],
+        removedProgress: [],
       },
       // The promoted rows are preconditions because putting them back under the
       // restored parent is part of the undo. The ends of the edges that left
@@ -1732,6 +2060,211 @@ export class WorkItemService {
         {
           forward: { do: 'clear_estimate', workItemId: id, roleId },
           inverse: { do: 'set_estimate', workItemId: id, roleId, days: before },
+          touched: [id],
+          before: context.result.rows,
+        },
+      );
+    }
+    return { ok: true, result: null };
+  }
+
+  /**
+   * Writes the days one role actually spent on one work item.
+   *
+   * Guarded exactly as {@link WorkItemService.setEstimate} is, and the two
+   * refusals are the same two for the same reasons: a row with children is
+   * `rolled_up`, because its figures are the sum of what is below it and a
+   * stored number there would be ignored or double-counted; a `roleId` this
+   * project does not hold is `unknown_role`.
+   *
+   * **Nothing about this reaches the schedule.** The engine's input map is built
+   * from estimates in `slicesOf` and this number is not in it, so recording an
+   * actual moves no date, no bar and no critical path. That is not a saving, it
+   * is the only honest reading available: the model has no completion state, so
+   * it cannot tell "took 8 days, finished" from "8 days so far", and the two
+   * mean opposite things for every successor. See `design.md` D3.
+   *
+   * Journalled through the same {@link WorkItemService.record} seam as every
+   * other command, which is what makes it undoable and what puts it in the
+   * plan's history without a second write path — the ordering H1 called
+   * non-negotiable.
+   */
+  async setActual(
+    id: string,
+    actorId: string,
+    roleId: string,
+    days: number,
+  ): Promise<WorkItemOutcome<null>> {
+    const context = await this.contextFor(id, actorId);
+    if (!context.ok) return context;
+    const { rows, workItem } = context.result;
+    if (rows.some((row) => row.parentId === id)) return { ok: false, reason: 'rolled_up' };
+    if (!(await this.holdsRole(workItem.projectId, roleId)))
+      return { ok: false, reason: 'unknown_role' };
+    const before = await this.storedActual(workItem.projectId, id, roleId);
+    const written = await this.writeNamingRole(workItem.projectId, roleId, () =>
+      this.opts.actuals.set({ workItemId: id, roleId, days, recordedAt: this.now() }),
+    );
+    if (written === null) return { ok: false, reason: 'unknown_role' };
+    await this.announceWorkItem(workItem.projectId, id);
+    await this.record(
+      workItem.projectId,
+      actorId,
+      'actual',
+      `record days on ${quoteName(workItem.name)}`,
+      {
+        forward: { do: 'set_actual', workItemId: id, roleId, days },
+        // The number that was there, or its absence. A `clear_actual` inverse
+        // is what makes undoing the first recording take the row away rather
+        // than write a zero — the one thing this table must never hold as a
+        // stand-in for "nobody said".
+        inverse:
+          before === null
+            ? { do: 'clear_actual', workItemId: id, roleId }
+            : { do: 'set_actual', workItemId: id, roleId, days: before },
+        touched: [id],
+        before: context.result.rows,
+      },
+    );
+    return { ok: true, result: null };
+  }
+
+  /**
+   * Takes the recorded days back off one work item for one role.
+   *
+   * Idempotent, and not refused on a rolled-up row, for exactly the reasons
+   * {@link WorkItemService.clearEstimate} gives: clearing what is not stored is
+   * the state the caller asked for, and a parent cannot hold a row to begin
+   * with, so refusing there would make "clear what is not there" an error in
+   * one place and a success everywhere else. A missing **work item** is still
+   * `not_found`.
+   */
+  async clearActual(id: string, actorId: string, roleId: string): Promise<WorkItemOutcome<null>> {
+    const context = await this.contextFor(id, actorId);
+    if (!context.ok) return context;
+    const { workItem } = context.result;
+    const before = await this.storedActual(workItem.projectId, id, roleId);
+    await this.opts.actuals.remove(id, roleId);
+    await this.announceWorkItem(workItem.projectId, id);
+    // Nothing was stored, so nothing changed and there is nothing to put back —
+    // the same skip `clearEstimate` makes, and the reason a plan does not gain
+    // a history row every time somebody empties an empty box.
+    if (before !== null) {
+      await this.record(
+        workItem.projectId,
+        actorId,
+        'clear_actual',
+        `clear the recorded days on ${quoteName(workItem.name)}`,
+        {
+          forward: { do: 'clear_actual', workItemId: id, roleId },
+          inverse: { do: 'set_actual', workItemId: id, roleId, days: before },
+          touched: [id],
+          before: context.result.rows,
+        },
+      );
+    }
+    return { ok: true, result: null };
+  }
+
+  /**
+   * States where one role's work on one work item has got to.
+   *
+   * Guarded exactly as {@link WorkItemService.setActual} is, and the two
+   * refusals are the same two for the same reasons: a row with children is
+   * `rolled_up`, because its reading is folded from what is below it and a
+   * stored state there would be ignored by every reader; a `roleId` this project
+   * does not hold is `unknown_role`.
+   *
+   * **Nothing about this reaches the schedule.** Recording that a role is done
+   * moves no date, no bar and no critical path — `service/schedule.ts` has an
+   * empty diff in the change that adds this. What it buys is that the number
+   * beside it becomes readable: 8 days spent against 5 estimated, **finished**,
+   * is a variance somebody can act on, and 8 days spent against 5 estimated,
+   * still running, is a different sentence about the same two numbers.
+   *
+   * **What `done` makes true, and it is a rule rather than a note:** an actual on
+   * a role marked done is **final** — the whole of what that role spent, not a
+   * running count. The change that lets the engine consume this reads exactly
+   * that (finished roles freeze; in-progress roles get
+   * `remaining = max(0, estimate − actual)`), and it must not have to
+   * re-litigate the meaning of rows this method wrote.
+   *
+   * Journalled through the same {@link WorkItemService.record} seam as every
+   * other command, which is what makes it undoable and what puts it in the
+   * plan's history without a second write path.
+   */
+  async setProgress(
+    id: string,
+    actorId: string,
+    roleId: string,
+    state: RoleState,
+  ): Promise<WorkItemOutcome<null>> {
+    const context = await this.contextFor(id, actorId);
+    if (!context.ok) return context;
+    const { rows, workItem } = context.result;
+    if (rows.some((row) => row.parentId === id)) return { ok: false, reason: 'rolled_up' };
+    if (!(await this.holdsRole(workItem.projectId, roleId)))
+      return { ok: false, reason: 'unknown_role' };
+    const before = await this.storedProgress(workItem.projectId, id, roleId);
+    const written = await this.writeNamingRole(workItem.projectId, roleId, () =>
+      this.opts.progress.set({ workItemId: id, roleId, state, statedAt: this.now() }),
+    );
+    if (written === null) return { ok: false, reason: 'unknown_role' };
+    await this.announceWorkItem(workItem.projectId, id);
+    await this.record(
+      workItem.projectId,
+      actorId,
+      'progress',
+      `${state === 'done' ? 'finish' : 'start'} work on ${quoteName(workItem.name)}`,
+      {
+        forward: { do: 'set_progress', workItemId: id, roleId, state },
+        // What was said before, or that nothing was. A `clear_progress` inverse
+        // is what makes undoing the first statement take the row away rather
+        // than write a `not_started` — the one value this table must never hold,
+        // because it is the absence of a row everywhere else.
+        inverse:
+          before === null
+            ? { do: 'clear_progress', workItemId: id, roleId }
+            : { do: 'set_progress', workItemId: id, roleId, state: before },
+        touched: [id],
+        before: context.result.rows,
+      },
+    );
+    return { ok: true, result: null };
+  }
+
+  /**
+   * Takes the statement back, leaving the role reading as not started.
+   *
+   * Idempotent, and not refused on a rolled-up row, for exactly the reasons
+   * {@link WorkItemService.clearActual} gives: clearing what is not stored is
+   * the state the caller asked for, and a parent cannot hold a row to begin
+   * with. A missing **work item** is still `not_found`.
+   *
+   * Worth saying plainly, because it is the one place this table can lose
+   * information a reader was relying on: clearing a `done` does not say the work
+   * was undone, it says nobody has spoken about it. Those are different
+   * sentences and this is the second one.
+   */
+  async clearProgress(id: string, actorId: string, roleId: string): Promise<WorkItemOutcome<null>> {
+    const context = await this.contextFor(id, actorId);
+    if (!context.ok) return context;
+    const { workItem } = context.result;
+    const before = await this.storedProgress(workItem.projectId, id, roleId);
+    await this.opts.progress.remove(id, roleId);
+    await this.announceWorkItem(workItem.projectId, id);
+    // Nothing was stated, so nothing changed and there is nothing to put back —
+    // the same skip `clearEstimate` and `clearActual` make, and the reason a
+    // plan does not gain a history row every time somebody clears an empty box.
+    if (before !== null) {
+      await this.record(
+        workItem.projectId,
+        actorId,
+        'clear_progress',
+        `clear the progress on ${quoteName(workItem.name)}`,
+        {
+          forward: { do: 'clear_progress', workItemId: id, roleId },
+          inverse: { do: 'set_progress', workItemId: id, roleId, state: before },
           touched: [id],
           before: context.result.rows,
         },
@@ -2071,6 +2604,64 @@ export class WorkItemService {
       case 'clear_estimate':
         await this.opts.estimates.remove(command.workItemId, command.roleId);
         return { ok: true, detail: null };
+      case 'set_actual': {
+        const rows = await this.opts.workItems.listByProject(projectId);
+        if (rows.some((row) => row.parentId === command.workItemId)) {
+          return { ok: false, detail: 'that work item has children now, so its figures are sums.' };
+        }
+        // The phase the days were recorded against has been removed since.
+        // `actual.role_id` is a foreign key, so putting the number back would be
+        // a constraint error on a key somebody pressed to be safe.
+        if (!(await this.holdsRole(projectId, command.roleId))) {
+          return { ok: false, detail: 'that phase is no longer in this project.' };
+        }
+        const restored = await this.writeNamingRole(projectId, command.roleId, () =>
+          this.opts.actuals.set({
+            workItemId: command.workItemId,
+            roleId: command.roleId,
+            days: command.days,
+            // Now, not the stamp the row carried. An undo is somebody recording
+            // the number again, and this column says when it was recorded — see
+            // the `set_actual` command in `compensating.ts`.
+            recordedAt: this.now(),
+          }),
+        );
+        if (restored === null)
+          return { ok: false, detail: 'that phase is no longer in this project.' };
+        return { ok: true, detail: null };
+      }
+      case 'clear_actual':
+        await this.opts.actuals.remove(command.workItemId, command.roleId);
+        return { ok: true, detail: null };
+      case 'set_progress': {
+        const rows = await this.opts.workItems.listByProject(projectId);
+        if (rows.some((row) => row.parentId === command.workItemId)) {
+          return { ok: false, detail: 'that work item has children now, so its figures are sums.' };
+        }
+        // The phase the statement was made about has been removed since.
+        // `role_progress.role_id` is a foreign key, so putting the statement
+        // back would be a constraint error on a key somebody pressed to be safe.
+        if (!(await this.holdsRole(projectId, command.roleId))) {
+          return { ok: false, detail: 'that phase is no longer in this project.' };
+        }
+        const restored = await this.writeNamingRole(projectId, command.roleId, () =>
+          this.opts.progress.set({
+            workItemId: command.workItemId,
+            roleId: command.roleId,
+            state: command.state,
+            // Now, not the stamp the row carried. An undo is somebody saying it
+            // again, and this column says when it was said — the same reading
+            // `set_actual` takes of `recordedAt`.
+            statedAt: this.now(),
+          }),
+        );
+        if (restored === null)
+          return { ok: false, detail: 'that phase is no longer in this project.' };
+        return { ok: true, detail: null };
+      }
+      case 'clear_progress':
+        await this.opts.progress.remove(command.workItemId, command.roleId);
+        return { ok: true, detail: null };
       case 'assign':
         if (command.personId !== null && !(await this.holdsRole(projectId, command.roleId))) {
           return { ok: false, detail: 'that phase is no longer in this project.' };
@@ -2176,6 +2767,14 @@ export class WorkItemService {
     for (const gone of command.remove) await this.opts.dependencies.removeAllFor(gone);
     await this.opts.workItems.remove(command.remove, command.reparented);
     for (const each of command.setEstimates) await this.opts.estimates.set(each);
+    // The hand-up again, actuals with estimates. A re-applied delete that put
+    // back only half of what the original handed to the surviving parent would
+    // leave the plan reporting an estimate with no record beside it.
+    for (const each of command.setActuals) await this.opts.actuals.set(each);
+    // And the statements, for the same reason one line up: a re-applied delete
+    // that put back the figures and not the reading would leave the surviving
+    // parent reporting a finished branch's work as work nobody has started.
+    for (const each of command.setProgress) await this.opts.progress.set(each);
     return { ok: true, detail: null };
   }
 
@@ -2231,9 +2830,13 @@ export class WorkItemService {
       respaced: placed.renumbered,
       reparented: command.reparented,
       estimates: command.estimates,
+      actuals: command.actuals,
+      progress: command.progress,
       assignments: command.assignments,
       dependencies: command.internalDependencies,
       removedEstimates: command.removedEstimates,
+      removedActuals: command.removedActuals,
+      removedProgress: command.removedProgress,
     });
 
     // The edges that leave the branch, one at a time and through the same
@@ -2266,7 +2869,8 @@ export class WorkItemService {
   }
 
   /**
-   * Writes one command down, after it has been applied and announced.
+   * Writes one command down — to the account's undo stack and to the project's
+   * history — after it has been applied and announced.
    *
    * **Ordering, and what it costs.** The change is applied and broadcast
    * first, then journalled. A journal write that throws therefore fails the
@@ -2281,6 +2885,24 @@ export class WorkItemService {
    * The preconditions are read **after** the mutation, and are the revisions
    * it left behind. Recording the revisions from before it would make an undo
    * of somebody's own second edit pass when it must refuse.
+   *
+   * **The history row is written from here and from nowhere else.** Every
+   * journalled command — all fifteen kinds — becomes one `plan_event` row, per
+   * project rather than per account and never pruned by anybody's undo, which is
+   * the whole of R5's "examine the history of estimates changes". It is one extra
+   * `INSERT` in the transaction the journal append already opens rather than a
+   * second call, so a command cannot be undoable without also being recorded; see
+   * {@link CommandJournalStore.append}. Adding a sixteenth journalled kind
+   * therefore adds it to the history for free, which is why H2's actuals must go
+   * through this seam and not around it.
+   *
+   * **What the history does not hold, stated because it will be asked.** Undo and
+   * redo append nothing here — they flip an entry in place, by design — so an
+   * estimate set to 8 and then undone leaves one event reading "set to 8" and no
+   * event saying it was taken back. Every event is true about the moment it
+   * records; the sequence is incomplete. Closing it means logging from the undo
+   * path too, which is a second write site and R5's H5 question, not this change's.
+   * See `openspec/changes/plan-history/design.md` D4.
    */
   private async record(
     projectId: string,
@@ -2289,23 +2911,45 @@ export class WorkItemService {
     label: string,
     recording: Recording,
   ): Promise<void> {
-    await this.opts.journal.append({
-      id: this.newId(),
-      projectId,
-      userId: actorId,
-      kind,
-      payload: { label, forward: recording.forward },
-      inverse: recording.inverse,
-      preconditions: {
-        expected: await this.revisionsOf(projectId, recording.touched),
-        // The same entities as they were before the mutation, read off the row
-        // list the mutation's own guard produced. Nothing is checked against
-        // it — it is what tells a later undo whether the entry beneath this
-        // one is still describing an unbroken chain. See `Preconditions`.
-        from: revisionsIn(recording.before, recording.touched),
+    const at = this.now();
+    const subject = subjectOf(recording.forward);
+    await this.opts.journal.append(
+      {
+        id: this.newId(),
+        projectId,
+        userId: actorId,
+        kind,
+        payload: { label, forward: recording.forward },
+        inverse: recording.inverse,
+        preconditions: {
+          expected: await this.revisionsOf(projectId, recording.touched),
+          // The same entities as they were before the mutation, read off the row
+          // list the mutation's own guard produced. Nothing is checked against
+          // it — it is what tells a later undo whether the entry beneath this
+          // one is still describing an unbroken chain. See `Preconditions`.
+          from: revisionsIn(recording.before, recording.touched),
+        },
+        createdAt: at,
       },
-      createdAt: this.now(),
-    });
+      {
+        id: this.newId(),
+        projectId,
+        userId: actorId,
+        kind,
+        label,
+        workItemId: subject.workItemId,
+        roleId: subject.roleId,
+        // The compensating command, which is where the before-state lives: for
+        // the estimate kinds it carries the trio that was stored, and for the
+        // rest it is the only before-state that exists. See `plan_event`.
+        before: recording.inverse,
+        after: recording.forward,
+        // The same instant as the journal entry, read once. Two `now()` calls
+        // would let one act carry two timestamps, and the history is ordered by
+        // this column.
+        createdAt: at,
+      },
+    );
   }
 
   /**
@@ -2378,6 +3022,44 @@ export class WorkItemService {
       realistic: found.realistic,
       pessimistic: found.pessimistic,
     };
+  }
+
+  /**
+   * One work item's recorded days for one role, or null when it holds none.
+   *
+   * Null rather than 0, and every caller of this treats the two as different
+   * answers: 0 is a person saying the work took no time, and null is nobody
+   * having said anything. The absence is what an undo of the first recording
+   * puts back.
+   */
+  private async storedActual(
+    projectId: string,
+    workItemId: string,
+    roleId: string,
+  ): Promise<number | null> {
+    const found = (await this.opts.actuals.listByProject(projectId)).find(
+      (each) => each.workItemId === workItemId && each.roleId === roleId,
+    );
+    return found?.days ?? null;
+  }
+
+  /**
+   * What one work item's role currently says, or null when it has said nothing.
+   *
+   * Null rather than `not_started`, and every caller treats the two as one
+   * answer with two spellings only in the direction that matters: null is what
+   * an undo of the first statement puts back, and it puts it back by deleting
+   * the row rather than by writing a third value into the column.
+   */
+  private async storedProgress(
+    projectId: string,
+    workItemId: string,
+    roleId: string,
+  ): Promise<RoleState | null> {
+    const found = (await this.opts.progress.listByProject(projectId)).find(
+      (each) => each.workItemId === workItemId && each.roleId === roleId,
+    );
+    return found?.state ?? null;
   }
 
   private async announceTree(projectId: string): Promise<void> {

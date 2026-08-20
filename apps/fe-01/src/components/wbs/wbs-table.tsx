@@ -8,8 +8,10 @@ import {
   useReactTable,
 } from '@tanstack/react-table';
 import { effectiveTeamsOf } from '@wbs/domain/effective-team';
+import { priorityBandOf } from '@wbs/domain/priority-band';
 import { workdaysBetween } from '@wbs/domain/workday';
 import {
+  type ComponentProps,
   type CSSProperties,
   type ReactNode,
   useCallback,
@@ -23,7 +25,13 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Modal, ModalContent, ModalHeader, ModalTitle, ModalTrigger } from '@/components/ui/modal';
 import type { ProjectStream } from '@/lib/project-stream';
-import type { AssignedPersonView, PersonView, TeamCapacityView, TeamView } from '@/lib/wbs-api';
+import type {
+  AssignedPersonView,
+  PersonView,
+  PriorityBandView,
+  TeamCapacityView,
+  TeamView,
+} from '@/lib/wbs-api';
 import {
   type Days,
   type EstimateMethod,
@@ -88,8 +96,11 @@ import { PhasesDialog } from './phases-dialog';
 import { type CardAssignee, PlanCards } from './plan-cards';
 import { describeGaps, findEstimateGaps } from './plan-completeness';
 import { type PlanExport, planFileName, planToCsv, planToMarkdown } from './plan-export';
+import { planToMermaid, planToMermaidDocument } from './plan-mermaid';
 import { useRendererForViewport } from './plan-renderer';
 import { linkPlanScroll } from './plan-scroll-link';
+import { PrioritiesDialog } from './priorities-dialog';
+import { PriorityCell, priorityTyped } from './priority-cell';
 import { printedDay, shortIsoDate } from './short-date';
 import {
   CARET_GUTTER_PX,
@@ -113,7 +124,16 @@ import {
 } from './table-frame';
 import { TeamsDialog, teamsOnThePlan } from './teams-dialog';
 import { type Toast, toastKey, ToastStack, useToasts } from './toasts';
-import { searchTree } from './tree-search';
+import {
+  type FacetCriteria,
+  type FilterCriteria,
+  type FilterLabels,
+  filterWords,
+  isFiltering,
+  type NarrowableRow,
+  narrowTree,
+  NO_FACETS,
+} from './tree-search';
 import { toTree, type TreeRow } from './wbs-rows';
 
 export interface WbsTableProps {
@@ -337,6 +357,11 @@ const POPOVER_COLUMNS: ReadonlySet<string> = new Set([
   'team',
   'actions',
   'not-before',
+  // The Prio cell's band list, since `priority-bands`. The column is 48px and a
+  // line reads `Critical — 10`, so the list is wider than its cell by more than
+  // any other in this set except the date editor. Without the exemption it is cut
+  // at the cell edge and the reader sees the first three characters of a name.
+  'priority',
 ]);
 
 /**
@@ -856,6 +881,104 @@ function forgetWidthOverrides(projectId: string): void {
 }
 
 /**
+ * A named filter this browser has saved, so it can be picked again later —
+ * R10 F4. Stores only {@link FilterCriteria}: not the expansion, not the
+ * column widths. A saved view is *how one reader is looking at a plan*, the
+ * exact phrase `planForExport` uses to justify not exporting a collapsed
+ * branch or a running search (`:2643` below) — so it lives here, per browser,
+ * beside every other display preference, and be-01 is never told about it.
+ */
+interface SavedView {
+  id: string;
+  name: string;
+  criteria: FilterCriteria;
+}
+
+/**
+ * Where this browser remembers one project's saved views.
+ *
+ * Per project and per browser, exactly as {@link widthOverridesKey} beside
+ * it: a view is one reader's own named answer to "what am I looking at",
+ * and it must not appear in front of a different reader who opens the same
+ * plan on their own machine.
+ */
+const savedViewsKey = (projectId: string): string => `wbs.views.${projectId}`;
+
+/** Whether a claimed value is a list of strings — a facet's chosen ids. */
+function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((each) => typeof each === 'string');
+}
+
+/** Whether a claimed value has every field {@link FilterCriteria} declares. */
+function isFilterCriteriaShape(value: unknown): value is FilterCriteria {
+  if (typeof value !== 'object' || value === null) return false;
+  const claimed = value as Record<string, unknown>;
+  return (
+    typeof claimed['query'] === 'string' &&
+    isStringArray(claimed['teamIds']) &&
+    isStringArray(claimed['assigneeIds']) &&
+    isStringArray(claimed['priorityBands']) &&
+    isStringArray(claimed['estimatedRoleIds']) &&
+    typeof claimed['unestimated'] === 'boolean' &&
+    typeof claimed['critical'] === 'boolean'
+  );
+}
+
+/** Whether a claimed value is one saved view this table can offer and apply. */
+function isSavedView(value: unknown): value is SavedView {
+  if (typeof value !== 'object' || value === null) return false;
+  const claimed = value as Record<string, unknown>;
+  const name = claimed['name'];
+  return (
+    typeof claimed['id'] === 'string' &&
+    typeof name === 'string' &&
+    name.trim() !== '' &&
+    isFilterCriteriaShape(claimed['criteria'])
+  );
+}
+
+/**
+ * The views this browser last saved for `projectId`, or none where it has
+ * never saved any.
+ *
+ * The stored value is a claim, not a fact — user-editable storage read at a
+ * boundary, the same posture {@link rememberedWidthOverrides} takes. Storage
+ * that is not an array at all takes the key with it; a single entry that is
+ * not a usable view is dropped **on its own**, and the views beside it still
+ * apply — one hand-edited view is no reason to forget the rest.
+ *
+ * A view naming a team, a person or a phase this project no longer holds
+ * survives this check and is simply never a live checkbox: applying it ticks
+ * a box the facet panel already knows how to draw for an absent value
+ * (`optionsFor`, "a team this plan has not loaded"), and narrowing by an id
+ * no row carries answers empty — the same "empty means empty" rule any other
+ * facet with nothing left to match gets. Nothing here repairs or deletes the
+ * view on the reader's behalf.
+ */
+function rememberedSavedViews(projectId: string): SavedView[] {
+  const stored = localStorage.getItem(savedViewsKey(projectId));
+  if (stored === null) return [];
+  const claimed = parsedOrNothing(stored);
+  if (!Array.isArray(claimed)) {
+    localStorage.removeItem(savedViewsKey(projectId));
+    return [];
+  }
+  return claimed.filter(isSavedView);
+}
+
+/**
+ * Writes the saved views in force for `projectId`.
+ *
+ * Called on Save and on Delete, and at no other time — same as {@link
+ * rememberWidthOverrides}, opening a project must not change what it
+ * remembers about it, and the sanitized set from {@link rememberedSavedViews}
+ * is never written back on a read.
+ */
+function rememberSavedViews(projectId: string, views: readonly SavedView[]): void {
+  localStorage.setItem(savedViewsKey(projectId), JSON.stringify(views));
+}
+
+/**
  * How wide a column is while its resize handle is `travel` px from where it was
  * grabbed.
  *
@@ -1345,6 +1468,321 @@ declare module '@tanstack/react-table' {
   }
 }
 
+/** One tickable value of one facet: what to filter by, and what to call it. */
+interface FacetOption {
+  id: string;
+  label: string;
+}
+
+/** How many facet values are ticked, which is what the control says on itself. */
+function facetsChosen(facets: FacetCriteria): number {
+  return (
+    facets.teamIds.length +
+    facets.assigneeIds.length +
+    facets.priorityBands.length +
+    facets.estimatedRoleIds.length +
+    (facets.unestimated ? 1 : 0) +
+    (facets.critical ? 1 : 0)
+  );
+}
+
+/** A value ticked or unticked, as a new list — the state here is never mutated in place. */
+const toggledIn = (chosen: readonly string[], id: string): string[] =>
+  chosen.includes(id) ? chosen.filter((each) => each !== id) : [...chosen, id];
+
+/**
+ * What one facet offers, for the two facets whose values have no order of their
+ * own: the teams and the people on this plan.
+ *
+ * **The plan's values, plus whatever is still ticked.** `present` is what the
+ * rows on screen actually carry, so a facet never offers a value whose only
+ * possible answer is an empty table. But the tree refetches on everybody's
+ * edit, so the row a tick was aimed at can leave while the tick is still in
+ * force — and dropping the box then would narrow the plan to nothing with
+ * nothing on screen to untick. So a ticked value is offered whether the plan
+ * still carries it or not.
+ *
+ * By label, because neither teams nor people have a meaning in the order be-01
+ * happens to return them in — unlike the bands, which are a ladder, and the
+ * phases, which are the order of the columns they estimate. Those two keep
+ * their own order and do not come through here.
+ */
+function optionsFor(
+  present: ReadonlySet<string>,
+  picked: readonly string[],
+  labelOf: (id: string) => string,
+): FacetOption[] {
+  return [...new Set([...present, ...picked])]
+    .map((id) => ({ id, label: labelOf(id) }))
+    .sort((left, right) => left.label.localeCompare(right.label));
+}
+
+/**
+ * The six facets a reader can narrow the plan by, beside the Find box.
+ *
+ * **A `<details>` and not a positioned popover**, for the reason
+ * `plan-cards.tsx`'s phase breakdown is one: it needs no measurement, no
+ * pointer-type guard and no dismiss handler, and a tap is what opens one
+ * already — which is what makes this control work unchanged inside the phone's
+ * `Plan actions` sheet, where a `<summary>` and a checkbox are not the
+ * `<button>` that closes it (`closingControlIn`).
+ *
+ * **Every list is the plan's own.** The teams are the effective teams somebody
+ * on this plan carries, the people are the ones be-01 says are assigned on it,
+ * the bands are this project's ladder and the phases are its roles. A facet
+ * offering a value no row has is a filter whose only possible answer is an
+ * empty table.
+ *
+ * The narrowing itself is not here and must not be: this writes criteria, and
+ * `narrowTree` is the one thing that reads them.
+ */
+function FilterFacets({
+  facets,
+  setFacets,
+  teams,
+  people,
+  bands,
+  phases,
+}: {
+  facets: FacetCriteria;
+  setFacets: (next: FacetCriteria) => void;
+  teams: readonly FacetOption[];
+  people: readonly FacetOption[];
+  bands: readonly FacetOption[];
+  phases: readonly FacetOption[];
+}) {
+  const chosen = facetsChosen(facets);
+  /** One group of tick boxes, or nothing at all where the plan offers none. */
+  const group = (
+    title: string,
+    kind: string,
+    options: readonly FacetOption[],
+    picked: readonly string[],
+    take: (next: string[]) => FacetCriteria,
+  ): ReactNode =>
+    options.length === 0 ? null : (
+      <fieldset data-facet-group={kind} className="mb-2 border-0 p-0">
+        <legend className="text-muted-foreground mb-1 text-xs font-semibold">{title}</legend>
+        {options.map((option) => (
+          <label key={option.id} className="flex min-h-6 items-center gap-1.5">
+            <input
+              type="checkbox"
+              // Named by its facet as well as its value: a team and a person
+              // may share a name, and two boxes with one label is a control
+              // neither a reader nor a test can aim at.
+              aria-label={`${title} ${option.label}`}
+              checked={picked.includes(option.id)}
+              onChange={() => {
+                setFacets(take(toggledIn(picked, option.id)));
+              }}
+            />
+            <span className="truncate">{option.label}</span>
+          </label>
+        ))}
+      </fieldset>
+    );
+
+  return (
+    <details data-facets className="relative">
+      <summary
+        className="border-input h-8 cursor-pointer rounded-md border px-2 py-1 text-xs select-none"
+        title="Narrow the plan to the rows carrying these — the table, the chart and the cards together"
+      >
+        Filters{chosen > 0 ? ` (${String(chosen)})` : ''}
+      </summary>
+      {/*
+        Over the plan rather than in the toolbar's flow: this row already wraps
+        at 1245px of controls, and a panel opening inside it would push the
+        table down the page every time somebody looked at what was ticked.
+      */}
+      <div
+        data-facet-panel
+        className="bg-popover absolute z-50 mt-1 max-h-80 w-56 overflow-y-auto rounded-md border p-3 text-sm shadow-md"
+      >
+        {group('Team', 'team', teams, facets.teamIds, (teamIds) => ({ ...facets, teamIds }))}
+        {group('Assignee', 'assignee', people, facets.assigneeIds, (assigneeIds) => ({
+          ...facets,
+          assigneeIds,
+        }))}
+        {group('Priority', 'priority', bands, facets.priorityBands, (priorityBands) => ({
+          ...facets,
+          priorityBands,
+        }))}
+        {group('Estimated for', 'phase', phases, facets.estimatedRoleIds, (estimatedRoleIds) => ({
+          ...facets,
+          estimatedRoleIds,
+        }))}
+        <fieldset data-facet-group="state" className="mb-2 border-0 p-0">
+          <legend className="text-muted-foreground mb-1 text-xs font-semibold">State</legend>
+          <label className="flex min-h-6 items-center gap-1.5">
+            <input
+              type="checkbox"
+              aria-label="Unestimated only"
+              checked={facets.unestimated}
+              onChange={() => {
+                setFacets({ ...facets, unestimated: !facets.unestimated });
+              }}
+            />
+            {/*
+              The readiness badge's own count, said as a filter: the same
+              `gaps.leaves` the button beside it reports, so the two cannot
+              describe two different plans.
+            */}
+            <span>Unestimated</span>
+          </label>
+          <label className="flex min-h-6 items-center gap-1.5">
+            <input
+              type="checkbox"
+              aria-label="Critical path only"
+              checked={facets.critical}
+              onChange={() => {
+                setFacets({ ...facets, critical: !facets.critical });
+              }}
+            />
+            <span>On the critical path</span>
+          </label>
+        </fieldset>
+        {/*
+          Offered only while there is something to forget, the same bargain
+          `Reset layout` makes: a control that provably does nothing reads as a
+          broken one. It clears the ticks and not the Find box — Escape in the
+          box is how the typed half is left, and one control undoing the other's
+          work is how a reader loses a query they were still using.
+        */}
+        {chosen > 0 && (
+          <Button
+            variant="outline"
+            size="sm"
+            type="button"
+            title="Untick every filter. The Find box is left as it is."
+            onClick={() => {
+              setFacets(NO_FACETS);
+            }}
+          >
+            Clear filters
+          </Button>
+        )}
+      </div>
+    </details>
+  );
+}
+
+/**
+ * Named filters this browser has saved for this project — R10 F4, beside
+ * {@link FilterFacets} because naming a filter and ticking one are the same
+ * act's two moments.
+ *
+ * **Narrow, not highlight**, same as the filter itself: picking a saved view
+ * writes the Find box and the ticks, exactly as if a reader had typed and
+ * ticked it themselves, and {@link narrowTree} is the one thing that reads
+ * what a view leaves behind. Nothing here holds a narrowed tree of its own.
+ *
+ * Save is offered only while something is actually being asked of the plan —
+ * the same bargain `Clear filters` makes: a view named for the whole,
+ * unfiltered plan has nothing to be picked back to, because opening a project
+ * already shows the whole plan.
+ */
+function SavedViews({
+  views,
+  current,
+  labels,
+  onSave,
+  onApply,
+  onDelete,
+}: {
+  views: readonly SavedView[];
+  current: FilterCriteria;
+  labels: FilterLabels;
+  onSave: (name: string) => void;
+  onApply: (view: SavedView) => void;
+  onDelete: (id: string) => void;
+}) {
+  const [name, setName] = useState('');
+  const filtering = isFiltering(current);
+  const canSave = filtering && name.trim() !== '';
+  return (
+    <details data-saved-views className="relative">
+      <summary
+        className="border-input h-8 cursor-pointer rounded-md border px-2 py-1 text-xs select-none"
+        title="Name the current filter, or pick one already named"
+      >
+        Views{views.length > 0 ? ` (${String(views.length)})` : ''}
+      </summary>
+      <div
+        data-saved-views-panel
+        className="bg-popover absolute z-50 mt-1 max-h-80 w-64 overflow-y-auto rounded-md border p-3 text-sm shadow-md"
+      >
+        <div className="mb-2 flex gap-1.5">
+          <Input
+            className="h-8 flex-1 text-xs"
+            aria-label="Name this view"
+            placeholder="Name this view…"
+            value={name}
+            onChange={(e) => {
+              setName(e.currentTarget.value);
+            }}
+          />
+          <Button
+            variant="outline"
+            size="sm"
+            type="button"
+            disabled={!canSave}
+            title={
+              filtering
+                ? 'Save the Find box and the ticked filters under this name'
+                : 'Nothing is filtered — there is no view to name'
+            }
+            onClick={() => {
+              onSave(name.trim());
+              setName('');
+            }}
+          >
+            Save
+          </Button>
+        </div>
+        {views.length === 0 ? (
+          <p className="text-muted-foreground text-xs">No saved views yet.</p>
+        ) : (
+          <ul>
+            {views.map((view) => {
+              // What the view asks of the plan, said the same way the
+              // filtered export's `Scope` line says it — one account of a
+              // filter, not two that could disagree.
+              const words = filterWords(view.criteria, labels);
+              return (
+                <li key={view.id} className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    className="min-h-7 flex-1 truncate text-left text-xs underline-offset-2 hover:underline"
+                    title={words.length > 0 ? words.join('; ') : view.name}
+                    onClick={() => {
+                      onApply(view);
+                    }}
+                  >
+                    {view.name}
+                  </button>
+                  <Button
+                    variant="ghost"
+                    size="square"
+                    type="button"
+                    aria-label={`Delete view ${view.name}`}
+                    title="Forget this view. What it narrows to is untouched."
+                    onClick={() => {
+                      onDelete(view.id);
+                    }}
+                  >
+                    <span aria-hidden="true">✕</span>
+                  </Button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
+    </details>
+  );
+}
+
 /**
  * The work breakdown: one grid that is a table and a nested list at once.
  *
@@ -1460,12 +1898,53 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
   /**
    * What has been typed into the Find box.
    *
-   * The narrowing itself is not state: it is {@link searchTree} of the rows on
+   * The narrowing itself is not state: it is {@link narrowTree} of the rows on
    * screen and this string, re-derived every render. A remembered answer would
    * narrow to a plan that no longer exists — every edit by anybody refetches
    * the whole tree.
    */
   const [query, setQuery] = useState('');
+  /**
+   * Which facets are ticked beside the Find box — the other six of R10's seven
+   * fields.
+   *
+   * `useState` and nothing else, deliberately: **an ad-hoc filter is not
+   * remembered across a reload** (R10 §9's Q6, Dany 2026-08-17). The plan you
+   * open is the whole plan; a filter restored from a session you do not
+   * remember setting is the "my rows are gone" report, and it is the single
+   * most likely support question this change could create. Named, deliberate
+   * criteria you come back to are saved views — F4, and the opposite gesture.
+   *
+   * Not the URL either: which project is open lives in localStorage
+   * (`project-page.tsx`) and `/` names none of it, so there is nothing here a
+   * link could carry to somebody else yet.
+   */
+  const [facets, setFacets] = useState<Omit<FilterCriteria, 'query'>>(NO_FACETS);
+  /**
+   * The filters this browser has named and saved for this project — F4, and
+   * the deliberate opposite of {@link facets} beside it: this **is**
+   * remembered across a reload, because naming one and picking it back up is
+   * a deliberate act and not a restored session nobody asked for.
+   *
+   * Read straight into the initial state for {@link rememberedExpansion}'s
+   * reason: an effect would open the panel with nothing in it for one frame.
+   */
+  const [savedViews, setSavedViews] = useState<SavedView[]>(() => rememberedSavedViews(projectId));
+  /** Which project the saved views above belong to, so a save cannot pair it with another. */
+  const savedViewsProject = useRef(projectId);
+  /**
+   * Swaps the saved views whole when the project does.
+   *
+   * Nothing is written here, for {@link widthProject}'s effect's reason: Save
+   * and Delete are the only writers, so there is no first-save-after-a-switch
+   * to guard against — only the read, which would otherwise offer one
+   * project's views on another's plan.
+   */
+  useEffect(() => {
+    if (savedViewsProject.current === projectId) return;
+    savedViewsProject.current = projectId;
+    setSavedViews(rememberedSavedViews(projectId));
+  }, [projectId]);
   /**
    * What happened, in the corner, one message per event.
    *
@@ -1633,6 +2112,17 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    * number beside bars it does not explain. `wbs-api.ts` has the argument.
    */
   const [teamCapacities, setTeamCapacities] = useState<TeamCapacityView[]>([]);
+  /**
+   * What this plan calls its priority numbers — five rungs, most important first.
+   *
+   * Off the tree read for {@link teamCapacities}' reason and one of its own: no
+   * date here was computed from the ladder, but every face draws every priority
+   * through it, so a ladder fetched at a second moment would paint the wrong
+   * label on every row rather than on one. `DEFAULT_PRIORITY_BANDS` is be-01's
+   * answer for a plan nobody has configured, so this is empty only before the
+   * first read has landed — which is the same moment the rows are empty.
+   */
+  const [priorityBands, setPriorityBands] = useState<PriorityBandView[]>([]);
   const [people, setPeople] = useState<PersonView[]>([]);
   const [dragging, setDragging] = useState<string | null>(null);
   const [dropHint, setDropHint] = useState<{ rowId: string; zone: DropZone } | null>(null);
@@ -2055,6 +2545,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     });
     setStack({ undoable: tree.undoable, redoable: tree.redoable });
     setTeamCapacities(tree.teamCapacities);
+    setPriorityBands(tree.priorityBands);
     setScheduleError(tree.scheduleError);
     setEstimateMethod(tree.estimateMethod);
     setStartDate(tree.startDate);
@@ -2486,8 +2977,13 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    *
    * Over `flat` and not `shownRows`: an ancestor a search or a collapse has
    * taken off screen still labels the work under it.
+   *
+   * Memoised on the tree since R10: it is one of the seven facts the filter
+   * narrows on, so a fresh `Map` on every render would rebuild the narrowed
+   * tree on every keystroke in any cell of the table, not only on a change to
+   * the filter.
    */
-  const effectiveTeams = effectiveTeamsOf(flat);
+  const effectiveTeams = useMemo(() => effectiveTeamsOf(flat), [flat]);
 
   /**
    * A row's team as a cell or a bar can state it: its own label, or the one it
@@ -2539,31 +3035,6 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
   }, [flat]);
 
   /**
-   * What the Find box is asking for: which rows stay, which of them are hits,
-   * and what has to be open to show them.
-   *
-   * A pure function of the rows on screen and the query, memoised only so the
-   * table's own row model is not rebuilt on every unrelated render — never
-   * cached across a change to either. A structural edit refetches the tree and
-   * this narrows the tree that came back, which is why a row moved out of the
-   * match set disappears from the narrowed view.
-   */
-  const search = useMemo(() => searchTree(flat, query), [flat, query]);
-  /**
-   * Whether a search is on — which is the query having something in it other
-   * than spaces, and is exactly when {@link searchTree} hands back an overlay.
-   *
-   * One source of truth rather than a second trim beside it, which is how two
-   * answers to one question start to disagree.
-   */
-  const searching = search.expandedOverlay !== null;
-
-  const siblingsOf = useCallback(
-    (parentId: string | null) => flat.filter((row) => row.parentId === parentId),
-    [flat],
-  );
-
-  /**
    * What this plan is still short of, per leaf and per role.
    *
    * Recomputed from the tree on screen rather than tracked, for the reason
@@ -2572,6 +3043,151 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    * one.
    */
   const gaps = useMemo(() => findEstimateGaps(flat, roles), [flat, roles]);
+  /**
+   * The rows the readiness badge counts, as a set the filter can ask.
+   *
+   * The badge's own answer and not a second one: "unestimated" on a checkbox
+   * and `12 unestimated` on the button beside it are the same claim, and two
+   * readings of it would be two plans.
+   */
+  const unestimatedIds = useMemo(() => new Set(gaps.leaves.map((leaf) => leaf.rowId)), [gaps]);
+
+  /**
+   * Everything the filter is allowed to ask about, one entry per row.
+   *
+   * Built here rather than inside {@link narrowTree} because every one of the
+   * seven facts is already in scope on this component and none of them is the
+   * tree walker's business: the walker's job is ancestors, descendants and
+   * termination, and a walker that also knew what a priority band was would be
+   * two things.
+   *
+   * **The effective team and not `row.teamIds`** — see {@link RowFacets}. The
+   * unestimated set is the readiness badge's own `gaps`, so the facet and the
+   * badge beside it cannot report two different plans.
+   */
+  const narrowable = useMemo<NarrowableRow[]>(
+    () =>
+      flat.map((row) => ({
+        id: row.id,
+        name: row.name,
+        parentId: row.parentId,
+        facets: {
+          teamIds: effectiveTeams.get(row.id)?.teamIds ?? [],
+          // Deduplicated: one person on three phases is one person to filter
+          // by, and `includes` over a list with them in it three times is the
+          // same answer paid for three times on every keystroke.
+          assigneeIds: [
+            ...new Set(Object.values(row.assignees).filter((id): id is string => id !== undefined)),
+          ],
+          // Null and not a band: a row nobody has prioritised carries no rung,
+          // and `priorityBandOf` is asked about numbers only.
+          priorityBand:
+            row.priority === null
+              ? null
+              : (priorityBandOf(priorityBands, row.priority)?.label ?? null),
+          // `Object.hasOwn` and not a truthy test, which is `findEstimateGaps`'
+          // own rule: a stored `0 / 0 / 0` is somebody saying this costs
+          // nothing, which is an answer and not an absence.
+          estimatedRoleIds: roles
+            .filter((role) => Object.hasOwn(row.estimates, role.id))
+            .map((role) => role.id),
+          unestimated: unestimatedIds.has(row.id),
+          // be-01's own answer for the row, not a second reading of the
+          // slices: a row is on the critical path when its work is, and the
+          // Slack cell and the card both already print this field.
+          critical: row.schedule.critical,
+        },
+      })),
+    [flat, effectiveTeams, priorityBands, roles, unestimatedIds],
+  );
+
+  /**
+   * What the filter is asking for: which rows stay, which of them are hits,
+   * and what has to be open to show them.
+   *
+   * A pure function of the rows on screen and the criteria, memoised only so
+   * the table's own row model is not rebuilt on every unrelated render — never
+   * cached across a change to either. A structural edit refetches the tree and
+   * this narrows the tree that came back, which is why a row moved out of the
+   * match set disappears from the narrowed view.
+   */
+  const criteria = useMemo<FilterCriteria>(() => ({ query, ...facets }), [query, facets]);
+  const search = useMemo(() => narrowTree(narrowable, criteria), [narrowable, criteria]);
+  /**
+   * Whether a filter is on — a query with something in it other than spaces,
+   * or any facet ticked, and exactly when {@link narrowTree} hands back an
+   * overlay.
+   *
+   * One source of truth rather than a second trim beside it, which is how two
+   * answers to one question start to disagree. Read through {@link isFiltering}
+   * rather than off the overlay so the controls that stand down while a filter
+   * is on do not have to hold a narrowed tree to ask.
+   */
+  const filtering = isFiltering(criteria);
+
+  /**
+   * The names the ids inside a {@link FilterCriteria} stand for, in this
+   * plan's own words — one object read by the filtered export's `Scope` line
+   * ({@link planOnScreen}) and by the saved-views panel's tooltip, so a
+   * filter is never described two different ways.
+   */
+  const filterLabels: FilterLabels = {
+    teamName: (teamId) =>
+      teams.find((team) => team.id === teamId)?.name ?? 'a team this plan has not loaded',
+    personName: (personId) =>
+      chartRead.people.find((person) => person.id === personId)?.name ??
+      'somebody this plan has not loaded',
+    phaseName: (roleId) => roles.find((role) => role.id === roleId)?.name ?? '(unknown)',
+  };
+
+  const facetTeams = useMemo(
+    () =>
+      optionsFor(
+        new Set(narrowable.flatMap((row) => row.facets.teamIds)),
+        facets.teamIds,
+        (id) =>
+          // The Team cell's own sentence for a label the directory read has
+          // not caught up with, rather than a blank box.
+          teams.find((team) => team.id === id)?.name ?? 'a team this plan has not loaded',
+      ),
+    [narrowable, facets.teamIds, teams],
+  );
+  const facetPeople = useMemo(
+    () =>
+      optionsFor(
+        new Set(narrowable.flatMap((row) => row.facets.assigneeIds)),
+        facets.assigneeIds,
+        // The names that came with the tree, which is be-01's own list of who
+        // is assigned on this plan — not the directory's list of everybody.
+        (id) =>
+          chartRead.people.find((person) => person.id === id)?.name ??
+          'somebody this plan has not loaded',
+      ),
+    [narrowable, facets.assigneeIds, chartRead.people],
+  );
+  /** In the ladder's order, which is the order the bands mean something in. */
+  const facetBands = useMemo(() => {
+    const present = new Set(
+      narrowable.flatMap((row) =>
+        row.facets.priorityBand === null ? [] : [row.facets.priorityBand],
+      ),
+    );
+    return priorityBands
+      .filter((band) => present.has(band.label) || facets.priorityBands.includes(band.label))
+      .map((band) => ({ id: band.label, label: band.label }));
+  }, [narrowable, priorityBands, facets.priorityBands]);
+  /** In the phase list's order, which is the order of the columns they estimate. */
+  const facetPhases = useMemo(() => {
+    const present = new Set(narrowable.flatMap((row) => row.facets.estimatedRoleIds));
+    return roles
+      .filter((role) => present.has(role.id) || facets.estimatedRoleIds.includes(role.id))
+      .map((role) => ({ id: role.id, label: role.name }));
+  }, [narrowable, roles, facets.estimatedRoleIds]);
+
+  const siblingsOf = useCallback(
+    (parentId: string | null) => flat.filter((row) => row.parentId === parentId),
+    [flat],
+  );
 
   /**
    * Every fact about this plan that a column's width is allowed to depend on.
@@ -2676,6 +3292,15 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
       roles,
       teams,
       people,
+      priorityBands,
+      // Every tree row as it came off the wire, not a literal built from one.
+      // `toTree` spreads the whole `WorkItemView` (`wbs-rows.ts`), so a column
+      // be-01 adds reaches the export the day it reaches the type — which is
+      // why `Not before because` needed no line here, against what
+      // `not-before-reason`'s proposal owed. Asserted rather than assumed:
+      // `exports the words about a not-before date` reads the reason out of a
+      // downloaded plan, so a literal introduced here later fails a test rather
+      // than silently emptying a column.
       rows: flat,
       // The slices the chart on screen was drawn from, so the export's Ran at
       // column is the same placement the bars are and not a second reading of
@@ -2692,6 +3317,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
       roles,
       teams,
       people,
+      priorityBands,
       flat,
       chartRead.slices,
     ],
@@ -2732,6 +3358,32 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
   }, [planForExport, pushToast]);
 
   /**
+   * Puts the plan's chart on the clipboard as a Mermaid gantt, or says why there
+   * is none. Same three clipboard outcomes as `copyAsMarkdown`, plus a fourth
+   * this one has: a plan a gantt cannot be drawn of at all.
+   */
+  const copyAsMermaid = useCallback(() => {
+    const diagram = planToMermaid(planForExport());
+    if (!diagram.drawn) {
+      pushToast({ kind: 'error', text: diagram.refusal });
+      return;
+    }
+    const clipboard = navigator.clipboard as Clipboard | undefined;
+    if (clipboard === undefined) {
+      pushToast({ kind: 'error', text: NO_CLIPBOARD });
+      return;
+    }
+    void clipboard.writeText(diagram.text).then(
+      () => {
+        pushToast({ kind: 'info', text: 'Copied as Mermaid.' });
+      },
+      () => {
+        pushToast({ kind: 'error', text: CLIPBOARD_REFUSED });
+      },
+    );
+  }, [planForExport, pushToast]);
+
+  /**
    * Downloads the plan as a CSV, without asking be-01 for anything.
    *
    * A blob and an anchor click, which is the only way a page saves a file it
@@ -2755,6 +3407,29 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     anchor.click();
     URL.revokeObjectURL(url);
   }, [planForExport]);
+
+  /**
+   * Downloads the plan as a bundled Markdown document — the Mermaid fence plus
+   * the table beneath it — or says why there is no diagram to bundle. Refuses
+   * exactly where {@link copyAsMermaid} refuses, and for the same reason: a
+   * document is the fence plus the table, and there is nothing to bundle around
+   * a sentence.
+   */
+  const downloadMermaidDocument = useCallback(() => {
+    const plan = planForExport();
+    const bundle = planToMermaidDocument(plan);
+    if (!bundle.drawn) {
+      pushToast({ kind: 'error', text: bundle.refusal });
+      return;
+    }
+    const markdown = new Blob([bundle.text], { type: 'text/markdown;charset=utf-8' });
+    const url = URL.createObjectURL(markdown);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = planFileName(plan, 'md');
+    anchor.click();
+    URL.revokeObjectURL(url);
+  }, [planForExport, pushToast]);
 
   /**
    * The work items between `rowId` and the root, nearest first.
@@ -3953,10 +4628,60 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    * on this row still moves with it, and a predecessor finishing later still
    * wins. Dany's call — it keeps the calendar and the dependency tree from
    * being able to contradict each other.
+   *
+   * **Clearing the day clears the words with it, in the same request.** Since
+   * #81 the pair is a rule be-01 checks inside the transaction that would write
+   * it: a reason with no date to be about is `not_before_reason_needs_a_date`,
+   * **400**. So a bare `{ startNoEarlierThan: null }` is a refusal on every row
+   * somebody has explained — the date would stop clearing, in the reader's
+   * face, on exactly the rows that have the most typed into them. Refused
+   * rather than cascaded is be-01's call and the right one; the client that
+   * cleared the date is the one place that knows the words are meant to go too.
+   *
+   * Setting a day names only the day. The words on a row that already has some
+   * are still true of the new date, and a set that silently blanked them would
+   * be this same deletion wearing the other hat.
+   *
+   * Proof: the second field dropped from the null arm, `clearing a not-before
+   * date clears the words with it` fails on `expected [ { startNoEarlierThan:
+   * null } ] to deeply equal [ { startNoEarlierThan: null,
+   * startNoEarlierThanReason: null } ]`. Watched, 2026-08-18.
    */
   const setNotBefore = useCallback(
     (id: string, day: string | null) => {
-      void run(() => api.patch(id, { startNoEarlierThan: day }));
+      void run(() =>
+        api.patch(
+          id,
+          day === null
+            ? { startNoEarlierThan: null, startNoEarlierThanReason: null }
+            : { startNoEarlierThan: day },
+        ),
+      );
+    },
+    [api, run],
+  );
+
+  /**
+   * Sets or clears the words about one work item's "not before" day.
+   *
+   * A sentence, not a state. It moves no date and reaches no other row — the
+   * date is the whole of the constraint and this is the whole of the
+   * explanation (`openspec/changes/not-before-reason/proposal.md`).
+   *
+   * A blank box is `null`, not `''`, so there is one spelling of "nobody has
+   * said" — the same call `setPriority` makes about an emptied number, and the
+   * one thing be-01 cannot see from a request that omits the field entirely.
+   *
+   * **What is deliberately not decided here: whether the row may have words at
+   * all.** Typing a reason onto a row with no date is refused by be-01 with the
+   * pair rule above, and it is left refused there rather than guarded in this
+   * client. A client-side rule the server does not share is how the two come to
+   * disagree, which is the doctrine {@link setPriority} already writes down.
+   */
+  const setNotBeforeReason = useCallback(
+    (id: string, typed: string) => {
+      const said = typed.trim();
+      void run(() => api.patch(id, { startNoEarlierThanReason: said === '' ? null : said }));
     },
     [api, run],
   );
@@ -3979,7 +4704,12 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    */
   const setPriority = useCallback(
     (id: string, typed: string): Promise<CommitOutcome> => {
-      const trimmed = typed.trim();
+      // A band's own name resolves to the number it writes, **before** anything
+      // is parsed as a number. That is the manual-or-label half of Dany's ask
+      // arriving through one commit path rather than two: a picked line and a
+      // typed name and a typed number all become one `patch`, one journal entry
+      // and one undo. `priorityTyped` owns the rule and the order in it.
+      const trimmed = priorityTyped(priorityBands, typed).trim();
       if (trimmed === '') return run(() => api.patch(id, { priority: null }));
       // `Number` rather than `parseInt`: `parseInt('1.5')` is 1 and
       // `parseInt('2x')` is 2, so both would go out as priorities nobody typed.
@@ -4008,7 +4738,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
       }
       return run(() => api.patch(id, { priority: asNumber }));
     },
-    [api, pushToast, run],
+    [api, priorityBands, pushToast, run],
   );
 
   /**
@@ -4450,7 +5180,9 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     setHoveredCell,
     setFocusedCell,
     setNotBefore,
+    setNotBeforeReason,
     setPriority,
+    priorityBands,
     setParallelism,
     effectiveTeamLabelOf,
     editingNotBefore,
@@ -4468,7 +5200,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     assigneeOn,
     waitsFor,
     matchIds: search.matchIds,
-    searching,
+    filtering,
   });
   live.current = {
     api,
@@ -4517,7 +5249,9 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     setHoveredCell,
     setFocusedCell,
     setNotBefore,
+    setNotBeforeReason,
     setPriority,
+    priorityBands,
     setParallelism,
     effectiveTeamLabelOf,
     editingNotBefore,
@@ -4535,7 +5269,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     assigneeOn,
     waitsFor,
     matchIds: search.matchIds,
-    searching,
+    filtering,
   };
 
   const columns = useMemo(
@@ -4577,7 +5311,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
       column.display({
         id: 'number',
         // `#`, which is what a column of work item numbers is called on every
-        // spreadsheet a reader of this table has ever used — and 93px of a
+        // spreadsheet a reader of this table has ever used — and 105px of a
         // 1280px laptop is not where the word `Number` earns its eight
         // characters. The accessible name is the word, on the glyph itself:
         // `#` is punctuation a screen reader announces as "number sign" or
@@ -4608,7 +5342,7 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
               touch, so a click here would appear to do nothing.
             */}
             <span data-caret-gutter style={{ display: 'inline-block', width: CARET_GUTTER_PX }}>
-              {row.getCanExpand() && !live.current.searching ? (
+              {row.getCanExpand() && !live.current.filtering ? (
                 <button
                   type="button"
                   aria-label={`${row.getIsExpanded() ? 'Collapse' : 'Expand'} ${row.original.number}`}
@@ -4912,51 +5646,16 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
           const waitsForId = `depends-${row.original.id}`;
           return (
             <span
-              onMouseEnter={() => {
-                // The cell-level dependency hover: every row this one waits
-                // for is lit, `pillId: null` saying the pointer is on the
-                // cell rather than on one pill. Guarded by the same "nothing
-                // to say, nothing written" rule as the card below — a cell
-                // that waits for nothing has no row to light and no reason to
-                // spend a render (codex round 3, finding 5). The functional
-                // writer returns the current object when the value is already
-                // there, which is the string-key bail-out below, spelt for an
-                // object.
-                if (waitingFor.length > 0) {
-                  live.current.setDepHover((current) =>
-                    current?.rowId === row.original.id && current.pillId === null
-                      ? current
-                      : { rowId: row.original.id, pillId: null },
-                  );
-                }
-                // Nothing to open, nothing written. `hoveredCell` lives on the
-                // table, so every boundary the pointer crosses costs one render
-                // of the whole of it — and a cell with no card to show has no
-                // reason to spend one, nor to close the card open somewhere else
-                // on the pointer's way past. codex round 3, finding 5.
-                //
-                // The key is a string, so a second enter on the same cell writes
-                // the value already there and React bails out without rendering.
-                // Proof: this guard dropped, `writes no hovered cell from a cell
-                // that has no card to show` failed on `Unable to find an
-                // accessible element with the role "tooltip"`. Watched,
-                // 2026-08-09.
-                if (!cardable) return;
-                live.current.setHoveredCell(dependsCell);
-              }}
-              onMouseLeave={() => {
-                // Leaving the cell clears the dependency hover outright — with
-                // the same-cell guard `hoveredCell`'s clear uses, because a
-                // leave lands after the next cell's enter.
-                live.current.setDepHover((current) =>
-                  current?.rowId === row.original.id ? null : current,
-                );
-                // The same-cell guard, for the reason the Name cell's marker
-                // gives: a leave lands after the next cell's enter.
-                live.current.setHoveredCell((current) =>
-                  current === dependsCell ? null : current,
-                );
-              }}
+              // **No `onMouseEnter` here, and that is this change.** The
+              // cell-level dependency hover used to be on this wrapper, which
+              // stands *inside* the `<td>`'s padding box and, at the column's
+              // own 110px, is filled edge to edge by the pills — so a reader
+              // pointing at the cell got nothing, and the only place that
+              // answered the whole-cell gesture was the 15.8px add button. It
+              // is on the `<td>` now; see `dependsCellHoverProps`, and
+              // `openspec/changes/table-width-budget/design.md` D2 for the
+              // measurement.
+              //
               // This wrapper carried `whiteSpace: 'normal'` until 2026-08-10,
               // with the rationale "an uneven row height is a cost worth
               // paying; a dependency nobody can see is not". The change
@@ -5547,80 +6246,43 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
             Prio
           </span>
         ),
-        cell: ({ row }) => {
-          const own = row.original.priority;
-          return (
-            <CellInput
-              aria-label={`Priority for ${row.original.number}`}
-              cellKey={cellKey(row.original.id, 'priority')}
-              data-priority={row.original.id}
-              // Numeric, so a phone offers digits — and `inputMode` rather than
-              // `type="number"`: a number input brings spinners this column has
-              // no room for, and swallows the arrow keys the grid navigates
-              // with.
-              inputMode="numeric"
-              title={
-                own === null
-                  ? 'How important this work is: 1 upward, smaller first. Blank means nobody has said.'
-                  : `Priority ${String(own)}. Smaller is more important; it decides who gets a shared person first.`
-              }
-              style={{
-                width: '100%',
-                boxSizing: 'border-box',
-                font: 'inherit',
-                background: 'transparent',
-                border: 'none',
-                textAlign: 'right',
-              }}
-              onKeyDown={(e) => {
-                // Enter saves the number, and that is this column's alone to
-                // say: the Name cell holds real newlines and Enter is the
-                // browser's own there (`command-keys`), so the rule cannot
-                // live in `CellInput`. Without it a typed priority sat in the
-                // box sending nothing until the reader happened to click
-                // somewhere else — the dates under the plan unmoved for as
-                // long as they looked at it. Observed live on dev, 2026-08-11.
-                //
-                // The modifiers are asked about first and the chord is left to
-                // `onCommandKey` underneath: Ctrl/⌘ + Enter saves *and* moves
-                // to the next row, and a bare Enter that also moved would be
-                // that chord wearing this key.
-                //
-                // `flushCell` rather than a commit of this cell's own, because
-                // it is the same "leave this cell now" the chords use and it is
-                // what rule 5 of `LiveField` answers from: the blur that
-                // follows finds the submission already recorded and sends
-                // nothing, so one Enter is one request and one undo.
-                //
-                // Proof, two faults, both watched 2026-08-11. This branch
-                // absent: `sends what was typed on Enter, without waiting for
-                // the cell to be left` failed on `expected [ { priority: 1 } ]
-                // to deeply equal []`. Written as a direct
-                // `setPriority(row.original.id, e.currentTarget.value)`, which
-                // sends the same patch without recording a submission: `sends
-                // one request for a priority entered with Enter and then left`
-                // failed on `expected [ { priority: 4 }, { priority: 4 } ] to
-                // deeply equal [ { priority: 4 } ]` — one typed number, two
-                // journal entries and two Ctrl/⌘ + Zs.
-                if (e.key === 'Enter' && !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey) {
-                  e.preventDefault();
-                  void flushCell(e.currentTarget);
-                  return;
-                }
-                live.current.onAltMove(e, row.original, 'priority');
-                live.current.onCommandKey(e, row.original, 'priority');
-                live.current.onTabKey(e, row.original.id, 'priority');
-                live.current.onArrowKey(e, row.original.id, 'priority');
-              }}
-              // Blank at rest for a work item nobody has given a priority — no
-              // placeholder, and no em-dash. A priority is a scale, and a column of
-              // grey hints down every row of a plan nobody has given priorities is a wall of
-              // furniture saying nothing. Dany's compaction, 2026-08-08.
-              value={own === null ? '' : String(own)}
-              commit={(typed) => live.current.setPriority(row.original.id, typed)}
-            />
-          );
-        },
+        cell: ({ row }) => (
+          /*
+            The box, the band list under it, and the colour the number is drawn
+            in — all three in `priority-cell.tsx`, so the one place a band becomes
+            a colour is `priority-band-style.ts` and this column has no opinion of
+            its own about it.
+
+            The ladder is read off `live.current` rather than closed over, which
+            is this file's oldest landmine: `columns` depends on `roles` alone,
+            and a second dependency remounts every cell in the table and eats the
+            focus somebody is typing in. A re-cut ladder redraws because the rows
+            redraw.
+          */
+          <PriorityCell
+            cellKey={cellKey(row.original.id, 'priority')}
+            rowNumber={row.original.number}
+            rowId={row.original.id}
+            bands={live.current.priorityBands}
+            priority={row.original.priority}
+            commit={(typed) => live.current.setPriority(row.original.id, typed)}
+            // A picked line is the same write a typed number is — one `patch`,
+            // one journal entry, one undo — which is what makes the two languages
+            // round-trip into each other rather than into two histories.
+            choose={(value) => {
+              void live.current.setPriority(row.original.id, String(value));
+            }}
+            onEnter={(box) => {
+              void flushCell(box);
+            }}
+            onGridKey={(e) => {
+              live.current.onAltMove(e, row.original, 'priority');
+              live.current.onCommandKey(e, row.original, 'priority');
+              live.current.onTabKey(e, row.original.id, 'priority');
+              live.current.onArrowKey(e, row.original.id, 'priority');
+            }}
+          />
+        ),
       }),
       column.display({
         id: 'team',
@@ -5691,8 +6353,34 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         ),
         cell: ({ row }) => {
           const own = row.original.maxParallel;
-          const named = row.original.doesEveryPhase;
           const hasChildren = row.subRows.length > 0;
+          /**
+           * Who be-01's `widthFor` reads for one role of this leaf — its own
+           * assignee, or the row's single assumed one. The same fallback
+           * `assigneeOn` reads two columns back, because `widthFor` is built
+           * from exactly this pair (`work-item.service.ts`'s `personFor`).
+           */
+          const personForRole = (roleId: string): string | null =>
+            row.original.assignees[roleId] ?? row.original.doesEveryPhase ?? null;
+          const estimatedRoles = Object.keys(row.original.estimates);
+          /**
+           * Whether **every** slice `widthFor` would cut this leaf into is
+           * pinned to width 1 by a named person — the only reading that
+           * agrees with be-01, which collapses **per slice** and not per row.
+           *
+           * `doesEveryPhase` alone used to stand in for this and is still the
+           * right answer for a leaf with one role, or with several roles and
+           * one assumed assignee — but it is `null` the moment a *second*
+           * role gets its own explicit name, because `assumedAssignee`
+           * requires exactly one named assignment project-wide on the row.
+           * Two roles on two different people each still collapse their own
+           * slice to width 1; the row-level reading just stopped being able
+           * to say so.
+           */
+          const everySliceNamed =
+            estimatedRoles.length > 0
+              ? estimatedRoles.every((roleId) => personForRole(roleId) !== null)
+              : row.original.doesEveryPhase !== null;
           // Three states the cell renders differently, and each of them is a
           // fact the reader cannot get anywhere else:
           //
@@ -5701,16 +6389,17 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
           //   `has_children`; the cell is read-only rather than offering an
           //   edit be-01 refuses. A leaf that later gained a child keeps
           //   whatever it was given, inert, and the cell says so.
-          // - a leaf somebody is **named** on runs at width 1 whatever this
-          //   says (D3): one human cannot work beside themselves. The number is
-          //   still stored and still applies the moment the assignment goes, so
-          //   it is shown muted rather than hidden.
+          // - a leaf whose **every estimated role** is named runs each of
+          //   those slices at width 1 whatever this says (D3): one human
+          //   cannot work beside themselves. The number is still stored and
+          //   still applies the moment a name comes off, so it is shown muted
+          //   rather than hidden.
           // - anything else is an ordinary editable number.
-          const inert = hasChildren || (named !== null && own > 1);
+          const inert = hasChildren || (everySliceNamed && own > 1);
           const why = hasChildren
             ? 'This row has children, so it holds no work of its own. The number is kept and does nothing.'
-            : named !== null && own > 1
-              ? 'One person is named on this work, so it runs one at a time whatever this says.'
+            : everySliceNamed && own > 1
+              ? 'Everybody on this work is named, so it runs one at a time whatever this says.'
               : own > 1
                 ? `${String(own)} people at once. The item's effort is compressed across them, up to the team's size.`
                 : 'How many people may work on this item at once. Blank means one at a time.';
@@ -6310,6 +6999,10 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         ),
         cell: ({ row }) => {
           const day = row.original.startNoEarlierThan;
+          // The words about that day, or null where nobody has said. Straight
+          // off the tree read like the date above it — a draft somebody is
+          // half-way through typing is not yet a fact about the plan.
+          const reason = row.original.startNoEarlierThanReason;
           // Without a project start date there is no day zero to count from and
           // be-01 ignores the constraint entirely. A rendered disabled state
           // rather than an editor that opens onto nothing: a date that saves
@@ -6320,53 +7013,169 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
             if (noCalendar) return;
             live.current.openNotBefore(row.original.id);
           };
+          const close = (): void => {
+            live.current.closeNotBefore(row.original.id);
+          };
+          /**
+           * Sends the words in the box, and only when they differ from the ones
+           * this box last agreed about.
+           *
+           * `DateField`'s rule, in the one place it cannot be borrowed from: a
+           * focus and a blur with nothing typed is not an edit, and sending
+           * anyway writes what was on screen when the focus arrived over
+           * whatever a peer has done since. What "agreed" means is kept on the
+           * node rather than in a ref because this box is rendered by a cell
+           * function, not by a component with a lifetime — an Enter that sends
+           * and then blurs would otherwise send the same sentence twice.
+           */
+          const commitReason = (box: HTMLInputElement): void => {
+            const agreed = box.dataset['agreed'] ?? reason ?? '';
+            if (box.value === agreed) return;
+            box.dataset['agreed'] = box.value;
+            live.current.setNotBeforeReason(row.original.id, box.value);
+          };
           return (
             /*
               The wrapper the editor escapes through. It is `position: relative`
               and **inside** the `<td>`, which is why `opensAPopover` has to
               lift this column's clip for the editor to be visible at all — see
               the note there. At rest it holds a short date and escapes nothing.
+
+              **It is also what decides the editor is one editor.** Since the
+              reason box joined the date box, leaving one of them for the other
+              is not leaving the editor, and `DateField`'s `onExit` cannot tell
+              the difference — it reports the blur, not where the focus went.
+              `focusout` bubbles and carries `relatedTarget`, so the question is
+              asked once, here, of the panel as a whole: focus still inside is
+              not an exit. Proof: this guard inverted to a bare `close()`, `lets
+              somebody type the reason the date is there` fails on `expected
+              null to not be null` — the panel shuts on the way to the box.
+              Watched, 2026-08-18.
             */
-            <span style={{ position: 'relative', display: 'block' }}>
+            <span
+              style={{ position: 'relative', display: 'block' }}
+              onBlur={(event) => {
+                if (!editing) return;
+                const going = event.relatedTarget;
+                if (going instanceof Node && event.currentTarget.contains(going)) return;
+                close();
+              }}
+            >
               {editing ? (
-                <DateField
-                  aria-label={`Earliest start for ${row.original.number}`}
-                  data-not-before={row.original.id}
-                  data-cell={cellKey(row.original.id, 'not-before')}
-                  title="This work item may not start before this day. Its dependencies can still push it later."
-                  onKeyDown={(e) => {
-                    // The chords and the row moves, and nothing else this cell
-                    // does not already own: a native date input keeps its own
-                    // arrows for the segment under the caret, which is why
-                    // {@link onArrowKey} is absent here. Alt+arrow is not one
-                    // of those — {@link altMoveIn} takes it before the segment
-                    // stepper sees it, exactly as it does in every other cell.
-                    live.current.onAltMove(e, row.original, 'not-before');
-                    live.current.onCommandKey(e, row.original, 'not-before');
-                    live.current.onTabKey(e, row.original.id, 'not-before');
-                  }}
-                  onExit={() => {
-                    live.current.closeNotBefore(row.original.id);
-                  }}
-                  // Wider than its column, on purpose: {@link DATE_EDITOR_WIDTH}
-                  // is what this browser lays an unconstrained date input out
-                  // at, and a column that grew to fit one would move every cell
-                  // under the person typing. It leaves the cell instead, over
-                  // the columns beside it, which is what the `z-index` is for.
-                  style={{
-                    position: 'relative',
-                    zIndex: 10,
-                    width: DATE_EDITOR_WIDTH,
-                    boxSizing: 'border-box',
-                    font: 'inherit',
-                  }}
-                  value={day ?? ''}
-                  commit={(typed) => {
-                    // A date input reports '' when cleared, which is the caller
-                    // saying "no constraint" rather than "an empty date".
-                    live.current.setNotBefore(row.original.id, typed === '' ? null : typed);
-                  }}
-                />
+                <>
+                  <DateField
+                    aria-label={`Earliest start for ${row.original.number}`}
+                    data-not-before={row.original.id}
+                    data-cell={cellKey(row.original.id, 'not-before')}
+                    title="This work item may not start before this day. Its dependencies can still push it later."
+                    onKeyDown={(e) => {
+                      // Enter closes the editor, and it is this cell's job now
+                      // rather than `onExit`'s: `onExit` reports a blur as well
+                      // as an Enter, and a blur may be somebody reaching for the
+                      // reason box under this one. By the time this runs
+                      // `DateField` has already sent the day — its own handler
+                      // is first, deliberately, so a `Ctrl/⌘ + Enter` that moves
+                      // to the next row has saved this one on the way out.
+                      if (e.key === 'Enter') close();
+                      // The chords and the row moves, and nothing else this cell
+                      // does not already own: a native date input keeps its own
+                      // arrows for the segment under the caret, which is why
+                      // {@link onArrowKey} is absent here. Alt+arrow is not one
+                      // of those — {@link altMoveIn} takes it before the segment
+                      // stepper sees it, exactly as it does in every other cell.
+                      live.current.onAltMove(e, row.original, 'not-before');
+                      live.current.onCommandKey(e, row.original, 'not-before');
+                      live.current.onTabKey(e, row.original.id, 'not-before');
+                    }}
+                    onExit={(how) => {
+                      // Escape only. It is the one exit that has already put the
+                      // box back to the day the server agreed, so there is
+                      // nothing left to send and nowhere else the focus is
+                      // going. Every other way out of this panel is the
+                      // wrapper's `focusout`, which is the one place that can
+                      // see the two boxes as one editor.
+                      if (how === 'cancel') close();
+                    }}
+                    // Wider than its column, on purpose: {@link DATE_EDITOR_WIDTH}
+                    // is what this browser lays an unconstrained date input out
+                    // at, and a column that grew to fit one would move every cell
+                    // under the person typing. It leaves the cell instead, over
+                    // the columns beside it, which is what the `z-index` is for.
+                    style={{
+                      position: 'relative',
+                      zIndex: 10,
+                      width: DATE_EDITOR_WIDTH,
+                      boxSizing: 'border-box',
+                      font: 'inherit',
+                    }}
+                    value={day ?? ''}
+                    commit={(typed) => {
+                      // A date input reports '' when cleared, which is the caller
+                      // saying "no constraint" rather than "an empty date".
+                      live.current.setNotBefore(row.original.id, typed === '' ? null : typed);
+                    }}
+                  />
+                  {/*
+                    Why the date is there, under the date itself.
+
+                    **Absolutely positioned, so the row does not grow.** A second
+                    box in the flow would make every cell of this row two lines
+                    tall for as long as somebody is typing, and the table's whole
+                    geometry is one line per row. It hangs off the wrapper the
+                    date editor already escapes through, at the same width, and
+                    reaches the reader only because `opensAPopover` lifts this
+                    column's clip.
+
+                    No `data-cell`: the grid has one cell here and it is the
+                    date. A second box wearing the same key is how the keyboard
+                    and the held refusal come to disagree about which box they
+                    are talking about — `CellInput`'s note says it, one column
+                    over.
+                  */}
+                  <input
+                    aria-label={`Why ${row.original.number} may not start earlier`}
+                    data-not-before-reason={row.original.id}
+                    placeholder="Why? (optional)"
+                    title="Words about the date beside this, in your own words — a date with no words is still a date. Clearing the date clears these too."
+                    // No `maxLength`, deliberately. be-01 bounds this at 200
+                    // (`LONGEST_NOT_BEFORE_REASON`) and refuses a longer one,
+                    // and a box that quietly stopped taking characters would be
+                    // this client keeping a rule the server also keeps — two
+                    // copies of one number, which is how the two come to
+                    // disagree. {@link setPriority} writes the doctrine down.
+                    defaultValue={reason ?? ''}
+                    style={{
+                      position: 'absolute',
+                      top: '100%',
+                      left: 0,
+                      zIndex: 10,
+                      width: DATE_EDITOR_WIDTH,
+                      boxSizing: 'border-box',
+                      font: 'inherit',
+                      background: 'var(--popover)',
+                      color: 'var(--popover-foreground)',
+                      border: '1px solid var(--border)',
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Escape') {
+                        // Back to what the server agreed, which is what makes
+                        // the blur after an Escape harmless — the same rule
+                        // {@link DateField} keeps, for the same reason: a box
+                        // holding the agreed value has nothing left to commit.
+                        e.currentTarget.value = reason ?? '';
+                        close();
+                        return;
+                      }
+                      if (e.key === 'Enter') {
+                        commitReason(e.currentTarget);
+                        close();
+                      }
+                    }}
+                    onBlur={(e) => {
+                      commitReason(e.currentTarget);
+                    }}
+                  />
+                </>
               ) : (
                 /*
                   The day at rest, and still a cell of the keyboard grid: Tab
@@ -6382,12 +7191,22 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                   disabled={noCalendar}
                   data-not-before={row.original.id}
                   data-cell={cellKey(row.original.id, 'not-before')}
+                  // The reason is **appended** where there is one, never
+                  // substituted — the same bargain `floorWordsOf` strikes on
+                  // the bar. What the constraint does is the part a reader
+                  // cannot work out for themselves; what it is *for* is the
+                  // part only a planner can say. A cell 84px wide has one
+                  // `title` and both belong in it.
                   title={
                     noCalendar
                       ? 'Set the project start date first — without one there are no dates to constrain.'
-                      : day === null
-                        ? 'This work item may not start before this day. Its dependencies can still push it later.'
-                        : `${day}. This work item may not start before this day. Its dependencies can still push it later.`
+                      : [
+                          day === null ? null : `${day}.`,
+                          'This work item may not start before this day. Its dependencies can still push it later.',
+                          reason === null || reason.trim() === '' ? null : `Why: ${reason.trim()}`,
+                        ]
+                          .filter((part) => part !== null)
+                          .join(' ')
                   }
                   style={{
                     width: '100%',
@@ -6701,6 +7520,86 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
   const pointedAt: string | null = tablePointedRow ?? pointedFromChart;
 
   /**
+   * What one row's Depends on `<td>` does with a pointer arriving and leaving.
+   *
+   * **On the `<td>`, because the gesture is "the pointer is in this cell".**
+   * These two handlers lived on a wrapper `<span>` inside the cell until
+   * 2026-08-14, and the wrapper stands inside the cell's padding box: the
+   * cell's own 4px either side answered nothing, and at the column's resolved
+   * 110px two pills and the add button fill the strip edge to edge, so the
+   * only surface left that produced the cell's reading was the 15.8px `+`
+   * — a control whose job is "start waiting for something else". Measured
+   * in Chromium: the box the gesture names is laid out **7.7px outside its own
+   * cell** at that width, `elementFromPoint` down the cell's midline answers a
+   * pill everywhere but the padding, and the padding lit nothing.
+   * `openspec/changes/table-width-budget/design.md` D2 has the table.
+   *
+   * The pills' own narrower reading is unaffected and is the one thing this
+   * move could have cost. `mouseenter` fires on every element being entered,
+   * outermost first, so a pointer arriving straight onto a pill runs this
+   * handler (`pillId: null`, the whole set) and then the pill's
+   * (`pillId: <id>`, one row) — and the pill's write is the one that lands.
+   * jsdom cannot say so, because `fireEvent.mouseEnter` dispatches to one
+   * element and walks no chain; `e2e/deps-cell.spec.ts`'s `narrows to one pill
+   * when the pointer settles on it, from the cell` is the browser that can.
+   *
+   * Built here rather than in the column definition for landmine #1's reason:
+   * `columns` depends on `roles` alone, and anything that changes per pointer
+   * move must not enter it. The `<td>` is rendered outside that memo.
+   */
+  const dependsCellHoverProps = (
+    row: TreeRow,
+  ): Pick<ComponentProps<'td'>, 'onMouseEnter' | 'onMouseLeave'> => {
+    const dependsCell = cellKey(row.id, 'depends');
+    return {
+      onMouseEnter: () => {
+        // Every row this one waits for is lit, `pillId: null` saying the
+        // pointer is on the cell rather than on one pill. Guarded by the same
+        // "nothing to say, nothing written" rule as the card below — a cell
+        // that waits for nothing has no row to light and no reason to spend a
+        // render (codex round 3, finding 5). The functional writer returns the
+        // current object when the value is already there, which is the
+        // string-key bail-out below, spelt for an object.
+        if (dependenciesOf(row.dependsOn).length > 0) {
+          setDepHover((current) =>
+            current?.rowId === row.id && current.pillId === null
+              ? current
+              : { rowId: row.id, pillId: null },
+          );
+        }
+        // Nothing to open, nothing written. `hoveredCell` lives on the table,
+        // so every boundary the pointer crosses costs one render of the whole
+        // of it — and a cell with no card to show has no reason to spend one,
+        // nor to close the card open somewhere else on the pointer's way past.
+        // codex round 3, finding 5.
+        //
+        // The key is a string, so a second enter on the same cell writes the
+        // value already there and React bails out without rendering.
+        // Proof: this guard dropped, `writes no hovered cell from a cell
+        // that has no card to show` failed on `Unable to find an accessible
+        // element with the role "tooltip"`. Watched, 2026-08-09.
+        //
+        // `depPicker` and not the cell's local `picker`: the card and the
+        // picker are the two boxes that hang off one 110px cell, and the one
+        // somebody is typing into is the one they are looking at. Read from
+        // the state directly, because this is outside the column definitions.
+        const cardable = dependenciesOf(row.dependsOn).length > 0 && depPicker?.rowId !== row.id;
+        if (!cardable) return;
+        setHoveredCell(dependsCell);
+      },
+      onMouseLeave: () => {
+        // Leaving the cell clears the dependency hover outright — with the
+        // same-cell guard `hoveredCell`'s clear uses, because a leave lands
+        // after the next cell's enter.
+        setDepHover((current) => (current?.rowId === row.id ? null : current));
+        // The same-cell guard, for the reason the Name cell's marker gives: a
+        // leave lands after the next cell's enter.
+        setHoveredCell((current) => (current === dependsCell ? null : current));
+      },
+    };
+  };
+
+  /**
    * What the Gantt panel draws, from the rows the renderer is drawing.
    *
    * **`shownRows`, not the row model**, and that is the whole of the mirroring:
@@ -6738,6 +7637,13 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         earliestFinish: row.original.schedule.earliestFinish,
       },
       notBeforeOffset: notBeforeOffsetOf(startDate, row.original.startNoEarlierThan),
+      // The words about that date, for the floor sentence to append where the
+      // not-before is the floor that actually binds this bar. Read on **every**
+      // row rather than only the floored ones: which floor binds is
+      // `floorWordsOf`'s answer, computed from the schedule, and a chart row
+      // that carried the reason only where this side already thought it
+      // mattered would be two places deciding one thing.
+      notBeforeReason: row.original.startNoEarlierThanReason,
       // Straight off the tree read, like the trio beside it: what a bar says is
       // a fact about the plan the chart was drawn from, not about a draft
       // somebody is half-way through typing into the column.
@@ -6765,11 +7671,19 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     // the predecessor's leaves' slices, and a collapsed branch's leaves are
     // exactly the rows the shown set has dropped (design.md D6).
     tree: flat.map((row) => ({ id: row.id, parentId: row.parentId })),
-    // The stored dependencies of the rows on screen. An edge whose other end is
-    // collapsed away or narrowed off is dropped by `layOutGantt`, which is a
-    // modeled absence there rather than a filter here.
-    dependencies: shownRows.flatMap((row) =>
-      row.original.dependsOn.map((predecessorId) => ({ predecessorId, successorId: row.id })),
+    // Why the rows above are the length they are, which the list itself cannot
+    // say: `isFiltering`'s one answer, the same one the count beside the Find
+    // box and the empty-answer sentence read, so the chart's account of what it
+    // did not draw cannot disagree with the table's account of what it kept.
+    narrowedByFilter: filtering,
+    // **Every** stored dependency of the plan, `flat` and not `shownRows` since
+    // F3. An edge whose ends are not both on screen is dropped by `layOutGantt`
+    // and counted there, so the arrows drawn are the same ones as before — what
+    // the widening adds is the edge that leaves a shown row for a hidden one,
+    // which never reached the loop while this list was built from the
+    // successors on screen, and so could not be counted or said.
+    dependencies: flat.flatMap((row) =>
+      row.dependsOn.map((predecessorId) => ({ predecessorId, successorId: row.id })),
     ),
     // All three off {@link chartRead}, which is one payload. **Not** `roles`
     // and `people`: those are the separate reads the pickers and the phases
@@ -6777,6 +7691,64 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
     // moment is the skew `layOutGantt` throws on.
     roles: chartRead.roles,
     personNames: new Map(chartRead.people.map((person) => [person.id, person.name])),
+    // The ladder the chart names its priorities with. Off the same state the
+    // table's cells read, so a bar's cap and its row's digits are one colour.
+    priorityBands,
+  };
+
+  /**
+   * The plan as one reader has it on screen: the rows the filter and the
+   * collapse left, and a {@link FilteredScope} saying so.
+   *
+   * **A second export action and never a mode on the four above** — R10 §9's
+   * Q3, settled 2026-08-17. Those four keep taking `flat` and keep claiming the
+   * whole plan, because a button whose header says "the whole plan" is how
+   * somebody hands a client a plan with rows missing. This one says what it is
+   * in its own `Scope` line, in its file name, and in the fence's comment if it
+   * ever grows one.
+   *
+   * Down here rather than beside {@link planForExport} because this is the one
+   * export that needs `shownRows`, which is the table's own row model narrowed
+   * — the same list the chart and the cards draw, so what this writes out is
+   * what all three are showing and not a fourth answer.
+   *
+   * The figures are untouched: `slices` is the whole chart read and every date
+   * is be-01's, computed over the whole plan whatever is on screen. The `Scope`
+   * line says that out loud, because a reader holding a document of six rows
+   * has no way to tell whether the dates were re-planned for them.
+   */
+  const planOnScreen = (): PlanExport => ({
+    ...planForExport(),
+    rows: shownRows.map((row) => row.original),
+    scope: {
+      totalRows: flat.length,
+      // The filter's own account of itself — `filterWords`, the same criteria
+      // object `narrowTree` was asked with and the same {@link filterLabels}
+      // the saved-views panel reads, so the document cannot describe a
+      // narrowing other than the one that produced its rows.
+      criteria: filterWords(criteria, filterLabels),
+    },
+  });
+
+  /**
+   * Downloads what is on screen as a Markdown table with a `Scope` header.
+   *
+   * The **table** and not the bundled Mermaid document, which is the one thing
+   * this action deliberately gives up: a document refuses when there is no
+   * chart to draw (no start date, no schedule, nothing placed), and a filter
+   * narrowed to parent rows alone places nothing — so the bundle would refuse
+   * exactly where a reader most wants the rows they are looking at. A table
+   * always writes.
+   */
+  const downloadOnScreen = (): void => {
+    const plan = planOnScreen();
+    const markdown = new Blob([planToMarkdown(plan)], { type: 'text/markdown;charset=utf-8' });
+    const url = URL.createObjectURL(markdown);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = planFileName(plan, 'md');
+    anchor.click();
+    URL.revokeObjectURL(url);
   };
 
   /**
@@ -6913,10 +7885,10 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         variant="outline"
         size="sm"
         type="button"
-        disabled={searching}
+        disabled={filtering}
         title={
-          searching
-            ? 'Clear the Find box first — a search opens whatever it has to.'
+          filtering
+            ? 'Clear the filter first — a filter opens whatever it has to.'
             : 'Close every branch'
         }
         onClick={() => {
@@ -6929,10 +7901,10 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         variant="outline"
         size="sm"
         type="button"
-        disabled={searching}
+        disabled={filtering}
         title={
-          searching
-            ? 'Clear the Find box first — a search opens whatever it has to.'
+          filtering
+            ? 'Clear the filter first — a filter opens whatever it has to.'
             : 'Open every branch'
         }
         onClick={() => {
@@ -7001,6 +7973,16 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         setCapacity={(teamId, size) => api.setTeamCapacity(projectId, teamId, size)}
         onChanged={refreshOrMarkStale}
       />
+      {/*
+        What this plan calls its priority numbers, beside the Teams box because it
+        is the same class of fact: a project's own configuration, read by every
+        face, edited from the plan's own toolbar. `priority-bands`' design.md D5.
+      */}
+      <PrioritiesDialog
+        bands={priorityBands}
+        setBands={(bands) => api.setPriorityBands(projectId, bands)}
+        onChanged={refreshOrMarkStale}
+      />
       <PhasesDialog
         roles={roles}
         // The same object the `<colgroup>` above is resolved from, so the
@@ -7041,19 +8023,66 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
           setQuery('');
         }}
       />
-      {searching && (
+      {/*
+        The other six of R10's seven fields. Beside the Find box because they
+        are the same act — narrowing the plan — and the count below counts what
+        all seven left, not what each one did.
+      */}
+      <FilterFacets
+        facets={facets}
+        setFacets={setFacets}
+        teams={facetTeams}
+        people={facetPeople}
+        bands={facetBands}
+        phases={facetPhases}
+      />
+      {/*
+        Name the current filter, or pick one already named — R10 F4. Beside
+        `FilterFacets` because saving and ticking are the same act's two
+        moments, and applying a view writes {@link query} and {@link facets}
+        exactly as typing and ticking would.
+      */}
+      <SavedViews
+        views={savedViews}
+        current={criteria}
+        labels={filterLabels}
+        onSave={(name) => {
+          const next = [...savedViews, { id: crypto.randomUUID(), name, criteria }];
+          setSavedViews(next);
+          rememberSavedViews(projectId, next);
+        }}
+        onApply={(view) => {
+          const { query: savedQuery, ...savedFacets } = view.criteria;
+          setQuery(savedQuery);
+          setFacets(savedFacets);
+        }}
+        onDelete={(id) => {
+          const next = savedViews.filter((view) => view.id !== id);
+          setSavedViews(next);
+          rememberSavedViews(projectId, next);
+        }}
+      />
+      {filtering && (
         <span role="status" className="text-muted-foreground text-sm">
           {shownRows.length} of {flat.length} rows
         </span>
       )}
       {/*
         Said out loud rather than left to an empty table, which reads as a
-        plan that has been lost rather than a search that found nothing. The
+        plan that has been lost rather than a filter that found nothing. The
         count beside it stays, so `0 of 12 rows` says the twelve are still
         there.
+
+        Two sentences, because a filter with nothing typed into it has no
+        query to quote: `No matches for “”` would be a question mark where the
+        reason should be.
       */}
-      {searching && search.matchIds.size === 0 && (
-        <span className="text-sm">No matches for “{query}”</span>
+      {filtering && search.matchIds.size === 0 && (
+        <span className="text-sm">
+          {query.trim() === ''
+            ? 'No rows match these filters'
+            : `No matches for “${query}”${facetsChosen(facets) > 0 ? ' with these filters' : ''}`}
+        </span>
       )}
       {/*
         How ready this plan is to be read, and the way to the rows that make
@@ -7139,12 +8168,16 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         ⌨
       </Button>
       {/*
-        Sharing the plan, which is what most of it is written for. Both take
-        the whole plan rather than what is on screen, and neither asks be-01
-        for anything — so neither is disabled by `busy`, and both work while
-        the socket is down or the tree is stale. What they cannot do is say
-        the figures are current; the header's timestamp is what says when
-        they were true.
+        Sharing the plan, which is what most of it is written for. All four
+        take the whole plan rather than what is on screen, and none asks
+        be-01 for anything — so none is disabled by `busy`, and all four
+        work while the socket is down or the tree is stale. What they cannot
+        do is say the figures are current; the header's timestamp is what
+        says when they were true. The two Mermaid buttons add a fourth
+        clipboard/download outcome the CSV and Markdown-table pair do not
+        have: a plan a gantt cannot be drawn of at all (no start date, no
+        schedule, or nothing placed), reported the same way a refused
+        clipboard write already is.
       */}
       <Button
         variant="outline"
@@ -7159,10 +8192,45 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
         variant="outline"
         size="sm"
         type="button"
+        title="Copy the chart as a Mermaid gantt, for a Markdown document that draws it"
+        onClick={copyAsMermaid}
+      >
+        Copy as Mermaid
+      </Button>
+      <Button
+        variant="outline"
+        size="sm"
+        type="button"
         title="Download the whole plan as a CSV, with a header saying how to read it"
         onClick={downloadCsv}
       >
         Download CSV
+      </Button>
+      <Button
+        variant="outline"
+        size="sm"
+        type="button"
+        title="Download the chart as a Mermaid gantt bundled with the Markdown table, with a header saying how to read it"
+        onClick={downloadMermaidDocument}
+      >
+        Download as Markdown
+      </Button>
+      {/*
+        The fifth action, and the only one that takes the rows on screen. Its
+        own button rather than a switch on the four beside it: a mode on a
+        button whose header claims the whole plan is how a partial plan gets
+        sent as a whole one, which is what §9's Q3 refused. Always offered, not
+        only while a filter is on — a collapsed branch narrows the screen too,
+        and the `Scope` line it writes says which of the two did it.
+      */}
+      <Button
+        variant="outline"
+        size="sm"
+        type="button"
+        title="Download the rows on screen as a Markdown table, with a header saying what was filtered out and what is missing"
+        onClick={downloadOnScreen}
+      >
+        Download what’s on screen
       </Button>
       <label className="ml-auto flex items-center gap-1 text-sm">
         Starts
@@ -7430,11 +8498,17 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
             // No triangle while a search is on, for the reason the Number
             // column gives: what is open during a search is the search's own
             // answer, and a control that appeared to do nothing reads as broken.
-            expandable: row.getCanExpand() && !searching,
+            expandable: row.getCanExpand() && !filtering,
             expanded: row.getIsExpanded(),
             toggleBranch: row.getToggleExpandedHandler(),
+            // The same set the table's Name cell marks from, so a plan read on
+            // a phone and on a laptop marks the same rows. Read straight here
+            // rather than through `live`: the cards are not a memoised column
+            // definition, and there is no per-keystroke remount to protect.
+            matched: search.matchIds.has(row.id),
           }))}
           roles={roles}
+          priorityBands={priorityBands}
           gridRef={(node) => {
             gridElement.current = node;
           }}
@@ -7698,6 +8772,14 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                         // See the `th` above: the layout gate measures these boxes
                         // and has to be able to name the one that moved.
                         data-column={cell.column.id}
+                        // The dependency light's own cell-level reading, on the
+                        // cell. See {@link dependsCellHoverProps}: it is the
+                        // whole `<td>` and not a wrapper inside it, because the
+                        // gesture the spec names is "the pointer is in this
+                        // cell" and a wrapper stands inside the padding.
+                        {...(cell.column.id === 'depends'
+                          ? dependsCellHoverProps(row.original)
+                          : {})}
                         style={{
                           ...CELL,
                           // The exception to the cell clip. See

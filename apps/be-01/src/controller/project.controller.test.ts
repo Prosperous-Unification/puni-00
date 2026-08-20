@@ -3,6 +3,7 @@ import { describe, expect, it } from 'bun:test';
 import { buildApp } from '../app';
 import { ProjectService } from '../service/project.service';
 import { WorkItemService } from '../service/work-item.service';
+import { inMemoryActuals } from '../testing/actual-fixture';
 import { inMemoryUsers, testAuthService } from '../testing/auth-fixture';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { inMemoryCapacity, testCapacityService } from '../testing/capacity-fixture';
@@ -10,6 +11,9 @@ import { inMemoryCommandJournal } from '../testing/command-journal-fixture';
 import { inMemoryDependencies } from '../testing/dependency-fixture';
 import { inMemoryDirectory, testDirectoryService } from '../testing/directory-fixture';
 import { inMemoryEstimates } from '../testing/estimate-fixture';
+import { testHistoryService } from '../testing/history-fixture';
+import { inMemoryPriorityBands, testPriorityBandService } from '../testing/priority-band-fixture';
+import { inMemoryProgress } from '../testing/progress-fixture';
 import { inMemoryProjects } from '../testing/project-fixture';
 import { testReplay } from '../testing/replay-fixture';
 import { testRoleService } from '../testing/role-fixture';
@@ -21,9 +25,12 @@ function buildWorkItemService(projectStore: ReturnType<typeof inMemoryProjects>)
     workItems: workItemStore,
     projects: projectStore,
     estimates: inMemoryEstimates(workItemStore),
+    actuals: inMemoryActuals(workItemStore),
+    progress: inMemoryProgress(workItemStore),
     dependencies: inMemoryDependencies(),
     directory: inMemoryDirectory(),
     capacity: inMemoryCapacity(),
+    priorityBands: inMemoryPriorityBands(),
     journal: inMemoryCommandJournal(),
     broadcast: recordingBroadcaster(),
   });
@@ -52,6 +59,8 @@ function buildHarness() {
   const app = buildApp({
     directory: testDirectoryService(),
     capacity: testCapacityService(),
+    priorityBands: testPriorityBandService(),
+    history: testHistoryService(),
     auth,
     projects,
     workItems: buildWorkItemService(projectStore),

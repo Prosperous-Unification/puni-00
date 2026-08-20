@@ -1,12 +1,17 @@
-import type { RoleView } from '@/lib/wbs-api';
+import { Fragment, useState } from 'react';
 
+import type { Days, PriorityBandView, RoleView } from '@/lib/wbs-api';
+
+import { ActionsMenu, type RowAction } from './actions-menu';
 import { CellInput } from './cell-input';
 import type { CellRef } from './cell-navigation';
 import { PickerList, type PickerOption } from './creatable-picker';
 import { type CellElement, cellKey } from './editable-grid';
+import { POINTS } from './estimate-draft';
 import type { ServiceTeamLabel } from './gantt-geometry';
 import type { CommitOutcome } from './live-editing';
 import { composeNameCell } from './name-notes';
+import { priorityBandStyleOf } from './priority-band-style';
 import type { PrintedDay } from './short-date';
 import { cardIndentFor } from './table-frame';
 import type { TreeRow } from './wbs-rows';
@@ -16,10 +21,21 @@ export interface CardRow {
   row: TreeRow;
   /** How deep in the outline it is, which is the card's indent. */
   depth: number;
-  /** Whether it has children this list can hide. False while a search is on. */
+  /** Whether it has children this list can hide. False while a filter is on. */
   expandable: boolean;
   expanded: boolean;
   toggleBranch: () => void;
+  /**
+   * Whether this row answered the filter itself, rather than being one of the
+   * rows kept to place it.
+   *
+   * The table's Name cell has carried this since `find-in-the-tree`
+   * (`data-match`), and until R10 the mark was table-only — so a phone, which
+   * is the only face some readers have, showed a narrowed list with no way to
+   * tell a hit from the ancestors around it. False for every card while no
+   * filter is on, when marking anything would make the mark mean nothing.
+   */
+  matched: boolean;
 }
 
 /**
@@ -40,6 +56,16 @@ export interface PlanCardsProps {
   /** The rows on screen, in the order and the expansion the table model gives them. */
   rows: readonly CardRow[];
   roles: readonly RoleView[];
+  /**
+   * This plan's priority ladder, for the chip on each card's header.
+   *
+   * The cards are the only face some readers have — a phone shows no table and
+   * no chart — so a priority that were a bare number here would be the one face
+   * where Dany's _"ui must display differently for different priorities"_ did
+   * not land. The colour and the label come from `priorityBandStyleOf`, the same
+   * one resolution the table's cell, the chart's bars and the export read.
+   */
+  priorityBands: readonly PriorityBandView[];
   /**
    * Takes the list element, which is this renderer's `[data-grid]`.
    *
@@ -98,7 +124,66 @@ export interface PlanCardsProps {
   spanOf: (row: TreeRow) => { start: PrintedDay; finish: PrintedDay };
   /** A figure as the table prints one, so two renderers cannot round differently. */
   showDay: (days: number) => string;
+  /**
+   * The row actions a phone could not reach until now — Duplicate, Unfreeze
+   * (frozen rows only) and Delete, in the table's own `ActionsMenu` and the
+   * table's own words, refusing Delete on a frozen row with the table's own
+   * sentence (`wbs-table.tsx`'s `actions` column). One vocabulary, not two.
+   *
+   * Optional and additive: `wbs-table.tsx` is two other agents' file tonight
+   * (`notes/wbs-plan-2026-08-14-mobile-parity.md` M2's file split), so wiring
+   * real callbacks into its `<PlanCards>` call site is a follow-up left for
+   * when the file frees up. Absent, a card prints no ⋯ button at all rather
+   * than one that opens onto nothing.
+   */
+  rowActions?: CardRowActionHandlers;
 }
+
+/** What the ⋯ menu needs to act on a row — nothing about which menu is open, which this component holds itself, since cards and the table never show at once. */
+export interface CardRowActionHandlers {
+  /** A request from any row's menu is in flight, the table's own `busy`. */
+  busy?: boolean;
+  duplicate: (rowId: string) => void;
+  unfreeze: (rowId: string) => void;
+  remove: (row: TreeRow) => void;
+}
+
+/**
+ * The ⋯ menu's items for one row, built the same way `wbs-table.tsx`'s own
+ * `ActionsMenu` usage builds them — same three ids, same labels, same order,
+ * same refusal sentence on a frozen row — so a phone and a laptop read one
+ * menu rather than a card inventing a second one.
+ */
+const cardRowActions = (row: TreeRow, handlers: CardRowActionHandlers): RowAction[] => [
+  {
+    id: 'duplicate',
+    label: 'Duplicate',
+    run: () => {
+      handlers.duplicate(row.id);
+    },
+  },
+  ...(row.frozenNumber === null
+    ? []
+    : [
+        {
+          id: 'unfreeze',
+          label: 'Unfreeze',
+          run: () => {
+            handlers.unfreeze(row.id);
+          },
+        },
+      ]),
+  {
+    id: 'delete',
+    label: 'Delete',
+    ...(row.frozenNumber === null
+      ? {}
+      : { refusedBecause: 'Frozen — unfreeze this row before deleting it' }),
+    run: () => {
+      handlers.remove(row);
+    },
+  },
+];
 
 /**
  * What a card's span says in full, or nothing where there is nothing fuller to
@@ -131,8 +216,81 @@ const cardSpanTitle = (span: { start: PrintedDay; finish: PrintedDay }): string 
 const inertParallel = (row: TreeRow): boolean =>
   row.subRows.length > 0 || row.doesEveryPhase !== null;
 
+/**
+ * What the table's Slack column says about one row, read off the row the same
+ * way the cell does — `critical` replaces the figure outright, and both
+ * `title`s are the column's own sentences, so a reader of both faces meets one
+ * vocabulary rather than a second one this card invented.
+ */
+const cardSlackOf = (
+  row: TreeRow,
+  showDay: (days: number) => string,
+): { text: string; critical: boolean; title: string } => {
+  if (row.schedule.critical) {
+    return {
+      text: 'critical',
+      critical: true,
+      title: 'On the critical path: any delay here moves the whole plan’s finish.',
+    };
+  }
+  const days = showDay(row.schedule.float);
+  return {
+    text: `${days}d slack`,
+    critical: false,
+    title: `This work item can slip ${days} workday${days === '1' ? '' : 's'} before the plan finishes later.`,
+  };
+};
+
+/**
+ * One point of one phase's trio, off the row rather than a box's draft —
+ * `wbs-table.tsx`'s own `showDays`, so a phase estimated on the table and one
+ * estimated on a phone cannot print the point differently.
+ *
+ * Takes the possibly-missing estimate as a parameter rather than reading
+ * `row.estimates[roleId]` into a local first: a bare `Record<string, Days>`
+ * index reads as always-present to the type checker once assigned to a
+ * `const`, which is not true of a role nobody has estimated.
+ */
+const trioPoint = (estimate: Days | undefined, point: (typeof POINTS)[number]): string =>
+  estimate === undefined ? '' : String(estimate[point]);
+
+/** A phase's final figure, off the row — `wbs-table.tsx`'s own `showFinal`. */
+const trioFinal = (finalDays: number | undefined, showDay: (days: number) => string): string =>
+  finalDays === undefined ? '' : showDay(finalDays);
+
+/**
+ * One phase's `o/r/p` breakdown, said in the words `folded-role-card.tsx`
+ * already prints on the table's hover card — this is the same read of the
+ * same fields, not a second copy of "no estimate yet".
+ */
+const cardTrioOf = (
+  row: TreeRow,
+  roleId: string,
+  showDay: (days: number) => string,
+): { line: string; final: string } => {
+  const points = POINTS.map((point) => ({ point, days: trioPoint(row.estimates[roleId], point) }));
+  const estimated = points.some((each) => each.days !== '');
+  return {
+    line: estimated
+      ? points.map((each) => `${each.point} ${each.days === '' ? '—' : each.days}`).join(' · ')
+      : 'No estimate yet',
+    final: trioFinal(row.finalDays[roleId], showDay),
+  };
+};
+
 /** A tap target big enough to hit — 44px, which is `min-h-11` in this scale. */
 const TAP = 'min-h-11';
+
+/**
+ * What a card that answered the filter is tinted.
+ *
+ * The **same custom property** `wbs-table.tsx`'s Name cell paints a match with
+ * (`--grid-match`, `styles.css`), read here rather than imported: `wbs-table`
+ * imports this file, so a constant taken from it would be a cycle. One colour
+ * defined once in the stylesheet, two faces reading it — not two colours that
+ * agree today.
+ */
+const MATCH_TINT = 'var(--grid-match)';
 
 /**
  * The plan as a list of outline cards: what a phone gets instead of the table.
@@ -161,10 +319,18 @@ const TAP = 'min-h-11';
  * `onCommandKey` or `onAltMove` is wired here. The list is still marked as the
  * grid — the focus a create asks for has to be able to find a card — but
  * nothing on a card claims a key for moving between cells.
+ *
+ * **Structure moves through a menu, not a gesture.** Duplicate, Unfreeze and
+ * Delete were reachable only from the table's `actions` column; each card now
+ * carries the same `ActionsMenu` behind its own ⋯, one per row rather than one
+ * for the table. Indent, outdent and reordering are a later slice
+ * (`mobile-structure-menu`) — this one is the three actions the table already
+ * had, not a fourth.
  */
 export function PlanCards({
   rows,
   roles,
+  priorityBands,
   gridRef,
   commitName,
   claimFocus,
@@ -181,7 +347,14 @@ export function PlanCards({
   teamLabel,
   spanOf,
   showDay,
+  rowActions,
 }: PlanCardsProps) {
+  /**
+   * Which row's ⋯ menu is open, held here rather than threaded through a prop:
+   * cards and the table are never both on screen (`plan-renderer.ts`), so
+   * there is no second menu anywhere to keep this one in step with.
+   */
+  const [openActionsRowId, setOpenActionsRowId] = useState<string | null>(null);
   return (
     /*
       `data-grid` for the same two reasons the `<table>` carries it: it scopes
@@ -196,15 +369,21 @@ export function PlanCards({
       ref={gridRef}
       className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto pb-2"
     >
-      {rows.map(({ row, depth, expandable, expanded, toggleBranch }) => {
+      {rows.map(({ row, depth, expandable, expanded, toggleBranch, matched }) => {
         const waits = waitsFor(row);
         const team = teamLabel(row);
         const span = spanOf(row);
+        const slack = cardSlackOf(row, showDay);
         return (
           <article
             key={row.id}
             data-card={row.id}
             data-frozen={row.frozenNumber !== null ? 'true' : 'false'}
+            // The table's own attribute and the table's own reading: present
+            // only on a row that answered the filter itself, absent — not
+            // `false` — on the rows kept around it, so `[data-match]` selects
+            // the hits on either face.
+            data-match={matched ? 'true' : undefined}
             aria-label={`Work item ${row.number}`}
             // The outline, kept: a card list with no indent is a flat list of
             // rows whose numbers are the only thing saying what is under what.
@@ -213,7 +392,14 @@ export function PlanCards({
             // and no further, because the margin comes out of a 390px phone.
             // The `min-w-0` chain still keeps a card from shrinking under its
             // own content.
-            style={{ marginLeft: cardIndentFor(depth) }}
+            style={{
+              marginLeft: cardIndentFor(depth),
+              // The whole card and not one field of it: a card has no Name
+              // column to tint, and the name is one of seven things a filter
+              // can have matched on — tinting the name box for a row that
+              // matched on its team would point at the wrong fact.
+              ...(matched ? { background: MATCH_TINT } : {}),
+            }}
             className="border-border bg-card flex min-w-0 flex-col gap-2 rounded-lg border p-3"
           >
             <header className="flex items-center gap-2">
@@ -231,9 +417,47 @@ export function PlanCards({
               <span data-number className="font-semibold">
                 {row.number}
               </span>
+              {/*
+                The band, where somebody has prioritised this row, as a chip in
+                its own colour — and **nothing at all** where nobody has, which is
+                the bargain every other face makes with an unprioritised row. It
+                carries the number as well as the name because the number is what
+                the table and the export show, and a phone reader comparing two
+                screens must not have to work out which `High` is 30.
+              */}
+              {(() => {
+                const paint = priorityBandStyleOf(priorityBands, row.priority);
+                if (paint === null) return null;
+                return (
+                  <span
+                    data-card-priority={row.id}
+                    data-priority-rank={paint.rank}
+                    title={paint.words}
+                    className="shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold"
+                    style={{ color: paint.ink, background: paint.tint }}
+                  >
+                    {paint.label} {row.priority}
+                  </span>
+                );
+              })()}
               <span data-final-total className="text-muted-foreground ml-auto text-sm">
                 {showDay(row.finalTotal)} d
               </span>
+              {rowActions !== undefined && (
+                <ActionsMenu
+                  number={row.number}
+                  open={openActionsRowId === row.id}
+                  busy={rowActions.busy ?? false}
+                  touchSized
+                  onOpen={() => {
+                    setOpenActionsRowId(row.id);
+                  }}
+                  onClose={() => {
+                    setOpenActionsRowId((current) => (current === row.id ? null : current));
+                  }}
+                  actions={cardRowActions(row, rowActions)}
+                />
+              )}
             </header>
 
             {/*
@@ -262,102 +486,123 @@ export function PlanCards({
               const options = mentionOptions(row, role.id);
               const listId = `card-mention-${row.id}-${role.id}`;
               const assignee = assigneeOn(row, role.id);
+              const trio = cardTrioOf(row, role.id, showDay);
               return (
-                <div
-                  key={role.id}
-                  data-phase={role.id}
-                  // The positioned ancestor `PickerList` measures `top: 100%`
-                  // from — it owns the box, the caller owns the wrapper.
-                  // The blur is the mention's, bubbling from the box inside:
-                  // leaving the cell takes a half-typed `@ka` with it.
-                  className="relative flex min-w-0 items-center gap-2"
-                  onBlur={leaveEstimate}
-                >
-                  <span className="text-muted-foreground w-20 shrink-0 truncate text-sm">
-                    {role.name}
-                  </span>
-                  {row.rolledUp ? (
-                    // A parent's figure is a sum of what is below it. Printed
-                    // rather than typed into, the same rule the table's folded
-                    // cell keeps.
-                    <span className="font-semibold">{estimateValue(row, role.id)}</span>
-                  ) : (
-                    <CellInput
-                      aria-label={`${role.name} estimate for ${row.number}`}
-                      cellKey={cellKey(row.id, `${role.id}-final`)}
-                      role="combobox"
-                      aria-expanded={options.length > 0}
-                      aria-controls={options.length > 0 ? listId : undefined}
-                      aria-autocomplete="list"
-                      aria-invalid={problem !== null}
-                      title={problem ?? undefined}
-                      placeholder="o/r/p"
-                      // `inputMode` rather than `type="number"`: the value is
-                      // `2/3/8` as often as it is `4`, and a number field
-                      // refuses the slashes. This is the keyboard a phone
-                      // offers, and nothing about what the box accepts.
-                      inputMode="decimal"
-                      className={`${TAP} box-border w-28 shrink-0 rounded-md border px-2 text-base font-semibold ${
-                        problem === null ? '' : 'border-destructive text-destructive'
-                      }`}
-                      onFocus={(event) => {
-                        enterEstimate(event.currentTarget);
-                        event.currentTarget.select();
-                      }}
-                      onTyped={(box) => {
-                        readEstimate(row.id, role.id, box);
-                      }}
-                      onKeyDown={(event) => {
-                        // The open list owns the keyboard, and Escape is how it
-                        // is given back — the same routing the table's folded
-                        // cell has, minus the chords and the alt-arrows, which
-                        // are not wired on a card at all.
-                        if (options.length === 0) return;
-                        if (event.key === 'Escape') {
-                          event.preventDefault();
-                          closeMention();
-                          return;
-                        }
-                        if (event.key === 'Enter') {
-                          // The first entry, which is `CreatablePicker`'s rule:
-                          // what is offered first is what is taken.
-                          event.preventDefault();
-                          options[0]?.take();
-                        }
-                      }}
-                      value={estimateValue(row, role.id)}
-                      commit={(typed, baseline) => commitEstimate(row, role.id, typed, baseline)}
-                    />
-                  )}
-                  {problem !== null && (
-                    <span role="status" className="text-destructive text-sm">
-                      {problem}
+                <Fragment key={role.id}>
+                  <div
+                    data-phase={role.id}
+                    // The positioned ancestor `PickerList` measures `top: 100%`
+                    // from — it owns the box, the caller owns the wrapper.
+                    // The blur is the mention's, bubbling from the box inside:
+                    // leaving the cell takes a half-typed `@ka` with it.
+                    className="relative flex min-w-0 items-center gap-2"
+                    onBlur={leaveEstimate}
+                  >
+                    <span className="text-muted-foreground w-20 shrink-0 truncate text-sm">
+                      {role.name}
                     </span>
-                  )}
-                  {assignee !== null && (
-                    <span
-                      data-card-assignee={role.id}
-                      {...(assignee.assumed ? { 'data-assumed': role.id } : {})}
-                      title={
-                        assignee.assumed
-                          ? `${assignee.name} — only one person is assigned, so they are assumed to do this phase too`
-                          : assignee.name
-                      }
-                      className={`min-w-0 truncate text-sm ${
-                        assignee.assumed ? 'text-muted-foreground' : ''
-                      }`}
-                    >
-                      {assignee.assumed ? `(${assignee.name})` : assignee.name}
-                    </span>
-                  )}
-                  {options.length > 0 && (
-                    <PickerList
-                      id={listId}
-                      label={`${role.name} assignee for ${row.number}`}
-                      options={options}
-                    />
-                  )}
-                </div>
+                    {row.rolledUp ? (
+                      // A parent's figure is a sum of what is below it. Printed
+                      // rather than typed into, the same rule the table's folded
+                      // cell keeps.
+                      <span className="font-semibold">{estimateValue(row, role.id)}</span>
+                    ) : (
+                      <CellInput
+                        aria-label={`${role.name} estimate for ${row.number}`}
+                        cellKey={cellKey(row.id, `${role.id}-final`)}
+                        role="combobox"
+                        aria-expanded={options.length > 0}
+                        aria-controls={options.length > 0 ? listId : undefined}
+                        aria-autocomplete="list"
+                        aria-invalid={problem !== null}
+                        title={problem ?? undefined}
+                        placeholder="o/r/p"
+                        // `inputMode` rather than `type="number"`: the value is
+                        // `2/3/8` as often as it is `4`, and a number field
+                        // refuses the slashes. This is the keyboard a phone
+                        // offers, and nothing about what the box accepts.
+                        inputMode="decimal"
+                        className={`${TAP} box-border w-28 shrink-0 rounded-md border px-2 text-base font-semibold ${
+                          problem === null ? '' : 'border-destructive text-destructive'
+                        }`}
+                        onFocus={(event) => {
+                          enterEstimate(event.currentTarget);
+                          event.currentTarget.select();
+                        }}
+                        onTyped={(box) => {
+                          readEstimate(row.id, role.id, box);
+                        }}
+                        onKeyDown={(event) => {
+                          // The open list owns the keyboard, and Escape is how it
+                          // is given back — the same routing the table's folded
+                          // cell has, minus the chords and the alt-arrows, which
+                          // are not wired on a card at all.
+                          if (options.length === 0) return;
+                          if (event.key === 'Escape') {
+                            event.preventDefault();
+                            closeMention();
+                            return;
+                          }
+                          if (event.key === 'Enter') {
+                            // The first entry, which is `CreatablePicker`'s rule:
+                            // what is offered first is what is taken.
+                            event.preventDefault();
+                            options[0]?.take();
+                          }
+                        }}
+                        value={estimateValue(row, role.id)}
+                        commit={(typed, baseline) => commitEstimate(row, role.id, typed, baseline)}
+                      />
+                    )}
+                    {problem !== null && (
+                      <span role="status" className="text-destructive text-sm">
+                        {problem}
+                      </span>
+                    )}
+                    {assignee !== null && (
+                      <span
+                        data-card-assignee={role.id}
+                        {...(assignee.assumed ? { 'data-assumed': role.id } : {})}
+                        title={
+                          assignee.assumed
+                            ? `${assignee.name} — only one person is assigned, so they are assumed to do this phase too`
+                            : assignee.name
+                        }
+                        className={`min-w-0 truncate text-sm ${
+                          assignee.assumed ? 'text-muted-foreground' : ''
+                        }`}
+                      >
+                        {assignee.assumed ? `(${assignee.name})` : assignee.name}
+                      </span>
+                    )}
+                    {options.length > 0 && (
+                      <PickerList
+                        id={listId}
+                        label={`${role.name} assignee for ${row.number}`}
+                        options={options}
+                      />
+                    )}
+                  </div>
+                  {/*
+                  The trio behind the figure box above — folded there into one
+                  computed number the same way the table's own cell folds it —
+                  said in the words `folded-role-card.tsx` already prints on
+                  hover, since a phone has no hover to read them from. A native
+                  `<details>` rather than a positioned card: it needs no
+                  measurement, no pointer-type guard and no dismiss handler,
+                  and a tap is what opens one already.
+                */}
+                  <details
+                    data-phase-detail={role.id}
+                    className="text-muted-foreground -mt-1 ml-20 text-xs"
+                  >
+                    <summary className="w-fit cursor-pointer py-1 select-none">o·r·p</summary>
+                    <div data-phase-trio={role.id}>{trio.line}</div>
+                    {trio.final !== '' && (
+                      <div data-phase-final={role.id}>Final {trio.final} days</div>
+                    )}
+                  </details>
+                </Fragment>
               );
             })}
 
@@ -374,6 +619,19 @@ export function PlanCards({
               */}
               <span data-card-span title={cardSpanTitle(span)}>
                 {span.start.text} → {span.finish.text}
+              </span>
+              {/*
+                The Slack column's own word for the one figure it replaces
+                outright: `critical` where there is none to give, read off the
+                row the same way the cell reads it, not through a second
+                schedule-error prop this renderer does not hold.
+              */}
+              <span
+                data-card-slack
+                {...(slack.critical ? { 'data-critical': 'true' } : {})}
+                title={slack.title}
+              >
+                {slack.text}
               </span>
               {waits.length > 0 && <span data-card-waits>waits for {waits.join(', ')}</span>}
               {/*

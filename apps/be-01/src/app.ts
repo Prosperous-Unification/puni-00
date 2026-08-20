@@ -5,15 +5,20 @@ import { Elysia } from 'elysia';
 import { authController } from './controller/auth.controller';
 import { capacityController } from './controller/capacity.controller';
 import { directoryController } from './controller/directory.controller';
+import { historyController } from './controller/history.controller';
 import { internalController } from './controller/internal.controller';
+import { priorityBandController } from './controller/priority-band.controller';
 import { projectController } from './controller/project.controller';
 import { roleController } from './controller/role.controller';
 import { smokeController } from './controller/smoke.controller';
 import { workItemController } from './controller/work-item.controller';
+import { openApiPlugin } from './openapi/openapi-plugin';
 import type { DatabaseHealth } from './repository/health-probe';
 import type { AuthService } from './service/auth.service';
 import type { CapacityService } from './service/capacity.service';
 import type { DirectoryService } from './service/directory.service';
+import type { HistoryService } from './service/history.service';
+import type { PriorityBandService } from './service/priority-band.service';
 import type { ProjectService } from './service/project.service';
 import type { ReplayOrchestrator } from './service/replay-orchestrator';
 import type { RoleService } from './service/role.service';
@@ -49,6 +54,19 @@ export interface AppOptions {
    */
   capacity: CapacityService;
   /**
+   * Required for the same reason as `capacity`: a process built without it would
+   * answer 404 on the ladder route, and a Priorities dialog whose Save silently
+   * did nothing reads as a plan whose configuration does not matter.
+   */
+  priorityBands: PriorityBandService;
+  /**
+   * Required for the same reason as `priorityBands`: a process built without it
+   * would answer 404 on the history route, which a client cannot tell from a
+   * plan whose history is empty — and "empty" is the answer for every plan the
+   * day the table ships, so the mistake would be invisible for a week.
+   */
+  history: HistoryService;
+  /**
    * Shared secret gw-01 presents on /internal/*. Required — a default here
    * would silently diverge from the value gw-01 loads from the environment,
    * failing every forward with a 401 that only shows up in a real deployment.
@@ -81,6 +99,13 @@ export function buildApp(opts: AppOptions) {
     new Elysia()
       .use(observabilityPlugin({ service: 'be-01' }))
       .decorate('logger', logger)
+      // Before every controller, and that is the order the plugin needs: it
+      // answers from the route table of the instance it is mounted on, so a
+      // route registered after it is seen and a route registered on an instance
+      // it never joined is not. The document is committed and diffed against
+      // this app by `openapi-document.test.ts`, so a route that goes missing
+      // here is a red rather than a silent omission.
+      .use(openApiPlugin())
       .use(smokeController)
       .use(authController(opts.auth))
       .use(projectController(opts.auth, opts.projects))
@@ -92,6 +117,15 @@ export function buildApp(opts: AppOptions) {
       // anything that route declares, but keeping the two adjacent is what makes
       // that checkable at a glance.
       .use(capacityController(opts.auth, opts.capacity))
+      // Beside `capacityController` for its reason: it shares
+      // `projectController`'s prefix, `/:id/priority-bands` cannot be shadowed by
+      // anything that route declares, and adjacency is what makes that checkable
+      // at a glance.
+      .use(priorityBandController(opts.auth, opts.priorityBands))
+      // Beside the two above for their reason: it shares `projectController`'s
+      // prefix, `/:id/history` cannot be shadowed by anything that route
+      // declares, and adjacency is what makes that checkable at a glance.
+      .use(historyController(opts.auth, opts.history))
       .use(
         internalController({
           secret: opts.internalAuthSecret,

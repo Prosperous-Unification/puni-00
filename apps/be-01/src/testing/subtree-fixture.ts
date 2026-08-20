@@ -1,13 +1,15 @@
 import type {
+  ActualStore,
   DependencyStore,
   DirectoryStore,
   EstimateStore,
+  RoleProgressStore,
   SubtreeStore,
   WorkItemStore,
 } from '../repository';
 
 /**
- * A SubtreeStore that writes a copy through the four in-memory stores it is
+ * A SubtreeStore that writes a copy through the five in-memory stores it is
  * given, in the order the real foreign keys force.
  *
  * **It is not atomic, and cannot be.** Maps have no transaction to roll back,
@@ -23,6 +25,8 @@ import type {
 export function inMemorySubtrees(stores: {
   workItems: WorkItemStore;
   estimates: EstimateStore;
+  actuals: ActualStore;
+  progress: RoleProgressStore;
   dependencies: DependencyStore;
   directory: DirectoryStore;
 }): SubtreeStore {
@@ -40,12 +44,20 @@ export function inMemorySubtrees(stores: {
         await stores.workItems.move(child.id, child.parentId, child.position, []);
       }
       for (const estimate of copy.estimates) await stores.estimates.set(estimate);
+      for (const recorded of copy.actuals) await stores.actuals.set(recorded);
+      for (const said of copy.progress) await stores.progress.set(said);
       for (const assigned of copy.assignments) {
         await stores.directory.assign(assigned.workItemId, assigned.roleId, assigned.personId);
       }
       for (const edge of copy.dependencies) await stores.dependencies.add(edge);
       for (const taken of copy.removedEstimates) {
         await stores.estimates.remove(taken.workItemId, taken.roleId);
+      }
+      for (const taken of copy.removedActuals) {
+        await stores.actuals.remove(taken.workItemId, taken.roleId);
+      }
+      for (const taken of copy.removedProgress) {
+        await stores.progress.remove(taken.workItemId, taken.roleId);
       }
     },
   };

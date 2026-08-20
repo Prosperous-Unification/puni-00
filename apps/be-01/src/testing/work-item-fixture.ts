@@ -1,3 +1,5 @@
+import { isOrphanedNotBeforeReason } from '@wbs/domain';
+
 import type {
   DirectoryStore,
   FrozenNumber,
@@ -8,10 +10,13 @@ import type {
 import { WorkItemService } from '../service/work-item.service';
 import { inMemoryCapacity } from '../testing/capacity-fixture';
 import { inMemoryDirectory } from '../testing/directory-fixture';
+import { inMemoryPriorityBands } from '../testing/priority-band-fixture';
+import { inMemoryActuals } from './actual-fixture';
 import { recordingBroadcaster } from './broadcast-fixture';
 import { inMemoryCommandJournal } from './command-journal-fixture';
 import { inMemoryDependencies } from './dependency-fixture';
 import { inMemoryEstimates } from './estimate-fixture';
+import { inMemoryProgress } from './progress-fixture';
 import { inMemoryProjects } from './project-fixture';
 import { inMemorySubtrees } from './subtree-fixture';
 
@@ -92,6 +97,10 @@ export function inMemoryWorkItems(
           patch.startNoEarlierThan === undefined
             ? existing.startNoEarlierThan
             : patch.startNoEarlierThan,
+        startNoEarlierThanReason:
+          patch.startNoEarlierThanReason === undefined
+            ? existing.startNoEarlierThanReason
+            : patch.startNoEarlierThanReason,
         priority: patch.priority === undefined ? existing.priority : patch.priority,
         serviceTeamId:
           patch.serviceTeamId === undefined ? existing.serviceTeamId : patch.serviceTeamId,
@@ -102,6 +111,21 @@ export function inMemoryWorkItems(
         maxParallel:
           patch.maxParallel === undefined ? existing.maxParallel : (patch.maxParallel ?? 1),
       };
+      // The pair rule, mirrored from `WorkItemRepository.patch` for the reason
+      // the parallelism note above states: a fixture laxer than the store it
+      // stands for lets a test pass here and fail against SQLite. Asked against
+      // the merged row, which `updated` already is — and asked after the merge
+      // rather than off the patch, because a patch naming only the reason is
+      // legal on a row that has a date and illegal on one that does not.
+      //
+      // Proof: this refusal deleted — **85 pass, 1 fail** in
+      // `work-item.service.test.ts` — and `refuses words on a row with no date,
+      // through the service` failed on `Expected: false, Received: true`: the
+      // fixture accepting a row the database refuses, which is the whole class
+      // of fault this mirror exists to prevent. Watched 2026-08-18.
+      if (isOrphanedNotBeforeReason(updated.startNoEarlierThan, updated.startNoEarlierThanReason)) {
+        return { ok: false, reason: 'not_before_reason_needs_a_date' };
+      }
       byId.set(id, updated);
       // Only where the patch names the label, as the repository's own
       // transaction does: a rename must leave the join alone.
@@ -148,15 +172,27 @@ export function testWorkItemService(): WorkItemService {
   const directory = inMemoryDirectory();
   const workItems = inMemoryWorkItems(directory);
   const estimates = inMemoryEstimates(workItems);
+  const actuals = inMemoryActuals(workItems);
+  const progress = inMemoryProgress(workItems);
   const dependencies = inMemoryDependencies();
   return new WorkItemService({
     workItems,
     projects: inMemoryProjects(),
     estimates,
+    actuals,
+    progress,
     dependencies,
     directory,
     capacity: inMemoryCapacity(),
-    subtrees: inMemorySubtrees({ workItems, estimates, dependencies, directory }),
+    priorityBands: inMemoryPriorityBands(),
+    subtrees: inMemorySubtrees({
+      workItems,
+      estimates,
+      actuals,
+      progress,
+      dependencies,
+      directory,
+    }),
     journal: inMemoryCommandJournal(),
     broadcast: recordingBroadcaster(),
   });

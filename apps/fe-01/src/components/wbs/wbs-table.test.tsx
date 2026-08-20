@@ -7,6 +7,7 @@ import {
   screen,
   waitFor,
 } from '@testing-library/react';
+import { DEFAULT_PRIORITY_BANDS } from '@wbs/domain/priority-band';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import type {
@@ -264,6 +265,7 @@ function fakeApi(): ProjectApi & {
         // left it out would let `teamsOnThePlan` be handed `undefined` here and
         // never in production. A plan whose teams are unlimited is what `[]` says.
         teamCapacities: [],
+        priorityBands: DEFAULT_PRIORITY_BANDS,
         estimateMethod,
         startDate,
         // Never moved by anything the table does: the fake's mutations are all
@@ -378,8 +380,13 @@ function fakeApi(): ProjectApi & {
         // because 1 and unset are the same fact.
         maxParallel: 1,
         startNoEarlierThan: null,
+        startNoEarlierThanReason: null,
+        // Beside the date it explains, and null for the same reason: nobody has
+        // said. A duplicate `teamIds` sat here until 2026-08-18 — harmless, and
+        // only because nothing typechecks this file (`fe-01:typecheck` builds
+        // `tsconfig.app.json` and `tsconfig.e2e.json`, not `.spec`).
+        startNoEarlierThanReason: null,
         serviceTeamId: null,
-        teamIds: [],
         teamIds: [],
         assignees: {},
         doesEveryPhase: null,
@@ -1837,12 +1844,173 @@ describe('the plan on a calendar', () => {
     });
 
     // Cleared reads as '' from a date input, and means "no constraint" rather
-    // than "an empty date".
+    // than "an empty date" — and it takes the words about that date with it,
+    // because be-01 refuses the pair the other way round. See the test below.
     typeIntoNotBefore('010', '');
 
     await waitFor(() => {
-      expect(patched).toEqual([{ startNoEarlierThan: '2026-08-12' }, { startNoEarlierThan: null }]);
+      expect(patched).toEqual([
+        { startNoEarlierThan: '2026-08-12' },
+        { startNoEarlierThan: null, startNoEarlierThanReason: null },
+      ]);
     });
+  });
+
+  itDom('clears the words with the day, in the one request', async () => {
+    // The pair rule is be-01's, since `not-before-reason` (#81): a reason with
+    // no date to be about is `not_before_reason_needs_a_date`, **400**. So a
+    // bare `{ startNoEarlierThan: null }` stops clearing the date on exactly
+    // the rows somebody has taken the trouble to explain, and it fails in their
+    // face rather than quietly.
+    //
+    // Proof: `startNoEarlierThanReason: null` dropped from the null arm of
+    // `setNotBefore`, this fails on `expected [ { startNoEarlierThan: null } ]
+    // to deeply equal [ { startNoEarlierThan: null, startNoEarlierThanReason:
+    // null } ]`. Watched, 2026-08-18.
+    const api = await oneRow();
+    typeIntoDate('Project start date', '2026-08-06');
+    await waitFor(() => {
+      expect(screen.getByLabelText<HTMLInputElement>('Earliest start for 010').disabled).toBe(
+        false,
+      );
+    });
+    const explained = api.rows.at(0);
+    if (explained === undefined) throw new Error('the plan has no row');
+    explained.startNoEarlierThan = '2026-09-12';
+    explained.startNoEarlierThanReason = 'waiting on client sign-off';
+    // A refetch, so the table is showing the explained row rather than the
+    // blank one it created.
+    click('Add work item');
+    await waitFor(() => {
+      expect(screen.getByLabelText<HTMLInputElement>('Earliest start for 010').value).toBe(
+        '12 Sep',
+      );
+    });
+
+    const patched: unknown[] = [];
+    const realPatch = api.patch.bind(api);
+    api.patch = (id: string, patch: Record<string, unknown>) => {
+      patched.push(patch);
+      return realPatch(id, patch);
+    };
+
+    typeIntoNotBefore('010', '');
+
+    await waitFor(() => {
+      expect(patched).toEqual([{ startNoEarlierThan: null, startNoEarlierThanReason: null }]);
+    });
+  });
+
+  itDom('takes the words about the date, and does not shut on the way to them', async () => {
+    // Two boxes, one editor. `DateField`'s `onExit` reports the blur and not
+    // where the focus went, so the cell's wrapper is what asks — `focusout`
+    // bubbles and carries `relatedTarget`.
+    //
+    // Proof: the wrapper's `contains(relatedTarget)` guard replaced by a bare
+    // `close()`, this fails on `expected null not to be null` — the panel shuts
+    // on the way to the reason box and there is nothing left to type into.
+    // Watched, 2026-08-18.
+    const api = await oneRow();
+    typeIntoDate('Project start date', '2026-08-06');
+    await waitFor(() => {
+      expect(screen.getByLabelText<HTMLInputElement>('Earliest start for 010').disabled).toBe(
+        false,
+      );
+    });
+    const patched: unknown[] = [];
+    const realPatch = api.patch.bind(api);
+    api.patch = (id: string, patch: Record<string, unknown>) => {
+      patched.push(patch);
+      return realPatch(id, patch);
+    };
+
+    const editor = openNotBefore('010');
+    const reason = screen.getByLabelText<HTMLInputElement>('Why 010 may not start earlier');
+
+    fireEvent.blur(editor, { relatedTarget: reason });
+
+    expect(screen.queryByLabelText('Why 010 may not start earlier')).not.toBeNull();
+
+    // Trimmed on the way out, so there is one spelling of every sentence.
+    fireEvent.change(reason, { target: { value: '  waiting on client sign-off  ' } });
+    fireEvent.blur(reason);
+
+    await waitFor(() => {
+      expect(patched).toEqual([{ startNoEarlierThanReason: 'waiting on client sign-off' }]);
+    });
+    // And that blur had nowhere inside the editor to go, so it closed it.
+    expect(screen.queryByLabelText('Why 010 may not start earlier')).toBeNull();
+  });
+
+  itDom('spells an emptied reason box as “nobody has said”', async () => {
+    // `null`, not `''`: one spelling of the absence, which is the same call the
+    // Prio cell makes about an emptied number and the one thing be-01 cannot
+    // see from a request that omits the field.
+    const api = await oneRow();
+    typeIntoDate('Project start date', '2026-08-06');
+    await waitFor(() => {
+      expect(screen.getByLabelText<HTMLInputElement>('Earliest start for 010').disabled).toBe(
+        false,
+      );
+    });
+    const explained = api.rows.at(0);
+    if (explained === undefined) throw new Error('the plan has no row');
+    explained.startNoEarlierThan = '2026-09-12';
+    explained.startNoEarlierThanReason = 'waiting on client sign-off';
+    click('Add work item');
+    await waitFor(() => {
+      expect(screen.getByLabelText<HTMLInputElement>('Earliest start for 010').value).toBe(
+        '12 Sep',
+      );
+    });
+
+    const patched: unknown[] = [];
+    const realPatch = api.patch.bind(api);
+    api.patch = (id: string, patch: Record<string, unknown>) => {
+      patched.push(patch);
+      return realPatch(id, patch);
+    };
+
+    openNotBefore('010');
+    const reason = screen.getByLabelText<HTMLInputElement>('Why 010 may not start earlier');
+    // The box opens holding what the server said, which is the other half of
+    // this: a reader edits the sentence rather than retyping it.
+    expect(reason.value).toBe('waiting on client sign-off');
+    fireEvent.change(reason, { target: { value: '' } });
+    fireEvent.blur(reason);
+
+    await waitFor(() => {
+      expect(patched).toEqual([{ startNoEarlierThanReason: null }]);
+    });
+  });
+
+  itDom('says why the date is there, on the cell at rest', async () => {
+    // Appended, never substituted — the same bargain `floorWordsOf` strikes on
+    // the bar. What the constraint *does* is the part a reader cannot work out;
+    // what it is *for* is the part only a planner can say.
+    const api = await oneRow();
+    typeIntoDate('Project start date', '2026-08-06');
+    await waitFor(() => {
+      expect(screen.getByLabelText<HTMLInputElement>('Earliest start for 010').disabled).toBe(
+        false,
+      );
+    });
+    const explained = api.rows.at(0);
+    if (explained === undefined) throw new Error('the plan has no row');
+    explained.startNoEarlierThan = '2026-09-12';
+    explained.startNoEarlierThanReason = 'waiting on client sign-off';
+    click('Add work item');
+
+    await waitFor(() => {
+      const cell = screen.getByLabelText<HTMLInputElement>('Earliest start for 010');
+      expect(cell.title).toBe(
+        '2026-09-12. This work item may not start before this day. Its dependencies can still push it later. Why: waiting on client sign-off',
+      );
+    });
+    // And a row nobody has explained says exactly what it said before.
+    expect(screen.getByLabelText<HTMLInputElement>('Earliest start for 020').title).toBe(
+      'This work item may not start before this day. Its dependencies can still push it later.',
+    );
   });
 });
 
@@ -2083,6 +2251,137 @@ describe('the priority cell', () => {
 
     // Emptying the box is how a draft is abandoned rather than retried, and it
     // is what keeps this test's refusal out of the next one's map.
+    typeIntoPriority('010', '');
+    await waitFor(() => {
+      expect(refusedDraftFor(priorityCellKey('010'))).toBeUndefined();
+    });
+  });
+
+  itDom('draws the number in its band’s colour and names the band in the title', async () => {
+    // Dany, 2026-08-13: "ui must display differently for different priorities".
+    // The cell's **ink**, not a background: the column is 48px of right-aligned
+    // digits between two bordered cells, and a filled swatch there reads as a
+    // selection. The colour is `priorityBandStyleOf`'s, which is the same one the
+    // chart's cap, the cards' chip and the export's column resolve through.
+    //
+    // Proof: the `color: paint?.ink` line deleted from `PriorityCell`, and this
+    // failed on `expected '' not to be ''` — a Critical row and a Lowest row
+    // drawn in one ink. Watched 2026-08-14.
+    const api = await twoRows();
+    typeIntoPriority('010', '5');
+    await waitFor(() => {
+      expect(priorityCell('010').value).toBe('5');
+    });
+    typeIntoPriority('020', '90');
+    await waitFor(() => {
+      expect(priorityCell('020').value).toBe('90');
+    });
+    void api;
+
+    const critical = priorityCell('010').style.color;
+    const lowest = priorityCell('020').style.color;
+    expect(critical).not.toBe('');
+    expect(lowest).not.toBe('');
+    expect(critical).not.toBe(lowest);
+    // And the name is in the hover text, because a colour alone is a fact only a
+    // reader who already knows the ladder can read.
+    expect(priorityCell('010').title).toContain('Critical — priority 5');
+    expect(priorityCell('020').title).toContain('Lowest — priority 90');
+  });
+
+  itDom('leaves an unprioritised cell the table’s own ink and offers no band', async () => {
+    // The bargain every face makes with an unranked row: nothing at all rather
+    // than a grey chip reading `—`.
+    await twoRows();
+
+    expect(priorityCell('010').style.color).toBe('');
+    expect(priorityCell('010').title).toContain('Blank means nobody has said');
+  });
+
+  itDom('opens the five bands on a click, and taking one writes the number it says', async () => {
+    // Dany's "select priority by labels", as the picker. The line carries the
+    // number as well as the name because taking it **stores** that number, and a
+    // picker that hid what it was about to write would leave the reader unable to
+    // predict the digits that appear in the box.
+    const api = await twoRows();
+    const patched = watchPatches(api);
+
+    fireEvent.click(priorityCell('010'));
+    const list = screen.getByRole('listbox', { name: 'Priority bands for 010' });
+    expect([...list.querySelectorAll('[role="option"]')].map((each) => each.textContent)).toEqual([
+      'Critical — 10',
+      'High — 30',
+      'Medium — 50',
+      'Low — 70',
+      'Lowest — 90',
+    ]);
+
+    fireEvent.click(screen.getByText('High'));
+    await waitFor(() => {
+      expect(priorityCell('010').value).toBe('30');
+    });
+    // One request and one journal entry, through the same `setPriority` a typed
+    // number reaches — which is what makes the two languages round-trip into each
+    // other rather than into two histories.
+    expect(patched).toEqual([{ priority: 30 }]);
+  });
+
+  itDom('does not open the band list merely because the caret landed here', async () => {
+    // The one place this departs from `CreatablePicker`, and it is a departure
+    // with a mechanical reason as well as a taste one: opening on focus is a
+    // `setState` during the focus that lands in this box, so `CellInput`'s inline
+    // `ref` runs again, `LiveField.takeNode` re-attaches, and a refusal held for
+    // this cell is written back over the draft somebody is part-way through.
+    //
+    // Proof: the `onClick` moved onto the wrapper's `onFocus`, and three cases in
+    // this describe went red — `sends what was typed on Enter` with no request at
+    // all, and `sends one request for a priority entered with Enter and then
+    // left` holding a previous case's refused `1e999`. Watched 2026-08-14.
+    await twoRows();
+
+    fireEvent.focus(priorityCell('010'));
+
+    expect(screen.queryByRole('listbox', { name: 'Priority bands for 010' })).toBeNull();
+  });
+
+  itDom('takes a band’s name typed into the box, and stores the number it writes', async () => {
+    // The keyboard's way to the same five lines, and the reason the grid needs no
+    // chord for the picker: `high` in this box is 30. Case-insensitive and
+    // trimmed, because a name typed by hand is not a name copied out of a list.
+    const api = await twoRows();
+    const patched = watchPatches(api);
+
+    typeIntoPriority('010', '  MEDIUM ');
+    await waitFor(() => {
+      expect(priorityCell('010').value).toBe('50');
+    });
+
+    expect(patched).toEqual([{ priority: 50 }]);
+    // And it round-trips: the number that was stored resolves back to the band
+    // whose name was typed.
+    expect(priorityCell('010').title).toContain('Medium — priority 50');
+  });
+
+  itDom('still refuses a word that is no band’s name, rather than clearing the row', async () => {
+    // `Number('urgent')` is `NaN` and `NaN` on the wire is `null`, which is the
+    // clear — so a typo would silently unprioritise the row. `priorityTyped`
+    // deliberately hands anything it does not recognise straight back to
+    // `setPriority`, which has refused it out loud since `priority-column`.
+    const api = await twoRows();
+    typeIntoPriority('010', '7');
+    await waitFor(() => {
+      expect(priorityCell('010').value).toBe('7');
+    });
+    const patched = watchPatches(api);
+
+    typeIntoPriority('010', 'urgent');
+    await waitFor(() => {
+      expect(screen.getByText(/A priority is a whole number from 1 upward\./)).toBeDefined();
+    });
+    expect(patched).toEqual([]);
+
+    // As above: the draft is abandoned so this test's refusal does not reach the
+    // next one's map.
     typeIntoPriority('010', '');
     await waitFor(() => {
       expect(refusedDraftFor(priorityCellKey('010'))).toBeUndefined();
@@ -2357,6 +2656,57 @@ describe('the In-parallel cell', () => {
     // day the assignment goes.
     expect(parallelCell('010').value).toBe('3');
   });
+
+  itDom(
+    'says a number is not applied where two different people are named on two different roles',
+    async () => {
+      // be-01's `widthFor` collapses **per slice**: a role with its own named
+      // assignee runs at width 1 on that slice alone. Two roles, two different
+      // people, is two slices each individually collapsed — `doesEveryPhase`
+      // is `null` here (it only fires for exactly one named role project-wide
+      // on the row), so the row-level reading this cell used to lean on cannot
+      // see it, and a `3` sits there doing nothing while looking editable.
+      const api = await twoRows();
+      const [row] = api.rows;
+      const trio = { optimistic: 1, realistic: 2, pessimistic: 3 };
+      row.estimates = { [DEV.id]: trio, [QA.id]: trio };
+
+      typeIntoParallel('010', '3');
+      await waitFor(() => {
+        expect(parallelCell('010').value).toBe('3');
+      });
+      expect(parallelCell('010').title).toContain('effort is compressed');
+
+      unfoldRole('Dev');
+      const dev = await screen.findByLabelText('Dev assignee for 010');
+      fireEvent.focus(dev);
+      fireEvent.change(dev, { target: { value: 'Ada' } });
+      fireEvent.keyDown(dev, { key: 'Enter' });
+      await waitFor(() => {
+        expect(screen.getByLabelText<HTMLInputElement>('Dev assignee for 010').value).toBe('Ada');
+      });
+
+      unfoldRole('QA');
+      const qa = await screen.findByLabelText('QA assignee for 010');
+      fireEvent.focus(qa);
+      fireEvent.change(qa, { target: { value: 'Bo' } });
+      fireEvent.keyDown(qa, { key: 'Enter' });
+
+      await waitFor(() => {
+        expect(screen.getByLabelText<HTMLInputElement>('QA assignee for 010').value).toBe('Bo');
+      });
+
+      // Proof: `everySliceNamed` reverted to `doesEveryPhase !== null` alone,
+      // this failed on `expected '3 people at once…' to contain 'one at a
+      // time whatever this says'` — un-muted with both roles individually
+      // named and neither slice free to run more than one at once. Watched
+      // 2026-08-14.
+      await waitFor(() => {
+        expect(parallelCell('010').title).toContain('one at a time whatever this says');
+      });
+      expect(parallelCell('010').value).toBe('3');
+    },
+  );
 });
 
 describe('the earliest-start cell', () => {
@@ -3130,9 +3480,11 @@ describe('role columns fold away', () => {
     //
     // The arithmetic it quoted is unchanged and is still pinned in
     // `table-frame.test.ts`: a folded role costs 96px and an unfolded one 348,
-    // so two folded need 1219px, one open 1471 and both open 1723. What
-    // changed is that the third of those is now reachable, and the frame
-    // scrolling is what pays for it — `e2e/layout.spec.ts` measures that half.
+    // so two folded need 1231px, one open 1483 and both open 1735 (1219 →
+    // 1231 → 1483 → 1735 in `number-column-widen`, 93 → 105 in
+    // `COLUMN_WIDTHS`). What changed at `unfolding-may-scroll` is that the
+    // third of those is now reachable, and the frame scrolling is what pays
+    // for it — `e2e/layout.spec.ts` measures that half.
     await oneRow();
 
     unfoldRole('Dev');
@@ -3140,17 +3492,17 @@ describe('role columns fold away', () => {
 
     expect(screen.getByLabelText('QA optimistic for 010')).toBeDefined();
     expect(screen.getByLabelText('Dev optimistic for 010')).toBeDefined();
-    expect(screen.getByRole('table').style.minWidth).toBe('1723px');
+    expect(screen.getByRole('table').style.minWidth).toBe('1735px');
 
     // Folding one leaves the other open, rather than leaving nothing open.
     fireEvent.click(screen.getByRole('button', { name: 'Fold QA estimates' }));
     expect(screen.queryByLabelText('QA optimistic for 010')).toBeNull();
     expect(screen.getByLabelText('Dev optimistic for 010')).toBeDefined();
-    expect(screen.getByRole('table').style.minWidth).toBe('1471px');
+    expect(screen.getByRole('table').style.minWidth).toBe('1483px');
 
     fireEvent.click(screen.getByRole('button', { name: 'Fold Dev estimates' }));
     expect(screen.queryByLabelText('Dev optimistic for 010')).toBeNull();
-    expect(screen.getByRole('table').style.minWidth).toBe('1219px');
+    expect(screen.getByRole('table').style.minWidth).toBe('1231px');
   });
 
   itDom('says what the fold button does, which is no longer hiding the assignee', async () => {
@@ -7041,6 +7393,7 @@ describe('dependencies in the table — cross-review findings', () => {
         // left it out would let `teamsOnThePlan` be handed `undefined` here and
         // never in production. A plan whose teams are unlimited is what `[]` says.
         teamCapacities: [],
+        priorityBands: DEFAULT_PRIORITY_BANDS,
         estimateMethod: 'pert' as const,
         workItems: [
           {
@@ -7058,6 +7411,7 @@ describe('dependencies in the table — cross-review findings', () => {
             finalDays: {},
             finalTotal: 0,
             startNoEarlierThan: null,
+            startNoEarlierThanReason: null,
             serviceTeamId: null,
             teamIds: [],
             assignees: {},
@@ -7171,12 +7525,27 @@ describe('hovering a dependency lights the rows it names', () => {
     fireEvent.keyDown(input, { key: 'Enter' });
   };
 
-  /** The depends cell's wrapper, through the `<td>` — `dependsCellOf`'s reason. */
+  /**
+   * The Depends on cell itself — the `<td>`, and not the wrapper inside it.
+   *
+   * It was `cell.firstElementChild` until 2026-08-14, because that is where
+   * the cell-level enter and leave lived. They are on the cell now: a wrapper
+   * stands inside the cell's padding box, and at the column's resolved 110px
+   * the pills fill the wrapper edge to edge, so the gesture the spec names —
+   * "the pointer is in this cell" — had nowhere left to be made from.
+   * `openspec/changes/table-width-budget/design.md` D2 has the measurement.
+   *
+   * Proof: the handlers left on the wrapper with this helper already pointing
+   * at the `<td>` — which is the fault, spelt as the state before the fix —
+   * and all five cases in this block failed together, the first of them on
+   * `lights every dependency’s row from the cell, and no other row:
+   * expected [] to deeply equal [ '010', '020' ]`. Watched on h2puni,
+   * 2026-08-14 (fault F7).
+   */
   const hoverTargetOf = (number: string): HTMLElement => {
     const cell = screen.getByLabelText(`Add a dependency to ${number}`).closest('td');
-    const found = cell?.firstElementChild;
-    if (!(found instanceof HTMLElement)) throw new Error(`no depends cell for ${number}`);
-    return found;
+    if (!(cell instanceof HTMLElement)) throw new Error(`no depends cell for ${number}`);
+    return cell;
   };
 
   /** The numbers of every row the table has lit, in document order. */
@@ -7201,6 +7570,35 @@ describe('hovering a dependency lights the rows it names', () => {
     fireEvent.blur(screen.getByLabelText('Add a dependency to 030'));
     return api;
   }
+
+  itDom('takes the pointer on the cell itself, not on a wrapper inside it', async () => {
+    // The move, said outright rather than left implicit in a helper. jsdom
+    // cannot see *why* it matters — whether a pill covers the place the
+    // handler answered from is a hit-testing fact and jsdom lays nothing out
+    // (R5 #14–16) — but it can see **where** the handler is, which is the half
+    // that is a fact about the markup. `e2e/deps-cell.spec.ts`'s `lights the
+    // whole set from a crowded cell at its default width` is the other half.
+    //
+    // An enter reaches the element entered **and its ancestors**, never its
+    // descendants — which is what makes this discriminating in one direction
+    // and vacuous in the other. Entering the `<td>` cannot reach a handler on
+    // the wrapper inside it, so this assertion is exactly the move; entering
+    // the wrapper still reaches a handler on the `<td>`, so the mirror of it
+    // would pass either way and is deliberately not written.
+    await planWhere030Waits();
+    const cell = hoverTargetOf('030');
+    expect(cell.tagName).toBe('TD');
+    // And the wrapper is really a different element, or the two names above
+    // are one element and this test is about nothing.
+    expect(cell.firstElementChild).not.toBe(cell);
+    expect(cell.firstElementChild?.tagName).toBe('SPAN');
+
+    fireEvent.mouseEnter(cell);
+    expect(litNumbers()).toEqual(['010', '020']);
+
+    fireEvent.mouseLeave(cell);
+    expect(litNumbers()).toEqual([]);
+  });
 
   itDom('lights every dependency’s row from the cell, and no other row', async () => {
     await planWhere030Waits();
@@ -7661,7 +8059,11 @@ describe('the chart under a plan being edited', () => {
               workItemId: 'w1',
               roleId: DEV.id,
               personId: null,
-              boundBy: 'projectStart' as const,
+              // Which floor binds moves with the edit, the way be-01's does: a
+              // row with a not-before that pushed it is a slice bound by that
+              // date, and it is the one floor whose sentence has words of its
+              // own to carry.
+              boundBy: floored ? ('notBefore' as const) : ('projectStart' as const),
               resourcePredecessorId: null,
               width: 1,
               effort: 3,
@@ -7675,6 +8077,7 @@ describe('the chart under a plan being edited', () => {
           // left it out would let `teamsOnThePlan` be handed `undefined` here and
           // never in production. A plan whose teams are unlimited is what `[]` says.
           teamCapacities: [],
+          priorityBands: DEFAULT_PRIORITY_BANDS,
           estimateMethod: 'pert' as const,
           workItems: [
             {
@@ -7692,6 +8095,8 @@ describe('the chart under a plan being edited', () => {
               finalDays: {},
               finalTotal: 0,
               startNoEarlierThan: floored ? '2026-08-10' : null,
+              startNoEarlierThanReason: null,
+              startNoEarlierThanReason: floored ? 'waiting on client sign-off' : null,
               serviceTeamId: null,
               teamIds: [],
               assignees: {},
@@ -7739,6 +8144,30 @@ describe('the chart under a plan being edited', () => {
       expect(bar()?.getAttribute('data-start')).toBe('16');
     });
     expect(rowFor('010').querySelector('[data-start]')?.textContent).toBe('16');
+  });
+
+  itDom('says on the bar why the date that holds it is there', async () => {
+    // The wiring `not-before-reason` (#81) could not do from its own side: the
+    // chart row is built in this file, and a `GanttRow` that carried no reason
+    // left `floorWordsOf` appending nothing to a sentence it was already
+    // printing. The words themselves are `gantt-geometry`'s and tested there.
+    //
+    // Proof: `notBeforeReason` dropped from `ganttPlan`'s row literal, this
+    // fails on `expected 'Strip. 1 person. Held by its start-no-earlier-than
+    // date' to contain 'Held by its start-no-earlier-than date — waiting on
+    // client sign-off'`. Watched, 2026-08-18.
+    render(<WbsTable projectId="p1" api={apiWithMovableFloor()} />);
+    await waitFor(() => rowFor('010'));
+    fireEvent.click(screen.getByRole('button', { name: 'Gantt' }));
+    const bar = () => document.querySelector('[data-gantt-bar]');
+
+    typeIntoNotBefore('010', '2026-08-10');
+
+    await waitFor(() => {
+      expect(bar()?.getAttribute('aria-label')).toContain(
+        'Held by its start-no-earlier-than date — waiting on client sign-off',
+      );
+    });
   });
 });
 
@@ -7834,11 +8263,11 @@ describe('the frame the table scrolls inside', () => {
 
     const cells = [...rowFor('020').querySelectorAll('td')];
 
-    // Each offset is the sum of the widths in front of it — 24, then 24+93.
+    // Each offset is the sum of the widths in front of it — 24, then 24+105.
     expect(cells.slice(0, 3).map((td) => [td.style.position, td.style.left])).toEqual([
       ['sticky', '0px'],
       ['sticky', '24px'],
-      ['sticky', '117px'],
+      ['sticky', '129px'],
     ]);
     // Pinned and still flexible: the pin places the Name cell and the colgroup
     // sizes it, and a `width` here would be the second opinion that put a
@@ -7846,7 +8275,7 @@ describe('the frame the table scrolls inside', () => {
     // Proof: `pinnedCellStyle` made to declare `width: pinned.width ?? 360`
     // again, this failed on `expected '360px' to be ''`. Watched, 2026-08-08.
     expect(cells[2]?.style.width).toBe('');
-    expect(cells[1]?.style.width).toBe('93px');
+    expect(cells[1]?.style.width).toBe('105px');
     // And the floor that keeps it readable while the frame is scrolling.
     expect(cells[2]?.style.minWidth).toBe('200px');
     // Opaque, or the row scrolling behind a pinned cell shows through it.
@@ -7961,7 +8390,7 @@ describe('the widths the table is laid out by', () => {
     // Proof: the colgroup made to declare `360` for a flexible column, this
     // failed on `expected ['24px','93px','360px'] to deeply equal
     // ['24px','93px','']`. Watched, 2026-08-08, when this column was 169px.
-    expect(cols.slice(0, 3).map((col) => col.style.width)).toEqual(['24px', '93px', '']);
+    expect(cols.slice(0, 3).map((col) => col.style.width)).toEqual(['24px', '105px', '']);
     for (const [at, col] of cols.entries()) {
       expect(col.style.width === '').toBe(at === 2);
     }
@@ -8010,14 +8439,16 @@ describe('the widths the table is laid out by', () => {
     );
     expect(table.style.minWidth).toBe(`${String(frameLayout(columnIds, UNDATED).minWidth)}px`);
     // Not a constant, which is the point of computing it per render: this
-    // plan has Dev unfolded and QA folded, so the floor is the 779px of fixed
-    // columns — nobody has dated a row, so `not-before` is at its narrow 56 —
-    // plus 348 for the open role, 96 for the closed one and Name's 200.
-    // Folded it would be 1219, and both open 1723 — the difference is what
-    // `unfolding-may-scroll` decided to spend the frame's scrollbar on.
-    expect(table.style.minWidth).toBe('1471px');
+    // plan has Dev unfolded and QA folded, so the floor is the 839px of fixed
+    // columns (827 → 839 in `number-column-widen`, 93 → 105 in
+    // `COLUMN_WIDTHS`) — nobody has dated a row, so `not-before` is at its
+    // narrow 56 — plus 348 for the open role, 96 for the closed one and
+    // Name's 200. Folded it would be 1231, and both open 1735 — the
+    // difference is what `unfolding-may-scroll` decided to spend the frame's
+    // scrollbar on.
+    expect(table.style.minWidth).toBe('1483px');
     fireEvent.click(screen.getByRole('button', { name: 'Fold Dev estimates' }));
-    expect(screen.getByRole('table').style.minWidth).toBe('1219px');
+    expect(screen.getByRole('table').style.minWidth).toBe('1231px');
   });
 
   itDom('carries a row’s whole number in its cell, however much of it is shown', async () => {
@@ -8138,7 +8569,9 @@ describe('the widths the table is laid out by', () => {
         cell.tagName === 'TD' &&
         // `not-before` since `T2 compact-columns`: its date editor is wider
         // than the column and leaves the cell rather than sizing it.
-        (['depends', 'name', 'team', 'actions', 'not-before'].includes(column) ||
+        // `priority` since `priority-bands`: the Prio cell opens the five band
+        // lines over a 48px column, which is now the narrowest clip in the table.
+        (['depends', 'name', 'team', 'actions', 'not-before', 'priority'].includes(column) ||
           column.endsWith('-assignee') ||
           // A folded role's cell opens the `@` people picker over a 96px
           // column, which is the narrowest clip in the table.
@@ -8178,6 +8611,17 @@ describe('the widths the table is laid out by', () => {
       // may ask for a width.
       if (control.getAttribute('type') === 'date') {
         expect(control.style.width).toBe(`${String(DATE_EDITOR_WIDTH)}px`);
+        continue;
+      }
+      // The reason box is the second half of that same editor, not a second
+      // exception: absolutely positioned under the date, at the date's width
+      // because a box narrower than the day it explains reads as a different
+      // control. It is out of the flow, so it moves no cell and grows no
+      // column — the thing the rule is actually about. In the flow it would
+      // have to be `100%` like everything else.
+      if (control.hasAttribute('data-not-before-reason')) {
+        expect(control.style.width).toBe(`${String(DATE_EDITOR_WIDTH)}px`);
+        expect(control.style.position).toBe('absolute');
         continue;
       }
       // A control that asks for `22em` is a second opinion about how wide its
@@ -8490,12 +8934,13 @@ describe('the widths this browser has dragged', () => {
       expect(body?.style.width).toBe('');
       expect(body?.style.minWidth).toBe('300px');
       expect(laidOut().name).toBe('');
-      // The table's own width is the declaration: the resolved sum — the 1471
-      // this plan resolves at rest, less the 200 floor, plus the 300 override
+      // The table's own width is the declaration: the resolved sum — the 1483
+      // this plan resolves at rest (1471 → 1483 in `number-column-widen`, 93
+      // → 105 in `COLUMN_WIDTHS`), less the 200 floor, plus the 300 override
       // — as its width and its minimum alike, so the frame keeps the slack
       // above it and scrolls below it.
-      expect(screen.getByRole('table').style.width).toBe('1571px');
-      expect(screen.getByRole('table').style.minWidth).toBe('1571px');
+      expect(screen.getByRole('table').style.width).toBe('1583px');
+      expect(screen.getByRole('table').style.minWidth).toBe('1583px');
     },
   );
 
@@ -8572,7 +9017,7 @@ describe('the widths this browser has dragged', () => {
     const header = document.querySelector<HTMLElement>('thead th[data-column="name"]');
     expect(header?.style.width).toBe('');
     expect(header?.style.minWidth).toBe('200px');
-    expect(laidOut().number).toBe('93px');
+    expect(laidOut().number).toBe('105px');
     expect(screen.getByRole('table').style.width).toMatch(/^min\(100%, \d+px\)$/);
     expect(stored()).toBe(null);
   });
@@ -8619,7 +9064,7 @@ describe('the widths this browser has dragged', () => {
       storedWidths(junk);
       await threeRoots();
 
-      expect(laidOut().number).toBe('93px');
+      expect(laidOut().number).toBe('105px');
       expect(stored()).toBe(null);
     }
   });
@@ -8678,7 +9123,7 @@ describe('the widths this browser has dragged', () => {
       storedWidths({ number: 1e9, depends: 4, team: 240 });
       await threeRoots();
 
-      expect(laidOut().number).toBe('93px');
+      expect(laidOut().number).toBe('105px');
       expect(laidOut().depends).toBe('110px');
       expect(laidOut().team).toBe('240px');
     },
@@ -8778,7 +9223,7 @@ describe('the widths this browser has dragged', () => {
 
     click('Reset layout');
 
-    expect(laidOut().number).toBe('93px');
+    expect(laidOut().number).toBe('105px');
     expect(document.activeElement).toBe(screen.getByLabelText('Name of 010'));
     expect(screen.getByLabelText('Name of 010')).toHaveProperty('value', 'Strip the old wir');
   });
@@ -9885,11 +10330,13 @@ describe('sharing the plan', () => {
     return api;
   };
 
-  itDom('offers both ways of taking the plan out of the tool', async () => {
+  itDom('offers all four ways of taking the plan out of the tool', async () => {
     const api = fakeApi();
     render(<WbsTable projectId="p1" api={api} projectName="Rewire the shed" />);
     expect(await screen.findByRole('button', { name: 'Copy as Markdown' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Copy as Mermaid' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Download CSV' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Download as Markdown' })).toBeInTheDocument();
   });
 
   itDom('copies the whole plan, header first, and says it did', async () => {
@@ -9937,6 +10384,49 @@ describe('sharing the plan', () => {
     expect(screen.getAllByRole('alert')).toHaveLength(1);
   });
 
+  itDom('copies the chart as a Mermaid gantt, and says it did', async () => {
+    const copied: string[] = [];
+    stubClipboard((text) => {
+      copied.push(text);
+      return Promise.resolve();
+    });
+    await onePlannedRow();
+    typeIntoDate('Project start date', '2026-08-03');
+    await waitFor(() => {
+      expect(screen.getByLabelText<HTMLInputElement>('Earliest start for 010').disabled).toBe(
+        false,
+      );
+    });
+
+    click('Copy as Mermaid');
+
+    await waitFor(() => {
+      expect(toastTexts()).toEqual(['Copied as Mermaid.']);
+    });
+    const [diagram] = copied;
+    expect(diagram).toContain('gantt');
+    expect(diagram).toContain('dateFormat');
+    // An info toast, so no alert role: nothing was refused.
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  itDom('says so when there is no diagram to draw, and copies nothing', async () => {
+    const copied: string[] = [];
+    stubClipboard((text) => {
+      copied.push(text);
+      return Promise.resolve();
+    });
+    await onePlannedRow();
+
+    click('Copy as Mermaid');
+
+    await waitFor(() => {
+      expect(toastTexts()).toEqual([expect.stringContaining('not on a calendar')]);
+    });
+    expect(copied).toHaveLength(0);
+    expect(screen.getAllByRole('alert')).toHaveLength(1);
+  });
+
   itDom('downloads a CSV named after the project and the day, and lets the URL go', async () => {
     const downloads = captureDownloads();
     await onePlannedRow();
@@ -9960,6 +10450,46 @@ describe('sharing the plan', () => {
     // The name holds a comma, so it is quoted rather than splitting the row.
     expect(text).toContain('"Strip, sand & paint"');
     expect(text).toContain('\r\n');
+  });
+
+  itDom('downloads the bundled Markdown document, the fence and the table together', async () => {
+    const downloads = captureDownloads();
+    await onePlannedRow();
+    typeIntoDate('Project start date', '2026-08-03');
+    await waitFor(() => {
+      expect(screen.getByLabelText<HTMLInputElement>('Earliest start for 010').disabled).toBe(
+        false,
+      );
+    });
+
+    click('Download as Markdown');
+
+    expect(downloads.names).toHaveLength(1);
+    expect(downloads.names[0]).toMatch(/^rewire-the-shed-\d{4}-\d{2}-\d{2}\.md$/);
+    expect(downloads.revoked).toEqual(['blob:plan-1']);
+    const file = downloads.blobs.at(0);
+    if (file === undefined) throw new Error('nothing was handed to createObjectURL');
+    expect(file.type).toBe('text/markdown;charset=utf-8');
+    const text = new TextDecoder().decode(await readBlobBytes(file));
+    expect(text).toContain('```mermaid');
+    expect(text).toContain('gantt');
+    expect(text).toContain('| Strip, sand & paint |');
+    // Q6 of the R7 brief: which rows are in this document, since the chart on
+    // screen and this document do not agree.
+    expect(text).toContain('the whole plan, not what is on screen');
+  });
+
+  itDom('says so when there is nothing to bundle, and downloads nothing', async () => {
+    const downloads = captureDownloads();
+    await onePlannedRow();
+
+    click('Download as Markdown');
+
+    await waitFor(() => {
+      expect(toastTexts()).toEqual([expect.stringContaining('not on a calendar')]);
+    });
+    expect(downloads.names).toHaveLength(0);
+    expect(screen.getAllByRole('alert')).toHaveLength(1);
   });
 });
 
@@ -11746,12 +12276,14 @@ describe('a phase changing, and what the table does about it', () => {
     // still in the table's header. Watched, 2026-08-09.
     await oneRow();
     unfoldRole('QA');
-    expect(screen.getByRole('table').style.minWidth).toBe('1471px');
+    expect(screen.getByRole('table').style.minWidth).toBe('1483px');
 
     await removePhase('QA');
 
-    // One phase left, folded: 827px of fixed columns, 200 for Name, 96 for it.
-    expect(screen.getByRole('table').style.minWidth).toBe('1123px');
+    // One phase left, folded: 839px of fixed columns (827 → 839 in
+    // `number-column-widen`, 93 → 105 in `COLUMN_WIDTHS`), 200 for Name, 96
+    // for it.
+    expect(screen.getByRole('table').style.minWidth).toBe('1135px');
     expect(screen.queryByLabelText('QA optimistic for 010')).toBeNull();
   });
 
@@ -11867,5 +12399,712 @@ describe('a phase changing, and what the table does about it', () => {
     await removePhase('QA');
 
     expect(refusedDraftFor('w1::role-qa-final')).toBeUndefined();
+  });
+});
+
+describe('narrowing the plan by facet', () => {
+  /**
+   * The `finding a work item in the tree` plan, with facts on it:
+   *
+   * ```
+   * 010     Strip the walls   Billing, Ada on Dev, priority 10 (Critical)
+   *  010.1   Sockets
+   *   010.1.1 Back boxes      Wiring
+   *  010.2   Skirting
+   * 020     Paint             Dev and QA estimated
+   *  020.1   Undercoat
+   * ```
+   *
+   * Two teams and two people in the directory rather than one each, because the
+   * question a facet control gets wrong is which of them it offers: the
+   * directory holds every team in the deployment and this is one plan.
+   */
+  async function aFacetedPlan(): Promise<ProjectApi & { rows: WorkItemView[] }> {
+    const api = fakeApi();
+    const strip = await api.create('p1', {
+      parentId: null,
+      afterId: null,
+      name: 'Strip the walls',
+    });
+    const sockets = await api.create('p1', { parentId: strip.id, afterId: null, name: 'Sockets' });
+    const back = await api.create('p1', {
+      parentId: sockets.id,
+      afterId: null,
+      name: 'Back boxes',
+    });
+    await api.create('p1', { parentId: strip.id, afterId: sockets.id, name: 'Skirting' });
+    const paint = await api.create('p1', { parentId: null, afterId: strip.id, name: 'Paint' });
+    await api.create('p1', { parentId: paint.id, afterId: null, name: 'Undercoat' });
+
+    const billing = await api.addTeam('Billing');
+    const wiring = await api.addTeam('Wiring');
+    // Only one of the two is on the plan, which is what the control must offer.
+    await api.patch(strip.id, { serviceTeamId: billing.id });
+    await api.patch(back.id, { serviceTeamId: wiring.id });
+    const ada = await api.addPerson('Ada', []);
+    await api.addPerson('Bo', []);
+    await api.assign(strip.id, DEV.id, ada.id);
+    await api.patch(strip.id, { priority: 10 });
+    await api.setEstimate(paint.id, DEV.id, { optimistic: 1, realistic: 2, pessimistic: 3 });
+    await api.setEstimate(paint.id, QA.id, { optimistic: 1, realistic: 2, pessimistic: 3 });
+
+    render(<WbsTable projectId="p1" api={api} />);
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '010.1', '010.1.1', '010.2', '020', '020.1']);
+    });
+    return api;
+  }
+
+  const openFilters = () => {
+    fireEvent.click(screen.getByText(/^Filters/));
+  };
+
+  const tick = (label: string) => {
+    fireEvent.click(screen.getByLabelText(label));
+  };
+
+  const find = (typed: string) => {
+    fireEvent.change(screen.getByLabelText<HTMLInputElement>('Find'), {
+      target: { value: typed },
+    });
+  };
+
+  itDom('narrows to the rows carrying a team, and keeps the rows that place them', async () => {
+    await aFacetedPlan();
+    openFilters();
+
+    tick('Team Wiring');
+
+    // `010` and `010.1` are context, exactly as they are under a typed name:
+    // a hit three levels down with no ancestry is a tree lying about itself.
+    expect(numbersOnScreen()).toEqual(['010', '010.1', '010.1.1']);
+    expect(screen.getByLabelText('Name of 010.1.1').dataset['match']).toBe('true');
+    expect(screen.getByLabelText('Name of 010.1').dataset['match']).toBeUndefined();
+  });
+
+  itDom('does not bring the subtree a typed name would bring', async () => {
+    // R10 §4 and §9's Q2, Dany 2026-08-17: `Strip` means the branch, and
+    // `assignee = Ada` means the rows Ada is on. The same row matched both
+    // ways, and only one of them is a request for the work underneath.
+    //
+    // Ada and not `Team Billing`, which is what this was first written with and
+    // is the wrong facet to ask the question through: the team facet reads the
+    // **effective** team, so `010.1` and `010.2` carry Billing on their own
+    // account by inheritance and stay on screen for a reason that has nothing
+    // to do with rule 3. An assignee does not inherit — `row.assignees` is the
+    // row's own — so what is left when Ada is ticked is rule 3 and nothing else.
+    await aFacetedPlan();
+    find('strip');
+    expect(numbersOnScreen()).toEqual(['010', '010.1', '010.1.1', '010.2']);
+
+    find('');
+    openFilters();
+    tick('Assignee Ada');
+
+    expect(numbersOnScreen()).toEqual(['010']);
+  });
+
+  itDom('keeps the rows that inherit a ticked team, which is not rule 3', async () => {
+    // The other half of the pair above, and the trap §8.5 names: a leaf drawing
+    // its slots from an ancestor's pool is that team's work, so it answers the
+    // facet itself. `010.1.1` is out because it carries a team of its own —
+    // most-specific-wins, `effectiveTeamsOf`'s rule, not the filter's.
+    await aFacetedPlan();
+    openFilters();
+
+    tick('Team Billing');
+
+    expect(numbersOnScreen()).toEqual(['010', '010.1', '010.2']);
+  });
+
+  itDom('drops the subtree the moment a facet joins a name that was bringing one', async () => {
+    await aFacetedPlan();
+    find('strip');
+    expect(numbersOnScreen()).toEqual(['010', '010.1', '010.1.1', '010.2']);
+
+    openFilters();
+    tick('Team Billing');
+
+    expect(numbersOnScreen()).toEqual(['010']);
+  });
+
+  itDom('takes a person on any phase, a band by its name, and a phase’s estimate', async () => {
+    await aFacetedPlan();
+    openFilters();
+
+    tick('Assignee Ada');
+    expect(numbersOnScreen()).toEqual(['010']);
+    tick('Assignee Ada');
+
+    tick('Priority Critical');
+    expect(numbersOnScreen()).toEqual(['010']);
+    tick('Priority Critical');
+
+    tick('Estimated for QA');
+    expect(numbersOnScreen()).toEqual(['020']);
+  });
+
+  itDom('takes only the rows answering every facet ticked', async () => {
+    await aFacetedPlan();
+    openFilters();
+
+    tick('Team Billing');
+    tick('Estimated for Dev');
+
+    // `010` is Billing's and has no estimate; `020` has both estimates and no
+    // team. Nothing answers both, and the table says so rather than showing a
+    // plan that looks emptied.
+    expect(numbersOnScreen()).toEqual([]);
+    expect(screen.getByText('0 of 6 rows')).toBeInTheDocument();
+    expect(screen.getByText('No rows match these filters')).toBeInTheDocument();
+  });
+
+  itDom('offers only the teams and the people this plan carries', async () => {
+    // The directory holds `Wiring` **and** `Billing`, `Ada` **and** `Bo`; a
+    // checkbox for a value no row has is a filter whose only answer is an
+    // empty table.
+    await aFacetedPlan();
+    openFilters();
+
+    expect(screen.getByLabelText('Team Billing')).toBeInTheDocument();
+    expect(screen.getByLabelText('Team Wiring')).toBeInTheDocument();
+    expect(screen.getByLabelText('Assignee Ada')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Assignee Bo')).toBeNull();
+    // Nobody has been given `Low`, so the ladder's other four rungs are not
+    // offered either.
+    expect(screen.getByLabelText('Priority Critical')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Priority Low')).toBeNull();
+  });
+
+  itDom('says how many facets are ticked, and clears them all in one', async () => {
+    await aFacetedPlan();
+    openFilters();
+    tick('Team Billing');
+    tick('Priority Critical');
+    expect(screen.getByText('Filters (2)')).toBeInTheDocument();
+
+    click('Clear filters');
+
+    expect(numbersOnScreen()).toEqual(['010', '010.1', '010.1.1', '010.2', '020', '020.1']);
+    expect(screen.getByText('Filters')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Clear filters' })).toBeNull();
+  });
+
+  itDom('leaves the Find box alone when the ticks are cleared', async () => {
+    // Two gestures, and each undoes its own half: Escape empties the box, and
+    // this unticks the boxes. One control undoing the other's work is how a
+    // reader loses a query they were still using.
+    await aFacetedPlan();
+    find('paint');
+    openFilters();
+    tick('Estimated for QA');
+
+    click('Clear filters');
+
+    expect(screen.getByLabelText<HTMLInputElement>('Find').value).toBe('paint');
+    // `020.1 Undercoat` back with it, and that is the second thing this proves:
+    // with the ticks gone the filter is a typed name again, so rule 3 is in
+    // force again and `Paint` brings the work it is a heading for.
+    expect(numbersOnScreen()).toEqual(['020', '020.1']);
+  });
+
+  itDom('stands the expansion controls down while a facet is on with nothing typed', async () => {
+    // The controls read one flag, and until R10 that flag was the query alone:
+    // a facet-only filter would have left `Collapse all` live over an
+    // expansion the filter owns, and the triangles on rows the filter opened.
+    await aFacetedPlan();
+    openFilters();
+
+    tick('Team Wiring');
+
+    expect(screen.getByRole('button', { name: 'Collapse all' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Expand all' })).toBeDisabled();
+    expect(screen.queryByRole('button', { name: 'Collapse 010' })).toBeNull();
+  });
+
+  itDom('narrows the chart with the table, because they are one list', async () => {
+    // The half of Dany's sentence that reads like the hard part — "must affect
+    // the gantt chart to only show what matches with the filter" — and it costs
+    // nothing, because `shownRows` is what the panel is drawn from and a facet
+    // narrows the same list a name already did (`gantt-panel.test.tsx`'s
+    // `draws exactly the rows a search narrowed the plan to`, watched
+    // 2026-08-09). Asserted here anyway: "for free" is a claim about a seam,
+    // and a seam nothing holds is how the next change quietly re-routes it.
+    await aFacetedPlan();
+    fireEvent.click(screen.getByRole('button', { name: 'Gantt' }));
+    await screen.findByLabelText('Gantt chart');
+
+    openFilters();
+    tick('Team Wiring');
+
+    expect(
+      [...document.querySelectorAll('[data-gantt-label]')].map((label) => label.textContent),
+    ).toEqual(['010 - Strip the walls', '010.1 - Sockets', '010.1.1 - Back boxes']);
+  });
+
+  itDom('keeps offering a ticked team after the last row carrying it has gone', async () => {
+    // The tree refetches on everybody's edit, so the row a tick is aimed at can
+    // leave while the tick is still in force. Dropping the box then would
+    // narrow the plan to nothing with nothing on screen to untick.
+    await aFacetedPlan();
+    openFilters();
+    tick('Team Wiring');
+    expect(numbersOnScreen()).toEqual(['010', '010.1', '010.1.1']);
+
+    takeRowAction('010.1.1', 'Delete');
+
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual([]);
+    });
+    expect(screen.getByLabelText('Team Wiring')).toBeChecked();
+  });
+
+  itDom('is empty on the next load, because an ad-hoc filter is not remembered', async () => {
+    // R10 §9's Q6, Dany 2026-08-17: the plan you open is the whole plan. A
+    // filter restored from a session nobody remembers setting is the "my rows
+    // are gone" report, and it is the likeliest thing this change could break.
+    const api = await aFacetedPlan();
+    openFilters();
+    tick('Team Wiring');
+    expect(numbersOnScreen()).toEqual(['010', '010.1', '010.1.1']);
+
+    cleanup();
+    render(<WbsTable projectId="p1" api={api} />);
+
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '010.1', '010.1.1', '010.2', '020', '020.1']);
+    });
+    openFilters();
+    expect(screen.getByLabelText('Team Wiring')).not.toBeChecked();
+  });
+});
+
+describe('saved views, per browser', () => {
+  /**
+   * Where this browser remembers `p1`'s saved views — the key F4 writes.
+   */
+  const KEY = 'wbs.views.p1';
+
+  /**
+   * ```
+   * 010  Strip the walls   Billing
+   * 020  Paint
+   * ```
+   *
+   * One team on one row, which is enough to ask what a saved view stores and
+   * what happens once the team it named is gone.
+   */
+  async function aPlanWithATeam(): Promise<ProjectApi & { rows: WorkItemView[] }> {
+    const api = fakeApi();
+    const strip = await api.create('p1', {
+      parentId: null,
+      afterId: null,
+      name: 'Strip the walls',
+    });
+    await api.create('p1', { parentId: null, afterId: strip.id, name: 'Paint' });
+    const billing = await api.addTeam('Billing');
+    await api.patch(strip.id, { serviceTeamId: billing.id });
+
+    render(<WbsTable projectId="p1" api={api} />);
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '020']);
+    });
+    return api;
+  }
+
+  const openFilters = () => {
+    fireEvent.click(screen.getByText(/^Filters/));
+  };
+  const openViews = () => {
+    fireEvent.click(screen.getByText(/^Views/));
+  };
+  const tick = (label: string) => {
+    fireEvent.click(screen.getByLabelText(label));
+  };
+  const find = (typed: string) => {
+    fireEvent.change(screen.getByLabelText<HTMLInputElement>('Find'), {
+      target: { value: typed },
+    });
+  };
+  const nameTheView = (typed: string) => {
+    fireEvent.change(screen.getByLabelText<HTMLInputElement>('Name this view'), {
+      target: { value: typed },
+    });
+  };
+
+  itDom('offers no Save while nothing is filtered', async () => {
+    // A view of the whole plan has nothing to be picked back to, since
+    // opening the project already shows it — the same bargain `Clear
+    // filters` makes over in `FilterFacets`.
+    await aPlanWithATeam();
+    openViews();
+
+    nameTheView('Everything');
+
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
+    expect(localStorage.getItem(KEY)).toBeNull();
+  });
+
+  itDom('remembers a view once something is actually filtered', async () => {
+    await aPlanWithATeam();
+    openFilters();
+    tick('Team Billing');
+    openViews();
+    nameTheView('Billing only');
+    click('Save');
+
+    expect(screen.getByText('Views (1)')).toBeInTheDocument();
+    expect(screen.getByText('Billing only')).toBeInTheDocument();
+    const stored = JSON.parse(localStorage.getItem(KEY) ?? '[]') as {
+      name: string;
+      criteria: unknown;
+    }[];
+    expect(stored).toHaveLength(1);
+    expect(stored[0].name).toBe('Billing only');
+    expect(stored[0].criteria).toMatchObject({ query: '', teamIds: [expect.any(String)] });
+  });
+
+  itDom('applies a saved view: the Find box and the ticks together, in one gesture', async () => {
+    await aPlanWithATeam();
+    find('paint');
+    openFilters();
+    tick('Team Billing');
+    // `020` (Paint) answers the name but not the team, so nothing is on
+    // screen — proving the saved criteria really is both halves together.
+    expect(numbersOnScreen()).toEqual([]);
+    openViews();
+    nameTheView('Nothing');
+    click('Save');
+
+    // Leave the view for the whole plan, the same as a reader who moved on:
+    // clear the box and untick the box the save just read. Both panels are
+    // already open, so nothing here re-toggles either `<details>`.
+    find('');
+    tick('Team Billing');
+    expect(numbersOnScreen()).toEqual(['010', '020']);
+
+    fireEvent.click(screen.getByText('Nothing'));
+
+    expect(screen.getByLabelText<HTMLInputElement>('Find').value).toBe('paint');
+    expect(numbersOnScreen()).toEqual([]);
+    expect(screen.getByLabelText('Team Billing')).toBeChecked();
+  });
+
+  itDom('deletes a saved view, and forgets it in storage too', async () => {
+    await aPlanWithATeam();
+    find('strip');
+    openViews();
+    nameTheView('Strip');
+    click('Save');
+    expect(screen.getByText('Views (1)')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete view Strip' }));
+
+    expect(screen.queryByText('Strip')).toBeNull();
+    expect(screen.getByText('Views')).toBeInTheDocument();
+    expect(JSON.parse(localStorage.getItem(KEY) ?? '[]')).toEqual([]);
+  });
+
+  itDom('never writes a view merely by typing or ticking — only Save does', async () => {
+    // The regression this change must not cause: an ad-hoc filter (R10 §9's
+    // Q6) is a different state to `savedViews`, and F4 must not blur them —
+    // ticking a box must not silently start a view nobody named.
+    await aPlanWithATeam();
+    find('strip');
+    openFilters();
+    tick('Team Billing');
+
+    expect(localStorage.getItem(KEY)).toBeNull();
+  });
+
+  itDom('is gone on the next load if never saved, but a saved view survives it', async () => {
+    const api = await aPlanWithATeam();
+    find('strip');
+    openViews();
+    nameTheView('Strip');
+    click('Save');
+    find('');
+
+    cleanup();
+    render(<WbsTable projectId="p1" api={api} />);
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '020']);
+    });
+
+    // The ad-hoc half is gone, exactly as Q6 requires.
+    expect(screen.getByLabelText<HTMLInputElement>('Find').value).toBe('');
+    // The named half is not — that is the whole point of F4.
+    openViews();
+    expect(screen.getByText('Strip')).toBeInTheDocument();
+  });
+
+  itDom('drops a hand-edited store that is not a list, and offers no views', async () => {
+    localStorage.setItem(KEY, '{"not": "a list"}');
+    await aPlanWithATeam();
+
+    openViews();
+    expect(screen.getByText('No saved views yet.')).toBeInTheDocument();
+    expect(localStorage.getItem(KEY)).toBeNull();
+  });
+
+  itDom('drops one unusable saved view and keeps the rest', async () => {
+    localStorage.setItem(
+      KEY,
+      JSON.stringify([
+        {
+          id: 'a',
+          name: 'Good',
+          criteria: {
+            query: 'x',
+            teamIds: [],
+            assigneeIds: [],
+            priorityBands: [],
+            estimatedRoleIds: [],
+            unestimated: false,
+            critical: false,
+          },
+        },
+        {
+          id: 'b',
+          name: '',
+          criteria: {
+            query: '',
+            teamIds: [],
+            assigneeIds: [],
+            priorityBands: [],
+            estimatedRoleIds: [],
+            unestimated: false,
+            critical: false,
+          },
+        },
+        { id: 'c', criteria: {} },
+      ]),
+    );
+    await aPlanWithATeam();
+
+    openViews();
+    expect(screen.getByText('Views (1)')).toBeInTheDocument();
+    expect(screen.getByText('Good')).toBeInTheDocument();
+  });
+
+  itDom('a view naming a team since deleted narrows to nothing, not to a crash', async () => {
+    // Stands in for the team the view named being removed from the directory
+    // outright, the same as the row it labelled having its team cleared
+    // underneath it: the id in the stored criteria answers to nothing on
+    // this plan from the first render on.
+    localStorage.setItem(
+      KEY,
+      JSON.stringify([
+        {
+          id: 'ghost',
+          name: 'Ghost team',
+          criteria: {
+            query: '',
+            teamIds: ['team-does-not-exist'],
+            assigneeIds: [],
+            priorityBands: [],
+            estimatedRoleIds: [],
+            unestimated: false,
+            critical: false,
+          },
+        },
+      ]),
+    );
+
+    await aPlanWithATeam();
+    openViews();
+    fireEvent.click(screen.getByText('Ghost team'));
+
+    // Empty means empty — the same answer any other facet gives when nothing
+    // on the plan carries the value asked for. No crash, no fallback to the
+    // whole table.
+    expect(numbersOnScreen()).toEqual([]);
+    expect(screen.getByText('No rows match these filters')).toBeInTheDocument();
+    openFilters();
+    expect(screen.getByLabelText('Team a team this plan has not loaded')).toBeChecked();
+  });
+});
+
+describe('what the filter says it dropped, and what it exports', () => {
+  /**
+   * Two roots with a dependency between them, both leaves so both are placed:
+   *
+   * ```
+   * 010  Strip the walls   Billing
+   * 020  Paint             Wiring, waits for 010
+   * ```
+   *
+   * A team on each, so one tick keeps one row and hides the other end of the
+   * only stored edge on the plan — which is the whole state F3 is about.
+   */
+  async function twoTeamsOneEdge(): Promise<ProjectApi> {
+    const api = fakeApi();
+    const strip = await api.create('p1', {
+      parentId: null,
+      afterId: null,
+      name: 'Strip the walls',
+    });
+    const paint = await api.create('p1', { parentId: null, afterId: strip.id, name: 'Paint' });
+    const billing = await api.addTeam('Billing');
+    const wiring = await api.addTeam('Wiring');
+    await api.patch(strip.id, { serviceTeamId: billing.id });
+    await api.patch(paint.id, { serviceTeamId: wiring.id });
+    await api.setEstimate(strip.id, DEV.id, { optimistic: 1, realistic: 2, pessimistic: 3 });
+    await api.setEstimate(paint.id, DEV.id, { optimistic: 1, realistic: 2, pessimistic: 3 });
+    await api.addDependency(paint.id, strip.id);
+
+    render(<WbsTable projectId="p1" api={api} projectName="Rewire the shed" />);
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '020']);
+    });
+    return api;
+  }
+
+  const openFilters = () => {
+    fireEvent.click(screen.getByText(/^Filters/));
+  };
+  const tick = (label: string) => {
+    fireEvent.click(screen.getByLabelText(label));
+  };
+
+  /**
+   * What a download was handed and what it was filed as — jsdom implements
+   * neither the object URL nor a click that saves, so both are replaced for the
+   * length of a test. The same shape `sharing the plan` uses above, written
+   * again rather than hoisted: that block's copy is scoped to its own
+   * `afterEach`, and one shared stub restored in two places is how a test that
+   * passes alone fails in a suite.
+   */
+  const captureDownloads = (): { blobs: Blob[]; names: string[] } => {
+    const blobs: Blob[] = [];
+    const names: string[] = [];
+    const urls = URL as unknown as {
+      createObjectURL: (blob: Blob) => string;
+      revokeObjectURL: (url: string) => void;
+    };
+    urls.createObjectURL = (blob: Blob) => {
+      blobs.push(blob);
+      return `blob:on-screen-${String(blobs.length)}`;
+    };
+    urls.revokeObjectURL = () => undefined;
+    HTMLAnchorElement.prototype.click = function capture(this: HTMLAnchorElement) {
+      names.push(this.download);
+    };
+    return { blobs, names };
+  };
+
+  /** The bytes of a downloaded blob, through `FileReader` — jsdom's Blob has no `text()`. */
+  const readBlobText = (blob: Blob): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const read = reader.result;
+        if (typeof read === 'string') resolve(read);
+        else reject(new Error('the downloaded blob read back as something else'));
+      };
+      reader.onerror = () => {
+        reject(new Error('the downloaded blob could not be read'));
+      };
+      reader.readAsText(blob);
+    });
+
+  afterEach(() => {
+    Reflect.deleteProperty(URL, 'createObjectURL');
+    Reflect.deleteProperty(URL, 'revokeObjectURL');
+    Reflect.deleteProperty(HTMLAnchorElement.prototype, 'click');
+  });
+
+  /** The chart's sentence about the waits it did not draw, or null. */
+  const droppedSentence = (): string | null =>
+    document.querySelector('[data-gantt-dropped-links]')?.textContent ?? null;
+
+  itDom(
+    'says under the chart that a wait went undrawn, and says it only while filtering',
+    async () => {
+      await twoTeamsOneEdge();
+      fireEvent.click(screen.getByRole('button', { name: 'Gantt' }));
+      await screen.findByLabelText('Gantt chart');
+      expect(droppedSentence()).toBeNull();
+
+      openFilters();
+      tick('Team Wiring');
+
+      // `020` is drawn and the row it waits for is not, so the bar sits at a date
+      // with nothing on the chart holding it there. R10 §9's Q7: the edge is not
+      // pulled back — one edge can drag a whole plan in — it is counted and said.
+      expect(numbersOnScreen()).toEqual(['020']);
+      expect(droppedSentence()).toBe(
+        'Not drawn: 1 wait whose other end this filter is hiding — 1 stored dependency. ' +
+          'Clear the filter to see it.',
+      );
+
+      tick('Team Wiring');
+
+      expect(droppedSentence()).toBeNull();
+    },
+  );
+
+  itDom('counts the wait that leaves a shown row for a hidden one', async () => {
+    // The direction the chart could not see before F3: `010` is on screen and
+    // its **successor** is not, so its bar loses the arrow that left it.
+    await twoTeamsOneEdge();
+    fireEvent.click(screen.getByRole('button', { name: 'Gantt' }));
+    await screen.findByLabelText('Gantt chart');
+
+    openFilters();
+    tick('Team Billing');
+
+    expect(numbersOnScreen()).toEqual(['010']);
+    expect(droppedSentence()).toContain('1 stored dependency');
+  });
+
+  itDom('downloads what is on screen, with a header saying what was filtered out', async () => {
+    const downloads = captureDownloads();
+    await twoTeamsOneEdge();
+    openFilters();
+    tick('Team Wiring');
+
+    click('Download what’s on screen');
+
+    expect(downloads.names).toHaveLength(1);
+    // `-on-screen`, off the scope itself: two documents of one plan taken on
+    // one day would otherwise land in a folder under the same name, and the
+    // one with rows missing is the one nobody can tell apart afterwards.
+    expect(downloads.names[0]).toMatch(/^rewire-the-shed-\d{4}-\d{2}-\d{2}-on-screen\.md$/);
+    const file = downloads.blobs.at(0);
+    if (file === undefined) throw new Error('nothing was handed to createObjectURL');
+    const text = await readBlobText(file);
+    // What it holds, what kept it, and the two things a reader of a partial
+    // document cannot work out for themselves: that the figures were not
+    // recomputed, and that a Depends on points somewhere this file has not got.
+    expect(text).toContain(
+      '**Scope:** what one reader had on screen, not the whole plan — 1 of 2 rows, kept by: team Wiring.',
+    );
+    expect(text).toContain("The figures are the whole plan's schedule unchanged");
+    expect(text).toContain(
+      '1 Depends on reference points at a work item this document does not hold',
+    );
+    expect(text).toContain('| Paint |');
+    expect(text).not.toContain('| Strip the walls |');
+  });
+
+  itDom('leaves the four whole-plan exports claiming the whole plan', async () => {
+    // R10 §9's Q3, settled 2026-08-17: the export does not follow the filter,
+    // and the second action is why it does not have to. A filtered plan
+    // downloaded through the old button is still every row, and still says so.
+    const downloads = captureDownloads();
+    await twoTeamsOneEdge();
+    openFilters();
+    tick('Team Wiring');
+    expect(numbersOnScreen()).toEqual(['020']);
+
+    click('Download CSV');
+
+    const file = downloads.blobs.at(0);
+    if (file === undefined) throw new Error('nothing was handed to createObjectURL');
+    const text = await readBlobText(file);
+    expect(text).toContain('Strip the walls');
+    expect(text).toContain('Paint');
+    expect(text).not.toContain('Scope');
   });
 });

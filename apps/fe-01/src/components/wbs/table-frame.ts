@@ -201,7 +201,19 @@ const COLUMN_WIDTHS = new Map<string, number>([
   // has, and it is two levels of number at a two-level row's indent now.
   // Chromium measures 92.5625px of that — 12px of indent, a 12.5px expander, a
   // 20px lock, five characters of number and the cell's 8px of padding.
-  ['number', 93],
+  //
+  // **93 → 105 in `number-column-widen`.** The envelope's *contract* did not
+  // move — still `NUMBER_ENVELOPE_LEVELS`' two levels — but `table-width-budget`
+  // (#62) found what the contract's own slack was hiding: read character by
+  // character, `010.1.1.1.1` and `010.1.1.1.1.1` both draw `010.1.1.1.`, so a
+  // row and its own child read as the same number at depth 5. One
+  // `INDENT_STEP` (12px) buys the column back to depth 6/7 — Dany's call,
+  // 2026-08-16, the reversible one of the two design.md D4 offered: eliding
+  // from the head holds at every depth but changes how every clipped number
+  // in the product reads, so it stays available as a later change rather than
+  // being smuggled into this one. Affordable: two folded phases at 1280 go
+  // 1219 → 1231 against a 1248px frame, 12 of the 29px of measured slack.
+  ['number', 105],
   ['depends', 110],
   // A priority, and priorities are short: 48px holds four digits and the 8px of padding
   // the declared width includes, which is a scale running past a thousand. The
@@ -779,10 +791,11 @@ const INDENT_STEP = 12;
  * thing a column of figures is for. `e2e/layout.spec.ts`'s `lines up the number
  * of a parent and a childless sibling` is the browser that says so.
  *
- * It costs the column nothing. The 93px in {@link COLUMN_WIDTHS} was measured
- * with an expander present — "12px of indent, a 12.5px expander, a 20px lock,
- * five characters of number and the cell's 8px of padding" — so this reserves
- * what the envelope was already sized around.
+ * It costs the column nothing. The measured 92.5625px `{@link COLUMN_WIDTHS}`
+ * started from (105px since `number-column-widen`) was measured with an
+ * expander present — "12px of indent, a 12.5px expander, a 20px lock, five
+ * characters of number and the cell's 8px of padding" — so this reserves what
+ * the envelope was already sized around.
  */
 export const CARET_GUTTER_PX = 12;
 
@@ -801,7 +814,7 @@ export const CARET_GUTTER_PX = 12;
  * more rather than less: the column is sized to {@link NUMBER_ENVELOPE}'s two
  * levels, so at the envelope's own depth the number keeps the larger half of
  * the column and every level after that is spent on white space. A step of 16
- * would take 64px of a 93px column at the deepest indent and leave nothing of
+ * would take 64px of a 105px column at the deepest indent and leave little of
  * the number at all. {@link DEEPEST_INDENT} is where that same argument was
  * finally taken to its conclusion — two levels of white space, not four.
  *

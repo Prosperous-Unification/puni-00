@@ -249,8 +249,27 @@ How important one work item's work is, as an integer from 1 upward, smaller bein
 important — or absent, which is a state of its own and not a large number. Decides which
 of two eligible slices is **placed** first; never overrides a dependency, a floor or a
 calendar, and placed first is not started first — a narrow block can take a hole a wide
-one of higher priority cannot use.
+one of higher priority cannot use. What the number is **called** is the project's own —
+see Priority band — and the name decides nothing the number does not.
 _Avoid_: priority, importance, urgency, severity, weight
+
+**Priority band**:
+One rung of what a project calls its priority numbers: a start value, a label, and the
+number choosing that label writes. The band above ends the one below, and the highest ends
+nowhere, so every priority resolves to exactly one band. Five per project, renamable and
+re-cuttable; the count is not.
+_Avoid_: priority level, priority range, severity level, tier
+
+**Priority ladder**:
+A project's five bands, in rank order. It is a vocabulary and never a constraint: re-cutting
+it renames what a plan's numbers are called and moves no date. A project that has stored
+none reads the default five.
+_Avoid_: priority scheme, priority config, priority scale
+
+**Rank**:
+A band's position in its ladder, 0 (most important) to 4. What every face keys a band's
+colour off, because a label can be renamed out from under one and a position cannot.
+_Avoid_: band index, level, tier number
 
 **Eligible slice**:
 One whose predecessors have all been placed — its dependencies and its work item's
@@ -365,6 +384,13 @@ _Avoid_: resource arrow, queue line, assignment link
 The mark standing on the day a row's manual start date holds it at, on rows that have one.
 Where it stands is that date's place on the axis; what it says on hover is the date itself.
 _Avoid_: constraint marker, lock, milestone
+
+**Not-before reason**:
+Why a row's manual start date is there, in the planner's own words. Words about that date
+and nothing else: it holds nothing back on its own, moves no date, reaches no other row,
+and cannot exist without the date it explains. Said where that date's effect is already
+said — the floor sentence of a bar the date binds, and the Not before cell.
+_Avoid_: blocked, blocker, status, hold reason, note
 
 **Refused dependency**:
 A dependency be-01 will not write: onto the work item itself, onto an ancestor or a
@@ -574,8 +600,23 @@ _Avoid_: child row, detail, related record
 **Command journal**:
 The last fifty reversible commands one account ran on one project, held on the server in
 the order they happened. One stack per account per project — undo is personal, and
-reversing somebody else's change because it happened to be the newest is not undo.
+reversing somebody else's change because it happened to be the newest is not undo. Not
+the plan history: see that term for the five ways they differ.
 _Avoid_: history, audit log, activity, event log
+
+**Plan history**:
+Every command anybody ran on one project, kept — the plan's own record, per project
+rather than per account, added to and never edited, and thinned only by age. It is not
+the command journal, which is one account's fifty-deep undo stack and drops what it must
+to stay one; and it is not the event log, which is the websocket's resume buffer.
+_Avoid_: audit log, activity feed, changelog, journal
+
+**Plan event**:
+One row of the plan history: a command that happened, the sentence describing it, the
+work item and role it was aimed at where it had one, and the two commands the journal
+holds — what it did, and what would undo it. It names its work item without depending on
+it, so it survives the row's deletion.
+_Avoid_: history entry, audit record, revision
 
 **Compensating command**:
 The command that reverses another one, carrying the before-state it needs — the old field

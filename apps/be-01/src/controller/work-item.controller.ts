@@ -1,8 +1,17 @@
-import { isIsoDate, type IsoDate, MOST_PEOPLE_AT_ONCE, ThreePointEstimate } from '@wbs/domain';
+import {
+  isIsoDate,
+  type IsoDate,
+  isRoleState,
+  LONGEST_NOT_BEFORE_REASON,
+  MOST_PEOPLE_AT_ONCE,
+  type RoleState,
+  ThreePointEstimate,
+} from '@wbs/domain';
 import { parseOrThrow, ValidationError } from '@wbs/validation';
 import { Elysia } from 'elysia';
 
 import { userFromHeaders } from '../middleware/authenticated';
+import { handParsedBody } from '../openapi/hand-parsed-body';
 import type { AuthService } from '../service/auth.service';
 import type {
   CreateWorkItem,
@@ -50,6 +59,53 @@ function asOptionalText(value: unknown, field: string): string | undefined {
   return value;
 }
 
+/**
+ * The one number a recorded actual is, checked by hand for the reason at the top
+ * of this file and for one of its own.
+ *
+ * **`0` is accepted and is not the same as absence.** A person typing zero is
+ * saying the work took no days, which is a statement they made; the absence of a
+ * row is nobody having said anything, and the way to express it is `DELETE`, not
+ * this route with a zero in it. Every reading surface follows the same rule —
+ * see `actual` in `schema.ts`.
+ *
+ * Negative days are refused: nobody spends minus a day, and the number would
+ * subtract from a parent's roll-up and quietly shrink a branch's recorded total.
+ * A non-finite one is refused because `NaN` stored as a real comes back as a
+ * number that fails every comparison it is in, including its own.
+ */
+function parseActual(body: unknown): number {
+  const raw = asRecord(body);
+  const days: unknown = raw['days'];
+  if (typeof days !== 'number' || !Number.isFinite(days) || days < 0) {
+    throw new BadRequest('invalid_actual');
+  }
+  return days;
+}
+
+/**
+ * The one state a statement is, checked by hand for the reason at the top of
+ * this file and for one of its own.
+ *
+ * **`not_started` is refused, and that is the point.** The absence of a
+ * statement is the absence of a row: the way to say it is `DELETE` on this
+ * path, never a third value in the column. Accepting it here would give two
+ * spellings of "nobody has said" — one of which every reader would then have to
+ * fold — and the whole design rests on there being one.
+ *
+ * `blocked` and `cancelled` are refused for the reason in `design.md` P2: each
+ * is a question the engine must answer the day it reads this table, and it does
+ * not read it yet. The `CHECK` on the column refuses them again, in the
+ * database, so a body this function ever came to let through does not become a
+ * row nothing folds.
+ */
+function parseProgress(body: unknown): RoleState {
+  const raw = asRecord(body);
+  const state: unknown = raw['state'];
+  if (!isRoleState(state)) throw new BadRequest('invalid_progress');
+  return state;
+}
+
 function parseCreate(body: unknown): CreateWorkItem {
   const raw = asRecord(body);
   refuseDerivedFields(raw);
@@ -81,6 +137,50 @@ function asOptionalDate(value: unknown, field: string): IsoDate | null | undefin
   if (value === null) return null;
   if (!isIsoDate(value)) throw new BadRequest(`${field}_must_be_a_date`);
   return value;
+}
+
+/**
+ * Why the work is held back, `null` to take the words off, or absent to leave
+ * them.
+ *
+ * **A blank is `null`, not `''`.** Emptying the field is how a reader takes a
+ * reason off, and a stored empty string would be a second spelling of "nobody
+ * has said" that every reader would then have to fold — the doctrine `actual`
+ * and `role_progress` both state as "the absence of a row". Trimmed for the
+ * same reason a band label is: a reason of three spaces is a reason of none,
+ * and the difference between them is invisible on every surface that shows it.
+ *
+ * Bounded at {@link LONGEST_NOT_BEFORE_REASON}, and this is the only boundary
+ * a value can enter through: the column is `text`, SQLite counts no characters,
+ * and the migration argues why a `CHECK` on this table would answer 500 to the
+ * outgoing release mid-swap. The bound is measured **after** the trim, so
+ * trailing whitespace cannot spend it.
+ *
+ * The pair rule — a reason needs a date — is deliberately not here. It is a
+ * question about the row as it will stand, and this function has only the
+ * request; `WorkItemStore.patch` asks it inside the transaction that writes.
+ */
+function asOptionalReason(value: unknown, field: string): string | null | undefined {
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+  if (typeof value !== 'string') throw new BadRequest(`${field}_must_be_text`);
+  const trimmed = value.trim();
+  // Proof: this throw deleted, so the value is taken as it arrives — **48 pass,
+  // 1 fail** — and `refuses a reason that is not text, and one longer than a
+  // sentence` failed on `Expected: 400, Received: 200`: 201 characters taken,
+  // and nothing anywhere between a pasted paragraph and a hover card that
+  // covers the chart it is explaining. Watched 2026-08-18.
+  if (trimmed.length > LONGEST_NOT_BEFORE_REASON) {
+    throw new BadRequest(
+      `${field}_must_be_at_most_${String(LONGEST_NOT_BEFORE_REASON)}_characters`,
+    );
+  }
+  // Proof: this normalisation replaced by `return trimmed` — **48 pass, 1
+  // fail** — and `stores a blank reason as no reason at all, and trims the
+  // rest` failed with `"startNoEarlierThanReason": ""` where `null` was owed:
+  // two spellings of "nobody has said" in one column, one of which the pair rule
+  // then refuses to let a reader clear the date beside. Watched 2026-08-18.
+  return trimmed === '' ? null : trimmed;
 }
 
 /**
@@ -164,6 +264,7 @@ function parsePatch(body: unknown): {
   name?: string;
   notes?: string;
   startNoEarlierThan?: IsoDate | null;
+  startNoEarlierThanReason?: string | null;
   priority?: number | null;
   serviceTeamId?: string | null;
   maxParallel?: number | null;
@@ -174,6 +275,10 @@ function parsePatch(body: unknown): {
     name: asOptionalText(raw['name'], 'name'),
     notes: asOptionalText(raw['notes'], 'notes'),
     startNoEarlierThan: asOptionalDate(raw['startNoEarlierThan'], 'startNoEarlierThan'),
+    startNoEarlierThanReason: asOptionalReason(
+      raw['startNoEarlierThanReason'],
+      'startNoEarlierThanReason',
+    ),
     priority: asOptionalPriority(raw['priority'], 'priority'),
     serviceTeamId:
       'serviceTeamId' in raw ? asIdOrNull(raw['serviceTeamId'], 'serviceTeamId') : undefined,
@@ -285,63 +390,222 @@ export function workItemController(auth: AuthService, workItems: WorkItemService
       // read and has nobody to answer for.
       return { ...tree, ...(await workItems.undoState(params.id, user.id)) };
     })
-    .post('/projects/:id/work-items', async ({ params, body, headers, set }) => {
-      const user = await userFromHeaders(auth, headers);
-      if (user === null) {
-        set.status = 401;
-        return { error: 'unauthenticated' };
-      }
-      const outcome = await workItems.create(params.id, user.id, parseCreate(body));
-      if (!outcome.ok) {
-        set.status = statusFor(outcome.reason);
-        return { error: outcome.reason };
-      }
-      return outcome.result;
-    })
-    .patch('/work-items/:id', async ({ params, body, headers, set }) => {
-      const user = await userFromHeaders(auth, headers);
-      if (user === null) {
-        set.status = 401;
-        return { error: 'unauthenticated' };
-      }
-      const outcome = await workItems.patch(params.id, user.id, parsePatch(body));
-      if (!outcome.ok) {
-        set.status = statusFor(outcome.reason);
-        return { error: outcome.reason };
-      }
-      return outcome.result;
-    })
-    .put('/work-items/:id/assignees/:roleId', async ({ params, body, headers, set }) => {
-      const user = await userFromHeaders(auth, headers);
-      if (user === null) {
-        set.status = 401;
-        return { error: 'unauthenticated' };
-      }
-      // `null` clears the assignment; anything else must be an id. A person
-      // who is not in the directory is refused by the foreign key rather than
-      // by a lookup here, which two concurrent requests could both pass.
-      const raw = asRecord(body);
-      const personId = asIdOrNull(raw['personId'], 'personId');
-      const outcome = await workItems.assign(params.id, user.id, params.roleId, personId);
-      if (!outcome.ok) {
-        set.status = statusFor(outcome.reason);
-        return { error: outcome.reason };
-      }
-      return { assigned: true };
-    })
-    .post('/work-items/:id/move', async ({ params, body, headers, set }) => {
-      const user = await userFromHeaders(auth, headers);
-      if (user === null) {
-        set.status = 401;
-        return { error: 'unauthenticated' };
-      }
-      const outcome = await workItems.move(params.id, user.id, parseMove(body));
-      if (!outcome.ok) {
-        set.status = statusFor(outcome.reason);
-        return { error: outcome.reason };
-      }
-      return { moved: true };
-    })
+    .post(
+      '/projects/:id/work-items',
+      async ({ params, body, headers, set }) => {
+        const user = await userFromHeaders(auth, headers);
+        if (user === null) {
+          set.status = 401;
+          return { error: 'unauthenticated' };
+        }
+        const outcome = await workItems.create(params.id, user.id, parseCreate(body));
+        if (!outcome.ok) {
+          set.status = statusFor(outcome.reason);
+          return { error: outcome.reason };
+        }
+        return outcome.result;
+      },
+      {
+        detail: {
+          summary: 'Add a work item to a project',
+          description: `Its number is **not** part of the request: numbers are derived from the tree and
+re-derived on every read, so a body naming \`number\` or \`frozenNumber\` is refused
+rather than ignored.
+
+Body refusals, all 400 and each carried as \`{ "error": "<code>" }\`:
+\`expected_object\`, \`number_is_derived\`, \`parentId_must_be_id_or_null\`,
+\`afterId_must_be_id_or_null\`, \`name_must_be_text\`, \`notes_must_be_text\`.`,
+          requestBody: handParsedBody(
+            'Where the row goes and what it is called. Every field may be absent.',
+            {
+              type: 'object',
+              properties: {
+                parentId: {
+                  type: 'string',
+                  nullable: true,
+                  description:
+                    'The work item it goes under. Null or absent puts it at the top level.',
+                },
+                afterId: {
+                  type: 'string',
+                  nullable: true,
+                  description:
+                    'The sibling it is placed after; it must already sit under `parentId`. Null or absent puts it first in that group.',
+                },
+                name: { type: 'string', description: 'Its name. Absent leaves it unnamed.' },
+                notes: { type: 'string', description: 'Free text shown on the row.' },
+              },
+            },
+          ),
+        },
+      },
+    )
+    .patch(
+      '/work-items/:id',
+      async ({ params, body, headers, set }) => {
+        const user = await userFromHeaders(auth, headers);
+        if (user === null) {
+          set.status = 401;
+          return { error: 'unauthenticated' };
+        }
+        const outcome = await workItems.patch(params.id, user.id, parsePatch(body));
+        if (!outcome.ok) {
+          set.status = statusFor(outcome.reason);
+          return { error: outcome.reason };
+        }
+        return outcome.result;
+      },
+      {
+        detail: {
+          summary: "Change a work item's own fields",
+          description: `Every field is optional and an absent one is left alone; \`null\` where the field
+allows it is the clear. Dates, floats and slices are **not** here — they are
+computed from the tree, which is why \`number\` and \`frozenNumber\` are refused
+rather than ignored. Re-read \`GET /api/projects/{id}/work-items\` afterwards: one
+patch can move every date in the plan.
+
+Body refusals, all 400: \`expected_object\`, \`number_is_derived\`,
+\`name_must_be_text\`, \`notes_must_be_text\`, \`startNoEarlierThan_must_be_a_date\`,
+\`startNoEarlierThanReason_must_be_text\`,
+\`startNoEarlierThanReason_must_be_at_most_200_characters\`,
+\`priority_must_be_a_whole_number_from_1\`, \`serviceTeamId_must_be_id_or_null\`,
+\`maxParallel_must_be_a_whole_number_from_1\`,
+\`maxParallel_must_be_at_most_1000\`. A parallelism on a row that has children is
+\`has_children\`, also 400 — the cell is read-only on every parent. A patch that
+would leave the row holding a reason with no \`startNoEarlierThan\` for it to be
+about is \`not_before_reason_needs_a_date\`, also 400: **clearing the date clears
+neither the words nor itself**, so send both as \`null\` in the one request.`,
+          requestBody: handParsedBody('The fields to change. Send only the ones you mean.', {
+            type: 'object',
+            properties: {
+              name: { type: 'string', description: 'What the work item is called.' },
+              notes: { type: 'string', description: 'Free text shown on the row.' },
+              startNoEarlierThan: {
+                type: 'string',
+                nullable: true,
+                description:
+                  'A calendar day, `YYYY-MM-DD`, before which this work may not start. Null lifts the constraint. A shape-valid non-day like `2026-02-31` is refused.',
+              },
+              startNoEarlierThanReason: {
+                type: 'string',
+                nullable: true,
+                maxLength: LONGEST_NOT_BEFORE_REASON,
+                description:
+                  'Why the work may not start yet, in the planner’s own words — *“waiting on client sign-off”*. Words about `startNoEarlierThan` and nothing else: it is not a status, it holds nothing back on its own, and no date moves because of it. Meaningless without a date and refused without one, so clearing `startNoEarlierThan` means sending this as null in the same request. A blank is stored as null; whitespace is trimmed.',
+              },
+              priority: {
+                type: 'integer',
+                nullable: true,
+                minimum: 1,
+                description:
+                  'A whole number from 1, lower being more important. There is no ceiling — how far a planner’s own scale runs is not this API’s to decide. Null leaves the work unprioritised.',
+              },
+              serviceTeamId: {
+                type: 'string',
+                nullable: true,
+                description:
+                  'The team whose people do this work, by id from `GET /api/teams`. Null clears the label.',
+              },
+              maxParallel: {
+                type: 'integer',
+                nullable: true,
+                minimum: 1,
+                maximum: 1000,
+                description:
+                  'How many people may be on this work item at once, 1 to 1000. Null puts it back to one at a time. The floor is correctness, not taste: duration is effort ÷ width, so a 0 would make every date in the plan `Infinity`.',
+              },
+            },
+          }),
+        },
+      },
+    )
+    .put(
+      '/work-items/:id/assignees/:roleId',
+      async ({ params, body, headers, set }) => {
+        const user = await userFromHeaders(auth, headers);
+        if (user === null) {
+          set.status = 401;
+          return { error: 'unauthenticated' };
+        }
+        // `null` clears the assignment; anything else must be an id. A person
+        // who is not in the directory is refused by the foreign key rather than
+        // by a lookup here, which two concurrent requests could both pass.
+        const raw = asRecord(body);
+        const personId = asIdOrNull(raw['personId'], 'personId');
+        const outcome = await workItems.assign(params.id, user.id, params.roleId, personId);
+        if (!outcome.ok) {
+          set.status = statusFor(outcome.reason);
+          return { error: outcome.reason };
+        }
+        return { assigned: true };
+      },
+      {
+        detail: {
+          summary: 'Assign a person to one role on one work item, or clear the assignment',
+          description: `\`roleId\` must be a role of the project this work item belongs to; one that is not
+is \`unknown_role\`, 404. An id the directory no longer holds is refused by the
+foreign key rather than by a lookup here, because two concurrent requests could
+both pass a lookup.
+
+Body refusals, both 400: \`expected_object\`, \`personId_must_be_id_or_null\`.`,
+          requestBody: handParsedBody('Who does this role here.', {
+            type: 'object',
+            properties: {
+              personId: {
+                type: 'string',
+                nullable: true,
+                description:
+                  'The person, by id from `GET /api/people`. Null — or an absent field — clears the assignment.',
+              },
+            },
+          }),
+        },
+      },
+    )
+    .post(
+      '/work-items/:id/move',
+      async ({ params, body, headers, set }) => {
+        const user = await userFromHeaders(auth, headers);
+        if (user === null) {
+          set.status = 401;
+          return { error: 'unauthenticated' };
+        }
+        const outcome = await workItems.move(params.id, user.id, parseMove(body));
+        if (!outcome.ok) {
+          set.status = statusFor(outcome.reason);
+          return { error: outcome.reason };
+        }
+        return { moved: true };
+      },
+      {
+        detail: {
+          summary: 'Move a work item under a new parent, or to a new position among its siblings',
+          description: `A move that would put a row inside its own subtree is \`cycle\`, 409 — the request is
+well formed and would have worked against a different tree. A frozen work item is
+\`frozen\`, also 409. Numbers are re-derived afterwards, so every row's number may
+change.
+
+Body refusals, all 400: \`expected_object\`, \`parentId_must_be_id_or_null\`,
+\`afterId_must_be_id_or_null\`.`,
+          requestBody: handParsedBody('Where the work item goes.', {
+            type: 'object',
+            properties: {
+              parentId: {
+                type: 'string',
+                nullable: true,
+                description: 'The work item it goes under. Null moves it to the top level.',
+              },
+              afterId: {
+                type: 'string',
+                nullable: true,
+                description:
+                  'The sibling it goes after; it must already sit under `parentId`. Null puts it first in that group.',
+              },
+            },
+          }),
+        },
+      },
+    )
     .post('/work-items/:id/duplicate', async ({ params, headers, set }) => {
       // No body is read: what is copied and where it lands are the rule, not
       // the caller's to choose. A body would be options nobody has asked for
@@ -400,32 +664,56 @@ export function workItemController(auth: AuthService, workItems: WorkItemService
       }
       return { unfrozen: true };
     })
-    .post('/work-items/:id/dependencies', async ({ params, body, headers, set }) => {
-      const user = await userFromHeaders(auth, headers);
-      if (user === null) {
-        set.status = 401;
-        return { error: 'unauthenticated' };
-      }
-      // Parsed by hand rather than through Elysia's `body` schema: Elysia strips
-      // unknown properties before the handler, so a typo'd field name would
-      // arrive as an absent one and the route would answer 200 having done
-      // nothing. The same reason the create route parses its own body.
-      const parsed: unknown = body;
-      const predecessorId =
-        typeof parsed === 'object' && parsed !== null && 'predecessorId' in parsed
-          ? parsed.predecessorId
-          : undefined;
-      if (typeof predecessorId !== 'string' || predecessorId === '') {
-        set.status = 400;
-        return { error: 'predecessor_required' };
-      }
-      const outcome = await workItems.addDependency(params.id, user.id, predecessorId);
-      if (!outcome.ok) {
-        set.status = statusFor(outcome.reason);
-        return { error: outcome.reason };
-      }
-      return { ok: true };
-    })
+    .post(
+      '/work-items/:id/dependencies',
+      async ({ params, body, headers, set }) => {
+        const user = await userFromHeaders(auth, headers);
+        if (user === null) {
+          set.status = 401;
+          return { error: 'unauthenticated' };
+        }
+        // Parsed by hand rather than through Elysia's `body` schema: Elysia strips
+        // unknown properties before the handler, so a typo'd field name would
+        // arrive as an absent one and the route would answer 200 having done
+        // nothing. The same reason the create route parses its own body.
+        const parsed: unknown = body;
+        const predecessorId =
+          typeof parsed === 'object' && parsed !== null && 'predecessorId' in parsed
+            ? parsed.predecessorId
+            : undefined;
+        if (typeof predecessorId !== 'string' || predecessorId === '') {
+          set.status = 400;
+          return { error: 'predecessor_required' };
+        }
+        const outcome = await workItems.addDependency(params.id, user.id, predecessorId);
+        if (!outcome.ok) {
+          set.status = statusFor(outcome.reason);
+          return { error: outcome.reason };
+        }
+        return { ok: true };
+      },
+      {
+        detail: {
+          summary: 'Make this work item wait for another',
+          description: `What the wait means: this work starts no earlier than the predecessor's **first
+estimated role** — its anchor — not its finish. A blank leading role is stepped
+over, and a wholly unestimated predecessor falls back to its own finish.
+
+An edge that would close a loop is \`cycle\`, 409. A missing, empty or non-string
+\`predecessorId\` is \`predecessor_required\`, 400.`,
+          requestBody: handParsedBody('The work item this one waits for.', {
+            type: 'object',
+            required: ['predecessorId'],
+            properties: {
+              predecessorId: {
+                type: 'string',
+                description: 'The predecessor, by work item id. Must not be empty.',
+              },
+            },
+          }),
+        },
+      },
+    )
     .delete('/work-items/:id/dependencies/:predecessorId', async ({ params, headers, set }) => {
       const user = await userFromHeaders(auth, headers);
       if (user === null) {
@@ -452,20 +740,65 @@ export function workItemController(auth: AuthService, workItems: WorkItemService
       }
       return { unfrozen: true };
     })
-    .put('/work-items/:id/estimates/:roleId', async ({ params, body, headers, set }) => {
-      const user = await userFromHeaders(auth, headers);
-      if (user === null) {
-        set.status = 401;
-        return { error: 'unauthenticated' };
-      }
-      const days = parseOrThrow(ThreePointEstimate, body);
-      const outcome = await workItems.setEstimate(params.id, user.id, params.roleId, days);
-      if (!outcome.ok) {
-        set.status = statusFor(outcome.reason);
-        return { error: outcome.reason };
-      }
-      return { estimated: true };
-    })
+    .put(
+      '/work-items/:id/estimates/:roleId',
+      async ({ params, body, headers, set }) => {
+        const user = await userFromHeaders(auth, headers);
+        if (user === null) {
+          set.status = 401;
+          return { error: 'unauthenticated' };
+        }
+        const days = parseOrThrow(ThreePointEstimate, body);
+        const outcome = await workItems.setEstimate(params.id, user.id, params.roleId, days);
+        if (!outcome.ok) {
+          set.status = statusFor(outcome.reason);
+          return { error: outcome.reason };
+        }
+        return { estimated: true };
+      },
+      {
+        detail: {
+          summary: 'Set one role’s three-point estimate on one work item',
+          description: `**Days, and fractions are real** — half a day is an estimate, and rounding it up is
+a lie the plan then carries. The project turns the three into the one number it
+plans with, by default PERT: \`(optimistic + 4 × realistic + pessimistic) / 6\`,
+weighted four times on the figure somebody actually thought about, and fractional
+on purpose. A \`2 / 3 / 10\` estimate expects 4 days, not 6.
+
+An estimate on a row that has children is \`rolled_up\`, 409 — a parent's figures
+are sums. A \`roleId\` that is not a role of this project is \`unknown_role\`, 404.
+A body that is not three ordered non-negative numbers is \`invalid_estimate\`, 400.
+
+Validated by the same shared schema fe-01 uses rather than by hand, so this is
+the one body-carrying route whose refusal is a shared-schema refusal.`,
+          requestBody: handParsedBody(
+            'Three durations in days for this role on this work item, ordered `optimistic ≤ realistic ≤ pessimistic`.',
+            {
+              type: 'object',
+              required: ['optimistic', 'realistic', 'pessimistic'],
+              properties: {
+                optimistic: {
+                  type: 'number',
+                  minimum: 0,
+                  description: 'Days, if no unknown unknowns appear.',
+                },
+                realistic: {
+                  type: 'number',
+                  minimum: 0,
+                  description:
+                    'Days, the best guess — not the midpoint of the other two, which is why it is checked to sit between them.',
+                },
+                pessimistic: {
+                  type: 'number',
+                  minimum: 0,
+                  description: 'Days, if every unknown you can sense does appear.',
+                },
+              },
+            },
+          ),
+        },
+      },
+    )
     .delete('/work-items/:id/estimates/:roleId', async ({ params, headers, set }) => {
       // Guarded exactly as the PUT above, and for the same reason: taking a
       // trio away changes the plan as much as writing one does. Clearing an
@@ -478,6 +811,151 @@ export function workItemController(auth: AuthService, workItems: WorkItemService
         return { error: 'unauthenticated' };
       }
       const outcome = await workItems.clearEstimate(params.id, user.id, params.roleId);
+      if (!outcome.ok) {
+        set.status = statusFor(outcome.reason);
+        return { error: outcome.reason };
+      }
+      return { cleared: true };
+    })
+    .put(
+      '/work-items/:id/actuals/:roleId',
+      async ({ params, body, headers, set }) => {
+        const user = await userFromHeaders(auth, headers);
+        if (user === null) {
+          set.status = 401;
+          return { error: 'unauthenticated' };
+        }
+        const days = parseActual(body);
+        const outcome = await workItems.setActual(params.id, user.id, params.roleId, days);
+        if (!outcome.ok) {
+          set.status = statusFor(outcome.reason);
+          return { error: outcome.reason };
+        }
+        return { recorded: true };
+      },
+      {
+        detail: {
+          summary: 'Record the days one role actually spent on one work item',
+          description: `**Reporting only. This moves no date.** The plan's dates come from the
+three-point estimates through the scheduler, and no part of the engine reads this
+number: an item recorded as having taken 8 days against an estimate of 5 leaves
+every successor exactly where it was. The reason is that the model has no
+completion state — there is no started, finished or percent-done anywhere — so
+"took 8 days" and "8 days so far" are the same row, and they mean opposite things
+for whatever comes next. The tool reports the drift; a person decides whether to
+re-estimate.
+
+**One number, per role, on a leaf.** An actual on a row that has children is
+\`rolled_up\`, 409 — a parent's recorded days are the sum of its descendants'.
+A \`roleId\` that is not a role of this project is \`unknown_role\`, 404.
+A body without a finite \`days\` of 0 or more is \`invalid_actual\`, 400.
+
+**Zero is a statement and absence is not.** Recording 0 says the work took no
+days. Saying nobody has recorded anything is \`DELETE\` on this path — never a
+zero, which is the rule every figure in this API follows.`,
+          requestBody: handParsedBody('The days this role spent on this work item.', {
+            type: 'object',
+            required: ['days'],
+            properties: {
+              days: {
+                type: 'number',
+                minimum: 0,
+                description:
+                  'Days actually spent. Fractions are real, as they are for an estimate. 0 means the work took no days, which is not the same as never having said.',
+              },
+            },
+          }),
+        },
+      },
+    )
+    .put(
+      '/work-items/:id/progress/:roleId',
+      async ({ params, body, headers, set }) => {
+        const user = await userFromHeaders(auth, headers);
+        if (user === null) {
+          set.status = 401;
+          return { error: 'unauthenticated' };
+        }
+        const state = parseProgress(body);
+        const outcome = await workItems.setProgress(params.id, user.id, params.roleId, state);
+        if (!outcome.ok) {
+          set.status = statusFor(outcome.reason);
+          return { error: outcome.reason };
+        }
+        return { stated: true };
+      },
+      {
+        detail: {
+          summary: "Say where one role's work on one work item has got to",
+          description: `**Reporting only. This moves no date.** Marking a role \`done\` changes no
+bar, no successor and no critical path: the plan's dates still come from the
+three-point estimates through the scheduler, and nothing in the engine reads this.
+What it changes is whether the figure beside it can be read at all — 8 days spent
+against 5 estimated is *"overran by 3"* when the role is done and *"is 3 over so
+far"* when it is not, and those are different sentences about the same two
+numbers.
+
+**Three states, and only two of them are written here.** \`in_progress\` and
+\`done\` are rows; **not started is the absence of a row**, so the way to say it
+is \`DELETE\` on this path. A body whose \`state\` is anything else — including
+\`not_started\` — is \`invalid_progress\`, 400. There is no \`blocked\` and no
+\`cancelled\`.
+
+**Per role, on a leaf.** A statement about a row that has children is
+\`rolled_up\`, 409 — a parent's state is folded from its descendants'. A
+\`roleId\` that is not a role of this project is \`unknown_role\`, 404.
+
+**A work item's own state is derived and never stored.** It is \`done\` when every
+role with work on the row says so, \`not_started\` when none of them has said
+anything, and \`in_progress\` for every disagreement in between — including one
+role finished while another has said nothing, which is an unfinished item.
+
+**What \`done\` makes true:** an actual on a role marked done is **final** — the
+whole of what that role spent, not a running count.`,
+          requestBody: handParsedBody('Where this role has got to on this work item.', {
+            type: 'object',
+            required: ['state'],
+            properties: {
+              state: {
+                type: 'string',
+                enum: ['in_progress', 'done'],
+                description:
+                  'Where the work has got to. Not started is the absence of a statement — DELETE this path rather than sending it.',
+              },
+            },
+          }),
+        },
+      },
+    )
+    .delete('/work-items/:id/progress/:roleId', async ({ params, headers, set }) => {
+      // Guarded exactly as the PUT above. Clearing a statement nobody made
+      // answers 200 rather than 404, for the reason the estimate's DELETE
+      // gives. Worth being plain about what it means: this does not say the
+      // work was undone, it says nobody has spoken about it — which is the
+      // third state, spelled the only way it is ever spelled.
+      const user = await userFromHeaders(auth, headers);
+      if (user === null) {
+        set.status = 401;
+        return { error: 'unauthenticated' };
+      }
+      const outcome = await workItems.clearProgress(params.id, user.id, params.roleId);
+      if (!outcome.ok) {
+        set.status = statusFor(outcome.reason);
+        return { error: outcome.reason };
+      }
+      return { cleared: true };
+    })
+    .delete('/work-items/:id/actuals/:roleId', async ({ params, headers, set }) => {
+      // Guarded exactly as the PUT above. Clearing days that were never
+      // recorded answers 200 rather than 404, for the reason the estimate's
+      // DELETE gives: the record is what the request addresses and its absence
+      // is the outcome asked for. A missing work item is still 404.
+      const user = await userFromHeaders(auth, headers);
+      if (user === null) {
+        set.status = 401;
+        return { error: 'unauthenticated' };
+      }
+      const outcome = await workItems.clearActual(params.id, user.id, params.roleId);
       if (!outcome.ok) {
         set.status = statusFor(outcome.reason);
         return { error: outcome.reason };

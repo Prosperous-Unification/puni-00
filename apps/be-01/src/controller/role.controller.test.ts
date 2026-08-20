@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { buildApp } from '../app';
+import { ActualRepository } from '../repository/actual';
 import { CommandJournalRepository } from '../repository/command-journal';
 import { openDrizzle } from '../repository/db';
 import { DependencyRepository } from '../repository/dependency';
@@ -13,6 +14,7 @@ import { EstimateRepository } from '../repository/estimate';
 import { runMigrations } from '../repository/migrate';
 import { ProjectRepository } from '../repository/project';
 import { RoleRepository } from '../repository/role';
+import { RoleProgressRepository } from '../repository/role-progress';
 import { UserRepository } from '../repository/user';
 import { SubtreeRepository, WorkItemRepository } from '../repository/work-item';
 import { AuthService } from '../service/auth.service';
@@ -24,6 +26,8 @@ import { TEST_JWT_KEY } from '../testing/auth-fixture';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { inMemoryCapacity, testCapacityService } from '../testing/capacity-fixture';
 import { personAdded } from '../testing/directory-fixture';
+import { testHistoryService } from '../testing/history-fixture';
+import { inMemoryPriorityBands, testPriorityBandService } from '../testing/priority-band-fixture';
 import { testReplay } from '../testing/replay-fixture';
 
 /**
@@ -40,6 +44,8 @@ let dir: string;
 let app: ReturnType<typeof buildApp>;
 let roleStore: RoleRepository;
 let estimates: EstimateRepository;
+let actuals: ActualRepository;
+let progressStore: RoleProgressRepository;
 let directory: DirectoryRepository;
 let workItems: WorkItemRepository;
 let projects: ProjectRepository;
@@ -55,12 +61,16 @@ beforeEach(() => {
   projects = new ProjectRepository(db);
   roleStore = new RoleRepository(db);
   estimates = new EstimateRepository(db);
+  actuals = new ActualRepository(db);
+  progressStore = new RoleProgressRepository(db);
   directory = new DirectoryRepository(db);
   workItems = new WorkItemRepository(db);
 
   app = buildApp({
     directory: new DirectoryService({ directory, broadcast: recordingBroadcaster() }),
     capacity: testCapacityService(),
+    priorityBands: testPriorityBandService(),
+    history: testHistoryService(),
     auth: new AuthService({ users: new UserRepository(db), jwtKey: TEST_JWT_KEY }),
     projects: new ProjectService({ projects }),
     roles: new RoleService({ projects, roles: roleStore, broadcast: recordingBroadcaster() }),
@@ -68,9 +78,12 @@ beforeEach(() => {
       workItems,
       projects,
       estimates,
+      actuals,
+      progress: progressStore,
       dependencies: new DependencyRepository(db),
       directory,
       capacity: inMemoryCapacity(),
+      priorityBands: inMemoryPriorityBands(),
       subtrees: new SubtreeRepository(db),
       journal: new CommandJournalRepository(db),
       broadcast: recordingBroadcaster(),
@@ -264,6 +277,8 @@ describe('DELETE /api/projects/:id/roles/:roleId', () => {
       error: 'in_use',
       inUse: {
         estimates: 1,
+        actuals: 0,
+        progress: 0,
         assignments: 1,
         assumedAssignees: [{ workItemId: 'strip', assumedNow: ada.id, assumedAfter: null }],
       },

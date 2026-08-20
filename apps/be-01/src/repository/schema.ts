@@ -1,5 +1,7 @@
+import { sql } from 'drizzle-orm';
 import {
   type AnySQLiteColumn,
+  check,
   index,
   integer,
   primaryKey,
@@ -181,6 +183,40 @@ export const workItem = sqliteTable(
      */
     startNoEarlierThan: text('start_no_earlier_than'),
     /**
+     * Why this work item may not start before {@link workItem.startNoEarlierThan},
+     * in the planner's own words, or null where nobody has said.
+     *
+     * **Words about the floor beside it, and nothing else.** Not a state, not a
+     * flag, and not a second thing that holds a row back: the date is the whole
+     * of the constraint and this is the whole of the explanation. It is what was
+     * built instead of a `blocked` state — Dany, 2026-08-18, *"Yeah let's not do
+     * blocked"* — because the engine already models being held back four ways
+     * and the chart already names which of them binds, so the one thing missing
+     * was why. `blocked until the 12th` is this column and the one above it.
+     *
+     * **Meaningless without a date, and refused without one.** The pair may be
+     * neither, the date alone, or both; a reason with no date is
+     * `isOrphanedNotBeforeReason` in `@wbs/domain` and
+     * {@link WorkItemStore.patch} refuses it inside the transaction that would
+     * have written it. Deliberately not a `CHECK` — the argument, which turns on
+     * the outgoing release writing this table where it does not write
+     * `role_progress`, is on the migration.
+     *
+     * Nullable with no default, because null is a real state and not a missing
+     * empty string: the absence of a reason is how "nobody has said" is spelled
+     * here, exactly as the absence of a row is in {@link actual} and
+     * {@link roleProgress}. A blank typed into the field is normalised to null
+     * at the controller rather than stored, so there is one spelling.
+     *
+     * At most `LONGEST_NOT_BEFORE_REASON` (200) characters, checked at the
+     * controller — the width of the hover card and the cell that read it.
+     *
+     * **Read by no scheduling code.** `service/schedule.ts` does not select it,
+     * has an empty diff in the change that added it, and schedules a plan
+     * identically with and without it.
+     */
+    startNoEarlierThanReason: text('start_no_earlier_than_reason'),
+    /**
      * How important this work is, or null for "nobody has said" — an integer of
      * 1 or more, smaller being more important.
      *
@@ -194,6 +230,12 @@ export const workItem = sqliteTable(
      * missing 1: a plan where nobody has set a priority is scheduled exactly as
      * it was before this column existed, and a work item with no priority is placed
      * after every work item that has one rather than among them.
+     *
+     * What the number is **called** is the project's own — see
+     * {@link projectPriorityBand}. The ladder is read on every face and by no
+     * scheduling code: picking `Critical` writes this column's `10` and nothing
+     * else happens, and re-cutting the ladder changes what this number is called
+     * without touching it.
      */
     priority: integer('priority'),
     /**
@@ -360,6 +402,150 @@ export const estimate = sqliteTable(
 export type EstimateRow = typeof estimate.$inferSelect;
 
 /**
+ * The days one role actually spent on one work item.
+ *
+ * Dany, 2026-08-13: _"I want to be able to track fact days near the estimate of
+ * completion"_. `notes/wbs-brief-2026-08-14-r5-r6-history.md` §3.2.
+ *
+ * **Its own table rather than a fourth column on {@link estimate}.** Work nobody
+ * estimated still takes days, and `estimate`'s three columns are `NOT NULL`, so a
+ * column there would force a made-up trio to record a real actual. The two are
+ * also written by different people at different times — an estimate before the
+ * work, an actual after it — and one row holding both makes each write a
+ * read-modify-write of the other's numbers.
+ *
+ * **The absence of a row is what "nobody has said" looks like, never a zero.**
+ * The same rule {@link projectTeamCapacity} follows, and the same one the export
+ * has carried since it was written: an empty cell means nobody typed it. A zero
+ * here is a person saying the work took no days, which is a different sentence
+ * and a rarer one. Clearing an actual deletes the row rather than writing 0.
+ *
+ * **Per (work item, role), matching the estimate's grain exactly.** Every read
+ * path in the tool already groups by that pair — the estimate's own key, the
+ * schedule's slice key, the export's per-role column group, the roll-up — and a
+ * per-item actual would be a second spelling of a total that then has to agree
+ * with per-role estimates and would not. "Who overran, Dev or QA?" is the
+ * question actuals exist to answer.
+ *
+ * **Rows exist only for leaves**, exactly as estimates do: a parent's actual is
+ * the sum of its descendants', computed on read and never stored.
+ *
+ * **Nothing here reaches the schedule.** The engine's input is built from
+ * estimates in `slicesOf`, and this table is not read there or anywhere below it
+ * — R6 is reporting only. The reason is not economy: the model has no completion
+ * state anywhere, so it cannot tell "took 8 days, finished" from "8 days so far,
+ * still running", and substituting the first reading for the second moves every
+ * successor's dates on a claim nobody made. See
+ * `openspec/changes/actual-days/design.md` D3.
+ *
+ * `role_id` gets **no** `onDelete` cascade, matching {@link estimate.roleId} and
+ * for the identical reason spelled out on {@link role}: an actual is somebody's
+ * typing and a role removal must count it before taking it.
+ * `RoleRepository.remove` deletes them explicitly, inside the transaction that
+ * removes the role.
+ *
+ * `work_item_id` **does** cascade, and that is about the blue/green swap window
+ * rather than tidiness: two be-01 processes share one SQLite file while green
+ * migrates, and the outgoing release's plain `DELETE FROM work_item` would hit a
+ * constraint it cannot see. The same argument `dependency` makes.
+ *
+ * `recorded_at` is when the number was typed. It costs one column and it is what
+ * a history row about an actual is dated against.
+ */
+export const actual = sqliteTable(
+  'actual',
+  {
+    workItemId: text('work_item_id')
+      .notNull()
+      .references(() => workItem.id, { onDelete: 'cascade' }),
+    roleId: text('role_id')
+      .notNull()
+      .references(() => role.id),
+    days: real('days').notNull(),
+    recordedAt: integer('recorded_at').notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.workItemId, t.roleId] })],
+);
+
+export type ActualRow = typeof actual.$inferSelect;
+
+/**
+ * Where one role's work on one work item has got to.
+ *
+ * Dany, 2026-08-18: _"maybe we should augment actual days by completion
+ * status?"_ — and the reason he is right is written in {@link actual} and in
+ * `openspec/changes/actual-days/design.md` D3: with no completion state
+ * anywhere, an actual cannot tell "took 8 days, finished" from "8 days so far",
+ * and those are opposite claims about every successor. This table is the
+ * sentence that disambiguates the number beside it.
+ *
+ * **Three states, two of them stored.** `in_progress` and `done` are rows;
+ * **"not started" is the absence of one**, never a stored value — the rule
+ * {@link projectTeamCapacity} and {@link actual} both follow. A stored
+ * `not_started` would be a second spelling of "nobody has said" and every reader
+ * would then have to handle both. There is no `blocked` and no `cancelled`:
+ * each is a question the engine must answer the day it reads this, and it does
+ * not read this yet.
+ *
+ * **Per (work item, role), the same grain as {@link estimate} and
+ * {@link actual}.** Actuals are per role, so a per-item state would be a second
+ * source of truth about the same subject and the disagreement it produces is
+ * exactly "the item says done and a role has no actual". **A work item's own
+ * state is derived from its roles on every read and never stored** — `agree` and
+ * `stateOf` in `@wbs/domain`, where `done` is unanimous across the roles that
+ * have work on the row, and any disagreement reads as `in_progress`.
+ *
+ * **Rows exist only for leaves**, exactly as estimates and actuals do: a
+ * parent's state is folded from its descendants', computed on read.
+ *
+ * **What `done` makes true**, stated here because the change that consumes it
+ * must not have to re-litigate it: an actual on a role marked `done` is
+ * **final** — the whole of what that role spent, not a running count. The next
+ * change is the one where the engine reads this (finished roles freeze,
+ * in-progress roles get `remaining = max(0, estimate − actual)`), and that
+ * reading is only available because this rule was fixed before any row was
+ * written under it.
+ *
+ * **Nothing here reaches the schedule.** The engine's input is built from
+ * estimates in `slicesOf` and this table is read nowhere below it — R6 is still
+ * reporting only, and this change moves no date in either direction.
+ *
+ * `role_id` gets **no** `onDelete` cascade, matching {@link actual.roleId} and
+ * {@link estimate.roleId}: a state is somebody's statement and a role removal
+ * must count it before taking it. `work_item_id` **does** cascade, for the
+ * blue/green swap window {@link actual.workItemId} explains.
+ *
+ * `stated_at` is when somebody said it — a fact about the tool, not about the
+ * world. It is deliberately the only date this table has: an actual start or
+ * finish **date** is a separate change, because a stored date that disagrees
+ * with the scheduled one needs a decision about which of the two a chart draws.
+ *
+ * The `CHECK` is the closed set the whole design rests on, enforced rather than
+ * trusted: Drizzle's enum is compile-time only, and a fourth value written by a
+ * hand-edit or a future mistake would be dispatched on by every reader and
+ * folded by none of them.
+ */
+export const roleProgress = sqliteTable(
+  'role_progress',
+  {
+    workItemId: text('work_item_id')
+      .notNull()
+      .references(() => workItem.id, { onDelete: 'cascade' }),
+    roleId: text('role_id')
+      .notNull()
+      .references(() => role.id),
+    state: text('state', { enum: ['in_progress', 'done'] }).notNull(),
+    statedAt: integer('stated_at').notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.workItemId, t.roleId] }),
+    check('role_progress_state', sql`${t.state} IN ('in_progress', 'done')`),
+  ],
+);
+
+export type RoleProgressRow = typeof roleProgress.$inferSelect;
+
+/**
  * A service or team that work can be labelled with — global, not per project.
  *
  * Dany's ask, 2026-08-06: it behaves like a Jira label. Anyone may add one by
@@ -505,6 +691,54 @@ export const projectTeamCapacity = sqliteTable(
 );
 
 export type ProjectTeamCapacityRow = typeof projectTeamCapacity.$inferSelect;
+
+/**
+ * What one project calls its priority numbers — five rungs, keyed on the rung.
+ *
+ * A band is a **start value**; the band above it is what ends it, and the top
+ * band ends nowhere. That is what makes the ladder contiguous and exhaustive by
+ * construction, so every {@link workItem.priority} resolves to exactly one label
+ * and no stored range can gap or overlap. The rule and its alternative are
+ * `openspec/changes/priority-bands/design.md` D1.
+ *
+ * **Read by no scheduling code.** The leveller reads `work_item.priority` and
+ * that column alone; this table is the vocabulary the number is read and written
+ * in. Re-cutting a ladder renames what a plan's numbers are called and moves not
+ * one date — asserted, not asserted-about, in
+ * `service/priority-band-identity.test.ts`.
+ *
+ * A project holding **no** rows here reads as {@link DEFAULT_PRIORITY_BANDS},
+ * which is a code constant and not a global anybody can type into. That is the
+ * difference from {@link projectTeamCapacity}, whose D1 refused exactly this
+ * shape: a capacity fallback meant one plan silently bounded by a number
+ * somebody set for another, and there is no such number here. design.md D2.
+ */
+export const projectPriorityBand = sqliteTable(
+  'project_priority_band',
+  {
+    projectId: text('project_id')
+      .notNull()
+      .references(() => project.id, { onDelete: 'cascade' }),
+    /**
+     * The rung, 0 (most important) to 4.
+     *
+     * The key rather than {@link projectPriorityBand.startsAt}, so a project
+     * moving a cut is an update to a row rather than a delete and an insert of a
+     * new key. It is also what every face keys a colour off: a label is
+     * renameable, and a colour following the word `Critical` would follow it out
+     * of the ladder the moment somebody typed `Blocker`.
+     */
+    rank: integer('rank').notNull(),
+    /** The smallest priority this band holds — 1 for rank 0, always. */
+    startsAt: integer('starts_at').notNull(),
+    label: text('label').notNull(),
+    /** What choosing this band by name writes into a work item's priority. */
+    defaultValue: integer('default_value').notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.projectId, t.rank] })],
+);
+
+export type ProjectPriorityBandRow = typeof projectPriorityBand.$inferSelect;
 
 /**
  * Somebody who does work. Global, like the teams, and for the same reason.
@@ -688,3 +922,80 @@ export const commandJournal = sqliteTable(
 );
 
 export type CommandJournalRow = typeof commandJournal.$inferSelect;
+
+/**
+ * One command somebody ran on one project, kept — the plan's history.
+ *
+ * **This is the third log in this file and it is not either of the other two.**
+ * `event_log` is the websocket resume buffer, keyed by subscription and pruned
+ * by count. `command_journal` is an undo stack: one per (project, **account**),
+ * fifty deep, and its `append` deletes that account's redo branch every time it
+ * writes. Neither can answer "how did this estimate move" — the first never
+ * held it, and the second is per-person, evicted after an afternoon's editing,
+ * and loses anything undone. Dany, 2026-08-13: *"so that later I can examine
+ * the history of estimates changes"*. `notes/wbs-brief-2026-08-14-r5-r6-history.md`
+ * §1.1 lists all five properties that rule the journal out.
+ *
+ * **Per project, not per account.** Two people editing one plan produce two
+ * disjoint undo stacks and one history, because the history is the plan's and
+ * not anybody's. `user_id` is who did it, which the sentence in `label` names.
+ *
+ * **Append-only.** Every row is written by one `INSERT` from
+ * `WorkItemService.record`, inside the transaction that appends to the journal —
+ * so a command cannot become undoable without also becoming history. Nothing
+ * updates a row. The only `DELETE` is retention, by **age** and never by count:
+ * pruning a history table by count is deletion of exactly the thing being asked
+ * for. See {@link PLAN_EVENT_RETENTION_DAYS}.
+ *
+ * `work_item_id` and `role_id` are **not** foreign keys, and that is the whole
+ * point of a history. A cascade would delete the record of an item when the item
+ * went — losing the estimate changes of the very row somebody is asking about —
+ * and a restricting reference would refuse the delete instead. The same argument
+ * `frozenNumber` makes for a number that has left the tool. They are nullable
+ * because not every command has one subject: a freeze touches the whole plan.
+ *
+ * `before` and `after` hold the two commands `record` already builds: `after` is
+ * the forward command a redo would re-apply, `before` the compensating command
+ * an undo would, which is where the before-state lives — `set_estimate` carries
+ * the trio that was there. For the estimate kinds that pair *is* the before and
+ * after of the figure, which is what R5 asks for; for a structural command it is
+ * the two commands, because that is the only before-state that exists. Both are
+ * `NOT NULL`: every row comes from `record`, which always holds both, so a
+ * nullable column would be a state nothing can write.
+ *
+ * The project reference cascades, and it has to. Blue and green share one SQLite
+ * file during a swap and the outgoing release knows nothing about this table, so
+ * its plain `DELETE FROM project` would hit a constraint it cannot see and answer
+ * 500 — the argument `dependency` and `project_priority_band` both make.
+ * `user_id` cascades for the same reason and no other: nothing in the product
+ * deletes an account today, and a history row outliving its `users` row would be
+ * a foreign key nothing could satisfy.
+ */
+export const planEvent = sqliteTable(
+  'plan_event',
+  {
+    id: text('id').primaryKey(),
+    projectId: text('project_id')
+      .notNull()
+      .references(() => project.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    kind: text('kind').notNull(),
+    /** The sentence `record` already built — `estimate “Strip the roof”`. */
+    label: text('label').notNull(),
+    /** The one work item the command was aimed at, or null when it named many. */
+    workItemId: text('work_item_id'),
+    /** The role, for the kinds that carry one: the estimate kinds and `assign`. */
+    roleId: text('role_id'),
+    before: text('before').notNull(),
+    after: text('after').notNull(),
+    createdAt: integer('created_at').notNull(),
+  },
+  (t) => [
+    index('plan_event_project_time').on(t.projectId, t.createdAt),
+    index('plan_event_item').on(t.workItemId, t.createdAt),
+  ],
+);
+
+export type PlanEventRow = typeof planEvent.$inferSelect;

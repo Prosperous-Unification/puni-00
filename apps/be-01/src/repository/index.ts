@@ -1,4 +1,4 @@
-import type { EstimateMethod, IsoDate } from '@wbs/domain';
+import type { EstimateMethod, IsoDate, PriorityBand, RoleState } from '@wbs/domain';
 
 export interface Example {
   id: string;
@@ -99,14 +99,37 @@ export type RoleWritten = { ok: true; role: Role } | { ok: false; reason: RoleWr
  */
 export interface RoleUsageRows {
   estimates: number;
+  /**
+   * How many actuals this role holds — a count, for {@link RoleUsageRows.estimates}'
+   * reason.
+   *
+   * Counted separately rather than added to the estimates, and counted **at
+   * all**, because an actual is somebody's typing about work that has already
+   * happened: a role removal that took one silently would delete the only record
+   * of a week somebody spent. A role with no estimate and one actual is `in_use`.
+   */
+  actuals: number;
+  /**
+   * How many work items have said where this role's work has got to — a count,
+   * for {@link RoleUsageRows.estimates}' reason.
+   *
+   * Counted separately and counted **at all** for {@link RoleUsageRows.actuals}'
+   * reason, one table over: a statement is somebody's, and a role removal that
+   * took one silently would turn finished work back into work nobody has
+   * started, on a plan somebody is reading. A role with no estimate, no actual
+   * and one stated row is `in_use`.
+   */
+  progress: number;
   assignments: readonly Assignment[];
 }
 
 /** What one confirmed removal took with it. */
 export interface RoleRemoval {
   estimates: number;
+  actuals: number;
+  progress: number;
   assignments: number;
-  /** Every work item that lost an estimate or an assignment, and whose revision therefore moved. */
+  /** Every work item that lost an estimate, an actual, a state or an assignment, and whose revision therefore moved. */
   workItemIds: readonly string[];
 }
 
@@ -164,7 +187,11 @@ export interface RoleStore {
    * deleted by it.
    *
    * The estimates are deleted explicitly because `estimate.role_id` has no
-   * cascade: a bare delete of the row hits the foreign key and answers 500.
+   * cascade: a bare delete of the row hits the foreign key and answers 500. The
+   * **actuals** are deleted explicitly for exactly the same reason, and counted
+   * for a stronger one — see {@link RoleUsageRows.actuals}. The **stated
+   * progress** goes the same way and is counted the same way, see
+   * {@link RoleUsageRows.progress}.
    */
   remove(projectId: string, roleId: string, cascade: boolean): Promise<RoleRemoved>;
 }
@@ -187,6 +214,15 @@ export interface WorkItem {
   frozenNumber: string | null;
   /** A day this item may not start before — a floor, never a pin. */
   startNoEarlierThan: IsoDate | null;
+  /**
+   * Why, in the planner's own words, or null where nobody has said.
+   *
+   * Words about {@link WorkItem.startNoEarlierThan} and nothing else — no state
+   * and no second constraint. Null unless there is a date for it to be about:
+   * `isOrphanedNotBeforeReason` in `@wbs/domain` is the rule and
+   * {@link WorkItemStore.patch} is where it is refused. See `schema.ts`.
+   */
+  startNoEarlierThanReason: string | null;
   /**
    * How important this work is — an integer of 1 or more, smaller being more
    * important — or null for "nobody has said".
@@ -239,6 +275,24 @@ export interface WorkItemPatch {
   /** `null` removes the constraint and lets the dependencies alone decide. */
   startNoEarlierThan?: IsoDate | null;
   /**
+   * Why the work is held back, or `null` to take the words off and leave the
+   * date.
+   *
+   * **A patch that leaves this row with a reason and no date is refused** —
+   * `not_before_reason_needs_a_date`, decided against the row as it will stand
+   * rather than against this patch, because a patch naming only the reason is
+   * legal on a row that already has a date and illegal on one that does not.
+   * The commonest way to meet it is taking the date off and forgetting the
+   * words: `{ startNoEarlierThan: null }` on a row that has a reason is refused,
+   * and `{ startNoEarlierThan: null, startNoEarlierThanReason: null }` is the
+   * request that means it. Nothing is cleared on the caller's behalf — the words
+   * are somebody's sentence, and deleting them quietly is worse than a 400.
+   *
+   * Length is the controller's (`LONGEST_NOT_BEFORE_REASON`), which is also
+   * where a blank becomes this `null`, so `''` never reaches the column.
+   */
+  startNoEarlierThanReason?: string | null;
+  /**
    * An integer of 1 or more, or `null` to leave this work with no priority.
    *
    * Validated at the controller, which is the only place a value that is not a
@@ -282,10 +336,19 @@ export interface WorkItemPatch {
  * action, so SQLite refuses both an unknown id and the delete of a team any row
  * still names. What has no cascade is the *delete* — which is why
  * {@link DirectoryStore.removeTeam} nulls the labels itself.
+ *
+ * `not_before_reason_needs_a_date` is decided in the same transaction and for a
+ * version of the same reason: the rule is about the row **as it will stand**, so
+ * it has to be asked against the stored date and the patch's together, and a
+ * service-level precheck followed by an update is two statements with a
+ * concurrent write's worth of gap between them — another patch clearing the date
+ * in that gap leaves exactly the pair this refuses. There is no constraint
+ * behind it to catch that (the migration argues why a `CHECK` here would 500 the
+ * outgoing release mid-swap), so this transaction is the whole of the guarantee.
  */
 export type WorkItemPatched =
   | { ok: true; workItem: WorkItem }
-  | { ok: false; reason: 'not_found' | 'unknown_team' };
+  | { ok: false; reason: 'not_found' | 'unknown_team' | 'not_before_reason_needs_a_date' };
 
 /**
  * What an assignment write answered.
@@ -382,6 +445,123 @@ export interface EstimateStore {
    * its first child hands the estimate down, and a work item whose last child is
    * deleted takes it back. Neither is a merge — a parent never holds estimates of
    * its own while it has children.
+   */
+  moveAll(fromWorkItemId: string, toWorkItemId: string): Promise<void>;
+}
+
+/**
+ * The days one role spent on one work item, and when somebody said so.
+ *
+ * One number rather than a trio: an estimate is a guess about a range and an
+ * actual is a fact about what happened.
+ */
+export interface StoredActual {
+  workItemId: string;
+  roleId: string;
+  days: number;
+  /** When the number was typed, in epoch milliseconds. */
+  recordedAt: number;
+}
+
+/** One actual row's whole identity: the pair its primary key is. */
+export interface ActualKey {
+  workItemId: string;
+  roleId: string;
+}
+
+/**
+ * Reading and writing the days actually spent.
+ *
+ * Deliberately the same five methods as {@link EstimateStore}, in the same
+ * order, doing the same things to a table with the same key. Actuals follow
+ * estimates through every structural change — the hand-down when a leaf gains
+ * its first child, the hand-up when a parent loses its last, the copy a
+ * duplication makes, the restore an undo runs — and the way to keep those two
+ * sets of rules from drifting is for the second store to have no shape of its
+ * own to drift into.
+ */
+export interface ActualStore {
+  /** Every actual in the project, in role order within each work item. */
+  listByProject(projectId: string): Promise<StoredActual[]>;
+  /** Writes one work item's actual for one role, replacing any earlier one. */
+  set(actual: StoredActual): Promise<void>;
+  /**
+   * Takes away one work item's actual for one role, leaving every other role on
+   * that work item and that role on every other work item alone.
+   *
+   * Removing one that is not stored is not an error, for
+   * {@link EstimateStore.remove}'s reason: the state asked for is the state
+   * left.
+   */
+  remove(workItemId: string, roleId: string): Promise<void>;
+  /**
+   * Moves every actual from one work item to another, exactly as
+   * {@link EstimateStore.moveAll} does and at the same call sites.
+   *
+   * A leaf that gains its first child stops holding figures of its own — its
+   * numbers become the sum of what is below it — so an actual left behind would
+   * be a row no reader can see and no writer can reach: invisible, not zero, and
+   * back on screen if the child is ever deleted.
+   */
+  moveAll(fromWorkItemId: string, toWorkItemId: string): Promise<void>;
+}
+
+/**
+ * Where one role's work on one work item has got to, and when somebody said so.
+ *
+ * `state` is one of the two a role may be **stored** in. The third state — not
+ * started — is the absence of this row, so it has no spelling here and cannot
+ * be written by anybody: see {@link RoleState} in `@wbs/domain`.
+ */
+export interface StoredProgress {
+  workItemId: string;
+  roleId: string;
+  state: RoleState;
+  /** When somebody said so, in epoch milliseconds. */
+  statedAt: number;
+}
+
+/** One progress row's whole identity: the pair its primary key is. */
+export interface ProgressKey {
+  workItemId: string;
+  roleId: string;
+}
+
+/**
+ * Reading and writing where the work has got to.
+ *
+ * Deliberately the same four methods as {@link ActualStore}, in the same order,
+ * doing the same things to a table with the same key — and for the reason that
+ * store gives for being a copy of {@link EstimateStore}. A state follows its
+ * work item through every structural change: the hand-down when a leaf gains its
+ * first child, the hand-up when a parent loses its last, the restore an undo
+ * runs. The failure this shape prevents is the one where estimates and actuals
+ * follow a subtree and the statement about them quietly does not — a branch that
+ * comes back from an undo reading "not started" over work somebody finished.
+ */
+export interface RoleProgressStore {
+  /** Every stated role on every work item in the project, in role order within each. */
+  listByProject(projectId: string): Promise<StoredProgress[]>;
+  /** States one work item's role, replacing whatever it said before. */
+  set(progress: StoredProgress): Promise<void>;
+  /**
+   * Takes the statement back, leaving every other role on that work item and
+   * that role on every other work item alone.
+   *
+   * Removing one that is not stored is not an error, for
+   * {@link EstimateStore.remove}'s reason: the state asked for is the state
+   * left. What it leaves behind is "not started", which is the absence of a row
+   * and never a row saying so.
+   */
+  remove(workItemId: string, roleId: string): Promise<void>;
+  /**
+   * Moves every statement from one work item to another, exactly as
+   * {@link ActualStore.moveAll} does and at the same call sites.
+   *
+   * A leaf that gains its first child stops holding a state of its own — its
+   * reading is folded from what is below it — so a row left behind would be
+   * invisible to every reader and back on screen the day the child is deleted,
+   * claiming work is finished that the plan has since moved on from.
    */
   moveAll(fromWorkItemId: string, toWorkItemId: string): Promise<void>;
 }
@@ -616,6 +796,48 @@ export interface CapacityStore {
   set(projectId: string, serviceTeamId: string, size: number | null): Promise<CapacityWritten>;
 }
 
+/**
+ * What a ladder write decided. `not_found` is a project nothing holds, read
+ * inside the write's own transaction rather than in front of it — the
+ * {@link CapacityStore.set} rule, and for its reason: the read is the decision.
+ */
+export type PriorityBandsWritten = { ok: true } | { ok: false; reason: 'not_found' };
+
+/**
+ * What one project calls its priority numbers.
+ *
+ * A store of its own rather than methods on {@link ProjectStore}, for
+ * {@link CapacityStore}'s reason one fact along: this is a project's
+ * configuration and not a field of the project row, its write is gated
+ * differently from the directory's, and the project row's revision counts writes
+ * to the row.
+ *
+ * **Nothing in here is read by the scheduler.** A ladder is the vocabulary
+ * `work_item.priority` is read and written in; the ordering the leveller applies
+ * is the integer's own. `openspec/changes/priority-bands/design.md` D1.
+ */
+export interface PriorityBandStore {
+  /**
+   * This project's five bands, in rank order.
+   *
+   * A project holding no rows answers {@link DEFAULT_PRIORITY_BANDS} rather than
+   * an empty list, and the absence is therefore not a state any caller has to
+   * render: every priority resolves to exactly one label on every plan, seeded
+   * or not. design.md D2.
+   */
+  listFor(projectId: string): Promise<PriorityBand[]>;
+  /**
+   * Replaces this project's whole ladder, five bands at once.
+   *
+   * **The whole ladder, never one band.** Contiguity is a fact about the five
+   * rows together — a first band at 1, strictly increasing starts, each default
+   * inside its own band — and a per-band write would have to pass through states
+   * where it does not hold, with a reader in another browser drawing one of them.
+   * design.md D4.
+   */
+  replace(projectId: string, bands: readonly PriorityBand[]): Promise<PriorityBandsWritten>;
+}
+
 export interface DirectoryStore {
   listTeams(): Promise<ServiceTeam[]>;
   /**
@@ -719,6 +941,34 @@ export interface SubtreeCopy {
    */
   reparented: readonly Reparented[];
   estimates: readonly StoredEstimate[];
+  /**
+   * The days already recorded against the rows being written.
+   *
+   * **Empty for a duplication, and that is a decision rather than an
+   * omission.** A duplicate is work that has not been done yet: copying the
+   * original's actuals would tell the plan that a fortnight nobody has worked
+   * was already spent, and the copy's variance would read as finished work the
+   * moment it appeared. Estimates copy because an estimate is a description of
+   * work; actuals do not because an actual is a record of a week.
+   *
+   * Non-empty for a **restore**, which is the other caller: an undo of a delete
+   * has to put back what the delete took, and the actuals went with the rows.
+   */
+  actuals: readonly StoredActual[];
+  /**
+   * Where the work on the rows being written had got to, put back with them.
+   *
+   * **Empty for a duplication, for {@link SubtreeCopy.actuals}' reason and one
+   * of its own.** A duplicate is work that has not been done, so copying a
+   * `done` would hand the plan a branch that reports itself finished the moment
+   * it appears — the same lie the copied actual would tell, in a stronger
+   * tense. Estimates copy because an estimate describes work; neither of these
+   * does, because both are records of what happened to it.
+   *
+   * Non-empty for a **restore**: an undo of a delete has to put back what the
+   * delete took, and the statements went with the rows.
+   */
+  progress: readonly StoredProgress[];
   assignments: readonly Assignment[];
   /** Only the edges with both ends inside the subtree, remapped to the copies. */
   dependencies: readonly StoredDependency[];
@@ -732,6 +982,10 @@ export interface SubtreeCopy {
    * once on the parent that is no longer a leaf.
    */
   removedEstimates: readonly EstimateKey[];
+  /** Actuals to take off a work item **outside** `rows`, for {@link SubtreeCopy.removedEstimates}' reason. */
+  removedActuals: readonly ActualKey[];
+  /** Statements to take off a work item **outside** `rows`, for {@link SubtreeCopy.removedEstimates}' reason. */
+  removedProgress: readonly ProgressKey[];
 }
 
 /** One estimate row's whole identity: the pair its primary key is. */
@@ -810,18 +1064,115 @@ export interface UndoState {
  */
 export const JOURNAL_DEPTH = 50;
 
+/**
+ * One command somebody ran on one project: a row of the plan's history.
+ *
+ * The fields are the ones `WorkItemService.record` already holds. `before` and
+ * `after` are the compensating and forward commands as objects — the store
+ * serialises them on the way in and parses them on the way out, the way it does
+ * the journal's three JSON columns, and they come back `unknown` for the same
+ * reason: a cast here would be a claim about rows written by a release that may
+ * no longer exist.
+ *
+ * There is no `NewPlanEvent` twin of this, unlike {@link NewJournalEntry}: the
+ * store assigns nothing. A journal entry's `seq` is chosen by the database
+ * inside the insert, so what goes in genuinely is not what comes back; here the
+ * row is written exactly as the caller states it.
+ *
+ * See `plan_event` in `schema.ts` for what this is and — more importantly — what
+ * it is not.
+ */
+export interface PlanEvent {
+  id: string;
+  projectId: string;
+  userId: string;
+  kind: string;
+  /** The sentence `record` built, stored rather than re-derived; see {@link JournalPayload}. */
+  label: string;
+  /** The one work item the command was aimed at, or null when it named many. */
+  workItemId: string | null;
+  /** The role, for the kinds that carry one. */
+  roleId: string | null;
+  before: unknown;
+  after: unknown;
+  createdAt: number;
+}
+
+/** What narrows a project's history to the part somebody asked for. */
+export interface PlanEventFilter {
+  /**
+   * One work item's own events. Omitted is every item's, and not "the events
+   * that name no item" — those are the plan-wide ones, and they are in the
+   * project's history rather than any row's.
+   */
+  workItemId?: string;
+  /**
+   * The kinds to keep. Omitted — or empty — is every kind: an empty list names
+   * no kind, which is the same question as asking for no filter at all, and it
+   * is the only reading that cannot surprise a caller.
+   *
+   * A kind nothing was ever recorded under answers nothing, and that is not an
+   * error. `plan_event.kind` is a string rather than an enumeration precisely so
+   * that H2's `actual` lands here without a migration, so there is no closed set
+   * to refuse a name against.
+   */
+  kinds?: readonly string[];
+}
+
+/**
+ * How long a recorded event lives.
+ *
+ * By **age**, and never by count. Pruning a history table by count is deletion
+ * of exactly the thing being asked for: an afternoon's editing on one plan would
+ * evict the morning, which is the property that already rules `command_journal`
+ * out as a history. A year is long enough that the question "how did this
+ * estimate move" has an answer for any plan anybody is still running, and short
+ * enough that the table does not grow forever in the file the domain lives in.
+ *
+ * A constant rather than configuration, for `EVENT_LOG_MAX_PER_SUBSCRIPTION`'s
+ * reason: nothing about an environment changes the right answer, and a knob
+ * nobody sets is a knob nobody keeps correct.
+ */
+export const PLAN_EVENT_RETENTION_DAYS = 365;
+
+export interface PlanEventStore {
+  /**
+   * One project's history, **newest first**, narrowed by `filter`.
+   *
+   * There is no `append` here, and that absence is the design. A history row is
+   * written by {@link CommandJournalStore.append}, inside the transaction that
+   * writes the undo entry, because the two record one act — see that method.
+   */
+  listFor(projectId: string, filter: PlanEventFilter): Promise<PlanEvent[]>;
+  /**
+   * Deletes every event recorded before `cutoff`, and answers how many went.
+   *
+   * The only statement in the product that removes a row from this table.
+   */
+  pruneOlderThan(cutoff: number): Promise<number>;
+}
+
 export interface CommandJournalStore {
   /**
-   * Appends a command to the account's stack for this project, **clearing that
-   * account's redo branch** and pruning past {@link JOURNAL_DEPTH}, in one
-   * transaction.
+   * Appends a command to the account's stack for this project and the same
+   * command to the project's history, **clearing that account's redo branch**
+   * and pruning past {@link JOURNAL_DEPTH}, in one transaction.
    *
    * The redo branch goes because it describes a future that no longer exists:
    * having undone a rename and then typed something else, re-applying the
    * rename would put back a value computed from a plan that has moved on. Only
    * this account's branch goes — the stacks are per account.
+   *
+   * **`event` is a second argument rather than a second call**, and that is the
+   * one thing this signature exists to guarantee. Two calls are two
+   * transactions, and the second can fail: a plan would then gain an undo entry
+   * for a change absent from its history, which is a history that is quietly
+   * short rather than visibly incomplete. `record` is already called after the
+   * mutation and after the broadcast — see `WorkItemService.record` for why —
+   * so widening that window with a second statement of its own is the failure
+   * this refuses to be able to have.
    */
-  append(entry: NewJournalEntry): Promise<void>;
+  append(entry: NewJournalEntry, event: PlanEvent): Promise<void>;
   /**
    * The whole of one account's stack for one project, **oldest first**.
    *

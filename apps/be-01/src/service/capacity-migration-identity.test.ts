@@ -2,6 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { DEFAULT_PRIORITY_BANDS } from '@wbs/domain';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import type { Project, Role, StoredDependency, WorkItem } from '../repository';
@@ -10,12 +11,15 @@ import { CapacityRepository } from '../repository/capacity';
 import { openDatabase, openDrizzle } from '../repository/db';
 import { runMigrations } from '../repository/migrate';
 import { rollbackTo } from '../repository/migrate-down';
+import { inMemoryActuals } from '../testing/actual-fixture';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { inMemoryCapacity } from '../testing/capacity-fixture';
 import { inMemoryCommandJournal } from '../testing/command-journal-fixture';
 import { inMemoryDependencies } from '../testing/dependency-fixture';
 import { inMemoryDirectory } from '../testing/directory-fixture';
 import { inMemoryEstimates } from '../testing/estimate-fixture';
+import { inMemoryPriorityBands } from '../testing/priority-band-fixture';
+import { inMemoryProgress } from '../testing/progress-fixture';
 import { inMemoryProjects } from '../testing/project-fixture';
 import { inMemorySubtrees } from '../testing/subtree-fixture';
 import { inMemoryWorkItems } from '../testing/work-item-fixture';
@@ -231,7 +235,7 @@ describe('every plan schedules identically across the migration', () => {
       // `team-sets` design.md D5.
       const lifted = {
         ...tree,
-        workItems: tree.workItems.map(({ teamIds, ...row }) => {
+        workItems: tree.workItems.map(({ teamIds, actuals, progress, state, ...row }) => {
           // The arity claim, and the only place it is made: the set the join
           // answered is exactly the singleton of the label the oracle recorded.
           //
@@ -246,6 +250,20 @@ describe('every plan schedules identically across the migration', () => {
           // gained a field and moved no date, which is this change's claim
           // arriving as a red test.
           expect(teamIds).toEqual(row.serviceTeamId === null ? [] : [row.serviceTeamId]);
+          // Lifted for `teamIds`' reason and asserted for the same one:
+          // `actual-days` (R6 H2) put this key on every row and the oracle
+          // predates the table. Empty on all sixteen replayed plans is the
+          // claim — nothing recorded reads as nothing recorded, never as zero —
+          // and a bare lift would hide a roll-up that invented a figure.
+          expect(actuals).toEqual({});
+          // Lifted for `actuals`' reason and asserted for the same one:
+          // `role-progress` (R6 H2b) put two more keys on every row and the
+          // oracle predates the table. `{}` and `not_started` on all sixteen
+          // replayed plans is the claim — nobody having said anything reads as
+          // nobody having said anything, never as untouched-therefore-done — and
+          // a bare lift would hide a fold that invented a state.
+          expect(progress).toEqual({});
+          expect(state).toBe('not_started');
           return row;
         }),
       };
@@ -259,6 +277,15 @@ describe('every plan schedules identically across the migration', () => {
         teamCapacities: [...(seeded.get(plan.projectId) ?? new Map<string, number>())]
           .map(([serviceTeamId, size]) => ({ serviceTeamId, size }))
           .sort((a, b) => a.serviceTeamId.localeCompare(b.serviceTeamId)),
+        // The second key the capture predates, added by `priority-bands`. Its
+        // presence here is the whole of that change's effect on this
+        // differential: the ladder is read into the payload and passed to
+        // nothing, so every date, every slice and every other field is
+        // byte-identical to the answer captured at `050fd45`. The claim in the
+        // other direction — that a project which has **re-cut** its ladder
+        // schedules identically too — is `priority-band-identity.test.ts`, and
+        // it is that change's to make rather than this file's.
+        priorityBands: DEFAULT_PRIORITY_BANDS,
       });
     }
   });
@@ -345,17 +372,29 @@ describe('every plan schedules identically across the migration', () => {
     const directory = inMemoryDirectory();
     const workItems = inMemoryWorkItems(directory);
     const estimates = inMemoryEstimates(workItems);
+    const actuals = inMemoryActuals(workItems);
+    const progress = inMemoryProgress(workItems);
     const dependencies = inMemoryDependencies();
     const service = new WorkItemService({
       workItems,
       projects,
       estimates,
+      actuals,
+      progress,
       dependencies,
       directory,
       capacity: inMemoryCapacity({
         [plan.projectId]: Object.fromEntries(seeded.get(plan.projectId) ?? []),
       }),
-      subtrees: inMemorySubtrees({ workItems, estimates, dependencies, directory }),
+      priorityBands: inMemoryPriorityBands(),
+      subtrees: inMemorySubtrees({
+        workItems,
+        estimates,
+        actuals,
+        progress,
+        dependencies,
+        directory,
+      }),
       journal: inMemoryCommandJournal(),
       broadcast: recordingBroadcaster(),
     });

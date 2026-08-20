@@ -1,10 +1,16 @@
+import type { RoleState } from '@wbs/domain';
+
 import type {
+  ActualKey,
   Assignment,
   EstimateKey,
   FrozenNumber,
+  ProgressKey,
   Reparented,
+  StoredActual,
   StoredDependency,
   StoredEstimate,
+  StoredProgress,
   WorkItem,
   WorkItemPatch,
 } from '../repository';
@@ -30,6 +36,29 @@ export type CompensatingCommand =
   | { do: 'patch'; workItemId: string; patch: WorkItemPatch }
   | { do: 'set_estimate'; workItemId: string; roleId: string; days: Days }
   | { do: 'clear_estimate'; workItemId: string; roleId: string }
+  /**
+   * The days actually spent, as a plain number rather than a trio: an estimate
+   * is a guess about a range and an actual is a fact about what happened.
+   *
+   * `recordedAt` is **not** carried. Re-applying this command stamps the write
+   * with the moment it is re-applied, because that column says when the number
+   * was typed and an undo is somebody typing it again now. Carrying the original
+   * stamp would let a redo write a row that claims to predate the command that
+   * wrote it.
+   */
+  | { do: 'set_actual'; workItemId: string; roleId: string; days: number }
+  | { do: 'clear_actual'; workItemId: string; roleId: string }
+  /**
+   * Where the work has got to, as one of the two states a role may be **stored**
+   * in. There is no `set_progress` carrying `not_started`: the way to say that
+   * is `clear_progress`, because the absence of a row is how it is spelled in
+   * the table and a command that could write it would be a second spelling.
+   *
+   * `statedAt` is **not** carried, for the reason `set_actual` does not carry
+   * `recordedAt`: re-applying this is somebody saying it again, now.
+   */
+  | { do: 'set_progress'; workItemId: string; roleId: string; state: RoleState }
+  | { do: 'clear_progress'; workItemId: string; roleId: string }
   | { do: 'assign'; workItemId: string; roleId: string; personId: string | null }
   | { do: 'add_dependency'; successorId: string; predecessorId: string }
   | { do: 'remove_dependency'; successorId: string; predecessorId: string }
@@ -60,6 +89,27 @@ export interface DeleteSubtree {
   reparented: Reparented[];
   /** Estimates handed **up** to the surviving parent, exactly as the original delete wrote them. */
   setEstimates: StoredEstimate[];
+  /**
+   * Actuals handed **up** to the surviving parent, the same way and at the same
+   * moment as {@link DeleteSubtree.setEstimates}.
+   *
+   * Carried with their `recordedAt` from the rows they were summed out of — the
+   * newest of them, since the parent's number is now the whole branch's — so a
+   * re-applied delete leaves the same stamp the original left rather than
+   * claiming the days were recorded at the moment somebody pressed redo.
+   */
+  setActuals: StoredActual[];
+  /**
+   * Statements handed **up** to the surviving parent, at the same moment and by
+   * the same rule as {@link DeleteSubtree.setActuals}.
+   *
+   * The branch's folded reading rather than its rows — a deleted child that is
+   * itself a parent holds no rows of its own — and `not_started` is never in
+   * here, because that is the absence of a row. Carried with the newest
+   * `statedAt` in the branch, since the parent's reading is now the whole
+   * branch's.
+   */
+  setProgress: StoredProgress[];
 }
 
 /**
@@ -81,6 +131,25 @@ export interface RestoreSubtree {
   /** Rows to put back under the restored branch, at the positions they had before. */
   reparented: Reparented[];
   estimates: StoredEstimate[];
+  /**
+   * The days recorded against the rows being restored, put back with them.
+   *
+   * Empty for the restore a **create** is the inverse of, except in one case: a
+   * leaf that gains its first child hands its figures down, actuals with
+   * estimates, so undoing that create has to hand them back up. Empty for a
+   * **duplicate**, whose copies were never worked on — see
+   * {@link SubtreeCopy.actuals}.
+   */
+  actuals: StoredActual[];
+  /**
+   * What the rows being restored said about themselves, put back with them.
+   *
+   * Empty for the restore a **create** is the inverse of, except in one case: a
+   * leaf that gains its first child hands its statements down with its figures,
+   * so undoing that create has to hand them back up. Empty for a **duplicate**,
+   * whose copies nobody has ever worked on or spoken about.
+   */
+  progress: StoredProgress[];
   assignments: Assignment[];
   /** Edges with both ends inside the branch: restored with it, in the same write. */
   internalDependencies: StoredDependency[];
@@ -100,6 +169,10 @@ export interface RestoreSubtree {
   externalDependencies: StoredDependency[];
   /** Estimates to take off the surviving parent, undoing the hand-up a delete did. */
   removedEstimates: EstimateKey[];
+  /** Actuals to take off the surviving parent, for {@link RestoreSubtree.removedEstimates}' reason. */
+  removedActuals: ActualKey[];
+  /** Statements to take off the surviving parent, for {@link RestoreSubtree.removedEstimates}' reason. */
+  removedProgress: ProgressKey[];
 }
 
 /** What a journalled command did, in the words an undo says back. */
@@ -144,6 +217,10 @@ const COMMANDS = [
   'patch',
   'set_estimate',
   'clear_estimate',
+  'set_actual',
+  'clear_actual',
+  'set_progress',
+  'clear_progress',
   'assign',
   'add_dependency',
   'remove_dependency',
@@ -227,6 +304,10 @@ export function touchedBy(command: CompensatingCommand): string[] {
     case 'patch':
     case 'set_estimate':
     case 'clear_estimate':
+    case 'set_actual':
+    case 'clear_actual':
+    case 'set_progress':
+    case 'clear_progress':
     case 'assign':
       return [command.workItemId];
     case 'add_dependency':
@@ -241,14 +322,70 @@ export function touchedBy(command: CompensatingCommand): string[] {
         ...command.remove,
         ...command.reparented.map((each) => each.id),
         ...command.setEstimates.map((each) => each.workItemId),
+        ...command.setActuals.map((each) => each.workItemId),
+        ...command.setProgress.map((each) => each.workItemId),
       ];
     case 'restore_subtree':
       return [
         ...command.rows.map((row) => row.id),
         ...command.reparented.map((each) => each.id),
         ...command.removedEstimates.map((each) => each.workItemId),
+        ...command.removedActuals.map((each) => each.workItemId),
+        ...command.removedProgress.map((each) => each.workItemId),
         ...command.externalDependencies.flatMap((edge) => [edge.predecessorId, edge.successorId]),
       ];
+  }
+}
+
+/** The one work item and role a command was aimed at, either of them absent. */
+export interface CommandSubject {
+  workItemId: string | null;
+  roleId: string | null;
+}
+
+/**
+ * What a command was aimed at, for the plan's history to be filtered by.
+ *
+ * Deliberately **not** {@link touchedBy}. That answers "every row whose revision
+ * becomes a precondition" and is a set; this answers "the row somebody was
+ * looking at when they did this", which is what "how did *this* estimate move"
+ * filters on. A dependency touches two work items and is aimed at the successor —
+ * the row the request named, and the subject of the label `record` writes. A
+ * freeze is aimed at the plan and has no single row, which is what `null` is for:
+ * a project's whole history still holds it, and no item's history claims it.
+ *
+ * A subtree command names its root. The rows beneath it are gone or restored with
+ * it, and an event per row would turn one act into forty entries in a reader
+ * nobody could use.
+ */
+export function subjectOf(command: CompensatingCommand): CommandSubject {
+  switch (command.do) {
+    case 'set_estimate':
+    case 'clear_estimate':
+    case 'set_actual':
+    case 'clear_actual':
+    case 'set_progress':
+    case 'clear_progress':
+    case 'assign':
+      return { workItemId: command.workItemId, roleId: command.roleId };
+    case 'patch':
+    case 'move':
+      return { workItemId: command.workItemId, roleId: null };
+    case 'add_dependency':
+    case 'remove_dependency':
+      return { workItemId: command.successorId, roleId: null };
+    case 'delete_subtree':
+      return { workItemId: command.rootId, roleId: null };
+    case 'restore_subtree':
+      // Ancestors first, so the first row is the branch's root. An empty `rows`
+      // is refused by `applyRestore` before it can be journalled, and would be a
+      // restore of nothing.
+      return { workItemId: command.rows.at(0)?.id ?? null, roleId: null };
+    case 'set_frozen':
+      // The whole plan, even when one row's number moved: freezing is a project
+      // act and the label says so. Naming `updates[0]` would make a plan-wide
+      // event read as one item's.
+      return { workItemId: null, roleId: null };
   }
 }
 

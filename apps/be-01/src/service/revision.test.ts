@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import type { Role, WorkItem } from '../repository';
+import { ActualRepository } from '../repository/actual';
 import { openDrizzle } from '../repository/db';
 import { DependencyRepository } from '../repository/dependency';
 import { DirectoryRepository } from '../repository/directory';
@@ -12,12 +13,14 @@ import { EstimateRepository } from '../repository/estimate';
 import { runMigrations } from '../repository/migrate';
 import { ProjectRepository } from '../repository/project';
 import { RoleRepository } from '../repository/role';
+import { RoleProgressRepository } from '../repository/role-progress';
 import { UserRepository } from '../repository/user';
 import { SubtreeRepository, WorkItemRepository } from '../repository/work-item';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { inMemoryCapacity } from '../testing/capacity-fixture';
 import { inMemoryCommandJournal } from '../testing/command-journal-fixture';
 import { personAdded } from '../testing/directory-fixture';
+import { inMemoryPriorityBands } from '../testing/priority-band-fixture';
 import { ProjectService } from './project.service';
 import { RoleService } from './role.service';
 import { WorkItemService } from './work-item.service';
@@ -47,6 +50,8 @@ let roleService: RoleService;
 let projectStore: ProjectRepository;
 let workItemStore: WorkItemRepository;
 let estimateStore: EstimateRepository;
+let actualStore: ActualRepository;
+let progressStore: RoleProgressRepository;
 let projectId: string;
 let ownerId: string;
 let roles: Role[];
@@ -69,6 +74,8 @@ beforeEach(async () => {
   projectStore = new ProjectRepository(db);
   workItemStore = new WorkItemRepository(db);
   estimateStore = new EstimateRepository(db);
+  actualStore = new ActualRepository(db);
+  progressStore = new RoleProgressRepository(db);
   const dependencies = new DependencyRepository(db);
   const directory = new DirectoryRepository(db);
 
@@ -90,8 +97,11 @@ beforeEach(async () => {
     workItems: workItemStore,
     projects: projectStore,
     estimates: estimateStore,
+    actuals: actualStore,
+    progress: progressStore,
     directory,
     capacity: inMemoryCapacity(),
+    priorityBands: inMemoryPriorityBands(),
     dependencies,
     subtrees: new SubtreeRepository(db),
     journal: inMemoryCommandJournal(),

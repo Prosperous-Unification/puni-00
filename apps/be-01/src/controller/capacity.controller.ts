@@ -2,6 +2,7 @@ import { MOST_PEOPLE_AT_ONCE } from '@wbs/domain';
 import { Elysia } from 'elysia';
 
 import { userFromHeaders } from '../middleware/authenticated';
+import { handParsedBody } from '../openapi/hand-parsed-body';
 import type { AuthService } from '../service/auth.service';
 import type { CapacityService } from '../service/capacity.service';
 
@@ -95,20 +96,56 @@ export function capacityController(auth: AuthService, capacity: CapacityService)
       }
       return undefined;
     })
-    .put('/:id/teams/:teamId/capacity', async ({ params, body, headers, set }) => {
-      const user = await userFromHeaders(auth, headers);
-      if (user === null) {
-        set.status = 401;
-        return { error: 'unauthenticated' };
-      }
-      const outcome = await capacity.set(params.id, user.id, params.teamId, capacityOf(body));
-      if (!outcome.ok) {
-        // 403 rather than 404 for a project this account may read but not write,
-        // which is `projectController`'s own split: pretending it is absent would
-        // contradict the next GET.
-        set.status = outcome.reason === 'forbidden' ? 403 : 404;
-        return { error: outcome.reason };
-      }
-      return { capacities: outcome.result };
-    });
+    .put(
+      '/:id/teams/:teamId/capacity',
+      async ({ params, body, headers, set }) => {
+        const user = await userFromHeaders(auth, headers);
+        if (user === null) {
+          set.status = 401;
+          return { error: 'unauthenticated' };
+        }
+        const outcome = await capacity.set(params.id, user.id, params.teamId, capacityOf(body));
+        if (!outcome.ok) {
+          // 403 rather than 404 for a project this account may read but not write,
+          // which is `projectController`'s own split: pretending it is absent would
+          // contradict the next GET.
+          set.status = outcome.reason === 'forbidden' ? 403 : 404;
+          return { error: outcome.reason };
+        }
+        return { capacities: outcome.result };
+      },
+      {
+        detail: {
+          summary: 'Say how many of one team this project may have at work at once',
+          description: `\`PUT\`, and the body carries the whole of the fact: the same request twice is the
+same state. **An absent \`size\` is refused rather than read as \`null\`** — a body
+that says nothing is not a clear, and unstated is not a team of one.
+
+There is no read route: the capacities ride in the plan's own payload,
+\`GET /api/projects/{id}/work-items\`, beside the dates computed from them.
+
+Body refusals, all 400: \`expected_object\`, \`size_required\`,
+\`size_must_be_a_whole_number_from_1\`, \`size_must_be_at_most_1000\`. A project this
+account may read but not write is \`forbidden\`, 403 — not 404, which would
+contradict the next GET.`,
+          requestBody: handParsedBody(
+            'How many of this team may be at work at once on this plan.',
+            {
+              type: 'object',
+              required: ['size'],
+              properties: {
+                size: {
+                  type: 'integer',
+                  nullable: true,
+                  minimum: 1,
+                  maximum: 1000,
+                  description:
+                    'People at once, 1 to 1000, or null for unstated. The floor is correctness rather than taste: a pool of 0 slots clamps every width to 0, duration is effort ÷ width, and the plan becomes `Infinity` dates with nothing on screen to say why.',
+                },
+              },
+            },
+          ),
+        },
+      },
+    );
 }

@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { buildApp } from '../app';
+import { ActualRepository } from '../repository/actual';
 import { CommandJournalRepository } from '../repository/command-journal';
 import { openDrizzle } from '../repository/db';
 import { DependencyRepository } from '../repository/dependency';
@@ -13,6 +14,7 @@ import { EstimateRepository } from '../repository/estimate';
 import { runMigrations } from '../repository/migrate';
 import { ProjectRepository } from '../repository/project';
 import { RoleRepository } from '../repository/role';
+import { RoleProgressRepository } from '../repository/role-progress';
 import { UserRepository } from '../repository/user';
 import { SubtreeRepository, WorkItemRepository } from '../repository/work-item';
 import { AuthService } from '../service/auth.service';
@@ -23,6 +25,8 @@ import { TEST_JWT_KEY } from '../testing/auth-fixture';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { inMemoryCapacity, testCapacityService } from '../testing/capacity-fixture';
 import { testDirectoryService } from '../testing/directory-fixture';
+import { testHistoryService } from '../testing/history-fixture';
+import { inMemoryPriorityBands, testPriorityBandService } from '../testing/priority-band-fixture';
 import { testReplay } from '../testing/replay-fixture';
 
 /**
@@ -54,12 +58,16 @@ beforeEach(() => {
   const projects = new ProjectRepository(db);
   const workItems = new WorkItemRepository(db);
   const estimates = new EstimateRepository(db);
+  const actuals = new ActualRepository(db);
+  const progressStore = new RoleProgressRepository(db);
   const dependencies = new DependencyRepository(db);
   const directory = new DirectoryRepository(db);
 
   app = buildApp({
     directory: testDirectoryService(),
     capacity: testCapacityService(),
+    priorityBands: testPriorityBandService(),
+    history: testHistoryService(),
     auth: new AuthService({ users: new UserRepository(db), jwtKey: TEST_JWT_KEY }),
     projects: new ProjectService({ projects }),
     roles: new RoleService({
@@ -71,9 +79,12 @@ beforeEach(() => {
       workItems,
       projects,
       estimates,
+      actuals,
+      progress: progressStore,
       dependencies,
       directory,
       capacity: inMemoryCapacity(),
+      priorityBands: inMemoryPriorityBands(),
       subtrees: new SubtreeRepository(db),
       journal,
       broadcast: recordingBroadcaster(),

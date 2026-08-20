@@ -387,12 +387,13 @@ describe('how wide the phases make the table', () => {
   itDom('says the width, from the table’s own columns', () => {
     stubbed({ roles: [DEV, QA] });
 
-    // 779px of fixed columns on a plan nobody has dated, 200 for Name, 96 each
-    // for two folded phases. Renderer-neutral wording: this dialog opens from
-    // the phone's toolbar sheet too, and the sentence used to describe a table
+    // 839px of fixed columns on a plan nobody has dated, 200 for Name, 96 each
+    // for two folded phases (827 → 839 in `number-column-widen`, 93 → 105 in
+    // `COLUMN_WIDTHS`). Renderer-neutral wording: this dialog opens from the
+    // phone's toolbar sheet too, and the sentence used to describe a table
     // that reader has never seen.
     expect(document.body.textContent).toContain(
-      '2 phases need ≥1219px of width to sit side by side',
+      '2 phases need ≥1231px of width to sit side by side',
     );
     expect(document.body.textContent).toContain('under 768px the plan is drawn as cards instead');
     expect(document.body.textContent).not.toContain('before the table scrolls sideways');
@@ -407,9 +408,10 @@ describe('how wide the phases make the table', () => {
     // `952 + roles.length * 96` this sentence used to quote, this failed on
     // `expected '…≥1144px…' to contain '≥1123px'` for the undated plan and on
     // `≥1151px` for the dated one — one number where the table lays out two.
-    // Watched, 2026-08-09, when those two figures were the table's; they are
-    // 1219 and 1247 since `priority-column`, and the assertions below read
-    // them from the layout rather than repeating them.
+    // Watched, 2026-08-09, when those two figures were the table's; they were
+    // 1219 and 1247 since `priority-column`, and are 1231 and 1259 since
+    // `number-column-widen` — the assertions below read them from the layout
+    // rather than repeating them.
     cleanup();
     stubbed({ roles: [DEV, QA], frameState: UNDATED });
     expect(document.body.textContent).toContain(
@@ -471,10 +473,37 @@ describe('how wide the phases make the table', () => {
     expect(quoted).toBe(foldedTableMinWidth(['role-dev', 'role-qa'], UNDATED) + (140 - 96));
   });
 
-  itDom('counts one phase as one', () => {
+  itDom('counts one phase as one, and says so in the singular throughout', () => {
+    // The noun and the **verb**. This asserted `'1 phase need'` until
+    // 2026-08-14: it was written about `count`'s singular noun and swept the
+    // plural verb beside it up in the same `toContain`, so the sentence a
+    // single-phase plan really showed — `1 phase need ≥1123px` — was pinned by
+    // the test that was meant to be checking it. The whole clause is asserted
+    // now, which is the only spelling that can see the verb.
+    //
+    // Proof: the verb put back to a flat `need`, this failed on
+    // `expected 'PhasesPhasesThe phases every work ite…' to contain
+    // '1 phase needs ≥1123px of width to sit…'`. Watched on h2puni, 2026-08-14 (fault F5).
     stubbed({ roles: [DEV] });
 
-    expect(document.body.textContent).toContain('1 phase need');
+    // 1123 → 1135 in `number-column-widen` (93 → 105 in `COLUMN_WIDTHS`).
+    expect(document.body.textContent).toContain('1 phase needs ≥1135px of width to sit side by');
+    expect(document.body.textContent).not.toContain('1 phase need ≥');
+  });
+
+  itDom('keeps the plural where there is more than one phase', () => {
+    // The other arm, and it is here so the fix above cannot be "never say
+    // `need`" — a singular-only expression satisfies the test above and reads
+    // `2 phases needs` on every real plan.
+    //
+    // Proof: the plural arm made to say `needs` as well, this failed on
+    // `expected 'PhasesPhasesThe phases every work ite…' to contain
+    // '2 phases need ≥1219px of width to sit…'`. Watched on h2puni, 2026-08-14 (fault F6).
+    stubbed({ roles: [DEV, QA] });
+
+    // 1219 → 1231 in `number-column-widen` (93 → 105 in `COLUMN_WIDTHS`).
+    expect(document.body.textContent).toContain('2 phases need ≥1231px of width to sit side by');
+    expect(document.body.textContent).not.toContain('2 phases needs');
   });
 });
 

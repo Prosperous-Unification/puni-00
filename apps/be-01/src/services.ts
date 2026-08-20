@@ -1,5 +1,7 @@
 import type { Logger } from '@wbs/observability';
 
+import { PLAN_EVENT_RETENTION_DAYS } from './repository';
+import { ActualRepository } from './repository/actual';
 import { CapacityRepository } from './repository/capacity';
 import { CommandJournalRepository } from './repository/command-journal';
 import type { Drizzle } from './repository/db';
@@ -7,8 +9,11 @@ import { DependencyRepository } from './repository/dependency';
 import { DirectoryRepository } from './repository/directory';
 import { EstimateRepository } from './repository/estimate';
 import { DrizzleEventLogRepo } from './repository/event-log';
+import { PlanEventRepository } from './repository/plan-event';
+import { PriorityBandRepository } from './repository/priority-band';
 import { ProjectRepository } from './repository/project';
 import { RoleRepository } from './repository/role';
+import { RoleProgressRepository } from './repository/role-progress';
 import { UserRepository } from './repository/user';
 import { SubtreeRepository, WorkItemRepository } from './repository/work-item';
 import { AuthService } from './service/auth.service';
@@ -16,6 +21,8 @@ import { CapacityService } from './service/capacity.service';
 import { DirectoryService } from './service/directory.service';
 import { EventSequencer } from './service/event-sequencer';
 import { GatewayBroadcaster } from './service/gateway-broadcaster';
+import { HistoryService } from './service/history.service';
+import { PriorityBandService } from './service/priority-band.service';
 import { ProjectService } from './service/project.service';
 import { PushClient } from './service/push-client';
 import { ReplayBuffer } from './service/replay-buffer';
@@ -33,6 +40,8 @@ import { WorkItemService } from './service/work-item.service';
  * longer absence falls back to.
  */
 const EVENT_LOG_MAX_PER_SUBSCRIPTION = 1_000;
+// The history's own window is `PLAN_EVENT_RETENTION_DAYS`, argued where it is
+// declared, and it is swept on the same tick as the log.
 const RETENTION_INTERVAL_MS = 10 * 60_000;
 const REPLAY_BUFFER_MAX_AGE_MS = 5 * 60_000;
 
@@ -48,9 +57,11 @@ export interface BeServices {
   auth: AuthService;
   projects: ProjectService;
   capacity: CapacityService;
+  priorityBands: PriorityBandService;
   roles: RoleService;
   directory: DirectoryService;
   workItems: WorkItemService;
+  history: HistoryService;
   replay: ReplayOrchestrator;
   retention: RetentionTimer;
 }
@@ -70,7 +81,10 @@ export function buildServices(opts: ServicesOptions): BeServices {
   const projectStore = new ProjectRepository(opts.db);
   const directoryStore = new DirectoryRepository(opts.db);
   const capacityStore = new CapacityRepository(opts.db);
+  const priorityBandStore = new PriorityBandRepository(opts.db);
   const eventLog = new DrizzleEventLogRepo(opts.db);
+  // One store for the route that reads the history and the timer that prunes it.
+  const planEventStore = new PlanEventRepository(opts.db);
 
   // One buffer, shared by the two halves of resume: the broadcaster fills it as
   // it publishes, the orchestrator serves reconnects from it. Two buffers would
@@ -111,6 +125,14 @@ export function buildServices(opts: ServicesOptions): BeServices {
       capacity: capacityStore,
       broadcast,
     }),
+    // The same broadcaster again, for the capacity service's reason: a ladder
+    // event takes its place in the project's one sequence, so a client resuming
+    // from a work item's sequence is not replayed a rename of a rung it has seen.
+    priorityBands: new PriorityBandService({
+      projects: projectStore,
+      bands: priorityBandStore,
+      broadcast,
+    }),
     roles: new RoleService({
       projects: projectStore,
       roles: new RoleRepository(opts.db),
@@ -125,29 +147,59 @@ export function buildServices(opts: ServicesOptions): BeServices {
       workItems: new WorkItemRepository(opts.db),
       projects: projectStore,
       estimates: new EstimateRepository(opts.db),
+      // Its own store beside the estimates rather than more methods on that one:
+      // the two tables answer different questions, and the day one of them grows
+      // a rule the other must not have is the day a shared class becomes a
+      // conditional. See `actual` in `schema.ts`.
+      actuals: new ActualRepository(opts.db),
+      // And its own store again, for the same reason once more: a state is a
+      // sentence about work and an actual is a number about it, and the table
+      // that holds one must not grow a rule the other has to carry. See
+      // `role_progress` in `schema.ts`.
+      progress: new RoleProgressRepository(opts.db),
       dependencies: new DependencyRepository(opts.db),
       directory: directoryStore,
       capacity: capacityStore,
+      // Read by `tree()` alone: the ladder is what every face draws priorities
+      // through, and it rides the payload the dates ride so a client cannot hold
+      // labels from one moment over numbers from another.
+      priorityBands: priorityBandStore,
       // The one store that writes across all four of the tables above, because
       // a duplicated subtree is one act — see {@link SubtreeRepository}.
       subtrees: new SubtreeRepository(opts.db),
       // The undo stack, on the server so it survives a reload — one per
-      // account per project. See `command_journal` in `schema.ts`.
+      // account per project. See `command_journal` in `schema.ts`. It is also
+      // what writes the plan's history, in the same transaction, because a
+      // journalled command and a recorded one are the same act.
       journal: new CommandJournalRepository(opts.db),
       broadcast,
     }),
+    history: new HistoryService({ projects: projectStore, events: planEventStore }),
     replay: new ReplayOrchestrator({ log: eventLog, buffer: replayBuffer }),
     retention: new RetentionTimer({
       repo: eventLog,
       maxPerSubscription: EVENT_LOG_MAX_PER_SUBSCRIPTION,
+      // The same store the history route reads, so the table pruned is the table
+      // served. Two stores would both look healthy and one of them would be
+      // pruning a file nobody reads.
+      planEvents: planEventStore,
+      planEventRetentionDays: PLAN_EVENT_RETENTION_DAYS,
       intervalMs: RETENTION_INTERVAL_MS,
       onSweep: (removed) => {
-        if (removed > 0) opts.logger.info({ removed }, 'event log pruned');
+        if (removed.eventLog > 0) {
+          opts.logger.info({ removed: removed.eventLog }, 'event log pruned');
+        }
+        // Logged even though the log line above is conditional on the same
+        // shape: history rows go a year after they were written, so a sweep that
+        // removes any is worth one line somebody can correlate with a gap.
+        if (removed.planEvents > 0) {
+          opts.logger.info({ removed: removed.planEvents }, 'plan history pruned');
+        }
       },
       // Reported, not swallowed: the log growing without bound is the failure
       // the timer exists to prevent, and a dead sweep looks healthy from outside.
       onError: (err) => {
-        opts.logger.error({ err }, 'event log retention sweep failed');
+        opts.logger.error({ err }, 'retention sweep failed');
       },
     }),
   };

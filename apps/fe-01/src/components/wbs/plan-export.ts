@@ -1,6 +1,7 @@
 import { type EffectiveTeams, effectiveTeamsOf } from '@wbs/domain/effective-team';
+import { priorityBandOf } from '@wbs/domain/priority-band';
 
-import type { EstimateMethod } from '@/lib/wbs-api';
+import type { EstimateMethod, PriorityBandView, SliceView } from '@/lib/wbs-api';
 
 /** One estimate's three points, as a row carries them into an export. */
 export interface ExportTrio {
@@ -46,6 +47,26 @@ export interface ExportRow {
   /** By id — resolved to work item numbers here, because an id is not readable. */
   dependsOn: readonly string[];
   startNoEarlierThan: string | null;
+  /**
+   * Why that date is there, in the planner's own words, or null where nobody
+   * has said.
+   *
+   * Its own column rather than a suffix on the date, which is how every other
+   * piece of row text is carried here: a spreadsheet reader sorts and filters
+   * on `Not before` as a date, and a cell reading `2026-09-12 — waiting on
+   * client sign-off` is a date column that has stopped being one. `Notes`'
+   * shape exactly, and it goes through the same `csvField` and `markdownCell`
+   * escaping — a reason may hold commas, quotes and pipes like any sentence.
+   *
+   * **Optional, and nothing fills it yet.** `planForExport` in `wbs-table.tsx`
+   * builds these rows and was another agent's file to edit while this was
+   * written — the one line it owes is
+   * `startNoEarlierThanReason: row.original.startNoEarlierThanReason`, beside
+   * the `startNoEarlierThan` above it. Until that lands the column is exported
+   * empty on every row, which is what it will read on every plan nobody has
+   * explained anyway.
+   */
+  startNoEarlierThanReason?: string | null;
   /** The priority somebody gave this work — 1 upward, smaller first — or null. */
   priority: number | null;
   /**
@@ -72,19 +93,70 @@ export interface ExportRow {
  * two-day row carrying six days of estimate and says nothing about why. `width`
  * is what the `Ran at` column reads, as a set per row.
  *
- * **`effort` and `duration` are carried and read by nothing.** C3's own
- * cross-review recorded it (2026-08-13, P3) against a docstring that claimed
- * all three did work. They are not lost information — `Total days` is the
- * effort and `Starts`/`Ends` are the span — so the honest fix was this
- * paragraph rather than deleting two fields the producer would then stop
- * filling. Deleting them is a change about the export's shape, and this is a
- * change about its words: `capacity-docs`, D6.
+ * **`effort` is carried and read by nothing.** C3's own cross-review recorded it
+ * (2026-08-13, P3) against a docstring that claimed all three did work. It is
+ * not lost information — `Total days` is the effort and `Starts`/`Ends` are the
+ * span — so the honest fix was this paragraph rather than deleting a field the
+ * producer would then stop filling: `capacity-docs`, D6. `duration` stopped
+ * being one of the unread two when `plan-mermaid.ts` began asking which slices
+ * are points rather than spans.
+ *
+ * **This is be-01's `SliceView` and not a narrowing of it, since
+ * `mermaid-gantt`.** It always was one at runtime — `planForExport` assigns
+ * `chartRead.slices` verbatim (`wbs-table.tsx`) — and the four-field interface
+ * that used to stand here only hid the rest from the type checker. A chart
+ * cannot be drawn from four fields: `planToMermaid` needs the role, the person,
+ * the offsets, the critical flag and whether anybody estimated the pair, and
+ * every one of them was already in the object. Widening was therefore a change
+ * with no new plumbing and no second request, which is the cheapest kind.
+ *
+ * The alias rather than a hand-written superset: two lists of the same fields
+ * drift, and the drift would land as an export quietly disagreeing with the
+ * chart about a slice both are reading out of the same array.
  */
-export interface ExportSlice {
-  workItemId: string;
-  width: number;
-  effort: number;
-  duration: number;
+export type ExportSlice = SliceView;
+
+/**
+ * What a document that is **not** the whole plan is a document of.
+ *
+ * Present only on an export of the rows one reader had on screen (R10 F5), and
+ * absent — not empty, absent — on every other, which is what keeps the four
+ * existing exports byte-for-byte what they were: they take `flat`, they say so
+ * in the bundled document's `Scope` line, and that doctrine is settled (§9's
+ * Q3).
+ *
+ * `criteria` is `filterWords`' list (`tree-search.ts`), so the document's
+ * account of what was filtered is the filter's own account of itself rather
+ * than a second one written here. Empty means the rows were narrowed by a
+ * collapsed branch alone, which is a real way to have fewer rows on screen and
+ * has to read differently from a filter that kept them out.
+ */
+export interface FilteredScope {
+  /** How many rows the whole plan holds — how many are in the document is `rows.length`. */
+  totalRows: number;
+  criteria: readonly string[];
+}
+
+/**
+ * How many `depends on` references in this document point at a work item the
+ * document does not hold.
+ *
+ * The document's own count of its own holes, taken from `plan.rows` and nothing
+ * else: a filtered export drops rows, the Depends on column resolves a
+ * predecessor by looking it up among the rows it has, and an unresolvable one
+ * prints as nothing at all. Silent on screen is one thing — the chart says what
+ * it did not draw (F3) — and silent in a file somebody was **sent** is the bug
+ * this whole scope line exists to close.
+ *
+ * Zero on a whole-plan export by construction, which is why nothing reads it
+ * there.
+ */
+function danglingDependencies(plan: PlanExport): number {
+  const held = new Set(plan.rows.map((row) => row.id));
+  return plan.rows.reduce(
+    (missing, row) => missing + row.dependsOn.filter((id) => !held.has(id)).length,
+    0,
+  );
 }
 
 /** A role, team or person as the export needs it: something with a name to print. */
@@ -117,9 +189,36 @@ export interface PlanExport {
   scheduleError: 'cycle' | null;
   roles: readonly NamedEntry[];
   teams: readonly NamedEntry[];
+  /**
+   * What this plan calls its priority numbers, for the Priority band column.
+   *
+   * The **plan's own** ladder travels with the export rather than being inferred
+   * from the numbers, because a spreadsheet outlives the plan it came from: a CSV
+   * saying `Critical` for 10 is still readable the day somebody re-cuts the
+   * ladder, and one saying only `10` is a number nobody can name again.
+   */
+  priorityBands: readonly PriorityBandView[];
   people: readonly NamedEntry[];
-  /** Every work item, in tree order. Collapsed branches and searches are the screen's business. */
+  /**
+   * The work items this document holds, in tree order.
+   *
+   * **Every one of them** for the four exports that have always existed —
+   * collapsed branches and running filters are the screen's business, not a
+   * document's. The one export that takes the rows on screen instead says so in
+   * {@link PlanExport.scope}, and a document with rows missing and no scope is
+   * the thing Q3 refused.
+   */
   rows: readonly ExportRow[];
+  /**
+   * What this document is of, when it is not the whole plan — see
+   * {@link FilteredScope}.
+   *
+   * Optional so every caller that takes the whole plan stays exactly what it
+   * was, and so the absence itself carries the claim: no scope line means no
+   * narrowing, and there is no way to write one down without also writing down
+   * what it kept.
+   */
+  scope?: FilteredScope;
   /**
    * Every slice be-01 placed, in its own order.
    *
@@ -241,7 +340,43 @@ function headerFields(plan: PlanExport): { key: string; value: string }[] {
       value: `these dependencies run in a circle, so no dates could be worked out — every date and slack reads ${NO_SCHEDULE}`,
     });
   }
+  // Last, and in **both** formats: a document that is not the whole plan says
+  // so wherever it is read, and the CSV is the copy that ends up in a
+  // spreadsheet with the header scrolled off — which is why the sentence names
+  // the narrowing rather than merely admitting to one.
+  if (plan.scope !== undefined) fields.push(scopeField(plan, plan.scope));
   return fields;
+}
+
+/**
+ * The `Scope` line of a document that holds some of a plan: how much of it is
+ * here, what kept these rows, and what the absent ones took with them.
+ *
+ * Three claims, and the third is the one a reader cannot recover for
+ * themselves: **the figures were not recomputed.** Every date, every slack and
+ * every total in a filtered export is be-01's answer for the whole plan, because
+ * the schedule is computed over the whole plan whatever the screen is showing
+ * (`notes/wbs-scope-2026-08-13-wave6.md:188-189`). A reader who assumed
+ * otherwise would read these dates as a plan of this work alone, which would be
+ * a shorter and entirely fictional project.
+ */
+function scopeField(plan: PlanExport, scope: FilteredScope): { key: string; value: string } {
+  const kept =
+    scope.criteria.length === 0
+      ? 'no filter was on, so a collapsed branch is what left the rest out'
+      : `kept by: ${scope.criteria.join('; ')}`;
+  const dangling = danglingDependencies(plan);
+  const holes =
+    dangling === 0
+      ? ''
+      : ` ${String(dangling)} Depends on ${dangling === 1 ? 'reference points' : 'references point'} at a work item this document does not hold, and ${dangling === 1 ? 'it is' : 'they are'} blank in the table below.`;
+  return {
+    key: 'Scope',
+    value:
+      `what one reader had on screen, not the whole plan — ${String(plan.rows.length)} of ` +
+      `${String(scope.totalRows)} rows, ${kept}. The figures are the whole plan's schedule ` +
+      `unchanged: nothing here was recalculated from the rows that were kept.${holes}`,
+  };
 }
 
 /** What a row's Starts cell says: a date, a day offset, or nothing knowable. */
@@ -426,7 +561,32 @@ function columnsOf(plan: PlanExport, markSums: boolean): ExportColumn[] {
     // Blank for a work item nobody has given a priority, exactly as the column is: a
     // spreadsheet reader sorting on this wants an empty cell, not a 0.
     { header: 'Priority', cell: (row) => (row.priority === null ? '' : String(row.priority)) },
+    // The name beside the number rather than instead of it. The number is what
+    // the plan sorts by and the name is what a reader of the export talks about,
+    // and neither substitutes for the other: two rows at 10 and 18 are both
+    // `Critical` and are not the same priority. Blank where the number is, for
+    // the reason above it.
+    //
+    // `priorityBandOf` and not a lookup of this file's own, which is the whole of
+    // "the band-to-anything mapping is one function": the table's cell, the
+    // chart's bars, the cards and this column resolve a number to a band in
+    // `libs/domain` and colour it in `priority-band-style.ts`, and no face holds
+    // a fifth opinion. A CSV has no colour, so this reads the label alone.
+    {
+      header: 'Priority band',
+      cell: (row) =>
+        row.priority === null
+          ? ''
+          : (priorityBandOf(plan.priorityBands, row.priority)?.label ?? ''),
+    },
     { header: 'Not before', cell: (row) => row.startNoEarlierThan ?? '' },
+    // Beside the date it explains rather than inside it, so the column above
+    // stays a date column. Empty where nobody has written one — and empty on
+    // every row where there is no date at all, because be-01 refuses the pair.
+    {
+      header: 'Not before because',
+      cell: (row) => row.startNoEarlierThanReason ?? '',
+    },
     { header: 'Starts', cell: (row) => startsCell(plan, row) },
     { header: 'Ends', cell: (row) => endsCell(plan, row) },
     {
@@ -441,6 +601,38 @@ function columnsOf(plan: PlanExport, markSums: boolean): ExportColumn[] {
 }
 
 /**
+ * The header block Markdown carries, formatted as the bold `**key:** value`
+ * lines both `planToMarkdown` and the bundled Mermaid document (`plan-mermaid.ts`)
+ * open with.
+ *
+ * `extra` is appended after the header this format always carries and before
+ * nothing — a caller with one more fact to state (the bundled document's own
+ * `Scope` line) does not have to know where in the block it belongs.
+ */
+export function markdownHeaderLines(
+  plan: PlanExport,
+  extra: readonly { key: string; value: string }[] = [],
+): string[] {
+  return [
+    ...headerFields(plan),
+    { key: 'Rolled-up rows', value: 'a figure marked (sum) is the total of the rows beneath it' },
+    ...extra,
+  ].map((field) => `**${field.key}:** ${markdownCell(field.value)}`);
+}
+
+/** The table alone, as Markdown: the column headings, the rule, then one row per work item. */
+export function markdownTableLines(plan: PlanExport): string[] {
+  const columns = columnsOf(plan, true);
+  return [
+    `| ${columns.map((each) => markdownCell(each.header)).join(' | ')} |`,
+    `| ${columns.map(() => '---').join(' | ')} |`,
+    ...plan.rows.map(
+      (row) => `| ${columns.map((each) => markdownCell(each.cell(row))).join(' | ')} |`,
+    ),
+  ];
+}
+
+/**
  * The plan as Markdown: a header block, then one flat table.
  *
  * What the header says is the point of it — which method produced the finals,
@@ -449,19 +641,7 @@ function columnsOf(plan: PlanExport, markSums: boolean): ExportColumn[] {
  * document outlives the screen it came off.
  */
 export function planToMarkdown(plan: PlanExport): string {
-  const columns = columnsOf(plan, true);
-  const header = [
-    ...headerFields(plan),
-    { key: 'Rolled-up rows', value: 'a figure marked (sum) is the total of the rows beneath it' },
-  ].map((field) => `**${field.key}:** ${markdownCell(field.value)}`);
-  const table = [
-    `| ${columns.map((each) => markdownCell(each.header)).join(' | ')} |`,
-    `| ${columns.map(() => '---').join(' | ')} |`,
-    ...plan.rows.map(
-      (row) => `| ${columns.map((each) => markdownCell(each.cell(row))).join(' | ')} |`,
-    ),
-  ];
-  return [...header, '', ...table, ''].join('\n');
+  return [...markdownHeaderLines(plan), '', ...markdownTableLines(plan), ''].join('\n');
 }
 
 /**
@@ -491,18 +671,31 @@ export function planToCsv(plan: PlanExport): string {
 const UNNAMEABLE_PROJECT = 'plan';
 
 /**
- * The name the downloaded CSV lands under: the project, slugified, and the day
- * it was taken.
+ * The name the downloaded file lands under: the project, slugified, the day it
+ * was taken, and the extension the caller asked for.
  *
  * The day comes off {@link PlanExport.generatedAt}, which is UTC — two people
  * exporting the same plan an hour either side of midnight in different
  * timezones therefore agree on the filename, and may disagree with their own
  * calendars by a day.
+ *
+ * `extension` defaults to `csv` so every existing caller compiles unchanged;
+ * the bundled Mermaid document (`plan-mermaid.ts`) is the first to pass `md`.
+ *
+ * **A filtered export files itself under `-on-screen`**, off
+ * {@link PlanExport.scope} and not off a flag the caller could forget to pass:
+ * two documents of one plan taken on one day would otherwise land in the same
+ * folder under the same name, and the one with rows missing is the one nobody
+ * can tell apart afterwards.
  */
-export function planFileName(plan: Pick<PlanExport, 'projectName' | 'generatedAt'>): string {
+export function planFileName(
+  plan: Pick<PlanExport, 'projectName' | 'generatedAt' | 'scope'>,
+  extension: 'csv' | 'md' = 'csv',
+): string {
   const slug = plan.projectName
     .toLowerCase()
     .replaceAll(/[^a-z0-9]+/g, '-')
     .replaceAll(/^-+|-+$/g, '');
-  return `${slug === '' ? UNNAMEABLE_PROJECT : slug}-${plan.generatedAt.slice(0, 10)}.csv`;
+  const narrowed = plan.scope === undefined ? '' : '-on-screen';
+  return `${slug === '' ? UNNAMEABLE_PROJECT : slug}-${plan.generatedAt.slice(0, 10)}${narrowed}.${extension}`;
 }

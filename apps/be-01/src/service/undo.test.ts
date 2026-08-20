@@ -5,19 +5,23 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import type { JournalEntry, Role, WorkItem } from '../repository';
+import { ActualRepository } from '../repository/actual';
 import { CommandJournalRepository } from '../repository/command-journal';
 import { openDrizzle } from '../repository/db';
 import { DependencyRepository } from '../repository/dependency';
 import { DirectoryRepository } from '../repository/directory';
 import { EstimateRepository } from '../repository/estimate';
 import { runMigrations } from '../repository/migrate';
+import { PlanEventRepository } from '../repository/plan-event';
 import { ProjectRepository } from '../repository/project';
+import { RoleProgressRepository } from '../repository/role-progress';
 import { commandJournal } from '../repository/schema';
 import { UserRepository } from '../repository/user';
 import { SubtreeRepository, WorkItemRepository } from '../repository/work-item';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { inMemoryCapacity } from '../testing/capacity-fixture';
 import { personAdded } from '../testing/directory-fixture';
+import { inMemoryPriorityBands } from '../testing/priority-band-fixture';
 import { ProjectService } from './project.service';
 import { type UndoOutcome, WorkItemService } from './work-item.service';
 
@@ -44,6 +48,8 @@ let workItems: WorkItemService;
 let projects: ProjectService;
 let workItemStore: WorkItemRepository;
 let estimateStore: EstimateRepository;
+let actualStore: ActualRepository;
+let progressStore: RoleProgressRepository;
 let dependencyStore: DependencyRepository;
 let directoryStore: DirectoryRepository;
 let journalStore: CommandJournalRepository;
@@ -71,6 +77,8 @@ beforeEach(async () => {
   const projectStore = new ProjectRepository(db);
   workItemStore = new WorkItemRepository(db);
   estimateStore = new EstimateRepository(db);
+  actualStore = new ActualRepository(db);
+  progressStore = new RoleProgressRepository(db);
   dependencyStore = new DependencyRepository(db);
   directoryStore = new DirectoryRepository(db);
   journalStore = new CommandJournalRepository(db);
@@ -88,8 +96,11 @@ beforeEach(async () => {
     workItems: workItemStore,
     projects: projectStore,
     estimates: estimateStore,
+    actuals: actualStore,
+    progress: progressStore,
     directory: directoryStore,
     capacity: inMemoryCapacity(),
+    priorityBands: inMemoryPriorityBands(),
     dependencies: dependencyStore,
     subtrees: new SubtreeRepository(db),
     journal: journalStore,
@@ -218,6 +229,47 @@ describe('undoing each kind of change', () => {
     expectDone(await undone());
 
     expect((await found(strip))?.priority).toBeNull();
+  });
+
+  it('undoes a reason written beside a date that was already there', async () => {
+    // Words added to an existing floor, taken off again. The forward patch names
+    // only the reason, so the journal has to hear a patch that names only the
+    // reason — and its inverse must put `null` back rather than nothing, because
+    // "nobody has explained this" is a state of its own.
+    const strip = await root('Strip');
+    await workItems.patch(strip, ownerId, { startNoEarlierThan: '2026-09-12' });
+    await workItems.patch(strip, ownerId, {
+      startNoEarlierThanReason: 'waiting on client sign-off',
+    });
+
+    expectDone(await undone());
+
+    const after = await found(strip);
+    expect(after?.startNoEarlierThanReason).toBeNull();
+    // The floor is not what was undone and does not move.
+    expect(after?.startNoEarlierThan).toBe('2026-09-12');
+  });
+
+  it('puts the words back with the date they explain', async () => {
+    // The pair cleared in one request, undone in one press. The inverse names
+    // **both** halves the forward named, which is also what keeps it legal: an
+    // inverse that restored the date alone would be refused by the very rule
+    // that made the forward patch send both.
+    const strip = await root('Strip');
+    await workItems.patch(strip, ownerId, {
+      startNoEarlierThan: '2026-09-12',
+      startNoEarlierThanReason: 'waiting on client sign-off',
+    });
+    await workItems.patch(strip, ownerId, {
+      startNoEarlierThan: null,
+      startNoEarlierThanReason: null,
+    });
+
+    expectDone(await undone());
+
+    const after = await found(strip);
+    expect(after?.startNoEarlierThan).toBe('2026-09-12');
+    expect(after?.startNoEarlierThanReason).toBe('waiting on client sign-off');
   });
 
   it('puts a replaced parallelism back, and leaves one a rename did not name', async () => {
@@ -465,6 +517,154 @@ describe('undoing each kind of change', () => {
       { workItemId: switches, roleId: dev(), personId: alice },
     ]);
     expect(await edges()).toEqual([[sockets, switches]]);
+  });
+
+  it('restores every day recorded in a deleted branch, against the real cascade', async () => {
+    // Against real SQLite, and that is the point of putting this here rather
+    // than beside the other actual cases: `actual.work_item_id` cascades, so the
+    // rows are genuinely gone after the delete and can only come back from the
+    // command. The in-memory store cannot model that — its rows survive the
+    // deletion in an array and reappear with the row — and a case written there
+    // passes with the restore's `actuals` replaced by `[]`. See verify.md F9a.
+    const strip = await root('Strip');
+    const sockets = await child(strip, 'Sockets');
+    const switches = await child(strip, 'Switches', sockets);
+    await workItems.setActual(sockets, ownerId, dev(), 8);
+    await workItems.setActual(switches, ownerId, dev(), 3);
+
+    expect((await workItems.remove(strip, ownerId, 'cascade')).ok).toBe(true);
+    expect(await actualStore.listByProject(projectId)).toEqual([]);
+
+    expect(expectDone(await undone())).toBe('delete “Strip”');
+
+    // By work item rather than as a list, and the size asserted beside it.
+    // `listByProject` orders by `work_item_id` — a **UUID** across a project —
+    // so a two-row list assertion here is a coin toss on which name sorts
+    // first: it passed five times on h2puni and on CI at `db3e121`, and failed
+    // on the doc-only commit after it. See verify.md.
+    const back = await actualStore.listByProject(projectId);
+    const byItem = new Map(back.map((each) => [each.workItemId, each.days]));
+    expect(byItem.get(sockets)).toBe(8);
+    expect(byItem.get(switches)).toBe(3);
+    expect(back).toHaveLength(2);
+    expect(back.every((each) => each.roleId === dev())).toBe(true);
+  });
+
+  it('restores every statement made in a deleted branch, against the real cascade', async () => {
+    // Against real SQLite, and that is the point of putting this here rather
+    // than beside the other progress cases: `role_progress.work_item_id`
+    // cascades, so the rows are genuinely gone after the delete and can only
+    // come back from the command. The in-memory store cannot model that — its
+    // rows survive the deletion in an array and reappear with the row — so a
+    // case written there passes with the restore's `progress` replaced by `[]`.
+    // That is `actual-days`' F9a, and the lesson is being applied rather than
+    // rediscovered.
+    //
+    // Proof: the restore's `progress` replaced by `[]`, and this fails with an
+    // empty list where two statements are owed — a branch that comes back from
+    // an undo reading as work nobody has started; watched 2026-08-18.
+    const strip = await root('Strip');
+    const sockets = await child(strip, 'Sockets');
+    const switches = await child(strip, 'Switches', sockets);
+    await workItems.setProgress(sockets, ownerId, dev(), 'done');
+    await workItems.setProgress(switches, ownerId, dev(), 'in_progress');
+
+    expect((await workItems.remove(strip, ownerId, 'cascade')).ok).toBe(true);
+    expect(await progressStore.listByProject(projectId)).toEqual([]);
+
+    expect(expectDone(await undone())).toBe('delete “Strip”');
+
+    // By work item rather than as a list, and the size asserted beside it, for
+    // the reason the actual case above gives: `listByProject` orders by
+    // `work_item_id`, a UUID across a project, so a two-row list assertion is a
+    // coin toss on which name sorts first. That mistake cost a CI cycle on #79
+    // and it is not being made twice.
+    const back = await progressStore.listByProject(projectId);
+    const byItem = new Map(back.map((each) => [each.workItemId, each.state]));
+    expect(byItem.get(sockets)).toBe('done');
+    expect(byItem.get(switches)).toBe('in_progress');
+    expect(back).toHaveLength(2);
+    expect(back.every((each) => each.roleId === dev())).toBe(true);
+  });
+
+  it('takes back the statement a deletion handed up to the parent', async () => {
+    // The mirror of the recorded-days case below it. The parent has no children
+    // left after the delete, so it took the branch's reading; undoing has to
+    // take it off again, or the plan says the parent's own work is finished
+    // while the leaf that was actually finished is back beside it.
+    const strip = await root('Strip');
+    const sockets = await child(strip, 'Sockets');
+    await workItems.setProgress(sockets, ownerId, dev(), 'done');
+
+    expect((await workItems.remove(sockets, ownerId, null)).ok).toBe(true);
+    expect(
+      (await progressStore.listByProject(projectId)).map(({ workItemId, state }) => ({
+        workItemId,
+        state,
+      })),
+    ).toEqual([{ workItemId: strip, state: 'done' }]);
+
+    expect(expectDone(await undone())).toBe('delete “Sockets”');
+
+    expect(
+      (await progressStore.listByProject(projectId)).map(({ workItemId, state }) => ({
+        workItemId,
+        state,
+      })),
+    ).toEqual([{ workItemId: sockets, state: 'done' }]);
+  });
+
+  it('takes back the recorded days a deletion handed up to the parent', async () => {
+    // The mirror of the estimate case below it. The parent has no children left
+    // after the delete, so it took the branch's recorded days; undoing has to
+    // take them off it again, or the same week is counted twice — once on the
+    // restored leaf and once on a parent that is no longer one.
+    const strip = await root('Strip');
+    const sockets = await child(strip, 'Sockets');
+    await workItems.setActual(sockets, ownerId, dev(), 5);
+
+    expect((await workItems.remove(sockets, ownerId, null)).ok).toBe(true);
+    expect(
+      (await actualStore.listByProject(projectId)).map(({ workItemId, days }) => ({
+        workItemId,
+        days,
+      })),
+    ).toEqual([{ workItemId: strip, days: 5 }]);
+
+    expect(expectDone(await undone())).toBe('delete “Sockets”');
+
+    expect(
+      (await actualStore.listByProject(projectId)).map(({ workItemId, days }) => ({
+        workItemId,
+        days,
+      })),
+    ).toEqual([{ workItemId: sockets, days: 5 }]);
+  });
+
+  it('hands the recorded days back up when it undoes the first child that took them', async () => {
+    // The create moved them down, because a work item with children reports
+    // sums and a row left on it would be unreadable. The undo deletes that
+    // child — taking its rows with it, through the cascade — so the days can
+    // only come back from the command's own `setActuals`.
+    const strip = await root('Strip');
+    await workItems.setActual(strip, ownerId, dev(), 6);
+
+    const sockets = await child(strip, 'Sockets');
+    expect(
+      (await actualStore.listByProject(projectId)).map(({ workItemId, days }) => ({
+        workItemId,
+        days,
+      })),
+    ).toEqual([{ workItemId: sockets, days: 6 }]);
+
+    expect(expectDone(await undone())).toBe('add “Sockets”');
+
+    expect(
+      (await actualStore.listByProject(projectId)).map(({ workItemId, days }) => ({
+        workItemId,
+        days,
+      })),
+    ).toEqual([{ workItemId: strip, days: 6 }]);
   });
 
   it('takes back the estimates a deletion handed up to the parent', async () => {
@@ -997,3 +1197,46 @@ async function person(name: string): Promise<string> {
   const added = await personAdded(directoryStore.addPerson({ id: crypto.randomUUID(), name }, []));
   return added.id;
 }
+
+describe('what an undo leaves in the plan’s history', () => {
+  /** The project's history, read straight out of the table the route reads. */
+  const history = () => new PlanEventRepository(openDrizzle(path)).listFor(projectId, {});
+
+  it('records the command, and records nothing at all for undoing it', async () => {
+    // The one thing a reader of the history will be surprised by, asserted rather
+    // than only written down. Undo and redo flip a journal entry in place and
+    // append nothing — deliberately, `schema.ts` argues why — so an estimate set
+    // and then taken back leaves the event that set it and no event undoing it.
+    // Every event is true about its own moment; the sequence is incomplete.
+    //
+    // Closing it means writing from the undo path as well, which is a second write
+    // site and R5's H5 question rather than this change's. See
+    // `openspec/changes/plan-history/design.md` D4 — if this case ever goes red
+    // because somebody closed the gap, that is the change and not a regression.
+    const id = await root('Strip the roof');
+    const set = await workItems.setEstimate(id, ownerId, roles[0].id, DAYS);
+    expect(set.ok).toBe(true);
+    expect((await history()).map((each) => each.kind)).toEqual(['estimate', 'create']);
+
+    const undone = await workItems.undo(projectId, ownerId);
+    expect(undone.ok).toBe(true);
+
+    // Two events still, and the estimate really is gone from the plan — so the
+    // history says 1/2/3 was set while the plan says nothing is estimated.
+    expect((await history()).map((each) => each.kind)).toEqual(['estimate', 'create']);
+    expect(await estimateStore.listByProject(projectId)).toEqual([]);
+  });
+
+  it('keeps the event of a command whose journal entry a later write threw away', async () => {
+    // The redo branch is deleted on every append, so the undone command leaves the
+    // stack entirely the moment anything else is written. Its event stays, which is
+    // the difference between the plan's history and one account's undo stack.
+    const id = await root('Strip the roof');
+    await workItems.setEstimate(id, ownerId, roles[0].id, DAYS);
+    await workItems.undo(projectId, ownerId);
+    await workItems.setEstimate(id, ownerId, roles[0].id, OTHER_DAYS);
+
+    expect((await allEntries()).map((each) => each.kind)).toEqual(['create', 'estimate']);
+    expect((await history()).map((each) => each.kind)).toEqual(['estimate', 'estimate', 'create']);
+  });
+});

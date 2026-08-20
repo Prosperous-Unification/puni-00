@@ -1,3 +1,4 @@
+import { isOrphanedNotBeforeReason } from '@wbs/domain';
 import { and, asc, eq, inArray } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
@@ -14,7 +15,41 @@ import type {
   WorkItemStore,
 } from './index';
 import { bumpedWorkItem, bumpedWorkItemOnReparent, bumpWorkItems } from './revision';
-import { assignment, dependency, estimate, serviceTeam, workItem, workItemTeam } from './schema';
+import {
+  actual,
+  assignment,
+  dependency,
+  estimate,
+  roleProgress,
+  serviceTeam,
+  workItem,
+  workItemTeam,
+} from './schema';
+
+/**
+ * The not-before pair as the row will stand: what the patch names, and what the
+ * row holds where the patch names nothing.
+ *
+ * The merge, and not the patch, is what the pair rule is asked about. A patch
+ * carrying only a reason is legal on a row that already has a date and illegal
+ * on one that does not, and the patch alone cannot tell which — so reading the
+ * rule off the request would refuse the ordinary case of adding words to an
+ * existing floor, or accept the orphan it exists to prevent, depending on which
+ * way it was written.
+ */
+function mergedNotBefore(
+  stored: { startNoEarlierThan: string | null; startNoEarlierThanReason: string | null },
+  patch: WorkItemPatch,
+): { date: string | null; reason: string | null } {
+  return {
+    date:
+      patch.startNoEarlierThan === undefined ? stored.startNoEarlierThan : patch.startNoEarlierThan,
+    reason:
+      patch.startNoEarlierThanReason === undefined
+        ? stored.startNoEarlierThanReason
+        : patch.startNoEarlierThanReason,
+  };
+}
 
 /**
  * The join rows one write owes, derived from the column it is writing.
@@ -127,6 +162,14 @@ export class WorkItemRepository implements WorkItemStore {
       patch.name === undefined &&
       patch.notes === undefined &&
       patch.startNoEarlierThan === undefined &&
+      // Proof: this line deleted, so a patch naming only the reason is taken as
+      // naming nothing — **19 pass, 2 fail**. `writes a reason beside the date
+      // it explains` failed on `Expected: "waiting on client sign-off" /
+      // Received: null`, which is the write path silently doing nothing while
+      // every face reports success; and `refuses a reason with no date to be
+      // about` failed with it, because the branch this line guards returns
+      // before the transaction the pair rule lives in. Watched 2026-08-18.
+      patch.startNoEarlierThanReason === undefined &&
       patch.priority === undefined &&
       patch.serviceTeamId === undefined &&
       patch.maxParallel === undefined
@@ -148,6 +191,44 @@ export class WorkItemRepository implements WorkItemStore {
     const written =
       maxParallel === undefined ? fields : { ...fields, maxParallel: maxParallel ?? 1 };
     return this.db.transaction((tx) => {
+      // The not-before pair as the row will stand, and the one pair it may not
+      // stand in. Asked here rather than at the service for `unknown_team`'s
+      // reason below it: a check one statement earlier is a check with a
+      // concurrent write's worth of gap in front of the `UPDATE` it guards, and
+      // a patch clearing the date inside that gap leaves exactly the row this
+      // refuses. There is no constraint behind it — the migration argues why a
+      // `CHECK` on this table would 500 the outgoing release mid-swap — so this
+      // is the whole of the guarantee.
+      //
+      // Only when the patch names one of the two. A rename, a priority or a
+      // label reads nothing extra, which is what keeps every write that existed
+      // before this column at the statement count it had.
+      if (patch.startNoEarlierThan !== undefined || patch.startNoEarlierThanReason !== undefined) {
+        const stored = tx
+          .select({
+            startNoEarlierThan: workItem.startNoEarlierThan,
+            startNoEarlierThanReason: workItem.startNoEarlierThanReason,
+          })
+          .from(workItem)
+          .where(eq(workItem.id, id))
+          .all()
+          .at(0);
+        // A row that is not there is `not_found`, answered by the update's own
+        // empty `returning()` below — there is no pair here to have an opinion
+        // about.
+        if (stored !== undefined) {
+          const willStand = mergedNotBefore(stored, patch);
+          // Proof: this refusal deleted — **19 pass, 2 fail** — and both
+          // `refuses a reason with no date to be about` and `refuses a date
+          // cleared out from under the words beside it` failed on
+          // `Expected: false, Received: true`: the row stored and returned
+          // carrying words about a floor it does not have, which no face can
+          // show and nothing can clear. Watched 2026-08-18.
+          if (isOrphanedNotBeforeReason(willStand.date, willStand.reason)) {
+            return { ok: false, reason: 'not_before_reason_needs_a_date' };
+          }
+        }
+      }
       const wanted = patch.serviceTeamId;
       // `null` takes the label off and names no team, so there is nothing to
       // read; only a non-null id can be one the directory has lost.
@@ -341,6 +422,23 @@ export class SubtreeRepository implements SubtreeStore {
         tx.insert(estimate)
           .values([...copy.estimates])
           .run();
+      // Beside the estimates and written the same way. Empty for a duplication
+      // — a copy is work nobody has done — and non-empty for the restore an
+      // undo of a delete runs, which has to put back the days the delete took
+      // with the rows. See {@link SubtreeCopy.actuals}.
+      if (copy.actuals.length > 0)
+        tx.insert(actual)
+          .values([...copy.actuals])
+          .run();
+      // Beside the actuals and for the same two reasons: empty for a
+      // duplication, because a copy is work nobody has done *or spoken about*,
+      // and non-empty for the restore an undo of a delete runs, which has to put
+      // back the reading the delete took with the rows. See
+      // {@link SubtreeCopy.progress}.
+      if (copy.progress.length > 0)
+        tx.insert(roleProgress)
+          .values([...copy.progress])
+          .run();
       if (copy.assignments.length > 0)
         tx.insert(assignment)
           .values([...copy.assignments])
@@ -360,10 +458,33 @@ export class SubtreeRepository implements SubtreeStore {
           .where(and(eq(estimate.workItemId, taken.workItemId), eq(estimate.roleId, taken.roleId)))
           .run();
       }
-      bumpWorkItems(
-        tx,
-        copy.removedEstimates.map((taken) => taken.workItemId),
-      );
+      // The same statement for the same reason, one table over: a restored leaf
+      // and the parent still holding that leaf's recorded days would count the
+      // same week twice.
+      for (const taken of copy.removedActuals) {
+        tx.delete(actual)
+          .where(and(eq(actual.workItemId, taken.workItemId), eq(actual.roleId, taken.roleId)))
+          .run();
+      }
+      // And the statements, for the reason above in the tense this table is
+      // about: a restored leaf and the parent still saying that leaf's work is
+      // finished would report the same branch as done twice, on two rows, one of
+      // which is now a parent whose reading is supposed to be folded.
+      for (const taken of copy.removedProgress) {
+        tx.delete(roleProgress)
+          .where(
+            and(
+              eq(roleProgress.workItemId, taken.workItemId),
+              eq(roleProgress.roleId, taken.roleId),
+            ),
+          )
+          .run();
+      }
+      bumpWorkItems(tx, [
+        ...copy.removedEstimates.map((taken) => taken.workItemId),
+        ...copy.removedActuals.map((taken) => taken.workItemId),
+        ...copy.removedProgress.map((taken) => taken.workItemId),
+      ]);
     });
   }
 }

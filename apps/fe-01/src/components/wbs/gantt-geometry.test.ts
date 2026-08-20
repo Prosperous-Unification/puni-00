@@ -5,6 +5,7 @@ import {
   type BarColor,
   type BindingFloor,
   calendarScale,
+  droppedLinkWords,
   GanttDataError,
   type GanttPlan,
   type GanttRow,
@@ -102,6 +103,8 @@ const planOf = (parts: Partial<GanttPlan>): GanttPlan => ({
   slices: [],
   dependencies: [],
   tree: treeFrom(parts.rows ?? []),
+  // Off unless a test is about the sentence a filter's dropped waits earn.
+  narrowedByFilter: false,
   roles: [
     { id: 'dev', name: 'Dev' },
     { id: 'qa', name: 'QA' },
@@ -195,6 +198,93 @@ describe('bars', () => {
       'Waits for a dependency’s first estimated role',
       'Waits for an earlier role on this item',
       'Held by its start-no-earlier-than date',
+    ]);
+  });
+
+  it('says why a not-before is there, where somebody has written it down', () => {
+    // *"blocked until the 12th, waiting on client sign-off"* — the sentence this
+    // change exists to make sayable, and the whole of what it adds to the chart.
+    // Appended to the floor sentence rather than replacing it: the date is still
+    // what holds the bar, and the words are an aside on a floor that reads
+    // identically without them.
+    //
+    // The em-dash is the person and capacity floors' own shape, so a reader
+    // moving between bars does not have to notice which kind they are hovering.
+    const chart = layOutGantt(
+      planOf({
+        rows: [rowAt('sand', 3, 4, { notBeforeReason: 'waiting on client sign-off' })],
+        slices: [sliceAt('sand-dev', 'sand', 3, 4, { boundBy: 'notBefore' })],
+      }),
+    );
+
+    expect(chart.bars[0].floorWords).toBe(
+      'Held by its start-no-earlier-than date — waiting on client sign-off',
+    );
+  });
+
+  it('says only the floor for a not-before nobody has explained', () => {
+    // Every dated row in every plan today, and every one nobody bothers to
+    // explain tomorrow. A reason is an optional aside, so its absence has to
+    // read exactly as this bar read before the column existed — not as an empty
+    // dash and not as the word `null`.
+    const chart = layOutGantt(
+      planOf({
+        rows: [rowAt('sand', 3, 4, { notBeforeReason: null })],
+        slices: [sliceAt('sand-dev', 'sand', 3, 4, { boundBy: 'notBefore' })],
+      }),
+    );
+
+    expect(chart.bars[0].floorWords).toBe('Held by its start-no-earlier-than date');
+  });
+
+  it('leaves the words off a bar something else is holding', () => {
+    // The row's date is set and explained, and a dependency is what actually
+    // binds this bar. The reason belongs to the floor, not to the row: a
+    // sentence about a not-before printed on a bar that is waiting for a
+    // predecessor would be the chart naming one cause and explaining another.
+    //
+    // Proof: the reason appended to the shared `projectStart`/`predecessor`/
+    // `roleOrder` arm as well — **1 failed, 103 passed** — and this failed on
+    // `expected 'Waits for a dependency’s first estimated role — waiting on
+    // client sign-off' to be 'Waits for a dependency’s first estimated role'`.
+    // Watched 2026-08-18.
+    const chart = layOutGantt(
+      planOf({
+        rows: [
+          rowAt('strip', 0, 3),
+          rowAt('sand', 3, 4, {
+            notBeforeOffset: 1,
+            notBeforeReason: 'waiting on client sign-off',
+          }),
+        ],
+        slices: [
+          sliceAt('strip-dev', 'strip', 0, 3),
+          sliceAt('sand-dev', 'sand', 3, 4, { boundBy: 'predecessor' }),
+        ],
+      }),
+    );
+
+    expect(chart.bars[1].floorWords).toBe('Waits for a dependency’s first estimated role');
+  });
+
+  it('says the same words on every bar of a row the not-before holds', () => {
+    // The reason is the **row's**, and a work item's not-before holds every one
+    // of its roles — so a row estimated for two phases draws two bars and both
+    // are floored by the same date for the same reason. One sentence, said
+    // wherever it is true.
+    const chart = layOutGantt(
+      planOf({
+        rows: [rowAt('sand', 3, 5, { notBeforeReason: 'waiting on client sign-off' })],
+        slices: [
+          sliceAt('sand-dev', 'sand', 3, 4, { boundBy: 'notBefore' }),
+          sliceAt('sand-qa', 'sand', 3, 5, { boundBy: 'notBefore', roleId: 'qa' }),
+        ],
+      }),
+    );
+
+    expect(chart.bars.map((bar) => bar.floorWords)).toEqual([
+      'Held by its start-no-earlier-than date — waiting on client sign-off',
+      'Held by its start-no-earlier-than date — waiting on client sign-off',
     ]);
   });
 });
@@ -1432,6 +1522,7 @@ describe('the shapes a real schedule makes', () => {
       personLinks: [],
       capacityLinks: [],
       notBeforeFlags: [],
+      droppedLinks: { dependencies: 0, personLinks: 0, capacityLinks: 0 },
       horizon: 1,
     });
   });
@@ -2225,5 +2316,123 @@ describe('the invariant over a sweep of generated plans', () => {
     expect(control.crossings.length).toBeGreaterThan(20);
     expect(swept.crossings).toEqual([]);
     expect(swept.arrows).toBeGreaterThan(400);
+  });
+});
+
+describe('the waits that were not drawn', () => {
+  /**
+   * `strip` → `sand`, with a hand-off and a pool wait beside it, so one fixture
+   * can lose each kind of link in turn by taking a row off screen.
+   *
+   * The slices stay in the payload whatever the rows do: that is the shape a
+   * narrowed plan actually arrives in — be-01 schedules the whole plan and the
+   * screen decides which rows of it to draw (`wbs-table.tsx`).
+   */
+  const onPlatform = { team: { state: 'named', name: 'Platform' } as const };
+  const threeKinds = (parts: Partial<GanttPlan> = {}): GanttPlan =>
+    planOf({
+      // Every row on a named pool, because the capacity-floored slice below
+      // asks its row which team is holding it up and refuses a row with none.
+      rows: [
+        rowAt('strip', 0, 3, onPlatform),
+        rowAt('sand', 3, 5, onPlatform),
+        rowAt('wax', 5, 7, onPlatform),
+      ],
+      slices: [
+        sliceAt('strip-dev', 'strip', 0, 3, { personId: 'kat' }),
+        sliceAt('sand-dev', 'sand', 3, 5, {
+          personId: 'kat',
+          boundBy: 'person',
+          resourcePredecessorId: 'strip-dev',
+        }),
+        sliceAt('wax-dev', 'wax', 5, 7, {
+          boundBy: 'capacity',
+          resourcePredecessorId: 'sand-dev',
+          capacityPredecessorIds: ['sand-dev'],
+        }),
+      ],
+      dependencies: [{ predecessorId: 'strip', successorId: 'wax' }],
+      ...parts,
+    });
+
+  it('counts nothing while every row is on screen', () => {
+    const chart = layOutGantt(threeKinds());
+
+    expect(chart.droppedLinks).toEqual({ dependencies: 0, personLinks: 0, capacityLinks: 0 });
+    expect(droppedLinkWords(chart.droppedLinks)).toBeNull();
+  });
+
+  it('counts each kind of wait whose other end the screen is not showing', () => {
+    // `strip` is off screen: the dependency onto `wax` loses its predecessor
+    // and Kat's hand-off onto `sand` loses the work she was finishing.
+    const chart = layOutGantt(
+      threeKinds({ rows: [rowAt('sand', 3, 5, onPlatform), rowAt('wax', 5, 7, onPlatform)] }),
+    );
+
+    expect(chart.arrows).toEqual([]);
+    expect(chart.personLinks).toEqual([]);
+    expect(chart.droppedLinks).toEqual({ dependencies: 1, personLinks: 1, capacityLinks: 0 });
+  });
+
+  it('counts a pool wait onto a row that is not drawn', () => {
+    const chart = layOutGantt(
+      threeKinds({ rows: [rowAt('strip', 0, 3, onPlatform), rowAt('wax', 5, 7, onPlatform)] }),
+    );
+
+    expect(chart.capacityLinks).toEqual([]);
+    expect(chart.droppedLinks.capacityLinks).toBe(1);
+  });
+
+  /**
+   * The count is about what a reader can see missing, which is why neither end
+   * being drawn is not counted: no bar on this chart lost a mark, and a number
+   * for a wait between two rows nobody is looking at is a number nobody can act
+   * on.
+   */
+  it('counts nothing for a link with neither end on screen', () => {
+    // Both ends of Kat's hand-off and of the stored edge are off screen; the
+    // one row drawn has no wait of its own.
+    const chart = layOutGantt(
+      planOf({
+        rows: [rowAt('wax', 5, 7)],
+        slices: [
+          sliceAt('strip-dev', 'strip', 0, 3, { personId: 'kat' }),
+          sliceAt('sand-dev', 'sand', 3, 5, {
+            personId: 'kat',
+            boundBy: 'person',
+            resourcePredecessorId: 'strip-dev',
+          }),
+          sliceAt('wax-dev', 'wax', 5, 7),
+        ],
+        dependencies: [{ predecessorId: 'strip', successorId: 'sand' }],
+      }),
+    );
+
+    expect(chart.droppedLinks).toEqual({ dependencies: 0, personLinks: 0, capacityLinks: 0 });
+  });
+
+  it('counts the edge that leaves a shown row for a hidden successor', () => {
+    // The direction the old `dependencies` list could not even carry: `strip`
+    // is drawn and its successor is not, so its bar loses an arrow.
+    const chart = layOutGantt(
+      threeKinds({ rows: [rowAt('strip', 0, 3, onPlatform), rowAt('sand', 3, 5, onPlatform)] }),
+    );
+
+    expect(chart.arrows).toEqual([]);
+    expect(chart.droppedLinks.dependencies).toBe(1);
+  });
+
+  it('says what was dropped, kind by kind, and how to see it', () => {
+    expect(droppedLinkWords({ dependencies: 2, personLinks: 1, capacityLinks: 3 })).toBe(
+      'Not drawn: 6 waits whose other end this filter is hiding — 2 stored dependencies, ' +
+        '1 person hand-off, 3 waits for a team to free somebody. Clear the filter to see them.',
+    );
+  });
+
+  it('says one wait in the singular, and names only the kind it has', () => {
+    expect(droppedLinkWords({ dependencies: 1, personLinks: 0, capacityLinks: 0 })).toBe(
+      'Not drawn: 1 wait whose other end this filter is hiding — 1 stored dependency. ' +
+        'Clear the filter to see it.',
+    );
   });
 });

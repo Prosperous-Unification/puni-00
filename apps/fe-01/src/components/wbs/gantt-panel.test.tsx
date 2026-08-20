@@ -1,4 +1,5 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { DEFAULT_PRIORITY_BANDS } from '@wbs/domain/priority-band';
 import type { IsoDate } from '@wbs/domain/workday';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -20,10 +21,13 @@ import {
   CHART_PAD_PX,
   clampedGanttHeight,
   DAY_PX,
+  FALLBACK_GANTT_THEME,
   GANTT_CEILING_PX,
   GANTT_MIN_PX,
   GanttPanel,
+  ganttSvgFileName,
   initialsOf,
+  isoToday,
   monthWords,
   ROW_PX,
   rowWords,
@@ -105,8 +109,11 @@ const planOf = (parts: Partial<GanttPlan>): GanttPlan => ({
   slices: [],
   dependencies: [],
   tree: treeFrom(parts.rows ?? []),
+  // Off unless a test is about the sentence a filter's dropped waits earn.
+  narrowedByFilter: false,
   roles: [{ id: 'dev', name: 'Dev' }],
   personNames: new Map(),
+  priorityBands: DEFAULT_PRIORITY_BANDS,
   ...parts,
 });
 
@@ -896,10 +903,89 @@ describe('the chart is drawn in calendar days', () => {
       />,
     );
 
-    expect(linesOf(surfaceOn('strip-dev'))).toContain('Priority 2');
+    // The **band's** words, since `priority-bands`: a bare `Priority 2` on a
+    // chart is a number nobody reading it can name, and the ladder that names it
+    // rides in the same payload as the slice. The line is
+    // `priorityBandStyleOf(...).words`, which is the one resolution the table's
+    // cell, the cards and the export also read.
+    expect(linesOf(surfaceOn('strip-dev'))).toContain('Critical — priority 2');
     // Not "Priority —" and not a blank line: having no priority is a state of its own,
     // and a bar with nothing to say about it says nothing.
     expect(linesOf(surfaceOn('sand-dev')).filter((line) => line.includes('Priority'))).toEqual([]);
+  });
+
+  itDom('caps a bar in its band’s colour, and leaves an unranked bar uncapped', () => {
+    // The **third** channel on a bar, and the only one this mark had spare: `fill`
+    // is already the assignee and `stroke` is the critical path, so overloading
+    // either would have made two facts one colour and told the reader neither.
+    //
+    // A separate element rather than a property of the rect, because an absent cap
+    // is an absent node and not a transparent one — which is what makes the second
+    // assertion here a real absence.
+    //
+    // Proof: the cap block deleted, and this failed on `expected null to be
+    // truthy` — a chart on which no priority is visible at all. Watched
+    // 2026-08-14.
+    render(
+      <GanttPanel
+        plan={planOf({
+          rows: [
+            rowAt('strip', 0, 3, { priority: 2 }),
+            rowAt('sand', 1, 2, { priority: 90 }),
+            rowAt('paint', 2, 2),
+          ],
+          slices: [
+            sliceAt('strip-dev', 'strip', 0, 3),
+            sliceAt('sand-dev', 'sand', 0, 2),
+            sliceAt('paint-dev', 'paint', 0, 2),
+          ],
+        })}
+        startDate={null}
+        scheduleError={null}
+        generation={0}
+        heightPx={null}
+        onPickRow={() => undefined}
+        onPointRow={() => undefined}
+        pointedRow={null}
+      />,
+    );
+
+    const capOn = (sliceId: string): SVGElement | null =>
+      document.querySelector<SVGElement>(`[data-priority-cap="${sliceId}"]`);
+
+    expect(capOn('strip-dev')?.getAttribute('data-priority-rank')).toBe('0');
+    expect(capOn('sand-dev')?.getAttribute('data-priority-rank')).toBe('4');
+    // Different bands, different paint — the whole of "displays differently".
+    expect(capOn('strip-dev')?.getAttribute('fill')).not.toBe(
+      capOn('sand-dev')?.getAttribute('fill'),
+    );
+    // And nothing at all for a bar whose row nobody has prioritised.
+    expect(capOn('paint-dev')).toBeNull();
+  });
+
+  itDom('leaves the bar the hover, the focus and the name, and gives the cap none of them', () => {
+    // The cap is paint. A second target in front of the control the bar is would
+    // put a reader one pixel away from a surface that does not open.
+    render(
+      <GanttPanel
+        plan={planOf({
+          rows: [rowAt('strip', 0, 3, { priority: 2 })],
+          slices: [sliceAt('strip-dev', 'strip', 0, 3)],
+        })}
+        startDate={null}
+        scheduleError={null}
+        generation={0}
+        heightPx={null}
+        onPickRow={() => undefined}
+        onPointRow={() => undefined}
+        pointedRow={null}
+      />,
+    );
+
+    const cap = document.querySelector<SVGElement>('[data-priority-cap="strip-dev"]');
+    expect(cap?.getAttribute('pointer-events')).toBe('none');
+    expect(cap?.getAttribute('role')).toBeNull();
+    expect(cap?.getAttribute('aria-label')).toBeNull();
   });
 
   itDom('says everything it knows in a surface, in the order the spec sets', () => {
@@ -977,6 +1063,88 @@ describe('the chart is drawn in calendar days', () => {
     );
 
     expect(linesOf(surfaceOn('strip-dev'))).toContain('3 people in parallel — 6 days of work in 2');
+  });
+
+  itDom('says the team’s size is why a parallelism did not apply, at either width', () => {
+    // `widthFor` is `min(maxParallel, slots)`, so a row asking for three from a
+    // team of two runs at two and a row asking for three from a team of one
+    // runs at one. The second is the case the chart said nothing about at all:
+    // the compressed line does not print at width 1, so before this line the
+    // only account of the clamp was in the export.
+    render(
+      <GanttPanel
+        plan={planOf({
+          rows: [
+            rowAt('strip', 0, 3, { team: { state: 'named', name: 'Platform' }, maxParallel: 3 }),
+            rowAt('sand', 0, 6, { team: { state: 'named', name: 'Platform' }, maxParallel: 3 }),
+          ],
+          slices: [
+            sliceAt('strip-dev', 'strip', 0, 3, { width: 2, effort: 6, duration: 3 }),
+            sliceAt('sand-dev', 'sand', 0, 6, { width: 1, effort: 6, duration: 6 }),
+          ],
+        })}
+        startDate={null}
+        scheduleError={null}
+        generation={0}
+        heightPx={null}
+        onPickRow={() => undefined}
+        onPointRow={() => undefined}
+        pointedRow={null}
+      />,
+    );
+
+    // Beside the compressed line rather than instead of it: one is how long the
+    // work is, the other is why it is not shorter still.
+    expect(linesOf(surfaceOn('strip-dev'))).toContain(
+      'The team may have 2 at work at once — 3 in parallel not applied',
+    );
+    expect(linesOf(surfaceOn('strip-dev'))).toContain('2 people in parallel — 6 days of work in 3');
+    // The team of one: this is the whole of what the card says about
+    // parallelism, and it used to say nothing.
+    expect(linesOf(surfaceOn('sand-dev')).filter((line) => line.includes('parallel'))).toEqual([
+      'The team may have 1 at work at once — 3 in parallel not applied',
+    ]);
+  });
+
+  itDom('says nothing about a clamp where nothing was clamped', () => {
+    // Three rows, three reasons for silence: the row that got what it asked
+    // for, the row that never asked, and the row whose width came down for the
+    // other reason — a named person, which the line above already explains.
+    render(
+      <GanttPanel
+        plan={planOf({
+          rows: [
+            rowAt('strip', 0, 3, { team: { state: 'named', name: 'Platform' }, maxParallel: 2 }),
+            rowAt('sand', 0, 3, { team: { state: 'named', name: 'Platform' } }),
+            rowAt('trim', 0, 6, { team: { state: 'named', name: 'Platform' }, maxParallel: 3 }),
+          ],
+          slices: [
+            sliceAt('strip-dev', 'strip', 0, 3, { width: 2, effort: 6, duration: 3 }),
+            sliceAt('sand-dev', 'sand', 0, 3),
+            sliceAt('trim-dev', 'trim', 0, 6, { personId: 'kat', width: 1, effort: 6 }),
+          ],
+          personNames: new Map([['kat', 'Kat']]),
+        })}
+        startDate={null}
+        scheduleError={null}
+        generation={0}
+        heightPx={null}
+        onPickRow={() => undefined}
+        onPointRow={() => undefined}
+        pointedRow={null}
+      />,
+    );
+
+    const clampLines = (sliceId: string): string[] =>
+      linesOf(surfaceOn(sliceId)).filter((line) => line.includes('at work at once'));
+    expect(clampLines('strip-dev')).toEqual([]);
+    expect(clampLines('sand-dev')).toEqual([]);
+    expect(clampLines('trim-dev')).toEqual([]);
+    // And the named person's own line is still the one that prints, so the
+    // silence above is this line taking the case rather than both going quiet.
+    expect(linesOf(surfaceOn('trim-dev'))).toContain(
+      'One person is named — 3 in parallel not applied',
+    );
   });
 
   itDom('says a named person is why a parallelism did not apply', () => {
@@ -2490,6 +2658,7 @@ function rowOf(parts: {
     finalTotal: parts.finish - parts.start,
     dates: { startsOn: parts.startsOn, endsOn: parts.endsOn },
     startNoEarlierThan: parts.notBefore ?? null,
+    startNoEarlierThanReason: null,
     serviceTeamId: null,
     teamIds: [],
     assignees: {},
@@ -2690,6 +2859,7 @@ function fakeApi(startDate: string | null, skew: ReadSkew = {}): ProjectApi {
         // left it out would let `teamsOnThePlan` be handed `undefined` here and
         // never in production. A plan whose teams are unlimited is what `[]` says.
         teamCapacities: [],
+        priorityBands: DEFAULT_PRIORITY_BANDS,
         estimateMethod: 'pert' as const,
         startDate,
         projectRevision: 0,
@@ -4301,5 +4471,472 @@ describe('the pointed row', () => {
 
     expect(litLabels()).toEqual(['seal']);
     expect(litBands()).toEqual(['2']);
+  });
+});
+
+describe('downloading the chart as a standalone .svg', () => {
+  /**
+   * What `URL.createObjectURL` was handed, and what an anchor was told to
+   * download — `wbs-table.test.tsx`'s `captureDownloads`, copied rather than
+   * imported: jsdom implements neither the object URL nor a download, so both
+   * are replaced for the length of a test and put back after.
+   */
+  const captureDownloads = (): { blobs: Blob[]; names: string[] } => {
+    const blobs: Blob[] = [];
+    const names: string[] = [];
+    const urls = URL as unknown as {
+      createObjectURL: (blob: Blob) => string;
+      revokeObjectURL: (url: string) => void;
+    };
+    urls.createObjectURL = (blob: Blob) => {
+      blobs.push(blob);
+      return `blob:gantt-${String(blobs.length)}`;
+    };
+    urls.revokeObjectURL = () => undefined;
+    HTMLAnchorElement.prototype.click = function capture(this: HTMLAnchorElement) {
+      names.push(this.download);
+    };
+    return { blobs, names };
+  };
+
+  afterEach(() => {
+    Reflect.deleteProperty(URL, 'createObjectURL');
+    Reflect.deleteProperty(URL, 'revokeObjectURL');
+    Reflect.deleteProperty(HTMLAnchorElement.prototype, 'click');
+  });
+
+  /** A blob's text, through `FileReader` — jsdom's `Blob` has no `text()`. */
+  const readBlobText = (blob: Blob): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const read = reader.result;
+        if (typeof read === 'string') resolve(read);
+        else reject(new Error('the downloaded blob read back as something other than text'));
+      };
+      reader.onerror = () => {
+        reject(new Error('the downloaded blob could not be read'));
+      };
+      reader.readAsText(blob);
+    });
+
+  const twoRolePlan = (): GanttPlan =>
+    planOf({
+      rows: [rowAt('hull', 0, 7, { number: '010', name: 'Hull' })],
+      slices: [
+        sliceAt('hull-dev', 'hull', 0, 7, { personId: 'kat' }),
+        sliceAt('hull-qa', 'hull', 7, 8, { roleId: 'qa' }),
+      ],
+      roles: [
+        { id: 'dev', name: 'Dev' },
+        { id: 'qa', name: 'QA' },
+      ],
+      personNames: new Map([['kat', 'Kat']]),
+    });
+
+  const clickDownload = (): void => {
+    const button = document.querySelector('[data-gantt-svg-download]');
+    if (!(button instanceof HTMLElement)) throw new Error('no download control on the panel');
+    fireEvent.click(button);
+  };
+
+  itDom('puts a download control in the panel corner, without a toolbar button', () => {
+    render(
+      <GanttPanel
+        plan={twoRolePlan()}
+        startDate={MONDAY_START}
+        scheduleError={null}
+        generation={0}
+        heightPx={null}
+        onPickRow={() => undefined}
+        onPointRow={() => undefined}
+        pointedRow={null}
+      />,
+    );
+    const button = document.querySelector('[data-gantt-svg-download]');
+    expect(button).not.toBeNull();
+    expect(button?.getAttribute('aria-label')).toBe('Download this chart as a standalone SVG');
+  });
+
+  itDom('downloads a well-formed, self-contained .svg carrying the chart’s own marks', async () => {
+    render(
+      <GanttPanel
+        plan={twoRolePlan()}
+        startDate={MONDAY_START}
+        scheduleError={null}
+        generation={0}
+        heightPx={null}
+        onPickRow={() => undefined}
+        onPointRow={() => undefined}
+        pointedRow={null}
+      />,
+    );
+    const { blobs, names } = captureDownloads();
+    clickDownload();
+
+    expect(names).toEqual([expect.stringMatching(/^gantt-chart-\d{4}-\d{2}-\d{2}\.svg$/)]);
+    expect(blobs).toHaveLength(1);
+    expect(blobs[0]?.type).toBe('image/svg+xml;charset=utf-8');
+
+    const text = await readBlobText(blobs[0]);
+    expect(text.startsWith('<?xml version="1.0" encoding="UTF-8"?>')).toBe(true);
+
+    const doc = new DOMParser().parseFromString(text, 'image/svg+xml');
+    expect(doc.querySelector('parsererror')).toBeNull();
+    const root = doc.documentElement;
+    expect(root.tagName).toBe('svg');
+    expect(root.getAttribute('xmlns')).toBe('http://www.w3.org/2000/svg');
+
+    // The row label and the axis's month caption — neither exists inside the
+    // live `<svg>` at all (design §1, "every word is HTML around it"), so
+    // their presence here is the one thing that cannot be a clone of
+    // anything.
+    expect(text).toContain('010 - Hull');
+    expect(text).toContain('Aug 2026');
+
+    // The geometry itself is a style-inlined clone: the mark survives with its
+    // own data attribute and the class is gone -- jsdom loads no stylesheet,
+    // so getComputedStyle on the live weekend band answers nothing to inline
+    // in its place. That the empty answer becomes a literal colour in a real
+    // browser is that browser's own proof (Playwright on h2puni, verify.md),
+    // not this one's.
+    const weekendBand = doc.querySelector('[data-gantt-weekend]');
+    expect(weekendBand).not.toBeNull();
+    expect(weekendBand?.getAttribute('class')).toBeNull();
+
+    // A bar's own colour is already literal in the live app -- a JSX
+    // fill={bar.personColor} attribute, never a class -- and travels
+    // untouched, which jsdom resolves exactly as a real browser does because
+    // nothing here depends on a stylesheet.
+    const bar = doc.querySelector('[data-gantt-bar="hull-dev"]');
+    expect(bar).not.toBeNull();
+    expect(bar?.getAttribute('fill')).toBe(PERSON_BAR_COLORS[0]);
+
+    // The theme actually resolved -- the background and the two hand-built
+    // text layers read it directly, never through a class, so jsdom's empty
+    // getComputedStyle answer falls back to FALLBACK_GANTT_THEME here and the
+    // exact literal is checkable without a browser.
+    expect(doc.querySelector('rect')?.getAttribute('fill')).toBe(FALLBACK_GANTT_THEME.background);
+    const monthText = [...doc.querySelectorAll('text')].find((t) => t.textContent === 'Aug 2026');
+    expect(monthText?.getAttribute('fill')).toBe(FALLBACK_GANTT_THEME.mutedForeground);
+
+    // The bar's own overlay text -- HTML on screen, <text> here -- carries the
+    // same words the live label span shows, read off the same pure helpers.
+    const liveLabel = document.querySelector('[data-gantt-bar-label="hull-dev"]');
+    expect(liveLabel?.textContent).not.toBeNull();
+    expect(text).toContain(liveLabel?.textContent ?? ' ');
+  });
+
+  itDom(
+    'strips the class from every class-driven mark, even where jsdom cannot resolve a literal to replace it with',
+    async () => {
+      render(
+        <GanttPanel
+          plan={twoRolePlan()}
+          startDate={MONDAY_START}
+          scheduleError={null}
+          generation={0}
+          heightPx={null}
+          onPickRow={() => undefined}
+          onPointRow={() => undefined}
+          pointedRow={null}
+        />,
+      );
+      const { blobs } = captureDownloads();
+      clickDownload();
+      const text = await readBlobText(blobs[0]);
+      const doc = new DOMParser().parseFromString(text, 'image/svg+xml');
+      // Every gridline is class-driven (stroke-border / stroke-border/40) in
+      // the live app -- none may reach the file still carrying that class,
+      // which would mean nothing outside the app it was drawn in.
+      const gridlines = [...doc.querySelectorAll('[data-gantt-gridline]')];
+      expect(gridlines.length).toBeGreaterThan(0);
+      for (const line of gridlines) {
+        expect(line.getAttribute('class')).toBeNull();
+      }
+      // Nor may role/tabindex -- a keyboard control in the app the file has
+      // nothing behind, in a document with no reason to claim one.
+      const anyBar = doc.querySelector('[data-gantt-bar]');
+      expect(anyBar?.getAttribute('role')).toBeNull();
+      expect(anyBar?.getAttribute('tabindex')).toBeNull();
+    },
+  );
+});
+
+describe('the waits the filter left undrawn', () => {
+  /**
+   * `strip` → `sand`, with `strip` off screen: the state a filter leaves the
+   * chart in — the slices are all still in the payload, because be-01 schedules
+   * the whole plan and the screen chooses what to draw.
+   */
+  const narrowedPast = (parts: Partial<GanttPlan> = {}): GanttPlan =>
+    planOf({
+      rows: [rowAt('sand', 3, 5)],
+      slices: [sliceAt('strip-dev', 'strip', 0, 3), sliceAt('sand-dev', 'sand', 3, 5)],
+      dependencies: [{ predecessorId: 'strip', successorId: 'sand' }],
+      narrowedByFilter: true,
+      ...parts,
+    });
+
+  /** The sentence under the chart, or null while there is none. */
+  const droppedSentence = (): string | null =>
+    document.querySelector('[data-gantt-dropped-links]')?.textContent ?? null;
+
+  itDom('says under the chart how many waits it could not draw', () => {
+    render(
+      <GanttPanel
+        plan={narrowedPast()}
+        startDate={MONDAY_START}
+        scheduleError={null}
+        generation={0}
+        heightPx={null}
+        onPickRow={() => undefined}
+        onPointRow={() => undefined}
+        pointedRow={null}
+      />,
+    );
+
+    // The detail switch pressed, so the arrows that *can* be drawn are: the
+    // sentence is about the one that cannot, not about a switch at rest.
+    // `askForTheDetail` is not the helper for this — it throws when nothing
+    // arrives, which is exactly the state under test.
+    const detail = document.querySelector('[data-gantt-detail-toggle]');
+    if (!(detail instanceof HTMLElement)) throw new Error('the detail switch is not on the panel');
+    fireEvent.click(detail);
+
+    expect(document.querySelectorAll('[data-gantt-arrow]')).toHaveLength(0);
+    expect(droppedSentence()).toBe(
+      'Not drawn: 1 wait whose other end this filter is hiding — 1 stored dependency. ' +
+        'Clear the filter to see it.',
+    );
+  });
+
+  /**
+   * Outside the panel's scroll box, which is the whole of where it is: inside
+   * it the sentence sits at the bottom of a canvas a 60-row plan scrolls, and a
+   * reader who has not noticed a missing arrow never scrolls there.
+   */
+  itDom('puts the sentence outside the chart that scrolls', () => {
+    render(
+      <GanttPanel
+        plan={narrowedPast()}
+        startDate={MONDAY_START}
+        scheduleError={null}
+        generation={0}
+        heightPx={null}
+        onPickRow={() => undefined}
+        onPointRow={() => undefined}
+        pointedRow={null}
+      />,
+    );
+
+    const said = document.querySelector('[data-gantt-dropped-links]');
+    expect(said?.closest('[data-gantt-panel]')).toBeNull();
+  });
+
+  itDom('says nothing while the filter is off, however the rows were narrowed', () => {
+    render(
+      <GanttPanel
+        plan={narrowedPast({ narrowedByFilter: false })}
+        startDate={MONDAY_START}
+        scheduleError={null}
+        generation={0}
+        heightPx={null}
+        onPickRow={() => undefined}
+        onPointRow={() => undefined}
+        pointedRow={null}
+      />,
+    );
+
+    expect(droppedSentence()).toBeNull();
+  });
+
+  itDom('says nothing when a filter drew every wait it has', () => {
+    render(
+      <GanttPanel
+        plan={narrowedPast({
+          rows: [rowAt('strip', 0, 3), rowAt('sand', 3, 5)],
+        })}
+        startDate={MONDAY_START}
+        scheduleError={null}
+        generation={0}
+        heightPx={null}
+        onPickRow={() => undefined}
+        onPointRow={() => undefined}
+        pointedRow={null}
+      />,
+    );
+
+    askForTheDetail();
+
+    expect(document.querySelectorAll('[data-gantt-arrow]').length).toBeGreaterThan(0);
+    expect(droppedSentence()).toBeNull();
+  });
+});
+
+describe('today is marked on the chart', () => {
+  // Dany, 2026-08-19: "on Gantt chart view I want to see the current date
+  // marked". The plan runs eight workdays from Monday 2026-08-10, so its axis
+  // is cells 0..9: Mon–Fri, the weekend at 5 and 6, then Mon–Wed the 19th. Ten
+  // calendar cells for eight workdays, which is the weekend being two columns
+  // wide rather than a seam.
+  const eightWorkdays = (startDate: IsoDate | null) =>
+    render(
+      <GanttPanel
+        plan={planOf({
+          rows: [rowAt('strip', 0, 8)],
+          slices: [sliceAt('strip-dev', 'strip', 0, 8)],
+        })}
+        startDate={startDate}
+        scheduleError={null}
+        generation={0}
+        heightPx={null}
+        onPickRow={() => undefined}
+        onPointRow={() => undefined}
+        pointedRow={null}
+      />,
+    );
+
+  /** Draws the plan with the reader's clock standing at `at`, local time. */
+  const onTheDay = (at: Date, startDate: IsoDate | null = MONDAY_START) => {
+    vi.useFakeTimers();
+    vi.setSystemTime(at);
+    try {
+      eightWorkdays(startDate);
+    } finally {
+      // Restored before the assertions: they touch nothing timed, and a suite
+      // that leaves fake timers running poisons every test after it.
+      vi.useRealTimers();
+    }
+  };
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  itDom('draws today as a column, with its leading edge and its axis cell', () => {
+    // Wednesday of the first week: the third cell, because the plan begins on a
+    // Monday and nothing has intervened.
+    onTheDay(new Date(2026, 7, 12, 9, 0));
+
+    // A column a whole day wide rather than a hairline: what is known is which
+    // *day* it is, and a 1px rule would claim an instant.
+    expect(markAttribute('[data-gantt-today="2"]', 'x')).toBe('2');
+    expect(markAttribute('[data-gantt-today="2"]', 'width')).toBe('1');
+    expect(markAttribute('[data-gantt-today="2"]', 'height')).toBe('1');
+    // The edge, over the gridlines, saying where the past stops.
+    expect(markAttribute('[data-gantt-today-edge="2"]', 'class')).toBe('stroke-sky-500');
+    // And the axis says it in text, not in colour alone.
+    expect(markAttribute('[data-axis-day="2"]', 'aria-current')).toBe('date');
+    expect(markAttribute('[data-axis-day="2"]', 'data-axis-date')).toBe('2026-08-12');
+    // One reader, one today: no other cell claims it.
+    expect(document.querySelectorAll('[aria-current="date"]')).toHaveLength(1);
+    expect(document.querySelectorAll('[data-gantt-today]')).toHaveLength(1);
+  });
+
+  itDom('puts today in the weekend gap when the reader’s day is a Saturday', () => {
+    // The case that needs no arm of its own, asserted because a reader would
+    // reasonably expect one: cell 5 is the Saturday of the first week, it is a
+    // column of the chart like any other, and today lands in it between
+    // Friday's work and Monday's.
+    onTheDay(new Date(2026, 7, 15, 9, 0));
+
+    expect(markAttribute('[data-gantt-today="5"]', 'x')).toBe('5');
+    // The weekend band is still there under it — two facts about one day, and
+    // neither replaces the other.
+    expect(markAttribute('[data-gantt-weekend="5"]', 'width')).toBe('1');
+    expect(markAttribute('[data-axis-day="5"]', 'aria-current')).toBe('date');
+  });
+
+  itDom('draws no marker when today is before the plan begins', () => {
+    // Dany's call, 2026-08-19, asked and answered before this was built: no
+    // line rather than one pinned to the left edge, because a rule at the
+    // margin reads as "today is the start date" — a sentence the chart would be
+    // making up.
+    //
+    // Proof: the null arm replaced by `Math.max(0, …)` over a computed offset,
+    // which is the obvious clamp — this failed on `expected
+    // SVGRectElement{…} to be null`, a chart claiming the plan starts today
+    // when today is a week before it. Watched 2026-08-19, see verify.md.
+    onTheDay(new Date(2026, 7, 3, 9, 0));
+
+    expect(document.querySelector('[data-gantt-today]')).toBeNull();
+    expect(document.querySelector('[data-gantt-today-edge]')).toBeNull();
+    expect(document.querySelector('[aria-current="date"]')).toBeNull();
+    // The chart is still drawn: no marker is not no chart.
+    expect(document.querySelectorAll('[data-axis-day]')).toHaveLength(10);
+  });
+
+  itDom('draws no marker when today is past the last day drawn', () => {
+    // The same argument on the other side. A plan that finished in August is a
+    // plan today is not on, and a rule pinned to the right edge would say it
+    // finishes today.
+    onTheDay(new Date(2026, 11, 1, 9, 0));
+
+    expect(document.querySelector('[data-gantt-today]')).toBeNull();
+    expect(document.querySelector('[aria-current="date"]')).toBeNull();
+    expect(document.querySelectorAll('[data-axis-day]')).toHaveLength(10);
+  });
+
+  itDom('draws no marker at all on a plan with no start date', () => {
+    // Nothing on the workday axis is a date, so there is no honest place to put
+    // today on it — the same reason the hover text falls back to workday
+    // offsets there. The lookup finds nothing without needing to know why:
+    // every cell of `workdayAxis` carries `date: null`.
+    //
+    // Proof: `todayOffset` written to compare `day.offset` against a
+    // `workdaysBetween` reading instead of matching on the date — this failed
+    // on `expected SVGRectElement{…} to be null`, a marker on an axis with no
+    // calendar, standing at whichever workday number the arithmetic produced.
+    // Watched 2026-08-19, see verify.md.
+    onTheDay(new Date(2026, 7, 12, 9, 0), null);
+
+    expect(document.querySelector('[data-gantt-today]')).toBeNull();
+    expect(document.querySelector('[data-gantt-today-edge]')).toBeNull();
+    expect(document.querySelector('[aria-current="date"]')).toBeNull();
+    expect(document.querySelectorAll('[data-axis-day]')).toHaveLength(8);
+  });
+});
+
+describe('isoToday reads the reader’s own calendar, not UTC', () => {
+  it('reads a late evening as the day the reader is having', () => {
+    // The one place in this panel a `Date` becomes an `IsoDate`, and the
+    // obvious spelling — `toISOString().slice(0, 10)` — is wrong: it converts
+    // to UTC first, so late evening east of Greenwich answers tomorrow and the
+    // marker stands a column right of where the reader's calendar has it.
+    //
+    // Built from local parts, so both assertions hold in every zone — and both
+    // ends of the day are asserted because which end breaks depends on the
+    // side of Greenwich: east of UTC the small hours read as yesterday, west of
+    // it the late evening reads as tomorrow.
+    //
+    // Proof: `isoToday` written as `toISOString().slice(0, 10)` and this failed
+    // under `TZ=Europe/Kyiv` on `expected '2026-08-18' to be '2026-08-19'` —
+    // the 00:30 line below, a reader in Dany's own zone shown yesterday's
+    // column as today for the first three hours of every day. Watched
+    // 2026-08-19, see verify.md.
+    expect(isoToday(new Date(2026, 7, 19, 23, 30))).toBe('2026-08-19');
+    // And the small hours the other way, which is where a `toUTCString` habit
+    // would answer yesterday.
+    expect(isoToday(new Date(2026, 7, 19, 0, 30))).toBe('2026-08-19');
+    // Both parts padded: a single-digit month and day are `01`, not `1`.
+    expect(isoToday(new Date(2026, 0, 5, 12, 0))).toBe('2026-01-05');
+  });
+});
+
+describe('the exported chart is named after the reader’s own day', () => {
+  it('names the file after the reader’s own day, not UTC’s', () => {
+    // The same fault `isoToday` exists for, in the one other place a `Date`
+    // became a date in this file. It matters less than the marker — a filename
+    // is not a plan — but it breaks the only property the name has: one name
+    // per day. Through UTC, a download at 01:00 in Kyiv is named after
+    // yesterday, so it collides with yesterday's 23:00 download and differs
+    // from this morning's 10:00 one.
+    //
+    // Built from local parts, so the assertion holds in every zone; the fault
+    // it guards manifests east of UTC and was watched under `TZ=Europe/Kyiv`.
+    // See verify.md.
+    expect(ganttSvgFileName(new Date(2026, 7, 19, 0, 30))).toBe('gantt-chart-2026-08-19.svg');
+    expect(ganttSvgFileName(new Date(2026, 7, 19, 23, 30))).toBe('gantt-chart-2026-08-19.svg');
   });
 });

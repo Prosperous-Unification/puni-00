@@ -1,0 +1,116 @@
+-- Where one role's work on one work item has got to: in progress, or done.
+--
+-- Dany, 2026-08-18: "maybe we should augment actual days by completion status?"
+-- Asked the day after actuals merged (#79, `20260817130000_add_actual`), and
+-- the reason it is the right question is `actual-days`' own design.md D3: with
+-- no completion state anywhere in the model, an actual cannot tell **"took 8
+-- days, finished"** from **"8 days so far"**, and those two mean opposite things
+-- for every successor. A variance of 8 against 5 is a number nobody can read
+-- until this table says which of the two sentences it is.
+--
+-- **Reporting only, exactly as `actual` is.** Nothing below `slicesOf` reads
+-- this: `service/schedule.ts` has an empty diff in the change that adds it, and
+-- the identity corpus is replayed to prove no date moved either way. What this
+-- buys is that a variance becomes a sentence — *"8 spent against 5 estimated,
+-- finished, +60%"* — rather than a figure a reader has to guess the tense of.
+--
+-- **Three states and no more, and only two of them are ever stored.** "Not
+-- started" is the **absence of a row**, never a stored value: the rule
+-- `project_team_capacity` follows, the rule `actual` follows, and the rule the
+-- export has carried since it was written — an empty cell means nobody typed it.
+-- A stored `not_started` would be a second spelling of "nobody has said" and
+-- every reader would then have to handle both.
+--
+-- No `blocked` and no `cancelled`. Each extra state is a question the engine
+-- must answer the day it starts reading this — what a blocked predecessor does
+-- to its successors' floor, whether a cancelled role's estimate leaves the
+-- plan's totals — and the engine is not reading this yet. Three states can be
+-- added to later; a fourth stored on real plans now is a meaning nobody has
+-- agreed, in rows the next change has to interpret.
+--
+-- **Per role, keyed exactly as `actual` is**, because actuals are per role and
+-- two grains for one subject is how "the item says done and a role has no
+-- actual" happens. **The work item's own state is derived from its roles on
+-- every read and never stored** — it is `agree` folded across them in
+-- `@wbs/domain`, where `done` is unanimous and any disagreement reads as in
+-- progress.
+--
+-- **What `done` makes true, stated now because the next change consumes it:**
+-- an actual on a role marked `done` is **final** — the whole of what that role
+-- spent, not a running count. That is the rule the engine will read when
+-- finished roles freeze and in-progress roles get
+-- `remaining = max(0, estimate − actual)`, and it is written here so that change
+-- does not have to re-litigate the meaning of rows this one wrote.
+--
+-- **No actual start or finish dates.** They are the obvious next want and they
+-- are a separate change: a stored date that disagrees with the scheduled one
+-- needs a whole conversation about which of the two the chart draws, and this
+-- table is deliberately not that conversation.
+--
+-- **`state` is CHECKed rather than trusted.** Drizzle's enum is a compile-time
+-- thing and this column is the closed set the whole design rests on: a fourth
+-- value written by a hand-edit, a stale release or a future mistake would be
+-- dispatched on by every reader and folded by none of them. The check is safe
+-- across a blue/green swap because the outgoing release does not know this table
+-- exists and never writes to it.
+--
+-- Proof: `'in_progress','done'` widened to include `'blocked'` in this file and
+-- `refuses a state outside the three the design has` in `migrate.test.ts` fails
+-- with the row written instead of rejected — a state stored on a real plan that
+-- nothing folds; watched 2026-08-18, see verify.md.
+--
+-- **Stamped 20260818010000, later than every folder on main.** Checked against
+-- all nineteen before this folder was created — `ls apps/be-01/drizzle | sed
+-- 's/_.*//' | sort | uniq -d` was silent — and checked mechanically by
+-- `duplicateMigrationStamps` in `migrate-down.ts`, which throws where the folders
+-- are read. Two migrations shared `20260814100000` on 2026-08-14;
+-- `migrationsToRollback` filters on a strict `created_at >`, so rolling back *to*
+-- either of a colliding pair reversed nothing at all, silently, with both tables
+-- still standing. There is deliberately no `drizzle/meta/_journal.json` in this
+-- repo and none was added.
+--
+-- **`work_item_id` cascades, `role_id` deliberately does not** — the asymmetry
+-- `estimate` and `actual` both carry, argued on `role` in `schema.ts`. A state
+-- is somebody's statement about their own work, so a role removal must *count*
+-- it before taking it: the missing cascade makes a role delete that forgot to say
+-- so fail loudly instead of quietly marking a finished plan unfinished.
+-- `RoleRepository.remove` deletes these rows explicitly inside the transaction
+-- that removes the role.
+--
+-- The cascade on `work_item_id` is about the blue/green swap window rather than
+-- tidiness: two be-01 processes share one SQLite file while green migrates, the
+-- outgoing release knows nothing about this table, and its plain
+-- `DELETE FROM work_item` would hit a constraint it cannot see and answer 500 for
+-- the length of the swap. The same argument `dependency` and `actual` make.
+--
+-- Proof: `ON DELETE CASCADE` struck from `work_item_id` and `lets the outgoing
+-- release keep deleting work items against the migrated schema` fails on that
+-- exact statement with `FOREIGN KEY constraint failed`; watched 2026-08-18.
+--
+-- `stated_at` is when somebody said it. It costs one column and it is what a
+-- history row about a state is dated against — and it is the only date this
+-- change adds, deliberately: it says when the *statement* was made, which is a
+-- fact about the tool, not when the *work* started, which is a fact about the
+-- world that the schedule already has an opinion about.
+--
+-- No seeding, and nothing to seed: no plan on the server has ever recorded where
+-- its work has got to, and inventing a state would be the tool asserting
+-- somebody else's progress. Every plan starts this table empty, which reads as
+-- "nobody has said" and not as "nothing has been started".
+CREATE TABLE `role_progress` (
+	`work_item_id` text NOT NULL,
+	`role_id` text NOT NULL,
+	`state` text NOT NULL,
+	`stated_at` integer NOT NULL,
+	PRIMARY KEY(`work_item_id`, `role_id`),
+	CONSTRAINT `fk_role_progress_work_item_id_work_item_id_fk` FOREIGN KEY (`work_item_id`) REFERENCES `work_item`(`id`) ON DELETE CASCADE,
+	CONSTRAINT `fk_role_progress_role_id_role_id_fk` FOREIGN KEY (`role_id`) REFERENCES `role`(`id`),
+	CONSTRAINT `role_progress_state` CHECK (`state` IN ('in_progress', 'done'))
+);
+--> statement-breakpoint
+-- Every state of one role, which is the one question the primary key cannot
+-- answer: it leads with the work item, so "what would removing this role take
+-- with it" would otherwise be a scan of the table. `RoleRepository.remove` asks
+-- it on every removal, and the role dialog asks it before every confirmation —
+-- the same question `actual_by_role` exists for, one table over.
+CREATE INDEX `role_progress_by_role` ON `role_progress` (`role_id`);

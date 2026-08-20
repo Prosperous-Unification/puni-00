@@ -503,3 +503,167 @@ test.describe('the deps cell offers an always-visible add button', () => {
     }
   });
 });
+
+test.describe('the cell answers the pointer that is in it', () => {
+  /**
+   * A row waiting for exactly two others, at the Depends on column's own
+   * resolved width.
+   *
+   * Two rather than the fixture's seven, because two is the case the
+   * 2026-08-14 cloud regression measured and the case a real plan is full of:
+   * at 110px two pills, both gaps and the add button already fill the strip
+   * edge to edge, and the box `deps-single-line` shrinks behind them is laid
+   * out **outside its own cell**. Seven would prove the same thing and would
+   * prove it about a cell nobody would call reasonable.
+   */
+  async function waitOnTwo(page: Page): Promise<void> {
+    const depends = page.getByLabel('Add a dependency to 030');
+    await depends.click();
+    await depends.fill('040, 050');
+    await depends.press('Enter');
+    await expect(page.getByRole('button', { name: /^Stop 030 waiting for / })).toHaveCount(2);
+    // Off the cell entirely: the picker owns the cell while the box has the
+    // focus, and every claim below is about the cell at rest.
+    await page.getByLabel('Name of 010').click();
+    await page.getByLabel('Name of 010').blur();
+  }
+
+  /** The numbers of the rows lit right now, in table order. */
+  const litRows = (page: Page): Promise<string[]> =>
+    page.evaluate(() =>
+      [...document.querySelectorAll('tbody tr[data-dep-lit]')].map(
+        (row) => row.querySelector('[data-number]')?.textContent ?? '(unnumbered)',
+      ),
+    );
+
+  /**
+   * Puts the pointer somewhere no Depends on cell is and waits for the table to
+   * go dark.
+   *
+   * **Not tidiness — this is the whole of what makes the two tests below
+   * non-vacuous.** Building the fixture drives a real pointer across the cell:
+   * the picker is clicked, pills appear under it, and a pill's own `mouseleave`
+   * widens the light back to the cell "because the pointer is still in the
+   * cell". So the plan arrives at these tests already lit, and an assertion
+   * made from there reads a light nothing in the test produced. Watched: with
+   * the cell-level handler removed outright, `resting on the cell's own padding
+   * lights nothing` **passed**, on a light left over from `fill()`.
+   *
+   * Asserting the dark state also asserts the leave, which is the other half of
+   * the handler being where it should be.
+   */
+  async function pointerAwayFromTheTable(page: Page): Promise<void> {
+    await page.mouse.move(4, 4);
+    await expect
+      .poll(() => litRows(page), {
+        message: 'the plan is still lit with the pointer off the table',
+      })
+      .toEqual([]);
+  }
+
+  test('lights the whole set from a crowded cell at its default width', async ({ page }) => {
+    // B4's gesture — "the pointer is in this cell" — in the state the manual
+    // suite could not reach: the Depends on column at the width the table
+    // resolves for it, with two pills on the strip.
+    //
+    // Only a browser can answer it, and that is not a formality here: whether a
+    // point inside the cell is covered by a pill is a hit-testing fact, and
+    // jsdom lays nothing out, so `wbs-table.test.tsx` can watch the handlers
+    // arrive on the right element and can never watch a pill cover the place
+    // they were supposed to answer from (R5 #14–16).
+    //
+    // Proof: the enter and the leave put back on the wrapper `<span>` inside
+    // the cell — where they lived until this change — and this failed on
+    // `the plan is still lit with the pointer off the table: - Expected - 1 /
+    // + Received + 4`, at the reset above. Both halves of the move are on the
+    // wrong element under that fault, and the **leave** is the one that shows
+    // first: with the handlers inside the cell the light the fixture left
+    // behind is never put out at all. Watched on h2puni, 2026-08-14 (fault
+    // F3), and the same failure with the handler deleted outright (fault F0).
+    //
+    // It did **not** fail on the first writing of it, and `pointerAwayFromThe
+    // Table` above is why: building the fixture leaves the cell lit, so every
+    // assertion here read a light the test had not produced and the whole case
+    // passed with the handler deleted altogether. R5's own lesson, one more
+    // time — write the negative before you believe the line.
+    await waitOnTwo(page);
+    await pointerAwayFromTheTable(page);
+
+    const cell = page.locator('tbody tr[data-row-id] td[data-column="depends"]').nth(2);
+    const box = await cell.boundingBox();
+    if (box === null) throw new Error('the 030 Depends on cell is not on screen');
+
+    // The state this is a test about, established rather than assumed: the
+    // pills really do cover the cell, and the box really is outside it. A
+    // widened column would satisfy every assertion below while proving nothing.
+    const crowded = await cell.evaluate((node) => {
+      const strip = node.querySelector('[data-depends-strip]');
+      const input = node.querySelector('[data-depends-input]');
+      if (strip === null || input === null) throw new Error('no strip or box in the cell');
+      const midline = node.getBoundingClientRect().top + node.getBoundingClientRect().height / 2;
+      const hit = document.elementFromPoint(
+        node.getBoundingClientRect().left + node.getBoundingClientRect().width / 2,
+        midline,
+      );
+      return {
+        boxLeft: input.getBoundingClientRect().left,
+        cellRight: node.getBoundingClientRect().right,
+        stripOverruns: strip.scrollWidth > strip.clientWidth,
+        midpointAnswers:
+          hit === null ? '(nothing)' : (hit.getAttribute('aria-label') ?? hit.tagName),
+      };
+    });
+    expect(crowded.boxLeft, 'the box is still inside its own cell').toBeGreaterThan(
+      crowded.cellRight,
+    );
+    expect(crowded.stripOverruns, 'the strip is not crowded, so this proves nothing').toBe(true);
+    expect(crowded.midpointAnswers).toMatch(/^Stop 030 waiting for /);
+
+    // The claim. The cell's own padding — 4px in from its left edge, which is
+    // outside the wrapper the handlers used to sit on and inside the cell every
+    // reader would point at.
+    await page.mouse.move(box.x + 2, box.y + box.height / 2);
+    await expect
+      .poll(() => litRows(page), {
+        message: "resting on the cell's own padding lights nothing",
+      })
+      .toEqual(['040', '050']);
+
+    // And the padding at the other end, which is the half the add button
+    // cannot stand in for: the button is leading, so a pointer arriving from
+    // the Prio column never crosses it.
+    await page.mouse.move(box.x + box.width - 2, box.y + box.height / 2);
+    await expect
+      .poll(() => litRows(page), { message: 'the trailing padding lights nothing' })
+      .toEqual(['040', '050']);
+  });
+
+  test('narrows to one pill when the pointer settles on it, from the cell', async ({ page }) => {
+    // The half the move must not have cost. `mouseenter` fires on every
+    // element being entered, outermost first, so a pointer arriving straight
+    // onto a pill runs the cell's handler and then the pill's — and the pill's
+    // is the write that lands. Reasoning; this is the browser agreeing.
+    //
+    // Proof: the pill's own `onMouseEnter` deleted, this failed on the
+    // `toEqual(['040'])` below with `- Expected - 0 / + Received + 1` — the
+    // cell's whole set standing where the pill's one row should be, which is
+    // the enter order reversing. Watched on h2puni, 2026-08-14 (fault F4).
+    await waitOnTwo(page);
+    await pointerAwayFromTheTable(page);
+
+    await page.getByRole('button', { name: 'Stop 030 waiting for 040' }).hover();
+    await expect.poll(() => litRows(page)).toEqual(['040']);
+
+    // And leaving the pill for the cell widens it back, which is the pill's own
+    // `mouseleave` still doing its job from inside a cell that now answers too.
+    const cell = page.locator('tbody tr[data-row-id] td[data-column="depends"]').nth(2);
+    const box = await cell.boundingBox();
+    if (box === null) throw new Error('the 030 Depends on cell is not on screen');
+    await page.mouse.move(box.x + 2, box.y + box.height / 2);
+    await expect.poll(() => litRows(page)).toEqual(['040', '050']);
+
+    // Leaving the cell puts the rows back.
+    await page.mouse.move(box.x - 40, box.y + box.height / 2);
+    await expect.poll(() => litRows(page)).toEqual([]);
+  });
+});

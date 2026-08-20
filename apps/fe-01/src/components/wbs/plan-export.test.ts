@@ -1,7 +1,11 @@
+import { DEFAULT_PRIORITY_BANDS } from '@wbs/domain/priority-band';
 import { describe, expect, it } from 'vitest';
 
 import {
   type ExportRow,
+  type ExportSlice,
+  markdownHeaderLines,
+  markdownTableLines,
   type PlanExport,
   planFileName,
   planToCsv,
@@ -89,6 +93,9 @@ const row = (over: Partial<ExportRow> & Pick<ExportRow, 'id' | 'number'>): Expor
   finalTotal: 0,
   dependsOn: [],
   startNoEarlierThan: null,
+  // No floor, so no words about one — the pair be-01 refuses is the only one
+  // this fixture cannot build by accident.
+  startNoEarlierThanReason: null,
   dates: null,
   schedule: { earliestStart: 0, earliestFinish: 0, float: 0, critical: false },
   assignees: {},
@@ -111,6 +118,7 @@ const plan = (over: Partial<PlanExport> = {}): PlanExport => ({
   scheduleError: null,
   roles: [DEV, QA],
   teams: [{ id: 'team-billing', name: 'Billing, Ltd' }],
+  priorityBands: DEFAULT_PRIORITY_BANDS,
   people: [
     { id: 'person-ada', name: 'ada' },
     { id: 'person-bo', name: 'Bo "Boss"' },
@@ -272,7 +280,9 @@ describe('the columns', () => {
       'Total days (PERT)',
       'Depends on',
       'Priority',
+      'Priority band',
       'Not before',
+      'Not before because',
       'Starts',
       'Ends',
       'Slack',
@@ -281,6 +291,120 @@ describe('the columns', () => {
     expect(csvColumns(planToCsv(plan({ method: 'optimistic' })))).toContain(
       'Dev final (optimistic)',
     );
+  });
+
+  it('names the band beside the number, from the plan’s own ladder', () => {
+    // The name **beside** the number and not instead of it: the number is what the
+    // plan sorts by, the name is what a reader of the export talks about, and
+    // neither substitutes for the other — two rows at 10 and 18 are both
+    // `Critical` and are not the same priority.
+    //
+    // A spreadsheet outlives the plan it came from, which is why the ladder
+    // travels with the export rather than being inferred: a CSV saying `Critical`
+    // for 10 is still readable the day somebody re-cuts the ladder.
+    //
+    // Proof: `plan.priorityBands` replaced by `DEFAULT_PRIORITY_BANDS` in the
+    // cell, and this failed on `expected 'Critical' to be 'Blocker'` — an export
+    // naming a band the plan it came from does not have. Watched 2026-08-14.
+    const rows = [
+      row({ id: 'a', number: '010', priority: 10 }),
+      row({ id: 'b', number: '020', priority: 90 }),
+      row({ id: 'c', number: '030' }),
+    ];
+    const csv = planToCsv(plan({ rows }));
+    const at = csvColumns(csv).indexOf('Priority band');
+
+    expect(csvDataRow(csv)[at]).toBe('Critical');
+    expect(csvDataRow(csv, 1)[at]).toBe('Lowest');
+    // Blank where the number is, for the reason the Priority column is: unranked
+    // is a state of its own and a spreadsheet reader sorting on it wants an empty
+    // cell.
+    expect(csvDataRow(csv, 2)[at]).toBe('');
+
+    const recut = planToCsv(
+      plan({
+        rows,
+        priorityBands: [
+          { startsAt: 1, label: 'Blocker', defaultValue: 5 },
+          { startsAt: 16, label: 'Urgent', defaultValue: 20 },
+          { startsAt: 31, label: 'Normal', defaultValue: 40 },
+          { startsAt: 71, label: 'Someday', defaultValue: 75 },
+          { startsAt: 200, label: 'Never', defaultValue: 900 },
+        ],
+      }),
+    );
+    expect(csvDataRow(recut)[at]).toBe('Blocker');
+    expect(csvDataRow(recut, 1)[at]).toBe('Someday');
+  });
+
+  it('writes the words about a not-before beside the date, in a column of their own', () => {
+    // A column rather than a suffix on the date, which is how every other piece
+    // of row text is carried here: a spreadsheet reader sorts and filters `Not
+    // before` as a date, and `2026-09-12 — waiting on client sign-off` is a date
+    // column that has stopped being one.
+    //
+    // The index is read off the header rather than typed, so a column inserted
+    // to the left moves this assertion with it instead of silently pointing it
+    // at Starts.
+    const rows = [
+      row({
+        id: 'a',
+        number: '010',
+        startNoEarlierThan: '2026-09-12',
+        startNoEarlierThanReason: 'waiting on client sign-off',
+      }),
+      // A date nobody explained: blank, exactly as the Priority column is for
+      // an unranked row, and not a dash or the word `null`.
+      row({ id: 'b', number: '020', startNoEarlierThan: '2026-09-12' }),
+      row({ id: 'c', number: '030' }),
+    ];
+    const csv = planToCsv(plan({ rows }));
+    const at = columnAt(csv, 'Not before because');
+    const date = columnAt(csv, 'Not before');
+
+    expect(csvDataRow(csv)[at]).toBe('waiting on client sign-off');
+    expect(csvDataRow(csv)[date]).toBe('2026-09-12');
+    expect(csvDataRow(csv, 1)[at]).toBe('');
+    expect(csvDataRow(csv, 2)[at]).toBe('');
+  });
+
+  it('escapes a reason like any other row text, in both formats', () => {
+    // A reason is a sentence somebody typed, so it holds commas, quotes, pipes
+    // and line breaks like a note does — and it goes through the same
+    // `csvField` and `markdownCell` those are escaped by rather than a second
+    // path written for it.
+    //
+    // The leading `=` is the formula guard: a spreadsheet opening this file
+    // would otherwise evaluate the cell. `Notes` has been guarded since the
+    // export was written and a second free-text column that was not would be a
+    // hole in one place.
+    const reason = '=SUM(A1), "urgent" | held\nuntil sign-off';
+    const rows = [
+      row({
+        id: 'a',
+        number: '010',
+        startNoEarlierThan: '2026-09-12',
+        startNoEarlierThanReason: reason,
+      }),
+    ];
+
+    const csv = planToCsv(plan({ rows }));
+    // Parsed back out of the CSV rather than matched against the raw text: what
+    // matters is that a reader recovers the sentence, quotes and commas and all.
+    expect(csvDataRow(csv)[columnAt(csv, 'Not before because')]).toBe(`'${reason}`);
+
+    const markdown = planToMarkdown(plan({ rows }));
+    const heading = markdown
+      .split('\n')
+      .find((each) => each.startsWith('| Number |'))
+      ?.slice(1, -1)
+      .split(' | ')
+      .map((cell) => cell.trim());
+    const column = heading?.indexOf('Not before because') ?? -1;
+    expect(column).toBeGreaterThan(-1);
+    // The pipe escaped so it cannot open a column nobody asked for, and the line
+    // break flattened so it cannot end the row halfway through.
+    expect(markdownRow(markdown, '010')[column]).toBe('=SUM(A1), "urgent" \\| held until sign-off');
   });
 
   it('writes a priority as the number somebody typed, and an unranked row blank', () => {
@@ -393,9 +517,30 @@ describe('the columns', () => {
 });
 
 describe('the capacity columns', () => {
-  /** A placed slice as the export needs one: whose row, how wide, how much work. */
-  const slice = (workItemId: string, width: number, effort: number) => ({
+  /**
+   * A placed slice as the export needs one: whose row, how wide, how much work.
+   *
+   * The rest is be-01's `SliceView` filled with a neutral placement — since
+   * `mermaid-gantt`, {@link ExportSlice} **is** that type rather than the
+   * four-field narrowing of it that used to stand in `plan-export.ts`. These
+   * columns read three of the fields and no more; the diagram writer next door
+   * reads the others.
+   */
+  const slice = (workItemId: string, width: number, effort: number): ExportSlice => ({
+    id: `${workItemId}-${String(width)}-${String(effort)}`,
     workItemId,
+    roleId: DEV.id,
+    personId: null,
+    estimated: true,
+    earliestStart: 0,
+    earliestFinish: effort / width,
+    latestStart: 0,
+    latestFinish: effort / width,
+    float: 0,
+    critical: false,
+    boundBy: 'projectStart',
+    resourcePredecessorId: null,
+    capacityPredecessorIds: [],
     width,
     effort,
     duration: effort / width,
@@ -700,5 +845,113 @@ describe('planFileName', () => {
 
   it('falls back to a name a file system can hold', () => {
     expect(planFileName(plan({ projectName: '???' }))).toBe('plan-2026-08-07.csv');
+  });
+
+  it('defaults to csv when no extension is asked for, so every existing caller is unchanged', () => {
+    expect(planFileName(plan())).toBe(planFileName(plan(), 'csv'));
+  });
+
+  it('names the bundled Mermaid document md instead, on the same date and slug', () => {
+    expect(planFileName(plan(), 'md')).toBe('rewire-the-shed-2026-08-07.md');
+  });
+});
+
+describe('markdownHeaderLines and markdownTableLines', () => {
+  it('join back into exactly what planToMarkdown writes, with no extra fields', () => {
+    // A guard against the refactor that split the two apart drifting from the
+    // function whose output it used to be: `plan-mermaid.ts` reuses both
+    // pieces separately, and it can only trust them if they still compose to
+    // the same document `planToMarkdown` has always written.
+    const document = plan();
+    expect(
+      [...markdownHeaderLines(document), '', ...markdownTableLines(document), ''].join('\n'),
+    ).toBe(planToMarkdown(document));
+  });
+
+  it('appends extra header fields after the ones planToMarkdown always carries', () => {
+    const lines = markdownHeaderLines(plan(), [{ key: 'Scope', value: 'the whole plan' }]);
+    expect(lines.at(-1)).toBe('**Scope:** the whole plan');
+    expect(lines.slice(0, -1)).toEqual(markdownHeaderLines(plan()));
+  });
+});
+
+describe('a document of what was on screen', () => {
+  /** Three rows of a six-row plan, kept by a team facet and a typed name. */
+  const narrowed = (over: Partial<PlanExport> = {}): PlanExport =>
+    plan({
+      rows: [
+        row({ id: 'a', number: '010', name: 'Strip the walls' }),
+        row({ id: 'a1', number: '010.1', name: 'Sockets', parentId: 'a', dependsOn: ['gone'] }),
+      ],
+      scope: { totalRows: 6, criteria: ['name contains “strip”', 'team Billing, Ltd'] },
+      ...over,
+    });
+
+  it('says whose screen it is, how much of the plan is here, and what kept it', () => {
+    const text = planToMarkdown(narrowed());
+
+    expect(text).toContain(
+      '**Scope:** what one reader had on screen, not the whole plan — 2 of 6 rows, ' +
+        'kept by: name contains “strip”; team Billing, Ltd.',
+    );
+  });
+
+  /**
+   * The claim a reader cannot recover for themselves. Every date in a filtered
+   * document is be-01's answer for the whole plan — the schedule is computed
+   * over every row whatever the screen shows — and a reader who assumed the
+   * dates had been re-planned around these rows would be reading a shorter,
+   * entirely fictional project.
+   */
+  it('says the figures were not recomputed for the rows it kept', () => {
+    expect(planToMarkdown(narrowed())).toContain(
+      "The figures are the whole plan's schedule unchanged",
+    );
+  });
+
+  it('counts the Depends on references pointing at rows it does not hold', () => {
+    expect(planToMarkdown(narrowed())).toContain(
+      '1 Depends on reference points at a work item this document does not hold',
+    );
+  });
+
+  it('says nothing about holes where there are none', () => {
+    const whole = narrowed({
+      rows: [row({ id: 'a', number: '010', name: 'Strip the walls' })],
+    });
+
+    expect(planToMarkdown(whole)).toContain('1 of 6 rows');
+    expect(planToMarkdown(whole)).not.toContain('Depends on reference');
+  });
+
+  it('names a collapsed branch as the narrowing when no filter was on', () => {
+    const collapsed = narrowed({ scope: { totalRows: 6, criteria: [] } });
+
+    expect(planToMarkdown(collapsed)).toContain(
+      'no filter was on, so a collapsed branch is what left the rest out',
+    );
+  });
+
+  it('carries the same sentence into the CSV, where a header scrolls off', () => {
+    const records = parseCsv(planToCsv(narrowed()));
+    const scope = records.find((record) => record[0] === 'Scope');
+
+    expect(scope?.[1]).toContain('what one reader had on screen, not the whole plan — 2 of 6 rows');
+  });
+
+  /**
+   * The doctrine this change must not quietly reverse (R10 §9's Q3): the four
+   * exports that have always existed take every row and say nothing about a
+   * scope, because there is nothing to say.
+   */
+  it('leaves a whole-plan export with no Scope line at all', () => {
+    expect(planToMarkdown(plan({ rows: [row({ id: 'a', number: '010' })] }))).not.toContain(
+      '**Scope:**',
+    );
+  });
+
+  it('files itself under a name nobody can confuse with the whole plan', () => {
+    expect(planFileName(narrowed(), 'md')).toBe('rewire-the-shed-2026-08-07-on-screen.md');
+    expect(planFileName(plan(), 'md')).toBe('rewire-the-shed-2026-08-07.md');
   });
 });

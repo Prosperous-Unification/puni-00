@@ -1,18 +1,24 @@
+import { workdaysBetween } from '@wbs/domain';
 import { beforeEach, describe, expect, it } from 'bun:test';
 
 import type {
+  ActualStore,
   CapacityStore,
   EstimateStore,
   Project,
   ProjectStore,
+  RoleProgressStore,
   WorkItemStore,
 } from '../repository';
+import { inMemoryActuals } from '../testing/actual-fixture';
 import { type RecordingBroadcaster, recordingBroadcaster } from '../testing/broadcast-fixture';
 import { inMemoryCapacity } from '../testing/capacity-fixture';
 import { inMemoryCommandJournal } from '../testing/command-journal-fixture';
 import { inMemoryDependencies } from '../testing/dependency-fixture';
 import { inMemoryDirectory, personAdded } from '../testing/directory-fixture';
 import { inMemoryEstimates } from '../testing/estimate-fixture';
+import { inMemoryPriorityBands } from '../testing/priority-band-fixture';
+import { inMemoryProgress } from '../testing/progress-fixture';
 import { inMemoryProjects } from '../testing/project-fixture';
 import { inMemorySubtrees } from '../testing/subtree-fixture';
 import { inMemoryWorkItems } from '../testing/work-item-fixture';
@@ -35,6 +41,8 @@ let directory: ReturnType<typeof inMemoryDirectory>;
  */
 let capacity: CapacityStore;
 let estimates: EstimateStore;
+let actuals: ActualStore;
+let progress: RoleProgressStore;
 let broadcast: RecordingBroadcaster;
 
 beforeEach(async () => {
@@ -43,16 +51,28 @@ beforeEach(async () => {
   directory = inMemoryDirectory();
   workItems = inMemoryWorkItems(directory);
   estimates = inMemoryEstimates(workItems);
+  actuals = inMemoryActuals(workItems);
+  progress = inMemoryProgress(workItems);
   broadcast = recordingBroadcaster();
   capacity = inMemoryCapacity();
   service = new WorkItemService({
+    priorityBands: inMemoryPriorityBands(),
     workItems,
     projects,
     estimates,
+    actuals,
+    progress,
     dependencies,
     directory,
     capacity,
-    subtrees: inMemorySubtrees({ workItems, estimates, dependencies, directory }),
+    subtrees: inMemorySubtrees({
+      workItems,
+      estimates,
+      actuals,
+      progress,
+      dependencies,
+      directory,
+    }),
     journal: inMemoryCommandJournal(),
     broadcast,
   });
@@ -112,6 +132,7 @@ async function fill(parentId: string, count: number): Promise<void> {
         frozenNumber: null,
         priority: null,
         startNoEarlierThan: null,
+        startNoEarlierThanReason: null,
         serviceTeamId: null,
         maxParallel: 1,
         revision: 0,
@@ -416,9 +437,12 @@ describe('dependencies', () => {
       listByProject: () => Promise.reject(new Error('the dependency table is on fire')),
     };
     const service2 = new WorkItemService({
+      priorityBands: inMemoryPriorityBands(),
       workItems,
       projects,
       estimates: inMemoryEstimates(workItems),
+      actuals: inMemoryActuals(workItems),
+      progress: inMemoryProgress(workItems),
       dependencies: broken,
       journal: inMemoryCommandJournal(),
       broadcast: recordingBroadcaster(),
@@ -794,6 +818,7 @@ describe('duplicating a subtree', () => {
       notes: 'Two gang, chased in',
       serviceTeamId: 'team-sparks',
       startNoEarlierThan: '2026-09-01',
+      startNoEarlierThanReason: 'waiting on client sign-off',
     });
     await service.setEstimate(socket, OWNER, roleId, {
       optimistic: 1,
@@ -809,6 +834,12 @@ describe('duplicating a subtree', () => {
     expect(copied?.notes).toBe('Two gang, chased in');
     expect(copied?.serviceTeamId).toBe('team-sparks');
     expect(copied?.startNoEarlierThan).toBe('2026-09-01');
+    // The pair travels together, which is what stops a duplicate from being the
+    // one way to make the row the pair rule refuses. The date is a constraint on
+    // work the copy also has, so the words about it are still true of the copy —
+    // unlike a recorded actual or a stated progress, which are claims about work
+    // that was done on the original alone.
+    expect(copied?.startNoEarlierThanReason).toBe('waiting on client sign-off');
     expect(copied?.estimates[roleId]).toEqual({ optimistic: 1, realistic: 2, pessimistic: 6 });
     expect(copied?.assignees[roleId]).toBe('ada');
   });
@@ -1658,10 +1689,20 @@ describe('the slices the schedule placed, on the wire', () => {
       workItems,
       projects: shifting,
       estimates,
+      actuals,
+      progress,
       dependencies,
       directory,
       capacity: inMemoryCapacity(),
-      subtrees: inMemorySubtrees({ workItems, estimates, dependencies, directory }),
+      priorityBands: inMemoryPriorityBands(),
+      subtrees: inMemorySubtrees({
+        workItems,
+        estimates,
+        actuals,
+        progress,
+        dependencies,
+        directory,
+      }),
       journal: inMemoryCommandJournal(),
       broadcast,
     });
@@ -1697,10 +1738,13 @@ describe('the slices the schedule placed, on the wire', () => {
     // beside `waitingForPerson` rather than inside it because a queue and a
     // headcount are different sentences. `teamCapacities` is
     // `capacity-per-project`'s, and it rides here rather than on a route of its
-    // own because the dates in this payload were computed from it.
+    // own because the dates in this payload were computed from it. `priorityBands`
+    // is `priority-bands`', and it rides here for a different reason: no date
+    // here came from it, and every face draws every priority through it.
     expect(Object.keys(tree ?? {}).sort()).toEqual([
       'assignedPeople',
       'estimateMethod',
+      'priorityBands',
       'projectRevision',
       'roles',
       'scheduleError',
@@ -1721,5 +1765,108 @@ describe('the slices the schedule placed, on the wire', () => {
     });
     expect(tree?.waitingForPerson).toBe(0);
     expect(tree?.scheduleError).toBeNull();
+  });
+});
+
+describe('what a not-before reason does not do', () => {
+  it('moves no date: the plan schedules identically with and without a reason', async () => {
+    // This change's whole product decision as an assertion. The engine reads
+    // `start_no_earlier_than` and builds a floor from it (`work-item.service.ts`,
+    // `notBefore.set(row.id, workdaysBetween(…))`); the column beside it is in
+    // no map the engine is handed, so writing words on a floor moves nothing at
+    // all — not the row they are written on, and not the successor waiting for
+    // it.
+    //
+    // That is what makes this a substitute for a `blocked` state rather than a
+    // small version of one: a state that moved dates would need a rule for what
+    // a blocked predecessor does to its successors, and this deliberately has
+    // none, because the date already has one.
+    //
+    // Proof: the engine wired to read the reason — `notBefore` set from
+    // `row.startNoEarlierThanReason !== null ? …` so an explained row is pushed
+    // a day — and this fails with every date downstream moved; watched
+    // 2026-08-18. `service/schedule.ts` has an empty diff on this branch and
+    // this is the behavioural half of that claim.
+    // **The project needs a start date and the floor has to bind.** Without a
+    // start date the engine never builds the not-before map at all — the
+    // `if (project.startDate !== null)` in `tree` — so a plan with no calendar
+    // would schedule identically whatever this column said, and the assertion
+    // below would hold for a reason that has nothing to do with this change.
+    // That vacuity was real: the first version of this case ran on the default
+    // project (`startDate: null`) and passed under its own injected fault.
+    await projects.update(projectId, { startDate: '2026-08-06' });
+    const strip = await add('Strip');
+    const sand = await add('Sand');
+    await service.setEstimate(strip, OWNER, roleId, {
+      optimistic: 4,
+      realistic: 5,
+      pessimistic: 6,
+    });
+    await service.setEstimate(sand, OWNER, roleId, {
+      optimistic: 1,
+      realistic: 2,
+      pessimistic: 3,
+    });
+    await service.addDependency(sand, OWNER, strip);
+    await service.patch(strip, OWNER, { startNoEarlierThan: '2026-09-01' });
+    const before = await service.tree(projectId);
+    // The floor is the thing being held still, so it has to be holding
+    // something first: `010` starts on its date rather than on day zero.
+    expect(before?.workItems.find((row) => row.name === 'Strip')?.schedule.earliestStart).toBe(
+      workdaysBetween('2026-08-06', '2026-09-01'),
+    );
+
+    await service.patch(strip, OWNER, {
+      startNoEarlierThanReason: 'waiting on client sign-off',
+    });
+
+    const after = await service.tree(projectId);
+    const schedules = (tree: Awaited<ReturnType<WorkItemService['tree']>>) =>
+      (tree?.workItems ?? []).map((row) => ({
+        name: row.name,
+        schedule: row.schedule,
+        dates: row.dates,
+      }));
+    expect(schedules(after)).toEqual(schedules(before));
+    // And the slices the chart is drawn from, which is where a floor is
+    // actually spelled: same count, same `boundBy`, same offsets.
+    expect(after?.slices).toEqual(before?.slices ?? []);
+  });
+
+  it('refuses words on a row with no date, through the service', async () => {
+    // The refusal as the service hands it up, which is what the controller turns
+    // into a 400. Asserted here as well as against the real store because this
+    // suite runs on `inMemoryWorkItems`, and a fixture laxer than the store it
+    // stands for is how a test passes here and fails against SQLite.
+    //
+    // Proof: the pair rule deleted from `inMemoryWorkItems.patch`, and this
+    // failed on `Expected: false, Received: true` — the fixture accepting a row
+    // the database refuses, which is the whole class of fault that mirror
+    // exists to prevent. Watched 2026-08-18.
+    const strip = await add('Strip');
+
+    const outcome = await service.patch(strip, OWNER, {
+      startNoEarlierThanReason: 'waiting on client sign-off',
+    });
+
+    expect(outcome.ok).toBe(false);
+    expect(outcome.ok ? null : outcome.reason).toBe('not_before_reason_needs_a_date');
+  });
+
+  it('carries the words to every reader of the tree, beside the date', async () => {
+    // The wire. Nothing derives it, nothing folds it and no parent rolls it up —
+    // it rides the row it was written on, which is the whole of its plumbing.
+    const strip = await add('Strip');
+    await service.patch(strip, OWNER, {
+      startNoEarlierThan: '2026-09-12',
+      startNoEarlierThanReason: 'waiting on client sign-off',
+    });
+
+    const tree = await service.tree(projectId);
+
+    expect(tree?.workItems.find((row) => row.id === strip)).toMatchObject({
+      startNoEarlierThan: '2026-09-12',
+      startNoEarlierThanReason: 'waiting on client sign-off',
+    });
   });
 });

@@ -1,9 +1,20 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { DEFAULT_PRIORITY_BANDS } from '@wbs/domain/priority-band';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import type { Days, PersonView, ProjectApi, RoleView, TeamView, WorkItemView } from '@/lib/wbs-api';
+import type {
+  Days,
+  PersonView,
+  ProjectApi,
+  RoleView,
+  ScheduleView,
+  TeamView,
+  WorkItemView,
+} from '@/lib/wbs-api';
 
-import { refusedDraftFor } from './live-editing';
+import { refusedDraftFor, unsent } from './live-editing';
+import { type CardRowActionHandlers, PlanCards } from './plan-cards';
+import type { TreeRow } from './wbs-rows';
 import { WbsTable } from './wbs-table';
 
 // fe-01 tests require jsdom; only Vitest provides it. Skip under plain `bun test`.
@@ -131,6 +142,7 @@ function fakeApi(options: { refusePatch?: boolean; dated?: boolean } = {}): Proj
         // left it out would let `teamsOnThePlan` be handed `undefined` here and
         // never in production. A plan whose teams are unlimited is what `[]` says.
         teamCapacities: [],
+        priorityBands: DEFAULT_PRIORITY_BANDS,
         estimateMethod: 'pert' as const,
         startDate: options.dated === true ? DATED_PLAN.startsOn : null,
         projectRevision: 0,
@@ -162,6 +174,7 @@ function fakeApi(options: { refusePatch?: boolean; dated?: boolean } = {}): Proj
         finalTotal: 0,
         dates: options.dated === true ? { ...DATED_PLAN } : null,
         startNoEarlierThan: null,
+        startNoEarlierThanReason: null,
         serviceTeamId: null,
         teamIds: [],
         assignees: {},
@@ -940,6 +953,51 @@ describe('what a card says about capacity', () => {
     expect(teamOnCard()).toBeNull();
   });
 
+  itDom('names the band on a card, in its own colour', async () => {
+    // The cards are the only face some readers have — a phone shows no table and
+    // no chart — so this is where Dany's "ui must display differently for
+    // different priorities" either lands or does not. The number is on the chip as
+    // well as the name, because the table and the export both show it and a phone
+    // reader comparing two screens must not have to work out which `High` is 30.
+    //
+    // Proof: the chip deleted from the card header, and this failed on `expected
+    // null to be truthy` — a phone with no priority anywhere on it. Watched
+    // 2026-08-14.
+    await aPlan((rows) => {
+      rows[0].priority = 5;
+    });
+
+    const chip = document.querySelector<HTMLElement>('[data-card-priority]');
+    expect(chip?.textContent).toBe('Critical 5');
+    expect(chip?.getAttribute('data-priority-rank')).toBe('0');
+    expect(chip?.getAttribute('title')).toBe('Critical — priority 5');
+    // A colour, and the plan's own — the same `priorityBandStyleOf` the table's
+    // cell and the chart's cap read.
+    expect(chip?.style.color).not.toBe('');
+  });
+
+  itDom('draws different bands differently, which is the whole of the ask', async () => {
+    await aPlan((rows) => {
+      const [first, second] = rows;
+      first.priority = 5;
+      second.priority = 90;
+    }, 2);
+
+    const chips = [...document.querySelectorAll<HTMLElement>('[data-card-priority]')];
+    expect(chips.map((chip) => chip.textContent)).toEqual(['Critical 5', 'Lowest 90']);
+    expect(chips[0]?.style.color).not.toBe(chips[1]?.style.color);
+  });
+
+  itDom('draws no chip at all on a row nobody has prioritised', async () => {
+    // The bargain every face makes with an unranked row: nothing rather than a
+    // grey chip reading `—`. On a 390px screen that furniture costs the most.
+    await aPlan(() => {
+      // Nothing arranged: the plan every project starts as.
+    });
+
+    expect(document.querySelector('[data-card-priority]')).toBeNull();
+  });
+
   itDom('says how many people a row runs at, and nothing at one', async () => {
     await aPlan((rows) => {
       rows[0].maxParallel = 3;
@@ -987,5 +1045,392 @@ describe('what a card says about capacity', () => {
     }, 2);
 
     expect(parallelOnCard()?.textContent).toBe('2 at once (not applied)');
+  });
+});
+
+describe('what a card says about the schedule', () => {
+  /** A plan on a phone, arranged before the first render — the capacity block’s own pattern. */
+  async function aPlan(arrange: (rows: WorkItemView[]) => void, howMany = 1): Promise<void> {
+    const api = fakeApi();
+    for (let at = 0; at < howMany; at += 1) await api.create('p1', { parentId: null });
+    arrange(api.rows);
+    widthIs(PHONE);
+    render(<WbsTable projectId="p1" api={api} />);
+    await screen.findByLabelText('Name of 010');
+  }
+
+  const slackOnCard = (): HTMLElement | null => document.querySelector('[data-card-slack]');
+
+  itDom('says how many days a row can slip, in the table’s own word', async () => {
+    // Two fields the mobile plan named as missing from the card since
+    // `mobile-cards` shipped (2026-08-10) and `priority-column` (2026-08-11)
+    // never reached: this is Slack. Read off `row.schedule` directly, the
+    // same fields `wbs-table.tsx`'s Float column cell reads — a phone has no
+    // second computation of what can slip.
+    await aPlan((rows) => {
+      rows[0].schedule = { ...rows[0].schedule, float: 2.5, critical: false };
+    });
+
+    expect(slackOnCard()?.textContent).toBe('2.5d slack');
+    expect(slackOnCard()?.getAttribute('data-critical')).toBeNull();
+    expect(slackOnCard()?.getAttribute('title')).toBe(
+      'This work item can slip 2.5 workdays before the plan finishes later.',
+    );
+  });
+
+  itDom('keeps the singular where a row can slip exactly one workday', async () => {
+    await aPlan((rows) => {
+      rows[0].schedule = { ...rows[0].schedule, float: 1, critical: false };
+    });
+
+    expect(slackOnCard()?.getAttribute('title')).toBe(
+      'This work item can slip 1 workday before the plan finishes later.',
+    );
+  });
+
+  itDom('says a row on the critical path has none, in the table’s own word', async () => {
+    // `critical` replaces the figure outright on the table's own cell — a
+    // card printing a bare `0` here would say the opposite of what the row
+    // means.
+    await aPlan((rows) => {
+      rows[0].schedule = { ...rows[0].schedule, float: 0, critical: true };
+    });
+
+    expect(slackOnCard()?.textContent).toBe('critical');
+    expect(slackOnCard()?.getAttribute('data-critical')).toBe('true');
+    expect(slackOnCard()?.getAttribute('title')).toBe(
+      'On the critical path: any delay here moves the whole plan’s finish.',
+    );
+  });
+});
+
+describe('the trio behind a phase’s figure, on a card', () => {
+  const trioOnCard = (roleId: string): HTMLElement | null =>
+    document.querySelector(`[data-phase-trio="${roleId}"]`);
+  const finalOnCard = (roleId: string): HTMLElement | null =>
+    document.querySelector(`[data-phase-final="${roleId}"]`);
+  const detailOnCard = (roleId: string): HTMLDetailsElement | null =>
+    document.querySelector(`details[data-phase-detail="${roleId}"]`);
+
+  itDom('says nothing has been estimated, in the words the hover card already prints', async () => {
+    const api = fakeApi();
+    widthIs(PHONE);
+    render(<WbsTable projectId="p1" api={api} />);
+    await addAWorkItem();
+
+    expect(trioOnCard(DEV.id)?.textContent).toBe('No estimate yet');
+    expect(finalOnCard(DEV.id)).toBeNull();
+  });
+
+  itDom(
+    'reads the trio and the final off the row, in the same words `folded-role-card.tsx` prints on hover',
+    async () => {
+      // Read off `row.estimates` and `row.finalDays` — not the box's draft,
+      // and not `estimateValue`/`combinedValue` — the same choice
+      // `folded-role-card.tsx`'s own points make, and for the same reason:
+      // a card is what the fold left behind, not what somebody is mid-typing.
+      const api = fakeApi();
+      const created = await api.create('p1', { parentId: null });
+      await api.setEstimate(created.id, DEV.id, { optimistic: 2, realistic: 3, pessimistic: 8 });
+      widthIs(PHONE);
+      render(<WbsTable projectId="p1" api={api} />);
+      await screen.findByLabelText('Name of 010');
+
+      expect(trioOnCard(DEV.id)?.textContent).toBe('optimistic 2 · realistic 3 · pessimistic 8');
+      expect(finalOnCard(DEV.id)?.textContent).toBe('Final 3.7 days');
+    },
+  );
+
+  itDom('opens on a tap and stays shut until one', async () => {
+    const api = fakeApi();
+    widthIs(PHONE);
+    render(<WbsTable projectId="p1" api={api} />);
+    await addAWorkItem();
+
+    const detail = detailOnCard(DEV.id);
+    expect(detail?.open).toBe(false);
+
+    const summary = detail?.querySelector('summary');
+    if (summary === null || summary === undefined) throw new Error('no summary on the detail');
+    fireEvent.click(summary);
+
+    expect(detail?.open).toBe(true);
+  });
+});
+
+/**
+ * The row-actions menu tests render `<PlanCards>` directly rather than
+ * through `<WbsTable>`, unlike every describe block above.
+ *
+ * `wbs-table.tsx` is two other agents' file tonight
+ * (`notes/wbs-plan-2026-08-14-mobile-parity.md` M2's file split) and its
+ * `<PlanCards>` call site does not pass `rowActions` — wiring real
+ * `duplicateRow`/`unfreeze`/`deleteRow` callbacks in is a follow-up left for
+ * when the file frees up. These tests prove the menu and its wiring in
+ * isolation; they cannot prove it is reachable from a running plan, which is
+ * `verify.md`'s open question for Dany.
+ */
+const EMPTY_SCHEDULE: ScheduleView = {
+  duration: 0,
+  estimated: false,
+  earliestStart: 0,
+  earliestFinish: 0,
+  latestStart: 0,
+  latestFinish: 0,
+  float: 0,
+  critical: false,
+};
+
+function aTreeRow(overrides: Partial<TreeRow> = {}): TreeRow {
+  return {
+    id: 'w1',
+    parentId: null,
+    revision: 0,
+    number: '010',
+    name: 'Strip the hull',
+    notes: '',
+    frozenNumber: null,
+    rolledUp: false,
+    estimates: {},
+    dependsOn: [],
+    finalDays: {},
+    finalTotal: 0,
+    dates: null,
+    startNoEarlierThan: null,
+    startNoEarlierThanReason: null,
+    priority: null,
+    maxParallel: 1,
+    teamIds: [],
+    serviceTeamId: null,
+    assignees: {},
+    doesEveryPhase: null,
+    schedule: EMPTY_SCHEDULE,
+    subRows: [],
+    ...overrides,
+  };
+}
+
+/**
+ * Every prop `<PlanCards>` needs, stubbed to do nothing — this suite's own
+ * rows carry no roles, no dependencies and no team, so the phase loop and the
+ * fact line render nothing to stub wrong. `rowActions` is each test's own.
+ */
+function renderCards(
+  rows: readonly TreeRow[],
+  rowActions?: CardRowActionHandlers,
+  /** The rows that answered a filter themselves, which is what the tint marks. */
+  matchedIds: readonly string[] = [],
+) {
+  return render(
+    <PlanCards
+      rows={rows.map((row) => ({
+        row,
+        depth: 0,
+        expandable: false,
+        expanded: false,
+        toggleBranch: () => undefined,
+        matched: matchedIds.includes(row.id),
+      }))}
+      roles={[]}
+      priorityBands={DEFAULT_PRIORITY_BANDS}
+      gridRef={() => undefined}
+      commitName={() => unsent()}
+      claimFocus={() => undefined}
+      estimateValue={() => ''}
+      estimateProblem={() => null}
+      commitEstimate={() => unsent()}
+      enterEstimate={() => undefined}
+      readEstimate={() => undefined}
+      closeMention={() => undefined}
+      leaveEstimate={() => undefined}
+      mentionOptions={() => []}
+      assigneeOn={() => null}
+      waitsFor={() => []}
+      teamLabel={() => ({ state: 'none' })}
+      spanOf={() => ({ start: { text: '', iso: null }, finish: { text: '', iso: null } })}
+      showDay={(days) => String(days)}
+      rowActions={rowActions}
+    />,
+  );
+}
+
+const doNothingActions = (): CardRowActionHandlers => ({
+  duplicate: () => undefined,
+  unfreeze: () => undefined,
+  remove: () => undefined,
+});
+
+describe('the ⋯ row-actions menu on a card', () => {
+  afterEach(cleanup);
+
+  itDom('prints no ⋯ button at all when the caller has not wired row actions', () => {
+    renderCards([aTreeRow()]);
+    expect(screen.queryByRole('button', { name: 'Actions for 010' })).toBeNull();
+  });
+
+  itDom('offers Duplicate and Delete on a row that is not frozen — the table’s own two', () => {
+    renderCards([aTreeRow()], doNothingActions());
+    fireEvent.click(screen.getByRole('button', { name: 'Actions for 010' }));
+    expect(screen.getAllByRole('menuitem').map((item) => item.textContent)).toEqual([
+      'Duplicate',
+      'Delete',
+    ]);
+  });
+
+  itDom('adds Unfreeze, and refuses Delete with the table’s own sentence, on a frozen row', () => {
+    renderCards([aTreeRow({ frozenNumber: '010' })], doNothingActions());
+    fireEvent.click(screen.getByRole('button', { name: 'Actions for 010' }));
+    const items = screen.getAllByRole('menuitem');
+    expect(items.map((item) => item.textContent)).toEqual(['Duplicate', 'Unfreeze', 'Delete']);
+    expect(items[2]).toHaveAttribute('title', 'Frozen — unfreeze this row before deleting it');
+    expect(items[2]).toHaveAttribute('aria-disabled', 'true');
+  });
+
+  itDom('does not delete a frozen row through the menu — the refusal actually refuses', () => {
+    const taken: string[] = [];
+    renderCards([aTreeRow({ frozenNumber: '010' })], {
+      ...doNothingActions(),
+      remove: () => taken.push('delete'),
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Actions for 010' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Delete' }));
+    expect(taken).toEqual([]);
+  });
+
+  itDom('duplicates and unfreezes by the row id, and deletes by the row itself', () => {
+    const taken: string[] = [];
+    let removed: TreeRow | null = null;
+    const row = aTreeRow({ frozenNumber: '010' });
+    renderCards([row], {
+      duplicate: (id) => taken.push(`duplicate:${id}`),
+      unfreeze: (id) => taken.push(`unfreeze:${id}`),
+      remove: (deleted) => {
+        removed = deleted;
+      },
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Actions for 010' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Unfreeze' }));
+    expect(taken).toEqual(['unfreeze:w1']);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Actions for 010' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Duplicate' }));
+    expect(taken).toEqual(['unfreeze:w1', 'duplicate:w1']);
+    expect(removed).toBeNull();
+  });
+
+  itDom('grows the ⋯ button to a 44px tap target, the phone floor every card control keeps', () => {
+    renderCards([aTreeRow()], doNothingActions());
+    const button = screen.getByRole('button', { name: 'Actions for 010' });
+    expect(button.style.minHeight).toBe('44px');
+    expect(button.style.minWidth).toBe('44px');
+  });
+
+  itDom('keeps at most one card’s menu open at a time — the table’s own rule', () => {
+    const rowA = aTreeRow({ id: 'a', number: '010' });
+    const rowB = aTreeRow({ id: 'b', number: '020' });
+    renderCards([rowA, rowB], doNothingActions());
+
+    fireEvent.click(screen.getByRole('button', { name: 'Actions for 010' }));
+    expect(screen.getByRole('menu', { name: 'Actions for 010' })).toBeDefined();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Actions for 020' }));
+    expect(screen.queryByRole('menu', { name: 'Actions for 010' })).toBeNull();
+    expect(screen.getByRole('menu', { name: 'Actions for 020' })).toBeDefined();
+  });
+});
+
+describe('the mark a filter leaves on a card', () => {
+  afterEach(cleanup);
+
+  itDom('marks the card that answered the filter, and not the rows kept around it', () => {
+    // The table's Name cell has carried `data-match` since `find-in-the-tree`,
+    // and a phone had nothing: a narrowed list with a hit three levels down
+    // read as four rows that all matched. `R10 F1`.
+    const parent = aTreeRow({ id: 'a', number: '010' });
+    const hit = aTreeRow({ id: 'a1', parentId: 'a', number: '010.1' });
+    renderCards([parent, hit], undefined, ['a1']);
+
+    const hitCard = screen.getByLabelText('Work item 010.1');
+    expect(hitCard.dataset['match']).toBe('true');
+    expect(hitCard.style.background).not.toBe('');
+    // Absent, not `false`: `[data-match]` selects the hits on either face.
+    const context = screen.getByLabelText('Work item 010');
+    expect(context.dataset['match']).toBeUndefined();
+    expect(context.style.background).toBe('');
+  });
+
+  itDom('marks nothing while no filter is on', () => {
+    renderCards([aTreeRow()]);
+
+    const card = screen.getByLabelText('Work item 010');
+    expect(card.dataset['match']).toBeUndefined();
+    expect(card.style.background).toBe('');
+  });
+});
+
+describe('a filter on a phone', () => {
+  /**
+   * The plan the sheet is opened over: two roots, one of them Billing's, so a
+   * facet has something to keep and something to drop.
+   */
+  async function aFilterablePlan(): Promise<void> {
+    const api = fakeApi();
+    const { id } = await api.create('p1', { parentId: null, name: 'Strip the hull' });
+    await api.create('p1', { parentId: null, name: 'Paint' });
+    api.teams.push({ id: 't1', name: 'Billing' });
+    // By the id `create` answered with rather than by position: a fake whose
+    // first row is not the row this labels is a fixture quietly filtering on
+    // something else, and the label is the whole of what these two tests ask.
+    const strip = api.rows.find((row) => row.id === id);
+    if (strip === undefined) throw new Error('the fake lost the row it just created');
+    strip.serviceTeamId = 't1';
+    strip.teamIds = ['t1'];
+    widthIs(PHONE);
+    render(<WbsTable projectId="p1" api={api} />);
+    await screen.findByLabelText('Name of 010');
+  }
+
+  const cardNumbers = (): string[] =>
+    [...document.querySelectorAll('[data-card] [data-number]')].map((node) => node.textContent);
+
+  itDom('narrows the cards, because they are the rows the table kept', async () => {
+    // R10 §0: the cards read `shownRows`, the one list the table and the chart
+    // read, so a facet reaches a phone by construction. Asserted rather than
+    // assumed — a second narrowing path on either face is exactly what this
+    // change must not have added.
+    await aFilterablePlan();
+    expect(cardNumbers()).toEqual(['010', '020']);
+
+    openTheSheet();
+    fireEvent.click(await screen.findByText(/^Filters/));
+    fireEvent.click(screen.getByLabelText('Team Billing'));
+
+    expect(cardNumbers()).toEqual(['010']);
+    expect(document.querySelector('[data-card="w1"]')?.getAttribute('data-match')).toBe('true');
+  });
+
+  itDom('keeps the sheet open while the facets are being ticked', async () => {
+    // `closingControlIn` closes the sheet on a `<button>`, which is right for
+    // `Add work item` — the plan is what wants looking at next — and wrong for
+    // a checkbox somebody is about to tick a second one of. A `<summary>` and
+    // an `<input>` are neither.
+    await aFilterablePlan();
+    openTheSheet();
+
+    fireEvent.click(await screen.findByText(/^Filters/));
+    fireEvent.click(screen.getByLabelText('Team Billing'));
+
+    expect(screen.getByLabelText('Team Billing')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Add work item' })).toBeInTheDocument();
+  });
+
+  itDom('says how much of the plan a facet left, on the sheet', async () => {
+    await aFilterablePlan();
+    openTheSheet();
+    fireEvent.click(await screen.findByText(/^Filters/));
+    fireEvent.click(screen.getByLabelText('Team Billing'));
+
+    expect(screen.getByText('1 of 2 rows')).toBeInTheDocument();
   });
 });

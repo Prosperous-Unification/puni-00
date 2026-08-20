@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { buildApp } from '../app';
+import { ActualRepository } from '../repository/actual';
 import { CapacityRepository } from '../repository/capacity';
 import { CommandJournalRepository } from '../repository/command-journal';
 import { openDrizzle } from '../repository/db';
@@ -14,6 +15,7 @@ import { EstimateRepository } from '../repository/estimate';
 import { runMigrations } from '../repository/migrate';
 import { ProjectRepository } from '../repository/project';
 import { RoleRepository } from '../repository/role';
+import { RoleProgressRepository } from '../repository/role-progress';
 import { UserRepository } from '../repository/user';
 import { SubtreeRepository, WorkItemRepository } from '../repository/work-item';
 import { AuthService } from '../service/auth.service';
@@ -23,6 +25,8 @@ import { ProjectService } from '../service/project.service';
 import { RoleService } from '../service/role.service';
 import { WorkItemService } from '../service/work-item.service';
 import { type RecordingBroadcaster, recordingBroadcaster } from '../testing/broadcast-fixture';
+import { testHistoryService } from '../testing/history-fixture';
+import { inMemoryPriorityBands, testPriorityBandService } from '../testing/priority-band-fixture';
 import { testReplay } from '../testing/replay-fixture';
 
 const TEST_JWT_KEY = 'k'.repeat(32);
@@ -71,6 +75,8 @@ describe('PUT /api/projects/:id/teams/:teamId/capacity', () => {
         capacity: capacityStore,
         broadcast,
       }),
+      priorityBands: testPriorityBandService(),
+      history: testHistoryService(),
       roles: new RoleService({
         projects: projectStore,
         roles: new RoleRepository(db),
@@ -80,9 +86,12 @@ describe('PUT /api/projects/:id/teams/:teamId/capacity', () => {
         workItems,
         projects: projectStore,
         estimates: new EstimateRepository(db),
+        actuals: new ActualRepository(db),
+        progress: new RoleProgressRepository(db),
         dependencies: new DependencyRepository(db),
         directory: directoryStore,
         capacity: capacityStore,
+        priorityBands: inMemoryPriorityBands(),
         subtrees: new SubtreeRepository(db),
         journal: new CommandJournalRepository(db),
         broadcast,
