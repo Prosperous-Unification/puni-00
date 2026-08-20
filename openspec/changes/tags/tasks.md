@@ -53,13 +53,13 @@
 
 ## 5. The filter
 
-- [ ] 5.1 `tree-search.ts`: `tagIds` on `FilterCriteria` and `NO_FACETS`,
+- [x] 5.1 `tree-search.ts`: `tagIds` on `FilterCriteria` and `NO_FACETS`,
       `RowFacets` gains the **effective** tag list, one predicate in
       `narrowTree`. `filterWords` gains its label.
-- [ ] 5.2 **Watched red** — point the predicate at the row's own stored tags
+- [x] 5.2 **Watched red** — point the predicate at the row's own stored tags
       instead of the effective reading and the inherited-tag case must fail.
       This is the class of bug this repo has shipped twice.
-- [ ] 5.3 The facet control beside the seven `filter-facets` shipped.
+- [x] 5.3 The facet control beside the seven `filter-facets` shipped.
 
 ## 6. The rest of fe-01
 
@@ -69,7 +69,7 @@
 - [ ] 6.4 `directory-page.tsx`: a Tags section beside Teams, **with no capacity
       column and no membership chips**. That absence is the model rule made
       visible.
-- [ ] 6.5 `lib/wbs-api.ts`: `tagIds` on the wire types.
+- [x] 6.5 `lib/wbs-api.ts`: `tagIds` on the wire types.
 - [ ] 6.6 The table-width budget rule — a new column has to be paid for or
       exempted, and the exemption must name what it exempts.
 
