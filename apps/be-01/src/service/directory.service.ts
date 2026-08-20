@@ -4,12 +4,14 @@ import type {
   PersonPatch,
   PersonWithTeams,
   ServiceTeam,
+  Tag,
   TouchedProjects,
 } from '../repository';
 import type { Broadcaster } from './broadcast';
 import {
   type DirectoryUsage,
   directoryUsageOfPerson,
+  directoryUsageOfTag,
   directoryUsageOfTeam,
 } from './directory-usage';
 
@@ -119,6 +121,61 @@ export class DirectoryService {
     }
     await this.announce(written.projectIds);
     return { ok: true, result: written.team };
+  }
+
+  listTags(): Promise<Tag[]> {
+    return this.opts.directory.listTags();
+  }
+
+  /**
+   * Adds a tag, or refuses a name that is only whitespace.
+   *
+   * `addTeam`'s shape, and the same absence for a different reason: a team's
+   * `size` is a retired column left at its default, while a tag has no such
+   * column to leave — it never had a pool to be unstated about.
+   */
+  async addTag(name: string): Promise<Tag | null> {
+    const clean = cleanName(name);
+    if (clean === null) return null;
+    return this.opts.directory.addTag({ id: this.newId(), name: clean });
+  }
+
+  /** Renames a tag, keeping the name unique across the deployment — `renameTeam`'s rules. */
+  async renameTag(tagId: string, name: string): Promise<DirectoryOutcome<Tag>> {
+    const clean = cleanName(name);
+    if (clean === null) return { ok: false, reason: 'name_required' };
+    const written = await this.opts.directory.renameTag(tagId, clean);
+    if (!written.ok) {
+      if (written.reason === 'taken') return { ok: false, reason: 'taken', name: clean };
+      return { ok: false, reason: 'not_found' };
+    }
+    await this.announce(written.projectIds);
+    return { ok: true, result: written.tag };
+  }
+
+  /**
+   * Removes a tag, refusing an unconfirmed removal that would unlabel anything.
+   *
+   * `removeTeam`'s shape with **one clause fewer**: there are no members to
+   * count, because nobody belongs to a tag. So the refusal turns on the
+   * projects alone, and a tag nothing carries is removed on the first press.
+   *
+   * The unconfirmed read is still only a fast path. What decides is the count
+   * inside the store's own transaction, which is why a labelling written
+   * between the two refuses rather than being deleted.
+   */
+  async removeTag(tagId: string, cascade: boolean): Promise<RemoveDirectoryOutcome> {
+    if (!cascade) {
+      const seen = directoryUsageOfTag(await this.opts.directory.usageOfTag(tagId), tagId);
+      if (seen.projects.length > 0) return { ok: false, reason: 'in_use', usage: seen };
+    }
+    const removed = await this.opts.directory.removeTag(tagId, cascade);
+    if (!removed.ok) {
+      if (removed.reason === 'not_found') return { ok: false, reason: 'not_found' };
+      return { ok: false, reason: 'in_use', usage: directoryUsageOfTag(removed.usage, tagId) };
+    }
+    await this.announce(removed.removal.projectIds);
+    return { ok: true };
   }
 
   listPeople(): Promise<PersonWithTeams[]> {

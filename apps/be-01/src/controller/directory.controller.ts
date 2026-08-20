@@ -207,5 +207,78 @@ export function directoryController(auth: AuthService, directory: DirectoryServi
         return { error: 'unauthenticated' };
       }
       return answerRemoval(await directory.removeTeam(params.id, isCascade(query)), set);
+    })
+    /*
+      The tag routes, and they are the team routes with the capacity taken out.
+      **Global — no project in the path and none in the query**, exactly as the
+      teams are: a label that meant one thing on one plan and another on the next
+      would make this a per-project screen and the filter a per-project
+      vocabulary.
+
+      There is deliberately no membership route beside them. Nobody belongs to a
+      tag, and the absence is the model rule rather than a gap to fill later.
+    */
+    .get('/tags', async ({ headers, set }) => {
+      const user = await userFromHeaders(auth, headers);
+      if (user === null) {
+        set.status = 401;
+        return { error: 'unauthenticated' };
+      }
+      return { tags: await directory.listTags() };
+    })
+    .post(
+      '/tags',
+      async ({ body, headers, set }) => {
+        const user = await userFromHeaders(auth, headers);
+        if (user === null) {
+          set.status = 401;
+          return { error: 'unauthenticated' };
+        }
+        const tag = await directory.addTag(body.name);
+        if (tag === null) {
+          // A tag called nothing helps nobody find anything, and it would sit in
+          // every picker for ever — `/teams`' 422, one dimension over.
+          set.status = 422;
+          return { error: 'name_required' };
+        }
+        return { tag };
+      },
+      { body: named },
+    )
+    .patch(
+      '/tags/:id',
+      async ({ params, body, headers, set }) => {
+        const user = await userFromHeaders(auth, headers);
+        if (user === null) {
+          set.status = 401;
+          return { error: 'unauthenticated' };
+        }
+        const outcome = await directory.renameTag(params.id, body.name);
+        if (!outcome.ok) {
+          if (outcome.reason === 'taken') {
+            // The surviving name rides along for `/teams/:id`'s reason: the
+            // caller has to say which `regulatory` is on screen now, and a bare
+            // 409 cannot.
+            set.status = 409;
+            return { error: outcome.reason, name: outcome.name };
+          }
+          set.status = statusFor(outcome.reason);
+          return { error: outcome.reason };
+        }
+        return { tag: outcome.result };
+      },
+      { body: named },
+    )
+    .delete('/tags/:id', async ({ params, query, headers, set }) => {
+      const user = await userFromHeaders(auth, headers);
+      if (user === null) {
+        set.status = 401;
+        return { error: 'unauthenticated' };
+      }
+      // The same 409-then-`?cascade=1` shape every directory removal has. What
+      // the confirmation lists is `label_removed` per work item and nothing
+      // else: no capacity is released and no date moves, which is asserted in
+      // `tags`' verify.md rather than claimed here.
+      return answerRemoval(await directory.removeTag(params.id, isCascade(query)), set);
     });
 }
