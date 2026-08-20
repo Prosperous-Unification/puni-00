@@ -151,6 +151,7 @@ function fakeApi(options: { refusePatch?: boolean; dated?: boolean } = {}): Proj
       }),
     roles: () => Promise.resolve(roleList.map((role) => ({ ...role }))),
     listTeams: () => Promise.resolve(teams.map((team) => ({ ...team }))),
+    listTags: () => Promise.resolve([]),
     listPeople: () => Promise.resolve(people.map((person) => ({ ...person }))),
     create: (_projectId: string, input: { parentId: string | null; name?: string }) => {
       next += 1;
@@ -1247,6 +1248,7 @@ function renderCards(
       assigneeOn={() => null}
       waitsFor={() => []}
       teamLabel={() => ({ state: 'none' })}
+      tagLabel={() => ({ state: 'none' })}
       spanOf={() => ({ start: { text: '', iso: null }, finish: { text: '', iso: null } })}
       showDay={(days) => String(days)}
       rowActions={rowActions}

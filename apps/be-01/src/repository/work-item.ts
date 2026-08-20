@@ -22,7 +22,9 @@ import {
   estimate,
   roleProgress,
   serviceTeam,
+  tag,
   workItem,
+  workItemTag,
   workItemTeam,
 } from './schema';
 
@@ -84,13 +86,19 @@ export class WorkItemRepository implements WorkItemStore {
   constructor(private readonly db: SQLiteBunDatabase) {}
 
   /**
-   * Two reads rather than a left join, and merged here: a join would return one
-   * row per (work item, team) pair and every unlabelled row once, so the caller
-   * would be reassembling exactly this map out of a wider result set. One
-   * indexed read each, and the second one is empty on most plans.
+   * Three reads rather than a left join, and merged here: a join would return
+   * one row per (work item, team) pair times one per (work item, tag) pair, so
+   * the caller would be reassembling exactly these maps out of a result set that
+   * multiplies. One indexed read each, and both label reads are empty on most
+   * plans.
    *
-   * Ordered by team id, which is what makes two reads of an unchanged plan
-   * answer the same array — design.md D6.
+   * **Three, and not one more per dimension the model ever gains**: the shape is
+   * a read plus a `setOf` per dimension, which is linear in the dimensions and
+   * flat in the rows. What it must never become is a read per row.
+   *
+   * Ordered by label id in both dimensions, which is what makes two reads of an
+   * unchanged plan answer the same arrays — design.md D6, and the property
+   * `EffectiveTeams.teamIds` and `EffectiveTags.tagIds` both document.
    */
   async listByProject(projectId: string): Promise<LabelledWorkItem[]> {
     const rows = await this.db.select().from(workItem).where(eq(workItem.projectId, projectId));
@@ -100,11 +108,25 @@ export class WorkItemRepository implements WorkItemStore {
       .innerJoin(workItem, eq(workItemTeam.workItemId, workItem.id))
       .where(eq(workItem.projectId, projectId))
       .orderBy(asc(workItemTeam.teamId));
+    const tagged = await this.db
+      .select({ workItemId: workItemTag.workItemId, tagId: workItemTag.tagId })
+      .from(workItemTag)
+      .innerJoin(workItem, eq(workItemTag.workItemId, workItem.id))
+      .where(eq(workItem.projectId, projectId))
+      .orderBy(asc(workItemTag.tagId));
     const teamsOf = new Map<string, string[]>();
     for (const each of joined) {
       teamsOf.set(each.workItemId, [...(teamsOf.get(each.workItemId) ?? []), each.teamId]);
     }
-    return rows.map((row) => ({ ...row, teamIds: teamsOf.get(row.id) ?? [] }));
+    const tagsOf = new Map<string, string[]>();
+    for (const each of tagged) {
+      tagsOf.set(each.workItemId, [...(tagsOf.get(each.workItemId) ?? []), each.tagId]);
+    }
+    return rows.map((row) => ({
+      ...row,
+      teamIds: teamsOf.get(row.id) ?? [],
+      tagIds: tagsOf.get(row.id) ?? [],
+    }));
   }
 
   async findById(id: string): Promise<WorkItem | null> {
@@ -172,7 +194,15 @@ export class WorkItemRepository implements WorkItemStore {
       patch.startNoEarlierThanReason === undefined &&
       patch.priority === undefined &&
       patch.serviceTeamId === undefined &&
-      patch.maxParallel === undefined
+      patch.maxParallel === undefined &&
+      // Proof: this line missing is how the tag write path was first written,
+      // and all six cases in `a tag set is undone whole, which a scalar habit
+      // would not do` failed — the first read is `expected [ "…" ] to deeply
+      // equal []`. A patch naming only the tags took this branch, wrote
+      // nothing, and answered `ok` with the row it had found: every face
+      // reporting a successful write that never happened. Found by the tests
+      // rather than by reading, 2026-08-19.
+      patch.tagIds === undefined
     ) {
       const found = await this.findById(id);
       return found === null ? { ok: false, reason: 'not_found' } : { ok: true, workItem: found };
@@ -187,7 +217,14 @@ export class WorkItemRepository implements WorkItemStore {
     // `puts a reset to one at a time back to the number it replaced` failed on
     // `SQLiteError: NOT NULL constraint failed: work_item.max_parallel` —
     // a 500 for a request that means "one at a time"; watched 2026-08-12.
-    const { maxParallel, ...fields } = patch;
+    //
+    // `tagIds` comes off the same way and for a blunter reason: there is no
+    // column for it. Spread into the `SET` it would reach drizzle as a field
+    // `work_item` does not have — the set lives in `work_item_tag` and is
+    // written below, in this same transaction.
+    // It is bound rather than discarded because the transaction below writes it:
+    // one destructure both keeps it out of the `SET` and names the set to write.
+    const { maxParallel, tagIds: wantedTags, ...fields } = patch;
     const written =
       maxParallel === undefined ? fields : { ...fields, maxParallel: maxParallel ?? 1 };
     return this.db.transaction((tx) => {
@@ -240,6 +277,28 @@ export class WorkItemRepository implements WorkItemStore {
           .all();
         if (held.length === 0) return { ok: false, reason: 'unknown_team' };
       }
+      // The other dimension's refusal, read in this transaction for
+      // `unknown_team`'s reason and one of its own: `work_item_tag.tag_id`
+      // cascades, so a tag removed between a precheck and this write leaves
+      // nothing for a foreign key to catch on the way in — the insert simply
+      // refuses against a `tag` row that is gone, and a reader would get a 500
+      // where the honest answer names the tag.
+      //
+      // An empty set names nothing and so can name nothing missing, which is
+      // why the read is skipped for it rather than run against `IN ()` —
+      // SQLite refuses that, and `directory.ts` has the same guard for the same
+      // reason.
+      if (wantedTags !== undefined && wantedTags.length > 0) {
+        const held = tx
+          .select({ id: tag.id })
+          .from(tag)
+          .where(inArray(tag.id, [...wantedTags]))
+          .all();
+        // Counted against the **distinct** ids asked for: a payload naming one
+        // tag twice is one tag, and comparing against the raw length would
+        // refuse a request whose only fault is repetition.
+        if (held.length < new Set(wantedTags).size) return { ok: false, reason: 'unknown_tag' };
+      }
       const rows = tx
         .update(workItem)
         .set({ ...written, revision: bumpedWorkItem })
@@ -265,6 +324,27 @@ export class WorkItemRepository implements WorkItemStore {
         tx.delete(workItemTeam).where(eq(workItemTeam.workItemId, id)).run();
         if (wanted !== null)
           tx.insert(workItemTeam).values({ workItemId: id, teamId: wanted }).run();
+      }
+      // The tag set, in the same transaction and only when the patch names the
+      // dimension at all — an edit to the name must not empty the tags.
+      //
+      // Replace rather than merge, because the patch states the **whole** set:
+      // `[]` is "no tags" and is written by the delete alone, which is the one
+      // spelling of taking them off. Deduplicated on the way in: the primary
+      // key would refuse a repeated pair, and a payload naming one tag twice is
+      // a client being untidy rather than a request that means anything else.
+      //
+      // Unlike the team above there is no column beside this to keep in step —
+      // `work_item_tag` is the whole of the fact — so this write has no second
+      // half that can silently disagree with it.
+      if (wantedTags !== undefined) {
+        tx.delete(workItemTag).where(eq(workItemTag.workItemId, id)).run();
+        const distinct = [...new Set(wantedTags)];
+        if (distinct.length > 0) {
+          tx.insert(workItemTag)
+            .values(distinct.map((tagId) => ({ workItemId: id, tagId })))
+            .run();
+        }
       }
       return { ok: true, workItem: updated };
     });

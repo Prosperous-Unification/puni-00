@@ -222,6 +222,27 @@ const COLUMN_WIDTHS = new Map<string, number>([
   // whole header row two lines tall.
   ['priority', 48],
   ['team', 120],
+  // The tag cell. 120 like the team's, because it holds the same kind of thing
+  // — a name somebody typed, or several — and a narrower one would clip
+  // `regulatory` on the plans most likely to use it.
+  //
+  // **It is deliberately NOT in {@link FIXED_COLUMNS}, and that is this
+  // change's answer to the width budget.** The folded table has 29px of slack
+  // at 1280 (`layout.spec.ts`, measured 2026-08-14) and this column costs 120,
+  // so a column on screen in every state would blow the budget by 91px and put
+  // a scrollbar under every two-phase plan on a 1280 laptop.
+  //
+  // What it is exempted **for**, named as the rule requires: this column is
+  // rendered only where the deployment has a tag vocabulary at all — one or
+  // more rows in `tag`. A deployment that has never made a tag has the table it
+  // had yesterday, to the pixel, and `foldedTableMinWidth` answers the same
+  // number it did before this change. A deployment that has made one has opted
+  // into the dimension, and its readers can see what the extra width bought.
+  //
+  // That is also why tags are created on the directory page and not in this
+  // cell (the proposal's own non-goal): the first tag cannot be made in a
+  // column that does not exist until the first tag is made.
+  ['tag', 120],
   // People at once, and this is the tightest column in the table: `∥` for a
   // heading and three digits of value, right-aligned. 32px is 24px of glyph
   // room plus the 8px of padding the declared width includes — enough for
@@ -305,7 +326,22 @@ const PLAN_WIDTHS = new Map<string, (state: FrameLayoutState) => number>([
  * folded column per phase", and a column added to either map but missing here
  * would be a number describing a narrower table than the one on screen.
  */
-export const FIXED_COLUMNS: readonly string[] = [...COLUMN_WIDTHS.keys(), ...PLAN_WIDTHS.keys()];
+/**
+ * The columns that are on screen **in every state of the table**, which is what
+ * the folded budget is measured over.
+ *
+ * `tag` is excluded and it is the only exclusion: see its entry in
+ * {@link COLUMN_WIDTHS} for what the exemption buys and what it costs. It still
+ * has a declared width there, because a column that is sometimes on screen
+ * still has to lay out when it is — what it must not do is be counted in the
+ * floor of a table that is not showing it.
+ */
+export const CONDITIONAL_COLUMNS: readonly string[] = ['tag'];
+
+export const FIXED_COLUMNS: readonly string[] = [
+  ...COLUMN_WIDTHS.keys(),
+  ...PLAN_WIDTHS.keys(),
+].filter((id) => !CONDITIONAL_COLUMNS.includes(id));
 
 /**
  * The columns with no declared width, which take what the fixed ones leave.
@@ -733,6 +769,11 @@ export function pinnedGeometryFor(
  * not-before date, Start, Finish, Slack and the ⋯ menu, none of them
  * conditional — so the folded floor is that set, plus Name's
  * {@link FLEXIBLE_FLOOR}, plus one folded column per phase.
+ *
+ * **`tag` is not among them**, by construction rather than by omission — see
+ * {@link CONDITIONAL_COLUMNS}. A deployment with no tags lays out at exactly
+ * the number this function answered before that column existed, which is what
+ * makes the budget test's figures still true.
  *
  * Derived through {@link frameLayout} rather than as arithmetic of its own,
  * and that is the whole point of it living here rather than as a sentence in

@@ -102,6 +102,15 @@ const ROLE_PROGRESS = '20260818010000_add_role_progress';
  * written, checked for a duplicate before the folder existed.
  */
 const NOT_BEFORE_REASON = '20260818090000_add_not_before_reason';
+/**
+ * The newest. Two tables, and they reverse in the order `work_item_tag` then
+ * `tag` because the first references the second — the pairing `TEAMS` has for
+ * the same reason, inside one folder rather than across two.
+ *
+ * Stamped `20260819120000`, later than all twenty-one folders on disk when it
+ * was written, checked for a duplicate before the folder existed.
+ */
+const TAG = '20260819120000_add_tag';
 
 function tempDb(): { path: string; cleanup: () => void } {
   const dir = mkdtempSync(join(tmpdir(), 'wbs-migrate-down-'));
@@ -193,6 +202,7 @@ describe('readMigrationFolders', () => {
       ACTUAL,
       ROLE_PROGRESS,
       NOT_BEFORE_REASON,
+      TAG,
     ]);
     for (const f of folders) expect(f.downSql.trim()).not.toBe('');
   });
@@ -287,11 +297,13 @@ describe('rollbackTo, against a real database', () => {
         ACTUAL,
         ROLE_PROGRESS,
         NOT_BEFORE_REASON,
+        TAG,
       ]);
 
       const reversed = rollbackTo(db.path, FOLDER, INIT);
 
       expect(reversed).toEqual([
+        TAG,
         NOT_BEFORE_REASON,
         ROLE_PROGRESS,
         ACTUAL,
@@ -356,6 +368,7 @@ describe('rollbackTo, against a real database', () => {
         ACTUAL,
         ROLE_PROGRESS,
         NOT_BEFORE_REASON,
+        TAG,
       ]);
     } finally {
       db.cleanup();
@@ -369,6 +382,7 @@ describe('rollbackTo, against a real database', () => {
       const reversed = rollbackTo(db.path, FOLDER, ROLLBACK_ALL);
 
       expect(reversed).toEqual([
+        TAG,
         NOT_BEFORE_REASON,
         ROLE_PROGRESS,
         ACTUAL,
@@ -419,7 +433,7 @@ describe('rollbackTo, against a real database', () => {
       // *and* answers `[]` when there is genuinely something to reverse. Reading
       // `[]` as correct is only safe while every stamp is unique, which
       // `readMigrationFolders` now enforces.
-      expect(rollbackTo(db.path, FOLDER, NOT_BEFORE_REASON)).toEqual([]);
+      expect(rollbackTo(db.path, FOLDER, TAG)).toEqual([]);
       expect(tables(db.path)).toContain('users');
     } finally {
       db.cleanup();

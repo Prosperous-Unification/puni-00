@@ -174,6 +174,27 @@ export type ServiceTeamLabel =
   | { state: 'inherited'; name: string; fromRow: string }
   | { state: 'unresolved' };
 
+/**
+ * What kind of thing a row is, as any face can state it — {@link
+ * ServiceTeamLabel}'s shape for the other dimension, with two differences that
+ * are both the model rather than the surface.
+ *
+ * **`names` is a list**, because a work item carries as many tags as somebody
+ * put on it. The team's is a single `name` because the write path still sends
+ * one team; there is no such stage here and never was.
+ *
+ * **There is no `unresolved` arm.** A team can go missing between the tree read
+ * and the directory read, and the chart has to say so rather than draw a blank
+ * pool. A tag that the directory has not caught up with narrows nothing and
+ * decides nothing — no date depends on it — so a face that simply does not
+ * name it is telling the truth, and a fourth state would be a word on screen
+ * about a race nobody can act on.
+ */
+export type TagLabel =
+  | { state: 'none' }
+  | { state: 'named'; names: readonly string[] }
+  | { state: 'inherited'; names: readonly string[]; fromRow: string };
+
 /** The three points a role was estimated with, as the plan holds them. */
 export interface EstimateTrio {
   optimistic: number;
@@ -254,6 +275,20 @@ export interface GanttRow {
   maxParallel: number;
   /** The service team this work is labelled with, resolved against the directory read. */
   team: ServiceTeamLabel;
+  /**
+   * What kind of thing this work is, resolved against the directory read — the
+   * **effective** set, so an inherited tag reaches the chart the same way an
+   * inherited team does.
+   *
+   * Carried so a bar can say it, and for nothing else. The team beside it is
+   * read by {@link floorWordsOf} because a pool decides dates; **no coordinate
+   * on this chart reads this field**, and nothing here may start to — a tag
+   * narrows a view and names a kind, and neither of those is a day. The
+   * assertion is a test rather than a comment: `layOutGantt` over the same plan
+   * tagged and untagged places every bar, bracket, arrow and link at the same
+   * numbers.
+   */
+  tags: TagLabel;
   /**
    * The three points each role was estimated with on this work item, by role id.
    *
@@ -518,6 +553,14 @@ export interface GanttBar {
   floorWords: string;
   /** The service team the work item is labelled with — see {@link GanttRow.team}. */
   team: ServiceTeamLabel;
+  /**
+   * The tags the work item is labelled with — see {@link GanttRow.tags}.
+   *
+   * On the bar and not on the row alone because the hover surface is built per
+   * bar, and a second lookup from bar to row is a second place for the two to
+   * disagree. Read by words only.
+   */
+  tags: TagLabel;
   /** How many of its team's slots this bar holds — see {@link GanttSlice.width}. */
   width: number;
   /** What the work item asks for, before the pool and the person had their say — see {@link GanttRow.maxParallel}. */
@@ -1676,6 +1719,16 @@ export function layOutGantt(plan: GanttPlan): GanttGeometry {
           rolesById,
         ),
         team: row.team,
+        // Straight off the row and into words. Deliberately **not** passed to
+        // `floorWordsOf` above: that sentence says what is holding this bar up,
+        // and a tag has never held anything up.
+        //
+        // Proof: this line replaced by `tags: { state: 'none' }` — the bar
+        // built, drawn and placed identically, saying only that the work is of
+        // no particular kind. `2 failed | 106 passed` in
+        // `gantt-geometry.test.ts`, on `expected { state: 'none' } to deeply
+        // equal { state: 'inherited', …(2) }`. Watched on h2puni, 2026-08-20.
+        tags: row.tags,
         // The engine's own two numbers, carried rather than recomputed: the
         // width the dates were placed with and the effort they were placed
         // from. `duration` above is `effort / width` in be-01's doubles, and a

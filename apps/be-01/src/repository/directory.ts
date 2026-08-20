@@ -13,6 +13,8 @@ import type {
   PersonWritten,
   ServiceTeam,
   ServiceTeamWritten,
+  Tag,
+  TagWritten,
 } from './index';
 import { bumpedWorkItem, bumpWorkItems } from './revision';
 import {
@@ -23,7 +25,9 @@ import {
   projectTeamCapacity,
   role,
   serviceTeam,
+  tag,
   workItem,
+  workItemTag,
   workItemTeam,
 } from './schema';
 
@@ -39,6 +43,11 @@ function isDuplicateTeamName(err: unknown): boolean {
   return (
     err instanceof Error && err.message.includes('UNIQUE constraint failed: service_team.name')
   );
+}
+
+/** The same translation as {@link isDuplicateTeamName}, for the tag name index. */
+function isDuplicateTagName(err: unknown): boolean {
+  return err instanceof Error && err.message.includes('UNIQUE constraint failed: tag.name');
 }
 
 /** The same translation as {@link isDuplicateTeamName}, for the person name index. */
@@ -94,11 +103,30 @@ function usageRowsIn(
     .where(inArray(workItem.projectId, ids))
     .orderBy(asc(workItemTeam.teamId))
     .all();
+  const tagged = reader
+    .select({ workItemId: workItemTag.workItemId, tagId: workItemTag.tagId })
+    .from(workItemTag)
+    .innerJoin(workItem, eq(workItemTag.workItemId, workItem.id))
+    .where(inArray(workItem.projectId, ids))
+    .orderBy(asc(workItemTag.tagId))
+    .all();
   const teamsOf = new Map<string, string[]>();
   for (const each of joined) {
     teamsOf.set(each.workItemId, [...(teamsOf.get(each.workItemId) ?? []), each.teamId]);
   }
-  const workItems = rows.map((row) => ({ ...row, teamIds: teamsOf.get(row.id) ?? [] }));
+  // Read in the same transaction for the reason every other read here is: a
+  // removal's confirmation must count what is there now. Both dimensions come
+  // back on the row because `DirectoryUsageRows` is what both usage functions
+  // read — `directoryUsageOfTag` asks the same question of the other one.
+  const tagsOf = new Map<string, string[]>();
+  for (const each of tagged) {
+    tagsOf.set(each.workItemId, [...(tagsOf.get(each.workItemId) ?? []), each.tagId]);
+  }
+  const workItems = rows.map((row) => ({
+    ...row,
+    teamIds: teamsOf.get(row.id) ?? [],
+    tagIds: tagsOf.get(row.id) ?? [],
+  }));
   const projects = reader
     .select({ id: project.id, name: project.name })
     .from(project)
@@ -208,6 +236,36 @@ export class DirectoryRepository implements DirectoryStore {
     return found;
   }
 
+  /** Every tag in the global directory, by name — {@link DirectoryStore.listTeams}' shape. */
+  async listTags(): Promise<Tag[]> {
+    return this.db.select({ id: tag.id, name: tag.name }).from(tag).orderBy(asc(tag.name));
+  }
+
+  /**
+   * Adds a tag, idempotently **by name**, and answers the row that is there.
+   *
+   * `addTeam`'s shape and `addTeam`'s argument: this list is typed into by
+   * everybody, two people adding `regulatory` at the same moment both pass a
+   * check-then-insert, and only the unique index stops the second one. What
+   * comes back is the row the table holds — the *earlier* one when two arrived
+   * at once — because returning `toAdd` would hand a caller an id nothing has.
+   *
+   * The projection is written out for `listTeams`' reason: a bare `select()`
+   * would carry whatever columns this table grows, and a tag is deliberately
+   * two of them.
+   */
+  async addTag(toAdd: Tag): Promise<Tag> {
+    await this.db.insert(tag).values(toAdd).onConflictDoNothing();
+    const rows = await this.db
+      .select({ id: tag.id, name: tag.name })
+      .from(tag)
+      .where(eq(tag.name, toAdd.name))
+      .limit(1);
+    const found = rows.at(0);
+    if (found === undefined) throw new Error(`tag vanished after insert: ${toAdd.name}`);
+    return found;
+  }
+
   /**
    * Renames one team, or reports the name being held or the row being gone.
    *
@@ -242,6 +300,36 @@ export class DirectoryRepository implements DirectoryStore {
       });
     } catch (err) {
       if (isDuplicateTeamName(err)) return { ok: false, reason: 'taken' };
+      throw err;
+    }
+  }
+
+  /**
+   * Renames one tag, or reports the name being held or the row being gone —
+   * {@link DirectoryRepository.renameTeam}'s shape exactly.
+   *
+   * A refused rename writes nothing. The tag carries no revision of its own, so
+   * what tells an open project about the new name is the event the service
+   * publishes after this commits; the **work items** are not bumped, and that is
+   * deliberate — a rename changes what a label is called, not which rows carry
+   * it, so no journal entry is made stale by it.
+   */
+  async renameTag(tagId: string, name: string): Promise<TagWritten> {
+    await Promise.resolve();
+    try {
+      return this.db.transaction((tx) => {
+        const rows = tx
+          .update(tag)
+          .set({ name })
+          .where(eq(tag.id, tagId))
+          .returning({ id: tag.id, name: tag.name })
+          .all();
+        const renamed = rows.at(0);
+        if (renamed === undefined) return { ok: false, reason: 'not_found' };
+        return { ok: true, tag: renamed, projectIds: this.projectsTagged(tx, tagId) };
+      });
+    } catch (err) {
+      if (isDuplicateTagName(err)) return { ok: false, reason: 'taken' };
       throw err;
     }
   }
@@ -381,6 +469,74 @@ export class DirectoryRepository implements DirectoryStore {
   async usageOfPerson(personId: string): Promise<DirectoryUsageRows> {
     await Promise.resolve();
     return usageRowsIn(this.db, this.projectsAssigning(this.db, personId), []);
+  }
+
+  /**
+   * What points at one tag right now — a **fast path** for the confirmation,
+   * never the authority for it. {@link DirectoryRepository.removeTag} decides.
+   *
+   * No `teamId` argument and so no capacity read: a tag has no pool, so
+   * `capacityOf` stays empty and `directoryUsageOfTag` has nothing to release.
+   * That the parameter is simply absent is the model rule in the signature.
+   */
+  async usageOfTag(tagId: string): Promise<DirectoryUsageRows> {
+    await Promise.resolve();
+    return usageRowsIn(this.db, this.projectsTagged(this.db, tagId), []);
+  }
+
+  /**
+   * Counts, decides and deletes in **one** transaction — `removeTeam`'s shape
+   * and `removeTeam`'s argument: the count *is* the decision, so a labelling
+   * written between an unconfirmed caller's own count and this statement
+   * refuses the removal rather than being deleted by it.
+   *
+   * **Two statements shorter than the team's**, and both absences are the
+   * design. There is no `UPDATE … SET tagId = null`, because there is no column
+   * — the labelling is rows in `work_item_tag` and the foreign key's cascade
+   * takes them when the `tag` row goes. And there is no membership table to
+   * clear: nobody belongs to a tag.
+   *
+   * The work items are still bumped, and that is not optional: their tag sets
+   * changed, so a journal entry holding the old revision must not undo against
+   * a plan whose labelling has moved under it. The cascade does not move a
+   * revision, so this does it explicitly.
+   *
+   * Proof: `bumpWorkItems` removed and `moves the revision of every row that
+   * lost a tag` fails on the row coming back at the revision it had — a stale
+   * undo that this repo has already shipped once, for people. Watched
+   * 2026-08-20.
+   */
+  async removeTag(tagId: string, cascade: boolean): Promise<DirectoryRemoved> {
+    await Promise.resolve();
+    return this.db.transaction((tx) => {
+      const labelled = tx
+        .select({ id: workItem.id, projectId: workItem.projectId })
+        .from(workItemTag)
+        .innerJoin(workItem, eq(workItemTag.workItemId, workItem.id))
+        .where(eq(workItemTag.tagId, tagId))
+        .all();
+      if (!cascade && labelled.length > 0) {
+        return {
+          ok: false,
+          reason: 'in_use',
+          usage: usageRowsIn(tx, projectsOf(labelled), []),
+        };
+      }
+      bumpWorkItems(
+        tx,
+        labelled.map((each) => each.id),
+      );
+      // The `work_item_tag` rows are **not** deleted here: `tag_id` cascades,
+      // which is the one place this dimension deliberately differs from
+      // `role_progress`. See the migration for why a label may be taken by the
+      // database where a statement about somebody's work may not.
+      const removed = tx.delete(tag).where(eq(tag.id, tagId)).returning({ id: tag.id }).all();
+      if (removed.length === 0) return { ok: false, reason: 'not_found' };
+      return {
+        ok: true,
+        removal: { workItemIds: labelled.map((each) => each.id), projectIds: projectsOf(labelled) },
+      };
+    });
   }
 
   /** The same for a team: the projects it labels work in, the people in it, and its own row. */
@@ -542,6 +698,18 @@ export class DirectoryRepository implements DirectoryStore {
         .from(workItemTeam)
         .innerJoin(workItem, eq(workItemTeam.workItemId, workItem.id))
         .where(eq(workItemTeam.teamId, teamId))
+        .all(),
+    );
+  }
+
+  /** {@link projectsLabelled} for the other dimension: the projects holding a tagged row. */
+  private projectsTagged(reader: Reader, tagId: string): string[] {
+    return projectsOf(
+      reader
+        .select({ projectId: workItem.projectId })
+        .from(workItemTag)
+        .innerJoin(workItem, eq(workItemTag.workItemId, workItem.id))
+        .where(eq(workItemTag.tagId, tagId))
         .all(),
     );
   }

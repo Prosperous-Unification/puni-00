@@ -1,0 +1,52 @@
+-- Reverses 20260819120000_add_tag.
+--
+-- Dropping these loses the whole of a plan's second label dimension: the tag
+-- vocabulary anybody typed, and every statement of the form "this work item is
+-- regulatory". The loss is total in one direction and harmless in the other, and
+-- the asymmetry is the reason this rollback is safe to run.
+--
+-- **No date moves, either way.** The scheduler reads work items, estimates,
+-- dependencies, capacity and the calendar. It does not read either of these
+-- tables — that is the defining property of the dimension, asserted in the
+-- forward migration by a test that wires it up and watches every downstream date
+-- move — and nothing writes to the tables it *does* read on their behalf. A plan
+-- scheduled against a database with these tables and the same plan after this
+-- rollback come out identical, replayed by the identity corpus in
+-- `service/live-plan-identity.test.ts` rather than claimed here.
+--
+-- Nothing else is touched in the stronger sense either: no write to `tag` or
+-- `work_item_tag` has ever written to a team, an estimate, an actual, a progress
+-- state or a date. A plan that loses its labels keeps every figure anybody typed
+-- and every team anybody assigned, because the two dimensions are independent by
+-- construction and share no row.
+--
+-- **What comes back is the ambiguity the dimension was added to remove**, and it
+-- is a reporting ambiguity rather than a planning one: after this rollback the
+-- only grouping axis a plan has is the team, so "who does the work" and "what
+-- kind of thing this is" collapse back into one label — a `regulatory` item is
+-- again only findable by whoever happens to own it. That is the state the tool
+-- was in before this migration and it is the state it returns to.
+--
+-- The filter degrades rather than breaks: `FilterCriteria.tagIds` is a field on a
+-- request, `narrowTree`'s tag predicate matches on the effective reading of rows
+-- that no longer exist, and an empty facet narrows nothing. A saved view holding
+-- a tag id, from `saved-views` (#83), points at a tag that is gone and reads as
+-- an empty facet on the next load.
+--
+-- Undo and redo are unaffected in shape and lossy in one arm, which is worth
+-- saying plainly: `command_journal` is not touched, so every entry stays
+-- pressable, but an entry whose command carries `tagIds` names a table that is no
+-- longer there and fails when applied. That is the same position every rollback
+-- of an additive migration leaves its own kinds in.
+--
+-- The indexes go with the tables they are on, and `work_item_tag` goes first:
+-- its rows reference `tag`, and dropping the referenced table first would leave
+-- a foreign key pointing at nothing for the length of one statement. All four
+-- statements run solely when the release that added them is being taken away — a
+-- forward migration in this repo is additive so blue and green can share one file
+-- mid-swap, and reversing an additive change is destructive by definition, which
+-- is why it lives here and not there.
+DROP INDEX IF EXISTS `work_item_tag_by_tag`;--> statement-breakpoint
+DROP TABLE IF EXISTS `work_item_tag`;--> statement-breakpoint
+DROP INDEX IF EXISTS `tag_name`;--> statement-breakpoint
+DROP TABLE IF EXISTS `tag`;

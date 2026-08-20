@@ -6,6 +6,7 @@ import type {
   PersonAdded,
   PersonWithTeams,
   ServiceTeam,
+  Tag,
 } from '../repository';
 import type { Broadcaster } from '../service/broadcast';
 import { DirectoryService } from '../service/directory.service';
@@ -32,6 +33,7 @@ const NOTHING_POINTS_AT_IT: DirectoryUsageRows = {
  */
 export function inMemoryDirectory(): DirectoryStore {
   const teams = new Map<string, ServiceTeam>();
+  const tags = new Map<string, Tag>();
   const people = new Map<string, Person>();
   const memberships = new Map<string, Set<string>>();
   const assignments = new Map<string, Assignment>();
@@ -40,6 +42,52 @@ export function inMemoryDirectory(): DirectoryStore {
   return {
     listTeams: () =>
       Promise.resolve([...teams.values()].sort((a, b) => a.name.localeCompare(b.name))),
+    listTags: () =>
+      Promise.resolve([...tags.values()].sort((a, b) => a.name.localeCompare(b.name))),
+    // Idempotent by name, as the repository is at its unique index. The
+    // dimension has no cascade here and cannot: an in-memory store models no
+    // foreign keys, which is exactly why the tag write path's own tests run
+    // against real SQLite instead of this.
+    addTag(toAdd) {
+      const already = [...tags.values()].find((each) => each.name === toAdd.name);
+      if (already !== undefined) return Promise.resolve(already);
+      tags.set(toAdd.id, toAdd);
+      return Promise.resolve(toAdd);
+    },
+    renameTag(tagId, name) {
+      const found = tags.get(tagId);
+      if (found === undefined) return Promise.resolve({ ok: false, reason: 'not_found' });
+      // The unique index, modelled, for `renameTeam`'s reason: a fixture that
+      // let two `regulatory` tags exist would let a caller's `taken` branch pass
+      // untested.
+      const held = [...tags.values()].some((each) => each.name === name && each.id !== tagId);
+      if (held) return Promise.resolve({ ok: false, reason: 'taken' });
+      const renamed = { id: tagId, name };
+      tags.set(tagId, renamed);
+      return Promise.resolve({ ok: true, tag: renamed, projectIds: [] });
+    },
+    // The usage and the removal are **not** modelled here beyond the shape.
+    // This store has no work items and no foreign keys, so the counting that
+    // decides a removal and the cascade that performs it cannot exist in it —
+    // which is exactly why the tag directory's own tests run against real
+    // SQLite. A fixture answering "nothing points at it" would let a caller's
+    // `in_use` branch pass untested, so it answers the empty usage and says so.
+    usageOfTag: () =>
+      Promise.resolve({
+        workItems: [],
+        projects: [],
+        assignments: [],
+        roles: [],
+        people: [],
+        members: [],
+        capacityOf: new Map<string, number>(),
+      }),
+    removeTag(tagId) {
+      const found = tags.get(tagId);
+      if (found === undefined) return Promise.resolve({ ok: false, reason: 'not_found' });
+      tags.delete(tagId);
+      return Promise.resolve({ ok: true, removal: { workItemIds: [], projectIds: [] } });
+    },
     addTeam(team) {
       const already = [...teams.values()].find((each) => each.name === team.name);
       if (already !== undefined) return Promise.resolve(already);

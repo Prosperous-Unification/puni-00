@@ -1,3 +1,4 @@
+import { type EffectiveTags, effectiveTagsOf } from '@wbs/domain/effective-tag';
 import { type EffectiveTeams, effectiveTeamsOf } from '@wbs/domain/effective-team';
 import { priorityBandOf } from '@wbs/domain/priority-band';
 
@@ -41,6 +42,8 @@ export interface ExportRow {
   rolledUp: boolean;
   /** The teams this row states, 0..n. Empty inherits; see `effectiveTeamsOf`. */
   teamIds: readonly string[];
+  /** The tags this row states, 0..n. Empty inherits; see `effectiveTagsOf`. */
+  tagIds: readonly string[];
   estimates: Record<string, ExportTrio | undefined>;
   finalDays: Record<string, number | undefined>;
   finalTotal: number;
@@ -189,6 +192,8 @@ export interface PlanExport {
   scheduleError: 'cycle' | null;
   roles: readonly NamedEntry[];
   teams: readonly NamedEntry[];
+  /** The tag vocabulary, for the Tags column — `teams`' shape, one dimension over. */
+  tags: readonly NamedEntry[];
   /**
    * What this plan calls its priority numbers, for the Priority band column.
    *
@@ -428,6 +433,11 @@ function teamsInForce(plan: PlanExport): ReadonlyMap<string, EffectiveTeams> {
   return effectiveTeamsOf(plan.rows);
 }
 
+/** {@link teamsInForce} for the other dimension, computed once per document. */
+function tagsInForce(plan: PlanExport): ReadonlyMap<string, EffectiveTags> {
+  return effectiveTagsOf(plan.rows);
+}
+
 /**
  * What a row's Team cell says: the team whose people did the work, and where
  * the label was written when it was not written here.
@@ -446,6 +456,35 @@ function teamCell(plan: PlanExport, inForce: ReadonlyMap<string, EffectiveTeams>
   // this one becomes and therefore the one R3's import will match names by. One
   // member today, so the join changes no cell in any plan that exists.
   const name = effective.teamIds.map((teamId) => nameOf(plan.teams, teamId)).join('; ');
+  if (effective.fromId === row.id) return name;
+  const from = plan.rows.find((each) => each.id === effective.fromId);
+  return from === undefined
+    ? `${name} (inherited)`
+    : `${name} (inherited from ${from.number} ${from.name})`;
+}
+
+/**
+ * What a row's Tags cell says: what kind of thing the work is, and where the
+ * label was written when it was not written here.
+ *
+ * The **effective** tags rather than the stored ones, and the source named for
+ * {@link teamCell}'s reason: a leaf under a `regulatory` parent *is*
+ * regulatory, and a document printing a blank there is a document that
+ * disagrees with the filter that produced it.
+ *
+ * `; `-joined, the separator the Team column settles on, so an importer
+ * matching names has one rule for both label dimensions rather than two.
+ *
+ * The inheritance sentence is the same shape too, and deliberately: two
+ * dimensions that inherit by one rule should read as though they do. What they
+ * must **not** share is a cell — a row on `Platform` and `regulatory` answers
+ * two different questions, and one column holding both would be a document
+ * saying something the model does not.
+ */
+function tagCell(plan: PlanExport, inForce: ReadonlyMap<string, EffectiveTags>, row: ExportRow) {
+  const effective = inForce.get(row.id);
+  if (effective === undefined) return '';
+  const name = effective.tagIds.map((tagId) => nameOf(plan.tags, tagId)).join('; ');
   if (effective.fromId === row.id) return name;
   const from = plan.rows.find((each) => each.id === effective.fromId);
   return from === undefined
@@ -492,6 +531,7 @@ function ranAtCell(plan: PlanExport, row: ExportRow): string {
 function columnsOf(plan: PlanExport, markSums: boolean): ExportColumn[] {
   const method = METHOD_NAMES[plan.method];
   const inForce = teamsInForce(plan);
+  const tagsHeld = tagsInForce(plan);
   /** A computed figure, with Markdown's sum marker where one applies. */
   const figure = (row: ExportRow, days: number | undefined): string => {
     if (days === undefined) return '';
@@ -501,6 +541,10 @@ function columnsOf(plan: PlanExport, markSums: boolean): ExportColumn[] {
     { header: 'Number', cell: (row) => row.number },
     { header: 'Name', cell: (row) => row.name },
     { header: 'Team', cell: (row) => teamCell(plan, inForce, row) },
+    // Beside Team and not folded into it: who does the work and what kind of
+    // thing it is are two questions, and one column answering both would be a
+    // document making a claim the model does not.
+    { header: 'Tags', cell: (row) => tagCell(plan, tagsHeld, row) },
     // The two numbers the schedule's compression is made of, beside the team
     // whose people they are counted out of. Blank at 1, the Priority column's
     // bargain: a spreadsheet reader sorting on this wants an empty cell rather

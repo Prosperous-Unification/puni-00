@@ -358,14 +358,28 @@ describe('a priority ladder moves no date', () => {
    * change's own claim — a plan nobody has recorded a day against reads as
    * nobody having recorded a day, never as zero days spent — and a bare lift
    * would let a roll-up that invented figures pass here silently.
+   *
+   * **`tagIds` is lifted by `tags` (R10-B)**, and asserted empty rather than
+   * dropped, for `actuals`' reason. The oracle predates the second label
+   * dimension entirely, so every row now carries a `tagIds: []` the capture
+   * cannot have — a payload that gained a field, which is not a payload that
+   * moved a date. That the corpus replays identically with the dimension present
+   * is the strongest form of this change's central claim: the scheduler does not
+   * read a tag.
    */
   function lifted(
     tree: NonNullable<Awaited<ReturnType<WorkItemService['tree']>>>,
   ): Record<string, unknown> {
     return {
       ...tree,
-      workItems: tree.workItems.map(({ teamIds, actuals, progress, state, ...row }) => {
+      workItems: tree.workItems.map(({ teamIds, tagIds, actuals, progress, state, ...row }) => {
         expect(teamIds).toEqual(row.serviceTeamId === null ? [] : [row.serviceTeamId]);
+        // `tagIds` is lifted the same way by `tags` (R10-B) and asserted **empty**
+        // for `actuals`' reason: the oracle predates the dimension, nothing in
+        // sixteen replayed plans is labelled, and an empty set on every row is
+        // this change's own claim — a plan nobody has tagged reads as untagged.
+        // A bare lift would let a read path that invented a label pass silently.
+        expect(tagIds).toEqual([]);
         expect(actuals).toEqual({});
         // `progress` and `state` are lifted the same way by `role-progress`
         // (R6 H2b), and asserted for `actuals`' reason: an empty object and

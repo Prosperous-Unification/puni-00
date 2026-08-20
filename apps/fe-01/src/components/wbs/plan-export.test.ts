@@ -265,6 +265,7 @@ describe('the columns', () => {
       'Number',
       'Name',
       'Team',
+      'Tags',
       'People at once',
       'Ran at',
       'Dev optimistic',

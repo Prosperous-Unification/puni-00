@@ -109,9 +109,20 @@ export interface CreatablePickerProps {
   /** The chosen entry's id, or null. */
   value: string | null;
   onChoose: (id: string) => void;
-  /** Called with a name that is not in the list. The caller creates it and chooses it. */
-  onCreate: (name: string) => void;
-  onClear: () => void;
+  /**
+   * Called with a name that is not in the list. The caller creates it and
+   * chooses it.
+   *
+   * **Absent where the surface must not create**, which is the tag cell: a tag
+   * is made on the directory page, where a typo can be seen and renamed,
+   * rather than in a cell where it becomes a second spelling of something that
+   * already exists (`tags`' own non-goal). With it absent, a name that matches
+   * nothing offers nothing and the list simply does not open — which is the
+   * honest answer for a picker that cannot make one.
+   */
+  onCreate?: (name: string) => void;
+  /** Absent where there is nothing a clear could take off. */
+  onClear?: () => void;
   placeholder?: string;
   /**
    * The box's own hover text, where the caller has something to say about a
@@ -202,7 +213,8 @@ export function CreatablePicker({
       ? []
       : entries.filter((entry) => wanted === '' || entry.name.toLowerCase().includes(wanted));
   const exact = entries.some((entry) => entry.name.toLowerCase() === wanted);
-  const canCreate = typed !== null && wanted !== '' && !exact;
+  // `onCreate` absent means this surface cannot make one — see the prop.
+  const canCreate = onCreate !== undefined && typed !== null && wanted !== '' && !exact;
   const open = typed !== null && (offered.length > 0 || canCreate);
 
   return (
@@ -306,6 +318,10 @@ export function CreatablePicker({
             return;
           }
           if (canCreate) {
+            // No `?.`: `canCreate` is `onCreate !== undefined && …`, and
+            // TypeScript narrows through an aliased condition — so an optional
+            // chain here is not defensive, it is dead syntax the linter is
+            // right to refuse.
             onCreate(typed.trim());
             setTyped(null);
           }

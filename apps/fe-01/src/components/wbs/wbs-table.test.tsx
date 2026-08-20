@@ -280,6 +280,7 @@ function fakeApi(): ProjectApi & {
       return Promise.resolve();
     },
     listTeams: () => Promise.resolve([...teams]),
+    listTags: () => Promise.resolve([]),
     addTeam(name: string) {
       // Idempotent by name, exactly as be-01 is: the picker's "type it if it
       // is not in the list" must not be able to make two `Platform`s.
@@ -7346,6 +7347,7 @@ describe('dependencies in the table — cross-review findings', () => {
     setEstimateMethod: () => Promise.resolve(),
     setStartDate: () => Promise.resolve(),
     listTeams: () => Promise.resolve([]),
+    listTags: () => Promise.resolve([]),
     addTeam: () => Promise.reject(new Error('not_in_these_tests')),
     listPeople: () => Promise.resolve([]),
     addPerson: () => Promise.reject(new Error('not_in_these_tests')),
@@ -8037,6 +8039,7 @@ describe('the chart under a plan being edited', () => {
       setEstimateMethod: () => Promise.resolve(),
       setStartDate: () => Promise.resolve(),
       listTeams: () => Promise.resolve([]),
+      listTags: () => Promise.resolve([]),
       addTeam: () => Promise.reject(new Error('not_in_these_tests')),
       listPeople: () => Promise.resolve([]),
       addPerson: () => Promise.reject(new Error('not_in_these_tests')),

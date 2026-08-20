@@ -29,6 +29,17 @@ export interface RowFacets {
    * twice in this repo (§8.5).
    */
   teamIds: readonly string[];
+  /**
+   * What kind of thing this row is — the **effective**, inherited reading
+   * (`effectiveTagsOf`), never the row's own stored labels.
+   *
+   * The same rule as `teamIds` above and for the same reason, which is the one
+   * this repo has shipped wrong twice: a leaf under a `regulatory` parent *is*
+   * regulatory, and a filter reading stored labels would not find it. That the
+   * two dimensions take the identical reading is not a coincidence — they are
+   * one walk, in `libs/domain/src/effective-label.ts`.
+   */
+  tagIds: readonly string[];
   /** Everybody named on any of this row's phases, deduplicated. */
   assigneeIds: readonly string[];
   /** What this plan's ladder calls this row's priority, or null where nobody has said. */
@@ -66,6 +77,8 @@ export interface NarrowableRow {
 export interface FilterCriteria {
   query: string;
   teamIds: readonly string[];
+  /** Tag ids — the vocabulary is global, so an id means the same thing on every plan. */
+  tagIds: readonly string[];
   assigneeIds: readonly string[];
   /** Band **labels**, not start values — what the ladder calls the rung, which is what the control offers. */
   priorityBands: readonly string[];
@@ -87,6 +100,7 @@ export type FacetCriteria = Omit<FilterCriteria, 'query'>;
  */
 export const NO_FACETS: FacetCriteria = {
   teamIds: [],
+  tagIds: [],
   assigneeIds: [],
   priorityBands: [],
   estimatedRoleIds: [],
@@ -122,6 +136,7 @@ export interface TreeNarrowing {
 function anyFacetChosen(criteria: FilterCriteria): boolean {
   return (
     criteria.teamIds.length > 0 ||
+    criteria.tagIds.length > 0 ||
     criteria.assigneeIds.length > 0 ||
     criteria.priorityBands.length > 0 ||
     criteria.estimatedRoleIds.length > 0 ||
@@ -154,6 +169,7 @@ export function isFiltering(criteria: FilterCriteria): boolean {
  */
 export interface FilterLabels {
   teamName: (teamId: string) => string;
+  tagName: (tagId: string) => string;
   personName: (personId: string) => string;
   phaseName: (roleId: string) => string;
 }
@@ -181,6 +197,10 @@ export function filterWords(criteria: FilterCriteria, labels: FilterLabels): str
     words.push(`${title} ${ids.map(nameOf).join(' or ')}`);
   };
   chosen('team', criteria.teamIds, labels.teamName);
+  // "tag regulatory or tech-debt" — its own phrase beside the team's, because
+  // the two dimensions are independent and a document folding them into one
+  // would say something neither the control nor the predicate means.
+  chosen('tag', criteria.tagIds, labels.tagName);
   chosen('assignee', criteria.assigneeIds, labels.personName);
   // The bands travel as their labels rather than as ids — what the ladder calls
   // the rung is what the control offers and what a reader recognises.
@@ -269,6 +289,10 @@ export function narrowTree(
   const matches = (row: NarrowableRow): boolean =>
     (wanted === '' || row.name.toLowerCase().includes(wanted)) &&
     carriesAnyChosen(criteria.teamIds, row.facets.teamIds) &&
+    // Against `row.facets.tagIds`, which is the **effective** reading — see
+    // {@link RowFacets.tagIds}. Pointed at a row's own stored labels this finds
+    // the parent and loses every child under it.
+    carriesAnyChosen(criteria.tagIds, row.facets.tagIds) &&
     carriesAnyChosen(criteria.assigneeIds, row.facets.assigneeIds) &&
     carriesAnyChosen(
       criteria.priorityBands,

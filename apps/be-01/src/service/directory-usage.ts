@@ -15,6 +15,19 @@ import { deriveNumbers } from './derive-numbers';
 export type DirectoryEffect =
   | { kind: 'assignment_dropped'; role: { id: string; name: string } }
   | { kind: 'label_nulled' }
+  /**
+   * The row carries the tag being removed, and will stop carrying it.
+   *
+   * Its own kind rather than `label_nulled`, because nothing is nulled: a tag
+   * has no column on `work_item` to set to null. The labelling **is** a row in
+   * `work_item_tag`, and what goes is that row — which is also why the delete
+   * needs no explicit clear, the cascade takes it.
+   *
+   * It carries no size and has no `capacity_released` beside it, ever. Removing
+   * a tag moves no date in any plan; the row stops being findable under that
+   * facet and that is the whole of the effect.
+   */
+  | { kind: 'label_removed' }
   | {
       /**
        * The team was **sized**, and this row's work draws slots from it — so
@@ -177,6 +190,36 @@ export function directoryUsageOfPerson(rows: DirectoryUsageRows, personId: strin
     }
     return effects;
   });
+}
+
+/**
+ * What removing one **tag** would take with it: the labelling, and nothing else.
+ *
+ * **Two arms shorter than {@link directoryUsageOfTeam}, and the absences are the
+ * whole point of the function.**
+ *
+ * No `capacity_released`, because a tag has no pool: there is no `size` on the
+ * table and no per-project capacity beside it, so there is nothing a removal
+ * could give back. No inherited arm either, and that is the subtler one — a team
+ * removal names rows that carry no label of their own, because an inherited pool
+ * moves their dates. Losing an inherited **tag** moves nothing: the row stops
+ * being findable under that facet and every date it has stays exactly where it
+ * was. So this names the rows that actually carry the tag, and no others.
+ *
+ * `label_removed` rather than `label_nulled`, because nothing is nulled — there
+ * is no column. A row's tags are rows in `work_item_tag`, and what a cascade
+ * takes is the row.
+ *
+ * **No date in this payload moves.** That is asserted rather than stated: a test
+ * schedules a plan, deletes a tag with `?cascade=1`, schedules it again and
+ * compares every date. See `tags`' verify.md.
+ *
+ * Membership is read off the row's **own** set, for the reason the team version
+ * argues at length: a work item carrying two tags loses one per removal, and a
+ * reader of `tagIds[0]` would report nothing at all for the second of them.
+ */
+export function directoryUsageOfTag(rows: DirectoryUsageRows, tagId: string): DirectoryUsage {
+  return usageFrom(rows, (row) => (row.tagIds.includes(tagId) ? [{ kind: 'label_removed' }] : []));
 }
 
 /**

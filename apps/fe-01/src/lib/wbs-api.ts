@@ -245,6 +245,33 @@ export interface WorkItemView {
    */
   serviceTeamId: string | null;
   /**
+   * What kind of thing this work item is, by tag id — `regulatory`,
+   * `tech-debt`, `q3-must-have`.
+   *
+   * In be-01's order (by tag id), so two reads of an unchanged plan give the
+   * same array. Empty means this row states nothing and takes its ancestor's
+   * set; `effectiveTagsOf` in `libs/domain` is the reading, and it is literally
+   * the same walk `teamIds` above uses.
+   *
+   * **Independent of `teamIds` in every respect.** A row states either, both or
+   * neither, and inheriting one says nothing about the other. There is no
+   * column behind this and never was — unlike `serviceTeamId` above, which is
+   * `teamIds`' outgoing copy, a tag's whole existence is the join table.
+   *
+   * **Nothing that computes a date reads this.** A team is a pool the scheduler
+   * spends; a tag is a label, and be-01 asserts the empty diff on a plan where a
+   * sized team really does decide dates.
+   *
+   * **Optional on the wire, and required on a `TreeRow`.** Blue and green run
+   * together during a swap, so an fe-01 carrying this change can be served a
+   * tree by the outgoing be-01, which has never heard of the field. `toTree` is
+   * the one place that absence is turned into an empty set; every surface above
+   * it reads a `string[]` and is right to. Typing it as always-present here
+   * would be this file asserting something about a release that does not exist
+   * yet.
+   */
+  tagIds?: string[];
+  /**
    * Who does this work, by role id.
    *
    * `string | undefined` rather than `string`: a role nobody is assigned to is
@@ -336,6 +363,20 @@ export interface TeamView {
 }
 
 /**
+ * A tag, global to this deployment. A name and nothing else, and the absence is
+ * bigger than {@link TeamView}'s.
+ *
+ * A team has no `size` **any more**; a tag has never had one and has no
+ * per-project table beside it either, so there is no `TagCapacityView` under
+ * this and nothing to write one from. A reader who notices that the directory
+ * page renders tags with no capacity column has learned the model rule.
+ */
+export interface TagView {
+  id: string;
+  name: string;
+}
+
+/**
  * How many of one team may be at work at once **on one project's plan**.
  *
  * A team the plan has stated nothing about is **absent** from the list, not
@@ -381,6 +422,16 @@ export interface PersonView {
 export type DirectoryEffect =
   | { kind: 'assignment_dropped'; role: { id: string; name: string } }
   | { kind: 'label_nulled' }
+  /**
+   * The row carries the **tag** being removed, and will stop carrying it.
+   *
+   * Its own kind rather than `label_nulled`, because nothing is nulled: a tag
+   * has no column on the work item to clear, and what goes is the labelling
+   * row. It never appears beside a `capacity_released` — a tag has no pool —
+   * and it is never named on a row that merely *inherits* the tag, because
+   * losing an inherited tag moves no date and there is nothing to confirm.
+   */
+  | { kind: 'label_removed' }
   | {
       /**
        * The pool bounding this work item goes with the team, so its dates may
@@ -493,6 +544,16 @@ export interface PersonPatch {
 export interface DirectoryApi {
   listPeople(): Promise<PersonView[]>;
   listTeams(): Promise<TeamView[]>;
+  /** Every tag in the global directory, by name. */
+  listTags(): Promise<TagView[]>;
+  addTag(name: string): Promise<TagView>;
+  renameTag(tagId: string, name: string): Promise<DirectoryWrite<TagView>>;
+  /**
+   * Removes a tag. Without `cascade` a tag anything carries is refused with the
+   * usage naming what would be unlabelled — `removeTeam`'s shape, and the same
+   * 409-then-confirm gesture.
+   */
+  removeTag(tagId: string, cascade: boolean): Promise<DirectoryRemoval>;
   /** Adds a person; no teams means a **free agent**. Idempotent by name at be-01. */
   addPerson(name: string, teamIds: readonly string[]): Promise<PersonView>;
   addTeam(name: string): Promise<TeamView>;
@@ -780,10 +841,33 @@ export interface ProjectApi {
        */
       maxParallel?: number | null;
       serviceTeamId?: string | null;
+      /**
+       * The tags this row will carry, **whole** — the set as it will stand,
+       * never a member to add or a delta to apply.
+       *
+       * `[]` takes every tag off and is the one spelling of that; absent leaves
+       * them alone. There is no `null` arm, because there is no column to reset
+       * and no third "deliberately untagged" state.
+       *
+       * Refused with a 404 (`unknown_tag`) for an id the directory no longer
+       * holds — the out-of-date picker, decided inside be-01's own write
+       * transaction. At most 50 ids.
+       */
+      tagIds?: readonly string[];
     },
   ): Promise<void>;
   /** The global team list, and adding to it — idempotent by name at be-01. */
   listTeams(): Promise<TeamView[]>;
+  /** Every tag in the global directory, by name. */
+  listTags(): Promise<TagView[]>;
+  addTag(name: string): Promise<TagView>;
+  renameTag(tagId: string, name: string): Promise<DirectoryWrite<TagView>>;
+  /**
+   * Removes a tag. Without `cascade` a tag anything carries is refused with the
+   * usage naming what would be unlabelled — `removeTeam`'s shape, and the same
+   * 409-then-confirm gesture.
+   */
+  removeTag(tagId: string, cascade: boolean): Promise<DirectoryRemoval>;
   addTeam(name: string): Promise<TeamView>;
   listPeople(): Promise<PersonView[]>;
   /** Adds a person; no teams means a free agent. */
@@ -1081,7 +1165,7 @@ async function writeDirectoryAt<T>(
   path: string,
   token: string,
   init: RequestInit,
-  key: 'person' | 'team',
+  key: 'person' | 'team' | 'tag',
 ): Promise<DirectoryWrite<T>> {
   const res = await fetch(path, { ...init, headers: auth(token) });
   const text = await res.text();
@@ -1092,7 +1176,7 @@ async function writeDirectoryAt<T>(
     }
   }
   if (!res.ok) throw new Error(refusalCodeIn(text, res.status));
-  const body = JSON.parse(text) as Partial<Record<'person' | 'team', T>>;
+  const body = JSON.parse(text) as Partial<Record<'person' | 'team' | 'tag', T>>;
   const entry = body[key];
   if (entry === undefined) throw new Error('unexpected_response');
   return { ok: true, entry };
@@ -1325,6 +1409,30 @@ export function httpDirectoryApi(token: string): DirectoryApi {
         'team',
       );
     },
+    // The tag half, and it is the team half with the word changed. Global —
+    // no project in any of these paths, exactly as the teams are.
+    async listTags() {
+      const body = await send<{ tags: TagView[] }>('/api/tags', token);
+      return body.tags;
+    },
+    async addTag(name) {
+      const body = await send<{ tag: TagView }>('/api/tags', token, {
+        method: 'POST',
+        body: JSON.stringify({ name }),
+      });
+      return body.tag;
+    },
+    renameTag(id, name) {
+      return writeDirectoryAt<TagView>(
+        `/api/tags/${id}`,
+        token,
+        { method: 'PATCH', body: JSON.stringify({ name }) },
+        'tag',
+      );
+    },
+    removeTag(id, cascade) {
+      return removeDirectoryAt(`/api/tags/${id}${cascade ? '?cascade=true' : ''}`, token);
+    },
     // `?cascade=true` and nothing else — `directoryController`'s own rule, and
     // `roleController`'s before it: the flag is the second, explicit call
     // rather than a body on a DELETE, and it is **absent** rather than
@@ -1391,6 +1499,10 @@ export function httpProjectApi(token: string): ProjectApi {
     // about what a person is.
     listTeams: () => directory.listTeams(),
     addTeam: (name) => directory.addTeam(name),
+    listTags: () => directory.listTags(),
+    addTag: (name) => directory.addTag(name),
+    renameTag: (tagId, name) => directory.renameTag(tagId, name),
+    removeTag: (tagId, cascade) => directory.removeTag(tagId, cascade),
     listPeople: () => directory.listPeople(),
     addPerson: (name, teamIds) => directory.addPerson(name, teamIds),
     async assign(workItemId, roleId, personId) {

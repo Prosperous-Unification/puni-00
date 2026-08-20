@@ -111,6 +111,7 @@ function silentApi(): SilentApi {
       create,
       patch: nothing,
       listTeams: () => Promise.resolve([]),
+      listTags: () => Promise.resolve([]),
       addTeam: () => Promise.resolve({ id: 't', name: 'T' }),
       listPeople: () => Promise.resolve([]),
       addPerson: () => Promise.resolve({ id: 'person', name: 'Kat', teamIds: [] }),

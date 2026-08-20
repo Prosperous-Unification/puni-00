@@ -54,10 +54,11 @@ const rowAt = (
   notBeforeOffset: null,
   priority: null,
   maxParallel: 1,
-  // The three facts a row is enriched with before the chart is drawn. Absent
-  // by default and named by the tests that are about them, so a fixture never
-  // has to state a team it is not asking about.
+  // The facts a row is enriched with before the chart is drawn. Absent by
+  // default and named by the tests that are about them, so a fixture never has
+  // to state a team it is not asking about.
   team: { state: 'none' },
+  tags: { state: 'none' },
   trioByRole: new Map(),
   waitsFor: [],
   ...extras,
@@ -1336,6 +1337,71 @@ describe('the chart is drawn in calendar days', () => {
 
     expect(linesOf(surfaceOn('strip-dev'))).toContain('Team not in this directory read');
     expect(document.querySelector('[data-gantt-chart]')).not.toBeNull();
+  });
+
+  itDom('says what kind of thing the work is, and where an inherited tag came from', () => {
+    render(
+      <GanttPanel
+        plan={planOf({
+          rows: [
+            rowAt('strip', 0, 3, {
+              number: '010',
+              name: 'Strip',
+              tags: { state: 'named', names: ['Compliance', 'Rework'] },
+            }),
+            rowAt('sand', 3, 5, {
+              number: '020',
+              name: 'Sand',
+              tags: { state: 'inherited', names: ['Compliance'], fromRow: '000 Hull' },
+            }),
+          ],
+          slices: [sliceAt('strip-dev', 'strip', 0, 3), sliceAt('sand-dev', 'sand', 3, 5)],
+        })}
+        startDate={null}
+        scheduleError={null}
+        generation={0}
+        heightPx={null}
+        onPickRow={() => undefined}
+        onPointRow={() => undefined}
+        pointedRow={null}
+      />,
+    );
+
+    // Both tags on one line, because they are one fact about the row — a line
+    // per tag would read as a list of things happening to it.
+    expect(linesOf(surfaceOn('strip-dev'))).toContain('Tags Compliance, Rework');
+    // The ancestor named, for the team's reason and more strongly: the row this
+    // bar sits on names no tag at all, so a bare `Tags Compliance` here is a
+    // word with no source anywhere on screen.
+    expect(linesOf(surfaceOn('sand-dev'))).toContain('Tags Compliance — inherited from 000 Hull');
+  });
+
+  itDom('says nothing at all about tags on a plan nobody has tagged', () => {
+    // The asymmetry with `No team` one line up, on purpose: a team is the pool
+    // the dates were computed against and its absence explains the schedule; a
+    // tag decides nothing, so a `No tags` line on every bar of every plan is
+    // furniture. See `tagWords`.
+    render(
+      <GanttPanel
+        plan={planOf({
+          rows: [rowAt('strip', 0, 3, { number: '010', name: 'Strip' })],
+          slices: [sliceAt('strip-dev', 'strip', 0, 3)],
+        })}
+        startDate={null}
+        scheduleError={null}
+        generation={0}
+        heightPx={null}
+        onPickRow={() => undefined}
+        onPointRow={() => undefined}
+        pointedRow={null}
+      />,
+    );
+
+    const lines = linesOf(surfaceOn('strip-dev'));
+    expect(lines.filter((line) => line.startsWith('Tags'))).toEqual([]);
+    // And the team's absence still said, so the test above is about the tag
+    // line rather than about a surface that has stopped printing absences.
+    expect(lines).toContain('No team');
   });
 
   itDom('gives each role’s bar its own dates and its own trio', () => {
@@ -2870,6 +2936,7 @@ function fakeApi(startDate: string | null, skew: ReadSkew = {}): ProjectApi {
     // the payload above on purpose.
     roles: () => Promise.resolve(skew.roles ?? [{ ...DEV }]),
     listTeams: () => Promise.resolve(skew.teams ?? teams),
+    listTags: () => Promise.resolve([]),
     listPeople: () => Promise.resolve(skew.people ?? people),
     listProjects: () => notImplemented('listProjects'),
     createProject: () => notImplemented('createProject'),

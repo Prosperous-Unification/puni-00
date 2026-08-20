@@ -51,6 +51,13 @@ export function inMemoryWorkItems(
    * forgets the join, which is the fault the real repository's tests inject.
    */
   const teamsOf = new Map<string, readonly string[]>();
+  /**
+   * The tags each work item is joined to, held apart from the row for
+   * `teamsOf`'s reason — and unlike the teams, with no column to derive from.
+   * A tag set arrives on the patch and nowhere else, so this map is written only
+   * where the patch names one.
+   */
+  const tagsOf = new Map<string, readonly string[]>();
 
   /** The join rows one write owes, as `WorkItemRepository` derives them. */
   const joinFor = (row: WorkItem): readonly string[] =>
@@ -69,7 +76,11 @@ export function inMemoryWorkItems(
       return Promise.resolve(
         [...byId.values()]
           .filter((w) => w.projectId === projectId)
-          .map((row) => ({ ...row, teamIds: teamsOf.get(row.id) ?? [] })),
+          .map((row) => ({
+            ...row,
+            teamIds: teamsOf.get(row.id) ?? [],
+            tagIds: tagsOf.get(row.id) ?? [],
+          })),
       );
     },
     findById(id) {

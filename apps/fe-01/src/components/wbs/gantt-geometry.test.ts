@@ -7,6 +7,7 @@ import {
   calendarScale,
   droppedLinkWords,
   GanttDataError,
+  type GanttGeometry,
   type GanttPlan,
   type GanttRow,
   type GanttSlice,
@@ -19,6 +20,7 @@ import {
   placeOnCalendar,
   placeOnWorkdays,
   routeArrow,
+  type TagLabel,
   UNASSIGNED_BAR_COLOR,
 } from './gantt-geometry';
 
@@ -39,10 +41,11 @@ const rowAt = (
   priority: null,
   // One at a time, which is every row of every plan nobody has widened.
   maxParallel: 1,
-  // The three facts a row is enriched with before the chart is drawn. Absent
-  // by default and named by the tests that are about them, so a fixture never
-  // has to state a team it is not asking about.
+  // The facts a row is enriched with before the chart is drawn. Absent by
+  // default and named by the tests that are about them, so a fixture never has
+  // to state a team it is not asking about.
   team: { state: 'none' },
+  tags: { state: 'none' },
   trioByRole: new Map(),
   waitsFor: [],
   ...extras,
@@ -1253,6 +1256,86 @@ describe('what a bar knows about itself', () => {
 
     expect(() => layOutGantt(nameless)).toThrow(GanttDataError);
     expect(() => layOutGantt(nameless)).toThrow('no person at all');
+  });
+});
+
+describe('tags reach the bar and nothing that computes a position', () => {
+  /**
+   * One plan drawn twice over: a parent, two leaves, an edge between them and a
+   * manual start date — a chart with a bar, a bracket, an arrow and a flag on
+   * it, so "nothing moved" is a claim about every kind of mark rather than
+   * about bars alone.
+   */
+  const planWith = (tags: TagLabel, extras: Partial<GanttSlice> = {}): GanttPlan =>
+    planOf({
+      rows: [
+        rowAt('backend', 0, 5, { depth: 0, leaf: false, number: '010', name: 'Backend' }),
+        rowAt('strip', 0, 3, { depth: 1, tags }),
+        rowAt('sand', 3, 5, { depth: 1, notBeforeOffset: 3 }),
+      ],
+      slices: [
+        sliceAt('strip-dev', 'strip', 0, 3, extras),
+        sliceAt('strip-qa', 'strip', 3, 4, { roleId: 'qa' }),
+        sliceAt('sand-dev', 'sand', 3, 5, { boundBy: 'predecessor' }),
+      ],
+      dependencies: [{ predecessorId: 'strip', successorId: 'sand' }],
+    });
+
+  /** The whole chart with the field under test flattened to one constant. */
+  const everythingElse = (chart: GanttGeometry): unknown => ({
+    ...chart,
+    bars: chart.bars.map((bar) => ({ ...bar, tags: 'not compared here' })),
+  });
+
+  it('carries the row’s tags onto every bar drawn for that row', () => {
+    const chart = layOutGantt(planWith({ state: 'named', names: ['Compliance', 'Rework'] }));
+
+    // Both of the tagged row's bars, because the surface is built per bar: a
+    // reader hovering the QA bar of a compliance job is owed the same sentence
+    // as one hovering its Dev bar.
+    expect(chart.bars.map((bar) => [bar.sliceId, bar.tags])).toEqual([
+      ['strip-dev', { state: 'named', names: ['Compliance', 'Rework'] }],
+      ['strip-qa', { state: 'named', names: ['Compliance', 'Rework'] }],
+      ['sand-dev', { state: 'none' }],
+    ]);
+  });
+
+  it('carries an inherited set with the ancestor it came from', () => {
+    const inherited = {
+      state: 'inherited',
+      names: ['Compliance'],
+      fromRow: '010 Backend',
+    } as const;
+    const chart = layOutGantt(planWith(inherited));
+
+    expect(chart.bars[0].tags).toEqual(inherited);
+  });
+
+  it('places every mark at the same number tagged and untagged', () => {
+    const untagged = layOutGantt(planWith({ state: 'none' }));
+    const tagged = layOutGantt(planWith({ state: 'named', names: ['Compliance', 'Rework'] }));
+    const inherited = layOutGantt(
+      planWith({ state: 'inherited', names: ['Compliance'], fromRow: '010 Backend' }),
+    );
+
+    expect(everythingElse(tagged)).toEqual(everythingElse(untagged));
+    expect(everythingElse(inherited)).toEqual(everythingElse(untagged));
+    // The floor sentence too, which is the one string on a bar that is computed
+    // from what is holding it up: a tag is not among the things that can.
+    expect(tagged.bars.map((bar) => bar.floorWords)).toEqual(
+      untagged.bars.map((bar) => bar.floorWords),
+    );
+  });
+
+  it('control: the same comparison catches a mark that really did move', () => {
+    // Without this, the assertion above passes on a build that lays out
+    // nothing — the lesson `tag-empty-diff.test.ts` was rewritten for. A
+    // one-workday shift in a slice has to come out as a difference here, or the
+    // comparison is not measuring the chart.
+    const untagged = layOutGantt(planWith({ state: 'none' }));
+    const moved = layOutGantt(planWith({ state: 'none' }, { earliestStart: 1 }));
+
+    expect(everythingElse(moved)).not.toEqual(everythingElse(untagged));
   });
 });
 

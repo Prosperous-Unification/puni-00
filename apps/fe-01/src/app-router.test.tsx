@@ -28,6 +28,7 @@ function emptyProjects(): ProjectApi {
     setEstimateMethod: notHere,
     setStartDate: notHere,
     listTeams: () => Promise.resolve([]),
+    listTags: () => Promise.resolve([]),
     addTeam: notHere,
     listPeople: () => Promise.resolve([]),
     addPerson: notHere,

@@ -267,7 +267,51 @@ export interface WorkItem {
  */
 export interface LabelledWorkItem extends WorkItem {
   teamIds: readonly string[];
+  /**
+   * What kind of thing the row is, 0..n, and **independent of `teamIds` in every
+   * respect** — a row states either, both or neither, and inheriting one says
+   * nothing about the other.
+   *
+   * Ordered by tag id, for `teamIds`' reason. Empty means the row states nothing
+   * and inherits; see `effectiveTagsOf` in `libs/domain`.
+   *
+   * Unlike `teamIds` this has no column behind it and never had one: there is no
+   * `work_item.tagId` to be the outgoing release's copy, because the dimension
+   * arrived after the set was already the shape. `work_item_tag` is the whole of
+   * the fact.
+   */
+  tagIds: readonly string[];
 }
+
+/**
+ * One tag in the global directory: an id and a name, and deliberately nothing
+ * else.
+ *
+ * **No size and no capacity**, unlike {@link ServiceTeam}, which still carries
+ * a retired `size`. That absence is the model rule — a tag says what kind of
+ * thing a work item is, and nothing about a tag is ever spent — and it is
+ * visible here, in the table, and on the directory page, which renders tags
+ * with no capacity column.
+ */
+export interface Tag {
+  id: string;
+  name: string;
+}
+
+/**
+ * What a tag rename answered.
+ *
+ * `taken` carries no surviving name here — the caller has it, because it typed
+ * it — and the controller turns this into the 409 the directory page shows.
+ * {@link ServiceTeamWritten}'s shape, one dimension over.
+ *
+ * `projectIds` is every project holding a row that carries the tag, read in the
+ * rename's own transaction so the events published after it name the plans that
+ * were labelled when it happened.
+ */
+export type TagWritten =
+  | { ok: true; tag: Tag; projectIds: readonly string[] }
+  | { ok: false; reason: 'taken' | 'not_found' };
 
 export interface WorkItemPatch {
   name?: string;
@@ -318,6 +362,31 @@ export interface WorkItemPatch {
    * `effort / 0` is a plan of `Infinity` dates.
    */
   maxParallel?: number | null;
+  /**
+   * What kind of thing this work item is, **whole**: the set as it will stand,
+   * never a member to add or remove.
+   *
+   * `[]` takes every tag off, and there is no `null` arm because there is
+   * nothing else `[]` could mean — a tag has no column to reset to a default,
+   * unlike {@link maxParallel}, and no third "deliberately untagged" state,
+   * unlike nothing at all in this model. Absent leaves the row's tags alone,
+   * which is the same reading every other field here takes.
+   *
+   * Whole rather than a delta because the undo journal has to carry a
+   * before-value that restores what was there: a patch of "add `regulatory`"
+   * has no inverse that a second patch can express, and the compensating
+   * command for a set is the prior set. That is the seam a scalar habit loses
+   * data at, and it has its own watched red in the service.
+   *
+   * An id the directory no longer holds is refused with `unknown_tag`, decided
+   * **inside the transaction that performs the update** — `serviceTeamId`'s
+   * argument exactly, and for a stronger reason: `work_item_tag.tag_id`
+   * cascades, so an id removed in the gap between a precheck and the write
+   * would not fail on a foreign key at all. It would insert against a `tag` row
+   * that is gone, and SQLite would refuse it — but the refusal a reader gets
+   * must name the tag rather than be a 500, and only the transaction can.
+   */
+  tagIds?: readonly string[];
 }
 
 /**
@@ -337,6 +406,12 @@ export interface WorkItemPatch {
  * still names. What has no cascade is the *delete* — which is why
  * {@link DirectoryStore.removeTeam} nulls the labels itself.
  *
+ * `unknown_tag` is the same answer for the other label dimension, decided in
+ * the same transaction and argued in {@link WorkItemPatch.tagIds}. The two are
+ * deliberately separate reasons rather than one `unknown_label`: a reader told
+ * a label is gone has to know **which** picker to reopen, and the two
+ * dimensions are independent everywhere else in this model.
+ *
  * `not_before_reason_needs_a_date` is decided in the same transaction and for a
  * version of the same reason: the rule is about the row **as it will stand**, so
  * it has to be asked against the stored date and the patch's together, and a
@@ -348,7 +423,10 @@ export interface WorkItemPatch {
  */
 export type WorkItemPatched =
   | { ok: true; workItem: WorkItem }
-  | { ok: false; reason: 'not_found' | 'unknown_team' | 'not_before_reason_needs_a_date' };
+  | {
+      ok: false;
+      reason: 'not_found' | 'unknown_team' | 'unknown_tag' | 'not_before_reason_needs_a_date';
+    };
 
 /**
  * What an assignment write answered.
@@ -839,6 +917,26 @@ export interface PriorityBandStore {
 }
 
 export interface DirectoryStore {
+  /** Every tag in the global directory, by name. */
+  listTags(): Promise<Tag[]>;
+  /**
+   * Adds a tag idempotently **by name**, answering the row that is there — which
+   * is the earlier one when two callers added the same name at once.
+   */
+  addTag(toAdd: Tag): Promise<Tag>;
+  /** Renames one tag, refusing a name another tag holds. */
+  renameTag(tagId: string, name: string): Promise<TagWritten>;
+  /**
+   * What points at one tag right now — a fast path for the confirmation, never
+   * the authority for it. {@link DirectoryStore.removeTag} decides.
+   */
+  usageOfTag(tagId: string): Promise<DirectoryUsageRows>;
+  /**
+   * Counts what carries the tag, refuses an unconfirmed removal that would
+   * unlabel anything, and otherwise deletes the tag — letting the cascade take
+   * the labelling — all in one transaction, bumping every row that lost one.
+   */
+  removeTag(tagId: string, cascade: boolean): Promise<DirectoryRemoved>;
   listTeams(): Promise<ServiceTeam[]>;
   /**
    * Adds a team, or returns the one that already has that name.

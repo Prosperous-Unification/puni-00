@@ -500,6 +500,14 @@ export type WorkItemRefusal =
    */
   | 'unknown_team'
   /**
+   * A tag the directory no longer holds, decided inside the write's own
+   * transaction — see {@link WorkItemPatch.tagIds}. The same out-of-date picker
+   * as `unknown_team`, and a separate reason from it deliberately: a reader
+   * told a label is gone has to know **which** of the two pickers to reopen,
+   * and the dimensions are independent everywhere else in this model.
+   */
+  | 'unknown_tag'
+  /**
    * A patch that would leave a work item holding a reason with no not-before
    * date for it to be a reason about, decided inside the write's own
    * transaction — see {@link WorkItemPatched}.
@@ -717,6 +725,13 @@ function fieldsOf(patch: WorkItemPatch): (keyof WorkItemPatch)[] {
   // Watched 2026-08-12; {@link revertTo}'s matching line fails differently and
   // carries its own.
   if (patch.maxParallel !== undefined) named.push('maxParallel');
+  // Proof: this line deleted, so a patch naming only the tags journals nothing
+  // — and `puts a replaced tag set back, whole` failed at its `expectDone` on
+  // `refused: stale_undo — “Strip the roof” has changed since then`: the undo
+  // reached past the unjournalled write to an entry that write had already made
+  // stale. The parallelism line's own red, one dimension over. Watched
+  // 2026-08-19.
+  if (patch.tagIds !== undefined) named.push('tagIds');
   return named;
 }
 
@@ -728,7 +743,7 @@ function fieldsOf(patch: WorkItemPatch): (keyof WorkItemPatch)[] {
  * somebody else edited in between — an undo that reverses more than the change
  * it is undoing.
  */
-function revertTo(before: WorkItem, patch: WorkItemPatch): WorkItemPatch {
+function revertTo(before: LabelledWorkItem, patch: WorkItemPatch): WorkItemPatch {
   const out: WorkItemPatch = {};
   if (patch.name !== undefined) out.name = before.name;
   if (patch.notes !== undefined) out.notes = before.notes;
@@ -753,6 +768,31 @@ function revertTo(before: WorkItem, patch: WorkItemPatch): WorkItemPatch {
   }
   if (patch.priority !== undefined) out.priority = before.priority;
   if (patch.serviceTeamId !== undefined) out.serviceTeamId = before.serviceTeamId;
+  // **The whole prior set, and this is the seam a scalar habit loses data at.**
+  // A set-valued field's inverse cannot be a member of the set or a delta
+  // against it: undoing "these three tags" has to restore the two that were
+  // there, and any spelling that carries one id restores one of them and drops
+  // the rest — silently, reporting a successful undo.
+  //
+  // It is also why `before` here is a {@link LabelledWorkItem} rather than the
+  // {@link WorkItem} every other line in this function reads: `work_item` has
+  // no column for a tag, so the prior set exists only on the row the plan read
+  // gave back. Reading the store's own row for it would be a second read with a
+  // concurrent write's worth of gap in front of it.
+  //
+  // `[]` is a legal before-value and means the row had no tags: the inverse of
+  // "tag it" is "take them off", which is the empty set rather than an absent
+  // field. There is no null arm here for the same reason there is none on the
+  // patch.
+  //
+  // Proof: written as `out.tagIds = before.tagIds.slice(0, 1)` — the scalar
+  // habit, keeping "the tag" — and **68 pass, 1 fail**: `puts a replaced tag
+  // set back, whole` failed on `expect(received).toEqual(expected)` with one of
+  // the two restored ids missing from the array. A pressable undo that reports
+  // **done** and leaves the row carrying one of the two labels it had, which is
+  // the whole failure mode this field's design is about — nothing else in the
+  // suite notices. Watched 2026-08-19, see verify.md.
+  if (patch.tagIds !== undefined) out.tagIds = before.tagIds;
   // `before.maxParallel` is a number and never null — the column is `NOT NULL`
   // — so the inverse of a reset to 1 is the stored number itself rather than a
   // second null.
@@ -1323,7 +1363,14 @@ export class WorkItemService {
   ): Promise<WorkItemOutcome<WorkItem>> {
     const context = await this.contextFor(id, actorId);
     if (!context.ok) return context;
-    const before = context.result.workItem;
+    // The row as the **plan read** gave it, not as `findById` did: the tag set
+    // has no column behind it, so it exists only here. Falling back to the bare
+    // row with an empty set would make the inverse of a tag patch "take every
+    // tag off" for a row that had some — an undo that loses exactly the data
+    // this field's whole design is about — so a row the plan read cannot see is
+    // `not_found` instead, which is what it is.
+    const before = context.result.rows.find((row) => row.id === id);
+    if (before === undefined) return { ok: false, reason: 'not_found' };
     // A row with children has no slices of its own — `slicesOf` skips it — so a
     // parallelism stored there would be a number on screen that decides
     // nothing. Refused rather than accepted-and-ignored, which is the same
@@ -3089,7 +3136,7 @@ export class WorkItemService {
   private async contextFor(
     id: string,
     actorId: string,
-  ): Promise<WorkItemOutcome<{ workItem: WorkItem; project: Project; rows: WorkItem[] }>> {
+  ): Promise<WorkItemOutcome<{ workItem: WorkItem; project: Project; rows: LabelledWorkItem[] }>> {
     const workItem = await this.opts.workItems.findById(id);
     if (workItem === null) return { ok: false, reason: 'not_found' };
     const project = await this.opts.projects.findById(workItem.projectId);
