@@ -137,6 +137,45 @@ claim is made where the reading is computed (#5, #6).
    filters because a feature they never asked for shipped. A facet added later
    reads as absent, normalised through `NO_FILTER` at the storage boundary.
 
+## CI
+
+**Run 32404008038** at `310de48`, PR #87.
+
+| job      | conclusion  | what it carried                                                                                                                            |
+| -------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `gate`   | **success** | 4m6s. format, the whole run-many target, secrets scan, doc caps, compose files, migration lint, and `build` — which h2puni cannot run.     |
+| `pixels` | **fail**    | `1 failed / 179 passed`, 9.6m. Reran `--failed`: **the same one test, the same numbers**, 9.7m.                                            |
+
+The failure is `dark-mode.spec.ts:263`, `follows the machine while nothing has
+been chosen, and stops when something is`, failing inside its `settled()` helper
+on `expect(document.getAnimations().length).toBe(0)` — `Expected: 0 / Received:
+12`, `Timeout 10000ms exceeded while waiting on the predicate`.
+
+**It is not this branch's, and the identical rerun is what says so.** This repo's
+record has a real `pixels` flake class — `dark-mode` amid a wall of
+`write EPIPE` / `read ECONNRESET`, seen at #44, #57 and `team-sets` — and that
+wall is present here too, which is exactly why the rerun mattered. A flake moves.
+This did not: same test, same `12`, twice.
+
+So the question is whether `main` has it, and it does:
+
+- **`main` @ `1d7751f`** (the base this branch is rebased onto, #86 merged),
+  run **32360096281**: `pixels` fails on `dark-mode.spec.ts:263`,
+  `Expected: 0 / Received: 12`, `1 failed / 179 passed`. Identical.
+- **`main` @ `9639a39`**, run **32281560107**: the same test failing the same way,
+  alongside a second one (`header.spec.ts:440`).
+
+The red therefore predates this change by at least a day, and #86 was merged over
+it. This branch adds no animation and no transition — `git diff origin/main...HEAD
+-- apps/fe-01/src` matches nothing on `animate-`, `transition`, `duration-` or
+`animation`. Twelve animations that never drain on a page whose theme flipped is
+`main`'s bug to name, and it is called out to the reviewer rather than absorbed
+here: **`main` is red, and a green `pixels` is not available to any branch cut
+from it until that is fixed.**
+
+`gate` is green at the head, and it is the job that carries `build`, which
+h2puni cannot run.
+
 ## Deviations, named rather than implied
 
 - **No `wbs-api` spec delta.** `tasks.md` §8.3 asked for one. There is no

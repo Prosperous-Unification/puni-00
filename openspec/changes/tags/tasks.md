@@ -108,4 +108,10 @@
       `SHALL`; `openspec validate --all` **69 items, 69 passed, 0 failed**.
 - [x] 8.4 `verify.md` with the R5 fault table — sixteen rows, each sourced from
       the `Proof:` comment beside the line it guards.
-- [ ] 8.5 CI green at the head.
+- [x] 8.5 CI at the head `310de48`, run **32404008038**: `gate` **success**
+      (4m6s). `pixels` **fail, twice, identically** — `1 failed / 179 passed`,
+      `dark-mode.spec.ts:263` on `Expected: 0 / Received: 12`. **It is not this
+      branch's.** `main` at `1d7751f` fails the same test with the same numbers
+      (run 32360096281), and so did `9639a39` before it (run 32281560107) — the
+      red predates this work and #86 was merged over it. Detail in verify.md
+      under "CI".
