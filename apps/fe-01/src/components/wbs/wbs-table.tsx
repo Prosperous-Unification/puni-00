@@ -135,6 +135,7 @@ import {
   type NarrowableRow,
   narrowTree,
   NO_FACETS,
+  NO_FILTER,
 } from './tree-search';
 import { toTree, type TreeRow } from './wbs-rows';
 
@@ -911,19 +912,66 @@ function isStringArray(value: unknown): value is string[] {
   return Array.isArray(value) && value.every((each) => typeof each === 'string');
 }
 
-/** Whether a claimed value has every field {@link FilterCriteria} declares. */
+/**
+ * Whether a claimed value is a facet list that **was not stored at all** — the
+ * state a view saved before that facet existed is in.
+ *
+ * Absent is usable and means "this view asks nothing about that facet", which
+ * is what it did mean when it was saved. Present-but-wrong is not: a
+ * hand-edited `tagIds: 3` is a view this table cannot apply, and it is dropped
+ * with the rest of the unusable ones.
+ */
+function isAbsentOrStringArray(value: unknown): boolean {
+  return value === undefined || isStringArray(value);
+}
+
+/**
+ * Whether a claimed value has every field {@link FilterCriteria} declares —
+ * treating a facet **added after this view was saved** as absent rather than as
+ * malformed.
+ *
+ * `saved-views` shipped on 2026-08-19 (#83) and `tags` added a facet on
+ * 2026-08-20, so between those two dates a reader could save a view that has no
+ * `tagIds` in it. Requiring the field outright would have made every one of
+ * those views unusable, and `rememberedSavedViews` drops what it cannot use —
+ * so the tool would have deleted somebody's saved filters because a feature
+ * they never asked for shipped. Each new facet joins this list the same way.
+ *
+ * Found by `drops one unusable saved view and keeps the rest`, which crashed on
+ * `Cannot read properties of undefined (reading 'length')` inside `filterWords`
+ * rather than failing an assertion — the shape check passed a view the rest of
+ * the module could not read. Watched 2026-08-20.
+ */
 function isFilterCriteriaShape(value: unknown): value is FilterCriteria {
   if (typeof value !== 'object' || value === null) return false;
   const claimed = value as Record<string, unknown>;
   return (
     typeof claimed['query'] === 'string' &&
     isStringArray(claimed['teamIds']) &&
+    isAbsentOrStringArray(claimed['tagIds']) &&
     isStringArray(claimed['assigneeIds']) &&
     isStringArray(claimed['priorityBands']) &&
     isStringArray(claimed['estimatedRoleIds']) &&
     typeof claimed['unestimated'] === 'boolean' &&
     typeof claimed['critical'] === 'boolean'
   );
+}
+
+/**
+ * One stored view's criteria with every facet present, whatever the storage
+ * held.
+ *
+ * The **one** place a stored view becomes a `FilterCriteria` the rest of this
+ * module may assume is whole. `filterWords`, `narrowTree` and the facet panel
+ * all read `criteria.tagIds.length` without checking, and they are right to:
+ * the type says it is there. This is what makes the type true at the boundary,
+ * which is where user-editable storage is turned into a fact.
+ *
+ * Spread over {@link NO_FILTER} rather than field by field, so a facet added
+ * later is defaulted here without this function being touched again.
+ */
+function everyFacetOf(criteria: FilterCriteria): FilterCriteria {
+  return { ...NO_FILTER, ...criteria };
 }
 
 /** Whether a claimed value is one saved view this table can offer and apply. */
@@ -965,7 +1013,9 @@ function rememberedSavedViews(projectId: string): SavedView[] {
     localStorage.removeItem(savedViewsKey(projectId));
     return [];
   }
-  return claimed.filter(isSavedView);
+  return claimed
+    .filter(isSavedView)
+    .map((view) => ({ ...view, criteria: everyFacetOf(view.criteria) }));
 }
 
 /**
