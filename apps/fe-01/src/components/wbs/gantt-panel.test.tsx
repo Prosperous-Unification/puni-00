@@ -320,6 +320,8 @@ describe('every mark on the chart lands on the calendar day its workday is', () 
         generation={0}
         heightPx={null}
         onPickRow={() => undefined}
+        onPointRow={() => undefined}
+        pointedRow={null}
       />,
     );
 
@@ -385,6 +387,8 @@ describe('every mark on the chart lands on the calendar day its workday is', () 
         generation={0}
         heightPx={null}
         onPickRow={() => undefined}
+        onPointRow={() => undefined}
+        pointedRow={null}
       />,
     );
 
@@ -423,6 +427,8 @@ describe('the chart is drawn in calendar days', () => {
         generation={0}
         heightPx={null}
         onPickRow={() => undefined}
+        onPointRow={() => undefined}
+        pointedRow={null}
       />,
     );
 
@@ -456,6 +462,8 @@ describe('the chart is drawn in calendar days', () => {
         generation={0}
         heightPx={null}
         onPickRow={() => undefined}
+        onPointRow={() => undefined}
+        pointedRow={null}
       />,
     );
 
@@ -527,6 +535,8 @@ describe('the chart is drawn in calendar days', () => {
         generation={0}
         heightPx={null}
         onPickRow={() => undefined}
+        onPointRow={() => undefined}
+        pointedRow={null}
       />,
     );
 
@@ -565,6 +575,8 @@ describe('the chart is drawn in calendar days', () => {
         generation={0}
         heightPx={null}
         onPickRow={() => undefined}
+        onPointRow={() => undefined}
+        pointedRow={null}
       />,
     );
 
@@ -611,6 +623,8 @@ describe('the chart is drawn in calendar days', () => {
         generation={0}
         heightPx={null}
         onPickRow={() => undefined}
+        onPointRow={() => undefined}
+        pointedRow={null}
       />,
     );
 
@@ -675,6 +689,8 @@ describe('the chart is drawn in calendar days', () => {
         generation={0}
         heightPx={null}
         onPickRow={() => undefined}
+        onPointRow={() => undefined}
+        pointedRow={null}
       />,
     );
 
@@ -740,6 +756,8 @@ describe('the chart is drawn in calendar days', () => {
         generation={0}
         heightPx={null}
         onPickRow={() => undefined}
+        onPointRow={() => undefined}
+        pointedRow={null}
       />,
     );
 
@@ -788,6 +806,8 @@ describe('the chart is drawn in calendar days', () => {
         generation={0}
         heightPx={null}
         onPickRow={() => undefined}
+        onPointRow={() => undefined}
+        pointedRow={null}
       />,
     );
 
@@ -818,6 +838,8 @@ describe('the chart is drawn in calendar days', () => {
           generation={0}
           heightPx={null}
           onPickRow={() => undefined}
+          onPointRow={() => undefined}
+          pointedRow={null}
         />,
       );
 
@@ -869,6 +891,8 @@ describe('the chart is drawn in calendar days', () => {
         generation={0}
         heightPx={null}
         onPickRow={() => undefined}
+        onPointRow={() => undefined}
+        pointedRow={null}
       />,
     );
 
@@ -905,6 +929,8 @@ describe('the chart is drawn in calendar days', () => {
         generation={0}
         heightPx={null}
         onPickRow={() => undefined}
+        onPointRow={() => undefined}
+        pointedRow={null}
       />,
     );
 
@@ -945,6 +971,8 @@ describe('the chart is drawn in calendar days', () => {
         generation={0}
         heightPx={null}
         onPickRow={() => undefined}
+        onPointRow={() => undefined}
+        pointedRow={null}
       />,
     );
 
@@ -973,6 +1001,8 @@ describe('the chart is drawn in calendar days', () => {
         generation={0}
         heightPx={null}
         onPickRow={() => undefined}
+        onPointRow={() => undefined}
+        pointedRow={null}
       />,
     );
 
@@ -1005,6 +1035,8 @@ describe('the chart is drawn in calendar days', () => {
         generation={0}
         heightPx={null}
         onPickRow={() => undefined}
+        onPointRow={() => undefined}
+        pointedRow={null}
       />,
     );
 
@@ -1036,6 +1068,8 @@ describe('the chart is drawn in calendar days', () => {
         generation={0}
         heightPx={null}
         onPickRow={() => undefined}
+        onPointRow={() => undefined}
+        pointedRow={null}
       />,
     );
 
@@ -1056,6 +1090,8 @@ describe('the chart is drawn in calendar days', () => {
         generation={0}
         heightPx={null}
         onPickRow={() => undefined}
+        onPointRow={() => undefined}
+        pointedRow={null}
       />,
     );
 
@@ -1081,6 +1117,8 @@ describe('the chart is drawn in calendar days', () => {
         generation={0}
         heightPx={null}
         onPickRow={() => undefined}
+        onPointRow={() => undefined}
+        pointedRow={null}
       />,
     );
 
@@ -1123,6 +1161,8 @@ describe('the chart is drawn in calendar days', () => {
         generation={0}
         heightPx={null}
         onPickRow={() => undefined}
+        onPointRow={() => undefined}
+        pointedRow={null}
       />,
     );
 
@@ -1167,6 +1207,8 @@ describe('the chart is drawn in calendar days', () => {
         generation={0}
         heightPx={null}
         onPickRow={() => undefined}
+        onPointRow={() => undefined}
+        pointedRow={null}
       />,
     );
 
@@ -1200,6 +1242,8 @@ describe('the chart is drawn in calendar days', () => {
         generation={0}
         heightPx={null}
         onPickRow={() => undefined}
+        onPointRow={() => undefined}
+        pointedRow={null}
       />,
     );
 
@@ -1227,6 +1271,8 @@ describe('the chart is drawn in calendar days', () => {
         generation={0}
         heightPx={null}
         onPickRow={() => undefined}
+        onPointRow={() => undefined}
+        pointedRow={null}
       />,
     );
     askForTheDetail();
@@ -1283,6 +1329,8 @@ describe('the chart is drawn in calendar days', () => {
         generation={0}
         heightPx={null}
         onPickRow={() => undefined}
+        onPointRow={() => undefined}
+        pointedRow={null}
       />,
     );
 
@@ -1372,6 +1420,8 @@ describe('the marks that had to be seen', () => {
         generation={0}
         heightPx={null}
         onPickRow={() => undefined}
+        onPointRow={() => undefined}
+        pointedRow={null}
       />,
     );
   };
@@ -1504,6 +1554,8 @@ describe('the marks that had to be seen', () => {
           generation={0}
           heightPx={null}
           onPickRow={() => undefined}
+          onPointRow={() => undefined}
+          pointedRow={null}
         />,
       );
 
@@ -1565,6 +1617,8 @@ describe('the marks that had to be seen', () => {
         generation={0}
         heightPx={null}
         onPickRow={() => undefined}
+        onPointRow={() => undefined}
+        pointedRow={null}
       />,
     );
 
@@ -1672,6 +1726,8 @@ describe('the marks that had to be seen', () => {
         generation={0}
         heightPx={null}
         onPickRow={() => undefined}
+        onPointRow={() => undefined}
+        pointedRow={null}
       />,
     );
     // `askForTheDetail`, not `askForTheArrows`: this test arrived with #47
@@ -1816,6 +1872,8 @@ describe('the canvas holds every mark it draws', () => {
         generation={0}
         heightPx={null}
         onPickRow={() => undefined}
+        onPointRow={() => undefined}
+        pointedRow={null}
       />,
     );
     // The routes are the whole fixture, and no route is drawn until they are
@@ -1850,6 +1908,8 @@ describe('the canvas holds every mark it draws', () => {
         generation={0}
         heightPx={null}
         onPickRow={() => undefined}
+        onPointRow={() => undefined}
+        pointedRow={null}
       />,
     );
 
@@ -1888,6 +1948,8 @@ describe('the canvas holds every mark it draws', () => {
         generation={0}
         heightPx={null}
         onPickRow={() => undefined}
+        onPointRow={() => undefined}
+        pointedRow={null}
       />,
     );
     askForTheDetail('[data-assumed]');
@@ -1942,6 +2004,8 @@ describe('the canvas holds every mark it draws', () => {
         generation={0}
         heightPx={null}
         onPickRow={() => undefined}
+        onPointRow={() => undefined}
+        pointedRow={null}
       />,
     );
 
@@ -2010,6 +2074,8 @@ describe('the words on the bars are HTML over the chart', () => {
         generation={0}
         heightPx={null}
         onPickRow={() => undefined}
+        onPointRow={() => undefined}
+        pointedRow={null}
       />,
     );
 
@@ -2064,6 +2130,8 @@ describe('the words on the bars are HTML over the chart', () => {
         generation={0}
         heightPx={null}
         onPickRow={() => undefined}
+        onPointRow={() => undefined}
+        pointedRow={null}
       />,
     );
 
@@ -2088,6 +2156,8 @@ describe('the words on the bars are HTML over the chart', () => {
         generation={0}
         heightPx={null}
         onPickRow={() => undefined}
+        onPointRow={() => undefined}
+        pointedRow={null}
       />,
     );
 
@@ -2103,6 +2173,8 @@ describe('the words on the bars are HTML over the chart', () => {
         generation={0}
         heightPx={null}
         onPickRow={() => undefined}
+        onPointRow={() => undefined}
+        pointedRow={null}
       />,
     );
 
@@ -2146,6 +2218,8 @@ describe('the words on the bars are HTML over the chart', () => {
         scheduleError={null}
         heightPx={null}
         onPickRow={() => undefined}
+        onPointRow={() => undefined}
+        pointedRow={null}
       />,
     );
     const label = labelOn('strip-dev');
@@ -2168,6 +2242,8 @@ describe('the words on the bars are HTML over the chart', () => {
         scheduleError={null}
         heightPx={null}
         onPickRow={() => undefined}
+        onPointRow={() => undefined}
+        pointedRow={null}
       />,
     );
     // An unassigned bar used to write nothing at all — sixty grey bars with no
@@ -2193,6 +2269,8 @@ describe('the words on the bars are HTML over the chart', () => {
         generation={0}
         heightPx={null}
         onPickRow={() => undefined}
+        onPointRow={() => undefined}
+        pointedRow={null}
       />,
     );
 
@@ -2230,6 +2308,8 @@ describe('the words on the bars are HTML over the chart', () => {
         generation={0}
         heightPx={null}
         onPickRow={() => undefined}
+        onPointRow={() => undefined}
+        pointedRow={null}
       />,
     );
 
@@ -2254,6 +2334,8 @@ describe('the axis is a calendar', () => {
         generation={0}
         heightPx={null}
         onPickRow={() => undefined}
+        onPointRow={() => undefined}
+        pointedRow={null}
       />,
     );
 
@@ -2340,6 +2422,8 @@ describe('the axis is a calendar', () => {
         generation={0}
         heightPx={null}
         onPickRow={() => undefined}
+        onPointRow={() => undefined}
+        pointedRow={null}
       />,
     );
 
@@ -2834,6 +2918,8 @@ describe('the label rail indents past the Number cap', () => {
         generation={0}
         heightPx={null}
         onPickRow={() => undefined}
+        onPointRow={() => undefined}
+        pointedRow={null}
       />,
     );
 
@@ -3243,6 +3329,8 @@ describe('the caption follows the scroll', () => {
         generation={0}
         heightPx={null}
         onPickRow={() => undefined}
+        onPointRow={() => undefined}
+        pointedRow={null}
       />,
     );
 
@@ -3348,6 +3436,8 @@ describe('the detail switch', () => {
         generation={0}
         heightPx={null}
         onPickRow={() => undefined}
+        onPointRow={() => undefined}
+        pointedRow={null}
       />,
     );
 
@@ -3542,6 +3632,8 @@ describe('a bar is named and operable without a mouse', () => {
         generation={0}
         heightPx={null}
         onPickRow={picked}
+        onPointRow={() => undefined}
+        pointedRow={null}
       />,
     );
   };
@@ -3628,6 +3720,8 @@ describe('one surface at a time, and it goes when its facts do', () => {
       generation={generation}
       heightPx={null}
       onPickRow={() => undefined}
+      onPointRow={() => undefined}
+      pointedRow={null}
     />
   );
 
@@ -3795,6 +3889,8 @@ describe('the axis says its date, at the chart’s own speed', () => {
         generation={0}
         heightPx={null}
         onPickRow={() => undefined}
+        onPointRow={() => undefined}
+        pointedRow={null}
       />,
     );
 
@@ -3941,6 +4037,8 @@ describe('the dates a bar says are printed by shortIsoDate and nothing else', ()
         generation={0}
         heightPx={null}
         onPickRow={() => undefined}
+        onPointRow={() => undefined}
+        pointedRow={null}
       />,
     );
 
@@ -3989,6 +4087,8 @@ describe('the height the panel is drawn at', () => {
         generation={0}
         heightPx={heightPx}
         onPickRow={() => undefined}
+        onPointRow={() => undefined}
+        pointedRow={null}
       />,
     );
     const panel = document.querySelector('[data-gantt-panel]');
@@ -4007,5 +4107,199 @@ describe('the height the panel is drawn at', () => {
     expect(panel.style.height).toBe('400px');
     expect(panel.style.maxHeight).toBe('80vh');
     expect(panel.classList.contains('max-h-[40vh]')).toBe(false);
+  });
+});
+
+describe('the pointed row', () => {
+  const MONDAY = '2026-06-01' as IsoDate;
+
+  /**
+   * A pointer event of one kind or the other, built by hand.
+   *
+   * jsdom has no `PointerEvent`, so `fireEvent.pointerOver(node, { pointerType
+   * })` builds a plain `Event` and drops the init's `pointerType` — the guard
+   * then reads `undefined` and refuses, and every assertion about the pointer
+   * path passes because nothing was ever pointed. The hover suite above carries
+   * the same helper for the same reason; both are the trap, not a preference.
+   */
+  const pointerEvent = (kind: 'mouse' | 'touch', name: 'pointerover' | 'pointerout'): Event => {
+    const event = new Event(name, { bubbles: true, cancelable: true });
+    Object.defineProperty(event, 'pointerType', { value: kind });
+    Object.defineProperty(event, 'relatedTarget', { value: null });
+    return event;
+  };
+
+  /** Two estimated rows, and a third nobody has estimated at all. */
+  const plan = (): GanttPlan =>
+    planOf({
+      rows: [
+        rowAt('strip', 0, 3, { number: '010', name: 'Strip' }),
+        rowAt('sand', 3, 5, { number: '020', name: 'Sand' }),
+        rowAt('seal', 0, 0, { number: '030', name: 'Seal' }),
+      ],
+      slices: [sliceAt('strip-dev', 'strip', 0, 3), sliceAt('sand-dev', 'sand', 3, 5)],
+    });
+
+  const draw = (
+    pointedRow: string | null,
+    onPointRow: (rowId: string | null, from: 'pointer' | 'focus') => void,
+  ) => (
+    <GanttPanel
+      plan={plan()}
+      startDate={MONDAY}
+      scheduleError={null}
+      generation={0}
+      heightPx={null}
+      onPickRow={() => undefined}
+      onPointRow={onPointRow}
+      pointedRow={pointedRow}
+    />
+  );
+
+  /** The row label button for a work item id. */
+  const labelFor = (rowId: string): Element => {
+    const found = document.querySelector(`[data-gantt-label="${rowId}"]`);
+    if (found === null) throw new Error(`no row label for ${rowId}`);
+    return found;
+  };
+
+  /** The row indices the chart has drawn a pointed band across. */
+  const litBands = (): string[] =>
+    [...document.querySelectorAll('[data-gantt-row-lit]')].map(
+      (rect) => rect.getAttribute('data-gantt-row-lit') ?? '(none)',
+    );
+
+  /** The ids of every row label the chart has lit. */
+  const litLabels = (): string[] =>
+    [...document.querySelectorAll('[data-gantt-label-lit]')].map(
+      (button) => button.getAttribute('data-gantt-label') ?? '(none)',
+    );
+
+  itDom('reports a bar’s row on the pointer, immediately and with no timer', () => {
+    vi.useFakeTimers();
+    try {
+      const pointed: [string | null, string][] = [];
+      render(
+        draw(null, (rowId, from) => {
+          pointed.push([rowId, from]);
+        }),
+      );
+
+      fireEvent(markFor('sand-dev'), pointerEvent('mouse', 'pointerover'));
+
+      // No timer advanced. The 220ms delay is the surface's alone: a tint is
+      // cheap to paint and cheap to be wrong about for a moment, and a reader
+      // deliberately resting on a bar should not wait a fifth of a second to
+      // find out which row it is.
+      expect(pointed).toEqual([['sand', 'pointer']]);
+      expect(screen.queryByRole('tooltip')).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  itDom('reports null when the pointer leaves a bar', () => {
+    const pointed: [string | null, string][] = [];
+    render(
+      draw(null, (rowId, from) => {
+        pointed.push([rowId, from]);
+      }),
+    );
+
+    fireEvent(markFor('strip-dev'), pointerEvent('mouse', 'pointerover'));
+    fireEvent(markFor('strip-dev'), pointerEvent('mouse', 'pointerout'));
+
+    expect(pointed).toEqual([
+      ['strip', 'pointer'],
+      [null, 'pointer'],
+    ]);
+  });
+
+  itDom('reports a bar’s row from the keyboard, as a focus', () => {
+    const pointed: [string | null, string][] = [];
+    render(
+      draw(null, (rowId, from) => {
+        pointed.push([rowId, from]);
+      }),
+    );
+
+    fireEvent.focus(markFor('sand-dev'));
+    fireEvent.blur(markFor('sand-dev'));
+
+    // The `from` is what keeps the two apart in the caller: a bar's blur must
+    // not clear a light the pointer is holding somewhere else.
+    expect(pointed).toEqual([
+      ['sand', 'focus'],
+      [null, 'focus'],
+    ]);
+  });
+
+  itDom('is not pointed by a tap', () => {
+    const pointed: [string | null, string][] = [];
+    render(
+      draw(null, (rowId, from) => {
+        pointed.push([rowId, from]);
+      }),
+    );
+
+    fireEvent(markFor('strip-dev'), pointerEvent('touch', 'pointerover'));
+
+    expect(pointed).toEqual([]);
+  });
+
+  itDom('lights the row label and a band for the row it is handed', () => {
+    render(draw('sand', () => undefined));
+
+    expect(litLabels()).toEqual(['sand']);
+    // Row index 1 — `sand` is the second row — so this is not merely "a band
+    // exists" but "the band is on the pointed row".
+    expect(litBands()).toEqual(['1']);
+  });
+
+  itDom('lights nothing while no row is pointed', () => {
+    render(draw(null, () => undefined));
+
+    expect(litLabels()).toEqual([]);
+    expect(litBands()).toEqual([]);
+  });
+
+  itDom('lights nothing for a row this drawing does not hold', () => {
+    // A row a search has narrowed out of the plan, or one a refetch has taken
+    // away. The id resolves against `chart.labels`, so it finds no row and
+    // draws nothing — rather than a band at row 0, which is what an index
+    // fallback would put on screen.
+    render(draw('a-row-that-is-not-drawn', () => undefined));
+
+    expect(litLabels()).toEqual([]);
+    expect(litBands()).toEqual([]);
+  });
+
+  itDom('is pointable from its row label, which is how a row with no bar is reached', () => {
+    const pointed: [string | null, string][] = [];
+    render(
+      draw(null, (rowId, from) => {
+        pointed.push([rowId, from]);
+      }),
+    );
+
+    // `seal` is estimated by nobody, so the chart draws it no bar at all. Its
+    // label is the only mark it has, and it has to be enough.
+    expect(document.querySelector('[data-gantt-bar="seal-dev"]')).toBeNull();
+
+    fireEvent(labelFor('seal'), pointerEvent('mouse', 'pointerover'));
+    expect(pointed).toEqual([['seal', 'pointer']]);
+
+    fireEvent(labelFor('seal'), pointerEvent('mouse', 'pointerout'));
+    expect(pointed).toEqual([
+      ['seal', 'pointer'],
+      [null, 'pointer'],
+    ]);
+  });
+
+  itDom('lights a band across an unestimated row it is handed', () => {
+    render(draw('seal', () => undefined));
+
+    expect(litLabels()).toEqual(['seal']);
+    expect(litBands()).toEqual(['2']);
   });
 });

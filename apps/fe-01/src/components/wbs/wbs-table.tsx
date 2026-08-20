@@ -1698,6 +1698,53 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
    */
   const [depFocus, setDepFocus] = useState<{ rowId: string; pillId: string | null } | null>(null);
   /**
+   * The **pointed row**, in three states — one per place the answer can come
+   * from — and the rule that each face lights the **other** face's.
+   *
+   * The plan is drawn twice and until these the two drawings said nothing about
+   * each other: which of sixty rows a bar was *for* was a question a reader
+   * answered by counting rows in a 176px label column. `linked-scroll` fixed
+   * the coarse half — the two faces start on the same row — and this is the
+   * per-row half.
+   *
+   * **Why three and not one.** `tablePointedRow` is the pointer on a row here;
+   * the two `chart*` fields are the Gantt panel's reports. They stay apart
+   * because the light has to go to the face the pointer is *not* on:
+   *
+   * - The `<tr>` lights from {@link pointedFromChart} alone. A row the pointer
+   *   is already resting on is a row `tr:hover` is already tinting, and a
+   *   second tint there both says nothing new and **breaks** the banded-hover
+   *   contract: `data-row-lit` on every hovered row makes
+   *   `tr:not([data-row-lit])…:nth-child(even):hover` unmatchable, and the
+   *   stripe stops moving under the pointer at all. Watched — four of
+   *   `e2e/hover-cards.spec.ts`'s assertions failed on it, 2026-08-14.
+   * - The panel lights from {@link pointedAt}, which is either face's answer,
+   *   because the chart has no hover of its own on the row it is asked about.
+   *
+   * The chart's pointer and focus are two fields for {@link depHover} /
+   * {@link depFocus}'s reason: they come and go independently, so one field
+   * would have a bar's blur clearing a light the pointer is holding. The
+   * pointer wins while both are live, because the pointer is where the eyes
+   * are. Bars are controls (`role="button"`, `tabIndex={0}`), so the focus half
+   * is what a reader who never touches a mouse gets — the argument
+   * `dep-hover-highlights` shipped `depFocus` on.
+   *
+   * All three are read on the `<tr>` and passed to the panel, and **never**
+   * inside `columns`: that memo depends on `roles` and `unfoldedRoles` and
+   * nothing else, and a dep added here would hand every cell a new component
+   * type on the first hover and remount the lot, taking the focus and any
+   * half-typed value with it (LLM_README landmine #1).
+   *
+   * Proof: `chartPointedRow` added to the `columns` memo's dependency list, and
+   * `points a row without remounting the cells under a half-typed name` failed
+   * on `expected <textarea …(5)></textarea> to be <textarea …(5)></textarea>` —
+   * the same-labelled box a different node, the cell remounted under the
+   * typist. Watched 2026-08-14.
+   */
+  const [tablePointedRow, setTablePointedRow] = useState<string | null>(null);
+  const [chartPointedRow, setChartPointedRow] = useState<string | null>(null);
+  const [chartFocusedRow, setChartFocusedRow] = useState<string | null>(null);
+  /**
    * The `@` mention open in a folded role's cell: whose cell, and what has been
    * typed after the `@`.
    *
@@ -6631,6 +6678,29 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
   })();
 
   /**
+   * The row the **chart** says the pointer or a bar's focus is on, which is the
+   * only thing the table's own rows light from.
+   *
+   * The pointer's reading wins over a focused bar's, for the reason `depLit`'s
+   * own `depHover ?? depFocus` does: the pointer is where the eyes are.
+   */
+  const pointedFromChart: string | null = chartPointedRow ?? chartFocusedRow;
+  /**
+   * The one work item the **panel** lights, from either face.
+   *
+   * The table's own hover comes first: while the pointer is on a row here, that
+   * row is what the reader is asking about, and a bar that still held the
+   * keyboard focus from earlier is not.
+   *
+   * A row the tree no longer holds is **not** filtered out, and that is
+   * deliberate rather than an omission: the id is only ever compared against
+   * the rows being drawn, so a pointed row that has been refetched away lights
+   * nothing and needs no lookup to say so. `depLit` has to search `flat`
+   * because it resolves an id into *other* ids; this resolves nothing.
+   */
+  const pointedAt: string | null = tablePointedRow ?? pointedFromChart;
+
+  /**
    * What the Gantt panel draws, from the rows the renderer is drawing.
    *
    * **`shownRows`, not the row model**, and that is the whole of the mirroring:
@@ -7538,6 +7608,49 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
                     // for `data-armed`'s reason: a pinned cell paints its own
                     // opaque background and would cover a colour set here.
                     data-dep-lit={depLit.has(row.original.id) ? 'true' : undefined}
+                    // Lit because the pointer, or a bar's focus, is on this
+                    // row's mark **on the chart**. From `pointedFromChart` and
+                    // never `pointedAt`: a row the pointer is resting on here is
+                    // already tinted by `tr:hover`, and writing this on it as
+                    // well made `tr:not([data-row-lit])…:nth-child(even):hover`
+                    // unmatchable and stopped the stripe moving under the
+                    // pointer at all — see the state's own doc.
+                    //
+                    // A **second attribute** beside `data-dep-lit` rather than a
+                    // reuse of it: the two share the tint and not the meaning,
+                    // and `data-dep-lit` is read by tests and by a reader as
+                    // "some Depends on cell waits for this row", which a bar's
+                    // hover would make untrue. The tint lands on the cells
+                    // through `--cell-bg` for the reason above.
+                    data-row-lit={pointedFromChart === row.original.id ? 'true' : undefined}
+                    // Enter and leave, not over and out: a pointer moving from
+                    // one `<td>` of this row to the next fires `pointerout` on
+                    // the first, and reading that as a departure would clear
+                    // the light halfway across the row it is meant to be on.
+                    // React synthesizes these two from over/out and decides
+                    // "left" from where the pointer went, which is the question
+                    // being asked.
+                    onPointerEnter={(pointer) => {
+                      // **The touch seam.** Chromium synthesizes a whole mouse
+                      // sequence from a tap, so a row lit on a mouse event
+                      // lights on every tap as well — and a tap has no
+                      // departure behind it, so the light would then be stuck
+                      // on whatever was touched last. The bar's own
+                      // `onPointerOver` carries this guard for the same reason.
+                      if (pointer.pointerType !== 'mouse') return;
+                      setTablePointedRow(row.original.id);
+                    }}
+                    onPointerLeave={(pointer) => {
+                      if (pointer.pointerType !== 'mouse') return;
+                      // Cleared only if this row is still the pointed one. A
+                      // departure from a row the pointer has already left —
+                      // which is the order the events arrive in when it moves
+                      // straight to the next row — would otherwise clear the
+                      // light the arrival had just set.
+                      setTablePointedRow((pointed) =>
+                        pointed === row.original.id ? null : pointed,
+                      );
+                    }}
                     // The armed row, said on the row rather than only in the
                     // toast: a sentence in the corner of the screen is not where
                     // somebody looks to find out which row a second Ctrl+D will
@@ -7656,6 +7769,15 @@ export function WbsTable({ projectId, projectName, api, subscribe }: WbsTablePro
             generation={chartRead.generation}
             heightPx={ganttHeightPx}
             onPickRow={goToRow}
+            // The panel reports which row the pointer or a bar's focus is on,
+            // and is handed back the answer both faces light. The two halves go
+            // to their own state for {@link pointedRow}'s reason: a bar's blur
+            // must not clear a light the pointer is holding.
+            onPointRow={(rowId, from) => {
+              if (from === 'pointer') setChartPointedRow(rowId);
+              else setChartFocusedRow(rowId);
+            }}
+            pointedRow={pointedAt}
           />
         </GanttFaultBoundary>
       )}

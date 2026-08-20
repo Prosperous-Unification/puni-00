@@ -275,12 +275,32 @@ The second drawing of the plan: every shown row as marks on a calendar axis, und
 plan renderer and mirroring its rows. Read-only — edits happen where they always did.
 _Avoid_: chart, timeline, gantt view
 
+**Row label**:
+A work item's number and name as the Gantt panel prints them, in the fixed column to the
+left of the marks. The panel's own naming of the row a mark sits on, indented to the plan's
+outline, and a control: clicking one takes the plan to that row.
+_Avoid_: label column, gutter, row header, legend
+
 **Linked scroll**:
 The one row the plan renderer and the Gantt panel are both showing first. Scrolling either
 vertically brings the other to that row, whichever was scrolled; sideways they are
 independent, because the columns on screen and the part of the calendar on screen are
 different facts. Rows and not pixels: the two faces do not draw a row at the same height.
 _Avoid_: scroll sync, scroll lock, pinned scroll
+
+**Pointed row**:
+The one work item both faces of the plan agree the pointer is on, lit in three places at
+once: the plan renderer's row, the Gantt panel's label for it, and a band across its Gantt
+row. One at a time, from whichever face the pointer is over or a bar holds the focus. The
+second thing the two faces share, after the linked scroll, and it moves nothing — nothing
+scrolls to a pointed row.
+_Avoid_: hovered row, active row, current row, selection, highlight
+
+**Row light**:
+The tint a row is painted to say it is being pointed at — one colour for every cause,
+because there is one pointer and so only ever one reason on screen at a time. What a
+hovered Depends on cell paints the rows it waits for, and what a pointed row is painted.
+_Avoid_: highlight colour, selection colour, active background
 
 **Calendar axis**:
 The Gantt panel's horizontal scale on a plan that has a start date: one unit and one

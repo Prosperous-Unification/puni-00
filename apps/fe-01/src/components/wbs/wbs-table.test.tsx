@@ -7425,6 +7425,190 @@ describe('hovering a dependency lights the rows it names', () => {
   });
 });
 
+describe('the pointed row', () => {
+  /**
+   * A pointer event of one kind or the other, built by hand.
+   *
+   * jsdom has no `PointerEvent`, so `fireEvent.pointerOver(node, { pointerType
+   * })` builds a plain `Event` and drops the init's `pointerType` — the guard
+   * then reads `undefined` and refuses, and every assertion about the pointer
+   * path passes because nothing was ever pointed. `gantt-panel.test.tsx` has
+   * the same helper for the same reason; both are the trap, not a preference.
+   */
+  const pointerEvent = (kind: 'mouse' | 'touch', name: 'pointerover' | 'pointerout'): Event => {
+    const event = new Event(name, { bubbles: true, cancelable: true });
+    Object.defineProperty(event, 'pointerType', { value: kind });
+    // React synthesizes `onPointerEnter`/`onPointerLeave` from over/out, and
+    // decides "left the row" from where the pointer went. Null is out of the
+    // document, which is the departure the row's handler is about.
+    Object.defineProperty(event, 'relatedTarget', { value: null });
+    return event;
+  };
+
+  /** The `<tr>` a row number stands on. */
+  const trOf = (number: string): HTMLElement => {
+    const found = [...document.querySelectorAll('tbody tr')].find(
+      (tr) => tr.querySelector('[data-number]')?.textContent === number,
+    );
+    if (!(found instanceof HTMLElement)) throw new Error(`no row for ${number}`);
+    return found;
+  };
+
+  /** A bar on the open chart, found by the row it names. */
+  const barOf = (number: string): Element => {
+    const found = document.querySelector(`[data-gantt-bar][aria-label^="${number} - "]`);
+    if (found === null) throw new Error(`no bar on the chart for ${number}`);
+    return found;
+  };
+
+  /** The row label on the open chart, found by the words it prints. */
+  const labelOf = (number: string): Element => {
+    const found = [...document.querySelectorAll('[data-gantt-label]')].find((button) =>
+      button.textContent.startsWith(`${number} - `),
+    );
+    if (found === undefined) throw new Error(`no row label for ${number}`);
+    return found;
+  };
+
+  /** The numbers of every table row lit as pointed, in document order. */
+  const litRows = (): string[] =>
+    [...document.querySelectorAll('tr[data-row-lit]')].map((tr) => {
+      const number = tr.querySelector('[data-number]')?.textContent;
+      if (number == null) throw new Error('a pointed row has no number cell');
+      return number;
+    });
+
+  /** The row indices of every pointed band the chart has drawn. */
+  const litBands = (): string[] =>
+    [...document.querySelectorAll('[data-gantt-row-lit]')].map(
+      (rect) => rect.getAttribute('data-gantt-row-lit') ?? '(none)',
+    );
+
+  /**
+   * Three estimated roots with the chart open beneath them.
+   *
+   * The chart is opened rather than left shut, because what is under test is the
+   * wiring **between** the two faces: a suite that only hovered rows in the
+   * table would be asserting the absence of a light with nothing to light.
+   */
+  async function planWithTheChartOpen() {
+    const api = await threeRoots();
+    // `threeRoots` unfolds Dev, so the three points are three boxes rather than
+    // the folded cell's one.
+    for (const number of ['010', '020', '030']) {
+      for (const [point, days] of [
+        ['optimistic', '2'],
+        ['realistic', '3'],
+        ['pessimistic', '4'],
+      ]) {
+        const box = screen.getByLabelText(`Dev ${point} for ${number}`);
+        fireEvent.change(box, { target: { value: days } });
+        fireEvent.blur(box);
+      }
+      await waitFor(() => {
+        expect(screen.getByLabelText(`Dev realistic for ${number}`)).toHaveProperty('value', '3');
+      });
+    }
+    fireEvent.click(screen.getByRole('button', { name: 'Gantt' }));
+    await waitFor(() => {
+      expect(document.querySelector('[data-gantt-bar]')).not.toBeNull();
+    });
+    return api;
+  }
+
+  itDom('lights the table row from a bar, and clears when the pointer leaves', async () => {
+    await planWithTheChartOpen();
+    expect(litRows()).toEqual([]);
+
+    fireEvent(barOf('020'), pointerEvent('mouse', 'pointerover'));
+
+    expect(litRows()).toEqual(['020']);
+    expect(litBands()).toEqual(['1']);
+
+    fireEvent(barOf('020'), pointerEvent('mouse', 'pointerout'));
+    expect(litRows()).toEqual([]);
+    expect(litBands()).toEqual([]);
+  });
+
+  itDom('lights the chart from a table row, and not the row itself', async () => {
+    await planWithTheChartOpen();
+
+    fireEvent(trOf('030'), pointerEvent('mouse', 'pointerover'));
+
+    // The chart answers, which is the point of the gesture.
+    expect(litBands()).toEqual(['2']);
+    expect(labelOf('030').getAttribute('data-gantt-label-lit')).toBe('true');
+
+    // And the row does **not** light itself. `tr:hover` is already tinting it,
+    // and `data-row-lit` here makes the banded-hover rule unmatchable — four of
+    // `e2e/hover-cards.spec.ts`'s assertions failed on exactly that, 2026-08-14.
+    expect(litRows()).toEqual([]);
+  });
+
+  itDom('points one row at a time', async () => {
+    await planWithTheChartOpen();
+
+    fireEvent(barOf('010'), pointerEvent('mouse', 'pointerover'));
+    expect(litRows()).toEqual(['010']);
+
+    // Straight to another bar without a departure in between, which is what a
+    // pointer crossing the chart does. Exactly one row stays lit.
+    fireEvent(barOf('030'), pointerEvent('mouse', 'pointerover'));
+    expect(litRows()).toEqual(['030']);
+    expect(litBands()).toEqual(['2']);
+  });
+
+  itDom('is pointed by a bar’s focus, and the pointer outranks it', async () => {
+    await planWithTheChartOpen();
+
+    fireEvent.focus(barOf('010'));
+    expect(litRows()).toEqual(['010']);
+
+    // A pointer elsewhere wins while both are live: the pointer is where the
+    // eyes are. One field for both would have made this impossible to express.
+    fireEvent(barOf('030'), pointerEvent('mouse', 'pointerover'));
+    expect(litRows()).toEqual(['030']);
+
+    // And losing the pointer falls back to the focus rather than to nothing.
+    fireEvent(barOf('030'), pointerEvent('mouse', 'pointerout'));
+    expect(litRows()).toEqual(['010']);
+  });
+
+  itDom('is not pointed by a tap', async () => {
+    await planWithTheChartOpen();
+
+    // Chromium synthesizes a whole mouse sequence from a tap, so a row lit on a
+    // mouse event lights on every tap as well — and a tap has no departure to
+    // clear it, so the light would be stuck on whatever was touched last.
+    fireEvent(barOf('020'), pointerEvent('touch', 'pointerover'));
+    expect(litRows()).toEqual([]);
+
+    fireEvent(trOf('020'), pointerEvent('touch', 'pointerover'));
+    expect(litBands()).toEqual([]);
+  });
+
+  itDom('points a row without remounting the cells under a half-typed name', async () => {
+    // The landmine: `columns` may depend on `roles` and `unfoldedRoles` and
+    // nothing else. A `columns` that rebuilt on a pointed row would hand every
+    // cell a new component type on the first hover and React would remount the
+    // lot, dropping the focus to the body and the half-typed name with it. The
+    // lit row is asserted first so this cannot pass vacuously on a hover that
+    // wrote nothing.
+    await planWithTheChartOpen();
+    const input = screen.getByLabelText('Name of 010');
+    input.focus();
+    fireEvent.change(input, { target: { value: 'Strip the old wir' } });
+    expect(document.activeElement).toBe(input);
+
+    fireEvent(barOf('030'), pointerEvent('mouse', 'pointerover'));
+
+    expect(litRows()).toEqual(['030']);
+    expect(screen.getByLabelText('Name of 010')).toBe(input);
+    expect(document.activeElement).toBe(input);
+    expect(input).toHaveProperty('value', 'Strip the old wir');
+  });
+});
+
 describe('the chart under a plan being edited', () => {
   /**
    * An api whose schedule moves when a not-before lands, the way be-01's does.

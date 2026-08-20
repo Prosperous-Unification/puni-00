@@ -1042,6 +1042,8 @@ export function GanttPanel({
   generation,
   heightPx,
   onPickRow,
+  onPointRow,
+  pointedRow,
 }: GanttProps) {
   // The cycle answer is a different panel rather than a branch inside one, and
   // that is what lets {@link GanttChart} hold its hooks unconditionally: this
@@ -1064,6 +1066,8 @@ export function GanttPanel({
       generation={generation}
       heightPx={heightPx}
       onPickRow={onPickRow}
+      onPointRow={onPointRow}
+      pointedRow={pointedRow}
     />
   );
 }
@@ -1095,6 +1099,29 @@ interface GanttProps {
   heightPx: number | null;
   /** Takes the plan to a row — the caller decides what "takes" means. */
   onPickRow: (rowId: string) => void;
+  /**
+   * Says which row the pointer is on, or null when it is on none of them.
+   *
+   * The panel reports rather than decides, because the **pointed row** is a fact
+   * about the plan and not about this drawing of it: the table lights the same
+   * row from the same id, and the caller is the only place that holds both.
+   *
+   * Called on the pointer arriving and leaving, and on a bar taking and losing
+   * the keyboard focus — the focus half because bars are controls, and a
+   * hover-only answer is no answer to somebody who never touches a mouse.
+   */
+  onPointRow: (rowId: string | null, from: 'pointer' | 'focus') => void;
+  /**
+   * The pointed row as the caller has resolved it, which this panel lights on
+   * its row label and as a band across its row.
+   *
+   * Passed back in rather than kept here: the pointer may be on the **table**,
+   * and a panel that lit only what it was hovered on itself would answer half
+   * the question. Never resolved against the rows drawn here — an id this
+   * drawing does not hold simply lights nothing, which is what a row filtered
+   * out of the plan should do.
+   */
+  pointedRow: string | null;
 }
 
 /**
@@ -1127,6 +1154,8 @@ function GanttChart({
   generation,
   heightPx,
   onPickRow,
+  onPointRow,
+  pointedRow,
 }: Omit<GanttProps, 'scheduleError'>) {
   // How far the chart is scrolled, in CSS pixels. Held only so the caption can
   // name the month actually on screen.
@@ -1346,6 +1375,22 @@ function GanttChart({
   const chartWidth = days * DAY_PX + 2 * CHART_PAD_PX;
   const rowIdAt = (rowIndex: number): string | undefined => chart.labels[rowIndex]?.id;
   /**
+   * Reports the row at `rowIndex` as the pointed one.
+   *
+   * The mark's own row rather than a `workItemId` on the mark: every mark is
+   * placed on a row by {@link layOutGantt} and {@link rowIdAt} is the join the
+   * click handlers already use, so a second copy of the id on every bar would
+   * be a field that could disagree with where the bar is drawn.
+   *
+   * A `rowIndex` naming no row is not a state this can be in, for the reason
+   * the click handlers give — so nothing is reported rather than a null, which
+   * would clear a light some other mark had just set.
+   */
+  const pointRow = (rowIndex: number, from: 'pointer' | 'focus'): void => {
+    const rowId = rowIdAt(rowIndex);
+    if (rowId !== undefined) onPointRow(rowId, from);
+  };
+  /**
    * The first cell at least partly visible right of the sticky labels. The
    * labels overlay the scroll content's left edge, so the first chart pixel on
    * screen sits `scrolledPx` past the pad in the chart's own coordinates.
@@ -1510,6 +1555,11 @@ function GanttChart({
               key={label.id}
               type="button"
               data-gantt-label={label.id}
+              // Lit because this is the **pointed row**, wherever the pointer
+              // is: on this label, on a bar of its row, or on the row in the
+              // table above. The attribute is what the browser gate selects on;
+              // the tint is the class below.
+              data-gantt-label-lit={pointedRow === label.id ? 'true' : undefined}
               // The same words the button shows, so a label the column has
               // truncated can still be read whole on hover.
               //
@@ -1530,9 +1580,35 @@ function GanttChart({
               // label stands two steps deeper than a depth-4 one, where the
               // Number cell's capped indent would draw them flush.
               style={{ height: ROW_PX, paddingLeft: hierarchyIndentFor(label.depth) + 8 }}
-              className="hover:bg-accent block w-full truncate pr-2 text-left text-xs"
+              // The lit tint after `hover:bg-accent` so it wins where both
+              // apply, which is every time the pointer is on the label itself.
+              // `data-[…]` rather than a ternary on the class string: the
+              // attribute above is already the condition, and two spellings of
+              // one condition can disagree.
+              className="hover:bg-accent block w-full truncate pr-2 text-left text-xs data-[gantt-label-lit]:bg-(--grid-dep-lit)"
               onClick={() => {
                 onPickRow(label.id);
+              }}
+              // The label is a pointable row in its own right, which is what
+              // makes a row with **no bar** reachable: nobody has estimated it,
+              // so the chart draws nothing on its row, and this column is the
+              // only mark it has.
+              onPointerEnter={(pointer) => {
+                // The touch seam, as on the bars and on the table's rows: a tap
+                // synthesizes a mouse sequence and has no departure behind it,
+                // so a light set here would be stuck.
+                if (pointer.pointerType !== 'mouse') return;
+                onPointRow(label.id, 'pointer');
+              }}
+              onPointerLeave={(pointer) => {
+                if (pointer.pointerType !== 'mouse') return;
+                onPointRow(null, 'pointer');
+              }}
+              onFocus={() => {
+                onPointRow(label.id, 'focus');
+              }}
+              onBlur={() => {
+                onPointRow(null, 'focus');
               }}
             >
               {rowWords(label.number, label.name)}
@@ -1657,6 +1733,38 @@ function GanttChart({
                     width={days}
                     height={1}
                     className="fill-muted/40"
+                  />
+                ))}
+
+              {/*
+                The **pointed row**, as a band across the whole chart.
+
+                The chart's own answer to lighting a `<tr>`, and a band rather
+                than anything on the bars because the two channels a bar has are
+                taken: its stroke is the critical path and its fill-opacity is
+                an unestimated span, so a ring or a brightness lift here would
+                say something the chart already says with those. A band also
+                answers on a row that has **no** bar, which a mark on the bars
+                cannot.
+
+                After the zebra bands, so it wins on the odd rows they cover,
+                and before the gridlines and every mark, so nothing the reader
+                is looking at is painted over. Drawn only when a row is pointed
+                — the rows are `chart.labels`, so an id this drawing does not
+                hold finds no row and draws nothing, which is what a row
+                scrolled out of the plan by a search should do.
+              */}
+              {chart.labels
+                .filter((label) => label.id === pointedRow)
+                .map((label) => (
+                  <rect
+                    key={`${label.id}-pointed`}
+                    data-gantt-row-lit={label.rowIndex}
+                    x={0}
+                    y={label.rowIndex}
+                    width={days}
+                    height={1}
+                    className="fill-(--grid-dep-lit)"
                   />
                 ))}
 
@@ -1987,20 +2095,35 @@ function GanttChart({
                     // the row the tap was taking the reader to. The pointer
                     // events are the only ones that say which they came from.
                     if (pointer.pointerType !== 'mouse') return;
+                    // Before the timer and never inside it: the pointed row is
+                    // a tint, which is cheap to paint and cheap to be wrong
+                    // about for a moment, while the surface is a card that
+                    // covers the chart. So the light is immediate and the card
+                    // still waits out {@link HOVER_OPEN_MS} — a pointer
+                    // crossing eight bars lights eight rows in turn, which
+                    // reads as a trail, and opens no cards at all.
+                    pointRow(bar.rowIndex, 'pointer');
                     const mark = pointer.currentTarget;
                     cancelOpening();
                     opening.current = setTimeout(() => {
                       showSurface(bar.sliceId, mark);
                     }, HOVER_OPEN_MS);
                   }}
-                  onPointerOut={dismiss}
+                  onPointerOut={(pointer) => {
+                    if (pointer.pointerType === 'mouse') onPointRow(null, 'pointer');
+                    dismiss();
+                  }}
                   // No delay on the keyboard: focus is deliberate, and there is
                   // no crossing of the chart to protect a reader from.
                   onFocus={(focus) => {
+                    pointRow(bar.rowIndex, 'focus');
                     cancelOpening();
                     showSurface(bar.sliceId, focus.currentTarget);
                   }}
-                  onBlur={dismiss}
+                  onBlur={() => {
+                    onPointRow(null, 'focus');
+                    dismiss();
+                  }}
                 />
               ))}
 

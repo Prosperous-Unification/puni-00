@@ -647,28 +647,49 @@
   /*
    * The same pointer on a banded row, which already carries the band's ink.
    *
-   * The two `:not()`s are what keeps "lit" and "would land here" winning over
+   * The three `:not()`s are what keeps "lit" and "would land here" winning over
    * "under the pointer", and source order is **not** what does it. This
-   * selector is `(0, 5, 2)` — one attribute, four pseudo-classes, two types,
+   * selector is `(0, 6, 2)` — one attribute, five pseudo-classes, two types,
    * and `:not()` takes the weight of its argument — against `(0, 2, 2)` for
-   * both `[data-grid] tbody tr[data-dep-lit]` below and `[data-grid] tbody
-   * tr[data-drop='into']` at the foot of this file. It outranks both, so
-   * putting it first decides nothing; the only thing that can hold those two
-   * up is this rule declining to match their rows at all.
+   * each of `[data-grid] tbody tr[data-dep-lit]` and `[data-grid] tbody
+   * tr[data-row-lit]` below and `[data-grid] tbody tr[data-drop='into']` at the
+   * foot of this file. It outranks all three, so putting it first decides
+   * nothing; the only thing that can hold them up is this rule declining to
+   * match their rows at all.
    *
    * That is not hypothetical. `data-dep-lit` is written from `depHover ??
    * depFocus`, and the *focus* half lights a row while the pointer rests
    * somewhere else entirely: Tab into `030`'s Depends on box with the pointer
-   * over `020`, and before these two `:not()`s the light held on an odd row
+   * over `020`, and before these `:not()`s the light held on an odd row
    * and was overpainted by the band's hover on an even one. A highlight that
    * behaves differently on alternate stripes is the defect class this whole
    * change exists to remove.
+   *
+   * `data-row-lit` walked into it a second time, in `linked-row-hover`, and the
+   * *reason* is worth stating because the obvious one is wrong. A pointed row
+   * written from a **bar** cannot collide here at all: `:hover` needs the
+   * pointer on the `<tr>`, and pointing from the chart leaves it unmatched, so
+   * this rule never competes. The collision is the pointer resting on an
+   * **even-striped table row**, which lights it and hovers it at once — and
+   * then this heavier selector paints `--grid-band-hover` over the row light.
+   *
+   * Watched, and watched wrong first: with the negative written from a bar it
+   * passed with `data-row-lit` out of this chain — a check that could not fail.
+   * Rewritten to point from the table, `lights the same colour on an even row
+   * as on an odd one` then failed on `Expected "oklab(0.96448 …)" Received
+   * "oklab(0.917255 …)"`. Both runs 2026-08-14;
+   * `openspec/changes/linked-row-hover/verify.md` has them.
+   *
+   * Anything added to the two rules below has to join this chain, and its
+   * negative has to hover the row it is about.
    *
    * `[data-drop='into']` and not `[data-drop]`: `above` and `below` draw an
    * edge on the `<td>`s and leave `--cell-bg` alone, so a row being dragged
    * past keeps its hover.
    */
-  [data-grid] tbody tr:not([data-dep-lit]):not([data-drop='into']):nth-child(even):hover {
+  [data-grid]
+    tbody
+    tr:not([data-dep-lit]):not([data-row-lit]):not([data-drop='into']):nth-child(even):hover {
     --cell-bg: var(--grid-band-hover);
   }
 
@@ -691,6 +712,26 @@
    * `openspec/changes/dep-hover-highlights/verify.md` has the runs.
    */
   [data-grid] tbody tr[data-dep-lit] {
+    --cell-bg: var(--grid-dep-lit);
+  }
+
+  /*
+   * The **pointed row**: the one row the pointer is on, whichever face of the
+   * plan it is over — this table, or a bar or row label on the Gantt panel.
+   * Written by `wbs-table.tsx`'s `pointedAt`.
+   *
+   * The same ink as `data-dep-lit` above and a **different attribute**. The ink
+   * is shared because there is one pointer, so the two causes can never be on
+   * screen at once and one tint is never ambiguous about which it means; the
+   * attribute is not, because `data-dep-lit` says "some Depends on cell waits
+   * for this row" to a reader and to the tests that select on it, and a bar's
+   * hover would make that untrue.
+   *
+   * Re-points `--cell-bg` rather than setting a background here, for the reason
+   * `tr:hover` does: a pinned cell paints its own opaque background and follows
+   * the row only through that join.
+   */
+  [data-grid] tbody tr[data-row-lit] {
     --cell-bg: var(--grid-dep-lit);
   }
 

@@ -90,6 +90,9 @@ contract: `docs/runbook-prod-deploy.md`.**
 
 - **`columns` in `wbs-table.tsx` depends on `roles` alone**, and `roles` is replaced only when its
   content differs. Anything else remounts every cell and eats the focus; see the `live` ref. Widths resolve through `table-frame.ts`'s `frameLayout` and never enter a column definition.
+- **Row tints in `styles.css` go by predicate, not source order.** A new `data-*-lit` must join the
+  banded-hover rule's `:not()` chain and never land on a row the pointer already hovers, or the rule
+  is unmatchable and the stripe stops moving. Its negative must hover that row (`linked-row-hover`).
 - `caddy reload` **exits 0 when it did nothing**. Verify against the admin API, never the exit
   code. The check parses the route for this environment's host and reads the upstream on the
   tier's port (`routedColorFromAdminConfig`); a substring test until 2026-08-04, which matched
@@ -104,9 +107,9 @@ contract: `docs/runbook-prod-deploy.md`.**
 - **Migrations must be backward-compatible** — blue and green share one DB. `--stop-the-world` refuses.
   The pre-commit lint catches the obvious destructive statements; the actual compatibility judgement
   is yours, asserted by passing `--with-migrations`.
-- **`bun run e2e` reuses whatever holds 3100/3200/4200** (`reuseExistingServer: !isCi`), another
-  checkout's `bun run dev` included — 66 tests green against code this tree never built,
-  2026-08-09. Check what owns :4200 before believing a local green.
+- **`bun run e2e` reuses whatever holds 3100/3200/4200** (`reuseExistingServer: !isCi`) — 66 tests
+  green against another checkout, 2026-08-09; a reused server also keeps its own `DB_PATH`, so
+  signups land in your `local.db`. Use `CI=1 bunx playwright test --config …`, ports free.
 - `.dockerignore` is **not recursive**: `**/*.db`, not `*.db`.
 - Server umask is `0002` — create sensitive files with their mode from birth, never chmod after
   (`configure.sh` does not yet honour this; see findings).
@@ -121,13 +124,12 @@ Both open findings are **prod-phase** (Dany, 2026-08-06): recorded, not pending.
    commit means checking it out and rebuilding.
 2. `configure.sh`'s root phase never run on a fresh host; only the plan is tested.
 
-Findings 3–5 closed 2026-08-06, pruned here for the cap: the cell input's React `key`, the smoke's
-direct `/internal/forward`, health endpoints as status flags (a deleted DB file still passes them).
+Findings 3–5 closed 2026-08-06; their detail is pruned for the cap.
 
 Lower priority: fe/smoke health accepts any non-empty body; the WS ping passes on any first
 message _containing_ `"pong"`; drain reads a malformed metrics body as zero live sockets;
-`tool-secrets` only prints what it would run. Checks that cannot fail: **seventeen**, tallied
-in `AGENTS.md` under R5.
+`tool-secrets` only prints what it would run. Checks that cannot fail: **eighteen**, tallied in
+`AGENTS.md` under R5.
 
 ## More
 
