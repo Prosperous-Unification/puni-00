@@ -104,6 +104,7 @@ function fakeDirectory(
       return Promise.resolve(held.map((person) => ({ ...person })));
     },
     listTeams: () => Promise.resolve(heldTeams.map((team) => ({ ...team }))),
+    listTags: () => Promise.resolve([]),
     addPerson(name: string, teamIds: readonly string[]) {
       api.added.push(name);
       const person = { id: `p${String(held.length + 1)}`, name, teamIds: [...teamIds] };
