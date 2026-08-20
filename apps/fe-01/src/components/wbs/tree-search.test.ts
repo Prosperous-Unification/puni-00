@@ -13,6 +13,7 @@ import {
 /** A row carrying no facet at all, which is what every row is unless a test says otherwise. */
 const NO_FACETS: RowFacets = {
   teamIds: [],
+  tagIds: [],
   assigneeIds: [],
   priorityBand: null,
   estimatedRoleIds: [],
@@ -360,5 +361,66 @@ describe('what the filter says it is asking', () => {
 
   it('leaves out a facet nothing was chosen from', () => {
     expect(filterWords(asking({ assigneeIds: ['kat'] }), LABELS)).toEqual(['assignee Kat']);
+  });
+});
+
+describe('the tag facet reads the effective tags, never the stored ones', () => {
+  /**
+   * A parent that is `regulatory` and two rows under it that state nothing.
+   *
+   * This shape **is** the test: the children carry no tag of their own and are
+   * regulatory all the same, because a tag reaches down exactly as a team does.
+   * A tree where every row stated its own tags could not tell a correct filter
+   * from one reading stored labels.
+   */
+  const INHERITED: NarrowableRow[] = [
+    row('a', null, 'Rewire the consumer unit', { tagIds: ['regulatory'] }),
+    row('a1', 'a', 'Sockets', {}),
+    row('a11', 'a1', 'Back boxes', {}),
+    row('b', null, 'Paint', { tagIds: ['tech-debt'] }),
+  ];
+
+  it('finds a row that inherits the tag, not only the row that states it', () => {
+    // Proof: `narrowTree`'s tag predicate pointed at a row's own stored labels
+    // instead of `row.facets.tagIds` — which in this module means building the
+    // facets from the stored set — and this fails with only `a` matching: a
+    // reader filtering by `regulatory` is shown the parent and none of the work
+    // under it, which is the whole of the plan that is actually regulatory.
+    // This is the class of bug this repo has shipped twice. Watched 2026-08-20.
+    const narrowed = narrowTree(INHERITED, asking({ tagIds: ['regulatory'] }));
+
+    expect(ids(narrowed.matchIds)).toEqual(['a', 'a1', 'a11']);
+    expect(ids(narrowed.visibleIds)).toEqual(['a', 'a1', 'a11']);
+  });
+
+  it('is OR within the facet and AND against another', () => {
+    // The reading every other facet has, asserted for this one rather than
+    // assumed: two tags ticked is either of them, and a tag beside a team is
+    // both.
+    expect(ids(narrowTree(INHERITED, asking({ tagIds: ['regulatory', 'tech-debt'] })).matchIds))
+      .toEqual(['a', 'a1', 'a11', 'b']);
+    expect(
+      ids(narrowTree(INHERITED, asking({ tagIds: ['regulatory'], teamIds: ['platform'] })).matchIds),
+    ).toEqual([]);
+  });
+
+  it('narrows to nothing for a tag no row carries, rather than to everything', () => {
+    // A tag deleted from the directory while a saved view still names it. Empty
+    // means empty — the same rule every other facet takes.
+    expect(ids(narrowTree(INHERITED, asking({ tagIds: ['gone'] })).matchIds)).toEqual([]);
+  });
+
+  it('says what it is asking, in its own phrase', () => {
+    // The filtered export's `Scope` line. Its own phrase beside the team's,
+    // because folding two independent dimensions into one would describe a
+    // filter neither the control nor the predicate means.
+    expect(
+      filterWords(asking({ teamIds: ['platform'], tagIds: ['regulatory', 'tech-debt'] }), {
+        teamName: (id) => `team-${id}`,
+        tagName: (id) => `tag-${id}`,
+        personName: (id) => id,
+        phaseName: (id) => id,
+      }),
+    ).toEqual(['team team-platform', 'tag tag-regulatory or tag-tech-debt']);
   });
 });
